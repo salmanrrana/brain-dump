@@ -35,7 +35,7 @@
         "Migration system working (drizzle-kit)",
         "Can run migrations with pnpm db:migrate"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-003",

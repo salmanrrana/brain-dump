@@ -17,3 +17,9 @@ PRD: plans/prd.json
 - Files: package.json, tsconfig.json, eslint.config.js, .prettierrc, src/routes/index.tsx, src/components/Header.tsx, src/app.test.ts
 - Notes: Initialized TanStack Start with strict TypeScript, Tailwind, ESLint, Prettier, Vitest. Removed demo routes. All checks pass.
 
+### 2026-01-08 - BD-002
+- Task: SQLite database with Drizzle ORM
+- Success: true
+- Files: src/lib/schema.ts, src/lib/db.ts, src/lib/db.test.ts, drizzle.config.ts, drizzle/0000_nebulous_hemingway.sql, package.json
+- Notes: Drizzle ORM with better-sqlite3. Schema for projects, epics, tickets with FK constraints and indexes. DB at ~/.brain-dump/brain-dump.db. 4 database tests pass.
+
