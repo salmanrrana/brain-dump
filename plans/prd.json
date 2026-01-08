@@ -1,0 +1,355 @@
+{
+  "project": "brain-dumpy",
+  "description": "Personal task management system with Kanban/List views and Claude Code integration",
+  "spec": "SPEC.md",
+  "items": [
+    {
+      "id": "BD-001",
+      "title": "Project setup with TanStack Start",
+      "description": "Initialize TanStack Start project with TypeScript strict mode, Tailwind CSS, and basic project structure",
+      "acceptance_criteria": [
+        "TanStack Start project initialized with pnpm",
+        "TypeScript configured with strict mode and all strict options from SPEC.md",
+        "Tailwind CSS configured with dark mode support",
+        "ESLint and Prettier configured",
+        "Vitest configured for testing",
+        "pnpm dev starts the dev server on localhost:3000",
+        "pnpm type-check passes with no errors",
+        "pnpm lint passes with no errors",
+        "pnpm build produces production bundle"
+      ],
+      "passes": true
+    },
+    {
+      "id": "BD-002",
+      "title": "SQLite database with Drizzle ORM",
+      "description": "Set up SQLite database with Drizzle ORM, create schema for projects, epics, and tickets tables",
+      "acceptance_criteria": [
+        "Drizzle ORM installed and configured",
+        "Database file location: ~/.brain-dump/brain-dump.db",
+        "Projects table with id, name, path, color, created_at",
+        "Epics table with id, title, description, project_id, color, created_at",
+        "Tickets table with all fields from SPEC.md schema",
+        "Foreign key constraints working",
+        "Indexes created on project_id, epic_id, status",
+        "Migration system working (drizzle-kit)",
+        "Can run migrations with pnpm db:migrate"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-003",
+      "title": "Basic CRUD API for projects",
+      "description": "Create server functions for listing, creating, updating, and deleting projects",
+      "acceptance_criteria": [
+        "GET /api/projects returns all projects",
+        "POST /api/projects creates a project with name and path",
+        "PUT /api/projects/:id updates project name, path, or color",
+        "DELETE /api/projects/:id deletes project and cascades to epics/tickets",
+        "Path validation ensures directory exists",
+        "Proper error handling with meaningful messages",
+        "Unit tests for all CRUD operations"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-004",
+      "title": "Basic CRUD API for epics",
+      "description": "Create server functions for listing, creating, updating, and deleting epics",
+      "acceptance_criteria": [
+        "GET /api/projects/:projectId/epics returns epics for a project",
+        "POST /api/epics creates an epic with title, description, project_id",
+        "PUT /api/epics/:id updates epic fields",
+        "DELETE /api/epics/:id deletes epic (tickets become orphaned)",
+        "Proper error handling",
+        "Unit tests for all CRUD operations"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-005",
+      "title": "Basic CRUD API for tickets",
+      "description": "Create server functions for listing, creating, updating, and deleting tickets",
+      "acceptance_criteria": [
+        "GET /api/tickets returns tickets with optional filters (project, epic, status)",
+        "GET /api/tickets/:id returns single ticket with full details",
+        "POST /api/tickets creates ticket with required fields",
+        "PUT /api/tickets/:id updates ticket fields",
+        "PATCH /api/tickets/:id/status updates status only",
+        "PATCH /api/tickets/:id/position updates position only",
+        "DELETE /api/tickets/:id deletes ticket (with confirmation)",
+        "Unit tests for all operations"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-006",
+      "title": "App layout with dark theme",
+      "description": "Create the main app layout with header, sidebar, and main content area in dark theme",
+      "acceptance_criteria": [
+        "Dark theme as default (colors from Tailwind dark palette)",
+        "Header with logo/title, search placeholder, view toggle placeholder, new ticket button",
+        "Sidebar with project tree placeholder",
+        "Main content area for board/list view",
+        "Responsive layout that works on desktop",
+        "Proper semantic HTML structure"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-007",
+      "title": "Sidebar with project/epic tree",
+      "description": "Implement the sidebar navigation with expandable project and epic tree",
+      "acceptance_criteria": [
+        "Lists all projects from database",
+        "Each project is expandable to show its epics",
+        "Clicking project filters board to that project",
+        "Clicking epic filters board to that epic",
+        "Visual indicator for selected project/epic",
+        "Add project button in sidebar",
+        "Add epic button appears when project is selected"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-008",
+      "title": "List view for tickets",
+      "description": "Implement the list/table view for tickets with sorting and filtering",
+      "acceptance_criteria": [
+        "Table displays: title, status, priority, epic, tags, created date",
+        "Sortable by any column (click header)",
+        "Filterable by status (dropdown)",
+        "Filterable by priority (dropdown)",
+        "Clicking a row opens ticket detail",
+        "Visual priority badges (High=red, Medium=yellow, Low=green)",
+        "Blocked indicator (red dot) visible"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-009",
+      "title": "Kanban board view",
+      "description": "Implement the Kanban board with five columns and ticket cards",
+      "acceptance_criteria": [
+        "Five columns: Backlog, Ready, In Progress, Review, Done",
+        "Tickets displayed as cards in correct columns",
+        "Cards show: title, tags, epic name, priority badge, subtask progress",
+        "Blocked indicator (red badge) on blocked tickets",
+        "Cards are visually distinct and readable in dark theme"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-010",
+      "title": "Drag and drop for Kanban",
+      "description": "Add drag and drop functionality to move tickets between columns and reorder within columns",
+      "acceptance_criteria": [
+        "Can drag ticket card to different column (updates status)",
+        "Can drag ticket within column to reorder (updates position)",
+        "Visual feedback during drag (ghost card, drop zone highlight)",
+        "Position persists after page reload",
+        "Smooth animations during drag/drop",
+        "Works with keyboard (a11y)"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-011",
+      "title": "View toggle (Kanban/List)",
+      "description": "Add toggle button to switch between Kanban and List views",
+      "acceptance_criteria": [
+        "Toggle button in header",
+        "Switches between Kanban and List view",
+        "View preference persists (localStorage)",
+        "Smooth transition between views",
+        "Both views show same filtered data"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-012",
+      "title": "Ticket detail modal",
+      "description": "Create modal for viewing and editing ticket details",
+      "acceptance_criteria": [
+        "Opens when clicking a ticket (card or row)",
+        "Shows all ticket fields",
+        "Inline editing for title, description",
+        "Dropdown for status, priority, epic",
+        "Tag editor (add/remove tags)",
+        "Subtask list with checkboxes",
+        "Close button and Esc key to close",
+        "Focus trap for accessibility"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-013",
+      "title": "Subtask management",
+      "description": "Implement subtask checklist within tickets",
+      "acceptance_criteria": [
+        "Add subtask input field in ticket modal",
+        "Checkbox to toggle subtask completion",
+        "Delete subtask button",
+        "Reorder subtasks via drag or up/down buttons",
+        "Subtask progress shown on ticket card (e.g., 2/5)",
+        "Subtask changes save immediately"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-014",
+      "title": "New ticket form",
+      "description": "Create form for adding new tickets",
+      "acceptance_criteria": [
+        "Modal form triggered by + New Ticket button",
+        "Required field: title",
+        "Optional fields: description, priority, epic, tags",
+        "Project auto-selected based on current filter",
+        "Status defaults to Backlog",
+        "Form validation with error messages",
+        "Success creates ticket and closes modal"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-015",
+      "title": "Project and epic forms",
+      "description": "Create forms for adding/editing projects and epics",
+      "acceptance_criteria": [
+        "New project form: name, path (with directory picker or input), color",
+        "Path validation confirms directory exists",
+        "Edit project form pre-filled with current values",
+        "New epic form: title, description, color",
+        "Edit epic form pre-filled with current values",
+        "Delete project/epic with confirmation dialog"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-016",
+      "title": "Full-text search",
+      "description": "Implement search functionality across tickets",
+      "acceptance_criteria": [
+        "Search input in header",
+        "Searches: title, description, subtask text, tags",
+        "Results update as you type (debounced)",
+        "Highlights matching text in results",
+        "Works across all projects (or filtered to current)",
+        "SQLite FTS5 used for performance"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-017",
+      "title": "Tag filtering",
+      "description": "Add tag filter in sidebar to filter by tags",
+      "acceptance_criteria": [
+        "List of all tags used in current project/epic",
+        "Click tag to filter tickets to that tag",
+        "Multiple tag selection (AND filter)",
+        "Visual indicator for active tag filters",
+        "Clear filters button"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-018",
+      "title": "File attachments",
+      "description": "Allow uploading and viewing file attachments on tickets",
+      "acceptance_criteria": [
+        "Upload button in ticket modal",
+        "Drag and drop file upload",
+        "Files stored in ~/.brain-dump/attachments/{ticket-id}/",
+        "Image previews displayed inline",
+        "Non-image files shown as download links",
+        "Delete attachment button",
+        "Max file size limit (10MB)"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-019",
+      "title": "Claude context generation",
+      "description": "Generate formatted context for Claude Code when starting work on a ticket",
+      "acceptance_criteria": [
+        "API endpoint: GET /api/tickets/:id/context",
+        "Returns markdown with: ticket, epic context, linked files, related completed tickets",
+        "Format matches SPEC.md context format",
+        "Includes project path for cd command"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-020",
+      "title": "Start Work deep link",
+      "description": "Implement 'Start Work' button that opens Claude Code with ticket context",
+      "acceptance_criteria": [
+        "'Start Work' button on ticket modal",
+        "Generates context using /api/tickets/:id/context",
+        "Attempts to open terminal with: cd {project-path} && claude -p '{context}'",
+        "Falls back to copying context to clipboard if terminal launch fails",
+        "Shows success/fallback notification to user"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-021",
+      "title": "Sample data and onboarding",
+      "description": "Create sample data for first launch to demonstrate features",
+      "acceptance_criteria": [
+        "Detects first launch (empty database)",
+        "Creates sample project: 'Sample Project' with path /tmp/sample-project",
+        "Creates sample epic: 'Getting Started'",
+        "Creates 4 sample tickets in different statuses",
+        "Sample tickets have subtasks, tags, priorities",
+        "'Delete sample data' button clearly visible",
+        "Deleting sample data removes all sample items"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-022",
+      "title": "Keyboard shortcuts",
+      "description": "Add keyboard shortcuts for common actions",
+      "acceptance_criteria": [
+        "n = New ticket",
+        "/ = Focus search",
+        "? = Show shortcuts help modal",
+        "Esc = Close modal/deselect",
+        "Shortcuts work globally (not just when focused)",
+        "Shortcuts disabled when typing in input"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-023",
+      "title": "End-to-end tests",
+      "description": "Write Playwright E2E tests for critical user flows",
+      "acceptance_criteria": [
+        "Test: Create project, epic, ticket flow",
+        "Test: Drag ticket between columns",
+        "Test: Search finds ticket",
+        "Test: Toggle between Kanban and List view",
+        "Test: Edit ticket in modal",
+        "Test: Subtask completion",
+        "All E2E tests pass: pnpm test:e2e"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-024",
+      "title": "Polish and edge cases",
+      "description": "Final polish, edge case handling, and cleanup",
+      "acceptance_criteria": [
+        "Empty states for no projects, no tickets, no search results",
+        "Loading states for async operations",
+        "Error states with retry options",
+        "Confirm dialog before destructive actions",
+        "Toast notifications for success/error feedback",
+        "No console errors in production build",
+        "All tests pass: pnpm check"
+      ],
+      "passes": false
+    }
+  ]
+}

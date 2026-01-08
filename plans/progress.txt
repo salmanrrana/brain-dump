@@ -1,0 +1,19 @@
+# Brain Dump - Progress Log
+
+This file tracks what has been completed across Ralph iterations.
+Claude Code / Ralph: APPEND new entries below - do not overwrite existing content.
+
+Project: brain-dumpy
+Spec: SPEC.md
+PRD: plans/prd.json
+
+---
+
+## Iteration Log
+
+### 2026-01-08 - BD-001
+- Task: Project setup with TanStack Start
+- Success: true
+- Files: package.json, tsconfig.json, eslint.config.js, .prettierrc, src/routes/index.tsx, src/components/Header.tsx, src/app.test.ts
+- Notes: Initialized TanStack Start with strict TypeScript, Tailwind, ESLint, Prettier, Vitest. Removed demo routes. All checks pass.
+
