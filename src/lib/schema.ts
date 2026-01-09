@@ -90,6 +90,7 @@ export const settings = sqliteTable("settings", {
   ralphSandbox: integer("ralph_sandbox", { mode: "boolean" }).default(false), // Run Ralph in Docker
   autoCreatePr: integer("auto_create_pr", { mode: "boolean" }).default(true), // Auto-create PR when done
   prTargetBranch: text("pr_target_branch").default("dev"), // Target branch for PRs
+  defaultProjectsDirectory: text("default_projects_directory"), // Where to create new projects
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),

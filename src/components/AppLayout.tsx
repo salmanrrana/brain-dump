@@ -8,7 +8,7 @@ import {
   useEffect,
   useCallback,
 } from "react";
-import { Search, LayoutGrid, List, Plus, X, Loader2, Settings } from "lucide-react";
+import { Search, LayoutGrid, List, Plus, X, Loader2, Settings, ChevronDown, Rocket } from "lucide-react";
 import ProjectTree from "./ProjectTree";
 import NewTicketModal from "./NewTicketModal";
 import ProjectModal from "./ProjectModal";
@@ -21,6 +21,9 @@ import {
   useModal,
   useFilters,
   useSampleData,
+  useClickOutside,
+  useLaunchProjectInception,
+  useSettings,
   type Epic,
   type SearchResult,
   type ModalState,
@@ -400,6 +403,26 @@ function AppHeader() {
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // New ticket dropdown state
+  const [showNewMenu, setShowNewMenu] = useState(false);
+  const newMenuRef = useRef<HTMLDivElement>(null);
+  const launchInceptionMutation = useLaunchProjectInception();
+  const { settings } = useSettings();
+
+  // Close new menu when clicking outside
+  useClickOutside(newMenuRef, () => setShowNewMenu(false), showNewMenu);
+
+  const handleStartFromScratch = async () => {
+    setShowNewMenu(false);
+    const result = await launchInceptionMutation.mutateAsync({
+      preferredTerminal: settings?.terminalEmulator ?? null,
+    });
+    if (!result.success) {
+      // TODO: Show error toast
+      console.error(result.message);
+    }
+  };
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -559,14 +582,62 @@ function AppHeader() {
         <Settings size={18} />
       </button>
 
-      {/* New ticket button */}
-      <button
-        onClick={openNewTicketModal}
-        className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-lg font-medium text-sm transition-colors"
-      >
-        <Plus size={18} />
-        <span>New Ticket</span>
-      </button>
+      {/* New ticket dropdown */}
+      <div className="relative" ref={newMenuRef}>
+        <div className="flex">
+          {/* Main button */}
+          <button
+            onClick={openNewTicketModal}
+            className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-l-lg font-medium text-sm transition-colors"
+          >
+            <Plus size={18} />
+            <span>New Ticket</span>
+          </button>
+
+          {/* Dropdown toggle */}
+          <button
+            onClick={() => setShowNewMenu(!showNewMenu)}
+            className="flex items-center px-2 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-r-lg border-l border-cyan-700 transition-colors"
+            aria-label="More options"
+          >
+            <ChevronDown size={16} />
+          </button>
+        </div>
+
+        {/* Dropdown Menu */}
+        {showNewMenu && (
+          <div className="absolute right-0 top-full mt-2 w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden">
+            <button
+              onClick={() => {
+                setShowNewMenu(false);
+                openNewTicketModal();
+              }}
+              className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left"
+            >
+              <Plus size={18} className="text-cyan-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <div className="font-medium text-gray-100">New Ticket</div>
+                <div className="text-xs text-slate-400">
+                  Add a ticket to an existing project
+                </div>
+              </div>
+            </button>
+            <button
+              onClick={handleStartFromScratch}
+              disabled={launchInceptionMutation.isPending}
+              className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left border-t border-slate-700 disabled:opacity-50"
+            >
+              <Rocket size={18} className="text-amber-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <div className="font-medium text-gray-100">Start from Scratch</div>
+                <div className="text-xs text-slate-400">
+                  Create a new project with Claude
+                </div>
+              </div>
+            </button>
+          </div>
+        )}
+      </div>
     </header>
   );
 }

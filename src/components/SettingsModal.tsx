@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { X, ChevronDown, Check, Terminal, Bot, GitBranch, Loader2, AlertTriangle, CheckCircle } from "lucide-react";
+import { X, ChevronDown, Check, Terminal, Bot, GitBranch, Loader2, AlertTriangle, CheckCircle, FolderPlus, Folder } from "lucide-react";
 import { useSettings, useUpdateSettings, useAvailableTerminals, useDockerStatus, useBuildSandboxImage } from "../lib/hooks";
 import { SUPPORTED_TERMINALS } from "../api/settings";
+import DirectoryPicker from "./DirectoryPicker";
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -21,7 +22,9 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   const [ralphSandbox, setRalphSandbox] = useState(false);
   const [autoCreatePr, setAutoCreatePr] = useState(true);
   const [prTargetBranch, setPrTargetBranch] = useState("dev");
+  const [defaultProjectsDirectory, setDefaultProjectsDirectory] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
+  const [showDirectoryPicker, setShowDirectoryPicker] = useState(false);
 
   // Initialize state when settings load
   useEffect(() => {
@@ -30,6 +33,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       setRalphSandbox(settings.ralphSandbox ?? false);
       setAutoCreatePr(settings.autoCreatePr ?? true);
       setPrTargetBranch(settings.prTargetBranch ?? "dev");
+      setDefaultProjectsDirectory(settings.defaultProjectsDirectory ?? "");
     }
   }, [settings]);
 
@@ -40,9 +44,10 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       const sandboxChanged = ralphSandbox !== (settings.ralphSandbox ?? false);
       const prChanged = autoCreatePr !== (settings.autoCreatePr ?? true);
       const branchChanged = prTargetBranch !== (settings.prTargetBranch ?? "dev");
-      setHasChanges(terminalChanged || sandboxChanged || prChanged || branchChanged);
+      const dirChanged = defaultProjectsDirectory !== (settings.defaultProjectsDirectory ?? "");
+      setHasChanges(terminalChanged || sandboxChanged || prChanged || branchChanged || dirChanged);
     }
-  }, [terminalEmulator, ralphSandbox, autoCreatePr, prTargetBranch, settings]);
+  }, [terminalEmulator, ralphSandbox, autoCreatePr, prTargetBranch, defaultProjectsDirectory, settings]);
 
   const isSaving = updateMutation.isPending;
   const error = updateMutation.error;
@@ -100,6 +105,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         ralphSandbox,
         autoCreatePr,
         prTargetBranch: prTargetBranch || "dev",
+        defaultProjectsDirectory: defaultProjectsDirectory || null,
       },
       { onSuccess: onClose }
     );
@@ -161,6 +167,49 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
             </div>
           ) : (
             <>
+              {/* Projects Section */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <FolderPlus size={18} className="text-amber-400" />
+                  <h3 className="text-sm font-semibold text-gray-100 uppercase tracking-wide">
+                    Projects
+                  </h3>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1">
+                    Default Projects Directory
+                  </label>
+                  <button
+                    onClick={() => setShowDirectoryPicker(true)}
+                    className="w-full flex items-center gap-3 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-left hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors"
+                  >
+                    <Folder size={18} className="text-amber-400 flex-shrink-0" />
+                    {defaultProjectsDirectory ? (
+                      <span className="text-gray-100 truncate font-mono text-sm">
+                        {defaultProjectsDirectory}
+                      </span>
+                    ) : (
+                      <span className="text-slate-500 text-sm">
+                        Click to select a directory...
+                      </span>
+                    )}
+                  </button>
+                  {defaultProjectsDirectory && (
+                    <button
+                      onClick={() => setDefaultProjectsDirectory("")}
+                      className="mt-2 text-xs text-slate-400 hover:text-slate-300"
+                    >
+                      Clear selection
+                    </button>
+                  )}
+                  <p className="mt-2 text-xs text-slate-500">
+                    New projects created via "Start from Scratch" will be placed in this directory.
+                    Leave empty to choose each time.
+                  </p>
+                </div>
+              </div>
+
               {/* Terminal Section */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
@@ -431,6 +480,14 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
           </div>
         </div>
       </div>
+
+      {/* Directory Picker Modal */}
+      <DirectoryPicker
+        isOpen={showDirectoryPicker}
+        initialPath={defaultProjectsDirectory || undefined}
+        onSelect={(path) => setDefaultProjectsDirectory(path)}
+        onClose={() => setShowDirectoryPicker(false)}
+      />
     </div>
   );
 }

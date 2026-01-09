@@ -9,6 +9,7 @@ export interface UpdateSettingsInput {
   ralphSandbox?: boolean;
   autoCreatePr?: boolean;
   prTargetBranch?: string;
+  defaultProjectsDirectory?: string | null;
 }
 
 // List of supported terminal emulators
@@ -77,6 +78,9 @@ export const updateSettings = createServerFn({ method: "POST" })
     }
     if (updates.prTargetBranch !== undefined) {
       updateData.prTargetBranch = updates.prTargetBranch || "dev";
+    }
+    if (updates.defaultProjectsDirectory !== undefined) {
+      updateData.defaultProjectsDirectory = updates.defaultProjectsDirectory || null;
     }
 
     db.update(settings)

@@ -748,6 +748,7 @@ export interface Settings {
   ralphSandbox: boolean | null;
   autoCreatePr: boolean | null;
   prTargetBranch: string | null;
+  defaultProjectsDirectory: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -848,6 +849,7 @@ export function useBuildSandboxImage() {
 // =============================================================================
 
 import { launchRalphForTicket, launchRalphForEpic } from "../api/ralph";
+import { launchProjectInception, launchSpecBreakdown } from "../api/inception";
 import { getComments, createComment, deleteComment, type Comment, type CreateCommentInput } from "../api/comments";
 
 // =============================================================================
@@ -924,6 +926,39 @@ export function useLaunchRalphForEpic() {
     onSuccess: () => {
       // Ticket statuses will be updated by Ralph, invalidate to reflect changes
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+    },
+  });
+}
+
+// =============================================================================
+// PROJECT INCEPTION HOOKS - Start from scratch workflow
+// =============================================================================
+
+// Hook for launching Project Inception (new project from scratch)
+export function useLaunchProjectInception() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: { preferredTerminal?: string | null }) =>
+      launchProjectInception({ data }),
+    onSuccess: () => {
+      // A new project may be created, invalidate projects list
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+    },
+  });
+}
+
+// Hook for launching Spec Breakdown (generate tickets from spec)
+export function useLaunchSpecBreakdown() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: { projectPath: string; projectName: string; preferredTerminal?: string | null }) =>
+      launchSpecBreakdown({ data }),
+    onSuccess: () => {
+      // Tickets will be created, invalidate tickets and projects
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
     },
   });
 }
