@@ -55,6 +55,7 @@ yarn-error.log*
 coverage/
 .nyc_output/
 playwright-report/
+test-results/
 
 # OS generated files
 Thumbs.db
