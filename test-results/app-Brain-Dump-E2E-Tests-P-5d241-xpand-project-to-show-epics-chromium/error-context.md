@@ -1,0 +1,415 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - heading "🧠 💩" [level=1] [ref=e5]
+      - navigation [ref=e6]:
+        - generic [ref=e7]:
+          - generic [ref=e8]:
+            - heading "Projects" [level=2] [ref=e9]
+            - button "Add project" [ref=e10]:
+              - img [ref=e11]
+          - generic [ref=e12]:
+            - generic [ref=e13] [cursor=pointer]:
+              - button [active] [ref=e14]:
+                - img [ref=e15]
+              - generic [ref=e17]:
+                - img [ref=e18]
+                - generic [ref=e20]: fready
+              - button "Edit project" [ref=e21]:
+                - img [ref=e22]
+              - button "Add epic" [ref=e25]:
+                - img [ref=e26]
+            - generic [ref=e28] [cursor=pointer]:
+              - img [ref=e29]
+              - generic [ref=e33]: fready-v2
+              - button "Edit epic" [ref=e34]:
+                - img [ref=e35]
+          - generic [ref=e39] [cursor=pointer]:
+            - button [ref=e40]:
+              - img [ref=e41]
+            - generic [ref=e43]:
+              - img [ref=e44]
+              - generic [ref=e46]: llm-predict
+            - button "Edit project" [ref=e47]:
+              - img [ref=e48]
+            - button "Add epic" [ref=e51]:
+              - img [ref=e52]
+          - generic [ref=e54] [cursor=pointer]:
+            - button [ref=e55]:
+              - img [ref=e56]
+            - generic [ref=e58]:
+              - img [ref=e59]
+              - generic [ref=e61]: Brain Dumpy
+            - button "Edit project" [ref=e62]:
+              - img [ref=e63]
+            - button "Add epic" [ref=e66]:
+              - img [ref=e67]
+        - generic [ref=e68]:
+          - heading "Tags" [level=2] [ref=e70]
+          - generic [ref=e71]:
+            - button "ai" [ref=e72]
+            - button "analytics" [ref=e73]
+            - button "api" [ref=e74]
+            - button "audit" [ref=e75]
+            - button "backend" [ref=e76]
+            - button "battle" [ref=e77]
+            - button "bug" [ref=e78]
+            - button "bugfix" [ref=e79]
+            - button "contract" [ref=e80]
+            - button "database" [ref=e81]
+            - button "deployment" [ref=e82]
+            - button "discovery" [ref=e83]
+            - button "docs" [ref=e84]
+            - button "e2e" [ref=e85]
+            - button "flow" [ref=e86]
+            - button "forms" [ref=e87]
+            - button "fready" [ref=e88]
+            - button "gamification" [ref=e89]
+            - button "ghostty" [ref=e90]
+            - button "infrastructure" [ref=e91]
+            - button "integration" [ref=e92]
+            - button "layout" [ref=e93]
+            - button "marketing" [ref=e94]
+            - button "monitoring" [ref=e95]
+            - button "new_feature" [ref=e96]
+            - button "phase2" [ref=e97]
+            - button "polish" [ref=e98]
+            - button "profile" [ref=e99]
+            - button "realtime" [ref=e100]
+            - button "security" [ref=e101]
+            - button "setup" [ref=e102]
+            - button "social" [ref=e103]
+            - button "solidity" [ref=e104]
+            - button "terminal" [ref=e105]
+            - button "testing" [ref=e106]
+            - button "ui" [ref=e107]
+            - button "usdc" [ref=e108]
+            - button "ux" [ref=e109]
+            - button "voting" [ref=e110]
+            - button "wallet" [ref=e111]
+            - button "web3" [ref=e112]
+      - paragraph [ref=e114]: Brain Dump v0.1.0
+    - generic [ref=e115]:
+      - banner [ref=e116]:
+        - generic [ref=e118]:
+          - img [ref=e119]
+          - textbox "Search tickets..." [ref=e122]
+        - generic [ref=e123]:
+          - button "Kanban view" [ref=e124]:
+            - img [ref=e125]
+          - button "List view" [ref=e130]:
+            - img [ref=e131]
+        - button "Settings" [ref=e132]:
+          - img [ref=e133]
+        - button "New Ticket" [ref=e136]:
+          - img [ref=e137]
+          - generic [ref=e138]: New Ticket
+      - main [ref=e139]:
+        - generic [ref=e140]:
+          - generic [ref=e141]:
+            - generic [ref=e142]:
+              - generic [ref=e144]:
+                - heading "Backlog" [level=3] [ref=e145]
+                - generic [ref=e146]: "26"
+              - generic [ref=e147]:
+                - button "Expert Holdings & Views - What Are The Experts Buying/Thinking? fready new_feature Medium 0/4" [ref=e148]:
+                  - generic [ref=e149] [cursor=pointer]:
+                    - heading "Expert Holdings & Views - What Are The Experts Buying/Thinking?" [level=4] [ref=e151]
+                    - generic [ref=e152]:
+                      - generic [ref=e153]: fready
+                      - generic [ref=e154]: new_feature
+                    - generic [ref=e155]:
+                      - generic [ref=e156]: Medium
+                      - generic [ref=e157]: 0/4
+                - button "Tags do not delete after removal from ticket bugfix Medium" [ref=e158]:
+                  - generic [ref=e159] [cursor=pointer]:
+                    - heading "Tags do not delete after removal from ticket" [level=4] [ref=e161]
+                    - generic [ref=e163]: bugfix
+                    - generic [ref=e165]: Medium
+                - button "Add New Investment Philosophies (Dalio, Ackman, Burry, Tepper) fready new_feature Medium" [ref=e166]:
+                  - generic [ref=e167] [cursor=pointer]:
+                    - heading "Add New Investment Philosophies (Dalio, Ackman, Burry, Tepper)" [level=4] [ref=e169]
+                    - generic [ref=e170]:
+                      - generic [ref=e171]: fready
+                      - generic [ref=e172]: new_feature
+                    - generic [ref=e174]: Medium
+                - button "E2E Test Ticket" [ref=e175]:
+                  - heading "E2E Test Ticket" [level=4] [ref=e178] [cursor=pointer]
+                - button "E2E Test Ticket" [ref=e179]:
+                  - heading "E2E Test Ticket" [level=4] [ref=e182] [cursor=pointer]
+                - button "Wallet connection with wagmi wallet web3 High" [ref=e183]:
+                  - generic [ref=e184] [cursor=pointer]:
+                    - heading "Wallet connection with wagmi" [level=4] [ref=e186]
+                    - generic [ref=e187]:
+                      - generic [ref=e188]: wallet
+                      - generic [ref=e189]: web3
+                    - generic [ref=e191]: High
+                - button "USDC approval and balance display wallet web3 usdc Medium" [ref=e192]:
+                  - generic [ref=e193] [cursor=pointer]:
+                    - heading "USDC approval and balance display" [level=4] [ref=e195]
+                    - generic [ref=e196]:
+                      - generic [ref=e197]: wallet
+                      - generic [ref=e198]: web3
+                      - generic [ref=e199]: usdc
+                    - generic [ref=e201]: Medium
+                - 'button "Contract integration: Create battle onchain contract web3 Medium" [ref=e202]':
+                  - generic [ref=e203] [cursor=pointer]:
+                    - 'heading "Contract integration: Create battle onchain" [level=4] [ref=e205]'
+                    - generic [ref=e206]:
+                      - generic [ref=e207]: contract
+                      - generic [ref=e208]: web3
+                    - generic [ref=e210]: Medium
+                - 'button "Contract integration: Join battle onchain contract web3 Medium" [ref=e211]':
+                  - generic [ref=e212] [cursor=pointer]:
+                    - 'heading "Contract integration: Join battle onchain" [level=4] [ref=e214]'
+                    - generic [ref=e215]:
+                      - generic [ref=e216]: contract
+                      - generic [ref=e217]: web3
+                    - generic [ref=e219]: Medium
+                - 'button "Contract integration: Resolution and claims contract web3 Medium" [ref=e220]':
+                  - generic [ref=e221] [cursor=pointer]:
+                    - 'heading "Contract integration: Resolution and claims" [level=4] [ref=e223]'
+                    - generic [ref=e224]:
+                      - generic [ref=e225]: contract
+                      - generic [ref=e226]: web3
+                    - generic [ref=e228]: Medium
+                - button "BattleEscrow smart contract solidity contract High" [ref=e229]:
+                  - generic [ref=e230] [cursor=pointer]:
+                    - heading "BattleEscrow smart contract" [level=4] [ref=e232]
+                    - generic [ref=e233]:
+                      - generic [ref=e234]: solidity
+                      - generic [ref=e235]: contract
+                    - generic [ref=e237]: High
+                - button "Smart contract unit tests solidity testing High" [ref=e238]:
+                  - generic [ref=e239] [cursor=pointer]:
+                    - heading "Smart contract unit tests" [level=4] [ref=e241]
+                    - generic [ref=e242]:
+                      - generic [ref=e243]: solidity
+                      - generic [ref=e244]: testing
+                    - generic [ref=e246]: High
+                - button "Deploy contract to Base testnet solidity deployment Medium" [ref=e247]:
+                  - generic [ref=e248] [cursor=pointer]:
+                    - heading "Deploy contract to Base testnet" [level=4] [ref=e250]
+                    - generic [ref=e251]:
+                      - generic [ref=e252]: solidity
+                      - generic [ref=e253]: deployment
+                    - generic [ref=e255]: Medium
+                - button "Voter staking contract extension solidity contract phase2 Low" [ref=e256]:
+                  - generic [ref=e257] [cursor=pointer]:
+                    - heading "Voter staking contract extension" [level=4] [ref=e259]
+                    - generic [ref=e260]:
+                      - generic [ref=e261]: solidity
+                      - generic [ref=e262]: contract
+                      - generic [ref=e263]: phase2
+                    - generic [ref=e265]: Low
+                - button "Battle feed / discovery page ui discovery High" [ref=e266]:
+                  - generic [ref=e267] [cursor=pointer]:
+                    - heading "Battle feed / discovery page" [level=4] [ref=e269]
+                    - generic [ref=e270]:
+                      - generic [ref=e271]: ui
+                      - generic [ref=e272]: discovery
+                    - generic [ref=e274]: High
+                - button "User profile page ui profile Medium" [ref=e275]:
+                  - generic [ref=e276] [cursor=pointer]:
+                    - heading "User profile page" [level=4] [ref=e278]
+                    - generic [ref=e279]:
+                      - generic [ref=e280]: ui
+                      - generic [ref=e281]: profile
+                    - generic [ref=e283]: Medium
+                - button "Twitter share integration social marketing Medium" [ref=e284]:
+                  - generic [ref=e285] [cursor=pointer]:
+                    - heading "Twitter share integration" [level=4] [ref=e287]
+                    - generic [ref=e288]:
+                      - generic [ref=e289]: social
+                      - generic [ref=e290]: marketing
+                    - generic [ref=e292]: Medium
+                - button "Replicate API integration (SD + Flux) api ai integration Medium" [ref=e293]:
+                  - generic [ref=e294] [cursor=pointer]:
+                    - heading "Replicate API integration (SD + Flux)" [level=4] [ref=e296]
+                    - generic [ref=e297]:
+                      - generic [ref=e298]: api
+                      - generic [ref=e299]: ai
+                      - generic [ref=e300]: integration
+                    - generic [ref=e302]: Medium
+                - button "Real-time updates with polling/websockets realtime ux Low" [ref=e303]:
+                  - generic [ref=e304] [cursor=pointer]:
+                    - heading "Real-time updates with polling/websockets" [level=4] [ref=e306]
+                    - generic [ref=e307]:
+                      - generic [ref=e308]: realtime
+                      - generic [ref=e309]: ux
+                    - generic [ref=e311]: Low
+                - button "Leaderboard page ui gamification phase2 Low" [ref=e312]:
+                  - generic [ref=e313] [cursor=pointer]:
+                    - heading "Leaderboard page" [level=4] [ref=e315]
+                    - generic [ref=e316]:
+                      - generic [ref=e317]: ui
+                      - generic [ref=e318]: gamification
+                      - generic [ref=e319]: phase2
+                    - generic [ref=e321]: Low
+                - button "End-to-end tests with Playwright testing e2e Medium" [ref=e322]:
+                  - generic [ref=e323] [cursor=pointer]:
+                    - heading "End-to-end tests with Playwright" [level=4] [ref=e325]
+                    - generic [ref=e326]:
+                      - generic [ref=e327]: testing
+                      - generic [ref=e328]: e2e
+                    - generic [ref=e330]: Medium
+                - button "Production deployment setup deployment infrastructure Medium" [ref=e331]:
+                  - generic [ref=e332] [cursor=pointer]:
+                    - heading "Production deployment setup" [level=4] [ref=e334]
+                    - generic [ref=e335]:
+                      - generic [ref=e336]: deployment
+                      - generic [ref=e337]: infrastructure
+                    - generic [ref=e339]: Medium
+                - button "UX polish and loading states ux polish Medium" [ref=e340]:
+                  - generic [ref=e341] [cursor=pointer]:
+                    - heading "UX polish and loading states" [level=4] [ref=e343]
+                    - generic [ref=e344]:
+                      - generic [ref=e345]: ux
+                      - generic [ref=e346]: polish
+                    - generic [ref=e348]: Medium
+                - button "Security audit checklist security audit High" [ref=e349]:
+                  - generic [ref=e350] [cursor=pointer]:
+                    - heading "Security audit checklist" [level=4] [ref=e352]
+                    - generic [ref=e353]:
+                      - generic [ref=e354]: security
+                      - generic [ref=e355]: audit
+                    - generic [ref=e357]: High
+                - button "Analytics and monitoring setup monitoring analytics Low" [ref=e358]:
+                  - generic [ref=e359] [cursor=pointer]:
+                    - heading "Analytics and monitoring setup" [level=4] [ref=e361]
+                    - generic [ref=e362]:
+                      - generic [ref=e363]: monitoring
+                      - generic [ref=e364]: analytics
+                    - generic [ref=e366]: Low
+                - button "Documentation and README docs Low" [ref=e367]:
+                  - generic [ref=e368] [cursor=pointer]:
+                    - heading "Documentation and README" [level=4] [ref=e370]
+                    - generic [ref=e372]: docs
+                    - generic [ref=e374]: Low
+            - generic [ref=e375]:
+              - generic [ref=e377]:
+                - heading "Ready" [level=3] [ref=e378]
+                - generic [ref=e379]: "0"
+              - generic [ref=e381]: Drop tickets here
+            - generic [ref=e382]:
+              - generic [ref=e384]:
+                - heading "In Progress" [level=3] [ref=e385]
+                - generic [ref=e386]: "7"
+              - generic [ref=e387]:
+                - button "Battle view page ui battle High" [ref=e388]:
+                  - generic [ref=e389] [cursor=pointer]:
+                    - heading "Battle view page" [level=4] [ref=e391]
+                    - generic [ref=e392]:
+                      - generic [ref=e393]: ui
+                      - generic [ref=e394]: battle
+                    - generic [ref=e396]: High
+                - button "Join battle flow battle flow High" [ref=e397]:
+                  - generic [ref=e398] [cursor=pointer]:
+                    - heading "Join battle flow" [level=4] [ref=e400]
+                    - generic [ref=e401]:
+                      - generic [ref=e402]: battle
+                      - generic [ref=e403]: flow
+                    - generic [ref=e405]: High
+                - button "Prompt submission with commit-reveal battle flow High" [ref=e406]:
+                  - generic [ref=e407] [cursor=pointer]:
+                    - heading "Prompt submission with commit-reveal" [level=4] [ref=e409]
+                    - generic [ref=e410]:
+                      - generic [ref=e411]: battle
+                      - generic [ref=e412]: flow
+                    - generic [ref=e414]: High
+                - button "OpenAI DALL-E 3 integration api ai integration High" [ref=e415]:
+                  - generic [ref=e416] [cursor=pointer]:
+                    - heading "OpenAI DALL-E 3 integration" [level=4] [ref=e418]
+                    - generic [ref=e419]:
+                      - generic [ref=e420]: api
+                      - generic [ref=e421]: ai
+                      - generic [ref=e422]: integration
+                    - generic [ref=e424]: High
+                - button "Image generation trigger battle flow ai High" [ref=e425]:
+                  - generic [ref=e426] [cursor=pointer]:
+                    - heading "Image generation trigger" [level=4] [ref=e428]
+                    - generic [ref=e429]:
+                      - generic [ref=e430]: battle
+                      - generic [ref=e431]: flow
+                      - generic [ref=e432]: ai
+                    - generic [ref=e434]: High
+                - button "Voting mechanism battle voting High" [ref=e435]:
+                  - generic [ref=e436] [cursor=pointer]:
+                    - heading "Voting mechanism" [level=4] [ref=e438]
+                    - generic [ref=e439]:
+                      - generic [ref=e440]: battle
+                      - generic [ref=e441]: voting
+                    - generic [ref=e443]: High
+                - button "Battle resolution battle flow High" [ref=e444]:
+                  - generic [ref=e445] [cursor=pointer]:
+                    - heading "Battle resolution" [level=4] [ref=e447]
+                    - generic [ref=e448]:
+                      - generic [ref=e449]: battle
+                      - generic [ref=e450]: flow
+                    - generic [ref=e452]: High
+            - generic [ref=e453]:
+              - generic [ref=e455]:
+                - heading "Review" [level=3] [ref=e456]
+                - generic [ref=e457]: "0"
+              - generic [ref=e459]: Drop tickets here
+            - generic [ref=e460]:
+              - generic [ref=e462]:
+                - heading "Done" [level=3] [ref=e463]
+                - generic [ref=e464]: "6"
+              - generic [ref=e465]:
+                - button "TanStack Start project setup setup infrastructure High" [ref=e466]:
+                  - generic [ref=e467] [cursor=pointer]:
+                    - heading "TanStack Start project setup" [level=4] [ref=e469]
+                    - generic [ref=e470]:
+                      - generic [ref=e471]: setup
+                      - generic [ref=e472]: infrastructure
+                    - generic [ref=e474]: High
+                - button "Ghostty terminal opens frozen/unresponsive when starting ticket bug terminal ghostty High" [ref=e475]:
+                  - generic [ref=e476] [cursor=pointer]:
+                    - heading "Ghostty terminal opens frozen/unresponsive when starting ticket" [level=4] [ref=e478]
+                    - generic [ref=e479]:
+                      - generic [ref=e480]: bug
+                      - generic [ref=e481]: terminal
+                      - generic [ref=e482]: ghostty
+                    - generic [ref=e484]: High
+                - button "Database setup with Neon and Drizzle database infrastructure High" [ref=e485]:
+                  - generic [ref=e486] [cursor=pointer]:
+                    - heading "Database setup with Neon and Drizzle" [level=4] [ref=e488]
+                    - generic [ref=e489]:
+                      - generic [ref=e490]: database
+                      - generic [ref=e491]: infrastructure
+                    - generic [ref=e493]: High
+                - button "Basic app layout and navigation ui layout High" [ref=e494]:
+                  - generic [ref=e495] [cursor=pointer]:
+                    - heading "Basic app layout and navigation" [level=4] [ref=e497]
+                    - generic [ref=e498]:
+                      - generic [ref=e499]: ui
+                      - generic [ref=e500]: layout
+                    - generic [ref=e502]: High
+                - button "Battle creation form ui forms battle High" [ref=e503]:
+                  - generic [ref=e504] [cursor=pointer]:
+                    - heading "Battle creation form" [level=4] [ref=e506]
+                    - generic [ref=e507]:
+                      - generic [ref=e508]: ui
+                      - generic [ref=e509]: forms
+                      - generic [ref=e510]: battle
+                    - generic [ref=e512]: High
+                - button "Battle CRUD server functions api backend battle High" [ref=e513]:
+                  - generic [ref=e514] [cursor=pointer]:
+                    - heading "Battle CRUD server functions" [level=4] [ref=e516]
+                    - generic [ref=e517]:
+                      - generic [ref=e518]: api
+                      - generic [ref=e519]: backend
+                      - generic [ref=e520]: battle
+                    - generic [ref=e522]: High
+          - status [ref=e523]
+  - generic [ref=e524]:
+    - img [ref=e526]
+    - button "Open Tanstack query devtools" [ref=e574] [cursor=pointer]:
+      - img [ref=e575]
+  - button "Open TanStack Devtools" [ref=e623] [cursor=pointer]:
+    - img "TanStack Devtools" [ref=e624]
+```

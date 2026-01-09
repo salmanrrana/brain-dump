@@ -1,0 +1,17 @@
+{
+  "name": "brain-dumpy-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for Brain Dumpy - create and manage tickets from any project",
+  "type": "module",
+  "main": "index.js",
+  "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3"]
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "better-sqlite3": "^12.5.0"
+  }
+}

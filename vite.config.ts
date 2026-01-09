@@ -9,7 +9,12 @@ import { nitro } from 'nitro/vite'
 const config = defineConfig({
   plugins: [
     devtools(),
-    nitro(),
+    nitro({
+      // Externalize native modules - they can't be bundled
+      rollupConfig: {
+        external: ['better-sqlite3'],
+      },
+    }),
     // this is the plugin that enables path aliases
     viteTsConfigPaths({
       projects: ['./tsconfig.json'],
@@ -18,6 +23,9 @@ const config = defineConfig({
     tanstackStart(),
     viteReact(),
   ],
+  test: {
+    exclude: ['**/e2e/**', '**/node_modules/**'],
+  },
 })
 
 export default config

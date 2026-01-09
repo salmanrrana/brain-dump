@@ -23,3 +23,75 @@ PRD: plans/prd.json
 - Files: src/lib/schema.ts, src/lib/db.ts, src/lib/db.test.ts, drizzle.config.ts, drizzle/0000_nebulous_hemingway.sql, package.json
 - Notes: Drizzle ORM with better-sqlite3. Schema for projects, epics, tickets with FK constraints and indexes. DB at ~/.brain-dump/brain-dump.db. 4 database tests pass.
 
+### 2026-01-08 - BD-003
+- Task: Basic CRUD API for projects
+- Success: true
+- Files: src/api/projects.ts, src/api/projects.test.ts
+- Notes: TanStack Start server functions with inputValidator for validation. getProjects, getProject, createProject, updateProject, deleteProject. Path validation, error handling. 11 tests pass. All checks pass.
+
+### 2026-01-08 - BD-004
+- Task: Basic CRUD API for epics
+- Success: true
+- Files: src/api/epics.ts, src/api/epics.test.ts
+- Notes: Server functions for getEpicsByProject, getEpic, createEpic, updateEpic, deleteEpic. Project validation, cascade delete handling. 14 tests pass. All checks pass.
+
+### 2026-01-08 - BD-005
+- Task: Basic CRUD API for tickets
+- Success: true
+- Files: src/api/tickets.ts, src/api/tickets.test.ts
+- Notes: Server functions with filters (project, epic, status). Full CRUD plus updateTicketStatus and updateTicketPosition. Subtasks, blocking, tags support. completedAt auto-set. 20 tests pass. Total 50 tests.
+
+### 2026-01-08 - BD-006
+- Task: App layout with dark theme
+- Success: true
+- Files: src/components/AppLayout.tsx, src/routes/__root.tsx, src/routes/index.tsx
+- Notes: Dark slate theme with persistent sidebar, header with search/view toggle/new ticket button. Kanban board placeholder with 5 columns. Removed old Header.tsx.
+
+### 2026-01-08 - BD-007
+- Task: Sidebar with project/epic tree
+- Success: true
+- Files: src/components/ProjectTree.tsx, src/components/AppLayout.tsx, src/lib/hooks.ts
+- Notes: ProjectTree component with expandable projects showing epics. useProjects hook for data fetching. AppContext for global state (selectedProject, selectedEpic, viewMode). Visual indicators for selection. Add buttons on hover.
+
+### 2026-01-08 - BD-008 & BD-009
+- Task: List view and Kanban board view for tickets
+- Success: true
+- Files: src/components/TicketListView.tsx, src/routes/index.tsx, src/lib/hooks.ts
+- Notes: TicketListView table with sorting by column (title, status, priority, date). Status and priority badges with color coding. Blocked indicator. KanbanBoard with 5 columns, ticket cards with tags/priority. useTickets hook with filters. View toggle functional.
+
+### 2026-01-08 - BD-010
+- Task: Drag and drop for Kanban
+- Success: true
+- Files: src/routes/index.tsx, package.json
+- Notes: Added @dnd-kit/core, @dnd-kit/sortable, @dnd-kit/utilities. DndContext with PointerSensor and KeyboardSensor. SortableContext for columns. Drag overlay with visual feedback. Updates status and position on drop. Persists to database.
+
+### 2026-01-08 - BD-011
+- Task: View toggle (Kanban/List)
+- Success: true
+- Files: src/components/AppLayout.tsx
+- Notes: Toggle buttons already in header from BD-006. Added localStorage persistence for view mode preference. Both views share same filtered data via useTickets hook.
+
+### 2026-01-08 - BD-012
+- Task: Ticket detail modal
+- Success: true
+- Files: src/components/TicketModal.tsx, src/routes/index.tsx
+- Notes: Modal with all ticket fields, inline editing for title/description, dropdowns for status/priority/epic, tag editor, subtask list with checkboxes, blocked toggle with reason. Focus trap and Escape key for accessibility.
+
+### 2026-01-08 - BD-013
+- Task: Subtask management
+- Success: true
+- Files: src/components/TicketModal.tsx, src/routes/index.tsx, src/components/TicketListView.tsx
+- Notes: Added up/down reorder buttons for subtasks. Subtask progress (e.g., 2/5) now shown on ticket cards in both Kanban and List views. All subtask CRUD operations save immediately.
+
+### 2026-01-08 - BD-014
+- Task: New ticket form
+- Success: true
+- Files: src/components/NewTicketModal.tsx, src/components/AppLayout.tsx, src/routes/index.tsx
+- Notes: NewTicketModal component with title (required), description, priority, epic, and tags fields. Opens via New Ticket button in header. Project auto-selected from current filter. Status defaults to Backlog. Validation with error messages. ticketRefreshKey in context triggers refetch.
+
+### 2026-01-08 - BD-015
+- Task: Project and epic forms
+- Success: true
+- Files: src/components/ProjectModal.tsx, src/components/EpicModal.tsx, src/components/ProjectTree.tsx, src/components/AppLayout.tsx
+- Notes: ProjectModal and EpicModal components for create/edit operations. Name, path (with existence validation), and color picker for projects. Title, description, and color for epics. Inline delete with confirmation dialog. Edit buttons appear on hover in ProjectTree sidebar. Context functions for modal management.
+

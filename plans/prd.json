@@ -50,7 +50,7 @@
         "Proper error handling with meaningful messages",
         "Unit tests for all CRUD operations"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-004",
@@ -64,7 +64,7 @@
         "Proper error handling",
         "Unit tests for all CRUD operations"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-005",
@@ -80,7 +80,7 @@
         "DELETE /api/tickets/:id deletes ticket (with confirmation)",
         "Unit tests for all operations"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-006",
@@ -94,7 +94,7 @@
         "Responsive layout that works on desktop",
         "Proper semantic HTML structure"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-007",
@@ -109,7 +109,7 @@
         "Add project button in sidebar",
         "Add epic button appears when project is selected"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-008",
@@ -124,7 +124,7 @@
         "Visual priority badges (High=red, Medium=yellow, Low=green)",
         "Blocked indicator (red dot) visible"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-009",
@@ -137,7 +137,7 @@
         "Blocked indicator (red badge) on blocked tickets",
         "Cards are visually distinct and readable in dark theme"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-010",
@@ -151,7 +151,7 @@
         "Smooth animations during drag/drop",
         "Works with keyboard (a11y)"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-011",
@@ -164,7 +164,7 @@
         "Smooth transition between views",
         "Both views show same filtered data"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-012",
@@ -180,7 +180,7 @@
         "Close button and Esc key to close",
         "Focus trap for accessibility"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-013",
@@ -194,7 +194,7 @@
         "Subtask progress shown on ticket card (e.g., 2/5)",
         "Subtask changes save immediately"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-014",
@@ -209,7 +209,7 @@
         "Form validation with error messages",
         "Success creates ticket and closes modal"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-015",
@@ -223,7 +223,7 @@
         "Edit epic form pre-filled with current values",
         "Delete project/epic with confirmation dialog"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-016",
@@ -237,7 +237,7 @@
         "Works across all projects (or filtered to current)",
         "SQLite FTS5 used for performance"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-017",
@@ -250,7 +250,7 @@
         "Visual indicator for active tag filters",
         "Clear filters button"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-018",
@@ -265,7 +265,7 @@
         "Delete attachment button",
         "Max file size limit (10MB)"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-019",
@@ -277,7 +277,7 @@
         "Format matches SPEC.md context format",
         "Includes project path for cd command"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-020",
@@ -290,7 +290,7 @@
         "Falls back to copying context to clipboard if terminal launch fails",
         "Shows success/fallback notification to user"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-021",
@@ -305,7 +305,7 @@
         "'Delete sample data' button clearly visible",
         "Deleting sample data removes all sample items"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-022",
@@ -319,7 +319,7 @@
         "Shortcuts work globally (not just when focused)",
         "Shortcuts disabled when typing in input"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-023",
@@ -334,7 +334,7 @@
         "Test: Subtask completion",
         "All E2E tests pass: pnpm test:e2e"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "BD-024",
@@ -349,7 +349,82 @@
         "No console errors in production build",
         "All tests pass: pnpm check"
       ],
-      "passes": false
+      "passes": true
+    },
+    {
+      "id": "BD-025",
+      "title": "Directory picker for project creation",
+      "description": "Add a file/directory browser to make it easy to select or create project directories",
+      "acceptance_criteria": [
+        "Browse button next to project path input",
+        "Modal opens showing file system directory tree",
+        "Can navigate up/down directories",
+        "Shows only directories (not files)",
+        "Select button picks the current directory",
+        "Selected path populates the project path input",
+        "Works on Linux/Mac file systems",
+        "Create New Folder button to make new directories",
+        "New folder dialog prompts for folder name",
+        "New folder is created on filesystem and auto-selected"
+      ],
+      "passes": true
+    },
+    {
+      "id": "BD-026",
+      "title": "README and open-source setup",
+      "description": "Prepare the project for open-source release with documentation and licensing",
+      "acceptance_criteria": [
+        "README.md with project description and features",
+        "Installation instructions (pnpm install, setup steps)",
+        "Development setup guide (how to run locally)",
+        "MIT LICENSE file added",
+        "Contributing guidelines (CONTRIBUTING.md)",
+        "Screenshots or demo GIF in README",
+        "Environment requirements documented (Node.js version, etc.)"
+      ],
+      "passes": true
+    },
+    {
+      "id": "BD-027",
+      "title": "Launch Claude in terminal with ticket context",
+      "description": "Start Work button opens a new terminal window, navigates to project directory, and launches Claude Code with ticket context as prompt",
+      "acceptance_criteria": [
+        "Start Work button triggers terminal launch (not just clipboard)",
+        "Detects available terminal emulator (gnome-terminal, konsole, xterm, etc.)",
+        "Terminal opens in the project's directory",
+        "Claude CLI is launched with -p flag containing ticket context",
+        "Ticket status automatically moves to 'In Progress' when Start Work is clicked",
+        "Fallback to clipboard copy if terminal launch fails",
+        "Works on Linux (primary target)"
+      ],
+      "passes": true
+    },
+    {
+      "id": "BD-028",
+      "title": "Automatic status updates via Claude hooks",
+      "description": "Automatically update ticket status based on Claude Code activity using hooks and a CLI helper",
+      "acceptance_criteria": [
+        "Create brain-dump CLI tool that can update ticket status",
+        "CLI command: brain-dump status <ticket-id> <status>",
+        "CLI command: brain-dump done - moves current ticket to Review",
+        "Track 'current ticket' in a state file when Start Work is clicked",
+        "Provide Claude Code hook configuration for automatic status updates",
+        "Document how to set up hooks in Claude Code settings",
+        "Status updates reflect immediately in the UI (via polling or websocket)"
+      ],
+      "passes": true
+    },
+    {
+      "id": "BD-029",
+      "title": "Real-time UI updates",
+      "description": "UI updates in real-time when ticket status changes from external sources (CLI, hooks)",
+      "acceptance_criteria": [
+        "Polling mechanism to check for ticket updates",
+        "UI refreshes when changes detected",
+        "Visual indicator when ticket status changes",
+        "Toast notification when ticket moves to Review automatically"
+      ],
+      "passes": true
     }
   ]
 }
