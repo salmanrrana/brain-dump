@@ -21,7 +21,7 @@
     {
       "id": "7e82cd89-ac26-41a2-a446-3b85efe3c854",
       "title": "Test MCP server with VS Code native MCP",
-      "description": "## Task\nTest the existing MCP server with VS Code's native MCP client support.\n\n## Acceptance Criteria\n- [ ] MCP server connects via VS Code\n- [ ] Tools appear in Copilot chat\n- [ ] Document any compatibility issues\n- [ ] Note differences from Claude Code behavior\n\n## Scope\nTesting only. No code changes unless critical fix needed.",
+      "description": "## Task\nTest the existing MCP server with VS Code's native MCP client support.\n\n## Acceptance Criteria\n- [x] MCP server connects via VS Code\n- [x] Tools appear in Copilot chat\n- [x] Document any compatibility issues\n- [x] Note differences from Claude Code behavior\n\n## Scope\nTesting only. No code changes unless critical fix needed.",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
@@ -32,7 +32,7 @@
         "vs-code",
         "testing"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "dc5b80d7-75c2-4e6e-b918-61f3b0dd8fdc",
