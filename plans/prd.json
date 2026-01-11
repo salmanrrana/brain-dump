@@ -1,430 +1,134 @@
 {
-  "project": "brain-dumpy",
-  "description": "Personal task management system with Kanban/List views and Claude Code integration",
-  "spec": "SPEC.md",
-  "items": [
+  "projectName": "Brain Dumpy",
+  "projectPath": "/home/xtra/code/personal_projects/brain-dumpy",
+  "userStories": [
     {
-      "id": "BD-001",
-      "title": "Project setup with TanStack Start",
-      "description": "Initialize TanStack Start project with TypeScript strict mode, Tailwind CSS, and basic project structure",
-      "acceptance_criteria": [
-        "TanStack Start project initialized with pnpm",
-        "TypeScript configured with strict mode and all strict options from SPEC.md",
-        "Tailwind CSS configured with dark mode support",
-        "ESLint and Prettier configured",
-        "Vitest configured for testing",
-        "pnpm dev starts the dev server on localhost:3000",
-        "pnpm type-check passes with no errors",
-        "pnpm lint passes with no errors",
-        "pnpm build produces production bundle"
+      "id": "06633336-6d4e-49d7-a2a2-1a18b2eb6b81",
+      "title": "Verify MCP server works with Claude Code",
+      "description": "## Task\nVerify the existing MCP server works correctly with Claude Code as the baseline.\n\n## Acceptance Criteria\n- [x] All existing MCP tools callable from Claude Code\n- [x] Document current tool list and their functions\n- [x] Note any issues or limitations\n\n## Scope\nTesting and documentation only. No code changes.",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "high",
+      "tags": [
+        "mcp",
+        "testing",
+        "baseline"
       ],
       "passes": true
     },
     {
-      "id": "BD-002",
-      "title": "SQLite database with Drizzle ORM",
-      "description": "Set up SQLite database with Drizzle ORM, create schema for projects, epics, and tickets tables",
-      "acceptance_criteria": [
-        "Drizzle ORM installed and configured",
-        "Database file location: ~/.brain-dump/brain-dump.db",
-        "Projects table with id, name, path, color, created_at",
-        "Epics table with id, title, description, project_id, color, created_at",
-        "Tickets table with all fields from SPEC.md schema",
-        "Foreign key constraints working",
-        "Indexes created on project_id, epic_id, status",
-        "Migration system working (drizzle-kit)",
-        "Can run migrations with pnpm db:migrate"
+      "id": "7e82cd89-ac26-41a2-a446-3b85efe3c854",
+      "title": "Test MCP server with VS Code native MCP",
+      "description": "## Task\nTest the existing MCP server with VS Code's native MCP client support.\n\n## Acceptance Criteria\n- [ ] MCP server connects via VS Code\n- [ ] Tools appear in Copilot chat\n- [ ] Document any compatibility issues\n- [ ] Note differences from Claude Code behavior\n\n## Scope\nTesting only. No code changes unless critical fix needed.",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "high",
+      "tags": [
+        "mcp",
+        "vs-code",
+        "testing"
+      ],
+      "passes": false
+    },
+    {
+      "id": "dc5b80d7-75c2-4e6e-b918-61f3b0dd8fdc",
+      "title": "Create .vscode/mcp.json template",
+      "description": "## Task\nCreate a VS Code MCP configuration template file.\n\n## Acceptance Criteria\n- [x] Create `.vscode/mcp.json` with Brain Dumpy server config\n- [x] Use stdio transport\n- [x] Include comments explaining each field\n- [x] Add to .gitignore or provide as .example\n\n## File to Create\n`.vscode/mcp.json`",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "high",
+      "tags": [
+        "mcp",
+        "vs-code",
+        "config"
       ],
       "passes": true
     },
     {
-      "id": "BD-003",
-      "title": "Basic CRUD API for projects",
-      "description": "Create server functions for listing, creating, updating, and deleting projects",
-      "acceptance_criteria": [
-        "GET /api/projects returns all projects",
-        "POST /api/projects creates a project with name and path",
-        "PUT /api/projects/:id updates project name, path, or color",
-        "DELETE /api/projects/:id deletes project and cascades to epics/tickets",
-        "Path validation ensures directory exists",
-        "Proper error handling with meaningful messages",
-        "Unit tests for all CRUD operations"
+      "id": "c9293544-5ab1-4fdc-9e7f-9b62907e7933",
+      "title": "Create start_ticket_work MCP tool",
+      "description": "## Task\nAdd MCP tool to start work on a ticket.\n\n## Behavior\n- Takes ticketId as parameter\n- Creates git branch: `feature/{ticket-short-id}-{slug}`\n- Sets ticket status to `in_progress`\n- Returns branch name and ticket context\n\n## Acceptance Criteria\n- [x] Tool registered in MCP server\n- [x] Branch created with correct naming\n- [x] Ticket status updated\n- [x] Works in both Claude and VS Code\n\n## File to Modify\n`src/mcp/tools/` (or wherever MCP tools live)",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "high",
+      "tags": [
+        "mcp",
+        "workflow",
+        "git"
       ],
       "passes": true
     },
     {
-      "id": "BD-004",
-      "title": "Basic CRUD API for epics",
-      "description": "Create server functions for listing, creating, updating, and deleting epics",
-      "acceptance_criteria": [
-        "GET /api/projects/:projectId/epics returns epics for a project",
-        "POST /api/epics creates an epic with title, description, project_id",
-        "PUT /api/epics/:id updates epic fields",
-        "DELETE /api/epics/:id deletes epic (tickets become orphaned)",
-        "Proper error handling",
-        "Unit tests for all CRUD operations"
+      "id": "44a97133-1e6e-40a4-af1c-ee4b85d843de",
+      "title": "Create complete_ticket_work MCP tool",
+      "description": "## Task\nAdd MCP tool to complete work on a ticket.\n\n## Behavior\n- Takes ticketId as parameter\n- Sets ticket status to `review`\n- Optionally generates PR description from commits\n- Returns summary of work done\n\n## Acceptance Criteria\n- [x] Tool registered in MCP server\n- [x] Ticket status updated to review\n- [x] Works in both Claude and VS Code\n\n## File to Modify\n`src/mcp/tools/`",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "high",
+      "tags": [
+        "mcp",
+        "workflow"
       ],
       "passes": true
     },
     {
-      "id": "BD-005",
-      "title": "Basic CRUD API for tickets",
-      "description": "Create server functions for listing, creating, updating, and deleting tickets",
-      "acceptance_criteria": [
-        "GET /api/tickets returns tickets with optional filters (project, epic, status)",
-        "GET /api/tickets/:id returns single ticket with full details",
-        "POST /api/tickets creates ticket with required fields",
-        "PUT /api/tickets/:id updates ticket fields",
-        "PATCH /api/tickets/:id/status updates status only",
-        "PATCH /api/tickets/:id/position updates position only",
-        "DELETE /api/tickets/:id deletes ticket (with confirmation)",
-        "Unit tests for all operations"
+      "id": "04fd9275-46a2-42d2-82d3-de699e259962",
+      "title": "Create link_commit_to_ticket MCP tool",
+      "description": "## Task\nAdd MCP tool to link a git commit to a ticket.\n\n## Behavior\n- Takes ticketId and commitHash as parameters\n- Stores commit reference in ticket metadata\n- Returns confirmation\n\n## Acceptance Criteria\n- [x] Tool registered in MCP server\n- [x] Commit hash stored with ticket\n- [x] Can query commits for a ticket later\n\n## File to Modify\n`src/mcp/tools/`",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "medium",
+      "tags": [
+        "mcp",
+        "workflow",
+        "git"
       ],
       "passes": true
     },
     {
-      "id": "BD-006",
-      "title": "App layout with dark theme",
-      "description": "Create the main app layout with header, sidebar, and main content area in dark theme",
-      "acceptance_criteria": [
-        "Dark theme as default (colors from Tailwind dark palette)",
-        "Header with logo/title, search placeholder, view toggle placeholder, new ticket button",
-        "Sidebar with project tree placeholder",
-        "Main content area for board/list view",
-        "Responsive layout that works on desktop",
-        "Proper semantic HTML structure"
+      "id": "a3e3432e-836a-4fae-929a-0e22c3817af9",
+      "title": "Create link_files_to_ticket MCP tool",
+      "description": "## Task\nAdd MCP tool to associate files with a ticket.\n\n## Behavior\n- Takes ticketId and file paths array\n- Stores file associations in ticket\n- Returns confirmation\n\n## Acceptance Criteria\n- [x] Tool registered in MCP server\n- [x] Files stored in ticket.linked_files\n- [x] Handles relative and absolute paths\n\n## File to Modify\n`src/mcp/tools/`",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "medium",
+      "tags": [
+        "mcp",
+        "files"
       ],
       "passes": true
     },
     {
-      "id": "BD-007",
-      "title": "Sidebar with project/epic tree",
-      "description": "Implement the sidebar navigation with expandable project and epic tree",
-      "acceptance_criteria": [
-        "Lists all projects from database",
-        "Each project is expandable to show its epics",
-        "Clicking project filters board to that project",
-        "Clicking epic filters board to that epic",
-        "Visual indicator for selected project/epic",
-        "Add project button in sidebar",
-        "Add epic button appears when project is selected"
+      "id": "4cdb7fc6-58ca-432e-9898-f56f30c2c5c4",
+      "title": "Create get_tickets_for_file MCP tool",
+      "description": "## Task\nAdd MCP tool to find tickets related to a file.\n\n## Behavior\n- Takes file path as parameter\n- Returns tickets that have this file linked\n- Useful for context when working on a file\n\n## Acceptance Criteria\n- [x] Tool registered in MCP server\n- [x] Returns relevant tickets\n- [x] Handles partial path matching\n\n## File to Modify\n`src/mcp/tools/`",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
       ],
-      "passes": true
-    },
-    {
-      "id": "BD-008",
-      "title": "List view for tickets",
-      "description": "Implement the list/table view for tickets with sorting and filtering",
-      "acceptance_criteria": [
-        "Table displays: title, status, priority, epic, tags, created date",
-        "Sortable by any column (click header)",
-        "Filterable by status (dropdown)",
-        "Filterable by priority (dropdown)",
-        "Clicking a row opens ticket detail",
-        "Visual priority badges (High=red, Medium=yellow, Low=green)",
-        "Blocked indicator (red dot) visible"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-009",
-      "title": "Kanban board view",
-      "description": "Implement the Kanban board with five columns and ticket cards",
-      "acceptance_criteria": [
-        "Five columns: Backlog, Ready, In Progress, Review, Done",
-        "Tickets displayed as cards in correct columns",
-        "Cards show: title, tags, epic name, priority badge, subtask progress",
-        "Blocked indicator (red badge) on blocked tickets",
-        "Cards are visually distinct and readable in dark theme"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-010",
-      "title": "Drag and drop for Kanban",
-      "description": "Add drag and drop functionality to move tickets between columns and reorder within columns",
-      "acceptance_criteria": [
-        "Can drag ticket card to different column (updates status)",
-        "Can drag ticket within column to reorder (updates position)",
-        "Visual feedback during drag (ghost card, drop zone highlight)",
-        "Position persists after page reload",
-        "Smooth animations during drag/drop",
-        "Works with keyboard (a11y)"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-011",
-      "title": "View toggle (Kanban/List)",
-      "description": "Add toggle button to switch between Kanban and List views",
-      "acceptance_criteria": [
-        "Toggle button in header",
-        "Switches between Kanban and List view",
-        "View preference persists (localStorage)",
-        "Smooth transition between views",
-        "Both views show same filtered data"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-012",
-      "title": "Ticket detail modal",
-      "description": "Create modal for viewing and editing ticket details",
-      "acceptance_criteria": [
-        "Opens when clicking a ticket (card or row)",
-        "Shows all ticket fields",
-        "Inline editing for title, description",
-        "Dropdown for status, priority, epic",
-        "Tag editor (add/remove tags)",
-        "Subtask list with checkboxes",
-        "Close button and Esc key to close",
-        "Focus trap for accessibility"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-013",
-      "title": "Subtask management",
-      "description": "Implement subtask checklist within tickets",
-      "acceptance_criteria": [
-        "Add subtask input field in ticket modal",
-        "Checkbox to toggle subtask completion",
-        "Delete subtask button",
-        "Reorder subtasks via drag or up/down buttons",
-        "Subtask progress shown on ticket card (e.g., 2/5)",
-        "Subtask changes save immediately"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-014",
-      "title": "New ticket form",
-      "description": "Create form for adding new tickets",
-      "acceptance_criteria": [
-        "Modal form triggered by + New Ticket button",
-        "Required field: title",
-        "Optional fields: description, priority, epic, tags",
-        "Project auto-selected based on current filter",
-        "Status defaults to Backlog",
-        "Form validation with error messages",
-        "Success creates ticket and closes modal"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-015",
-      "title": "Project and epic forms",
-      "description": "Create forms for adding/editing projects and epics",
-      "acceptance_criteria": [
-        "New project form: name, path (with directory picker or input), color",
-        "Path validation confirms directory exists",
-        "Edit project form pre-filled with current values",
-        "New epic form: title, description, color",
-        "Edit epic form pre-filled with current values",
-        "Delete project/epic with confirmation dialog"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-016",
-      "title": "Full-text search",
-      "description": "Implement search functionality across tickets",
-      "acceptance_criteria": [
-        "Search input in header",
-        "Searches: title, description, subtask text, tags",
-        "Results update as you type (debounced)",
-        "Highlights matching text in results",
-        "Works across all projects (or filtered to current)",
-        "SQLite FTS5 used for performance"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-017",
-      "title": "Tag filtering",
-      "description": "Add tag filter in sidebar to filter by tags",
-      "acceptance_criteria": [
-        "List of all tags used in current project/epic",
-        "Click tag to filter tickets to that tag",
-        "Multiple tag selection (AND filter)",
-        "Visual indicator for active tag filters",
-        "Clear filters button"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-018",
-      "title": "File attachments",
-      "description": "Allow uploading and viewing file attachments on tickets",
-      "acceptance_criteria": [
-        "Upload button in ticket modal",
-        "Drag and drop file upload",
-        "Files stored in ~/.brain-dump/attachments/{ticket-id}/",
-        "Image previews displayed inline",
-        "Non-image files shown as download links",
-        "Delete attachment button",
-        "Max file size limit (10MB)"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-019",
-      "title": "Claude context generation",
-      "description": "Generate formatted context for Claude Code when starting work on a ticket",
-      "acceptance_criteria": [
-        "API endpoint: GET /api/tickets/:id/context",
-        "Returns markdown with: ticket, epic context, linked files, related completed tickets",
-        "Format matches SPEC.md context format",
-        "Includes project path for cd command"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-020",
-      "title": "Start Work deep link",
-      "description": "Implement 'Start Work' button that opens Claude Code with ticket context",
-      "acceptance_criteria": [
-        "'Start Work' button on ticket modal",
-        "Generates context using /api/tickets/:id/context",
-        "Attempts to open terminal with: cd {project-path} && claude -p '{context}'",
-        "Falls back to copying context to clipboard if terminal launch fails",
-        "Shows success/fallback notification to user"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-021",
-      "title": "Sample data and onboarding",
-      "description": "Create sample data for first launch to demonstrate features",
-      "acceptance_criteria": [
-        "Detects first launch (empty database)",
-        "Creates sample project: 'Sample Project' with path /tmp/sample-project",
-        "Creates sample epic: 'Getting Started'",
-        "Creates 4 sample tickets in different statuses",
-        "Sample tickets have subtasks, tags, priorities",
-        "'Delete sample data' button clearly visible",
-        "Deleting sample data removes all sample items"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-022",
-      "title": "Keyboard shortcuts",
-      "description": "Add keyboard shortcuts for common actions",
-      "acceptance_criteria": [
-        "n = New ticket",
-        "/ = Focus search",
-        "? = Show shortcuts help modal",
-        "Esc = Close modal/deselect",
-        "Shortcuts work globally (not just when focused)",
-        "Shortcuts disabled when typing in input"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-023",
-      "title": "End-to-end tests",
-      "description": "Write Playwright E2E tests for critical user flows",
-      "acceptance_criteria": [
-        "Test: Create project, epic, ticket flow",
-        "Test: Drag ticket between columns",
-        "Test: Search finds ticket",
-        "Test: Toggle between Kanban and List view",
-        "Test: Edit ticket in modal",
-        "Test: Subtask completion",
-        "All E2E tests pass: pnpm test:e2e"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-024",
-      "title": "Polish and edge cases",
-      "description": "Final polish, edge case handling, and cleanup",
-      "acceptance_criteria": [
-        "Empty states for no projects, no tickets, no search results",
-        "Loading states for async operations",
-        "Error states with retry options",
-        "Confirm dialog before destructive actions",
-        "Toast notifications for success/error feedback",
-        "No console errors in production build",
-        "All tests pass: pnpm check"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-025",
-      "title": "Directory picker for project creation",
-      "description": "Add a file/directory browser to make it easy to select or create project directories",
-      "acceptance_criteria": [
-        "Browse button next to project path input",
-        "Modal opens showing file system directory tree",
-        "Can navigate up/down directories",
-        "Shows only directories (not files)",
-        "Select button picks the current directory",
-        "Selected path populates the project path input",
-        "Works on Linux/Mac file systems",
-        "Create New Folder button to make new directories",
-        "New folder dialog prompts for folder name",
-        "New folder is created on filesystem and auto-selected"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-026",
-      "title": "README and open-source setup",
-      "description": "Prepare the project for open-source release with documentation and licensing",
-      "acceptance_criteria": [
-        "README.md with project description and features",
-        "Installation instructions (pnpm install, setup steps)",
-        "Development setup guide (how to run locally)",
-        "MIT LICENSE file added",
-        "Contributing guidelines (CONTRIBUTING.md)",
-        "Screenshots or demo GIF in README",
-        "Environment requirements documented (Node.js version, etc.)"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-027",
-      "title": "Launch Claude in terminal with ticket context",
-      "description": "Start Work button opens a new terminal window, navigates to project directory, and launches Claude Code with ticket context as prompt",
-      "acceptance_criteria": [
-        "Start Work button triggers terminal launch (not just clipboard)",
-        "Detects available terminal emulator (gnome-terminal, konsole, xterm, etc.)",
-        "Terminal opens in the project's directory",
-        "Claude CLI is launched with -p flag containing ticket context",
-        "Ticket status automatically moves to 'In Progress' when Start Work is clicked",
-        "Fallback to clipboard copy if terminal launch fails",
-        "Works on Linux (primary target)"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-028",
-      "title": "Automatic status updates via Claude hooks",
-      "description": "Automatically update ticket status based on Claude Code activity using hooks and a CLI helper",
-      "acceptance_criteria": [
-        "Create brain-dump CLI tool that can update ticket status",
-        "CLI command: brain-dump status <ticket-id> <status>",
-        "CLI command: brain-dump done - moves current ticket to Review",
-        "Track 'current ticket' in a state file when Start Work is clicked",
-        "Provide Claude Code hook configuration for automatic status updates",
-        "Document how to set up hooks in Claude Code settings",
-        "Status updates reflect immediately in the UI (via polling or websocket)"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-029",
-      "title": "Real-time UI updates",
-      "description": "UI updates in real-time when ticket status changes from external sources (CLI, hooks)",
-      "acceptance_criteria": [
-        "Polling mechanism to check for ticket updates",
-        "UI refreshes when changes detected",
-        "Visual indicator when ticket status changes",
-        "Toast notification when ticket moves to Review automatically"
+      "priority": "low",
+      "tags": [
+        "mcp",
+        "files",
+        "context"
       ],
       "passes": true
     }
-  ]
+  ],
+  "generatedAt": "2026-01-11T19:55:26.663Z",
+  "epicTitle": "MCP Server Enhancements"
 }

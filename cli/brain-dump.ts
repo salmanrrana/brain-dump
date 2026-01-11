@@ -21,7 +21,7 @@ import { readFileSync, existsSync, unlinkSync } from "fs";
 const DB_PATH = join(homedir(), ".brain-dump", "brain-dump.db");
 const STATE_FILE = join(homedir(), ".brain-dump", "current-ticket.json");
 
-const VALID_STATUSES = ["backlog", "ready", "in_progress", "review", "done"] as const;
+const VALID_STATUSES = ["backlog", "ready", "in_progress", "review", "ai_review", "human_review", "done"] as const;
 type Status = (typeof VALID_STATUSES)[number];
 
 function getDb() {

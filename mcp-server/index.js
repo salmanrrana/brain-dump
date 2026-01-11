@@ -18,6 +18,7 @@ import { randomUUID } from "crypto";
 import { homedir } from "os";
 import { join } from "path";
 import { existsSync } from "fs";
+import { execSync } from "child_process";
 
 // =============================================================================
 // LOGGING - All output MUST go to stderr for STDIO transport
@@ -43,6 +44,18 @@ try {
   db = new Database(dbPath);
   db.pragma("journal_mode = WAL");
   log.info(`Connected to database: ${dbPath}`);
+
+  // Add linked_commits column if it doesn't exist (for link_commit_to_ticket tool)
+  try {
+    const columns = db.prepare("PRAGMA table_info(tickets)").all();
+    const hasLinkedCommits = columns.some(col => col.name === "linked_commits");
+    if (!hasLinkedCommits) {
+      db.prepare("ALTER TABLE tickets ADD COLUMN linked_commits TEXT").run();
+      log.info("Added linked_commits column to tickets table");
+    }
+  } catch (migrationError) {
+    log.error("Failed to check/add linked_commits column", migrationError);
+  }
 } catch (error) {
   log.error(`Failed to open database at ${dbPath}`, error);
   process.exit(1);
@@ -64,6 +77,58 @@ function validateEnum(value, allowed, fieldName) {
     return `Invalid ${fieldName}: "${value}". Must be one of: ${allowed.join(", ")}`;
   }
   return null;
+}
+
+// =============================================================================
+// GIT HELPERS
+// =============================================================================
+
+/**
+ * Generate a URL-safe slug from a string
+ */
+function slugify(text) {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-") // Replace non-alphanumeric with hyphens
+    .replace(/^-+|-+$/g, "")     // Trim leading/trailing hyphens
+    .substring(0, 50);           // Limit length
+}
+
+/**
+ * Get short ID from UUID (first 8 characters)
+ */
+function shortId(uuid) {
+  return uuid.substring(0, 8);
+}
+
+/**
+ * Generate branch name for a ticket
+ * Format: feature/{short-id}-{slug}
+ */
+function generateBranchName(ticketId, ticketTitle) {
+  const slug = slugify(ticketTitle);
+  return `feature/${shortId(ticketId)}-${slug}`;
+}
+
+/**
+ * Run a git command in a directory
+ * Returns { success: boolean, output: string, error?: string }
+ */
+function runGitCommand(command, cwd) {
+  try {
+    const output = execSync(command, {
+      cwd,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    return { success: true, output: output.trim() };
+  } catch (error) {
+    return {
+      success: false,
+      output: "",
+      error: error.stderr?.trim() || error.message,
+    };
+  }
 }
 
 // =============================================================================
@@ -213,7 +278,7 @@ Returns the created ticket with its generated ID.`,
 
 Args:
   projectId: Optional - filter by project
-  status: Optional - filter by status (backlog, ready, in_progress, review, done)
+  status: Optional - filter by status (backlog, ready, in_progress, review, ai_review, human_review, done)
   limit: Optional - max tickets to return (default: 20)
 
 Returns array of tickets sorted by creation date (newest first).`,
@@ -226,7 +291,7 @@ Returns array of tickets sorted by creation date (newest first).`,
             },
             status: {
               type: "string",
-              enum: ["backlog", "ready", "in_progress", "review", "done"],
+              enum: ["backlog", "ready", "in_progress", "review", "ai_review", "human_review", "done"],
               description: "Filter by status",
             },
             limit: {
@@ -242,6 +307,7 @@ Returns array of tickets sorted by creation date (newest first).`,
         description: `Update a ticket's status.
 
 Status flow: backlog -> ready -> in_progress -> review -> done
+Alternate flow: in_progress -> ai_review -> human_review -> done
 
 Args:
   ticketId: The ticket ID to update
@@ -257,7 +323,7 @@ Returns the updated ticket.`,
             },
             status: {
               type: "string",
-              enum: ["backlog", "ready", "in_progress", "review", "done"],
+              enum: ["backlog", "ready", "in_progress", "review", "ai_review", "human_review", "done"],
               description: "New status",
             },
           },
@@ -375,6 +441,166 @@ Args:
             },
           },
           required: ["ticketId"],
+        },
+      },
+      {
+        name: "start_ticket_work",
+        description: `Start working on a ticket.
+
+This tool:
+1. Creates a git branch: feature/{ticket-short-id}-{slug}
+2. Sets the ticket status to in_progress
+3. Returns the branch name and ticket context
+
+Use this when picking up a ticket to work on.
+The project must have a git repository initialized.
+
+Args:
+  ticketId: The ticket ID to start working on
+
+Returns:
+  Branch name, ticket details, and project path for context.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            ticketId: {
+              type: "string",
+              description: "Ticket ID to start working on",
+            },
+          },
+          required: ["ticketId"],
+        },
+      },
+      {
+        name: "complete_ticket_work",
+        description: `Complete work on a ticket and move it to review.
+
+This tool:
+1. Sets the ticket status to review
+2. Gets git commits on the current branch (for PR description)
+3. Returns a summary of work done
+
+Use this when you've finished implementing a ticket.
+Call this before creating a pull request.
+
+Args:
+  ticketId: The ticket ID to complete
+  summary: Optional work summary to include
+
+Returns:
+  Updated ticket, git commits summary, and suggested PR description.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            ticketId: {
+              type: "string",
+              description: "Ticket ID to complete",
+            },
+            summary: {
+              type: "string",
+              description: "Optional work summary describing what was done",
+            },
+          },
+          required: ["ticketId"],
+        },
+      },
+      {
+        name: "link_commit_to_ticket",
+        description: `Link a git commit to a ticket.
+
+Stores the commit reference in the ticket's metadata.
+Multiple commits can be linked to a single ticket.
+
+Use this to track which commits are related to a ticket.
+The commit can be queried later to see all work done.
+
+Args:
+  ticketId: The ticket ID to link the commit to
+  commitHash: The git commit hash (full or short)
+  message: Optional commit message (auto-fetched if not provided)
+
+Returns:
+  Updated list of linked commits for the ticket.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            ticketId: {
+              type: "string",
+              description: "Ticket ID to link the commit to",
+            },
+            commitHash: {
+              type: "string",
+              description: "Git commit hash (full or abbreviated)",
+            },
+            message: {
+              type: "string",
+              description: "Optional commit message (auto-fetched if in git repo)",
+            },
+          },
+          required: ["ticketId", "commitHash"],
+        },
+      },
+      {
+        name: "link_files_to_ticket",
+        description: `Link files to a ticket.
+
+Associates file paths with a ticket for context tracking.
+Multiple files can be linked to a single ticket.
+
+Use this to track which files are related to a ticket.
+Helpful for providing context when working on related issues.
+
+Args:
+  ticketId: The ticket ID to link files to
+  files: Array of file paths (relative or absolute)
+
+Returns:
+  Updated list of linked files for the ticket.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            ticketId: {
+              type: "string",
+              description: "Ticket ID to link files to",
+            },
+            files: {
+              type: "array",
+              items: { type: "string" },
+              description: "Array of file paths to link",
+            },
+          },
+          required: ["ticketId", "files"],
+        },
+      },
+      {
+        name: "get_tickets_for_file",
+        description: `Find tickets related to a file.
+
+Searches for tickets that have this file linked.
+Useful for getting context when working on a file.
+
+Supports partial path matching - will find tickets where
+the linked file path contains the search path.
+
+Args:
+  filePath: The file path to search for
+  projectId: Optional - limit search to a specific project
+
+Returns:
+  Array of tickets that have this file linked.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            filePath: {
+              type: "string",
+              description: "File path to search for (supports partial matching)",
+            },
+            projectId: {
+              type: "string",
+              description: "Optional project ID to limit search",
+            },
+          },
+          required: ["filePath"],
         },
       },
     ],
@@ -570,7 +796,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         // Validate status if provided
         if (status) {
-          const statusError = validateEnum(status, ["backlog", "ready", "in_progress", "review", "done"], "status");
+          const statusError = validateEnum(status, ["backlog", "ready", "in_progress", "review", "ai_review", "human_review", "done"], "status");
           if (statusError) {
             return { content: [{ type: "text", text: statusError }], isError: true };
           }
@@ -615,7 +841,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const { ticketId, status } = args;
 
         // Validate status
-        const statusError = validateEnum(status, ["backlog", "ready", "in_progress", "review", "done"], "status");
+        const statusError = validateEnum(status, ["backlog", "ready", "in_progress", "review", "ai_review", "human_review", "done"], "status");
         if (statusError) {
           return { content: [{ type: "text", text: statusError }], isError: true };
         }
@@ -796,6 +1022,516 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             text: comments.length > 0
               ? JSON.stringify(comments, null, 2)
               : `No comments found for ticket "${ticket.title}".`,
+          }],
+        };
+      }
+
+      // -----------------------------------------------------------------------
+      // START TICKET WORK
+      // -----------------------------------------------------------------------
+      case "start_ticket_work": {
+        const error = validateRequired(args, ["ticketId"]);
+        if (error) {
+          return { content: [{ type: "text", text: error }], isError: true };
+        }
+
+        const { ticketId } = args;
+
+        // Get ticket with project info
+        const ticket = db.prepare(`
+          SELECT t.*, p.name as project_name, p.path as project_path
+          FROM tickets t
+          JOIN projects p ON t.project_id = p.id
+          WHERE t.id = ?
+        `).get(ticketId);
+
+        if (!ticket) {
+          return {
+            content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
+            isError: true,
+          };
+        }
+
+        // Check if ticket is already in progress
+        if (ticket.status === "in_progress") {
+          return {
+            content: [{
+              type: "text",
+              text: `Ticket is already in progress.\n\n${JSON.stringify(ticket, null, 2)}`,
+            }],
+          };
+        }
+
+        // Check if project path exists
+        if (!existsSync(ticket.project_path)) {
+          return {
+            content: [{
+              type: "text",
+              text: `Project path does not exist: ${ticket.project_path}`,
+            }],
+            isError: true,
+          };
+        }
+
+        // Check if it's a git repository
+        const gitCheck = runGitCommand("git rev-parse --git-dir", ticket.project_path);
+        if (!gitCheck.success) {
+          return {
+            content: [{
+              type: "text",
+              text: `Not a git repository: ${ticket.project_path}\n\nInitialize git first: git init`,
+            }],
+            isError: true,
+          };
+        }
+
+        // Generate branch name
+        const branchName = generateBranchName(ticketId, ticket.title);
+
+        // Check if branch already exists
+        const branchExists = runGitCommand(`git show-ref --verify --quiet refs/heads/${branchName}`, ticket.project_path);
+
+        let branchCreated = false;
+        if (!branchExists.success) {
+          // Branch doesn't exist, create it
+          const createBranch = runGitCommand(`git checkout -b ${branchName}`, ticket.project_path);
+          if (!createBranch.success) {
+            return {
+              content: [{
+                type: "text",
+                text: `Failed to create branch ${branchName}: ${createBranch.error}`,
+              }],
+              isError: true,
+            };
+          }
+          branchCreated = true;
+        } else {
+          // Branch exists, check it out
+          const checkoutBranch = runGitCommand(`git checkout ${branchName}`, ticket.project_path);
+          if (!checkoutBranch.success) {
+            return {
+              content: [{
+                type: "text",
+                text: `Failed to checkout branch ${branchName}: ${checkoutBranch.error}`,
+              }],
+              isError: true,
+            };
+          }
+        }
+
+        // Update ticket status to in_progress
+        const now = new Date().toISOString();
+        db.prepare(
+          "UPDATE tickets SET status = 'in_progress', updated_at = ? WHERE id = ?"
+        ).run(now, ticketId);
+
+        // Get updated ticket
+        const updatedTicket = db.prepare(`
+          SELECT t.*, p.name as project_name, p.path as project_path
+          FROM tickets t
+          JOIN projects p ON t.project_id = p.id
+          WHERE t.id = ?
+        `).get(ticketId);
+
+        log.info(`Started work on ticket ${ticketId}: branch ${branchName}`);
+
+        return {
+          content: [{
+            type: "text",
+            text: `Started work on ticket!
+
+Branch: ${branchName}
+${branchCreated ? "Created new branch" : "Checked out existing branch"}
+
+Project: ${updatedTicket.project_name}
+Path: ${updatedTicket.project_path}
+
+Ticket:
+${JSON.stringify(updatedTicket, null, 2)}`,
+          }],
+        };
+      }
+
+      // -----------------------------------------------------------------------
+      // COMPLETE TICKET WORK
+      // -----------------------------------------------------------------------
+      case "complete_ticket_work": {
+        const error = validateRequired(args, ["ticketId"]);
+        if (error) {
+          return { content: [{ type: "text", text: error }], isError: true };
+        }
+
+        const { ticketId, summary } = args;
+
+        // Get ticket with project info
+        const ticket = db.prepare(`
+          SELECT t.*, p.name as project_name, p.path as project_path
+          FROM tickets t
+          JOIN projects p ON t.project_id = p.id
+          WHERE t.id = ?
+        `).get(ticketId);
+
+        if (!ticket) {
+          return {
+            content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
+            isError: true,
+          };
+        }
+
+        // Check if ticket is in a valid state to complete
+        if (ticket.status === "done") {
+          return {
+            content: [{
+              type: "text",
+              text: `Ticket is already done.\n\n${JSON.stringify(ticket, null, 2)}`,
+            }],
+          };
+        }
+
+        if (ticket.status === "review") {
+          return {
+            content: [{
+              type: "text",
+              text: `Ticket is already in review.\n\n${JSON.stringify(ticket, null, 2)}`,
+            }],
+          };
+        }
+
+        // Try to get git commits for this ticket's branch
+        let commitsInfo = "";
+        let prDescription = "";
+
+        if (existsSync(ticket.project_path)) {
+          const gitCheck = runGitCommand("git rev-parse --git-dir", ticket.project_path);
+
+          if (gitCheck.success) {
+            // Get current branch
+            const branchResult = runGitCommand("git branch --show-current", ticket.project_path);
+            const currentBranch = branchResult.success ? branchResult.output : "unknown";
+
+            // Get commits on this branch (compared to main/master)
+            // Try main first, then master
+            let baseBranch = "main";
+            const mainExists = runGitCommand("git show-ref --verify --quiet refs/heads/main", ticket.project_path);
+            if (!mainExists.success) {
+              const masterExists = runGitCommand("git show-ref --verify --quiet refs/heads/master", ticket.project_path);
+              if (masterExists.success) {
+                baseBranch = "master";
+              }
+            }
+
+            // Get commit log
+            const commitsResult = runGitCommand(
+              `git log ${baseBranch}..HEAD --oneline --no-decorate 2>/dev/null || git log -10 --oneline --no-decorate`,
+              ticket.project_path
+            );
+
+            if (commitsResult.success && commitsResult.output) {
+              commitsInfo = commitsResult.output;
+
+              // Generate PR description
+              const commitLines = commitsInfo.split("\n").filter(l => l.trim());
+              prDescription = `## Summary
+${summary || ticket.title}
+
+## Changes
+${commitLines.map(c => `- ${c.substring(c.indexOf(" ") + 1)}`).join("\n")}
+
+## Ticket
+- ID: ${shortId(ticketId)}
+- Title: ${ticket.title}
+`;
+            }
+          }
+        }
+
+        // Update ticket status to review
+        const now = new Date().toISOString();
+        db.prepare(
+          "UPDATE tickets SET status = 'review', updated_at = ? WHERE id = ?"
+        ).run(now, ticketId);
+
+        // Get updated ticket
+        const updatedTicket = db.prepare(`
+          SELECT t.*, p.name as project_name, p.path as project_path
+          FROM tickets t
+          JOIN projects p ON t.project_id = p.id
+          WHERE t.id = ?
+        `).get(ticketId);
+
+        log.info(`Completed work on ticket ${ticketId}, moved to review`);
+
+        return {
+          content: [{
+            type: "text",
+            text: `Ticket moved to review!
+
+Project: ${updatedTicket.project_name}
+Status: ${updatedTicket.status}
+
+${commitsInfo ? `Commits:\n${commitsInfo}\n` : ""}
+${prDescription ? `Suggested PR Description:\n\`\`\`\n${prDescription}\`\`\`\n` : ""}
+Ticket:
+${JSON.stringify(updatedTicket, null, 2)}`,
+          }],
+        };
+      }
+
+      // -----------------------------------------------------------------------
+      // LINK COMMIT TO TICKET
+      // -----------------------------------------------------------------------
+      case "link_commit_to_ticket": {
+        const error = validateRequired(args, ["ticketId", "commitHash"]);
+        if (error) {
+          return { content: [{ type: "text", text: error }], isError: true };
+        }
+
+        const { ticketId, commitHash, message } = args;
+
+        // Get ticket with project info
+        const ticket = db.prepare(`
+          SELECT t.*, p.name as project_name, p.path as project_path
+          FROM tickets t
+          JOIN projects p ON t.project_id = p.id
+          WHERE t.id = ?
+        `).get(ticketId);
+
+        if (!ticket) {
+          return {
+            content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
+            isError: true,
+          };
+        }
+
+        // Try to get commit message if not provided
+        let commitMessage = message || "";
+        if (!commitMessage && existsSync(ticket.project_path)) {
+          const gitCheck = runGitCommand("git rev-parse --git-dir", ticket.project_path);
+          if (gitCheck.success) {
+            const msgResult = runGitCommand(
+              `git log -1 --format=%s ${commitHash} 2>/dev/null`,
+              ticket.project_path
+            );
+            if (msgResult.success && msgResult.output) {
+              commitMessage = msgResult.output;
+            }
+          }
+        }
+
+        // Parse existing linked commits
+        let linkedCommits = [];
+        if (ticket.linked_commits) {
+          try {
+            linkedCommits = JSON.parse(ticket.linked_commits);
+          } catch {
+            linkedCommits = [];
+          }
+        }
+
+        // Check if commit already linked
+        const alreadyLinked = linkedCommits.some(c => c.hash === commitHash || c.hash.startsWith(commitHash) || commitHash.startsWith(c.hash));
+        if (alreadyLinked) {
+          return {
+            content: [{
+              type: "text",
+              text: `Commit ${commitHash} is already linked to this ticket.\n\nLinked commits:\n${JSON.stringify(linkedCommits, null, 2)}`,
+            }],
+          };
+        }
+
+        // Add new commit
+        const newCommit = {
+          hash: commitHash,
+          message: commitMessage,
+          linkedAt: new Date().toISOString(),
+        };
+        linkedCommits.push(newCommit);
+
+        // Update ticket
+        const now = new Date().toISOString();
+        db.prepare(
+          "UPDATE tickets SET linked_commits = ?, updated_at = ? WHERE id = ?"
+        ).run(JSON.stringify(linkedCommits), now, ticketId);
+
+        log.info(`Linked commit ${commitHash} to ticket ${ticketId}`);
+
+        return {
+          content: [{
+            type: "text",
+            text: `Commit linked to ticket "${ticket.title}"!
+
+Commit: ${commitHash}
+Message: ${commitMessage || "(no message)"}
+
+All linked commits (${linkedCommits.length}):
+${linkedCommits.map(c => `- ${c.hash.substring(0, 8)}: ${c.message || "(no message)"}`).join("\n")}`,
+          }],
+        };
+      }
+
+      // -----------------------------------------------------------------------
+      // LINK FILES TO TICKET
+      // -----------------------------------------------------------------------
+      case "link_files_to_ticket": {
+        const error = validateRequired(args, ["ticketId", "files"]);
+        if (error) {
+          return { content: [{ type: "text", text: error }], isError: true };
+        }
+
+        const { ticketId, files } = args;
+
+        // Validate files is an array
+        if (!Array.isArray(files)) {
+          return {
+            content: [{ type: "text", text: "files must be an array of file paths" }],
+            isError: true,
+          };
+        }
+
+        if (files.length === 0) {
+          return {
+            content: [{ type: "text", text: "files array cannot be empty" }],
+            isError: true,
+          };
+        }
+
+        // Get ticket with project info
+        const ticket = db.prepare(`
+          SELECT t.*, p.name as project_name, p.path as project_path
+          FROM tickets t
+          JOIN projects p ON t.project_id = p.id
+          WHERE t.id = ?
+        `).get(ticketId);
+
+        if (!ticket) {
+          return {
+            content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
+            isError: true,
+          };
+        }
+
+        // Parse existing linked files
+        let linkedFiles = [];
+        if (ticket.linked_files) {
+          try {
+            linkedFiles = JSON.parse(ticket.linked_files);
+          } catch {
+            linkedFiles = [];
+          }
+        }
+
+        // Normalize and add new files (avoid duplicates)
+        const newFiles = [];
+        for (const file of files) {
+          // Normalize the path - convert to relative if it starts with project path
+          let normalizedPath = file;
+          if (file.startsWith(ticket.project_path)) {
+            normalizedPath = file.substring(ticket.project_path.length).replace(/^\//, "");
+          }
+
+          // Check if already linked
+          if (!linkedFiles.includes(normalizedPath)) {
+            linkedFiles.push(normalizedPath);
+            newFiles.push(normalizedPath);
+          }
+        }
+
+        // Update ticket
+        const now = new Date().toISOString();
+        db.prepare(
+          "UPDATE tickets SET linked_files = ?, updated_at = ? WHERE id = ?"
+        ).run(JSON.stringify(linkedFiles), now, ticketId);
+
+        log.info(`Linked ${newFiles.length} files to ticket ${ticketId}`);
+
+        return {
+          content: [{
+            type: "text",
+            text: `Files linked to ticket "${ticket.title}"!
+
+New files added: ${newFiles.length}
+${newFiles.length > 0 ? newFiles.map(f => `  + ${f}`).join("\n") : "  (all files were already linked)"}
+
+All linked files (${linkedFiles.length}):
+${linkedFiles.map(f => `  - ${f}`).join("\n")}`,
+          }],
+        };
+      }
+
+      // -----------------------------------------------------------------------
+      // GET TICKETS FOR FILE
+      // -----------------------------------------------------------------------
+      case "get_tickets_for_file": {
+        const error = validateRequired(args, ["filePath"]);
+        if (error) {
+          return { content: [{ type: "text", text: error }], isError: true };
+        }
+
+        const { filePath, projectId } = args;
+
+        // Normalize the search path (remove leading slash if present)
+        const searchPath = filePath.replace(/^\//, "");
+
+        // Build query
+        let query = `
+          SELECT t.*, p.name as project_name, p.path as project_path
+          FROM tickets t
+          JOIN projects p ON t.project_id = p.id
+          WHERE t.linked_files IS NOT NULL
+        `;
+        const params = [];
+
+        if (projectId) {
+          query += " AND t.project_id = ?";
+          params.push(projectId);
+        }
+
+        const allTickets = db.prepare(query).all(...params);
+
+        // Filter tickets that have the file linked (partial matching)
+        const matchingTickets = allTickets.filter(ticket => {
+          try {
+            const linkedFiles = JSON.parse(ticket.linked_files);
+            return linkedFiles.some(f =>
+              f.includes(searchPath) || searchPath.includes(f)
+            );
+          } catch {
+            return false;
+          }
+        });
+
+        if (matchingTickets.length === 0) {
+          return {
+            content: [{
+              type: "text",
+              text: `No tickets found with file: ${filePath}\n\nTip: Use link_files_to_ticket to associate files with tickets.`,
+            }],
+          };
+        }
+
+        // Format results
+        const results = matchingTickets.map(t => ({
+          id: t.id,
+          title: t.title,
+          status: t.status,
+          priority: t.priority,
+          project: t.project_name,
+          linkedFiles: JSON.parse(t.linked_files),
+        }));
+
+        log.info(`Found ${matchingTickets.length} tickets for file ${filePath}`);
+
+        return {
+          content: [{
+            type: "text",
+            text: `Found ${matchingTickets.length} ticket(s) for file "${filePath}":
+
+${results.map(t => `## ${t.title}
+- ID: ${t.id}
+- Status: ${t.status}
+- Priority: ${t.priority || "none"}
+- Project: ${t.project}
+- Linked files: ${t.linkedFiles.join(", ")}`).join("\n\n")}`,
           }],
         };
       }

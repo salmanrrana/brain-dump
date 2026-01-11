@@ -44,7 +44,9 @@ const statusOrder: Record<string, number> = {
   ready: 1,
   in_progress: 2,
   review: 3,
-  done: 4,
+  ai_review: 4,
+  human_review: 5,
+  done: 6,
 };
 
 const priorityOrder: Record<string, number> = {
@@ -299,6 +301,14 @@ function StatusBadge({ status }: { status: string }) {
     review: {
       label: "Review",
       className: "bg-purple-900/50 text-purple-300",
+    },
+    ai_review: {
+      label: "AI Review",
+      className: "bg-orange-900/50 text-orange-300",
+    },
+    human_review: {
+      label: "Human Review",
+      className: "bg-rose-900/50 text-rose-300",
     },
     done: {
       label: "Done",

@@ -95,3 +95,403 @@ PRD: plans/prd.json
 - Files: src/components/ProjectModal.tsx, src/components/EpicModal.tsx, src/components/ProjectTree.tsx, src/components/AppLayout.tsx
 - Notes: ProjectModal and EpicModal components for create/edit operations. Name, path (with existence validation), and color picker for projects. Title, description, and color for epics. Inline delete with confirmation dialog. Edit buttons appear on hover in ProjectTree sidebar. Context functions for modal management.
 
+---
+
+## VS Code Integration Epic Breakdown
+
+### 2026-01-11 - Epic: Working with VS Code
+- Agent: Breakdown (reviewing inception output)
+- Epic ID: d7af1fab-599a-46f6-a4b1-bc15a29cfb3f
+- Branch: feature/vscode-integration
+
+**Tickets Created: 12**
+- High Priority (5): BD-030, BD-032, BD-033, BD-034, BD-037
+- Medium Priority (5): BD-031, BD-035, BD-036, BD-038, BD-039
+- Low Priority (2): BD-040, BD-041
+
+**Ticket Summary:**
+| ID | Title | Priority |
+|----|-------|----------|
+| BD-030 | MCP Server VS Code Compatibility | High |
+| BD-031 | Multi-Extension MCP Support | Medium |
+| BD-032 | Environment Detection System | High |
+| BD-033 | VS Code Custom Agent Files | High |
+| BD-034 | Ralph Cross-Environment Support | High |
+| BD-035 | Working Method Settings | Medium |
+| BD-036 | Project Auto-Detection in VS Code | Medium |
+| BD-037 | Ticket-to-Code Workflow | High |
+| BD-038 | Code-to-Ticket Workflow | Medium |
+| BD-039 | Agent-Driven Development Workflow | Medium |
+| BD-040 | File/Folder Context Linking | Low |
+| BD-041 | VS Code Setup Documentation | Medium |
+
+**Implementation Order (Suggested):**
+1. Phase 1 - Core: BD-030, BD-032, BD-035
+2. Phase 2 - Agents: BD-033, BD-034
+3. Phase 3 - Workflows: BD-036, BD-037, BD-038, BD-039
+4. Phase 4 - Polish: BD-031, BD-040, BD-041
+
+**Files Created:**
+- plans/vscode-integration-spec.md (epic specification)
+- Updated plans/prd.json (added BD-030 through BD-041)
+
+**Notes:**
+- Original 12 tickets superseded by atomic breakdown below
+
+---
+
+### 2026-01-11 - Atomic Ticket Breakdown
+
+**Philosophy:** Each ticket = one focused session with fresh context. AI clears context between tickets for "fresh eyes" on each task.
+
+**New Epics Created:**
+1. MCP Server Enhancements (green) - 8 tickets
+2. Cross-Environment Support (purple) - 7 tickets
+3. VS Code Configuration (blue) - 9 tickets
+4. Development Workflows (amber) - 4 tickets
+
+**Total Atomic Tickets: 28**
+
+**High Priority (13):**
+- Verify MCP server works with Claude Code
+- Test MCP server with VS Code native MCP
+- Create .vscode/mcp.json template
+- Create start_ticket_work MCP tool
+- Create complete_ticket_work MCP tool
+- Create environment detection utility
+- Create get_environment MCP tool
+- Add context reset signal on ticket completion
+- Create breakdown.agent.md for VS Code
+- Create inception.agent.md for VS Code
+- Create ralph.agent.md for VS Code
+- Define ticket-to-code workflow spec
+
+**Key Feature: Context Reset**
+When ticket completes, AI signals need for fresh context. Each ticket worked with clean slate = better quality.
+
+**Implementation Order:**
+1. Phase 1: Foundation (MCP baseline, env detection, config)
+2. Phase 2: Core MCP Tools (workflow tools)
+3. Phase 3: VS Code Agents (agent.md files)
+4. Phase 4: Settings & Workflows
+5. Phase 5: Review Pipeline
+6. Phase 6: Polish & Testing
+
+---
+
+### 2026-01-11 - PRD Update: All Tickets Exported
+
+**Task:** Update PRD with all 53 tickets from Brain Dumpy database
+
+**Epics (6 total):**
+1. working with vs code (original) - 12 tickets
+2. MCP Server Enhancements - 8 tickets
+3. Cross-Environment Support - 7 tickets
+4. VS Code Configuration - 9 tickets
+5. Development Workflows - 4 tickets
+6. Review Pipeline - 12 tickets
+
+**Tickets: 53 total**
+- High Priority: 26 tickets
+- Medium Priority: 22 tickets
+- Low Priority: 5 tickets
+- Completed: 1 (BD-001: Ghostty terminal fix)
+- Backlog: 52
+
+**Files Updated:**
+- plans/prd.json (complete rewrite with all tickets)
+- plans/vscode-integration-spec.md (added Review Pipeline epic)
+- plans/progress.txt (this entry)
+
+**PRD Structure:**
+Each ticket now includes:
+- id (BD-001 through BD-053)
+- title
+- description (full context)
+- acceptance_criteria (parsed array)
+- priority (high/medium/low)
+- status (backlog/in_progress/done/etc)
+- epic (which epic it belongs to)
+- brain_dumpy_id (UUID from database)
+- tags (array)
+- passes (boolean, based on status)
+
+**Ready for Ralph:**
+Ralph can now pick up any ticket from BD-002 through BD-053 with full context from the PRD.
+
+---
+
+### 2026-01-11 - MCP Server Claude Code Verification
+- Task: Verify MCP server works with Claude Code
+- Ticket ID: 06633336-6d4e-49d7-a2a2-1a18b2eb6b81
+- Success: true
+- Agent: Ralph
+
+**MCP Tools Verified (10 total):**
+
+| Tool | Status | Description |
+|------|--------|-------------|
+| `list_projects` | ✅ | List all projects in Brain Dumpy |
+| `find_project_by_path` | ✅ | Find project by filesystem path |
+| `create_project` | ✅ | Create a new project |
+| `create_ticket` | ✅ | Create a new ticket |
+| `list_tickets` | ✅ | List tickets with filters |
+| `update_ticket_status` | ✅ | Update ticket status |
+| `list_epics` | ✅ | List epics for a project |
+| `create_epic` | ✅ | Create a new epic |
+| `add_ticket_comment` | ✅ | Add comment to a ticket |
+| `get_ticket_comments` | ✅ | Get all comments for a ticket |
+
+**Tools Actively Tested:**
+- `list_projects` - Returned 5 projects
+- `find_project_by_path` - Found Brain Dumpy project
+- `list_epics` - Returned 5 epics for Brain Dumpy
+- `list_tickets` - Returned tickets with filters
+- `add_ticket_comment` - Added progress comment
+- `get_ticket_comments` - Retrieved comments
+
+**Observations:**
+1. All tools callable from Claude Code via MCP integration
+2. Tool names prefixed with `mcp__brain-dumpy__` in Claude Code
+3. Parameters work as documented in schema
+4. Error handling validates required fields and enum values
+5. Database connection to `~/.brain-dump/brain-dump.db` works
+
+**Limitations Identified:**
+1. No `update_ticket` for general ticket updates
+2. No `delete_ticket` or `delete_epic` tools
+3. No `update_epic` tool
+4. No `get_ticket` for single ticket by ID
+5. Missing workflow tools documented in PRD tickets
+
+**Files Modified:**
+- plans/prd.json (marked ticket as passes: true)
+- plans/progress.txt (this entry)
+
+---
+
+### 2026-01-11 - VS Code MCP Configuration Template
+- Task: Create .vscode/mcp.json template
+- Ticket ID: dc5b80d7-75c2-4e6e-b918-61f3b0dd8fdc
+- Success: true
+- Agent: Ralph
+
+**Files Created:**
+- `.vscode/mcp.json.example` - VS Code MCP configuration template
+
+**Configuration Details:**
+- Uses stdio transport (standard for MCP)
+- Includes detailed JSONC comments explaining each field
+- Points to `mcp-server/index.js` for the Brain Dumpy server
+- Documents requirements (VS Code 1.99+, Node.js, database)
+
+**Git Ignore Setup:**
+- Updated `.gitignore` to track `.vscode/*.example` files
+- Actual `mcp.json` remains ignored (user-specific paths)
+- Users copy `.example` to `mcp.json` and update paths
+
+**Usage Instructions (in file):**
+1. Copy `.vscode/mcp.json.example` to `.vscode/mcp.json`
+2. Update the path to match your Brain Dumpy installation
+3. Restart VS Code or reload window
+
+**Files Modified:**
+- .gitignore (added exception for .example files)
+- plans/prd.json (marked ticket as passes: true)
+- plans/progress.txt (this entry)
+
+---
+
+### 2026-01-11 - start_ticket_work MCP Tool
+- Task: Create start_ticket_work MCP tool
+- Ticket ID: c9293544-5ab1-4fdc-9e7f-9b62907e7933
+- Success: true
+- Agent: Ralph
+
+**Implementation:**
+- Added `start_ticket_work` tool to MCP server
+- Added `execSync` import from child_process
+- Added git helper functions: `slugify`, `shortId`, `generateBranchName`, `runGitCommand`
+
+**Tool Behavior:**
+1. Takes `ticketId` as parameter
+2. Validates ticket exists and gets project info
+3. Checks if project path is a git repository
+4. Generates branch name: `feature/{short-id}-{slug}`
+   - short-id: first 8 chars of UUID
+   - slug: lowercase, alphanumeric with hyphens, max 50 chars
+5. Creates branch (or checks out if exists)
+6. Updates ticket status to `in_progress`
+7. Returns branch name, project info, and ticket details
+
+**Error Handling:**
+- Ticket not found
+- Ticket already in progress (returns ticket info)
+- Project path doesn't exist
+- Not a git repository
+- Git branch creation/checkout failures
+
+**Files Modified:**
+- mcp-server/index.js (added tool + helpers)
+- plans/prd.json (marked ticket as passes: true)
+- plans/progress.txt (this entry)
+
+**Testing:**
+- Syntax check: passed
+- Type check: passed
+
+---
+
+### 2026-01-11 - complete_ticket_work MCP Tool
+- Task: Create complete_ticket_work MCP tool
+- Ticket ID: 44a97133-1e6e-40a4-af1c-ee4b85d843de
+- Success: true
+- Agent: Ralph
+
+**Implementation:**
+- Added `complete_ticket_work` tool to MCP server
+- Reuses existing git helper functions
+
+**Tool Behavior:**
+1. Takes `ticketId` and optional `summary` as parameters
+2. Validates ticket exists and is in completable state
+3. Gets git commits on current branch (compared to main/master)
+4. Generates suggested PR description from commits
+5. Updates ticket status to `review`
+6. Returns updated ticket, commits, and PR description
+
+**PR Description Generation:**
+- Detects base branch (main or master)
+- Gets commits unique to feature branch
+- Formats as markdown with summary, changes, and ticket info
+
+**Error Handling:**
+- Ticket not found
+- Ticket already done (returns info)
+- Ticket already in review (returns info)
+- Gracefully handles non-git projects
+
+**Files Modified:**
+- mcp-server/index.js (added tool)
+- plans/prd.json (marked ticket as passes: true)
+- plans/progress.txt (this entry)
+
+**Testing:**
+- Syntax check: passed
+- Type check: passed
+
+---
+
+### 2026-01-11 - link_commit_to_ticket MCP Tool
+- Task: Create link_commit_to_ticket MCP tool
+- Ticket ID: 04fd9275-46a2-42d2-82d3-de699e259962
+- Success: true
+- Agent: Ralph
+
+**Implementation:**
+- Added `link_commit_to_ticket` tool to MCP server
+- Added database migration to create `linked_commits` column
+- Stores commits as JSON array with hash, message, and timestamp
+
+**Tool Behavior:**
+1. Takes `ticketId`, `commitHash`, and optional `message` as parameters
+2. Validates ticket exists
+3. Auto-fetches commit message from git if not provided
+4. Checks for duplicate commits (prevents re-linking)
+5. Stores commit info in `linked_commits` JSON array
+6. Returns all linked commits for the ticket
+
+**Database Migration:**
+- Automatically adds `linked_commits TEXT` column to tickets table
+- Runs on MCP server startup if column doesn't exist
+- Stores JSON array: `[{hash, message, linkedAt}, ...]`
+
+**Error Handling:**
+- Ticket not found
+- Commit already linked (shows existing commits)
+- Gracefully handles non-git projects
+
+**Files Modified:**
+- mcp-server/index.js (added tool + migration)
+- plans/prd.json (marked ticket as passes: true)
+- plans/progress.txt (this entry)
+
+**Testing:**
+- Syntax check: passed
+- Type check: passed
+
+---
+
+### 2026-01-11 - link_files_to_ticket MCP Tool
+- Task: Create link_files_to_ticket MCP tool
+- Ticket ID: a3e3432e-836a-4fae-929a-0e22c3817af9
+- Success: true
+- Agent: Ralph
+
+**Implementation:**
+- Added `link_files_to_ticket` tool to MCP server
+- Uses existing `linked_files` column in tickets table
+
+**Tool Behavior:**
+1. Takes `ticketId` and `files` array as parameters
+2. Validates ticket exists and files array is valid
+3. Normalizes paths (converts absolute to relative if within project)
+4. Avoids duplicate file entries
+5. Stores file paths in `linked_files` JSON array
+6. Returns all linked files for the ticket
+
+**Path Handling:**
+- Accepts both relative and absolute paths
+- Auto-converts absolute paths to relative (if within project)
+- Prevents duplicate entries
+
+**Error Handling:**
+- Ticket not found
+- Invalid files array (not array, empty)
+
+**Files Modified:**
+- mcp-server/index.js (added tool)
+- plans/prd.json (marked ticket as passes: true)
+- plans/progress.txt (this entry)
+
+**Testing:**
+- Syntax check: passed
+- Type check: passed
+
+---
+
+### 2026-01-11 - get_tickets_for_file MCP Tool
+- Task: Create get_tickets_for_file MCP tool
+- Ticket ID: 4cdb7fc6-58ca-432e-9898-f56f30c2c5c4
+- Success: true
+- Agent: Ralph
+
+**Implementation:**
+- Added `get_tickets_for_file` tool to MCP server
+- Searches tickets by linked file path
+
+**Tool Behavior:**
+1. Takes `filePath` and optional `projectId` as parameters
+2. Normalizes search path (removes leading slash)
+3. Queries all tickets with linked_files
+4. Filters by partial path matching (bidirectional)
+5. Returns formatted list of matching tickets
+
+**Path Matching:**
+- Supports partial path matching
+- Matches if search path contains file OR file contains search path
+- Example: "index.js" matches "src/index.js"
+
+**Error Handling:**
+- Missing filePath parameter
+- No tickets found (with helpful tip)
+
+**Files Modified:**
+- mcp-server/index.js (added tool)
+- plans/prd.json (marked ticket as passes: true)
+- plans/progress.txt (this entry)
+
+**Testing:**
+- Syntax check: passed
+- Type check: passed
+
