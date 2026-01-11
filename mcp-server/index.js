@@ -539,6 +539,38 @@ Returns:
           required: ["ticketId", "commitHash"],
         },
       },
+      {
+        name: "link_files_to_ticket",
+        description: `Link files to a ticket.
+
+Associates file paths with a ticket for context tracking.
+Multiple files can be linked to a single ticket.
+
+Use this to track which files are related to a ticket.
+Helpful for providing context when working on related issues.
+
+Args:
+  ticketId: The ticket ID to link files to
+  files: Array of file paths (relative or absolute)
+
+Returns:
+  Updated list of linked files for the ticket.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            ticketId: {
+              type: "string",
+              description: "Ticket ID to link files to",
+            },
+            files: {
+              type: "array",
+              items: { type: "string" },
+              description: "Array of file paths to link",
+            },
+          },
+          required: ["ticketId", "files"],
+        },
+      },
     ],
   };
 });
@@ -1301,6 +1333,95 @@ Message: ${commitMessage || "(no message)"}
 
 All linked commits (${linkedCommits.length}):
 ${linkedCommits.map(c => `- ${c.hash.substring(0, 8)}: ${c.message || "(no message)"}`).join("\n")}`,
+          }],
+        };
+      }
+
+      // -----------------------------------------------------------------------
+      // LINK FILES TO TICKET
+      // -----------------------------------------------------------------------
+      case "link_files_to_ticket": {
+        const error = validateRequired(args, ["ticketId", "files"]);
+        if (error) {
+          return { content: [{ type: "text", text: error }], isError: true };
+        }
+
+        const { ticketId, files } = args;
+
+        // Validate files is an array
+        if (!Array.isArray(files)) {
+          return {
+            content: [{ type: "text", text: "files must be an array of file paths" }],
+            isError: true,
+          };
+        }
+
+        if (files.length === 0) {
+          return {
+            content: [{ type: "text", text: "files array cannot be empty" }],
+            isError: true,
+          };
+        }
+
+        // Get ticket with project info
+        const ticket = db.prepare(`
+          SELECT t.*, p.name as project_name, p.path as project_path
+          FROM tickets t
+          JOIN projects p ON t.project_id = p.id
+          WHERE t.id = ?
+        `).get(ticketId);
+
+        if (!ticket) {
+          return {
+            content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
+            isError: true,
+          };
+        }
+
+        // Parse existing linked files
+        let linkedFiles = [];
+        if (ticket.linked_files) {
+          try {
+            linkedFiles = JSON.parse(ticket.linked_files);
+          } catch {
+            linkedFiles = [];
+          }
+        }
+
+        // Normalize and add new files (avoid duplicates)
+        const newFiles = [];
+        for (const file of files) {
+          // Normalize the path - convert to relative if it starts with project path
+          let normalizedPath = file;
+          if (file.startsWith(ticket.project_path)) {
+            normalizedPath = file.substring(ticket.project_path.length).replace(/^\//, "");
+          }
+
+          // Check if already linked
+          if (!linkedFiles.includes(normalizedPath)) {
+            linkedFiles.push(normalizedPath);
+            newFiles.push(normalizedPath);
+          }
+        }
+
+        // Update ticket
+        const now = new Date().toISOString();
+        db.prepare(
+          "UPDATE tickets SET linked_files = ?, updated_at = ? WHERE id = ?"
+        ).run(JSON.stringify(linkedFiles), now, ticketId);
+
+        log.info(`Linked ${newFiles.length} files to ticket ${ticketId}`);
+
+        return {
+          content: [{
+            type: "text",
+            text: `Files linked to ticket "${ticket.title}"!
+
+New files added: ${newFiles.length}
+${newFiles.length > 0 ? newFiles.map(f => `  + ${f}`).join("\n") : "  (all files were already linked)"}
+
+All linked files (${linkedFiles.length}):
+${linkedFiles.map(f => `  - ${f}`).join("\n")}`,
           }],
         };
       }

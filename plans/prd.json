@@ -100,7 +100,7 @@
     {
       "id": "a3e3432e-836a-4fae-929a-0e22c3817af9",
       "title": "Create link_files_to_ticket MCP tool",
-      "description": "## Task\nAdd MCP tool to associate files with a ticket.\n\n## Behavior\n- Takes ticketId and file paths array\n- Stores file associations in ticket\n- Returns confirmation\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Files stored in ticket.linked_files\n- [ ] Handles relative and absolute paths\n\n## File to Modify\n`src/mcp/tools/`",
+      "description": "## Task\nAdd MCP tool to associate files with a ticket.\n\n## Behavior\n- Takes ticketId and file paths array\n- Stores file associations in ticket\n- Returns confirmation\n\n## Acceptance Criteria\n- [x] Tool registered in MCP server\n- [x] Files stored in ticket.linked_files\n- [x] Handles relative and absolute paths\n\n## File to Modify\n`src/mcp/tools/`",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
@@ -110,7 +110,7 @@
         "mcp",
         "files"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "4cdb7fc6-58ca-432e-9898-f56f30c2c5c4",

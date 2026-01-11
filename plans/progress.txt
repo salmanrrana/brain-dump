@@ -420,3 +420,41 @@ Ralph can now pick up any ticket from BD-002 through BD-053 with full context fr
 - Syntax check: passed
 - Type check: passed
 
+---
+
+### 2026-01-11 - link_files_to_ticket MCP Tool
+- Task: Create link_files_to_ticket MCP tool
+- Ticket ID: a3e3432e-836a-4fae-929a-0e22c3817af9
+- Success: true
+- Agent: Ralph
+
+**Implementation:**
+- Added `link_files_to_ticket` tool to MCP server
+- Uses existing `linked_files` column in tickets table
+
+**Tool Behavior:**
+1. Takes `ticketId` and `files` array as parameters
+2. Validates ticket exists and files array is valid
+3. Normalizes paths (converts absolute to relative if within project)
+4. Avoids duplicate file entries
+5. Stores file paths in `linked_files` JSON array
+6. Returns all linked files for the ticket
+
+**Path Handling:**
+- Accepts both relative and absolute paths
+- Auto-converts absolute paths to relative (if within project)
+- Prevents duplicate entries
+
+**Error Handling:**
+- Ticket not found
+- Invalid files array (not array, empty)
+
+**Files Modified:**
+- mcp-server/index.js (added tool)
+- plans/prd.json (marked ticket as passes: true)
+- plans/progress.txt (this entry)
+
+**Testing:**
+- Syntax check: passed
+- Type check: passed
+
