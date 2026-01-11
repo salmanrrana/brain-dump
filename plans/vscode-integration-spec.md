@@ -77,6 +77,27 @@ End-to-end workflow definitions and tools.
 | Create create_ticket_from_context MCP tool | Medium | Code → ticket |
 | Define agent-driven development workflow spec | Medium | Full workflow doc |
 
+### 5. Review Pipeline
+**Epic ID:** 4c9f1271-04b1-41e9-b220-8cfea5b7fdf5
+**Color:** #ef4444 (red)
+
+Automated code review system with specialized review agents.
+
+| Ticket | Priority | Description |
+|--------|----------|-------------|
+| Add ai_review status to ticket schema | High | New status for automated review |
+| Add human_review status to ticket schema | High | Status when human action needed |
+| Add human_action_required field to tickets | Medium | Store what action is needed |
+| Create submit_for_review MCP tool | High | Submit completed work |
+| Create request_human_review MCP tool | Medium | Flag for human attention |
+| Create reviewer.agent.md (KISS checker) | High | Simplicity review agent |
+| Create security.agent.md | High | Security review agent |
+| Create feedback-processor.agent.md | High | Process feedback agent |
+| Create create_fix_tickets MCP tool | Medium | Generate fix tickets |
+| Create mark_review_complete MCP tool | High | Complete review cycle |
+| Define review pipeline workflow spec | High | Full workflow documentation |
+| Update Kanban UI for new statuses | Medium | UI for new columns |
+
 ## Implementation Order
 
 ### Phase 1: Foundation (Start Here)
@@ -104,11 +125,18 @@ End-to-end workflow definitions and tools.
 16. Define workflow specs
 17. Create create_ticket_from_context MCP tool
 
-### Phase 5: Polish & Testing
-18. Test agents with Copilot/Continue
-19. Write Quick Start guide
-20. Write troubleshooting guide
-21. Add working method UI
+### Phase 5: Review Pipeline
+18. Add ai_review and human_review statuses
+19. Create review agents (reviewer, security, feedback-processor)
+20. Create review MCP tools
+21. Define review pipeline workflow spec
+
+### Phase 6: Polish & Testing
+22. Test agents with Copilot/Continue
+23. Update Kanban UI for new statuses
+24. Write Quick Start guide
+25. Write troubleshooting guide
+26. Add working method UI
 
 ## Ticket Guidelines
 

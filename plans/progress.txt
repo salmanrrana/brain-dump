@@ -174,5 +174,48 @@ When ticket completes, AI signals need for fresh context. Each ticket worked wit
 2. Phase 2: Core MCP Tools (workflow tools)
 3. Phase 3: VS Code Agents (agent.md files)
 4. Phase 4: Settings & Workflows
-5. Phase 5: Polish & Testing
+5. Phase 5: Review Pipeline
+6. Phase 6: Polish & Testing
+
+---
+
+### 2026-01-11 - PRD Update: All Tickets Exported
+
+**Task:** Update PRD with all 53 tickets from Brain Dumpy database
+
+**Epics (6 total):**
+1. working with vs code (original) - 12 tickets
+2. MCP Server Enhancements - 8 tickets
+3. Cross-Environment Support - 7 tickets
+4. VS Code Configuration - 9 tickets
+5. Development Workflows - 4 tickets
+6. Review Pipeline - 12 tickets
+
+**Tickets: 53 total**
+- High Priority: 26 tickets
+- Medium Priority: 22 tickets
+- Low Priority: 5 tickets
+- Completed: 1 (BD-001: Ghostty terminal fix)
+- Backlog: 52
+
+**Files Updated:**
+- plans/prd.json (complete rewrite with all tickets)
+- plans/vscode-integration-spec.md (added Review Pipeline epic)
+- plans/progress.txt (this entry)
+
+**PRD Structure:**
+Each ticket now includes:
+- id (BD-001 through BD-053)
+- title
+- description (full context)
+- acceptance_criteria (parsed array)
+- priority (high/medium/low)
+- status (backlog/in_progress/done/etc)
+- epic (which epic it belongs to)
+- brain_dumpy_id (UUID from database)
+- tags (array)
+- passes (boolean, based on status)
+
+**Ready for Ralph:**
+Ralph can now pick up any ticket from BD-002 through BD-053 with full context from the PRD.
 
