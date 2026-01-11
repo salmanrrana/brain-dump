@@ -458,3 +458,40 @@ Ralph can now pick up any ticket from BD-002 through BD-053 with full context fr
 - Syntax check: passed
 - Type check: passed
 
+---
+
+### 2026-01-11 - get_tickets_for_file MCP Tool
+- Task: Create get_tickets_for_file MCP tool
+- Ticket ID: 4cdb7fc6-58ca-432e-9898-f56f30c2c5c4
+- Success: true
+- Agent: Ralph
+
+**Implementation:**
+- Added `get_tickets_for_file` tool to MCP server
+- Searches tickets by linked file path
+
+**Tool Behavior:**
+1. Takes `filePath` and optional `projectId` as parameters
+2. Normalizes search path (removes leading slash)
+3. Queries all tickets with linked_files
+4. Filters by partial path matching (bidirectional)
+5. Returns formatted list of matching tickets
+
+**Path Matching:**
+- Supports partial path matching
+- Matches if search path contains file OR file contains search path
+- Example: "index.js" matches "src/index.js"
+
+**Error Handling:**
+- Missing filePath parameter
+- No tickets found (with helpful tip)
+
+**Files Modified:**
+- mcp-server/index.js (added tool)
+- plans/prd.json (marked ticket as passes: true)
+- plans/progress.txt (this entry)
+
+**Testing:**
+- Syntax check: passed
+- Type check: passed
+

@@ -115,7 +115,7 @@
     {
       "id": "4cdb7fc6-58ca-432e-9898-f56f30c2c5c4",
       "title": "Create get_tickets_for_file MCP tool",
-      "description": "## Task\nAdd MCP tool to find tickets related to a file.\n\n## Behavior\n- Takes file path as parameter\n- Returns tickets that have this file linked\n- Useful for context when working on a file\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Returns relevant tickets\n- [ ] Handles partial path matching\n\n## File to Modify\n`src/mcp/tools/`",
+      "description": "## Task\nAdd MCP tool to find tickets related to a file.\n\n## Behavior\n- Takes file path as parameter\n- Returns tickets that have this file linked\n- Useful for context when working on a file\n\n## Acceptance Criteria\n- [x] Tool registered in MCP server\n- [x] Returns relevant tickets\n- [x] Handles partial path matching\n\n## File to Modify\n`src/mcp/tools/`",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
@@ -126,7 +126,7 @@
         "files",
         "context"
       ],
-      "passes": false
+      "passes": true
     }
   ],
   "generatedAt": "2026-01-11T19:55:26.663Z",

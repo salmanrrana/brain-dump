@@ -571,6 +571,37 @@ Returns:
           required: ["ticketId", "files"],
         },
       },
+      {
+        name: "get_tickets_for_file",
+        description: `Find tickets related to a file.
+
+Searches for tickets that have this file linked.
+Useful for getting context when working on a file.
+
+Supports partial path matching - will find tickets where
+the linked file path contains the search path.
+
+Args:
+  filePath: The file path to search for
+  projectId: Optional - limit search to a specific project
+
+Returns:
+  Array of tickets that have this file linked.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            filePath: {
+              type: "string",
+              description: "File path to search for (supports partial matching)",
+            },
+            projectId: {
+              type: "string",
+              description: "Optional project ID to limit search",
+            },
+          },
+          required: ["filePath"],
+        },
+      },
     ],
   };
 });
@@ -1422,6 +1453,84 @@ ${newFiles.length > 0 ? newFiles.map(f => `  + ${f}`).join("\n") : "  (all files
 
 All linked files (${linkedFiles.length}):
 ${linkedFiles.map(f => `  - ${f}`).join("\n")}`,
+          }],
+        };
+      }
+
+      // -----------------------------------------------------------------------
+      // GET TICKETS FOR FILE
+      // -----------------------------------------------------------------------
+      case "get_tickets_for_file": {
+        const error = validateRequired(args, ["filePath"]);
+        if (error) {
+          return { content: [{ type: "text", text: error }], isError: true };
+        }
+
+        const { filePath, projectId } = args;
+
+        // Normalize the search path (remove leading slash if present)
+        const searchPath = filePath.replace(/^\//, "");
+
+        // Build query
+        let query = `
+          SELECT t.*, p.name as project_name, p.path as project_path
+          FROM tickets t
+          JOIN projects p ON t.project_id = p.id
+          WHERE t.linked_files IS NOT NULL
+        `;
+        const params = [];
+
+        if (projectId) {
+          query += " AND t.project_id = ?";
+          params.push(projectId);
+        }
+
+        const allTickets = db.prepare(query).all(...params);
+
+        // Filter tickets that have the file linked (partial matching)
+        const matchingTickets = allTickets.filter(ticket => {
+          try {
+            const linkedFiles = JSON.parse(ticket.linked_files);
+            return linkedFiles.some(f =>
+              f.includes(searchPath) || searchPath.includes(f)
+            );
+          } catch {
+            return false;
+          }
+        });
+
+        if (matchingTickets.length === 0) {
+          return {
+            content: [{
+              type: "text",
+              text: `No tickets found with file: ${filePath}\n\nTip: Use link_files_to_ticket to associate files with tickets.`,
+            }],
+          };
+        }
+
+        // Format results
+        const results = matchingTickets.map(t => ({
+          id: t.id,
+          title: t.title,
+          status: t.status,
+          priority: t.priority,
+          project: t.project_name,
+          linkedFiles: JSON.parse(t.linked_files),
+        }));
+
+        log.info(`Found ${matchingTickets.length} tickets for file ${filePath}`);
+
+        return {
+          content: [{
+            type: "text",
+            text: `Found ${matchingTickets.length} ticket(s) for file "${filePath}":
+
+${results.map(t => `## ${t.title}
+- ID: ${t.id}
+- Status: ${t.status}
+- Priority: ${t.priority || "none"}
+- Project: ${t.project}
+- Linked files: ${t.linkedFiles.join(", ")}`).join("\n\n")}`,
           }],
         };
       }
