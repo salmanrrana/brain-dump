@@ -136,7 +136,43 @@ PRD: plans/prd.json
 - Updated plans/prd.json (added BD-030 through BD-041)
 
 **Notes:**
-- Some tickets may need further splitting (VS Code Custom Agent Files has 4 agents)
-- Ticket-to-Code Workflow contains 3 MCP tools - consider splitting if too large
-- All tickets linked to Brain Dumpy epic via brain_dumpy_id field
+- Original 12 tickets superseded by atomic breakdown below
+
+---
+
+### 2026-01-11 - Atomic Ticket Breakdown
+
+**Philosophy:** Each ticket = one focused session with fresh context. AI clears context between tickets for "fresh eyes" on each task.
+
+**New Epics Created:**
+1. MCP Server Enhancements (green) - 8 tickets
+2. Cross-Environment Support (purple) - 7 tickets
+3. VS Code Configuration (blue) - 9 tickets
+4. Development Workflows (amber) - 4 tickets
+
+**Total Atomic Tickets: 28**
+
+**High Priority (13):**
+- Verify MCP server works with Claude Code
+- Test MCP server with VS Code native MCP
+- Create .vscode/mcp.json template
+- Create start_ticket_work MCP tool
+- Create complete_ticket_work MCP tool
+- Create environment detection utility
+- Create get_environment MCP tool
+- Add context reset signal on ticket completion
+- Create breakdown.agent.md for VS Code
+- Create inception.agent.md for VS Code
+- Create ralph.agent.md for VS Code
+- Define ticket-to-code workflow spec
+
+**Key Feature: Context Reset**
+When ticket completes, AI signals need for fresh context. Each ticket worked with clean slate = better quality.
+
+**Implementation Order:**
+1. Phase 1: Foundation (MCP baseline, env detection, config)
+2. Phase 2: Core MCP Tools (workflow tools)
+3. Phase 3: VS Code Agents (agent.md files)
+4. Phase 4: Settings & Workflows
+5. Phase 5: Polish & Testing
 
