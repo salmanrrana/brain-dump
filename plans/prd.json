@@ -425,6 +425,191 @@
         "Toast notification when ticket moves to Review automatically"
       ],
       "passes": true
+    },
+    {
+      "id": "BD-030",
+      "title": "MCP Server VS Code Compatibility",
+      "description": "Update Brain Dumpy MCP server to be fully compatible with VS Code's native MCP client",
+      "epic": "VS Code Integration",
+      "brain_dumpy_id": "81196c8d-c83e-41f1-b9e6-0f6650be95e6",
+      "acceptance_criteria": [
+        "MCP server connects successfully via VS Code",
+        "All Brain Dumpy tools appear in Copilot chat",
+        "Tools can be invoked with #toolname syntax",
+        "Configure via .vscode/mcp.json for workspace setup",
+        "Support stdio transport (primary)",
+        "Document VS Code setup instructions"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-031",
+      "title": "Multi-Extension MCP Support",
+      "description": "Ensure Brain Dumpy MCP server works with multiple VS Code AI extensions beyond native Copilot",
+      "epic": "VS Code Integration",
+      "brain_dumpy_id": "3a4f94b5-1354-455e-9062-93300f0610f1",
+      "acceptance_criteria": [
+        "Works with GitHub Copilot Chat",
+        "Works with Continue extension",
+        "Compatibility matrix documented",
+        "Known issues/workarounds documented"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-032",
+      "title": "Environment Detection System",
+      "description": "Implement system to detect whether agents are running in VS Code vs Claude environment",
+      "epic": "VS Code Integration",
+      "brain_dumpy_id": "33efed49-c50d-4f03-a14e-732b12de2585",
+      "acceptance_criteria": [
+        "Add environment detection logic to agent runtime",
+        "Detect VS Code context (workspace path, open files)",
+        "Create mechanism to pass VS Code context to agents",
+        "Agents can detect VS Code vs Claude environment",
+        "Environment info available in agent context"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-033",
+      "title": "VS Code Custom Agent Files",
+      "description": "Create VS Code-optimized custom agent files (.agent.md) for Brain Dumpy agents",
+      "epic": "VS Code Integration",
+      "brain_dumpy_id": "ef2ed0f6-0925-4e40-b522-d54d10296bbf",
+      "acceptance_criteria": [
+        "breakdown.agent.md created in .github/agents/",
+        "inception.agent.md created in .github/agents/",
+        "ralph.agent.md created in .github/agents/",
+        "simplify.agent.md created in .github/agents/",
+        "Agents can access Brain Dumpy MCP tools",
+        "Agents appear in VS Code chat dropdown",
+        "Handoffs configured between agents"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-034",
+      "title": "Ralph Cross-Environment Support",
+      "description": "Ensure Ralph agent works seamlessly in both Claude Code and VS Code environments",
+      "epic": "VS Code Integration",
+      "brain_dumpy_id": "6bca7cc0-6fe5-4bbe-83bd-3bb1025da5d8",
+      "acceptance_criteria": [
+        "Ralph detects current environment automatically",
+        "Dual behavior paths for environment-specific features",
+        "Core Ralph functionality works identically in both",
+        "Use VS Code terminal for command execution when in VS Code",
+        "Document any behavioral differences"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-035",
+      "title": "Working Method Settings",
+      "description": "Add settings in Brain Dumpy for users to configure preferred working method (VS Code or Claude Code)",
+      "epic": "VS Code Integration",
+      "brain_dumpy_id": "410d4e49-81ce-4d2c-ab3e-75d0cd7086fc",
+      "acceptance_criteria": [
+        "Settings schema for working method preference",
+        "Per-project configurable settings",
+        "Options: VS Code, Claude Code, Auto-detect",
+        "Settings affect agent behavior appropriately",
+        "Expose via MCP tool for querying",
+        "Document settings options"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-036",
+      "title": "Project Auto-Detection in VS Code",
+      "description": "Implement automatic project detection based on VS Code workspace",
+      "epic": "VS Code Integration",
+      "brain_dumpy_id": "c840e467-caf0-432c-9023-20772d277f61",
+      "acceptance_criteria": [
+        "Receive VS Code workspace path via MCP context",
+        "Match workspace path to registered Brain Dumpy projects",
+        "Auto-set project context for all MCP operations",
+        "Handle multi-root workspaces gracefully",
+        "Fallback to manual selection if no match"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-037",
+      "title": "Ticket-to-Code Workflow",
+      "description": "Implement workflow: start from ticket in chat, create branch, implement, link commits",
+      "epic": "VS Code Integration",
+      "brain_dumpy_id": "a40a1cf6-0954-48b8-addd-ca7b8a1729f5",
+      "acceptance_criteria": [
+        "start_ticket_work MCP tool creates branch and sets in_progress",
+        "link_commit_to_ticket MCP tool associates commit with ticket",
+        "complete_ticket_work MCP tool moves to review",
+        "Branch created with ticket reference (feature/BD-123-title)",
+        "Commits linked to ticket",
+        "Ticket status updates automatically"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-038",
+      "title": "Code-to-Ticket Workflow",
+      "description": "Enable creating tickets from selected code or files in VS Code editor",
+      "epic": "VS Code Integration",
+      "brain_dumpy_id": "8129f813-3853-4549-92d1-589422bb8319",
+      "acceptance_criteria": [
+        "Receive selected code/file path from VS Code",
+        "Generate intelligent ticket suggestions from code context",
+        "Create ticket with file linkage",
+        "Support different ticket types (bug, feature, refactor)",
+        "Ticket description reflects code context"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-039",
+      "title": "Agent-Driven Development Workflow",
+      "description": "Streamline workflow where agents plan work in chat, then execute in VS Code",
+      "epic": "VS Code Integration",
+      "brain_dumpy_id": "b0ea74f3-0e28-4327-9dec-2cc45fc8d1a5",
+      "acceptance_criteria": [
+        "Agents create actionable tickets from planning",
+        "Handoff between agents (inception → breakdown → ralph)",
+        "VS Code workspace context available during planning",
+        "Created tickets ready for ticket-to-code workflow",
+        "Seamless transition from planning to implementation"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-040",
+      "title": "File/Folder Context Linking",
+      "description": "Automatically link tickets to relevant files/folders based on workspace context",
+      "epic": "VS Code Integration",
+      "brain_dumpy_id": "a5878550-3a67-4dac-af7f-8ad54b57e5e0",
+      "acceptance_criteria": [
+        "link_files_to_ticket MCP tool associates files with ticket",
+        "get_tickets_for_file MCP tool finds tickets related to a file",
+        "Track which files are modified during ticket work",
+        "Auto-link on commit (if ticket-to-code workflow active)",
+        "Query tickets by file path works"
+      ],
+      "passes": false
+    },
+    {
+      "id": "BD-041",
+      "title": "VS Code Setup Documentation",
+      "description": "Create comprehensive documentation for setting up Brain Dumpy with VS Code",
+      "epic": "VS Code Integration",
+      "brain_dumpy_id": "4165e8f8-93eb-4859-b918-b1b38824934c",
+      "acceptance_criteria": [
+        "Quick Start guide with prerequisites",
+        "MCP configuration guide (.vscode/mcp.json)",
+        "Custom agents setup guide",
+        "Workflow guides (ticket-to-code, code-to-ticket, agent-driven)",
+        "Troubleshooting section with common issues",
+        "Compatibility matrix (VS Code versions, AI extensions)"
+      ],
+      "passes": false
     }
   ]
 }

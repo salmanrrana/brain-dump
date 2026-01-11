@@ -95,3 +95,48 @@ PRD: plans/prd.json
 - Files: src/components/ProjectModal.tsx, src/components/EpicModal.tsx, src/components/ProjectTree.tsx, src/components/AppLayout.tsx
 - Notes: ProjectModal and EpicModal components for create/edit operations. Name, path (with existence validation), and color picker for projects. Title, description, and color for epics. Inline delete with confirmation dialog. Edit buttons appear on hover in ProjectTree sidebar. Context functions for modal management.
 
+---
+
+## VS Code Integration Epic Breakdown
+
+### 2026-01-11 - Epic: Working with VS Code
+- Agent: Breakdown (reviewing inception output)
+- Epic ID: d7af1fab-599a-46f6-a4b1-bc15a29cfb3f
+- Branch: feature/vscode-integration
+
+**Tickets Created: 12**
+- High Priority (5): BD-030, BD-032, BD-033, BD-034, BD-037
+- Medium Priority (5): BD-031, BD-035, BD-036, BD-038, BD-039
+- Low Priority (2): BD-040, BD-041
+
+**Ticket Summary:**
+| ID | Title | Priority |
+|----|-------|----------|
+| BD-030 | MCP Server VS Code Compatibility | High |
+| BD-031 | Multi-Extension MCP Support | Medium |
+| BD-032 | Environment Detection System | High |
+| BD-033 | VS Code Custom Agent Files | High |
+| BD-034 | Ralph Cross-Environment Support | High |
+| BD-035 | Working Method Settings | Medium |
+| BD-036 | Project Auto-Detection in VS Code | Medium |
+| BD-037 | Ticket-to-Code Workflow | High |
+| BD-038 | Code-to-Ticket Workflow | Medium |
+| BD-039 | Agent-Driven Development Workflow | Medium |
+| BD-040 | File/Folder Context Linking | Low |
+| BD-041 | VS Code Setup Documentation | Medium |
+
+**Implementation Order (Suggested):**
+1. Phase 1 - Core: BD-030, BD-032, BD-035
+2. Phase 2 - Agents: BD-033, BD-034
+3. Phase 3 - Workflows: BD-036, BD-037, BD-038, BD-039
+4. Phase 4 - Polish: BD-031, BD-040, BD-041
+
+**Files Created:**
+- plans/vscode-integration-spec.md (epic specification)
+- Updated plans/prd.json (added BD-030 through BD-041)
+
+**Notes:**
+- Some tickets may need further splitting (VS Code Custom Agent Files has 4 agents)
+- Ticket-to-Code Workflow contains 3 MCP tools - consider splitting if too large
+- All tickets linked to Brain Dumpy epic via brain_dumpy_id field
+
