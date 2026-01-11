@@ -60,6 +60,8 @@ function Home() {
         ready: "Ready",
         in_progress: "In Progress",
         review: "Review",
+        ai_review: "AI Review",
+        human_review: "Human Review",
         done: "Done",
       };
 
@@ -172,11 +174,13 @@ function Home() {
 
 // Kanban column configuration
 const KANBAN_COLUMNS = [
-  { id: "backlog", title: "Backlog" },
-  { id: "ready", title: "Ready" },
-  { id: "in_progress", title: "In Progress" },
-  { id: "review", title: "Review" },
-  { id: "done", title: "Done" },
+  { id: "backlog", title: "Backlog", color: "slate" },
+  { id: "ready", title: "Ready", color: "slate" },
+  { id: "in_progress", title: "In Progress", color: "slate" },
+  { id: "review", title: "Review", color: "slate" },
+  { id: "ai_review", title: "AI Review", color: "amber" },
+  { id: "human_review", title: "Human Review", color: "rose" },
+  { id: "done", title: "Done", color: "slate" },
 ] as const;
 
 // Kanban board component with drag and drop
@@ -276,7 +280,7 @@ function KanbanBoard({
 
     // Update status if changed
     if (activeTicket.status !== targetStatus) {
-      await updateTicketStatus({ data: { id: activeTicket.id, status: targetStatus as "backlog" | "ready" | "in_progress" | "review" | "done" } });
+      await updateTicketStatus({ data: { id: activeTicket.id, status: targetStatus as "backlog" | "ready" | "in_progress" | "review" | "ai_review" | "human_review" | "done" } });
     }
 
     // Update position
@@ -293,13 +297,12 @@ function KanbanBoard({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="grid grid-cols-5 gap-4 h-full">
+      <div className="grid grid-cols-7 gap-4 h-full">
         {KANBAN_COLUMNS.map((column) => (
           <BoardColumn
             key={column.id}
             columnId={column.id}
-            title={column.title}
-            tickets={ticketsByStatus[column.id] ?? []}
+            title={column.title}            color={column.color}            tickets={ticketsByStatus[column.id] ?? []}
             onTicketClick={onTicketClick}
           />
         ))}
@@ -318,11 +321,13 @@ function KanbanBoard({
 function BoardColumn({
   columnId,
   title,
+  color,
   tickets,
   onTicketClick,
 }: {
   columnId: string;
   title: string;
+  color: string;
   tickets: Ticket[];
   onTicketClick: (ticket: Ticket) => void;
 }) {
@@ -331,10 +336,31 @@ function BoardColumn({
     data: { type: "column" },
   });
 
+  // Color configurations for review columns
+  const colorStyles: Record<string, { bg: string; header: string; border: string }> = {
+    slate: {
+      bg: "bg-slate-900",
+      header: "border-slate-800",
+      border: "",
+    },
+    amber: {
+      bg: "bg-amber-950/30",
+      header: "border-amber-800/50",
+      border: "ring-1 ring-amber-700/30",
+    },
+    rose: {
+      bg: "bg-rose-950/30",
+      header: "border-rose-800/50",
+      border: "ring-1 ring-rose-700/30",
+    },
+  };
+
+  const styles = colorStyles[color] ?? colorStyles.slate;
+
   return (
-    <div className="flex flex-col bg-slate-900 rounded-lg">
+    <div className={`flex flex-col ${styles.bg} ${styles.border} rounded-lg`}>
       {/* Column header */}
-      <div className="p-3 border-b border-slate-800">
+      <div className={`p-3 border-b ${styles.header}`}>
         <div className="flex items-center justify-between">
           <h3 className="font-medium text-slate-200">{title}</h3>
           <span className="text-xs bg-slate-800 px-2 py-1 rounded-full text-slate-400">

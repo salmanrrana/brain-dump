@@ -5,7 +5,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 // Types
-export type TicketStatus = "backlog" | "ready" | "in_progress" | "review" | "done";
+export type TicketStatus = "backlog" | "ready" | "in_progress" | "review" | "ai_review" | "human_review" | "done";
 export type TicketPriority = "high" | "medium" | "low";
 
 export interface Subtask {
@@ -270,6 +270,8 @@ export const updateTicketStatus = createServerFn({ method: "POST" })
       "ready",
       "in_progress",
       "review",
+      "ai_review",
+      "human_review",
       "done",
     ];
     if (!validStatuses.includes(input.status)) {

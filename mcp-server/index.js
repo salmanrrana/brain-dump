@@ -278,7 +278,7 @@ Returns the created ticket with its generated ID.`,
 
 Args:
   projectId: Optional - filter by project
-  status: Optional - filter by status (backlog, ready, in_progress, review, done)
+  status: Optional - filter by status (backlog, ready, in_progress, review, ai_review, human_review, done)
   limit: Optional - max tickets to return (default: 20)
 
 Returns array of tickets sorted by creation date (newest first).`,
@@ -291,7 +291,7 @@ Returns array of tickets sorted by creation date (newest first).`,
             },
             status: {
               type: "string",
-              enum: ["backlog", "ready", "in_progress", "review", "done"],
+              enum: ["backlog", "ready", "in_progress", "review", "ai_review", "human_review", "done"],
               description: "Filter by status",
             },
             limit: {
@@ -307,6 +307,7 @@ Returns array of tickets sorted by creation date (newest first).`,
         description: `Update a ticket's status.
 
 Status flow: backlog -> ready -> in_progress -> review -> done
+Alternate flow: in_progress -> ai_review -> human_review -> done
 
 Args:
   ticketId: The ticket ID to update
@@ -322,7 +323,7 @@ Returns the updated ticket.`,
             },
             status: {
               type: "string",
-              enum: ["backlog", "ready", "in_progress", "review", "done"],
+              enum: ["backlog", "ready", "in_progress", "review", "ai_review", "human_review", "done"],
               description: "New status",
             },
           },
@@ -795,7 +796,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         // Validate status if provided
         if (status) {
-          const statusError = validateEnum(status, ["backlog", "ready", "in_progress", "review", "done"], "status");
+          const statusError = validateEnum(status, ["backlog", "ready", "in_progress", "review", "ai_review", "human_review", "done"], "status");
           if (statusError) {
             return { content: [{ type: "text", text: statusError }], isError: true };
           }
@@ -840,7 +841,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const { ticketId, status } = args;
 
         // Validate status
-        const statusError = validateEnum(status, ["backlog", "ready", "in_progress", "review", "done"], "status");
+        const statusError = validateEnum(status, ["backlog", "ready", "in_progress", "review", "ai_review", "human_review", "done"], "status");
         if (statusError) {
           return { content: [{ type: "text", text: statusError }], isError: true };
         }

@@ -42,6 +42,8 @@ const STATUS_OPTIONS = [
   { value: "ready", label: "Ready" },
   { value: "in_progress", label: "In Progress" },
   { value: "review", label: "Review" },
+  { value: "ai_review", label: "AI Review" },
+  { value: "human_review", label: "Human Review" },
   { value: "done", label: "Done" },
 ] as const;
 
