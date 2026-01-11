@@ -1,322 +1,32 @@
 {
-  "project": "brain-dumpy",
-  "description": "Personal task management system with Kanban/List views and Claude Code integration",
+  "projectName": "Brain Dumpy",
   "projectPath": "/home/xtra/code/personal_projects/brain-dumpy",
-  "spec": "SPEC.md",
-  "epicMapping": {
-    "d7af1fab-599a-46f6-a4b1-bc15a29cfb3f": "working with vs code",
-    "9d3f47a0-e707-418d-bc68-e2c0ff4ef310": "MCP Server Enhancements",
-    "d12f58d0-9c98-462a-b4f2-38dc4753442b": "Cross-Environment Support",
-    "416ac1a8-3777-45fa-8a48-9d1a6ecee04e": "VS Code Configuration",
-    "0f9806ca-7994-4556-a67e-fd3ff1aa92ca": "Development Workflows",
-    "4c9f1271-04b1-41e9-b220-8cfea5b7fdf5": "Review Pipeline"
-  },
   "userStories": [
     {
-      "id": "BD-001",
-      "title": "Ghostty terminal opens frozen/unresponsive when starting ticket",
-      "description": "## Problem\nWhen clicking \"Start Work\" on a ticket, Ghostty opens but the terminal is completely frozen:\n- No shell prompt appears\n- Typing commands (like `ls`) shows characters but nothing executes\n- The terminal is unresponsive to all input\n- Window title shows \"Ghostty\" but no shell session is active\n\n## Expected Behavior\nTerminal should open with:\n1. Shell prompt visible\n2. Working directory set to project path\n3. Claude Code launched with ticket context\n4. Interactive terminal session\n\n## Root Cause (Suspected)\nThe Ghostty launch command syntax may be incorrect. Current command:\n```\nghostty --working-directory=\"${projectPath}\" -e bash -c '${claudeCommand}; exec bash'\n```\n\nGhostty may not support the `-e` flag the same way other terminals do, or the command escaping is breaking the shell execution.\n\n## Acceptance Criteria\n- [ ] Terminal opens with visible shell prompt\n- [ ] Working directory is correct\n- [ ] Claude Code launches with context\n- [ ] Terminal remains interactive after Claude exits\n\n## Technical Notes\n- File: `src/api/terminal.ts`\n- Function: `buildTerminalCommand()` case for \"ghostty\"\n- Need to verify Ghostty's CLI syntax for running commands",
-      "acceptance_criteria": [
-        "Terminal opens with visible shell prompt",
-        "Working directory is correct",
-        "Claude Code launches with context",
-        "Terminal remains interactive after Claude exits"
-      ],
-      "priority": "high",
-      "status": "done",
-      "epic": null,
-      "brain_dumpy_id": "f20a2a69-ca57-4681-9221-d67ca543329d",
-      "tags": [
-        "bug",
-        "terminal",
-        "ghostty",
-        "ux"
-      ],
-      "passes": true
-    },
-    {
-      "id": "BD-002",
-      "title": "MCP Server VS Code Compatibility",
-      "description": "## Overview\nUpdate Brain Dumpy MCP server to be fully compatible with VS Code's native MCP client.\n\n## Requirements\n- Test current MCP server with VS Code's native MCP support\n- Configure via `.vscode/mcp.json` for workspace setup\n- Ensure all existing MCP tools work correctly in VS Code chat\n- Support stdio transport (primary) and HTTP if needed\n\n## Technical Details\nVS Code MCP configuration example:\n```json\n{\n  \"servers\": {\n    \"brain-dumpy\": {\n      \"type\": \"stdio\",\n      \"command\": \"node\",\n      \"args\": [\"path/to/brain-dumpy/mcp-server\"]\n    }\n  }\n}\n```\n\n## Acceptance Criteria\n- [ ] MCP server connects successfully via VS Code\n- [ ] All Brain Dumpy tools appear in Copilot chat\n- [ ] Tools can be invoked with `#toolname` syntax\n- [ ] Document VS Code setup instructions",
-      "acceptance_criteria": [
-        "MCP server connects successfully via VS Code",
-        "All Brain Dumpy tools appear in Copilot chat",
-        "Tools can be invoked with `#toolname` syntax",
-        "Document VS Code setup instructions"
-      ],
-      "priority": "high",
-      "status": "backlog",
-      "epic": "working with vs code",
-      "brain_dumpy_id": "81196c8d-c83e-41f1-b9e6-0f6650be95e6",
-      "tags": [
-        "mcp",
-        "vs-code",
-        "integration"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-003",
-      "title": "Multi-Extension MCP Support",
-      "description": "## Overview\nEnsure Brain Dumpy MCP server works with multiple VS Code AI extensions beyond native Copilot.\n\n## Requirements\n- Test compatibility with GitHub Copilot Chat\n- Test compatibility with Continue extension\n- Test compatibility with other popular AI extensions\n- Document any extension-specific quirks or requirements\n\n## Acceptance Criteria\n- [ ] Works with GitHub Copilot Chat\n- [ ] Works with Continue extension\n- [ ] Compatibility matrix documented\n- [ ] Known issues/workarounds documented",
-      "acceptance_criteria": [
-        "Works with GitHub Copilot Chat",
-        "Works with Continue extension",
-        "Compatibility matrix documented",
-        "Known issues/workarounds documented"
-      ],
-      "priority": "medium",
-      "status": "backlog",
-      "epic": "working with vs code",
-      "brain_dumpy_id": "3a4f94b5-1354-455e-9062-93300f0610f1",
-      "tags": [
-        "mcp",
-        "vs-code",
-        "compatibility"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-004",
-      "title": "Environment Detection System",
-      "description": "## Overview\nImplement system to detect whether agents are running in VS Code vs Claude environment, enabling context-aware behavior.\n\n## Requirements\n- Add environment detection logic to agent runtime\n- Detect VS Code context (workspace path, open files, etc.)\n- Create mechanism to pass VS Code context to agents\n- Store environment preference in Brain Dumpy settings\n\n## Technical Approach\n- Check for VS Code-specific environment variables or context\n- Add `environment` field to MCP tool requests\n- Allow agents to query current environment via MCP tool\n\n## Acceptance Criteria\n- [ ] Agents can detect VS Code vs Claude environment\n- [ ] Environment info available in agent context\n- [ ] Test detection across different setups",
-      "acceptance_criteria": [
-        "Agents can detect VS Code vs Claude environment",
-        "Environment info available in agent context",
-        "Test detection across different setups"
-      ],
-      "priority": "high",
-      "status": "backlog",
-      "epic": "working with vs code",
-      "brain_dumpy_id": "33efed49-c50d-4f03-a14e-732b12de2585",
-      "tags": [
-        "agents",
-        "vs-code",
-        "detection"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-005",
-      "title": "VS Code Custom Agent Files",
-      "description": "## Overview\nCreate VS Code-optimized custom agent files (`.agent.md`) for Brain Dumpy agents that leverage VS Code's native capabilities.\n\n## VS Code Agent File Structure\nLocated in `.github/agents/` folder with YAML frontmatter:\n```markdown\n---\ndescription: \"Brain Dumpy breakdown agent for VS Code\"\ntools:\n  - brain-dumpy-create-ticket\n  - brain-dumpy-list-epics\nmodel: gpt-4\n---\n\n# Breakdown Agent Instructions\n...\n```\n\n## Agents to Create\n- [ ] `breakdown.agent.md` - Spec breakdown agent\n- [ ] `inception.agent.md` - Project inception/interview agent\n- [ ] `ralph.agent.md` - Autonomous work agent\n- [ ] `simplify.agent.md` - Code simplification agent\n\n## Requirements\n- Define appropriate tools for each agent\n- Set up handoffs between agents where applicable\n- Include Brain Dumpy MCP tools in agent configurations\n\n## Acceptance Criteria\n- [ ] All Brain Dumpy agents available as VS Code custom agents\n- [ ] Agents can access Brain Dumpy MCP tools\n- [ ] Agents appear in VS Code chat dropdown",
-      "acceptance_criteria": [
-        "All Brain Dumpy agents available as VS Code custom agents",
-        "Agents can access Brain Dumpy MCP tools",
-        "Agents appear in VS Code chat dropdown"
-      ],
-      "priority": "high",
-      "status": "backlog",
-      "epic": "working with vs code",
-      "brain_dumpy_id": "ef2ed0f6-0925-4e40-b522-d54d10296bbf",
-      "tags": [
-        "agents",
-        "vs-code",
-        "custom-agents"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-006",
-      "title": "Ralph Cross-Environment Support",
-      "description": "## Overview\nEnsure Ralph agent works seamlessly in both Claude Code and VS Code environments with consistent behavior.\n\n## Requirements\n- Ralph must detect current environment automatically\n- Implement dual behavior paths for environment-specific features\n- Core Ralph functionality (ticket work, commits, etc.) works identically\n- Environment-specific optimizations where beneficial\n\n## VS Code Considerations\n- Use VS Code terminal for command execution\n- Leverage VS Code workspace context\n- Access open files/editors context if available\n- Work with VS Code's git integration\n\n## Acceptance Criteria\n- [ ] Ralph works in Claude Code environment\n- [ ] Ralph works in VS Code environment  \n- [ ] Core functionality consistent across both\n- [ ] Document any behavioral differences",
-      "acceptance_criteria": [
-        "Ralph works in Claude Code environment",
-        "Ralph works in VS Code environment",
-        "Core functionality consistent across both",
-        "Document any behavioral differences"
-      ],
-      "priority": "high",
-      "status": "backlog",
-      "epic": "working with vs code",
-      "brain_dumpy_id": "6bca7cc0-6fe5-4bbe-83bd-3bb1025da5d8",
-      "tags": [
-        "ralph",
-        "agents",
-        "cross-platform"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-007",
-      "title": "Working Method Settings",
-      "description": "## Overview\nAdd settings in Brain Dumpy where users can configure their preferred working method (\"VS Code\" or \"Claude Code\") to control agent behavior and defaults.\n\n## Requirements\n- Add settings schema for working method preference\n- Settings should be per-project configurable\n- Options: \"VS Code\", \"Claude Code\", \"Auto-detect\"\n- Wire settings into agent selection/behavior logic\n\n## Settings Location\n- Store in Brain Dumpy project settings\n- Expose via MCP tool for querying\n- Consider CLI flag override\n\n## Acceptance Criteria\n- [ ] Working method setting available per project\n- [ ] Setting affects agent behavior appropriately\n- [ ] Auto-detect mode works correctly\n- [ ] Document settings options",
-      "acceptance_criteria": [
-        "Working method setting available per project",
-        "Setting affects agent behavior appropriately",
-        "Auto-detect mode works correctly",
-        "Document settings options"
-      ],
-      "priority": "medium",
-      "status": "backlog",
-      "epic": "working with vs code",
-      "brain_dumpy_id": "410d4e49-81ce-4d2c-ab3e-75d0cd7086fc",
-      "tags": [
-        "settings",
-        "configuration",
-        "ux"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-008",
-      "title": "Project Auto-Detection in VS Code",
-      "description": "## Overview\nImplement automatic project detection based on VS Code workspace, so Brain Dumpy knows which project context to use without manual selection.\n\n## Requirements\n- Receive VS Code workspace path via MCP context\n- Match workspace path to registered Brain Dumpy projects\n- Auto-set project context for all MCP operations\n- Handle multi-root workspaces gracefully\n\n## Technical Approach\n- Add MCP tool or use existing `find_project_by_path`\n- VS Code passes workspace root in MCP requests\n- Cache project context for session\n\n## Acceptance Criteria\n- [ ] Project auto-detected from VS Code workspace\n- [ ] Correct project used for ticket operations\n- [ ] Multi-root workspace support\n- [ ] Fallback to manual selection if no match",
-      "acceptance_criteria": [
-        "Project auto-detected from VS Code workspace",
-        "Correct project used for ticket operations",
-        "Multi-root workspace support",
-        "Fallback to manual selection if no match"
-      ],
-      "priority": "medium",
-      "status": "backlog",
-      "epic": "working with vs code",
-      "brain_dumpy_id": "c840e467-caf0-432c-9023-20772d277f61",
-      "tags": [
-        "vs-code",
-        "context",
-        "ux"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-009",
-      "title": "Ticket-to-Code Workflow",
-      "description": "## Overview\nImplement workflow where user starts from ticket in chat, Brain Dumpy auto-creates branch, helps implement, and links commits back to ticket.\n\n## Workflow Steps\n1. User selects/references ticket in VS Code chat\n2. Brain Dumpy creates feature branch (e.g., `feature/BD-123-ticket-title`)\n3. Agent helps implement the ticket\n4. Commits are linked to ticket automatically\n5. Ticket status updated as work progresses\n\n## MCP Tools Needed\n- `start_ticket_work` - Create branch, set ticket to in_progress\n- `link_commit_to_ticket` - Associate commit with ticket\n- `complete_ticket_work` - Move to review, create PR summary\n\n## Acceptance Criteria\n- [ ] Can start work on ticket from VS Code chat\n- [ ] Branch created with ticket reference\n- [ ] Commits linked to ticket\n- [ ] Ticket status updates automatically",
-      "acceptance_criteria": [
-        "Can start work on ticket from VS Code chat",
-        "Branch created with ticket reference",
-        "Commits linked to ticket",
-        "Ticket status updates automatically"
-      ],
-      "priority": "high",
-      "status": "backlog",
-      "epic": "working with vs code",
-      "brain_dumpy_id": "a40a1cf6-0954-48b8-addd-ca7b8a1729f5",
-      "tags": [
-        "workflow",
-        "vs-code",
-        "git"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-010",
-      "title": "Code-to-Ticket Workflow",
-      "description": "## Overview\nEnable creating tickets from selected code or files in VS Code editor, using file context to pre-populate ticket details.\n\n## Workflow Steps\n1. User selects code in VS Code or references current file\n2. User asks to create ticket about selection\n3. Brain Dumpy analyzes code context\n4. Suggests ticket title/description based on code\n5. Creates ticket with file linkage\n\n## Requirements\n- Receive selected code/file path from VS Code\n- Generate intelligent ticket suggestions\n- Link ticket to relevant files\n- Support different ticket types (bug, feature, refactor)\n\n## Acceptance Criteria\n- [ ] Can create ticket from code selection\n- [ ] Ticket description reflects code context\n- [ ] Files linked to created ticket\n- [ ] Works with VS Code smart actions (optional)",
-      "acceptance_criteria": [
-        "Can create ticket from code selection",
-        "Ticket description reflects code context",
-        "Files linked to created ticket",
-        "Works with VS Code smart actions (optional)"
-      ],
-      "priority": "medium",
-      "status": "backlog",
-      "epic": "working with vs code",
-      "brain_dumpy_id": "8129f813-3853-4549-92d1-589422bb8319",
-      "tags": [
-        "workflow",
-        "vs-code",
-        "tickets"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-011",
-      "title": "Agent-Driven Development Workflow",
-      "description": "## Overview\nStreamline workflow where breakdown/inception agents plan work in chat, then execution happens directly in VS Code with full context.\n\n## Workflow\n1. User invokes inception/breakdown agent in VS Code\n2. Agent interviews user, gathers requirements\n3. Agent creates tickets/epics in Brain Dumpy\n4. User can immediately start working on tickets\n5. Context flows seamlessly between planning and execution\n\n## Requirements\n- Agents create actionable tickets from planning\n- Handoff between agents (inception → breakdown → work)\n- VS Code workspace context available during planning\n- Created tickets ready for ticket-to-code workflow\n\n## VS Code Agent Handoffs\nUse VS Code's handoff feature:\n```yaml\nhandoffs:\n  - breakdown: \"Break this down into tickets\"\n  - ralph: \"Start working on this\"\n```\n\n## Acceptance Criteria\n- [ ] Full planning → execution flow works\n- [ ] Agent handoffs configured\n- [ ] Tickets created with proper context\n- [ ] Seamless transition to implementation",
-      "acceptance_criteria": [
-        "Full planning → execution flow works",
-        "Agent handoffs configured",
-        "Tickets created with proper context",
-        "Seamless transition to implementation"
-      ],
-      "priority": "medium",
-      "status": "backlog",
-      "epic": "working with vs code",
-      "brain_dumpy_id": "b0ea74f3-0e28-4327-9dec-2cc45fc8d1a5",
-      "tags": [
-        "workflow",
-        "agents",
-        "planning"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-012",
-      "title": "File/Folder Context Linking",
-      "description": "## Overview\nAutomatically link tickets to relevant files/folders based on workspace context and work being done.\n\n## Requirements\n- Track which files are modified during ticket work\n- Store file associations with tickets in Brain Dumpy\n- Provide MCP tool to query tickets by file path\n- Enable future features like inline annotations\n\n## MCP Tools\n- `link_files_to_ticket` - Associate files with ticket\n- `get_tickets_for_file` - Find tickets related to a file\n- Auto-link on commit (if ticket-to-code workflow active)\n\n## Data Model\nAdd `linked_files` field to tickets:\n```json\n{\n  \"linked_files\": [\n    {\"path\": \"src/foo.ts\", \"type\": \"modified\"},\n    {\"path\": \"src/bar.ts\", \"type\": \"created\"}\n  ]\n}\n```\n\n## Acceptance Criteria\n- [ ] Files can be linked to tickets\n- [ ] Query tickets by file path works\n- [ ] Auto-linking during ticket work",
-      "acceptance_criteria": [
-        "Files can be linked to tickets",
-        "Query tickets by file path works",
-        "Auto-linking during ticket work"
-      ],
-      "priority": "low",
-      "status": "backlog",
-      "epic": "working with vs code",
-      "brain_dumpy_id": "a5878550-3a67-4dac-af7f-8ad54b57e5e0",
-      "tags": [
-        "tickets",
-        "files",
-        "context"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-013",
-      "title": "VS Code Setup Documentation",
-      "description": "## Overview\nCreate comprehensive documentation for setting up Brain Dumpy with VS Code, including MCP configuration, supported extensions, and troubleshooting.\n\n## Documentation Sections\n\n### 1. Quick Start\n- Prerequisites (VS Code version, Copilot subscription)\n- MCP server configuration in `.vscode/mcp.json`\n- First-time setup walkthrough\n\n### 2. MCP Configuration\n- Full config options explained\n- Environment variables\n- Workspace vs user-level config\n\n### 3. Custom Agents\n- Installing Brain Dumpy agents\n- Agent descriptions and use cases\n- Customizing agent behavior\n\n### 4. Workflows\n- Ticket-to-code workflow guide\n- Code-to-ticket workflow guide\n- Agent-driven development guide\n\n### 5. Troubleshooting\n- Common issues and solutions\n- Debug logging\n- Extension compatibility\n\n### 6. Compatibility\n- Supported VS Code versions\n- Supported AI extensions\n- Known limitations\n\n## Acceptance Criteria\n- [ ] Setup guide complete and tested\n- [ ] All workflows documented\n- [ ] Troubleshooting section covers common issues\n- [ ] Published to project docs",
-      "acceptance_criteria": [
-        "Setup guide complete and tested",
-        "All workflows documented",
-        "Troubleshooting section covers common issues",
-        "Published to project docs"
-      ],
-      "priority": "medium",
-      "status": "backlog",
-      "epic": "working with vs code",
-      "brain_dumpy_id": "4165e8f8-93eb-4859-b918-b1b38824934c",
-      "tags": [
-        "documentation",
-        "vs-code",
-        "setup"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-014",
+      "id": "06633336-6d4e-49d7-a2a2-1a18b2eb6b81",
       "title": "Verify MCP server works with Claude Code",
-      "description": "## Task\nVerify the existing MCP server works correctly with Claude Code as the baseline.\n\n## Acceptance Criteria\n- [ ] All existing MCP tools callable from Claude Code\n- [ ] Document current tool list and their functions\n- [ ] Note any issues or limitations\n\n## Scope\nTesting and documentation only. No code changes.",
-      "acceptance_criteria": [
-        "All existing MCP tools callable from Claude Code",
-        "Document current tool list and their functions",
-        "Note any issues or limitations"
+      "description": "## Task\nVerify the existing MCP server works correctly with Claude Code as the baseline.\n\n## Acceptance Criteria\n- [x] All existing MCP tools callable from Claude Code\n- [x] Document current tool list and their functions\n- [x] Note any issues or limitations\n\n## Scope\nTesting and documentation only. No code changes.",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
       ],
       "priority": "high",
-      "status": "backlog",
-      "epic": "MCP Server Enhancements",
-      "brain_dumpy_id": "06633336-6d4e-49d7-a2a2-1a18b2eb6b81",
       "tags": [
         "mcp",
         "testing",
         "baseline"
       ],
-      "passes": false
+      "passes": true
     },
     {
-      "id": "BD-015",
+      "id": "7e82cd89-ac26-41a2-a446-3b85efe3c854",
       "title": "Test MCP server with VS Code native MCP",
       "description": "## Task\nTest the existing MCP server with VS Code's native MCP client support.\n\n## Acceptance Criteria\n- [ ] MCP server connects via VS Code\n- [ ] Tools appear in Copilot chat\n- [ ] Document any compatibility issues\n- [ ] Note differences from Claude Code behavior\n\n## Scope\nTesting only. No code changes unless critical fix needed.",
-      "acceptance_criteria": [
-        "MCP server connects via VS Code",
-        "Tools appear in Copilot chat",
-        "Document any compatibility issues",
-        "Note differences from Claude Code behavior"
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
       ],
       "priority": "high",
-      "status": "backlog",
-      "epic": "MCP Server Enhancements",
-      "brain_dumpy_id": "7e82cd89-ac26-41a2-a446-3b85efe3c854",
       "tags": [
         "mcp",
         "vs-code",
@@ -325,19 +35,14 @@
       "passes": false
     },
     {
-      "id": "BD-016",
+      "id": "dc5b80d7-75c2-4e6e-b918-61f3b0dd8fdc",
       "title": "Create .vscode/mcp.json template",
       "description": "## Task\nCreate a VS Code MCP configuration template file.\n\n## Acceptance Criteria\n- [ ] Create `.vscode/mcp.json` with Brain Dumpy server config\n- [ ] Use stdio transport\n- [ ] Include comments explaining each field\n- [ ] Add to .gitignore or provide as .example\n\n## File to Create\n`.vscode/mcp.json`",
-      "acceptance_criteria": [
-        "Create `.vscode/mcp.json` with Brain Dumpy server config",
-        "Use stdio transport",
-        "Include comments explaining each field",
-        "Add to .gitignore or provide as .example"
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
       ],
       "priority": "high",
-      "status": "backlog",
-      "epic": "MCP Server Enhancements",
-      "brain_dumpy_id": "dc5b80d7-75c2-4e6e-b918-61f3b0dd8fdc",
       "tags": [
         "mcp",
         "vs-code",
@@ -346,19 +51,14 @@
       "passes": false
     },
     {
-      "id": "BD-017",
+      "id": "c9293544-5ab1-4fdc-9e7f-9b62907e7933",
       "title": "Create start_ticket_work MCP tool",
       "description": "## Task\nAdd MCP tool to start work on a ticket.\n\n## Behavior\n- Takes ticketId as parameter\n- Creates git branch: `feature/{ticket-short-id}-{slug}`\n- Sets ticket status to `in_progress`\n- Returns branch name and ticket context\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Branch created with correct naming\n- [ ] Ticket status updated\n- [ ] Works in both Claude and VS Code\n\n## File to Modify\n`src/mcp/tools/` (or wherever MCP tools live)",
-      "acceptance_criteria": [
-        "Tool registered in MCP server",
-        "Branch created with correct naming",
-        "Ticket status updated",
-        "Works in both Claude and VS Code"
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
       ],
       "priority": "high",
-      "status": "backlog",
-      "epic": "MCP Server Enhancements",
-      "brain_dumpy_id": "c9293544-5ab1-4fdc-9e7f-9b62907e7933",
       "tags": [
         "mcp",
         "workflow",
@@ -367,18 +67,14 @@
       "passes": false
     },
     {
-      "id": "BD-018",
+      "id": "44a97133-1e6e-40a4-af1c-ee4b85d843de",
       "title": "Create complete_ticket_work MCP tool",
       "description": "## Task\nAdd MCP tool to complete work on a ticket.\n\n## Behavior\n- Takes ticketId as parameter\n- Sets ticket status to `review`\n- Optionally generates PR description from commits\n- Returns summary of work done\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Ticket status updated to review\n- [ ] Works in both Claude and VS Code\n\n## File to Modify\n`src/mcp/tools/`",
-      "acceptance_criteria": [
-        "Tool registered in MCP server",
-        "Ticket status updated to review",
-        "Works in both Claude and VS Code"
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
       ],
       "priority": "high",
-      "status": "backlog",
-      "epic": "MCP Server Enhancements",
-      "brain_dumpy_id": "44a97133-1e6e-40a4-af1c-ee4b85d843de",
       "tags": [
         "mcp",
         "workflow"
@@ -386,18 +82,14 @@
       "passes": false
     },
     {
-      "id": "BD-019",
+      "id": "04fd9275-46a2-42d2-82d3-de699e259962",
       "title": "Create link_commit_to_ticket MCP tool",
       "description": "## Task\nAdd MCP tool to link a git commit to a ticket.\n\n## Behavior\n- Takes ticketId and commitHash as parameters\n- Stores commit reference in ticket metadata\n- Returns confirmation\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Commit hash stored with ticket\n- [ ] Can query commits for a ticket later\n\n## File to Modify\n`src/mcp/tools/`",
-      "acceptance_criteria": [
-        "Tool registered in MCP server",
-        "Commit hash stored with ticket",
-        "Can query commits for a ticket later"
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
       ],
       "priority": "medium",
-      "status": "backlog",
-      "epic": "MCP Server Enhancements",
-      "brain_dumpy_id": "04fd9275-46a2-42d2-82d3-de699e259962",
       "tags": [
         "mcp",
         "workflow",
@@ -406,18 +98,14 @@
       "passes": false
     },
     {
-      "id": "BD-020",
+      "id": "a3e3432e-836a-4fae-929a-0e22c3817af9",
       "title": "Create link_files_to_ticket MCP tool",
       "description": "## Task\nAdd MCP tool to associate files with a ticket.\n\n## Behavior\n- Takes ticketId and file paths array\n- Stores file associations in ticket\n- Returns confirmation\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Files stored in ticket.linked_files\n- [ ] Handles relative and absolute paths\n\n## File to Modify\n`src/mcp/tools/`",
-      "acceptance_criteria": [
-        "Tool registered in MCP server",
-        "Files stored in ticket.linked_files",
-        "Handles relative and absolute paths"
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
       ],
       "priority": "medium",
-      "status": "backlog",
-      "epic": "MCP Server Enhancements",
-      "brain_dumpy_id": "a3e3432e-836a-4fae-929a-0e22c3817af9",
       "tags": [
         "mcp",
         "files"
@@ -425,642 +113,22 @@
       "passes": false
     },
     {
-      "id": "BD-021",
+      "id": "4cdb7fc6-58ca-432e-9898-f56f30c2c5c4",
       "title": "Create get_tickets_for_file MCP tool",
       "description": "## Task\nAdd MCP tool to find tickets related to a file.\n\n## Behavior\n- Takes file path as parameter\n- Returns tickets that have this file linked\n- Useful for context when working on a file\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Returns relevant tickets\n- [ ] Handles partial path matching\n\n## File to Modify\n`src/mcp/tools/`",
-      "acceptance_criteria": [
-        "Tool registered in MCP server",
-        "Returns relevant tickets",
-        "Handles partial path matching"
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
       ],
       "priority": "low",
-      "status": "backlog",
-      "epic": "MCP Server Enhancements",
-      "brain_dumpy_id": "4cdb7fc6-58ca-432e-9898-f56f30c2c5c4",
       "tags": [
         "mcp",
         "files",
         "context"
       ],
       "passes": false
-    },
-    {
-      "id": "BD-022",
-      "title": "Create environment detection utility",
-      "description": "## Task\nCreate a utility function to detect the current environment (Claude Code vs VS Code).\n\n## Detection Logic\n- Check for VS Code-specific env vars (VSCODE_*, etc.)\n- Check for Claude Code-specific indicators\n- Return: 'claude-code' | 'vscode' | 'unknown'\n\n## Acceptance Criteria\n- [ ] Utility function created\n- [ ] Correctly detects Claude Code\n- [ ] Correctly detects VS Code\n- [ ] Unit tests pass\n\n## File to Create\n`src/lib/environment.ts`",
-      "acceptance_criteria": [
-        "Utility function created",
-        "Correctly detects Claude Code",
-        "Correctly detects VS Code",
-        "Unit tests pass"
-      ],
-      "priority": "high",
-      "status": "backlog",
-      "epic": "Cross-Environment Support",
-      "brain_dumpy_id": "5fb70ee6-55b4-435a-8f9f-a80012aa7c30",
-      "tags": [
-        "environment",
-        "utility"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-023",
-      "title": "Create get_environment MCP tool",
-      "description": "## Task\nAdd MCP tool that returns current environment info.\n\n## Returns\n```json\n{\n  \"environment\": \"claude-code\" | \"vscode\",\n  \"workspacePath\": \"/path/to/project\",\n  \"detectedProject\": { ... } | null\n}\n```\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Returns correct environment\n- [ ] Auto-detects project from workspace path\n\n## File to Modify\n`src/mcp/tools/`",
-      "acceptance_criteria": [
-        "Tool registered in MCP server",
-        "Returns correct environment",
-        "Auto-detects project from workspace path"
-      ],
-      "priority": "high",
-      "status": "backlog",
-      "epic": "Cross-Environment Support",
-      "brain_dumpy_id": "98bdd71a-ddf3-4d86-b97d-f8ab3ba39388",
-      "tags": [
-        "mcp",
-        "environment"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-024",
-      "title": "Add working_method field to project schema",
-      "description": "## Task\nAdd working_method setting to project database schema.\n\n## Schema Change\nAdd column: `working_method TEXT DEFAULT 'auto'`\nValues: 'claude-code', 'vscode', 'auto'\n\n## Acceptance Criteria\n- [ ] Migration created\n- [ ] Schema updated\n- [ ] Default is 'auto'\n\n## Files to Modify\n- `src/lib/schema.ts`\n- `drizzle/` (migration)",
-      "acceptance_criteria": [
-        "Migration created",
-        "Schema updated",
-        "Default is 'auto'"
-      ],
-      "priority": "medium",
-      "status": "backlog",
-      "epic": "Cross-Environment Support",
-      "brain_dumpy_id": "380f0052-65ff-45d0-b026-c67ed5092ed7",
-      "tags": [
-        "database",
-        "settings"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-025",
-      "title": "Create get_project_settings MCP tool",
-      "description": "## Task\nAdd MCP tool to get project settings including working_method.\n\n## Returns\n```json\n{\n  \"projectId\": \"...\",\n  \"workingMethod\": \"auto\",\n  \"effectiveEnvironment\": \"claude-code\"\n}\n```\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Returns working_method setting\n- [ ] Computes effective environment (auto resolves to detected)\n\n## File to Modify\n`src/mcp/tools/`",
-      "acceptance_criteria": [
-        "Tool registered in MCP server",
-        "Returns working_method setting",
-        "Computes effective environment (auto resolves to detected)"
-      ],
-      "priority": "medium",
-      "status": "backlog",
-      "epic": "Cross-Environment Support",
-      "brain_dumpy_id": "77609063-5af9-44d4-a3c7-2c0f0c5273f3",
-      "tags": [
-        "mcp",
-        "settings"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-026",
-      "title": "Create update_project_settings MCP tool",
-      "description": "## Task\nAdd MCP tool to update project settings.\n\n## Parameters\n- projectId: string\n- workingMethod: 'claude-code' | 'vscode' | 'auto'\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Updates working_method in database\n- [ ] Validates input values\n\n## File to Modify\n`src/mcp/tools/`",
-      "acceptance_criteria": [
-        "Tool registered in MCP server",
-        "Updates working_method in database",
-        "Validates input values"
-      ],
-      "priority": "medium",
-      "status": "backlog",
-      "epic": "Cross-Environment Support",
-      "brain_dumpy_id": "0e89965f-84ee-488b-ae2d-33431112e5a4",
-      "tags": [
-        "mcp",
-        "settings"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-027",
-      "title": "Add working method UI to project settings",
-      "description": "## Task\nAdd UI dropdown in project edit modal for working method.\n\n## UI Changes\n- Add dropdown in ProjectModal\n- Options: Auto-detect, Claude Code, VS Code\n- Save to database on change\n\n## Acceptance Criteria\n- [ ] Dropdown appears in project edit\n- [ ] Changes persist to database\n- [ ] Shows current setting\n\n## File to Modify\n`src/components/ProjectModal.tsx`",
-      "acceptance_criteria": [
-        "Dropdown appears in project edit",
-        "Changes persist to database",
-        "Shows current setting"
-      ],
-      "priority": "low",
-      "status": "backlog",
-      "epic": "Cross-Environment Support",
-      "brain_dumpy_id": "9d07f06e-d58e-47f5-93ac-87881fd639cc",
-      "tags": [
-        "ui",
-        "settings"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-028",
-      "title": "Add context reset signal on ticket completion",
-      "description": "## Task\nWhen a ticket is marked complete, signal the AI to clear context and start fresh.\n\n## Approach Options\n1. **MCP tool response**: `complete_ticket_work` returns `{ clearContext: true }`\n2. **Agent instruction**: Include \"start new conversation\" guidance in completion message\n3. **Claude Code hook**: Use post-tool hook to suggest `/clear` command\n4. **VS Code**: Return message prompting user to start new chat session\n\n## Acceptance Criteria\n- [ ] Completing a ticket signals need for fresh context\n- [ ] Works in both Claude Code and VS Code\n- [ ] Clear guidance to user/AI about starting fresh\n- [ ] Document the \"fresh eyes\" workflow\n\n## Notes\nGoal: Each ticket gets worked on with clean context, no accumulated assumptions from previous work.",
-      "acceptance_criteria": [
-        "Completing a ticket signals need for fresh context",
-        "Works in both Claude Code and VS Code",
-        "Clear guidance to user/AI about starting fresh",
-        "Document the \"fresh eyes\" workflow"
-      ],
-      "priority": "high",
-      "status": "backlog",
-      "epic": "Cross-Environment Support",
-      "brain_dumpy_id": "1c406cc1-507d-4e28-862c-fb7a91edd961",
-      "tags": [
-        "workflow",
-        "context",
-        "ux"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-029",
-      "title": "Create breakdown.agent.md for VS Code",
-      "description": "## Task\nCreate VS Code custom agent file for the breakdown agent.\n\n## File Location\n`.github/agents/breakdown.agent.md`\n\n## Content\n- YAML frontmatter with tools, model, description\n- Markdown body with breakdown instructions\n- Include Brain Dumpy MCP tools for ticket creation\n\n## Acceptance Criteria\n- [ ] Agent file created\n- [ ] Appears in VS Code chat dropdown\n- [ ] Can create tickets via MCP tools",
-      "acceptance_criteria": [
-        "Agent file created",
-        "Appears in VS Code chat dropdown",
-        "Can create tickets via MCP tools"
-      ],
-      "priority": "high",
-      "status": "backlog",
-      "epic": "VS Code Configuration",
-      "brain_dumpy_id": "637085d2-c0bf-463f-8e35-d1188dc673ee",
-      "tags": [
-        "vs-code",
-        "agents"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-030",
-      "title": "Create inception.agent.md for VS Code",
-      "description": "## Task\nCreate VS Code custom agent file for the inception agent.\n\n## File Location\n`.github/agents/inception.agent.md`\n\n## Content\n- YAML frontmatter with tools, model, description\n- Markdown body with interview/inception instructions\n- Handoff to breakdown agent when done\n\n## Acceptance Criteria\n- [ ] Agent file created\n- [ ] Appears in VS Code chat dropdown\n- [ ] Can conduct interviews and create projects",
-      "acceptance_criteria": [
-        "Agent file created",
-        "Appears in VS Code chat dropdown",
-        "Can conduct interviews and create projects"
-      ],
-      "priority": "high",
-      "status": "backlog",
-      "epic": "VS Code Configuration",
-      "brain_dumpy_id": "199b6474-17b8-4906-9341-63618afec7d9",
-      "tags": [
-        "vs-code",
-        "agents"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-031",
-      "title": "Create ralph.agent.md for VS Code",
-      "description": "## Task\nCreate VS Code custom agent file for Ralph (autonomous worker).\n\n## File Location\n`.github/agents/ralph.agent.md`\n\n## Content\n- YAML frontmatter with tools, model, description\n- Markdown body with Ralph's work instructions\n- Include ticket workflow tools (start_work, complete_work)\n- Environment-aware behavior\n\n## Acceptance Criteria\n- [ ] Agent file created\n- [ ] Appears in VS Code chat dropdown\n- [ ] Can work on tickets autonomously",
-      "acceptance_criteria": [
-        "Agent file created",
-        "Appears in VS Code chat dropdown",
-        "Can work on tickets autonomously"
-      ],
-      "priority": "high",
-      "status": "backlog",
-      "epic": "VS Code Configuration",
-      "brain_dumpy_id": "f8532482-fe46-417a-9b09-ef3c80e34530",
-      "tags": [
-        "vs-code",
-        "agents",
-        "ralph"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-032",
-      "title": "Create simplify.agent.md for VS Code",
-      "description": "## Task\nCreate VS Code custom agent file for the simplify agent.\n\n## File Location\n`.github/agents/simplify.agent.md`\n\n## Content\n- YAML frontmatter with tools, model, description\n- Markdown body with code simplification instructions\n\n## Acceptance Criteria\n- [ ] Agent file created\n- [ ] Appears in VS Code chat dropdown\n- [ ] Can analyze and suggest simplifications",
-      "acceptance_criteria": [
-        "Agent file created",
-        "Appears in VS Code chat dropdown",
-        "Can analyze and suggest simplifications"
-      ],
-      "priority": "medium",
-      "status": "backlog",
-      "epic": "VS Code Configuration",
-      "brain_dumpy_id": "a282c4ce-ced4-485e-b530-3e085a42e979",
-      "tags": [
-        "vs-code",
-        "agents"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-033",
-      "title": "Configure agent handoffs in VS Code agents",
-      "description": "## Task\nAdd handoff configuration to agent files so they can transition to each other.\n\n## Handoff Flow\n- inception → breakdown (after requirements gathered)\n- breakdown → ralph (after tickets created)\n- ralph → (completes, signals context reset)\n\n## Acceptance Criteria\n- [ ] Handoffs defined in YAML frontmatter\n- [ ] Users can transition between agents smoothly\n- [ ] Context passed appropriately\n\n## Files to Modify\nAll `.github/agents/*.agent.md` files",
-      "acceptance_criteria": [
-        "Handoffs defined in YAML frontmatter",
-        "Users can transition between agents smoothly",
-        "Context passed appropriately"
-      ],
-      "priority": "medium",
-      "status": "backlog",
-      "epic": "VS Code Configuration",
-      "brain_dumpy_id": "676c7507-f075-4da2-a28e-d24684b16f54",
-      "tags": [
-        "vs-code",
-        "agents",
-        "handoffs"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-034",
-      "title": "Test VS Code agents with GitHub Copilot",
-      "description": "## Task\nTest all custom agents work with GitHub Copilot Chat in VS Code.\n\n## Test Cases\n- [ ] breakdown.agent.md loads and works\n- [ ] inception.agent.md loads and works\n- [ ] ralph.agent.md loads and works\n- [ ] simplify.agent.md loads and works\n- [ ] Handoffs work correctly\n- [ ] MCP tools accessible from agents\n\n## Scope\nTesting only. Document any issues found.",
-      "acceptance_criteria": [
-        "Complete implementation"
-      ],
-      "priority": "medium",
-      "status": "backlog",
-      "epic": "VS Code Configuration",
-      "brain_dumpy_id": "45618cde-757d-41a8-84cf-d9ae0ef64a61",
-      "tags": [
-        "vs-code",
-        "testing"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-035",
-      "title": "Test VS Code agents with Continue extension",
-      "description": "## Task\nTest custom agents work with Continue extension in VS Code.\n\n## Test Cases\n- [ ] Agents discoverable in Continue\n- [ ] MCP tools work via Continue\n- [ ] Document any differences from Copilot\n\n## Scope\nTesting only. Document compatibility.",
-      "acceptance_criteria": [
-        "Complete implementation"
-      ],
-      "priority": "low",
-      "status": "backlog",
-      "epic": "VS Code Configuration",
-      "brain_dumpy_id": "b73cb972-b704-465d-a945-19d7aac082b4",
-      "tags": [
-        "vs-code",
-        "testing",
-        "continue"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-036",
-      "title": "Define ticket-to-code workflow spec",
-      "description": "## Task\nDocument the ticket-to-code workflow step by step.\n\n## Workflow Steps\n1. User selects ticket to work on\n2. `start_ticket_work` creates branch, sets status\n3. AI works on implementation\n4. Commits linked to ticket\n5. `complete_ticket_work` moves to review\n6. Context reset signal for fresh start\n\n## Acceptance Criteria\n- [ ] Workflow documented in plans/\n- [ ] Each step clearly defined\n- [ ] Works same in Claude + VS Code\n\n## File to Create\n`plans/workflows/ticket-to-code.md`",
-      "acceptance_criteria": [
-        "Workflow documented in plans/",
-        "Each step clearly defined",
-        "Works same in Claude + VS Code"
-      ],
-      "priority": "high",
-      "status": "backlog",
-      "epic": "Development Workflows",
-      "brain_dumpy_id": "025fd80a-fcd9-4ab3-8490-38ac086387af",
-      "tags": [
-        "workflow",
-        "documentation"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-037",
-      "title": "Define code-to-ticket workflow spec",
-      "description": "## Task\nDocument the code-to-ticket workflow step by step.\n\n## Workflow Steps\n1. User working on code, identifies issue/improvement\n2. AI analyzes code context\n3. Creates ticket with file linkage\n4. Ticket added to backlog\n\n## Acceptance Criteria\n- [ ] Workflow documented in plans/\n- [ ] Each step clearly defined\n\n## File to Create\n`plans/workflows/code-to-ticket.md`",
-      "acceptance_criteria": [
-        "Workflow documented in plans/",
-        "Each step clearly defined"
-      ],
-      "priority": "medium",
-      "status": "backlog",
-      "epic": "Development Workflows",
-      "brain_dumpy_id": "5256187f-bf41-433b-83a8-cddf921ddf1f",
-      "tags": [
-        "workflow",
-        "documentation"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-038",
-      "title": "Create create_ticket_from_context MCP tool",
-      "description": "## Task\nAdd MCP tool to create ticket from code context.\n\n## Parameters\n- projectId: string\n- filePaths: string[] (optional)\n- codeSnippet: string (optional)\n- suggestedTitle: string (optional)\n- type: 'bug' | 'feature' | 'refactor'\n\n## Behavior\n- Analyzes context to suggest title/description\n- Links files to created ticket\n- Returns created ticket\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Creates ticket with file linkage\n- [ ] Works in both environments\n\n## File to Modify\n`src/mcp/tools/`",
-      "acceptance_criteria": [
-        "Tool registered in MCP server",
-        "Creates ticket with file linkage",
-        "Works in both environments"
-      ],
-      "priority": "medium",
-      "status": "backlog",
-      "epic": "Development Workflows",
-      "brain_dumpy_id": "a97370b2-a835-49c2-86f9-501fa5f555eb",
-      "tags": [
-        "mcp",
-        "workflow"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-039",
-      "title": "Define agent-driven development workflow spec",
-      "description": "## Task\nDocument the full agent-driven development workflow.\n\n## Workflow Steps\n1. User has idea → inception agent interviews\n2. Inception → breakdown agent (handoff)\n3. Breakdown creates atomic tickets\n4. User picks ticket → ralph works on it\n5. Ralph completes → context reset\n6. Repeat for next ticket\n\n## Acceptance Criteria\n- [ ] End-to-end workflow documented\n- [ ] Agent handoffs clearly specified\n- [ ] Fresh context between tickets emphasized\n\n## File to Create\n`plans/workflows/agent-driven-development.md`",
-      "acceptance_criteria": [
-        "End-to-end workflow documented",
-        "Agent handoffs clearly specified",
-        "Fresh context between tickets emphasized"
-      ],
-      "priority": "medium",
-      "status": "backlog",
-      "epic": "Development Workflows",
-      "brain_dumpy_id": "ed6c7d1d-6f27-48cc-a710-86ad28d604e2",
-      "tags": [
-        "workflow",
-        "documentation",
-        "agents"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-040",
-      "title": "Write Quick Start guide for VS Code",
-      "description": "## Task\nWrite a quick start guide for VS Code users.\n\n## Content\n- Prerequisites (VS Code version, Copilot)\n- Install Brain Dumpy MCP server\n- Configure .vscode/mcp.json\n- Verify connection works\n- First workflow example\n\n## Acceptance Criteria\n- [ ] Guide is clear for new users\n- [ ] Can follow steps in 5 minutes\n- [ ] Tested on fresh VS Code setup\n\n## File to Create\n`docs/vscode-quickstart.md`",
-      "acceptance_criteria": [
-        "Guide is clear for new users",
-        "Can follow steps in 5 minutes",
-        "Tested on fresh VS Code setup"
-      ],
-      "priority": "medium",
-      "status": "backlog",
-      "epic": "VS Code Configuration",
-      "brain_dumpy_id": "46f5a13a-35d8-40d0-8c29-27f338daa1a4",
-      "tags": [
-        "documentation",
-        "vs-code"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-041",
-      "title": "Write troubleshooting guide for VS Code",
-      "description": "## Task\nDocument common issues and solutions for VS Code setup.\n\n## Content\n- MCP connection issues\n- Agent not appearing\n- Tools not working\n- Debug logging\n- Known limitations\n\n## Acceptance Criteria\n- [ ] Common issues covered\n- [ ] Solutions are actionable\n- [ ] Debug steps included\n\n## File to Create\n`docs/vscode-troubleshooting.md`",
-      "acceptance_criteria": [
-        "Common issues covered",
-        "Solutions are actionable",
-        "Debug steps included"
-      ],
-      "priority": "low",
-      "status": "backlog",
-      "epic": "VS Code Configuration",
-      "brain_dumpy_id": "96066be1-3a64-4c97-b1f6-d62b14ae5ea4",
-      "tags": [
-        "documentation",
-        "vs-code"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-042",
-      "title": "Add ai_review status to ticket schema",
-      "description": "## Task\nAdd `ai_review` as a valid ticket status.\n\n## Schema Change\nUpdate status enum to include: `backlog`, `ready`, `in_progress`, `ai_review`, `human_review`, `done`\n\n## Acceptance Criteria\n- [ ] Migration created\n- [ ] Status enum updated\n- [ ] API accepts new status\n- [ ] UI displays new status (if applicable)\n\n## Files to Modify\n- `src/lib/schema.ts`\n- `drizzle/` (migration)",
-      "acceptance_criteria": [
-        "Migration created",
-        "Status enum updated",
-        "API accepts new status",
-        "UI displays new status (if applicable)"
-      ],
-      "priority": "high",
-      "status": "backlog",
-      "epic": "Review Pipeline",
-      "brain_dumpy_id": "322949a7-2466-4288-9ea0-64b02b871d10",
-      "tags": [
-        "database",
-        "schema"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-043",
-      "title": "Add human_review status to ticket schema",
-      "description": "## Task\nAdd `human_review` as a valid ticket status for when human action is needed.\n\n## Use Cases\n- Environment variables need to be added\n- Secrets need to be configured\n- Manual approval required\n- External system setup needed\n\n## Acceptance Criteria\n- [ ] Status added to schema\n- [ ] Can transition to/from human_review\n- [ ] API validates status\n\n## Files to Modify\n- `src/lib/schema.ts`",
-      "acceptance_criteria": [
-        "Status added to schema",
-        "Can transition to/from human_review",
-        "API validates status"
-      ],
-      "priority": "high",
-      "status": "backlog",
-      "epic": "Review Pipeline",
-      "brain_dumpy_id": "bfa3ecd2-b426-466c-b903-f2cda90af716",
-      "tags": [
-        "database",
-        "schema"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-044",
-      "title": "Add human_action_required field to tickets",
-      "description": "## Task\nAdd field to store what human action is needed when ticket is in `human_review`.\n\n## Schema Change\nAdd column: `human_action_required TEXT NULL`\n\nExample values:\n- \"Add OPENAI_API_KEY to .env\"\n- \"Configure AWS credentials\"\n- \"Approve PR before merge\"\n\n## Acceptance Criteria\n- [ ] Field added to schema\n- [ ] Can be set when moving to human_review\n- [ ] Cleared when leaving human_review\n\n## Files to Modify\n- `src/lib/schema.ts`\n- `drizzle/` (migration)",
-      "acceptance_criteria": [
-        "Field added to schema",
-        "Can be set when moving to human_review",
-        "Cleared when leaving human_review"
-      ],
-      "priority": "medium",
-      "status": "backlog",
-      "epic": "Review Pipeline",
-      "brain_dumpy_id": "da53091e-fe52-4dc9-8abd-989851b91c14",
-      "tags": [
-        "database",
-        "schema"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-045",
-      "title": "Create submit_for_review MCP tool",
-      "description": "## Task\nAdd MCP tool to submit completed work for AI review.\n\n## Behavior\n- Takes ticketId as parameter\n- Sets status to `ai_review`\n- Returns confirmation and next steps\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Status updated to ai_review\n- [ ] Works in both Claude and VS Code\n\n## File to Modify\n`src/mcp/tools/`",
-      "acceptance_criteria": [
-        "Tool registered in MCP server",
-        "Status updated to ai_review",
-        "Works in both Claude and VS Code"
-      ],
-      "priority": "high",
-      "status": "backlog",
-      "epic": "Review Pipeline",
-      "brain_dumpy_id": "3cc95c8b-74ed-4063-9dd0-5b8baf9bf8f9",
-      "tags": [
-        "mcp",
-        "workflow"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-046",
-      "title": "Create request_human_review MCP tool",
-      "description": "## Task\nAdd MCP tool to flag ticket as needing human action.\n\n## Parameters\n- ticketId: string\n- actionRequired: string (what the human needs to do)\n\n## Behavior\n- Sets status to `human_review`\n- Stores action required in human_action_required field\n- Returns confirmation\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Status and action stored correctly\n- [ ] Clear message about what human needs to do\n\n## File to Modify\n`src/mcp/tools/`",
-      "acceptance_criteria": [
-        "Tool registered in MCP server",
-        "Status and action stored correctly",
-        "Clear message about what human needs to do"
-      ],
-      "priority": "medium",
-      "status": "backlog",
-      "epic": "Review Pipeline",
-      "brain_dumpy_id": "25cf9a19-345a-47d9-b691-b5bd8a89b478",
-      "tags": [
-        "mcp",
-        "workflow"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-047",
-      "title": "Create reviewer.agent.md (KISS checker)",
-      "description": "## Task\nCreate agent that reviews code for simplicity (KISS principle).\n\n## File Location\n`.github/agents/reviewer.agent.md` (VS Code)\nAlso create Claude Code version in agents/\n\n## Review Criteria\n- Is the code as simple as possible?\n- Any unnecessary complexity?\n- Over-engineering detected?\n- Could anything be simplified?\n- Clear naming and structure?\n\n## Output\n- List of simplification suggestions\n- Severity (minor/major)\n- Specific file/line references\n\n## Acceptance Criteria\n- [ ] Agent file created\n- [ ] Reviews code against KISS principles\n- [ ] Outputs actionable feedback",
-      "acceptance_criteria": [
-        "Agent file created",
-        "Reviews code against KISS principles",
-        "Outputs actionable feedback"
-      ],
-      "priority": "high",
-      "status": "backlog",
-      "epic": "Review Pipeline",
-      "brain_dumpy_id": "bc2c6556-2e4f-49d0-a463-055f308e1aa1",
-      "tags": [
-        "agents",
-        "review"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-048",
-      "title": "Create security.agent.md",
-      "description": "## Task\nCreate agent that reviews code for security issues.\n\n## File Location\n`.github/agents/security.agent.md` (VS Code)\nAlso create Claude Code version in agents/\n\n## Review Criteria\n- OWASP Top 10 vulnerabilities\n- SQL injection\n- XSS vulnerabilities\n- Command injection\n- Hardcoded secrets/credentials\n- Insecure dependencies\n- Auth/authz issues\n\n## Output\n- List of security concerns\n- Severity (low/medium/high/critical)\n- Remediation suggestions\n- If human action needed (e.g., \"add secret to env\")\n\n## Acceptance Criteria\n- [ ] Agent file created\n- [ ] Reviews code for security issues\n- [ ] Outputs actionable feedback with severity",
-      "acceptance_criteria": [
-        "Agent file created",
-        "Reviews code for security issues",
-        "Outputs actionable feedback with severity"
-      ],
-      "priority": "high",
-      "status": "backlog",
-      "epic": "Review Pipeline",
-      "brain_dumpy_id": "9dfb29c9-7ee5-4c0b-b42e-d5e132010bd9",
-      "tags": [
-        "agents",
-        "review",
-        "security"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-049",
-      "title": "Create feedback-processor.agent.md",
-      "description": "## Task\nCreate agent that processes review feedback and creates fix tickets.\n\n## File Location\n`.github/agents/feedback-processor.agent.md` (VS Code)\nAlso create Claude Code version in agents/\n\n## Behavior\n1. Receives feedback from reviewer + security agents\n2. Determines if issues are major or minor\n3. For major issues: creates fix tickets in backlog\n4. For human-required actions: flags for human_review\n5. For clean reviews: signals ready for completion\n\n## Output\n- Created ticket IDs (if any)\n- Human action required (if any)\n- Ready for completion (if clean)\n\n## Acceptance Criteria\n- [ ] Agent file created\n- [ ] Can create tickets from feedback\n- [ ] Properly categorizes issues\n- [ ] Signals next step in workflow",
-      "acceptance_criteria": [
-        "Agent file created",
-        "Can create tickets from feedback",
-        "Properly categorizes issues",
-        "Signals next step in workflow"
-      ],
-      "priority": "high",
-      "status": "backlog",
-      "epic": "Review Pipeline",
-      "brain_dumpy_id": "a7ff9836-976e-40a2-93c6-f61c17c01599",
-      "tags": [
-        "agents",
-        "review",
-        "workflow"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-050",
-      "title": "Create create_fix_tickets MCP tool",
-      "description": "## Task\nAdd MCP tool to create fix tickets from review feedback.\n\n## Parameters\n- originalTicketId: string (the ticket being reviewed)\n- issues: array of { title, description, severity, type }\n\n## Behavior\n- Creates new tickets linked to original\n- Tags them as \"fix\" or \"review-feedback\"\n- Sets appropriate priority based on severity\n- Returns created ticket IDs\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Creates properly formatted fix tickets\n- [ ] Links to original ticket\n\n## File to Modify\n`src/mcp/tools/`",
-      "acceptance_criteria": [
-        "Tool registered in MCP server",
-        "Creates properly formatted fix tickets",
-        "Links to original ticket"
-      ],
-      "priority": "medium",
-      "status": "backlog",
-      "epic": "Review Pipeline",
-      "brain_dumpy_id": "33a7392f-0ef2-4020-ac08-077d5914c326",
-      "tags": [
-        "mcp",
-        "workflow"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-051",
-      "title": "Create mark_review_complete MCP tool",
-      "description": "## Task\nAdd MCP tool to mark review complete and signal context reset.\n\n## Parameters\n- ticketId: string\n- reviewPassed: boolean\n- fixTicketsCreated: string[] (if any)\n\n## Behavior\n- Sets status to `done`\n- Records review outcome\n- Returns `{ clearContext: true }` signal\n- Includes summary of what happened\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Properly closes out the review\n- [ ] Returns clear context signal\n- [ ] Works regardless of pass/fail\n\n## File to Modify\n`src/mcp/tools/`",
-      "acceptance_criteria": [
-        "Tool registered in MCP server",
-        "Properly closes out the review",
-        "Returns clear context signal",
-        "Works regardless of pass/fail"
-      ],
-      "priority": "high",
-      "status": "backlog",
-      "epic": "Review Pipeline",
-      "brain_dumpy_id": "f410a0b8-455b-423a-a1ad-18721b734d4a",
-      "tags": [
-        "mcp",
-        "workflow",
-        "context"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-052",
-      "title": "Define review pipeline workflow spec",
-      "description": "## Task\nDocument the complete review pipeline workflow.\n\n## Content\n1. Trigger: submit_for_review called\n2. Reviewer agent runs (KISS check)\n3. Security agent runs\n4. Feedback processor evaluates results\n5. Branch: issues found vs clean\n6. Fix ticket creation if needed\n7. Human review if needed\n8. Completion and context reset\n\n## Acceptance Criteria\n- [ ] Full workflow documented\n- [ ] Decision points clear\n- [ ] Agent handoffs specified\n- [ ] Context reset points identified\n\n## File to Create\n`plans/workflows/review-pipeline.md`",
-      "acceptance_criteria": [
-        "Full workflow documented",
-        "Decision points clear",
-        "Agent handoffs specified",
-        "Context reset points identified"
-      ],
-      "priority": "high",
-      "status": "backlog",
-      "epic": "Review Pipeline",
-      "brain_dumpy_id": "58e39ff3-8a68-42c2-8328-7739771f80c0",
-      "tags": [
-        "documentation",
-        "workflow"
-      ],
-      "passes": false
-    },
-    {
-      "id": "BD-053",
-      "title": "Update Kanban UI for new statuses",
-      "description": "## Task\nUpdate the Kanban board to show new status columns.\n\n## New Columns\n- AI Review (orange/yellow)\n- Human Review (red/pink)\n\n## Acceptance Criteria\n- [ ] New columns appear in Kanban view\n- [ ] Drag/drop works with new statuses\n- [ ] Visual distinction for review columns\n\n## File to Modify\n`src/routes/index.tsx` (or Kanban component)",
-      "acceptance_criteria": [
-        "New columns appear in Kanban view",
-        "Drag/drop works with new statuses",
-        "Visual distinction for review columns"
-      ],
-      "priority": "medium",
-      "status": "backlog",
-      "epic": "Review Pipeline",
-      "brain_dumpy_id": "0ce94cad-ad19-4d49-8cd1-5a2a74e29f56",
-      "tags": [
-        "ui",
-        "kanban"
-      ],
-      "passes": false
     }
   ],
-  "generatedAt": "2026-01-11T19:48:59.532Z"
+  "generatedAt": "2026-01-11T19:55:26.663Z",
+  "epicTitle": "MCP Server Enhancements"
 }

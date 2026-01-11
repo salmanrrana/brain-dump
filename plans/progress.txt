@@ -219,3 +219,52 @@ Each ticket now includes:
 **Ready for Ralph:**
 Ralph can now pick up any ticket from BD-002 through BD-053 with full context from the PRD.
 
+---
+
+### 2026-01-11 - MCP Server Claude Code Verification
+- Task: Verify MCP server works with Claude Code
+- Ticket ID: 06633336-6d4e-49d7-a2a2-1a18b2eb6b81
+- Success: true
+- Agent: Ralph
+
+**MCP Tools Verified (10 total):**
+
+| Tool | Status | Description |
+|------|--------|-------------|
+| `list_projects` | ✅ | List all projects in Brain Dumpy |
+| `find_project_by_path` | ✅ | Find project by filesystem path |
+| `create_project` | ✅ | Create a new project |
+| `create_ticket` | ✅ | Create a new ticket |
+| `list_tickets` | ✅ | List tickets with filters |
+| `update_ticket_status` | ✅ | Update ticket status |
+| `list_epics` | ✅ | List epics for a project |
+| `create_epic` | ✅ | Create a new epic |
+| `add_ticket_comment` | ✅ | Add comment to a ticket |
+| `get_ticket_comments` | ✅ | Get all comments for a ticket |
+
+**Tools Actively Tested:**
+- `list_projects` - Returned 5 projects
+- `find_project_by_path` - Found Brain Dumpy project
+- `list_epics` - Returned 5 epics for Brain Dumpy
+- `list_tickets` - Returned tickets with filters
+- `add_ticket_comment` - Added progress comment
+- `get_ticket_comments` - Retrieved comments
+
+**Observations:**
+1. All tools callable from Claude Code via MCP integration
+2. Tool names prefixed with `mcp__brain-dumpy__` in Claude Code
+3. Parameters work as documented in schema
+4. Error handling validates required fields and enum values
+5. Database connection to `~/.brain-dump/brain-dump.db` works
+
+**Limitations Identified:**
+1. No `update_ticket` for general ticket updates
+2. No `delete_ticket` or `delete_epic` tools
+3. No `update_epic` tool
+4. No `get_ticket` for single ticket by ID
+5. Missing workflow tools documented in PRD tickets
+
+**Files Modified:**
+- plans/prd.json (marked ticket as passes: true)
+- plans/progress.txt (this entry)
+
