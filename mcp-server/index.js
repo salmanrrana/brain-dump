@@ -44,6 +44,18 @@ try {
   db = new Database(dbPath);
   db.pragma("journal_mode = WAL");
   log.info(`Connected to database: ${dbPath}`);
+
+  // Add linked_commits column if it doesn't exist (for link_commit_to_ticket tool)
+  try {
+    const columns = db.prepare("PRAGMA table_info(tickets)").all();
+    const hasLinkedCommits = columns.some(col => col.name === "linked_commits");
+    if (!hasLinkedCommits) {
+      db.prepare("ALTER TABLE tickets ADD COLUMN linked_commits TEXT").run();
+      log.info("Added linked_commits column to tickets table");
+    }
+  } catch (migrationError) {
+    log.error("Failed to check/add linked_commits column", migrationError);
+  }
 } catch (error) {
   log.error(`Failed to open database at ${dbPath}`, error);
   process.exit(1);
@@ -489,6 +501,42 @@ Returns:
             },
           },
           required: ["ticketId"],
+        },
+      },
+      {
+        name: "link_commit_to_ticket",
+        description: `Link a git commit to a ticket.
+
+Stores the commit reference in the ticket's metadata.
+Multiple commits can be linked to a single ticket.
+
+Use this to track which commits are related to a ticket.
+The commit can be queried later to see all work done.
+
+Args:
+  ticketId: The ticket ID to link the commit to
+  commitHash: The git commit hash (full or short)
+  message: Optional commit message (auto-fetched if not provided)
+
+Returns:
+  Updated list of linked commits for the ticket.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            ticketId: {
+              type: "string",
+              description: "Ticket ID to link the commit to",
+            },
+            commitHash: {
+              type: "string",
+              description: "Git commit hash (full or abbreviated)",
+            },
+            message: {
+              type: "string",
+              description: "Optional commit message (auto-fetched if in git repo)",
+            },
+          },
+          required: ["ticketId", "commitHash"],
         },
       },
     ],
@@ -1161,6 +1209,98 @@ ${commitsInfo ? `Commits:\n${commitsInfo}\n` : ""}
 ${prDescription ? `Suggested PR Description:\n\`\`\`\n${prDescription}\`\`\`\n` : ""}
 Ticket:
 ${JSON.stringify(updatedTicket, null, 2)}`,
+          }],
+        };
+      }
+
+      // -----------------------------------------------------------------------
+      // LINK COMMIT TO TICKET
+      // -----------------------------------------------------------------------
+      case "link_commit_to_ticket": {
+        const error = validateRequired(args, ["ticketId", "commitHash"]);
+        if (error) {
+          return { content: [{ type: "text", text: error }], isError: true };
+        }
+
+        const { ticketId, commitHash, message } = args;
+
+        // Get ticket with project info
+        const ticket = db.prepare(`
+          SELECT t.*, p.name as project_name, p.path as project_path
+          FROM tickets t
+          JOIN projects p ON t.project_id = p.id
+          WHERE t.id = ?
+        `).get(ticketId);
+
+        if (!ticket) {
+          return {
+            content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
+            isError: true,
+          };
+        }
+
+        // Try to get commit message if not provided
+        let commitMessage = message || "";
+        if (!commitMessage && existsSync(ticket.project_path)) {
+          const gitCheck = runGitCommand("git rev-parse --git-dir", ticket.project_path);
+          if (gitCheck.success) {
+            const msgResult = runGitCommand(
+              `git log -1 --format=%s ${commitHash} 2>/dev/null`,
+              ticket.project_path
+            );
+            if (msgResult.success && msgResult.output) {
+              commitMessage = msgResult.output;
+            }
+          }
+        }
+
+        // Parse existing linked commits
+        let linkedCommits = [];
+        if (ticket.linked_commits) {
+          try {
+            linkedCommits = JSON.parse(ticket.linked_commits);
+          } catch {
+            linkedCommits = [];
+          }
+        }
+
+        // Check if commit already linked
+        const alreadyLinked = linkedCommits.some(c => c.hash === commitHash || c.hash.startsWith(commitHash) || commitHash.startsWith(c.hash));
+        if (alreadyLinked) {
+          return {
+            content: [{
+              type: "text",
+              text: `Commit ${commitHash} is already linked to this ticket.\n\nLinked commits:\n${JSON.stringify(linkedCommits, null, 2)}`,
+            }],
+          };
+        }
+
+        // Add new commit
+        const newCommit = {
+          hash: commitHash,
+          message: commitMessage,
+          linkedAt: new Date().toISOString(),
+        };
+        linkedCommits.push(newCommit);
+
+        // Update ticket
+        const now = new Date().toISOString();
+        db.prepare(
+          "UPDATE tickets SET linked_commits = ?, updated_at = ? WHERE id = ?"
+        ).run(JSON.stringify(linkedCommits), now, ticketId);
+
+        log.info(`Linked commit ${commitHash} to ticket ${ticketId}`);
+
+        return {
+          content: [{
+            type: "text",
+            text: `Commit linked to ticket "${ticket.title}"!
+
+Commit: ${commitHash}
+Message: ${commitMessage || "(no message)"}
+
+All linked commits (${linkedCommits.length}):
+${linkedCommits.map(c => `- ${c.hash.substring(0, 8)}: ${c.message || "(no message)"}`).join("\n")}`,
           }],
         };
       }

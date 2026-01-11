@@ -84,7 +84,7 @@
     {
       "id": "04fd9275-46a2-42d2-82d3-de699e259962",
       "title": "Create link_commit_to_ticket MCP tool",
-      "description": "## Task\nAdd MCP tool to link a git commit to a ticket.\n\n## Behavior\n- Takes ticketId and commitHash as parameters\n- Stores commit reference in ticket metadata\n- Returns confirmation\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Commit hash stored with ticket\n- [ ] Can query commits for a ticket later\n\n## File to Modify\n`src/mcp/tools/`",
+      "description": "## Task\nAdd MCP tool to link a git commit to a ticket.\n\n## Behavior\n- Takes ticketId and commitHash as parameters\n- Stores commit reference in ticket metadata\n- Returns confirmation\n\n## Acceptance Criteria\n- [x] Tool registered in MCP server\n- [x] Commit hash stored with ticket\n- [x] Can query commits for a ticket later\n\n## File to Modify\n`src/mcp/tools/`",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
@@ -95,7 +95,7 @@
         "workflow",
         "git"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "a3e3432e-836a-4fae-929a-0e22c3817af9",

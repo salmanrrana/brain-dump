@@ -380,3 +380,43 @@ Ralph can now pick up any ticket from BD-002 through BD-053 with full context fr
 - Syntax check: passed
 - Type check: passed
 
+---
+
+### 2026-01-11 - link_commit_to_ticket MCP Tool
+- Task: Create link_commit_to_ticket MCP tool
+- Ticket ID: 04fd9275-46a2-42d2-82d3-de699e259962
+- Success: true
+- Agent: Ralph
+
+**Implementation:**
+- Added `link_commit_to_ticket` tool to MCP server
+- Added database migration to create `linked_commits` column
+- Stores commits as JSON array with hash, message, and timestamp
+
+**Tool Behavior:**
+1. Takes `ticketId`, `commitHash`, and optional `message` as parameters
+2. Validates ticket exists
+3. Auto-fetches commit message from git if not provided
+4. Checks for duplicate commits (prevents re-linking)
+5. Stores commit info in `linked_commits` JSON array
+6. Returns all linked commits for the ticket
+
+**Database Migration:**
+- Automatically adds `linked_commits TEXT` column to tickets table
+- Runs on MCP server startup if column doesn't exist
+- Stores JSON array: `[{hash, message, linkedAt}, ...]`
+
+**Error Handling:**
+- Ticket not found
+- Commit already linked (shows existing commits)
+- Gracefully handles non-git projects
+
+**Files Modified:**
+- mcp-server/index.js (added tool + migration)
+- plans/prd.json (marked ticket as passes: true)
+- plans/progress.txt (this entry)
+
+**Testing:**
+- Syntax check: passed
+- Type check: passed
+
