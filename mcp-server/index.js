@@ -18,6 +18,7 @@ import { randomUUID } from "crypto";
 import { homedir } from "os";
 import { join } from "path";
 import { existsSync } from "fs";
+import { execSync } from "child_process";
 
 // =============================================================================
 // LOGGING - All output MUST go to stderr for STDIO transport
@@ -64,6 +65,58 @@ function validateEnum(value, allowed, fieldName) {
     return `Invalid ${fieldName}: "${value}". Must be one of: ${allowed.join(", ")}`;
   }
   return null;
+}
+
+// =============================================================================
+// GIT HELPERS
+// =============================================================================
+
+/**
+ * Generate a URL-safe slug from a string
+ */
+function slugify(text) {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-") // Replace non-alphanumeric with hyphens
+    .replace(/^-+|-+$/g, "")     // Trim leading/trailing hyphens
+    .substring(0, 50);           // Limit length
+}
+
+/**
+ * Get short ID from UUID (first 8 characters)
+ */
+function shortId(uuid) {
+  return uuid.substring(0, 8);
+}
+
+/**
+ * Generate branch name for a ticket
+ * Format: feature/{short-id}-{slug}
+ */
+function generateBranchName(ticketId, ticketTitle) {
+  const slug = slugify(ticketTitle);
+  return `feature/${shortId(ticketId)}-${slug}`;
+}
+
+/**
+ * Run a git command in a directory
+ * Returns { success: boolean, output: string, error?: string }
+ */
+function runGitCommand(command, cwd) {
+  try {
+    const output = execSync(command, {
+      cwd,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    return { success: true, output: output.trim() };
+  } catch (error) {
+    return {
+      success: false,
+      output: "",
+      error: error.stderr?.trim() || error.message,
+    };
+  }
 }
 
 // =============================================================================
@@ -372,6 +425,34 @@ Args:
             ticketId: {
               type: "string",
               description: "Ticket ID",
+            },
+          },
+          required: ["ticketId"],
+        },
+      },
+      {
+        name: "start_ticket_work",
+        description: `Start working on a ticket.
+
+This tool:
+1. Creates a git branch: feature/{ticket-short-id}-{slug}
+2. Sets the ticket status to in_progress
+3. Returns the branch name and ticket context
+
+Use this when picking up a ticket to work on.
+The project must have a git repository initialized.
+
+Args:
+  ticketId: The ticket ID to start working on
+
+Returns:
+  Branch name, ticket details, and project path for context.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            ticketId: {
+              type: "string",
+              description: "Ticket ID to start working on",
             },
           },
           required: ["ticketId"],
@@ -796,6 +877,132 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             text: comments.length > 0
               ? JSON.stringify(comments, null, 2)
               : `No comments found for ticket "${ticket.title}".`,
+          }],
+        };
+      }
+
+      // -----------------------------------------------------------------------
+      // START TICKET WORK
+      // -----------------------------------------------------------------------
+      case "start_ticket_work": {
+        const error = validateRequired(args, ["ticketId"]);
+        if (error) {
+          return { content: [{ type: "text", text: error }], isError: true };
+        }
+
+        const { ticketId } = args;
+
+        // Get ticket with project info
+        const ticket = db.prepare(`
+          SELECT t.*, p.name as project_name, p.path as project_path
+          FROM tickets t
+          JOIN projects p ON t.project_id = p.id
+          WHERE t.id = ?
+        `).get(ticketId);
+
+        if (!ticket) {
+          return {
+            content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
+            isError: true,
+          };
+        }
+
+        // Check if ticket is already in progress
+        if (ticket.status === "in_progress") {
+          return {
+            content: [{
+              type: "text",
+              text: `Ticket is already in progress.\n\n${JSON.stringify(ticket, null, 2)}`,
+            }],
+          };
+        }
+
+        // Check if project path exists
+        if (!existsSync(ticket.project_path)) {
+          return {
+            content: [{
+              type: "text",
+              text: `Project path does not exist: ${ticket.project_path}`,
+            }],
+            isError: true,
+          };
+        }
+
+        // Check if it's a git repository
+        const gitCheck = runGitCommand("git rev-parse --git-dir", ticket.project_path);
+        if (!gitCheck.success) {
+          return {
+            content: [{
+              type: "text",
+              text: `Not a git repository: ${ticket.project_path}\n\nInitialize git first: git init`,
+            }],
+            isError: true,
+          };
+        }
+
+        // Generate branch name
+        const branchName = generateBranchName(ticketId, ticket.title);
+
+        // Check if branch already exists
+        const branchExists = runGitCommand(`git show-ref --verify --quiet refs/heads/${branchName}`, ticket.project_path);
+
+        let branchCreated = false;
+        if (!branchExists.success) {
+          // Branch doesn't exist, create it
+          const createBranch = runGitCommand(`git checkout -b ${branchName}`, ticket.project_path);
+          if (!createBranch.success) {
+            return {
+              content: [{
+                type: "text",
+                text: `Failed to create branch ${branchName}: ${createBranch.error}`,
+              }],
+              isError: true,
+            };
+          }
+          branchCreated = true;
+        } else {
+          // Branch exists, check it out
+          const checkoutBranch = runGitCommand(`git checkout ${branchName}`, ticket.project_path);
+          if (!checkoutBranch.success) {
+            return {
+              content: [{
+                type: "text",
+                text: `Failed to checkout branch ${branchName}: ${checkoutBranch.error}`,
+              }],
+              isError: true,
+            };
+          }
+        }
+
+        // Update ticket status to in_progress
+        const now = new Date().toISOString();
+        db.prepare(
+          "UPDATE tickets SET status = 'in_progress', updated_at = ? WHERE id = ?"
+        ).run(now, ticketId);
+
+        // Get updated ticket
+        const updatedTicket = db.prepare(`
+          SELECT t.*, p.name as project_name, p.path as project_path
+          FROM tickets t
+          JOIN projects p ON t.project_id = p.id
+          WHERE t.id = ?
+        `).get(ticketId);
+
+        log.info(`Started work on ticket ${ticketId}: branch ${branchName}`);
+
+        return {
+          content: [{
+            type: "text",
+            text: `Started work on ticket!
+
+Branch: ${branchName}
+${branchCreated ? "Created new branch" : "Checked out existing branch"}
+
+Project: ${updatedTicket.project_name}
+Path: ${updatedTicket.project_path}
+
+Ticket:
+${JSON.stringify(updatedTicket, null, 2)}`,
           }],
         };
       }

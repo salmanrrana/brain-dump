@@ -300,3 +300,43 @@ Ralph can now pick up any ticket from BD-002 through BD-053 with full context fr
 - plans/prd.json (marked ticket as passes: true)
 - plans/progress.txt (this entry)
 
+---
+
+### 2026-01-11 - start_ticket_work MCP Tool
+- Task: Create start_ticket_work MCP tool
+- Ticket ID: c9293544-5ab1-4fdc-9e7f-9b62907e7933
+- Success: true
+- Agent: Ralph
+
+**Implementation:**
+- Added `start_ticket_work` tool to MCP server
+- Added `execSync` import from child_process
+- Added git helper functions: `slugify`, `shortId`, `generateBranchName`, `runGitCommand`
+
+**Tool Behavior:**
+1. Takes `ticketId` as parameter
+2. Validates ticket exists and gets project info
+3. Checks if project path is a git repository
+4. Generates branch name: `feature/{short-id}-{slug}`
+   - short-id: first 8 chars of UUID
+   - slug: lowercase, alphanumeric with hyphens, max 50 chars
+5. Creates branch (or checks out if exists)
+6. Updates ticket status to `in_progress`
+7. Returns branch name, project info, and ticket details
+
+**Error Handling:**
+- Ticket not found
+- Ticket already in progress (returns ticket info)
+- Project path doesn't exist
+- Not a git repository
+- Git branch creation/checkout failures
+
+**Files Modified:**
+- mcp-server/index.js (added tool + helpers)
+- plans/prd.json (marked ticket as passes: true)
+- plans/progress.txt (this entry)
+
+**Testing:**
+- Syntax check: passed
+- Type check: passed
+

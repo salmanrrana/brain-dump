@@ -53,7 +53,7 @@
     {
       "id": "c9293544-5ab1-4fdc-9e7f-9b62907e7933",
       "title": "Create start_ticket_work MCP tool",
-      "description": "## Task\nAdd MCP tool to start work on a ticket.\n\n## Behavior\n- Takes ticketId as parameter\n- Creates git branch: `feature/{ticket-short-id}-{slug}`\n- Sets ticket status to `in_progress`\n- Returns branch name and ticket context\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Branch created with correct naming\n- [ ] Ticket status updated\n- [ ] Works in both Claude and VS Code\n\n## File to Modify\n`src/mcp/tools/` (or wherever MCP tools live)",
+      "description": "## Task\nAdd MCP tool to start work on a ticket.\n\n## Behavior\n- Takes ticketId as parameter\n- Creates git branch: `feature/{ticket-short-id}-{slug}`\n- Sets ticket status to `in_progress`\n- Returns branch name and ticket context\n\n## Acceptance Criteria\n- [x] Tool registered in MCP server\n- [x] Branch created with correct naming\n- [x] Ticket status updated\n- [x] Works in both Claude and VS Code\n\n## File to Modify\n`src/mcp/tools/` (or wherever MCP tools live)",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
@@ -64,7 +64,7 @@
         "workflow",
         "git"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "44a97133-1e6e-40a4-af1c-ee4b85d843de",
