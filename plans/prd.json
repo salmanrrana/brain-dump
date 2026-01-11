@@ -37,7 +37,7 @@
     {
       "id": "dc5b80d7-75c2-4e6e-b918-61f3b0dd8fdc",
       "title": "Create .vscode/mcp.json template",
-      "description": "## Task\nCreate a VS Code MCP configuration template file.\n\n## Acceptance Criteria\n- [ ] Create `.vscode/mcp.json` with Brain Dumpy server config\n- [ ] Use stdio transport\n- [ ] Include comments explaining each field\n- [ ] Add to .gitignore or provide as .example\n\n## File to Create\n`.vscode/mcp.json`",
+      "description": "## Task\nCreate a VS Code MCP configuration template file.\n\n## Acceptance Criteria\n- [x] Create `.vscode/mcp.json` with Brain Dumpy server config\n- [x] Use stdio transport\n- [x] Include comments explaining each field\n- [x] Add to .gitignore or provide as .example\n\n## File to Create\n`.vscode/mcp.json`",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
@@ -48,7 +48,7 @@
         "vs-code",
         "config"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "c9293544-5ab1-4fdc-9e7f-9b62907e7933",

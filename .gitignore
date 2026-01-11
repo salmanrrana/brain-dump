@@ -35,7 +35,8 @@ plans/prd.json
 plans/progress.txt
 
 .idea/
-.vscode/
+.vscode/*
+!.vscode/*.example
 *.swp
 *.swo
 *~

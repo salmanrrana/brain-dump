@@ -268,3 +268,35 @@ Ralph can now pick up any ticket from BD-002 through BD-053 with full context fr
 - plans/prd.json (marked ticket as passes: true)
 - plans/progress.txt (this entry)
 
+---
+
+### 2026-01-11 - VS Code MCP Configuration Template
+- Task: Create .vscode/mcp.json template
+- Ticket ID: dc5b80d7-75c2-4e6e-b918-61f3b0dd8fdc
+- Success: true
+- Agent: Ralph
+
+**Files Created:**
+- `.vscode/mcp.json.example` - VS Code MCP configuration template
+
+**Configuration Details:**
+- Uses stdio transport (standard for MCP)
+- Includes detailed JSONC comments explaining each field
+- Points to `mcp-server/index.js` for the Brain Dumpy server
+- Documents requirements (VS Code 1.99+, Node.js, database)
+
+**Git Ignore Setup:**
+- Updated `.gitignore` to track `.vscode/*.example` files
+- Actual `mcp.json` remains ignored (user-specific paths)
+- Users copy `.example` to `mcp.json` and update paths
+
+**Usage Instructions (in file):**
+1. Copy `.vscode/mcp.json.example` to `.vscode/mcp.json`
+2. Update the path to match your Brain Dumpy installation
+3. Restart VS Code or reload window
+
+**Files Modified:**
+- .gitignore (added exception for .example files)
+- plans/prd.json (marked ticket as passes: true)
+- plans/progress.txt (this entry)
+
