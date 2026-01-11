@@ -458,6 +458,39 @@ Returns:
           required: ["ticketId"],
         },
       },
+      {
+        name: "complete_ticket_work",
+        description: `Complete work on a ticket and move it to review.
+
+This tool:
+1. Sets the ticket status to review
+2. Gets git commits on the current branch (for PR description)
+3. Returns a summary of work done
+
+Use this when you've finished implementing a ticket.
+Call this before creating a pull request.
+
+Args:
+  ticketId: The ticket ID to complete
+  summary: Optional work summary to include
+
+Returns:
+  Updated ticket, git commits summary, and suggested PR description.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            ticketId: {
+              type: "string",
+              description: "Ticket ID to complete",
+            },
+            summary: {
+              type: "string",
+              description: "Optional work summary describing what was done",
+            },
+          },
+          required: ["ticketId"],
+        },
+      },
     ],
   };
 });
@@ -1001,6 +1034,131 @@ ${branchCreated ? "Created new branch" : "Checked out existing branch"}
 Project: ${updatedTicket.project_name}
 Path: ${updatedTicket.project_path}
 
+Ticket:
+${JSON.stringify(updatedTicket, null, 2)}`,
+          }],
+        };
+      }
+
+      // -----------------------------------------------------------------------
+      // COMPLETE TICKET WORK
+      // -----------------------------------------------------------------------
+      case "complete_ticket_work": {
+        const error = validateRequired(args, ["ticketId"]);
+        if (error) {
+          return { content: [{ type: "text", text: error }], isError: true };
+        }
+
+        const { ticketId, summary } = args;
+
+        // Get ticket with project info
+        const ticket = db.prepare(`
+          SELECT t.*, p.name as project_name, p.path as project_path
+          FROM tickets t
+          JOIN projects p ON t.project_id = p.id
+          WHERE t.id = ?
+        `).get(ticketId);
+
+        if (!ticket) {
+          return {
+            content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
+            isError: true,
+          };
+        }
+
+        // Check if ticket is in a valid state to complete
+        if (ticket.status === "done") {
+          return {
+            content: [{
+              type: "text",
+              text: `Ticket is already done.\n\n${JSON.stringify(ticket, null, 2)}`,
+            }],
+          };
+        }
+
+        if (ticket.status === "review") {
+          return {
+            content: [{
+              type: "text",
+              text: `Ticket is already in review.\n\n${JSON.stringify(ticket, null, 2)}`,
+            }],
+          };
+        }
+
+        // Try to get git commits for this ticket's branch
+        let commitsInfo = "";
+        let prDescription = "";
+
+        if (existsSync(ticket.project_path)) {
+          const gitCheck = runGitCommand("git rev-parse --git-dir", ticket.project_path);
+
+          if (gitCheck.success) {
+            // Get current branch
+            const branchResult = runGitCommand("git branch --show-current", ticket.project_path);
+            const currentBranch = branchResult.success ? branchResult.output : "unknown";
+
+            // Get commits on this branch (compared to main/master)
+            // Try main first, then master
+            let baseBranch = "main";
+            const mainExists = runGitCommand("git show-ref --verify --quiet refs/heads/main", ticket.project_path);
+            if (!mainExists.success) {
+              const masterExists = runGitCommand("git show-ref --verify --quiet refs/heads/master", ticket.project_path);
+              if (masterExists.success) {
+                baseBranch = "master";
+              }
+            }
+
+            // Get commit log
+            const commitsResult = runGitCommand(
+              `git log ${baseBranch}..HEAD --oneline --no-decorate 2>/dev/null || git log -10 --oneline --no-decorate`,
+              ticket.project_path
+            );
+
+            if (commitsResult.success && commitsResult.output) {
+              commitsInfo = commitsResult.output;
+
+              // Generate PR description
+              const commitLines = commitsInfo.split("\n").filter(l => l.trim());
+              prDescription = `## Summary
+${summary || ticket.title}
+
+## Changes
+${commitLines.map(c => `- ${c.substring(c.indexOf(" ") + 1)}`).join("\n")}
+
+## Ticket
+- ID: ${shortId(ticketId)}
+- Title: ${ticket.title}
+`;
+            }
+          }
+        }
+
+        // Update ticket status to review
+        const now = new Date().toISOString();
+        db.prepare(
+          "UPDATE tickets SET status = 'review', updated_at = ? WHERE id = ?"
+        ).run(now, ticketId);
+
+        // Get updated ticket
+        const updatedTicket = db.prepare(`
+          SELECT t.*, p.name as project_name, p.path as project_path
+          FROM tickets t
+          JOIN projects p ON t.project_id = p.id
+          WHERE t.id = ?
+        `).get(ticketId);
+
+        log.info(`Completed work on ticket ${ticketId}, moved to review`);
+
+        return {
+          content: [{
+            type: "text",
+            text: `Ticket moved to review!
+
+Project: ${updatedTicket.project_name}
+Status: ${updatedTicket.status}
+
+${commitsInfo ? `Commits:\n${commitsInfo}\n` : ""}
+${prDescription ? `Suggested PR Description:\n\`\`\`\n${prDescription}\`\`\`\n` : ""}
 Ticket:
 ${JSON.stringify(updatedTicket, null, 2)}`,
           }],

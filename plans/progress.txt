@@ -340,3 +340,43 @@ Ralph can now pick up any ticket from BD-002 through BD-053 with full context fr
 - Syntax check: passed
 - Type check: passed
 
+---
+
+### 2026-01-11 - complete_ticket_work MCP Tool
+- Task: Create complete_ticket_work MCP tool
+- Ticket ID: 44a97133-1e6e-40a4-af1c-ee4b85d843de
+- Success: true
+- Agent: Ralph
+
+**Implementation:**
+- Added `complete_ticket_work` tool to MCP server
+- Reuses existing git helper functions
+
+**Tool Behavior:**
+1. Takes `ticketId` and optional `summary` as parameters
+2. Validates ticket exists and is in completable state
+3. Gets git commits on current branch (compared to main/master)
+4. Generates suggested PR description from commits
+5. Updates ticket status to `review`
+6. Returns updated ticket, commits, and PR description
+
+**PR Description Generation:**
+- Detects base branch (main or master)
+- Gets commits unique to feature branch
+- Formats as markdown with summary, changes, and ticket info
+
+**Error Handling:**
+- Ticket not found
+- Ticket already done (returns info)
+- Ticket already in review (returns info)
+- Gracefully handles non-git projects
+
+**Files Modified:**
+- mcp-server/index.js (added tool)
+- plans/prd.json (marked ticket as passes: true)
+- plans/progress.txt (this entry)
+
+**Testing:**
+- Syntax check: passed
+- Type check: passed
+
