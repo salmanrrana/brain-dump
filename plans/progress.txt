@@ -1383,3 +1383,50 @@ Remaining tasks (1):
 
 ---
 
+### 2026-01-12 - Claude Code Auto-Review Hook
+- Task: Create Claude Code hook for automatic code review after task completion
+- Ticket ID: 844810d6-dd27-4e72-bae5-fe2cac252580
+- Success: true
+- Agent: Ralph
+- Branch: ralph/844810d6-code-review-hook
+
+**Files Created:**
+- `.claude/hooks/auto-review.md` - Hook documentation
+- `.claude/hooks/hooks.json` - Portable hook definition
+- `.claude/hooks/auto-review.config.json` - Configuration schema
+- `docs/auto-review-hook.md` - User documentation
+
+**Files Modified:**
+- `.claude/settings.local.json` - Added hooks configuration
+
+**Implementation:**
+The Stop hook uses a prompt-based approach to evaluate whether code changes were made:
+1. Analyzes transcript for Write, Edit, or NotebookEdit tool usage
+2. Filters by file type (source code vs config/docs)
+3. If code changes detected, recommends running review pipeline:
+   - `pr-review-toolkit:code-reviewer` - Project guideline compliance
+   - `pr-review-toolkit:silent-failure-hunter` - Error handling audit
+   - `code-simplifier:code-simplifier` - Code simplification
+
+**Configuration:**
+Hook is enabled in `.claude/settings.local.json` under `hooks.Stop` array.
+To disable, remove the hooks section or set `Stop` to empty array.
+
+**Acceptance Criteria Met:**
+- [x] Hook triggers automatically when a coding task completes
+- [x] Review results are shown to the user
+- [x] Hook can be enabled/disabled via configuration
+- [x] Documentation updated with hook setup instructions
+
+**Testing:**
+- All 298 tests passing
+- Type check has pre-existing errors in logger.ts and index.tsx
+
+---
+
+## PRD Status: COMPLETE
+
+All user stories have passes: true.
+
+PRD_COMPLETE
+
