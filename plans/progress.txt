@@ -1275,3 +1275,42 @@ Next iteration should work on one of the remaining medium-priority tasks:
 - 77609063 - Create get_project_settings MCP tool
 - 0e89965f - Create update_project_settings MCP tool
 
+---
+
+### 2026-01-12 - get_project_settings MCP Tool
+- Task: Create get_project_settings MCP tool
+- Ticket ID: 77609063-5af9-44d4-a3c7-2c0f0c5273f3
+- Success: true
+- Agent: Ralph
+- Branch: ralph/5fb70ee6-environment-detection
+
+**Files Modified:**
+- `mcp-server/index.js` - Added get_project_settings tool
+
+**Tool Implementation:**
+The `get_project_settings` tool returns:
+```json
+{
+  "projectId": "...",
+  "projectName": "...",
+  "projectPath": "...",
+  "workingMethod": "auto" | "claude-code" | "vscode",
+  "effectiveEnvironment": "claude-code" | "vscode" | "unknown",
+  "detectedEnvironment": "claude-code" | "vscode" | "unknown"
+}
+```
+
+**Features:**
+- Returns project settings including working_method
+- Computes effectiveEnvironment based on workingMethod setting
+- When workingMethod is "auto", uses detected environment
+- When workingMethod is explicit ("claude-code"/"vscode"), uses that value
+- Falls back to detected environment for invalid values
+
+**Testing:**
+- MCP server syntax check: passed
+- All 301 tests passing
+- Pre-existing type errors in logger.ts and index.tsx (separate tickets)
+
+---
+
