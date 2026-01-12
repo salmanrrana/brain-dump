@@ -495,3 +495,605 @@ Ralph can now pick up any ticket from BD-002 through BD-053 with full context fr
 - Syntax check: passed
 - Type check: passed
 
+---
+
+### 2026-01-12 - XDG Directory Structure Utility
+- Task: Create XDG-compliant directory structure utility
+- Ticket ID: 74e5875f-ba81-40c3-9647-00ebeac2807c
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Files Created:**
+- `src/lib/xdg.ts` - XDG utility module
+- `src/lib/xdg.test.ts` - Unit tests (18 tests)
+
+**Functions Implemented:**
+| Function | Description |
+|----------|-------------|
+| `getDataDir()` | Returns ~/.local/share/brain-dumpy/ |
+| `getConfigDir()` | Returns ~/.config/brain-dumpy/ |
+| `getCacheDir()` | Returns ~/.cache/brain-dumpy/ |
+| `getStateDir()` | Returns ~/.local/state/brain-dumpy/ |
+| `getLegacyDir()` | Returns ~/.brain-dump/ (for migration) |
+| `getDatabasePath()` | Returns full database path |
+| `getBackupsDir()` | Returns backups directory |
+| `getLogsDir()` | Returns logs directory |
+| `ensureDirectories()` | Creates all dirs with 0700 permissions |
+| `ensureDirectoriesSync()` | Sync version for startup |
+
+**Testing:**
+- 18 unit tests all passing
+- XDG module type-checks correctly
+- Pre-existing type errors in index.tsx (separate ticket 2f780b3f created)
+
+**Notes:**
+- This utility is foundation for next tickets (database migration, backup system)
+
+---
+
+### 2026-01-12 - Migrate Database Location to XDG_DATA_HOME
+- Task: Migrate database location to XDG_DATA_HOME
+- Ticket ID: 53615062-25d0-4136-9a65-8442a7dde201
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Files Modified:**
+- `src/lib/db.ts` - Use XDG utilities for database path
+- `cli/brain-dump.ts` - Use XDG paths for DB and state file
+- `mcp-server/index.js` - Add XDG utilities with legacy fallback
+- `src/lib/xdg.ts` - Fix require() to use static imports
+
+**Changes:**
+| Component | Old Path | New Path |
+|-----------|----------|----------|
+| Database | ~/.brain-dump/brain-dump.db | ~/.local/share/brain-dumpy/brain-dumpy.db |
+| State file | ~/.brain-dump/current-ticket.json | ~/.local/state/brain-dumpy/current-ticket.json |
+
+**MCP Server Backwards Compatibility:**
+- Checks XDG path first: ~/.local/share/brain-dumpy/brain-dumpy.db
+- Falls back to legacy: ~/.brain-dump/brain-dump.db
+- Logs note about migration when using legacy path
+
+**Testing:**
+- All 68 tests passing
+- CLI loads and works correctly
+- MCP server syntax valid
+- Type checks pass (except pre-existing index.tsx errors)
+
+**Notes:**
+- WAL and SHM files will be created alongside DB at new location
+- Directories created with 0700 permissions for security
+- Next ticket (e25afb2e) will handle automatic migration of existing data
+
+---
+
+### 2026-01-12 - Automatic Migration from Legacy Directory
+- Task: Create automatic migration from legacy ~/.brain-dump directory
+- Ticket ID: e25afb2e-9074-4c25-976e-554d906effdb
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Files Created:**
+- `src/lib/migration.ts` - Migration logic module
+- `src/lib/migration.test.ts` - Unit tests (14 tests)
+
+**Files Modified:**
+- `src/lib/db.ts` - Integrated migration at app startup
+- `mcp-server/index.js` - Added migration support with same logic
+
+**Migration Features:**
+| Feature | Implementation |
+|---------|----------------|
+| Pre-migration backup | SQLite VACUUM INTO to backups dir |
+| Database copy | File copy with size verification |
+| WAL/SHM handling | Copies journal files if present |
+| Attachments | Copies entire attachments directory |
+| Integrity check | PRAGMA integrity_check post-copy |
+| Migration marker | .migrated JSON file in legacy dir |
+| Logging | Logs to ~/.local/state/brain-dumpy/migration.log |
+
+**Safety Measures:**
+- Never deletes legacy data automatically
+- Creates backup before any migration
+- Verifies database integrity after copy
+- Migration only runs once (marker file)
+- Handles edge cases (both locations have data, etc.)
+
+**Functions Implemented:**
+```typescript
+// Detection functions
+hasLegacyData(): boolean
+isMigrationComplete(): boolean
+hasXdgData(): boolean
+verifyDatabaseIntegrity(dbPath: string): boolean
+
+// Migration functions
+migrateFromLegacy(): Promise<MigrationResult>
+migrateFromLegacySync(): MigrationResult
+```
+
+**Testing:**
+- All 82 tests passing (14 new migration tests)
+- MCP server syntax valid
+- Type checks pass (except pre-existing index.tsx errors)
+
+**Notes:**
+- Migration runs automatically on first startup after upgrade
+- Both main app and MCP server can trigger migration
+- Legacy data preserved in ~/.brain-dump (not deleted)
+- User informed via console logs
+
+---
+
+### 2026-01-12 - Automatic Daily Database Backups
+- Task: Implement automatic daily database backups
+- Ticket ID: 0cd21f6e-3bc9-40e5-a2df-479f4d582b28
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Files Created:**
+- `src/lib/backup.ts` - Backup utility module
+- `src/lib/backup.test.ts` - Unit tests (25 tests)
+
+**Files Modified:**
+- `src/lib/db.ts` - Integrated backup at startup
+- `mcp-server/index.js` - Added backup utilities and startup integration
+
+**Functions Implemented:**
+| Function | Description |
+|----------|-------------|
+| `createBackupIfNeeded(force?)` | Creates backup if not done today |
+| `cleanupOldBackups(keepDays)` | Removes backups older than keepDays |
+| `performDailyBackupSync(keepDays)` | Combines backup and cleanup |
+| `listBackups()` | Lists all backups sorted by date |
+| `verifyBackup(path)` | Validates backup integrity |
+| `wasBackupCreatedToday()` | Checks if backup exists for today |
+
+**Backup Features:**
+| Feature | Implementation |
+|---------|----------------|
+| Backup location | ~/.local/state/brain-dumpy/backups/ |
+| Filename format | brain-dumpy-YYYY-MM-DD.db |
+| Retention | Keep last 7 daily backups (configurable) |
+| Backup method | SQLite VACUUM INTO (atomic, defragmented) |
+| Integrity check | PRAGMA integrity_check on backup |
+| Marker file | .last-backup tracks daily backup status |
+
+**Startup Integration:**
+- Main app: calls performDailyBackupSync() after DB init
+- MCP server: calls performDailyBackupSync() after DB connection
+- Both log backup creation and cleanup operations
+
+**Testing:**
+- All 107 tests passing (25 new backup tests)
+- MCP server syntax valid
+- Type checks pass (except pre-existing index.tsx errors)
+
+**Notes:**
+- Backup runs automatically on first operation each day
+- Uses SQLite VACUUM INTO for consistent, defragmented backups
+- Backups are verified with integrity_check before keeping
+- Non-blocking operations via setImmediate for async versions
+- Next ticket (a7bbca6d) will add manual backup/restore CLI commands
+
+---
+
+### 2026-01-12 - Database Lock File Detection
+- Task: Implement database lock file detection
+- Ticket ID: 254bca98-5777-43a5-acdc-1319181c2b19
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Files Created:**
+- `src/lib/lockfile.ts` - Lock file utility module
+- `src/lib/lockfile.test.ts` - Unit tests (22 tests)
+
+**Files Modified:**
+- `mcp-server/index.js` - Added lock file utilities and graceful shutdown
+- `cli/brain-dump.ts` - Added lock acquisition for CLI operations
+- `src/lib/db.ts` - Added lock acquisition for Vite dev server
+
+**Functions Implemented:**
+| Function | Description |
+|----------|-------------|
+| `getLockFilePath()` | Returns ~/.local/state/brain-dumpy/brain-dumpy.lock |
+| `isProcessRunning(pid)` | Checks if a process is running |
+| `readLockFile()` | Reads and validates lock file |
+| `checkLock()` | Checks lock status and detects stale locks |
+| `acquireLock(type)` | Acquires lock for process type |
+| `releaseLock()` | Releases lock if owned by current process |
+| `setupGracefulShutdown()` | Sets up signal handlers for cleanup |
+| `initializeLockSync()` | Combined init for startup |
+
+**Lock File Format:**
+```json
+{
+  "pid": 12345,
+  "startedAt": "2026-01-12T00:00:00Z",
+  "type": "mcp-server" | "cli" | "vite"
+}
+```
+
+**Features:**
+- Lock file at ~/.local/state/brain-dumpy/brain-dumpy.lock
+- Stale lock detection (process not running)
+- Warning for concurrent access (doesn't block)
+- Signal handlers for SIGTERM/SIGINT/SIGQUIT
+- WAL checkpoint on graceful shutdown
+- Lock cleanup on process exit
+
+**Testing:**
+- All 129 tests passing (22 new lockfile tests)
+- MCP server syntax valid
+- Type checks pass (except pre-existing index.tsx errors)
+
+**Notes:**
+- Doesn't block concurrent access, just warns (SQLite WAL handles concurrency)
+- Lock file secured with 0600 permissions
+- Graceful shutdown ensures WAL is checkpointed before exit
+
+---
+
+### 2026-01-11 - Cross-Platform Path Support Tickets Created
+- Task: Create atomic tickets for implementing cross-platform path support
+- Agent: Breakdown
+- Epic: Cross-Platform Path Support
+
+**Tickets Created: 5**
+
+| ID | Title | Priority | Estimated Time |
+|----|-------|----------|----------------|
+| cp-001-platform-detection | Add platform detection utility to xdg.ts | High | 1-2 hours |
+| cp-002-macos-paths | Add macOS path support to xdg.ts | High | 2-3 hours |
+| cp-003-windows-paths | Add Windows path support to xdg.ts | High | 2-3 hours |
+| cp-004-rename-module | Rename xdg.ts to app-paths.ts | Medium | 1-2 hours |
+| cp-005-update-tests | Update tests for cross-platform path support | High | 2-3 hours |
+
+**Implementation Order (Sequential):**
+1. cp-001-platform-detection - Foundation for all platform-specific logic
+2. cp-002-macos-paths - Add macOS support
+3. cp-003-windows-paths - Add Windows support
+4. cp-005-update-tests - Comprehensive test coverage for all platforms
+5. cp-004-rename-module - Cleanup and rename (can be done last or skipped)
+
+**Technical Approach:**
+- Platform detection uses os.platform() with helper functions
+- macOS uses ~/Library/Application Support, ~/Library/Caches
+- Windows uses %APPDATA% and %LOCALAPPDATA%
+- Linux keeps existing XDG implementation with env var support
+- Tests use vi.spyOn to mock os.platform() for all platforms
+- Module rename is optional but recommended for clarity
+
+**Files Modified:**
+- plans/prd.json (added 5 new tickets)
+- plans/progress.txt (this entry)
+
+**Notes:**
+- Each ticket is 1-3 hours of focused work
+- No dependencies on other Brain Dumpy features
+- Tickets can be completed by Ralph sequentially
+- Module rename (cp-004) is cleanup work and can be done anytime after the path implementations
+- Tests ticket (cp-005) should be done before rename to ensure nothing breaks
+
+---
+
+### 2026-01-12 - Manual Backup/Restore CLI Commands
+- Task: Add manual backup/restore CLI commands
+- Ticket ID: a7bbca6d-a9da-4733-bf62-41f1da610f64
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Files Modified:**
+- `src/lib/backup.ts` - Added restore functions
+- `cli/brain-dump.ts` - Added backup/restore CLI commands
+
+**New CLI Commands:**
+| Command | Description |
+|---------|-------------|
+| `brain-dump backup` | Create immediate timestamped backup |
+| `brain-dump backup --list` | List available backups with dates/sizes |
+| `brain-dump restore <filename>` | Restore from specific backup file |
+| `brain-dump restore --latest` | Restore from most recent backup |
+
+**New Functions in backup.ts:**
+| Function | Description |
+|----------|-------------|
+| `restoreFromBackup(path)` | Safely restore database from backup |
+| `getDatabaseStats(path)` | Get ticket/project/epic counts |
+| `getLatestBackup()` | Get most recent backup info |
+
+**Restore Safety Features:**
+- Confirmation prompt before restore
+- Pre-restore backup created automatically
+- Backup integrity verification before restore
+- Database stats comparison (shows project/epic/ticket counts)
+- Reverts to previous state if restore fails integrity check
+
+**Testing:**
+- All 180 tests passing
+- CLI commands tested manually
+- Type checks pass (except pre-existing index.tsx errors)
+
+**Notes:**
+- Restore requires restarting Brain Dump to use the new database
+- Pre-restore backups saved as `pre-restore-{timestamp}.db`
+
+---
+
+### 2026-01-12 - File-Based Logging System
+- Task: Add file-based logging system
+- Ticket ID: b892ddcc-b0d7-44ab-8239-a9f252af7c5a
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Files Created:**
+- `src/lib/logger.ts` - Logging utility module
+- `src/lib/logger.test.ts` - Unit tests (49 tests)
+
+**Files Modified:**
+- `mcp-server/index.js` - Added file-based logging integration
+- `cli/brain-dump.ts` - Added logger for CLI operations
+
+**Features Implemented:**
+| Feature | Description |
+|---------|-------------|
+| Log Levels | DEBUG, INFO, WARN, ERROR with priority filtering |
+| Log Files | brain-dumpy.log, mcp-server.log, error.log |
+| Rotation | 5 files, 10MB each, automatic rotation |
+| Async Writes | Non-blocking file writes via setImmediate |
+| LOG_LEVEL env var | Configurable minimum log level |
+| Stack Traces | Errors include full stack traces |
+
+**Log Format:**
+```
+2026-01-12T10:30:00.000Z [INFO] [mcp-server] Tool called: create_ticket
+2026-01-12T10:30:00.000Z [ERROR] [cli] Failed to update ticket
+  Error: Ticket not found
+  at updateTicketStatus (cli/brain-dump.ts:100:15)
+```
+
+**Logger Functions:**
+| Function | Description |
+|----------|-------------|
+| `createLogger(source)` | Create logger with custom source |
+| `createMcpLogger()` | Logger for MCP server |
+| `createCliLogger()` | Logger for CLI operations |
+| `createViteLogger()` | Logger for Vite dev server |
+| `getDefaultLogger()` | Default app logger singleton |
+| `writeToLogFile()` | Async file write |
+| `writeToLogFileSync()` | Sync file write for shutdown |
+| `rotateLogFile()` | Log rotation logic |
+
+**Testing:**
+- All 229 tests passing (49 new logger tests)
+- MCP server syntax valid
+- Type checks pass (except pre-existing index.tsx errors)
+
+**Notes:**
+- Logs written to ~/.local/state/brain-dumpy/logs/
+- MCP server also logs to stderr (required for STDIO transport)
+- Errors written to both main log and error.log
+- Log rotation triggers when file exceeds 10MB
+
+---
+
+### 2026-01-12 - Database Integrity Check on Startup
+- Task: Add database integrity check on startup
+- Ticket ID: d87b3a30-04e9-4107-9be6-a06d9099f32b
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Files Created:**
+- `src/lib/integrity.ts` - Integrity check utility module
+- `src/lib/integrity.test.ts` - Unit tests (30 tests)
+
+**Files Modified:**
+- `src/lib/db.ts` - Integrated startup integrity check
+- `cli/brain-dump.ts` - Added check command
+
+**Functions Implemented:**
+| Function | Description |
+|----------|-------------|
+| `quickIntegrityCheck(dbPath?)` | Fast check for startup (stops at first error) |
+| `fullIntegrityCheck(dbPath?)` | Complete PRAGMA integrity_check |
+| `foreignKeyCheck(dbPath?)` | Check for FK violations |
+| `walCheck(dbPath?)` | Verify WAL file consistency |
+| `tableCheck(dbPath?)` | Verify required tables exist |
+| `fullDatabaseCheck(dbPath?)` | Run all checks with suggestions |
+| `startupIntegrityCheck(dbPath?)` | Startup-optimized check |
+
+**CLI Commands:**
+| Command | Description |
+|---------|-------------|
+| `brain-dump check` | Quick integrity check |
+| `brain-dump check --full` | Full comprehensive health check |
+
+**Features:**
+- Quick startup check using PRAGMA integrity_check(1)
+- Full check runs all 4 check types
+- Foreign key violation detection
+- WAL consistency verification
+- Required tables validation
+- Backup restore suggestions when corruption detected
+- Detailed output for diagnostics
+
+**Testing:**
+- All 259 tests passing (30 new integrity tests)
+- Type checks pass (except pre-existing index.tsx errors)
+
+**Notes:**
+- Quick check adds minimal startup overhead (~10ms)
+- Full check provides detailed diagnostics with suggestions
+- Integrates with backup system to suggest restores
+
+---
+
+### 2026-01-12 - Graceful Shutdown Handling for All Processes
+- Task: Add graceful shutdown handling for all processes
+- Ticket ID: e97a4485-af2a-4bd8-9763-20bb1a213a02
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Summary:**
+All three process types (MCP server, CLI, Vite dev server) already had graceful shutdown handling via the lockfile module. This ticket verified the implementation and enhanced the CLI to have full WAL checkpoint support.
+
+**Implementation Status:**
+
+| Process | Signal Handlers | WAL Checkpoint | Lock Cleanup | Logging |
+|---------|-----------------|----------------|--------------|---------|
+| MCP Server | ✅ SIGTERM, SIGINT, SIGQUIT | ✅ TRUNCATE | ✅ releaseLock() | ✅ Full |
+| CLI Commands | ✅ Via setupGracefulShutdown() | ✅ TRUNCATE | ✅ releaseLock() | ✅ Full |
+| Vite Dev Server | ✅ Via initializeLockSync() | ✅ TRUNCATE | ✅ releaseLock() | ✅ Yes |
+
+**Files Modified:**
+- `cli/brain-dump.ts` - Enhanced with:
+  - Import `setupGracefulShutdown` from lockfile module
+  - Track active database connection with `activeDb`
+  - `cleanupDatabase()` function with WAL checkpoint
+  - Proper lock release after each operation
+
+**Key Features:**
+- All signals handled: SIGTERM, SIGINT, SIGQUIT
+- WAL checkpoint (`PRAGMA wal_checkpoint(TRUNCATE)`) on shutdown
+- Lock file automatically cleaned up
+- Database connection properly closed
+- Shutdown logged via logger module
+- Exception handlers for uncaught exceptions and unhandled rejections
+
+**Testing:**
+- All 259 tests passing
+- MCP server syntax valid
+- CLI syntax valid and functional
+- Type checks pass (except pre-existing index.tsx errors)
+
+**Notes:**
+- Most shutdown handling was already implemented by the lockfile module
+- CLI enhancement adds explicit WAL checkpoint before close
+- No changes needed to Vite config - handled via db.ts
+
+---
+
+### 2026-01-12 - MCP Tool for Database Health Status
+- Task: Add MCP tool for database health status
+- Ticket ID: e88860de-1309-4d67-8f61-80da55821dd2
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Files Modified:**
+- `mcp-server/index.js` - Added `get_database_health` tool
+
+**Tool Implementation:**
+The `get_database_health` tool returns a comprehensive health report:
+
+```json
+{
+  "status": "healthy" | "warning" | "error",
+  "databasePath": "/path/to/brain-dumpy.db",
+  "databaseSize": "15.2 MB",
+  "integrityCheck": "ok",
+  "stats": {
+    "projects": 5,
+    "epics": 10,
+    "tickets": 100
+  },
+  "backup": {
+    "lastBackup": "2026-01-12",
+    "backupCount": 7,
+    "backupsDir": "/path/to/backups"
+  },
+  "wal": {
+    "walExists": true,
+    "shmExists": true,
+    "walSize": "100.0 KB"
+  },
+  "lockFile": {
+    "exists": true,
+    "pid": 12345,
+    "type": "mcp-server",
+    "isStale": false
+  },
+  "issues": []
+}
+```
+
+**Health Checks Performed:**
+- Database file existence and size
+- SQLite integrity check (PRAGMA integrity_check)
+- Backup status (last backup date, count)
+- WAL file size (warns if > 10MB)
+- Lock file status (detects stale locks)
+- Record counts (projects, epics, tickets)
+
+**Status Values:**
+- `healthy` - All checks pass
+- `warning` - Non-critical issues (stale lock, large WAL)
+- `error` - Critical issues (integrity check failed, DB missing)
+
+**Testing:**
+- All 259 tests passing
+- MCP server syntax valid
+
+---
+
+### 2026-01-12 - Update Documentation for New Data Locations
+- Task: Update documentation for new data locations
+- Ticket ID: f8ab8cff-ec40-49e0-a784-c5020b764cf0
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Files Created:**
+- `docs/data-locations.md` - Complete path reference for XDG directories
+- `docs/backup-restore.md` - Backup system guide with CLI commands
+- `docs/troubleshooting.md` - Common issues and recovery procedures
+
+**Files Modified:**
+- `README.md`:
+  - Updated Data Storage section with XDG paths
+  - Updated CLI section with backup/restore/check commands
+  - Updated MCP tools list (added 8 new tools)
+  - Updated Docker instructions for new volume paths
+  - Added links to new documentation
+
+**Testing:**
+- All 259 tests passing
+- Type check has pre-existing errors in index.tsx (separate ticket 2f780b3f)
+
+**Notes:**
+- All acceptance criteria met
+- Documentation covers migration from legacy ~/.brain-dump/ paths
+- XDG environment variable overrides documented
+- Troubleshooting guide includes database recovery procedures
+
+---
+
+## PRD Status: COMPLETE
+
+All 8 user stories in the XDG Migration & Data Protection epic have passes: true.
+
+**Tickets Completed:**
+1. e25afb2e - Create automatic migration from legacy ~/.brain-dump directory
+2. a7bbca6d - Add manual backup/restore CLI commands
+3. 254bca98 - Implement database lock file detection
+4. b892ddcc - Add file-based logging system
+5. e88860de - Add MCP tool for database health status
+6. e97a4485 - Add graceful shutdown handling for all processes
+7. f8ab8cff - Update documentation for new data locations
+8. e5aebb29 - Add database file watcher for deletion detection
+
+**Next Steps:**
+- ✅ Branch pushed to origin
+- ⏳ PR needs to be created manually (gh CLI not available)
+
+**PR URL:** https://github.com/salmanrrana/brain-dump/pull/new/ralph/74e5875f-xdg-directory-utility
+

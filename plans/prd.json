@@ -3,132 +3,87 @@
   "projectPath": "/home/xtra/code/personal_projects/brain-dumpy",
   "userStories": [
     {
-      "id": "06633336-6d4e-49d7-a2a2-1a18b2eb6b81",
-      "title": "Verify MCP server works with Claude Code",
-      "description": "## Task\nVerify the existing MCP server works correctly with Claude Code as the baseline.\n\n## Acceptance Criteria\n- [x] All existing MCP tools callable from Claude Code\n- [x] Document current tool list and their functions\n- [x] Note any issues or limitations\n\n## Scope\nTesting and documentation only. No code changes.",
+      "id": "e25afb2e-9074-4c25-976e-554d906effdb",
+      "title": "Create automatic migration from legacy ~/.brain-dump directory",
+      "description": "## Task\nImplement automatic one-time migration from old `~/.brain-dump/` to new XDG paths.\n\n## Migration Steps\n1. Check if legacy `~/.brain-dump/` exists\n2. Check if new XDG location already has data\n3. If legacy exists and XDG empty:\n   - Copy database to new location\n   - Copy attachments to new location\n   - Create `.migrated` marker in legacy dir\n   - Log migration success\n4. If both exist, warn user and use XDG\n\n## Safety Measures\n- Never delete legacy data automatically\n- Create backup before migration\n- Verify database integrity after copy\n- Atomic operations where possible\n\n## Acceptance Criteria\n- [ ] Migration runs automatically on first start\n- [ ] Legacy data preserved (not deleted)\n- [ ] Migration only happens once\n- [ ] Error handling for failed migrations\n- [ ] User informed of migration via log\n\n## File to Create\n`src/lib/migration.ts`",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
       ],
       "priority": "high",
       "tags": [
-        "mcp",
-        "testing",
-        "baseline"
+        "xdg",
+        "migration",
+        "safety"
       ],
       "passes": true
     },
     {
-      "id": "7e82cd89-ac26-41a2-a446-3b85efe3c854",
-      "title": "Test MCP server with VS Code native MCP",
-      "description": "## Task\nTest the existing MCP server with VS Code's native MCP client support.\n\n## Acceptance Criteria\n- [ ] MCP server connects via VS Code\n- [ ] Tools appear in Copilot chat\n- [ ] Document any compatibility issues\n- [ ] Note differences from Claude Code behavior\n\n## Scope\nTesting only. No code changes unless critical fix needed.",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "high",
-      "tags": [
-        "mcp",
-        "vs-code",
-        "testing"
-      ],
-      "passes": false
-    },
-    {
-      "id": "dc5b80d7-75c2-4e6e-b918-61f3b0dd8fdc",
-      "title": "Create .vscode/mcp.json template",
-      "description": "## Task\nCreate a VS Code MCP configuration template file.\n\n## Acceptance Criteria\n- [x] Create `.vscode/mcp.json` with Brain Dumpy server config\n- [x] Use stdio transport\n- [x] Include comments explaining each field\n- [x] Add to .gitignore or provide as .example\n\n## File to Create\n`.vscode/mcp.json`",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "high",
-      "tags": [
-        "mcp",
-        "vs-code",
-        "config"
-      ],
-      "passes": true
-    },
-    {
-      "id": "c9293544-5ab1-4fdc-9e7f-9b62907e7933",
-      "title": "Create start_ticket_work MCP tool",
-      "description": "## Task\nAdd MCP tool to start work on a ticket.\n\n## Behavior\n- Takes ticketId as parameter\n- Creates git branch: `feature/{ticket-short-id}-{slug}`\n- Sets ticket status to `in_progress`\n- Returns branch name and ticket context\n\n## Acceptance Criteria\n- [x] Tool registered in MCP server\n- [x] Branch created with correct naming\n- [x] Ticket status updated\n- [x] Works in both Claude and VS Code\n\n## File to Modify\n`src/mcp/tools/` (or wherever MCP tools live)",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "high",
-      "tags": [
-        "mcp",
-        "workflow",
-        "git"
-      ],
-      "passes": true
-    },
-    {
-      "id": "44a97133-1e6e-40a4-af1c-ee4b85d843de",
-      "title": "Create complete_ticket_work MCP tool",
-      "description": "## Task\nAdd MCP tool to complete work on a ticket.\n\n## Behavior\n- Takes ticketId as parameter\n- Sets ticket status to `review`\n- Optionally generates PR description from commits\n- Returns summary of work done\n\n## Acceptance Criteria\n- [x] Tool registered in MCP server\n- [x] Ticket status updated to review\n- [x] Works in both Claude and VS Code\n\n## File to Modify\n`src/mcp/tools/`",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "high",
-      "tags": [
-        "mcp",
-        "workflow"
-      ],
-      "passes": true
-    },
-    {
-      "id": "04fd9275-46a2-42d2-82d3-de699e259962",
-      "title": "Create link_commit_to_ticket MCP tool",
-      "description": "## Task\nAdd MCP tool to link a git commit to a ticket.\n\n## Behavior\n- Takes ticketId and commitHash as parameters\n- Stores commit reference in ticket metadata\n- Returns confirmation\n\n## Acceptance Criteria\n- [x] Tool registered in MCP server\n- [x] Commit hash stored with ticket\n- [x] Can query commits for a ticket later\n\n## File to Modify\n`src/mcp/tools/`",
+      "id": "a7bbca6d-a9da-4733-bf62-41f1da610f64",
+      "title": "Add manual backup/restore CLI commands",
+      "description": "## Task\nAdd CLI commands for manual backup and restore operations.\n\n## Commands\n```bash\nbrain-dump backup              # Create immediate backup\nbrain-dump backup --list       # List available backups\nbrain-dump restore <filename>  # Restore from backup\nbrain-dump restore --latest    # Restore most recent backup\n```\n\n## Restore Safety\n- Require confirmation for restore\n- Create backup of current DB before restore\n- Verify backup integrity before restore\n- Show diff summary (ticket counts, etc.)\n\n## Acceptance Criteria\n- [ ] `backup` command creates timestamped backup\n- [ ] `backup --list` shows available backups with dates\n- [ ] `restore` command works with confirmation\n- [ ] Pre-restore backup created automatically\n- [ ] Clear success/error messages\n\n## File to Modify\n`cli/brain-dump.ts`",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
       ],
       "priority": "medium",
       "tags": [
-        "mcp",
-        "workflow",
-        "git"
+        "cli",
+        "backup",
+        "restore"
       ],
       "passes": true
     },
     {
-      "id": "a3e3432e-836a-4fae-929a-0e22c3817af9",
-      "title": "Create link_files_to_ticket MCP tool",
-      "description": "## Task\nAdd MCP tool to associate files with a ticket.\n\n## Behavior\n- Takes ticketId and file paths array\n- Stores file associations in ticket\n- Returns confirmation\n\n## Acceptance Criteria\n- [x] Tool registered in MCP server\n- [x] Files stored in ticket.linked_files\n- [x] Handles relative and absolute paths\n\n## File to Modify\n`src/mcp/tools/`",
+      "id": "254bca98-5777-43a5-acdc-1319181c2b19",
+      "title": "Implement database lock file detection",
+      "description": "## Task\nAdd lock file mechanism to detect and handle multiple processes accessing the database.\n\n## Lock File Location\n`~/.local/state/brain-dumpy/brain-dumpy.lock`\n\n## Lock File Contents\n```json\n{\n  \"pid\": 12345,\n  \"startedAt\": \"2026-01-12T00:00:00Z\",\n  \"type\": \"mcp-server\" | \"cli\" | \"vite\"\n}\n```\n\n## Behavior\n- Create lock on database open\n- Check if existing lock is stale (process not running)\n- Warn if another process has lock\n- Clean up lock on graceful shutdown\n- Handle SIGTERM/SIGINT for cleanup\n\n## Acceptance Criteria\n- [ ] Lock file created on DB access\n- [ ] Stale locks detected and cleaned\n- [ ] Warning shown for concurrent access\n- [ ] Lock cleaned up on shutdown\n- [ ] Works across MCP server, CLI, and Vite\n\n## File to Create\n`src/lib/lockfile.ts`",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "high",
+      "tags": [
+        "database",
+        "concurrency",
+        "safety"
+      ],
+      "passes": true
+    },
+    {
+      "id": "b892ddcc-b0d7-44ab-8239-a9f252af7c5a",
+      "title": "Add file-based logging system",
+      "description": "## Task\nImplement file-based logging for debugging and audit trail.\n\n## Log Location\n`~/.local/state/brain-dumpy/logs/`\n\n## Log Files\n- `brain-dumpy.log` - Main application log (rotated)\n- `mcp-server.log` - MCP server specific logs\n- `error.log` - Errors only (for quick debugging)\n\n## Log Format\n```\n2026-01-12T00:00:00.000Z [INFO] [mcp-server] Tool called: create_ticket\n2026-01-12T00:00:00.000Z [ERROR] [database] Failed to write: SQLITE_BUSY\n```\n\n## Features\n- Log levels: DEBUG, INFO, WARN, ERROR\n- Automatic rotation (keep 5 files, 10MB each)\n- Configurable log level via env var\n- Async file writes (non-blocking)\n\n## Acceptance Criteria\n- [ ] Logs written to XDG state directory\n- [ ] Log rotation working\n- [ ] All major operations logged\n- [ ] Errors include stack traces\n- [ ] LOG_LEVEL env var respected\n\n## File to Create\n`src/lib/logger.ts`",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
       ],
       "priority": "medium",
       "tags": [
-        "mcp",
-        "files"
+        "logging",
+        "debugging",
+        "observability"
       ],
       "passes": true
     },
     {
-      "id": "4cdb7fc6-58ca-432e-9898-f56f30c2c5c4",
-      "title": "Create get_tickets_for_file MCP tool",
-      "description": "## Task\nAdd MCP tool to find tickets related to a file.\n\n## Behavior\n- Takes file path as parameter\n- Returns tickets that have this file linked\n- Useful for context when working on a file\n\n## Acceptance Criteria\n- [x] Tool registered in MCP server\n- [x] Returns relevant tickets\n- [x] Handles partial path matching\n\n## File to Modify\n`src/mcp/tools/`",
+      "id": "e5aebb29-3760-403c-8978-a975f2f448e8",
+      "title": "Add database file watcher for deletion detection",
+      "description": "## Task\nImplement file system watcher to detect if database files are unexpectedly deleted while in use.\n\n## Context\nThis ticket was created after a mysterious database deletion incident where the .db files were deleted while processes held open file handles.\n\n## Implementation\n- Watch database directory for deletion events\n- Detect if .db, .db-wal, or .db-shm files are deleted\n- If deletion detected while DB open:\n  - Log critical error immediately\n  - Attempt emergency backup from memory\n  - Alert user via MCP response or CLI output\n  - Prevent further writes to avoid data loss\n\n## Technical Approach\n```typescript\nimport { watch } from 'fs';\n\nfunction watchDatabaseFiles(dbPath: string) {\n  const watcher = watch(dirname(dbPath), (event, filename) => {\n    if (filename?.endsWith('.db') && event === 'rename') {\n      // File might be deleted - check if it exists\n      if (!existsSync(dbPath)) {\n        handleDatabaseDeletion();\n      }\n    }\n  });\n}\n```\n\n## Acceptance Criteria\n- [ ] Watcher detects .db file deletion\n- [ ] Critical error logged immediately\n- [ ] Emergency backup attempted\n- [ ] User alerted via available channel\n- [ ] Further writes prevented\n\n## File to Create\n`src/lib/db-watcher.ts`",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
       ],
-      "priority": "low",
+      "priority": "high",
       "tags": [
-        "mcp",
-        "files",
-        "context"
+        "database",
+        "safety",
+        "monitoring",
+        "incident-response"
       ],
       "passes": true
     }
   ],
-  "generatedAt": "2026-01-11T19:55:26.663Z",
-  "epicTitle": "MCP Server Enhancements"
+  "generatedAt": "2026-01-12T05:39:13.954Z",
+  "epicTitle": "XDG Migration & Data Protection"
 }

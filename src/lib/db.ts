@@ -1,22 +1,61 @@
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
-import { existsSync, mkdirSync } from "fs";
-import { homedir } from "os";
-import { join } from "path";
+import { getDatabasePath, ensureDirectoriesSync } from "./xdg";
+import { migrateFromLegacySync } from "./migration";
+import { performDailyBackupSync } from "./backup";
+import { initializeLockSync } from "./lockfile";
+import { initializeWatcher, stopWatching } from "./db-watcher";
+import { startupIntegrityCheck } from "./integrity";
 
-// Ensure the data directory exists
-const dataDir = join(homedir(), ".brain-dump");
-if (!existsSync(dataDir)) {
-  mkdirSync(dataDir, { recursive: true });
+// Ensure XDG directories exist with proper permissions
+ensureDirectoriesSync();
+
+// Run migration from legacy ~/.brain-dump if needed
+// This must happen before opening the database
+const migrationResult = migrateFromLegacySync();
+if (migrationResult.migrated) {
+  console.log(`[DB] Migration completed: ${migrationResult.message}`);
 }
 
-const dbPath = join(dataDir, "brain-dump.db");
+// Get database path from XDG utility
+const dbPath = getDatabasePath();
+
+// Run quick integrity check on startup (fast, stops at first error)
+const integrityResult = startupIntegrityCheck(dbPath);
+if (!integrityResult.healthy) {
+  console.warn(`[DB] WARNING: ${integrityResult.message}`);
+  if (integrityResult.suggestRestore) {
+    console.warn(`[DB] A backup is available. Run: brain-dump restore --latest`);
+  }
+} else {
+  console.log(`[DB] ${integrityResult.message}`);
+}
 
 // Create database connection
 const sqlite = new Database(dbPath);
 sqlite.pragma("journal_mode = WAL");
 sqlite.pragma("foreign_keys = ON");
+
+// Acquire lock and setup graceful shutdown
+// This ensures lock is cleaned up and WAL is checkpointed on shutdown
+const lockResult = initializeLockSync("vite", () => {
+  try {
+    stopWatching(); // Stop file watcher
+    sqlite.pragma("wal_checkpoint(TRUNCATE)");
+    sqlite.close();
+  } catch {
+    // Ignore errors during cleanup
+  }
+});
+if (lockResult.acquired) {
+  console.log(`[DB] ${lockResult.message}`);
+}
+
+// Start watching for unexpected database file deletions
+if (initializeWatcher(dbPath)) {
+  console.log(`[DB] Database file watcher started`);
+}
 
 // Auto-create tables if they don't exist
 function initTables() {
@@ -261,6 +300,23 @@ function initTicketComments() {
 }
 
 initTicketComments();
+
+// Perform daily backup maintenance (non-blocking)
+// Creates backup if not done today, cleans up old backups
+async function performBackupMaintenance() {
+  try {
+    const result = performDailyBackupSync();
+    if (result.backup.created) {
+      console.log(`[Backup] ${result.backup.message}`);
+    }
+    if (result.cleanup.deleted > 0) {
+      console.log(`[Backup] ${result.cleanup.message}`);
+    }
+  } catch (error) {
+    console.error("[Backup] Backup maintenance failed:", error);
+  }
+}
+performBackupMaintenance();
 
 // Clean up old launch scripts on startup
 async function cleanupLaunchScripts() {

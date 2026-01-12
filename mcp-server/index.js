@@ -17,33 +17,751 @@ import Database from "better-sqlite3";
 import { randomUUID } from "crypto";
 import { homedir } from "os";
 import { join } from "path";
-import { existsSync } from "fs";
+import { existsSync, writeFileSync, unlinkSync, readFileSync, mkdirSync, watch, appendFileSync, statSync, renameSync, copyFileSync, readdirSync, constants } from "fs";
 import { execSync } from "child_process";
+import { dirname, basename } from "path";
 
 // =============================================================================
 // LOGGING - All output MUST go to stderr for STDIO transport
+// File logging also writes to logs directory for audit trail
 // =============================================================================
+
+// Log file constants
+const LOG_FILE = "mcp-server.log";
+const ERROR_LOG_FILE = "error.log";
+const MAX_LOG_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_LOG_FILES = 5;
+
+function getLogsDir() {
+  const stateDir = (() => {
+    const xdgStateHome = process.env.XDG_STATE_HOME;
+    const base = xdgStateHome || join(homedir(), ".local", "state");
+    return join(base, "brain-dumpy");
+  })();
+  return join(stateDir, "logs");
+}
+
+function formatLogEntry(level, source, message, error) {
+  const timestamp = new Date().toISOString();
+  let line = `${timestamp} [${level}] [${source}] ${message}`;
+  if (error) {
+    line += `\n  Error: ${error.message || String(error)}`;
+    if (error.stack) {
+      const stackLines = error.stack.split("\n").slice(1);
+      for (const stackLine of stackLines) {
+        line += `\n  ${stackLine.trim()}`;
+      }
+    }
+  }
+  return line;
+}
+
+function rotateLogFile(filename) {
+  const logsDir = getLogsDir();
+  const basePath = join(logsDir, filename);
+
+  if (!existsSync(basePath)) return;
+
+  try {
+    const stats = statSync(basePath);
+    if (stats.size < MAX_LOG_SIZE) return;
+
+    // Delete oldest file
+    const oldestPath = join(logsDir, `${filename}.${MAX_LOG_FILES - 1}`);
+    if (existsSync(oldestPath)) {
+      unlinkSync(oldestPath);
+    }
+
+    // Shift existing rotated files
+    for (let i = MAX_LOG_FILES - 2; i >= 1; i--) {
+      const fromPath = join(logsDir, `${filename}.${i}`);
+      const toPath = join(logsDir, `${filename}.${i + 1}`);
+      if (existsSync(fromPath)) {
+        renameSync(fromPath, toPath);
+      }
+    }
+
+    // Move current log to .1
+    renameSync(basePath, join(logsDir, `${filename}.1`));
+  } catch (e) {
+    // Ignore rotation errors
+  }
+}
+
+function writeToLogFile(filename, entry) {
+  try {
+    const logsDir = getLogsDir();
+    if (!existsSync(logsDir)) {
+      mkdirSync(logsDir, { recursive: true, mode: 0o700 });
+    }
+
+    rotateLogFile(filename);
+
+    const filePath = join(logsDir, filename);
+    appendFileSync(filePath, entry + "\n", { mode: 0o600 });
+  } catch (e) {
+    // Ignore file write errors - don't break MCP server
+  }
+}
+
+// Get configured log level (DEBUG, INFO, WARN, ERROR)
+function getLogLevel() {
+  const level = process.env.LOG_LEVEL?.toUpperCase();
+  if (["DEBUG", "INFO", "WARN", "ERROR"].includes(level)) {
+    return level;
+  }
+  return "INFO";
+}
+
+const LOG_PRIORITY = { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 };
+
+function shouldLog(level) {
+  const minLevel = getLogLevel();
+  return LOG_PRIORITY[level] >= LOG_PRIORITY[minLevel];
+}
+
 const log = {
-  info: (msg) => console.error(`[brain-dumpy] ${msg}`),
-  error: (msg, err) => console.error(`[brain-dumpy] ERROR: ${msg}`, err?.message || ""),
-  debug: (msg) => console.error(`[brain-dumpy] DEBUG: ${msg}`),
+  info: (msg) => {
+    if (!shouldLog("INFO")) return;
+    console.error(`[brain-dumpy] ${msg}`);
+    writeToLogFile(LOG_FILE, formatLogEntry("INFO", "mcp-server", msg));
+  },
+  warn: (msg, err) => {
+    if (!shouldLog("WARN")) return;
+    console.error(`[brain-dumpy] WARN: ${msg}`, err?.message || "");
+    writeToLogFile(LOG_FILE, formatLogEntry("WARN", "mcp-server", msg, err));
+  },
+  error: (msg, err) => {
+    if (!shouldLog("ERROR")) return;
+    console.error(`[brain-dumpy] ERROR: ${msg}`, err?.message || "");
+    const entry = formatLogEntry("ERROR", "mcp-server", msg, err);
+    writeToLogFile(LOG_FILE, entry);
+    writeToLogFile(ERROR_LOG_FILE, entry);
+  },
+  debug: (msg) => {
+    if (!shouldLog("DEBUG")) return;
+    console.error(`[brain-dumpy] DEBUG: ${msg}`);
+    writeToLogFile(LOG_FILE, formatLogEntry("DEBUG", "mcp-server", msg));
+  },
 };
+
+// =============================================================================
+// XDG DIRECTORY UTILITIES
+// =============================================================================
+const APP_NAME = "brain-dumpy";
+
+function getDataDir() {
+  const xdgDataHome = process.env.XDG_DATA_HOME;
+  const base = xdgDataHome || join(homedir(), ".local", "share");
+  return join(base, APP_NAME);
+}
+
+function getLegacyDir() {
+  return join(homedir(), ".brain-dump");
+}
+
+function getDatabasePath() {
+  return join(getDataDir(), "brain-dumpy.db");
+}
+
+function getStateDir() {
+  const xdgStateHome = process.env.XDG_STATE_HOME;
+  const base = xdgStateHome || join(homedir(), ".local", "state");
+  return join(base, APP_NAME);
+}
+
+function ensureDirectoriesSync() {
+  const dirs = [getDataDir(), getStateDir(), join(getStateDir(), "backups")];
+  for (const dir of dirs) {
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true, mode: 0o700 });
+    }
+  }
+}
+
+// =============================================================================
+// LOCK FILE UTILITIES
+// =============================================================================
+const LOCK_FILE_NAME = "brain-dumpy.lock";
+
+function getLockFilePath() {
+  return join(getStateDir(), LOCK_FILE_NAME);
+}
+
+function isProcessRunning(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === "EPERM";
+  }
+}
+
+function readLockFile() {
+  const lockPath = getLockFilePath();
+  if (!existsSync(lockPath)) return null;
+  try {
+    const content = readFileSync(lockPath, "utf-8");
+    const lockInfo = JSON.parse(content);
+    if (
+      typeof lockInfo.pid !== "number" ||
+      typeof lockInfo.startedAt !== "string" ||
+      !["mcp-server", "cli", "vite"].includes(lockInfo.type)
+    ) {
+      return null;
+    }
+    return lockInfo;
+  } catch {
+    return null;
+  }
+}
+
+function checkLock() {
+  const lockInfo = readLockFile();
+  if (!lockInfo) {
+    return { isLocked: false, lockInfo: null, isStale: false, message: "No lock file found" };
+  }
+  const isRunning = isProcessRunning(lockInfo.pid);
+  if (!isRunning) {
+    return {
+      isLocked: false,
+      lockInfo,
+      isStale: true,
+      message: `Stale lock detected from ${lockInfo.type} (PID ${lockInfo.pid})`,
+    };
+  }
+  return {
+    isLocked: true,
+    lockInfo,
+    isStale: false,
+    message: `Database locked by ${lockInfo.type} (PID ${lockInfo.pid})`,
+  };
+}
+
+function acquireLock(type) {
+  const lockPath = getLockFilePath();
+  const check = checkLock();
+
+  // Clean up stale locks
+  if (check.isStale) {
+    try {
+      unlinkSync(lockPath);
+      log.info("Cleaned up stale lock file");
+    } catch { /* ignore */ }
+  }
+
+  // Warn if another process has lock (but don't block - SQLite WAL handles concurrency)
+  if (check.isLocked && check.lockInfo && check.lockInfo.pid !== process.pid) {
+    log.info(`Warning: ${check.message}. Concurrent access may cause issues.`);
+  }
+
+  // Create lock
+  const lockInfo = {
+    pid: process.pid,
+    startedAt: new Date().toISOString(),
+    type,
+  };
+
+  try {
+    writeFileSync(lockPath, JSON.stringify(lockInfo, null, 2), { mode: 0o600 });
+    return { acquired: true, message: `Lock acquired by ${type} (PID ${process.pid})`, lockInfo };
+  } catch (e) {
+    return { acquired: false, message: `Failed to create lock: ${e.message}`, lockInfo: null };
+  }
+}
+
+function releaseLock() {
+  const lockPath = getLockFilePath();
+  const lockInfo = readLockFile();
+  if (!lockInfo) return { released: true, message: "No lock to release" };
+  if (lockInfo.pid !== process.pid) {
+    return { released: false, message: `Lock owned by PID ${lockInfo.pid}` };
+  }
+  try {
+    unlinkSync(lockPath);
+    return { released: true, message: "Lock released successfully" };
+  } catch (e) {
+    return { released: false, message: `Failed to release: ${e.message}` };
+  }
+}
+
+function setupGracefulShutdown(dbInstance) {
+  let isShuttingDown = false;
+
+  const shutdown = async (signal) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+
+    log.info(`Received ${signal}, shutting down gracefully`);
+
+    try {
+      // Stop database file watcher
+      stopDatabaseWatcher();
+
+      // Checkpoint WAL to ensure all data is written
+      if (dbInstance) {
+        try {
+          dbInstance.pragma("wal_checkpoint(TRUNCATE)");
+          log.info("WAL checkpoint completed");
+        } catch (e) {
+          log.error("WAL checkpoint failed", e);
+        }
+        try {
+          dbInstance.close();
+          log.info("Database connection closed");
+        } catch (e) {
+          log.error("Database close failed", e);
+        }
+      }
+
+      // Release lock
+      const result = releaseLock();
+      if (result.released) {
+        log.info(result.message);
+      }
+    } catch (e) {
+      log.error("Error during shutdown", e);
+    }
+
+    process.exit(signal === "SIGTERM" || signal === "SIGINT" ? 0 : 1);
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGQUIT", () => shutdown("SIGQUIT"));
+
+  process.on("uncaughtException", (error) => {
+    log.error("Uncaught exception", error);
+    releaseLock();
+    process.exit(1);
+  });
+
+  process.on("unhandledRejection", (reason) => {
+    log.error("Unhandled rejection", reason);
+    releaseLock();
+    process.exit(1);
+  });
+
+  // Sync cleanup on normal exit
+  process.on("exit", () => {
+    const lockInfo = readLockFile();
+    if (lockInfo && lockInfo.pid === process.pid) {
+      try { unlinkSync(getLockFilePath()); } catch { /* ignore */ }
+    }
+  });
+}
+
+// =============================================================================
+// MIGRATION FROM LEGACY DIRECTORY
+// =============================================================================
+const MIGRATED_MARKER = ".migrated";
+
+function isMigrationComplete() {
+  return existsSync(join(getLegacyDir(), MIGRATED_MARKER));
+}
+
+function verifyDatabaseIntegrity(dbPath) {
+  if (!existsSync(dbPath)) return false;
+  try {
+    const testDb = new Database(dbPath, { readonly: true });
+    const result = testDb.pragma("integrity_check");
+    testDb.close();
+    return result.length === 1 && result[0].integrity_check === "ok";
+  } catch {
+    return false;
+  }
+}
+
+function migrateFromLegacySync() {
+  const legacyDir = getLegacyDir();
+  const legacyDbPath = join(legacyDir, "brain-dump.db");
+  const xdgDbPath = getDatabasePath();
+
+  // Already migrated?
+  if (isMigrationComplete()) {
+    return { success: true, migrated: false, message: "Migration already complete" };
+  }
+
+  // No legacy data?
+  if (!existsSync(legacyDbPath)) {
+    return { success: true, migrated: false, message: "No legacy data to migrate" };
+  }
+
+  // XDG already has data?
+  if (existsSync(xdgDbPath)) {
+    log.info("Both legacy and XDG locations have data, using XDG");
+    return { success: true, migrated: false, message: "XDG already has data" };
+  }
+
+  log.info("Migrating from legacy ~/.brain-dump to XDG directories...");
+
+  try {
+    // Ensure directories
+    ensureDirectoriesSync();
+
+    // Create pre-migration backup
+    try {
+      const backupsDir = join(getStateDir(), "backups");
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const backupPath = join(backupsDir, `pre-migration-${timestamp}.db`);
+      const srcDb = new Database(legacyDbPath, { readonly: true });
+      srcDb.exec(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
+      srcDb.close();
+      log.info(`Created pre-migration backup: ${backupPath}`);
+    } catch (backupErr) {
+      log.error("Failed to create backup, continuing anyway", backupErr);
+    }
+
+    // Copy database
+    copyFileSync(legacyDbPath, xdgDbPath);
+    log.info(`Copied database to ${xdgDbPath}`);
+
+    // Copy WAL/SHM files if they exist
+    const walFile = legacyDbPath + "-wal";
+    const shmFile = legacyDbPath + "-shm";
+    if (existsSync(walFile)) copyFileSync(walFile, xdgDbPath + "-wal");
+    if (existsSync(shmFile)) copyFileSync(shmFile, xdgDbPath + "-shm");
+
+    // Verify integrity
+    if (!verifyDatabaseIntegrity(xdgDbPath)) {
+      throw new Error("Database integrity check failed after copy");
+    }
+
+    // Copy attachments
+    const legacyAttachments = join(legacyDir, "attachments");
+    const xdgAttachments = join(getDataDir(), "attachments");
+    if (existsSync(legacyAttachments)) {
+      if (!existsSync(xdgAttachments)) {
+        mkdirSync(xdgAttachments, { recursive: true, mode: 0o700 });
+      }
+      const files = readdirSync(legacyAttachments);
+      for (const file of files) {
+        const srcPath = join(legacyAttachments, file);
+        const destPath = join(xdgAttachments, file);
+        if (statSync(srcPath).isFile() && !existsSync(destPath)) {
+          copyFileSync(srcPath, destPath);
+        }
+      }
+      log.info(`Copied ${files.length} attachments`);
+    }
+
+    // Create migration marker
+    const markerPath = join(legacyDir, MIGRATED_MARKER);
+    writeFileSync(markerPath, JSON.stringify({
+      migratedAt: new Date().toISOString(),
+      migratedTo: getDataDir(),
+      note: "Data has been migrated to XDG directories."
+    }, null, 2), { mode: 0o600 });
+
+    log.info("Migration complete! Legacy data preserved in ~/.brain-dump");
+    return { success: true, migrated: true, message: "Migration complete" };
+  } catch (error) {
+    log.error("Migration failed", error);
+    return { success: false, migrated: false, message: `Migration failed: ${error.message}` };
+  }
+}
+
+// =============================================================================
+// BACKUP UTILITIES
+// =============================================================================
+const BACKUP_PREFIX = "brain-dumpy-";
+const BACKUP_SUFFIX = ".db";
+const LAST_BACKUP_FILE = ".last-backup";
+
+function getBackupsDir() {
+  return join(getStateDir(), "backups");
+}
+
+function getTodayDateString() {
+  return new Date().toISOString().split("T")[0];
+}
+
+function getLastBackupMarkerPath() {
+  return join(getBackupsDir(), LAST_BACKUP_FILE);
+}
+
+function wasBackupCreatedToday() {
+  const markerPath = getLastBackupMarkerPath();
+  if (!existsSync(markerPath)) return false;
+  try {
+    const stats = statSync(markerPath);
+    const markerDate = stats.mtime.toISOString().split("T")[0];
+    return markerDate === getTodayDateString();
+  } catch {
+    return false;
+  }
+}
+
+function updateLastBackupMarker() {
+  try {
+    const markerPath = getLastBackupMarkerPath();
+    writeFileSync(markerPath, new Date().toISOString(), { mode: 0o600 });
+  } catch (error) {
+    log.error("Failed to update backup marker", error);
+  }
+}
+
+function getBackupFilename(dateString) {
+  const date = dateString || getTodayDateString();
+  return `${BACKUP_PREFIX}${date}${BACKUP_SUFFIX}`;
+}
+
+function getTodayBackupPath() {
+  return join(getBackupsDir(), getBackupFilename());
+}
+
+function verifyBackup(backupPath) {
+  if (!existsSync(backupPath)) return false;
+  try {
+    const testDb = new Database(backupPath, { readonly: true });
+    const result = testDb.pragma("integrity_check");
+    testDb.close();
+    return result.length === 1 && result[0].integrity_check === "ok";
+  } catch {
+    return false;
+  }
+}
+
+function createBackupIfNeeded(sourcePath) {
+  // Check if backup already exists for today
+  if (wasBackupCreatedToday()) {
+    return { success: true, created: false, message: "Backup already created today" };
+  }
+
+  const backupPath = getTodayBackupPath();
+  if (existsSync(backupPath)) {
+    updateLastBackupMarker();
+    return { success: true, created: false, message: "Today's backup already exists", backupPath };
+  }
+
+  // Verify source database exists
+  if (!existsSync(sourcePath)) {
+    return { success: false, created: false, message: `Source database not found: ${sourcePath}` };
+  }
+
+  try {
+    // Open source database in readonly mode and create backup using VACUUM INTO
+    const srcDb = new Database(sourcePath, { readonly: true });
+    srcDb.exec(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
+    srcDb.close();
+
+    // Verify the backup
+    if (!verifyBackup(backupPath)) {
+      try { unlinkSync(backupPath); } catch { /* ignore */ }
+      return { success: false, created: false, message: "Backup created but failed integrity check" };
+    }
+
+    updateLastBackupMarker();
+    log.info(`Created backup: ${backupPath}`);
+    return { success: true, created: true, message: "Backup created successfully", backupPath };
+  } catch (error) {
+    log.error("Failed to create backup", error);
+    return { success: false, created: false, message: `Backup failed: ${error.message}` };
+  }
+}
+
+function listBackups() {
+  const backupsDir = getBackupsDir();
+  if (!existsSync(backupsDir)) return [];
+
+  const files = readdirSync(backupsDir);
+  const backups = [];
+
+  for (const file of files) {
+    const match = file.match(/^brain-dumpy-(\d{4}-\d{2}-\d{2})\.db$/);
+    if (match) {
+      const filePath = join(backupsDir, file);
+      try {
+        const stats = statSync(filePath);
+        backups.push({ filename: file, date: match[1], path: filePath, size: stats.size });
+      } catch { /* skip */ }
+    }
+  }
+
+  return backups.sort((a, b) => b.date.localeCompare(a.date));
+}
+
+function cleanupOldBackups(keepDays = 7) {
+  const backups = listBackups();
+
+  if (backups.length <= keepDays) {
+    return { success: true, deleted: 0, message: `No cleanup needed (${backups.length} backups)` };
+  }
+
+  const toDelete = backups.slice(keepDays);
+  let deleted = 0;
+
+  for (const backup of toDelete) {
+    try {
+      unlinkSync(backup.path);
+      deleted++;
+      log.info(`Deleted old backup: ${backup.filename}`);
+    } catch (error) {
+      log.error(`Failed to delete ${backup.filename}`, error);
+    }
+  }
+
+  return { success: true, deleted, message: `Cleaned up ${deleted} old backup(s)` };
+}
+
+function performDailyBackupSync(sourcePath) {
+  const backup = createBackupIfNeeded(sourcePath);
+  const cleanup = cleanupOldBackups(7);
+  return { backup, cleanup };
+}
+
+// =============================================================================
+// DATABASE FILE WATCHER
+// =============================================================================
+
+/**
+ * Watcher state - tracks active file system watcher
+ */
+let dbWatcher = {
+  watcher: null,
+  dbPath: "",
+  isWatching: false,
+  deletionDetected: false,
+};
+
+/**
+ * Log a deletion event to the state directory
+ */
+function logDeletionEvent(deletedFile) {
+  try {
+    const logPath = join(getStateDir(), "deletion-events.log");
+    const timestamp = new Date().toISOString();
+    const entry = `${timestamp} DELETED: ${deletedFile}\n`;
+    appendFileSync(logPath, entry, { mode: 0o600 });
+    log.error(`Deletion logged to ${logPath}`);
+  } catch (error) {
+    log.error(`Failed to log deletion event: ${error.message}`);
+  }
+}
+
+/**
+ * Default deletion handler - logs and alerts
+ */
+function handleDatabaseDeletion(deletedFile) {
+  logDeletionEvent(deletedFile);
+  log.error(`CRITICAL: Database file "${deletedFile}" was deleted!`);
+  log.error("Data may be lost. Check for processes or scripts that may have removed the file.");
+  log.error(`If you have a recent backup, you may be able to restore from: ${join(getStateDir(), "backups")}`);
+}
+
+/**
+ * Handle potential file deletion event from watcher
+ */
+function handlePotentialDeletion(filename, dbPath) {
+  if (!filename) return;
+
+  const dbBasename = basename(dbPath);
+  const isDbFile =
+    filename === dbBasename ||
+    filename === `${dbBasename}-wal` ||
+    filename === `${dbBasename}-shm`;
+
+  if (!isDbFile) return;
+
+  // Verify the file is actually gone
+  const filePath = filename === dbBasename ? dbPath : join(dirname(dbPath), filename);
+
+  if (!existsSync(filePath)) {
+    if (!dbWatcher.deletionDetected) {
+      dbWatcher.deletionDetected = true;
+      log.error(`CRITICAL: Database file deleted: ${filename}`);
+      log.error(`Full path: ${filePath}`);
+      handleDatabaseDeletion(filename);
+    }
+  }
+}
+
+/**
+ * Start watching database files for unexpected deletion
+ */
+function startDatabaseWatcher(dbPath) {
+  if (dbWatcher.isWatching) {
+    log.info("Already watching database files");
+    return true;
+  }
+
+  const dbDir = dirname(dbPath);
+  if (!existsSync(dbDir) || !existsSync(dbPath)) {
+    log.error(`Cannot start watcher: database or directory does not exist`);
+    return false;
+  }
+
+  try {
+    const watcher = watch(dbDir, (event, filename) => {
+      if (event === "rename") {
+        handlePotentialDeletion(filename, dbPath);
+      }
+    });
+
+    watcher.on("error", (error) => {
+      log.error(`Database watcher error: ${error.message}`);
+    });
+
+    dbWatcher = {
+      watcher,
+      dbPath,
+      isWatching: true,
+      deletionDetected: false,
+    };
+
+    log.info(`Started watching database: ${dbPath}`);
+    return true;
+  } catch (error) {
+    log.error(`Failed to start database watcher: ${error.message}`);
+    return false;
+  }
+}
+
+/**
+ * Stop the database file watcher
+ */
+function stopDatabaseWatcher() {
+  if (dbWatcher.watcher) {
+    try {
+      dbWatcher.watcher.close();
+    } catch { /* ignore */ }
+  }
+  dbWatcher = { watcher: null, dbPath: "", isWatching: false, deletionDetected: false };
+}
 
 // =============================================================================
 // DATABASE CONNECTION
 // =============================================================================
-const dbPath = join(homedir(), ".brain-dump", "brain-dump.db");
+// Ensure XDG directories exist
+ensureDirectoriesSync();
+
+// Run migration if needed
+const migrationResult = migrateFromLegacySync();
+if (migrationResult.migrated) {
+  log.info(migrationResult.message);
+}
+
+const dbPath = getDatabasePath();
+const legacyDbPath = join(getLegacyDir(), "brain-dump.db");
 let db;
 
 try {
+  // Try XDG path first, fall back to legacy path for backwards compatibility
+  let actualDbPath = dbPath;
   if (!existsSync(dbPath)) {
-    log.error(`Database not found at ${dbPath}`);
-    log.info("Run Brain Dumpy at least once to create the database: cd /path/to/brain-dumpy && pnpm dev");
-    process.exit(1);
+    if (existsSync(legacyDbPath) && !isMigrationComplete()) {
+      // Legacy exists and hasn't been migrated - use it (migration may have failed)
+      log.info(`Using legacy database at ${legacyDbPath}`);
+      actualDbPath = legacyDbPath;
+    } else {
+      log.error(`Database not found at ${dbPath} or ${legacyDbPath}`);
+      log.info("Run Brain Dumpy at least once to create the database: cd /path/to/brain-dumpy && pnpm dev");
+      process.exit(1);
+    }
   }
-  db = new Database(dbPath);
+  db = new Database(actualDbPath);
   db.pragma("journal_mode = WAL");
-  log.info(`Connected to database: ${dbPath}`);
+  log.info(`Connected to database: ${actualDbPath}`);
 
   // Add linked_commits column if it doesn't exist (for link_commit_to_ticket tool)
   try {
@@ -56,6 +774,31 @@ try {
   } catch (migrationError) {
     log.error("Failed to check/add linked_commits column", migrationError);
   }
+
+  // Perform daily backup maintenance
+  try {
+    const backupResult = performDailyBackupSync(actualDbPath);
+    if (backupResult.backup.created) {
+      log.info(backupResult.backup.message);
+    }
+    if (backupResult.cleanup.deleted > 0) {
+      log.info(backupResult.cleanup.message);
+    }
+  } catch (backupError) {
+    log.error("Backup maintenance failed", backupError);
+  }
+
+  // Acquire lock file and setup graceful shutdown
+  const lockResult = acquireLock("mcp-server");
+  if (lockResult.acquired) {
+    log.info(lockResult.message);
+    setupGracefulShutdown(db);
+  } else {
+    log.info(`Warning: ${lockResult.message}`);
+  }
+
+  // Start watching for unexpected database file deletions
+  startDatabaseWatcher(actualDbPath);
 } catch (error) {
   log.error(`Failed to open database at ${dbPath}`, error);
   process.exit(1);
@@ -601,6 +1344,29 @@ Returns:
             },
           },
           required: ["filePath"],
+        },
+      },
+      {
+        name: "get_database_health",
+        description: `Get database health and backup status.
+
+Returns a comprehensive health report including:
+- Database status (healthy/warning/error)
+- Database path and size
+- Last backup timestamp
+- Number of available backups
+- Integrity check result
+- Lock file status
+- Any detected issues
+
+Use this to diagnose database problems or verify system health.
+
+Returns:
+  Health report object with status, paths, backup info, and issues.`,
+        inputSchema: {
+          type: "object",
+          properties: {},
+          required: [],
         },
       },
     ],
@@ -1532,6 +2298,136 @@ ${results.map(t => `## ${t.title}
 - Priority: ${t.priority || "none"}
 - Project: ${t.project}
 - Linked files: ${t.linkedFiles.join(", ")}`).join("\n\n")}`,
+          }],
+        };
+      }
+
+      // -----------------------------------------------------------------------
+      // GET DATABASE HEALTH
+      // -----------------------------------------------------------------------
+      case "get_database_health": {
+        const issues = [];
+        let status = "healthy";
+
+        // Database path and size
+        const actualDbPath = getDatabasePath();
+        let dbSize = 0;
+        let dbSizeFormatted = "unknown";
+
+        if (existsSync(actualDbPath)) {
+          try {
+            const stats = statSync(actualDbPath);
+            dbSize = stats.size;
+            if (dbSize < 1024) {
+              dbSizeFormatted = `${dbSize} B`;
+            } else if (dbSize < 1024 * 1024) {
+              dbSizeFormatted = `${(dbSize / 1024).toFixed(1)} KB`;
+            } else {
+              dbSizeFormatted = `${(dbSize / (1024 * 1024)).toFixed(1)} MB`;
+            }
+          } catch (e) {
+            issues.push(`Could not read database size: ${e.message}`);
+            status = "warning";
+          }
+        } else {
+          issues.push("Database file not found");
+          status = "error";
+        }
+
+        // Integrity check
+        let integrityCheck = "unknown";
+        try {
+          const result = db.pragma("integrity_check(1)");
+          integrityCheck = result[0]?.integrity_check === "ok" ? "ok" : "failed";
+          if (integrityCheck !== "ok") {
+            issues.push("Database integrity check failed");
+            status = "error";
+          }
+        } catch (e) {
+          integrityCheck = "error";
+          issues.push(`Integrity check error: ${e.message}`);
+          status = "error";
+        }
+
+        // Backup info
+        const backups = listBackups();
+        const lastBackup = backups.length > 0 ? backups[0] : null;
+
+        // Lock file info
+        const lockCheck = checkLock();
+        const lockInfo = {
+          exists: lockCheck.isLocked || lockCheck.isStale,
+          ...(lockCheck.lockInfo ? {
+            pid: lockCheck.lockInfo.pid,
+            type: lockCheck.lockInfo.type,
+            startedAt: lockCheck.lockInfo.startedAt,
+          } : {}),
+          isStale: lockCheck.isStale,
+        };
+
+        if (lockCheck.isStale) {
+          issues.push("Stale lock file detected (from crashed process)");
+          if (status !== "error") status = "warning";
+        }
+
+        // WAL file check
+        const walPath = actualDbPath + "-wal";
+        const shmPath = actualDbPath + "-shm";
+        const hasWal = existsSync(walPath);
+        const hasShm = existsSync(shmPath);
+        let walSize = 0;
+        if (hasWal) {
+          try {
+            walSize = statSync(walPath).size;
+            if (walSize > 10 * 1024 * 1024) { // > 10MB
+              issues.push(`WAL file is large (${(walSize / (1024 * 1024)).toFixed(1)} MB) - consider checkpointing`);
+              if (status !== "error") status = "warning";
+            }
+          } catch { /* ignore */ }
+        }
+
+        // Count stats
+        let projectCount = 0;
+        let epicCount = 0;
+        let ticketCount = 0;
+        try {
+          projectCount = db.prepare("SELECT COUNT(*) as count FROM projects").get()?.count || 0;
+          epicCount = db.prepare("SELECT COUNT(*) as count FROM epics").get()?.count || 0;
+          ticketCount = db.prepare("SELECT COUNT(*) as count FROM tickets").get()?.count || 0;
+        } catch (e) {
+          issues.push(`Could not count records: ${e.message}`);
+        }
+
+        const health = {
+          status,
+          databasePath: actualDbPath,
+          databaseSize: dbSizeFormatted,
+          integrityCheck,
+          stats: {
+            projects: projectCount,
+            epics: epicCount,
+            tickets: ticketCount,
+          },
+          backup: {
+            lastBackup: lastBackup ? lastBackup.date : null,
+            backupCount: backups.length,
+            backupsDir: getBackupsDir(),
+          },
+          wal: {
+            walExists: hasWal,
+            shmExists: hasShm,
+            walSize: walSize > 0 ? `${(walSize / 1024).toFixed(1)} KB` : null,
+          },
+          lockFile: lockInfo,
+          issues,
+        };
+
+        log.info(`Database health check: ${status}`);
+
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify(health, null, 2),
           }],
         };
       }

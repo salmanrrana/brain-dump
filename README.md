@@ -92,7 +92,7 @@ On first launch, sample data is loaded to help you explore. Delete it anytime fr
 
 ### Local-First SQLite Database
 
-All data stays on your machine at `~/.brain-dump/brain-dump.db`. No accounts, no sync, no vendor lock-in. Export anytime with standard SQLite tools.
+All data stays on your machine following [XDG Base Directory](https://specifications.freedesktop.org/basedir-spec/latest/) conventions. No accounts, no sync, no vendor lock-in. Export anytime with standard SQLite tools. See [Data Locations](docs/data-locations.md) for details.
 
 ### Projects & Epics Organization
 
@@ -118,7 +118,7 @@ Break tickets into checkable subtasks. Progress is shown on ticket cards and in 
 
 ### File Attachments
 
-Drag and drop images and files onto tickets. Attachments are stored locally in `~/.brain-dump/attachments/`.
+Drag and drop images and files onto tickets. Attachments are stored locally in `~/.local/share/brain-dumpy/attachments/`.
 
 ### Keyboard Shortcuts
 
@@ -225,6 +225,14 @@ Restart Claude Code to load the server.
 | `update_ticket_status` | Move ticket between columns |
 | `list_epics` | List epics for a project |
 | `create_epic` | Create a new epic |
+| `add_ticket_comment` | Add comments or work summaries |
+| `get_ticket_comments` | Get all comments for a ticket |
+| `start_ticket_work` | Start work on a ticket (creates git branch) |
+| `complete_ticket_work` | Complete work and move to review |
+| `link_commit_to_ticket` | Link git commits to a ticket |
+| `link_files_to_ticket` | Associate files with a ticket |
+| `get_tickets_for_file` | Find tickets related to a file |
+| `get_database_health` | Check database health and backup status |
 
 ### Example Usage
 
@@ -242,23 +250,25 @@ Claude auto-detects your project and updates Brain Dumpy in real-time.
 
 ## CLI Tool
 
-The `brain-dump` CLI lets you update ticket status from the command line or Claude Code hooks.
+The `brain-dump` CLI lets you manage tickets, backups, and database health from the command line.
 
 ```bash
-# Show current ticket info
-pnpm brain-dump current
+# Ticket management
+pnpm brain-dump current              # Show current ticket info
+pnpm brain-dump done                 # Mark current ticket ready for review
+pnpm brain-dump complete             # Mark current ticket as completed
+pnpm brain-dump status <id> <status> # Update a specific ticket
+pnpm brain-dump clear                # Clear current ticket tracking
 
-# Mark current ticket ready for review
-pnpm brain-dump done
+# Backup & restore
+pnpm brain-dump backup               # Create immediate backup
+pnpm brain-dump backup --list        # List available backups
+pnpm brain-dump restore <file>       # Restore from backup file
+pnpm brain-dump restore --latest     # Restore most recent backup
 
-# Mark current ticket as completed
-pnpm brain-dump complete
-
-# Update a specific ticket
-pnpm brain-dump status <ticket-id> <status>
-
-# Clear current ticket tracking
-pnpm brain-dump clear
+# Database health
+pnpm brain-dump check                # Quick integrity check
+pnpm brain-dump check --full         # Full comprehensive health check
 ```
 
 ### Claude Code Hooks Integration
@@ -290,7 +300,10 @@ docker compose up -d
 
 # Or build and run manually
 docker build -t brain-dumpy .
-docker run -d -p 4242:4242 -v brain-dump-data:/root/.brain-dump brain-dumpy
+docker run -d -p 4242:4242 \
+  -v brain-dump-data:/root/.local/share/brain-dumpy \
+  -v brain-dump-state:/root/.local/state/brain-dumpy \
+  brain-dumpy
 
 # View logs
 docker compose logs -f
@@ -299,7 +312,7 @@ docker compose logs -f
 docker compose down
 ```
 
-The SQLite database and attachments are persisted in a Docker volume.
+The SQLite database, attachments, backups, and logs are persisted in Docker volumes.
 
 ---
 
@@ -358,12 +371,23 @@ brain-dumpy/
 
 ## Data Storage
 
-| Data | Location |
-|------|----------|
-| Database | `~/.brain-dump/brain-dump.db` |
-| Attachments | `~/.brain-dump/attachments/` |
-| Current ticket state | `~/.brain-dump/current-ticket.json` |
-| Launch scripts | `~/.brain-dump/scripts/` |
+Brain Dumpy follows the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/latest/) for organized, predictable data storage:
+
+| Data | Location | Purpose |
+|------|----------|---------|
+| Database | `~/.local/share/brain-dumpy/brain-dumpy.db` | Main SQLite database |
+| Attachments | `~/.local/share/brain-dumpy/attachments/` | File attachments |
+| Backups | `~/.local/state/brain-dumpy/backups/` | Daily automatic backups |
+| Logs | `~/.local/state/brain-dumpy/logs/` | Application logs |
+| Lock file | `~/.local/state/brain-dumpy/brain-dumpy.lock` | Process coordination |
+| Current ticket | `~/.local/state/brain-dumpy/current-ticket.json` | CLI state tracking |
+
+**Migrating from older versions:** If you have data in `~/.brain-dump/`, Brain Dumpy will automatically migrate it on first launch. See [Troubleshooting](docs/troubleshooting.md) for details.
+
+For full details, see:
+- [Data Locations](docs/data-locations.md) - Complete path reference
+- [Backup & Restore](docs/backup-restore.md) - Backup system guide
+- [Troubleshooting](docs/troubleshooting.md) - Common issues and recovery
 
 ---
 

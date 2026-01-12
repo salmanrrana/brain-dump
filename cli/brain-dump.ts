@@ -8,21 +8,69 @@
  *   brain-dump done                         - Move current ticket to Review
  *   brain-dump current                      - Show current ticket info
  *   brain-dump clear                        - Clear current ticket
+ *   brain-dump backup                       - Create immediate backup
+ *   brain-dump backup --list                - List available backups
+ *   brain-dump restore <filename>           - Restore from backup
+ *   brain-dump restore --latest             - Restore most recent backup
  *
  * This CLI is designed to be used with Claude Code hooks for automatic
  * status updates when work is completed.
  */
 
 import Database from "better-sqlite3";
-import { join } from "path";
-import { homedir } from "os";
 import { readFileSync, existsSync, unlinkSync } from "fs";
+import { join } from "path";
+import { createInterface } from "readline";
+import { getDatabasePath, getStateDir, getBackupsDir, ensureDirectoriesSync } from "../src/lib/xdg";
+import { acquireLock, releaseLock, setupGracefulShutdown } from "../src/lib/lockfile";
+import {
+  createBackup,
+  listBackups,
+  verifyBackup,
+  restoreFromBackup,
+  getLatestBackup,
+  getDatabaseStats,
+} from "../src/lib/backup";
+import { fullDatabaseCheck, quickIntegrityCheck } from "../src/lib/integrity";
+import { createCliLogger } from "../src/lib/logger";
 
-const DB_PATH = join(homedir(), ".brain-dump", "brain-dump.db");
-const STATE_FILE = join(homedir(), ".brain-dump", "current-ticket.json");
+// Create logger for CLI operations
+const logger = createCliLogger();
+
+// Ensure XDG directories exist
+ensureDirectoriesSync();
+
+const DB_PATH = getDatabasePath();
+const STATE_FILE = `${getStateDir()}/current-ticket.json`;
+
+// Track active database connection for cleanup
+let activeDb: Database.Database | null = null;
 
 const VALID_STATUSES = ["backlog", "ready", "in_progress", "review", "ai_review", "human_review", "done"] as const;
 type Status = (typeof VALID_STATUSES)[number];
+
+/**
+ * Cleanup function for graceful shutdown.
+ * Checkpoints WAL and closes active database connection.
+ */
+function cleanupDatabase(): void {
+  if (activeDb) {
+    try {
+      // Checkpoint WAL to ensure all data is written
+      activeDb.pragma("wal_checkpoint(TRUNCATE)");
+      logger.info("WAL checkpoint completed");
+    } catch (e) {
+      logger.error("WAL checkpoint failed", e instanceof Error ? e : new Error(String(e)));
+    }
+    try {
+      activeDb.close();
+      activeDb = null;
+      logger.info("Database connection closed");
+    } catch (e) {
+      logger.error("Database close failed", e instanceof Error ? e : new Error(String(e)));
+    }
+  }
+}
 
 function getDb() {
   if (!existsSync(DB_PATH)) {
@@ -30,7 +78,21 @@ function getDb() {
     console.error("Make sure Brain Dump is running and has been initialized.");
     process.exit(1);
   }
-  return new Database(DB_PATH);
+
+  // Acquire lock for CLI operations
+  const lockResult = acquireLock("cli");
+  if (!lockResult.acquired) {
+    console.error("Warning:", lockResult.message);
+  }
+
+  const db = new Database(DB_PATH);
+  activeDb = db;
+
+  // Setup graceful shutdown handlers for signals
+  // This ensures WAL checkpoint, lock release, and proper cleanup on Ctrl+C
+  setupGracefulShutdown(cleanupDatabase);
+
+  return db;
 }
 
 function getCurrentTicket(): { ticketId: string; projectPath: string; startedAt: string } | null {
@@ -62,6 +124,7 @@ function updateTicketStatus(ticketId: string, status: Status): boolean {
 
     if (result.changes === 0) {
       console.error("Error: Ticket not found:", ticketId);
+      logger.warn(`Ticket not found: ${ticketId}`);
       return false;
     }
 
@@ -69,12 +132,16 @@ function updateTicketStatus(ticketId: string, status: Status): boolean {
     const ticket = db.prepare("SELECT title FROM tickets WHERE id = ?").get(ticketId) as { title: string } | undefined;
 
     console.log(`✓ Ticket "${ticket?.title}" moved to ${status.toUpperCase()}`);
+    logger.info(`Ticket status updated: ${ticketId} -> ${status}`);
     return true;
   } catch (error) {
     console.error("Error updating ticket:", error);
+    logger.error("Failed to update ticket status", error instanceof Error ? error : new Error(String(error)));
     return false;
   } finally {
     db.close();
+    activeDb = null;
+    releaseLock();
   }
 }
 
@@ -106,6 +173,8 @@ function showCurrentTicket(): void {
     console.log("  Started:", new Date(current.startedAt).toLocaleString());
   } finally {
     db.close();
+    activeDb = null;
+    releaseLock();
   }
 }
 
@@ -119,6 +188,12 @@ Usage:
   brain-dump complete                     Move current ticket to Done
   brain-dump current                      Show current ticket info
   brain-dump clear                        Clear current ticket state
+  brain-dump backup                       Create immediate backup
+  brain-dump backup --list                List available backups
+  brain-dump restore <filename>           Restore from backup file
+  brain-dump restore --latest             Restore from most recent backup
+  brain-dump check                        Quick database integrity check
+  brain-dump check --full                 Full database health check
   brain-dump help                         Show this help message
 
 Valid statuses: ${VALID_STATUSES.join(", ")}
@@ -127,6 +202,11 @@ Examples:
   brain-dump done                    # Mark current ticket ready for review
   brain-dump complete                # Mark current ticket as done
   brain-dump status abc123 review    # Move specific ticket to review
+  brain-dump backup                  # Create a backup now
+  brain-dump backup --list           # Show available backups
+  brain-dump restore --latest        # Restore from most recent backup
+  brain-dump check                   # Quick integrity check
+  brain-dump check --full            # Full health check with details
 
 Claude Code Integration:
   Add to your Claude Code hooks (~/.claude.json or project settings):
@@ -142,6 +222,262 @@ Claude Code Integration:
     }
   }
 `);
+}
+
+// Helper to format file size
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Helper to prompt for confirmation
+async function confirm(message: string): Promise<boolean> {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve) => {
+    rl.question(`${message} (y/N): `, (answer) => {
+      rl.close();
+      resolve(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
+    });
+  });
+}
+
+// Backup command handler
+function handleBackup(args: string[]): void {
+  const subcommand = args[0];
+
+  if (subcommand === "--list") {
+    // List available backups
+    const backups = listBackups();
+
+    if (backups.length === 0) {
+      console.log("No backups found.");
+      console.log(`Backup directory: ${getBackupsDir()}`);
+      return;
+    }
+
+    console.log(`\nAvailable Backups (${backups.length}):\n`);
+    console.log("  Date        Size      Filename");
+    console.log("  " + "-".repeat(50));
+
+    for (const backup of backups) {
+      const sizeStr = formatSize(backup.size).padStart(10);
+      console.log(`  ${backup.date}  ${sizeStr}  ${backup.filename}`);
+    }
+
+    console.log(`\nBackup directory: ${getBackupsDir()}`);
+  } else {
+    // Create backup
+    console.log("Creating backup...");
+    const result = createBackup();
+
+    if (result.success && result.created) {
+      console.log(`✓ Backup created: ${result.backupPath}`);
+      logger.info(`Manual backup created: ${result.backupPath}`);
+    } else if (result.success && !result.created) {
+      console.log(`✓ ${result.message}`);
+      if (result.backupPath) {
+        console.log(`  Path: ${result.backupPath}`);
+      }
+    } else {
+      console.error(`✗ ${result.message}`);
+      logger.error(`Backup failed: ${result.message}`);
+      process.exit(1);
+    }
+  }
+}
+
+// Check command handler
+function handleCheck(args: string[]): void {
+  const subcommand = args[0];
+
+  if (subcommand === "--full") {
+    // Full comprehensive check
+    console.log("Running full database health check...\n");
+    logger.info("Running full database health check");
+    const result = fullDatabaseCheck();
+
+    // Integrity check
+    console.log("Integrity Check:");
+    console.log(`  Status: ${result.integrityCheck.status.toUpperCase()}`);
+    console.log(`  Message: ${result.integrityCheck.message}`);
+    if (result.integrityCheck.details.length > 0) {
+      console.log("  Details:");
+      for (const detail of result.integrityCheck.details.slice(0, 5)) {
+        console.log(`    - ${detail}`);
+      }
+      if (result.integrityCheck.details.length > 5) {
+        console.log(`    ... and ${result.integrityCheck.details.length - 5} more`);
+      }
+    }
+    console.log();
+
+    // Foreign key check
+    console.log("Foreign Key Check:");
+    console.log(`  Status: ${result.foreignKeyCheck.status.toUpperCase()}`);
+    console.log(`  Message: ${result.foreignKeyCheck.message}`);
+    if (result.foreignKeyCheck.details.length > 0) {
+      console.log("  Violations:");
+      for (const detail of result.foreignKeyCheck.details.slice(0, 5)) {
+        console.log(`    - ${detail}`);
+      }
+    }
+    console.log();
+
+    // WAL check
+    console.log("WAL Check:");
+    console.log(`  Status: ${result.walCheck.status.toUpperCase()}`);
+    console.log(`  Message: ${result.walCheck.message}`);
+    for (const detail of result.walCheck.details) {
+      console.log(`    - ${detail}`);
+    }
+    console.log();
+
+    // Table check
+    console.log("Table Check:");
+    console.log(`  Status: ${result.tableCheck.status.toUpperCase()}`);
+    console.log(`  Message: ${result.tableCheck.message}`);
+    console.log();
+
+    // Overall summary
+    console.log("-".repeat(50));
+    const statusSymbol = result.overallStatus === "ok" ? "\u2713" : result.overallStatus === "warning" ? "!" : "\u2717";
+    console.log(`Overall Status: ${statusSymbol} ${result.overallStatus.toUpperCase()}`);
+    console.log(`Duration: ${result.durationMs}ms`);
+
+    if (result.suggestions.length > 0) {
+      console.log("\nSuggestions:");
+      for (const suggestion of result.suggestions) {
+        console.log(`  - ${suggestion}`);
+      }
+    }
+
+    logger.info(`Full check complete: ${result.overallStatus} (${result.durationMs}ms)`);
+
+    if (result.overallStatus === "error") {
+      process.exit(1);
+    }
+  } else {
+    // Quick check
+    console.log("Running quick integrity check...");
+    logger.info("Running quick integrity check");
+    const result = quickIntegrityCheck();
+
+    if (result.success) {
+      console.log(`\u2713 ${result.message} (${result.durationMs}ms)`);
+      logger.info(`Quick check passed (${result.durationMs}ms)`);
+    } else {
+      console.log(`\u2717 ${result.message}`);
+      console.log("\nRun 'brain-dump check --full' for detailed diagnostics.");
+      logger.error(`Quick check failed: ${result.message}`);
+      process.exit(1);
+    }
+  }
+}
+
+// Restore command handler
+async function handleRestore(args: string[]): Promise<void> {
+  const subcommand = args[0];
+  let backupPath: string | null = null;
+  let backupFilename: string | null = null;
+
+  if (subcommand === "--latest") {
+    // Get latest backup
+    const latest = getLatestBackup();
+    if (!latest) {
+      console.error("No backups found. Run 'brain-dump backup' first.");
+      process.exit(1);
+    }
+    backupPath = latest.path;
+    backupFilename = latest.filename;
+  } else if (subcommand) {
+    // Specific backup file
+    backupFilename = subcommand;
+
+    // Check if it's a full path or just filename
+    if (existsSync(subcommand)) {
+      backupPath = subcommand;
+    } else {
+      // Try in backups directory
+      backupPath = join(getBackupsDir(), subcommand);
+      if (!existsSync(backupPath)) {
+        console.error(`Backup not found: ${subcommand}`);
+        console.error(`Tried: ${backupPath}`);
+        console.log("\nAvailable backups:");
+        handleBackup(["--list"]);
+        process.exit(1);
+      }
+    }
+  } else {
+    console.error("Usage: brain-dump restore <filename> | --latest");
+    console.log("\nAvailable backups:");
+    handleBackup(["--list"]);
+    process.exit(1);
+  }
+
+  // Verify backup before proceeding
+  console.log(`\nVerifying backup: ${backupFilename}...`);
+  if (!verifyBackup(backupPath)) {
+    console.error("✗ Backup file failed integrity check. Cannot restore.");
+    process.exit(1);
+  }
+  console.log("✓ Backup integrity verified.\n");
+
+  // Get stats for comparison
+  const currentDbPath = getDatabasePath();
+  const currentStats = getDatabaseStats(currentDbPath);
+  const backupStats = getDatabaseStats(backupPath);
+
+  console.log("Restore Summary:");
+  console.log("  " + "-".repeat(40));
+
+  if (currentStats) {
+    console.log(`  Current DB: ${currentStats.projects} projects, ${currentStats.epics} epics, ${currentStats.tickets} tickets`);
+  } else {
+    console.log("  Current DB: (empty or not found)");
+  }
+
+  if (backupStats) {
+    console.log(`  Backup:     ${backupStats.projects} projects, ${backupStats.epics} epics, ${backupStats.tickets} tickets`);
+  } else {
+    console.log("  Backup:     (unable to read stats)");
+  }
+
+  console.log("  " + "-".repeat(40));
+  console.log("\n⚠️  WARNING: This will replace your current database!");
+  console.log("  A pre-restore backup will be created automatically.\n");
+
+  // Confirm
+  const confirmed = await confirm("Proceed with restore?");
+  if (!confirmed) {
+    console.log("Restore cancelled.");
+    process.exit(0);
+  }
+
+  // Perform restore
+  console.log("\nRestoring...");
+  logger.info(`Starting database restore from: ${backupFilename}`);
+  const result = restoreFromBackup(backupPath);
+
+  if (result.success) {
+    console.log(`✓ ${result.message}`);
+    if (result.preRestoreBackupPath) {
+      console.log(`  Pre-restore backup saved to: ${result.preRestoreBackupPath}`);
+    }
+    console.log("\n⚠️  Please restart Brain Dump to use the restored database.");
+    logger.info(`Database restored successfully from: ${backupFilename}`);
+  } else {
+    console.error(`✗ ${result.message}`);
+    if (result.preRestoreBackupPath) {
+      console.log(`  Your previous database was saved to: ${result.preRestoreBackupPath}`);
+    }
+    logger.error(`Database restore failed: ${result.message}`);
+    process.exit(1);
+  }
 }
 
 // Main CLI logic
@@ -209,6 +545,24 @@ switch (command) {
   case "clear": {
     clearCurrentTicket();
     console.log("✓ Current ticket state cleared.");
+    break;
+  }
+
+  case "backup": {
+    handleBackup(args.slice(1));
+    break;
+  }
+
+  case "restore": {
+    handleRestore(args.slice(1)).catch((error) => {
+      console.error("Restore failed:", error);
+      process.exit(1);
+    });
+    break;
+  }
+
+  case "check": {
+    handleCheck(args.slice(1));
     break;
   }
 
