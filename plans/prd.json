@@ -30,7 +30,7 @@
         "vs-code",
         "agents"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "f8532482-fe46-417a-9b09-ef3c80e34530",
