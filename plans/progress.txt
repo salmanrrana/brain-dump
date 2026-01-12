@@ -530,3 +530,40 @@ Ralph can now pick up any ticket from BD-002 through BD-053 with full context fr
 **Notes:**
 - This utility is foundation for next tickets (database migration, backup system)
 
+---
+
+### 2026-01-12 - Migrate Database Location to XDG_DATA_HOME
+- Task: Migrate database location to XDG_DATA_HOME
+- Ticket ID: 53615062-25d0-4136-9a65-8442a7dde201
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Files Modified:**
+- `src/lib/db.ts` - Use XDG utilities for database path
+- `cli/brain-dump.ts` - Use XDG paths for DB and state file
+- `mcp-server/index.js` - Add XDG utilities with legacy fallback
+- `src/lib/xdg.ts` - Fix require() to use static imports
+
+**Changes:**
+| Component | Old Path | New Path |
+|-----------|----------|----------|
+| Database | ~/.brain-dump/brain-dump.db | ~/.local/share/brain-dumpy/brain-dumpy.db |
+| State file | ~/.brain-dump/current-ticket.json | ~/.local/state/brain-dumpy/current-ticket.json |
+
+**MCP Server Backwards Compatibility:**
+- Checks XDG path first: ~/.local/share/brain-dumpy/brain-dumpy.db
+- Falls back to legacy: ~/.brain-dump/brain-dump.db
+- Logs note about migration when using legacy path
+
+**Testing:**
+- All 68 tests passing
+- CLI loads and works correctly
+- MCP server syntax valid
+- Type checks pass (except pre-existing index.tsx errors)
+
+**Notes:**
+- WAL and SHM files will be created alongside DB at new location
+- Directories created with 0700 permissions for security
+- Next ticket (e25afb2e) will handle automatic migration of existing data
+

@@ -32,7 +32,7 @@
         "database",
         "migration"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "e25afb2e-9074-4c25-976e-554d906effdb",
