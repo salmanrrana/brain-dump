@@ -1097,3 +1097,41 @@ All 8 user stories in the XDG Migration & Data Protection epic have passes: true
 
 **PR URL:** https://github.com/salmanrrana/brain-dump/pull/new/ralph/74e5875f-xdg-directory-utility
 
+---
+
+### 2026-01-12 - Environment Detection Utility
+- Task: Create environment detection utility
+- Ticket ID: 5fb70ee6-55b4-435a-8f9f-a80012aa7c30
+- Success: true
+- Agent: Ralph
+- Branch: ralph/5fb70ee6-environment-detection
+
+**Files Created:**
+- `src/lib/environment.ts` - Environment detection utility module
+- `src/lib/environment.test.ts` - Unit tests (42 tests)
+
+**Functions Implemented:**
+| Function | Description |
+|----------|-------------|
+| `detectEnvironment()` | Returns 'claude-code' \| 'vscode' \| 'unknown' |
+| `isClaudeCode()` | Check if running in Claude Code |
+| `isVSCode()` | Check if running in VS Code |
+| `isKnownEnvironment()` | Check if environment is detected |
+| `getEnvironmentInfo()` | Get detailed environment info with workspace path |
+
+**Detection Logic:**
+- Claude Code: CLAUDE_CODE, CLAUDE_CODE_ENTRYPOINT, ANTHROPIC_API_KEY, MCP_SERVER_NAME
+- VS Code: VSCODE_GIT_*, VSCODE_PID, VSCODE_CWD, TERM_PROGRAM=vscode
+- Priority: Claude Code > VS Code > unknown
+
+**Testing:**
+- 42 unit tests all passing
+- Lint passes (environment files)
+- Pre-existing type errors in logger.ts and index.tsx (separate tickets)
+
+**Notes:**
+- Module follows same patterns as xdg.ts for consistency
+- Includes test override mechanism (`_setEnvironmentOverride`)
+
+---
+
