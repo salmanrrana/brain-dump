@@ -368,12 +368,17 @@ export interface Epic {
   createdAt: string;
 }
 
-export interface Project {
+/** Base project properties used for editing (without createdAt) */
+export interface ProjectBase {
   id: string;
   name: string;
   path: string;
   color: string | null;
   workingMethod: string | null;
+}
+
+/** Full project type including createdAt */
+export interface Project extends ProjectBase {
   createdAt: string;
 }
 
