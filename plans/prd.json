@@ -117,7 +117,7 @@
     {
       "id": "d87b3a30-04e9-4107-9be6-a06d9099f32b",
       "title": "Add database integrity check on startup",
-      "description": "## Task\nRun SQLite integrity checks on startup to detect corruption early.\n\n## Checks to Perform\n1. `PRAGMA integrity_check` - Full database integrity\n2. `PRAGMA foreign_key_check` - Foreign key violations\n3. Verify WAL file consistency\n4. Check expected tables exist\n\n## Behavior\n- Run quick check on every startup\n- Full check weekly or on demand\n- Log results\n- Warn user if issues found\n- Offer to restore from backup if corrupted\n\n## Acceptance Criteria\n- [ ] Quick integrity check on startup\n- [ ] Full check available via CLI\n- [ ] Issues logged with details\n- [ ] Backup restore suggested if corrupted\n- [ ] Doesn't significantly slow startup\n\n## File to Create\n`src/lib/integrity.ts`",
+      "description": "## Task\nRun SQLite integrity checks on startup to detect corruption early.\n\n## Checks to Perform\n1. `PRAGMA integrity_check` - Full database integrity\n2. `PRAGMA foreign_key_check` - Foreign key violations\n3. Verify WAL file consistency\n4. Check expected tables exist\n\n## Behavior\n- Run quick check on every startup\n- Full check weekly or on demand\n- Log results\n- Warn user if issues found\n- Offer to restore from backup if corrupted\n\n## Acceptance Criteria\n- [x] Quick integrity check on startup\n- [x] Full check available via CLI\n- [x] Issues logged with details\n- [x] Backup restore suggested if corrupted\n- [x] Doesn't significantly slow startup\n\n## File to Create\n`src/lib/integrity.ts`",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
@@ -128,7 +128,7 @@
         "integrity",
         "safety"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "e88860de-1309-4d67-8f61-80da55821dd2",

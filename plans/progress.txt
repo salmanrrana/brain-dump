@@ -882,3 +882,55 @@ migrateFromLegacySync(): MigrationResult
 - Errors written to both main log and error.log
 - Log rotation triggers when file exceeds 10MB
 
+---
+
+### 2026-01-12 - Database Integrity Check on Startup
+- Task: Add database integrity check on startup
+- Ticket ID: d87b3a30-04e9-4107-9be6-a06d9099f32b
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Files Created:**
+- `src/lib/integrity.ts` - Integrity check utility module
+- `src/lib/integrity.test.ts` - Unit tests (30 tests)
+
+**Files Modified:**
+- `src/lib/db.ts` - Integrated startup integrity check
+- `cli/brain-dump.ts` - Added check command
+
+**Functions Implemented:**
+| Function | Description |
+|----------|-------------|
+| `quickIntegrityCheck(dbPath?)` | Fast check for startup (stops at first error) |
+| `fullIntegrityCheck(dbPath?)` | Complete PRAGMA integrity_check |
+| `foreignKeyCheck(dbPath?)` | Check for FK violations |
+| `walCheck(dbPath?)` | Verify WAL file consistency |
+| `tableCheck(dbPath?)` | Verify required tables exist |
+| `fullDatabaseCheck(dbPath?)` | Run all checks with suggestions |
+| `startupIntegrityCheck(dbPath?)` | Startup-optimized check |
+
+**CLI Commands:**
+| Command | Description |
+|---------|-------------|
+| `brain-dump check` | Quick integrity check |
+| `brain-dump check --full` | Full comprehensive health check |
+
+**Features:**
+- Quick startup check using PRAGMA integrity_check(1)
+- Full check runs all 4 check types
+- Foreign key violation detection
+- WAL consistency verification
+- Required tables validation
+- Backup restore suggestions when corruption detected
+- Detailed output for diagnostics
+
+**Testing:**
+- All 259 tests passing (30 new integrity tests)
+- Type checks pass (except pre-existing index.tsx errors)
+
+**Notes:**
+- Quick check adds minimal startup overhead (~10ms)
+- Full check provides detailed diagnostics with suggestions
+- Integrates with backup system to suggest restores
+

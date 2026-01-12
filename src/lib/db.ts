@@ -6,6 +6,7 @@ import { migrateFromLegacySync } from "./migration";
 import { performDailyBackupSync } from "./backup";
 import { initializeLockSync } from "./lockfile";
 import { initializeWatcher, stopWatching } from "./db-watcher";
+import { startupIntegrityCheck } from "./integrity";
 
 // Ensure XDG directories exist with proper permissions
 ensureDirectoriesSync();
@@ -19,6 +20,17 @@ if (migrationResult.migrated) {
 
 // Get database path from XDG utility
 const dbPath = getDatabasePath();
+
+// Run quick integrity check on startup (fast, stops at first error)
+const integrityResult = startupIntegrityCheck(dbPath);
+if (!integrityResult.healthy) {
+  console.warn(`[DB] WARNING: ${integrityResult.message}`);
+  if (integrityResult.suggestRestore) {
+    console.warn(`[DB] A backup is available. Run: brain-dump restore --latest`);
+  }
+} else {
+  console.log(`[DB] ${integrityResult.message}`);
+}
 
 // Create database connection
 const sqlite = new Database(dbPath);

@@ -31,6 +31,7 @@ import {
   getLatestBackup,
   getDatabaseStats,
 } from "../src/lib/backup";
+import { fullDatabaseCheck, quickIntegrityCheck } from "../src/lib/integrity";
 import { createCliLogger } from "../src/lib/logger";
 
 // Create logger for CLI operations
@@ -166,6 +167,8 @@ Usage:
   brain-dump backup --list                List available backups
   brain-dump restore <filename>           Restore from backup file
   brain-dump restore --latest             Restore from most recent backup
+  brain-dump check                        Quick database integrity check
+  brain-dump check --full                 Full database health check
   brain-dump help                         Show this help message
 
 Valid statuses: ${VALID_STATUSES.join(", ")}
@@ -177,6 +180,8 @@ Examples:
   brain-dump backup                  # Create a backup now
   brain-dump backup --list           # Show available backups
   brain-dump restore --latest        # Restore from most recent backup
+  brain-dump check                   # Quick integrity check
+  brain-dump check --full            # Full health check with details
 
 Claude Code Integration:
   Add to your Claude Code hooks (~/.claude.json or project settings):
@@ -256,6 +261,94 @@ function handleBackup(args: string[]): void {
     } else {
       console.error(`✗ ${result.message}`);
       logger.error(`Backup failed: ${result.message}`);
+      process.exit(1);
+    }
+  }
+}
+
+// Check command handler
+function handleCheck(args: string[]): void {
+  const subcommand = args[0];
+
+  if (subcommand === "--full") {
+    // Full comprehensive check
+    console.log("Running full database health check...\n");
+    logger.info("Running full database health check");
+    const result = fullDatabaseCheck();
+
+    // Integrity check
+    console.log("Integrity Check:");
+    console.log(`  Status: ${result.integrityCheck.status.toUpperCase()}`);
+    console.log(`  Message: ${result.integrityCheck.message}`);
+    if (result.integrityCheck.details.length > 0) {
+      console.log("  Details:");
+      for (const detail of result.integrityCheck.details.slice(0, 5)) {
+        console.log(`    - ${detail}`);
+      }
+      if (result.integrityCheck.details.length > 5) {
+        console.log(`    ... and ${result.integrityCheck.details.length - 5} more`);
+      }
+    }
+    console.log();
+
+    // Foreign key check
+    console.log("Foreign Key Check:");
+    console.log(`  Status: ${result.foreignKeyCheck.status.toUpperCase()}`);
+    console.log(`  Message: ${result.foreignKeyCheck.message}`);
+    if (result.foreignKeyCheck.details.length > 0) {
+      console.log("  Violations:");
+      for (const detail of result.foreignKeyCheck.details.slice(0, 5)) {
+        console.log(`    - ${detail}`);
+      }
+    }
+    console.log();
+
+    // WAL check
+    console.log("WAL Check:");
+    console.log(`  Status: ${result.walCheck.status.toUpperCase()}`);
+    console.log(`  Message: ${result.walCheck.message}`);
+    for (const detail of result.walCheck.details) {
+      console.log(`    - ${detail}`);
+    }
+    console.log();
+
+    // Table check
+    console.log("Table Check:");
+    console.log(`  Status: ${result.tableCheck.status.toUpperCase()}`);
+    console.log(`  Message: ${result.tableCheck.message}`);
+    console.log();
+
+    // Overall summary
+    console.log("-".repeat(50));
+    const statusSymbol = result.overallStatus === "ok" ? "\u2713" : result.overallStatus === "warning" ? "!" : "\u2717";
+    console.log(`Overall Status: ${statusSymbol} ${result.overallStatus.toUpperCase()}`);
+    console.log(`Duration: ${result.durationMs}ms`);
+
+    if (result.suggestions.length > 0) {
+      console.log("\nSuggestions:");
+      for (const suggestion of result.suggestions) {
+        console.log(`  - ${suggestion}`);
+      }
+    }
+
+    logger.info(`Full check complete: ${result.overallStatus} (${result.durationMs}ms)`);
+
+    if (result.overallStatus === "error") {
+      process.exit(1);
+    }
+  } else {
+    // Quick check
+    console.log("Running quick integrity check...");
+    logger.info("Running quick integrity check");
+    const result = quickIntegrityCheck();
+
+    if (result.success) {
+      console.log(`\u2713 ${result.message} (${result.durationMs}ms)`);
+      logger.info(`Quick check passed (${result.durationMs}ms)`);
+    } else {
+      console.log(`\u2717 ${result.message}`);
+      console.log("\nRun 'brain-dump check --full' for detailed diagnostics.");
+      logger.error(`Quick check failed: ${result.message}`);
       process.exit(1);
     }
   }
@@ -440,6 +533,11 @@ switch (command) {
       console.error("Restore failed:", error);
       process.exit(1);
     });
+    break;
+  }
+
+  case "check": {
+    handleCheck(args.slice(1));
     break;
   }
 
