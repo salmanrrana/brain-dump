@@ -626,3 +626,57 @@ migrateFromLegacySync(): MigrationResult
 - Legacy data preserved in ~/.brain-dump (not deleted)
 - User informed via console logs
 
+---
+
+### 2026-01-12 - Automatic Daily Database Backups
+- Task: Implement automatic daily database backups
+- Ticket ID: 0cd21f6e-3bc9-40e5-a2df-479f4d582b28
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Files Created:**
+- `src/lib/backup.ts` - Backup utility module
+- `src/lib/backup.test.ts` - Unit tests (25 tests)
+
+**Files Modified:**
+- `src/lib/db.ts` - Integrated backup at startup
+- `mcp-server/index.js` - Added backup utilities and startup integration
+
+**Functions Implemented:**
+| Function | Description |
+|----------|-------------|
+| `createBackupIfNeeded(force?)` | Creates backup if not done today |
+| `cleanupOldBackups(keepDays)` | Removes backups older than keepDays |
+| `performDailyBackupSync(keepDays)` | Combines backup and cleanup |
+| `listBackups()` | Lists all backups sorted by date |
+| `verifyBackup(path)` | Validates backup integrity |
+| `wasBackupCreatedToday()` | Checks if backup exists for today |
+
+**Backup Features:**
+| Feature | Implementation |
+|---------|----------------|
+| Backup location | ~/.local/state/brain-dumpy/backups/ |
+| Filename format | brain-dumpy-YYYY-MM-DD.db |
+| Retention | Keep last 7 daily backups (configurable) |
+| Backup method | SQLite VACUUM INTO (atomic, defragmented) |
+| Integrity check | PRAGMA integrity_check on backup |
+| Marker file | .last-backup tracks daily backup status |
+
+**Startup Integration:**
+- Main app: calls performDailyBackupSync() after DB init
+- MCP server: calls performDailyBackupSync() after DB connection
+- Both log backup creation and cleanup operations
+
+**Testing:**
+- All 107 tests passing (25 new backup tests)
+- MCP server syntax valid
+- Type checks pass (except pre-existing index.tsx errors)
+
+**Notes:**
+- Backup runs automatically on first operation each day
+- Uses SQLite VACUUM INTO for consistent, defragmented backups
+- Backups are verified with integrity_check before keeping
+- Non-blocking operations via setImmediate for async versions
+- Next ticket (a7bbca6d) will add manual backup/restore CLI commands
+
