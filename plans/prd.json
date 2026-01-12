@@ -1,39 +1,319 @@
 {
-  "projectName": "Brain Dump",
+  "projectName": "Brain Dump - MCP Server Refactor",
   "projectPath": "/home/xtra/code/personal_projects/brain-dumpy",
+  "epicTitle": "MCP Server Modular Refactoring",
   "userStories": [
     {
-      "id": "3077ed53-a8cb-4c8d-b77c-e5b020bcf80f",
-      "title": "Update Edit Ticket Modal",
-      "description": "**Current Behavior**\n\nCurrently when a user:\n- clicks on a ticket \n- then the \"Edit Modal\" opens up\n- The Description text area is very small compared to what the text box usually offers since there is usually a buinchof text\n\nExpected behavior\n- The \"Description\" text area should be a lot larger height wise in order to see more of the text since the current areea is very small \n- The \"Description\" text area's height should be adustable in order for the user to be able to see more of the are\n- The \"Copmments\" text area should be a lot larger height wise in order to see more of the text since the current areea is very small and some comments can be large and provide some valuable information",
+      "id": "4a9308db-6f38-41ce-b2fe-edebf3d539b6",
+      "title": "Extract logging module to lib/logging.js",
+      "description": "Create a dedicated logging module to handle all log operations. This is foundational work that other modules will depend on.",
       "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
+        "Create `mcp-server/lib/logging.js` with all logging utilities",
+        "Export `log` object with info/warn/error/debug methods",
+        "Export `formatLogEntry`, `rotateLogFile`, `writeToLogFile` functions",
+        "Move constants: LOG_FILE, ERROR_LOG_FILE, MAX_LOG_SIZE, MAX_LOG_FILES",
+        "Logging works identically after extraction",
+        "File is < 150 lines",
+        "All exports are documented with JSDoc comments"
       ],
-      "priority": "medium",
-      "tags": [
-        "ui",
-        "frontend"
-      ],
-      "passes": true
+      "priority": "high",
+      "tags": ["mcp-refactor", "backend", "utilities"],
+      "passes": false
     },
     {
-      "id": "313f7b96-bd33-4fe4-9ae1-16a6fc09a0ea",
-      "title": "Update New Ticket Modal Description Field",
-      "description": "The \"New Ticket\" modal description field is currently too small and non-resizable (rows=3, resize-none). \n\nExpected behavior:\n- Increase default height (e.g., rows=6 or 8)\n- Allow vertical resizing (change `resize-none` to `resize-y`)\n- Ensure consistent styling with the Edit Ticket modal.",
+      "id": "bae5bb11-0562-447e-b5c9-4edf55e47d03",
+      "title": "Extract XDG path utilities to lib/xdg.js",
+      "description": "Create a module for all XDG-compliant path resolution. This is needed by database, logging, and backup modules.",
       "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
+        "Create `mcp-server/lib/xdg.js` with path utilities",
+        "Export `getDataDir`, `getStateDir`, `getLogsDir`, `getBackupsDir` functions",
+        "Export `getDbPath`, `getLockFilePath` functions",
+        "All paths resolve correctly on Linux/macOS/Windows",
+        "File is < 100 lines",
+        "Functions are documented with JSDoc"
+      ],
+      "priority": "high",
+      "tags": ["mcp-refactor", "backend", "utilities"],
+      "passes": false
+    },
+    {
+      "id": "3bbff7bd-37ed-4fae-b872-f5b0e10e4fae",
+      "title": "Extract database module to lib/database.js",
+      "description": "Create a dedicated database initialization module with connection setup and migrations. All tool modules will import and use this.",
+      "acceptanceCriteria": [
+        "Create `mcp-server/lib/database.js`",
+        "Export `initDatabase(dbPath)` function that returns db connection",
+        "Include WAL mode setup",
+        "Include migration logic for schema initialization",
+        "Database initializes correctly",
+        "Migrations run on startup",
+        "File is < 200 lines"
+      ],
+      "priority": "high",
+      "tags": ["mcp-refactor", "backend", "database"],
+      "passes": false
+    },
+    {
+      "id": "ef1974d2-c2b7-4dd9-afcb-442fdc52d96b",
+      "title": "Extract lock file management to lib/lock.js",
+      "description": "Create a module for database lock file management to prevent concurrent access issues.",
+      "acceptanceCriteria": [
+        "Create `mcp-server/lib/lock.js`",
+        "Export `acquireLock`, `releaseLock`, `isLocked` functions",
+        "Handle stale lock cleanup (detect crashed processes)",
+        "Lock acquisition works correctly",
+        "Stale locks are cleaned up after process crashes",
+        "File is < 100 lines"
+      ],
+      "priority": "high",
+      "tags": ["mcp-refactor", "backend", "utilities"],
+      "passes": false
+    },
+    {
+      "id": "82efac90-f68c-4903-b852-d9825c1a0ac2",
+      "title": "Extract backup module to lib/backup.js",
+      "description": "Create a module for database backup operations including creation, verification, and cleanup.",
+      "acceptanceCriteria": [
+        "Create `mcp-server/lib/backup.js`",
+        "Export `createBackupIfNeeded`, `listBackups`, `cleanupOldBackups` functions",
+        "Export `verifyBackup`, `performDailyBackupSync` functions",
+        "Backups create correctly",
+        "Cleanup removes old backups as configured",
+        "File is < 200 lines"
       ],
       "priority": "medium",
-      "tags": [
-        "ui",
-        "frontend",
-        "ux"
+      "tags": ["mcp-refactor", "backend", "database"],
+      "passes": false
+    },
+    {
+      "id": "e6c53707-316c-4057-8e4a-3d945756e4a4",
+      "title": "Extract validation helpers to lib/validation.js",
+      "description": "Create a module for shared validation helpers. This will be mostly replaced by Zod schemas but keeps some utility functions.",
+      "acceptanceCriteria": [
+        "Create `mcp-server/lib/validation.js`",
+        "Export `validateRequired`, `validateEnum` functions",
+        "Consider adding Zod schema builders for common patterns",
+        "Validation works as before",
+        "File is < 50 lines"
       ],
-      "passes": true
+      "priority": "medium",
+      "tags": ["mcp-refactor", "backend", "utilities"],
+      "passes": false
+    },
+    {
+      "id": "02a8e624-c06c-41a1-a4c9-9ea381c9c063",
+      "title": "Add Zod dependency to mcp-server package.json",
+      "description": "Add Zod for input validation in the new McpServer API pattern. This is a prerequisite for the API migration.",
+      "acceptanceCriteria": [
+        "Add `zod` to `mcp-server/package.json` dependencies",
+        "Update `@modelcontextprotocol/sdk` if needed for McpServer support",
+        "Run `pnpm install` successfully",
+        "No version conflicts with existing dependencies",
+        "Dependencies install cleanly"
+      ],
+      "priority": "high",
+      "tags": ["mcp-refactor", "backend", "setup"],
+      "passes": false
+    },
+    {
+      "id": "9e28c424-79bf-49e2-ae20-d5d044ae7a23",
+      "title": "Create new McpServer-based entry point",
+      "description": "Replace the old Server API entry point with modern McpServer API. This sets up the foundation for modular tool registration.",
+      "acceptanceCriteria": [
+        "Create new `mcp-server/index.js` (backup old one if needed)",
+        "Import `McpServer` instead of `Server`",
+        "Create server instance with name and version",
+        "Import and call all tool registration functions from tools/ directory",
+        "Connect StdioServerTransport",
+        "Server starts and connects successfully",
+        "All 19 tools are registered and visible to Claude",
+        "File is < 100 lines"
+      ],
+      "priority": "high",
+      "tags": ["mcp-refactor", "backend", "api"],
+      "passes": false
+    },
+    {
+      "id": "db7b2ba4-2447-43bc-bb07-bd82ef95c9b4",
+      "title": "Extract project tools to tools/projects.js",
+      "description": "Create the first tool module with list_projects, find_project_by_path, and create_project tools using the new McpServer API.",
+      "acceptanceCriteria": [
+        "Create `mcp-server/tools/projects.js`",
+        "Export `registerProjectTools(server, db)` function",
+        "Migrate list_projects tool with Zod schema",
+        "Migrate find_project_by_path tool with Zod schema",
+        "Migrate create_project tool with Zod schema",
+        "All 3 tools work correctly (test via Claude Code)",
+        "Input validation via Zod",
+        "File is < 150 lines"
+      ],
+      "priority": "medium",
+      "tags": ["mcp-refactor", "backend", "tools"],
+      "passes": false
+    },
+    {
+      "id": "efb156ce-962f-4fb7-8d85-e6da76a7ab90",
+      "title": "Extract ticket tools to tools/tickets.js",
+      "description": "Create ticket management tools module with create_ticket, list_tickets, and update_ticket_status.",
+      "acceptanceCriteria": [
+        "Create `mcp-server/tools/tickets.js`",
+        "Export `registerTicketTools(server, db)` function",
+        "Migrate create_ticket tool with Zod schema (handle tags array, subtasks)",
+        "Migrate list_tickets tool with Zod schema (handle filters)",
+        "Migrate update_ticket_status tool with Zod schema",
+        "All 3 tools work correctly",
+        "Input validation via Zod",
+        "File is < 200 lines"
+      ],
+      "priority": "medium",
+      "tags": ["mcp-refactor", "backend", "tools"],
+      "passes": false
+    },
+    {
+      "id": "f45cb47c-ceb6-45ed-9d3a-a0718e02c6af",
+      "title": "Extract epic tools to tools/epics.js",
+      "description": "Create epic management tools module with list_epics and create_epic.",
+      "acceptanceCriteria": [
+        "Create `mcp-server/tools/epics.js`",
+        "Export `registerEpicTools(server, db)` function",
+        "Migrate list_epics tool with Zod schema",
+        "Migrate create_epic tool with Zod schema",
+        "Both tools work correctly",
+        "File is < 100 lines"
+      ],
+      "priority": "medium",
+      "tags": ["mcp-refactor", "backend", "tools"],
+      "passes": false
+    },
+    {
+      "id": "f93ca35c-f32e-44d0-8920-0d0bdb8ac294",
+      "title": "Extract comment tools to tools/comments.js",
+      "description": "Create ticket comment tools module for activity logging.",
+      "acceptanceCriteria": [
+        "Create `mcp-server/tools/comments.js`",
+        "Export `registerCommentTools(server, db)` function",
+        "Migrate add_ticket_comment tool with Zod schema",
+        "Migrate get_ticket_comments tool with Zod schema",
+        "Both tools work correctly",
+        "File is < 100 lines"
+      ],
+      "priority": "medium",
+      "tags": ["mcp-refactor", "backend", "tools"],
+      "passes": false
+    },
+    {
+      "id": "7b2935f8-91e8-4748-8d43-5c30cd76ad83",
+      "title": "Extract workflow tools to tools/workflow.js",
+      "description": "Create workflow management tools for starting and completing ticket work (includes git branch creation).",
+      "acceptanceCriteria": [
+        "Create `mcp-server/tools/workflow.js`",
+        "Export `registerWorkflowTools(server, db)` function",
+        "Migrate start_ticket_work tool (creates branch, updates status)",
+        "Migrate complete_ticket_work tool (moves to review)",
+        "Both tools work correctly",
+        "Git branch creation works",
+        "File is < 200 lines"
+      ],
+      "priority": "medium",
+      "tags": ["mcp-refactor", "backend", "tools", "git"],
+      "passes": false
+    },
+    {
+      "id": "6a1ec9bd-48b5-4c74-b5e9-734efa0e9994",
+      "title": "Extract git tools to tools/git.js",
+      "description": "Create git integration tool for linking commits to tickets.",
+      "acceptanceCriteria": [
+        "Create `mcp-server/tools/git.js`",
+        "Export `registerGitTools(server, db)` function",
+        "Migrate link_commit_to_ticket tool",
+        "Tool works correctly",
+        "File is < 100 lines"
+      ],
+      "priority": "low",
+      "tags": ["mcp-refactor", "backend", "tools", "git"],
+      "passes": false
+    },
+    {
+      "id": "f902db82-391a-467a-a8fc-c56c0b070c85",
+      "title": "Extract file tools to tools/files.js",
+      "description": "Create file linking tools for associating tickets with source files.",
+      "acceptanceCriteria": [
+        "Create `mcp-server/tools/files.js`",
+        "Export `registerFileTools(server, db)` function",
+        "Migrate link_files_to_ticket tool",
+        "Migrate get_tickets_for_file tool",
+        "Both tools work correctly",
+        "File is < 100 lines"
+      ],
+      "priority": "low",
+      "tags": ["mcp-refactor", "backend", "tools"],
+      "passes": false
+    },
+    {
+      "id": "6cb71719-c5bb-4c5a-9235-3ed91c532b1b",
+      "title": "Extract health and settings tools to tools/health.js",
+      "description": "Create system health and settings management tools.",
+      "acceptanceCriteria": [
+        "Create `mcp-server/tools/health.js`",
+        "Export `registerHealthTools(server, db)` function",
+        "Migrate get_database_health tool",
+        "Migrate get_environment tool",
+        "Migrate get_project_settings tool",
+        "Migrate update_project_settings tool",
+        "All 4 tools work correctly",
+        "File is < 200 lines"
+      ],
+      "priority": "low",
+      "tags": ["mcp-refactor", "backend", "tools"],
+      "passes": false
+    },
+    {
+      "id": "9a205751-4924-48d5-a03c-6e7a69853ec0",
+      "title": "Delete legacy monolithic code from index.js",
+      "description": "Remove all the old Server API code, switch statements, and utility functions now that everything is extracted to modules.",
+      "acceptanceCriteria": [
+        "Remove all legacy code from mcp-server/index.js",
+        "Keep only McpServer initialization and tool registration",
+        "index.js is < 100 lines",
+        "No unused imports or dead code",
+        "Server still works correctly after cleanup"
+      ],
+      "priority": "low",
+      "tags": ["mcp-refactor", "backend", "cleanup"],
+      "passes": false
+    },
+    {
+      "id": "58a0692b-9613-46c0-a200-887c7eee185e",
+      "title": "Add integration tests for MCP tool modules",
+      "description": "Add tests for each tool module to ensure they work correctly after refactoring.",
+      "acceptanceCriteria": [
+        "Create test files for each tool module (projects.test.js, tickets.test.js, etc)",
+        "Test each tool's basic functionality",
+        "Test server startup and tool registration",
+        "All tools have at least one test",
+        "All tests pass",
+        "Tests use a test database (not production DB)"
+      ],
+      "priority": "medium",
+      "tags": ["mcp-refactor", "backend", "testing"],
+      "passes": false
+    },
+    {
+      "id": "f750b4d8-9378-49fb-9bb7-f4916562b3e5",
+      "title": "Update MCP server documentation for new architecture",
+      "description": "Update README and documentation to reflect the new modular architecture.",
+      "acceptanceCriteria": [
+        "Update mcp-server/README.md with new architecture diagram",
+        "Document module structure (lib/ and tools/ directories)",
+        "Update setup instructions if needed",
+        "Document how to add new tools",
+        "Architecture is clearly documented",
+        "Setup instructions are accurate and tested"
+      ],
+      "priority": "low",
+      "tags": ["mcp-refactor", "documentation"],
+      "passes": false
     }
   ],
-  "generatedAt": "2026-01-12T22:45:00.561Z",
-  "epicTitle": "UI Enhancements"
+  "generatedAt": "2026-01-12T22:52:00.000Z"
 }

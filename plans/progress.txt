@@ -1460,3 +1460,83 @@ All user stories have passes: true.
 
 PRD_COMPLETE
 
+
+### 2026-01-12 - MCP Server Refactor Spec Breakdown
+- Task: Break down mcp-server-refactor-spec.md into epics and tickets
+- Agent: Breakdown
+- Success: true
+
+**Epics Created: 4**
+
+| Epic | Color | Tickets | Priority Distribution |
+|------|-------|---------|----------------------|
+| Epic 1: Extract Utilities to lib/ | Red (#ef4444) | 6 | 4 high, 2 medium |
+| Epic 2: Migrate to McpServer API | Orange (#f59e0b) | 2 | 2 high |
+| Epic 3: Extract Tool Modules | Blue (#3b82f6) | 8 | 5 medium, 3 low |
+| Epic 4: Cleanup and Testing | Green (#10b981) | 3 | 1 medium, 2 low |
+
+**Total Tickets Created: 19**
+- High Priority: 6 tickets (foundational work)
+- Medium Priority: 8 tickets (core features)
+- Low Priority: 5 tickets (polish and cleanup)
+
+**Epic 1 - Extract Utilities to lib/ (Foundation)**
+1. 4a9308db - Extract logging module to lib/logging.js (high)
+2. bae5bb11 - Extract XDG path utilities to lib/xdg.js (high)
+3. 3bbff7bd - Extract database module to lib/database.js (high)
+4. ef1974d2 - Extract lock file management to lib/lock.js (high)
+5. 82efac90 - Extract backup module to lib/backup.js (medium)
+6. e6c53707 - Extract validation helpers to lib/validation.js (medium)
+
+**Epic 2 - Migrate to McpServer API (API Migration)**
+1. 02a8e624 - Add Zod dependency to mcp-server package.json (high)
+2. 9e28c424 - Create new McpServer-based entry point (high)
+
+**Epic 3 - Extract Tool Modules (19 Tools → 8 Modules)**
+1. db7b2ba4 - Extract project tools to tools/projects.js (medium) - 3 tools
+2. efb156ce - Extract ticket tools to tools/tickets.js (medium) - 3 tools
+3. f45cb47c - Extract epic tools to tools/epics.js (medium) - 2 tools
+4. f93ca35c - Extract comment tools to tools/comments.js (medium) - 2 tools
+5. 7b2935f8 - Extract workflow tools to tools/workflow.js (medium) - 2 tools
+6. 6a1ec9bd - Extract git tools to tools/git.js (low) - 1 tool
+7. f902db82 - Extract file tools to tools/files.js (low) - 2 tools
+8. 6cb71719 - Extract health and settings tools to tools/health.js (low) - 4 tools
+
+**Epic 4 - Cleanup and Testing (Final Steps)**
+1. 9a205751 - Delete legacy monolithic code from index.js (low)
+2. 58a0692b - Add integration tests for MCP tool modules (medium)
+3. f750b4d8 - Update MCP server documentation for new architecture (low)
+
+**Implementation Order (Suggested):**
+1. Phase 1 - Foundation: Epic 1 tickets (6 tickets, ~8-12 hours)
+   - Start with logging and XDG (foundation for others)
+   - Then database, lock, backup
+   - Finally validation helpers
+2. Phase 2 - API Migration: Epic 2 tickets (2 tickets, ~2-3 hours)
+   - Add Zod dependency
+   - Create new McpServer entry point
+3. Phase 3 - Tool Extraction: Epic 3 tickets (8 tickets, ~12-16 hours)
+   - Start with high-use tools (projects, tickets, epics)
+   - Then workflow and comments
+   - Finally auxiliary tools (git, files, health)
+4. Phase 4 - Finalize: Epic 4 tickets (3 tickets, ~4-6 hours)
+   - Delete legacy code
+   - Add tests
+   - Update documentation
+
+**Key Benefits:**
+- Reduce main file from 2923 lines to ~50-80 lines
+- No single file exceeds 250 lines
+- Modern McpServer API with Zod validation
+- Modular architecture for easier maintenance
+- Each ticket is 1-4 hours of focused work
+
+**Files Modified:**
+- plans/prd.json (19 new tickets)
+- plans/progress.txt (this entry)
+
+**Ready for Ralph:**
+Ralph can now pick up tickets sequentially, starting with Epic 1 (foundation work).
+
+---
+
