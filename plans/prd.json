@@ -1,26 +1,39 @@
 {
-  "projectName": "Brain Dumpy",
+  "projectName": "Brain Dump",
   "projectPath": "/home/xtra/code/personal_projects/brain-dumpy",
   "userStories": [
     {
-      "id": "844810d6-dd27-4e72-bae5-fe2cac252580",
-      "title": "Create Claude Code hook for automatic code review after task completion",
-      "description": "Create a Claude Code hook that automatically triggers code review agents after completing a task.\n\n## Background\nWe have created VS Code agents (@code-reviewer, @code-simplifier) with handoffs for automated review workflows. We need the equivalent automation for Claude Code using hooks.\n\n## Requirements\n- Create a hook (Stop or PostToolUse) that triggers after task completion\n- The hook should run the pr-review-toolkit agents (code-reviewer, silent-failure-hunter)\n- Results should be displayed to the user\n- Optionally trigger code-simplifier for cleanup\n\n## Acceptance Criteria\n- [x] Hook triggers automatically when a coding task completes\n- [x] Review results are shown to the user\n- [x] Hook can be enabled/disabled via configuration\n- [x] Documentation updated with hook setup instructions\n\n## Technical Notes\n- Hook types to consider: Stop, SubagentStop, or PostToolUse\n- May need to detect \"task completion\" vs regular tool use\n- Consider using the Task tool to spawn review agents",
+      "id": "3077ed53-a8cb-4c8d-b77c-e5b020bcf80f",
+      "title": "Update Edit Ticket Modal",
+      "description": "**Current Behavior**\n\nCurrently when a user:\n- clicks on a ticket \n- then the \"Edit Modal\" opens up\n- The Description text area is very small compared to what the text box usually offers since there is usually a buinchof text\n\nExpected behavior\n- The \"Description\" text area should be a lot larger height wise in order to see more of the text since the current areea is very small \n- The \"Description\" text area's height should be adustable in order for the user to be able to see more of the are\n- The \"Copmments\" text area should be a lot larger height wise in order to see more of the text since the current areea is very small and some comments can be large and provide some valuable information",
       "acceptanceCriteria": [
-        "Hook triggers automatically when a coding task completes",
-        "Review results are shown to the user",
-        "Hook can be enabled/disabled via configuration",
-        "Documentation updated with hook setup instructions"
+        "Implement as described",
+        "Verify functionality works as expected"
       ],
       "priority": "medium",
       "tags": [
-        "claude-code",
-        "hooks",
-        "automation",
-        "code-review"
+        "ui",
+        "frontend"
       ],
       "passes": true
+    },
+    {
+      "id": "313f7b96-bd33-4fe4-9ae1-16a6fc09a0ea",
+      "title": "Update New Ticket Modal Description Field",
+      "description": "The \"New Ticket\" modal description field is currently too small and non-resizable (rows=3, resize-none). \n\nExpected behavior:\n- Increase default height (e.g., rows=6 or 8)\n- Allow vertical resizing (change `resize-none` to `resize-y`)\n- Ensure consistent styling with the Edit Ticket modal.",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "medium",
+      "tags": [
+        "ui",
+        "frontend",
+        "ux"
+      ],
+      "passes": false
     }
   ],
-  "generatedAt": "2026-01-12T22:30:17.614Z"
+  "generatedAt": "2026-01-12T22:45:00.561Z",
+  "epicTitle": "UI Enhancements"
 }

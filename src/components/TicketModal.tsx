@@ -486,8 +486,8 @@ export default function TicketModal({
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={4}
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-none"
+              rows={8}
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-y min-h-[120px]"
             />
           </div>
 
@@ -859,7 +859,7 @@ export default function TicketModal({
                     <Loader2 size={20} className="animate-spin" />
                   </div>
                 ) : comments.length > 0 ? (
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
                     {comments.map((comment) => (
                       <div
                         key={comment.id}
