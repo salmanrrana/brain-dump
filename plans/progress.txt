@@ -1043,3 +1043,55 @@ The `get_database_health` tool returns a comprehensive health report:
 - All 259 tests passing
 - MCP server syntax valid
 
+---
+
+### 2026-01-12 - Update Documentation for New Data Locations
+- Task: Update documentation for new data locations
+- Ticket ID: f8ab8cff-ec40-49e0-a784-c5020b764cf0
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Files Created:**
+- `docs/data-locations.md` - Complete path reference for XDG directories
+- `docs/backup-restore.md` - Backup system guide with CLI commands
+- `docs/troubleshooting.md` - Common issues and recovery procedures
+
+**Files Modified:**
+- `README.md`:
+  - Updated Data Storage section with XDG paths
+  - Updated CLI section with backup/restore/check commands
+  - Updated MCP tools list (added 8 new tools)
+  - Updated Docker instructions for new volume paths
+  - Added links to new documentation
+
+**Testing:**
+- All 259 tests passing
+- Type check has pre-existing errors in index.tsx (separate ticket 2f780b3f)
+
+**Notes:**
+- All acceptance criteria met
+- Documentation covers migration from legacy ~/.brain-dump/ paths
+- XDG environment variable overrides documented
+- Troubleshooting guide includes database recovery procedures
+
+---
+
+## PRD Status: COMPLETE
+
+All 8 user stories in the XDG Migration & Data Protection epic have passes: true.
+
+**Tickets Completed:**
+1. e25afb2e - Create automatic migration from legacy ~/.brain-dump directory
+2. a7bbca6d - Add manual backup/restore CLI commands
+3. 254bca98 - Implement database lock file detection
+4. b892ddcc - Add file-based logging system
+5. e88860de - Add MCP tool for database health status
+6. e97a4485 - Add graceful shutdown handling for all processes
+7. f8ab8cff - Update documentation for new data locations
+8. e5aebb29 - Add database file watcher for deletion detection
+
+**Next Steps:**
+- Push branch and create PR for review
+- Merge to dev/main after approval
+

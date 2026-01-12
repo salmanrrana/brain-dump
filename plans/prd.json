@@ -111,7 +111,7 @@
         "documentation",
         "xdg"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "e5aebb29-3760-403c-8978-a975f2f448e8",
