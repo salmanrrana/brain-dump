@@ -35,7 +35,7 @@
     {
       "id": "380f0052-65ff-45d0-b026-c67ed5092ed7",
       "title": "Add working_method field to project schema",
-      "description": "## Task\nAdd working_method setting to project database schema.\n\n## Schema Change\nAdd column: `working_method TEXT DEFAULT 'auto'`\nValues: 'claude-code', 'vscode', 'auto'\n\n## Acceptance Criteria\n- [ ] Migration created\n- [ ] Schema updated\n- [ ] Default is 'auto'\n\n## Files to Modify\n- `src/lib/schema.ts`\n- `drizzle/` (migration)",
+      "description": "## Task\nAdd working_method setting to project database schema.\n\n## Schema Change\nAdd column: `working_method TEXT DEFAULT 'auto'`\nValues: 'claude-code', 'vscode', 'auto'\n\n## Acceptance Criteria\n- [x] Migration created\n- [x] Schema updated\n- [x] Default is 'auto'\n\n## Files to Modify\n- `src/lib/schema.ts`\n- `drizzle/` (migration)",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
@@ -45,7 +45,7 @@
         "database",
         "settings"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "77609063-5af9-44d4-a3c7-2c0f0c5273f3",

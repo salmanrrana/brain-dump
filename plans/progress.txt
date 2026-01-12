@@ -1178,14 +1178,49 @@ The `get_environment` tool returns:
 
 ---
 
-## Iteration Complete
+### 2026-01-12 - Add working_method field to project schema
+- Task: Add working_method setting to project database schema
+- Ticket ID: 380f0052-65ff-45d0-b026-c67ed5092ed7
+- Success: true
+- Agent: Ralph
+- Branch: ralph/5fb70ee6-environment-detection
 
-Completed 2 of 7 user stories in the Cross-Environment Support epic:
+**Files Created:**
+- `drizzle/0004_add_working_method.sql` - Migration file
+
+**Files Modified:**
+- `src/lib/schema.ts` - Added workingMethod column to projects table
+- `src/lib/db.ts` - Added runtime migration for existing databases
+- `mcp-server/index.js` - Added runtime migration for MCP server
+- `src/lib/db.test.ts` - Updated test fixtures
+- `src/api/projects.test.ts` - Updated test fixtures
+- `src/api/epics.test.ts` - Updated test fixtures
+- `src/api/tickets.test.ts` - Updated test fixtures
+
+**Schema Change:**
+```sql
+ALTER TABLE projects ADD COLUMN working_method TEXT DEFAULT 'auto';
+```
+
+**Values:**
+- 'claude-code' - Force Claude Code environment
+- 'vscode' - Force VS Code environment
+- 'auto' - Auto-detect using environment detection utility
+
+**Testing:**
+- All 301 tests passing
+- Runtime migration tested
+
+---
+
+## Iteration Status
+
+Completed 3 of 7 user stories in the Cross-Environment Support epic:
 1. ✅ 5fb70ee6 - Create environment detection utility
 2. ✅ 98bdd71a - Create get_environment MCP tool
+3. ✅ 380f0052 - Add working_method field to project schema
 
-Remaining tasks (5):
-- 380f0052 - Add working_method field to project schema (medium)
+Remaining tasks (4):
 - 77609063 - Create get_project_settings MCP tool (medium)
 - 0e89965f - Create update_project_settings MCP tool (medium)
 - 9d07f06e - Add working method UI to project settings (low)
