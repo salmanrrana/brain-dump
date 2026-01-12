@@ -486,8 +486,8 @@ export default function TicketModal({
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={4}
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-none"
+              rows={12}
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-y"
             />
           </div>
 
@@ -831,14 +831,19 @@ export default function TicketModal({
             {showComments && (
               <div className="space-y-3">
                 {/* Add comment input */}
-                <div className="flex gap-2">
-                  <input
-                    type="text"
+                <div className="flex gap-2 items-start">
+                  <textarea
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
-                    placeholder="Add a comment..."
-                    className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleAddComment();
+                      }
+                    }}
+                    placeholder="Add a comment... (Enter to send, Shift+Enter for new line)"
+                    rows={3}
+                    className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-y"
                   />
                   <button
                     onClick={handleAddComment}
