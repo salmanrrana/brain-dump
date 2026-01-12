@@ -274,7 +274,7 @@ export class Logger {
       level,
       source: this.source,
       message,
-      ...(error ? { error } : {}),
+      error,
     };
 
     // Determine which log file to use

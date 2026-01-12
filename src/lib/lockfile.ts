@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, unlinkSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync } from "fs";
 import { join } from "path";
 import { getStateDir } from "./xdg";
 
@@ -296,7 +296,6 @@ export function initializeLockSync(
   // Ensure state directory exists (lockfile lives there)
   const stateDir = getStateDir();
   if (!existsSync(stateDir)) {
-    const { mkdirSync } = require("fs");
     mkdirSync(stateDir, { recursive: true, mode: 0o700 });
   }
 

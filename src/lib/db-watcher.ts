@@ -1,4 +1,4 @@
-import { watch, existsSync, FSWatcher, statSync } from "fs";
+import { watch, existsSync, FSWatcher, statSync, appendFileSync } from "fs";
 import { dirname, basename, join } from "path";
 import { getStateDir } from "./xdg";
 
@@ -232,16 +232,11 @@ export function getWatchedPath(): string {
  */
 export function logDeletionEvent(deletedFile: string): void {
   try {
-    const { appendFileSync } = require("fs");
-    const { join: pathJoin } = require("path");
-
-    const logPath = pathJoin(getStateDir(), "deletion-events.log");
+    const logPath = join(getStateDir(), "deletion-events.log");
     const timestamp = new Date().toISOString();
     const entry = `${timestamp} DELETED: ${deletedFile}\n`;
 
-    // Append to log file, creating it if necessary
     appendFileSync(logPath, entry, { mode: 0o600 });
-
     logError(`Deletion logged to ${logPath}`);
   } catch (error) {
     const err = error as Error;

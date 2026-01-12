@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, unlinkSync, statSync } from "fs";
+import { existsSync, readdirSync, unlinkSync, statSync, writeFileSync, copyFileSync } from "fs";
 import { join } from "path";
 import Database from "better-sqlite3";
 import { getBackupsDir, getDatabasePath, ensureDirectoriesSync } from "./xdg";
@@ -66,8 +66,7 @@ function updateLastBackupMarker(): void {
 
   // Touch the marker file
   try {
-    const now = new Date();
-    require("fs").writeFileSync(markerPath, now.toISOString(), { mode: 0o600 });
+    writeFileSync(markerPath, new Date().toISOString(), { mode: 0o600 });
   } catch (error) {
     console.error("[Backup] Failed to update marker:", error);
   }
@@ -291,41 +290,15 @@ export function cleanupOldBackups(keepDays = 7): CleanupResult {
 }
 
 /**
- * Async version of createBackupIfNeeded for non-blocking use.
- * Returns a promise that resolves after backup is complete.
- */
-export async function createBackupIfNeededAsync(force = false): Promise<BackupResult> {
-  // Run the sync version in a microtask to avoid blocking
-  return new Promise((resolve) => {
-    setImmediate(() => {
-      resolve(createBackupIfNeeded(force));
-    });
-  });
-}
-
-/**
- * Async version of cleanupOldBackups for non-blocking use.
- */
-export async function cleanupOldBackupsAsync(keepDays = 7): Promise<CleanupResult> {
-  return new Promise((resolve) => {
-    setImmediate(() => {
-      resolve(cleanupOldBackups(keepDays));
-    });
-  });
-}
-
-/**
  * Perform daily backup maintenance: create backup if needed and cleanup old ones.
  * This is the recommended function to call on application startup.
+ * Note: This is async for API consistency but operations are synchronous.
  */
 export async function performDailyBackup(keepDays = 7): Promise<{
   backup: BackupResult;
   cleanup: CleanupResult;
 }> {
-  const backup = await createBackupIfNeededAsync();
-  const cleanup = await cleanupOldBackupsAsync(keepDays);
-
-  return { backup, cleanup };
+  return performDailyBackupSync(keepDays);
 }
 
 /**
@@ -440,22 +413,18 @@ export function restoreFromBackup(backupPath: string): RestoreResult {
       console.log(`[Restore] Created pre-restore backup: ${preRestoreBackupPath}`);
     }
 
-    // Copy backup to database location
-    // We need to close any existing connections first
-    const { copyFileSync, unlinkSync: removeSync } = require("fs");
-
-    // Remove existing database files
+    // Remove existing database files before restoring
     const walPath = currentDbPath + "-wal";
     const shmPath = currentDbPath + "-shm";
 
     if (existsSync(currentDbPath)) {
-      removeSync(currentDbPath);
+      unlinkSync(currentDbPath);
     }
     if (existsSync(walPath)) {
-      removeSync(walPath);
+      unlinkSync(walPath);
     }
     if (existsSync(shmPath)) {
-      removeSync(shmPath);
+      unlinkSync(shmPath);
     }
 
     // Copy backup to database location

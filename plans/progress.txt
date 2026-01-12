@@ -1092,6 +1092,8 @@ All 8 user stories in the XDG Migration & Data Protection epic have passes: true
 8. e5aebb29 - Add database file watcher for deletion detection
 
 **Next Steps:**
-- Push branch and create PR for review
-- Merge to dev/main after approval
+- ✅ Branch pushed to origin
+- ⏳ PR needs to be created manually (gh CLI not available)
+
+**PR URL:** https://github.com/salmanrrana/brain-dump/pull/new/ralph/74e5875f-xdg-directory-utility
 
