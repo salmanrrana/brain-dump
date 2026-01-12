@@ -567,3 +567,62 @@ Ralph can now pick up any ticket from BD-002 through BD-053 with full context fr
 - Directories created with 0700 permissions for security
 - Next ticket (e25afb2e) will handle automatic migration of existing data
 
+---
+
+### 2026-01-12 - Automatic Migration from Legacy Directory
+- Task: Create automatic migration from legacy ~/.brain-dump directory
+- Ticket ID: e25afb2e-9074-4c25-976e-554d906effdb
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Files Created:**
+- `src/lib/migration.ts` - Migration logic module
+- `src/lib/migration.test.ts` - Unit tests (14 tests)
+
+**Files Modified:**
+- `src/lib/db.ts` - Integrated migration at app startup
+- `mcp-server/index.js` - Added migration support with same logic
+
+**Migration Features:**
+| Feature | Implementation |
+|---------|----------------|
+| Pre-migration backup | SQLite VACUUM INTO to backups dir |
+| Database copy | File copy with size verification |
+| WAL/SHM handling | Copies journal files if present |
+| Attachments | Copies entire attachments directory |
+| Integrity check | PRAGMA integrity_check post-copy |
+| Migration marker | .migrated JSON file in legacy dir |
+| Logging | Logs to ~/.local/state/brain-dumpy/migration.log |
+
+**Safety Measures:**
+- Never deletes legacy data automatically
+- Creates backup before any migration
+- Verifies database integrity after copy
+- Migration only runs once (marker file)
+- Handles edge cases (both locations have data, etc.)
+
+**Functions Implemented:**
+```typescript
+// Detection functions
+hasLegacyData(): boolean
+isMigrationComplete(): boolean
+hasXdgData(): boolean
+verifyDatabaseIntegrity(dbPath: string): boolean
+
+// Migration functions
+migrateFromLegacy(): Promise<MigrationResult>
+migrateFromLegacySync(): MigrationResult
+```
+
+**Testing:**
+- All 82 tests passing (14 new migration tests)
+- MCP server syntax valid
+- Type checks pass (except pre-existing index.tsx errors)
+
+**Notes:**
+- Migration runs automatically on first startup after upgrade
+- Both main app and MCP server can trigger migration
+- Legacy data preserved in ~/.brain-dump (not deleted)
+- User informed via console logs
+

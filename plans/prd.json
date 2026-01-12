@@ -48,7 +48,7 @@
         "migration",
         "safety"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "0cd21f6e-3bc9-40e5-a2df-479f4d582b28",
