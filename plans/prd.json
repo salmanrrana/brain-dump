@@ -180,7 +180,7 @@
     {
       "id": "e5aebb29-3760-403c-8978-a975f2f448e8",
       "title": "Add database file watcher for deletion detection",
-      "description": "## Task\nImplement file system watcher to detect if database files are unexpectedly deleted while in use.\n\n## Context\nThis ticket was created after a mysterious database deletion incident where the .db files were deleted while processes held open file handles.\n\n## Implementation\n- Watch database directory for deletion events\n- Detect if .db, .db-wal, or .db-shm files are deleted\n- If deletion detected while DB open:\n  - Log critical error immediately\n  - Attempt emergency backup from memory\n  - Alert user via MCP response or CLI output\n  - Prevent further writes to avoid data loss\n\n## Technical Approach\n```typescript\nimport { watch } from 'fs';\n\nfunction watchDatabaseFiles(dbPath: string) {\n  const watcher = watch(dirname(dbPath), (event, filename) => {\n    if (filename?.endsWith('.db') && event === 'rename') {\n      // File might be deleted - check if it exists\n      if (!existsSync(dbPath)) {\n        handleDatabaseDeletion();\n      }\n    }\n  });\n}\n```\n\n## Acceptance Criteria\n- [ ] Watcher detects .db file deletion\n- [ ] Critical error logged immediately\n- [ ] Emergency backup attempted\n- [ ] User alerted via available channel\n- [ ] Further writes prevented\n\n## File to Create\n`src/lib/db-watcher.ts`",
+      "description": "## Task\nImplement file system watcher to detect if database files are unexpectedly deleted while in use.\n\n## Context\nThis ticket was created after a mysterious database deletion incident where the .db files were deleted while processes held open file handles.\n\n## Implementation\n- Watch database directory for deletion events\n- Detect if .db, .db-wal, or .db-shm files are deleted\n- If deletion detected while DB open:\n  - Log critical error immediately\n  - Attempt emergency backup from memory\n  - Alert user via MCP response or CLI output\n  - Prevent further writes to avoid data loss\n\n## Technical Approach\n```typescript\nimport { watch } from 'fs';\n\nfunction watchDatabaseFiles(dbPath: string) {\n  const watcher = watch(dirname(dbPath), (event, filename) => {\n    if (filename?.endsWith('.db') && event === 'rename') {\n      // File might be deleted - check if it exists\n      if (!existsSync(dbPath)) {\n        handleDatabaseDeletion();\n      }\n    }\n  });\n}\n```\n\n## Acceptance Criteria\n- [x] Watcher detects .db file deletion\n- [x] Critical error logged immediately\n- [x] Emergency backup attempted\n- [x] User alerted via available channel\n- [x] Further writes prevented\n\n## File to Create\n`src/lib/db-watcher.ts`",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
@@ -192,9 +192,95 @@
         "monitoring",
         "incident-response"
       ],
+      "passes": true
+    },
+    {
+      "id": "cp-001-platform-detection",
+      "title": "Add platform detection utility to xdg.ts",
+      "description": "## Context\nThe current `src/lib/xdg.ts` module only handles Linux XDG paths. This ticket adds platform detection as the foundation for cross-platform support.\n\n## Task\nAdd platform detection utility that identifies Linux, macOS, and Windows.\n\n## Implementation\n```typescript\nimport { platform } from 'os';\n\ntype SupportedPlatform = 'linux' | 'darwin' | 'win32';\n\nexport function getPlatform(): SupportedPlatform {\n  const plat = platform();\n  if (plat === 'linux' || plat === 'darwin' || plat === 'win32') {\n    return plat;\n  }\n  // Default to linux for other Unix-like systems\n  return 'linux';\n}\n\nexport function isLinux(): boolean {\n  return getPlatform() === 'linux';\n}\n\nexport function isMacOS(): boolean {\n  return getPlatform() === 'darwin';\n}\n\nexport function isWindows(): boolean {\n  return getPlatform() === 'win32';\n}\n```\n\n## Acceptance Criteria\n- [ ] getPlatform() returns correct platform\n- [ ] Helper functions (isLinux, isMacOS, isWindows) work correctly\n- [ ] Unit tests for all platform detection functions\n- [ ] Tests use os.platform() mocking to test all platforms\n\n## Files to Modify\n- `src/lib/xdg.ts` - Add platform detection functions\n- `src/lib/xdg.test.ts` - Add platform detection tests",
+      "acceptanceCriteria": [
+        "getPlatform() returns correct platform",
+        "Helper functions work correctly",
+        "Unit tests pass for all platform detection"
+      ],
+      "priority": "high",
+      "tags": [
+        "cross-platform",
+        "foundation",
+        "utility"
+      ],
+      "passes": false
+    },
+    {
+      "id": "cp-002-macos-paths",
+      "title": "Add macOS path support to xdg.ts",
+      "description": "## Context\nAdd macOS-specific application paths following Apple's conventions.\n\n## Task\nUpdate path functions to return macOS-appropriate paths when running on macOS.\n\n## macOS Standard Paths\n- **Data**: `~/Library/Application Support/brain-dumpy/`\n- **Config**: `~/Library/Application Support/brain-dumpy/` (same as data)\n- **Cache**: `~/Library/Caches/brain-dumpy/`\n- **State**: `~/Library/Application Support/brain-dumpy/state/`\n- **Legacy**: `~/.brain-dump/` (for migration)\n\n## Implementation Strategy\nUpdate each function to check platform and return appropriate path:\n\n```typescript\nexport function getDataDir(): string {\n  const plat = getPlatform();\n  \n  if (plat === 'darwin') {\n    return join(homedir(), 'Library', 'Application Support', APP_NAME);\n  }\n  \n  // Linux XDG (existing code)\n  const xdgDataHome = process.env.XDG_DATA_HOME;\n  const base = xdgDataHome || join(homedir(), '.local', 'share');\n  return join(base, APP_NAME);\n}\n```\n\n## Acceptance Criteria\n- [ ] getDataDir() returns correct macOS path\n- [ ] getConfigDir() returns correct macOS path\n- [ ] getCacheDir() returns correct macOS path\n- [ ] getStateDir() returns correct macOS path\n- [ ] Unit tests for macOS paths (use platform mocking)\n- [ ] XDG env vars ignored on macOS\n\n## Files to Modify\n- `src/lib/xdg.ts` - Update path functions\n- `src/lib/xdg.test.ts` - Add macOS-specific tests",
+      "acceptanceCriteria": [
+        "All path functions return correct macOS paths",
+        "Unit tests pass for macOS platform",
+        "XDG environment variables properly ignored on macOS"
+      ],
+      "priority": "high",
+      "tags": [
+        "cross-platform",
+        "macos",
+        "paths"
+      ],
+      "passes": false
+    },
+    {
+      "id": "cp-003-windows-paths",
+      "title": "Add Windows path support to xdg.ts",
+      "description": "## Context\nAdd Windows-specific application paths using standard Windows conventions.\n\n## Task\nUpdate path functions to return Windows-appropriate paths when running on Windows.\n\n## Windows Standard Paths\n- **Data**: `%APPDATA%\\brain-dumpy\\` (e.g., C:\\Users\\Name\\AppData\\Roaming\\brain-dumpy\\)\n- **Config**: `%APPDATA%\\brain-dumpy\\config\\`\n- **Cache**: `%LOCALAPPDATA%\\brain-dumpy\\cache\\` (e.g., C:\\Users\\Name\\AppData\\Local\\brain-dumpy\\cache\\)\n- **State**: `%LOCALAPPDATA%\\brain-dumpy\\state\\`\n- **Legacy**: `~/.brain-dump/` (for cross-platform migration support)\n\n## Implementation Strategy\nUse process.env.APPDATA and process.env.LOCALAPPDATA:\n\n```typescript\nexport function getDataDir(): string {\n  const plat = getPlatform();\n  \n  if (plat === 'win32') {\n    const appData = process.env.APPDATA || join(homedir(), 'AppData', 'Roaming');\n    return join(appData, APP_NAME);\n  }\n  \n  // macOS and Linux (existing code)\n  // ...\n}\n```\n\n## Acceptance Criteria\n- [ ] getDataDir() returns correct Windows path\n- [ ] getConfigDir() returns correct Windows path\n- [ ] getCacheDir() returns correct Windows path\n- [ ] getStateDir() returns correct Windows path\n- [ ] Uses APPDATA and LOCALAPPDATA environment variables\n- [ ] Fallback paths if env vars not set\n- [ ] Unit tests for Windows paths (use platform mocking)\n\n## Files to Modify\n- `src/lib/xdg.ts` - Update path functions\n- `src/lib/xdg.test.ts` - Add Windows-specific tests",
+      "acceptanceCriteria": [
+        "All path functions return correct Windows paths",
+        "APPDATA and LOCALAPPDATA environment variables respected",
+        "Unit tests pass for Windows platform"
+      ],
+      "priority": "high",
+      "tags": [
+        "cross-platform",
+        "windows",
+        "paths"
+      ],
+      "passes": false
+    },
+    {
+      "id": "cp-004-rename-module",
+      "title": "Rename xdg.ts to app-paths.ts",
+      "description": "## Context\nThe module name `xdg.ts` is misleading since it now supports macOS and Windows, not just XDG (Linux) paths.\n\n## Task\nRename the module to better reflect its cross-platform nature.\n\n## Proposed Name\n`app-paths.ts` - Clear, platform-agnostic name that describes what it does.\n\n## Files to Rename\n- `src/lib/xdg.ts` → `src/lib/app-paths.ts`\n- `src/lib/xdg.test.ts` → `src/lib/app-paths.test.ts`\n\n## Import Updates Required\nUpdate imports in all files that currently import from xdg.ts:\n- `src/lib/db.ts`\n- `src/lib/backup.ts`\n- `src/lib/migration.ts`\n- `src/lib/lockfile.ts`\n- `src/lib/db-watcher.ts`\n- `cli/brain-dump.ts`\n- `mcp-server/index.js` (JavaScript - uses require)\n\n## Code Comments\nUpdate JSDoc comments in the module:\n- Change \"XDG Base Directory Specification utility\" to \"Cross-platform application paths utility\"\n- Update references to XDG to be platform-agnostic\n- Keep XDG references only in Linux-specific sections\n\n## Acceptance Criteria\n- [ ] Files renamed successfully\n- [ ] All imports updated\n- [ ] All tests still pass\n- [ ] No references to old filename remain\n- [ ] Documentation comments updated\n- [ ] MCP server (JavaScript) imports updated\n\n## Files to Modify\n- All files listed above for import updates",
+      "acceptanceCriteria": [
+        "Module renamed to app-paths.ts",
+        "All imports updated across codebase",
+        "All tests pass after rename",
+        "Documentation updated"
+      ],
+      "priority": "medium",
+      "tags": [
+        "cross-platform",
+        "refactor",
+        "cleanup"
+      ],
+      "passes": false
+    },
+    {
+      "id": "cp-005-update-tests",
+      "title": "Update tests for cross-platform path support",
+      "description": "## Context\nEnsure comprehensive test coverage for all three platforms (Linux, macOS, Windows).\n\n## Task\nExpand test suite to verify correct behavior on all supported platforms.\n\n## Test Structure\n```typescript\ndescribe('Cross-Platform Path Tests', () => {\n  describe('on Linux', () => {\n    beforeEach(() => {\n      vi.spyOn(os, 'platform').mockReturnValue('linux');\n    });\n    \n    it('should return XDG paths', () => {\n      expect(getDataDir()).toContain('.local/share/brain-dumpy');\n    });\n    \n    it('should respect XDG_DATA_HOME', () => {\n      process.env.XDG_DATA_HOME = '/custom/data';\n      expect(getDataDir()).toBe('/custom/data/brain-dumpy');\n    });\n  });\n  \n  describe('on macOS', () => {\n    beforeEach(() => {\n      vi.spyOn(os, 'platform').mockReturnValue('darwin');\n      delete process.env.XDG_DATA_HOME;\n    });\n    \n    it('should return Library paths', () => {\n      expect(getDataDir()).toContain('Library/Application Support/brain-dumpy');\n    });\n    \n    it('should ignore XDG_DATA_HOME', () => {\n      process.env.XDG_DATA_HOME = '/custom/data';\n      expect(getDataDir()).toContain('Library/Application Support');\n    });\n  });\n  \n  describe('on Windows', () => {\n    beforeEach(() => {\n      vi.spyOn(os, 'platform').mockReturnValue('win32');\n      delete process.env.XDG_DATA_HOME;\n    });\n    \n    it('should return AppData paths', () => {\n      process.env.APPDATA = 'C:\\\\Users\\\\Test\\\\AppData\\\\Roaming';\n      expect(getDataDir()).toContain('brain-dumpy');\n    });\n  });\n});\n```\n\n## Test Coverage Required\nFor each platform:\n- [ ] Data directory path\n- [ ] Config directory path\n- [ ] Cache directory path\n- [ ] State directory path\n- [ ] Database path\n- [ ] Backups directory\n- [ ] Logs directory\n- [ ] Legacy directory (same on all platforms)\n- [ ] Directory creation with proper permissions\n\n## Acceptance Criteria\n- [ ] Tests for Linux paths (XDG)\n- [ ] Tests for macOS paths (Library)\n- [ ] Tests for Windows paths (AppData)\n- [ ] Tests verify env vars respected (Linux) or ignored (macOS/Windows)\n- [ ] All tests pass\n- [ ] Code coverage remains high (>90%)\n\n## Files to Modify\n- `src/lib/app-paths.test.ts` (or xdg.test.ts if not renamed yet)",
+      "acceptanceCriteria": [
+        "Comprehensive tests for all three platforms",
+        "All tests pass",
+        "Code coverage above 90%"
+      ],
+      "priority": "high",
+      "tags": [
+        "cross-platform",
+        "testing",
+        "quality"
+      ],
       "passes": false
     }
   ],
-  "generatedAt": "2026-01-12T00:35:35.062Z",
-  "epicTitle": "XDG Migration & Data Protection"
+  "generatedAt": "2026-01-11T20:00:00.000Z",
+  "epicTitle": "Cross-Platform Path Support"
 }

@@ -737,3 +737,46 @@ migrateFromLegacySync(): MigrationResult
 - Lock file secured with 0600 permissions
 - Graceful shutdown ensures WAL is checkpointed before exit
 
+---
+
+### 2026-01-11 - Cross-Platform Path Support Tickets Created
+- Task: Create atomic tickets for implementing cross-platform path support
+- Agent: Breakdown
+- Epic: Cross-Platform Path Support
+
+**Tickets Created: 5**
+
+| ID | Title | Priority | Estimated Time |
+|----|-------|----------|----------------|
+| cp-001-platform-detection | Add platform detection utility to xdg.ts | High | 1-2 hours |
+| cp-002-macos-paths | Add macOS path support to xdg.ts | High | 2-3 hours |
+| cp-003-windows-paths | Add Windows path support to xdg.ts | High | 2-3 hours |
+| cp-004-rename-module | Rename xdg.ts to app-paths.ts | Medium | 1-2 hours |
+| cp-005-update-tests | Update tests for cross-platform path support | High | 2-3 hours |
+
+**Implementation Order (Sequential):**
+1. cp-001-platform-detection - Foundation for all platform-specific logic
+2. cp-002-macos-paths - Add macOS support
+3. cp-003-windows-paths - Add Windows support
+4. cp-005-update-tests - Comprehensive test coverage for all platforms
+5. cp-004-rename-module - Cleanup and rename (can be done last or skipped)
+
+**Technical Approach:**
+- Platform detection uses os.platform() with helper functions
+- macOS uses ~/Library/Application Support, ~/Library/Caches
+- Windows uses %APPDATA% and %LOCALAPPDATA%
+- Linux keeps existing XDG implementation with env var support
+- Tests use vi.spyOn to mock os.platform() for all platforms
+- Module rename is optional but recommended for clarity
+
+**Files Modified:**
+- plans/prd.json (added 5 new tickets)
+- plans/progress.txt (this entry)
+
+**Notes:**
+- Each ticket is 1-3 hours of focused work
+- No dependencies on other Brain Dumpy features
+- Tickets can be completed by Ralph sequentially
+- Module rename (cp-004) is cleanup work and can be done anytime after the path implementations
+- Tests ticket (cp-005) should be done before rename to ensure nothing breaks
+
