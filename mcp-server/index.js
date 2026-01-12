@@ -48,13 +48,131 @@ function getDatabasePath() {
   return join(getDataDir(), "brain-dumpy.db");
 }
 
+function getStateDir() {
+  const xdgStateHome = process.env.XDG_STATE_HOME;
+  const base = xdgStateHome || join(homedir(), ".local", "state");
+  return join(base, APP_NAME);
+}
+
 function ensureDirectoriesSync() {
   const { mkdirSync, existsSync: existsSyncFs } = require("fs");
-  const dirs = [getDataDir()];
+  const dirs = [getDataDir(), getStateDir(), join(getStateDir(), "backups")];
   for (const dir of dirs) {
     if (!existsSyncFs(dir)) {
       mkdirSync(dir, { recursive: true, mode: 0o700 });
     }
+  }
+}
+
+// =============================================================================
+// MIGRATION FROM LEGACY DIRECTORY
+// =============================================================================
+const MIGRATED_MARKER = ".migrated";
+
+function isMigrationComplete() {
+  return existsSync(join(getLegacyDir(), MIGRATED_MARKER));
+}
+
+function verifyDatabaseIntegrity(dbPath) {
+  if (!existsSync(dbPath)) return false;
+  try {
+    const testDb = new Database(dbPath, { readonly: true });
+    const result = testDb.pragma("integrity_check");
+    testDb.close();
+    return result.length === 1 && result[0].integrity_check === "ok";
+  } catch {
+    return false;
+  }
+}
+
+function migrateFromLegacySync() {
+  const { copyFileSync, writeFileSync, mkdirSync: mkdirSyncFs, readdirSync, statSync, constants } = require("fs");
+
+  const legacyDir = getLegacyDir();
+  const legacyDbPath = join(legacyDir, "brain-dump.db");
+  const xdgDbPath = getDatabasePath();
+
+  // Already migrated?
+  if (isMigrationComplete()) {
+    return { success: true, migrated: false, message: "Migration already complete" };
+  }
+
+  // No legacy data?
+  if (!existsSync(legacyDbPath)) {
+    return { success: true, migrated: false, message: "No legacy data to migrate" };
+  }
+
+  // XDG already has data?
+  if (existsSync(xdgDbPath)) {
+    log.info("Both legacy and XDG locations have data, using XDG");
+    return { success: true, migrated: false, message: "XDG already has data" };
+  }
+
+  log.info("Migrating from legacy ~/.brain-dump to XDG directories...");
+
+  try {
+    // Ensure directories
+    ensureDirectoriesSync();
+
+    // Create pre-migration backup
+    try {
+      const backupsDir = join(getStateDir(), "backups");
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const backupPath = join(backupsDir, `pre-migration-${timestamp}.db`);
+      const srcDb = new Database(legacyDbPath, { readonly: true });
+      srcDb.exec(`VACUUM INTO '${backupPath}'`);
+      srcDb.close();
+      log.info(`Created pre-migration backup: ${backupPath}`);
+    } catch (backupErr) {
+      log.error("Failed to create backup, continuing anyway", backupErr);
+    }
+
+    // Copy database
+    copyFileSync(legacyDbPath, xdgDbPath);
+    log.info(`Copied database to ${xdgDbPath}`);
+
+    // Copy WAL/SHM files if they exist
+    const walFile = legacyDbPath + "-wal";
+    const shmFile = legacyDbPath + "-shm";
+    if (existsSync(walFile)) copyFileSync(walFile, xdgDbPath + "-wal");
+    if (existsSync(shmFile)) copyFileSync(shmFile, xdgDbPath + "-shm");
+
+    // Verify integrity
+    if (!verifyDatabaseIntegrity(xdgDbPath)) {
+      throw new Error("Database integrity check failed after copy");
+    }
+
+    // Copy attachments
+    const legacyAttachments = join(legacyDir, "attachments");
+    const xdgAttachments = join(getDataDir(), "attachments");
+    if (existsSync(legacyAttachments)) {
+      if (!existsSync(xdgAttachments)) {
+        mkdirSyncFs(xdgAttachments, { recursive: true, mode: 0o700 });
+      }
+      const files = readdirSync(legacyAttachments);
+      for (const file of files) {
+        const srcPath = join(legacyAttachments, file);
+        const destPath = join(xdgAttachments, file);
+        if (statSync(srcPath).isFile() && !existsSync(destPath)) {
+          copyFileSync(srcPath, destPath);
+        }
+      }
+      log.info(`Copied ${files.length} attachments`);
+    }
+
+    // Create migration marker
+    const markerPath = join(legacyDir, MIGRATED_MARKER);
+    writeFileSync(markerPath, JSON.stringify({
+      migratedAt: new Date().toISOString(),
+      migratedTo: getDataDir(),
+      note: "Data has been migrated to XDG directories."
+    }, null, 2), { mode: 0o600 });
+
+    log.info("Migration complete! Legacy data preserved in ~/.brain-dump");
+    return { success: true, migrated: true, message: "Migration complete" };
+  } catch (error) {
+    log.error("Migration failed", error);
+    return { success: false, migrated: false, message: `Migration failed: ${error.message}` };
   }
 }
 
@@ -64,6 +182,12 @@ function ensureDirectoriesSync() {
 // Ensure XDG directories exist
 ensureDirectoriesSync();
 
+// Run migration if needed
+const migrationResult = migrateFromLegacySync();
+if (migrationResult.migrated) {
+  log.info(migrationResult.message);
+}
+
 const dbPath = getDatabasePath();
 const legacyDbPath = join(getLegacyDir(), "brain-dump.db");
 let db;
@@ -72,9 +196,9 @@ try {
   // Try XDG path first, fall back to legacy path for backwards compatibility
   let actualDbPath = dbPath;
   if (!existsSync(dbPath)) {
-    if (existsSync(legacyDbPath)) {
+    if (existsSync(legacyDbPath) && !isMigrationComplete()) {
+      // Legacy exists and hasn't been migrated - use it (migration may have failed)
       log.info(`Using legacy database at ${legacyDbPath}`);
-      log.info(`Note: Run Brain Dumpy web app to migrate to new XDG location: ${dbPath}`);
       actualDbPath = legacyDbPath;
     } else {
       log.error(`Database not found at ${dbPath} or ${legacyDbPath}`);

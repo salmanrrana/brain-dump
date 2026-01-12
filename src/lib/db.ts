@@ -2,9 +2,17 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
 import { getDatabasePath, ensureDirectoriesSync } from "./xdg";
+import { migrateFromLegacySync } from "./migration";
 
 // Ensure XDG directories exist with proper permissions
 ensureDirectoriesSync();
+
+// Run migration from legacy ~/.brain-dump if needed
+// This must happen before opening the database
+const migrationResult = migrateFromLegacySync();
+if (migrationResult.migrated) {
+  console.log(`[DB] Migration completed: ${migrationResult.message}`);
+}
 
 // Get database path from XDG utility
 const dbPath = getDatabasePath();
