@@ -1877,3 +1877,68 @@ All automatable tasks are complete. Remaining work requires human interaction.
 
 ---
 
+
+### 2026-01-12 - Ticket-to-Code Workflow Documentation
+- Task: Define ticket-to-code workflow spec
+- Ticket ID: 025fd80a-fcd9-4ab3-8490-38ac086387af
+- Success: true
+- Agent: Ralph
+- Branch: feature/025fd80a-define-ticket-to-code-workflow-spec
+
+**Files Created:**
+- `plans/workflows/ticket-to-code.md` - Comprehensive workflow documentation
+
+**Documentation Contents:**
+1. Overview and prerequisites
+2. 10 step-by-step workflow guide
+3. MCP tools reference table
+4. Complete working example
+5. Environment consistency (Claude Code & VS Code)
+6. Ralph integration notes
+7. Troubleshooting section
+
+**Testing:**
+- All 298 tests passing
+- No type errors introduced
+
+**Notes:**
+- This workflow documentation complements the Fresh Eyes workflow docs
+- Covers the complete lifecycle from ticket selection to PR creation
+- Enables consistent behavior across environments
+
+---
+
+### 2026-01-12 - Backlog Cleanup: Previously Implemented Tickets
+- Agent: Ralph
+- Action: Marked already-completed tickets as done
+
+**Tickets Marked Done:**
+1. `a40a1cf6` - Ticket-to-Code Workflow
+   - MCP tools already implemented: start_ticket_work, link_commit_to_ticket, complete_ticket_work
+   - Documentation created: plans/workflows/ticket-to-code.md
+
+2. `6bca7cc0` - Ralph Cross-Environment Support
+   - Environment detection implemented in src/lib/environment.ts
+   - get_environment MCP tool available
+   - Ralph agent files work in both Claude Code and VS Code
+
+3. `ef2ed0f6` - VS Code Custom Agent Files
+   - All 4 agent files created in .github/agents/
+   - breakdown.agent.md, inception.agent.md, ralph.agent.md, simplify.agent.md
+   - Agent handoffs configured
+
+4. `33efed49` - Environment Detection System
+   - src/lib/environment.ts with detectEnvironment(), isClaudeCode(), isVSCode()
+   - get_environment MCP tool returns environment info
+   - Complete test coverage (42 tests)
+
+5. `81196c8d` - MCP Server VS Code Compatibility
+   - .vscode/mcp.json.example template created
+   - MCP server works with stdio transport
+   - Documentation in docs/vscode-quickstart.md
+
+**Notes:**
+- These tickets were implemented in previous iterations but not marked done
+- Cleaned up backlog to reflect actual completion status
+
+---
