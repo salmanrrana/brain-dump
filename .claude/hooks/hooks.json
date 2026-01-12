@@ -1,0 +1,15 @@
+{
+  "description": "Brain Dumpy automatic code review hooks - triggers pr-review-toolkit and code-simplifier agents after task completion",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "You are evaluating whether to trigger automatic code review after Claude's response.\n\nAnalyze the transcript to determine if significant source code changes were made using Write, Edit, or NotebookEdit tools.\n\nCode changes that should trigger review:\n- New source files (.ts, .tsx, .js, .jsx, .py, .go, .rs, etc.)\n- Modified source files\n- New or modified test files\n\nChanges that should NOT trigger review:\n- Documentation files (.md, README, etc.)\n- Configuration files (package.json, tsconfig.json, etc.)\n- Git operations (commits, merges)\n- Reading/searching files only\n- Conversation-only responses\n\nIf significant code changes were made, respond:\n{\n  \"ok\": false,\n  \"reason\": \"Code changes detected. Recommend running review pipeline: Launch the pr-review-toolkit:code-reviewer agent to check code against project guidelines, then pr-review-toolkit:silent-failure-hunter to check error handling, then code-simplifier:code-simplifier to simplify the code.\"\n}\n\nIf no code changes or only config/docs changes, respond:\n{\n  \"ok\": true\n}"
+          }
+        ]
+      }
+    ]
+  }
+}
