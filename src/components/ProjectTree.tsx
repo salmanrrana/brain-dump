@@ -8,39 +8,17 @@ import {
   Plus,
   Pencil,
 } from "lucide-react";
-
-// Types for projects and epics
-interface Epic {
-  id: string;
-  title: string;
-  description: string | null;
-  projectId: string;
-  color: string | null;
-  createdAt: string;
-}
-
-interface Project {
-  id: string;
-  name: string;
-  path: string;
-  color: string | null;
-  epics: Epic[];
-}
+import { type Epic, type ProjectBase, type ProjectWithEpics } from "../lib/hooks";
 
 interface ProjectTreeProps {
-  projects: Project[];
+  projects: ProjectWithEpics[];
   selectedProjectId: string | null;
   selectedEpicId: string | null;
   onSelectProject: (projectId: string | null) => void;
   onSelectEpic: (epicId: string | null, projectId: string) => void;
   onAddProject: () => void;
   onAddEpic: (projectId: string) => void;
-  onEditProject?: (project: {
-    id: string;
-    name: string;
-    path: string;
-    color: string | null;
-  }) => void;
+  onEditProject?: (project: ProjectBase) => void;
   onEditEpic?: (projectId: string, epic: Epic) => void;
 }
 
@@ -171,6 +149,7 @@ export default function ProjectTree({
                       name: project.name,
                       path: project.path,
                       color: project.color,
+                      workingMethod: project.workingMethod,
                     });
                   }}
                   className="p-0.5 hover:bg-slate-700 rounded opacity-0 group-hover:opacity-100 transition-opacity"

@@ -25,6 +25,7 @@ import {
   useLaunchProjectInception,
   useSettings,
   type Epic,
+  type ProjectBase,
   type SearchResult,
   type ModalState,
   type Filters,
@@ -46,7 +47,7 @@ interface AppState {
   // Modals
   modal: ModalState;
   openNewTicketModal: () => void;
-  openProjectModal: (project?: Project) => void;
+  openProjectModal: (project?: ProjectBase) => void;
   openEpicModal: (projectId: string, epic?: Epic) => void;
   openSettingsModal: () => void;
   closeModal: () => void;
@@ -85,13 +86,6 @@ function getInitialViewMode(): "kanban" | "list" {
   const stored = localStorage.getItem("brain-dump-view-mode");
   if (stored === "list" || stored === "kanban") return stored;
   return "kanban";
-}
-
-interface Project {
-  id: string;
-  name: string;
-  path: string;
-  color: string | null;
 }
 
 // Sanitize search snippet HTML - only allow safe highlight markers
@@ -684,12 +678,7 @@ function Sidebar() {
     openEpicModal(projectId);
   };
 
-  const handleEditProject = (project: {
-    id: string;
-    name: string;
-    path: string;
-    color: string | null;
-  }) => {
+  const handleEditProject = (project: ProjectBase) => {
     openProjectModal(project);
   };
 

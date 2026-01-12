@@ -125,13 +125,6 @@ export function isVSCode(): boolean {
 }
 
 /**
- * Check if the environment is known (not "unknown")
- */
-export function isKnownEnvironment(): boolean {
-  return detectEnvironment() !== "unknown";
-}
-
-/**
  * Get environment info including workspace path
  */
 export interface EnvironmentInfo {
