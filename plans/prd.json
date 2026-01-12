@@ -3,81 +3,6 @@
   "projectPath": "/home/xtra/code/personal_projects/brain-dumpy",
   "userStories": [
     {
-      "id": "5fb70ee6-55b4-435a-8f9f-a80012aa7c30",
-      "title": "Create environment detection utility",
-      "description": "## Task\nCreate a utility function to detect the current environment (Claude Code vs VS Code).\n\n## Detection Logic\n- Check for VS Code-specific env vars (VSCODE_*, etc.)\n- Check for Claude Code-specific indicators\n- Return: 'claude-code' | 'vscode' | 'unknown'\n\n## Acceptance Criteria\n- [ ] Utility function created\n- [ ] Correctly detects Claude Code\n- [ ] Correctly detects VS Code\n- [ ] Unit tests pass\n\n## File to Create\n`src/lib/environment.ts`",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "high",
-      "tags": [
-        "environment",
-        "utility"
-      ],
-      "passes": true
-    },
-    {
-      "id": "98bdd71a-ddf3-4d86-b97d-f8ab3ba39388",
-      "title": "Create get_environment MCP tool",
-      "description": "## Task\nAdd MCP tool that returns current environment info.\n\n## Returns\n```json\n{\n  \"environment\": \"claude-code\" | \"vscode\",\n  \"workspacePath\": \"/path/to/project\",\n  \"detectedProject\": { ... } | null\n}\n```\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Returns correct environment\n- [ ] Auto-detects project from workspace path\n\n## File to Modify\n`src/mcp/tools/`",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "high",
-      "tags": [
-        "mcp",
-        "environment"
-      ],
-      "passes": true
-    },
-    {
-      "id": "380f0052-65ff-45d0-b026-c67ed5092ed7",
-      "title": "Add working_method field to project schema",
-      "description": "## Task\nAdd working_method setting to project database schema.\n\n## Schema Change\nAdd column: `working_method TEXT DEFAULT 'auto'`\nValues: 'claude-code', 'vscode', 'auto'\n\n## Acceptance Criteria\n- [x] Migration created\n- [x] Schema updated\n- [x] Default is 'auto'\n\n## Files to Modify\n- `src/lib/schema.ts`\n- `drizzle/` (migration)",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "medium",
-      "tags": [
-        "database",
-        "settings"
-      ],
-      "passes": true
-    },
-    {
-      "id": "77609063-5af9-44d4-a3c7-2c0f0c5273f3",
-      "title": "Create get_project_settings MCP tool",
-      "description": "## Task\nAdd MCP tool to get project settings including working_method.\n\n## Returns\n```json\n{\n  \"projectId\": \"...\",\n  \"workingMethod\": \"auto\",\n  \"effectiveEnvironment\": \"claude-code\"\n}\n```\n\n## Acceptance Criteria\n- [x] Tool registered in MCP server\n- [x] Returns working_method setting\n- [x] Computes effective environment (auto resolves to detected)\n\n## File to Modify\n`src/mcp/tools/`",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "medium",
-      "tags": [
-        "mcp",
-        "settings"
-      ],
-      "passes": true
-    },
-    {
-      "id": "0e89965f-84ee-488b-ae2d-33431112e5a4",
-      "title": "Create update_project_settings MCP tool",
-      "description": "## Task\nAdd MCP tool to update project settings.\n\n## Parameters\n- projectId: string\n- workingMethod: 'claude-code' | 'vscode' | 'auto'\n\n## Acceptance Criteria\n- [x] Tool registered in MCP server\n- [x] Updates working_method in database\n- [x] Validates input values\n\n## File to Modify\n`src/mcp/tools/`",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "medium",
-      "tags": [
-        "mcp",
-        "settings"
-      ],
-      "passes": true
-    },
-    {
       "id": "9d07f06e-d58e-47f5-93ac-87881fd639cc",
       "title": "Add working method UI to project settings",
       "description": "## Task\nAdd UI dropdown in project edit modal for working method.\n\n## UI Changes\n- Add dropdown in ProjectModal\n- Options: Auto-detect, Claude Code, VS Code\n- Save to database on change\n\n## Acceptance Criteria\n- [ ] Dropdown appears in project edit\n- [ ] Changes persist to database\n- [ ] Shows current setting\n\n## File to Modify\n`src/components/ProjectModal.tsx`",
@@ -90,25 +15,9 @@
         "ui",
         "settings"
       ],
-      "passes": false
-    },
-    {
-      "id": "1c406cc1-507d-4e28-862c-fb7a91edd961",
-      "title": "Add context reset signal on ticket completion",
-      "description": "## Task\nWhen a ticket is marked complete, signal the AI to clear context and start fresh.\n\n## Approach Options\n1. **MCP tool response**: `complete_ticket_work` returns `{ clearContext: true }`\n2. **Agent instruction**: Include \"start new conversation\" guidance in completion message\n3. **Claude Code hook**: Use post-tool hook to suggest `/clear` command\n4. **VS Code**: Return message prompting user to start new chat session\n\n## Acceptance Criteria\n- [x] Completing a ticket signals need for fresh context\n- [x] Works in both Claude Code and VS Code\n- [x] Clear guidance to user/AI about starting fresh\n- [x] Document the \"fresh eyes\" workflow\n\n## Notes\nGoal: Each ticket gets worked on with clean context, no accumulated assumptions from previous work.",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "high",
-      "tags": [
-        "workflow",
-        "context",
-        "ux"
-      ],
       "passes": true
     }
   ],
-  "generatedAt": "2026-01-12T07:18:00.089Z",
+  "generatedAt": "2026-01-12T08:52:09.100Z",
   "epicTitle": "Cross-Environment Support"
 }

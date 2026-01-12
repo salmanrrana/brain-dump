@@ -9,7 +9,14 @@ interface Project {
   name: string;
   path: string;
   color: string | null;
+  workingMethod: string | null;
 }
+
+const WORKING_METHOD_OPTIONS = [
+  { value: "auto", label: "Auto-detect" },
+  { value: "claude-code", label: "Claude Code" },
+  { value: "vscode", label: "VS Code" },
+];
 
 interface ProjectModalProps {
   project?: Project | null;
@@ -29,6 +36,7 @@ export default function ProjectModal({
   const [name, setName] = useState(project?.name ?? "");
   const [path, setPath] = useState(project?.path ?? "");
   const [color, setColor] = useState(project?.color ?? "");
+  const [workingMethod, setWorkingMethod] = useState(project?.workingMethod ?? "auto");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDirectoryPickerOpen, setIsDirectoryPickerOpen] = useState(false);
 
@@ -62,6 +70,7 @@ export default function ProjectModal({
             name: trimmedName,
             path: trimmedPath,
             ...(color ? { color } : {}),
+            workingMethod: workingMethod as "auto" | "claude-code" | "vscode",
           },
         },
         { onSuccess: onSave }
@@ -226,6 +235,35 @@ export default function ProjectModal({
               </div>
             )}
           </div>
+
+          {/* Working Method (only show for editing) */}
+          {isEditing && (
+            <div>
+              <label className="block text-sm font-medium text-slate-400 mb-1">
+                Working Method
+              </label>
+              <div className="relative">
+                <select
+                  value={workingMethod}
+                  onChange={(e) => setWorkingMethod(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                >
+                  {WORKING_METHOD_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={16}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                />
+              </div>
+              <p className="mt-1 text-xs text-slate-500">
+                Controls environment detection for AI assistants
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

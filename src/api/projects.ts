@@ -17,6 +17,7 @@ export interface UpdateProjectInput {
   name?: string;
   path?: string;
   color?: string;
+  workingMethod?: "auto" | "claude-code" | "vscode";
 }
 
 // Get all projects
@@ -74,6 +75,7 @@ export const updateProject = createServerFn({ method: "POST" })
     if (updates.name !== undefined) updateData.name = updates.name.trim();
     if (updates.path !== undefined) updateData.path = updates.path.trim();
     if (updates.color !== undefined) updateData.color = updates.color;
+    if (updates.workingMethod !== undefined) updateData.workingMethod = updates.workingMethod;
 
     if (Object.keys(updateData).length > 0) {
       db.update(projects).set(updateData).where(eq(projects.id, id)).run();

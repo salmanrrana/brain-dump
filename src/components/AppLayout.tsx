@@ -92,6 +92,7 @@ interface Project {
   name: string;
   path: string;
   color: string | null;
+  workingMethod: string | null;
 }
 
 // Sanitize search snippet HTML - only allow safe highlight markers
@@ -689,6 +690,7 @@ function Sidebar() {
     name: string;
     path: string;
     color: string | null;
+    workingMethod: string | null;
   }) => {
     openProjectModal(project);
   };

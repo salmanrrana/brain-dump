@@ -115,7 +115,7 @@ export function useClickOutside(
 export type ModalState =
   | { type: "none" }
   | { type: "newTicket" }
-  | { type: "project"; project: { id: string; name: string; path: string; color: string | null } | null }
+  | { type: "project"; project: { id: string; name: string; path: string; color: string | null; workingMethod: string | null } | null }
   | { type: "epic"; projectId: string; epic: { id: string; title: string; description: string | null; projectId: string; color: string | null; createdAt: string } | null }
   | { type: "settings" }
   | { type: "shortcuts" };
@@ -123,7 +123,7 @@ export type ModalState =
 export interface UseModalReturn {
   modal: ModalState;
   openNewTicket: () => void;
-  openProject: (project?: { id: string; name: string; path: string; color: string | null }) => void;
+  openProject: (project?: { id: string; name: string; path: string; color: string | null; workingMethod: string | null }) => void;
   openEpic: (projectId: string, epic?: { id: string; title: string; description: string | null; projectId: string; color: string | null; createdAt: string }) => void;
   openSettings: () => void;
   openShortcuts: () => void;
@@ -142,7 +142,7 @@ export function useModal(): UseModalReturn {
     setModal({ type: "newTicket" });
   }, []);
 
-  const openProject = useCallback((project?: { id: string; name: string; path: string; color: string | null }) => {
+  const openProject = useCallback((project?: { id: string; name: string; path: string; color: string | null; workingMethod: string | null }) => {
     setModal({ type: "project", project: project ?? null });
   }, []);
 
@@ -373,6 +373,7 @@ export interface Project {
   name: string;
   path: string;
   color: string | null;
+  workingMethod: string | null;
   createdAt: string;
 }
 
@@ -500,7 +501,7 @@ export function useUpdateProject() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { id: string; updates: { name?: string; path?: string; color?: string } }) =>
+    mutationFn: (data: { id: string; updates: { name?: string; path?: string; color?: string; workingMethod?: "auto" | "claude-code" | "vscode" } }) =>
       updateProject({ data }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });

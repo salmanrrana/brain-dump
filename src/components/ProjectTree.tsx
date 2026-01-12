@@ -24,6 +24,7 @@ interface Project {
   name: string;
   path: string;
   color: string | null;
+  workingMethod: string | null;
   epics: Epic[];
 }
 
@@ -40,6 +41,7 @@ interface ProjectTreeProps {
     name: string;
     path: string;
     color: string | null;
+    workingMethod: string | null;
   }) => void;
   onEditEpic?: (projectId: string, epic: Epic) => void;
 }
@@ -171,6 +173,7 @@ export default function ProjectTree({
                       name: project.name,
                       path: project.path,
                       color: project.color,
+                      workingMethod: project.workingMethod,
                     });
                   }}
                   className="p-0.5 hover:bg-slate-700 rounded opacity-0 group-hover:opacity-100 transition-opacity"
