@@ -3,87 +3,112 @@
   "projectPath": "/home/xtra/code/personal_projects/brain-dumpy",
   "userStories": [
     {
-      "id": "e25afb2e-9074-4c25-976e-554d906effdb",
-      "title": "Create automatic migration from legacy ~/.brain-dump directory",
-      "description": "## Task\nImplement automatic one-time migration from old `~/.brain-dump/` to new XDG paths.\n\n## Migration Steps\n1. Check if legacy `~/.brain-dump/` exists\n2. Check if new XDG location already has data\n3. If legacy exists and XDG empty:\n   - Copy database to new location\n   - Copy attachments to new location\n   - Create `.migrated` marker in legacy dir\n   - Log migration success\n4. If both exist, warn user and use XDG\n\n## Safety Measures\n- Never delete legacy data automatically\n- Create backup before migration\n- Verify database integrity after copy\n- Atomic operations where possible\n\n## Acceptance Criteria\n- [ ] Migration runs automatically on first start\n- [ ] Legacy data preserved (not deleted)\n- [ ] Migration only happens once\n- [ ] Error handling for failed migrations\n- [ ] User informed of migration via log\n\n## File to Create\n`src/lib/migration.ts`",
+      "id": "5fb70ee6-55b4-435a-8f9f-a80012aa7c30",
+      "title": "Create environment detection utility",
+      "description": "## Task\nCreate a utility function to detect the current environment (Claude Code vs VS Code).\n\n## Detection Logic\n- Check for VS Code-specific env vars (VSCODE_*, etc.)\n- Check for Claude Code-specific indicators\n- Return: 'claude-code' | 'vscode' | 'unknown'\n\n## Acceptance Criteria\n- [ ] Utility function created\n- [ ] Correctly detects Claude Code\n- [ ] Correctly detects VS Code\n- [ ] Unit tests pass\n\n## File to Create\n`src/lib/environment.ts`",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
       ],
       "priority": "high",
       "tags": [
-        "xdg",
-        "migration",
-        "safety"
+        "environment",
+        "utility"
       ],
       "passes": true
     },
     {
-      "id": "a7bbca6d-a9da-4733-bf62-41f1da610f64",
-      "title": "Add manual backup/restore CLI commands",
-      "description": "## Task\nAdd CLI commands for manual backup and restore operations.\n\n## Commands\n```bash\nbrain-dump backup              # Create immediate backup\nbrain-dump backup --list       # List available backups\nbrain-dump restore <filename>  # Restore from backup\nbrain-dump restore --latest    # Restore most recent backup\n```\n\n## Restore Safety\n- Require confirmation for restore\n- Create backup of current DB before restore\n- Verify backup integrity before restore\n- Show diff summary (ticket counts, etc.)\n\n## Acceptance Criteria\n- [ ] `backup` command creates timestamped backup\n- [ ] `backup --list` shows available backups with dates\n- [ ] `restore` command works with confirmation\n- [ ] Pre-restore backup created automatically\n- [ ] Clear success/error messages\n\n## File to Modify\n`cli/brain-dump.ts`",
+      "id": "98bdd71a-ddf3-4d86-b97d-f8ab3ba39388",
+      "title": "Create get_environment MCP tool",
+      "description": "## Task\nAdd MCP tool that returns current environment info.\n\n## Returns\n```json\n{\n  \"environment\": \"claude-code\" | \"vscode\",\n  \"workspacePath\": \"/path/to/project\",\n  \"detectedProject\": { ... } | null\n}\n```\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Returns correct environment\n- [ ] Auto-detects project from workspace path\n\n## File to Modify\n`src/mcp/tools/`",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "high",
+      "tags": [
+        "mcp",
+        "environment"
+      ],
+      "passes": false
+    },
+    {
+      "id": "380f0052-65ff-45d0-b026-c67ed5092ed7",
+      "title": "Add working_method field to project schema",
+      "description": "## Task\nAdd working_method setting to project database schema.\n\n## Schema Change\nAdd column: `working_method TEXT DEFAULT 'auto'`\nValues: 'claude-code', 'vscode', 'auto'\n\n## Acceptance Criteria\n- [ ] Migration created\n- [ ] Schema updated\n- [ ] Default is 'auto'\n\n## Files to Modify\n- `src/lib/schema.ts`\n- `drizzle/` (migration)",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
       ],
       "priority": "medium",
       "tags": [
-        "cli",
-        "backup",
-        "restore"
-      ],
-      "passes": true
-    },
-    {
-      "id": "254bca98-5777-43a5-acdc-1319181c2b19",
-      "title": "Implement database lock file detection",
-      "description": "## Task\nAdd lock file mechanism to detect and handle multiple processes accessing the database.\n\n## Lock File Location\n`~/.local/state/brain-dumpy/brain-dumpy.lock`\n\n## Lock File Contents\n```json\n{\n  \"pid\": 12345,\n  \"startedAt\": \"2026-01-12T00:00:00Z\",\n  \"type\": \"mcp-server\" | \"cli\" | \"vite\"\n}\n```\n\n## Behavior\n- Create lock on database open\n- Check if existing lock is stale (process not running)\n- Warn if another process has lock\n- Clean up lock on graceful shutdown\n- Handle SIGTERM/SIGINT for cleanup\n\n## Acceptance Criteria\n- [ ] Lock file created on DB access\n- [ ] Stale locks detected and cleaned\n- [ ] Warning shown for concurrent access\n- [ ] Lock cleaned up on shutdown\n- [ ] Works across MCP server, CLI, and Vite\n\n## File to Create\n`src/lib/lockfile.ts`",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "high",
-      "tags": [
         "database",
-        "concurrency",
-        "safety"
+        "settings"
       ],
-      "passes": true
+      "passes": false
     },
     {
-      "id": "b892ddcc-b0d7-44ab-8239-a9f252af7c5a",
-      "title": "Add file-based logging system",
-      "description": "## Task\nImplement file-based logging for debugging and audit trail.\n\n## Log Location\n`~/.local/state/brain-dumpy/logs/`\n\n## Log Files\n- `brain-dumpy.log` - Main application log (rotated)\n- `mcp-server.log` - MCP server specific logs\n- `error.log` - Errors only (for quick debugging)\n\n## Log Format\n```\n2026-01-12T00:00:00.000Z [INFO] [mcp-server] Tool called: create_ticket\n2026-01-12T00:00:00.000Z [ERROR] [database] Failed to write: SQLITE_BUSY\n```\n\n## Features\n- Log levels: DEBUG, INFO, WARN, ERROR\n- Automatic rotation (keep 5 files, 10MB each)\n- Configurable log level via env var\n- Async file writes (non-blocking)\n\n## Acceptance Criteria\n- [ ] Logs written to XDG state directory\n- [ ] Log rotation working\n- [ ] All major operations logged\n- [ ] Errors include stack traces\n- [ ] LOG_LEVEL env var respected\n\n## File to Create\n`src/lib/logger.ts`",
+      "id": "77609063-5af9-44d4-a3c7-2c0f0c5273f3",
+      "title": "Create get_project_settings MCP tool",
+      "description": "## Task\nAdd MCP tool to get project settings including working_method.\n\n## Returns\n```json\n{\n  \"projectId\": \"...\",\n  \"workingMethod\": \"auto\",\n  \"effectiveEnvironment\": \"claude-code\"\n}\n```\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Returns working_method setting\n- [ ] Computes effective environment (auto resolves to detected)\n\n## File to Modify\n`src/mcp/tools/`",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
       ],
       "priority": "medium",
       "tags": [
-        "logging",
-        "debugging",
-        "observability"
+        "mcp",
+        "settings"
       ],
-      "passes": true
+      "passes": false
     },
     {
-      "id": "e5aebb29-3760-403c-8978-a975f2f448e8",
-      "title": "Add database file watcher for deletion detection",
-      "description": "## Task\nImplement file system watcher to detect if database files are unexpectedly deleted while in use.\n\n## Context\nThis ticket was created after a mysterious database deletion incident where the .db files were deleted while processes held open file handles.\n\n## Implementation\n- Watch database directory for deletion events\n- Detect if .db, .db-wal, or .db-shm files are deleted\n- If deletion detected while DB open:\n  - Log critical error immediately\n  - Attempt emergency backup from memory\n  - Alert user via MCP response or CLI output\n  - Prevent further writes to avoid data loss\n\n## Technical Approach\n```typescript\nimport { watch } from 'fs';\n\nfunction watchDatabaseFiles(dbPath: string) {\n  const watcher = watch(dirname(dbPath), (event, filename) => {\n    if (filename?.endsWith('.db') && event === 'rename') {\n      // File might be deleted - check if it exists\n      if (!existsSync(dbPath)) {\n        handleDatabaseDeletion();\n      }\n    }\n  });\n}\n```\n\n## Acceptance Criteria\n- [ ] Watcher detects .db file deletion\n- [ ] Critical error logged immediately\n- [ ] Emergency backup attempted\n- [ ] User alerted via available channel\n- [ ] Further writes prevented\n\n## File to Create\n`src/lib/db-watcher.ts`",
+      "id": "0e89965f-84ee-488b-ae2d-33431112e5a4",
+      "title": "Create update_project_settings MCP tool",
+      "description": "## Task\nAdd MCP tool to update project settings.\n\n## Parameters\n- projectId: string\n- workingMethod: 'claude-code' | 'vscode' | 'auto'\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Updates working_method in database\n- [ ] Validates input values\n\n## File to Modify\n`src/mcp/tools/`",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "medium",
+      "tags": [
+        "mcp",
+        "settings"
+      ],
+      "passes": false
+    },
+    {
+      "id": "9d07f06e-d58e-47f5-93ac-87881fd639cc",
+      "title": "Add working method UI to project settings",
+      "description": "## Task\nAdd UI dropdown in project edit modal for working method.\n\n## UI Changes\n- Add dropdown in ProjectModal\n- Options: Auto-detect, Claude Code, VS Code\n- Save to database on change\n\n## Acceptance Criteria\n- [ ] Dropdown appears in project edit\n- [ ] Changes persist to database\n- [ ] Shows current setting\n\n## File to Modify\n`src/components/ProjectModal.tsx`",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "low",
+      "tags": [
+        "ui",
+        "settings"
+      ],
+      "passes": false
+    },
+    {
+      "id": "1c406cc1-507d-4e28-862c-fb7a91edd961",
+      "title": "Add context reset signal on ticket completion",
+      "description": "## Task\nWhen a ticket is marked complete, signal the AI to clear context and start fresh.\n\n## Approach Options\n1. **MCP tool response**: `complete_ticket_work` returns `{ clearContext: true }`\n2. **Agent instruction**: Include \"start new conversation\" guidance in completion message\n3. **Claude Code hook**: Use post-tool hook to suggest `/clear` command\n4. **VS Code**: Return message prompting user to start new chat session\n\n## Acceptance Criteria\n- [ ] Completing a ticket signals need for fresh context\n- [ ] Works in both Claude Code and VS Code\n- [ ] Clear guidance to user/AI about starting fresh\n- [ ] Document the \"fresh eyes\" workflow\n\n## Notes\nGoal: Each ticket gets worked on with clean context, no accumulated assumptions from previous work.",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
       ],
       "priority": "high",
       "tags": [
-        "database",
-        "safety",
-        "monitoring",
-        "incident-response"
+        "workflow",
+        "context",
+        "ux"
       ],
-      "passes": true
+      "passes": false
     }
   ],
-  "generatedAt": "2026-01-12T05:39:13.954Z",
-  "epicTitle": "XDG Migration & Data Protection"
+  "generatedAt": "2026-01-12T07:18:00.089Z",
+  "epicTitle": "Cross-Environment Support"
 }
