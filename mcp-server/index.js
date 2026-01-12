@@ -17,8 +17,9 @@ import Database from "better-sqlite3";
 import { randomUUID } from "crypto";
 import { homedir } from "os";
 import { join } from "path";
-import { existsSync, writeFileSync, unlinkSync, readFileSync, mkdirSync } from "fs";
+import { existsSync, writeFileSync, unlinkSync, readFileSync, mkdirSync, watch, appendFileSync, statSync } from "fs";
 import { execSync } from "child_process";
+import { dirname, basename } from "path";
 
 // =============================================================================
 // LOGGING - All output MUST go to stderr for STDIO transport
@@ -179,6 +180,9 @@ function setupGracefulShutdown(dbInstance) {
     log.info(`Received ${signal}, shutting down gracefully`);
 
     try {
+      // Stop database file watcher
+      stopDatabaseWatcher();
+
       // Checkpoint WAL to ensure all data is written
       if (dbInstance) {
         try {
@@ -500,6 +504,125 @@ function performDailyBackupSync(sourcePath) {
 }
 
 // =============================================================================
+// DATABASE FILE WATCHER
+// =============================================================================
+
+/**
+ * Watcher state - tracks active file system watcher
+ */
+let dbWatcher = {
+  watcher: null,
+  dbPath: "",
+  isWatching: false,
+  deletionDetected: false,
+};
+
+/**
+ * Log a deletion event to the state directory
+ */
+function logDeletionEvent(deletedFile) {
+  try {
+    const logPath = join(getStateDir(), "deletion-events.log");
+    const timestamp = new Date().toISOString();
+    const entry = `${timestamp} DELETED: ${deletedFile}\n`;
+    appendFileSync(logPath, entry, { mode: 0o600 });
+    log.error(`Deletion logged to ${logPath}`);
+  } catch (error) {
+    log.error(`Failed to log deletion event: ${error.message}`);
+  }
+}
+
+/**
+ * Default deletion handler - logs and alerts
+ */
+function handleDatabaseDeletion(deletedFile) {
+  logDeletionEvent(deletedFile);
+  log.error(`CRITICAL: Database file "${deletedFile}" was deleted!`);
+  log.error("Data may be lost. Check for processes or scripts that may have removed the file.");
+  log.error(`If you have a recent backup, you may be able to restore from: ${join(getStateDir(), "backups")}`);
+}
+
+/**
+ * Handle potential file deletion event from watcher
+ */
+function handlePotentialDeletion(filename, dbPath) {
+  if (!filename) return;
+
+  const dbBasename = basename(dbPath);
+  const isDbFile =
+    filename === dbBasename ||
+    filename === `${dbBasename}-wal` ||
+    filename === `${dbBasename}-shm`;
+
+  if (!isDbFile) return;
+
+  // Verify the file is actually gone
+  const filePath = filename === dbBasename ? dbPath : join(dirname(dbPath), filename);
+
+  if (!existsSync(filePath)) {
+    if (!dbWatcher.deletionDetected) {
+      dbWatcher.deletionDetected = true;
+      log.error(`CRITICAL: Database file deleted: ${filename}`);
+      log.error(`Full path: ${filePath}`);
+      handleDatabaseDeletion(filename);
+    }
+  }
+}
+
+/**
+ * Start watching database files for unexpected deletion
+ */
+function startDatabaseWatcher(dbPath) {
+  if (dbWatcher.isWatching) {
+    log.info("Already watching database files");
+    return true;
+  }
+
+  const dbDir = dirname(dbPath);
+  if (!existsSync(dbDir) || !existsSync(dbPath)) {
+    log.error(`Cannot start watcher: database or directory does not exist`);
+    return false;
+  }
+
+  try {
+    const watcher = watch(dbDir, (event, filename) => {
+      if (event === "rename") {
+        handlePotentialDeletion(filename, dbPath);
+      }
+    });
+
+    watcher.on("error", (error) => {
+      log.error(`Database watcher error: ${error.message}`);
+    });
+
+    dbWatcher = {
+      watcher,
+      dbPath,
+      isWatching: true,
+      deletionDetected: false,
+    };
+
+    log.info(`Started watching database: ${dbPath}`);
+    return true;
+  } catch (error) {
+    log.error(`Failed to start database watcher: ${error.message}`);
+    return false;
+  }
+}
+
+/**
+ * Stop the database file watcher
+ */
+function stopDatabaseWatcher() {
+  if (dbWatcher.watcher) {
+    try {
+      dbWatcher.watcher.close();
+    } catch { /* ignore */ }
+  }
+  dbWatcher = { watcher: null, dbPath: "", isWatching: false, deletionDetected: false };
+}
+
+// =============================================================================
 // DATABASE CONNECTION
 // =============================================================================
 // Ensure XDG directories exist
@@ -566,6 +689,9 @@ try {
   } else {
     log.info(`Warning: ${lockResult.message}`);
   }
+
+  // Start watching for unexpected database file deletions
+  startDatabaseWatcher(actualDbPath);
 } catch (error) {
   log.error(`Failed to open database at ${dbPath}`, error);
   process.exit(1);

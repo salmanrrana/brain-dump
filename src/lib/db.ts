@@ -5,6 +5,7 @@ import { getDatabasePath, ensureDirectoriesSync } from "./xdg";
 import { migrateFromLegacySync } from "./migration";
 import { performDailyBackupSync } from "./backup";
 import { initializeLockSync } from "./lockfile";
+import { initializeWatcher, stopWatching } from "./db-watcher";
 
 // Ensure XDG directories exist with proper permissions
 ensureDirectoriesSync();
@@ -28,6 +29,7 @@ sqlite.pragma("foreign_keys = ON");
 // This ensures lock is cleaned up and WAL is checkpointed on shutdown
 const lockResult = initializeLockSync("vite", () => {
   try {
+    stopWatching(); // Stop file watcher
     sqlite.pragma("wal_checkpoint(TRUNCATE)");
     sqlite.close();
   } catch {
@@ -36,6 +38,11 @@ const lockResult = initializeLockSync("vite", () => {
 });
 if (lockResult.acquired) {
   console.log(`[DB] ${lockResult.message}`);
+}
+
+// Start watching for unexpected database file deletions
+if (initializeWatcher(dbPath)) {
+  console.log(`[DB] Database file watcher started`);
 }
 
 // Auto-create tables if they don't exist
