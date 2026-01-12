@@ -20,25 +20,16 @@ export interface CleanupResult {
   message: string;
 }
 
-/**
- * Get the date string for today in YYYY-MM-DD format
- */
 function getTodayDateString(): string {
   const now = new Date();
   const isoString = now.toISOString();
-  return isoString.substring(0, 10); // YYYY-MM-DD is always the first 10 characters
+  return isoString.substring(0, 10);
 }
 
-/**
- * Get the path to the last backup marker file
- */
 function getLastBackupMarkerPath(): string {
   return join(getBackupsDir(), LAST_BACKUP_FILE);
 }
 
-/**
- * Check if a backup was already created today
- */
 export function wasBackupCreatedToday(): boolean {
   const markerPath = getLastBackupMarkerPath();
   if (!existsSync(markerPath)) {
@@ -56,16 +47,10 @@ export function wasBackupCreatedToday(): boolean {
   }
 }
 
-/**
- * Update the last backup marker to today
- */
 function updateLastBackupMarker(): void {
   const markerPath = getLastBackupMarkerPath();
-
-  // Ensure backups directory exists
   ensureDirectoriesSync();
 
-  // Touch the marker file
   try {
     writeFileSync(markerPath, new Date().toISOString(), { mode: 0o600 });
   } catch (error) {
@@ -73,24 +58,15 @@ function updateLastBackupMarker(): void {
   }
 }
 
-/**
- * Generate the backup filename for a given date
- */
 export function getBackupFilename(dateString?: string): string {
   const date = dateString || getTodayDateString();
   return `${BACKUP_PREFIX}${date}${BACKUP_SUFFIX}`;
 }
 
-/**
- * Get the full path to today's backup file
- */
 export function getTodayBackupPath(): string {
   return join(getBackupsDir(), getBackupFilename());
 }
 
-/**
- * List all existing backup files sorted by date (newest first)
- */
 export function listBackups(): { filename: string; date: string; path: string; size: number }[] {
   const backupsDir = getBackupsDir();
 
@@ -102,7 +78,6 @@ export function listBackups(): { filename: string; date: string; path: string; s
   const backups: { filename: string; date: string; path: string; size: number }[] = [];
 
   for (const file of files) {
-    // Match backup filename pattern: brain-dumpy-YYYY-MM-DD.db
     const match = file.match(/^brain-dumpy-(\d{4}-\d{2}-\d{2})\.db$/);
     if (match && match[1]) {
       const dateStr = match[1];
@@ -121,7 +96,6 @@ export function listBackups(): { filename: string; date: string; path: string; s
     }
   }
 
-  // Sort by date descending (newest first)
   backups.sort((a, b) => b.date.localeCompare(a.date));
 
   return backups;
@@ -195,9 +169,6 @@ export function createBackup(sourcePath?: string, targetPath?: string): BackupRe
   }
 }
 
-/**
- * Verify a backup database is valid using integrity check
- */
 export function verifyBackup(backupPath: string): boolean {
   if (!existsSync(backupPath)) {
     return false;
@@ -215,14 +186,7 @@ export function verifyBackup(backupPath: string): boolean {
   }
 }
 
-/**
- * Create a backup if one hasn't been created today.
- * This is the main function to call on startup.
- *
- * @param force - If true, create backup even if one exists for today
- */
 export function createBackupIfNeeded(force = false): BackupResult {
-  // Check if backup already exists for today
   if (!force && wasBackupCreatedToday()) {
     return {
       success: true,
@@ -231,10 +195,8 @@ export function createBackupIfNeeded(force = false): BackupResult {
     };
   }
 
-  // Check if today's backup file already exists
   const todayBackupPath = getTodayBackupPath();
   if (!force && existsSync(todayBackupPath)) {
-    // Update marker and return
     updateLastBackupMarker();
     return {
       success: true,
@@ -244,22 +206,15 @@ export function createBackupIfNeeded(force = false): BackupResult {
     };
   }
 
-  // Create the backup
   const result = createBackup();
 
   if (result.success) {
-    // Update the marker file
     updateLastBackupMarker();
   }
 
   return result;
 }
 
-/**
- * Clean up old backups, keeping only the most recent ones.
- *
- * @param keepDays - Number of daily backups to keep (default: 7)
- */
 export function cleanupOldBackups(keepDays = 7): CleanupResult {
   const backups = listBackups();
 
@@ -291,11 +246,6 @@ export function cleanupOldBackups(keepDays = 7): CleanupResult {
   };
 }
 
-/**
- * Perform daily backup maintenance: create backup if needed and cleanup old ones.
- * This is the recommended function to call on application startup.
- * Note: This is async for API consistency but operations are synchronous.
- */
 export async function performDailyBackup(keepDays = 7): Promise<{
   backup: BackupResult;
   cleanup: CleanupResult;
@@ -303,9 +253,6 @@ export async function performDailyBackup(keepDays = 7): Promise<{
   return performDailyBackupSync(keepDays);
 }
 
-/**
- * Synchronous version of performDailyBackup for startup use.
- */
 export function performDailyBackupSync(keepDays = 7): {
   backup: BackupResult;
   cleanup: CleanupResult;
@@ -322,9 +269,6 @@ export interface RestoreResult {
   preRestoreBackupPath?: string;
 }
 
-/**
- * Get database statistics for comparison during restore
- */
 export function getDatabaseStats(dbPath: string): {
   projects: number;
   epics: number;
@@ -337,7 +281,6 @@ export function getDatabaseStats(dbPath: string): {
   try {
     const db = new Database(dbPath, { readonly: true });
 
-    // Check if tables exist
     const tablesExist = db
       .prepare(
         "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('projects', 'epics', 'tickets')"
@@ -372,19 +315,12 @@ export function getDatabaseStats(dbPath: string): {
 }
 
 /**
- * Restore database from a backup file.
- *
- * Safety measures:
- * - Creates a pre-restore backup of the current database
- * - Verifies backup integrity before restoring
- * - Uses atomic copy operations
- *
- * @param backupPath - Path to the backup file to restore from
+ * Restore database from a backup file. Creates a pre-restore backup,
+ * verifies integrity, and uses atomic copy operations.
  */
 export function restoreFromBackup(backupPath: string): RestoreResult {
   const currentDbPath = getDatabasePath();
 
-  // Verify backup file exists
   if (!existsSync(backupPath)) {
     return {
       success: false,
@@ -392,7 +328,6 @@ export function restoreFromBackup(backupPath: string): RestoreResult {
     };
   }
 
-  // Verify backup integrity
   if (!verifyBackup(backupPath)) {
     return {
       success: false,
@@ -400,15 +335,12 @@ export function restoreFromBackup(backupPath: string): RestoreResult {
     };
   }
 
-  // Create pre-restore backup of current database
   const preRestoreFilename = `pre-restore-${Date.now()}.db`;
   const preRestoreBackupPath = join(getBackupsDir(), preRestoreFilename);
 
   try {
-    // Ensure backups directory exists
     ensureDirectoriesSync();
 
-    // Create pre-restore backup
     if (existsSync(currentDbPath)) {
       const db = new Database(currentDbPath, { readonly: true });
       db.exec(`VACUUM INTO '${preRestoreBackupPath.replace(/'/g, "''")}'`);
@@ -416,7 +348,6 @@ export function restoreFromBackup(backupPath: string): RestoreResult {
       console.log(`[Restore] Created pre-restore backup: ${preRestoreBackupPath}`);
     }
 
-    // Remove existing database files before restoring
     const walPath = currentDbPath + "-wal";
     const shmPath = currentDbPath + "-shm";
 
@@ -430,12 +361,9 @@ export function restoreFromBackup(backupPath: string): RestoreResult {
       unlinkSync(shmPath);
     }
 
-    // Copy backup to database location
     copyFileSync(backupPath, currentDbPath);
 
-    // Verify restored database
     if (!verifyBackup(currentDbPath)) {
-      // Restore failed, try to recover from pre-restore backup
       if (existsSync(preRestoreBackupPath)) {
         copyFileSync(preRestoreBackupPath, currentDbPath);
       }
@@ -464,9 +392,6 @@ export function restoreFromBackup(backupPath: string): RestoreResult {
   }
 }
 
-/**
- * Get the most recent backup file
- */
 export function getLatestBackup(): {
   filename: string;
   date: string;

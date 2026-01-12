@@ -3,13 +3,6 @@ import Database from "better-sqlite3";
 import { getDatabasePath } from "./xdg";
 import { listBackups } from "./backup";
 
-/**
- * Database Integrity Check Module
- *
- * Provides SQLite integrity checks to detect corruption early.
- * Runs quick checks on startup and full checks on demand.
- */
-
 export interface IntegrityCheckResult {
   success: boolean;
   status: "ok" | "warning" | "error";
@@ -34,15 +27,9 @@ export interface FullCheckResult {
   suggestions: string[];
 }
 
-/**
- * Required tables for Brain Dumpy to function
- */
 const REQUIRED_TABLES = ["projects", "epics", "tickets", "settings", "ticket_comments"];
 
-/**
- * Perform a quick integrity check (fast, for startup)
- * Uses PRAGMA integrity_check(1) which stops at first error.
- */
+/** Uses PRAGMA integrity_check(1) which stops at first error. */
 export function quickIntegrityCheck(dbPath?: string): QuickCheckResult {
   const targetPath = dbPath || getDatabasePath();
   const startTime = Date.now();
@@ -58,8 +45,6 @@ export function quickIntegrityCheck(dbPath?: string): QuickCheckResult {
 
   try {
     const db = new Database(targetPath, { readonly: true });
-
-    // Quick integrity check - stops at first error
     const result = db.pragma("integrity_check(1)") as { integrity_check: string }[];
     db.close();
 
@@ -93,10 +78,7 @@ export function quickIntegrityCheck(dbPath?: string): QuickCheckResult {
   }
 }
 
-/**
- * Perform full integrity check (PRAGMA integrity_check without limit)
- * This checks all pages and can be slow on large databases.
- */
+/** Checks all pages - can be slow on large databases. */
 export function fullIntegrityCheck(dbPath?: string): IntegrityCheckResult {
   const targetPath = dbPath || getDatabasePath();
 
@@ -111,8 +93,6 @@ export function fullIntegrityCheck(dbPath?: string): IntegrityCheckResult {
 
   try {
     const db = new Database(targetPath, { readonly: true });
-
-    // Full integrity check
     const result = db.pragma("integrity_check") as { integrity_check: string }[];
     db.close();
 
@@ -145,9 +125,6 @@ export function fullIntegrityCheck(dbPath?: string): IntegrityCheckResult {
   }
 }
 
-/**
- * Check foreign key integrity
- */
 export function foreignKeyCheck(dbPath?: string): IntegrityCheckResult {
   const targetPath = dbPath || getDatabasePath();
 
@@ -162,8 +139,6 @@ export function foreignKeyCheck(dbPath?: string): IntegrityCheckResult {
 
   try {
     const db = new Database(targetPath, { readonly: true });
-
-    // Foreign key check returns rows for violations
     const result = db.pragma("foreign_key_check") as {
       table: string;
       rowid: number;
@@ -201,9 +176,6 @@ export function foreignKeyCheck(dbPath?: string): IntegrityCheckResult {
   }
 }
 
-/**
- * Check WAL file consistency
- */
 export function walCheck(dbPath?: string): IntegrityCheckResult {
   const targetPath = dbPath || getDatabasePath();
 
@@ -221,13 +193,11 @@ export function walCheck(dbPath?: string): IntegrityCheckResult {
   const details: string[] = [];
   let status: "ok" | "warning" | "error" = "ok";
 
-  // Check if WAL exists but SHM doesn't (inconsistent state)
   if (existsSync(walPath) && !existsSync(shmPath)) {
     details.push("WAL file exists without SHM file - possible corruption");
     status = "warning";
   }
 
-  // Check WAL file size
   if (existsSync(walPath)) {
     try {
       const walStats = statSync(walPath);
@@ -249,12 +219,10 @@ export function walCheck(dbPath?: string): IntegrityCheckResult {
   try {
     const db = new Database(targetPath, { readonly: true });
 
-    // Check journal mode
     const journalMode = db.pragma("journal_mode") as { journal_mode: string }[];
     const mode = journalMode[0]?.journal_mode || "unknown";
     details.push(`Journal mode: ${mode}`);
 
-    // Get WAL checkpoint info
     if (mode === "wal") {
       const checkpointInfo = db.pragma("wal_checkpoint(PASSIVE)") as {
         busy: number;
@@ -293,9 +261,6 @@ export function walCheck(dbPath?: string): IntegrityCheckResult {
   }
 }
 
-/**
- * Check that expected tables exist
- */
 export function tableCheck(dbPath?: string): IntegrityCheckResult {
   const targetPath = dbPath || getDatabasePath();
 
@@ -311,7 +276,6 @@ export function tableCheck(dbPath?: string): IntegrityCheckResult {
   try {
     const db = new Database(targetPath, { readonly: true });
 
-    // Get all tables
     const tables = db
       .prepare("SELECT name FROM sqlite_master WHERE type='table'")
       .all() as { name: string }[];
@@ -349,10 +313,6 @@ export function tableCheck(dbPath?: string): IntegrityCheckResult {
   }
 }
 
-/**
- * Perform comprehensive database health check.
- * Runs all checks and provides suggestions for issues found.
- */
 export function fullDatabaseCheck(dbPath?: string): FullCheckResult {
   const startTime = Date.now();
 
@@ -362,8 +322,6 @@ export function fullDatabaseCheck(dbPath?: string): FullCheckResult {
   const tableResult = tableCheck(dbPath);
 
   const suggestions: string[] = [];
-
-  // Determine overall status
   let overallStatus: "ok" | "warning" | "error" = "ok";
 
   if (
@@ -381,7 +339,6 @@ export function fullDatabaseCheck(dbPath?: string): FullCheckResult {
     overallStatus = "warning";
   }
 
-  // Generate suggestions based on findings
   if (integrityCheck.status === "error") {
     suggestions.push("Database corruption detected - restore from backup recommended");
     const backups = listBackups();
@@ -418,11 +375,6 @@ export function fullDatabaseCheck(dbPath?: string): FullCheckResult {
   };
 }
 
-/**
- * Perform startup integrity check.
- * This is a quick check designed to run on every startup.
- * Returns true if database is healthy, false if issues detected.
- */
 export function startupIntegrityCheck(dbPath?: string): {
   healthy: boolean;
   message: string;
@@ -440,7 +392,6 @@ export function startupIntegrityCheck(dbPath?: string): {
     };
   }
 
-  // Quick check failed - we have a problem
   const backups = listBackups();
   const hasBackups = backups.length > 0;
 

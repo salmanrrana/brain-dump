@@ -4,18 +4,12 @@ import { getStateDir } from "./xdg";
 
 const LOCK_FILE_NAME = "brain-dumpy.lock";
 
-/**
- * Lock file contents structure
- */
 export interface LockInfo {
   pid: number;
   startedAt: string;
   type: "mcp-server" | "cli" | "vite";
 }
 
-/**
- * Result of checking lock status
- */
 export interface LockCheckResult {
   isLocked: boolean;
   lockInfo: LockInfo | null;
@@ -23,31 +17,22 @@ export interface LockCheckResult {
   message: string;
 }
 
-/**
- * Get the lock file path.
- */
 export function getLockFilePath(): string {
   return join(getStateDir(), LOCK_FILE_NAME);
 }
 
-/**
- * Check if a process with the given PID is running.
- */
 export function isProcessRunning(pid: number): boolean {
   try {
-    // Sending signal 0 doesn't kill the process, just checks if it exists
+    // Signal 0 checks if process exists without killing it
     process.kill(pid, 0);
     return true;
   } catch (e) {
     const error = e as NodeJS.ErrnoException;
-    // ESRCH means process not found, EPERM means process exists but we can't signal it
+    // EPERM means process exists but we can't signal it
     return error.code === "EPERM";
   }
 }
 
-/**
- * Read the current lock file if it exists.
- */
 export function readLockFile(): LockInfo | null {
   const lockPath = getLockFilePath();
 
@@ -59,13 +44,11 @@ export function readLockFile(): LockInfo | null {
     const content = readFileSync(lockPath, "utf-8");
     const lockInfo = JSON.parse(content) as LockInfo;
 
-    // Validate the lock info structure
     if (
       typeof lockInfo.pid !== "number" ||
       typeof lockInfo.startedAt !== "string" ||
       !["mcp-server", "cli", "vite"].includes(lockInfo.type)
     ) {
-      // Invalid lock file format, treat as no lock
       return null;
     }
 
@@ -76,9 +59,6 @@ export function readLockFile(): LockInfo | null {
   }
 }
 
-/**
- * Check if there's an active lock and whether it's stale.
- */
 export function checkLock(): LockCheckResult {
   const lockInfo = readLockFile();
 
@@ -110,10 +90,6 @@ export function checkLock(): LockCheckResult {
   };
 }
 
-/**
- * Acquire a lock for database access.
- * Returns true if lock was acquired, false if database is already locked.
- */
 export function acquireLock(type: LockInfo["type"]): {
   acquired: boolean;
   message: string;
@@ -122,7 +98,6 @@ export function acquireLock(type: LockInfo["type"]): {
   const lockPath = getLockFilePath();
   const check = checkLock();
 
-  // If there's a stale lock, clean it up first
   if (check.isStale) {
     try {
       unlinkSync(lockPath);
@@ -132,10 +107,8 @@ export function acquireLock(type: LockInfo["type"]): {
     }
   }
 
-  // If there's an active lock from another process, warn but continue
   // SQLite with WAL mode can handle concurrent readers
   if (check.isLocked && check.lockInfo) {
-    // Check if this is our own process (re-acquiring)
     if (check.lockInfo.pid === process.pid) {
       return {
         acquired: true,
@@ -144,13 +117,11 @@ export function acquireLock(type: LockInfo["type"]): {
       };
     }
 
-    // Another process has the lock - warn but don't block
     console.error(
       `[brain-dumpy] Warning: ${check.message}. Concurrent access may cause issues.`
     );
   }
 
-  // Create new lock
   const lockInfo: LockInfo = {
     pid: process.pid,
     startedAt: new Date().toISOString(),
@@ -159,7 +130,7 @@ export function acquireLock(type: LockInfo["type"]): {
 
   try {
     writeFileSync(lockPath, JSON.stringify(lockInfo, null, 2), {
-      mode: 0o600, // Only owner can read/write
+      mode: 0o600,
     });
 
     return {
@@ -177,9 +148,6 @@ export function acquireLock(type: LockInfo["type"]): {
   }
 }
 
-/**
- * Release the lock if held by this process.
- */
 export function releaseLock(): { released: boolean; message: string } {
   const lockPath = getLockFilePath();
   const lockInfo = readLockFile();
@@ -191,7 +159,6 @@ export function releaseLock(): { released: boolean; message: string } {
     };
   }
 
-  // Only release if this process owns the lock
   if (lockInfo.pid !== process.pid) {
     return {
       released: false,
@@ -214,12 +181,7 @@ export function releaseLock(): { released: boolean; message: string } {
   }
 }
 
-/**
- * Setup signal handlers for graceful shutdown.
- * Ensures lock file is cleaned up when process terminates.
- *
- * @param cleanupCallback Optional additional cleanup to run before releasing lock
- */
+/** Ensures lock file is cleaned up when process terminates. */
 export function setupGracefulShutdown(
   cleanupCallback?: () => Promise<void> | void
 ): void {
@@ -234,12 +196,10 @@ export function setupGracefulShutdown(
     console.error(`[brain-dumpy] Received ${signal}, shutting down gracefully`);
 
     try {
-      // Run custom cleanup if provided
       if (cleanupCallback) {
         await cleanupCallback();
       }
 
-      // Release the lock
       const result = releaseLock();
       if (result.released) {
         console.error(`[brain-dumpy] ${result.message}`);
@@ -249,16 +209,13 @@ export function setupGracefulShutdown(
       console.error(`[brain-dumpy] Error during shutdown: ${error.message}`);
     }
 
-    // Exit with appropriate code
     process.exit(signal === "SIGTERM" || signal === "SIGINT" ? 0 : 1);
   };
 
-  // Handle termination signals
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
   process.on("SIGQUIT", () => shutdown("SIGQUIT"));
 
-  // Handle uncaught exceptions and unhandled rejections
   process.on("uncaughtException", (error) => {
     console.error(`[brain-dumpy] Uncaught exception:`, error);
     releaseLock();
@@ -271,9 +228,7 @@ export function setupGracefulShutdown(
     process.exit(1);
   });
 
-  // Handle normal exit
   process.on("exit", () => {
-    // Synchronous cleanup only - async won't work in exit handler
     const lockInfo = readLockFile();
     if (lockInfo && lockInfo.pid === process.pid) {
       try {
@@ -285,25 +240,18 @@ export function setupGracefulShutdown(
   });
 }
 
-/**
- * Synchronous version of lock acquisition for startup.
- * Combines directory check, lock acquisition, and signal setup.
- */
 export function initializeLockSync(
   type: LockInfo["type"],
   cleanupCallback?: () => void
 ): { acquired: boolean; message: string } {
-  // Ensure state directory exists (lockfile lives there)
   const stateDir = getStateDir();
   if (!existsSync(stateDir)) {
     mkdirSync(stateDir, { recursive: true, mode: 0o700 });
   }
 
-  // Acquire lock
   const result = acquireLock(type);
 
   if (result.acquired) {
-    // Setup signal handlers for cleanup
     setupGracefulShutdown(cleanupCallback);
   }
 
