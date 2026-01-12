@@ -216,7 +216,7 @@ export class Logger {
       level,
       source: this.source,
       message,
-      error,
+      ...(error && { error }),
     };
 
     const logFile = this.source === "mcp-server" ? MCP_LOG_FILE : APP_LOG_FILE;
