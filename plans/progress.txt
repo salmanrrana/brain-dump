@@ -1332,3 +1332,54 @@ Total commits this session: 2 (1 feature + 1 docs update)
 
 ---
 
+### 2026-01-12 - update_project_settings MCP Tool
+- Task: Create update_project_settings MCP tool
+- Ticket ID: 0e89965f-84ee-488b-ae2d-33431112e5a4
+- Success: true
+- Agent: Ralph
+- Branch: ralph/5fb70ee6-environment-detection
+
+**Files Modified:**
+- `mcp-server/index.js` - Added update_project_settings tool
+
+**Tool Implementation:**
+The `update_project_settings` tool:
+- Takes `projectId` and `workingMethod` as required parameters
+- Validates workingMethod against allowed values: "auto", "claude-code", "vscode"
+- Updates the working_method column in the projects table
+- Returns updated project settings with effective environment computed
+
+**Returns:**
+```json
+{
+  "projectId": "...",
+  "projectName": "...",
+  "projectPath": "...",
+  "workingMethod": "auto" | "claude-code" | "vscode",
+  "effectiveEnvironment": "claude-code" | "vscode" | "unknown",
+  "detectedEnvironment": "claude-code" | "vscode" | "unknown"
+}
+```
+
+**Testing:**
+- MCP server syntax check: passed
+- All 301 tests passing
+- Pre-existing type errors in logger.ts and index.tsx (separate tickets)
+
+---
+
+## Iteration Status
+
+Completed 6 of 7 user stories in the Cross-Environment Support epic:
+1. ✅ 5fb70ee6 - Create environment detection utility
+2. ✅ 98bdd71a - Create get_environment MCP tool
+3. ✅ 380f0052 - Add working_method field to project schema
+4. ✅ 1c406cc1 - Add context reset signal on ticket completion
+5. ✅ 77609063 - Create get_project_settings MCP tool
+6. ✅ 0e89965f - Create update_project_settings MCP tool
+
+Remaining tasks (1):
+- 9d07f06e - Add working method UI to project settings (low priority)
+
+---
+
