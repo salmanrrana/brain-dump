@@ -891,6 +891,18 @@ try {
     log.error("Failed to check/add linked_commits column", migrationError);
   }
 
+  // Add working_method column to projects table if it doesn't exist (for environment settings)
+  try {
+    const projectColumns = db.prepare("PRAGMA table_info(projects)").all();
+    const hasWorkingMethod = projectColumns.some(col => col.name === "working_method");
+    if (!hasWorkingMethod) {
+      db.prepare("ALTER TABLE projects ADD COLUMN working_method TEXT DEFAULT 'auto'").run();
+      log.info("Added working_method column to projects table");
+    }
+  } catch (migrationError) {
+    log.error("Failed to check/add working_method column", migrationError);
+  }
+
   // Perform daily backup maintenance
   try {
     const backupResult = performDailyBackupSync(actualDbPath);

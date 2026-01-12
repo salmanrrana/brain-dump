@@ -23,6 +23,7 @@ describe("Tickets API Logic", () => {
         name TEXT NOT NULL,
         path TEXT NOT NULL UNIQUE,
         color TEXT,
+        working_method TEXT DEFAULT 'auto',
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
 

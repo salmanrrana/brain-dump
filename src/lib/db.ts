@@ -73,6 +73,7 @@ function initTables() {
         name TEXT NOT NULL,
         path TEXT NOT NULL UNIQUE,
         color TEXT,
+        working_method TEXT DEFAULT 'auto',
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
     `);
@@ -161,6 +162,19 @@ function seedSampleData() {
 
 // Initialize tables on startup
 initTables();
+
+// Add working_method column to projects table if it doesn't exist (migration)
+function migrateProjectsTable() {
+  const tableInfo = sqlite.prepare("PRAGMA table_info(projects)").all() as { name: string }[];
+  const columns = tableInfo.map((col) => col.name);
+
+  if (!columns.includes("working_method")) {
+    console.log("Adding working_method column to projects...");
+    sqlite.exec("ALTER TABLE projects ADD COLUMN working_method TEXT DEFAULT 'auto'");
+  }
+}
+
+migrateProjectsTable();
 
 // Initialize FTS5 table for search if it doesn't exist
 function initFTS5() {
