@@ -1383,3 +1383,46 @@ Remaining tasks (1):
 
 ---
 
+### 2026-01-12 - Add working method UI to project settings
+- Task: Add working method UI to project settings
+- Ticket ID: 9d07f06e-d58e-47f5-93ac-87881fd639cc
+- Success: true
+- Agent: Ralph
+- Branch: ralph/5fb70ee6-environment-detection
+
+**Files Modified:**
+- `src/components/ProjectModal.tsx` - Added working method dropdown UI
+- `src/api/projects.ts` - Added workingMethod to UpdateProjectInput type
+- `src/lib/hooks.ts` - Added workingMethod to Project interface and ModalState types
+- `src/components/AppLayout.tsx` - Added workingMethod to Project interface
+- `src/components/ProjectTree.tsx` - Added workingMethod to Project interface and onEditProject callback
+
+**UI Features:**
+- Dropdown with options: Auto-detect, Claude Code, VS Code
+- Only shown when editing existing projects (not on create)
+- Persists to database via updateProject mutation
+- Helper text explains the setting's purpose
+
+**Testing:**
+- All 301 tests passing
+- Pre-existing type errors in logger.ts and index.tsx (separate tickets)
+
+---
+
+## PRD Status: COMPLETE
+
+All 7 user stories in the Cross-Environment Support epic have passes: true.
+
+**Tickets Completed:**
+1. 5fb70ee6 - Create environment detection utility
+2. 98bdd71a - Create get_environment MCP tool
+3. 380f0052 - Add working_method field to project schema
+4. 1c406cc1 - Add context reset signal on ticket completion
+5. 77609063 - Create get_project_settings MCP tool
+6. 0e89965f - Create update_project_settings MCP tool
+7. 9d07f06e - Add working method UI to project settings
+
+Branch: ralph/5fb70ee6-environment-detection
+
+---
+
