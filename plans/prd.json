@@ -69,7 +69,7 @@
     {
       "id": "a7bbca6d-a9da-4733-bf62-41f1da610f64",
       "title": "Add manual backup/restore CLI commands",
-      "description": "## Task\nAdd CLI commands for manual backup and restore operations.\n\n## Commands\n```bash\nbrain-dump backup              # Create immediate backup\nbrain-dump backup --list       # List available backups\nbrain-dump restore <filename>  # Restore from backup\nbrain-dump restore --latest    # Restore most recent backup\n```\n\n## Restore Safety\n- Require confirmation for restore\n- Create backup of current DB before restore\n- Verify backup integrity before restore\n- Show diff summary (ticket counts, etc.)\n\n## Acceptance Criteria\n- [ ] `backup` command creates timestamped backup\n- [ ] `backup --list` shows available backups with dates\n- [ ] `restore` command works with confirmation\n- [ ] Pre-restore backup created automatically\n- [ ] Clear success/error messages\n\n## File to Modify\n`cli/brain-dump.ts`",
+      "description": "## Task\nAdd CLI commands for manual backup and restore operations.\n\n## Commands\n```bash\nbrain-dump backup              # Create immediate backup\nbrain-dump backup --list       # List available backups\nbrain-dump restore <filename>  # Restore from backup\nbrain-dump restore --latest    # Restore most recent backup\n```\n\n## Restore Safety\n- Require confirmation for restore\n- Create backup of current DB before restore\n- Verify backup integrity before restore\n- Show diff summary (ticket counts, etc.)\n\n## Acceptance Criteria\n- [x] `backup` command creates timestamped backup\n- [x] `backup --list` shows available backups with dates\n- [x] `restore` command works with confirmation\n- [x] Pre-restore backup created automatically\n- [x] Clear success/error messages\n\n## File to Modify\n`cli/brain-dump.ts`",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
@@ -80,7 +80,7 @@
         "backup",
         "restore"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "254bca98-5777-43a5-acdc-1319181c2b19",

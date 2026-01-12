@@ -340,3 +340,170 @@ export function performDailyBackupSync(keepDays = 7): {
 
   return { backup, cleanup };
 }
+
+export interface RestoreResult {
+  success: boolean;
+  message: string;
+  preRestoreBackupPath?: string;
+}
+
+/**
+ * Get database statistics for comparison during restore
+ */
+export function getDatabaseStats(dbPath: string): {
+  projects: number;
+  epics: number;
+  tickets: number;
+} | null {
+  if (!existsSync(dbPath)) {
+    return null;
+  }
+
+  try {
+    const db = new Database(dbPath, { readonly: true });
+
+    // Check if tables exist
+    const tablesExist = db
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('projects', 'epics', 'tickets')"
+      )
+      .all();
+
+    if (tablesExist.length < 3) {
+      db.close();
+      return null;
+    }
+
+    const projects = (
+      db.prepare("SELECT COUNT(*) as count FROM projects").get() as {
+        count: number;
+      }
+    ).count;
+    const epics = (
+      db.prepare("SELECT COUNT(*) as count FROM epics").get() as { count: number }
+    ).count;
+    const tickets = (
+      db.prepare("SELECT COUNT(*) as count FROM tickets").get() as {
+        count: number;
+      }
+    ).count;
+
+    db.close();
+    return { projects, epics, tickets };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Restore database from a backup file.
+ *
+ * Safety measures:
+ * - Creates a pre-restore backup of the current database
+ * - Verifies backup integrity before restoring
+ * - Uses atomic copy operations
+ *
+ * @param backupPath - Path to the backup file to restore from
+ */
+export function restoreFromBackup(backupPath: string): RestoreResult {
+  const currentDbPath = getDatabasePath();
+
+  // Verify backup file exists
+  if (!existsSync(backupPath)) {
+    return {
+      success: false,
+      message: `Backup file not found: ${backupPath}`,
+    };
+  }
+
+  // Verify backup integrity
+  if (!verifyBackup(backupPath)) {
+    return {
+      success: false,
+      message: "Backup file failed integrity check - cannot restore",
+    };
+  }
+
+  // Create pre-restore backup of current database
+  const preRestoreFilename = `pre-restore-${Date.now()}.db`;
+  const preRestoreBackupPath = join(getBackupsDir(), preRestoreFilename);
+
+  try {
+    // Ensure backups directory exists
+    ensureDirectoriesSync();
+
+    // Create pre-restore backup
+    if (existsSync(currentDbPath)) {
+      const db = new Database(currentDbPath, { readonly: true });
+      db.exec(`VACUUM INTO '${preRestoreBackupPath.replace(/'/g, "''")}'`);
+      db.close();
+      console.log(`[Restore] Created pre-restore backup: ${preRestoreBackupPath}`);
+    }
+
+    // Copy backup to database location
+    // We need to close any existing connections first
+    const { copyFileSync, unlinkSync: removeSync } = require("fs");
+
+    // Remove existing database files
+    const walPath = currentDbPath + "-wal";
+    const shmPath = currentDbPath + "-shm";
+
+    if (existsSync(currentDbPath)) {
+      removeSync(currentDbPath);
+    }
+    if (existsSync(walPath)) {
+      removeSync(walPath);
+    }
+    if (existsSync(shmPath)) {
+      removeSync(shmPath);
+    }
+
+    // Copy backup to database location
+    copyFileSync(backupPath, currentDbPath);
+
+    // Verify restored database
+    if (!verifyBackup(currentDbPath)) {
+      // Restore failed, try to recover from pre-restore backup
+      if (existsSync(preRestoreBackupPath)) {
+        copyFileSync(preRestoreBackupPath, currentDbPath);
+      }
+      return {
+        success: false,
+        message: "Restored database failed integrity check - reverted to previous state",
+        preRestoreBackupPath,
+      };
+    }
+
+    return {
+      success: true,
+      message: "Database restored successfully",
+      preRestoreBackupPath,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const result: RestoreResult = {
+      success: false,
+      message: `Restore failed: ${errorMessage}`,
+    };
+    if (existsSync(preRestoreBackupPath)) {
+      result.preRestoreBackupPath = preRestoreBackupPath;
+    }
+    return result;
+  }
+}
+
+/**
+ * Get the most recent backup file
+ */
+export function getLatestBackup(): {
+  filename: string;
+  date: string;
+  path: string;
+  size: number;
+} | null {
+  const backups = listBackups();
+  if (backups.length > 0 && backups[0]) {
+    return backups[0];
+  }
+  return null;
+}
