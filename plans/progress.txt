@@ -495,3 +495,38 @@ Ralph can now pick up any ticket from BD-002 through BD-053 with full context fr
 - Syntax check: passed
 - Type check: passed
 
+---
+
+### 2026-01-12 - XDG Directory Structure Utility
+- Task: Create XDG-compliant directory structure utility
+- Ticket ID: 74e5875f-ba81-40c3-9647-00ebeac2807c
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Files Created:**
+- `src/lib/xdg.ts` - XDG utility module
+- `src/lib/xdg.test.ts` - Unit tests (18 tests)
+
+**Functions Implemented:**
+| Function | Description |
+|----------|-------------|
+| `getDataDir()` | Returns ~/.local/share/brain-dumpy/ |
+| `getConfigDir()` | Returns ~/.config/brain-dumpy/ |
+| `getCacheDir()` | Returns ~/.cache/brain-dumpy/ |
+| `getStateDir()` | Returns ~/.local/state/brain-dumpy/ |
+| `getLegacyDir()` | Returns ~/.brain-dump/ (for migration) |
+| `getDatabasePath()` | Returns full database path |
+| `getBackupsDir()` | Returns backups directory |
+| `getLogsDir()` | Returns logs directory |
+| `ensureDirectories()` | Creates all dirs with 0700 permissions |
+| `ensureDirectoriesSync()` | Sync version for startup |
+
+**Testing:**
+- 18 unit tests all passing
+- XDG module type-checks correctly
+- Pre-existing type errors in index.tsx (separate ticket 2f780b3f created)
+
+**Notes:**
+- This utility is foundation for next tickets (database migration, backup system)
+
