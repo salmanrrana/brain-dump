@@ -1213,18 +1213,50 @@ ALTER TABLE projects ADD COLUMN working_method TEXT DEFAULT 'auto';
 
 ---
 
+### 2026-01-12 - Add context reset signal on ticket completion
+- Task: Add context reset signal when ticket is completed
+- Ticket ID: 1c406cc1-507d-4e28-862c-fb7a91edd961
+- Success: true
+- Agent: Ralph
+- Branch: ralph/5fb70ee6-environment-detection
+
+**Files Modified:**
+- `mcp-server/index.js` - Enhanced complete_ticket_work tool with context reset
+
+**Files Created:**
+- `docs/fresh-eyes-workflow.md` - Full documentation for Fresh Eyes workflow
+
+**Implementation:**
+1. **Environment Detection**: Uses existing `detectEnvironment()` function to detect claude-code, vscode, or unknown environment
+2. **Context Reset Guidance**: Returns environment-specific guidance:
+   - Claude Code: Run `/clear` command
+   - VS Code: Click "New Chat" or Cmd/Ctrl+L
+   - Unknown: Start new conversation
+3. **Response Format**: Includes `clearContext: true` flag for programmatic detection
+4. **Documentation**: Comprehensive guide explaining:
+   - What Fresh Eyes is and why it matters
+   - Step-by-step workflow
+   - Integration with Ralph
+   - Best practices and troubleshooting
+
+**Testing:**
+- All 301 tests passing
+- MCP server syntax valid
+
+---
+
 ## Iteration Status
 
-Completed 3 of 7 user stories in the Cross-Environment Support epic:
+Completed 4 of 7 user stories in the Cross-Environment Support epic:
 1. ✅ 5fb70ee6 - Create environment detection utility
 2. ✅ 98bdd71a - Create get_environment MCP tool
 3. ✅ 380f0052 - Add working_method field to project schema
+4. ✅ 1c406cc1 - Add context reset signal on ticket completion
 
-Remaining tasks (4):
+Remaining tasks (3):
 - 77609063 - Create get_project_settings MCP tool (medium)
 - 0e89965f - Create update_project_settings MCP tool (medium)
 - 9d07f06e - Add working method UI to project settings (low)
-- 1c406cc1 - Add context reset signal on ticket completion (high)
 
-Next high-priority task: 1c406cc1 - Add context reset signal on ticket completion
+All high-priority tasks complete! Remaining tasks are medium/low priority
 
