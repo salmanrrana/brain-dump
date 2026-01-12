@@ -1424,5 +1424,9 @@ All 7 user stories in the Cross-Environment Support epic have passes: true.
 
 Branch: ralph/5fb70ee6-environment-detection
 
+**Next Steps:**
+- Branch pushed to origin
+- PR needs to be created manually: https://github.com/salmanrrana/brain-dump/pull/new/ralph/5fb70ee6-environment-detection
+
 ---
 
