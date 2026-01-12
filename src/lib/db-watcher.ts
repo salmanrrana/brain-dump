@@ -20,10 +20,16 @@ let state: WatcherState = {
   onDeletion: null,
 };
 
-// Debounce timer for file watcher events
-// PERFORMANCE: File system events can fire rapidly; debouncing prevents excessive processing
+// Debounce file watcher events to prevent rapid-fire processing
+const DEBOUNCE_MS = 100;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-const DEBOUNCE_MS = 100; // Wait 100ms after last event before processing
+
+function clearDebounceTimer(): void {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+}
 
 function logError(message: string): void {
   console.error(`[db-watcher] ${message}`);
@@ -109,14 +115,10 @@ export function startWatching(
   }
 
   try {
-    // Watch directory (not file) to detect deletion
-    // PERFORMANCE: Debounce events to prevent rapid-fire processing
+    // Watch directory (not file) to detect deletion with debouncing
     const watcher = watch(dbDir, (event, filename) => {
       if (event === "rename") {
-        // Clear existing timer and set a new one
-        if (debounceTimer) {
-          clearTimeout(debounceTimer);
-        }
+        clearDebounceTimer();
         debounceTimer = setTimeout(() => {
           handlePotentialDeletion(filename, dbPath);
           debounceTimer = null;
@@ -146,11 +148,7 @@ export function startWatching(
 }
 
 export function stopWatching(): void {
-  // Clear any pending debounce timer
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
-    debounceTimer = null;
-  }
+  clearDebounceTimer();
 
   if (state.watcher) {
     try {

@@ -80,10 +80,7 @@ function Home() {
     [showToast]
   );
 
-  // Polling disabled for performance - use refetch() for manual updates
-  // Enable polling only if you need real-time updates from CLI/external sources
   const { tickets, loading, error, refetch } = useTickets(filters, {
-    pollingInterval: 0, // Disabled - was causing constant CPU/IO load
     onStatusChange: handleStatusChange,
   });
 

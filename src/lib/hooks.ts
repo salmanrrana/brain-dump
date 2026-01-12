@@ -595,15 +595,13 @@ export interface StatusChange {
 }
 
 // Hook for fetching tickets with optional filters and polling
-// NOTE: Polling is DISABLED by default (pollingInterval = 0) for performance.
-// Only enable polling when real-time updates from external sources are needed.
+// Polling disabled by default (pollingInterval = 0) for performance
 export function useTickets(
   filters: TicketFilters = {},
   options: { pollingInterval?: number; onStatusChange?: (change: StatusChange) => void } = {}
 ) {
   const prevTicketsRef = useRef<Map<string, string>>(new Map());
   const isInitialLoad = useRef(true);
-  // Default to 0 (disabled) - polling every 5 seconds causes significant CPU/IO load
   const { pollingInterval = 0, onStatusChange } = options;
 
   const query = useQuery({

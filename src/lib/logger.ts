@@ -13,6 +13,13 @@ const ERROR_LOG_FILE = "error.log";
 const fileSizeCache: Map<string, { size: number; timestamp: number }> = new Map();
 const CACHE_TTL_MS = 60000; // 60 seconds
 
+function updateSizeCache(filePath: string, bytesWritten: number): void {
+  const cached = fileSizeCache.get(filePath);
+  if (cached) {
+    cached.size += bytesWritten;
+  }
+}
+
 export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
 
 export interface LogEntry {
@@ -166,12 +173,7 @@ export function writeToLogFile(filename: string, entry: LogEntry): void {
 
       const line = formatLogEntry(entry) + "\n";
       appendFileSync(filePath, line, { mode: 0o600 });
-
-      // PERFORMANCE: Update cache with estimated new size to avoid stat() on next write
-      const cached = fileSizeCache.get(filePath);
-      if (cached) {
-        cached.size += Buffer.byteLength(line, "utf8");
-      }
+      updateSizeCache(filePath, Buffer.byteLength(line, "utf8"));
     } catch (error) {
       console.error("[Logger] Failed to write to log file:", error);
     }
@@ -187,12 +189,7 @@ export function writeToLogFileSync(filename: string, entry: LogEntry): void {
 
     const line = formatLogEntry(entry) + "\n";
     appendFileSync(filePath, line, { mode: 0o600 });
-
-    // PERFORMANCE: Update cache with estimated new size to avoid stat() on next write
-    const cached = fileSizeCache.get(filePath);
-    if (cached) {
-      cached.size += Buffer.byteLength(line, "utf8");
-    }
+    updateSizeCache(filePath, Buffer.byteLength(line, "utf8"));
   } catch (error) {
     console.error("[Logger] Failed to write to log file:", error);
   }

@@ -301,11 +301,11 @@ function initTicketComments() {
 
 initTicketComments();
 
-// Perform daily backup maintenance (deferred to avoid blocking startup)
-// Creates backup if not done today, cleans up old backups
-// PERFORMANCE: Deferred by 5 seconds to avoid blocking the event loop on startup.
-// The VACUUM INTO operation can take 10+ seconds on larger databases.
-function scheduleBackupMaintenance() {
+// Perform daily backup maintenance (deferred 5s to avoid blocking startup)
+// VACUUM INTO can take 10+ seconds on larger databases
+const BACKUP_DEFER_MS = 5000;
+
+function scheduleBackupMaintenance(): void {
   setTimeout(() => {
     try {
       const result = performDailyBackupSync();
@@ -318,7 +318,7 @@ function scheduleBackupMaintenance() {
     } catch (error) {
       console.error("[Backup] Backup maintenance failed:", error);
     }
-  }, 5000); // Defer backup by 5 seconds to not block startup
+  }, BACKUP_DEFER_MS);
 }
 scheduleBackupMaintenance();
 
