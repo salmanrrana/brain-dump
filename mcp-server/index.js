@@ -146,6 +146,122 @@ const log = {
 };
 
 // =============================================================================
+// ENVIRONMENT DETECTION
+// =============================================================================
+const VSCODE_ENV_PATTERNS = [
+  "VSCODE_GIT_ASKPASS_NODE",
+  "VSCODE_GIT_ASKPASS_MAIN",
+  "VSCODE_GIT_IPC_HANDLE",
+  "VSCODE_INJECTION",
+  "VSCODE_CLI",
+  "VSCODE_PID",
+  "VSCODE_CWD",
+  "VSCODE_NLS_CONFIG",
+  "VSCODE_IPC_HOOK",
+  "TERM_PROGRAM", // Check if value is "vscode"
+];
+
+const CLAUDE_CODE_ENV_PATTERNS = [
+  "CLAUDE_CODE",
+  "CLAUDE_CODE_ENTRYPOINT",
+  "CLAUDE_API_KEY",
+  "ANTHROPIC_API_KEY",
+  "MCP_SERVER_NAME",
+  "CLAUDE_CODE_TERMINAL_ID",
+];
+
+/**
+ * Check if any VS Code environment variables are present
+ */
+function hasVSCodeEnvironment() {
+  for (const envVar of VSCODE_ENV_PATTERNS) {
+    if (envVar === "TERM_PROGRAM") {
+      if (process.env.TERM_PROGRAM === "vscode") {
+        return true;
+      }
+    } else if (process.env[envVar]) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Check if any Claude Code environment variables are present
+ */
+function hasClaudeCodeEnvironment() {
+  for (const envVar of CLAUDE_CODE_ENV_PATTERNS) {
+    if (process.env[envVar]) {
+      return true;
+    }
+  }
+  // Check if running in a Claude Code session
+  if (process.env.SHELL && process.env.SHELL.includes("claude")) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Detect the current environment
+ * Claude Code takes priority because it may run inside a VS Code terminal
+ */
+function detectEnvironment() {
+  if (hasClaudeCodeEnvironment()) {
+    return "claude-code";
+  }
+  if (hasVSCodeEnvironment()) {
+    return "vscode";
+  }
+  return "unknown";
+}
+
+/**
+ * Get detailed environment information
+ */
+function getEnvironmentInfo() {
+  const environment = detectEnvironment();
+  const envVarsDetected = [];
+  let workspacePath = null;
+
+  // Collect detected env vars
+  for (const envVar of CLAUDE_CODE_ENV_PATTERNS) {
+    if (process.env[envVar]) {
+      envVarsDetected.push(envVar);
+    }
+  }
+
+  for (const envVar of VSCODE_ENV_PATTERNS) {
+    if (envVar === "TERM_PROGRAM") {
+      if (process.env.TERM_PROGRAM === "vscode") {
+        envVarsDetected.push("TERM_PROGRAM=vscode");
+      }
+    } else if (process.env[envVar]) {
+      envVarsDetected.push(envVar);
+    }
+  }
+
+  // Try to determine workspace path
+  if (process.env.VSCODE_CWD) {
+    workspacePath = process.env.VSCODE_CWD;
+  } else if (process.env.PWD) {
+    workspacePath = process.env.PWD;
+  } else {
+    try {
+      workspacePath = process.cwd();
+    } catch {
+      // Ignore cwd errors
+    }
+  }
+
+  return {
+    environment,
+    workspacePath,
+    envVarsDetected,
+  };
+}
+
+// =============================================================================
 // XDG DIRECTORY UTILITIES
 // =============================================================================
 const APP_NAME = "brain-dumpy";
@@ -1369,6 +1485,33 @@ Returns:
           required: [],
         },
       },
+      {
+        name: "get_environment",
+        description: `Get current environment information.
+
+Detects whether the MCP server is being called from:
+- Claude Code (Anthropic's CLI)
+- VS Code (with MCP extension)
+- Unknown environment
+
+Also returns the current workspace path and auto-detected project.
+
+Returns:
+  {
+    "environment": "claude-code" | "vscode" | "unknown",
+    "workspacePath": "/path/to/project",
+    "detectedProject": { project info } | null,
+    "envVarsDetected": ["CLAUDE_CODE", ...]
+  }
+
+Use this to determine which features are available and to provide
+environment-specific guidance or behavior.`,
+        inputSchema: {
+          type: "object",
+          properties: {},
+          required: [],
+        },
+      },
     ],
   };
 });
@@ -2428,6 +2571,40 @@ ${results.map(t => `## ${t.title}
           content: [{
             type: "text",
             text: JSON.stringify(health, null, 2),
+          }],
+        };
+      }
+
+      // -----------------------------------------------------------------------
+      // GET ENVIRONMENT
+      // -----------------------------------------------------------------------
+      case "get_environment": {
+        const envInfo = getEnvironmentInfo();
+
+        // Try to auto-detect project from workspace path
+        let detectedProject = null;
+        if (envInfo.workspacePath) {
+          const projects = db.prepare("SELECT * FROM projects").all();
+
+          // Find project where paths match (either direction for subdirectories)
+          detectedProject = projects.find(
+            (p) => envInfo.workspacePath.startsWith(p.path) || p.path.startsWith(envInfo.workspacePath)
+          ) || null;
+        }
+
+        const result = {
+          environment: envInfo.environment,
+          workspacePath: envInfo.workspacePath,
+          detectedProject,
+          envVarsDetected: envInfo.envVarsDetected,
+        };
+
+        log.info(`Environment detected: ${envInfo.environment}`);
+
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify(result, null, 2),
           }],
         };
       }

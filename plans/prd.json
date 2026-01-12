@@ -30,7 +30,7 @@
         "mcp",
         "environment"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "380f0052-65ff-45d0-b026-c67ed5092ed7",

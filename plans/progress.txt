@@ -1135,3 +1135,46 @@ All 8 user stories in the XDG Migration & Data Protection epic have passes: true
 
 ---
 
+### 2026-01-12 - get_environment MCP Tool
+- Task: Create get_environment MCP tool
+- Ticket ID: 98bdd71a-ddf3-4d86-b97d-f8ab3ba39388
+- Success: true
+- Agent: Ralph
+- Branch: ralph/5fb70ee6-environment-detection
+
+**Files Modified:**
+- `mcp-server/index.js` - Added environment detection utilities and get_environment tool
+
+**Tool Implementation:**
+The `get_environment` tool returns:
+```json
+{
+  "environment": "claude-code" | "vscode" | "unknown",
+  "workspacePath": "/path/to/project",
+  "detectedProject": { project info } | null,
+  "envVarsDetected": ["CLAUDE_CODE", ...]
+}
+```
+
+**Features:**
+- Environment detection using same logic as `src/lib/environment.ts`
+- Auto-detects project from workspace path by matching against registered projects
+- Returns list of environment variables that triggered detection
+- Claude Code detection takes priority over VS Code (since Claude Code may run in VS Code terminal)
+
+**Detection Logic (MCP Server):**
+| Environment | Variables Checked |
+|-------------|-------------------|
+| Claude Code | CLAUDE_CODE, CLAUDE_CODE_ENTRYPOINT, CLAUDE_API_KEY, ANTHROPIC_API_KEY, MCP_SERVER_NAME, CLAUDE_CODE_TERMINAL_ID |
+| VS Code | VSCODE_GIT_*, VSCODE_PID, VSCODE_CWD, VSCODE_NLS_CONFIG, TERM_PROGRAM=vscode |
+
+**Testing:**
+- MCP server syntax check: passed
+- All 301 tests passing
+
+**Notes:**
+- This tool enables environment-aware behavior in AI assistants
+- Project auto-detection allows seamless context switching between projects
+
+---
+
