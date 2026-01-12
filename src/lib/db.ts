@@ -4,6 +4,7 @@ import * as schema from "./schema";
 import { getDatabasePath, ensureDirectoriesSync } from "./xdg";
 import { migrateFromLegacySync } from "./migration";
 import { performDailyBackupSync } from "./backup";
+import { initializeLockSync } from "./lockfile";
 
 // Ensure XDG directories exist with proper permissions
 ensureDirectoriesSync();
@@ -22,6 +23,20 @@ const dbPath = getDatabasePath();
 const sqlite = new Database(dbPath);
 sqlite.pragma("journal_mode = WAL");
 sqlite.pragma("foreign_keys = ON");
+
+// Acquire lock and setup graceful shutdown
+// This ensures lock is cleaned up and WAL is checkpointed on shutdown
+const lockResult = initializeLockSync("vite", () => {
+  try {
+    sqlite.pragma("wal_checkpoint(TRUNCATE)");
+    sqlite.close();
+  } catch {
+    // Ignore errors during cleanup
+  }
+});
+if (lockResult.acquired) {
+  console.log(`[DB] ${lockResult.message}`);
+}
 
 // Auto-create tables if they don't exist
 function initTables() {

@@ -17,7 +17,7 @@ import Database from "better-sqlite3";
 import { randomUUID } from "crypto";
 import { homedir } from "os";
 import { join } from "path";
-import { existsSync } from "fs";
+import { existsSync, writeFileSync, unlinkSync, readFileSync, mkdirSync } from "fs";
 import { execSync } from "child_process";
 
 // =============================================================================
@@ -55,13 +55,181 @@ function getStateDir() {
 }
 
 function ensureDirectoriesSync() {
-  const { mkdirSync, existsSync: existsSyncFs } = require("fs");
   const dirs = [getDataDir(), getStateDir(), join(getStateDir(), "backups")];
   for (const dir of dirs) {
-    if (!existsSyncFs(dir)) {
+    if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true, mode: 0o700 });
     }
   }
+}
+
+// =============================================================================
+// LOCK FILE UTILITIES
+// =============================================================================
+const LOCK_FILE_NAME = "brain-dumpy.lock";
+
+function getLockFilePath() {
+  return join(getStateDir(), LOCK_FILE_NAME);
+}
+
+function isProcessRunning(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === "EPERM";
+  }
+}
+
+function readLockFile() {
+  const lockPath = getLockFilePath();
+  if (!existsSync(lockPath)) return null;
+  try {
+    const content = readFileSync(lockPath, "utf-8");
+    const lockInfo = JSON.parse(content);
+    if (
+      typeof lockInfo.pid !== "number" ||
+      typeof lockInfo.startedAt !== "string" ||
+      !["mcp-server", "cli", "vite"].includes(lockInfo.type)
+    ) {
+      return null;
+    }
+    return lockInfo;
+  } catch {
+    return null;
+  }
+}
+
+function checkLock() {
+  const lockInfo = readLockFile();
+  if (!lockInfo) {
+    return { isLocked: false, lockInfo: null, isStale: false, message: "No lock file found" };
+  }
+  const isRunning = isProcessRunning(lockInfo.pid);
+  if (!isRunning) {
+    return {
+      isLocked: false,
+      lockInfo,
+      isStale: true,
+      message: `Stale lock detected from ${lockInfo.type} (PID ${lockInfo.pid})`,
+    };
+  }
+  return {
+    isLocked: true,
+    lockInfo,
+    isStale: false,
+    message: `Database locked by ${lockInfo.type} (PID ${lockInfo.pid})`,
+  };
+}
+
+function acquireLock(type) {
+  const lockPath = getLockFilePath();
+  const check = checkLock();
+
+  // Clean up stale locks
+  if (check.isStale) {
+    try {
+      unlinkSync(lockPath);
+      log.info("Cleaned up stale lock file");
+    } catch { /* ignore */ }
+  }
+
+  // Warn if another process has lock (but don't block - SQLite WAL handles concurrency)
+  if (check.isLocked && check.lockInfo && check.lockInfo.pid !== process.pid) {
+    log.info(`Warning: ${check.message}. Concurrent access may cause issues.`);
+  }
+
+  // Create lock
+  const lockInfo = {
+    pid: process.pid,
+    startedAt: new Date().toISOString(),
+    type,
+  };
+
+  try {
+    writeFileSync(lockPath, JSON.stringify(lockInfo, null, 2), { mode: 0o600 });
+    return { acquired: true, message: `Lock acquired by ${type} (PID ${process.pid})`, lockInfo };
+  } catch (e) {
+    return { acquired: false, message: `Failed to create lock: ${e.message}`, lockInfo: null };
+  }
+}
+
+function releaseLock() {
+  const lockPath = getLockFilePath();
+  const lockInfo = readLockFile();
+  if (!lockInfo) return { released: true, message: "No lock to release" };
+  if (lockInfo.pid !== process.pid) {
+    return { released: false, message: `Lock owned by PID ${lockInfo.pid}` };
+  }
+  try {
+    unlinkSync(lockPath);
+    return { released: true, message: "Lock released successfully" };
+  } catch (e) {
+    return { released: false, message: `Failed to release: ${e.message}` };
+  }
+}
+
+function setupGracefulShutdown(dbInstance) {
+  let isShuttingDown = false;
+
+  const shutdown = async (signal) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+
+    log.info(`Received ${signal}, shutting down gracefully`);
+
+    try {
+      // Checkpoint WAL to ensure all data is written
+      if (dbInstance) {
+        try {
+          dbInstance.pragma("wal_checkpoint(TRUNCATE)");
+          log.info("WAL checkpoint completed");
+        } catch (e) {
+          log.error("WAL checkpoint failed", e);
+        }
+        try {
+          dbInstance.close();
+          log.info("Database connection closed");
+        } catch (e) {
+          log.error("Database close failed", e);
+        }
+      }
+
+      // Release lock
+      const result = releaseLock();
+      if (result.released) {
+        log.info(result.message);
+      }
+    } catch (e) {
+      log.error("Error during shutdown", e);
+    }
+
+    process.exit(signal === "SIGTERM" || signal === "SIGINT" ? 0 : 1);
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGQUIT", () => shutdown("SIGQUIT"));
+
+  process.on("uncaughtException", (error) => {
+    log.error("Uncaught exception", error);
+    releaseLock();
+    process.exit(1);
+  });
+
+  process.on("unhandledRejection", (reason) => {
+    log.error("Unhandled rejection", reason);
+    releaseLock();
+    process.exit(1);
+  });
+
+  // Sync cleanup on normal exit
+  process.on("exit", () => {
+    const lockInfo = readLockFile();
+    if (lockInfo && lockInfo.pid === process.pid) {
+      try { unlinkSync(getLockFilePath()); } catch { /* ignore */ }
+    }
+  });
 }
 
 // =============================================================================
@@ -388,6 +556,15 @@ try {
     }
   } catch (backupError) {
     log.error("Backup maintenance failed", backupError);
+  }
+
+  // Acquire lock file and setup graceful shutdown
+  const lockResult = acquireLock("mcp-server");
+  if (lockResult.acquired) {
+    log.info(lockResult.message);
+    setupGracefulShutdown(db);
+  } else {
+    log.info(`Warning: ${lockResult.message}`);
   }
 } catch (error) {
   log.error(`Failed to open database at ${dbPath}`, error);

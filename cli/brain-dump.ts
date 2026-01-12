@@ -16,6 +16,7 @@
 import Database from "better-sqlite3";
 import { readFileSync, existsSync, unlinkSync } from "fs";
 import { getDatabasePath, getStateDir, ensureDirectoriesSync } from "../src/lib/xdg";
+import { acquireLock, releaseLock } from "../src/lib/lockfile";
 
 // Ensure XDG directories exist
 ensureDirectoriesSync();
@@ -32,7 +33,26 @@ function getDb() {
     console.error("Make sure Brain Dump is running and has been initialized.");
     process.exit(1);
   }
-  return new Database(DB_PATH);
+
+  // Acquire lock for CLI operations
+  const lockResult = acquireLock("cli");
+  if (!lockResult.acquired) {
+    console.error("Warning:", lockResult.message);
+  }
+
+  const db = new Database(DB_PATH);
+
+  // Register cleanup on exit
+  process.on("exit", () => {
+    try {
+      db.close();
+      releaseLock();
+    } catch {
+      // Ignore cleanup errors
+    }
+  });
+
+  return db;
 }
 
 function getCurrentTicket(): { ticketId: string; projectPath: string; startedAt: string } | null {
