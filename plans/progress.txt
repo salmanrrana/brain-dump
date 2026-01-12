@@ -980,3 +980,66 @@ All three process types (MCP server, CLI, Vite dev server) already had graceful 
 - CLI enhancement adds explicit WAL checkpoint before close
 - No changes needed to Vite config - handled via db.ts
 
+---
+
+### 2026-01-12 - MCP Tool for Database Health Status
+- Task: Add MCP tool for database health status
+- Ticket ID: e88860de-1309-4d67-8f61-80da55821dd2
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Files Modified:**
+- `mcp-server/index.js` - Added `get_database_health` tool
+
+**Tool Implementation:**
+The `get_database_health` tool returns a comprehensive health report:
+
+```json
+{
+  "status": "healthy" | "warning" | "error",
+  "databasePath": "/path/to/brain-dumpy.db",
+  "databaseSize": "15.2 MB",
+  "integrityCheck": "ok",
+  "stats": {
+    "projects": 5,
+    "epics": 10,
+    "tickets": 100
+  },
+  "backup": {
+    "lastBackup": "2026-01-12",
+    "backupCount": 7,
+    "backupsDir": "/path/to/backups"
+  },
+  "wal": {
+    "walExists": true,
+    "shmExists": true,
+    "walSize": "100.0 KB"
+  },
+  "lockFile": {
+    "exists": true,
+    "pid": 12345,
+    "type": "mcp-server",
+    "isStale": false
+  },
+  "issues": []
+}
+```
+
+**Health Checks Performed:**
+- Database file existence and size
+- SQLite integrity check (PRAGMA integrity_check)
+- Backup status (last backup date, count)
+- WAL file size (warns if > 10MB)
+- Lock file status (detects stale locks)
+- Record counts (projects, epics, tickets)
+
+**Status Values:**
+- `healthy` - All checks pass
+- `warning` - Non-critical issues (stale lock, large WAL)
+- `error` - Critical issues (integrity check failed, DB missing)
+
+**Testing:**
+- All 259 tests passing
+- MCP server syntax valid
+

@@ -80,7 +80,7 @@
         "monitoring",
         "health"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "e97a4485-af2a-4bd8-9763-20bb1a213a02",

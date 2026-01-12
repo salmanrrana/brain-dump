@@ -1346,6 +1346,29 @@ Returns:
           required: ["filePath"],
         },
       },
+      {
+        name: "get_database_health",
+        description: `Get database health and backup status.
+
+Returns a comprehensive health report including:
+- Database status (healthy/warning/error)
+- Database path and size
+- Last backup timestamp
+- Number of available backups
+- Integrity check result
+- Lock file status
+- Any detected issues
+
+Use this to diagnose database problems or verify system health.
+
+Returns:
+  Health report object with status, paths, backup info, and issues.`,
+        inputSchema: {
+          type: "object",
+          properties: {},
+          required: [],
+        },
+      },
     ],
   };
 });
@@ -2275,6 +2298,136 @@ ${results.map(t => `## ${t.title}
 - Priority: ${t.priority || "none"}
 - Project: ${t.project}
 - Linked files: ${t.linkedFiles.join(", ")}`).join("\n\n")}`,
+          }],
+        };
+      }
+
+      // -----------------------------------------------------------------------
+      // GET DATABASE HEALTH
+      // -----------------------------------------------------------------------
+      case "get_database_health": {
+        const issues = [];
+        let status = "healthy";
+
+        // Database path and size
+        const actualDbPath = getDatabasePath();
+        let dbSize = 0;
+        let dbSizeFormatted = "unknown";
+
+        if (existsSync(actualDbPath)) {
+          try {
+            const stats = statSync(actualDbPath);
+            dbSize = stats.size;
+            if (dbSize < 1024) {
+              dbSizeFormatted = `${dbSize} B`;
+            } else if (dbSize < 1024 * 1024) {
+              dbSizeFormatted = `${(dbSize / 1024).toFixed(1)} KB`;
+            } else {
+              dbSizeFormatted = `${(dbSize / (1024 * 1024)).toFixed(1)} MB`;
+            }
+          } catch (e) {
+            issues.push(`Could not read database size: ${e.message}`);
+            status = "warning";
+          }
+        } else {
+          issues.push("Database file not found");
+          status = "error";
+        }
+
+        // Integrity check
+        let integrityCheck = "unknown";
+        try {
+          const result = db.pragma("integrity_check(1)");
+          integrityCheck = result[0]?.integrity_check === "ok" ? "ok" : "failed";
+          if (integrityCheck !== "ok") {
+            issues.push("Database integrity check failed");
+            status = "error";
+          }
+        } catch (e) {
+          integrityCheck = "error";
+          issues.push(`Integrity check error: ${e.message}`);
+          status = "error";
+        }
+
+        // Backup info
+        const backups = listBackups();
+        const lastBackup = backups.length > 0 ? backups[0] : null;
+
+        // Lock file info
+        const lockCheck = checkLock();
+        const lockInfo = {
+          exists: lockCheck.isLocked || lockCheck.isStale,
+          ...(lockCheck.lockInfo ? {
+            pid: lockCheck.lockInfo.pid,
+            type: lockCheck.lockInfo.type,
+            startedAt: lockCheck.lockInfo.startedAt,
+          } : {}),
+          isStale: lockCheck.isStale,
+        };
+
+        if (lockCheck.isStale) {
+          issues.push("Stale lock file detected (from crashed process)");
+          if (status !== "error") status = "warning";
+        }
+
+        // WAL file check
+        const walPath = actualDbPath + "-wal";
+        const shmPath = actualDbPath + "-shm";
+        const hasWal = existsSync(walPath);
+        const hasShm = existsSync(shmPath);
+        let walSize = 0;
+        if (hasWal) {
+          try {
+            walSize = statSync(walPath).size;
+            if (walSize > 10 * 1024 * 1024) { // > 10MB
+              issues.push(`WAL file is large (${(walSize / (1024 * 1024)).toFixed(1)} MB) - consider checkpointing`);
+              if (status !== "error") status = "warning";
+            }
+          } catch { /* ignore */ }
+        }
+
+        // Count stats
+        let projectCount = 0;
+        let epicCount = 0;
+        let ticketCount = 0;
+        try {
+          projectCount = db.prepare("SELECT COUNT(*) as count FROM projects").get()?.count || 0;
+          epicCount = db.prepare("SELECT COUNT(*) as count FROM epics").get()?.count || 0;
+          ticketCount = db.prepare("SELECT COUNT(*) as count FROM tickets").get()?.count || 0;
+        } catch (e) {
+          issues.push(`Could not count records: ${e.message}`);
+        }
+
+        const health = {
+          status,
+          databasePath: actualDbPath,
+          databaseSize: dbSizeFormatted,
+          integrityCheck,
+          stats: {
+            projects: projectCount,
+            epics: epicCount,
+            tickets: ticketCount,
+          },
+          backup: {
+            lastBackup: lastBackup ? lastBackup.date : null,
+            backupCount: backups.length,
+            backupsDir: getBackupsDir(),
+          },
+          wal: {
+            walExists: hasWal,
+            shmExists: hasShm,
+            walSize: walSize > 0 ? `${(walSize / 1024).toFixed(1)} KB` : null,
+          },
+          lockFile: lockInfo,
+          issues,
+        };
+
+        log.info(`Database health check: ${status}`);
+
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify(health, null, 2),
           }],
         };
       }
