@@ -17,7 +17,7 @@ import Database from "better-sqlite3";
 import { randomUUID } from "crypto";
 import { homedir } from "os";
 import { join } from "path";
-import { existsSync, writeFileSync, unlinkSync, readFileSync, mkdirSync, watch, appendFileSync, statSync } from "fs";
+import { existsSync, writeFileSync, unlinkSync, readFileSync, mkdirSync, watch, appendFileSync, statSync, renameSync, copyFileSync, readdirSync, constants } from "fs";
 import { execSync } from "child_process";
 import { dirname, basename } from "path";
 
@@ -77,13 +77,11 @@ function rotateLogFile(filename) {
       const fromPath = join(logsDir, `${filename}.${i}`);
       const toPath = join(logsDir, `${filename}.${i + 1}`);
       if (existsSync(fromPath)) {
-        const { renameSync } = require("fs");
         renameSync(fromPath, toPath);
       }
     }
 
     // Move current log to .1
-    const { renameSync } = require("fs");
     renameSync(basePath, join(logsDir, `${filename}.1`));
   } catch (e) {
     // Ignore rotation errors
@@ -375,8 +373,6 @@ function verifyDatabaseIntegrity(dbPath) {
 }
 
 function migrateFromLegacySync() {
-  const { copyFileSync, writeFileSync, mkdirSync: mkdirSyncFs, readdirSync, statSync, constants } = require("fs");
-
   const legacyDir = getLegacyDir();
   const legacyDbPath = join(legacyDir, "brain-dump.db");
   const xdgDbPath = getDatabasePath();
@@ -436,7 +432,7 @@ function migrateFromLegacySync() {
     const xdgAttachments = join(getDataDir(), "attachments");
     if (existsSync(legacyAttachments)) {
       if (!existsSync(xdgAttachments)) {
-        mkdirSyncFs(xdgAttachments, { recursive: true, mode: 0o700 });
+        mkdirSync(xdgAttachments, { recursive: true, mode: 0o700 });
       }
       const files = readdirSync(legacyAttachments);
       for (const file of files) {
@@ -485,11 +481,10 @@ function getLastBackupMarkerPath() {
 }
 
 function wasBackupCreatedToday() {
-  const { statSync: statSyncFs, existsSync: existsSyncFs } = require("fs");
   const markerPath = getLastBackupMarkerPath();
-  if (!existsSyncFs(markerPath)) return false;
+  if (!existsSync(markerPath)) return false;
   try {
-    const stats = statSyncFs(markerPath);
+    const stats = statSync(markerPath);
     const markerDate = stats.mtime.toISOString().split("T")[0];
     return markerDate === getTodayDateString();
   } catch {
@@ -498,10 +493,9 @@ function wasBackupCreatedToday() {
 }
 
 function updateLastBackupMarker() {
-  const { writeFileSync: writeSyncFs } = require("fs");
   try {
     const markerPath = getLastBackupMarkerPath();
-    writeSyncFs(markerPath, new Date().toISOString(), { mode: 0o600 });
+    writeFileSync(markerPath, new Date().toISOString(), { mode: 0o600 });
   } catch (error) {
     log.error("Failed to update backup marker", error);
   }
@@ -529,8 +523,6 @@ function verifyBackup(backupPath) {
 }
 
 function createBackupIfNeeded(sourcePath) {
-  const { unlinkSync: unlinkSyncFs } = require("fs");
-
   // Check if backup already exists for today
   if (wasBackupCreatedToday()) {
     return { success: true, created: false, message: "Backup already created today" };
@@ -555,7 +547,7 @@ function createBackupIfNeeded(sourcePath) {
 
     // Verify the backup
     if (!verifyBackup(backupPath)) {
-      try { unlinkSyncFs(backupPath); } catch { /* ignore */ }
+      try { unlinkSync(backupPath); } catch { /* ignore */ }
       return { success: false, created: false, message: "Backup created but failed integrity check" };
     }
 
@@ -569,11 +561,10 @@ function createBackupIfNeeded(sourcePath) {
 }
 
 function listBackups() {
-  const { readdirSync: readdirSyncFs, statSync: statSyncFs } = require("fs");
   const backupsDir = getBackupsDir();
   if (!existsSync(backupsDir)) return [];
 
-  const files = readdirSyncFs(backupsDir);
+  const files = readdirSync(backupsDir);
   const backups = [];
 
   for (const file of files) {
@@ -581,7 +572,7 @@ function listBackups() {
     if (match) {
       const filePath = join(backupsDir, file);
       try {
-        const stats = statSyncFs(filePath);
+        const stats = statSync(filePath);
         backups.push({ filename: file, date: match[1], path: filePath, size: stats.size });
       } catch { /* skip */ }
     }
@@ -591,7 +582,6 @@ function listBackups() {
 }
 
 function cleanupOldBackups(keepDays = 7) {
-  const { unlinkSync: unlinkSyncFs } = require("fs");
   const backups = listBackups();
 
   if (backups.length <= keepDays) {
@@ -603,7 +593,7 @@ function cleanupOldBackups(keepDays = 7) {
 
   for (const backup of toDelete) {
     try {
-      unlinkSyncFs(backup.path);
+      unlinkSync(backup.path);
       deleted++;
       log.info(`Deleted old backup: ${backup.filename}`);
     } catch (error) {
