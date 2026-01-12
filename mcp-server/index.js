@@ -2256,8 +2256,7 @@ ${commitLines.map(c => `- ${c.substring(c.indexOf(" ") + 1)}`).join("\n")}
         log.info(`Completed work on ticket ${ticketId}, moved to review`);
 
         // Detect environment for context reset guidance
-        const envInfo = detectEnvironment();
-        const environment = envInfo.environment;
+        const environment = detectEnvironment();
 
         // Build context reset guidance based on environment
         let contextResetGuidance = "";

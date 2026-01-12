@@ -3,7 +3,6 @@ import {
   detectEnvironment,
   isClaudeCode,
   isVSCode,
-  isKnownEnvironment,
   getEnvironmentInfo,
   _setEnvironmentOverride,
   type Environment,
@@ -227,23 +226,6 @@ describe("Environment Detection", () => {
     it("should return false when in unknown environment", () => {
       _setEnvironmentOverride("unknown");
       expect(isVSCode()).toBe(false);
-    });
-  });
-
-  describe("isKnownEnvironment", () => {
-    it("should return true for Claude Code", () => {
-      _setEnvironmentOverride("claude-code");
-      expect(isKnownEnvironment()).toBe(true);
-    });
-
-    it("should return true for VS Code", () => {
-      _setEnvironmentOverride("vscode");
-      expect(isKnownEnvironment()).toBe(true);
-    });
-
-    it("should return false for unknown", () => {
-      _setEnvironmentOverride("unknown");
-      expect(isKnownEnvironment()).toBe(false);
     });
   });
 

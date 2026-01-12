@@ -1,16 +1,9 @@
 import { useState, useRef, useCallback } from "react";
 import { X, ChevronDown, FolderOpen } from "lucide-react";
-import { useCreateProject, useUpdateProject, useDeleteProject, useModalKeyboard } from "../lib/hooks";
+import { useCreateProject, useUpdateProject, useDeleteProject, useModalKeyboard, type ProjectBase } from "../lib/hooks";
+import { type UpdateProjectInput } from "../api/projects";
 import DirectoryPicker from "./DirectoryPicker";
 import { COLOR_OPTIONS } from "../lib/constants";
-
-interface Project {
-  id: string;
-  name: string;
-  path: string;
-  color: string | null;
-  workingMethod: string | null;
-}
 
 const WORKING_METHOD_OPTIONS = [
   { value: "auto", label: "Auto-detect" },
@@ -19,7 +12,7 @@ const WORKING_METHOD_OPTIONS = [
 ];
 
 interface ProjectModalProps {
-  project?: Project | null;
+  project?: ProjectBase | null;
   onClose: () => void;
   onSave: () => void;
 }
@@ -63,16 +56,18 @@ export default function ProjectModal({
     if (!trimmedName || !trimmedPath) return;
 
     if (isEditing && project) {
+      const updates: UpdateProjectInput = {
+        name: trimmedName,
+        path: trimmedPath,
+      };
+      if (color) {
+        updates.color = color;
+      }
+      if (workingMethod === "auto" || workingMethod === "claude-code" || workingMethod === "vscode") {
+        updates.workingMethod = workingMethod;
+      }
       updateMutation.mutate(
-        {
-          id: project.id,
-          updates: {
-            name: trimmedName,
-            path: trimmedPath,
-            ...(color ? { color } : {}),
-            workingMethod: workingMethod as "auto" | "claude-code" | "vscode",
-          },
-        },
+        { id: project.id, updates },
         { onSuccess: onSave }
       );
     } else {
