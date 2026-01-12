@@ -824,3 +824,61 @@ migrateFromLegacySync(): MigrationResult
 - Restore requires restarting Brain Dump to use the new database
 - Pre-restore backups saved as `pre-restore-{timestamp}.db`
 
+---
+
+### 2026-01-12 - File-Based Logging System
+- Task: Add file-based logging system
+- Ticket ID: b892ddcc-b0d7-44ab-8239-a9f252af7c5a
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Files Created:**
+- `src/lib/logger.ts` - Logging utility module
+- `src/lib/logger.test.ts` - Unit tests (49 tests)
+
+**Files Modified:**
+- `mcp-server/index.js` - Added file-based logging integration
+- `cli/brain-dump.ts` - Added logger for CLI operations
+
+**Features Implemented:**
+| Feature | Description |
+|---------|-------------|
+| Log Levels | DEBUG, INFO, WARN, ERROR with priority filtering |
+| Log Files | brain-dumpy.log, mcp-server.log, error.log |
+| Rotation | 5 files, 10MB each, automatic rotation |
+| Async Writes | Non-blocking file writes via setImmediate |
+| LOG_LEVEL env var | Configurable minimum log level |
+| Stack Traces | Errors include full stack traces |
+
+**Log Format:**
+```
+2026-01-12T10:30:00.000Z [INFO] [mcp-server] Tool called: create_ticket
+2026-01-12T10:30:00.000Z [ERROR] [cli] Failed to update ticket
+  Error: Ticket not found
+  at updateTicketStatus (cli/brain-dump.ts:100:15)
+```
+
+**Logger Functions:**
+| Function | Description |
+|----------|-------------|
+| `createLogger(source)` | Create logger with custom source |
+| `createMcpLogger()` | Logger for MCP server |
+| `createCliLogger()` | Logger for CLI operations |
+| `createViteLogger()` | Logger for Vite dev server |
+| `getDefaultLogger()` | Default app logger singleton |
+| `writeToLogFile()` | Async file write |
+| `writeToLogFileSync()` | Sync file write for shutdown |
+| `rotateLogFile()` | Log rotation logic |
+
+**Testing:**
+- All 229 tests passing (49 new logger tests)
+- MCP server syntax valid
+- Type checks pass (except pre-existing index.tsx errors)
+
+**Notes:**
+- Logs written to ~/.local/state/brain-dumpy/logs/
+- MCP server also logs to stderr (required for STDIO transport)
+- Errors written to both main log and error.log
+- Log rotation triggers when file exceeds 10MB
+

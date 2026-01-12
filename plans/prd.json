@@ -101,7 +101,7 @@
     {
       "id": "b892ddcc-b0d7-44ab-8239-a9f252af7c5a",
       "title": "Add file-based logging system",
-      "description": "## Task\nImplement file-based logging for debugging and audit trail.\n\n## Log Location\n`~/.local/state/brain-dumpy/logs/`\n\n## Log Files\n- `brain-dumpy.log` - Main application log (rotated)\n- `mcp-server.log` - MCP server specific logs\n- `error.log` - Errors only (for quick debugging)\n\n## Log Format\n```\n2026-01-12T00:00:00.000Z [INFO] [mcp-server] Tool called: create_ticket\n2026-01-12T00:00:00.000Z [ERROR] [database] Failed to write: SQLITE_BUSY\n```\n\n## Features\n- Log levels: DEBUG, INFO, WARN, ERROR\n- Automatic rotation (keep 5 files, 10MB each)\n- Configurable log level via env var\n- Async file writes (non-blocking)\n\n## Acceptance Criteria\n- [ ] Logs written to XDG state directory\n- [ ] Log rotation working\n- [ ] All major operations logged\n- [ ] Errors include stack traces\n- [ ] LOG_LEVEL env var respected\n\n## File to Create\n`src/lib/logger.ts`",
+      "description": "## Task\nImplement file-based logging for debugging and audit trail.\n\n## Log Location\n`~/.local/state/brain-dumpy/logs/`\n\n## Log Files\n- `brain-dumpy.log` - Main application log (rotated)\n- `mcp-server.log` - MCP server specific logs\n- `error.log` - Errors only (for quick debugging)\n\n## Log Format\n```\n2026-01-12T00:00:00.000Z [INFO] [mcp-server] Tool called: create_ticket\n2026-01-12T00:00:00.000Z [ERROR] [database] Failed to write: SQLITE_BUSY\n```\n\n## Features\n- Log levels: DEBUG, INFO, WARN, ERROR\n- Automatic rotation (keep 5 files, 10MB each)\n- Configurable log level via env var\n- Async file writes (non-blocking)\n\n## Acceptance Criteria\n- [x] Logs written to XDG state directory\n- [x] Log rotation working\n- [x] All major operations logged\n- [x] Errors include stack traces\n- [x] LOG_LEVEL env var respected\n\n## File to Create\n`src/lib/logger.ts`",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
@@ -112,7 +112,7 @@
         "debugging",
         "observability"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "d87b3a30-04e9-4107-9be6-a06d9099f32b",
