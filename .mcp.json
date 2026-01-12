@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "brain-dumpy": {
+      "command": "node",
+      "args": ["./mcp-server/index.js"],
+      "env": {}
+    }
+  }
+}

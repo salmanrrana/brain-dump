@@ -335,7 +335,7 @@ function BoardColumn({
   });
 
   // Color configurations for review columns
-  const colorStyles: Record<string, { bg: string; header: string; border: string }> = {
+  const colorStyles = {
     slate: {
       bg: "bg-slate-900",
       header: "border-slate-800",
@@ -351,9 +351,11 @@ function BoardColumn({
       header: "border-rose-800/50",
       border: "ring-1 ring-rose-700/30",
     },
-  };
+  } as const;
 
-  const styles = colorStyles[color] ?? colorStyles.slate;
+  type ColorKey = keyof typeof colorStyles;
+  const isValidColor = (c: string): c is ColorKey => c in colorStyles;
+  const styles = isValidColor(color) ? colorStyles[color] : colorStyles.slate;
 
   return (
     <div className={`flex flex-col ${styles.bg} ${styles.border} rounded-lg`}>
