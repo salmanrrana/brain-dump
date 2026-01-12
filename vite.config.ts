@@ -25,6 +25,16 @@ const config = defineConfig({
   ],
   test: {
     exclude: ['**/e2e/**', '**/node_modules/**'],
+    // Limit workers to prevent memory exhaustion (each worker can use ~4GB)
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        maxForks: 2,
+        minForks: 1,
+      },
+    },
+    // Force clean exit to prevent zombie processes
+    teardownTimeout: 5000,
   },
 })
 
