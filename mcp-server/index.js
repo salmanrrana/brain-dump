@@ -23,11 +23,128 @@ import { dirname, basename } from "path";
 
 // =============================================================================
 // LOGGING - All output MUST go to stderr for STDIO transport
+// File logging also writes to logs directory for audit trail
 // =============================================================================
+
+// Log file constants
+const LOG_FILE = "mcp-server.log";
+const ERROR_LOG_FILE = "error.log";
+const MAX_LOG_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_LOG_FILES = 5;
+
+function getLogsDir() {
+  const stateDir = (() => {
+    const xdgStateHome = process.env.XDG_STATE_HOME;
+    const base = xdgStateHome || join(homedir(), ".local", "state");
+    return join(base, "brain-dumpy");
+  })();
+  return join(stateDir, "logs");
+}
+
+function formatLogEntry(level, source, message, error) {
+  const timestamp = new Date().toISOString();
+  let line = `${timestamp} [${level}] [${source}] ${message}`;
+  if (error) {
+    line += `\n  Error: ${error.message || String(error)}`;
+    if (error.stack) {
+      const stackLines = error.stack.split("\n").slice(1);
+      for (const stackLine of stackLines) {
+        line += `\n  ${stackLine.trim()}`;
+      }
+    }
+  }
+  return line;
+}
+
+function rotateLogFile(filename) {
+  const logsDir = getLogsDir();
+  const basePath = join(logsDir, filename);
+
+  if (!existsSync(basePath)) return;
+
+  try {
+    const stats = statSync(basePath);
+    if (stats.size < MAX_LOG_SIZE) return;
+
+    // Delete oldest file
+    const oldestPath = join(logsDir, `${filename}.${MAX_LOG_FILES - 1}`);
+    if (existsSync(oldestPath)) {
+      unlinkSync(oldestPath);
+    }
+
+    // Shift existing rotated files
+    for (let i = MAX_LOG_FILES - 2; i >= 1; i--) {
+      const fromPath = join(logsDir, `${filename}.${i}`);
+      const toPath = join(logsDir, `${filename}.${i + 1}`);
+      if (existsSync(fromPath)) {
+        const { renameSync } = require("fs");
+        renameSync(fromPath, toPath);
+      }
+    }
+
+    // Move current log to .1
+    const { renameSync } = require("fs");
+    renameSync(basePath, join(logsDir, `${filename}.1`));
+  } catch (e) {
+    // Ignore rotation errors
+  }
+}
+
+function writeToLogFile(filename, entry) {
+  try {
+    const logsDir = getLogsDir();
+    if (!existsSync(logsDir)) {
+      mkdirSync(logsDir, { recursive: true, mode: 0o700 });
+    }
+
+    rotateLogFile(filename);
+
+    const filePath = join(logsDir, filename);
+    appendFileSync(filePath, entry + "\n", { mode: 0o600 });
+  } catch (e) {
+    // Ignore file write errors - don't break MCP server
+  }
+}
+
+// Get configured log level (DEBUG, INFO, WARN, ERROR)
+function getLogLevel() {
+  const level = process.env.LOG_LEVEL?.toUpperCase();
+  if (["DEBUG", "INFO", "WARN", "ERROR"].includes(level)) {
+    return level;
+  }
+  return "INFO";
+}
+
+const LOG_PRIORITY = { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 };
+
+function shouldLog(level) {
+  const minLevel = getLogLevel();
+  return LOG_PRIORITY[level] >= LOG_PRIORITY[minLevel];
+}
+
 const log = {
-  info: (msg) => console.error(`[brain-dumpy] ${msg}`),
-  error: (msg, err) => console.error(`[brain-dumpy] ERROR: ${msg}`, err?.message || ""),
-  debug: (msg) => console.error(`[brain-dumpy] DEBUG: ${msg}`),
+  info: (msg) => {
+    if (!shouldLog("INFO")) return;
+    console.error(`[brain-dumpy] ${msg}`);
+    writeToLogFile(LOG_FILE, formatLogEntry("INFO", "mcp-server", msg));
+  },
+  warn: (msg, err) => {
+    if (!shouldLog("WARN")) return;
+    console.error(`[brain-dumpy] WARN: ${msg}`, err?.message || "");
+    writeToLogFile(LOG_FILE, formatLogEntry("WARN", "mcp-server", msg, err));
+  },
+  error: (msg, err) => {
+    if (!shouldLog("ERROR")) return;
+    console.error(`[brain-dumpy] ERROR: ${msg}`, err?.message || "");
+    const entry = formatLogEntry("ERROR", "mcp-server", msg, err);
+    writeToLogFile(LOG_FILE, entry);
+    writeToLogFile(ERROR_LOG_FILE, entry);
+  },
+  debug: (msg) => {
+    if (!shouldLog("DEBUG")) return;
+    console.error(`[brain-dumpy] DEBUG: ${msg}`);
+    writeToLogFile(LOG_FILE, formatLogEntry("DEBUG", "mcp-server", msg));
+  },
 };
 
 // =============================================================================

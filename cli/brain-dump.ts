@@ -31,6 +31,10 @@ import {
   getLatestBackup,
   getDatabaseStats,
 } from "../src/lib/backup";
+import { createCliLogger } from "../src/lib/logger";
+
+// Create logger for CLI operations
+const logger = createCliLogger();
 
 // Ensure XDG directories exist
 ensureDirectoriesSync();
@@ -98,6 +102,7 @@ function updateTicketStatus(ticketId: string, status: Status): boolean {
 
     if (result.changes === 0) {
       console.error("Error: Ticket not found:", ticketId);
+      logger.warn(`Ticket not found: ${ticketId}`);
       return false;
     }
 
@@ -105,9 +110,11 @@ function updateTicketStatus(ticketId: string, status: Status): boolean {
     const ticket = db.prepare("SELECT title FROM tickets WHERE id = ?").get(ticketId) as { title: string } | undefined;
 
     console.log(`✓ Ticket "${ticket?.title}" moved to ${status.toUpperCase()}`);
+    logger.info(`Ticket status updated: ${ticketId} -> ${status}`);
     return true;
   } catch (error) {
     console.error("Error updating ticket:", error);
+    logger.error("Failed to update ticket status", error instanceof Error ? error : new Error(String(error)));
     return false;
   } finally {
     db.close();
@@ -240,6 +247,7 @@ function handleBackup(args: string[]): void {
 
     if (result.success && result.created) {
       console.log(`✓ Backup created: ${result.backupPath}`);
+      logger.info(`Manual backup created: ${result.backupPath}`);
     } else if (result.success && !result.created) {
       console.log(`✓ ${result.message}`);
       if (result.backupPath) {
@@ -247,6 +255,7 @@ function handleBackup(args: string[]): void {
       }
     } else {
       console.error(`✗ ${result.message}`);
+      logger.error(`Backup failed: ${result.message}`);
       process.exit(1);
     }
   }
@@ -333,6 +342,7 @@ async function handleRestore(args: string[]): Promise<void> {
 
   // Perform restore
   console.log("\nRestoring...");
+  logger.info(`Starting database restore from: ${backupFilename}`);
   const result = restoreFromBackup(backupPath);
 
   if (result.success) {
@@ -341,11 +351,13 @@ async function handleRestore(args: string[]): Promise<void> {
       console.log(`  Pre-restore backup saved to: ${result.preRestoreBackupPath}`);
     }
     console.log("\n⚠️  Please restart Brain Dump to use the restored database.");
+    logger.info(`Database restored successfully from: ${backupFilename}`);
   } else {
     console.error(`✗ ${result.message}`);
     if (result.preRestoreBackupPath) {
       console.log(`  Your previous database was saved to: ${result.preRestoreBackupPath}`);
     }
+    logger.error(`Database restore failed: ${result.message}`);
     process.exit(1);
   }
 }
