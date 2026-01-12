@@ -1530,6 +1530,40 @@ environment-specific guidance or behavior.`,
           required: [],
         },
       },
+      {
+        name: "get_project_settings",
+        description: `Get project settings including working method preference.
+
+Returns the project's configured working method and computes the effective
+environment based on the setting and current detection.
+
+Args:
+  projectId: The project ID to get settings for
+
+Returns:
+  {
+    "projectId": "...",
+    "projectName": "...",
+    "workingMethod": "auto" | "claude-code" | "vscode",
+    "effectiveEnvironment": "claude-code" | "vscode" | "unknown",
+    "detectedEnvironment": "claude-code" | "vscode" | "unknown"
+  }
+
+The effectiveEnvironment is computed as:
+- If workingMethod is "auto": uses detectedEnvironment
+- If workingMethod is "claude-code" or "vscode": uses that value
+- Otherwise: falls back to detectedEnvironment`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            projectId: {
+              type: "string",
+              description: "Project ID to get settings for",
+            },
+          },
+          required: ["projectId"],
+        },
+      },
     ],
   };
 });
@@ -2691,6 +2725,62 @@ ${results.map(t => `## ${t.title}
         };
 
         log.info(`Environment detected: ${envInfo.environment}`);
+
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      }
+
+      // -----------------------------------------------------------------------
+      // GET PROJECT SETTINGS
+      // -----------------------------------------------------------------------
+      case "get_project_settings": {
+        const error = validateRequired(args, ["projectId"]);
+        if (error) {
+          return { content: [{ type: "text", text: error }], isError: true };
+        }
+
+        const { projectId } = args;
+
+        // Get project
+        const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+        if (!project) {
+          return {
+            content: [{ type: "text", text: `Project not found: ${projectId}` }],
+            isError: true,
+          };
+        }
+
+        // Get detected environment
+        const detectedEnvironment = detectEnvironment();
+
+        // Get working method (default to 'auto' if not set)
+        const workingMethod = project.working_method || "auto";
+
+        // Compute effective environment
+        let effectiveEnvironment;
+        if (workingMethod === "auto") {
+          effectiveEnvironment = detectedEnvironment;
+        } else if (workingMethod === "claude-code" || workingMethod === "vscode") {
+          effectiveEnvironment = workingMethod;
+        } else {
+          // Invalid value, fall back to detected
+          effectiveEnvironment = detectedEnvironment;
+        }
+
+        const result = {
+          projectId: project.id,
+          projectName: project.name,
+          projectPath: project.path,
+          workingMethod,
+          effectiveEnvironment,
+          detectedEnvironment,
+        };
+
+        log.info(`Got settings for project ${project.name}: workingMethod=${workingMethod}, effective=${effectiveEnvironment}`);
 
         return {
           content: [{
