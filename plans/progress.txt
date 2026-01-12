@@ -1751,3 +1751,65 @@ Commit: f169818
 
 ---
 
+### 2026-01-12 - VS Code Troubleshooting Guide
+- Task: Write troubleshooting guide for VS Code
+- Ticket ID: 96066be1-3a64-4c97-b1f6-d62b14ae5ea4
+- Success: true
+- Agent: Ralph
+- Branch: ralph/637085d2-breakdown-agent-md
+
+**Files Created:**
+- `docs/vscode-troubleshooting.md` - Comprehensive VS Code troubleshooting guide
+
+**Guide Contents:**
+1. MCP Connection Issues
+   - Server not listed in VS Code
+   - Server connects but tools don't work
+   - Database not found in MCP tools
+2. Agent Issues
+   - Custom agents not appearing
+   - Agents load but don't have MCP tools
+   - Agent handoffs not working
+3. Common Tool Errors
+   - Project/ticket not found solutions
+   - Start/complete work failure fixes
+4. Debug Logging
+   - Enable verbose logging
+   - Log file locations table
+5. Known Limitations
+   - VS Code MCP support requirements
+   - Agent limitations
+   - Brain Dumpy MCP tool limitations
+   - Git integration notes
+
+**Testing:**
+- All 298 unit tests passing
+- Guide covers all acceptance criteria
+
+**Notes:**
+- Complements existing general troubleshooting.md
+- Specific to VS Code + MCP + Agents workflow
+- Actionable solutions with command examples
+
+---
+
+## Iteration Status
+
+Completed 7 of 9 user stories in the VS Code Configuration epic:
+1. ✅ 637085d2 - Create breakdown.agent.md for VS Code
+2. ✅ 199b6474 - Create inception.agent.md for VS Code
+3. ✅ f8532482 - Create ralph.agent.md for VS Code
+4. ✅ a282c4ce - Create simplify.agent.md for VS Code
+5. ✅ 676c7507 - Configure agent handoffs in VS Code agents
+6. ✅ 46f5a13a - Write Quick Start guide for VS Code
+7. ✅ 96066be1 - Write troubleshooting guide for VS Code
+
+Remaining tasks (2) - REQUIRE MANUAL TESTING:
+- 45618cde - Test VS Code agents with GitHub Copilot (medium)
+- b73cb972 - Test VS Code agents with Continue extension (low)
+
+Branch: ralph/637085d2-breakdown-agent-md
+Commit: f15bd6d
+
+---
+
