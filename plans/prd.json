@@ -62,7 +62,7 @@
         "documentation",
         "vs-code"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "96066be1-3a64-4c97-b1f6-d62b14ae5ea4",
