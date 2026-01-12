@@ -780,3 +780,47 @@ migrateFromLegacySync(): MigrationResult
 - Module rename (cp-004) is cleanup work and can be done anytime after the path implementations
 - Tests ticket (cp-005) should be done before rename to ensure nothing breaks
 
+---
+
+### 2026-01-12 - Manual Backup/Restore CLI Commands
+- Task: Add manual backup/restore CLI commands
+- Ticket ID: a7bbca6d-a9da-4733-bf62-41f1da610f64
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Files Modified:**
+- `src/lib/backup.ts` - Added restore functions
+- `cli/brain-dump.ts` - Added backup/restore CLI commands
+
+**New CLI Commands:**
+| Command | Description |
+|---------|-------------|
+| `brain-dump backup` | Create immediate timestamped backup |
+| `brain-dump backup --list` | List available backups with dates/sizes |
+| `brain-dump restore <filename>` | Restore from specific backup file |
+| `brain-dump restore --latest` | Restore from most recent backup |
+
+**New Functions in backup.ts:**
+| Function | Description |
+|----------|-------------|
+| `restoreFromBackup(path)` | Safely restore database from backup |
+| `getDatabaseStats(path)` | Get ticket/project/epic counts |
+| `getLatestBackup()` | Get most recent backup info |
+
+**Restore Safety Features:**
+- Confirmation prompt before restore
+- Pre-restore backup created automatically
+- Backup integrity verification before restore
+- Database stats comparison (shows project/epic/ticket counts)
+- Reverts to previous state if restore fails integrity check
+
+**Testing:**
+- All 180 tests passing
+- CLI commands tested manually
+- Type checks pass (except pre-existing index.tsx errors)
+
+**Notes:**
+- Restore requires restarting Brain Dump to use the new database
+- Pre-restore backups saved as `pre-restore-{timestamp}.db`
+
