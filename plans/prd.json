@@ -67,53 +67,6 @@
       "passes": true
     },
     {
-      "id": "e88860de-1309-4d67-8f61-80da55821dd2",
-      "title": "Add MCP tool for database health status",
-      "description": "## Task\nCreate MCP tool to report database health and backup status.\n\n## Tool: `get_database_health`\n\n## Returns\n```json\n{\n  \"status\": \"healthy\" | \"warning\" | \"error\",\n  \"databasePath\": \"~/.local/share/brain-dumpy/brain-dumpy.db\",\n  \"databaseSize\": \"15.2 MB\",\n  \"lastBackup\": \"2026-01-11T00:00:00Z\",\n  \"backupCount\": 7,\n  \"integrityCheck\": \"ok\",\n  \"activeConnections\": 2,\n  \"lockFile\": {\n    \"exists\": true,\n    \"pid\": 12345,\n    \"type\": \"mcp-server\"\n  },\n  \"issues\": []\n}\n```\n\n## Acceptance Criteria\n- [ ] Tool registered in MCP server\n- [ ] Returns accurate health info\n- [ ] Includes backup status\n- [ ] Shows lock file info\n- [ ] Lists any detected issues\n\n## File to Modify\n`mcp-server/index.js`",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "low",
-      "tags": [
-        "mcp",
-        "monitoring",
-        "health"
-      ],
-      "passes": true
-    },
-    {
-      "id": "e97a4485-af2a-4bd8-9763-20bb1a213a02",
-      "title": "Add graceful shutdown handling for all processes",
-      "description": "## Task\nEnsure all Brain Dumpy processes handle shutdown gracefully to prevent data loss.\n\n## Processes to Handle\n- MCP server\n- CLI commands\n- Vite dev server\n\n## Shutdown Actions\n1. Catch SIGTERM, SIGINT, SIGQUIT\n2. Flush any pending writes\n3. Run SQLite checkpoint (WAL mode)\n4. Remove lock file\n5. Close database connection\n6. Log shutdown\n\n## Implementation\n```typescript\nfunction setupGracefulShutdown(db: Database): void {\n  const cleanup = async () => {\n    await db.run('PRAGMA wal_checkpoint(TRUNCATE)');\n    await removeLockFile();\n    await db.close();\n    process.exit(0);\n  };\n  process.on('SIGTERM', cleanup);\n  process.on('SIGINT', cleanup);\n}\n```\n\n## Acceptance Criteria\n- [ ] All signals handled correctly\n- [ ] WAL checkpoint on shutdown\n- [ ] Lock file cleaned up\n- [ ] No data loss on Ctrl+C\n- [ ] Works for all process types\n\n## Files to Modify\n- `mcp-server/index.js`\n- `cli/brain-dump.ts`\n- `vite.config.ts` (dev server)",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "high",
-      "tags": [
-        "shutdown",
-        "database",
-        "safety"
-      ],
-      "passes": true
-    },
-    {
-      "id": "f8ab8cff-ec40-49e0-a784-c5020b764cf0",
-      "title": "Update documentation for new data locations",
-      "description": "## Task\nUpdate all documentation to reflect new XDG-compliant data locations.\n\n## Documentation Updates\n\n### README.md\n- Update data location section\n- Add migration notes for existing users\n- Document backup/restore commands\n\n### New Docs\n- `docs/data-locations.md` - All paths explained\n- `docs/backup-restore.md` - Backup system guide\n- `docs/troubleshooting.md` - Common issues\n\n## Content to Include\n- XDG directory explanation\n- Environment variable overrides\n- Backup schedule and retention\n- How to recover from corruption\n- Migration from legacy paths\n\n## Acceptance Criteria\n- [ ] README updated with new paths\n- [ ] Migration guide for existing users\n- [ ] Backup/restore documented\n- [ ] Troubleshooting guide created\n\n## Files to Modify\n- `README.md`\n- `docs/*.md` (new files)",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "low",
-      "tags": [
-        "documentation",
-        "xdg"
-      ],
-      "passes": true
-    },
-    {
       "id": "e5aebb29-3760-403c-8978-a975f2f448e8",
       "title": "Add database file watcher for deletion detection",
       "description": "## Task\nImplement file system watcher to detect if database files are unexpectedly deleted while in use.\n\n## Context\nThis ticket was created after a mysterious database deletion incident where the .db files were deleted while processes held open file handles.\n\n## Implementation\n- Watch database directory for deletion events\n- Detect if .db, .db-wal, or .db-shm files are deleted\n- If deletion detected while DB open:\n  - Log critical error immediately\n  - Attempt emergency backup from memory\n  - Alert user via MCP response or CLI output\n  - Prevent further writes to avoid data loss\n\n## Technical Approach\n```typescript\nimport { watch } from 'fs';\n\nfunction watchDatabaseFiles(dbPath: string) {\n  const watcher = watch(dirname(dbPath), (event, filename) => {\n    if (filename?.endsWith('.db') && event === 'rename') {\n      // File might be deleted - check if it exists\n      if (!existsSync(dbPath)) {\n        handleDatabaseDeletion();\n      }\n    }\n  });\n}\n```\n\n## Acceptance Criteria\n- [ ] Watcher detects .db file deletion\n- [ ] Critical error logged immediately\n- [ ] Emergency backup attempted\n- [ ] User alerted via available channel\n- [ ] Further writes prevented\n\n## File to Create\n`src/lib/db-watcher.ts`",
@@ -131,6 +84,6 @@
       "passes": true
     }
   ],
-  "generatedAt": "2026-01-12T04:53:14.651Z",
+  "generatedAt": "2026-01-12T05:22:08.208Z",
   "epicTitle": "XDG Migration & Data Protection"
 }
