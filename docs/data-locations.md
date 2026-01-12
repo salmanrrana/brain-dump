@@ -1,6 +1,6 @@
 # Data Locations
 
-Brain Dumpy follows the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/latest/) for predictable, organized data storage on Linux systems.
+Brain Dumpy follows the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/latest/) for predictable, organized data storage across Linux, macOS, and Windows.
 
 ## Directory Structure
 
@@ -27,6 +27,8 @@ Brain Dumpy follows the [XDG Base Directory Specification](https://specification
 
 ## Path Reference
 
+### Linux Paths
+
 | Data Type | Default Path | Environment Override |
 |-----------|--------------|---------------------|
 | Database | `~/.local/share/brain-dumpy/brain-dumpy.db` | `XDG_DATA_HOME` |
@@ -34,6 +36,24 @@ Brain Dumpy follows the [XDG Base Directory Specification](https://specification
 | Backups | `~/.local/state/brain-dumpy/backups/` | `XDG_STATE_HOME` |
 | Logs | `~/.local/state/brain-dumpy/logs/` | `XDG_STATE_HOME` |
 | Lock file | `~/.local/state/brain-dumpy/brain-dumpy.lock` | `XDG_STATE_HOME` |
+
+### macOS Paths
+
+| Type | Path |
+|------|------|
+| Data | ~/Library/Application Support/brain-dumpy/ |
+| State | ~/Library/Application Support/brain-dumpy/ |
+| Config | ~/Library/Application Support/brain-dumpy/ |
+| Cache | ~/Library/Caches/brain-dumpy/ |
+
+### Windows Paths
+
+| Type | Path |
+|------|------|
+| Data | %APPDATA%\brain-dumpy\ |
+| State | %LOCALAPPDATA%\brain-dumpy\ |
+| Config | %APPDATA%\brain-dumpy\ |
+| Cache | %LOCALAPPDATA%\brain-dumpy\ |
 
 ## Environment Variables
 
@@ -80,9 +100,9 @@ mkdir -p ~/.local/share/brain-dumpy
 mkdir -p ~/.local/state/brain-dumpy/backups
 
 # 2. Copy database
-cp ~/.brain-dump/brain-dump.db ~/.local/share/brain-dumpy/
-cp ~/.brain-dump/brain-dump.db-wal ~/.local/share/brain-dumpy/ 2>/dev/null
-cp ~/.brain-dump/brain-dump.db-shm ~/.local/share/brain-dumpy/ 2>/dev/null
+cp ~/.brain-dump/brain-dump.db ~/.local/share/brain-dumpy/brain-dumpy.db
+cp ~/.brain-dump/brain-dump.db-wal ~/.local/share/brain-dumpy/brain-dumpy.db-wal 2>/dev/null
+cp ~/.brain-dump/brain-dump.db-shm ~/.local/share/brain-dumpy/brain-dumpy.db-shm 2>/dev/null
 
 # 3. Copy attachments
 cp -r ~/.brain-dump/attachments ~/.local/share/brain-dumpy/

@@ -405,7 +405,7 @@ function migrateFromLegacySync() {
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
       const backupPath = join(backupsDir, `pre-migration-${timestamp}.db`);
       const srcDb = new Database(legacyDbPath, { readonly: true });
-      srcDb.exec(`VACUUM INTO '${backupPath}'`);
+      srcDb.exec(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
       srcDb.close();
       log.info(`Created pre-migration backup: ${backupPath}`);
     } catch (backupErr) {

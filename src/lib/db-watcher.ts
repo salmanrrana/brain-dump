@@ -55,7 +55,8 @@ function fileExists(path: string): boolean {
   try {
     const stats = statSync(path);
     return stats.isFile();
-  } catch {
+  } catch (error) {
+    console.error(`[db-watcher] Failed to check file existence for ${path}: ${error}`);
     return false;
   }
 }
@@ -101,7 +102,7 @@ function handlePotentialDeletion(
 
   // Verify the file is actually gone
   const filePath =
-    filename === dbBasename ? dbPath : `${dirname(dbPath)}/${filename}`;
+    filename === dbBasename ? dbPath : join(dirname(dbPath), filename);
 
   if (!existsSync(filePath)) {
     // File was deleted!
@@ -190,8 +191,8 @@ export function stopWatching(): void {
   if (state.watcher) {
     try {
       state.watcher.close();
-    } catch {
-      // Ignore close errors
+    } catch (error) {
+      console.error(`[db-watcher] Failed to close watcher: ${error}`);
     }
   }
 

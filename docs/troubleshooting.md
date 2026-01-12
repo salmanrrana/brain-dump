@@ -118,7 +118,7 @@ cat ~/.local/state/brain-dumpy/migration.log
 2. Manual migration:
    ```bash
    mkdir -p ~/.local/share/brain-dumpy
-   cp ~/.brain-dump/brain-dump.db ~/.local/share/brain-dumpy/
+   cp ~/.brain-dump/brain-dump.db ~/.local/share/brain-dumpy/brain-dumpy.db
    cp -r ~/.brain-dump/attachments ~/.local/share/brain-dumpy/
    ```
 

@@ -143,7 +143,8 @@ export function needsRotation(filePath: string): boolean {
   try {
     const stats = statSync(filePath);
     return stats.size >= MAX_FILE_SIZE;
-  } catch {
+  } catch (error) {
+    console.error(`[Logger] Failed to check log file size: ${error}`);
     return false;
   }
 }
@@ -167,8 +168,8 @@ export function rotateLogFile(baseFilename: string): void {
   if (existsSync(oldestPath)) {
     try {
       unlinkSync(oldestPath);
-    } catch {
-      // Ignore deletion errors
+    } catch (error) {
+      console.error(`[Logger] Failed to delete oldest log file: ${error}`);
     }
   }
 
@@ -180,8 +181,8 @@ export function rotateLogFile(baseFilename: string): void {
     if (existsSync(fromPath)) {
       try {
         renameSync(fromPath, toPath);
-      } catch {
-        // Ignore rename errors
+      } catch (error) {
+        console.error(`[Logger] Failed to rotate log file ${fromPath}: ${error}`);
       }
     }
   }
@@ -190,8 +191,8 @@ export function rotateLogFile(baseFilename: string): void {
   if (existsSync(basePath)) {
     try {
       renameSync(basePath, join(logsDir, `${baseFilename}.1`));
-    } catch {
-      // Ignore rename errors
+    } catch (error) {
+      console.error(`[Logger] Failed to rotate current log file: ${error}`);
     }
   }
 }

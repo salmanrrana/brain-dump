@@ -50,7 +50,8 @@ export function wasBackupCreatedToday(): boolean {
     const markerDate = stats.mtime.toISOString().substring(0, 10);
     const today = getTodayDateString();
     return markerDate === today;
-  } catch {
+  } catch (error) {
+    console.error(`[Backup] Failed to check backup marker: ${error}`);
     return false;
   }
 }
@@ -114,8 +115,8 @@ export function listBackups(): { filename: string; date: string; path: string; s
           path: filePath,
           size: stats.size,
         });
-      } catch {
-        // Skip files we can't stat
+      } catch (error) {
+        console.error(`[Backup] Failed to stat backup file ${file}: ${error}`);
       }
     }
   }
@@ -164,8 +165,8 @@ export function createBackup(sourcePath?: string, targetPath?: string): BackupRe
       // Remove invalid backup
       try {
         unlinkSync(backupPath);
-      } catch {
-        // Ignore cleanup errors
+      } catch (error) {
+        console.error(`[Backup] Failed to cleanup invalid backup ${backupPath}: ${error}`);
       }
       return {
         success: false,
@@ -208,7 +209,8 @@ export function verifyBackup(backupPath: string): boolean {
     db.close();
 
     return result.length === 1 && result[0]?.integrity_check === "ok";
-  } catch {
+  } catch (error) {
+    console.error(`[Backup] Failed to verify backup ${backupPath}: ${error}`);
     return false;
   }
 }
@@ -363,7 +365,8 @@ export function getDatabaseStats(dbPath: string): {
 
     db.close();
     return { projects, epics, tickets };
-  } catch {
+  } catch (error) {
+    console.error(`[Backup] Failed to get database stats for ${dbPath}: ${error}`);
     return null;
   }
 }

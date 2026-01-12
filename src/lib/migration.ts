@@ -62,7 +62,8 @@ export function verifyDatabaseIntegrity(dbPath: string): boolean {
     const result = db.pragma("integrity_check") as { integrity_check: string }[];
     db.close();
     return result.length === 1 && result[0]?.integrity_check === "ok";
-  } catch {
+  } catch (error) {
+    console.error(`[Migration] Database integrity check failed: ${error}`);
     return false;
   }
 }
@@ -134,7 +135,7 @@ function createPreMigrationBackup(dbPath: string): string | null {
 
     // Use SQLite backup API for consistency
     const srcDb = new Database(dbPath, { readonly: true });
-    srcDb.exec(`VACUUM INTO '${backupPath}'`);
+    srcDb.exec(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
     srcDb.close();
 
     logMigration(`Created pre-migration backup: ${backupPath}`);

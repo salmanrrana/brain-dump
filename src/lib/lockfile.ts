@@ -70,8 +70,8 @@ export function readLockFile(): LockInfo | null {
     }
 
     return lockInfo;
-  } catch {
-    // Corrupted or unreadable lock file
+  } catch (error) {
+    console.error(`[Lockfile] Failed to read lock file: ${error}`);
     return null;
   }
 }
@@ -127,8 +127,8 @@ export function acquireLock(type: LockInfo["type"]): {
     try {
       unlinkSync(lockPath);
       console.error(`[brain-dumpy] Cleaned up stale lock file`);
-    } catch {
-      // Ignore cleanup errors
+    } catch (error) {
+      console.error(`[Lockfile] Failed to cleanup stale lock file: ${error}`);
     }
   }
 
