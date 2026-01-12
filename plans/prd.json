@@ -85,7 +85,7 @@
     {
       "id": "254bca98-5777-43a5-acdc-1319181c2b19",
       "title": "Implement database lock file detection",
-      "description": "## Task\nAdd lock file mechanism to detect and handle multiple processes accessing the database.\n\n## Lock File Location\n`~/.local/state/brain-dumpy/brain-dumpy.lock`\n\n## Lock File Contents\n```json\n{\n  \"pid\": 12345,\n  \"startedAt\": \"2026-01-12T00:00:00Z\",\n  \"type\": \"mcp-server\" | \"cli\" | \"vite\"\n}\n```\n\n## Behavior\n- Create lock on database open\n- Check if existing lock is stale (process not running)\n- Warn if another process has lock\n- Clean up lock on graceful shutdown\n- Handle SIGTERM/SIGINT for cleanup\n\n## Acceptance Criteria\n- [ ] Lock file created on DB access\n- [ ] Stale locks detected and cleaned\n- [ ] Warning shown for concurrent access\n- [ ] Lock cleaned up on shutdown\n- [ ] Works across MCP server, CLI, and Vite\n\n## File to Create\n`src/lib/lockfile.ts`",
+      "description": "## Task\nAdd lock file mechanism to detect and handle multiple processes accessing the database.\n\n## Lock File Location\n`~/.local/state/brain-dumpy/brain-dumpy.lock`\n\n## Lock File Contents\n```json\n{\n  \"pid\": 12345,\n  \"startedAt\": \"2026-01-12T00:00:00Z\",\n  \"type\": \"mcp-server\" | \"cli\" | \"vite\"\n}\n```\n\n## Behavior\n- Create lock on database open\n- Check if existing lock is stale (process not running)\n- Warn if another process has lock\n- Clean up lock on graceful shutdown\n- Handle SIGTERM/SIGINT for cleanup\n\n## Acceptance Criteria\n- [x] Lock file created on DB access\n- [x] Stale locks detected and cleaned\n- [x] Warning shown for concurrent access\n- [x] Lock cleaned up on shutdown\n- [x] Works across MCP server, CLI, and Vite\n\n## File to Create\n`src/lib/lockfile.ts`",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
@@ -96,7 +96,7 @@
         "concurrency",
         "safety"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "b892ddcc-b0d7-44ab-8239-a9f252af7c5a",

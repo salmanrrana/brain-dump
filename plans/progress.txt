@@ -680,3 +680,60 @@ migrateFromLegacySync(): MigrationResult
 - Non-blocking operations via setImmediate for async versions
 - Next ticket (a7bbca6d) will add manual backup/restore CLI commands
 
+---
+
+### 2026-01-12 - Database Lock File Detection
+- Task: Implement database lock file detection
+- Ticket ID: 254bca98-5777-43a5-acdc-1319181c2b19
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Files Created:**
+- `src/lib/lockfile.ts` - Lock file utility module
+- `src/lib/lockfile.test.ts` - Unit tests (22 tests)
+
+**Files Modified:**
+- `mcp-server/index.js` - Added lock file utilities and graceful shutdown
+- `cli/brain-dump.ts` - Added lock acquisition for CLI operations
+- `src/lib/db.ts` - Added lock acquisition for Vite dev server
+
+**Functions Implemented:**
+| Function | Description |
+|----------|-------------|
+| `getLockFilePath()` | Returns ~/.local/state/brain-dumpy/brain-dumpy.lock |
+| `isProcessRunning(pid)` | Checks if a process is running |
+| `readLockFile()` | Reads and validates lock file |
+| `checkLock()` | Checks lock status and detects stale locks |
+| `acquireLock(type)` | Acquires lock for process type |
+| `releaseLock()` | Releases lock if owned by current process |
+| `setupGracefulShutdown()` | Sets up signal handlers for cleanup |
+| `initializeLockSync()` | Combined init for startup |
+
+**Lock File Format:**
+```json
+{
+  "pid": 12345,
+  "startedAt": "2026-01-12T00:00:00Z",
+  "type": "mcp-server" | "cli" | "vite"
+}
+```
+
+**Features:**
+- Lock file at ~/.local/state/brain-dumpy/brain-dumpy.lock
+- Stale lock detection (process not running)
+- Warning for concurrent access (doesn't block)
+- Signal handlers for SIGTERM/SIGINT/SIGQUIT
+- WAL checkpoint on graceful shutdown
+- Lock cleanup on process exit
+
+**Testing:**
+- All 129 tests passing (22 new lockfile tests)
+- MCP server syntax valid
+- Type checks pass (except pre-existing index.tsx errors)
+
+**Notes:**
+- Doesn't block concurrent access, just warns (SQLite WAL handles concurrency)
+- Lock file secured with 0600 permissions
+- Graceful shutdown ensures WAL is checkpointed before exit
+
