@@ -3,67 +3,6 @@
   "projectPath": "/home/xtra/code/personal_projects/brain-dumpy",
   "userStories": [
     {
-      "id": "637085d2-c0bf-463f-8e35-d1188dc673ee",
-      "title": "Create breakdown.agent.md for VS Code",
-      "description": "## Task\nCreate VS Code custom agent file for the breakdown agent.\n\n## File Location\n`.github/agents/breakdown.agent.md`\n\n## Content\n- YAML frontmatter with tools, model, description\n- Markdown body with breakdown instructions\n- Include Brain Dumpy MCP tools for ticket creation\n\n## Acceptance Criteria\n- [ ] Agent file created\n- [ ] Appears in VS Code chat dropdown\n- [ ] Can create tickets via MCP tools",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "high",
-      "tags": [
-        "vs-code",
-        "agents"
-      ],
-      "passes": true
-    },
-    {
-      "id": "199b6474-17b8-4906-9341-63618afec7d9",
-      "title": "Create inception.agent.md for VS Code",
-      "description": "## Task\nCreate VS Code custom agent file for the inception agent.\n\n## File Location\n`.github/agents/inception.agent.md`\n\n## Content\n- YAML frontmatter with tools, model, description\n- Markdown body with interview/inception instructions\n- Handoff to breakdown agent when done\n\n## Acceptance Criteria\n- [ ] Agent file created\n- [ ] Appears in VS Code chat dropdown\n- [ ] Can conduct interviews and create projects",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "high",
-      "tags": [
-        "vs-code",
-        "agents"
-      ],
-      "passes": true
-    },
-    {
-      "id": "f8532482-fe46-417a-9b09-ef3c80e34530",
-      "title": "Create ralph.agent.md for VS Code",
-      "description": "## Task\nCreate VS Code custom agent file for Ralph (autonomous worker).\n\n## File Location\n`.github/agents/ralph.agent.md`\n\n## Content\n- YAML frontmatter with tools, model, description\n- Markdown body with Ralph's work instructions\n- Include ticket workflow tools (start_work, complete_work)\n- Environment-aware behavior\n\n## Acceptance Criteria\n- [ ] Agent file created\n- [ ] Appears in VS Code chat dropdown\n- [ ] Can work on tickets autonomously",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "high",
-      "tags": [
-        "vs-code",
-        "agents",
-        "ralph"
-      ],
-      "passes": true
-    },
-    {
-      "id": "a282c4ce-ced4-485e-b530-3e085a42e979",
-      "title": "Create simplify.agent.md for VS Code",
-      "description": "## Task\nCreate VS Code custom agent file for the simplify agent.\n\n## File Location\n`.github/agents/simplify.agent.md`\n\n## Content\n- YAML frontmatter with tools, model, description\n- Markdown body with code simplification instructions\n\n## Acceptance Criteria\n- [ ] Agent file created\n- [ ] Appears in VS Code chat dropdown\n- [ ] Can analyze and suggest simplifications",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "medium",
-      "tags": [
-        "vs-code",
-        "agents"
-      ],
-      "passes": true
-    },
-    {
       "id": "676c7507-f075-4da2-a28e-d24684b16f54",
       "title": "Configure agent handoffs in VS Code agents",
       "description": "## Task\nAdd handoff configuration to agent files so they can transition to each other.\n\n## Handoff Flow\n- inception → breakdown (after requirements gathered)\n- breakdown → ralph (after tickets created)\n- ralph → (completes, signals context reset)\n\n## Acceptance Criteria\n- [ ] Handoffs defined in YAML frontmatter\n- [ ] Users can transition between agents smoothly\n- [ ] Context passed appropriately\n\n## Files to Modify\nAll `.github/agents/*.agent.md` files",
@@ -77,7 +16,7 @@
         "agents",
         "handoffs"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "45618cde-757d-41a8-84cf-d9ae0ef64a61",
@@ -141,6 +80,6 @@
       "passes": false
     }
   ],
-  "generatedAt": "2026-01-12T14:58:58.926Z",
+  "generatedAt": "2026-01-12T16:40:51.915Z",
   "epicTitle": "VS Code Configuration"
 }

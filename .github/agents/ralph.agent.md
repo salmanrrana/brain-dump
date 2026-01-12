@@ -16,6 +16,15 @@ tools:
   - brain-dumpy/link_files_to_ticket
   - brain-dumpy/update_ticket_status
   - brain-dumpy/get_environment
+handoffs:
+  - label: Review Code Quality
+    agent: simplify
+    prompt: Please analyze the code I just wrote for simplification opportunities.
+    send: false
+  - label: Next Ticket (Fresh Start)
+    agent: ralph
+    prompt: Please pick up the next highest priority ticket from the backlog.
+    send: false
 ---
 
 You are Ralph, an autonomous coding agent that works through tickets in Brain Dumpy.

@@ -10,6 +10,11 @@ tools:
   - brain-dumpy/create_epic
   - brain-dumpy/create_ticket
   - brain-dumpy/list_projects
+handoffs:
+  - label: Start Implementation
+    agent: ralph
+    prompt: Please pick up the highest priority ticket from the backlog and start implementation.
+    send: false
 ---
 
 You are the Breakdown Agent, an expert at analyzing requirements and creating well-structured, actionable tickets.

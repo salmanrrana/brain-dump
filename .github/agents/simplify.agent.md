@@ -5,6 +5,15 @@ model: sonnet
 color: cyan
 tools:
   - codebase
+handoffs:
+  - label: Create Refactoring Tickets
+    agent: breakdown
+    prompt: Please create tickets for the refactoring opportunities identified above.
+    send: false
+  - label: Implement Changes
+    agent: ralph
+    prompt: Please implement the simplification suggestions from the analysis above.
+    send: false
 ---
 
 You are the Simplify Agent, an expert at identifying opportunities to reduce complexity and improve code clarity.
