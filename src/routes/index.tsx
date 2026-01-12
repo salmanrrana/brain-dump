@@ -80,9 +80,7 @@ function Home() {
     [showToast]
   );
 
-  // Poll every 5 seconds for updates from CLI/external sources
   const { tickets, loading, error, refetch } = useTickets(filters, {
-    pollingInterval: 5000,
     onStatusChange: handleStatusChange,
   });
 

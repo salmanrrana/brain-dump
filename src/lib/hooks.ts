@@ -595,13 +595,14 @@ export interface StatusChange {
 }
 
 // Hook for fetching tickets with optional filters and polling
+// Polling disabled by default (pollingInterval = 0) for performance
 export function useTickets(
   filters: TicketFilters = {},
   options: { pollingInterval?: number; onStatusChange?: (change: StatusChange) => void } = {}
 ) {
   const prevTicketsRef = useRef<Map<string, string>>(new Map());
   const isInitialLoad = useRef(true);
-  const { pollingInterval = 5000, onStatusChange } = options;
+  const { pollingInterval = 0, onStatusChange } = options;
 
   const query = useQuery({
     queryKey: queryKeys.tickets(filters),

@@ -8,6 +8,18 @@ const APP_LOG_FILE = "brain-dumpy.log";
 const MCP_LOG_FILE = "mcp-server.log";
 const ERROR_LOG_FILE = "error.log";
 
+// PERFORMANCE: Cache file sizes to avoid repeated stat() calls on every log write
+// Cache expires after 60 seconds or after rotation
+const fileSizeCache: Map<string, { size: number; timestamp: number }> = new Map();
+const CACHE_TTL_MS = 60000; // 60 seconds
+
+function updateSizeCache(filePath: string, bytesWritten: number): void {
+  const cached = fileSizeCache.get(filePath);
+  if (cached) {
+    cached.size += bytesWritten;
+  }
+}
+
 export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
 
 export interface LogEntry {
@@ -91,8 +103,17 @@ export function needsRotation(filePath: string): boolean {
     return false;
   }
 
+  // PERFORMANCE: Check cache first to avoid repeated stat() calls
+  const now = Date.now();
+  const cached = fileSizeCache.get(filePath);
+  if (cached && (now - cached.timestamp) < CACHE_TTL_MS) {
+    return cached.size >= MAX_FILE_SIZE;
+  }
+
   try {
     const stats = statSync(filePath);
+    // Update cache
+    fileSizeCache.set(filePath, { size: stats.size, timestamp: now });
     return stats.size >= MAX_FILE_SIZE;
   } catch (error) {
     console.error(`[Logger] Failed to check log file size: ${error}`);
@@ -107,6 +128,9 @@ export function rotateLogFile(baseFilename: string): void {
   if (!needsRotation(basePath)) {
     return;
   }
+
+  // Clear cache for this file since we're rotating
+  fileSizeCache.delete(basePath);
 
   const oldestPath = join(logsDir, `${baseFilename}.${MAX_FILES - 1}`);
   if (existsSync(oldestPath)) {
@@ -149,6 +173,7 @@ export function writeToLogFile(filename: string, entry: LogEntry): void {
 
       const line = formatLogEntry(entry) + "\n";
       appendFileSync(filePath, line, { mode: 0o600 });
+      updateSizeCache(filePath, Buffer.byteLength(line, "utf8"));
     } catch (error) {
       console.error("[Logger] Failed to write to log file:", error);
     }
@@ -164,6 +189,7 @@ export function writeToLogFileSync(filename: string, entry: LogEntry): void {
 
     const line = formatLogEntry(entry) + "\n";
     appendFileSync(filePath, line, { mode: 0o600 });
+    updateSizeCache(filePath, Buffer.byteLength(line, "utf8"));
   } catch (error) {
     console.error("[Logger] Failed to write to log file:", error);
   }
