@@ -146,6 +146,122 @@ const log = {
 };
 
 // =============================================================================
+// ENVIRONMENT DETECTION
+// =============================================================================
+const VSCODE_ENV_PATTERNS = [
+  "VSCODE_GIT_ASKPASS_NODE",
+  "VSCODE_GIT_ASKPASS_MAIN",
+  "VSCODE_GIT_IPC_HANDLE",
+  "VSCODE_INJECTION",
+  "VSCODE_CLI",
+  "VSCODE_PID",
+  "VSCODE_CWD",
+  "VSCODE_NLS_CONFIG",
+  "VSCODE_IPC_HOOK",
+  "TERM_PROGRAM", // Check if value is "vscode"
+];
+
+const CLAUDE_CODE_ENV_PATTERNS = [
+  "CLAUDE_CODE",
+  "CLAUDE_CODE_ENTRYPOINT",
+  "CLAUDE_API_KEY",
+  "ANTHROPIC_API_KEY",
+  "MCP_SERVER_NAME",
+  "CLAUDE_CODE_TERMINAL_ID",
+];
+
+/**
+ * Check if any VS Code environment variables are present
+ */
+function hasVSCodeEnvironment() {
+  for (const envVar of VSCODE_ENV_PATTERNS) {
+    if (envVar === "TERM_PROGRAM") {
+      if (process.env.TERM_PROGRAM === "vscode") {
+        return true;
+      }
+    } else if (process.env[envVar]) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Check if any Claude Code environment variables are present
+ */
+function hasClaudeCodeEnvironment() {
+  for (const envVar of CLAUDE_CODE_ENV_PATTERNS) {
+    if (process.env[envVar]) {
+      return true;
+    }
+  }
+  // Check if running in a Claude Code session
+  if (process.env.SHELL && process.env.SHELL.includes("claude")) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Detect the current environment
+ * Claude Code takes priority because it may run inside a VS Code terminal
+ */
+function detectEnvironment() {
+  if (hasClaudeCodeEnvironment()) {
+    return "claude-code";
+  }
+  if (hasVSCodeEnvironment()) {
+    return "vscode";
+  }
+  return "unknown";
+}
+
+/**
+ * Get detailed environment information
+ */
+function getEnvironmentInfo() {
+  const environment = detectEnvironment();
+  const envVarsDetected = [];
+  let workspacePath = null;
+
+  // Collect detected env vars
+  for (const envVar of CLAUDE_CODE_ENV_PATTERNS) {
+    if (process.env[envVar]) {
+      envVarsDetected.push(envVar);
+    }
+  }
+
+  for (const envVar of VSCODE_ENV_PATTERNS) {
+    if (envVar === "TERM_PROGRAM") {
+      if (process.env.TERM_PROGRAM === "vscode") {
+        envVarsDetected.push("TERM_PROGRAM=vscode");
+      }
+    } else if (process.env[envVar]) {
+      envVarsDetected.push(envVar);
+    }
+  }
+
+  // Try to determine workspace path
+  if (process.env.VSCODE_CWD) {
+    workspacePath = process.env.VSCODE_CWD;
+  } else if (process.env.PWD) {
+    workspacePath = process.env.PWD;
+  } else {
+    try {
+      workspacePath = process.cwd();
+    } catch {
+      // Ignore cwd errors
+    }
+  }
+
+  return {
+    environment,
+    workspacePath,
+    envVarsDetected,
+  };
+}
+
+// =============================================================================
 // XDG DIRECTORY UTILITIES
 // =============================================================================
 const APP_NAME = "brain-dumpy";
@@ -775,6 +891,18 @@ try {
     log.error("Failed to check/add linked_commits column", migrationError);
   }
 
+  // Add working_method column to projects table if it doesn't exist (for environment settings)
+  try {
+    const projectColumns = db.prepare("PRAGMA table_info(projects)").all();
+    const hasWorkingMethod = projectColumns.some(col => col.name === "working_method");
+    if (!hasWorkingMethod) {
+      db.prepare("ALTER TABLE projects ADD COLUMN working_method TEXT DEFAULT 'auto'").run();
+      log.info("Added working_method column to projects table");
+    }
+  } catch (migrationError) {
+    log.error("Failed to check/add working_method column", migrationError);
+  }
+
   // Perform daily backup maintenance
   try {
     const backupResult = performDailyBackupSync(actualDbPath);
@@ -1222,16 +1350,22 @@ This tool:
 1. Sets the ticket status to review
 2. Gets git commits on the current branch (for PR description)
 3. Returns a summary of work done
+4. Signals that context should be cleared for fresh perspective on next task
 
 Use this when you've finished implementing a ticket.
 Call this before creating a pull request.
+
+IMPORTANT - Fresh Eyes Workflow:
+After completing a ticket, the AI should clear its context before starting the next task.
+This ensures each ticket gets worked on with a clean slate, without accumulated assumptions
+from previous work. The response includes environment-specific guidance for how to reset.
 
 Args:
   ticketId: The ticket ID to complete
   summary: Optional work summary to include
 
 Returns:
-  Updated ticket, git commits summary, and suggested PR description.`,
+  Updated ticket, git commits summary, suggested PR description, and context reset guidance.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -1367,6 +1501,100 @@ Returns:
           type: "object",
           properties: {},
           required: [],
+        },
+      },
+      {
+        name: "get_environment",
+        description: `Get current environment information.
+
+Detects whether the MCP server is being called from:
+- Claude Code (Anthropic's CLI)
+- VS Code (with MCP extension)
+- Unknown environment
+
+Also returns the current workspace path and auto-detected project.
+
+Returns:
+  {
+    "environment": "claude-code" | "vscode" | "unknown",
+    "workspacePath": "/path/to/project",
+    "detectedProject": { project info } | null,
+    "envVarsDetected": ["CLAUDE_CODE", ...]
+  }
+
+Use this to determine which features are available and to provide
+environment-specific guidance or behavior.`,
+        inputSchema: {
+          type: "object",
+          properties: {},
+          required: [],
+        },
+      },
+      {
+        name: "get_project_settings",
+        description: `Get project settings including working method preference.
+
+Returns the project's configured working method and computes the effective
+environment based on the setting and current detection.
+
+Args:
+  projectId: The project ID to get settings for
+
+Returns:
+  {
+    "projectId": "...",
+    "projectName": "...",
+    "workingMethod": "auto" | "claude-code" | "vscode",
+    "effectiveEnvironment": "claude-code" | "vscode" | "unknown",
+    "detectedEnvironment": "claude-code" | "vscode" | "unknown"
+  }
+
+The effectiveEnvironment is computed as:
+- If workingMethod is "auto": uses detectedEnvironment
+- If workingMethod is "claude-code" or "vscode": uses that value
+- Otherwise: falls back to detectedEnvironment`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            projectId: {
+              type: "string",
+              description: "Project ID to get settings for",
+            },
+          },
+          required: ["projectId"],
+        },
+      },
+      {
+        name: "update_project_settings",
+        description: `Update project settings.
+
+Currently supports updating the working method preference, which controls
+how the environment is detected for this project.
+
+Args:
+  projectId: The project ID to update settings for
+  workingMethod: The working method preference:
+    - "auto": Auto-detect environment (default)
+    - "claude-code": Always use Claude Code behavior
+    - "vscode": Always use VS Code behavior
+
+Returns:
+  Updated project settings with the new working method and computed
+  effective environment.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            projectId: {
+              type: "string",
+              description: "Project ID to update settings for",
+            },
+            workingMethod: {
+              type: "string",
+              enum: ["auto", "claude-code", "vscode"],
+              description: "Working method preference",
+            },
+          },
+          required: ["projectId", "workingMethod"],
         },
       },
     ],
@@ -2027,6 +2255,74 @@ ${commitLines.map(c => `- ${c.substring(c.indexOf(" ") + 1)}`).join("\n")}
 
         log.info(`Completed work on ticket ${ticketId}, moved to review`);
 
+        // Detect environment for context reset guidance
+        const envInfo = detectEnvironment();
+        const environment = envInfo.environment;
+
+        // Build context reset guidance based on environment
+        let contextResetGuidance = "";
+        if (environment === "claude-code") {
+          contextResetGuidance = `
+## Context Reset Required
+
+This ticket has been completed. To ensure fresh perspective on the next task:
+
+**For Claude Code:**
+- Run \`/clear\` command to reset conversation context
+- Or start a new conversation session
+
+**Why?** Each ticket should be worked on with clean context to avoid:
+- Accumulated assumptions from previous work
+- Stale mental models that don't apply
+- Potential bugs from mixing contexts
+
+**Next steps:**
+1. Push your changes if not already done
+2. Create a PR if needed
+3. Clear context with \`/clear\`
+4. Pick up the next ticket from Brain Dumpy`;
+        } else if (environment === "vscode") {
+          contextResetGuidance = `
+## Context Reset Required
+
+This ticket has been completed. To ensure fresh perspective on the next task:
+
+**For VS Code:**
+- Click "New Chat" or press Cmd/Ctrl+L to start fresh
+- Close the current chat panel and open a new one
+
+**Why?** Each ticket should be worked on with clean context to avoid:
+- Accumulated assumptions from previous work
+- Stale mental models that don't apply
+- Potential bugs from mixing contexts
+
+**Next steps:**
+1. Push your changes if not already done
+2. Create a PR if needed
+3. Start a new chat session
+4. Pick up the next ticket from Brain Dumpy`;
+        } else {
+          contextResetGuidance = `
+## Context Reset Required
+
+This ticket has been completed. To ensure fresh perspective on the next task:
+
+**Fresh Eyes Workflow:**
+- Start a new conversation/chat session
+- Clear any accumulated context from this task
+
+**Why?** Each ticket should be worked on with clean context to avoid:
+- Accumulated assumptions from previous work
+- Stale mental models that don't apply
+- Potential bugs from mixing contexts
+
+**Next steps:**
+1. Push your changes if not already done
+2. Create a PR if needed
+3. Start fresh context (new conversation/session)
+4. Pick up the next ticket from Brain Dumpy`;
+        }
+
         return {
           content: [{
             type: "text",
@@ -2038,7 +2334,12 @@ Status: ${updatedTicket.status}
 ${commitsInfo ? `Commits:\n${commitsInfo}\n` : ""}
 ${prDescription ? `Suggested PR Description:\n\`\`\`\n${prDescription}\`\`\`\n` : ""}
 Ticket:
-${JSON.stringify(updatedTicket, null, 2)}`,
+${JSON.stringify(updatedTicket, null, 2)}
+${contextResetGuidance}
+
+---
+clearContext: true
+environment: ${environment}`,
           }],
         };
       }
@@ -2428,6 +2729,164 @@ ${results.map(t => `## ${t.title}
           content: [{
             type: "text",
             text: JSON.stringify(health, null, 2),
+          }],
+        };
+      }
+
+      // -----------------------------------------------------------------------
+      // GET ENVIRONMENT
+      // -----------------------------------------------------------------------
+      case "get_environment": {
+        const envInfo = getEnvironmentInfo();
+
+        // Try to auto-detect project from workspace path
+        let detectedProject = null;
+        if (envInfo.workspacePath) {
+          const projects = db.prepare("SELECT * FROM projects").all();
+
+          // Find project where paths match (either direction for subdirectories)
+          detectedProject = projects.find(
+            (p) => envInfo.workspacePath.startsWith(p.path) || p.path.startsWith(envInfo.workspacePath)
+          ) || null;
+        }
+
+        const result = {
+          environment: envInfo.environment,
+          workspacePath: envInfo.workspacePath,
+          detectedProject,
+          envVarsDetected: envInfo.envVarsDetected,
+        };
+
+        log.info(`Environment detected: ${envInfo.environment}`);
+
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      }
+
+      // -----------------------------------------------------------------------
+      // GET PROJECT SETTINGS
+      // -----------------------------------------------------------------------
+      case "get_project_settings": {
+        const error = validateRequired(args, ["projectId"]);
+        if (error) {
+          return { content: [{ type: "text", text: error }], isError: true };
+        }
+
+        const { projectId } = args;
+
+        // Get project
+        const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+        if (!project) {
+          return {
+            content: [{ type: "text", text: `Project not found: ${projectId}` }],
+            isError: true,
+          };
+        }
+
+        // Get detected environment
+        const detectedEnvironment = detectEnvironment();
+
+        // Get working method (default to 'auto' if not set)
+        const workingMethod = project.working_method || "auto";
+
+        // Compute effective environment
+        let effectiveEnvironment;
+        if (workingMethod === "auto") {
+          effectiveEnvironment = detectedEnvironment;
+        } else if (workingMethod === "claude-code" || workingMethod === "vscode") {
+          effectiveEnvironment = workingMethod;
+        } else {
+          // Invalid value, fall back to detected
+          effectiveEnvironment = detectedEnvironment;
+        }
+
+        const result = {
+          projectId: project.id,
+          projectName: project.name,
+          projectPath: project.path,
+          workingMethod,
+          effectiveEnvironment,
+          detectedEnvironment,
+        };
+
+        log.info(`Got settings for project ${project.name}: workingMethod=${workingMethod}, effective=${effectiveEnvironment}`);
+
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      }
+
+      // -----------------------------------------------------------------------
+      // UPDATE PROJECT SETTINGS
+      // -----------------------------------------------------------------------
+      case "update_project_settings": {
+        const error = validateRequired(args, ["projectId", "workingMethod"]);
+        if (error) {
+          return { content: [{ type: "text", text: error }], isError: true };
+        }
+
+        const { projectId, workingMethod } = args;
+
+        // Validate workingMethod
+        const validWorkingMethods = ["auto", "claude-code", "vscode"];
+        const workingMethodError = validateEnum(workingMethod, validWorkingMethods, "workingMethod");
+        if (workingMethodError) {
+          return { content: [{ type: "text", text: workingMethodError }], isError: true };
+        }
+
+        // Get project
+        const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+        if (!project) {
+          return {
+            content: [{ type: "text", text: `Project not found: ${projectId}` }],
+            isError: true,
+          };
+        }
+
+        // Update working_method
+        const now = new Date().toISOString();
+        db.prepare(
+          "UPDATE projects SET working_method = ?, updated_at = ? WHERE id = ?"
+        ).run(workingMethod, now, projectId);
+
+        // Get updated project
+        const updatedProject = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+
+        // Get detected environment
+        const detectedEnvironment = detectEnvironment();
+
+        // Compute effective environment
+        let effectiveEnvironment;
+        if (workingMethod === "auto") {
+          effectiveEnvironment = detectedEnvironment;
+        } else if (workingMethod === "claude-code" || workingMethod === "vscode") {
+          effectiveEnvironment = workingMethod;
+        } else {
+          effectiveEnvironment = detectedEnvironment;
+        }
+
+        const result = {
+          projectId: updatedProject.id,
+          projectName: updatedProject.name,
+          projectPath: updatedProject.path,
+          workingMethod: updatedProject.working_method,
+          effectiveEnvironment,
+          detectedEnvironment,
+        };
+
+        log.info(`Updated settings for project ${project.name}: workingMethod=${workingMethod}`);
+
+        return {
+          content: [{
+            type: "text",
+            text: `Project settings updated!\n\n${JSON.stringify(result, null, 2)}`,
           }],
         };
       }

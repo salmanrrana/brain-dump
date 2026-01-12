@@ -1097,3 +1097,289 @@ All 8 user stories in the XDG Migration & Data Protection epic have passes: true
 
 **PR URL:** https://github.com/salmanrrana/brain-dump/pull/new/ralph/74e5875f-xdg-directory-utility
 
+---
+
+### 2026-01-12 - Environment Detection Utility
+- Task: Create environment detection utility
+- Ticket ID: 5fb70ee6-55b4-435a-8f9f-a80012aa7c30
+- Success: true
+- Agent: Ralph
+- Branch: ralph/5fb70ee6-environment-detection
+
+**Files Created:**
+- `src/lib/environment.ts` - Environment detection utility module
+- `src/lib/environment.test.ts` - Unit tests (42 tests)
+
+**Functions Implemented:**
+| Function | Description |
+|----------|-------------|
+| `detectEnvironment()` | Returns 'claude-code' \| 'vscode' \| 'unknown' |
+| `isClaudeCode()` | Check if running in Claude Code |
+| `isVSCode()` | Check if running in VS Code |
+| `isKnownEnvironment()` | Check if environment is detected |
+| `getEnvironmentInfo()` | Get detailed environment info with workspace path |
+
+**Detection Logic:**
+- Claude Code: CLAUDE_CODE, CLAUDE_CODE_ENTRYPOINT, ANTHROPIC_API_KEY, MCP_SERVER_NAME
+- VS Code: VSCODE_GIT_*, VSCODE_PID, VSCODE_CWD, TERM_PROGRAM=vscode
+- Priority: Claude Code > VS Code > unknown
+
+**Testing:**
+- 42 unit tests all passing
+- Lint passes (environment files)
+- Pre-existing type errors in logger.ts and index.tsx (separate tickets)
+
+**Notes:**
+- Module follows same patterns as xdg.ts for consistency
+- Includes test override mechanism (`_setEnvironmentOverride`)
+
+---
+
+### 2026-01-12 - get_environment MCP Tool
+- Task: Create get_environment MCP tool
+- Ticket ID: 98bdd71a-ddf3-4d86-b97d-f8ab3ba39388
+- Success: true
+- Agent: Ralph
+- Branch: ralph/5fb70ee6-environment-detection
+
+**Files Modified:**
+- `mcp-server/index.js` - Added environment detection utilities and get_environment tool
+
+**Tool Implementation:**
+The `get_environment` tool returns:
+```json
+{
+  "environment": "claude-code" | "vscode" | "unknown",
+  "workspacePath": "/path/to/project",
+  "detectedProject": { project info } | null,
+  "envVarsDetected": ["CLAUDE_CODE", ...]
+}
+```
+
+**Features:**
+- Environment detection using same logic as `src/lib/environment.ts`
+- Auto-detects project from workspace path by matching against registered projects
+- Returns list of environment variables that triggered detection
+- Claude Code detection takes priority over VS Code (since Claude Code may run in VS Code terminal)
+
+**Detection Logic (MCP Server):**
+| Environment | Variables Checked |
+|-------------|-------------------|
+| Claude Code | CLAUDE_CODE, CLAUDE_CODE_ENTRYPOINT, CLAUDE_API_KEY, ANTHROPIC_API_KEY, MCP_SERVER_NAME, CLAUDE_CODE_TERMINAL_ID |
+| VS Code | VSCODE_GIT_*, VSCODE_PID, VSCODE_CWD, VSCODE_NLS_CONFIG, TERM_PROGRAM=vscode |
+
+**Testing:**
+- MCP server syntax check: passed
+- All 301 tests passing
+
+**Notes:**
+- This tool enables environment-aware behavior in AI assistants
+- Project auto-detection allows seamless context switching between projects
+
+---
+
+### 2026-01-12 - Add working_method field to project schema
+- Task: Add working_method setting to project database schema
+- Ticket ID: 380f0052-65ff-45d0-b026-c67ed5092ed7
+- Success: true
+- Agent: Ralph
+- Branch: ralph/5fb70ee6-environment-detection
+
+**Files Created:**
+- `drizzle/0004_add_working_method.sql` - Migration file
+
+**Files Modified:**
+- `src/lib/schema.ts` - Added workingMethod column to projects table
+- `src/lib/db.ts` - Added runtime migration for existing databases
+- `mcp-server/index.js` - Added runtime migration for MCP server
+- `src/lib/db.test.ts` - Updated test fixtures
+- `src/api/projects.test.ts` - Updated test fixtures
+- `src/api/epics.test.ts` - Updated test fixtures
+- `src/api/tickets.test.ts` - Updated test fixtures
+
+**Schema Change:**
+```sql
+ALTER TABLE projects ADD COLUMN working_method TEXT DEFAULT 'auto';
+```
+
+**Values:**
+- 'claude-code' - Force Claude Code environment
+- 'vscode' - Force VS Code environment
+- 'auto' - Auto-detect using environment detection utility
+
+**Testing:**
+- All 301 tests passing
+- Runtime migration tested
+
+---
+
+### 2026-01-12 - Add context reset signal on ticket completion
+- Task: Add context reset signal when ticket is completed
+- Ticket ID: 1c406cc1-507d-4e28-862c-fb7a91edd961
+- Success: true
+- Agent: Ralph
+- Branch: ralph/5fb70ee6-environment-detection
+
+**Files Modified:**
+- `mcp-server/index.js` - Enhanced complete_ticket_work tool with context reset
+
+**Files Created:**
+- `docs/fresh-eyes-workflow.md` - Full documentation for Fresh Eyes workflow
+
+**Implementation:**
+1. **Environment Detection**: Uses existing `detectEnvironment()` function to detect claude-code, vscode, or unknown environment
+2. **Context Reset Guidance**: Returns environment-specific guidance:
+   - Claude Code: Run `/clear` command
+   - VS Code: Click "New Chat" or Cmd/Ctrl+L
+   - Unknown: Start new conversation
+3. **Response Format**: Includes `clearContext: true` flag for programmatic detection
+4. **Documentation**: Comprehensive guide explaining:
+   - What Fresh Eyes is and why it matters
+   - Step-by-step workflow
+   - Integration with Ralph
+   - Best practices and troubleshooting
+
+**Testing:**
+- All 301 tests passing
+- MCP server syntax valid
+
+---
+
+## Iteration Status
+
+Completed 4 of 7 user stories in the Cross-Environment Support epic:
+1. ✅ 5fb70ee6 - Create environment detection utility
+2. ✅ 98bdd71a - Create get_environment MCP tool
+3. ✅ 380f0052 - Add working_method field to project schema
+4. ✅ 1c406cc1 - Add context reset signal on ticket completion
+
+Remaining tasks (3):
+- 77609063 - Create get_project_settings MCP tool (medium)
+- 0e89965f - Create update_project_settings MCP tool (medium)
+- 9d07f06e - Add working method UI to project settings (low)
+
+All high-priority tasks complete! Remaining tasks are medium/low priority.
+
+---
+
+## Iteration Complete
+
+This iteration completed 2 user stories:
+- 380f0052 - Add working_method field to project schema
+- 1c406cc1 - Add context reset signal on ticket completion
+
+Branch: ralph/5fb70ee6-environment-detection
+Total commits this iteration: 4 (2 features + 2 docs updates)
+
+Next iteration should work on one of the remaining medium-priority tasks:
+- 77609063 - Create get_project_settings MCP tool
+- 0e89965f - Create update_project_settings MCP tool
+
+---
+
+### 2026-01-12 - get_project_settings MCP Tool
+- Task: Create get_project_settings MCP tool
+- Ticket ID: 77609063-5af9-44d4-a3c7-2c0f0c5273f3
+- Success: true
+- Agent: Ralph
+- Branch: ralph/5fb70ee6-environment-detection
+
+**Files Modified:**
+- `mcp-server/index.js` - Added get_project_settings tool
+
+**Tool Implementation:**
+The `get_project_settings` tool returns:
+```json
+{
+  "projectId": "...",
+  "projectName": "...",
+  "projectPath": "...",
+  "workingMethod": "auto" | "claude-code" | "vscode",
+  "effectiveEnvironment": "claude-code" | "vscode" | "unknown",
+  "detectedEnvironment": "claude-code" | "vscode" | "unknown"
+}
+```
+
+**Features:**
+- Returns project settings including working_method
+- Computes effectiveEnvironment based on workingMethod setting
+- When workingMethod is "auto", uses detected environment
+- When workingMethod is explicit ("claude-code"/"vscode"), uses that value
+- Falls back to detected environment for invalid values
+
+**Testing:**
+- MCP server syntax check: passed
+- All 301 tests passing
+- Pre-existing type errors in logger.ts and index.tsx (separate tickets)
+
+---
+
+## Iteration Status
+
+Completed 5 of 7 user stories in the Cross-Environment Support epic:
+1. ✅ 5fb70ee6 - Create environment detection utility
+2. ✅ 98bdd71a - Create get_environment MCP tool
+3. ✅ 380f0052 - Add working_method field to project schema
+4. ✅ 1c406cc1 - Add context reset signal on ticket completion
+5. ✅ 77609063 - Create get_project_settings MCP tool
+
+Remaining tasks (2):
+- 0e89965f - Create update_project_settings MCP tool (medium)
+- 9d07f06e - Add working method UI to project settings (low)
+
+Branch: ralph/5fb70ee6-environment-detection
+Total commits this session: 2 (1 feature + 1 docs update)
+
+---
+
+### 2026-01-12 - update_project_settings MCP Tool
+- Task: Create update_project_settings MCP tool
+- Ticket ID: 0e89965f-84ee-488b-ae2d-33431112e5a4
+- Success: true
+- Agent: Ralph
+- Branch: ralph/5fb70ee6-environment-detection
+
+**Files Modified:**
+- `mcp-server/index.js` - Added update_project_settings tool
+
+**Tool Implementation:**
+The `update_project_settings` tool:
+- Takes `projectId` and `workingMethod` as required parameters
+- Validates workingMethod against allowed values: "auto", "claude-code", "vscode"
+- Updates the working_method column in the projects table
+- Returns updated project settings with effective environment computed
+
+**Returns:**
+```json
+{
+  "projectId": "...",
+  "projectName": "...",
+  "projectPath": "...",
+  "workingMethod": "auto" | "claude-code" | "vscode",
+  "effectiveEnvironment": "claude-code" | "vscode" | "unknown",
+  "detectedEnvironment": "claude-code" | "vscode" | "unknown"
+}
+```
+
+**Testing:**
+- MCP server syntax check: passed
+- All 301 tests passing
+- Pre-existing type errors in logger.ts and index.tsx (separate tickets)
+
+---
+
+## Iteration Status
+
+Completed 6 of 7 user stories in the Cross-Environment Support epic:
+1. ✅ 5fb70ee6 - Create environment detection utility
+2. ✅ 98bdd71a - Create get_environment MCP tool
+3. ✅ 380f0052 - Add working_method field to project schema
+4. ✅ 1c406cc1 - Add context reset signal on ticket completion
+5. ✅ 77609063 - Create get_project_settings MCP tool
+6. ✅ 0e89965f - Create update_project_settings MCP tool
+
+Remaining tasks (1):
+- 9d07f06e - Add working method UI to project settings (low priority)
+
+---
+

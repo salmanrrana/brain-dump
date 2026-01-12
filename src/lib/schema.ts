@@ -7,6 +7,7 @@ export const projects = sqliteTable("projects", {
   name: text("name").notNull(),
   path: text("path").notNull().unique(),
   color: text("color"),
+  workingMethod: text("working_method").default("auto"), // 'claude-code', 'vscode', 'auto'
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),
