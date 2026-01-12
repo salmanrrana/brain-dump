@@ -301,22 +301,26 @@ function initTicketComments() {
 
 initTicketComments();
 
-// Perform daily backup maintenance (non-blocking)
+// Perform daily backup maintenance (deferred to avoid blocking startup)
 // Creates backup if not done today, cleans up old backups
-async function performBackupMaintenance() {
-  try {
-    const result = performDailyBackupSync();
-    if (result.backup.created) {
-      console.log(`[Backup] ${result.backup.message}`);
+// PERFORMANCE: Deferred by 5 seconds to avoid blocking the event loop on startup.
+// The VACUUM INTO operation can take 10+ seconds on larger databases.
+function scheduleBackupMaintenance() {
+  setTimeout(() => {
+    try {
+      const result = performDailyBackupSync();
+      if (result.backup.created) {
+        console.log(`[Backup] ${result.backup.message}`);
+      }
+      if (result.cleanup.deleted > 0) {
+        console.log(`[Backup] ${result.cleanup.message}`);
+      }
+    } catch (error) {
+      console.error("[Backup] Backup maintenance failed:", error);
     }
-    if (result.cleanup.deleted > 0) {
-      console.log(`[Backup] ${result.cleanup.message}`);
-    }
-  } catch (error) {
-    console.error("[Backup] Backup maintenance failed:", error);
-  }
+  }, 5000); // Defer backup by 5 seconds to not block startup
 }
-performBackupMaintenance();
+scheduleBackupMaintenance();
 
 // Clean up old launch scripts on startup
 async function cleanupLaunchScripts() {
