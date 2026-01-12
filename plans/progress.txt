@@ -1424,6 +1424,36 @@ To disable, remove the hooks section or set `Stop` to empty array.
 
 ---
 
+### 2026-01-12 - UI Enhancements: Edit and New Ticket Modal Improvements
+- Task: Improve textarea sizes in Edit and New Ticket modals
+- Tickets Completed: 2
+- Success: true
+- Agent: Ralph
+- Branch: ralph/844810d6-code-review-hook
+
+**Ticket 1: Update Edit Ticket Modal (3077ed53)**
+- Increased Description textarea from `rows={4}` to `rows={8}`
+- Changed resize from `resize-none` to `resize-y`
+- Added `min-h-[120px]` for minimum height
+- Increased Comments section max-height from `max-h-60` to `max-h-96`
+
+**Ticket 2: Update New Ticket Modal Description Field (313f7b96)**
+- Increased Description textarea from `rows={3}` to `rows={6}`
+- Changed resize from `resize-none` to `resize-y`
+- Added `min-h-[100px]` for minimum height
+- Styling now consistent with Edit Ticket modal
+
+**Files Modified:**
+- `src/components/TicketModal.tsx`
+- `src/components/NewTicketModal.tsx`
+- `plans/prd.json`
+
+**Testing:**
+- All 298 unit tests passing
+- Type check passed
+
+---
+
 ## PRD Status: COMPLETE
 
 All user stories have passes: true.
