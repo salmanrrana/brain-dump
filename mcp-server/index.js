@@ -1564,6 +1564,39 @@ The effectiveEnvironment is computed as:
           required: ["projectId"],
         },
       },
+      {
+        name: "update_project_settings",
+        description: `Update project settings.
+
+Currently supports updating the working method preference, which controls
+how the environment is detected for this project.
+
+Args:
+  projectId: The project ID to update settings for
+  workingMethod: The working method preference:
+    - "auto": Auto-detect environment (default)
+    - "claude-code": Always use Claude Code behavior
+    - "vscode": Always use VS Code behavior
+
+Returns:
+  Updated project settings with the new working method and computed
+  effective environment.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            projectId: {
+              type: "string",
+              description: "Project ID to update settings for",
+            },
+            workingMethod: {
+              type: "string",
+              enum: ["auto", "claude-code", "vscode"],
+              description: "Working method preference",
+            },
+          },
+          required: ["projectId", "workingMethod"],
+        },
+      },
     ],
   };
 });
@@ -2786,6 +2819,74 @@ ${results.map(t => `## ${t.title}
           content: [{
             type: "text",
             text: JSON.stringify(result, null, 2),
+          }],
+        };
+      }
+
+      // -----------------------------------------------------------------------
+      // UPDATE PROJECT SETTINGS
+      // -----------------------------------------------------------------------
+      case "update_project_settings": {
+        const error = validateRequired(args, ["projectId", "workingMethod"]);
+        if (error) {
+          return { content: [{ type: "text", text: error }], isError: true };
+        }
+
+        const { projectId, workingMethod } = args;
+
+        // Validate workingMethod
+        const validWorkingMethods = ["auto", "claude-code", "vscode"];
+        const workingMethodError = validateEnum(workingMethod, validWorkingMethods, "workingMethod");
+        if (workingMethodError) {
+          return { content: [{ type: "text", text: workingMethodError }], isError: true };
+        }
+
+        // Get project
+        const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+        if (!project) {
+          return {
+            content: [{ type: "text", text: `Project not found: ${projectId}` }],
+            isError: true,
+          };
+        }
+
+        // Update working_method
+        const now = new Date().toISOString();
+        db.prepare(
+          "UPDATE projects SET working_method = ?, updated_at = ? WHERE id = ?"
+        ).run(workingMethod, now, projectId);
+
+        // Get updated project
+        const updatedProject = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+
+        // Get detected environment
+        const detectedEnvironment = detectEnvironment();
+
+        // Compute effective environment
+        let effectiveEnvironment;
+        if (workingMethod === "auto") {
+          effectiveEnvironment = detectedEnvironment;
+        } else if (workingMethod === "claude-code" || workingMethod === "vscode") {
+          effectiveEnvironment = workingMethod;
+        } else {
+          effectiveEnvironment = detectedEnvironment;
+        }
+
+        const result = {
+          projectId: updatedProject.id,
+          projectName: updatedProject.name,
+          projectPath: updatedProject.path,
+          workingMethod: updatedProject.working_method,
+          effectiveEnvironment,
+          detectedEnvironment,
+        };
+
+        log.info(`Updated settings for project ${project.name}: workingMethod=${workingMethod}`);
+
+        return {
+          content: [{
+            type: "text",
+            text: `Project settings updated!\n\n${JSON.stringify(result, null, 2)}`,
           }],
         };
       }
