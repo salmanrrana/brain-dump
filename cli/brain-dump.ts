@@ -14,12 +14,14 @@
  */
 
 import Database from "better-sqlite3";
-import { join } from "path";
-import { homedir } from "os";
 import { readFileSync, existsSync, unlinkSync } from "fs";
+import { getDatabasePath, getStateDir, ensureDirectoriesSync } from "../src/lib/xdg";
 
-const DB_PATH = join(homedir(), ".brain-dump", "brain-dump.db");
-const STATE_FILE = join(homedir(), ".brain-dump", "current-ticket.json");
+// Ensure XDG directories exist
+ensureDirectoriesSync();
+
+const DB_PATH = getDatabasePath();
+const STATE_FILE = `${getStateDir()}/current-ticket.json`;
 
 const VALID_STATUSES = ["backlog", "ready", "in_progress", "review", "ai_review", "human_review", "done"] as const;
 type Status = (typeof VALID_STATUSES)[number];

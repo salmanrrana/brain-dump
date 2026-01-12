@@ -30,20 +30,61 @@ const log = {
 };
 
 // =============================================================================
+// XDG DIRECTORY UTILITIES
+// =============================================================================
+const APP_NAME = "brain-dumpy";
+
+function getDataDir() {
+  const xdgDataHome = process.env.XDG_DATA_HOME;
+  const base = xdgDataHome || join(homedir(), ".local", "share");
+  return join(base, APP_NAME);
+}
+
+function getLegacyDir() {
+  return join(homedir(), ".brain-dump");
+}
+
+function getDatabasePath() {
+  return join(getDataDir(), "brain-dumpy.db");
+}
+
+function ensureDirectoriesSync() {
+  const { mkdirSync, existsSync: existsSyncFs } = require("fs");
+  const dirs = [getDataDir()];
+  for (const dir of dirs) {
+    if (!existsSyncFs(dir)) {
+      mkdirSync(dir, { recursive: true, mode: 0o700 });
+    }
+  }
+}
+
+// =============================================================================
 // DATABASE CONNECTION
 // =============================================================================
-const dbPath = join(homedir(), ".brain-dump", "brain-dump.db");
+// Ensure XDG directories exist
+ensureDirectoriesSync();
+
+const dbPath = getDatabasePath();
+const legacyDbPath = join(getLegacyDir(), "brain-dump.db");
 let db;
 
 try {
+  // Try XDG path first, fall back to legacy path for backwards compatibility
+  let actualDbPath = dbPath;
   if (!existsSync(dbPath)) {
-    log.error(`Database not found at ${dbPath}`);
-    log.info("Run Brain Dumpy at least once to create the database: cd /path/to/brain-dumpy && pnpm dev");
-    process.exit(1);
+    if (existsSync(legacyDbPath)) {
+      log.info(`Using legacy database at ${legacyDbPath}`);
+      log.info(`Note: Run Brain Dumpy web app to migrate to new XDG location: ${dbPath}`);
+      actualDbPath = legacyDbPath;
+    } else {
+      log.error(`Database not found at ${dbPath} or ${legacyDbPath}`);
+      log.info("Run Brain Dumpy at least once to create the database: cd /path/to/brain-dumpy && pnpm dev");
+      process.exit(1);
+    }
   }
-  db = new Database(dbPath);
+  db = new Database(actualDbPath);
   db.pragma("journal_mode = WAL");
-  log.info(`Connected to database: ${dbPath}`);
+  log.info(`Connected to database: ${actualDbPath}`);
 
   // Add linked_commits column if it doesn't exist (for link_commit_to_ticket tool)
   try {

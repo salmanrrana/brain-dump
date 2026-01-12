@@ -1,5 +1,6 @@
 import { homedir } from "os";
 import { join } from "path";
+import { mkdirSync, existsSync } from "fs";
 import { mkdir, access, constants } from "fs/promises";
 
 const APP_NAME = "brain-dumpy";
@@ -125,8 +126,6 @@ export async function ensureDirectories(): Promise<void> {
  * Uses fs.mkdirSync with proper permissions.
  */
 export function ensureDirectoriesSync(): void {
-  const { mkdirSync, existsSync } = require("fs") as typeof import("fs");
-
   const dirs = [
     getDataDir(),
     getConfigDir(),

@@ -1,17 +1,13 @@
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
-import { existsSync, mkdirSync } from "fs";
-import { homedir } from "os";
-import { join } from "path";
+import { getDatabasePath, ensureDirectoriesSync } from "./xdg";
 
-// Ensure the data directory exists
-const dataDir = join(homedir(), ".brain-dump");
-if (!existsSync(dataDir)) {
-  mkdirSync(dataDir, { recursive: true });
-}
+// Ensure XDG directories exist with proper permissions
+ensureDirectoriesSync();
 
-const dbPath = join(dataDir, "brain-dump.db");
+// Get database path from XDG utility
+const dbPath = getDatabasePath();
 
 // Create database connection
 const sqlite = new Database(dbPath);
