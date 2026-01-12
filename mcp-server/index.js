@@ -1350,16 +1350,22 @@ This tool:
 1. Sets the ticket status to review
 2. Gets git commits on the current branch (for PR description)
 3. Returns a summary of work done
+4. Signals that context should be cleared for fresh perspective on next task
 
 Use this when you've finished implementing a ticket.
 Call this before creating a pull request.
+
+IMPORTANT - Fresh Eyes Workflow:
+After completing a ticket, the AI should clear its context before starting the next task.
+This ensures each ticket gets worked on with a clean slate, without accumulated assumptions
+from previous work. The response includes environment-specific guidance for how to reset.
 
 Args:
   ticketId: The ticket ID to complete
   summary: Optional work summary to include
 
 Returns:
-  Updated ticket, git commits summary, and suggested PR description.`,
+  Updated ticket, git commits summary, suggested PR description, and context reset guidance.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -2182,6 +2188,74 @@ ${commitLines.map(c => `- ${c.substring(c.indexOf(" ") + 1)}`).join("\n")}
 
         log.info(`Completed work on ticket ${ticketId}, moved to review`);
 
+        // Detect environment for context reset guidance
+        const envInfo = detectEnvironment();
+        const environment = envInfo.environment;
+
+        // Build context reset guidance based on environment
+        let contextResetGuidance = "";
+        if (environment === "claude-code") {
+          contextResetGuidance = `
+## Context Reset Required
+
+This ticket has been completed. To ensure fresh perspective on the next task:
+
+**For Claude Code:**
+- Run \`/clear\` command to reset conversation context
+- Or start a new conversation session
+
+**Why?** Each ticket should be worked on with clean context to avoid:
+- Accumulated assumptions from previous work
+- Stale mental models that don't apply
+- Potential bugs from mixing contexts
+
+**Next steps:**
+1. Push your changes if not already done
+2. Create a PR if needed
+3. Clear context with \`/clear\`
+4. Pick up the next ticket from Brain Dumpy`;
+        } else if (environment === "vscode") {
+          contextResetGuidance = `
+## Context Reset Required
+
+This ticket has been completed. To ensure fresh perspective on the next task:
+
+**For VS Code:**
+- Click "New Chat" or press Cmd/Ctrl+L to start fresh
+- Close the current chat panel and open a new one
+
+**Why?** Each ticket should be worked on with clean context to avoid:
+- Accumulated assumptions from previous work
+- Stale mental models that don't apply
+- Potential bugs from mixing contexts
+
+**Next steps:**
+1. Push your changes if not already done
+2. Create a PR if needed
+3. Start a new chat session
+4. Pick up the next ticket from Brain Dumpy`;
+        } else {
+          contextResetGuidance = `
+## Context Reset Required
+
+This ticket has been completed. To ensure fresh perspective on the next task:
+
+**Fresh Eyes Workflow:**
+- Start a new conversation/chat session
+- Clear any accumulated context from this task
+
+**Why?** Each ticket should be worked on with clean context to avoid:
+- Accumulated assumptions from previous work
+- Stale mental models that don't apply
+- Potential bugs from mixing contexts
+
+**Next steps:**
+1. Push your changes if not already done
+2. Create a PR if needed
+3. Start fresh context (new conversation/session)
+4. Pick up the next ticket from Brain Dumpy`;
+        }
+
         return {
           content: [{
             type: "text",
@@ -2193,7 +2267,12 @@ Status: ${updatedTicket.status}
 ${commitsInfo ? `Commits:\n${commitsInfo}\n` : ""}
 ${prDescription ? `Suggested PR Description:\n\`\`\`\n${prDescription}\`\`\`\n` : ""}
 Ticket:
-${JSON.stringify(updatedTicket, null, 2)}`,
+${JSON.stringify(updatedTicket, null, 2)}
+${contextResetGuidance}
+
+---
+clearContext: true
+environment: ${environment}`,
           }],
         };
       }
