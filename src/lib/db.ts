@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
 import { getDatabasePath, ensureDirectoriesSync } from "./xdg";
 import { migrateFromLegacySync } from "./migration";
+import { performDailyBackupSync } from "./backup";
 
 // Ensure XDG directories exist with proper permissions
 ensureDirectoriesSync();
@@ -265,6 +266,23 @@ function initTicketComments() {
 }
 
 initTicketComments();
+
+// Perform daily backup maintenance (non-blocking)
+// Creates backup if not done today, cleans up old backups
+async function performBackupMaintenance() {
+  try {
+    const result = performDailyBackupSync();
+    if (result.backup.created) {
+      console.log(`[Backup] ${result.backup.message}`);
+    }
+    if (result.cleanup.deleted > 0) {
+      console.log(`[Backup] ${result.cleanup.message}`);
+    }
+  } catch (error) {
+    console.error("[Backup] Backup maintenance failed:", error);
+  }
+}
+performBackupMaintenance();
 
 // Clean up old launch scripts on startup
 async function cleanupLaunchScripts() {

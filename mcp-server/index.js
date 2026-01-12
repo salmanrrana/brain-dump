@@ -177,6 +177,161 @@ function migrateFromLegacySync() {
 }
 
 // =============================================================================
+// BACKUP UTILITIES
+// =============================================================================
+const BACKUP_PREFIX = "brain-dumpy-";
+const BACKUP_SUFFIX = ".db";
+const LAST_BACKUP_FILE = ".last-backup";
+
+function getBackupsDir() {
+  return join(getStateDir(), "backups");
+}
+
+function getTodayDateString() {
+  return new Date().toISOString().split("T")[0];
+}
+
+function getLastBackupMarkerPath() {
+  return join(getBackupsDir(), LAST_BACKUP_FILE);
+}
+
+function wasBackupCreatedToday() {
+  const { statSync: statSyncFs, existsSync: existsSyncFs } = require("fs");
+  const markerPath = getLastBackupMarkerPath();
+  if (!existsSyncFs(markerPath)) return false;
+  try {
+    const stats = statSyncFs(markerPath);
+    const markerDate = stats.mtime.toISOString().split("T")[0];
+    return markerDate === getTodayDateString();
+  } catch {
+    return false;
+  }
+}
+
+function updateLastBackupMarker() {
+  const { writeFileSync: writeSyncFs } = require("fs");
+  try {
+    const markerPath = getLastBackupMarkerPath();
+    writeSyncFs(markerPath, new Date().toISOString(), { mode: 0o600 });
+  } catch (error) {
+    log.error("Failed to update backup marker", error);
+  }
+}
+
+function getBackupFilename(dateString) {
+  const date = dateString || getTodayDateString();
+  return `${BACKUP_PREFIX}${date}${BACKUP_SUFFIX}`;
+}
+
+function getTodayBackupPath() {
+  return join(getBackupsDir(), getBackupFilename());
+}
+
+function verifyBackup(backupPath) {
+  if (!existsSync(backupPath)) return false;
+  try {
+    const testDb = new Database(backupPath, { readonly: true });
+    const result = testDb.pragma("integrity_check");
+    testDb.close();
+    return result.length === 1 && result[0].integrity_check === "ok";
+  } catch {
+    return false;
+  }
+}
+
+function createBackupIfNeeded(sourcePath) {
+  const { unlinkSync: unlinkSyncFs } = require("fs");
+
+  // Check if backup already exists for today
+  if (wasBackupCreatedToday()) {
+    return { success: true, created: false, message: "Backup already created today" };
+  }
+
+  const backupPath = getTodayBackupPath();
+  if (existsSync(backupPath)) {
+    updateLastBackupMarker();
+    return { success: true, created: false, message: "Today's backup already exists", backupPath };
+  }
+
+  // Verify source database exists
+  if (!existsSync(sourcePath)) {
+    return { success: false, created: false, message: `Source database not found: ${sourcePath}` };
+  }
+
+  try {
+    // Open source database in readonly mode and create backup using VACUUM INTO
+    const srcDb = new Database(sourcePath, { readonly: true });
+    srcDb.exec(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
+    srcDb.close();
+
+    // Verify the backup
+    if (!verifyBackup(backupPath)) {
+      try { unlinkSyncFs(backupPath); } catch { /* ignore */ }
+      return { success: false, created: false, message: "Backup created but failed integrity check" };
+    }
+
+    updateLastBackupMarker();
+    log.info(`Created backup: ${backupPath}`);
+    return { success: true, created: true, message: "Backup created successfully", backupPath };
+  } catch (error) {
+    log.error("Failed to create backup", error);
+    return { success: false, created: false, message: `Backup failed: ${error.message}` };
+  }
+}
+
+function listBackups() {
+  const { readdirSync: readdirSyncFs, statSync: statSyncFs } = require("fs");
+  const backupsDir = getBackupsDir();
+  if (!existsSync(backupsDir)) return [];
+
+  const files = readdirSyncFs(backupsDir);
+  const backups = [];
+
+  for (const file of files) {
+    const match = file.match(/^brain-dumpy-(\d{4}-\d{2}-\d{2})\.db$/);
+    if (match) {
+      const filePath = join(backupsDir, file);
+      try {
+        const stats = statSyncFs(filePath);
+        backups.push({ filename: file, date: match[1], path: filePath, size: stats.size });
+      } catch { /* skip */ }
+    }
+  }
+
+  return backups.sort((a, b) => b.date.localeCompare(a.date));
+}
+
+function cleanupOldBackups(keepDays = 7) {
+  const { unlinkSync: unlinkSyncFs } = require("fs");
+  const backups = listBackups();
+
+  if (backups.length <= keepDays) {
+    return { success: true, deleted: 0, message: `No cleanup needed (${backups.length} backups)` };
+  }
+
+  const toDelete = backups.slice(keepDays);
+  let deleted = 0;
+
+  for (const backup of toDelete) {
+    try {
+      unlinkSyncFs(backup.path);
+      deleted++;
+      log.info(`Deleted old backup: ${backup.filename}`);
+    } catch (error) {
+      log.error(`Failed to delete ${backup.filename}`, error);
+    }
+  }
+
+  return { success: true, deleted, message: `Cleaned up ${deleted} old backup(s)` };
+}
+
+function performDailyBackupSync(sourcePath) {
+  const backup = createBackupIfNeeded(sourcePath);
+  const cleanup = cleanupOldBackups(7);
+  return { backup, cleanup };
+}
+
+// =============================================================================
 // DATABASE CONNECTION
 // =============================================================================
 // Ensure XDG directories exist
@@ -220,6 +375,19 @@ try {
     }
   } catch (migrationError) {
     log.error("Failed to check/add linked_commits column", migrationError);
+  }
+
+  // Perform daily backup maintenance
+  try {
+    const backupResult = performDailyBackupSync(actualDbPath);
+    if (backupResult.backup.created) {
+      log.info(backupResult.backup.message);
+    }
+    if (backupResult.cleanup.deleted > 0) {
+      log.info(backupResult.cleanup.message);
+    }
+  } catch (backupError) {
+    log.error("Backup maintenance failed", backupError);
   }
 } catch (error) {
   log.error(`Failed to open database at ${dbPath}`, error);
