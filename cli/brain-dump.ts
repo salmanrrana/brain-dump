@@ -22,7 +22,7 @@ import { readFileSync, existsSync, unlinkSync } from "fs";
 import { join } from "path";
 import { createInterface } from "readline";
 import { getDatabasePath, getStateDir, getBackupsDir, ensureDirectoriesSync } from "../src/lib/xdg";
-import { acquireLock, releaseLock } from "../src/lib/lockfile";
+import { acquireLock, releaseLock, setupGracefulShutdown } from "../src/lib/lockfile";
 import {
   createBackup,
   listBackups,
@@ -43,8 +43,34 @@ ensureDirectoriesSync();
 const DB_PATH = getDatabasePath();
 const STATE_FILE = `${getStateDir()}/current-ticket.json`;
 
+// Track active database connection for cleanup
+let activeDb: Database.Database | null = null;
+
 const VALID_STATUSES = ["backlog", "ready", "in_progress", "review", "ai_review", "human_review", "done"] as const;
 type Status = (typeof VALID_STATUSES)[number];
+
+/**
+ * Cleanup function for graceful shutdown.
+ * Checkpoints WAL and closes active database connection.
+ */
+function cleanupDatabase(): void {
+  if (activeDb) {
+    try {
+      // Checkpoint WAL to ensure all data is written
+      activeDb.pragma("wal_checkpoint(TRUNCATE)");
+      logger.info("WAL checkpoint completed");
+    } catch (e) {
+      logger.error("WAL checkpoint failed", e instanceof Error ? e : new Error(String(e)));
+    }
+    try {
+      activeDb.close();
+      activeDb = null;
+      logger.info("Database connection closed");
+    } catch (e) {
+      logger.error("Database close failed", e instanceof Error ? e : new Error(String(e)));
+    }
+  }
+}
 
 function getDb() {
   if (!existsSync(DB_PATH)) {
@@ -60,16 +86,11 @@ function getDb() {
   }
 
   const db = new Database(DB_PATH);
+  activeDb = db;
 
-  // Register cleanup on exit
-  process.on("exit", () => {
-    try {
-      db.close();
-      releaseLock();
-    } catch {
-      // Ignore cleanup errors
-    }
-  });
+  // Setup graceful shutdown handlers for signals
+  // This ensures WAL checkpoint, lock release, and proper cleanup on Ctrl+C
+  setupGracefulShutdown(cleanupDatabase);
 
   return db;
 }
@@ -119,6 +140,8 @@ function updateTicketStatus(ticketId: string, status: Status): boolean {
     return false;
   } finally {
     db.close();
+    activeDb = null;
+    releaseLock();
   }
 }
 
@@ -150,6 +173,8 @@ function showCurrentTicket(): void {
     console.log("  Started:", new Date(current.startedAt).toLocaleString());
   } finally {
     db.close();
+    activeDb = null;
+    releaseLock();
   }
 }
 

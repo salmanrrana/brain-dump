@@ -3,38 +3,6 @@
   "projectPath": "/home/xtra/code/personal_projects/brain-dumpy",
   "userStories": [
     {
-      "id": "74e5875f-ba81-40c3-9647-00ebeac2807c",
-      "title": "Create XDG-compliant directory structure utility",
-      "description": "## Task\nCreate utility module to determine and create XDG-compliant directory paths.\n\n## XDG Base Directories\n- `XDG_DATA_HOME`: `~/.local/share/brain-dumpy/` (database, exports)\n- `XDG_CONFIG_HOME`: `~/.config/brain-dumpy/` (settings)\n- `XDG_CACHE_HOME`: `~/.cache/brain-dumpy/` (temp files)\n- `XDG_STATE_HOME`: `~/.local/state/brain-dumpy/` (logs, backups)\n\n## Functions to Implement\n```typescript\nfunction getDataDir(): string\nfunction getConfigDir(): string\nfunction getCacheDir(): string\nfunction getStateDir(): string\nfunction ensureDirectories(): Promise<void>\n```\n\n## Acceptance Criteria\n- [ ] Respects XDG environment variables if set\n- [ ] Falls back to defaults if env vars not set\n- [ ] Creates directories with proper permissions (0700)\n- [ ] Unit tests for all functions\n\n## File to Create\n`src/lib/xdg.ts`",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "high",
-      "tags": [
-        "xdg",
-        "utility",
-        "foundation"
-      ],
-      "passes": true
-    },
-    {
-      "id": "53615062-25d0-4136-9a65-8442a7dde201",
-      "title": "Migrate database location to XDG_DATA_HOME",
-      "description": "## Task\nMove SQLite database from `~/.brain-dump/` to `~/.local/share/brain-dumpy/`.\n\n## Changes Required\n- Update database path in schema.ts and connection setup\n- Use new XDG utility for path resolution\n- Ensure WAL and SHM files also go to correct location\n\n## New Path\n`~/.local/share/brain-dumpy/brain-dumpy.db`\n\n## Acceptance Criteria\n- [ ] New database location used for fresh installs\n- [ ] Database operations work at new location\n- [ ] WAL mode still works correctly\n- [ ] File permissions are secure (0600)\n\n## Files to Modify\n- `src/lib/schema.ts`\n- `cli/brain-dump.ts` (if hardcoded)\n- `mcp-server/index.js`",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "high",
-      "tags": [
-        "xdg",
-        "database",
-        "migration"
-      ],
-      "passes": true
-    },
-    {
       "id": "e25afb2e-9074-4c25-976e-554d906effdb",
       "title": "Create automatic migration from legacy ~/.brain-dump directory",
       "description": "## Task\nImplement automatic one-time migration from old `~/.brain-dump/` to new XDG paths.\n\n## Migration Steps\n1. Check if legacy `~/.brain-dump/` exists\n2. Check if new XDG location already has data\n3. If legacy exists and XDG empty:\n   - Copy database to new location\n   - Copy attachments to new location\n   - Create `.migrated` marker in legacy dir\n   - Log migration success\n4. If both exist, warn user and use XDG\n\n## Safety Measures\n- Never delete legacy data automatically\n- Create backup before migration\n- Verify database integrity after copy\n- Atomic operations where possible\n\n## Acceptance Criteria\n- [ ] Migration runs automatically on first start\n- [ ] Legacy data preserved (not deleted)\n- [ ] Migration only happens once\n- [ ] Error handling for failed migrations\n- [ ] User informed of migration via log\n\n## File to Create\n`src/lib/migration.ts`",
@@ -51,25 +19,9 @@
       "passes": true
     },
     {
-      "id": "0cd21f6e-3bc9-40e5-a2df-479f4d582b28",
-      "title": "Implement automatic daily database backups",
-      "description": "## Task\nAdd automatic daily backups of the SQLite database.\n\n## Backup Location\n`~/.local/state/brain-dumpy/backups/`\n\n## Backup Strategy\n- Create backup on first operation each day\n- Filename format: `brain-dumpy-YYYY-MM-DD.db`\n- Keep last 7 daily backups (configurable)\n- Use SQLite Online Backup API for consistency\n\n## Implementation\n```typescript\nasync function createBackupIfNeeded(): Promise<void>\nasync function cleanupOldBackups(keepDays: number): Promise<void>\n```\n\n## Acceptance Criteria\n- [ ] Backup created automatically daily\n- [ ] Backups are valid SQLite databases\n- [ ] Old backups cleaned up automatically\n- [ ] Backup doesn't block normal operations\n- [ ] Log backup success/failure\n\n## File to Create\n`src/lib/backup.ts`",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "high",
-      "tags": [
-        "backup",
-        "database",
-        "safety"
-      ],
-      "passes": true
-    },
-    {
       "id": "a7bbca6d-a9da-4733-bf62-41f1da610f64",
       "title": "Add manual backup/restore CLI commands",
-      "description": "## Task\nAdd CLI commands for manual backup and restore operations.\n\n## Commands\n```bash\nbrain-dump backup              # Create immediate backup\nbrain-dump backup --list       # List available backups\nbrain-dump restore <filename>  # Restore from backup\nbrain-dump restore --latest    # Restore most recent backup\n```\n\n## Restore Safety\n- Require confirmation for restore\n- Create backup of current DB before restore\n- Verify backup integrity before restore\n- Show diff summary (ticket counts, etc.)\n\n## Acceptance Criteria\n- [x] `backup` command creates timestamped backup\n- [x] `backup --list` shows available backups with dates\n- [x] `restore` command works with confirmation\n- [x] Pre-restore backup created automatically\n- [x] Clear success/error messages\n\n## File to Modify\n`cli/brain-dump.ts`",
+      "description": "## Task\nAdd CLI commands for manual backup and restore operations.\n\n## Commands\n```bash\nbrain-dump backup              # Create immediate backup\nbrain-dump backup --list       # List available backups\nbrain-dump restore <filename>  # Restore from backup\nbrain-dump restore --latest    # Restore most recent backup\n```\n\n## Restore Safety\n- Require confirmation for restore\n- Create backup of current DB before restore\n- Verify backup integrity before restore\n- Show diff summary (ticket counts, etc.)\n\n## Acceptance Criteria\n- [ ] `backup` command creates timestamped backup\n- [ ] `backup --list` shows available backups with dates\n- [ ] `restore` command works with confirmation\n- [ ] Pre-restore backup created automatically\n- [ ] Clear success/error messages\n\n## File to Modify\n`cli/brain-dump.ts`",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
@@ -85,7 +37,7 @@
     {
       "id": "254bca98-5777-43a5-acdc-1319181c2b19",
       "title": "Implement database lock file detection",
-      "description": "## Task\nAdd lock file mechanism to detect and handle multiple processes accessing the database.\n\n## Lock File Location\n`~/.local/state/brain-dumpy/brain-dumpy.lock`\n\n## Lock File Contents\n```json\n{\n  \"pid\": 12345,\n  \"startedAt\": \"2026-01-12T00:00:00Z\",\n  \"type\": \"mcp-server\" | \"cli\" | \"vite\"\n}\n```\n\n## Behavior\n- Create lock on database open\n- Check if existing lock is stale (process not running)\n- Warn if another process has lock\n- Clean up lock on graceful shutdown\n- Handle SIGTERM/SIGINT for cleanup\n\n## Acceptance Criteria\n- [x] Lock file created on DB access\n- [x] Stale locks detected and cleaned\n- [x] Warning shown for concurrent access\n- [x] Lock cleaned up on shutdown\n- [x] Works across MCP server, CLI, and Vite\n\n## File to Create\n`src/lib/lockfile.ts`",
+      "description": "## Task\nAdd lock file mechanism to detect and handle multiple processes accessing the database.\n\n## Lock File Location\n`~/.local/state/brain-dumpy/brain-dumpy.lock`\n\n## Lock File Contents\n```json\n{\n  \"pid\": 12345,\n  \"startedAt\": \"2026-01-12T00:00:00Z\",\n  \"type\": \"mcp-server\" | \"cli\" | \"vite\"\n}\n```\n\n## Behavior\n- Create lock on database open\n- Check if existing lock is stale (process not running)\n- Warn if another process has lock\n- Clean up lock on graceful shutdown\n- Handle SIGTERM/SIGINT for cleanup\n\n## Acceptance Criteria\n- [ ] Lock file created on DB access\n- [ ] Stale locks detected and cleaned\n- [ ] Warning shown for concurrent access\n- [ ] Lock cleaned up on shutdown\n- [ ] Works across MCP server, CLI, and Vite\n\n## File to Create\n`src/lib/lockfile.ts`",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
@@ -101,7 +53,7 @@
     {
       "id": "b892ddcc-b0d7-44ab-8239-a9f252af7c5a",
       "title": "Add file-based logging system",
-      "description": "## Task\nImplement file-based logging for debugging and audit trail.\n\n## Log Location\n`~/.local/state/brain-dumpy/logs/`\n\n## Log Files\n- `brain-dumpy.log` - Main application log (rotated)\n- `mcp-server.log` - MCP server specific logs\n- `error.log` - Errors only (for quick debugging)\n\n## Log Format\n```\n2026-01-12T00:00:00.000Z [INFO] [mcp-server] Tool called: create_ticket\n2026-01-12T00:00:00.000Z [ERROR] [database] Failed to write: SQLITE_BUSY\n```\n\n## Features\n- Log levels: DEBUG, INFO, WARN, ERROR\n- Automatic rotation (keep 5 files, 10MB each)\n- Configurable log level via env var\n- Async file writes (non-blocking)\n\n## Acceptance Criteria\n- [x] Logs written to XDG state directory\n- [x] Log rotation working\n- [x] All major operations logged\n- [x] Errors include stack traces\n- [x] LOG_LEVEL env var respected\n\n## File to Create\n`src/lib/logger.ts`",
+      "description": "## Task\nImplement file-based logging for debugging and audit trail.\n\n## Log Location\n`~/.local/state/brain-dumpy/logs/`\n\n## Log Files\n- `brain-dumpy.log` - Main application log (rotated)\n- `mcp-server.log` - MCP server specific logs\n- `error.log` - Errors only (for quick debugging)\n\n## Log Format\n```\n2026-01-12T00:00:00.000Z [INFO] [mcp-server] Tool called: create_ticket\n2026-01-12T00:00:00.000Z [ERROR] [database] Failed to write: SQLITE_BUSY\n```\n\n## Features\n- Log levels: DEBUG, INFO, WARN, ERROR\n- Automatic rotation (keep 5 files, 10MB each)\n- Configurable log level via env var\n- Async file writes (non-blocking)\n\n## Acceptance Criteria\n- [ ] Logs written to XDG state directory\n- [ ] Log rotation working\n- [ ] All major operations logged\n- [ ] Errors include stack traces\n- [ ] LOG_LEVEL env var respected\n\n## File to Create\n`src/lib/logger.ts`",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
@@ -111,22 +63,6 @@
         "logging",
         "debugging",
         "observability"
-      ],
-      "passes": true
-    },
-    {
-      "id": "d87b3a30-04e9-4107-9be6-a06d9099f32b",
-      "title": "Add database integrity check on startup",
-      "description": "## Task\nRun SQLite integrity checks on startup to detect corruption early.\n\n## Checks to Perform\n1. `PRAGMA integrity_check` - Full database integrity\n2. `PRAGMA foreign_key_check` - Foreign key violations\n3. Verify WAL file consistency\n4. Check expected tables exist\n\n## Behavior\n- Run quick check on every startup\n- Full check weekly or on demand\n- Log results\n- Warn user if issues found\n- Offer to restore from backup if corrupted\n\n## Acceptance Criteria\n- [x] Quick integrity check on startup\n- [x] Full check available via CLI\n- [x] Issues logged with details\n- [x] Backup restore suggested if corrupted\n- [x] Doesn't significantly slow startup\n\n## File to Create\n`src/lib/integrity.ts`",
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "priority": "medium",
-      "tags": [
-        "database",
-        "integrity",
-        "safety"
       ],
       "passes": true
     },
@@ -149,7 +85,7 @@
     {
       "id": "e97a4485-af2a-4bd8-9763-20bb1a213a02",
       "title": "Add graceful shutdown handling for all processes",
-      "description": "## Task\nEnsure all Brain Dumpy processes handle shutdown gracefully to prevent data loss.\n\n## Processes to Handle\n- MCP server\n- CLI commands\n- Vite dev server\n\n## Shutdown Actions\n1. Catch SIGTERM, SIGINT, SIGQUIT\n2. Flush any pending writes\n3. Run SQLite checkpoint (WAL mode)\n4. Remove lock file\n5. Close database connection\n6. Log shutdown\n\n## Implementation\n```typescript\nfunction setupGracefulShutdown(db: Database): void {\n  const cleanup = async () => {\n    await db.run('PRAGMA wal_checkpoint(TRUNCATE)');\n    await removeLockFile();\n    await db.close();\n    process.exit(0);\n  };\n  process.on('SIGTERM', cleanup);\n  process.on('SIGINT', cleanup);\n}\n```\n\n## Acceptance Criteria\n- [x] All signals handled correctly\n- [x] WAL checkpoint on shutdown\n- [x] Lock file cleaned up\n- [x] No data loss on Ctrl+C\n- [x] Works for all process types\n\n## Files to Modify\n- `mcp-server/index.js`\n- `cli/brain-dump.ts`\n- `vite.config.ts` (dev server)",
+      "description": "## Task\nEnsure all Brain Dumpy processes handle shutdown gracefully to prevent data loss.\n\n## Processes to Handle\n- MCP server\n- CLI commands\n- Vite dev server\n\n## Shutdown Actions\n1. Catch SIGTERM, SIGINT, SIGQUIT\n2. Flush any pending writes\n3. Run SQLite checkpoint (WAL mode)\n4. Remove lock file\n5. Close database connection\n6. Log shutdown\n\n## Implementation\n```typescript\nfunction setupGracefulShutdown(db: Database): void {\n  const cleanup = async () => {\n    await db.run('PRAGMA wal_checkpoint(TRUNCATE)');\n    await removeLockFile();\n    await db.close();\n    process.exit(0);\n  };\n  process.on('SIGTERM', cleanup);\n  process.on('SIGINT', cleanup);\n}\n```\n\n## Acceptance Criteria\n- [ ] All signals handled correctly\n- [ ] WAL checkpoint on shutdown\n- [ ] Lock file cleaned up\n- [ ] No data loss on Ctrl+C\n- [ ] Works for all process types\n\n## Files to Modify\n- `mcp-server/index.js`\n- `cli/brain-dump.ts`\n- `vite.config.ts` (dev server)",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
@@ -180,7 +116,7 @@
     {
       "id": "e5aebb29-3760-403c-8978-a975f2f448e8",
       "title": "Add database file watcher for deletion detection",
-      "description": "## Task\nImplement file system watcher to detect if database files are unexpectedly deleted while in use.\n\n## Context\nThis ticket was created after a mysterious database deletion incident where the .db files were deleted while processes held open file handles.\n\n## Implementation\n- Watch database directory for deletion events\n- Detect if .db, .db-wal, or .db-shm files are deleted\n- If deletion detected while DB open:\n  - Log critical error immediately\n  - Attempt emergency backup from memory\n  - Alert user via MCP response or CLI output\n  - Prevent further writes to avoid data loss\n\n## Technical Approach\n```typescript\nimport { watch } from 'fs';\n\nfunction watchDatabaseFiles(dbPath: string) {\n  const watcher = watch(dirname(dbPath), (event, filename) => {\n    if (filename?.endsWith('.db') && event === 'rename') {\n      // File might be deleted - check if it exists\n      if (!existsSync(dbPath)) {\n        handleDatabaseDeletion();\n      }\n    }\n  });\n}\n```\n\n## Acceptance Criteria\n- [x] Watcher detects .db file deletion\n- [x] Critical error logged immediately\n- [x] Emergency backup attempted\n- [x] User alerted via available channel\n- [x] Further writes prevented\n\n## File to Create\n`src/lib/db-watcher.ts`",
+      "description": "## Task\nImplement file system watcher to detect if database files are unexpectedly deleted while in use.\n\n## Context\nThis ticket was created after a mysterious database deletion incident where the .db files were deleted while processes held open file handles.\n\n## Implementation\n- Watch database directory for deletion events\n- Detect if .db, .db-wal, or .db-shm files are deleted\n- If deletion detected while DB open:\n  - Log critical error immediately\n  - Attempt emergency backup from memory\n  - Alert user via MCP response or CLI output\n  - Prevent further writes to avoid data loss\n\n## Technical Approach\n```typescript\nimport { watch } from 'fs';\n\nfunction watchDatabaseFiles(dbPath: string) {\n  const watcher = watch(dirname(dbPath), (event, filename) => {\n    if (filename?.endsWith('.db') && event === 'rename') {\n      // File might be deleted - check if it exists\n      if (!existsSync(dbPath)) {\n        handleDatabaseDeletion();\n      }\n    }\n  });\n}\n```\n\n## Acceptance Criteria\n- [ ] Watcher detects .db file deletion\n- [ ] Critical error logged immediately\n- [ ] Emergency backup attempted\n- [ ] User alerted via available channel\n- [ ] Further writes prevented\n\n## File to Create\n`src/lib/db-watcher.ts`",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
@@ -193,94 +129,8 @@
         "incident-response"
       ],
       "passes": true
-    },
-    {
-      "id": "cp-001-platform-detection",
-      "title": "Add platform detection utility to xdg.ts",
-      "description": "## Context\nThe current `src/lib/xdg.ts` module only handles Linux XDG paths. This ticket adds platform detection as the foundation for cross-platform support.\n\n## Task\nAdd platform detection utility that identifies Linux, macOS, and Windows.\n\n## Implementation\n```typescript\nimport { platform } from 'os';\n\ntype SupportedPlatform = 'linux' | 'darwin' | 'win32';\n\nexport function getPlatform(): SupportedPlatform {\n  const plat = platform();\n  if (plat === 'linux' || plat === 'darwin' || plat === 'win32') {\n    return plat;\n  }\n  // Default to linux for other Unix-like systems\n  return 'linux';\n}\n\nexport function isLinux(): boolean {\n  return getPlatform() === 'linux';\n}\n\nexport function isMacOS(): boolean {\n  return getPlatform() === 'darwin';\n}\n\nexport function isWindows(): boolean {\n  return getPlatform() === 'win32';\n}\n```\n\n## Acceptance Criteria\n- [x] getPlatform() returns correct platform\n- [x] Helper functions (isLinux, isMacOS, isWindows) work correctly\n- [x] Unit tests for all platform detection functions\n- [x] Tests use os.platform() mocking to test all platforms\n\n## Files to Modify\n- `src/lib/xdg.ts` - Add platform detection functions\n- `src/lib/xdg.test.ts` - Add platform detection tests",
-      "acceptanceCriteria": [
-        "getPlatform() returns correct platform",
-        "Helper functions work correctly",
-        "Unit tests pass for all platform detection"
-      ],
-      "priority": "high",
-      "tags": [
-        "cross-platform",
-        "foundation",
-        "utility"
-      ],
-      "passes": true
-    },
-    {
-      "id": "cp-002-macos-paths",
-      "title": "Add macOS path support to xdg.ts",
-      "description": "## Context\nAdd macOS-specific application paths following Apple's conventions.\n\n## Task\nUpdate path functions to return macOS-appropriate paths when running on macOS.\n\n## macOS Standard Paths\n- **Data**: `~/Library/Application Support/brain-dumpy/`\n- **Config**: `~/Library/Application Support/brain-dumpy/` (same as data)\n- **Cache**: `~/Library/Caches/brain-dumpy/`\n- **State**: `~/Library/Application Support/brain-dumpy/state/`\n- **Legacy**: `~/.brain-dump/` (for migration)\n\n## Implementation Strategy\nUpdate each function to check platform and return appropriate path:\n\n```typescript\nexport function getDataDir(): string {\n  const plat = getPlatform();\n  \n  if (plat === 'darwin') {\n    return join(homedir(), 'Library', 'Application Support', APP_NAME);\n  }\n  \n  // Linux XDG (existing code)\n  const xdgDataHome = process.env.XDG_DATA_HOME;\n  const base = xdgDataHome || join(homedir(), '.local', 'share');\n  return join(base, APP_NAME);\n}\n```\n\n## Acceptance Criteria\n- [x] getDataDir() returns correct macOS path\n- [x] getConfigDir() returns correct macOS path\n- [x] getCacheDir() returns correct macOS path\n- [x] getStateDir() returns correct macOS path\n- [x] Unit tests for macOS paths (use platform mocking)\n- [x] XDG env vars ignored on macOS\n\n## Files to Modify\n- `src/lib/xdg.ts` - Update path functions\n- `src/lib/xdg.test.ts` - Add macOS-specific tests",
-      "acceptanceCriteria": [
-        "All path functions return correct macOS paths",
-        "Unit tests pass for macOS platform",
-        "XDG environment variables properly ignored on macOS"
-      ],
-      "priority": "high",
-      "tags": [
-        "cross-platform",
-        "macos",
-        "paths"
-      ],
-      "passes": true
-    },
-    {
-      "id": "cp-003-windows-paths",
-      "title": "Add Windows path support to xdg.ts",
-      "description": "## Context\nAdd Windows-specific application paths using standard Windows conventions.\n\n## Task\nUpdate path functions to return Windows-appropriate paths when running on Windows.\n\n## Windows Standard Paths\n- **Data**: `%APPDATA%\\brain-dumpy\\` (e.g., C:\\Users\\Name\\AppData\\Roaming\\brain-dumpy\\)\n- **Config**: `%APPDATA%\\brain-dumpy\\config\\`\n- **Cache**: `%LOCALAPPDATA%\\brain-dumpy\\cache\\` (e.g., C:\\Users\\Name\\AppData\\Local\\brain-dumpy\\cache\\)\n- **State**: `%LOCALAPPDATA%\\brain-dumpy\\state\\`\n- **Legacy**: `~/.brain-dump/` (for cross-platform migration support)\n\n## Implementation Strategy\nUse process.env.APPDATA and process.env.LOCALAPPDATA:\n\n```typescript\nexport function getDataDir(): string {\n  const plat = getPlatform();\n  \n  if (plat === 'win32') {\n    const appData = process.env.APPDATA || join(homedir(), 'AppData', 'Roaming');\n    return join(appData, APP_NAME);\n  }\n  \n  // macOS and Linux (existing code)\n  // ...\n}\n```\n\n## Acceptance Criteria\n- [x] getDataDir() returns correct Windows path\n- [x] getConfigDir() returns correct Windows path\n- [x] getCacheDir() returns correct Windows path\n- [x] getStateDir() returns correct Windows path\n- [x] Uses APPDATA and LOCALAPPDATA environment variables\n- [x] Fallback paths if env vars not set\n- [x] Unit tests for Windows paths (use platform mocking)\n\n## Files to Modify\n- `src/lib/xdg.ts` - Update path functions\n- `src/lib/xdg.test.ts` - Add Windows-specific tests",
-      "acceptanceCriteria": [
-        "All path functions return correct Windows paths",
-        "APPDATA and LOCALAPPDATA environment variables respected",
-        "Unit tests pass for Windows platform"
-      ],
-      "priority": "high",
-      "tags": [
-        "cross-platform",
-        "windows",
-        "paths"
-      ],
-      "passes": true
-    },
-    {
-      "id": "cp-004-rename-module",
-      "title": "Rename xdg.ts to app-paths.ts",
-      "description": "## Context\nThe module name `xdg.ts` is misleading since it now supports macOS and Windows, not just XDG (Linux) paths.\n\n## Task\nRename the module to better reflect its cross-platform nature.\n\n## Proposed Name\n`app-paths.ts` - Clear, platform-agnostic name that describes what it does.\n\n## Files to Rename\n- `src/lib/xdg.ts` → `src/lib/app-paths.ts`\n- `src/lib/xdg.test.ts` → `src/lib/app-paths.test.ts`\n\n## Import Updates Required\nUpdate imports in all files that currently import from xdg.ts:\n- `src/lib/db.ts`\n- `src/lib/backup.ts`\n- `src/lib/migration.ts`\n- `src/lib/lockfile.ts`\n- `src/lib/db-watcher.ts`\n- `cli/brain-dump.ts`\n- `mcp-server/index.js` (JavaScript - uses require)\n\n## Code Comments\nUpdate JSDoc comments in the module:\n- Change \"XDG Base Directory Specification utility\" to \"Cross-platform application paths utility\"\n- Update references to XDG to be platform-agnostic\n- Keep XDG references only in Linux-specific sections\n\n## Acceptance Criteria\n- [ ] Files renamed successfully\n- [ ] All imports updated\n- [ ] All tests still pass\n- [ ] No references to old filename remain\n- [ ] Documentation comments updated\n- [ ] MCP server (JavaScript) imports updated\n\n## Files to Modify\n- All files listed above for import updates",
-      "acceptanceCriteria": [
-        "Module renamed to app-paths.ts",
-        "All imports updated across codebase",
-        "All tests pass after rename",
-        "Documentation updated"
-      ],
-      "priority": "medium",
-      "tags": [
-        "cross-platform",
-        "refactor",
-        "cleanup"
-      ],
-      "passes": false
-    },
-    {
-      "id": "cp-005-update-tests",
-      "title": "Update tests for cross-platform path support",
-      "description": "## Context\nEnsure comprehensive test coverage for all three platforms (Linux, macOS, Windows).\n\n## Task\nExpand test suite to verify correct behavior on all supported platforms.\n\n## Test Structure\n```typescript\ndescribe('Cross-Platform Path Tests', () => {\n  describe('on Linux', () => {\n    beforeEach(() => {\n      vi.spyOn(os, 'platform').mockReturnValue('linux');\n    });\n    \n    it('should return XDG paths', () => {\n      expect(getDataDir()).toContain('.local/share/brain-dumpy');\n    });\n    \n    it('should respect XDG_DATA_HOME', () => {\n      process.env.XDG_DATA_HOME = '/custom/data';\n      expect(getDataDir()).toBe('/custom/data/brain-dumpy');\n    });\n  });\n  \n  describe('on macOS', () => {\n    beforeEach(() => {\n      vi.spyOn(os, 'platform').mockReturnValue('darwin');\n      delete process.env.XDG_DATA_HOME;\n    });\n    \n    it('should return Library paths', () => {\n      expect(getDataDir()).toContain('Library/Application Support/brain-dumpy');\n    });\n    \n    it('should ignore XDG_DATA_HOME', () => {\n      process.env.XDG_DATA_HOME = '/custom/data';\n      expect(getDataDir()).toContain('Library/Application Support');\n    });\n  });\n  \n  describe('on Windows', () => {\n    beforeEach(() => {\n      vi.spyOn(os, 'platform').mockReturnValue('win32');\n      delete process.env.XDG_DATA_HOME;\n    });\n    \n    it('should return AppData paths', () => {\n      process.env.APPDATA = 'C:\\\\Users\\\\Test\\\\AppData\\\\Roaming';\n      expect(getDataDir()).toContain('brain-dumpy');\n    });\n  });\n});\n```\n\n## Test Coverage Required\nFor each platform:\n- [x] Data directory path\n- [x] Config directory path\n- [x] Cache directory path\n- [x] State directory path\n- [x] Database path\n- [x] Backups directory\n- [x] Logs directory\n- [x] Legacy directory (same on all platforms)\n- [x] Directory creation with proper permissions\n\n## Acceptance Criteria\n- [x] Tests for Linux paths (XDG)\n- [x] Tests for macOS paths (Library)\n- [x] Tests for Windows paths (AppData)\n- [x] Tests verify env vars respected (Linux) or ignored (macOS/Windows)\n- [x] All tests pass\n- [x] Code coverage remains high (>90%)\n\n## Files to Modify\n- `src/lib/app-paths.test.ts` (or xdg.test.ts if not renamed yet)",
-      "acceptanceCriteria": [
-        "Comprehensive tests for all three platforms",
-        "All tests pass",
-        "Code coverage above 90%"
-      ],
-      "priority": "high",
-      "tags": [
-        "cross-platform",
-        "testing",
-        "quality"
-      ],
-      "passes": true
     }
   ],
-  "generatedAt": "2026-01-11T20:00:00.000Z",
-  "epicTitle": "Cross-Platform Path Support"
+  "generatedAt": "2026-01-12T04:53:14.651Z",
+  "epicTitle": "XDG Migration & Data Protection"
 }

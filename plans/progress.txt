@@ -934,3 +934,49 @@ migrateFromLegacySync(): MigrationResult
 - Full check provides detailed diagnostics with suggestions
 - Integrates with backup system to suggest restores
 
+---
+
+### 2026-01-12 - Graceful Shutdown Handling for All Processes
+- Task: Add graceful shutdown handling for all processes
+- Ticket ID: e97a4485-af2a-4bd8-9763-20bb1a213a02
+- Success: true
+- Agent: Ralph
+- Branch: ralph/74e5875f-xdg-directory-utility
+
+**Summary:**
+All three process types (MCP server, CLI, Vite dev server) already had graceful shutdown handling via the lockfile module. This ticket verified the implementation and enhanced the CLI to have full WAL checkpoint support.
+
+**Implementation Status:**
+
+| Process | Signal Handlers | WAL Checkpoint | Lock Cleanup | Logging |
+|---------|-----------------|----------------|--------------|---------|
+| MCP Server | ✅ SIGTERM, SIGINT, SIGQUIT | ✅ TRUNCATE | ✅ releaseLock() | ✅ Full |
+| CLI Commands | ✅ Via setupGracefulShutdown() | ✅ TRUNCATE | ✅ releaseLock() | ✅ Full |
+| Vite Dev Server | ✅ Via initializeLockSync() | ✅ TRUNCATE | ✅ releaseLock() | ✅ Yes |
+
+**Files Modified:**
+- `cli/brain-dump.ts` - Enhanced with:
+  - Import `setupGracefulShutdown` from lockfile module
+  - Track active database connection with `activeDb`
+  - `cleanupDatabase()` function with WAL checkpoint
+  - Proper lock release after each operation
+
+**Key Features:**
+- All signals handled: SIGTERM, SIGINT, SIGQUIT
+- WAL checkpoint (`PRAGMA wal_checkpoint(TRUNCATE)`) on shutdown
+- Lock file automatically cleaned up
+- Database connection properly closed
+- Shutdown logged via logger module
+- Exception handlers for uncaught exceptions and unhandled rejections
+
+**Testing:**
+- All 259 tests passing
+- MCP server syntax valid
+- CLI syntax valid and functional
+- Type checks pass (except pre-existing index.tsx errors)
+
+**Notes:**
+- Most shutdown handling was already implemented by the lockfile module
+- CLI enhancement adds explicit WAL checkpoint before close
+- No changes needed to Vite config - handled via db.ts
+
