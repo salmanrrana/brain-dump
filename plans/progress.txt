@@ -1383,3 +1383,39 @@ Remaining tasks (1):
 
 ---
 
+### 2026-01-12 - breakdown.agent.md for VS Code
+- Task: Create breakdown.agent.md for VS Code
+- Ticket ID: 637085d2-c0bf-463f-8e35-d1188dc673ee
+- Success: true
+- Agent: Ralph
+- Branch: ralph/637085d2-breakdown-agent-md
+
+**Files Created:**
+- `.github/agents/breakdown.agent.md` - VS Code custom agent file
+
+**Agent Configuration:**
+- Name: breakdown
+- Model: sonnet
+- Color: green
+- Tools: brain-dumpy/find_project_by_path, create_project, list_epics, create_epic, create_ticket, list_projects
+
+**Agent Instructions:**
+The breakdown agent is designed to:
+1. Find or create projects in Brain Dumpy
+2. Analyze specs/PRDs/requirements
+3. Create epics for major feature areas
+4. Break down work into atomic 1-4 hour tickets
+5. Set appropriate priorities and tags
+6. Provide a summary with implementation order
+
+**Testing:**
+- All 298 tests passing
+- Type check has pre-existing errors in logger.ts and index.tsx (separate tickets)
+
+**Notes:**
+- Agent file follows VS Code custom agents format (YAML frontmatter + markdown body)
+- Uses Brain Dumpy MCP tools for ticket creation
+- Includes comprehensive instructions for ticket sizing and quality
+
+---
+

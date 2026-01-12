@@ -1,23 +1,146 @@
 {
-  "projectName": "Brain Dumpy",
+  "projectName": "Brain Dump",
   "projectPath": "/home/xtra/code/personal_projects/brain-dumpy",
   "userStories": [
     {
-      "id": "9d07f06e-d58e-47f5-93ac-87881fd639cc",
-      "title": "Add working method UI to project settings",
-      "description": "## Task\nAdd UI dropdown in project edit modal for working method.\n\n## UI Changes\n- Add dropdown in ProjectModal\n- Options: Auto-detect, Claude Code, VS Code\n- Save to database on change\n\n## Acceptance Criteria\n- [ ] Dropdown appears in project edit\n- [ ] Changes persist to database\n- [ ] Shows current setting\n\n## File to Modify\n`src/components/ProjectModal.tsx`",
+      "id": "637085d2-c0bf-463f-8e35-d1188dc673ee",
+      "title": "Create breakdown.agent.md for VS Code",
+      "description": "## Task\nCreate VS Code custom agent file for the breakdown agent.\n\n## File Location\n`.github/agents/breakdown.agent.md`\n\n## Content\n- YAML frontmatter with tools, model, description\n- Markdown body with breakdown instructions\n- Include Brain Dumpy MCP tools for ticket creation\n\n## Acceptance Criteria\n- [ ] Agent file created\n- [ ] Appears in VS Code chat dropdown\n- [ ] Can create tickets via MCP tools",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "high",
+      "tags": [
+        "vs-code",
+        "agents"
+      ],
+      "passes": true
+    },
+    {
+      "id": "199b6474-17b8-4906-9341-63618afec7d9",
+      "title": "Create inception.agent.md for VS Code",
+      "description": "## Task\nCreate VS Code custom agent file for the inception agent.\n\n## File Location\n`.github/agents/inception.agent.md`\n\n## Content\n- YAML frontmatter with tools, model, description\n- Markdown body with interview/inception instructions\n- Handoff to breakdown agent when done\n\n## Acceptance Criteria\n- [ ] Agent file created\n- [ ] Appears in VS Code chat dropdown\n- [ ] Can conduct interviews and create projects",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "high",
+      "tags": [
+        "vs-code",
+        "agents"
+      ],
+      "passes": false
+    },
+    {
+      "id": "f8532482-fe46-417a-9b09-ef3c80e34530",
+      "title": "Create ralph.agent.md for VS Code",
+      "description": "## Task\nCreate VS Code custom agent file for Ralph (autonomous worker).\n\n## File Location\n`.github/agents/ralph.agent.md`\n\n## Content\n- YAML frontmatter with tools, model, description\n- Markdown body with Ralph's work instructions\n- Include ticket workflow tools (start_work, complete_work)\n- Environment-aware behavior\n\n## Acceptance Criteria\n- [ ] Agent file created\n- [ ] Appears in VS Code chat dropdown\n- [ ] Can work on tickets autonomously",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "high",
+      "tags": [
+        "vs-code",
+        "agents",
+        "ralph"
+      ],
+      "passes": false
+    },
+    {
+      "id": "a282c4ce-ced4-485e-b530-3e085a42e979",
+      "title": "Create simplify.agent.md for VS Code",
+      "description": "## Task\nCreate VS Code custom agent file for the simplify agent.\n\n## File Location\n`.github/agents/simplify.agent.md`\n\n## Content\n- YAML frontmatter with tools, model, description\n- Markdown body with code simplification instructions\n\n## Acceptance Criteria\n- [ ] Agent file created\n- [ ] Appears in VS Code chat dropdown\n- [ ] Can analyze and suggest simplifications",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "medium",
+      "tags": [
+        "vs-code",
+        "agents"
+      ],
+      "passes": false
+    },
+    {
+      "id": "676c7507-f075-4da2-a28e-d24684b16f54",
+      "title": "Configure agent handoffs in VS Code agents",
+      "description": "## Task\nAdd handoff configuration to agent files so they can transition to each other.\n\n## Handoff Flow\n- inception → breakdown (after requirements gathered)\n- breakdown → ralph (after tickets created)\n- ralph → (completes, signals context reset)\n\n## Acceptance Criteria\n- [ ] Handoffs defined in YAML frontmatter\n- [ ] Users can transition between agents smoothly\n- [ ] Context passed appropriately\n\n## Files to Modify\nAll `.github/agents/*.agent.md` files",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "medium",
+      "tags": [
+        "vs-code",
+        "agents",
+        "handoffs"
+      ],
+      "passes": false
+    },
+    {
+      "id": "45618cde-757d-41a8-84cf-d9ae0ef64a61",
+      "title": "Test VS Code agents with GitHub Copilot",
+      "description": "## Task\nTest all custom agents work with GitHub Copilot Chat in VS Code.\n\n## Test Cases\n- [ ] breakdown.agent.md loads and works\n- [ ] inception.agent.md loads and works\n- [ ] ralph.agent.md loads and works\n- [ ] simplify.agent.md loads and works\n- [ ] Handoffs work correctly\n- [ ] MCP tools accessible from agents\n\n## Scope\nTesting only. Document any issues found.",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "medium",
+      "tags": [
+        "vs-code",
+        "testing"
+      ],
+      "passes": false
+    },
+    {
+      "id": "b73cb972-b704-465d-a945-19d7aac082b4",
+      "title": "Test VS Code agents with Continue extension",
+      "description": "## Task\nTest custom agents work with Continue extension in VS Code.\n\n## Test Cases\n- [ ] Agents discoverable in Continue\n- [ ] MCP tools work via Continue\n- [ ] Document any differences from Copilot\n\n## Scope\nTesting only. Document compatibility.",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
       ],
       "priority": "low",
       "tags": [
-        "ui",
-        "settings"
+        "vs-code",
+        "testing",
+        "continue"
       ],
-      "passes": true
+      "passes": false
+    },
+    {
+      "id": "46f5a13a-35d8-40d0-8c29-27f338daa1a4",
+      "title": "Write Quick Start guide for VS Code",
+      "description": "## Task\nWrite a quick start guide for VS Code users.\n\n## Content\n- Prerequisites (VS Code version, Copilot)\n- Install Brain Dumpy MCP server\n- Configure .vscode/mcp.json\n- Verify connection works\n- First workflow example\n\n## Acceptance Criteria\n- [ ] Guide is clear for new users\n- [ ] Can follow steps in 5 minutes\n- [ ] Tested on fresh VS Code setup\n\n## File to Create\n`docs/vscode-quickstart.md`",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "medium",
+      "tags": [
+        "documentation",
+        "vs-code"
+      ],
+      "passes": false
+    },
+    {
+      "id": "96066be1-3a64-4c97-b1f6-d62b14ae5ea4",
+      "title": "Write troubleshooting guide for VS Code",
+      "description": "## Task\nDocument common issues and solutions for VS Code setup.\n\n## Content\n- MCP connection issues\n- Agent not appearing\n- Tools not working\n- Debug logging\n- Known limitations\n\n## Acceptance Criteria\n- [ ] Common issues covered\n- [ ] Solutions are actionable\n- [ ] Debug steps included\n\n## File to Create\n`docs/vscode-troubleshooting.md`",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "low",
+      "tags": [
+        "documentation",
+        "vs-code"
+      ],
+      "passes": false
     }
   ],
-  "generatedAt": "2026-01-12T08:52:09.100Z",
-  "epicTitle": "Cross-Environment Support"
+  "generatedAt": "2026-01-12T14:58:58.926Z",
+  "epicTitle": "VS Code Configuration"
 }
