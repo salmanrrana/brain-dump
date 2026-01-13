@@ -29,13 +29,23 @@ import {
   MAX_LOG_SIZE,
   MAX_LOG_FILES,
   LOG_PRIORITY,
-  getLogsDir,
   formatLogEntry,
   rotateLogFile,
   writeToLogFile,
   getLogLevel,
   shouldLog,
 } from "./lib/logging.js";
+import {
+  getDataDir,
+  getStateDir,
+  getLogsDir,
+  getBackupsDir,
+  getLegacyDir,
+  getDbPath,
+  getLockFilePath,
+  ensureDirectoriesSync,
+  getPlatform,
+} from "./lib/xdg.js";
 
 // =============================================================================
 // ENVIRONMENT DETECTION
@@ -154,81 +164,8 @@ function getEnvironmentInfo() {
 }
 
 // =============================================================================
-// XDG DIRECTORY UTILITIES
-// =============================================================================
-const APP_NAME = "brain-dump";
-
-function getPlatform() {
-  const p = process.platform;
-  if (p === "linux" || p === "darwin" || p === "win32") {
-    return p;
-  }
-  return "other";
-}
-
-function getDataDir() {
-  const p = getPlatform();
-
-  if (p === "darwin") {
-    return join(homedir(), "Library", "Application Support", APP_NAME);
-  }
-
-  if (p === "win32") {
-    const appData = process.env.APPDATA;
-    const base = appData || join(homedir(), "AppData", "Roaming");
-    return join(base, APP_NAME);
-  }
-
-  // Linux and other platforms use XDG
-  const xdgDataHome = process.env.XDG_DATA_HOME;
-  const base = xdgDataHome || join(homedir(), ".local", "share");
-  return join(base, APP_NAME);
-}
-
-function getLegacyDir() {
-  return join(homedir(), ".brain-dump");
-}
-
-function getDatabasePath() {
-  return join(getDataDir(), "brain-dump.db");
-}
-
-function getStateDir() {
-  const p = getPlatform();
-
-  if (p === "darwin") {
-    return join(homedir(), "Library", "Application Support", APP_NAME, "state");
-  }
-
-  if (p === "win32") {
-    const localAppData = process.env.LOCALAPPDATA;
-    const base = localAppData || join(homedir(), "AppData", "Local");
-    return join(base, APP_NAME, "state");
-  }
-
-  // Linux and other platforms use XDG
-  const xdgStateHome = process.env.XDG_STATE_HOME;
-  const base = xdgStateHome || join(homedir(), ".local", "state");
-  return join(base, APP_NAME);
-}
-
-function ensureDirectoriesSync() {
-  const dirs = [getDataDir(), getStateDir(), join(getStateDir(), "backups")];
-  for (const dir of dirs) {
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true, mode: 0o700 });
-    }
-  }
-}
-
-// =============================================================================
 // LOCK FILE UTILITIES
 // =============================================================================
-const LOCK_FILE_NAME = "brain-dump.lock";
-
-function getLockFilePath() {
-  return join(getStateDir(), LOCK_FILE_NAME);
-}
 
 function isProcessRunning(pid) {
   try {
@@ -417,7 +354,7 @@ function verifyDatabaseIntegrity(dbPath) {
 function migrateFromLegacySync() {
   const legacyDir = getLegacyDir();
   const legacyDbPath = join(legacyDir, "brain-dump.db");
-  const xdgDbPath = getDatabasePath();
+  const xdgDbPath = getDbPath();
 
   // Already migrated?
   if (isMigrationComplete()) {
@@ -509,10 +446,6 @@ function migrateFromLegacySync() {
 const BACKUP_PREFIX = "brain-dump-";
 const BACKUP_SUFFIX = ".db";
 const LAST_BACKUP_FILE = ".last-backup";
-
-function getBackupsDir() {
-  return join(getStateDir(), "backups");
-}
 
 function getTodayDateString() {
   return new Date().toISOString().split("T")[0];
@@ -783,7 +716,7 @@ if (migrationResult.migrated) {
   log.info(migrationResult.message);
 }
 
-const dbPath = getDatabasePath();
+const dbPath = getDbPath();
 const legacyDbPath = join(getLegacyDir(), "brain-dump.db");
 let db;
 
@@ -2536,7 +2469,7 @@ ${results.map(t => `## ${t.title}
         let status = "healthy";
 
         // Database path and size
-        const actualDbPath = getDatabasePath();
+        const actualDbPath = getDbPath();
         let dbSize = 0;
         let dbSizeFormatted = "unknown";
 

@@ -3,9 +3,9 @@
  * All output goes to stderr for STDIO transport. File logging for audit trail.
  * @module lib/logging
  */
-import { homedir } from "os";
 import { join } from "path";
 import { existsSync, mkdirSync, appendFileSync, statSync, renameSync, unlinkSync } from "fs";
+import { getLogsDir } from "./xdg.js";
 
 /** @type {string} Main log file name */
 export const LOG_FILE = "mcp-server.log";
@@ -18,27 +18,8 @@ export const MAX_LOG_FILES = 5;
 /** @type {Object<string, number>} Log level priority mapping */
 export const LOG_PRIORITY = { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 };
 
-/**
- * Get the logs directory path (platform-aware: macOS, Windows, Linux XDG).
- * @returns {string} Absolute path to logs directory
- */
-export function getLogsDir() {
-  const APP = "brain-dump";
-  const p = process.platform;
-  let stateDir;
-  if (p === "darwin") {
-    stateDir = join(homedir(), "Library", "Application Support", APP, "state");
-  } else if (p === "win32") {
-    const localAppData = process.env.LOCALAPPDATA;
-    const base = localAppData || join(homedir(), "AppData", "Local");
-    stateDir = join(base, APP, "state");
-  } else {
-    const xdgStateHome = process.env.XDG_STATE_HOME;
-    const base = xdgStateHome || join(homedir(), ".local", "state");
-    stateDir = join(base, APP);
-  }
-  return join(stateDir, "logs");
-}
+// Re-export getLogsDir for backwards compatibility
+export { getLogsDir };
 
 /**
  * Format a log entry with timestamp, level, source, and optional error details.
