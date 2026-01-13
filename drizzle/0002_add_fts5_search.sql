@@ -7,6 +7,8 @@ CREATE VIRTUAL TABLE IF NOT EXISTS tickets_fts USING fts5(
   content=tickets,
   content_rowid=rowid
 );--> statement-breakpoint
+-- Clear any existing FTS data before repopulating (for idempotency)
+DELETE FROM tickets_fts;--> statement-breakpoint
 -- Populate FTS table with existing data
 INSERT INTO tickets_fts(rowid, title, description, tags, subtasks)
 SELECT rowid, title, COALESCE(description, ''), COALESCE(tags, ''), COALESCE(subtasks, '')

@@ -7,8 +7,8 @@ CREATE TABLE `settings` (
 	`default_projects_directory` text,
 	`created_at` text DEFAULT (datetime('now')) NOT NULL,
 	`updated_at` text DEFAULT (datetime('now')) NOT NULL
-);
---> statement-breakpoint
+);--> statement-breakpoint
+INSERT OR IGNORE INTO `settings` (`id`) VALUES ('default');--> statement-breakpoint
 CREATE TABLE `ticket_comments` (
 	`id` text PRIMARY KEY NOT NULL,
 	`ticket_id` text NOT NULL,
