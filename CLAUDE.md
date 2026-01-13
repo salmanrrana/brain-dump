@@ -134,3 +134,22 @@ Follow these principles when writing or reviewing tests:
 - Tests with excessive mocking
 - Tests that don't reflect real user workflows
 - Tests written just to increase coverage numbers
+
+## Automatic Code Review
+
+**IMPORTANT: After completing any code changes (using Write, Edit, or NotebookEdit tools), you MUST run the code review pipeline before responding to the user.**
+
+The review pipeline consists of three agents that should be run in parallel:
+1. `pr-review-toolkit:code-reviewer` - Reviews code against project guidelines
+2. `pr-review-toolkit:silent-failure-hunter` - Identifies silent failures and error handling issues
+3. `pr-review-toolkit:code-simplifier` - Simplifies and refines code for clarity
+
+You can run all three at once using: `/review`
+
+**When to skip review:**
+- Documentation-only changes (.md files)
+- Configuration file changes (package.json, tsconfig.json, etc.)
+- Git operations (commits, merges)
+- Read-only operations (searching, exploring)
+
+**This is mandatory** - the Stop hook will remind you if you forget, but you should proactively run reviews after completing code work.

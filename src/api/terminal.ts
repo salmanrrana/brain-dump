@@ -13,6 +13,7 @@ interface LaunchClaudeResult {
   method: "terminal" | "clipboard";
   message: string;
   terminalUsed?: string;
+  warnings?: string[];
 }
 
 // Clean up old launch scripts (older than 5 minutes)
@@ -173,12 +174,17 @@ export const launchClaudeInTerminal = createServerFn({ method: "POST" })
 
     // Determine which terminal to use
     let terminal: string | null = null;
+    const warnings: string[] = [];
 
     // If preferred terminal is set and available, use it
     if (preferredTerminal) {
-      const isAvailable = await isTerminalAvailable(preferredTerminal);
-      if (isAvailable) {
+      const result = await isTerminalAvailable(preferredTerminal);
+      if (result.available) {
         terminal = preferredTerminal;
+      } else {
+        // Preferred terminal not available - add warning
+        const reason = result.error || "not installed";
+        warnings.push(`Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`);
       }
     }
 
@@ -193,6 +199,7 @@ export const launchClaudeInTerminal = createServerFn({ method: "POST" })
         method: "clipboard",
         message:
           "No supported terminal emulator found. Context copied to clipboard instead.",
+        ...(warnings.length > 0 && { warnings }),
       };
     }
 
@@ -249,12 +256,14 @@ export const launchClaudeInTerminal = createServerFn({ method: "POST" })
         method: "terminal",
         message: `Launched Claude in ${terminal}`,
         terminalUsed: terminal,
+        ...(warnings.length > 0 && { warnings }),
       };
     } catch (error) {
       return {
         success: false,
         method: "clipboard",
         message: `Failed to launch terminal: ${error instanceof Error ? error.message : "Unknown error"}. Context copied to clipboard instead.`,
+        ...(warnings.length > 0 && { warnings }),
       };
     }
   });

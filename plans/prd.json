@@ -1,124 +1,29 @@
 {
   "projectName": "Brain Dump",
-  "projectPath": "/home/xtra/code/personal_projects/brain-dump",
-  "epicTitle": "Lean Ralph Architecture",
-  "epicDescription": "Simplify Ralph to focus purely on PRD implementation. Move all workflow logic (git branches, status updates, progress comments) into smart MCP tools. This ensures Ralph's context is spent on coding, not workflow instructions. Works identically for Claude Code and VS Code.",
+  "projectPath": "/Users/salman.rana/code/brain-dump",
+  "testingRequirements": [
+    "Tests must validate user-facing behavior, not implementation details",
+    "Focus on what users actually do - integration tests over unit tests",
+    "Don't mock excessively - test real behavior where possible",
+    "Coverage metrics are meaningless - user flow coverage is everything"
+  ],
   "userStories": [
     {
-      "id": "d5bfc73d-7d86-4970-b666-bb21ebb0ed10",
-      "title": "Enhance start_ticket_work MCP tool with workflow automation",
-      "description": "Enhance the `start_ticket_work` MCP tool to handle all workflow automatically:\n\n**Current behavior:**\n- Creates git branch\n- Sets ticket status to in_progress\n- Returns branch name and ticket context\n\n**New behavior (add):**\n- Auto-post \"Starting work on [ticket]\" comment via add_ticket_comment\n- Include ticket description, acceptance criteria in response\n- Return structured context for Ralph to use\n\nThis moves workflow out of Ralph's prompt into the MCP tool.",
+      "id": "BE003D0E-7F59-4421-9764-E1C915BE0CC7",
+      "title": "Fix \"Start from Scratch\" button not working on macOS",
+      "description": "The \"Start from Scratch\" button in the New Ticket dropdown does not work on macOS.\n\n## Root Cause Analysis\n\nThe `terminal-utils.ts` file only includes Linux terminal emulators in its `ALLOWED_TERMINALS` list. macOS-native terminals are missing:\n\n**Currently supported (cross-platform only):**\n- ghostty, alacritty, kitty (would work if installed)\n- gnome-terminal, konsole, xfce4-terminal, etc. (Linux only)\n\n**Missing macOS terminals:**\n- Terminal.app (built-in macOS terminal)\n- iTerm2 (popular third-party terminal)\n- Warp (modern terminal)\n\n## Additional Issues\n\n1. **No error feedback** - The code has `// TODO: Show error toast` but errors are only logged to console\n2. **GUI app launching** - Even with Ghostty installed, launching GUI apps from a web server process on macOS may have sandbox/permission issues\n\n## Acceptance Criteria\n\n- [ ] Add macOS Terminal.app support using `open -a Terminal` command pattern\n- [ ] Add iTerm2 support\n- [ ] Add Warp support  \n- [ ] Show error toast when terminal launch fails\n- [ ] Test on macOS with various terminal configurations",
       "acceptanceCriteria": [
-        "Auto-posts 'Starting work on [ticket]' comment when called",
-        "Returns ticket description and acceptance criteria in response",
-        "Creates git branch as before",
-        "Sets status to in_progress as before"
+        "Implement as described",
+        "Verify functionality works as expected"
       ],
       "priority": "high",
-      "tags": ["mcp", "ralph", "workflow"],
-      "passes": true
-    },
-    {
-      "id": "1df2df71-1bc2-49ee-9da3-178a8300d8e9",
-      "title": "Enhance complete_ticket_work MCP tool with workflow automation",
-      "description": "Enhance the `complete_ticket_work` MCP tool to handle all completion workflow:\n\n**Current behavior:**\n- Sets ticket status to review\n- Gets git commits on branch\n- Returns PR description suggestion\n- Returns context reset guidance\n\n**New behavior (add):**\n- Auto-post work summary comment (accept summary param, format it nicely)\n- Update PRD file automatically (set passes: true for this ticket)\n- Return next ticket suggestion (most strategic pick based on PRD)\n\nRalph just calls `complete_ticket_work(ticketId, \"summary of what I did\")` and the tool handles everything.",
-      "acceptanceCriteria": [
-        "Accepts summary parameter and auto-posts work_summary comment",
-        "Updates PRD file to set passes: true for the ticket",
-        "Returns suggestion for next strategic ticket",
-        "Sets status to review as before"
+      "tags": [
+        "bug",
+        "macos",
+        "terminal"
       ],
-      "priority": "high",
-      "tags": ["mcp", "ralph", "workflow"],
-      "passes": true
-    },
-    {
-      "id": "76ee5eea-1464-4539-af97-98ae0243cf5c",
-      "title": "Simplify Ralph prompt in src/api/ralph.ts",
-      "description": "Strip down `getRalphPrompt()` to focus purely on implementation:\n\n**Remove:**\n- Detailed git workflow instructions (MCP handles this)\n- Progress update instructions (MCP handles this)\n- Work summary format instructions (MCP handles this)\n- PR creation workflow (separate concern)\n\n**Keep:**\n- Read PRD and pick ticket strategically\n- Implement the ticket fully\n- Run tests\n- Call start_ticket_work/complete_ticket_work MCP tools\n\nTarget: ~20 lines instead of ~120 lines. Ralph's context should be for coding, not workflow.",
-      "acceptanceCriteria": [
-        "getRalphPrompt() is ~20 lines instead of ~120",
-        "Removes git workflow instructions",
-        "Removes progress update instructions",
-        "Removes work summary format instructions",
-        "Keeps strategic ticket selection",
-        "Keeps MCP tool calls (start_ticket_work, complete_ticket_work)"
-      ],
-      "priority": "high",
-      "tags": ["ralph", "prompt", "simplification"],
-      "passes": true
-    },
-    {
-      "id": "11442394-05df-4f2b-a5e8-be63e9ed60ae",
-      "title": "Simplify VS Code Ralph agent definition",
-      "description": "Update `.github/agents/ralph.agent.md` with the lean prompt:\n\n**Remove:**\n- Detailed git workflow section\n- Progress updates section  \n- Work summaries section\n- PR creation section\n\n**Keep:**\n- Strategic ticket selection guidance\n- Call MCP tools for workflow\n- Focus on implementation\n\nShould mirror the simplified prompt from ralph.ts for consistency across Claude Code and VS Code.",
-      "acceptanceCriteria": [
-        "Agent prompt is significantly shorter",
-        "Removes detailed workflow sections",
-        "Mirrors simplified ralph.ts prompt",
-        "Keeps strategic ticket selection",
-        "Keeps MCP tool integration"
-      ],
-      "priority": "medium",
-      "tags": ["ralph", "vscode", "agent"],
-      "passes": true
-    },
-    {
-      "id": "dccfd824-46be-4203-8bcc-35712e8c6aed",
-      "title": "Simplify static Ralph scripts (plans/ralph.sh)",
-      "description": "Update the static scripts with lean prompts:\n\n**Files:**\n- `plans/ralph.sh` - looping version\n- `plans/ralph-once.sh` - single iteration version\n\n**Changes:**\n- Replace embedded prompts with lean version\n- Focus on: read PRD, pick strategically, implement, call MCP tools\n- Remove workflow instructions that MCP now handles\n\nThese scripts are for manual/standalone Ralph runs outside the Brain Dump UI.",
-      "acceptanceCriteria": [
-        "plans/ralph.sh has lean embedded prompt",
-        "plans/ralph-once.sh has lean embedded prompt",
-        "Prompts focus on PRD implementation",
-        "Workflow instructions removed"
-      ],
-      "priority": "medium",
-      "tags": ["ralph", "scripts", "bash"],
-      "passes": true
-    },
-    {
-      "id": "07c7a176-5eb3-4860-b2b5-e9b92ef36f34",
-      "title": "Update example Ralph agent template",
-      "description": "Update `agents-example/.github/agents/ralph.agent.md` with the lean prompt.\n\nThis is the template users copy to their own projects, so it should reflect the new lean architecture.\n\nShould be identical to the main `.github/agents/ralph.agent.md` after simplification.",
-      "acceptanceCriteria": [
-        "Example agent matches main agent definition",
-        "Uses lean prompt architecture",
-        "Ready for users to copy to their projects"
-      ],
-      "priority": "low",
-      "tags": ["ralph", "example", "template"],
-      "passes": true
-    },
-    {
-      "id": "f15f6f6d-3e2c-4458-a182-fefb22a9521a",
-      "title": "Auto-sync tickets to PRD file when created/updated",
-      "description": "When tickets are created or updated in Brain Dump, automatically update the PRD file so Ralph always has current data.\n\n**Trigger points:**\n- Ticket created → add to prd.json\n- Ticket updated → update in prd.json  \n- Ticket deleted → remove from prd.json\n- Ticket status changes → update passes field\n\n**Options:**\n1. MCP tool `create_ticket` writes to PRD after DB insert\n2. Hook in the UI that regenerates PRD on changes\n3. Ralph reads directly from DB via MCP instead of PRD file\n\nConsider: Should we even need a PRD file, or should Ralph query tickets directly via MCP? The PRD file approach allows offline/manual editing, but MCP query is always fresh.",
-      "acceptanceCriteria": [
-        "Tickets are auto-added to PRD when created",
-        "PRD updates when ticket status changes",
-        "passes field reflects ticket completion status",
-        "No manual PRD regeneration needed"
-      ],
-      "priority": "medium",
-      "tags": ["ralph", "prd", "sync", "automation"],
-      "passes": false
-    },
-    {
-      "id": "0d1486e0-8740-40b0-bc3c-df66df1d64b8",
-      "title": "Test lean Ralph workflow end-to-end",
-      "description": "Test the complete lean Ralph workflow:\n\n**Test scenarios:**\n1. Launch Ralph from Brain Dump UI → verify MCP tools handle workflow\n2. Run static script (plans/ralph.sh) → verify lean prompt works\n3. Use VS Code Ralph agent → verify same behavior\n\n**Verify:**\n- start_ticket_work auto-posts progress comment\n- complete_ticket_work auto-posts summary and updates PRD\n- Ralph's context stays focused on implementation\n- Fresh context between tickets (separate sessions)\n\nDocument any issues found and create follow-up tickets if needed.",
-      "acceptanceCriteria": [
-        "Brain Dump UI launch works with lean Ralph",
-        "Static scripts work with lean prompt",
-        "VS Code agent works with lean prompt",
-        "MCP tools handle all workflow automatically",
-        "Fresh context between ticket sessions"
-      ],
-      "priority": "medium",
-      "tags": ["ralph", "testing", "e2e"],
       "passes": false
     }
   ],
-  "generatedAt": "2026-01-13T17:55:00.000Z"
+  "generatedAt": "2026-01-13T19:57:58.807Z"
 }

@@ -12,6 +12,7 @@ interface LaunchInceptionResult {
   success: boolean;
   message: string;
   terminalUsed?: string;
+  warnings?: string[];
 }
 
 // ============================================================================
@@ -303,11 +304,16 @@ export const launchProjectInception = createServerFn({ method: "POST" })
 
     // Determine which terminal to use
     let terminal: string | null = null;
+    const warnings: string[] = [];
 
     if (preferredTerminal) {
-      const isAvailable = await isTerminalAvailable(preferredTerminal);
-      if (isAvailable) {
+      const result = await isTerminalAvailable(preferredTerminal);
+      if (result.available) {
         terminal = preferredTerminal;
+      } else {
+        // Preferred terminal not available - add warning
+        const reason = result.error || "not installed";
+        warnings.push(`Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`);
       }
     }
 
@@ -319,6 +325,7 @@ export const launchProjectInception = createServerFn({ method: "POST" })
       return {
         success: false,
         message: "No terminal emulator found. Please install one or set a preference in Settings.",
+        ...(warnings.length > 0 && { warnings }),
       };
     }
 
@@ -375,11 +382,13 @@ exec bash
         success: true,
         message: `Launched Project Inception in ${terminal}`,
         terminalUsed: terminal,
+        ...(warnings.length > 0 && { warnings }),
       };
     } catch (error) {
       return {
         success: false,
         message: `Failed to launch terminal: ${error instanceof Error ? error.message : "Unknown error"}`,
+        ...(warnings.length > 0 && { warnings }),
       };
     }
   });
@@ -408,11 +417,16 @@ export const launchSpecBreakdown = createServerFn({ method: "POST" })
 
     // Determine which terminal to use
     let terminal: string | null = null;
+    const warnings: string[] = [];
 
     if (preferredTerminal) {
-      const isAvailable = await isTerminalAvailable(preferredTerminal);
-      if (isAvailable) {
+      const result = await isTerminalAvailable(preferredTerminal);
+      if (result.available) {
         terminal = preferredTerminal;
+      } else {
+        // Preferred terminal not available - add warning
+        const reason = result.error || "not installed";
+        warnings.push(`Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`);
       }
     }
 
@@ -424,6 +438,7 @@ export const launchSpecBreakdown = createServerFn({ method: "POST" })
       return {
         success: false,
         message: "No terminal emulator found.",
+        ...(warnings.length > 0 && { warnings }),
       };
     }
 
@@ -482,11 +497,13 @@ exec bash
         success: true,
         message: `Launched Spec Breakdown in ${terminal}`,
         terminalUsed: terminal,
+        ...(warnings.length > 0 && { warnings }),
       };
     } catch (error) {
       return {
         success: false,
         message: `Failed to launch terminal: ${error instanceof Error ? error.message : "Unknown error"}`,
+        ...(warnings.length > 0 && { warnings }),
       };
     }
   });
