@@ -102,3 +102,35 @@ These are called from React components via TanStack Query.
 - E2E tests in `e2e/` directory
 - Run specific test file: `pnpm test src/lib/backup.test.ts`
 - Run single test: `pnpm test -t "test name pattern"`
+
+### Testing Philosophy (Kent C. Dodds)
+
+**"The more your tests resemble the way your software is used, the more confidence they can give you."**
+
+Follow these principles when writing or reviewing tests:
+
+1. **Test user behavior, not implementation details**
+   - Bad: Testing internal state, private methods, component internals
+   - Good: Testing what users see, click, and experience
+
+2. **Coverage metrics are meaningless - user flow coverage is everything**
+   - Don't chase 100% code coverage
+   - Ask: "Does this test catch bugs users would actually encounter?"
+
+3. **Integration tests > unit tests for most cases**
+   - Test components together as users experience them
+   - Only unit test pure utility functions and complex algorithms
+
+4. **Don't mock too much**
+   - Excessive mocking means you're testing mocks, not real behavior
+   - Mock network boundaries, not internal modules
+
+5. **Write tests that fail for the right reasons**
+   - Tests should break when user-facing behavior breaks
+   - Tests should NOT break when refactoring internals
+
+**When reviewing tests, reject:**
+- Tests that verify implementation details
+- Tests with excessive mocking
+- Tests that don't reflect real user workflows
+- Tests written just to increase coverage numbers
