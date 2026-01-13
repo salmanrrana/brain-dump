@@ -14,6 +14,7 @@ import NewTicketModal from "./NewTicketModal";
 import ProjectModal from "./ProjectModal";
 import EpicModal from "./EpicModal";
 import SettingsModal from "./SettingsModal";
+import { useToast } from "./Toast";
 import {
   useProjects,
   useSearch,
@@ -396,6 +397,7 @@ function AppHeader() {
   const [showResults, setShowResults] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { showToast } = useToast();
 
   // New ticket dropdown state
   const [showNewMenu, setShowNewMenu] = useState(false);
@@ -408,12 +410,21 @@ function AppHeader() {
 
   const handleStartFromScratch = async () => {
     setShowNewMenu(false);
-    const result = await launchInceptionMutation.mutateAsync({
-      preferredTerminal: settings?.terminalEmulator ?? null,
-    });
-    if (!result.success) {
-      // TODO: Show error toast
-      console.error(result.message);
+    try {
+      const result = await launchInceptionMutation.mutateAsync({
+        preferredTerminal: settings?.terminalEmulator ?? null,
+      });
+      if (!result.success) {
+        showToast("error", result.message);
+      } else {
+        // Show any warnings (e.g., preferred terminal unavailable)
+        if (result.warnings) {
+          result.warnings.forEach((warning) => showToast("info", warning));
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "An unexpected error occurred";
+      showToast("error", `Failed to start project: ${message}`);
     }
   };
 
@@ -445,7 +456,7 @@ function AppHeader() {
     setShowResults(false);
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string): string => {
     switch (status) {
       case "done":
         return "text-green-400";
@@ -457,6 +468,17 @@ function AppHeader() {
         return "text-blue-400";
       default:
         return "text-slate-400";
+    }
+  };
+
+  const getPriorityStyle = (priority: string): string => {
+    switch (priority) {
+      case "high":
+        return "bg-red-900/50 text-red-300";
+      case "medium":
+        return "bg-yellow-900/50 text-yellow-300";
+      default:
+        return "bg-green-900/50 text-green-300";
     }
   };
 
@@ -513,13 +535,7 @@ function AppHeader() {
                     </span>
                     {result.priority && (
                       <span
-                        className={`text-xs px-1.5 py-0.5 rounded ${
-                          result.priority === "high"
-                            ? "bg-red-900/50 text-red-300"
-                            : result.priority === "medium"
-                              ? "bg-yellow-900/50 text-yellow-300"
-                              : "bg-green-900/50 text-green-300"
-                        }`}
+                        className={`text-xs px-1.5 py-0.5 rounded ${getPriorityStyle(result.priority)}`}
                       >
                         {result.priority}
                       </span>

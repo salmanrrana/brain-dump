@@ -128,7 +128,7 @@ echo ""
 echo -e "${BLUE}Step 2: Configure Agents${NC}"
 echo "─────────────────────────"
 
-AGENTS_SOURCE="$BRAIN_DUMPY_DIR/agents-example/.github/agents"
+AGENTS_SOURCE="$BRAIN_DUMPY_DIR/.github/agents"
 AGENTS_TARGET="$VSCODE_TARGET/agents"
 
 if [ -d "$AGENTS_SOURCE" ]; then
@@ -144,7 +144,7 @@ echo ""
 echo -e "${BLUE}Step 3: Configure Skills${NC}"
 echo "─────────────────────────"
 
-SKILLS_SOURCE="$BRAIN_DUMPY_DIR/agents-example/.github/skills"
+SKILLS_SOURCE="$BRAIN_DUMPY_DIR/.github/skills"
 SKILLS_TARGET="$VSCODE_TARGET/skills"
 
 if [ -d "$SKILLS_SOURCE" ]; then
@@ -153,14 +153,14 @@ if [ -d "$SKILLS_SOURCE" ]; then
         [ -d "$skill_dir" ] && link_item "$skill_dir" "$SKILLS_TARGET/$(basename "$skill_dir")"
     done
 else
-    echo -e "${YELLOW}No skills found in Brain Dumpy${NC}"
+    echo -e "${YELLOW}No skills found in Brain Dumpy (optional)${NC}"
 fi
 
 echo ""
 echo -e "${BLUE}Step 4: Configure Prompts${NC}"
 echo "──────────────────────────"
 
-PROMPTS_SOURCE="$BRAIN_DUMPY_DIR/agents-example/.github/prompts"
+PROMPTS_SOURCE="$BRAIN_DUMPY_DIR/.github/prompts"
 PROMPTS_TARGET="$VSCODE_TARGET/prompts"
 
 if [ -d "$PROMPTS_SOURCE" ]; then
@@ -169,7 +169,7 @@ if [ -d "$PROMPTS_SOURCE" ]; then
         [ -f "$prompt_file" ] && link_item "$prompt_file" "$PROMPTS_TARGET/$(basename "$prompt_file")"
     done
 else
-    echo -e "${YELLOW}No prompts found in Brain Dumpy${NC}"
+    echo -e "${YELLOW}No prompts found in Brain Dumpy (optional)${NC}"
 fi
 
 echo ""
@@ -183,7 +183,7 @@ if [ ! -d "$AUTO_REVIEW_SKILL_DIR" ]; then
     cat > "$AUTO_REVIEW_SKILL_DIR/SKILL.md" << 'EOF'
 # Auto-Review Skill
 
-This skill runs the code review pipeline after completing a coding task.
+This skill runs the complete code review pipeline after completing a coding task.
 
 ## Usage
 
@@ -193,34 +193,42 @@ After completing a feature or fixing a bug, invoke this skill to review your cha
 /auto-review
 ```
 
-Or mention it in chat:
+Or mention agents directly:
 ```
 @code-reviewer please review my recent changes
 ```
 
 ## Review Pipeline
 
-The auto-review workflow runs these agents in sequence:
+The auto-review workflow runs these three agents:
 
 1. **@code-reviewer** - Reviews code against project guidelines
    - Checks CLAUDE.md/coding standards compliance
+   - Reports style issues, potential bugs, security concerns
    - Reports only high-confidence issues (confidence >= 80)
 
-2. **@code-simplifier** - Simplifies and refines code
+2. **@silent-failure-hunter** - Finds silent failures and error handling issues
+   - Empty catch blocks that swallow errors
+   - Fire-and-forget async calls
+   - Missing user feedback on errors
+   - Overly broad catch blocks
+
+3. **@code-simplifier** - Simplifies and refines code
    - Removes redundancy
    - Improves readability
    - Preserves all functionality
 
 ## Handoff Flow
 
-The agents are configured with handoffs so they chain together:
-- code-reviewer → code-simplifier (optional cleanup after review)
+The agents are configured with handoffs so they can chain together:
+- code-reviewer → silent-failure-hunter → code-simplifier
 
 ## Manual Review
 
 You can also call individual agents:
-- `@code-reviewer` - Just review, no simplification
-- `@code-simplifier` - Just simplify, no review
+- `@code-reviewer` - Code quality and style
+- `@silent-failure-hunter` - Error handling issues
+- `@code-simplifier` - Code simplification
 EOF
     echo -e "${GREEN}Created auto-review skill${NC}"
 else
@@ -230,17 +238,19 @@ fi
 # Create auto-review prompt for quick access
 AUTO_REVIEW_PROMPT="$PROMPTS_TARGET/auto-review.prompt.md"
 if [ ! -f "$AUTO_REVIEW_PROMPT" ]; then
+    mkdir -p "$PROMPTS_TARGET"
     cat > "$AUTO_REVIEW_PROMPT" << 'EOF'
 ---
-description: Run the code review pipeline on recent changes
+description: Run the complete code review pipeline on recent changes
 ---
 
 # Auto-Review Pipeline
 
-Please run the code review pipeline on my recent changes:
+Please run the complete code review pipeline on my recent changes:
 
 1. First, use @code-reviewer to review the code against project guidelines
-2. After reviewing, use @code-simplifier to simplify and refine the code
+2. Then, use @silent-failure-hunter to check for error handling issues
+3. Finally, use @code-simplifier to simplify and refine the code
 
 Focus on:
 - Files modified in the current git diff
@@ -261,21 +271,22 @@ echo -e "${GREEN}╚════════════════════
 echo ""
 echo -e "${BLUE}What's been configured:${NC}"
 echo "  • MCP Server: brain-dump (ticket management tools)"
-echo "  • Agents: Ralph, Ticket Worker, Planner, Code Reviewer, Code Simplifier"
-echo "  • Skills: brain-dump-tickets, ralph-workflow, auto-review"
-echo "  • Prompts: /start-ticket, /complete-ticket, /create-tickets, /auto-review"
+echo "  • Agents: Ralph, Ticket Worker, Planner, Code Reviewer, Silent Failure Hunter, Code Simplifier"
+echo "  • Skills: auto-review"
+echo "  • Prompts: /auto-review"
 echo ""
 echo -e "${BLUE}Auto-Review in VS Code:${NC}"
 echo "  Unlike Claude Code (which uses hooks), VS Code requires manual invocation."
 echo "  After completing a coding task, use one of these methods:"
 echo ""
 echo "    1. Prompt: /auto-review"
-echo "    2. Agent: @code-reviewer then @code-simplifier"
+echo "    2. Agent: @code-reviewer → @silent-failure-hunter → @code-simplifier"
 echo "    3. Chat: 'Please review my recent changes'"
 echo ""
-echo -e "${BLUE}Review Pipeline:${NC}"
+echo -e "${BLUE}Review Pipeline (same as Claude Code):${NC}"
 echo "    1. @code-reviewer - Project guideline compliance"
-echo "    2. @code-simplifier - Code simplification"
+echo "    2. @silent-failure-hunter - Error handling issues"
+echo "    3. @code-simplifier - Code simplification"
 echo ""
 echo -e "${BLUE}Next steps:${NC}"
 echo "  1. Restart VS Code to load the MCP server"
