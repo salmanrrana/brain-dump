@@ -53,6 +53,14 @@ import {
   migrateFromLegacySync,
   runMigrations,
 } from "./lib/database.js";
+import {
+  isProcessRunning,
+  readLockFile,
+  checkLock,
+  isLocked,
+  acquireLock,
+  releaseLock,
+} from "./lib/lock.js";
 
 // =============================================================================
 // ENVIRONMENT DETECTION
@@ -171,105 +179,8 @@ function getEnvironmentInfo() {
 }
 
 // =============================================================================
-// LOCK FILE UTILITIES
+// GRACEFUL SHUTDOWN
 // =============================================================================
-
-function isProcessRunning(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (e) {
-    return e.code === "EPERM";
-  }
-}
-
-function readLockFile() {
-  const lockPath = getLockFilePath();
-  if (!existsSync(lockPath)) return null;
-  try {
-    const content = readFileSync(lockPath, "utf-8");
-    const lockInfo = JSON.parse(content);
-    if (
-      typeof lockInfo.pid !== "number" ||
-      typeof lockInfo.startedAt !== "string" ||
-      !["mcp-server", "cli", "vite"].includes(lockInfo.type)
-    ) {
-      return null;
-    }
-    return lockInfo;
-  } catch {
-    return null;
-  }
-}
-
-function checkLock() {
-  const lockInfo = readLockFile();
-  if (!lockInfo) {
-    return { isLocked: false, lockInfo: null, isStale: false, message: "No lock file found" };
-  }
-  const isRunning = isProcessRunning(lockInfo.pid);
-  if (!isRunning) {
-    return {
-      isLocked: false,
-      lockInfo,
-      isStale: true,
-      message: `Stale lock detected from ${lockInfo.type} (PID ${lockInfo.pid})`,
-    };
-  }
-  return {
-    isLocked: true,
-    lockInfo,
-    isStale: false,
-    message: `Database locked by ${lockInfo.type} (PID ${lockInfo.pid})`,
-  };
-}
-
-function acquireLock(type) {
-  const lockPath = getLockFilePath();
-  const check = checkLock();
-
-  // Clean up stale locks
-  if (check.isStale) {
-    try {
-      unlinkSync(lockPath);
-      log.info("Cleaned up stale lock file");
-    } catch { /* ignore */ }
-  }
-
-  // Warn if another process has lock (but don't block - SQLite WAL handles concurrency)
-  if (check.isLocked && check.lockInfo && check.lockInfo.pid !== process.pid) {
-    log.info(`Warning: ${check.message}. Concurrent access may cause issues.`);
-  }
-
-  // Create lock
-  const lockInfo = {
-    pid: process.pid,
-    startedAt: new Date().toISOString(),
-    type,
-  };
-
-  try {
-    writeFileSync(lockPath, JSON.stringify(lockInfo, null, 2), { mode: 0o600 });
-    return { acquired: true, message: `Lock acquired by ${type} (PID ${process.pid})`, lockInfo };
-  } catch (e) {
-    return { acquired: false, message: `Failed to create lock: ${e.message}`, lockInfo: null };
-  }
-}
-
-function releaseLock() {
-  const lockPath = getLockFilePath();
-  const lockInfo = readLockFile();
-  if (!lockInfo) return { released: true, message: "No lock to release" };
-  if (lockInfo.pid !== process.pid) {
-    return { released: false, message: `Lock owned by PID ${lockInfo.pid}` };
-  }
-  try {
-    unlinkSync(lockPath);
-    return { released: true, message: "Lock released successfully" };
-  } catch (e) {
-    return { released: false, message: `Failed to release: ${e.message}` };
-  }
-}
 
 function setupGracefulShutdown(dbInstance) {
   let isShuttingDown = false;
