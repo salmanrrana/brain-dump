@@ -81,7 +81,7 @@ Update or create the plans/prd.json file with all tickets:
   "projectPath": "/full/path",
   "userStories": [
     {
-      "id": "ticket-uuid-from-brain-dumpy",
+      "id": "ticket-uuid-from-brain-dump",
       "title": "Ticket title",
       "description": "Ticket description",
       "acceptanceCriteria": ["Criterion 1", "Criterion 2"],

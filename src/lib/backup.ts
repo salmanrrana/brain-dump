@@ -3,7 +3,7 @@ import { join } from "path";
 import Database from "better-sqlite3";
 import { getBackupsDir, getDatabasePath, ensureDirectoriesSync } from "./xdg";
 
-const BACKUP_PREFIX = "brain-dumpy-";
+const BACKUP_PREFIX = "brain-dump-";
 const BACKUP_SUFFIX = ".db";
 const LAST_BACKUP_FILE = ".last-backup";
 
@@ -78,7 +78,7 @@ export function listBackups(): { filename: string; date: string; path: string; s
   const backups: { filename: string; date: string; path: string; size: number }[] = [];
 
   for (const file of files) {
-    const match = file.match(/^brain-dumpy-(\d{4}-\d{2}-\d{2})\.db$/);
+    const match = file.match(/^brain-dump-(\d{4}-\d{2}-\d{2})\.db$/);
     if (match && match[1]) {
       const dateStr = match[1];
       const filePath = join(backupsDir, file);

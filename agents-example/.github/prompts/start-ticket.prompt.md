@@ -2,7 +2,7 @@
 name: Start Ticket
 description: Start working on a Brain Dumpy ticket - creates branch and sets status
 tools:
-  - brain-dumpy/*
+  - brain-dump/*
   - execute
 ---
 

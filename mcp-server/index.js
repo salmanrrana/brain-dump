@@ -33,11 +33,22 @@ const MAX_LOG_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_LOG_FILES = 5;
 
 function getLogsDir() {
-  const stateDir = (() => {
+  const APP = "brain-dump";
+  const p = process.platform;
+
+  let stateDir;
+  if (p === "darwin") {
+    stateDir = join(homedir(), "Library", "Application Support", APP, "state");
+  } else if (p === "win32") {
+    const localAppData = process.env.LOCALAPPDATA;
+    const base = localAppData || join(homedir(), "AppData", "Local");
+    stateDir = join(base, APP, "state");
+  } else {
     const xdgStateHome = process.env.XDG_STATE_HOME;
     const base = xdgStateHome || join(homedir(), ".local", "state");
-    return join(base, "brain-dumpy");
-  })();
+    stateDir = join(base, APP);
+  }
+
   return join(stateDir, "logs");
 }
 
@@ -123,24 +134,24 @@ function shouldLog(level) {
 const log = {
   info: (msg) => {
     if (!shouldLog("INFO")) return;
-    console.error(`[brain-dumpy] ${msg}`);
+    console.error(`[brain-dump] ${msg}`);
     writeToLogFile(LOG_FILE, formatLogEntry("INFO", "mcp-server", msg));
   },
   warn: (msg, err) => {
     if (!shouldLog("WARN")) return;
-    console.error(`[brain-dumpy] WARN: ${msg}`, err?.message || "");
+    console.error(`[brain-dump] WARN: ${msg}`, err?.message || "");
     writeToLogFile(LOG_FILE, formatLogEntry("WARN", "mcp-server", msg, err));
   },
   error: (msg, err) => {
     if (!shouldLog("ERROR")) return;
-    console.error(`[brain-dumpy] ERROR: ${msg}`, err?.message || "");
+    console.error(`[brain-dump] ERROR: ${msg}`, err?.message || "");
     const entry = formatLogEntry("ERROR", "mcp-server", msg, err);
     writeToLogFile(LOG_FILE, entry);
     writeToLogFile(ERROR_LOG_FILE, entry);
   },
   debug: (msg) => {
     if (!shouldLog("DEBUG")) return;
-    console.error(`[brain-dumpy] DEBUG: ${msg}`);
+    console.error(`[brain-dump] DEBUG: ${msg}`);
     writeToLogFile(LOG_FILE, formatLogEntry("DEBUG", "mcp-server", msg));
   },
 };
@@ -264,9 +275,30 @@ function getEnvironmentInfo() {
 // =============================================================================
 // XDG DIRECTORY UTILITIES
 // =============================================================================
-const APP_NAME = "brain-dumpy";
+const APP_NAME = "brain-dump";
+
+function getPlatform() {
+  const p = process.platform;
+  if (p === "linux" || p === "darwin" || p === "win32") {
+    return p;
+  }
+  return "other";
+}
 
 function getDataDir() {
+  const p = getPlatform();
+
+  if (p === "darwin") {
+    return join(homedir(), "Library", "Application Support", APP_NAME);
+  }
+
+  if (p === "win32") {
+    const appData = process.env.APPDATA;
+    const base = appData || join(homedir(), "AppData", "Roaming");
+    return join(base, APP_NAME);
+  }
+
+  // Linux and other platforms use XDG
   const xdgDataHome = process.env.XDG_DATA_HOME;
   const base = xdgDataHome || join(homedir(), ".local", "share");
   return join(base, APP_NAME);
@@ -277,10 +309,23 @@ function getLegacyDir() {
 }
 
 function getDatabasePath() {
-  return join(getDataDir(), "brain-dumpy.db");
+  return join(getDataDir(), "brain-dump.db");
 }
 
 function getStateDir() {
+  const p = getPlatform();
+
+  if (p === "darwin") {
+    return join(homedir(), "Library", "Application Support", APP_NAME, "state");
+  }
+
+  if (p === "win32") {
+    const localAppData = process.env.LOCALAPPDATA;
+    const base = localAppData || join(homedir(), "AppData", "Local");
+    return join(base, APP_NAME, "state");
+  }
+
+  // Linux and other platforms use XDG
   const xdgStateHome = process.env.XDG_STATE_HOME;
   const base = xdgStateHome || join(homedir(), ".local", "state");
   return join(base, APP_NAME);
@@ -298,7 +343,7 @@ function ensureDirectoriesSync() {
 // =============================================================================
 // LOCK FILE UTILITIES
 // =============================================================================
-const LOCK_FILE_NAME = "brain-dumpy.lock";
+const LOCK_FILE_NAME = "brain-dump.lock";
 
 function getLockFilePath() {
   return join(getStateDir(), LOCK_FILE_NAME);
@@ -580,7 +625,7 @@ function migrateFromLegacySync() {
 // =============================================================================
 // BACKUP UTILITIES
 // =============================================================================
-const BACKUP_PREFIX = "brain-dumpy-";
+const BACKUP_PREFIX = "brain-dump-";
 const BACKUP_SUFFIX = ".db";
 const LAST_BACKUP_FILE = ".last-backup";
 
@@ -684,7 +729,7 @@ function listBackups() {
   const backups = [];
 
   for (const file of files) {
-    const match = file.match(/^brain-dumpy-(\d{4}-\d{2}-\d{2})\.db$/);
+    const match = file.match(/^brain-dump-(\d{4}-\d{2}-\d{2})\.db$/);
     if (match) {
       const filePath = join(backupsDir, file);
       try {
@@ -871,7 +916,7 @@ try {
       actualDbPath = legacyDbPath;
     } else {
       log.error(`Database not found at ${dbPath} or ${legacyDbPath}`);
-      log.info("Run Brain Dumpy at least once to create the database: cd /path/to/brain-dumpy && pnpm dev");
+      log.info("Run Brain Dumpy at least once to create the database: cd /path/to/brain-dump && pnpm dev");
       process.exit(1);
     }
   }
@@ -1007,7 +1052,7 @@ function runGitCommand(command, cwd) {
 // =============================================================================
 const server = new Server(
   {
-    name: "brain-dumpy",
+    name: "brain-dump",
     version: "1.0.0",
   },
   {

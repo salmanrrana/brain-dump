@@ -335,9 +335,9 @@ describe("Integrity Utilities", () => {
 
     it("should suggest restore when corruption detected", () => {
       // Create a backup first so suggestion includes backup info
-      const backupsDir = join(testXdgState, "brain-dumpy", "backups");
+      const backupsDir = join(testXdgState, "brain-dump", "backups");
       mkdirSync(backupsDir, { recursive: true });
-      const backupPath = join(backupsDir, "brain-dumpy-2026-01-12.db");
+      const backupPath = join(backupsDir, "brain-dump-2026-01-12.db");
       const backupDb = new Database(backupPath);
       backupDb.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
       backupDb.close();
@@ -404,9 +404,9 @@ describe("Integrity Utilities", () => {
 
     it("should suggest restore when backups available", () => {
       // Create backup
-      const backupsDir = join(testXdgState, "brain-dumpy", "backups");
+      const backupsDir = join(testXdgState, "brain-dump", "backups");
       mkdirSync(backupsDir, { recursive: true });
-      const backupPath = join(backupsDir, "brain-dumpy-2026-01-12.db");
+      const backupPath = join(backupsDir, "brain-dump-2026-01-12.db");
       const backupDb = new Database(backupPath);
       backupDb.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
       backupDb.close();

@@ -571,7 +571,7 @@ describe("Logger Module", () => {
 
   describe("Constants", () => {
     it("should have correct file names", () => {
-      expect(APP_LOG_FILE).toBe("brain-dumpy.log");
+      expect(APP_LOG_FILE).toBe("brain-dump.log");
       expect(MCP_LOG_FILE).toBe("mcp-server.log");
       expect(ERROR_LOG_FILE).toBe("error.log");
     });

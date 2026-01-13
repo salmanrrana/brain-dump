@@ -41,17 +41,17 @@ echo "────────────────────────�
 if [ -f "$CLAUDE_CONFIG" ]; then
     echo -e "${YELLOW}Existing ~/.claude.json found.${NC}"
 
-    if grep -q '"brain-dumpy"' "$CLAUDE_CONFIG"; then
+    if grep -q '"brain-dump"' "$CLAUDE_CONFIG"; then
         echo -e "${GREEN}Brain Dumpy MCP server already configured.${NC}"
     else
-        echo -e "${YELLOW}Please manually add the brain-dumpy server to your ~/.claude.json:${NC}"
+        echo -e "${YELLOW}Please manually add the brain-dump server to your ~/.claude.json:${NC}"
         echo ""
         echo -e "${BLUE}Add this to your mcpServers section:${NC}"
         echo ""
         cat << EOF
 {
   "mcpServers": {
-    "brain-dumpy": {
+    "brain-dump": {
       "command": "node",
       "args": ["$BRAIN_DUMPY_DIR/mcp-server/index.js"]
     }
@@ -65,7 +65,7 @@ else
     cat > "$CLAUDE_CONFIG" << EOF
 {
   "mcpServers": {
-    "brain-dumpy": {
+    "brain-dump": {
       "command": "node",
       "args": ["$BRAIN_DUMPY_DIR/mcp-server/index.js"]
     }
@@ -82,16 +82,16 @@ echo "────────────────────────�
 # Check if claude CLI is available
 if command -v claude &> /dev/null; then
     echo "Installing pr-review-toolkit plugin..."
-    claude plugins install pr-review-toolkit 2>/dev/null || echo -e "${YELLOW}pr-review-toolkit already installed or install failed${NC}"
+    claude plugin install pr-review-toolkit 2>/dev/null || echo -e "${YELLOW}pr-review-toolkit already installed or install failed${NC}"
 
     echo "Installing code-simplifier plugin..."
-    claude plugins install code-simplifier 2>/dev/null || echo -e "${YELLOW}code-simplifier already installed or install failed${NC}"
+    claude plugin install code-simplifier 2>/dev/null || echo -e "${YELLOW}code-simplifier already installed or install failed${NC}"
 
     echo -e "${GREEN}Plugins configured.${NC}"
 else
     echo -e "${YELLOW}Claude CLI not found. Please install plugins manually:${NC}"
-    echo "  claude plugins install pr-review-toolkit"
-    echo "  claude plugins install code-simplifier"
+    echo "  claude plugin install pr-review-toolkit"
+    echo "  claude plugin install code-simplifier"
 fi
 
 echo ""
@@ -154,7 +154,7 @@ echo -e "${GREEN}║                    Setup Complete!                         
 echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${BLUE}What's been configured:${NC}"
-echo "  • MCP Server: brain-dumpy (ticket management tools)"
+echo "  • MCP Server: brain-dump (ticket management tools)"
 echo "  • Plugins: pr-review-toolkit, code-simplifier"
 echo "  • Hooks: Auto-review (triggers after code changes)"
 echo "  • Agents: breakdown, inception, simplify"

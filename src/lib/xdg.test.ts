@@ -124,49 +124,49 @@ describe("Cross-Platform Path Utilities", () => {
 
     describe("getDataDir", () => {
       it("should return default XDG path", () => {
-        const expected = join(home, ".local", "share", "brain-dumpy");
+        const expected = join(home, ".local", "share", "brain-dump");
         expect(getDataDir()).toBe(expected);
       });
 
       it("should respect XDG_DATA_HOME", () => {
         process.env.XDG_DATA_HOME = "/custom/data";
-        expect(getDataDir()).toBe("/custom/data/brain-dumpy");
+        expect(getDataDir()).toBe("/custom/data/brain-dump");
       });
     });
 
     describe("getConfigDir", () => {
       it("should return default XDG path", () => {
-        const expected = join(home, ".config", "brain-dumpy");
+        const expected = join(home, ".config", "brain-dump");
         expect(getConfigDir()).toBe(expected);
       });
 
       it("should respect XDG_CONFIG_HOME", () => {
         process.env.XDG_CONFIG_HOME = "/custom/config";
-        expect(getConfigDir()).toBe("/custom/config/brain-dumpy");
+        expect(getConfigDir()).toBe("/custom/config/brain-dump");
       });
     });
 
     describe("getCacheDir", () => {
       it("should return default XDG path", () => {
-        const expected = join(home, ".cache", "brain-dumpy");
+        const expected = join(home, ".cache", "brain-dump");
         expect(getCacheDir()).toBe(expected);
       });
 
       it("should respect XDG_CACHE_HOME", () => {
         process.env.XDG_CACHE_HOME = "/custom/cache";
-        expect(getCacheDir()).toBe("/custom/cache/brain-dumpy");
+        expect(getCacheDir()).toBe("/custom/cache/brain-dump");
       });
     });
 
     describe("getStateDir", () => {
       it("should return default XDG path", () => {
-        const expected = join(home, ".local", "state", "brain-dumpy");
+        const expected = join(home, ".local", "state", "brain-dump");
         expect(getStateDir()).toBe(expected);
       });
 
       it("should respect XDG_STATE_HOME", () => {
         process.env.XDG_STATE_HOME = "/custom/state";
-        expect(getStateDir()).toBe("/custom/state/brain-dumpy");
+        expect(getStateDir()).toBe("/custom/state/brain-dump");
       });
     });
   });
@@ -181,29 +181,29 @@ describe("Cross-Platform Path Utilities", () => {
     });
 
     describe("getDataDir", () => {
-      it("should return ~/Library/Application Support/brain-dumpy", () => {
-        const expected = join(home, "Library", "Application Support", "brain-dumpy");
+      it("should return ~/Library/Application Support/brain-dump", () => {
+        const expected = join(home, "Library", "Application Support", "brain-dump");
         expect(getDataDir()).toBe(expected);
       });
     });
 
     describe("getConfigDir", () => {
-      it("should return ~/Library/Application Support/brain-dumpy (same as data)", () => {
-        const expected = join(home, "Library", "Application Support", "brain-dumpy");
+      it("should return ~/Library/Application Support/brain-dump (same as data)", () => {
+        const expected = join(home, "Library", "Application Support", "brain-dump");
         expect(getConfigDir()).toBe(expected);
       });
     });
 
     describe("getCacheDir", () => {
-      it("should return ~/Library/Caches/brain-dumpy", () => {
-        const expected = join(home, "Library", "Caches", "brain-dumpy");
+      it("should return ~/Library/Caches/brain-dump", () => {
+        const expected = join(home, "Library", "Caches", "brain-dump");
         expect(getCacheDir()).toBe(expected);
       });
     });
 
     describe("getStateDir", () => {
-      it("should return ~/Library/Application Support/brain-dumpy/state", () => {
-        const expected = join(home, "Library", "Application Support", "brain-dumpy", "state");
+      it("should return ~/Library/Application Support/brain-dump/state", () => {
+        const expected = join(home, "Library", "Application Support", "brain-dump", "state");
         expect(getStateDir()).toBe(expected);
       });
     });
@@ -221,11 +221,11 @@ describe("Cross-Platform Path Utilities", () => {
     describe("getDataDir", () => {
       it("should use %APPDATA% when set", () => {
         process.env.APPDATA = "/mock/appdata";
-        expect(getDataDir()).toBe(join("/mock/appdata", "brain-dumpy"));
+        expect(getDataDir()).toBe(join("/mock/appdata", "brain-dump"));
       });
 
       it("should fall back to ~/AppData/Roaming when %APPDATA% not set", () => {
-        const expected = join(home, "AppData", "Roaming", "brain-dumpy");
+        const expected = join(home, "AppData", "Roaming", "brain-dump");
         expect(getDataDir()).toBe(expected);
       });
     });
@@ -233,30 +233,30 @@ describe("Cross-Platform Path Utilities", () => {
     describe("getConfigDir", () => {
       it("should use %APPDATA% when set (same as data)", () => {
         process.env.APPDATA = "/mock/appdata";
-        expect(getConfigDir()).toBe(join("/mock/appdata", "brain-dumpy"));
+        expect(getConfigDir()).toBe(join("/mock/appdata", "brain-dump"));
       });
     });
 
     describe("getCacheDir", () => {
-      it("should use %LOCALAPPDATA%/brain-dumpy/cache when set", () => {
+      it("should use %LOCALAPPDATA%/brain-dump/cache when set", () => {
         process.env.LOCALAPPDATA = "/mock/localappdata";
-        expect(getCacheDir()).toBe(join("/mock/localappdata", "brain-dumpy", "cache"));
+        expect(getCacheDir()).toBe(join("/mock/localappdata", "brain-dump", "cache"));
       });
 
       it("should fall back to ~/AppData/Local when %LOCALAPPDATA% not set", () => {
-        const expected = join(home, "AppData", "Local", "brain-dumpy", "cache");
+        const expected = join(home, "AppData", "Local", "brain-dump", "cache");
         expect(getCacheDir()).toBe(expected);
       });
     });
 
     describe("getStateDir", () => {
-      it("should use %LOCALAPPDATA%/brain-dumpy/state when set", () => {
+      it("should use %LOCALAPPDATA%/brain-dump/state when set", () => {
         process.env.LOCALAPPDATA = "/mock/localappdata";
-        expect(getStateDir()).toBe(join("/mock/localappdata", "brain-dumpy", "state"));
+        expect(getStateDir()).toBe(join("/mock/localappdata", "brain-dump", "state"));
       });
 
       it("should fall back to ~/AppData/Local when %LOCALAPPDATA% not set", () => {
-        const expected = join(home, "AppData", "Local", "brain-dumpy", "state");
+        const expected = join(home, "AppData", "Local", "brain-dump", "state");
         expect(getStateDir()).toBe(expected);
       });
     });
@@ -285,27 +285,27 @@ describe("Cross-Platform Path Utilities", () => {
     describe("getDatabasePath", () => {
       it("should return database path in data directory (Linux)", () => {
         _setPlatformOverride("linux");
-        const expected = join(home, ".local", "share", "brain-dumpy", "brain-dumpy.db");
+        const expected = join(home, ".local", "share", "brain-dump", "brain-dump.db");
         expect(getDatabasePath()).toBe(expected);
       });
 
       it("should return database path in data directory (macOS)", () => {
         _setPlatformOverride("darwin");
-        const expected = join(home, "Library", "Application Support", "brain-dumpy", "brain-dumpy.db");
+        const expected = join(home, "Library", "Application Support", "brain-dump", "brain-dump.db");
         expect(getDatabasePath()).toBe(expected);
       });
 
       it("should return database path in data directory (Windows)", () => {
         _setPlatformOverride("win32");
         process.env.APPDATA = "/mock/appdata";
-        expect(getDatabasePath()).toBe(join("/mock/appdata", "brain-dumpy", "brain-dumpy.db"));
+        expect(getDatabasePath()).toBe(join("/mock/appdata", "brain-dump", "brain-dump.db"));
       });
     });
 
     describe("getBackupsDir", () => {
       it("should return backups path in state directory", () => {
         _setPlatformOverride("linux");
-        const expected = join(home, ".local", "state", "brain-dumpy", "backups");
+        const expected = join(home, ".local", "state", "brain-dump", "backups");
         expect(getBackupsDir()).toBe(expected);
       });
     });
@@ -313,7 +313,7 @@ describe("Cross-Platform Path Utilities", () => {
     describe("getLogsDir", () => {
       it("should return logs path in state directory", () => {
         _setPlatformOverride("linux");
-        const expected = join(home, ".local", "state", "brain-dumpy", "logs");
+        const expected = join(home, ".local", "state", "brain-dump", "logs");
         expect(getLogsDir()).toBe(expected);
       });
     });

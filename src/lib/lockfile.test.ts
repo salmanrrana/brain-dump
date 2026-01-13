@@ -19,7 +19,7 @@ describe("Lock File Utilities", () => {
     // Use temporary state directory for testing
     process.env.XDG_STATE_HOME = testBase;
     // Ensure the state directory exists
-    mkdirSync(join(testBase, "brain-dumpy"), { recursive: true });
+    mkdirSync(join(testBase, "brain-dump"), { recursive: true });
   });
 
   afterEach(() => {
@@ -33,7 +33,7 @@ describe("Lock File Utilities", () => {
 
   describe("getLockFilePath", () => {
     it("should return lock file path in state directory", () => {
-      const expected = join(testBase, "brain-dumpy", "brain-dumpy.lock");
+      const expected = join(testBase, "brain-dump", "brain-dump.lock");
       expect(getLockFilePath()).toBe(expected);
     });
   });

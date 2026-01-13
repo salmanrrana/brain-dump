@@ -2,7 +2,7 @@
 name: inception
 description: Use this agent to help users start a new project from scratch. Conducts a fast-paced interview using multiple-choice questions (AskUserQuestion tool), then creates a project directory with spec.md and plans folder. Invoke when user wants to start a new project or brainstorm an idea.
 model: sonnet
-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, mcp__brain-dumpy__create_project
+tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, mcp__brain-dump__create_project
 ---
 
 # Project Inception Agent

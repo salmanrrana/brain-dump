@@ -142,7 +142,7 @@ Ralph is a simple bash loop that runs Claude Code autonomously through a product
 ### File Structure
 
 ```
-brain-dumpy/
+brain-dump/
 ├── plans/
 │   ├── ralph.sh              # Autonomous loop runner
 │   ├── ralph-once.sh         # Single iteration (human-in-loop)
@@ -154,7 +154,7 @@ brain-dumpy/
 
 ```json
 {
-  "project": "brain-dumpy",
+  "project": "brain-dump",
   "description": "Personal task management with Claude Code integration",
   "spec": "SPEC.md",
   "items": [
@@ -188,7 +188,7 @@ for ((i=1; i<=MAX_ITERATIONS; i++)); do
   echo "=========================================="
 
   OUTPUT=$(claude -p "$(cat <<'EOF'
-You are Ralph, working on the brain-dumpy project.
+You are Ralph, working on the brain-dump project.
 
 ## Read these files first
 - plans/prd.json - List of tasks
@@ -233,7 +233,7 @@ set -e
 cd "$(dirname "$0")/.."
 
 claude -p "$(cat <<'EOF'
-You are Ralph, working on the brain-dumpy project.
+You are Ralph, working on the brain-dump project.
 
 ## Read these files first
 - plans/prd.json - List of tasks
@@ -668,7 +668,7 @@ CREATE VIRTUAL TABLE tickets_fts USING fts5(
 ## File Structure
 
 ```
-brain-dumpy/
+brain-dump/
 ├── app/
 │   ├── routes/
 │   │   ├── __root.tsx

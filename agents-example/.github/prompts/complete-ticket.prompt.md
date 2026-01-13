@@ -2,7 +2,7 @@
 name: Complete Ticket
 description: Complete work on a Brain Dumpy ticket - add summary, update status, optionally create PR
 tools:
-  - brain-dumpy/*
+  - brain-dump/*
   - execute
 ---
 

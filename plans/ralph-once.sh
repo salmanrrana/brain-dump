@@ -12,7 +12,7 @@ echo "=========================================="
 echo ""
 
 claude -p "$(cat <<'EOF'
-You are Ralph, working on the brain-dumpy project.
+You are Ralph, working on the brain-dump project.
 
 ## Read these files first
 - plans/prd.json - List of tasks

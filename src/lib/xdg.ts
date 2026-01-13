@@ -3,7 +3,7 @@ import { join } from "path";
 import { mkdirSync, existsSync } from "fs";
 import { mkdir, access, constants } from "fs/promises";
 
-const APP_NAME = "brain-dumpy";
+const APP_NAME = "brain-dump";
 
 export type Platform = "linux" | "darwin" | "win32" | "other";
 
@@ -114,7 +114,7 @@ export function getLegacyDir(): string {
 }
 
 export function getDatabasePath(): string {
-  return join(getDataDir(), "brain-dumpy.db");
+  return join(getDataDir(), "brain-dump.db");
 }
 
 export function getBackupsDir(): string {

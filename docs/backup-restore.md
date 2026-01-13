@@ -9,8 +9,8 @@ Brain Dumpy includes automatic daily backups and manual backup/restore commands 
 Brain Dumpy automatically creates a backup once per day on first use:
 
 - **Trigger**: First database operation each day (MCP server start, CLI command, or app launch)
-- **Location**: `~/.local/state/brain-dumpy/backups/`
-- **Filename**: `brain-dumpy-YYYY-MM-DD.db`
+- **Location**: `~/.local/state/brain-dump/backups/`
+- **Filename**: `brain-dump-YYYY-MM-DD.db`
 - **Retention**: Last 7 days (configurable)
 
 ### How It Works
@@ -35,7 +35,7 @@ Backups use SQLite's `VACUUM INTO` command, which:
 ```bash
 # Create immediate backup
 pnpm brain-dump backup
-# Output: Created backup: brain-dumpy-2026-01-12.db (15.2 MB)
+# Output: Created backup: brain-dump-2026-01-12.db (15.2 MB)
 ```
 
 Force a backup even if one already exists today by running the command again.
@@ -50,14 +50,14 @@ pnpm brain-dump backup --list
 Output:
 ```
 Available backups:
-  brain-dumpy-2026-01-12.db  15.2 MB  (today)
-  brain-dumpy-2026-01-11.db  15.1 MB  (1 day ago)
-  brain-dumpy-2026-01-10.db  14.9 MB  (2 days ago)
-  brain-dumpy-2026-01-09.db  14.8 MB  (3 days ago)
-  brain-dumpy-2026-01-08.db  14.7 MB  (4 days ago)
+  brain-dump-2026-01-12.db  15.2 MB  (today)
+  brain-dump-2026-01-11.db  15.1 MB  (1 day ago)
+  brain-dump-2026-01-10.db  14.9 MB  (2 days ago)
+  brain-dump-2026-01-09.db  14.8 MB  (3 days ago)
+  brain-dump-2026-01-08.db  14.7 MB  (4 days ago)
 
 Total: 5 backups using 74.7 MB
-Backup location: ~/.local/state/brain-dumpy/backups/
+Backup location: ~/.local/state/brain-dump/backups/
 ```
 
 ## Restore Commands
@@ -66,7 +66,7 @@ Backup location: ~/.local/state/brain-dumpy/backups/
 
 ```bash
 # Restore from a specific backup file
-pnpm brain-dump restore brain-dumpy-2026-01-10.db
+pnpm brain-dump restore brain-dump-2026-01-10.db
 ```
 
 ### Restore Latest Backup
@@ -116,7 +116,7 @@ The `get_database_health` MCP tool provides backup status:
   "backup": {
     "lastBackup": "2026-01-12",
     "backupCount": 7,
-    "backupsDir": "~/.local/state/brain-dumpy/backups"
+    "backupsDir": "~/.local/state/brain-dump/backups"
   }
 }
 ```
@@ -145,10 +145,10 @@ For additional protection, periodically copy backups to another location:
 
 ```bash
 # Copy all backups to external drive
-cp ~/.local/state/brain-dumpy/backups/*.db /mnt/backup/brain-dumpy/
+cp ~/.local/state/brain-dump/backups/*.db /mnt/backup/brain-dump/
 
 # Or sync to cloud storage
-rclone sync ~/.local/state/brain-dumpy/backups/ remote:brain-dumpy-backups/
+rclone sync ~/.local/state/brain-dump/backups/ remote:brain-dump-backups/
 ```
 
 ### Verify Backups
@@ -157,7 +157,7 @@ Periodically verify backup integrity:
 
 ```bash
 # Check a backup file
-sqlite3 ~/.local/state/brain-dumpy/backups/brain-dumpy-2026-01-12.db "PRAGMA integrity_check;"
+sqlite3 ~/.local/state/brain-dump/backups/brain-dump-2026-01-12.db "PRAGMA integrity_check;"
 # Should output: ok
 ```
 
@@ -168,21 +168,21 @@ sqlite3 ~/.local/state/brain-dumpy/backups/brain-dumpy-2026-01-12.db "PRAGMA int
 If automatic backups aren't being created:
 
 1. Check disk space: `df -h ~/.local/state`
-2. Check permissions: `ls -la ~/.local/state/brain-dumpy/backups/`
-3. Check logs: `cat ~/.local/state/brain-dumpy/logs/brain-dumpy.log | grep backup`
+2. Check permissions: `ls -la ~/.local/state/brain-dump/backups/`
+3. Check logs: `cat ~/.local/state/brain-dump/logs/brain-dump.log | grep backup`
 
 ### Restore Failed
 
 If restore fails:
 
-1. Check if pre-restore backup was created in `~/.local/state/brain-dumpy/backups/`
+1. Check if pre-restore backup was created in `~/.local/state/brain-dump/backups/`
 2. Verify the backup file isn't corrupted:
    ```bash
    sqlite3 backup-file.db "PRAGMA integrity_check;"
    ```
 3. Try manual restore:
    ```bash
-   cp backup-file.db ~/.local/share/brain-dumpy/brain-dumpy.db
+   cp backup-file.db ~/.local/share/brain-dump/brain-dump.db
    ```
 
 ### Recovering from Pre-Restore Backup
@@ -190,13 +190,13 @@ If restore fails:
 If a restore went wrong, find the pre-restore backup:
 
 ```bash
-ls -la ~/.local/state/brain-dumpy/backups/pre-restore-*.db
+ls -la ~/.local/state/brain-dump/backups/pre-restore-*.db
 ```
 
 Restore it manually:
 ```bash
-cp ~/.local/state/brain-dumpy/backups/pre-restore-2026-01-12T10-30-00.db \
-   ~/.local/share/brain-dumpy/brain-dumpy.db
+cp ~/.local/state/brain-dump/backups/pre-restore-2026-01-12T10-30-00.db \
+   ~/.local/share/brain-dump/brain-dump.db
 ```
 
 ## See Also

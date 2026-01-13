@@ -44,7 +44,7 @@ mcp-server/
 ```javascript
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 
-const server = new Server({ name: "brain-dumpy", version: "1.0.0" });
+const server = new Server({ name: "brain-dump", version: "1.0.0" });
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [{ name: "list_projects", description: "...", inputSchema: {...} }, ...]
@@ -64,7 +64,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-const server = new McpServer({ name: "brain-dumpy", version: "1.0.0" });
+const server = new McpServer({ name: "brain-dump", version: "1.0.0" });
 
 server.registerTool(
   "list_projects",

@@ -3,7 +3,7 @@ name: Create Tickets
 description: Create Brain Dumpy tickets from a feature description or requirements
 agent: planner
 tools:
-  - brain-dumpy/*
+  - brain-dump/*
   - read
   - search
 ---

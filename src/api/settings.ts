@@ -137,7 +137,7 @@ export const getDockerStatus = createServerFn({ method: "GET" }).handler(
       dockerAvailable: false,
       dockerRunning: false,
       imageBuilt: false,
-      imageTag: "brain-dumpy-ralph-sandbox:latest",
+      imageTag: "brain-dump-ralph-sandbox:latest",
     };
 
     // Check if Docker is installed
@@ -183,7 +183,7 @@ export const buildSandboxImage = createServerFn({ method: "POST" }).handler(
 
     try {
       const { stdout } = await execAsync(
-        `docker build -t brain-dumpy-ralph-sandbox:latest -f "${dockerfilePath}" "${contextPath}"`,
+        `docker build -t brain-dump-ralph-sandbox:latest -f "${dockerfilePath}" "${contextPath}"`,
         { timeout: 300000 } // 5 minute timeout
       );
       return { success: true, message: "Sandbox image built successfully", output: stdout };

@@ -1,12 +1,11 @@
 import { defineConfig } from "drizzle-kit";
-import { homedir } from "os";
-import { join } from "path";
+import { getDatabasePath } from "./src/lib/xdg";
 
 export default defineConfig({
   schema: "./src/lib/schema.ts",
   out: "./drizzle",
   dialect: "sqlite",
   dbCredentials: {
-    url: join(homedir(), ".brain-dump", "brain-dump.db"),
+    url: getDatabasePath(),
   },
 });

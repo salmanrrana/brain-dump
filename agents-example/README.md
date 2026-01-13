@@ -7,7 +7,7 @@ Brain Dumpy serves as "ground control" for your AI-assisted development workflow
 Run the setup script to configure everything globally:
 
 ```bash
-# From the brain-dumpy directory
+# From the brain-dump directory
 ./scripts/setup-vscode.sh
 ```
 
@@ -30,10 +30,10 @@ Add to `~/.vscode/mcp.json`:
 ```json
 {
   "servers": {
-    "brain-dumpy": {
+    "brain-dump": {
       "type": "stdio",
       "command": "node",
-      "args": ["/path/to/brain-dumpy/mcp-server/index.js"]
+      "args": ["/path/to/brain-dump/mcp-server/index.js"]
     }
   }
 }
@@ -71,7 +71,7 @@ cp -r .github/prompts ~/.config/Code/User/
 
 | Skill | Description |
 |-------|-------------|
-| **brain-dumpy-tickets** | Ticket management workflows and MCP tool reference |
+| **brain-dump-tickets** | Ticket management workflows and MCP tool reference |
 | **ralph-workflow** | Autonomous processing workflow documentation |
 
 ### Prompts (`.github/prompts/`)

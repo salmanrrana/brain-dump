@@ -235,7 +235,7 @@ Update the plans/prd.json file with all tickets:
   "projectPath": "${projectPath}",
   "userStories": [
     {
-      "id": "ticket-uuid-from-brain-dumpy",
+      "id": "ticket-uuid-from-brain-dump",
       "title": "Ticket title",
       "description": "Ticket description",
       "acceptanceCriteria": ["Criterion 1", "Criterion 2"],

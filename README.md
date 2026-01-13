@@ -1,422 +1,76 @@
-# 🧠 💩
+# Brain Dumpy
 
-### The AI-Native Task Manager for Claude Code Workflows
+A local-first kanban board for AI-assisted development. Click an epic, Claude gets the context.
 
-> **Dump your brain, let Claude do the work.** A local-first kanban board designed from the ground up for AI-assisted development. Launch Claude Code with full ticket context in one click, or let Ralph handle it autonomously.
+![Kanban board](docs/screenshots/kanban-board.png)
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)
-![React](https://img.shields.io/badge/React-19-61DAFB.svg)
-
----
-
-## Why 🧠 💩 ?
-
-Traditional task managers weren't built for the way we work with AI coding assistants. 🧠 💩  bridges the gap:
-
-- **One-click Claude sessions** - "Start with Claude" launches a terminal with full ticket context
-- **Autonomous agent mode** - "Start with Ralph" runs Claude in a loop until your backlog is done
-- **MCP integration** - Claude can create and update tickets directly from any project
-- **Real-time sync** - CLI updates and MCP changes appear instantly in the UI
-
-No cloud, no subscriptions, no data leaving your machine. Just SQLite and your projects.
-
----
-
-## Screenshots
-
-### Kanban Board View
-
-Drag and drop tickets across your workflow. Five columns take you from idea to shipped: Backlog, Ready, In Progress, Review, and Done. Color-coded priorities and tags give you instant visibility into what matters.
-
-![Kanban board with drag-and-drop columns](docs/screenshots/kanban-board.png)
-
-### List View with Full Details
-
-Switch to list view for a sortable, scannable overview. See status, priority, epic, tags, subtask progress, and creation dates at a glance. Click any column header to sort.
-
-![List view showing ticket details](docs/screenshots/list-view.png)
-
-### Powerful Filtering
-
-Filter your view by tags in the sidebar. Combine multiple filters to drill down to exactly what you need. The tag cloud shows all available tags with quick toggle access.
-
-![Tag filtering in the sidebar](docs/screenshots/tag-filtering.png)
-
-### Full-Text Search
-
-Instant search across all your tickets. Filter by project, search by keyword, and watch results update in real-time. FTS5-powered for blazing fast queries even with thousands of tickets.
-
-![Search and filtering interface](docs/screenshots/search-filtering.png)
-
-### Quick Ticket Creation
-
-Create tickets without losing your flow. The modal lets you set title, description, project, priority, epic, and tags all in one place. Tickets land in Backlog, ready for triage.
-
-![New ticket creation modal](docs/screenshots/new-ticket-modal.png)
-
----
-
-## Requirements
-
-- **Node.js** 18+
-- **pnpm** (recommended) or npm
-- **Claude Code** CLI installed (`claude` command available)
-
----
-
-## Quick Start
+## Install
 
 ```bash
-# Clone the repository
 git clone https://github.com/salmanrrana/brain-dump.git
 cd brain-dump
-
-# Install dependencies
-pnpm install
-
-# Run database migrations
-pnpm db:migrate
-
-# Start the development server
+./install.sh --claude   # or --vscode
 pnpm dev
 ```
 
-Open [http://localhost:4242](http://localhost:4242) in your browser.
+Open [http://localhost:4242](http://localhost:4242). Done.
 
-On first launch, sample data is loaded to help you explore. Delete it anytime from the sidebar.
+The installer handles Node.js, pnpm, dependencies, database, and MCP server setup automatically.
 
----
+## How It Works
+
+1. **Create tickets** in the web UI (or use `/inception` to have Claude interview you)
+2. **Click "Start with Claude"** on a ticket
+3. Claude opens with full ticket context
+4. Work gets tracked automatically
+
+That's it. No cloud, no accounts, all local.
+
+## Start a New Project
+
+Don't know where to begin? Run `/inception` in Claude Code:
+
+```
+> /inception
+```
+
+Claude will interview you with quick multiple-choice questions about your idea, then generate:
+- A complete `spec.md` with requirements
+- A `plans/` folder with implementation steps
+- Tickets ready to work on
+
+Go from "I have an idea" to "I have a backlog" in 5 minutes.
 
 ## Features
 
-### Local-First SQLite Database
+- **Kanban board** - Drag tickets between Backlog → Ready → In Progress → Review → Done
+- **MCP integration** - Claude can create/update tickets from any project
+- **Ralph mode** - Autonomous agent that works through your backlog
+- **Full-text search** - Find anything instantly
+- **File attachments** - Drag and drop onto tickets
 
-All data stays on your machine following [XDG Base Directory](https://specifications.freedesktop.org/basedir-spec/latest/) conventions. No accounts, no sync, no vendor lock-in. Export anytime with standard SQLite tools. See [Data Locations](docs/data-locations.md) for details.
-
-### Projects & Epics Organization
-
-Organize work across multiple codebases. Each project links to a filesystem path, and epics group related tickets within a project.
-
-### Kanban Board with Drag-and-Drop
-
-Five-column workflow: **Backlog** -> **Ready** -> **In Progress** -> **Review** -> **Done**
-
-Drag tickets between columns and reorder within. Powered by dnd-kit for smooth animations.
-
-### List View with Sorting & Filtering
-
-Toggle to a sortable table view. Filter by status, priority, project, epic, or tags from the sidebar.
-
-### Full-Text Search
-
-Blazing fast FTS5-powered search across ticket titles, descriptions, and tags. Press `/` to focus the search bar.
-
-### Subtasks & Progress Tracking
-
-Break tickets into checkable subtasks. Progress is shown on ticket cards and in the detail modal.
-
-### File Attachments
-
-Drag and drop images and files onto tickets. Attachments are stored locally in `~/.local/share/brain-dumpy/attachments/`.
-
-### Keyboard Shortcuts
-
-| Key | Action |
-|-----|--------|
-| `n` | New ticket |
-| `/` | Focus search |
-| `?` | Show shortcuts help |
-| `Esc` | Close modal |
-
----
-
-## Claude Code Integration
-
-### Start with Claude
-
-Click **"Start with Claude"** on any ticket to:
-
-1. Open a new terminal window in your project directory
-2. Launch `claude` with the full ticket context as the initial prompt
-3. Automatically move the ticket to "In Progress"
-4. Track the ticket for CLI status updates
-
-The context includes the ticket title, description, subtasks, epic info, and recently completed related work.
-
-### Terminal Emulator Selection
-
-In Settings, choose your preferred terminal:
-
-- **Ghostty** (default if detected)
-- GNOME Terminal, Konsole, Alacritty, kitty
-- Xfce Terminal, MATE Terminal, Terminator, Tilix, xterm
-
-Brain Dumpy auto-detects installed terminals if no preference is set.
-
----
-
-## The Ralph Workflow
-
-**Ralph** is an autonomous agent mode that iterates through your backlog without human intervention.
-
-### How it Works
-
-1. Click **"Start with Ralph"** on a ticket (or an entire epic)
-2. Brain Dumpy generates a `plans/prd.json` file in your project with all pending tasks
-3. Ralph launches in your terminal, running Claude in a loop:
-   - Reads the PRD and `plans/progress.txt`
-   - Picks one task where `passes: false`
-   - Implements the feature, runs tests
-   - Updates the PRD to mark it complete
-   - Updates ticket status via MCP
-   - Commits the change
-   - Repeats until all tasks pass or max iterations reached
-
-### The Files
-
-```
-your-project/
-  plans/
-    prd.json        # Auto-generated from tickets (user stories + acceptance criteria)
-    progress.txt    # Ralph's notes for the next iteration (survives context reset)
-```
-
-### When to Use Ralph
-
-- Grinding through a well-defined backlog
-- Implementing multiple similar features
-- Working through an epic overnight
-
-Ralph works best with clear acceptance criteria (use subtasks!) and projects with good test coverage.
-
----
-
-## MCP Server Integration
-
-Brain Dumpy includes an MCP (Model Context Protocol) server that lets Claude manage tickets from **any project**.
-
-### Setup
-
-Add to your `~/.claude.json`:
-
-```json
-{
-  "mcpServers": {
-    "brain-dumpy": {
-      "command": "node",
-      "args": ["/path/to/brain-dumpy/mcp-server/index.js"]
-    }
-  }
-}
-```
-
-Restart Claude Code to load the server.
-
-### Available Tools
-
-| Tool | Description |
-|------|-------------|
-| `list_projects` | List all registered projects |
-| `find_project_by_path` | Auto-detect project from current directory |
-| `create_project` | Register a new project |
-| `create_ticket` | Create a ticket with title, description, priority, tags |
-| `list_tickets` | List tickets with optional filters |
-| `update_ticket_status` | Move ticket between columns |
-| `list_epics` | List epics for a project |
-| `create_epic` | Create a new epic |
-| `add_ticket_comment` | Add comments or work summaries |
-| `get_ticket_comments` | Get all comments for a ticket |
-| `start_ticket_work` | Start work on a ticket (creates git branch) |
-| `complete_ticket_work` | Complete work and move to review |
-| `link_commit_to_ticket` | Link git commits to a ticket |
-| `link_files_to_ticket` | Associate files with a ticket |
-| `get_tickets_for_file` | Find tickets related to a file |
-| `get_database_health` | Check database health and backup status |
-
-### Example Usage
-
-From any project, just tell Claude:
-
-```
-"Create a high-priority ticket to fix the authentication bug"
-"Show me all in-progress tickets"
-"Mark ticket abc-123 as done"
-```
-
-Claude auto-detects your project and updates Brain Dumpy in real-time.
-
----
-
-## CLI Tool
-
-The `brain-dump` CLI lets you manage tickets, backups, and database health from the command line.
+## Commands
 
 ```bash
-# Ticket management
-pnpm brain-dump current              # Show current ticket info
-pnpm brain-dump done                 # Mark current ticket ready for review
-pnpm brain-dump complete             # Mark current ticket as completed
-pnpm brain-dump status <id> <status> # Update a specific ticket
-pnpm brain-dump clear                # Clear current ticket tracking
-
-# Backup & restore
-pnpm brain-dump backup               # Create immediate backup
-pnpm brain-dump backup --list        # List available backups
-pnpm brain-dump restore <file>       # Restore from backup file
-pnpm brain-dump restore --latest     # Restore most recent backup
-
-# Database health
-pnpm brain-dump check                # Quick integrity check
-pnpm brain-dump check --full         # Full comprehensive health check
+pnpm dev          # Start dev server
+pnpm build        # Build for production
+pnpm test         # Run tests
+pnpm db:studio    # Browse database
 ```
 
-### Claude Code Hooks Integration
+## Data
 
-Automatically update ticket status when Claude finishes work. Add to your `~/.claude.json`:
+Everything stored locally:
+- **macOS**: `~/Library/Application Support/brain-dump/`
+- **Linux**: `~/.local/share/brain-dump/`
 
-```json
-{
-  "hooks": {
-    "PostToolUse": [
-      {
-        "command": "cd /path/to/brain-dumpy && pnpm brain-dump done",
-        "trigger": "when the task is complete"
-      }
-    ]
-  }
-}
-```
+## More Info
 
----
-
-## Docker
-
-Run Brain Dumpy in a container:
-
-```bash
-# Using docker compose (recommended)
-docker compose up -d
-
-# Or build and run manually
-docker build -t brain-dumpy .
-docker run -d -p 4242:4242 \
-  -v brain-dump-data:/root/.local/share/brain-dumpy \
-  -v brain-dump-state:/root/.local/state/brain-dumpy \
-  brain-dumpy
-
-# View logs
-docker compose logs -f
-
-# Stop
-docker compose down
-```
-
-The SQLite database, attachments, backups, and logs are persisted in Docker volumes.
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| **Framework** | [TanStack Start](https://tanstack.com/start) (React 19 + Vite) |
-| **Database** | SQLite with [Drizzle ORM](https://orm.drizzle.team/) |
-| **Styling** | [Tailwind CSS](https://tailwindcss.com/) v4 |
-| **Drag & Drop** | [@dnd-kit](https://dndkit.com/) |
-| **Search** | SQLite FTS5 (full-text search) |
-| **State** | [TanStack Query](https://tanstack.com/query) |
-| **Testing** | [Vitest](https://vitest.dev/) + [Playwright](https://playwright.dev/) |
-| **MCP Server** | [@modelcontextprotocol/sdk](https://modelcontextprotocol.io/) |
-
----
-
-## Scripts Reference
-
-| Command | Description |
-|---------|-------------|
-| `pnpm dev` | Start development server |
-| `pnpm build` | Build for production |
-| `pnpm start` | Start production server |
-| `pnpm type-check` | Run TypeScript type checking |
-| `pnpm lint` | Run ESLint |
-| `pnpm test` | Run unit tests |
-| `pnpm test:e2e` | Run Playwright E2E tests |
-| `pnpm check` | Run all checks (type-check, lint, test) |
-| `pnpm db:migrate` | Run database migrations |
-| `pnpm db:generate` | Generate migration files |
-| `pnpm db:studio` | Open Drizzle Studio |
-| `pnpm brain-dump` | CLI tool for ticket status updates |
-
----
-
-## Project Structure
-
-```
-brain-dumpy/
-  src/
-    api/           # Server functions (CRUD, terminal, Ralph)
-    components/    # React components (modals, kanban, sidebar)
-    lib/           # Database schema, hooks, utilities
-    routes/        # TanStack Router pages
-    styles.css     # Tailwind global styles
-  cli/             # CLI tool for status updates
-  mcp-server/      # MCP server for Claude integration
-  e2e/             # Playwright E2E tests
-  drizzle/         # Database migrations
-  plans/           # PRD and planning docs
-```
-
----
-
-## Data Storage
-
-Brain Dumpy follows the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/latest/) for organized, predictable data storage:
-
-| Data | Location | Purpose |
-|------|----------|---------|
-| Database | `~/.local/share/brain-dumpy/brain-dumpy.db` | Main SQLite database |
-| Attachments | `~/.local/share/brain-dumpy/attachments/` | File attachments |
-| Backups | `~/.local/state/brain-dumpy/backups/` | Daily automatic backups |
-| Logs | `~/.local/state/brain-dumpy/logs/` | Application logs |
-| Lock file | `~/.local/state/brain-dumpy/brain-dumpy.lock` | Process coordination |
-| Current ticket | `~/.local/state/brain-dumpy/current-ticket.json` | CLI state tracking |
-
-**Migrating from older versions:** If you have data in `~/.brain-dump/`, Brain Dumpy will automatically migrate it on first launch. See [Troubleshooting](docs/troubleshooting.md) for details.
-
-For full details, see:
-- [Data Locations](docs/data-locations.md) - Complete path reference
-- [Backup & Restore](docs/backup-restore.md) - Backup system guide
-- [Troubleshooting](docs/troubleshooting.md) - Common issues and recovery
-
----
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
----
+- [MCP Server Tools](docs/mcp-tools.md)
+- [Ralph Workflow](docs/ralph.md)
+- [CLI Reference](docs/cli.md)
+- [Troubleshooting](docs/troubleshooting.md)
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## Acknowledgments
-
-- Built with Claude Code (naturally)
-- Inspired by the need for a task manager that actually understands AI-assisted development
-- Thanks to the TanStack, Drizzle, and MCP teams for excellent tooling
-
----
-
-<p align="center">
-  <strong>Stop context-switching. Start shipping.</strong>
-</p>
+MIT

@@ -50,10 +50,10 @@ export async function cleanupOldScripts(): Promise<void> {
     }
 
     if (cleanedCount > 0) {
-      console.log(`[brain-dumpy] Cleaned up ${cleanedCount} old launch script(s)`);
+      console.log(`[brain-dump] Cleaned up ${cleanedCount} old launch script(s)`);
     }
   } catch (error) {
-    console.error("[brain-dumpy] Script cleanup error:", error);
+    console.error("[brain-dump] Script cleanup error:", error);
   }
 }
 

@@ -47,13 +47,13 @@ describe("Backup Utilities", () => {
   describe("getBackupFilename", () => {
     it("should generate correct filename format", () => {
       const filename = getBackupFilename("2026-01-12");
-      expect(filename).toBe("brain-dumpy-2026-01-12.db");
+      expect(filename).toBe("brain-dump-2026-01-12.db");
     });
 
     it("should use today's date when no date provided", () => {
       const filename = getBackupFilename();
       const today = new Date().toISOString().split("T")[0];
-      expect(filename).toBe(`brain-dumpy-${today}.db`);
+      expect(filename).toBe(`brain-dump-${today}.db`);
     });
   });
 
@@ -62,7 +62,7 @@ describe("Backup Utilities", () => {
       const path = getTodayBackupPath();
       const today = new Date().toISOString().split("T")[0];
       expect(path).toContain("backups");
-      expect(path).toContain(`brain-dumpy-${today}.db`);
+      expect(path).toContain(`brain-dump-${today}.db`);
     });
   });
 
@@ -73,7 +73,7 @@ describe("Backup Utilities", () => {
 
     it("should return false when marker is from a different day", () => {
       // Create the state directory and marker file with old date
-      const stateDir = join(testXdgState, "brain-dumpy", "backups");
+      const stateDir = join(testXdgState, "brain-dump", "backups");
       mkdirSync(stateDir, { recursive: true });
 
       const markerPath = join(stateDir, ".last-backup");
@@ -129,13 +129,13 @@ describe("Backup Utilities", () => {
     });
 
     it("should list backups sorted by date (newest first)", () => {
-      const backupsDir = join(testXdgState, "brain-dumpy", "backups");
+      const backupsDir = join(testXdgState, "brain-dump", "backups");
       mkdirSync(backupsDir, { recursive: true });
 
       // Create test backup files
       const dates = ["2026-01-10", "2026-01-12", "2026-01-11"];
       for (const date of dates) {
-        const dbPath = join(backupsDir, `brain-dumpy-${date}.db`);
+        const dbPath = join(backupsDir, `brain-dump-${date}.db`);
         const db = new Database(dbPath);
         db.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
         db.close();
@@ -150,11 +150,11 @@ describe("Backup Utilities", () => {
     });
 
     it("should ignore non-backup files", () => {
-      const backupsDir = join(testXdgState, "brain-dumpy", "backups");
+      const backupsDir = join(testXdgState, "brain-dump", "backups");
       mkdirSync(backupsDir, { recursive: true });
 
       // Create a valid backup
-      const dbPath = join(backupsDir, "brain-dumpy-2026-01-12.db");
+      const dbPath = join(backupsDir, "brain-dump-2026-01-12.db");
       const db = new Database(dbPath);
       db.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
       db.close();
@@ -162,7 +162,7 @@ describe("Backup Utilities", () => {
       // Create non-backup files
       writeFileSync(join(backupsDir, ".last-backup"), "marker");
       writeFileSync(join(backupsDir, "random-file.txt"), "text");
-      writeFileSync(join(backupsDir, "brain-dumpy-invalid.db"), "invalid name");
+      writeFileSync(join(backupsDir, "brain-dump-invalid.db"), "invalid name");
 
       const backups = listBackups();
       expect(backups).toHaveLength(1);
@@ -181,9 +181,9 @@ describe("Backup Utilities", () => {
 
     it("should create a valid backup from source database", () => {
       // Create source database
-      const sourceDir = join(testXdgData, "brain-dumpy");
+      const sourceDir = join(testXdgData, "brain-dump");
       mkdirSync(sourceDir, { recursive: true });
-      const sourcePath = join(sourceDir, "brain-dumpy.db");
+      const sourcePath = join(sourceDir, "brain-dump.db");
 
       const sourceDb = new Database(sourcePath);
       sourceDb.exec("CREATE TABLE tickets (id TEXT PRIMARY KEY, title TEXT)");
@@ -208,9 +208,9 @@ describe("Backup Utilities", () => {
 
     it("should create backups in the correct directory", () => {
       // Create source database
-      const sourceDir = join(testXdgData, "brain-dumpy");
+      const sourceDir = join(testXdgData, "brain-dump");
       mkdirSync(sourceDir, { recursive: true });
-      const sourcePath = join(sourceDir, "brain-dumpy.db");
+      const sourcePath = join(sourceDir, "brain-dump.db");
 
       const sourceDb = new Database(sourcePath);
       sourceDb.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
@@ -223,7 +223,7 @@ describe("Backup Utilities", () => {
       expect(result.created).toBe(true);
 
       const today = new Date().toISOString().split("T")[0];
-      const expectedPath = join(testXdgState, "brain-dumpy", "backups", `brain-dumpy-${today}.db`);
+      const expectedPath = join(testXdgState, "brain-dump", "backups", `brain-dump-${today}.db`);
       expect(result.backupPath).toBe(expectedPath);
     });
   });
@@ -231,9 +231,9 @@ describe("Backup Utilities", () => {
   describe("createBackupIfNeeded", () => {
     it("should create backup when none exists for today", () => {
       // Create source database
-      const sourceDir = join(testXdgData, "brain-dumpy");
+      const sourceDir = join(testXdgData, "brain-dump");
       mkdirSync(sourceDir, { recursive: true });
-      const sourcePath = join(sourceDir, "brain-dumpy.db");
+      const sourcePath = join(sourceDir, "brain-dump.db");
 
       const sourceDb = new Database(sourcePath);
       sourceDb.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
@@ -248,9 +248,9 @@ describe("Backup Utilities", () => {
 
     it("should not create duplicate backup for today", () => {
       // Create source database
-      const sourceDir = join(testXdgData, "brain-dumpy");
+      const sourceDir = join(testXdgData, "brain-dump");
       mkdirSync(sourceDir, { recursive: true });
-      const sourcePath = join(sourceDir, "brain-dumpy.db");
+      const sourcePath = join(sourceDir, "brain-dump.db");
 
       const sourceDb = new Database(sourcePath);
       sourceDb.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
@@ -270,9 +270,9 @@ describe("Backup Utilities", () => {
 
     it("should force create backup when force=true", () => {
       // Create source database
-      const sourceDir = join(testXdgData, "brain-dumpy");
+      const sourceDir = join(testXdgData, "brain-dump");
       mkdirSync(sourceDir, { recursive: true });
-      const sourcePath = join(sourceDir, "brain-dumpy.db");
+      const sourcePath = join(sourceDir, "brain-dump.db");
 
       const sourceDb = new Database(sourcePath);
       sourceDb.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
@@ -292,13 +292,13 @@ describe("Backup Utilities", () => {
 
   describe("cleanupOldBackups", () => {
     it("should do nothing when fewer backups than limit", () => {
-      const backupsDir = join(testXdgState, "brain-dumpy", "backups");
+      const backupsDir = join(testXdgState, "brain-dump", "backups");
       mkdirSync(backupsDir, { recursive: true });
 
       // Create 3 backups
       for (let i = 1; i <= 3; i++) {
         const date = `2026-01-${i.toString().padStart(2, "0")}`;
-        const dbPath = join(backupsDir, `brain-dumpy-${date}.db`);
+        const dbPath = join(backupsDir, `brain-dump-${date}.db`);
         const db = new Database(dbPath);
         db.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
         db.close();
@@ -312,13 +312,13 @@ describe("Backup Utilities", () => {
     });
 
     it("should delete oldest backups when exceeding limit", () => {
-      const backupsDir = join(testXdgState, "brain-dumpy", "backups");
+      const backupsDir = join(testXdgState, "brain-dump", "backups");
       mkdirSync(backupsDir, { recursive: true });
 
       // Create 10 backups
       for (let i = 1; i <= 10; i++) {
         const date = `2026-01-${i.toString().padStart(2, "0")}`;
-        const dbPath = join(backupsDir, `brain-dumpy-${date}.db`);
+        const dbPath = join(backupsDir, `brain-dump-${date}.db`);
         const db = new Database(dbPath);
         db.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
         db.close();
@@ -337,13 +337,13 @@ describe("Backup Utilities", () => {
     });
 
     it("should respect custom keepDays parameter", () => {
-      const backupsDir = join(testXdgState, "brain-dumpy", "backups");
+      const backupsDir = join(testXdgState, "brain-dump", "backups");
       mkdirSync(backupsDir, { recursive: true });
 
       // Create 5 backups
       for (let i = 1; i <= 5; i++) {
         const date = `2026-01-${i.toString().padStart(2, "0")}`;
-        const dbPath = join(backupsDir, `brain-dumpy-${date}.db`);
+        const dbPath = join(backupsDir, `brain-dump-${date}.db`);
         const db = new Database(dbPath);
         db.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
         db.close();
@@ -361,9 +361,9 @@ describe("Backup Utilities", () => {
   describe("performDailyBackupSync", () => {
     it("should create backup and cleanup old ones", () => {
       // Create source database
-      const sourceDir = join(testXdgData, "brain-dumpy");
+      const sourceDir = join(testXdgData, "brain-dump");
       mkdirSync(sourceDir, { recursive: true });
-      const sourcePath = join(sourceDir, "brain-dumpy.db");
+      const sourcePath = join(sourceDir, "brain-dump.db");
 
       const sourceDb = new Database(sourcePath);
       sourceDb.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
@@ -377,16 +377,16 @@ describe("Backup Utilities", () => {
 
     it("should cleanup when too many backups exist", () => {
       // Create source database
-      const sourceDir = join(testXdgData, "brain-dumpy");
+      const sourceDir = join(testXdgData, "brain-dump");
       mkdirSync(sourceDir, { recursive: true });
-      const sourcePath = join(sourceDir, "brain-dumpy.db");
+      const sourcePath = join(sourceDir, "brain-dump.db");
 
       const sourceDb = new Database(sourcePath);
       sourceDb.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
       sourceDb.close();
 
       // Create 10 existing backups (excluding today to avoid conflict)
-      const backupsDir = join(testXdgState, "brain-dumpy", "backups");
+      const backupsDir = join(testXdgState, "brain-dump", "backups");
       mkdirSync(backupsDir, { recursive: true });
 
       const today = new Date();
@@ -394,7 +394,7 @@ describe("Backup Utilities", () => {
         const date = new Date(today);
         date.setDate(date.getDate() - i);
         const dateStr = date.toISOString().split("T")[0];
-        const dbPath = join(backupsDir, `brain-dumpy-${dateStr}.db`);
+        const dbPath = join(backupsDir, `brain-dump-${dateStr}.db`);
         const db = new Database(dbPath);
         db.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
         db.close();
@@ -415,9 +415,9 @@ describe("Backup Utilities", () => {
   describe("Backup Integrity", () => {
     it("should preserve database content in backup", () => {
       // Create source database with data
-      const sourceDir = join(testXdgData, "brain-dumpy");
+      const sourceDir = join(testXdgData, "brain-dump");
       mkdirSync(sourceDir, { recursive: true });
-      const sourcePath = join(sourceDir, "brain-dumpy.db");
+      const sourcePath = join(sourceDir, "brain-dump.db");
 
       const sourceDb = new Database(sourcePath);
       sourceDb.exec(`

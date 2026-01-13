@@ -16,17 +16,17 @@ Common issues and solutions for Brain Dumpy.
 
 1. Check for running processes:
    ```bash
-   cat ~/.local/state/brain-dumpy/brain-dumpy.lock
+   cat ~/.local/state/brain-dump/brain-dump.lock
    ```
 
 2. If the lock is stale (process not running), remove it:
    ```bash
-   rm ~/.local/state/brain-dumpy/brain-dumpy.lock
+   rm ~/.local/state/brain-dump/brain-dump.lock
    ```
 
 3. Force WAL checkpoint:
    ```bash
-   sqlite3 ~/.local/share/brain-dumpy/brain-dumpy.db "PRAGMA wal_checkpoint(TRUNCATE);"
+   sqlite3 ~/.local/share/brain-dump/brain-dump.db "PRAGMA wal_checkpoint(TRUNCATE);"
    ```
 
 ### Database Corruption
@@ -52,11 +52,11 @@ pnpm brain-dump check --full
 2. If no backup available, try SQLite recovery:
    ```bash
    # Export what's readable
-   sqlite3 ~/.local/share/brain-dumpy/brain-dumpy.db ".dump" > dump.sql
+   sqlite3 ~/.local/share/brain-dump/brain-dump.db ".dump" > dump.sql
 
    # Create new database
-   mv ~/.local/share/brain-dumpy/brain-dumpy.db brain-dumpy.db.corrupt
-   sqlite3 ~/.local/share/brain-dumpy/brain-dumpy.db < dump.sql
+   mv ~/.local/share/brain-dump/brain-dump.db brain-dump.db.corrupt
+   sqlite3 ~/.local/share/brain-dump/brain-dump.db < dump.sql
    ```
 
 ### Foreign Key Violations
@@ -68,10 +68,10 @@ pnpm brain-dump check --full
 **Solution**:
 ```bash
 # Show violations
-sqlite3 ~/.local/share/brain-dumpy/brain-dumpy.db "PRAGMA foreign_key_check;"
+sqlite3 ~/.local/share/brain-dump/brain-dump.db "PRAGMA foreign_key_check;"
 
 # Fix by removing orphaned records (example for tickets with missing projects)
-sqlite3 ~/.local/share/brain-dumpy/brain-dumpy.db "
+sqlite3 ~/.local/share/brain-dump/brain-dump.db "
   DELETE FROM tickets
   WHERE project_id NOT IN (SELECT id FROM projects);
 "
@@ -79,14 +79,14 @@ sqlite3 ~/.local/share/brain-dumpy/brain-dumpy.db "
 
 ### WAL File Too Large
 
-**Symptoms**: `brain-dumpy.db-wal` file is very large (>100MB).
+**Symptoms**: `brain-dump.db-wal` file is very large (>100MB).
 
 **Cause**: WAL wasn't checkpointed, possibly due to unclean shutdown.
 
 **Solution**:
 ```bash
 # Force checkpoint
-sqlite3 ~/.local/share/brain-dumpy/brain-dumpy.db "PRAGMA wal_checkpoint(TRUNCATE);"
+sqlite3 ~/.local/share/brain-dump/brain-dump.db "PRAGMA wal_checkpoint(TRUNCATE);"
 ```
 
 ## Migration Issues
@@ -101,10 +101,10 @@ sqlite3 ~/.local/share/brain-dumpy/brain-dumpy.db "PRAGMA wal_checkpoint(TRUNCAT
 ls -la ~/.brain-dump/
 
 # Check if XDG location has data
-ls -la ~/.local/share/brain-dumpy/
+ls -la ~/.local/share/brain-dump/
 
 # Check migration log
-cat ~/.local/state/brain-dumpy/migration.log
+cat ~/.local/state/brain-dump/migration.log
 ```
 
 **Solutions**:
@@ -117,9 +117,9 @@ cat ~/.local/state/brain-dumpy/migration.log
 
 2. Manual migration:
    ```bash
-   mkdir -p ~/.local/share/brain-dumpy
-   cp ~/.brain-dump/brain-dump.db ~/.local/share/brain-dumpy/brain-dumpy.db
-   cp -r ~/.brain-dump/attachments ~/.local/share/brain-dumpy/
+   mkdir -p ~/.local/share/brain-dump
+   cp ~/.brain-dump/brain-dump.db ~/.local/share/brain-dump/brain-dump.db
+   cp -r ~/.brain-dump/attachments ~/.local/share/brain-dump/
    ```
 
 ### Both Locations Have Data
@@ -133,7 +133,7 @@ cat ~/.local/state/brain-dumpy/migration.log
 2. Back up both:
    ```bash
    cp ~/.brain-dump/brain-dump.db ~/brain-dump-legacy.db
-   cp ~/.local/share/brain-dumpy/brain-dumpy.db ~/brain-dump-xdg.db
+   cp ~/.local/share/brain-dump/brain-dump.db ~/brain-dump-xdg.db
    ```
 3. Remove the one you don't want to keep
 
@@ -149,9 +149,9 @@ cat ~/.local/state/brain-dumpy/migration.log
    ```json
    {
      "mcpServers": {
-       "brain-dumpy": {
+       "brain-dump": {
          "command": "node",
-         "args": ["/path/to/brain-dumpy/mcp-server/index.js"]
+         "args": ["/path/to/brain-dump/mcp-server/index.js"]
        }
      }
    }
@@ -159,13 +159,13 @@ cat ~/.local/state/brain-dumpy/migration.log
 
 2. Test the server directly:
    ```bash
-   node /path/to/brain-dumpy/mcp-server/index.js
+   node /path/to/brain-dump/mcp-server/index.js
    # Should output JSON-RPC on stderr
    ```
 
 3. Check for Node.js errors:
    ```bash
-   node /path/to/brain-dumpy/mcp-server/index.js 2>&1 | head -20
+   node /path/to/brain-dump/mcp-server/index.js 2>&1 | head -20
    ```
 
 ### MCP Server Database Errors
@@ -176,17 +176,17 @@ cat ~/.local/state/brain-dumpy/migration.log
 
 1. Check MCP server logs:
    ```bash
-   cat ~/.local/state/brain-dumpy/logs/mcp-server.log
+   cat ~/.local/state/brain-dump/logs/mcp-server.log
    ```
 
 2. Verify database path:
    ```bash
-   ls -la ~/.local/share/brain-dumpy/brain-dumpy.db
+   ls -la ~/.local/share/brain-dump/brain-dump.db
    ```
 
 3. Test database connectivity:
    ```bash
-   sqlite3 ~/.local/share/brain-dumpy/brain-dumpy.db "SELECT COUNT(*) FROM projects;"
+   sqlite3 ~/.local/share/brain-dump/brain-dump.db "SELECT COUNT(*) FROM projects;"
    ```
 
 ## CLI Issues
@@ -203,7 +203,7 @@ cat ~/.local/state/brain-dumpy/migration.log
 pnpm brain-dump current
 
 # Set a ticket manually
-echo '{"ticketId":"abc-123"}' > ~/.local/state/brain-dumpy/current-ticket.json
+echo '{"ticketId":"abc-123"}' > ~/.local/state/brain-dump/current-ticket.json
 
 # Or clear and start fresh
 pnpm brain-dump clear
@@ -217,7 +217,7 @@ pnpm brain-dump clear
 
 1. Check if database exists:
    ```bash
-   ls -la ~/.local/share/brain-dumpy/brain-dumpy.db
+   ls -la ~/.local/share/brain-dump/brain-dump.db
    ```
 
 2. Verify XDG environment:
@@ -254,12 +254,12 @@ pnpm brain-dump clear
 
 1. Check attachments directory exists:
    ```bash
-   ls -la ~/.local/share/brain-dumpy/attachments/
+   ls -la ~/.local/share/brain-dump/attachments/
    ```
 
 2. Verify permissions:
    ```bash
-   chmod -R 700 ~/.local/share/brain-dumpy/attachments/
+   chmod -R 700 ~/.local/share/brain-dump/attachments/
    ```
 
 ## Performance Issues
@@ -272,19 +272,19 @@ pnpm brain-dump clear
 
 1. Check database size:
    ```bash
-   du -h ~/.local/share/brain-dumpy/brain-dumpy.db
+   du -h ~/.local/share/brain-dump/brain-dump.db
    ```
 
 2. Rebuild search index:
    ```bash
-   sqlite3 ~/.local/share/brain-dumpy/brain-dumpy.db "
+   sqlite3 ~/.local/share/brain-dump/brain-dump.db "
      INSERT INTO tickets_fts(tickets_fts) VALUES('rebuild');
    "
    ```
 
 3. Vacuum database:
    ```bash
-   sqlite3 ~/.local/share/brain-dumpy/brain-dumpy.db "VACUUM;"
+   sqlite3 ~/.local/share/brain-dump/brain-dump.db "VACUUM;"
    ```
 
 ### High Memory Usage
@@ -297,7 +297,7 @@ pnpm brain-dump clear
 
 2. Check for memory leaks in logs:
    ```bash
-   grep -i "memory" ~/.local/state/brain-dumpy/logs/*.log
+   grep -i "memory" ~/.local/state/brain-dump/logs/*.log
    ```
 
 ## Log Locations
@@ -306,10 +306,10 @@ For debugging any issue, check these logs:
 
 | Log | Location | Content |
 |-----|----------|---------|
-| Main | `~/.local/state/brain-dumpy/logs/brain-dumpy.log` | All operations |
-| MCP | `~/.local/state/brain-dumpy/logs/mcp-server.log` | MCP tool calls |
-| Errors | `~/.local/state/brain-dumpy/logs/error.log` | Errors only |
-| Migration | `~/.local/state/brain-dumpy/migration.log` | Migration history |
+| Main | `~/.local/state/brain-dump/logs/brain-dump.log` | All operations |
+| MCP | `~/.local/state/brain-dump/logs/mcp-server.log` | MCP tool calls |
+| Errors | `~/.local/state/brain-dump/logs/error.log` | Errors only |
+| Migration | `~/.local/state/brain-dump/migration.log` | Migration history |
 
 ### Enabling Debug Logs
 

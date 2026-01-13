@@ -1,5 +1,5 @@
 {
-  "name": "brain-dumpy",
+  "name": "brain-dump",
   "private": true,
   "type": "module",
   "pnpm": {
@@ -28,7 +28,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "ralph:build-sandbox": "docker build -t brain-dumpy-ralph-sandbox:latest -f docker/ralph-sandbox.Dockerfile docker/"
+    "ralph:build-sandbox": "docker build -t brain-dump-ralph-sandbox:latest -f docker/ralph-sandbox.Dockerfile docker/"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

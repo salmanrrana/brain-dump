@@ -1,5 +1,5 @@
 ---
-name: brain-dumpy-tickets
+name: brain-dump-tickets
 description: Manage Brain Dumpy tickets - create, update, track progress, and complete work items. Use when working with Brain Dumpy task management or when asked to create/update tickets.
 ---
 
@@ -17,7 +17,7 @@ This skill provides the knowledge and workflows for managing Brain Dumpy tickets
 
 ## Available MCP Tools
 
-Brain Dumpy provides these MCP tools (prefix with `brain-dumpy/` if needed):
+Brain Dumpy provides these MCP tools (prefix with `brain-dump/` if needed):
 
 ### Project Management
 | Tool | Description |

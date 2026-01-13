@@ -1,0 +1,835 @@
+#!/bin/bash
+# Brain Dumpy - One Command Install
+# Handles prerequisites, dependencies, migrations, and IDE integration
+#
+# Usage:
+#   ./install.sh                  # Install with prompts for IDE choice
+#   ./install.sh --claude         # Install with Claude Code integration
+#   ./install.sh --vscode         # Install with VS Code integration
+#   ./install.sh --claude --vscode # Install with both IDEs
+#   ./install.sh --help           # Show help
+#
+# After cloning, just run:
+#   cd brain-dump && ./install.sh
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Track what was installed for summary
+INSTALLED=()
+SKIPPED=()
+FAILED=()
+
+# Helper functions
+print_header() {
+    echo -e "${BLUE}"
+    echo "╔════════════════════════════════════════════════════════════╗"
+    echo "║          Brain Dumpy - Automated Installer                 ║"
+    echo "╚════════════════════════════════════════════════════════════╝"
+    echo -e "${NC}"
+}
+
+print_step() {
+    echo -e "\n${CYAN}▸ $1${NC}"
+    echo "─────────────────────────────────────────────────────────────"
+}
+
+print_success() {
+    echo -e "${GREEN}✓${NC} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}⚠${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}✗${NC} $1"
+}
+
+print_info() {
+    echo -e "${BLUE}ℹ${NC} $1"
+}
+
+# Detect OS
+detect_os() {
+    case "$(uname -s)" in
+        Darwin*)    OS="macos" ;;
+        Linux*)     OS="linux" ;;
+        MINGW*|MSYS*|CYGWIN*) OS="windows" ;;
+        *)          OS="unknown" ;;
+    esac
+}
+
+# Check if command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Install Node.js via nvm
+install_node() {
+    print_step "Checking Node.js installation"
+
+    if command_exists node; then
+        NODE_VERSION=$(node --version)
+        # Extract major version, handling non-standard formats (e.g., v18.0.0-nightly)
+        MAJOR_VERSION=$(echo "$NODE_VERSION" | sed 's/^v//' | cut -d. -f1 | grep -oE '^[0-9]+' || echo "0")
+        if [ -n "$MAJOR_VERSION" ] && [ "$MAJOR_VERSION" -ge 18 ] 2>/dev/null; then
+            print_success "Node.js already installed: $NODE_VERSION"
+            SKIPPED+=("Node.js (already installed)")
+            return 0
+        else
+            print_warning "Node.js $NODE_VERSION found, but 18+ required"
+        fi
+    fi
+
+    print_info "Node.js 18+ not found. Attempting to install via nvm..."
+
+    # Check for nvm
+    export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+    if [ -s "$NVM_DIR/nvm.sh" ]; then
+        \. "$NVM_DIR/nvm.sh"
+    fi
+
+    if ! command_exists nvm; then
+        print_info "Installing nvm..."
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+
+        # Source nvm
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+        if ! command_exists nvm; then
+            print_error "nvm installation failed"
+            print_info "Please install Node.js 18+ manually:"
+            if [ "$OS" = "macos" ]; then
+                print_info "  brew install node@18"
+            else
+                print_info "  https://nodejs.org/en/download/"
+            fi
+            FAILED+=("Node.js (manual install required)")
+            return 1
+        fi
+        INSTALLED+=("nvm")
+    fi
+
+    # Install Node via nvm
+    print_info "Installing Node.js 18 via nvm..."
+    nvm install 18
+    nvm use 18
+    nvm alias default 18
+
+    if command_exists node; then
+        print_success "Node.js installed: $(node --version)"
+        INSTALLED+=("Node.js 18")
+        return 0
+    else
+        print_error "Node.js installation failed"
+        FAILED+=("Node.js")
+        return 1
+    fi
+}
+
+# Install pnpm
+install_pnpm() {
+    print_step "Checking pnpm installation"
+
+    if command_exists pnpm; then
+        PNPM_VERSION=$(pnpm --version)
+        print_success "pnpm already installed: $PNPM_VERSION"
+        SKIPPED+=("pnpm (already installed)")
+        return 0
+    fi
+
+    print_info "Installing pnpm..."
+
+    if command_exists npm; then
+        npm install -g pnpm
+    elif [ "$OS" = "macos" ] && command_exists brew; then
+        brew install pnpm
+    else
+        curl -fsSL https://get.pnpm.io/install.sh | sh -
+
+        # Source pnpm
+        export PNPM_HOME="$HOME/.local/share/pnpm"
+        export PATH="$PNPM_HOME:$PATH"
+    fi
+
+    # Refresh shell to pick up pnpm
+    hash -r 2>/dev/null || true
+
+    if command_exists pnpm; then
+        print_success "pnpm installed: $(pnpm --version)"
+        INSTALLED+=("pnpm")
+        return 0
+    else
+        print_error "pnpm installation failed"
+        print_info "Try: npm install -g pnpm"
+        FAILED+=("pnpm")
+        return 1
+    fi
+}
+
+# Install project dependencies
+install_dependencies() {
+    print_step "Installing project dependencies"
+
+    if [ ! -f "package.json" ]; then
+        print_error "package.json not found. Are you in the Brain Dumpy directory?"
+        FAILED+=("Project dependencies (wrong directory)")
+        return 1
+    fi
+
+    # Check if node_modules exists and is not empty
+    if [ -d "node_modules" ] && [ "$(ls -A node_modules 2>/dev/null)" ]; then
+        print_info "node_modules exists, checking if up to date..."
+    fi
+
+    print_info "Running pnpm install..."
+    if pnpm install; then
+        print_success "Project dependencies installed"
+        INSTALLED+=("Project dependencies")
+        return 0
+    else
+        print_error "Dependency installation failed"
+        FAILED+=("Project dependencies")
+        return 1
+    fi
+}
+
+# Run database migrations
+run_migrations() {
+    print_step "Setting up database"
+
+    if [ ! -f "drizzle.config.ts" ]; then
+        print_error "drizzle.config.ts not found"
+        FAILED+=("Database migrations (config missing)")
+        return 1
+    fi
+
+    print_info "Running database migrations..."
+
+    # Capture migration output to check for "already exists" errors
+    local migration_output
+    migration_output=$(pnpm db:migrate 2>&1)
+    local migration_status=$?
+
+    if [ $migration_status -eq 0 ]; then
+        print_success "Database migrations complete"
+        INSTALLED+=("Database")
+        return 0
+    elif echo "$migration_output" | grep -q "already exists"; then
+        # Tables already exist - database is already set up
+        print_success "Database already initialized"
+        SKIPPED+=("Database (already exists)")
+        return 0
+    else
+        print_error "Database migration failed"
+        echo "$migration_output" | tail -5
+        FAILED+=("Database migrations")
+        return 1
+    fi
+}
+
+# Configure MCP server in ~/.claude.json
+configure_mcp_server() {
+    print_step "Configuring Claude Code MCP server"
+
+    CLAUDE_CONFIG="$HOME/.claude.json"
+    BRAIN_DUMPY_DIR="$(pwd)"
+    MCP_SERVER_PATH="$BRAIN_DUMPY_DIR/mcp-server/index.js"
+
+    # Check if MCP server file exists
+    if [ ! -f "$MCP_SERVER_PATH" ]; then
+        print_warning "MCP server file not found at $MCP_SERVER_PATH"
+        SKIPPED+=("MCP server (file not found)")
+        return 0
+    fi
+
+    # Handle ~/.claude.json
+    if [ ! -f "$CLAUDE_CONFIG" ]; then
+        print_info "Creating ~/.claude.json..."
+        cat > "$CLAUDE_CONFIG" << EOF
+{
+  "mcpServers": {
+    "brain-dump": {
+      "command": "node",
+      "args": ["$MCP_SERVER_PATH"]
+    }
+  }
+}
+EOF
+        print_success "Created ~/.claude.json with brain-dump server"
+        INSTALLED+=("MCP server config")
+        return 0
+    fi
+
+    # Check if brain-dump already configured
+    if grep -q '"brain-dump"' "$CLAUDE_CONFIG"; then
+        print_success "brain-dump MCP server already configured"
+        SKIPPED+=("MCP server (already configured)")
+        return 0
+    fi
+
+    # Attempt to add to existing config using a temp file
+    print_info "Adding brain-dump to existing ~/.claude.json..."
+
+    if grep -q '"mcpServers"' "$CLAUDE_CONFIG"; then
+        # mcpServers exists, need to add to it
+        # Create a backup first
+        cp "$CLAUDE_CONFIG" "$CLAUDE_CONFIG.backup"
+
+        # Try to use node/jq to merge, or provide manual instructions
+        if command_exists node; then
+            node -e "
+const fs = require('fs');
+const config = JSON.parse(fs.readFileSync('$CLAUDE_CONFIG', 'utf8'));
+config.mcpServers = config.mcpServers || {};
+config.mcpServers['brain-dump'] = {
+    command: 'node',
+    args: ['$MCP_SERVER_PATH']
+};
+fs.writeFileSync('$CLAUDE_CONFIG', JSON.stringify(config, null, 2));
+console.log('Config updated successfully');
+" 2>/dev/null && {
+                print_success "Added brain-dump to ~/.claude.json"
+                INSTALLED+=("MCP server config")
+                return 0
+            }
+        fi
+
+        # Fallback to manual instructions
+        print_warning "Could not auto-merge. Please add this to your mcpServers in ~/.claude.json:"
+        echo ""
+        echo "    \"brain-dump\": {"
+        echo "      \"command\": \"node\","
+        echo "      \"args\": [\"$MCP_SERVER_PATH\"]"
+        echo "    }"
+        echo ""
+        SKIPPED+=("MCP server (manual merge required)")
+    else
+        # No mcpServers section, wrap existing config
+        print_warning "~/.claude.json exists but has no mcpServers section"
+        print_info "Please add the mcpServers section manually:"
+        echo ""
+        cat << EOF
+{
+  "mcpServers": {
+    "brain-dump": {
+      "command": "node",
+      "args": ["$MCP_SERVER_PATH"]
+    }
+  }
+}
+EOF
+        echo ""
+        SKIPPED+=("MCP server (manual config required)")
+    fi
+}
+
+# Install Claude CLI plugins
+install_claude_plugins() {
+    print_step "Installing Claude Code plugins"
+
+    if ! command_exists claude; then
+        print_warning "Claude CLI not found. Skipping plugin installation."
+        print_info "Install Claude CLI: npm install -g @anthropic-ai/claude-code"
+        print_info "Then run: claude plugin install pr-review-toolkit code-simplifier"
+        SKIPPED+=("Claude plugins (CLI not installed)")
+        return 0
+    fi
+
+    local plugins_installed=0
+
+    print_info "Installing pr-review-toolkit..."
+    if claude plugin install pr-review-toolkit 2>/dev/null; then
+        print_success "pr-review-toolkit installed"
+        plugins_installed=$((plugins_installed + 1))
+    else
+        print_warning "pr-review-toolkit already installed or unavailable"
+    fi
+
+    print_info "Installing code-simplifier..."
+    if claude plugin install code-simplifier 2>/dev/null; then
+        print_success "code-simplifier installed"
+        plugins_installed=$((plugins_installed + 1))
+    else
+        print_warning "code-simplifier already installed or unavailable"
+    fi
+
+    if [ $plugins_installed -gt 0 ]; then
+        INSTALLED+=("Claude plugins ($plugins_installed)")
+    else
+        SKIPPED+=("Claude plugins (already installed)")
+    fi
+}
+
+# Setup project-specific Claude config
+setup_project_config() {
+    print_step "Verifying project configuration"
+
+    PROJECT_CLAUDE_DIR=".claude"
+
+    if [ -d "$PROJECT_CLAUDE_DIR" ]; then
+        print_success "Project .claude directory exists"
+
+        # List what's configured
+        if [ -d "$PROJECT_CLAUDE_DIR/hooks" ] && [ "$(ls -A "$PROJECT_CLAUDE_DIR/hooks" 2>/dev/null)" ]; then
+            print_info "  Hooks: $(ls "$PROJECT_CLAUDE_DIR/hooks" | wc -l | tr -d ' ') configured"
+        fi
+        if [ -d "$PROJECT_CLAUDE_DIR/agents" ] && [ "$(ls -A "$PROJECT_CLAUDE_DIR/agents" 2>/dev/null)" ]; then
+            print_info "  Agents: $(ls "$PROJECT_CLAUDE_DIR/agents" | wc -l | tr -d ' ') configured"
+        fi
+        if [ -d "$PROJECT_CLAUDE_DIR/commands" ] && [ "$(ls -A "$PROJECT_CLAUDE_DIR/commands" 2>/dev/null)" ]; then
+            print_info "  Commands: $(ls "$PROJECT_CLAUDE_DIR/commands" | wc -l | tr -d ' ') configured"
+        fi
+
+        SKIPPED+=("Claude project config (already exists)")
+    else
+        print_warning "No .claude directory found"
+        print_info "Project-specific Claude config will be created on first run"
+    fi
+}
+
+# ============================================================================
+# VS Code Integration
+# ============================================================================
+
+# Get VS Code paths based on OS
+get_vscode_paths() {
+    case "$OS" in
+        macos)
+            VSCODE_USER_DIR="$HOME/Library/Application Support/Code/User"
+            VSCODE_INSIDERS_USER_DIR="$HOME/Library/Application Support/Code - Insiders/User"
+            VSCODE_MCP_DIR="$HOME/.vscode"
+            ;;
+        linux)
+            VSCODE_USER_DIR="$HOME/.config/Code/User"
+            VSCODE_INSIDERS_USER_DIR="$HOME/.config/Code - Insiders/User"
+            VSCODE_MCP_DIR="$HOME/.vscode"
+            ;;
+        windows)
+            VSCODE_USER_DIR="$APPDATA/Code/User"
+            VSCODE_INSIDERS_USER_DIR="$APPDATA/Code - Insiders/User"
+            VSCODE_MCP_DIR="$USERPROFILE/.vscode"
+            ;;
+        *)
+            VSCODE_USER_DIR=""
+            VSCODE_INSIDERS_USER_DIR=""
+            VSCODE_MCP_DIR=""
+            ;;
+    esac
+
+    # Detect which VS Code is installed
+    if [ -d "$VSCODE_USER_DIR" ]; then
+        VSCODE_TARGET="$VSCODE_USER_DIR"
+        VSCODE_TYPE="VS Code"
+    elif [ -d "$VSCODE_INSIDERS_USER_DIR" ]; then
+        VSCODE_TARGET="$VSCODE_INSIDERS_USER_DIR"
+        VSCODE_TYPE="VS Code Insiders"
+    else
+        VSCODE_TARGET=""
+        VSCODE_TYPE=""
+    fi
+}
+
+# Configure MCP server for VS Code
+configure_vscode_mcp() {
+    print_step "Configuring VS Code MCP server"
+
+    get_vscode_paths
+
+    BRAIN_DUMPY_DIR="$(pwd)"
+    MCP_SERVER_PATH="$BRAIN_DUMPY_DIR/mcp-server/index.js"
+
+    # Ensure VSCODE_MCP_DIR is set before creating directory
+    if [ -z "$VSCODE_MCP_DIR" ]; then
+        print_error "Could not determine VS Code MCP directory"
+        FAILED+=("VS Code MCP server (unknown directory)")
+        return 1
+    fi
+
+    # Create MCP config directory
+    mkdir -p "$VSCODE_MCP_DIR"
+
+    MCP_CONFIG_FILE="$VSCODE_MCP_DIR/mcp.json"
+
+    # Check if mcp.json already exists
+    if [ -f "$MCP_CONFIG_FILE" ]; then
+        if grep -q '"brain-dump"' "$MCP_CONFIG_FILE"; then
+            print_success "brain-dump MCP server already configured in VS Code"
+            SKIPPED+=("VS Code MCP server (already configured)")
+            return 0
+        fi
+
+        # Try to add to existing config
+        print_info "Adding brain-dump to existing mcp.json..."
+
+        if command_exists node; then
+            node -e "
+const fs = require('fs');
+const config = JSON.parse(fs.readFileSync('$MCP_CONFIG_FILE', 'utf8'));
+config.servers = config.servers || {};
+config.servers['brain-dump'] = {
+    type: 'stdio',
+    command: 'node',
+    args: ['$MCP_SERVER_PATH']
+};
+fs.writeFileSync('$MCP_CONFIG_FILE', JSON.stringify(config, null, 2));
+console.log('Config updated successfully');
+" 2>/dev/null && {
+                print_success "Added brain-dump to ~/.vscode/mcp.json"
+                INSTALLED+=("VS Code MCP server")
+                return 0
+            }
+        fi
+
+        # Fallback to manual instructions
+        print_warning "Could not auto-merge. Please add this to servers in ~/.vscode/mcp.json:"
+        echo ""
+        echo '  "brain-dump": {'
+        echo '    "type": "stdio",'
+        echo '    "command": "node",'
+        echo "    \"args\": [\"$MCP_SERVER_PATH\"]"
+        echo '  }'
+        echo ""
+        SKIPPED+=("VS Code MCP server (manual merge required)")
+    else
+        print_info "Creating ~/.vscode/mcp.json..."
+        cat > "$MCP_CONFIG_FILE" << EOF
+{
+  "servers": {
+    "brain-dump": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["$MCP_SERVER_PATH"]
+    }
+  }
+}
+EOF
+        print_success "Created ~/.vscode/mcp.json with brain-dump server"
+        INSTALLED+=("VS Code MCP server")
+    fi
+}
+
+# Setup VS Code agents from .github/agents
+setup_vscode_agents() {
+    print_step "Setting up VS Code agents"
+
+    get_vscode_paths
+
+    if [ -z "$VSCODE_TARGET" ]; then
+        print_warning "VS Code user directory not found"
+        print_info "Install VS Code first, then re-run with --vscode"
+        SKIPPED+=("VS Code agents (VS Code not found)")
+        return 0
+    fi
+
+    print_info "Found $VSCODE_TYPE"
+
+    AGENTS_SOURCE=".github/agents"
+    AGENTS_TARGET="$VSCODE_TARGET/agents"
+
+    if [ ! -d "$AGENTS_SOURCE" ]; then
+        print_warning "No .github/agents directory found in project"
+        SKIPPED+=("VS Code agents (no source agents)")
+        return 0
+    fi
+
+    mkdir -p "$AGENTS_TARGET"
+
+    local agents_linked=0
+
+    # Enable nullglob to handle case when no matching files exist
+    local old_nullglob
+    old_nullglob=$(shopt -p nullglob 2>/dev/null || echo "shopt -u nullglob")
+    shopt -s nullglob
+
+    for agent_file in "$AGENTS_SOURCE"/*.agent.md; do
+        if [ -f "$agent_file" ]; then
+            local agent_name=$(basename "$agent_file")
+            local target_path="$AGENTS_TARGET/$agent_name"
+
+            if [ -L "$target_path" ] || [ -e "$target_path" ]; then
+                print_info "  $agent_name (exists, skipping)"
+            else
+                ln -s "$(pwd)/$agent_file" "$target_path" 2>/dev/null || cp "$agent_file" "$target_path"
+                print_success "  $agent_name"
+                agents_linked=$((agents_linked + 1))
+            fi
+        fi
+    done
+
+    # Restore previous nullglob setting
+    eval "$old_nullglob"
+
+    if [ $agents_linked -gt 0 ]; then
+        INSTALLED+=("VS Code agents ($agents_linked)")
+    else
+        SKIPPED+=("VS Code agents (already linked)")
+    fi
+}
+
+# Prompt user to select IDE(s)
+prompt_ide_selection() {
+    echo ""
+    echo -e "${CYAN}Which IDE(s) do you use?${NC}"
+    echo ""
+    echo "  1) Claude Code (CLI)"
+    echo "  2) VS Code"
+    echo "  3) Both"
+    echo "  4) Skip IDE setup (just install Brain Dumpy)"
+    echo ""
+    read -r -p "Enter choice [1-4]: " choice
+
+    case $choice in
+        1)
+            SETUP_CLAUDE=true
+            SETUP_VSCODE=false
+            ;;
+        2)
+            SETUP_CLAUDE=false
+            SETUP_VSCODE=true
+            ;;
+        3)
+            SETUP_CLAUDE=true
+            SETUP_VSCODE=true
+            ;;
+        4)
+            SETUP_CLAUDE=false
+            SETUP_VSCODE=false
+            ;;
+        *)
+            print_warning "Invalid choice, defaulting to Claude Code"
+            SETUP_CLAUDE=true
+            SETUP_VSCODE=false
+            ;;
+    esac
+}
+
+# Print data locations based on OS
+print_data_locations() {
+    if [ "$OS" = "macos" ]; then
+        echo "  Database:    ~/Library/Application Support/brain-dump/brain-dump.db"
+        echo "  Attachments: ~/Library/Application Support/brain-dump/attachments/"
+        echo "  Backups:     ~/Library/Application Support/brain-dump/backups/"
+    else
+        echo "  Database:    ~/.local/share/brain-dump/brain-dump.db"
+        echo "  Attachments: ~/.local/share/brain-dump/attachments/"
+        echo "  Backups:     ~/.local/state/brain-dump/backups/"
+    fi
+}
+
+# Print installation summary
+print_summary() {
+    echo ""
+    echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║              Installation Complete!                        ║${NC}"
+    echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    if [ ${#INSTALLED[@]} -gt 0 ]; then
+        echo -e "${GREEN}Installed:${NC}"
+        for item in "${INSTALLED[@]}"; do
+            echo "  ✓ ${item}"
+        done
+        echo ""
+    fi
+
+    if [ ${#SKIPPED[@]} -gt 0 ]; then
+        echo -e "${YELLOW}Skipped (already configured):${NC}"
+        for item in "${SKIPPED[@]}"; do
+            echo "  • ${item}"
+        done
+        echo ""
+    fi
+
+    if [ ${#FAILED[@]} -gt 0 ]; then
+        echo -e "${RED}Failed (manual action needed):${NC}"
+        for item in "${FAILED[@]}"; do
+            echo "  ✗ ${item}"
+        done
+        echo ""
+    fi
+
+    echo -e "${BLUE}Next steps:${NC}"
+    echo -e "  1. Start Brain Dumpy:  ${CYAN}pnpm dev${NC}"
+    echo -e "  2. Open browser:       ${CYAN}http://localhost:4242${NC}"
+    echo -e "  3. Create a project and ticket"
+
+    if [ "$SETUP_CLAUDE" = true ]; then
+        echo "  4. Click 'Start with Claude' on a ticket"
+        if ! command_exists claude; then
+            echo ""
+            echo -e "${YELLOW}Note:${NC} Install Claude CLI for full integration"
+            echo "  npm install -g @anthropic-ai/claude-code"
+        fi
+    fi
+
+    if [ "$SETUP_VSCODE" = true ]; then
+        echo "  4. Restart VS Code to load MCP server"
+        echo "  5. Use @ralph or /start-ticket in Copilot Chat"
+    fi
+
+    echo ""
+
+    echo -e "${BLUE}Data locations:${NC}"
+    print_data_locations
+    echo ""
+
+    # Show how to add other IDE later
+    if [ "$SETUP_CLAUDE" = true ] && [ "$SETUP_VSCODE" = false ]; then
+        echo -e "${BLUE}Want VS Code too?${NC} Run: ${CYAN}./install.sh --vscode${NC}"
+        echo ""
+    elif [ "$SETUP_VSCODE" = true ] && [ "$SETUP_CLAUDE" = false ]; then
+        echo -e "${BLUE}Want Claude Code too?${NC} Run: ${CYAN}./install.sh --claude${NC}"
+        echo ""
+    fi
+}
+
+# Show help
+show_help() {
+    echo "Brain Dumpy Installer"
+    echo ""
+    echo "Usage: ./install.sh [options]"
+    echo ""
+    echo "IDE Options (pick one or both):"
+    echo "  --claude    Set up Claude Code integration (MCP server + plugins)"
+    echo "  --vscode    Set up VS Code integration (MCP server + agents)"
+    echo ""
+    echo "  If no IDE flag is provided, you'll be prompted to choose."
+    echo ""
+    echo "Other Options:"
+    echo "  --help      Show this help message"
+    echo "  --skip-node Skip Node.js installation check"
+    echo ""
+    echo "Examples:"
+    echo "  ./install.sh --claude          # Claude Code only"
+    echo "  ./install.sh --vscode          # VS Code only"
+    echo "  ./install.sh --claude --vscode # Both IDEs"
+    echo "  ./install.sh                   # Interactive prompt"
+    echo ""
+    echo "This script will:"
+    echo "  1. Install Node.js 18+ via nvm (if needed)"
+    echo "  2. Install pnpm (if needed)"
+    echo "  3. Install project dependencies"
+    echo "  4. Run database migrations"
+    echo "  5. Configure MCP server for your chosen IDE(s)"
+    echo "  6. Install plugins/agents as applicable"
+    echo ""
+    echo "The script is idempotent - safe to run multiple times."
+}
+
+# Main installation flow
+main() {
+    # Parse arguments
+    SKIP_NODE=false
+    SETUP_CLAUDE=false
+    SETUP_VSCODE=false
+    IDE_FLAG_PROVIDED=false
+
+    for arg in "$@"; do
+        case $arg in
+            --help|-h)
+                show_help
+                exit 0
+                ;;
+            --skip-node)
+                SKIP_NODE=true
+                ;;
+            --claude)
+                SETUP_CLAUDE=true
+                IDE_FLAG_PROVIDED=true
+                ;;
+            --vscode)
+                SETUP_VSCODE=true
+                IDE_FLAG_PROVIDED=true
+                ;;
+        esac
+    done
+
+    print_header
+
+    detect_os
+    print_info "Detected OS: $OS"
+
+    # Get the directory where the script is located
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+    # Change to script directory if not already there
+    if [ "$(pwd)" != "$SCRIPT_DIR" ]; then
+        print_info "Changing to Brain Dumpy directory: $SCRIPT_DIR"
+        cd "$SCRIPT_DIR"
+    fi
+
+    # Check if we're in the right directory
+    if [ ! -f "package.json" ]; then
+        print_error "package.json not found in $SCRIPT_DIR"
+        print_info "Please run this script from the brain-dump repository root"
+        exit 1
+    fi
+
+    if ! grep -q '"name"' package.json || ! grep -q 'brain-dump' package.json; then
+        print_warning "This doesn't look like the Brain Dumpy repository"
+        print_info "Continuing anyway..."
+    fi
+
+    # If no IDE flag provided, prompt user
+    if [ "$IDE_FLAG_PROVIDED" = false ]; then
+        prompt_ide_selection
+    fi
+
+    echo ""
+
+    # Run installation steps
+    if [ "$SKIP_NODE" = false ]; then
+        install_node || true
+    else
+        print_step "Skipping Node.js check (--skip-node)"
+        SKIPPED+=("Node.js (skipped)")
+    fi
+
+    install_pnpm || true
+    install_dependencies || true
+    run_migrations || true
+
+    # Claude Code setup
+    if [ "$SETUP_CLAUDE" = true ]; then
+        configure_mcp_server || true
+        install_claude_plugins || true
+        setup_project_config || true
+    fi
+
+    # VS Code setup
+    if [ "$SETUP_VSCODE" = true ]; then
+        configure_vscode_mcp || true
+        setup_vscode_agents || true
+    fi
+
+    # If no IDE selected, just note it
+    if [ "$SETUP_CLAUDE" = false ] && [ "$SETUP_VSCODE" = false ]; then
+        print_step "Skipping IDE integration"
+        print_info "Run again with --claude or --vscode to set up IDE integration"
+        SKIPPED+=("IDE integration (not selected)")
+    fi
+
+    # Print summary
+    print_summary
+
+    # Exit with error if critical components failed
+    for item in "${FAILED[@]}"; do
+        if [[ "$item" == *"Node.js"* ]] || [[ "$item" == *"pnpm"* ]] || [[ "$item" == *"dependencies"* ]]; then
+            print_error "Critical component failed. Please resolve the issues above."
+            exit 1
+        fi
+    done
+}
+
+# Run main function
+main "$@"

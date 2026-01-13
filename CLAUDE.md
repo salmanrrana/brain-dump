@@ -64,9 +64,9 @@ Full-text search via SQLite FTS5 on tickets (title, description, tags).
 
 ### Data Storage (XDG Compliance)
 Cross-platform paths defined in `src/lib/xdg.ts`:
-- **Linux**: `~/.local/share/brain-dumpy/` (data), `~/.local/state/brain-dumpy/` (logs, backups)
-- **macOS**: `~/Library/Application Support/brain-dumpy/`
-- **Windows**: `%APPDATA%\brain-dumpy\`
+- **Linux**: `~/.local/share/brain-dump/` (data), `~/.local/state/brain-dump/` (logs, backups)
+- **macOS**: `~/Library/Application Support/brain-dump/`
+- **Windows**: `%APPDATA%\brain-dump\`
 
 Legacy migration from `~/.brain-dump/` is automatic on first run.
 

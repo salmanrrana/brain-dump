@@ -180,7 +180,7 @@ function generateRalphScript(
   maxIterations: number = 10,
   useSandbox: boolean = false
 ): string {
-  const imageName = "brain-dumpy-ralph-sandbox:latest";
+  const imageName = "brain-dump-ralph-sandbox:latest";
   const sandboxHeader = useSandbox ? " (Docker Sandbox)" : "";
   const containerInfo = useSandbox ? `echo -e "\\033[1;33m🐳 Container:\\033[0m ${imageName}"` : "";
 
@@ -331,26 +331,26 @@ async function validateDockerSetup(): Promise<{ success: true } | { success: fal
 
   // Check if image exists, build if not
   try {
-    await execAsync("docker image inspect brain-dumpy-ralph-sandbox:latest");
+    await execAsync("docker image inspect brain-dump-ralph-sandbox:latest");
   } catch {
     // Image doesn't exist, try to build it
-    console.log("[brain-dumpy] Building sandbox image...");
+    console.log("[brain-dump] Building sandbox image...");
     const dockerfilePath = join(process.cwd(), "docker", "ralph-sandbox.Dockerfile");
     const contextPath = join(process.cwd(), "docker");
 
     if (!existsSync(dockerfilePath)) {
       return {
         success: false,
-        message: "Dockerfile not found. Please ensure brain-dumpy is installed correctly.",
+        message: "Dockerfile not found. Please ensure brain-dump is installed correctly.",
       };
     }
 
     try {
       await execAsync(
-        `docker build -t brain-dumpy-ralph-sandbox:latest -f "${dockerfilePath}" "${contextPath}"`,
+        `docker build -t brain-dump-ralph-sandbox:latest -f "${dockerfilePath}" "${contextPath}"`,
         { timeout: 300000 }
       );
-      console.log("[brain-dumpy] Sandbox image built successfully");
+      console.log("[brain-dump] Sandbox image built successfully");
     } catch (buildError) {
       return {
         success: false,

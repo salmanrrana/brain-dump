@@ -2,7 +2,7 @@
 name: breakdown
 description: Use this agent to break down a spec.md into epics and tickets in Brain Dumpy. Creates well-structured, actionable tickets sized for 1-4 hours of work. Invoke when user has a spec and wants to generate a backlog of tickets for development.
 model: sonnet
-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__brain-dumpy__find_project_by_path, mcp__brain-dumpy__create_project, mcp__brain-dumpy__create_epic, mcp__brain-dumpy__create_ticket, mcp__brain-dumpy__list_epics
+tools: Bash, Read, Write, Edit, Glob, Grep, mcp__brain-dump__find_project_by_path, mcp__brain-dump__create_project, mcp__brain-dump__create_epic, mcp__brain-dump__create_ticket, mcp__brain-dump__list_epics
 ---
 
 # Spec Breakdown Agent

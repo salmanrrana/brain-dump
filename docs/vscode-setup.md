@@ -7,7 +7,7 @@ Brain Dumpy serves as "ground control" for your AI-assisted development workflow
 Run the setup script to configure everything automatically:
 
 ```bash
-cd /path/to/brain-dumpy
+cd /path/to/brain-dump
 ./scripts/setup-vscode.sh
 ```
 
@@ -41,10 +41,10 @@ Create `~/.vscode/mcp.json` (global) or `.vscode/mcp.json` (per-project):
 ```json
 {
   "servers": {
-    "brain-dumpy": {
+    "brain-dump": {
       "type": "stdio",
       "command": "node",
-      "args": ["/path/to/brain-dumpy/mcp-server/index.js"]
+      "args": ["/path/to/brain-dump/mcp-server/index.js"]
     }
   }
 }
@@ -62,9 +62,9 @@ Copy from Brain Dumpy to your VS Code user profile:
 
 ```bash
 # Linux example
-cp -r /path/to/brain-dumpy/agents-example/.github/agents ~/.config/Code/User/
-cp -r /path/to/brain-dumpy/agents-example/.github/skills ~/.config/Code/User/
-cp -r /path/to/brain-dumpy/agents-example/.github/prompts ~/.config/Code/User/
+cp -r /path/to/brain-dump/agents-example/.github/agents ~/.config/Code/User/
+cp -r /path/to/brain-dump/agents-example/.github/skills ~/.config/Code/User/
+cp -r /path/to/brain-dump/agents-example/.github/prompts ~/.config/Code/User/
 ```
 
 ### Step 3: Restart VS Code

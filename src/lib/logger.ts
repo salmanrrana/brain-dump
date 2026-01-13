@@ -4,7 +4,7 @@ import { getLogsDir, ensureDirectoriesSync } from "./xdg";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_FILES = 5;
-const APP_LOG_FILE = "brain-dumpy.log";
+const APP_LOG_FILE = "brain-dump.log";
 const MCP_LOG_FILE = "mcp-server.log";
 const ERROR_LOG_FILE = "error.log";
 

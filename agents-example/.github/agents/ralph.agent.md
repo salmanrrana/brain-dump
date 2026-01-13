@@ -8,7 +8,7 @@ tools:
   - search
   - githubRepo
   - fetch
-  - brain-dumpy/*
+  - brain-dump/*
 model: Claude Sonnet 4
 handoffs:
   - label: Review Code

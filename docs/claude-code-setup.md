@@ -7,7 +7,7 @@ Brain Dumpy integrates natively with Claude Code (Anthropic's CLI). This guide c
 Run the setup script:
 
 ```bash
-cd /path/to/brain-dumpy
+cd /path/to/brain-dump
 ./scripts/setup-claude-code.sh
 ```
 
@@ -20,9 +20,9 @@ Add to your `~/.claude.json`:
 ```json
 {
   "mcpServers": {
-    "brain-dumpy": {
+    "brain-dump": {
       "command": "node",
-      "args": ["/path/to/brain-dumpy/mcp-server/index.js"]
+      "args": ["/path/to/brain-dump/mcp-server/index.js"]
     }
   }
 }
@@ -211,7 +211,7 @@ Automatically update ticket status when Claude finishes work. Add to `~/.claude.
   "hooks": {
     "PostToolUse": [
       {
-        "command": "cd /path/to/brain-dumpy && pnpm brain-dump done",
+        "command": "cd /path/to/brain-dump && pnpm brain-dump done",
         "trigger": "when the task is complete"
       }
     ]

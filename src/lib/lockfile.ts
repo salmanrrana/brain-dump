@@ -2,7 +2,7 @@ import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync } from "
 import { join } from "path";
 import { getStateDir } from "./xdg";
 
-const LOCK_FILE_NAME = "brain-dumpy.lock";
+const LOCK_FILE_NAME = "brain-dump.lock";
 
 export interface LockInfo {
   pid: number;
@@ -101,7 +101,7 @@ export function acquireLock(type: LockInfo["type"]): {
   if (check.isStale) {
     try {
       unlinkSync(lockPath);
-      console.error(`[brain-dumpy] Cleaned up stale lock file`);
+      console.error(`[brain-dump] Cleaned up stale lock file`);
     } catch (error) {
       console.error(`[Lockfile] Failed to cleanup stale lock file: ${error}`);
     }
@@ -118,7 +118,7 @@ export function acquireLock(type: LockInfo["type"]): {
     }
 
     console.error(
-      `[brain-dumpy] Warning: ${check.message}. Concurrent access may cause issues.`
+      `[brain-dump] Warning: ${check.message}. Concurrent access may cause issues.`
     );
   }
 
@@ -193,7 +193,7 @@ export function setupGracefulShutdown(
     }
     isShuttingDown = true;
 
-    console.error(`[brain-dumpy] Received ${signal}, shutting down gracefully`);
+    console.error(`[brain-dump] Received ${signal}, shutting down gracefully`);
 
     try {
       if (cleanupCallback) {
@@ -202,11 +202,11 @@ export function setupGracefulShutdown(
 
       const result = releaseLock();
       if (result.released) {
-        console.error(`[brain-dumpy] ${result.message}`);
+        console.error(`[brain-dump] ${result.message}`);
       }
     } catch (e) {
       const error = e as Error;
-      console.error(`[brain-dumpy] Error during shutdown: ${error.message}`);
+      console.error(`[brain-dump] Error during shutdown: ${error.message}`);
     }
 
     process.exit(signal === "SIGTERM" || signal === "SIGINT" ? 0 : 1);
@@ -217,13 +217,13 @@ export function setupGracefulShutdown(
   process.on("SIGQUIT", () => shutdown("SIGQUIT"));
 
   process.on("uncaughtException", (error) => {
-    console.error(`[brain-dumpy] Uncaught exception:`, error);
+    console.error(`[brain-dump] Uncaught exception:`, error);
     releaseLock();
     process.exit(1);
   });
 
   process.on("unhandledRejection", (reason) => {
-    console.error(`[brain-dumpy] Unhandled rejection:`, reason);
+    console.error(`[brain-dump] Unhandled rejection:`, reason);
     releaseLock();
     process.exit(1);
   });

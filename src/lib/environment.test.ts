@@ -95,7 +95,7 @@ describe("Environment Detection", () => {
     });
 
     it("should detect MCP_SERVER_NAME env var", () => {
-      process.env.MCP_SERVER_NAME = "brain-dumpy";
+      process.env.MCP_SERVER_NAME = "brain-dump";
       expect(detectEnvironment()).toBe("claude-code");
     });
 

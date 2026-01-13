@@ -94,15 +94,15 @@ MCP_CONFIG_FILE="$VSCODE_MCP_DIR/mcp.json"
 
 # Check if mcp.json already exists
 if [ -f "$MCP_CONFIG_FILE" ]; then
-    echo -e "${YELLOW}Existing mcp.json found. Checking for brain-dumpy server...${NC}"
-    if grep -q '"brain-dumpy"' "$MCP_CONFIG_FILE"; then
+    echo -e "${YELLOW}Existing mcp.json found. Checking for brain-dump server...${NC}"
+    if grep -q '"brain-dump"' "$MCP_CONFIG_FILE"; then
         echo -e "${GREEN}Brain Dumpy MCP server already configured.${NC}"
     else
-        echo -e "${YELLOW}Adding brain-dumpy server to existing config...${NC}"
+        echo -e "${YELLOW}Adding brain-dump server to existing config...${NC}"
         # This is a simple approach - for complex configs, manual editing may be needed
-        echo -e "${RED}Please manually add the brain-dumpy server to your mcp.json:${NC}"
+        echo -e "${RED}Please manually add the brain-dump server to your mcp.json:${NC}"
         echo ""
-        echo '  "brain-dumpy": {'
+        echo '  "brain-dump": {'
         echo '    "type": "stdio",'
         echo '    "command": "node",'
         echo "    \"args\": [\"$BRAIN_DUMPY_DIR/mcp-server/index.js\"]"
@@ -113,7 +113,7 @@ else
     cat > "$MCP_CONFIG_FILE" << EOF
 {
   "servers": {
-    "brain-dumpy": {
+    "brain-dump": {
       "type": "stdio",
       "command": "node",
       "args": ["$BRAIN_DUMPY_DIR/mcp-server/index.js"]
@@ -260,9 +260,9 @@ echo -e "${GREEN}║                    Setup Complete!                         
 echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${BLUE}What's been configured:${NC}"
-echo "  • MCP Server: brain-dumpy (ticket management tools)"
+echo "  • MCP Server: brain-dump (ticket management tools)"
 echo "  • Agents: Ralph, Ticket Worker, Planner, Code Reviewer, Code Simplifier"
-echo "  • Skills: brain-dumpy-tickets, ralph-workflow, auto-review"
+echo "  • Skills: brain-dump-tickets, ralph-workflow, auto-review"
 echo "  • Prompts: /start-ticket, /complete-ticket, /create-tickets, /auto-review"
 echo ""
 echo -e "${BLUE}Auto-Review in VS Code:${NC}"

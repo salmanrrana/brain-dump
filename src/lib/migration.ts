@@ -35,7 +35,7 @@ export function isMigrationComplete(): boolean {
 }
 
 export function hasXdgData(): boolean {
-  const xdgDb = join(getDataDir(), "brain-dumpy.db");
+  const xdgDb = join(getDataDir(), "brain-dump.db");
   return existsSync(xdgDb);
 }
 
@@ -189,7 +189,7 @@ export async function migrateFromLegacy(): Promise<MigrationResult> {
   if (hasXdgData()) {
     logMigration("XDG location already has data, skipping migration");
     console.warn(
-      "[Migration] Both legacy (~/.brain-dump) and XDG (~/.local/share/brain-dumpy) locations have data. " +
+      "[Migration] Both legacy (~/.brain-dump) and XDG (~/.local/share/brain-dump) locations have data. " +
       "Using XDG location. You may want to manually merge or remove the legacy data."
     );
     return {
@@ -219,7 +219,7 @@ export async function migrateFromLegacy(): Promise<MigrationResult> {
     const backupPath = createPreMigrationBackup(legacyDbPath);
     details.backupCreated = backupPath !== null;
 
-    const xdgDbPath = join(xdgDataDir, "brain-dumpy.db");
+    const xdgDbPath = join(xdgDataDir, "brain-dump.db");
     logMigration(`Copying database from ${legacyDbPath} to ${xdgDbPath}`);
 
     copyFileSafe(legacyDbPath, xdgDbPath);
@@ -290,7 +290,7 @@ export function migrateFromLegacySync(): MigrationResult {
 
   if (hasXdgData()) {
     console.warn(
-      "[Migration] Both legacy (~/.brain-dump) and XDG (~/.local/share/brain-dumpy) locations have data. " +
+      "[Migration] Both legacy (~/.brain-dump) and XDG (~/.local/share/brain-dump) locations have data. " +
       "Using XDG location."
     );
     return {
@@ -319,7 +319,7 @@ export function migrateFromLegacySync(): MigrationResult {
     const backupPath = createPreMigrationBackup(legacyDbPath);
     details.backupCreated = backupPath !== null;
 
-    const xdgDbPath = join(xdgDataDir, "brain-dumpy.db");
+    const xdgDbPath = join(xdgDataDir, "brain-dump.db");
     copyFileSafe(legacyDbPath, xdgDbPath);
     details.databaseCopied = true;
 
