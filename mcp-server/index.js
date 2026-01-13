@@ -17,7 +17,7 @@ import Database from "better-sqlite3";
 import { randomUUID } from "crypto";
 import { homedir } from "os";
 import { join } from "path";
-import { existsSync, writeFileSync, unlinkSync, readFileSync, mkdirSync, watch, copyFileSync, readdirSync, constants } from "fs";
+import { existsSync, writeFileSync, unlinkSync, readFileSync, mkdirSync, watch, copyFileSync, statSync, appendFileSync, constants } from "fs";
 import { execSync } from "child_process";
 import { dirname, basename } from "path";
 
@@ -61,6 +61,13 @@ import {
   acquireLock,
   releaseLock,
 } from "./lib/lock.js";
+import {
+  createBackupIfNeeded,
+  listBackups,
+  cleanupOldBackups,
+  verifyBackup,
+  performDailyBackupSync,
+} from "./lib/backup.js";
 
 // =============================================================================
 // ENVIRONMENT DETECTION
@@ -246,151 +253,6 @@ function setupGracefulShutdown(dbInstance) {
       try { unlinkSync(getLockFilePath()); } catch { /* ignore */ }
     }
   });
-}
-
-// =============================================================================
-// BACKUP UTILITIES
-// =============================================================================
-const BACKUP_PREFIX = "brain-dump-";
-const BACKUP_SUFFIX = ".db";
-const LAST_BACKUP_FILE = ".last-backup";
-
-function getTodayDateString() {
-  return new Date().toISOString().split("T")[0];
-}
-
-function getLastBackupMarkerPath() {
-  return join(getBackupsDir(), LAST_BACKUP_FILE);
-}
-
-function wasBackupCreatedToday() {
-  const markerPath = getLastBackupMarkerPath();
-  if (!existsSync(markerPath)) return false;
-  try {
-    const stats = statSync(markerPath);
-    const markerDate = stats.mtime.toISOString().split("T")[0];
-    return markerDate === getTodayDateString();
-  } catch {
-    return false;
-  }
-}
-
-function updateLastBackupMarker() {
-  try {
-    const markerPath = getLastBackupMarkerPath();
-    writeFileSync(markerPath, new Date().toISOString(), { mode: 0o600 });
-  } catch (error) {
-    log.error("Failed to update backup marker", error);
-  }
-}
-
-function getBackupFilename(dateString) {
-  const date = dateString || getTodayDateString();
-  return `${BACKUP_PREFIX}${date}${BACKUP_SUFFIX}`;
-}
-
-function getTodayBackupPath() {
-  return join(getBackupsDir(), getBackupFilename());
-}
-
-function verifyBackup(backupPath) {
-  if (!existsSync(backupPath)) return false;
-  try {
-    const testDb = new Database(backupPath, { readonly: true });
-    const result = testDb.pragma("integrity_check");
-    testDb.close();
-    return result.length === 1 && result[0].integrity_check === "ok";
-  } catch {
-    return false;
-  }
-}
-
-function createBackupIfNeeded(sourcePath) {
-  // Check if backup already exists for today
-  if (wasBackupCreatedToday()) {
-    return { success: true, created: false, message: "Backup already created today" };
-  }
-
-  const backupPath = getTodayBackupPath();
-  if (existsSync(backupPath)) {
-    updateLastBackupMarker();
-    return { success: true, created: false, message: "Today's backup already exists", backupPath };
-  }
-
-  // Verify source database exists
-  if (!existsSync(sourcePath)) {
-    return { success: false, created: false, message: `Source database not found: ${sourcePath}` };
-  }
-
-  try {
-    // Open source database in readonly mode and create backup using VACUUM INTO
-    const srcDb = new Database(sourcePath, { readonly: true });
-    srcDb.exec(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
-    srcDb.close();
-
-    // Verify the backup
-    if (!verifyBackup(backupPath)) {
-      try { unlinkSync(backupPath); } catch { /* ignore */ }
-      return { success: false, created: false, message: "Backup created but failed integrity check" };
-    }
-
-    updateLastBackupMarker();
-    log.info(`Created backup: ${backupPath}`);
-    return { success: true, created: true, message: "Backup created successfully", backupPath };
-  } catch (error) {
-    log.error("Failed to create backup", error);
-    return { success: false, created: false, message: `Backup failed: ${error.message}` };
-  }
-}
-
-function listBackups() {
-  const backupsDir = getBackupsDir();
-  if (!existsSync(backupsDir)) return [];
-
-  const files = readdirSync(backupsDir);
-  const backups = [];
-
-  for (const file of files) {
-    const match = file.match(/^brain-dump-(\d{4}-\d{2}-\d{2})\.db$/);
-    if (match) {
-      const filePath = join(backupsDir, file);
-      try {
-        const stats = statSync(filePath);
-        backups.push({ filename: file, date: match[1], path: filePath, size: stats.size });
-      } catch { /* skip */ }
-    }
-  }
-
-  return backups.sort((a, b) => b.date.localeCompare(a.date));
-}
-
-function cleanupOldBackups(keepDays = 7) {
-  const backups = listBackups();
-
-  if (backups.length <= keepDays) {
-    return { success: true, deleted: 0, message: `No cleanup needed (${backups.length} backups)` };
-  }
-
-  const toDelete = backups.slice(keepDays);
-  let deleted = 0;
-
-  for (const backup of toDelete) {
-    try {
-      unlinkSync(backup.path);
-      deleted++;
-      log.info(`Deleted old backup: ${backup.filename}`);
-    } catch (error) {
-      log.error(`Failed to delete ${backup.filename}`, error);
-    }
-  }
-
-  return { success: true, deleted, message: `Cleaned up ${deleted} old backup(s)` };
-}
-
-function performDailyBackupSync(sourcePath) {
-  const backup = createBackupIfNeeded(sourcePath);
-  const cleanup = cleanupOldBackups(7);
-  return { backup, cleanup };
 }
 
 // =============================================================================
