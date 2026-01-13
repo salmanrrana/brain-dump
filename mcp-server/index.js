@@ -68,6 +68,10 @@ import {
   verifyBackup,
   performDailyBackupSync,
 } from "./lib/backup.js";
+import {
+  validateRequired,
+  validateEnum,
+} from "./lib/validation.js";
 
 // =============================================================================
 // ENVIRONMENT DETECTION
@@ -412,24 +416,6 @@ try {
 } catch (error) {
   log.error(`Failed to open database`, error);
   process.exit(1);
-}
-
-// =============================================================================
-// VALIDATION HELPERS
-// =============================================================================
-function validateRequired(args, fields) {
-  const missing = fields.filter(f => !args[f] || (typeof args[f] === "string" && !args[f].trim()));
-  if (missing.length > 0) {
-    return `Missing required fields: ${missing.join(", ")}`;
-  }
-  return null;
-}
-
-function validateEnum(value, allowed, fieldName) {
-  if (value && !allowed.includes(value)) {
-    return `Invalid ${fieldName}: "${value}". Must be one of: ${allowed.join(", ")}`;
-  }
-  return null;
 }
 
 // =============================================================================
