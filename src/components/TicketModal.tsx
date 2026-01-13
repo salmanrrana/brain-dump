@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import type { Ticket, Epic } from "../lib/hooks";
 import { useUpdateTicket, useSettings, useLaunchRalphForTicket, useComments, useCreateComment } from "../lib/hooks";
+import { useToast } from "./Toast";
 import type { Subtask, TicketStatus, TicketPriority } from "../api/tickets";
 import {
   getAttachments,
@@ -93,6 +94,9 @@ export default function TicketModal({
 
   // Get settings for terminal preference
   const { settings } = useSettings();
+
+  // Toast notifications
+  const { showToast } = useToast();
 
   // Ralph mutation hook
   const launchRalphMutation = useLaunchRalphForTicket();
@@ -229,6 +233,11 @@ export default function TicketModal({
         },
       });
 
+      // Show any warnings (e.g., preferred terminal not available)
+      if (launchResult.warnings) {
+        launchResult.warnings.forEach((warning) => showToast("info", warning));
+      }
+
       if (launchResult.success && launchResult.method === "terminal") {
         // Update local status to in_progress
         setStatus("in_progress");
@@ -240,8 +249,19 @@ export default function TicketModal({
 
         // Trigger parent update to refresh ticket list
         setTimeout(() => onUpdate(), 500);
-      } else {
+      } else if (!launchResult.success) {
+        // Terminal launch failed - show error toast
+        showToast("error", launchResult.message);
+
         // Fallback: copy to clipboard
+        await navigator.clipboard.writeText(contextResult.context);
+
+        setStartWorkNotification({
+          type: "success",
+          message: `Context copied to clipboard. Run: cd "${contextResult.projectPath}" && claude`,
+        });
+      } else {
+        // Clipboard fallback (success but not terminal method)
         await navigator.clipboard.writeText(contextResult.context);
 
         setStartWorkNotification({
@@ -254,6 +274,8 @@ export default function TicketModal({
       setTimeout(() => setStartWorkNotification(null), 5000);
     } catch (error) {
       console.error("Failed to start work:", error);
+      const message = error instanceof Error ? error.message : "An unexpected error occurred";
+      showToast("error", `Failed to start work: ${message}`);
 
       // Ultimate fallback: try clipboard only
       try {
@@ -272,7 +294,7 @@ export default function TicketModal({
     } finally {
       setIsStartingWork(false);
     }
-  }, [ticket.id, onUpdate, settings?.terminalEmulator]);
+  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast]);
 
   // Handle Start Ralph - autonomous mode
   const handleStartRalph = useCallback(async () => {
@@ -288,6 +310,11 @@ export default function TicketModal({
         useSandbox: settings?.ralphSandbox ?? false,
       });
 
+      // Show any warnings (e.g., preferred terminal not available)
+      if ("warnings" in result && result.warnings) {
+        (result.warnings as string[]).forEach((warning: string) => showToast("info", warning));
+      }
+
       if (result.success) {
         setStatus("in_progress");
         setStartWorkNotification({
@@ -296,6 +323,7 @@ export default function TicketModal({
         });
         setTimeout(() => onUpdate(), 500);
       } else {
+        showToast("error", result.message);
         setStartWorkNotification({
           type: "error",
           message: result.message,
@@ -305,6 +333,8 @@ export default function TicketModal({
       setTimeout(() => setStartWorkNotification(null), 5000);
     } catch (error) {
       console.error("Failed to start Ralph:", error);
+      const message = error instanceof Error ? error.message : "An unexpected error occurred";
+      showToast("error", `Failed to launch Ralph: ${message}`);
       setStartWorkNotification({
         type: "error",
         message: "Failed to launch Ralph",
@@ -312,7 +342,7 @@ export default function TicketModal({
     } finally {
       setIsStartingWork(false);
     }
-  }, [ticket.id, onUpdate, settings?.terminalEmulator, launchRalphMutation]);
+  }, [ticket.id, onUpdate, settings?.terminalEmulator, settings?.ralphSandbox, launchRalphMutation, showToast]);
 
   // Handle adding a comment
   const handleAddComment = useCallback(() => {
