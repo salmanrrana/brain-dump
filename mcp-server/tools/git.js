@@ -3,18 +3,9 @@
  * @module tools/git
  */
 import { z } from "zod";
-import { execSync } from "child_process";
 import { existsSync } from "fs";
 import { log } from "../lib/logging.js";
-
-function runGitCommand(command, cwd) {
-  try {
-    const output = execSync(command, { cwd, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
-    return { success: true, output: output.trim() };
-  } catch (error) {
-    return { success: false, output: "", error: error.stderr?.trim() || error.message };
-  }
-}
+import { runGitCommand, shortId } from "../lib/git-utils.js";
 
 /**
  * Register git integration tools with the MCP server.
@@ -86,7 +77,7 @@ Returns:
       return {
         content: [{
           type: "text",
-          text: `Commit linked to ticket "${ticket.title}"!\n\nCommit: ${commitHash}\nMessage: ${commitMessage || "(no message)"}\n\nAll linked commits (${linkedCommits.length}):\n${linkedCommits.map(c => `- ${c.hash.substring(0, 8)}: ${c.message || "(no message)"}`).join("\n")}`,
+          text: `Commit linked to ticket "${ticket.title}"!\n\nCommit: ${commitHash}\nMessage: ${commitMessage || "(no message)"}\n\nAll linked commits (${linkedCommits.length}):\n${linkedCommits.map(c => `- ${shortId(c.hash)}: ${c.message || "(no message)"}`).join("\n")}`,
         }],
       };
     }

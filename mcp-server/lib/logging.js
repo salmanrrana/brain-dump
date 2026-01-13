@@ -18,9 +18,6 @@ export const MAX_LOG_FILES = 5;
 /** @type {Object<string, number>} Log level priority mapping */
 export const LOG_PRIORITY = { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 };
 
-// Re-export getLogsDir for backwards compatibility
-export { getLogsDir };
-
 /**
  * Format a log entry with timestamp, level, source, and optional error details.
  * @param {string} level - Log level (DEBUG, INFO, WARN, ERROR)
@@ -62,7 +59,7 @@ export function rotateLogFile(filename) {
       if (existsSync(fromPath)) renameSync(fromPath, toPath);
     }
     renameSync(basePath, join(logsDir, `${filename}.1`));
-  } catch { /* ignore rotation errors */ }
+  } catch (err) { console.error(`[brain-dump] Log rotation failed for ${filename}: ${err.message}`); }
 }
 
 /**
@@ -76,7 +73,7 @@ export function writeToLogFile(filename, entry) {
     if (!existsSync(logsDir)) mkdirSync(logsDir, { recursive: true, mode: 0o700 });
     rotateLogFile(filename);
     appendFileSync(join(logsDir, filename), entry + "\n", { mode: 0o600 });
-  } catch { /* ignore file write errors */ }
+  } catch (err) { console.error(`[brain-dump] Failed to write to log file ${filename}: ${err.message}`); }
 }
 
 /**

@@ -39,7 +39,8 @@ export function readLockFile() {
       return null;
     }
     return lockInfo;
-  } catch {
+  } catch (err) {
+    log.warn("Could not read lock file, treating as no lock", err);
     return null;
   }
 }
@@ -93,7 +94,7 @@ export function acquireLock(type) {
     try {
       unlinkSync(lockPath);
       log.info("Cleaned up stale lock file");
-    } catch { /* ignore */ }
+    } catch (err) { log.warn("Failed to clean up stale lock file, continuing anyway", err); }
   }
 
   // Warn if another process has lock (don't block - SQLite WAL handles concurrency)

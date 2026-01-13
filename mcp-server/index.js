@@ -73,7 +73,7 @@ function setupGracefulShutdown() {
   process.on("exit", () => {
     const lockInfo = readLockFile();
     if (lockInfo && lockInfo.pid === process.pid) {
-      try { unlinkSync(getLockFilePath()); } catch { /* ignore */ }
+      try { unlinkSync(getLockFilePath()); } catch (err) { console.error(`[brain-dump] Failed to clean lock file: ${err.message}`); }
     }
   });
 }

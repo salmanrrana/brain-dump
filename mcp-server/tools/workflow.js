@@ -4,31 +4,9 @@
  * @module tools/workflow
  */
 import { z } from "zod";
-import { execSync } from "child_process";
 import { existsSync } from "fs";
 import { log } from "../lib/logging.js";
-
-// Git helper functions
-function slugify(text) {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").substring(0, 50);
-}
-
-function shortId(uuid) {
-  return uuid.substring(0, 8);
-}
-
-function generateBranchName(ticketId, ticketTitle) {
-  return `feature/${shortId(ticketId)}-${slugify(ticketTitle)}`;
-}
-
-function runGitCommand(command, cwd) {
-  try {
-    const output = execSync(command, { cwd, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
-    return { success: true, output: output.trim() };
-  } catch (error) {
-    return { success: false, output: "", error: error.stderr?.trim() || error.message };
-  }
-}
+import { runGitCommand, shortId, generateBranchName } from "../lib/git-utils.js";
 
 /**
  * Register workflow tools with the MCP server.
