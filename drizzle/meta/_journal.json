@@ -8,6 +8,20 @@
       "when": 1767880379690,
       "tag": "0000_nebulous_hemingway",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1768341909786,
+      "tag": "0001_third_loa",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1768341909787,
+      "tag": "0002_add_fts5_search",
+      "breakpoints": true
     }
   ]
 }
