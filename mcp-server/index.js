@@ -46,6 +46,13 @@ import {
   ensureDirectoriesSync,
   getPlatform,
 } from "./lib/xdg.js";
+import {
+  initDatabase,
+  isMigrationComplete,
+  verifyDatabaseIntegrity,
+  migrateFromLegacySync,
+  runMigrations,
+} from "./lib/database.js";
 
 // =============================================================================
 // ENVIRONMENT DETECTION
@@ -331,116 +338,6 @@ function setupGracefulShutdown(dbInstance) {
 }
 
 // =============================================================================
-// MIGRATION FROM LEGACY DIRECTORY
-// =============================================================================
-const MIGRATED_MARKER = ".migrated";
-
-function isMigrationComplete() {
-  return existsSync(join(getLegacyDir(), MIGRATED_MARKER));
-}
-
-function verifyDatabaseIntegrity(dbPath) {
-  if (!existsSync(dbPath)) return false;
-  try {
-    const testDb = new Database(dbPath, { readonly: true });
-    const result = testDb.pragma("integrity_check");
-    testDb.close();
-    return result.length === 1 && result[0].integrity_check === "ok";
-  } catch {
-    return false;
-  }
-}
-
-function migrateFromLegacySync() {
-  const legacyDir = getLegacyDir();
-  const legacyDbPath = join(legacyDir, "brain-dump.db");
-  const xdgDbPath = getDbPath();
-
-  // Already migrated?
-  if (isMigrationComplete()) {
-    return { success: true, migrated: false, message: "Migration already complete" };
-  }
-
-  // No legacy data?
-  if (!existsSync(legacyDbPath)) {
-    return { success: true, migrated: false, message: "No legacy data to migrate" };
-  }
-
-  // XDG already has data?
-  if (existsSync(xdgDbPath)) {
-    log.info("Both legacy and XDG locations have data, using XDG");
-    return { success: true, migrated: false, message: "XDG already has data" };
-  }
-
-  log.info("Migrating from legacy ~/.brain-dump to XDG directories...");
-
-  try {
-    // Ensure directories
-    ensureDirectoriesSync();
-
-    // Create pre-migration backup
-    try {
-      const backupsDir = join(getStateDir(), "backups");
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const backupPath = join(backupsDir, `pre-migration-${timestamp}.db`);
-      const srcDb = new Database(legacyDbPath, { readonly: true });
-      srcDb.exec(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
-      srcDb.close();
-      log.info(`Created pre-migration backup: ${backupPath}`);
-    } catch (backupErr) {
-      log.error("Failed to create backup, continuing anyway", backupErr);
-    }
-
-    // Copy database
-    copyFileSync(legacyDbPath, xdgDbPath);
-    log.info(`Copied database to ${xdgDbPath}`);
-
-    // Copy WAL/SHM files if they exist
-    const walFile = legacyDbPath + "-wal";
-    const shmFile = legacyDbPath + "-shm";
-    if (existsSync(walFile)) copyFileSync(walFile, xdgDbPath + "-wal");
-    if (existsSync(shmFile)) copyFileSync(shmFile, xdgDbPath + "-shm");
-
-    // Verify integrity
-    if (!verifyDatabaseIntegrity(xdgDbPath)) {
-      throw new Error("Database integrity check failed after copy");
-    }
-
-    // Copy attachments
-    const legacyAttachments = join(legacyDir, "attachments");
-    const xdgAttachments = join(getDataDir(), "attachments");
-    if (existsSync(legacyAttachments)) {
-      if (!existsSync(xdgAttachments)) {
-        mkdirSync(xdgAttachments, { recursive: true, mode: 0o700 });
-      }
-      const files = readdirSync(legacyAttachments);
-      for (const file of files) {
-        const srcPath = join(legacyAttachments, file);
-        const destPath = join(xdgAttachments, file);
-        if (statSync(srcPath).isFile() && !existsSync(destPath)) {
-          copyFileSync(srcPath, destPath);
-        }
-      }
-      log.info(`Copied ${files.length} attachments`);
-    }
-
-    // Create migration marker
-    const markerPath = join(legacyDir, MIGRATED_MARKER);
-    writeFileSync(markerPath, JSON.stringify({
-      migratedAt: new Date().toISOString(),
-      migratedTo: getDataDir(),
-      note: "Data has been migrated to XDG directories."
-    }, null, 2), { mode: 0o600 });
-
-    log.info("Migration complete! Legacy data preserved in ~/.brain-dump");
-    return { success: true, migrated: true, message: "Migration complete" };
-  } catch (error) {
-    log.error("Migration failed", error);
-    return { success: false, migrated: false, message: `Migration failed: ${error.message}` };
-  }
-}
-
-// =============================================================================
 // BACKUP UTILITIES
 // =============================================================================
 const BACKUP_PREFIX = "brain-dump-";
@@ -707,60 +604,13 @@ function stopDatabaseWatcher() {
 // =============================================================================
 // DATABASE CONNECTION
 // =============================================================================
-// Ensure XDG directories exist
-ensureDirectoriesSync();
-
-// Run migration if needed
-const migrationResult = migrateFromLegacySync();
-if (migrationResult.migrated) {
-  log.info(migrationResult.message);
-}
-
-const dbPath = getDbPath();
-const legacyDbPath = join(getLegacyDir(), "brain-dump.db");
 let db;
+let actualDbPath;
 
 try {
-  // Try XDG path first, fall back to legacy path for backwards compatibility
-  let actualDbPath = dbPath;
-  if (!existsSync(dbPath)) {
-    if (existsSync(legacyDbPath) && !isMigrationComplete()) {
-      // Legacy exists and hasn't been migrated - use it (migration may have failed)
-      log.info(`Using legacy database at ${legacyDbPath}`);
-      actualDbPath = legacyDbPath;
-    } else {
-      log.error(`Database not found at ${dbPath} or ${legacyDbPath}`);
-      log.info("Run Brain Dumpy at least once to create the database: cd /path/to/brain-dump && pnpm dev");
-      process.exit(1);
-    }
-  }
-  db = new Database(actualDbPath);
-  db.pragma("journal_mode = WAL");
-  log.info(`Connected to database: ${actualDbPath}`);
-
-  // Add linked_commits column if it doesn't exist (for link_commit_to_ticket tool)
-  try {
-    const columns = db.prepare("PRAGMA table_info(tickets)").all();
-    const hasLinkedCommits = columns.some(col => col.name === "linked_commits");
-    if (!hasLinkedCommits) {
-      db.prepare("ALTER TABLE tickets ADD COLUMN linked_commits TEXT").run();
-      log.info("Added linked_commits column to tickets table");
-    }
-  } catch (migrationError) {
-    log.error("Failed to check/add linked_commits column", migrationError);
-  }
-
-  // Add working_method column to projects table if it doesn't exist (for environment settings)
-  try {
-    const projectColumns = db.prepare("PRAGMA table_info(projects)").all();
-    const hasWorkingMethod = projectColumns.some(col => col.name === "working_method");
-    if (!hasWorkingMethod) {
-      db.prepare("ALTER TABLE projects ADD COLUMN working_method TEXT DEFAULT 'auto'").run();
-      log.info("Added working_method column to projects table");
-    }
-  } catch (migrationError) {
-    log.error("Failed to check/add working_method column", migrationError);
-  }
+  const result = initDatabase();
+  db = result.db;
+  actualDbPath = result.actualDbPath;
 
   // Perform daily backup maintenance
   try {
@@ -787,7 +637,7 @@ try {
   // Start watching for unexpected database file deletions
   startDatabaseWatcher(actualDbPath);
 } catch (error) {
-  log.error(`Failed to open database at ${dbPath}`, error);
+  log.error(`Failed to open database`, error);
   process.exit(1);
 }
 
