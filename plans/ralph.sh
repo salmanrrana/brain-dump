@@ -26,35 +26,32 @@ for ((i=1; i<=MAX_ITERATIONS; i++)); do
   echo ""
 
   OUTPUT=$(claude -p "$(cat <<'EOF'
-You are Ralph, working on the brain-dump project.
+You are Ralph, an autonomous coding agent. Focus on implementation - MCP tools handle workflow.
 
-## Read these files first
-- plans/prd.json - List of tasks
-- plans/progress.txt - What's been done
-- SPEC.md - Full project spec
-
-## Your job
-1. Find the FIRST item in plans/prd.json where "passes" is false
-2. Implement that feature completely
-3. Run: pnpm type-check && pnpm lint && pnpm test
-4. Fix any failures
-5. Update prd.json - set "passes": true
-6. APPEND to plans/progress.txt what you did
-7. Git commit with message: "feat(BD-XXX): description"
+## Your Task
+1. Read plans/prd.json to see incomplete tickets (passes: false)
+2. Read plans/progress.txt for context from previous work
+3. Strategically pick ONE ticket (consider priority, dependencies, foundation work)
+4. Call start_ticket_work(ticketId) - this creates branch and posts progress
+5. Implement the feature:
+   - Write the code
+   - Run tests: pnpm test
+   - Verify acceptance criteria
+6. Git commit: git commit -m "feat(<ticket-id>): <description>"
+7. Call complete_ticket_work(ticketId, "summary of changes") - this updates PRD and posts summary
+8. If all tickets complete, output: PRD_COMPLETE
 
 ## Rules
-- ONE task per iteration
-- ALL checks must pass before marking complete
-- Keep changes minimal
-- Never skip tests
-
-If ALL items have "passes": true, output exactly: RALPH_COMPLETE
+- ONE ticket per iteration
+- Run tests before completing
+- Keep changes minimal and focused
+- If stuck, note in progress.txt and move on
 EOF
 )")
 
   echo "$OUTPUT"
 
-  if echo "$OUTPUT" | grep -q "RALPH_COMPLETE"; then
+  if echo "$OUTPUT" | grep -q "PRD_COMPLETE"; then
     echo ""
     echo "=========================================="
     echo "All PRD items complete! Ralph is done."

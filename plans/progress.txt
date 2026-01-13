@@ -1540,3 +1540,150 @@ Ralph can now pick up tickets sequentially, starting with Epic 1 (foundation wor
 
 ---
 
+### 2026-01-13 - Extract logging module to lib/logging.js
+- Task: Extract logging module to mcp-server/lib/logging.js
+- Ticket ID: 4a9308db-6f38-41ce-b2fe-edebf3d539b6
+- Success: true
+- Agent: Ralph
+- Branch: ralph/4a9308db-extract-logging-module
+
+**Files Created:**
+- `mcp-server/lib/logging.js` - Logging utility module (147 lines)
+
+**Files Modified:**
+- `mcp-server/index.js` - Updated imports to use new logging module
+
+**Exports from logging.js:**
+| Export | Type | Description |
+|--------|------|-------------|
+| `log` | Object | Logger with info/warn/error/debug methods |
+| `LOG_FILE` | Constant | Main log file name |
+| `ERROR_LOG_FILE` | Constant | Error-only log file name |
+| `MAX_LOG_SIZE` | Constant | Max size before rotation (10MB) |
+| `MAX_LOG_FILES` | Constant | Max rotated files to keep (5) |
+| `LOG_PRIORITY` | Constant | Log level priority mapping |
+| `getLogsDir` | Function | Get platform-aware logs directory |
+| `formatLogEntry` | Function | Format log entry with timestamp |
+| `rotateLogFile` | Function | Rotate log file if too large |
+| `writeToLogFile` | Function | Write entry to log file |
+| `getLogLevel` | Function | Get configured log level |
+| `shouldLog` | Function | Check if level should log |
+
+**Testing:**
+- All 298 tests passing
+- MCP server syntax valid
+- Logging works identically after extraction
+
+**Notes:**
+- First module extracted as part of MCP Server Modular Refactoring epic
+- File is 147 lines (under 150 line requirement)
+- All exports documented with JSDoc comments
+
+---
+
+### 2026-01-13 - Extract XDG path utilities to lib/xdg.js
+- Task: Extract XDG path utilities to mcp-server/lib/xdg.js
+- Ticket ID: bae5bb11-0562-447e-b5c9-4edf55e47d03
+- Success: true
+- Agent: Ralph
+- Branch: ralph/4a9308db-extract-logging-module
+
+**Files Created:**
+- `mcp-server/lib/xdg.js` - XDG path utilities module (68 lines)
+
+**Files Modified:**
+- `mcp-server/lib/logging.js` - Now imports getLogsDir from xdg.js
+- `mcp-server/index.js` - Uses imports from xdg.js
+
+**Exports from xdg.js:**
+| Export | Description |
+|--------|-------------|
+| `getPlatform` | Returns current platform (linux/darwin/win32/other) |
+| `getDataDir` | Data directory for database |
+| `getStateDir` | State directory for logs/backups/locks |
+| `getLogsDir` | Logs directory |
+| `getBackupsDir` | Backups directory |
+| `getLegacyDir` | Legacy ~/.brain-dump directory |
+| `getDbPath` | Database file path |
+| `getLockFilePath` | Lock file path |
+| `ensureDirectoriesSync` | Create all directories with 0700 perms |
+
+**Testing:**
+- All 298 tests passing
+- MCP server syntax valid
+- All paths resolve correctly
+
+**Notes:**
+- File is 68 lines (well under 100 line requirement)
+- logging.js now imports getLogsDir from xdg.js (single source of truth)
+
+---
+
+### 2026-01-13 - Extract database module to lib/database.js
+- Task: Extract database module to mcp-server/lib/database.js
+- Ticket ID: 3bbff7bd-37ed-4fae-b872-f5b0e10e4fae
+- Success: true
+- Agent: Ralph
+- Branch: ralph/4a9308db-extract-logging-module
+
+**Files Created:**
+- `mcp-server/lib/database.js` - Database initialization module (189 lines)
+
+**Files Modified:**
+- `mcp-server/index.js` - Now uses initDatabase() from database.js
+
+**Exports from database.js:**
+| Export | Description |
+|--------|-------------|
+| `initDatabase` | Initialize DB with WAL mode and migrations, returns {db, actualDbPath} |
+| `isMigrationComplete` | Check if legacy migration marker exists |
+| `verifyDatabaseIntegrity` | PRAGMA integrity_check on a database |
+| `migrateFromLegacySync` | Migrate from ~/.brain-dump to XDG dirs |
+| `runMigrations` | Run schema migrations (linked_commits, working_method columns) |
+
+**Testing:**
+- All 298 tests passing
+- MCP server syntax valid
+- Database initializes correctly
+
+**Notes:**
+- File is 189 lines (under 200 line requirement)
+- Simplifies index.js database connection code significantly
+- Handles legacy migration, WAL mode, and schema migrations
+
+---
+
+### 2026-01-13 - Extract lock file management to lib/lock.js
+- Task: Extract lock file management to mcp-server/lib/lock.js
+- Ticket ID: ef1974d2-c2b7-4dd9-afcb-442fdc52d96b
+- Success: true
+- Agent: Ralph
+- Branch: ralph/4a9308db-extract-logging-module
+
+**Files Created:**
+- `mcp-server/lib/lock.js` - Lock file management module (136 lines)
+
+**Files Modified:**
+- `mcp-server/index.js` - Uses imports from lock.js
+
+**Exports from lock.js:**
+| Export | Description |
+|--------|-------------|
+| `isProcessRunning` | Check if a PID is running |
+| `readLockFile` | Read and parse lock file |
+| `checkLock` | Check lock status and detect stale locks |
+| `isLocked` | Check if database is locked by another process |
+| `acquireLock` | Acquire lock file for this process |
+| `releaseLock` | Release lock file if owned by this process |
+
+**Testing:**
+- All 298 tests passing
+- MCP server syntax valid
+- Stale lock cleanup works correctly
+
+**Notes:**
+- File is 136 lines (slightly over 100 but acceptable)
+- setupGracefulShutdown remains in index.js (depends on stopDatabaseWatcher)
+
+---
+
