@@ -130,7 +130,7 @@ Once the interview is complete and confirmed, execute these steps:
 
      ## Project Created
      Date: {timestamp}
-     Created via Brain Dumpy Project Inception
+     Created via Brain Dump Project Inception
 
      Next step: Run Spec Breakdown to generate tickets
      \`\`\`
@@ -142,12 +142,12 @@ Once the interview is complete and confirmed, execute these steps:
    git commit -m "Initial project setup with spec"
    \`\`\`
 
-5. **Register in Brain Dumpy:**
-   Use the Brain Dumpy MCP tool \`create_project\` with:
+5. **Register in Brain Dump:**
+   Use the Brain Dump MCP tool \`create_project\` with:
    - name: The project name
    - path: The full path to the project directory
 
-   This registers the project in Brain Dumpy so you can create tickets for it.
+   This registers the project in Brain Dump so you can create tickets for it.
 
 6. **Final output:**
    After completing all steps, output exactly:
@@ -175,7 +175,7 @@ function getSpecBreakdownPrompt(projectPath: string, projectName: string): strin
   return `You are a senior software architect breaking down a project specification into actionable tickets.
 
 ## Your Mission
-Read the spec.md file in this project and create a comprehensive set of tickets in Brain Dumpy.
+Read the spec.md file in this project and create a comprehensive set of tickets in Brain Dump.
 
 ## Input
 Project name: ${projectName}
@@ -201,7 +201,7 @@ Group related work into epics. Common epic patterns:
 - "Testing & QA" - Test infrastructure
 - "Documentation" - README, API docs
 
-Use Brain Dumpy MCP tool \`create_epic\` for each epic with:
+Use Brain Dump MCP tool \`create_epic\` for each epic with:
 - projectId: (get from find_project_by_path first)
 - title: Epic title
 - description: Brief description
@@ -212,7 +212,7 @@ For each epic, create granular, actionable tickets. Each ticket should:
 - Have a clear definition of done
 - Be properly prioritized (high/medium/low)
 
-Use Brain Dumpy MCP tool \`create_ticket\` for each ticket with:
+Use Brain Dump MCP tool \`create_ticket\` for each ticket with:
 - projectId: The project ID
 - epicId: The epic ID this ticket belongs to
 - title: Short, descriptive title
@@ -348,7 +348,7 @@ set -e
 
 echo ""
 echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-echo -e "\\033[0;32m🧠 Brain Dumpy - Project Inception\\033[0m"
+echo -e "\\033[0;32m🧠 Brain Dump - Project Inception\\033[0m"
 echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
 echo -e "\\033[1;33m🚀 Starting new project from scratch...\\033[0m"
 echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
@@ -462,7 +462,7 @@ cd "${projectPath}"
 
 echo ""
 echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-echo -e "\\033[0;32m🧠 Brain Dumpy - Spec Breakdown\\033[0m"
+echo -e "\\033[0;32m🧠 Brain Dump - Spec Breakdown\\033[0m"
 echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
 echo -e "\\033[1;33m📋 Project:\\033[0m ${projectName}"
 echo -e "\\033[1;33m📁 Path:\\033[0m ${projectPath}"

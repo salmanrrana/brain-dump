@@ -1,6 +1,6 @@
 # Auto-Review Hook for Claude Code
 
-Brain Dumpy includes an automatic code review hook that triggers after task completion. This hook runs the `pr-review-toolkit` and `code-simplifier` agents to ensure code quality.
+Brain Dump includes an automatic code review hook that triggers after task completion. This hook runs the `pr-review-toolkit` and `code-simplifier` agents to ensure code quality.
 
 ## Overview
 

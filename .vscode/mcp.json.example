@@ -1,5 +1,5 @@
 {
-  // VS Code MCP Configuration for Brain Dumpy
+  // VS Code MCP Configuration for Brain Dump
   //
   // To use this configuration:
   // 1. Copy this file to .vscode/mcp.json
@@ -9,10 +9,10 @@
   // Requirements:
   // - VS Code 1.99+ with native MCP support
   // - Node.js installed
-  // - Brain Dumpy database initialized (run the app once)
+  // - Brain Dump database initialized (run the app once)
 
   "servers": {
-    "brain-dumpy": {
+    "brain-dump": {
       // Server identifier - must be unique across all MCP servers
       "type": "stdio",
 
@@ -21,9 +21,9 @@
       "command": "node",
 
       // Arguments passed to the command
-      // Update this path to your brain-dumpy installation
+      // Update this path to your brain-dump installation
       "args": [
-        "/home/xtra/code/personal_projects/brain-dumpy/mcp-server/index.js"
+        "/home/xtra/code/personal_projects/brain-dump/mcp-server/index.js"
       ],
 
       // Environment variables (optional)

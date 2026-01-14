@@ -1,13 +1,13 @@
 #!/bin/bash
-# Brain Dumpy VS Code Setup Script
-# Configures VS Code to use Brain Dumpy as "ground control" for AI agents
+# Brain Dump VS Code Setup Script
+# Configures VS Code to use Brain Dump as "ground control" for AI agents
 #
 # This script:
-# 1. Configures the Brain Dumpy MCP server globally
+# 1. Configures the Brain Dump MCP server globally
 # 2. Symlinks agents, skills, and prompts to VS Code user profile
 # 3. Sets up auto-review workflow agents (code-reviewer, code-simplifier)
 #
-# After running, Brain Dumpy tools and agents will be available in ALL your projects.
+# After running, Brain Dump tools and agents will be available in ALL your projects.
 
 set -e
 
@@ -20,7 +20,7 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}"
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║       Brain Dumpy - VS Code Ground Control Setup           ║"
+echo "║       Brain Dump - VS Code Ground Control Setup           ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
@@ -28,7 +28,7 @@ echo -e "${NC}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BRAIN_DUMPY_DIR="$(dirname "$SCRIPT_DIR")"
 
-echo -e "${YELLOW}Brain Dumpy location:${NC} $BRAIN_DUMPY_DIR"
+echo -e "${YELLOW}Brain Dump location:${NC} $BRAIN_DUMPY_DIR"
 
 # Detect OS and set VS Code paths
 detect_vscode_paths() {
@@ -96,7 +96,7 @@ MCP_CONFIG_FILE="$VSCODE_MCP_DIR/mcp.json"
 if [ -f "$MCP_CONFIG_FILE" ]; then
     echo -e "${YELLOW}Existing mcp.json found. Checking for brain-dump server...${NC}"
     if grep -q '"brain-dump"' "$MCP_CONFIG_FILE"; then
-        echo -e "${GREEN}Brain Dumpy MCP server already configured.${NC}"
+        echo -e "${GREEN}Brain Dump MCP server already configured.${NC}"
     else
         echo -e "${YELLOW}Adding brain-dump server to existing config...${NC}"
         # This is a simple approach - for complex configs, manual editing may be needed
@@ -137,7 +137,7 @@ if [ -d "$AGENTS_SOURCE" ]; then
         [ -f "$agent_file" ] && link_item "$agent_file" "$AGENTS_TARGET/$(basename "$agent_file")"
     done
 else
-    echo -e "${YELLOW}No agents found in Brain Dumpy${NC}"
+    echo -e "${YELLOW}No agents found in Brain Dump${NC}"
 fi
 
 echo ""
@@ -153,7 +153,7 @@ if [ -d "$SKILLS_SOURCE" ]; then
         [ -d "$skill_dir" ] && link_item "$skill_dir" "$SKILLS_TARGET/$(basename "$skill_dir")"
     done
 else
-    echo -e "${YELLOW}No skills found in Brain Dumpy (optional)${NC}"
+    echo -e "${YELLOW}No skills found in Brain Dump (optional)${NC}"
 fi
 
 echo ""
@@ -169,7 +169,7 @@ if [ -d "$PROMPTS_SOURCE" ]; then
         [ -f "$prompt_file" ] && link_item "$prompt_file" "$PROMPTS_TARGET/$(basename "$prompt_file")"
     done
 else
-    echo -e "${YELLOW}No prompts found in Brain Dumpy (optional)${NC}"
+    echo -e "${YELLOW}No prompts found in Brain Dump (optional)${NC}"
 fi
 
 echo ""
@@ -294,5 +294,5 @@ echo "  2. Open Copilot Chat and try: @ralph or /start-ticket"
 echo "  3. After coding, use /auto-review to review changes"
 echo "  4. For background agents, enable: github.copilot.chat.cli.customAgents.enabled"
 echo ""
-echo -e "${YELLOW}Note:${NC} Make sure Brain Dumpy is running at least once to initialize the database."
+echo -e "${YELLOW}Note:${NC} Make sure Brain Dump is running at least once to initialize the database."
 echo ""

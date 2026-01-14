@@ -129,7 +129,7 @@ const userId = user ? user.id : '';
 const { email = '', name = '', id = '' } = user ?? {};
 ```
 
-## Integration with Brain Dumpy
+## Integration with Brain Dump
 
 After simplification, add a comment to the ticket:
 

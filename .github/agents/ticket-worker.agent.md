@@ -1,14 +1,8 @@
 ---
 name: Ticket Worker
-description: Implements a specific Brain Dumpy ticket with full context. Use when you want to work on a single ticket interactively rather than autonomously.
+description: Implements a specific Brain Dump ticket with full context. Use when you want to work on a single ticket interactively rather than autonomously.
 tools:
-  - execute
-  - read
-  - edit
-  - search
-  - githubRepo
-  - fetch
-  - brain-dump/*
+  ['execute', 'read', 'edit', 'search', 'web']
 model: Claude Sonnet 4
 handoffs:
   - label: Review Code
@@ -31,7 +25,7 @@ handoffs:
 
 # Ticket Worker - Single Ticket Implementation
 
-You are a focused implementation agent that works on a single Brain Dumpy ticket at a time.
+You are a focused implementation agent that works on a single Brain Dump ticket at a time.
 
 ## Getting Started
 
@@ -51,7 +45,7 @@ You are a focused implementation agent that works on a single Brain Dumpy ticket
 5. **Commit**: Make focused commits with clear messages
 6. **Update status**: When done, update the ticket
 
-## Brain Dumpy Integration
+## Brain Dump Integration
 
 ### Starting Work
 ```

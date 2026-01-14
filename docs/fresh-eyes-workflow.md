@@ -1,6 +1,6 @@
 # Fresh Eyes Workflow
 
-The "Fresh Eyes" workflow is a key feature of Brain Dumpy that ensures each ticket gets worked on with clean context, leading to better code quality and fewer bugs.
+The "Fresh Eyes" workflow is a key feature of Brain Dump that ensures each ticket gets worked on with clean context, leading to better code quality and fewer bugs.
 
 ## What is Fresh Eyes?
 
@@ -15,7 +15,7 @@ The Fresh Eyes workflow ensures each ticket starts with a clean slate.
 
 ### Automatic Context Reset Signal
 
-When you complete a ticket using the `complete_ticket_work` MCP tool, Brain Dumpy automatically:
+When you complete a ticket using the `complete_ticket_work` MCP tool, Brain Dump automatically:
 
 1. **Detects your environment** (Claude Code, VS Code, or unknown)
 2. **Returns context reset guidance** specific to your environment
@@ -70,7 +70,7 @@ Context bleeding between tasks can cause:
 ### Step 1: Start Work on Ticket
 
 ```
-# Use Brain Dumpy MCP to start
+# Use Brain Dump MCP to start
 start_ticket_work(ticketId: "abc123")
 ```
 
@@ -86,7 +86,7 @@ Work on the implementation with your AI assistant. Make commits as needed.
 ### Step 3: Complete the Ticket
 
 ```
-# Use Brain Dumpy MCP to complete
+# Use Brain Dump MCP to complete
 complete_ticket_work(ticketId: "abc123", summary: "Implemented user auth")
 ```
 
@@ -108,7 +108,7 @@ Start fresh on the next task with clean context!
 
 ## Integration with Ralph
 
-Ralph, Brain Dumpy's autonomous agent mode, follows the Fresh Eyes workflow automatically:
+Ralph, Brain Dump's autonomous agent mode, follows the Fresh Eyes workflow automatically:
 
 1. Each iteration reads the PRD fresh
 2. Picks ONE task to work on
@@ -143,7 +143,7 @@ If context seems to persist after `/clear`:
 ### Missing Context After Reset
 
 If you need information from a previous ticket:
-- Read the ticket's work summary comments in Brain Dumpy
+- Read the ticket's work summary comments in Brain Dump
 - Check the git commit messages
 - Look at the linked files in the ticket
 

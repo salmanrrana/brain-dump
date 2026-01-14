@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Common issues and solutions for Brain Dumpy.
+Common issues and solutions for Brain Dump.
 
 ## Database Issues
 
@@ -112,7 +112,7 @@ cat ~/.local/state/brain-dump/migration.log
 1. Remove migration marker and restart:
    ```bash
    rm ~/.brain-dump/.migrated
-   # Restart Brain Dumpy
+   # Restart Brain Dump
    ```
 
 2. Manual migration:
@@ -141,7 +141,7 @@ cat ~/.local/state/brain-dump/migration.log
 
 ### MCP Server Not Connecting
 
-**Symptoms**: Claude Code can't find Brain Dumpy tools.
+**Symptoms**: Claude Code can't find Brain Dump tools.
 
 **Solutions**:
 

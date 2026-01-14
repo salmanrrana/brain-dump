@@ -16,7 +16,7 @@ export function registerProjectTools(server, db) {
   // List all projects
   server.tool(
     "list_projects",
-    `List all projects registered in Brain Dumpy.
+    `List all projects registered in Brain Dump.
 
 Returns an array of projects with their IDs, names, and paths.
 Use this to find the projectId needed for creating tickets.
@@ -76,7 +76,7 @@ Returns the matching project or a message if no project found.`,
   // Create project
   server.tool(
     "create_project",
-    `Create a new project in Brain Dumpy.
+    `Create a new project in Brain Dump.
 
 Use this when working in a directory that isn't yet registered.
 The path must be an absolute filesystem path that exists.

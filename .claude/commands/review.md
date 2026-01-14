@@ -4,7 +4,7 @@ description: Run the complete code review pipeline on recent changes. Launches t
 
 # Code Review Pipeline
 
-You are running the automatic code review pipeline for Brain Dumpy. This pipeline ensures code quality by running three specialized review agents in parallel.
+You are running the automatic code review pipeline for Brain Dump. This pipeline ensures code quality by running three specialized review agents in parallel.
 
 ## Your Task
 

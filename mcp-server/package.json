@@ -1,7 +1,7 @@
 {
   "name": "brain-dump-mcp",
   "version": "1.0.0",
-  "description": "MCP server for Brain Dumpy - create and manage tickets from any project",
+  "description": "MCP server for Brain Dump - create and manage tickets from any project",
   "type": "module",
   "main": "index.js",
   "pnpm": {

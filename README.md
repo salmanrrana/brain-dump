@@ -1,4 +1,4 @@
-# Brain Dumpy
+# Brain Dump
 
 A local-first kanban board for AI-assisted development. Click an epic, Claude gets the context.
 

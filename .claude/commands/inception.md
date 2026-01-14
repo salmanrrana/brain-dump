@@ -128,6 +128,6 @@ Once all questions are answered:
 
 4. **Initialize git** and make initial commit
 
-5. **Register in Brain Dumpy** using `create_project` MCP tool
+5. **Register in Brain Dump** using `create_project` MCP tool
 
 6. **Tell user** the project is ready and suggest running `/breakdown` next

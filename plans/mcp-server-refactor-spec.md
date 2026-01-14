@@ -69,7 +69,7 @@ const server = new McpServer({ name: "brain-dump", version: "1.0.0" });
 server.registerTool(
   "list_projects",
   {
-    description: "List all projects registered in Brain Dumpy...",
+    description: "List all projects registered in Brain Dump...",
     inputSchema: {},
   },
   async () => {
@@ -85,7 +85,7 @@ server.registerTool(
 server.registerTool(
   "create_project",
   {
-    description: "Create a new project in Brain Dumpy...",
+    description: "Create a new project in Brain Dump...",
     inputSchema: {
       name: z.string().min(1).describe("Project display name"),
       path: z.string().min(1).describe("Absolute filesystem path"),

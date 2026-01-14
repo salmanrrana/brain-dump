@@ -361,7 +361,7 @@ export function fullDatabaseCheck(dbPath?: string): FullCheckResult {
 
   if (tableResult.status === "error") {
     suggestions.push("Missing required tables - database may need to be re-initialized");
-    suggestions.push("Try starting Brain Dumpy to auto-create missing tables");
+    suggestions.push("Try starting Brain Dump to auto-create missing tables");
   }
 
   return {

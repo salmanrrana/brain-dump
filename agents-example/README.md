@@ -1,6 +1,6 @@
-# Brain Dumpy - VS Code Ground Control
+# Brain Dump - VS Code Ground Control
 
-Brain Dumpy serves as "ground control" for your AI-assisted development workflow. This folder contains all the VS Code customizations (agents, skills, prompts) that integrate with Brain Dumpy.
+Brain Dump serves as "ground control" for your AI-assisted development workflow. This folder contains all the VS Code customizations (agents, skills, prompts) that integrate with Brain Dump.
 
 ## Quick Setup
 
@@ -12,12 +12,12 @@ Run the setup script to configure everything globally:
 ```
 
 This will:
-1. Configure the Brain Dumpy MCP server globally
+1. Configure the Brain Dump MCP server globally
 2. Install agents (Ralph, Ticket Worker, Planner) to your VS Code profile
 3. Install skills (ticket management, Ralph workflow)
 4. Install prompts (/start-ticket, /complete-ticket, /create-tickets)
 
-After running, Brain Dumpy tools and agents will be available in **ALL** your projects.
+After running, Brain Dump tools and agents will be available in **ALL** your projects.
 
 ## Manual Setup
 
@@ -97,7 +97,7 @@ Background agents run in isolation using git worktrees, so your main workspace s
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Brain Dumpy (Ground Control)              │
+│                    Brain Dump (Ground Control)              │
 │                                                              │
 │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐        │
 │  │ Agents  │  │ Skills  │  │ Prompts │  │   MCP   │        │
@@ -117,7 +117,7 @@ Background agents run in isolation using git worktrees, so your main workspace s
    └─────────┘      └───────────┘     └───────────┘
 ```
 
-Brain Dumpy is the single source of truth. All your projects get access to:
+Brain Dump is the single source of truth. All your projects get access to:
 - Ralph and other agents
 - Ticket management skills
 - Quick prompts for common tasks
@@ -133,4 +133,4 @@ Brain Dumpy is the single source of truth. All your projects get access to:
 | MCP tools | Yes | Yes |
 | Best for | Interactive + Background | Fully autonomous |
 
-Both approaches work with Brain Dumpy. Choose based on your preference.
+Both approaches work with Brain Dump. Choose based on your preference.

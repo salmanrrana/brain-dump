@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * Brain Dumpy MCP Server
+ * Brain Dump MCP Server
  *
- * Provides tools for managing tickets in Brain Dumpy from any project.
+ * Provides tools for managing tickets in Brain Dump from any project.
  * Follows MCP best practices: https://modelcontextprotocol.io/docs/develop/build-server
  */
 
@@ -493,7 +493,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: "list_projects",
-        description: `List all projects registered in Brain Dumpy.
+        description: `List all projects registered in Brain Dump.
 
 Returns an array of projects with their IDs, names, and paths.
 Use this to find the projectId needed for creating tickets.
@@ -532,7 +532,7 @@ Returns the matching project or a message if no project found.`,
       },
       {
         name: "create_project",
-        description: `Create a new project in Brain Dumpy.
+        description: `Create a new project in Brain Dump.
 
 Use this when working in a directory that isn't yet registered.
 The path must be an absolute filesystem path that exists.
@@ -564,7 +564,7 @@ Returns the created project with its generated ID.`,
       },
       {
         name: "create_ticket",
-        description: `Create a new ticket in Brain Dumpy.
+        description: `Create a new ticket in Brain Dump.
 
 The ticket will be added to the Backlog column.
 First use find_project_by_path or list_projects to get the projectId.
@@ -1747,7 +1747,7 @@ This ticket has been completed. To ensure fresh perspective on the next task:
 1. Push your changes if not already done
 2. Create a PR if needed
 3. Clear context with \`/clear\`
-4. Pick up the next ticket from Brain Dumpy`;
+4. Pick up the next ticket from Brain Dump`;
         } else if (environment === "vscode") {
           contextResetGuidance = `
 ## Context Reset Required
@@ -1767,7 +1767,7 @@ This ticket has been completed. To ensure fresh perspective on the next task:
 1. Push your changes if not already done
 2. Create a PR if needed
 3. Start a new chat session
-4. Pick up the next ticket from Brain Dumpy`;
+4. Pick up the next ticket from Brain Dump`;
         } else {
           contextResetGuidance = `
 ## Context Reset Required
@@ -1787,7 +1787,7 @@ This ticket has been completed. To ensure fresh perspective on the next task:
 1. Push your changes if not already done
 2. Create a PR if needed
 3. Start fresh context (new conversation/session)
-4. Pick up the next ticket from Brain Dumpy`;
+4. Pick up the next ticket from Brain Dump`;
         }
 
         return {

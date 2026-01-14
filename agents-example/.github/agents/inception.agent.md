@@ -28,7 +28,7 @@ You help users start new projects from scratch through a fast-paced interview pr
 1. Interview the user to understand their project idea
 2. Gather requirements through focused questions
 3. Create project structure with spec.md
-4. Register the project in Brain Dumpy
+4. Register the project in Brain Dump
 
 ## Interview Process
 
@@ -113,7 +113,7 @@ Create `plans/` with initial files:
 - [ ] Configure tooling (linting, formatting, etc.)
 ```
 
-### 4. Register in Brain Dumpy
+### 4. Register in Brain Dump
 
 ```javascript
 create_project({

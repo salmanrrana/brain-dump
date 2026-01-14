@@ -1,5 +1,5 @@
 /**
- * Environment detection utility for Brain Dumpy
+ * Environment detection utility for Brain Dump
  *
  * Detects whether the application is being invoked from:
  * - Claude Code (Anthropic's CLI)

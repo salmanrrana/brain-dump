@@ -1,12 +1,12 @@
 # Backup & Restore
 
-Brain Dumpy includes automatic daily backups and manual backup/restore commands to protect your data.
+Brain Dump includes automatic daily backups and manual backup/restore commands to protect your data.
 
 ## Automatic Backups
 
 ### Daily Backups
 
-Brain Dumpy automatically creates a backup once per day on first use:
+Brain Dump automatically creates a backup once per day on first use:
 
 - **Trigger**: First database operation each day (MCP server start, CLI command, or app launch)
 - **Location**: `~/.local/state/brain-dump/backups/`
@@ -15,7 +15,7 @@ Brain Dumpy automatically creates a backup once per day on first use:
 
 ### How It Works
 
-1. On startup, Brain Dumpy checks if a backup was created today
+1. On startup, Brain Dump checks if a backup was created today
 2. If not, it runs `VACUUM INTO` to create a clean, defragmented backup
 3. The backup is verified with `PRAGMA integrity_check`
 4. Backups older than 7 days are automatically deleted
@@ -102,7 +102,7 @@ When you run a restore command:
 ### After Restoring
 
 After a successful restore:
-- Restart Brain Dumpy (the web UI) to use the new database
+- Restart Brain Dump (the web UI) to use the new database
 - MCP server will automatically use the restored database
 - CLI commands will use the restored database immediately
 
@@ -123,7 +123,7 @@ The `get_database_health` MCP tool provides backup status:
 
 Use this in Claude to check backup status:
 ```
-"Check Brain Dumpy database health"
+"Check Brain Dump database health"
 ```
 
 ## Backup Best Practices
@@ -133,7 +133,7 @@ Use this in Claude to check backup status:
 Create a manual backup before:
 - Major refactoring or migrations
 - Bulk ticket operations
-- Upgrading Brain Dumpy
+- Upgrading Brain Dump
 
 ```bash
 pnpm brain-dump backup

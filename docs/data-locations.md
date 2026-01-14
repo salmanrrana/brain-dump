@@ -1,6 +1,6 @@
 # Data Locations
 
-Brain Dumpy follows the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/latest/) for predictable, organized data storage across Linux, macOS, and Windows.
+Brain Dump follows the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/latest/) for predictable, organized data storage across Linux, macOS, and Windows.
 
 ## Directory Structure
 
@@ -67,18 +67,18 @@ export XDG_DATA_HOME=/custom/path/share
 export XDG_STATE_HOME=/custom/path/state
 ```
 
-With these overrides, Brain Dumpy would use:
+With these overrides, Brain Dump would use:
 - `/custom/path/share/brain-dump/brain-dump.db`
 - `/custom/path/state/brain-dump/backups/`
 
 ## Legacy Directory (~/.brain-dump)
 
-Prior to version 2.0, Brain Dumpy stored all data in `~/.brain-dump/`. This location is now deprecated but fully supported for migration.
+Prior to version 2.0, Brain Dump stored all data in `~/.brain-dump/`. This location is now deprecated but fully supported for migration.
 
 ### Automatic Migration
 
 On first launch after upgrading:
-1. Brain Dumpy checks if `~/.brain-dump/` exists
+1. Brain Dump checks if `~/.brain-dump/` exists
 2. If XDG location is empty, data is copied (not moved)
 3. A `.migrated` marker is created in the legacy directory
 4. Migration is logged to `~/.local/state/brain-dump/migration.log`

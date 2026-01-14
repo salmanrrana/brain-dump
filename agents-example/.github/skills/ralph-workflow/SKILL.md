@@ -1,6 +1,6 @@
 ---
 name: ralph-workflow
-description: Autonomous backlog processing workflow for Brain Dumpy. Use when working through multiple tickets autonomously or when asked to process a backlog like Ralph.
+description: Autonomous backlog processing workflow for Brain Dump. Use when working through multiple tickets autonomously or when asked to process a backlog like Ralph.
 ---
 
 # Ralph Workflow Skill
