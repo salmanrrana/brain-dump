@@ -26,9 +26,9 @@ echo -e "${NC}"
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BRAIN_DUMPY_DIR="$(dirname "$SCRIPT_DIR")"
+BRAIN_DUMP_DIR="$(dirname "$SCRIPT_DIR")"
 
-echo -e "${YELLOW}Brain Dump location:${NC} $BRAIN_DUMPY_DIR"
+echo -e "${YELLOW}Brain Dump location:${NC} $BRAIN_DUMP_DIR"
 
 # Detect OS and set VS Code paths
 detect_vscode_paths() {
@@ -105,7 +105,7 @@ if [ -f "$MCP_CONFIG_FILE" ]; then
         echo '  "brain-dump": {'
         echo '    "type": "stdio",'
         echo '    "command": "node",'
-        echo "    \"args\": [\"$BRAIN_DUMPY_DIR/mcp-server/index.js\"]"
+        echo "    \"args\": [\"$BRAIN_DUMP_DIR/mcp-server/index.js\"]"
         echo '  }'
     fi
 else
@@ -116,7 +116,7 @@ else
     "brain-dump": {
       "type": "stdio",
       "command": "node",
-      "args": ["$BRAIN_DUMPY_DIR/mcp-server/index.js"]
+      "args": ["$BRAIN_DUMP_DIR/mcp-server/index.js"]
     }
   }
 }
@@ -128,7 +128,7 @@ echo ""
 echo -e "${BLUE}Step 2: Configure Agents${NC}"
 echo "─────────────────────────"
 
-AGENTS_SOURCE="$BRAIN_DUMPY_DIR/.github/agents"
+AGENTS_SOURCE="$BRAIN_DUMP_DIR/.github/agents"
 AGENTS_TARGET="$VSCODE_TARGET/agents"
 
 if [ -d "$AGENTS_SOURCE" ]; then
@@ -144,7 +144,7 @@ echo ""
 echo -e "${BLUE}Step 3: Configure Skills${NC}"
 echo "─────────────────────────"
 
-SKILLS_SOURCE="$BRAIN_DUMPY_DIR/.github/skills"
+SKILLS_SOURCE="$BRAIN_DUMP_DIR/.github/skills"
 SKILLS_TARGET="$VSCODE_TARGET/skills"
 
 if [ -d "$SKILLS_SOURCE" ]; then
@@ -160,7 +160,7 @@ echo ""
 echo -e "${BLUE}Step 4: Configure Prompts${NC}"
 echo "──────────────────────────"
 
-PROMPTS_SOURCE="$BRAIN_DUMPY_DIR/.github/prompts"
+PROMPTS_SOURCE="$BRAIN_DUMP_DIR/.github/prompts"
 PROMPTS_TARGET="$VSCODE_TARGET/prompts"
 
 if [ -d "$PROMPTS_SOURCE" ]; then

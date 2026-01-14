@@ -90,11 +90,11 @@ describe("Migration Utilities", () => {
 
       it("should return true when XDG database exists", () => {
         // Create the XDG data directory structure
-        const xdgBrainDumpy = join(testXdgData, "brain-dump");
-        mkdirSync(xdgBrainDumpy, { recursive: true });
+        const xdgBrainDump = join(testXdgData, "brain-dump");
+        mkdirSync(xdgBrainDump, { recursive: true });
 
         // Create a database file
-        const dbPath = join(xdgBrainDumpy, "brain-dump.db");
+        const dbPath = join(xdgBrainDump, "brain-dump.db");
         const db = new Database(dbPath);
         db.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
         db.close();
@@ -130,10 +130,10 @@ describe("Migration Utilities", () => {
 
     it("should return success with no migration when XDG already has data", () => {
       // Create XDG database first
-      const xdgBrainDumpy = join(testXdgData, "brain-dump");
-      mkdirSync(xdgBrainDumpy, { recursive: true });
+      const xdgBrainDump = join(testXdgData, "brain-dump");
+      mkdirSync(xdgBrainDump, { recursive: true });
 
-      const dbPath = join(xdgBrainDumpy, "brain-dump.db");
+      const dbPath = join(xdgBrainDump, "brain-dump.db");
       const db = new Database(dbPath);
       db.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
       db.close();
@@ -157,10 +157,10 @@ describe("Migration Utilities", () => {
 
     it("should return success with no migration when XDG already has data", async () => {
       // Create XDG database first
-      const xdgBrainDumpy = join(testXdgData, "brain-dump");
-      mkdirSync(xdgBrainDumpy, { recursive: true });
+      const xdgBrainDump = join(testXdgData, "brain-dump");
+      mkdirSync(xdgBrainDump, { recursive: true });
 
-      const dbPath = join(xdgBrainDumpy, "brain-dump.db");
+      const dbPath = join(xdgBrainDump, "brain-dump.db");
       const db = new Database(dbPath);
       db.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
       db.close();
