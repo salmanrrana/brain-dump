@@ -2,10 +2,11 @@
 # Brain Dump VS Code Setup Script
 # Configures VS Code to use Brain Dump as "ground control" for AI agents
 #
-# This script:
-# 1. Configures the Brain Dump MCP server globally
-# 2. Symlinks agents, skills, and prompts to VS Code user profile
-# 3. Sets up auto-review workflow agents (code-reviewer, code-simplifier)
+# This script follows VS Code documentation conventions:
+#   - Agents: VS Code User profile (~/Library/Application Support/Code/User/agents/ on macOS)
+#   - Skills: ~/.copilot/skills/ (global skills per VS Code docs)
+#   - MCP: VS Code User profile (~/Library/Application Support/Code/User/mcp.json)
+#   - Prompts: VS Code User profile (~/Library/Application Support/Code/User/prompts/)
 #
 # After running, Brain Dump tools and agents will be available in ALL your projects.
 
@@ -36,17 +37,17 @@ detect_vscode_paths() {
         Linux*)
             VSCODE_USER_DIR="$HOME/.config/Code/User"
             VSCODE_INSIDERS_USER_DIR="$HOME/.config/Code - Insiders/User"
-            VSCODE_MCP_DIR="$HOME/.vscode"
+            COPILOT_SKILLS_DIR="$HOME/.copilot/skills"
             ;;
         Darwin*)
             VSCODE_USER_DIR="$HOME/Library/Application Support/Code/User"
             VSCODE_INSIDERS_USER_DIR="$HOME/Library/Application Support/Code - Insiders/User"
-            VSCODE_MCP_DIR="$HOME/.vscode"
+            COPILOT_SKILLS_DIR="$HOME/.copilot/skills"
             ;;
         MINGW*|MSYS*|CYGWIN*)
             VSCODE_USER_DIR="$APPDATA/Code/User"
             VSCODE_INSIDERS_USER_DIR="$APPDATA/Code - Insiders/User"
-            VSCODE_MCP_DIR="$USERPROFILE/.vscode"
+            COPILOT_SKILLS_DIR="$USERPROFILE/.copilot/skills"
             ;;
         *)
             echo -e "${RED}Unsupported operating system${NC}"
@@ -57,17 +58,45 @@ detect_vscode_paths() {
 
 detect_vscode_paths
 
-# Link or copy a file/directory to target, skipping if it already exists
+# Link or update a symlink (handles broken symlinks and wrong targets)
 link_item() {
-    local source="$1"
+    local source="${1%/}"  # Normalize: remove trailing slash from glob expansion
     local target="$2"
     local name=$(basename "$source")
 
-    if [ -L "$target" ] || [ -e "$target" ]; then
-        echo -e "${YELLOW}Exists: $name (skipping)${NC}"
+    # Check if target is a symlink
+    if [ -L "$target" ]; then
+        local current_target=$(readlink "$target")
+        if [ "$current_target" = "$source" ]; then
+            # Symlink already points to correct location
+            echo -e "${YELLOW}Exists: $name${NC}"
+            return 0
+        else
+            # Symlink points to wrong location - update it
+            rm "$target"
+            if ln -s "$source" "$target" 2>/dev/null; then
+                echo -e "${GREEN}Updated: $name (was pointing to wrong location)${NC}"
+            else
+                cp -r "$source" "$target"
+                echo -e "${GREEN}Updated: $name${NC}"
+                echo -e "${YELLOW}  Warning: Created copy instead of symlink (updates to source won't sync)${NC}"
+            fi
+            return 0
+        fi
+    elif [ -e "$target" ]; then
+        # Regular file/dir exists - skip
+        echo -e "${YELLOW}Exists: $name (not a symlink)${NC}"
+        return 0
     else
-        ln -s "$source" "$target" 2>/dev/null || cp -r "$source" "$target"
-        echo -e "${GREEN}Added: $name${NC}"
+        # Doesn't exist - create
+        if ln -s "$source" "$target" 2>/dev/null; then
+            echo -e "${GREEN}Added: $name${NC}"
+        else
+            cp -r "$source" "$target"
+            echo -e "${GREEN}Added: $name${NC}"
+            echo -e "${YELLOW}  Warning: Created copy instead of symlink (updates to source won't sync)${NC}"
+        fi
+        return 0
     fi
 }
 
@@ -81,32 +110,58 @@ elif [ -d "$VSCODE_INSIDERS_USER_DIR" ]; then
 else
     echo -e "${YELLOW}VS Code user directory not found. Will create it.${NC}"
     VSCODE_TARGET="$VSCODE_USER_DIR"
+    mkdir -p "$VSCODE_TARGET"
 fi
 
 echo ""
 echo -e "${BLUE}Step 1: Configure MCP Server${NC}"
 echo "─────────────────────────────"
+echo -e "${YELLOW}Location:${NC} $VSCODE_TARGET/mcp.json"
 
-# Create MCP config directory
-mkdir -p "$VSCODE_MCP_DIR"
-
-MCP_CONFIG_FILE="$VSCODE_MCP_DIR/mcp.json"
+# MCP config goes in VS Code User profile directory (not ~/.vscode)
+MCP_CONFIG_FILE="$VSCODE_TARGET/mcp.json"
 
 # Check if mcp.json already exists
 if [ -f "$MCP_CONFIG_FILE" ]; then
-    echo -e "${YELLOW}Existing mcp.json found. Checking for brain-dump server...${NC}"
+    echo "Existing mcp.json found. Checking for brain-dump server..."
     if grep -q '"brain-dump"' "$MCP_CONFIG_FILE"; then
         echo -e "${GREEN}Brain Dump MCP server already configured.${NC}"
     else
-        echo -e "${YELLOW}Adding brain-dump server to existing config...${NC}"
-        # This is a simple approach - for complex configs, manual editing may be needed
-        echo -e "${RED}Please manually add the brain-dump server to your mcp.json:${NC}"
-        echo ""
-        echo '  "brain-dump": {'
-        echo '    "type": "stdio",'
-        echo '    "command": "node",'
-        echo "    \"args\": [\"$BRAIN_DUMP_DIR/mcp-server/index.js\"]"
-        echo '  }'
+        echo "Adding brain-dump server to existing config..."
+        # Try to merge using node
+        if command -v node >/dev/null 2>&1; then
+            node_error=$(node -e "
+const fs = require('fs');
+const config = JSON.parse(fs.readFileSync('$MCP_CONFIG_FILE', 'utf8'));
+config.servers = config.servers || {};
+config.servers['brain-dump'] = {
+    type: 'stdio',
+    command: 'node',
+    args: ['$BRAIN_DUMP_DIR/mcp-server/index.js']
+};
+fs.writeFileSync('$MCP_CONFIG_FILE', JSON.stringify(config, null, 2));
+console.log('Config updated successfully');
+" 2>&1) && echo -e "${GREEN}Added brain-dump to mcp.json${NC}" || {
+                if [ -n "$node_error" ]; then
+                    echo -e "${YELLOW}JSON merge failed: $node_error${NC}"
+                fi
+                echo -e "${RED}Please manually add the brain-dump server to your mcp.json:${NC}"
+                echo ""
+                echo '  "brain-dump": {'
+                echo '    "type": "stdio",'
+                echo '    "command": "node",'
+                echo "    \"args\": [\"$BRAIN_DUMP_DIR/mcp-server/index.js\"]"
+                echo '  }'
+            }
+        else
+            echo -e "${RED}Please manually add the brain-dump server to your mcp.json:${NC}"
+            echo ""
+            echo '  "brain-dump": {'
+            echo '    "type": "stdio",'
+            echo '    "command": "node",'
+            echo "    \"args\": [\"$BRAIN_DUMP_DIR/mcp-server/index.js\"]"
+            echo '  }'
+        fi
     fi
 else
     echo "Creating new mcp.json..."
@@ -121,12 +176,13 @@ else
   }
 }
 EOF
-    echo -e "${GREEN}Created $MCP_CONFIG_FILE${NC}"
+    echo -e "${GREEN}Created mcp.json${NC}"
 fi
 
 echo ""
 echo -e "${BLUE}Step 2: Configure Agents${NC}"
 echo "─────────────────────────"
+echo -e "${YELLOW}Location:${NC} $VSCODE_TARGET/agents/"
 
 AGENTS_SOURCE="$BRAIN_DUMP_DIR/.github/agents"
 AGENTS_TARGET="$VSCODE_TARGET/agents"
@@ -137,28 +193,30 @@ if [ -d "$AGENTS_SOURCE" ]; then
         [ -f "$agent_file" ] && link_item "$agent_file" "$AGENTS_TARGET/$(basename "$agent_file")"
     done
 else
-    echo -e "${YELLOW}No agents found in Brain Dump${NC}"
+    echo -e "${YELLOW}No agents found in Brain Dump (.github/agents/)${NC}"
 fi
 
 echo ""
 echo -e "${BLUE}Step 3: Configure Skills${NC}"
 echo "─────────────────────────"
+echo -e "${YELLOW}Location:${NC} $COPILOT_SKILLS_DIR/"
+echo -e "${YELLOW}Note:${NC} Per VS Code docs, global skills go to ~/.copilot/skills/"
 
 SKILLS_SOURCE="$BRAIN_DUMP_DIR/.github/skills"
-SKILLS_TARGET="$VSCODE_TARGET/skills"
 
 if [ -d "$SKILLS_SOURCE" ]; then
-    mkdir -p "$SKILLS_TARGET"
+    mkdir -p "$COPILOT_SKILLS_DIR"
     for skill_dir in "$SKILLS_SOURCE"/*/; do
-        [ -d "$skill_dir" ] && link_item "$skill_dir" "$SKILLS_TARGET/$(basename "$skill_dir")"
+        [ -d "$skill_dir" ] && link_item "$skill_dir" "$COPILOT_SKILLS_DIR/$(basename "$skill_dir")"
     done
 else
-    echo -e "${YELLOW}No skills found in Brain Dump (optional)${NC}"
+    echo -e "${YELLOW}No skills found in Brain Dump (.github/skills/)${NC}"
 fi
 
 echo ""
 echo -e "${BLUE}Step 4: Configure Prompts${NC}"
 echo "──────────────────────────"
+echo -e "${YELLOW}Location:${NC} $VSCODE_TARGET/prompts/"
 
 PROMPTS_SOURCE="$BRAIN_DUMP_DIR/.github/prompts"
 PROMPTS_TARGET="$VSCODE_TARGET/prompts"
@@ -169,18 +227,23 @@ if [ -d "$PROMPTS_SOURCE" ]; then
         [ -f "$prompt_file" ] && link_item "$prompt_file" "$PROMPTS_TARGET/$(basename "$prompt_file")"
     done
 else
-    echo -e "${YELLOW}No prompts found in Brain Dump (optional)${NC}"
+    echo -e "${YELLOW}No prompts found in Brain Dump (.github/prompts/)${NC}"
 fi
 
 echo ""
 echo -e "${BLUE}Step 5: Configure Auto-Review Workflow${NC}"
 echo "───────────────────────────────────────"
 
-# Create auto-review skill for VS Code
-AUTO_REVIEW_SKILL_DIR="$SKILLS_TARGET/auto-review"
+# Create auto-review skill for VS Code in the Copilot skills directory
+AUTO_REVIEW_SKILL_DIR="$COPILOT_SKILLS_DIR/auto-review"
 if [ ! -d "$AUTO_REVIEW_SKILL_DIR" ]; then
     mkdir -p "$AUTO_REVIEW_SKILL_DIR"
     cat > "$AUTO_REVIEW_SKILL_DIR/SKILL.md" << 'EOF'
+---
+name: auto-review
+description: Run the complete code review pipeline on recent changes. Use after completing a feature or fixing a bug to review code quality, error handling, and simplification opportunities.
+---
+
 # Auto-Review Skill
 
 This skill runs the complete code review pipeline after completing a coding task.
@@ -272,8 +335,14 @@ echo ""
 echo -e "${BLUE}What's been configured:${NC}"
 echo "  • MCP Server: brain-dump (ticket management tools)"
 echo "  • Agents: Ralph, Ticket Worker, Planner, Code Reviewer, Silent Failure Hunter, Code Simplifier"
-echo "  • Skills: auto-review"
-echo "  • Prompts: /auto-review"
+echo "  • Skills: brain-dump-tickets, ralph-workflow, auto-review"
+echo "  • Prompts: start-ticket, complete-ticket, create-tickets, auto-review"
+echo ""
+echo -e "${BLUE}Configuration Locations:${NC}"
+echo "  • MCP:     $VSCODE_TARGET/mcp.json"
+echo "  • Agents:  $VSCODE_TARGET/agents/"
+echo "  • Skills:  $COPILOT_SKILLS_DIR/"
+echo "  • Prompts: $VSCODE_TARGET/prompts/"
 echo ""
 echo -e "${BLUE}Auto-Review in VS Code:${NC}"
 echo "  Unlike Claude Code (which uses hooks), VS Code requires manual invocation."
@@ -283,16 +352,10 @@ echo "    1. Prompt: /auto-review"
 echo "    2. Agent: @code-reviewer → @silent-failure-hunter → @code-simplifier"
 echo "    3. Chat: 'Please review my recent changes'"
 echo ""
-echo -e "${BLUE}Review Pipeline (same as Claude Code):${NC}"
-echo "    1. @code-reviewer - Project guideline compliance"
-echo "    2. @silent-failure-hunter - Error handling issues"
-echo "    3. @code-simplifier - Code simplification"
-echo ""
 echo -e "${BLUE}Next steps:${NC}"
 echo "  1. Restart VS Code to load the MCP server"
 echo "  2. Open Copilot Chat and try: @ralph or /start-ticket"
 echo "  3. After coding, use /auto-review to review changes"
-echo "  4. For background agents, enable: github.copilot.chat.cli.customAgents.enabled"
 echo ""
 echo -e "${YELLOW}Note:${NC} Make sure Brain Dump is running at least once to initialize the database."
 echo ""
