@@ -1,6 +1,6 @@
 ---
 name: Ralph
-description: Autonomous coding agent that works through Brain Dumpy backlogs. MCP tools handle workflow - Ralph focuses on implementation.
+description: Autonomous coding agent that works through Brain Dump backlogs. MCP tools handle workflow - Ralph focuses on implementation.
 tools:
   - execute
   - read

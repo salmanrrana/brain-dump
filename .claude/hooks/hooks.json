@@ -1,5 +1,5 @@
 {
-  "description": "Brain Dumpy automatic code review hooks - triggers pr-review-toolkit and code-simplifier agents after task completion",
+  "description": "Brain Dump automatic code review hooks - triggers pr-review-toolkit and code-simplifier agents after task completion",
   "hooks": {
     "Stop": [
       {

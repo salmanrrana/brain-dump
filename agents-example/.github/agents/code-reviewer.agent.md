@@ -87,7 +87,7 @@ Provide a structured report with:
 - Positive findings - things done well
 - Summary with recommendation
 
-## Integration with Brain Dumpy
+## Integration with Brain Dump
 
 After review, update the ticket with findings using add_ticket_comment.
 

@@ -18,7 +18,7 @@ export function registerTicketTools(server, db) {
   // Create ticket
   server.tool(
     "create_ticket",
-    `Create a new ticket in Brain Dumpy.
+    `Create a new ticket in Brain Dump.
 
 The ticket will be added to the Backlog column.
 First use find_project_by_path or list_projects to get the projectId.

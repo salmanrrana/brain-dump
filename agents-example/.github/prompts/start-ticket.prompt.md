@@ -1,6 +1,6 @@
 ---
 name: Start Ticket
-description: Start working on a Brain Dumpy ticket - creates branch and sets status
+description: Start working on a Brain Dump ticket - creates branch and sets status
 tools:
   - brain-dump/*
   - execute
@@ -8,7 +8,7 @@ tools:
 
 # Start Working on a Ticket
 
-Use the Brain Dumpy MCP tools to start working on a ticket.
+Use the Brain Dump MCP tools to start working on a ticket.
 
 ## Instructions
 

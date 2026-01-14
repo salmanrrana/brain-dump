@@ -138,11 +138,11 @@ function seedSampleData() {
   // Create a sample epic using parameterized query
   sqlite
     .prepare("INSERT INTO epics (id, title, description, project_id, color) VALUES (?, ?, ?, ?, ?)")
-    .run(epicId, "Getting Started", "Learn how to use Brain Dumpy", projectId, "#8b5cf6");
+    .run(epicId, "Getting Started", "Learn how to use Brain Dump", projectId, "#8b5cf6");
 
   // Create sample tickets
   const sampleTickets = [
-    { id: 'sample-1', title: 'Welcome to Brain Dumpy!', desc: 'This is your personal task management system. Drag tickets between columns to update their status.', status: 'backlog', priority: 'medium', pos: 1000 },
+    { id: 'sample-1', title: 'Welcome to Brain Dump!', desc: 'This is your personal task management system. Drag tickets between columns to update their status.', status: 'backlog', priority: 'medium', pos: 1000 },
     { id: 'sample-2', title: 'Try the "Start Work" button', desc: 'Click "Start Work" on a ticket to open Claude Code with full context.', status: 'ready', priority: 'high', pos: 2000 },
     { id: 'sample-3', title: 'Create your own project', desc: 'Click the + button in the sidebar to add a new project with your actual code path.', status: 'backlog', priority: 'low', pos: 3000 },
     { id: 'sample-4', title: 'Use keyboard shortcuts', desc: 'Press "n" for new ticket, "/" to search, "?" for help.', status: 'backlog', priority: 'medium', pos: 4000 },

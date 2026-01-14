@@ -103,5 +103,5 @@ GOOD: "What's the ONE thing users must be able to do?"
 2. Write comprehensive spec.md with all gathered info
 3. Set up plans/ folder (prd.json, progress.txt)
 4. Initialize git repo
-5. Register in Brain Dumpy via MCP
+5. Register in Brain Dump via MCP
 6. Suggest running `/breakdown` or the breakdown agent next

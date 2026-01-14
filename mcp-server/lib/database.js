@@ -174,7 +174,7 @@ export function initDatabase(dbPath) {
       log.info(`Using legacy database at ${legacyDbPath}`);
       actualDbPath = legacyDbPath;
     } else {
-      throw new Error(`Database not found at ${xdgDbPath} or ${legacyDbPath}. Run Brain Dumpy first to create the database.`);
+      throw new Error(`Database not found at ${xdgDbPath} or ${legacyDbPath}. Run Brain Dump first to create the database.`);
     }
   }
 

@@ -1,6 +1,6 @@
-# Claude Code Setup for Brain Dumpy
+# Claude Code Setup for Brain Dump
 
-Brain Dumpy integrates natively with Claude Code (Anthropic's CLI). This guide covers the full setup and available features.
+Brain Dump integrates natively with Claude Code (Anthropic's CLI). This guide covers the full setup and available features.
 
 ## Quick Start
 
@@ -11,7 +11,7 @@ cd /path/to/brain-dump
 ./scripts/setup-claude-code.sh
 ```
 
-This configures the Brain Dumpy MCP server in your `~/.claude.json`.
+This configures the Brain Dump MCP server in your `~/.claude.json`.
 
 ## Manual Setup
 
@@ -34,7 +34,7 @@ Then restart any running Claude Code sessions.
 
 ### Start with Claude
 
-Click **"Start with Claude"** on any ticket in Brain Dumpy to:
+Click **"Start with Claude"** on any ticket in Brain Dump to:
 
 1. Open a new terminal window in your project directory
 2. Launch `claude` with full ticket context as the initial prompt
@@ -50,7 +50,7 @@ The context includes:
 
 Click **"Start with Ralph"** on a ticket or epic to run Claude autonomously:
 
-1. Brain Dumpy generates a `plans/prd.json` with all pending tasks
+1. Brain Dump generates a `plans/prd.json` with all pending tasks
 2. Ralph runs in a loop:
    - Reads the PRD and progress file
    - Picks one task where `passes: false`
@@ -76,7 +76,7 @@ With the MCP server configured, Claude can manage tickets from any project:
 "Add a work summary to my current ticket"
 ```
 
-Claude auto-detects your project and updates Brain Dumpy in real-time.
+Claude auto-detects your project and updates Brain Dump in real-time.
 
 ## Available MCP Tools
 
@@ -100,13 +100,13 @@ Claude auto-detects your project and updates Brain Dumpy in real-time.
 
 ## Terminal Emulator Selection
 
-In Brain Dumpy Settings, choose your preferred terminal:
+In Brain Dump Settings, choose your preferred terminal:
 
 - **Ghostty** (default if detected)
 - GNOME Terminal, Konsole, Alacritty, kitty
 - Xfce Terminal, MATE Terminal, Terminator, Tilix, xterm
 
-Brain Dumpy auto-detects installed terminals if no preference is set.
+Brain Dump auto-detects installed terminals if no preference is set.
 
 ## Ralph Workflow Details
 
@@ -178,7 +178,7 @@ For isolated execution, enable Sandbox Mode in Settings:
 | **Context management** | Fresh per iteration | Managed by Copilot |
 | **Best for** | Fully autonomous backlogs | Interactive development |
 
-Both integrate with Brain Dumpy's MCP server for ticket management.
+Both integrate with Brain Dump's MCP server for ticket management.
 
 ## Troubleshooting
 
@@ -186,12 +186,12 @@ Both integrate with Brain Dumpy's MCP server for ticket management.
 
 1. Check the path in `~/.claude.json` is correct
 2. Ensure Node.js is installed
-3. Run Brain Dumpy once to initialize the database
+3. Run Brain Dump once to initialize the database
 4. Restart Claude Code
 
 ### Terminal not opening
 
-1. Check terminal emulator settings in Brain Dumpy
+1. Check terminal emulator settings in Brain Dump
 2. Ensure your terminal is installed and in PATH
 3. Try selecting a different terminal
 

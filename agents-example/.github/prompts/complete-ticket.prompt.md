@@ -1,6 +1,6 @@
 ---
 name: Complete Ticket
-description: Complete work on a Brain Dumpy ticket - add summary, update status, optionally create PR
+description: Complete work on a Brain Dump ticket - add summary, update status, optionally create PR
 tools:
   - brain-dump/*
   - execute
@@ -8,7 +8,7 @@ tools:
 
 # Complete Current Ticket
 
-Finalize work on the current ticket and update Brain Dumpy.
+Finalize work on the current ticket and update Brain Dump.
 
 ## Instructions
 

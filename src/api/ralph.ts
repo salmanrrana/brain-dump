@@ -115,7 +115,7 @@ function generateRalphScript(
 # Check if Docker image exists
 if ! docker image inspect "${imageName}" > /dev/null 2>&1; then
   echo -e "\\033[0;31m❌ Docker image not found: ${imageName}\\033[0m"
-  echo "Please build the sandbox image first in Brain Dumpy settings."
+  echo "Please build the sandbox image first in Brain Dump settings."
   exit 1
 fi
 `
@@ -165,7 +165,7 @@ fi
 
 echo ""
 echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-echo -e "\\033[0;32m🧠 Brain Dumpy - Ralph Mode${sandboxHeader}\\033[0m"
+echo -e "\\033[0;32m🧠 Brain Dump - Ralph Mode${sandboxHeader}\\033[0m"
 echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
 echo -e "\\033[1;33m📁 Project:\\033[0m $PROJECT_PATH"
 ${containerInfo}

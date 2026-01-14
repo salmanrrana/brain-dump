@@ -1,6 +1,6 @@
-# VS Code Setup for Brain Dumpy
+# VS Code Setup for Brain Dump
 
-Brain Dumpy serves as "ground control" for your AI-assisted development workflow. This guide explains how to set up VS Code to use Brain Dumpy's agents, skills, and MCP tools globally across all your projects.
+Brain Dump serves as "ground control" for your AI-assisted development workflow. This guide explains how to set up VS Code to use Brain Dump's agents, skills, and MCP tools globally across all your projects.
 
 ## Quick Start
 
@@ -12,7 +12,7 @@ cd /path/to/brain-dump
 ```
 
 This configures:
-- Brain Dumpy MCP server (ticket management tools)
+- Brain Dump MCP server (ticket management tools)
 - Ralph and other agents (autonomous coding)
 - Skills (ticket workflows)
 - Prompts (/start-ticket, /complete-ticket, etc.)
@@ -30,7 +30,7 @@ After running, restart VS Code.
 | **MCP tool access** | Yes | Yes |
 | **Best for** | Interactive + occasional automation | Fully autonomous backlogs |
 
-**Recommendation:** Use Claude Code (terminal) mode for grinding through large backlogs autonomously. Use VS Code when you want interactive development with Copilot Chat and Brain Dumpy integration.
+**Recommendation:** Use Claude Code (terminal) mode for grinding through large backlogs autonomously. Use VS Code when you want interactive development with Copilot Chat and Brain Dump integration.
 
 ## Manual Setup
 
@@ -52,7 +52,7 @@ Create `~/.vscode/mcp.json` (global) or `.vscode/mcp.json` (per-project):
 
 ### Step 2: Install Agents, Skills, and Prompts
 
-Copy from Brain Dumpy to your VS Code user profile:
+Copy from Brain Dump to your VS Code user profile:
 
 | OS | VS Code User Profile Path |
 |----|---------------------------|
@@ -86,7 +86,7 @@ Starts new projects from scratch through a fast-paced interview, then creates pr
 
 ### @planner - Implementation Planner
 
-Creates implementation plans and Brain Dumpy tickets from requirements. Does not write code.
+Creates implementation plans and Brain Dump tickets from requirements. Does not write code.
 
 ```
 @planner Plan implementation for user authentication
@@ -95,7 +95,7 @@ Creates implementation plans and Brain Dumpy tickets from requirements. Does not
 
 ### @ralph - Autonomous Coding Agent
 
-Works through Brain Dumpy backlogs autonomously. Best used with Background Agents for hands-free execution.
+Works through Brain Dump backlogs autonomously. Best used with Background Agents for hands-free execution.
 
 ```
 @ralph Work through the current backlog
@@ -104,7 +104,7 @@ Works through Brain Dumpy backlogs autonomously. Best used with Background Agent
 
 ### @ticket-worker - Single Ticket Implementer
 
-Focuses on implementing one ticket at a time with full Brain Dumpy integration.
+Focuses on implementing one ticket at a time with full Brain Dump integration.
 
 ```
 @ticket-worker Implement ticket BD-123
@@ -143,9 +143,9 @@ VS Code's Background Agents provide autonomous execution similar to Claude Code'
 - Background agents run independently in CLI mode
 - They use git worktrees for isolation (changes don't affect your working directory)
 - When complete, review and merge the changes back
-- Ralph will use Brain Dumpy MCP tools to track progress
+- Ralph will use Brain Dump MCP tools to track progress
 
-## Brain Dumpy MCP Tools
+## Brain Dump MCP Tools
 
 With the MCP server configured, these tools are available in any chat:
 
@@ -173,7 +173,7 @@ With the MCP server configured, these tools are available in any chat:
 
 1. Check the path in `mcp.json` is correct
 2. Ensure Node.js is installed and in PATH
-3. Run Brain Dumpy once to initialize the database
+3. Run Brain Dump once to initialize the database
 4. Check VS Code Output panel for MCP errors
 
 ### Agents not appearing
@@ -192,7 +192,7 @@ With the MCP server configured, these tools are available in any chat:
 ## Architecture
 
 ```
-Brain Dumpy (Ground Control)
+Brain Dump (Ground Control)
 ├── MCP Server           → Ticket management tools
 ├── agents/              → Ralph, Ticket Worker, Planner
 ├── skills/              → Ticket workflows, Ralph workflow
@@ -202,16 +202,16 @@ Brain Dumpy (Ground Control)
 
 VS Code User Profile
 ├── mcp.json             → MCP server config
-├── agents/              → Copied from Brain Dumpy
-├── skills/              → Copied from Brain Dumpy
-└── prompts/             → Copied from Brain Dumpy
+├── agents/              → Copied from Brain Dump
+├── skills/              → Copied from Brain Dump
+└── prompts/             → Copied from Brain Dump
 
                     ↓ Available In ↓
 
 All Your Projects
-├── Project A            → Has Brain Dumpy tools & agents
-├── Project B            → Has Brain Dumpy tools & agents
-└── Project C            → Has Brain Dumpy tools & agents
+├── Project A            → Has Brain Dump tools & agents
+├── Project B            → Has Brain Dump tools & agents
+└── Project C            → Has Brain Dump tools & agents
 ```
 
 ## Sources

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Brain Dumpy - One Command Install
+# Brain Dump - One Command Install
 # Handles prerequisites, dependencies, migrations, and IDE integration
 #
 # Usage:
@@ -31,7 +31,7 @@ FAILED=()
 print_header() {
     echo -e "${BLUE}"
     echo "╔════════════════════════════════════════════════════════════╗"
-    echo "║          Brain Dumpy - Automated Installer                 ║"
+    echo "║          Brain Dump - Automated Installer                 ║"
     echo "╚════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
 }
@@ -181,7 +181,7 @@ install_dependencies() {
     print_step "Installing project dependencies"
 
     if [ ! -f "package.json" ]; then
-        print_error "package.json not found. Are you in the Brain Dumpy directory?"
+        print_error "package.json not found. Are you in the Brain Dump directory?"
         FAILED+=("Project dependencies (wrong directory)")
         return 1
     fi
@@ -614,7 +614,7 @@ prompt_ide_selection() {
     echo "  1) Claude Code (CLI)"
     echo "  2) VS Code"
     echo "  3) Both"
-    echo "  4) Skip IDE setup (just install Brain Dumpy)"
+    echo "  4) Skip IDE setup (just install Brain Dump)"
     echo ""
     read -r -p "Enter choice [1-4]: " choice
 
@@ -689,7 +689,7 @@ print_summary() {
     fi
 
     echo -e "${BLUE}Next steps:${NC}"
-    echo -e "  1. Start Brain Dumpy:  ${CYAN}pnpm dev${NC}"
+    echo -e "  1. Start Brain Dump:  ${CYAN}pnpm dev${NC}"
     echo -e "  2. Open browser:       ${CYAN}http://localhost:4242${NC}"
     echo -e "  3. Create a project and ticket"
 
@@ -725,7 +725,7 @@ print_summary() {
 
 # Show help
 show_help() {
-    echo "Brain Dumpy Installer"
+    echo "Brain Dump Installer"
     echo ""
     echo "Usage: ./install.sh [options]"
     echo ""
@@ -794,7 +794,7 @@ main() {
 
     # Change to script directory if not already there
     if [ "$(pwd)" != "$SCRIPT_DIR" ]; then
-        print_info "Changing to Brain Dumpy directory: $SCRIPT_DIR"
+        print_info "Changing to Brain Dump directory: $SCRIPT_DIR"
         cd "$SCRIPT_DIR"
     fi
 
@@ -806,7 +806,7 @@ main() {
     fi
 
     if ! grep -q '"name"' package.json || ! grep -q 'brain-dump' package.json; then
-        print_warning "This doesn't look like the Brain Dumpy repository"
+        print_warning "This doesn't look like the Brain Dump repository"
         print_info "Continuing anyway..."
     fi
 

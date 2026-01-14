@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * Brain Dumpy MCP Server
+ * Brain Dump MCP Server
  *
- * Provides tools for managing tickets in Brain Dumpy from any project.
+ * Provides tools for managing tickets in Brain Dump from any project.
  * Uses the modern McpServer API with Zod schema validation.
  */
 

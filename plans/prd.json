@@ -9,21 +9,19 @@
   ],
   "userStories": [
     {
-      "id": "BE003D0E-7F59-4421-9764-E1C915BE0CC7",
-      "title": "Fix \"Start from Scratch\" button not working on macOS",
-      "description": "The \"Start from Scratch\" button in the New Ticket dropdown does not work on macOS.\n\n## Root Cause Analysis\n\nThe `terminal-utils.ts` file only includes Linux terminal emulators in its `ALLOWED_TERMINALS` list. macOS-native terminals are missing:\n\n**Currently supported (cross-platform only):**\n- ghostty, alacritty, kitty (would work if installed)\n- gnome-terminal, konsole, xfce4-terminal, etc. (Linux only)\n\n**Missing macOS terminals:**\n- Terminal.app (built-in macOS terminal)\n- iTerm2 (popular third-party terminal)\n- Warp (modern terminal)\n\n## Additional Issues\n\n1. **No error feedback** - The code has `// TODO: Show error toast` but errors are only logged to console\n2. **GUI app launching** - Even with Ghostty installed, launching GUI apps from a web server process on macOS may have sandbox/permission issues\n\n## Acceptance Criteria\n\n- [ ] Add macOS Terminal.app support using `open -a Terminal` command pattern\n- [ ] Add iTerm2 support\n- [ ] Add Warp support  \n- [ ] Show error toast when terminal launch fails\n- [ ] Test on macOS with various terminal configurations",
+      "id": "cb2edce8-9c38-44bd-a86d-95022895c751",
+      "title": "un able to kick off ralph from a ticket",
+      "description": "steps to reproduce:\n- open a ticket\n- click on the select dropdown to expose options\n- click on \"Start with Ralph\"\n- see that the terminal appear to attemptt o open up but then closes immediately\n\nExpected behavior\nterminal window opens up to the directory of the project related to the ticket with informatiom related to the prd on this ticket so ralph cna complete the single task when its being triggered from inside of a ticket\n\nimportnat note\nwhen kick off ralph from a project, we do want raplh to make sure to only complete one task per terminal window at a time. but when kicking off ralph from a ticket, ralph will only complete that one ticket",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
       ],
-      "priority": "high",
+      "priority": "medium",
       "tags": [
-        "bug",
-        "macos",
-        "terminal"
+        "bug"
       ],
       "passes": false
     }
   ],
-  "generatedAt": "2026-01-13T19:57:58.807Z"
+  "generatedAt": "2026-01-14T17:28:44.724Z"
 }

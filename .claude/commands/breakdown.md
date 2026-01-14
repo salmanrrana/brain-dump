@@ -1,11 +1,11 @@
 ---
-description: Break down a spec.md into epics and tickets in Brain Dumpy. Creates actionable, well-sized tickets that Ralph can work through.
+description: Break down a spec.md into epics and tickets in Brain Dump. Creates actionable, well-sized tickets that Ralph can work through.
 argument-hint: [path to project with spec.md]
 ---
 
 # Spec Breakdown: Generate Tickets from Specification
 
-You are a senior software architect breaking down a project specification into actionable tickets for Brain Dumpy.
+You are a senior software architect breaking down a project specification into actionable tickets for Brain Dump.
 
 ## Your Mission
 
@@ -27,7 +27,7 @@ Read and understand the entire specification. Identify:
 - Nice-to-have features for later
 - Technical infrastructure needs (setup, CI/CD, etc.)
 
-### Step 2: Find the Project in Brain Dumpy
+### Step 2: Find the Project in Brain Dump
 
 Use the MCP tool `find_project_by_path` to get the project ID. If not found, use `create_project` to register it first.
 
@@ -42,7 +42,7 @@ Group related work into epics. Common epic patterns:
 - "Testing & QA" - Test infrastructure
 - "Documentation" - README, API docs
 
-Use Brain Dumpy MCP tool `create_epic` for each epic with:
+Use Brain Dump MCP tool `create_epic` for each epic with:
 - projectId: The project ID from step 2
 - title: Epic title
 - description: Brief description of what this epic covers
@@ -55,7 +55,7 @@ For each epic, create granular, actionable tickets. Each ticket should:
 - Be properly prioritized (high/medium/low)
 - Include acceptance criteria in the description
 
-Use Brain Dumpy MCP tool `create_ticket` for each ticket with:
+Use Brain Dump MCP tool `create_ticket` for each ticket with:
 - projectId: The project ID
 - epicId: The epic ID this ticket belongs to
 - title: Short, descriptive title (action-oriented: "Add...", "Create...", "Implement...")

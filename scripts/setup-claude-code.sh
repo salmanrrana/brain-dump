@@ -1,13 +1,13 @@
 #!/bin/bash
-# Brain Dumpy Claude Code Setup Script
-# Configures Claude Code to use Brain Dumpy's MCP server and auto-review hooks
+# Brain Dump Claude Code Setup Script
+# Configures Claude Code to use Brain Dump's MCP server and auto-review hooks
 #
 # This script:
-# 1. Configures the Brain Dumpy MCP server in ~/.claude.json
+# 1. Configures the Brain Dump MCP server in ~/.claude.json
 # 2. Installs required plugins (pr-review-toolkit, code-simplifier)
 # 3. Copies hooks and agents to .claude directory
 #
-# After running, Brain Dumpy tools and auto-review will be available in all Claude Code sessions.
+# After running, Brain Dump tools and auto-review will be available in all Claude Code sessions.
 
 set -e
 
@@ -20,7 +20,7 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}"
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║       Brain Dumpy - Claude Code Setup                      ║"
+echo "║       Brain Dump - Claude Code Setup                      ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
@@ -28,7 +28,7 @@ echo -e "${NC}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BRAIN_DUMPY_DIR="$(dirname "$SCRIPT_DIR")"
 
-echo -e "${YELLOW}Brain Dumpy location:${NC} $BRAIN_DUMPY_DIR"
+echo -e "${YELLOW}Brain Dump location:${NC} $BRAIN_DUMPY_DIR"
 
 # Claude Code config file
 CLAUDE_CONFIG="$HOME/.claude.json"
@@ -42,7 +42,7 @@ if [ -f "$CLAUDE_CONFIG" ]; then
     echo -e "${YELLOW}Existing ~/.claude.json found.${NC}"
 
     if grep -q '"brain-dump"' "$CLAUDE_CONFIG"; then
-        echo -e "${GREEN}Brain Dumpy MCP server already configured.${NC}"
+        echo -e "${GREEN}Brain Dump MCP server already configured.${NC}"
     else
         echo -e "${YELLOW}Please manually add the brain-dump server to your ~/.claude.json:${NC}"
         echo ""
@@ -172,8 +172,8 @@ echo "  Remove or empty the 'hooks.Stop' array in .claude/settings.local.json"
 echo ""
 echo -e "${BLUE}Next steps:${NC}"
 echo "  1. Restart any running Claude Code sessions"
-echo "  2. Open Brain Dumpy and click 'Start with Claude' or 'Start with Ralph'"
+echo "  2. Open Brain Dump and click 'Start with Claude' or 'Start with Ralph'"
 echo "  3. Or use MCP tools directly: claude 'List all my projects'"
 echo ""
-echo -e "${YELLOW}Note:${NC} Make sure Brain Dumpy is running at least once to initialize the database."
+echo -e "${YELLOW}Note:${NC} Make sure Brain Dump is running at least once to initialize the database."
 echo ""

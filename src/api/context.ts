@@ -156,7 +156,7 @@ export const getTicketContext = createServerFn({ method: "GET" })
     contextParts.push("   git push -u origin <branch-name>");
     contextParts.push("   gh pr create --base dev --title \"feat(" + ticket.id + "): <description>\" --body \"<PR description>\"");
     contextParts.push("   ```");
-    contextParts.push("3. Update the ticket status using the Brain Dumpy MCP server:");
+    contextParts.push("3. Update the ticket status using the Brain Dump MCP server:");
     contextParts.push(`   - Use \`update_ticket_status\` with ticketId: "${ticket.id}" and status: "review"`);
     contextParts.push("   - Use \"done\" only after the PR is merged");
     contextParts.push("4. Add a work summary comment using `add_ticket_comment`:");

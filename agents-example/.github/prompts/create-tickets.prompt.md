@@ -1,6 +1,6 @@
 ---
 name: Create Tickets
-description: Create Brain Dumpy tickets from a feature description or requirements
+description: Create Brain Dump tickets from a feature description or requirements
 agent: planner
 tools:
   - brain-dump/*
@@ -10,7 +10,7 @@ tools:
 
 # Create Tickets from Requirements
 
-Break down a feature or requirement into actionable Brain Dumpy tickets.
+Break down a feature or requirement into actionable Brain Dump tickets.
 
 ## Instructions
 
