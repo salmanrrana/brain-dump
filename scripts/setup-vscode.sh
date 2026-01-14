@@ -225,7 +225,24 @@ SKILLS_SOURCE="$BRAIN_DUMP_DIR/.github/skills"
 if [ -d "$SKILLS_SOURCE" ]; then
     mkdir -p "$COPILOT_SKILLS_DIR"
     for skill_dir in "$SKILLS_SOURCE"/*/; do
-        [ -d "$skill_dir" ] && link_item "$skill_dir" "$COPILOT_SKILLS_DIR/$(basename "$skill_dir")"
+        if [ -d "$skill_dir" ]; then
+            skill_name=$(basename "$skill_dir")
+            target_path="$COPILOT_SKILLS_DIR/$skill_name"
+            # Copy directories directly (VS Code may not follow symlinks)
+            if [ -d "$target_path" ]; then
+                if ! diff -rq "$skill_dir" "$target_path" >/dev/null 2>&1; then
+                    rm -rf "$target_path"
+                    cp -r "$skill_dir" "$target_path"
+                    echo -e "${GREEN}Updated: $skill_name${NC}"
+                else
+                    echo -e "${YELLOW}Exists: $skill_name${NC}"
+                fi
+            else
+                [ -L "$target_path" ] && rm "$target_path"
+                cp -r "$skill_dir" "$target_path"
+                echo -e "${GREEN}Added: $skill_name${NC}"
+            fi
+        fi
     done
 else
     echo -e "${YELLOW}No skills found in Brain Dump (.github/skills/)${NC}"
@@ -242,7 +259,23 @@ PROMPTS_TARGET="$VSCODE_TARGET/prompts"
 if [ -d "$PROMPTS_SOURCE" ]; then
     mkdir -p "$PROMPTS_TARGET"
     for prompt_file in "$PROMPTS_SOURCE"/*.prompt.md; do
-        [ -f "$prompt_file" ] && link_item "$prompt_file" "$PROMPTS_TARGET/$(basename "$prompt_file")"
+        if [ -f "$prompt_file" ]; then
+            prompt_name=$(basename "$prompt_file")
+            target_path="$PROMPTS_TARGET/$prompt_name"
+            # Copy files directly (VS Code may not follow symlinks)
+            if [ -f "$target_path" ]; then
+                if ! cmp -s "$prompt_file" "$target_path"; then
+                    cp "$prompt_file" "$target_path"
+                    echo -e "${GREEN}Updated: $prompt_name${NC}"
+                else
+                    echo -e "${YELLOW}Exists: $prompt_name${NC}"
+                fi
+            else
+                [ -L "$target_path" ] && rm "$target_path"
+                cp "$prompt_file" "$target_path"
+                echo -e "${GREEN}Added: $prompt_name${NC}"
+            fi
+        fi
     done
 else
     echo -e "${YELLOW}No prompts found in Brain Dump (.github/prompts/)${NC}"
