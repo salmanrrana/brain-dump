@@ -8,10 +8,22 @@ const APP_NAME = "brain-dump";
 export type Platform = "linux" | "darwin" | "win32" | "other";
 
 let platformOverride: Platform | null = null;
+let dataDirOverride: string | null = null;
+let stateDirOverride: string | null = null;
 
 /** @internal - Only for use in tests */
 export function _setPlatformOverride(p: Platform | null): void {
   platformOverride = p;
+}
+
+/** @internal - Only for use in tests. Overrides getDataDir() return value. */
+export function _setDataDirOverride(path: string | null): void {
+  dataDirOverride = path;
+}
+
+/** @internal - Only for use in tests. Overrides getStateDir() return value. */
+export function _setStateDirOverride(path: string | null): void {
+  stateDirOverride = path;
 }
 
 export function getPlatform(): Platform {
@@ -38,6 +50,11 @@ export function isWindows(): boolean {
 }
 
 export function getDataDir(): string {
+  // Test override takes precedence
+  if (dataDirOverride !== null) {
+    return dataDirOverride;
+  }
+
   const p = getPlatform();
 
   if (p === "darwin") {
@@ -92,6 +109,11 @@ export function getCacheDir(): string {
 }
 
 export function getStateDir(): string {
+  // Test override takes precedence
+  if (stateDirOverride !== null) {
+    return stateDirOverride;
+  }
+
   const p = getPlatform();
 
   if (p === "darwin") {

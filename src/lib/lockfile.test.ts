@@ -10,30 +10,38 @@ import {
   releaseLock,
   type LockInfo,
 } from "./lockfile";
+import { _setStateDirOverride } from "./xdg";
 
 describe("Lock File Utilities", () => {
   const testBase = join("/tmp", `lockfile-test-${process.pid}`);
-  const originalEnv = { ...process.env };
+  const testStateDir = join(testBase, "brain-dump", "state");
 
   beforeEach(() => {
-    // Use temporary state directory for testing
-    process.env.XDG_STATE_HOME = testBase;
-    // Ensure the state directory exists
-    mkdirSync(join(testBase, "brain-dump"), { recursive: true });
+    // Clean up any existing test directories
+    if (existsSync(testBase)) {
+      rmSync(testBase, { recursive: true, force: true });
+    }
+
+    // Create the state directory
+    mkdirSync(testStateDir, { recursive: true });
+
+    // Use XDG override function for cross-platform test isolation
+    _setStateDirOverride(testStateDir);
   });
 
   afterEach(() => {
+    // Reset XDG override
+    _setStateDirOverride(null);
+
     // Cleanup test directories
     if (existsSync(testBase)) {
       rmSync(testBase, { recursive: true, force: true });
     }
-    // Restore original environment
-    process.env = { ...originalEnv };
   });
 
   describe("getLockFilePath", () => {
     it("should return lock file path in state directory", () => {
-      const expected = join(testBase, "brain-dump", "brain-dump.lock");
+      const expected = join(testStateDir, "brain-dump.lock");
       expect(getLockFilePath()).toBe(expected);
     });
   });

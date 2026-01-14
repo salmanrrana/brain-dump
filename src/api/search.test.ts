@@ -119,7 +119,19 @@ describe("FTS5 Search - User Experience", () => {
   });
 
   // Helper function to perform FTS search directly
-  function searchTicketsDirectly(query: string, projectIdFilter?: string) {
+  interface SearchResult {
+    id: string;
+    title: string;
+    description: string | null;
+    status: string;
+    priority: string | null;
+    projectId: string;
+    epicId: string | null;
+    tags: string | null;
+    snippet: string;
+  }
+
+  function searchTicketsDirectly(query: string, projectIdFilter?: string): SearchResult[] {
     if (!query || query.trim().length === 0) {
       return [];
     }
@@ -164,7 +176,7 @@ describe("FTS5 Search - User Experience", () => {
       sql += " ORDER BY rank LIMIT 50";
 
       const stmt = sqlite.prepare(sql);
-      return stmt.all(...params);
+      return stmt.all(...params) as SearchResult[];
     } catch (error) {
       // Fallback to LIKE search
       let sql = `
@@ -198,7 +210,7 @@ describe("FTS5 Search - User Experience", () => {
       sql += " LIMIT 50";
 
       const stmt = sqlite.prepare(sql);
-      return stmt.all(...params);
+      return stmt.all(...params) as SearchResult[];
     }
   }
 
@@ -351,7 +363,7 @@ describe("FTS5 Search - User Experience", () => {
 
       // Then: User should see highlighted search results
       expect(results).toHaveLength(1);
-      expect(results[0].snippet).toBeDefined();
+      expect(results[0]!.snippet).toBeDefined();
     });
 
     it("should work immediately after creating new tickets", () => {

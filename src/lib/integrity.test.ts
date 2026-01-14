@@ -11,12 +11,12 @@ import {
   fullDatabaseCheck,
   startupIntegrityCheck,
 } from "./integrity";
+import { _setDataDirOverride, _setStateDirOverride } from "./xdg";
 
 describe("Integrity Utilities", () => {
   const testBase = join("/tmp", `integrity-test-${process.pid}`);
-  const testXdgData = join(testBase, "xdg-data");
-  const testXdgState = join(testBase, "xdg-state");
-  const originalEnv = { ...process.env };
+  const testXdgData = join(testBase, "brain-dump");
+  const testXdgState = join(testBase, "brain-dump", "state");
 
   beforeEach(() => {
     // Clean up any existing test directories
@@ -27,19 +27,20 @@ describe("Integrity Utilities", () => {
     // Create base test directory
     mkdirSync(testBase, { recursive: true });
 
-    // Point XDG env vars to test directories
-    process.env.XDG_DATA_HOME = testXdgData;
-    process.env.XDG_STATE_HOME = testXdgState;
+    // Use XDG override functions for cross-platform test isolation
+    _setDataDirOverride(testXdgData);
+    _setStateDirOverride(testXdgState);
   });
 
   afterEach(() => {
+    // Reset XDG overrides
+    _setDataDirOverride(null);
+    _setStateDirOverride(null);
+
     // Clean up test directories
     if (existsSync(testBase)) {
       rmSync(testBase, { recursive: true, force: true });
     }
-
-    // Restore environment
-    process.env = { ...originalEnv };
   });
 
   describe("quickIntegrityCheck", () => {
@@ -335,7 +336,7 @@ describe("Integrity Utilities", () => {
 
     it("should suggest restore when corruption detected", () => {
       // Create a backup first so suggestion includes backup info
-      const backupsDir = join(testXdgState, "brain-dump", "backups");
+      const backupsDir = join(testXdgState, "backups");
       mkdirSync(backupsDir, { recursive: true });
       const backupPath = join(backupsDir, "brain-dump-2026-01-12.db");
       const backupDb = new Database(backupPath);
@@ -404,7 +405,7 @@ describe("Integrity Utilities", () => {
 
     it("should suggest restore when backups available", () => {
       // Create backup
-      const backupsDir = join(testXdgState, "brain-dump", "backups");
+      const backupsDir = join(testXdgState, "backups");
       mkdirSync(backupsDir, { recursive: true });
       const backupPath = join(backupsDir, "brain-dump-2026-01-12.db");
       const backupDb = new Database(backupPath);
