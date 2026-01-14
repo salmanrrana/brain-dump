@@ -203,6 +203,36 @@ install_dependencies() {
     fi
 }
 
+# Install MCP server dependencies (separate package.json)
+install_mcp_dependencies() {
+    print_step "Installing MCP server dependencies"
+
+    MCP_SERVER_DIR="$(pwd)/mcp-server"
+
+    if [ ! -d "$MCP_SERVER_DIR" ]; then
+        print_warning "MCP server directory not found at $MCP_SERVER_DIR"
+        SKIPPED+=("MCP server dependencies (directory not found)")
+        return 0
+    fi
+
+    if [ ! -f "$MCP_SERVER_DIR/package.json" ]; then
+        print_warning "MCP server package.json not found"
+        SKIPPED+=("MCP server dependencies (no package.json)")
+        return 0
+    fi
+
+    print_info "Installing MCP server dependencies in mcp-server/..."
+    if (cd "$MCP_SERVER_DIR" && pnpm install); then
+        print_success "MCP server dependencies installed"
+        INSTALLED+=("MCP server dependencies")
+        return 0
+    else
+        print_error "MCP server dependency installation failed"
+        FAILED+=("MCP server dependencies")
+        return 1
+    fi
+}
+
 # Run database migrations
 run_migrations() {
     print_step "Setting up database"
@@ -797,6 +827,7 @@ main() {
 
     install_pnpm || true
     install_dependencies || true
+    install_mcp_dependencies || true
     run_migrations || true
 
     # Claude Code setup
