@@ -157,15 +157,25 @@ export function buildTerminalCommand(
   // Escape paths for AppleScript context (used by macOS terminals)
   const appleScriptPath = escapeAppleScriptPath(scriptPath);
 
+  // Detect platform
+  const isMacOS = process.platform === "darwin";
+
   switch (terminal) {
     // Cross-platform terminals
     case "ghostty":
-      // Ghostty: use -e with the script path directly
+      if (isMacOS) {
+        // On macOS, use 'open -n -a Ghostty --args -e <script>' with minimal args.
+        // The script already cd's to the working directory, so we don't pass --working-directory.
+        // Passing too many args through 'open --args' causes Ghostty to create multiple tabs.
+        // See: https://github.com/ghostty-org/ghostty/discussions/4434
+        return `open -n -a Ghostty --args -e "${safeScript}"`;
+      }
+      // On Linux, use -e with script directly
       return `ghostty --working-directory="${safePath}" -e "${safeScript}"`;
     case "alacritty":
-      return `alacritty --working-directory "${safePath}" -e "${safeScript}"`;
+      return `alacritty --working-directory "${safePath}" -e bash "${safeScript}"`;
     case "kitty":
-      return `kitty --directory "${safePath}" "${safeScript}"`;
+      return `kitty --directory "${safePath}" bash "${safeScript}"`;
 
     // macOS terminals - use osascript (AppleScript) for reliable execution
     case "terminal.app":
