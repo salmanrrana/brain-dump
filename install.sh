@@ -272,8 +272,8 @@ configure_mcp_server() {
     print_step "Configuring Claude Code MCP server"
 
     CLAUDE_CONFIG="$HOME/.claude.json"
-    BRAIN_DUMPY_DIR="$(pwd)"
-    MCP_SERVER_PATH="$BRAIN_DUMPY_DIR/mcp-server/index.js"
+    BRAIN_DUMP_DIR="$(pwd)"
+    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/index.js"
 
     # Check if MCP server file exists
     if [ ! -f "$MCP_SERVER_PATH" ]; then
@@ -475,8 +475,8 @@ configure_vscode_mcp() {
 
     get_vscode_paths
 
-    BRAIN_DUMPY_DIR="$(pwd)"
-    MCP_SERVER_PATH="$BRAIN_DUMPY_DIR/mcp-server/index.js"
+    BRAIN_DUMP_DIR="$(pwd)"
+    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/index.js"
 
     # Ensure VSCODE_MCP_DIR is set before creating directory
     if [ -z "$VSCODE_MCP_DIR" ]; then

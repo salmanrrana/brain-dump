@@ -26,13 +26,13 @@ echo -e "${NC}"
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BRAIN_DUMPY_DIR="$(dirname "$SCRIPT_DIR")"
+BRAIN_DUMP_DIR="$(dirname "$SCRIPT_DIR")"
 
-echo -e "${YELLOW}Brain Dump location:${NC} $BRAIN_DUMPY_DIR"
+echo -e "${YELLOW}Brain Dump location:${NC} $BRAIN_DUMP_DIR"
 
 # Claude Code config file
 CLAUDE_CONFIG="$HOME/.claude.json"
-PROJECT_CLAUDE_DIR="$BRAIN_DUMPY_DIR/.claude"
+PROJECT_CLAUDE_DIR="$BRAIN_DUMP_DIR/.claude"
 
 echo ""
 echo -e "${BLUE}Step 1: Configure MCP Server${NC}"
@@ -53,7 +53,7 @@ if [ -f "$CLAUDE_CONFIG" ]; then
   "mcpServers": {
     "brain-dump": {
       "command": "node",
-      "args": ["$BRAIN_DUMPY_DIR/mcp-server/index.js"]
+      "args": ["$BRAIN_DUMP_DIR/mcp-server/index.js"]
     }
   }
 }
@@ -67,7 +67,7 @@ else
   "mcpServers": {
     "brain-dump": {
       "command": "node",
-      "args": ["$BRAIN_DUMPY_DIR/mcp-server/index.js"]
+      "args": ["$BRAIN_DUMP_DIR/mcp-server/index.js"]
     }
   }
 }
@@ -102,7 +102,7 @@ echo "────────────────────────"
 mkdir -p "$PROJECT_CLAUDE_DIR/hooks"
 
 # Copy hooks if they exist in the source
-HOOKS_SOURCE="$BRAIN_DUMPY_DIR/.claude/hooks"
+HOOKS_SOURCE="$BRAIN_DUMP_DIR/.claude/hooks"
 if [ -d "$HOOKS_SOURCE" ]; then
     echo "Hooks directory already exists in project."
     echo -e "${GREEN}Hooks configured:${NC}"
