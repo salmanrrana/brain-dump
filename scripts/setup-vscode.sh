@@ -180,17 +180,35 @@ EOF
 fi
 
 echo ""
-echo -e "${BLUE}Step 2: Configure Agents${NC}"
-echo "─────────────────────────"
-echo -e "${YELLOW}Location:${NC} $VSCODE_TARGET/agents/"
+echo -e "${BLUE}Step 2: Configure Agents (global)${NC}"
+echo "──────────────────────────────────"
+echo -e "${YELLOW}Per VS Code docs:${NC} https://code.visualstudio.com/docs/copilot/customization/custom-agents"
+echo -e "${YELLOW}Location:${NC} $VSCODE_TARGET/prompts/"
+echo -e "${YELLOW}Note:${NC} Global agents are available in ALL VS Code workspaces"
 
 AGENTS_SOURCE="$BRAIN_DUMP_DIR/.github/agents"
-AGENTS_TARGET="$VSCODE_TARGET/agents"
+# VS Code stores user-level agents in the prompts folder
+AGENTS_TARGET="$VSCODE_TARGET/prompts"
 
 if [ -d "$AGENTS_SOURCE" ]; then
     mkdir -p "$AGENTS_TARGET"
     for agent_file in "$AGENTS_SOURCE"/*.agent.md; do
-        [ -f "$agent_file" ] && link_item "$agent_file" "$AGENTS_TARGET/$(basename "$agent_file")"
+        if [ -f "$agent_file" ]; then
+            agent_name=$(basename "$agent_file")
+            target_path="$AGENTS_TARGET/$agent_name"
+            # Copy files directly (VS Code may not follow symlinks)
+            if [ -f "$target_path" ]; then
+                if ! cmp -s "$agent_file" "$target_path"; then
+                    cp "$agent_file" "$target_path"
+                    echo -e "${GREEN}Updated: $agent_name${NC}"
+                else
+                    echo -e "${YELLOW}Exists: $agent_name${NC}"
+                fi
+            else
+                cp "$agent_file" "$target_path"
+                echo -e "${GREEN}Added: $agent_name${NC}"
+            fi
+        fi
     done
 else
     echo -e "${YELLOW}No agents found in Brain Dump (.github/agents/)${NC}"
@@ -334,15 +352,16 @@ echo -e "${GREEN}╚════════════════════
 echo ""
 echo -e "${BLUE}What's been configured:${NC}"
 echo "  • MCP Server: brain-dump (ticket management tools)"
-echo "  • Agents: Ralph, Ticket Worker, Planner, Code Reviewer, Silent Failure Hunter, Code Simplifier"
+echo "  • Agents: Defined in AGENTS.md (Ralph, Ticket Worker, Planner, Code Reviewer, etc.)"
+echo "  • VS Code Setting: chat.useAgentsMdFile = true"
 echo "  • Skills: brain-dump-tickets, ralph-workflow, auto-review"
 echo "  • Prompts: start-ticket, complete-ticket, create-tickets, auto-review"
 echo ""
 echo -e "${BLUE}Configuration Locations:${NC}"
-echo "  • MCP:     $VSCODE_TARGET/mcp.json"
-echo "  • Agents:  $VSCODE_TARGET/agents/"
-echo "  • Skills:  $COPILOT_SKILLS_DIR/"
-echo "  • Prompts: $VSCODE_TARGET/prompts/"
+echo "  • MCP:      $VSCODE_TARGET/mcp.json"
+echo "  • Agents:   $VSCODE_TARGET/prompts/*.agent.md (global, all workspaces)"
+echo "  • Prompts:  $VSCODE_TARGET/prompts/*.prompt.md"
+echo "  • Skills:   $COPILOT_SKILLS_DIR/"
 echo ""
 echo -e "${BLUE}Auto-Review in VS Code:${NC}"
 echo "  Unlike Claude Code (which uses hooks), VS Code requires manual invocation."
