@@ -10,14 +10,13 @@ import {
   migrateFromLegacy,
   migrateFromLegacySync,
 } from "./migration";
+import { _setDataDirOverride, _setStateDirOverride } from "./xdg";
 
 describe("Migration Utilities", () => {
   const testBase = join("/tmp", `migration-test-${process.pid}`);
-  const testXdgData = join(testBase, "xdg-data");
-  const testXdgState = join(testBase, "xdg-state");
-  const originalEnv = { ...process.env };
+  const testXdgData = join(testBase, "brain-dump");
+  const testXdgState = join(testBase, "brain-dump", "state");
 
-  // Mock the XDG paths to use test directories
   beforeEach(() => {
     // Clean up any existing test directories
     if (existsSync(testBase)) {
@@ -27,23 +26,20 @@ describe("Migration Utilities", () => {
     // Create base test directory
     mkdirSync(testBase, { recursive: true });
 
-    // Point XDG env vars to test directories
-    process.env.XDG_DATA_HOME = testXdgData;
-    process.env.XDG_STATE_HOME = testXdgState;
-
-    // Mock HOME for getLegacyDir
-    // Since getLegacyDir uses homedir(), we need to create the test legacy dir
-    // at the actual legacy path or mock it
+    // Use XDG override functions for cross-platform test isolation
+    _setDataDirOverride(testXdgData);
+    _setStateDirOverride(testXdgState);
   });
 
   afterEach(() => {
+    // Reset XDG overrides
+    _setDataDirOverride(null);
+    _setStateDirOverride(null);
+
     // Clean up test directories
     if (existsSync(testBase)) {
       rmSync(testBase, { recursive: true, force: true });
     }
-
-    // Restore environment
-    process.env = { ...originalEnv };
   });
 
   describe("verifyDatabaseIntegrity", () => {
@@ -90,7 +86,7 @@ describe("Migration Utilities", () => {
 
       it("should return true when XDG database exists", () => {
         // Create the XDG data directory structure
-        const xdgBrainDump = join(testXdgData, "brain-dump");
+        const xdgBrainDump = testXdgData;
         mkdirSync(xdgBrainDump, { recursive: true });
 
         // Create a database file
@@ -130,7 +126,7 @@ describe("Migration Utilities", () => {
 
     it("should return success with no migration when XDG already has data", () => {
       // Create XDG database first
-      const xdgBrainDump = join(testXdgData, "brain-dump");
+      const xdgBrainDump = testXdgData;
       mkdirSync(xdgBrainDump, { recursive: true });
 
       const dbPath = join(xdgBrainDump, "brain-dump.db");
@@ -157,7 +153,7 @@ describe("Migration Utilities", () => {
 
     it("should return success with no migration when XDG already has data", async () => {
       // Create XDG database first
-      const xdgBrainDump = join(testXdgData, "brain-dump");
+      const xdgBrainDump = testXdgData;
       mkdirSync(xdgBrainDump, { recursive: true });
 
       const dbPath = join(xdgBrainDump, "brain-dump.db");
@@ -188,8 +184,8 @@ describe("Migration Utilities", () => {
 
 describe("Migration Integration", () => {
   const testBase = join("/tmp", `migration-integration-${process.pid}`);
-  const testXdgData = join(testBase, "xdg-data");
-  const testXdgState = join(testBase, "xdg-state");
+  const testXdgData = join(testBase, "brain-dump");
+  const testXdgState = join(testBase, "brain-dump", "state");
 
   beforeEach(() => {
     if (existsSync(testBase)) {
@@ -197,12 +193,16 @@ describe("Migration Integration", () => {
     }
     mkdirSync(testBase, { recursive: true });
 
-    // Set up XDG environment
-    process.env.XDG_DATA_HOME = testXdgData;
-    process.env.XDG_STATE_HOME = testXdgState;
+    // Use XDG override functions for cross-platform test isolation
+    _setDataDirOverride(testXdgData);
+    _setStateDirOverride(testXdgState);
   });
 
   afterEach(() => {
+    // Reset XDG overrides
+    _setDataDirOverride(null);
+    _setStateDirOverride(null);
+
     if (existsSync(testBase)) {
       rmSync(testBase, { recursive: true, force: true });
     }

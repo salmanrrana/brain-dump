@@ -13,12 +13,12 @@ import {
   cleanupOldBackups,
   performDailyBackupSync,
 } from "./backup";
+import { _setDataDirOverride, _setStateDirOverride } from "./xdg";
 
 describe("Backup Utilities", () => {
   const testBase = join("/tmp", `backup-test-${process.pid}`);
-  const testXdgData = join(testBase, "xdg-data");
-  const testXdgState = join(testBase, "xdg-state");
-  const originalEnv = { ...process.env };
+  const testXdgData = join(testBase, "brain-dump");
+  const testXdgState = join(testBase, "brain-dump", "state");
 
   beforeEach(() => {
     // Clean up any existing test directories
@@ -29,19 +29,20 @@ describe("Backup Utilities", () => {
     // Create base test directory
     mkdirSync(testBase, { recursive: true });
 
-    // Point XDG env vars to test directories
-    process.env.XDG_DATA_HOME = testXdgData;
-    process.env.XDG_STATE_HOME = testXdgState;
+    // Use XDG override functions for cross-platform test isolation
+    _setDataDirOverride(testXdgData);
+    _setStateDirOverride(testXdgState);
   });
 
   afterEach(() => {
+    // Reset XDG overrides
+    _setDataDirOverride(null);
+    _setStateDirOverride(null);
+
     // Clean up test directories
     if (existsSync(testBase)) {
       rmSync(testBase, { recursive: true, force: true });
     }
-
-    // Restore environment
-    process.env = { ...originalEnv };
   });
 
   describe("getBackupFilename", () => {
@@ -73,7 +74,7 @@ describe("Backup Utilities", () => {
 
     it("should return false when marker is from a different day", () => {
       // Create the state directory and marker file with old date
-      const stateDir = join(testXdgState, "brain-dump", "backups");
+      const stateDir = join(testXdgState, "backups");
       mkdirSync(stateDir, { recursive: true });
 
       const markerPath = join(stateDir, ".last-backup");
@@ -129,7 +130,7 @@ describe("Backup Utilities", () => {
     });
 
     it("should list backups sorted by date (newest first)", () => {
-      const backupsDir = join(testXdgState, "brain-dump", "backups");
+      const backupsDir = join(testXdgState, "backups");
       mkdirSync(backupsDir, { recursive: true });
 
       // Create test backup files
@@ -150,7 +151,7 @@ describe("Backup Utilities", () => {
     });
 
     it("should ignore non-backup files", () => {
-      const backupsDir = join(testXdgState, "brain-dump", "backups");
+      const backupsDir = join(testXdgState, "backups");
       mkdirSync(backupsDir, { recursive: true });
 
       // Create a valid backup
@@ -181,7 +182,7 @@ describe("Backup Utilities", () => {
 
     it("should create a valid backup from source database", () => {
       // Create source database
-      const sourceDir = join(testXdgData, "brain-dump");
+      const sourceDir = testXdgData;
       mkdirSync(sourceDir, { recursive: true });
       const sourcePath = join(sourceDir, "brain-dump.db");
 
@@ -208,7 +209,7 @@ describe("Backup Utilities", () => {
 
     it("should create backups in the correct directory", () => {
       // Create source database
-      const sourceDir = join(testXdgData, "brain-dump");
+      const sourceDir = testXdgData;
       mkdirSync(sourceDir, { recursive: true });
       const sourcePath = join(sourceDir, "brain-dump.db");
 
@@ -223,7 +224,7 @@ describe("Backup Utilities", () => {
       expect(result.created).toBe(true);
 
       const today = new Date().toISOString().split("T")[0];
-      const expectedPath = join(testXdgState, "brain-dump", "backups", `brain-dump-${today}.db`);
+      const expectedPath = join(testXdgState, "backups", `brain-dump-${today}.db`);
       expect(result.backupPath).toBe(expectedPath);
     });
   });
@@ -231,7 +232,7 @@ describe("Backup Utilities", () => {
   describe("createBackupIfNeeded", () => {
     it("should create backup when none exists for today", () => {
       // Create source database
-      const sourceDir = join(testXdgData, "brain-dump");
+      const sourceDir = testXdgData;
       mkdirSync(sourceDir, { recursive: true });
       const sourcePath = join(sourceDir, "brain-dump.db");
 
@@ -248,7 +249,7 @@ describe("Backup Utilities", () => {
 
     it("should not create duplicate backup for today", () => {
       // Create source database
-      const sourceDir = join(testXdgData, "brain-dump");
+      const sourceDir = testXdgData;
       mkdirSync(sourceDir, { recursive: true });
       const sourcePath = join(sourceDir, "brain-dump.db");
 
@@ -270,7 +271,7 @@ describe("Backup Utilities", () => {
 
     it("should force create backup when force=true", () => {
       // Create source database
-      const sourceDir = join(testXdgData, "brain-dump");
+      const sourceDir = testXdgData;
       mkdirSync(sourceDir, { recursive: true });
       const sourcePath = join(sourceDir, "brain-dump.db");
 
@@ -292,7 +293,7 @@ describe("Backup Utilities", () => {
 
   describe("cleanupOldBackups", () => {
     it("should do nothing when fewer backups than limit", () => {
-      const backupsDir = join(testXdgState, "brain-dump", "backups");
+      const backupsDir = join(testXdgState, "backups");
       mkdirSync(backupsDir, { recursive: true });
 
       // Create 3 backups
@@ -312,7 +313,7 @@ describe("Backup Utilities", () => {
     });
 
     it("should delete oldest backups when exceeding limit", () => {
-      const backupsDir = join(testXdgState, "brain-dump", "backups");
+      const backupsDir = join(testXdgState, "backups");
       mkdirSync(backupsDir, { recursive: true });
 
       // Create 10 backups
@@ -337,7 +338,7 @@ describe("Backup Utilities", () => {
     });
 
     it("should respect custom keepDays parameter", () => {
-      const backupsDir = join(testXdgState, "brain-dump", "backups");
+      const backupsDir = join(testXdgState, "backups");
       mkdirSync(backupsDir, { recursive: true });
 
       // Create 5 backups
@@ -361,7 +362,7 @@ describe("Backup Utilities", () => {
   describe("performDailyBackupSync", () => {
     it("should create backup and cleanup old ones", () => {
       // Create source database
-      const sourceDir = join(testXdgData, "brain-dump");
+      const sourceDir = testXdgData;
       mkdirSync(sourceDir, { recursive: true });
       const sourcePath = join(sourceDir, "brain-dump.db");
 
@@ -377,7 +378,7 @@ describe("Backup Utilities", () => {
 
     it("should cleanup when too many backups exist", () => {
       // Create source database
-      const sourceDir = join(testXdgData, "brain-dump");
+      const sourceDir = testXdgData;
       mkdirSync(sourceDir, { recursive: true });
       const sourcePath = join(sourceDir, "brain-dump.db");
 
@@ -386,7 +387,7 @@ describe("Backup Utilities", () => {
       sourceDb.close();
 
       // Create 10 existing backups (excluding today to avoid conflict)
-      const backupsDir = join(testXdgState, "brain-dump", "backups");
+      const backupsDir = join(testXdgState, "backups");
       mkdirSync(backupsDir, { recursive: true });
 
       const today = new Date();
@@ -415,7 +416,7 @@ describe("Backup Utilities", () => {
   describe("Backup Integrity", () => {
     it("should preserve database content in backup", () => {
       // Create source database with data
-      const sourceDir = join(testXdgData, "brain-dump");
+      const sourceDir = testXdgData;
       mkdirSync(sourceDir, { recursive: true });
       const sourcePath = join(sourceDir, "brain-dump.db");
 
