@@ -317,7 +317,8 @@ EOF
 
         # Try to use node/jq to merge, or provide manual instructions
         if command_exists node; then
-            node -e "
+            local node_error
+            node_error=$(node -e "
 const fs = require('fs');
 const config = JSON.parse(fs.readFileSync('$CLAUDE_CONFIG', 'utf8'));
 config.mcpServers = config.mcpServers || {};
@@ -327,11 +328,15 @@ config.mcpServers['brain-dump'] = {
 };
 fs.writeFileSync('$CLAUDE_CONFIG', JSON.stringify(config, null, 2));
 console.log('Config updated successfully');
-" 2>/dev/null && {
+" 2>&1) && {
                 print_success "Added brain-dump to ~/.claude.json"
                 INSTALLED+=("MCP server config")
                 return 0
             }
+            # Show the actual error if node command failed
+            if [ -n "$node_error" ]; then
+                print_warning "JSON merge failed: $node_error"
+            fi
         fi
 
         # Fallback to manual instructions
@@ -432,27 +437,32 @@ setup_project_config() {
 # ============================================================================
 
 # Get VS Code paths based on OS
+# Per VS Code docs:
+#   - Agents: ~/Library/Application Support/Code/User/agents/ (macOS)
+#   - Skills: ~/.copilot/skills/ (global) or .github/skills/ (workspace)
+#   - MCP: ~/Library/Application Support/Code/User/mcp.json (macOS)
+#   - Prompts: ~/Library/Application Support/Code/User/prompts/
 get_vscode_paths() {
     case "$OS" in
         macos)
             VSCODE_USER_DIR="$HOME/Library/Application Support/Code/User"
             VSCODE_INSIDERS_USER_DIR="$HOME/Library/Application Support/Code - Insiders/User"
-            VSCODE_MCP_DIR="$HOME/.vscode"
+            COPILOT_SKILLS_DIR="$HOME/.copilot/skills"
             ;;
         linux)
             VSCODE_USER_DIR="$HOME/.config/Code/User"
             VSCODE_INSIDERS_USER_DIR="$HOME/.config/Code - Insiders/User"
-            VSCODE_MCP_DIR="$HOME/.vscode"
+            COPILOT_SKILLS_DIR="$HOME/.copilot/skills"
             ;;
         windows)
             VSCODE_USER_DIR="$APPDATA/Code/User"
             VSCODE_INSIDERS_USER_DIR="$APPDATA/Code - Insiders/User"
-            VSCODE_MCP_DIR="$USERPROFILE/.vscode"
+            COPILOT_SKILLS_DIR="$USERPROFILE/.copilot/skills"
             ;;
         *)
             VSCODE_USER_DIR=""
             VSCODE_INSIDERS_USER_DIR=""
-            VSCODE_MCP_DIR=""
+            COPILOT_SKILLS_DIR=""
             ;;
     esac
 
@@ -470,25 +480,24 @@ get_vscode_paths() {
 }
 
 # Configure MCP server for VS Code
+# MCP config goes in VS Code User profile: ~/Library/Application Support/Code/User/mcp.json
 configure_vscode_mcp() {
     print_step "Configuring VS Code MCP server"
 
     get_vscode_paths
 
+    if [ -z "$VSCODE_TARGET" ]; then
+        print_warning "VS Code not found. Skipping MCP configuration."
+        print_info "Install VS Code first, then re-run with --vscode"
+        SKIPPED+=("VS Code MCP server (VS Code not found)")
+        return 0
+    fi
+
     BRAIN_DUMP_DIR="$(pwd)"
     MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/index.js"
 
-    # Ensure VSCODE_MCP_DIR is set before creating directory
-    if [ -z "$VSCODE_MCP_DIR" ]; then
-        print_error "Could not determine VS Code MCP directory"
-        FAILED+=("VS Code MCP server (unknown directory)")
-        return 1
-    fi
-
-    # Create MCP config directory
-    mkdir -p "$VSCODE_MCP_DIR"
-
-    MCP_CONFIG_FILE="$VSCODE_MCP_DIR/mcp.json"
+    # MCP config goes in VS Code User profile directory
+    MCP_CONFIG_FILE="$VSCODE_TARGET/mcp.json"
 
     # Check if mcp.json already exists
     if [ -f "$MCP_CONFIG_FILE" ]; then
@@ -502,7 +511,8 @@ configure_vscode_mcp() {
         print_info "Adding brain-dump to existing mcp.json..."
 
         if command_exists node; then
-            node -e "
+            local node_error
+            node_error=$(node -e "
 const fs = require('fs');
 const config = JSON.parse(fs.readFileSync('$MCP_CONFIG_FILE', 'utf8'));
 config.servers = config.servers || {};
@@ -513,15 +523,20 @@ config.servers['brain-dump'] = {
 };
 fs.writeFileSync('$MCP_CONFIG_FILE', JSON.stringify(config, null, 2));
 console.log('Config updated successfully');
-" 2>/dev/null && {
-                print_success "Added brain-dump to ~/.vscode/mcp.json"
+" 2>&1) && {
+                print_success "Added brain-dump to VS Code mcp.json"
                 INSTALLED+=("VS Code MCP server")
                 return 0
             }
+            # Show the actual error if node command failed
+            if [ -n "$node_error" ]; then
+                print_warning "JSON merge failed: $node_error"
+            fi
         fi
 
         # Fallback to manual instructions
-        print_warning "Could not auto-merge. Please add this to servers in ~/.vscode/mcp.json:"
+        print_warning "Could not auto-merge. Please add this to servers in VS Code mcp.json:"
+        print_info "Location: $MCP_CONFIG_FILE"
         echo ""
         echo '  "brain-dump": {'
         echo '    "type": "stdio",'
@@ -531,7 +546,7 @@ console.log('Config updated successfully');
         echo ""
         SKIPPED+=("VS Code MCP server (manual merge required)")
     else
-        print_info "Creating ~/.vscode/mcp.json..."
+        print_info "Creating VS Code mcp.json..."
         cat > "$MCP_CONFIG_FILE" << EOF
 {
   "servers": {
@@ -543,12 +558,54 @@ console.log('Config updated successfully');
   }
 }
 EOF
-        print_success "Created ~/.vscode/mcp.json with brain-dump server"
+        print_success "Created VS Code mcp.json with brain-dump server"
+        print_info "Location: $MCP_CONFIG_FILE"
         INSTALLED+=("VS Code MCP server")
     fi
 }
 
+# Helper: link or update a symlink (handles broken symlinks and wrong targets)
+link_or_update() {
+    local source="${1%/}"  # Normalize: remove trailing slash from glob expansion
+    local target="$2"
+    local name=$(basename "$source")
+
+    # Check if target is a symlink
+    if [ -L "$target" ]; then
+        local current_target=$(readlink "$target")
+        if [ "$current_target" = "$source" ]; then
+            # Symlink already points to correct location
+            echo "exists"
+            return 0
+        else
+            # Symlink points to wrong location - update it
+            rm "$target"
+            if ln -s "$source" "$target" 2>/dev/null; then
+                echo "updated"
+            else
+                cp -r "$source" "$target"
+                echo "updated_copy"
+            fi
+            return 0
+        fi
+    elif [ -e "$target" ]; then
+        # Regular file/dir exists - skip
+        echo "exists"
+        return 0
+    else
+        # Doesn't exist - create
+        if ln -s "$source" "$target" 2>/dev/null; then
+            echo "created"
+        else
+            cp -r "$source" "$target"
+            echo "created_copy"
+        fi
+        return 0
+    fi
+}
+
 # Setup VS Code agents from .github/agents
+# Agents go to VS Code User profile: ~/Library/Application Support/Code/User/agents/
 setup_vscode_agents() {
     print_step "Setting up VS Code agents"
 
@@ -563,7 +620,7 @@ setup_vscode_agents() {
 
     print_info "Found $VSCODE_TYPE"
 
-    AGENTS_SOURCE=".github/agents"
+    AGENTS_SOURCE="$(pwd)/.github/agents"
     AGENTS_TARGET="$VSCODE_TARGET/agents"
 
     if [ ! -d "$AGENTS_SOURCE" ]; then
@@ -575,6 +632,7 @@ setup_vscode_agents() {
     mkdir -p "$AGENTS_TARGET"
 
     local agents_linked=0
+    local agents_updated=0
 
     # Enable nullglob to handle case when no matching files exist
     local old_nullglob
@@ -585,24 +643,192 @@ setup_vscode_agents() {
         if [ -f "$agent_file" ]; then
             local agent_name=$(basename "$agent_file")
             local target_path="$AGENTS_TARGET/$agent_name"
+            local result=$(link_or_update "$agent_file" "$target_path")
 
-            if [ -L "$target_path" ] || [ -e "$target_path" ]; then
-                print_info "  $agent_name (exists, skipping)"
-            else
-                ln -s "$(pwd)/$agent_file" "$target_path" 2>/dev/null || cp "$agent_file" "$target_path"
-                print_success "  $agent_name"
-                agents_linked=$((agents_linked + 1))
-            fi
+            case "$result" in
+                created)
+                    print_success "  $agent_name"
+                    agents_linked=$((agents_linked + 1))
+                    ;;
+                created_copy)
+                    print_success "  $agent_name"
+                    print_warning "    Created copy instead of symlink (updates won't sync)"
+                    agents_linked=$((agents_linked + 1))
+                    ;;
+                updated)
+                    print_success "  $agent_name (updated broken link)"
+                    agents_updated=$((agents_updated + 1))
+                    ;;
+                updated_copy)
+                    print_success "  $agent_name (updated)"
+                    print_warning "    Created copy instead of symlink (updates won't sync)"
+                    agents_updated=$((agents_updated + 1))
+                    ;;
+                exists)
+                    print_info "  $agent_name (exists)"
+                    ;;
+            esac
         fi
     done
 
     # Restore previous nullglob setting
     eval "$old_nullglob"
 
-    if [ $agents_linked -gt 0 ]; then
-        INSTALLED+=("VS Code agents ($agents_linked)")
+    local total=$((agents_linked + agents_updated))
+    if [ $total -gt 0 ]; then
+        INSTALLED+=("VS Code agents ($total)")
     else
         SKIPPED+=("VS Code agents (already linked)")
+    fi
+}
+
+# Setup VS Code skills from .github/skills
+# Per VS Code docs, global skills go to ~/.copilot/skills/
+setup_vscode_skills() {
+    print_step "Setting up VS Code skills"
+
+    get_vscode_paths
+
+    if [ -z "$COPILOT_SKILLS_DIR" ]; then
+        print_warning "Could not determine Copilot skills directory"
+        SKIPPED+=("VS Code skills (unknown directory)")
+        return 0
+    fi
+
+    SKILLS_SOURCE="$(pwd)/.github/skills"
+
+    if [ ! -d "$SKILLS_SOURCE" ]; then
+        print_warning "No .github/skills directory found in project"
+        SKIPPED+=("VS Code skills (no source skills)")
+        return 0
+    fi
+
+    mkdir -p "$COPILOT_SKILLS_DIR"
+
+    local skills_linked=0
+    local skills_updated=0
+
+    # Enable nullglob to handle case when no matching directories exist
+    local old_nullglob
+    old_nullglob=$(shopt -p nullglob 2>/dev/null || echo "shopt -u nullglob")
+    shopt -s nullglob
+
+    for skill_dir in "$SKILLS_SOURCE"/*/; do
+        if [ -d "$skill_dir" ]; then
+            local skill_name=$(basename "$skill_dir")
+            local target_path="$COPILOT_SKILLS_DIR/$skill_name"
+            local result=$(link_or_update "$skill_dir" "$target_path")
+
+            case "$result" in
+                created)
+                    print_success "  $skill_name"
+                    skills_linked=$((skills_linked + 1))
+                    ;;
+                created_copy)
+                    print_success "  $skill_name"
+                    print_warning "    Created copy instead of symlink (updates won't sync)"
+                    skills_linked=$((skills_linked + 1))
+                    ;;
+                updated)
+                    print_success "  $skill_name (updated broken link)"
+                    skills_updated=$((skills_updated + 1))
+                    ;;
+                updated_copy)
+                    print_success "  $skill_name (updated)"
+                    print_warning "    Created copy instead of symlink (updates won't sync)"
+                    skills_updated=$((skills_updated + 1))
+                    ;;
+                exists)
+                    print_info "  $skill_name (exists)"
+                    ;;
+            esac
+        fi
+    done
+
+    # Restore previous nullglob setting
+    eval "$old_nullglob"
+
+    local total=$((skills_linked + skills_updated))
+    if [ $total -gt 0 ]; then
+        INSTALLED+=("VS Code skills ($total)")
+        print_info "Skills location: $COPILOT_SKILLS_DIR"
+    else
+        SKIPPED+=("VS Code skills (already linked)")
+    fi
+}
+
+# Setup VS Code prompts from .github/prompts
+# Prompts go to VS Code User profile: ~/Library/Application Support/Code/User/prompts/
+setup_vscode_prompts() {
+    print_step "Setting up VS Code prompts"
+
+    get_vscode_paths
+
+    if [ -z "$VSCODE_TARGET" ]; then
+        print_warning "VS Code user directory not found"
+        SKIPPED+=("VS Code prompts (VS Code not found)")
+        return 0
+    fi
+
+    PROMPTS_SOURCE="$(pwd)/.github/prompts"
+    PROMPTS_TARGET="$VSCODE_TARGET/prompts"
+
+    if [ ! -d "$PROMPTS_SOURCE" ]; then
+        print_warning "No .github/prompts directory found in project"
+        SKIPPED+=("VS Code prompts (no source prompts)")
+        return 0
+    fi
+
+    mkdir -p "$PROMPTS_TARGET"
+
+    local prompts_linked=0
+    local prompts_updated=0
+
+    # Enable nullglob to handle case when no matching files exist
+    local old_nullglob
+    old_nullglob=$(shopt -p nullglob 2>/dev/null || echo "shopt -u nullglob")
+    shopt -s nullglob
+
+    for prompt_file in "$PROMPTS_SOURCE"/*.prompt.md; do
+        if [ -f "$prompt_file" ]; then
+            local prompt_name=$(basename "$prompt_file")
+            local target_path="$PROMPTS_TARGET/$prompt_name"
+            local result=$(link_or_update "$prompt_file" "$target_path")
+
+            case "$result" in
+                created)
+                    print_success "  $prompt_name"
+                    prompts_linked=$((prompts_linked + 1))
+                    ;;
+                created_copy)
+                    print_success "  $prompt_name"
+                    print_warning "    Created copy instead of symlink (updates won't sync)"
+                    prompts_linked=$((prompts_linked + 1))
+                    ;;
+                updated)
+                    print_success "  $prompt_name (updated broken link)"
+                    prompts_updated=$((prompts_updated + 1))
+                    ;;
+                updated_copy)
+                    print_success "  $prompt_name (updated)"
+                    print_warning "    Created copy instead of symlink (updates won't sync)"
+                    prompts_updated=$((prompts_updated + 1))
+                    ;;
+                exists)
+                    print_info "  $prompt_name (exists)"
+                    ;;
+            esac
+        fi
+    done
+
+    # Restore previous nullglob setting
+    eval "$old_nullglob"
+
+    local total=$((prompts_linked + prompts_updated))
+    if [ $total -gt 0 ]; then
+        INSTALLED+=("VS Code prompts ($total)")
+    else
+        SKIPPED+=("VS Code prompts (already linked)")
     fi
 }
 
@@ -731,7 +957,7 @@ show_help() {
     echo ""
     echo "IDE Options (pick one or both):"
     echo "  --claude    Set up Claude Code integration (MCP server + plugins)"
-    echo "  --vscode    Set up VS Code integration (MCP server + agents)"
+    echo "  --vscode    Set up VS Code integration (MCP server + agents + skills + prompts)"
     echo ""
     echo "  If no IDE flag is provided, you'll be prompted to choose."
     echo ""
@@ -841,6 +1067,8 @@ main() {
     if [ "$SETUP_VSCODE" = true ]; then
         configure_vscode_mcp || true
         setup_vscode_agents || true
+        setup_vscode_skills || true
+        setup_vscode_prompts || true
     fi
 
     # If no IDE selected, just note it
