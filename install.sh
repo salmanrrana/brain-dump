@@ -605,9 +605,11 @@ link_or_update() {
 }
 
 # Setup VS Code agents from .github/agents
-# Agents go to VS Code User profile: ~/Library/Application Support/Code/User/agents/
+# Per VS Code docs: https://code.visualstudio.com/docs/copilot/customization/custom-agents
+# Global agents go to VS Code User prompts folder: ~/Library/Application Support/Code/User/prompts/
+# This makes agents available across ALL workspaces, not just this project
 setup_vscode_agents() {
-    print_step "Setting up VS Code agents"
+    print_step "Setting up VS Code agents (global)"
 
     get_vscode_paths
 
@@ -621,7 +623,8 @@ setup_vscode_agents() {
     print_info "Found $VSCODE_TYPE"
 
     AGENTS_SOURCE="$(pwd)/.github/agents"
-    AGENTS_TARGET="$VSCODE_TARGET/agents"
+    # VS Code stores user-level agents in the prompts folder (same as prompts)
+    AGENTS_TARGET="$VSCODE_TARGET/prompts"
 
     if [ ! -d "$AGENTS_SOURCE" ]; then
         print_warning "No .github/agents directory found in project"
@@ -630,6 +633,7 @@ setup_vscode_agents() {
     fi
 
     mkdir -p "$AGENTS_TARGET"
+    print_info "Installing agents to: $AGENTS_TARGET"
 
     local agents_linked=0
     local agents_updated=0
@@ -643,31 +647,21 @@ setup_vscode_agents() {
         if [ -f "$agent_file" ]; then
             local agent_name=$(basename "$agent_file")
             local target_path="$AGENTS_TARGET/$agent_name"
-            local result=$(link_or_update "$agent_file" "$target_path")
-
-            case "$result" in
-                created)
-                    print_success "  $agent_name"
-                    agents_linked=$((agents_linked + 1))
-                    ;;
-                created_copy)
-                    print_success "  $agent_name"
-                    print_warning "    Created copy instead of symlink (updates won't sync)"
-                    agents_linked=$((agents_linked + 1))
-                    ;;
-                updated)
-                    print_success "  $agent_name (updated broken link)"
-                    agents_updated=$((agents_updated + 1))
-                    ;;
-                updated_copy)
+            # Copy files directly (VS Code may not follow symlinks)
+            if [ -f "$target_path" ]; then
+                # Check if content is different
+                if ! cmp -s "$agent_file" "$target_path"; then
+                    cp "$agent_file" "$target_path"
                     print_success "  $agent_name (updated)"
-                    print_warning "    Created copy instead of symlink (updates won't sync)"
                     agents_updated=$((agents_updated + 1))
-                    ;;
-                exists)
+                else
                     print_info "  $agent_name (exists)"
-                    ;;
-            esac
+                fi
+            else
+                cp "$agent_file" "$target_path"
+                print_success "  $agent_name"
+                agents_linked=$((agents_linked + 1))
+            fi
         fi
     done
 
@@ -680,6 +674,8 @@ setup_vscode_agents() {
     else
         SKIPPED+=("VS Code agents (already linked)")
     fi
+
+    print_info "Agents will be available globally in all VS Code workspaces"
 }
 
 # Setup VS Code skills from .github/skills
