@@ -776,7 +776,7 @@ setup_vscode_agents() {
     print_info "Agents will be available globally in all VS Code workspaces"
 }
 
-# Setup VS Code skills from .github/skills
+# Setup VS Code skills from .github/skills and vendor/agent-skills/skills
 # Per VS Code docs, global skills go to ~/.copilot/skills/
 setup_vscode_skills() {
     print_step "Setting up VS Code skills"
@@ -786,14 +786,6 @@ setup_vscode_skills() {
     if [ -z "$COPILOT_SKILLS_DIR" ]; then
         print_warning "Could not determine Copilot skills directory"
         SKIPPED+=("VS Code skills (unknown directory)")
-        return 0
-    fi
-
-    SKILLS_SOURCE="$(pwd)/.github/skills"
-
-    if [ ! -d "$SKILLS_SOURCE" ]; then
-        print_warning "No .github/skills directory found in project"
-        SKIPPED+=("VS Code skills (no source skills)")
         return 0
     fi
 
@@ -807,30 +799,66 @@ setup_vscode_skills() {
     old_nullglob=$(shopt -p nullglob 2>/dev/null || echo "shopt -u nullglob")
     shopt -s nullglob
 
-    for skill_dir in "$SKILLS_SOURCE"/*/; do
-        if [ -d "$skill_dir" ]; then
-            local skill_name=$(basename "$skill_dir")
-            local target_path="$COPILOT_SKILLS_DIR/$skill_name"
-            # Copy directories directly (VS Code may not follow symlinks)
-            if [ -d "$target_path" ]; then
-                # Check if content is different by comparing file counts and sizes
-                if ! diff -rq "$skill_dir" "$target_path" >/dev/null 2>&1; then
-                    rm -rf "$target_path"
-                    cp -r "$skill_dir" "$target_path"
-                    print_success "  $skill_name (updated)"
-                    skills_updated=$((skills_updated + 1))
+    # Install project-specific skills from .github/skills
+    SKILLS_SOURCE="$(pwd)/.github/skills"
+
+    if [ -d "$SKILLS_SOURCE" ]; then
+        print_info "Installing project skills..."
+
+        for skill_dir in "$SKILLS_SOURCE"/*/; do
+            if [ -d "$skill_dir" ]; then
+                local skill_name=$(basename "$skill_dir")
+                local target_path="$COPILOT_SKILLS_DIR/$skill_name"
+                # Copy directories directly (VS Code may not follow symlinks)
+                if [ -d "$target_path" ]; then
+                    # Check if content is different by comparing file counts and sizes
+                    if ! diff -rq "$skill_dir" "$target_path" >/dev/null 2>&1; then
+                        rm -rf "$target_path"
+                        cp -r "$skill_dir" "$target_path"
+                        print_success "  $skill_name (updated)"
+                        skills_updated=$((skills_updated + 1))
+                    else
+                        print_info "  $skill_name (exists)"
+                    fi
                 else
-                    print_info "  $skill_name (exists)"
+                    # Remove broken symlink if exists
+                    [ -L "$target_path" ] && rm "$target_path"
+                    cp -r "$skill_dir" "$target_path"
+                    print_success "  $skill_name"
+                    skills_linked=$((skills_linked + 1))
                 fi
-            else
-                # Remove broken symlink if exists
-                [ -L "$target_path" ] && rm "$target_path"
-                cp -r "$skill_dir" "$target_path"
-                print_success "  $skill_name"
-                skills_linked=$((skills_linked + 1))
             fi
-        fi
-    done
+        done
+    fi
+
+    # Also install vendored third-party skills
+    VENDORED_SKILLS="$(pwd)/vendor/agent-skills/skills"
+
+    if [ -d "$VENDORED_SKILLS" ]; then
+        print_info "Installing vendored skills..."
+
+        for skill_dir in "$VENDORED_SKILLS"/*/; do
+            if [ -d "$skill_dir" ] && [ -f "$skill_dir/SKILL.md" ]; then
+                local skill_name=$(basename "$skill_dir")
+                local target_path="$COPILOT_SKILLS_DIR/$skill_name"
+
+                if [ -d "$target_path" ]; then
+                    if ! diff -rq "$skill_dir" "$target_path" >/dev/null 2>&1; then
+                        rm -rf "$target_path"
+                        cp -r "$skill_dir" "$target_path"
+                        print_success "  $skill_name (updated)"
+                        skills_updated=$((skills_updated + 1))
+                    else
+                        print_info "  $skill_name (exists)"
+                    fi
+                else
+                    cp -r "$skill_dir" "$target_path"
+                    print_success "  $skill_name"
+                    skills_linked=$((skills_linked + 1))
+                fi
+            fi
+        done
+    fi
 
     # Restore previous nullglob setting
     eval "$old_nullglob"
