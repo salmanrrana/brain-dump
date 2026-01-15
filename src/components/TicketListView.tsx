@@ -7,6 +7,7 @@ import {
 
 import type { Ticket } from "../lib/hooks";
 import { STATUS_ORDER, PRIORITY_ORDER } from "../lib/constants";
+import { safeJsonParse } from "../lib/utils";
 
 interface Epic {
   id: string;
@@ -96,30 +97,6 @@ export default function TicketListView({
     });
   };
 
-  const parseTags = (tags: string | null): string[] => {
-    if (!tags) return [];
-    try {
-      return JSON.parse(tags) as string[];
-    } catch {
-      return [];
-    }
-  };
-
-  const parseSubtasks = (
-    subtasks: string | null
-  ): { id: string; text: string; completed: boolean }[] => {
-    if (!subtasks) return [];
-    try {
-      return JSON.parse(subtasks) as {
-        id: string;
-        text: string;
-        completed: boolean;
-      }[];
-    } catch {
-      return [];
-    }
-  };
-
   return (
     <div className="bg-slate-900 rounded-lg overflow-hidden">
       <table className="w-full">
@@ -177,8 +154,8 @@ export default function TicketListView({
           ) : (
             sortedTickets.map((ticket) => {
               const epic = ticket.epicId ? epicMap.get(ticket.epicId) : null;
-              const tags = parseTags(ticket.tags);
-              const subtasks = parseSubtasks(ticket.subtasks);
+              const tags = safeJsonParse<string[]>(ticket.tags, []);
+              const subtasks = safeJsonParse<{ id: string; text: string; completed: boolean }[]>(ticket.subtasks, []);
               const completedSubtasks = subtasks.filter(
                 (s) => s.completed
               ).length;
