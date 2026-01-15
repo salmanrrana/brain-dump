@@ -2397,3 +2397,39 @@ Set up MSW v2.12.7 with complete testing infrastructure:
 - No new lint errors
 
 ---
+
+
+### 2026-01-15 - React Best Practices Epic Completion
+- Task: Complete remaining tickets in React Best Practices epic
+- Success: true
+- Agent: Ralph
+
+**Tickets Verified Complete:**
+
+| Ticket ID | Title | Notes |
+|-----------|-------|-------|
+| 5a8838e7 | Extract status/priority constants to shared module | Constants in `src/lib/constants.ts`, all components import from there |
+| ef0a22e0 | Extract getStatusColor/getPriorityStyle to shared utilities | Functions in constants.ts (lines 62-89), AppLayout imports and uses them |
+| bd037954 | Use centralized safeJsonParse in TicketListView | TicketListView imports `safeJsonParse` from `../lib/utils` at lines 157-158 |
+| 1fc26557 | Review search snippet sanitization for security | Security review complete - whitelist pattern is secure, added JSDoc documentation |
+
+**Files Modified:**
+- `src/lib/constants.ts` - Updated STATUS_ORDER to use unique values for distinct sorting
+- `src/components/AppLayout.tsx` - Added comprehensive security documentation to sanitizeSnippet function
+
+**Security Review Summary (1fc26557):**
+The `sanitizeSnippet` function uses a secure whitelist approach:
+1. Escapes ALL HTML entities first
+2. Restores ONLY safe tags (mark, b) without attributes
+3. Source is SQLite FTS5 highlight() output (predictable, server-generated)
+4. Additional sanitization library not needed - narrow whitelist is sufficient
+
+**Testing Results:**
+- All 444 tests passing
+- No type errors in src files (vendor submodule has pre-existing errors)
+
+**PRD Status:**
+- All 14 tickets now have `passes: true`
+- React Best Practices epic is COMPLETE
+
+---
