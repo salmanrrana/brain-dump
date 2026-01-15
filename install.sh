@@ -76,6 +76,13 @@ command_exists() {
 init_submodules() {
     print_step "Initializing git submodules"
 
+    if ! command_exists git; then
+        print_warning "Git is not installed. Skipping submodule initialization."
+        print_info "Install git to enable vendored skills"
+        SKIPPED+=("Git submodules (git not installed)")
+        return 0
+    fi
+
     if [ -f ".gitmodules" ]; then
         if git submodule update --init --recursive; then
             print_success "Git submodules initialized"
@@ -475,10 +482,16 @@ setup_claude_skills() {
         return 0
     fi
 
-    mkdir -p "$CLAUDE_SKILLS_DIR"
+    if ! mkdir -p "$CLAUDE_SKILLS_DIR"; then
+        print_error "Failed to create Claude skills directory: $CLAUDE_SKILLS_DIR"
+        print_info "Check permissions on $HOME/.claude"
+        FAILED+=("Claude skills (directory creation failed)")
+        return 1
+    fi
 
     local skills_installed=0
     local skills_updated=0
+    local skills_failed=0
 
     # Enable nullglob to handle case when no matching directories exist
     local old_nullglob
@@ -493,17 +506,30 @@ setup_claude_skills() {
             if [ -d "$target_path" ]; then
                 # Check if content is different
                 if ! diff -rq "$skill_dir" "$target_path" >/dev/null 2>&1; then
-                    rm -rf "$target_path"
-                    cp -r "$skill_dir" "$target_path"
-                    print_success "  $skill_name (updated)"
-                    skills_updated=$((skills_updated + 1))
+                    # Backup-then-replace pattern for safe updates
+                    local backup_path="${target_path}.backup.$$"
+                    mv "$target_path" "$backup_path"
+                    if cp -r "$skill_dir" "$target_path"; then
+                        rm -rf "$backup_path"
+                        print_success "  $skill_name (updated)"
+                        skills_updated=$((skills_updated + 1))
+                    else
+                        # Restore from backup on failure
+                        mv "$backup_path" "$target_path"
+                        print_error "  $skill_name (update FAILED - restored previous)"
+                        skills_failed=$((skills_failed + 1))
+                    fi
                 else
                     print_info "  $skill_name (exists)"
                 fi
             else
-                cp -r "$skill_dir" "$target_path"
-                print_success "  $skill_name"
-                skills_installed=$((skills_installed + 1))
+                if cp -r "$skill_dir" "$target_path"; then
+                    print_success "  $skill_name"
+                    skills_installed=$((skills_installed + 1))
+                else
+                    print_error "  $skill_name (install FAILED)"
+                    skills_failed=$((skills_failed + 1))
+                fi
             fi
         fi
     done
@@ -517,6 +543,10 @@ setup_claude_skills() {
         print_info "Skills location: $CLAUDE_SKILLS_DIR"
     else
         SKIPPED+=("Claude skills (already installed)")
+    fi
+
+    if [ $skills_failed -gt 0 ]; then
+        FAILED+=("Claude skills ($skills_failed failed)")
     fi
 }
 
@@ -827,10 +857,16 @@ setup_vscode_skills() {
         return 0
     fi
 
-    mkdir -p "$COPILOT_SKILLS_DIR"
+    if ! mkdir -p "$COPILOT_SKILLS_DIR"; then
+        print_error "Failed to create Copilot skills directory: $COPILOT_SKILLS_DIR"
+        print_info "Check permissions on $HOME/.copilot"
+        FAILED+=("VS Code skills (directory creation failed)")
+        return 1
+    fi
 
     local skills_linked=0
     local skills_updated=0
+    local skills_failed=0
 
     # Enable nullglob to handle case when no matching directories exist
     local old_nullglob
@@ -851,19 +887,32 @@ setup_vscode_skills() {
                 if [ -d "$target_path" ]; then
                     # Check if content is different by comparing file counts and sizes
                     if ! diff -rq "$skill_dir" "$target_path" >/dev/null 2>&1; then
-                        rm -rf "$target_path"
-                        cp -r "$skill_dir" "$target_path"
-                        print_success "  $skill_name (updated)"
-                        skills_updated=$((skills_updated + 1))
+                        # Backup-then-replace pattern for safe updates
+                        local backup_path="${target_path}.backup.$$"
+                        mv "$target_path" "$backup_path"
+                        if cp -r "$skill_dir" "$target_path"; then
+                            rm -rf "$backup_path"
+                            print_success "  $skill_name (updated)"
+                            skills_updated=$((skills_updated + 1))
+                        else
+                            # Restore from backup on failure
+                            mv "$backup_path" "$target_path"
+                            print_error "  $skill_name (update FAILED - restored previous)"
+                            skills_failed=$((skills_failed + 1))
+                        fi
                     else
                         print_info "  $skill_name (exists)"
                     fi
                 else
                     # Remove broken symlink if exists
                     [ -L "$target_path" ] && rm "$target_path"
-                    cp -r "$skill_dir" "$target_path"
-                    print_success "  $skill_name"
-                    skills_linked=$((skills_linked + 1))
+                    if cp -r "$skill_dir" "$target_path"; then
+                        print_success "  $skill_name"
+                        skills_linked=$((skills_linked + 1))
+                    else
+                        print_error "  $skill_name (install FAILED)"
+                        skills_failed=$((skills_failed + 1))
+                    fi
                 fi
             fi
         done
@@ -882,17 +931,30 @@ setup_vscode_skills() {
 
                 if [ -d "$target_path" ]; then
                     if ! diff -rq "$skill_dir" "$target_path" >/dev/null 2>&1; then
-                        rm -rf "$target_path"
-                        cp -r "$skill_dir" "$target_path"
-                        print_success "  $skill_name (updated)"
-                        skills_updated=$((skills_updated + 1))
+                        # Backup-then-replace pattern for safe updates
+                        local backup_path="${target_path}.backup.$$"
+                        mv "$target_path" "$backup_path"
+                        if cp -r "$skill_dir" "$target_path"; then
+                            rm -rf "$backup_path"
+                            print_success "  $skill_name (updated)"
+                            skills_updated=$((skills_updated + 1))
+                        else
+                            # Restore from backup on failure
+                            mv "$backup_path" "$target_path"
+                            print_error "  $skill_name (update FAILED - restored previous)"
+                            skills_failed=$((skills_failed + 1))
+                        fi
                     else
                         print_info "  $skill_name (exists)"
                     fi
                 else
-                    cp -r "$skill_dir" "$target_path"
-                    print_success "  $skill_name"
-                    skills_linked=$((skills_linked + 1))
+                    if cp -r "$skill_dir" "$target_path"; then
+                        print_success "  $skill_name"
+                        skills_linked=$((skills_linked + 1))
+                    else
+                        print_error "  $skill_name (install FAILED)"
+                        skills_failed=$((skills_failed + 1))
+                    fi
                 fi
             fi
         done
@@ -907,6 +969,10 @@ setup_vscode_skills() {
         print_info "Skills location: $COPILOT_SKILLS_DIR"
     else
         SKIPPED+=("VS Code skills (already linked)")
+    fi
+
+    if [ $skills_failed -gt 0 ]; then
+        FAILED+=("VS Code skills ($skills_failed failed)")
     fi
 }
 
