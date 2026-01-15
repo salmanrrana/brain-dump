@@ -377,7 +377,19 @@ async function ensureDockerNetwork(
     await execAsync(`docker network inspect ${networkName}`);
     console.log(`[brain-dump] Docker network "${networkName}" already exists`);
     return { success: true };
-  } catch {
+  } catch (inspectError) {
+    const errorMessage = inspectError instanceof Error ? inspectError.message : String(inspectError);
+
+    // Only proceed to create if the error indicates "network not found"
+    // Other errors (Docker not running, permission denied) should be reported immediately
+    if (!errorMessage.includes("No such network") && !errorMessage.includes("not found")) {
+      console.error(`[brain-dump] Docker network inspect failed:`, errorMessage);
+      return {
+        success: false,
+        message: `Failed to check Docker network "${networkName}": ${errorMessage}. Ensure Docker is running.`,
+      };
+    }
+
     // Network doesn't exist, create it
     try {
       await execAsync(`docker network create ${networkName}`);
@@ -915,12 +927,17 @@ const COMPANION_CONTAINERS: Record<CompanionService, CompanionContainerConfig> =
 };
 
 // Check if a Docker container is running by name
-async function isContainerRunning(containerName: string): Promise<boolean> {
+// Returns { running: true/false } on success, or { error: string } if Docker fails
+async function isContainerRunning(
+  containerName: string
+): Promise<{ running: boolean } | { error: string }> {
   try {
     const { stdout } = await execAsync(`docker ps --filter "name=${containerName}" --format "{{.Names}}"`);
-    return stdout.trim() === containerName;
-  } catch {
-    return false;
+    return { running: stdout.trim() === containerName };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[brain-dump] Failed to check container ${containerName}:`, errorMessage);
+    return { error: `Failed to check container status: ${errorMessage}` };
   }
 }
 
@@ -937,7 +954,11 @@ async function startCompanionContainer(
   }
 
   // Check if container already running
-  if (await isContainerRunning(config.name)) {
+  const containerStatus = await isContainerRunning(config.name);
+  if ("error" in containerStatus) {
+    return { success: false, message: containerStatus.error };
+  }
+  if (containerStatus.running) {
     console.log(`[brain-dump] Companion container ${config.name} already running`);
     return { success: true, connectionString: config.connectionString };
   }
@@ -972,9 +993,21 @@ async function stopCompanionContainer(
     await execAsync(`docker stop ${config.name} && docker rm ${config.name}`);
     console.log(`[brain-dump] Stopped companion container ${config.name}`);
     return { success: true };
-  } catch {
-    // Container may not exist or already stopped
-    return { success: true };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    // Only treat "not found" errors as success - container was already stopped/removed
+    if (errorMessage.includes("No such container") || errorMessage.includes("not found")) {
+      console.log(`[brain-dump] Container ${config.name} was not running`);
+      return { success: true };
+    }
+
+    // Other errors (Docker not running, permission denied, etc.) should be reported
+    console.error(`[brain-dump] Failed to stop container ${config.name}:`, errorMessage);
+    return {
+      success: false,
+      message: `Failed to stop ${service} container: ${errorMessage}`,
+    };
   }
 }
 
@@ -1034,7 +1067,13 @@ export const getRunningCompanionContainers = createServerFn({ method: "GET" }).h
   const running: { service: CompanionService; connectionString: string }[] = [];
 
   for (const [service, config] of Object.entries(COMPANION_CONTAINERS)) {
-    if (await isContainerRunning(config.name)) {
+    const containerStatus = await isContainerRunning(config.name);
+    // Skip containers where we couldn't check status (Docker error) - log but don't fail
+    if ("error" in containerStatus) {
+      console.error(`[brain-dump] Skipping ${service}: ${containerStatus.error}`);
+      continue;
+    }
+    if (containerStatus.running) {
       running.push({
         service: service as CompanionService,
         connectionString: config.connectionString,
