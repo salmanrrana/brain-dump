@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { X, ChevronDown, Bot, Loader2, Save } from "lucide-react";
 import { useCreateEpic, useUpdateEpic, useDeleteEpic, useSettings, useLaunchRalphForEpic, useModalKeyboard, useClickOutside } from "../lib/hooks";
+import { useToast } from "./Toast";
 import { COLOR_OPTIONS } from "../lib/constants";
 
 interface Epic {
@@ -41,6 +42,9 @@ export default function EpicModal({
   } | null>(null);
   const [showActionMenu, setShowActionMenu] = useState(false);
   const actionMenuRef = useRef<HTMLDivElement>(null);
+
+  // Toast
+  const { showToast } = useToast();
 
   // Mutation hooks
   const createMutation = useCreateEpic();
@@ -101,7 +105,10 @@ export default function EpicModal({
     if (!epic) return;
 
     deleteMutation.mutate({ epicId: epic.id, confirm: true }, {
-      onSuccess: onSave,
+      onSuccess: () => {
+        showToast("success", `Epic "${epic.title}" deleted`);
+        onSave();
+      },
       onError: () => setShowDeleteConfirm(false),
     });
   };
