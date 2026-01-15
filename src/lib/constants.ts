@@ -49,15 +49,6 @@ export const PRIORITY_ORDER: Record<string, number> = {
   "": 3, // No priority = lowest
 };
 
-// Status labels for tickets (kept for backwards compatibility)
-export const STATUS_LABELS: Record<string, string> = {
-  backlog: "Backlog",
-  ready: "Ready",
-  in_progress: "In Progress",
-  review: "Review",
-  done: "Done",
-};
-
 // Status color utility for UI styling
 export function getStatusColor(status: string): string {
   switch (status) {

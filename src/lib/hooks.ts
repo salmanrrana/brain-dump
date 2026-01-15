@@ -159,29 +159,6 @@ export function useClickOutside(
   }, [ref, onClickOutside, isActive, excludeRef]);
 }
 
-/**
- * Hook for auto-resetting state after a delay
- * Handles auto-clearing notifications, copied states, etc.
- * Properly cleans up timers on unmount or when value changes
- *
- * @param initialValue - Initial state value
- * @param resetDelay - Delay in ms before auto-reset (default: 5000)
- * @returns [value, setValue] - State tuple similar to useState
- */
-export function useAutoReset<T>(initialValue: T, resetDelay: number = 5000): [T, React.Dispatch<React.SetStateAction<T>>] {
-  const [value, setValue] = useState<T>(initialValue);
-
-  useEffect(() => {
-    // Only set timer if value differs from initial
-    if (value === initialValue) return;
-
-    const timer = setTimeout(() => setValue(initialValue), resetDelay);
-    return () => clearTimeout(timer);
-  }, [value, initialValue, resetDelay]);
-
-  return [value, setValue];
-}
-
 // =============================================================================
 // APP STATE HOOKS - Consolidated state management
 // =============================================================================

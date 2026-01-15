@@ -208,29 +208,52 @@ export default function TicketModal({
 
       setIsUploadingAttachment(true);
       try {
-        // Upload all valid files in parallel
+        // Upload all valid files in parallel using allSettled for partial success handling
         const uploadPromises = validFiles.map(async (file) => {
           const reader = new FileReader();
           const base64 = await new Promise<string>((resolve, reject) => {
             reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
+            reader.onerror = () => {
+              const errorName = reader.error?.name ?? "UnknownError";
+              const errorMessage = reader.error?.message ?? "Unknown file read error";
+              reject(new Error(`Failed to read "${file.name}": ${errorName} - ${errorMessage}`));
+            };
             reader.readAsDataURL(file);
           });
 
-          return uploadAttachment({
+          const attachment = await uploadAttachment({
             data: {
               ticketId: ticket.id,
               filename: file.name,
               data: base64,
             },
           });
+          return { file: file.name, attachment };
         });
 
-        const newAttachments = await Promise.all(uploadPromises);
-        setAttachments((prev) => [...prev, ...newAttachments]);
+        const results = await Promise.allSettled(uploadPromises);
+        const succeeded: Attachment[] = [];
+        const failed: string[] = [];
+
+        for (const result of results) {
+          if (result.status === "fulfilled") {
+            succeeded.push(result.value.attachment);
+          } else {
+            failed.push(result.reason?.message || "Unknown error");
+          }
+        }
+
+        if (succeeded.length > 0) {
+          setAttachments((prev) => [...prev, ...succeeded]);
+        }
+
+        if (failed.length > 0) {
+          console.error("Some file uploads failed:", failed);
+          showToast("error", `Failed to upload ${failed.length} file(s): ${failed.join(", ")}`);
+        }
       } catch (error) {
-        console.error("Failed to upload attachment:", error);
-        showToast("error", `Failed to upload attachment: ${error instanceof Error ? error.message : "Unknown error"}`);
+        console.error("Failed to upload attachments:", error);
+        showToast("error", `Failed to upload attachments: ${error instanceof Error ? error.message : "Unknown error"}`);
       } finally {
         setIsUploadingAttachment(false);
       }
