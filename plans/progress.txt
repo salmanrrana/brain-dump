@@ -2092,3 +2092,38 @@ The `.claude/ralph-context.md` file shown in editor is the working result of thi
 PRD_COMPLETE
 
 ---
+
+### 2026-01-15 - TanStack Query Mutations for Delete Operations
+- Task: Verify TanStack Query mutation hooks for delete operations
+- Ticket ID: 0ee54d79-529e-407a-bf15-bd11c887553b
+- Success: true
+- Agent: Ralph
+- Branch: main (no changes needed - already implemented)
+
+**Verification:**
+The mutation hooks were already implemented in `src/lib/hooks.ts`:
+
+1. **useDeleteTicket** (lines 486-497)
+   - Calls `deleteTicket` server function with `{ ticketId, confirm }` params
+   - Invalidates `queryKeys.allTickets` and `queryKeys.allTags` on success
+
+2. **useDeleteEpic** (lines 563-574)
+   - Calls `deleteEpic` server function with `{ epicId, confirm }` params
+   - Invalidates `queryKeys.projects` and `queryKeys.allTickets` on success
+
+3. **useDeleteProject** (lines 524-536)
+   - Calls `deleteProject` server function with `{ projectId, confirm }` params
+   - Invalidates `queryKeys.projects`, `queryKeys.allTickets`, and `queryKeys.allTags` on success
+
+**Acceptance Criteria:**
+- ✅ All three mutation hooks exist
+- ✅ Using `useMutation` from `@tanstack/react-query`
+- ✅ Proper query invalidation on success
+- ✅ Error handling via useMutation pattern
+- ✅ Loading states via `isPending`
+
+**Testing:**
+- All 374 tests passing
+- No type errors in main codebase
+
+---
