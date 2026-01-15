@@ -13,8 +13,8 @@ import appCss from "../styles.css?url";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60, // 1 minute
-      refetchOnWindowFocus: false,
+      staleTime: 1000 * 30, // 30 seconds - allows faster refresh when returning from external changes
+      refetchOnWindowFocus: true, // Refetch stale queries when window regains focus
     },
   },
 });
