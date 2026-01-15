@@ -229,7 +229,7 @@ fi
     ? `PROMPT_FILE="$PROJECT_PATH/.ralph-prompt.md"`
     : `PROMPT_FILE=$(mktemp -t ralph-prompt) || { echo -e "\\033[0;31m❌ Failed to create temp file\\033[0m"; exit 1; }`;
 
-  // SSH agent forwarding for Docker sandbox mode
+  // SSH setup for Docker sandbox mode
   // This allows git push from inside container using host's SSH keys
   const sshAgentSetup = useSandbox
     ? `
@@ -242,6 +242,13 @@ else
   echo -e "\\033[0;33m⚠ SSH agent not running - git push may not work\\033[0m"
   echo -e "\\033[0;33m  Start with: eval \\$(ssh-agent) && ssh-add\\033[0m"
 fi
+
+# Mount known_hosts to avoid SSH host verification prompts
+KNOWN_HOSTS_MOUNT=""
+if [ -f "\\$HOME/.ssh/known_hosts" ]; then
+  echo -e "\\033[0;32m✓ Mounting known_hosts for host verification\\033[0m"
+  KNOWN_HOSTS_MOUNT="-v \\$HOME/.ssh/known_hosts:/home/ralph/.ssh/known_hosts:ro"
+fi
 `
     : "";
 
@@ -249,6 +256,7 @@ fi
     ? `  # Run Claude in Docker container
   # Claude Code auth is passed via mounted ~/.config/claude-code (uses your existing subscription)
   # SSH agent is forwarded if available (allows git push from container)
+  # known_hosts is mounted read-only to avoid SSH host verification prompts
   docker run --rm -it \\
     --name "ralph-\${SESSION_ID}" \\
     --network ralph-net \\
@@ -257,6 +265,7 @@ fi
     -v "\\$HOME/.gitconfig:/home/ralph/.gitconfig:ro" \\
     -v "\\$HOME/.config/gh:/home/ralph/.config/gh:ro" \\
     \$SSH_MOUNT_ARGS \\
+    \$KNOWN_HOSTS_MOUNT \\
     -w /workspace \\
     "${imageName}" \\
     claude --dangerously-skip-permissions /workspace/.ralph-prompt.md`
