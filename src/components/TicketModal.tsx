@@ -19,7 +19,7 @@ import {
   Send,
 } from "lucide-react";
 import type { Ticket, Epic } from "../lib/hooks";
-import { useUpdateTicket, useSettings, useLaunchRalphForTicket, useComments, useCreateComment, useTags } from "../lib/hooks";
+import { useUpdateTicket, useSettings, useLaunchRalphForTicket, useComments, useCreateComment, useTags, useAutoClearState } from "../lib/hooks";
 import { useToast } from "./Toast";
 import type { Subtask, TicketStatus, TicketPriority } from "../api/tickets";
 import {
@@ -113,10 +113,11 @@ export default function TicketModal({
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isStartingWork, setIsStartingWork] = useState(false);
-  const [startWorkNotification, setStartWorkNotification] = useState<{
+  // Auto-clears to null after 5 seconds for notification clearing
+  const [startWorkNotification, setStartWorkNotification] = useAutoClearState<{
     type: "success" | "error";
     message: string;
-  } | null>(null);
+  }>();
   const [showStartWorkMenu, setShowStartWorkMenu] = useState(false);
   const startWorkMenuRef = useRef<HTMLDivElement>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -353,9 +354,7 @@ export default function TicketModal({
           message: launchResult.message,
         });
       }
-
-      // Auto-hide notification after 5 seconds
-      setTimeout(() => setStartWorkNotification(null), 5000);
+      // Auto-hide is handled by useAutoClearState hook
     } catch (error) {
       console.error("Failed to start work:", error);
       const message = error instanceof Error ? error.message : "An unexpected error occurred";
@@ -413,8 +412,7 @@ export default function TicketModal({
           message: result.message,
         });
       }
-
-      setTimeout(() => setStartWorkNotification(null), 5000);
+      // Auto-hide is handled by useAutoClearState hook
     } catch (error) {
       console.error("Failed to start Ralph:", error);
       const message = error instanceof Error ? error.message : "An unexpected error occurred";

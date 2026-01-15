@@ -2,6 +2,54 @@ import { useCallback, useEffect, useState, useRef, type RefObject } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 // =============================================================================
+// STATE UTILITY HOOKS
+// =============================================================================
+
+/**
+ * Hook for state that automatically clears after a duration.
+ * Useful for notifications, copy confirmations, and other transient UI states.
+ *
+ * @param duration - Time in ms before auto-clearing (default: 5000ms)
+ * @returns Tuple of [value, setValue] where setValue triggers the auto-clear timer
+ */
+export function useAutoClearState<T>(duration = 5000): [T | null, (value: T | null) => void] {
+  const [value, setValue] = useState<T | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const setValueWithAutoClear = useCallback(
+    (newValue: T | null) => {
+      // Clear any existing timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+
+      setValue(newValue);
+
+      // Only set up auto-clear if we're setting a non-null value
+      if (newValue !== null) {
+        timeoutRef.current = setTimeout(() => {
+          setValue(null);
+          timeoutRef.current = null;
+        }, duration);
+      }
+    },
+    [duration]
+  );
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  return [value, setValueWithAutoClear];
+}
+
+// =============================================================================
 // MODAL UTILITY HOOKS
 // =============================================================================
 
@@ -109,6 +157,29 @@ export function useClickOutside(
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [ref, onClickOutside, isActive, excludeRef]);
+}
+
+/**
+ * Hook for auto-resetting state after a delay
+ * Handles auto-clearing notifications, copied states, etc.
+ * Properly cleans up timers on unmount or when value changes
+ *
+ * @param initialValue - Initial state value
+ * @param resetDelay - Delay in ms before auto-reset (default: 5000)
+ * @returns [value, setValue] - State tuple similar to useState
+ */
+export function useAutoReset<T>(initialValue: T, resetDelay: number = 5000): [T, React.Dispatch<React.SetStateAction<T>>] {
+  const [value, setValue] = useState<T>(initialValue);
+
+  useEffect(() => {
+    // Only set timer if value differs from initial
+    if (value === initialValue) return;
+
+    const timer = setTimeout(() => setValue(initialValue), resetDelay);
+    return () => clearTimeout(timer);
+  }, [value, initialValue, resetDelay]);
+
+  return [value, setValue];
 }
 
 // =============================================================================
