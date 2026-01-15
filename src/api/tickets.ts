@@ -3,6 +3,7 @@ import { db, sqlite } from "../lib/db";
 import { tickets, projects, epics, ticketComments } from "../lib/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { ensureExists } from "../lib/utils";
 
 // Types
 export type TicketStatus = "backlog" | "ready" | "in_progress" | "review" | "ai_review" | "human_review" | "done";
@@ -112,11 +113,8 @@ export const getTickets = createServerFn({ method: "GET" })
 export const getTicket = createServerFn({ method: "GET" })
   .inputValidator((id: string) => id)
   .handler(async ({ data: id }) => {
-    const ticket = db.select().from(tickets).where(eq(tickets.id, id)).get();
-    if (!ticket) {
-      throw new Error(`Ticket not found: ${id}`);
-    }
-    return ticket;
+    const ticketResult = db.select().from(tickets).where(eq(tickets.id, id)).get();
+    return ensureExists(ticketResult, "Ticket", id);
   });
 
 // Create a new ticket
@@ -203,10 +201,8 @@ export const updateTicket = createServerFn({ method: "POST" })
     return input;
   })
   .handler(async ({ data: { id, updates } }) => {
-    const existing = db.select().from(tickets).where(eq(tickets.id, id)).get();
-    if (!existing) {
-      throw new Error(`Ticket not found: ${id}`);
-    }
+    const existingResult = db.select().from(tickets).where(eq(tickets.id, id)).get();
+    const existing = ensureExists(existingResult, "Ticket", id);
 
     // Verify epic exists if being updated
     if (updates.epicId !== undefined && updates.epicId !== null) {
@@ -282,10 +278,8 @@ export const updateTicketStatus = createServerFn({ method: "POST" })
     return input;
   })
   .handler(async ({ data: { id, status } }) => {
-    const existing = db.select().from(tickets).where(eq(tickets.id, id)).get();
-    if (!existing) {
-      throw new Error(`Ticket not found: ${id}`);
-    }
+    const existingResult = db.select().from(tickets).where(eq(tickets.id, id)).get();
+    const existing = ensureExists(existingResult, "Ticket", id);
 
     const updateData: Partial<typeof tickets.$inferInsert> = {
       status,
@@ -317,10 +311,8 @@ export const updateTicketPosition = createServerFn({ method: "POST" })
     return input;
   })
   .handler(async ({ data: { id, position } }) => {
-    const existing = db.select().from(tickets).where(eq(tickets.id, id)).get();
-    if (!existing) {
-      throw new Error(`Ticket not found: ${id}`);
-    }
+    const existingResult = db.select().from(tickets).where(eq(tickets.id, id)).get();
+    ensureExists(existingResult, "Ticket", id);
 
     db.update(tickets)
       .set({ position, updatedAt: new Date().toISOString() })
@@ -366,10 +358,8 @@ export const deleteTicket = createServerFn({ method: "POST" })
     return input;
   })
   .handler(async ({ data: { ticketId, confirm = false } }): Promise<DeleteTicketPreview | DeleteTicketResult> => {
-    const ticket = db.select().from(tickets).where(eq(tickets.id, ticketId)).get();
-    if (!ticket) {
-      throw new Error(`Ticket not found: ${ticketId}`);
-    }
+    const ticketResult = db.select().from(tickets).where(eq(tickets.id, ticketId)).get();
+    const ticket = ensureExists(ticketResult, "Ticket", ticketId);
 
     // Count comments that would be deleted
     const commentCountResult = db
@@ -397,12 +387,20 @@ export const deleteTicket = createServerFn({ method: "POST" })
 
     // Actually delete (comments cascade automatically via FK constraint)
     // Use transaction for atomicity
-    sqlite.transaction(() => {
-      // Delete comments first (even though FK cascade would handle it)
-      db.delete(ticketComments).where(eq(ticketComments.ticketId, ticketId)).run();
-      // Delete the ticket
-      db.delete(tickets).where(eq(tickets.id, ticketId)).run();
-    })();
+    try {
+      sqlite.transaction(() => {
+        // Delete comments first (even though FK cascade would handle it)
+        db.delete(ticketComments).where(eq(ticketComments.ticketId, ticketId)).run();
+        // Delete the ticket
+        db.delete(tickets).where(eq(tickets.id, ticketId)).run();
+      })();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      if (message.includes("SQLITE_BUSY")) {
+        throw new Error("Failed to delete ticket: The database is busy. Please try again in a moment.");
+      }
+      throw new Error(`Failed to delete ticket: ${message}`);
+    }
 
     return {
       deleted: true,

@@ -51,7 +51,11 @@ function ToastContainer({
   onRemove: (id: string) => void;
 }) {
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+    <div
+      className="fixed bottom-4 right-4 z-50 flex flex-col gap-2"
+      aria-live="polite"
+      aria-label="Notifications"
+    >
       {toasts.map((toast) => (
         <ToastItem key={toast.id} toast={toast} onRemove={onRemove} />
       ))}
@@ -93,15 +97,21 @@ function ToastItem({
 
   const Icon = config.icon;
 
+  // Use role="alert" for errors (assertive), role="status" for success/info (polite)
+  const role = toast.type === "error" ? "alert" : "status";
+
   return (
     <div
+      role={role}
+      aria-live={toast.type === "error" ? "assertive" : "polite"}
       className={`flex items-center gap-3 px-4 py-3 rounded-lg border ${config.bgClass} shadow-lg animate-slide-in`}
     >
-      <Icon size={18} className={config.iconClass} />
+      <Icon size={18} className={config.iconClass} aria-hidden="true" />
       <span className="text-sm text-gray-100">{toast.message}</span>
       <button
         onClick={() => onRemove(toast.id)}
         className="ml-2 text-slate-400 hover:text-gray-100"
+        aria-label="Dismiss notification"
       >
         <X size={16} />
       </button>

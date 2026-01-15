@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback } from "react";
 import { X, ChevronDown, Bot, Loader2, Save } from "lucide-react";
 import { useCreateEpic, useUpdateEpic, useDeleteEpic, useSettings, useLaunchRalphForEpic, useModalKeyboard, useClickOutside } from "../lib/hooks";
+import { useToast } from "./Toast";
+import ErrorAlert from "./ErrorAlert";
 import { COLOR_OPTIONS } from "../lib/constants";
 
 interface Epic {
@@ -41,6 +43,9 @@ export default function EpicModal({
   } | null>(null);
   const [showActionMenu, setShowActionMenu] = useState(false);
   const actionMenuRef = useRef<HTMLDivElement>(null);
+
+  // Toast
+  const { showToast } = useToast();
 
   // Mutation hooks
   const createMutation = useCreateEpic();
@@ -101,8 +106,14 @@ export default function EpicModal({
     if (!epic) return;
 
     deleteMutation.mutate({ epicId: epic.id, confirm: true }, {
-      onSuccess: onSave,
-      onError: () => setShowDeleteConfirm(false),
+      onSuccess: () => {
+        showToast("success", `Epic "${epic.title}" deleted`);
+        onSave();
+      },
+      onError: (error) => {
+        setShowDeleteConfirm(false);
+        showToast("error", `Failed to delete epic: ${error instanceof Error ? error.message : "Unknown error"}`);
+      },
     });
   };
 
@@ -194,11 +205,7 @@ export default function EpicModal({
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* Error */}
-          {error && (
-            <div className="p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-300 text-sm">
-              {error instanceof Error ? error.message : "An error occurred"}
-            </div>
-          )}
+          <ErrorAlert error={error} />
 
           {/* Delete Confirmation */}
           {showDeleteConfirm && (

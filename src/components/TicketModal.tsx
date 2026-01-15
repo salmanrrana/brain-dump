@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useModalKeyboard, useClickOutside } from "../lib/hooks";
+import { useModalKeyboard, useClickOutside, useDeleteTicket, useTicketDeletePreview } from "../lib/hooks";
+import DeleteConfirmationModal from "./DeleteConfirmationModal";
 import {
   X,
   Check,
@@ -55,6 +56,32 @@ const PRIORITY_OPTIONS = [
   { value: "high", label: "High" },
 ] as const;
 
+// Comment type styling lookup objects to avoid nested ternaries
+const COMMENT_CONTAINER_STYLES: Record<string, string> = {
+  progress: "p-2 bg-blue-900/20 border border-blue-800/50",
+  work_summary: "p-3 bg-purple-900/30 border border-purple-800",
+  test_report: "p-3 bg-green-900/30 border border-green-800",
+  comment: "p-3 bg-slate-800",
+};
+
+const COMMENT_AUTHOR_STYLES: Record<string, string> = {
+  ralph: "text-purple-400",
+  claude: "text-cyan-400",
+  user: "text-slate-300",
+};
+
+const COMMENT_BADGE_STYLES: Record<string, string> = {
+  progress: "bg-blue-800 text-blue-200",
+  work_summary: "bg-purple-800 text-purple-200",
+  test_report: "bg-green-800 text-green-200",
+};
+
+const COMMENT_BADGE_LABELS: Record<string, string> = {
+  progress: "Working...",
+  work_summary: "Work Summary",
+  test_report: "Test Report",
+};
+
 export default function TicketModal({
   ticket,
   epics,
@@ -92,6 +119,8 @@ export default function TicketModal({
   } | null>(null);
   const [showStartWorkMenu, setShowStartWorkMenu] = useState(false);
   const startWorkMenuRef = useRef<HTMLDivElement>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Use mutation hook for type-safe updates with cache invalidation
   const updateTicketMutation = useUpdateTicket();
@@ -104,6 +133,12 @@ export default function TicketModal({
 
   // Ralph mutation hook
   const launchRalphMutation = useLaunchRalphForTicket();
+
+  // Delete mutation hook
+  const deleteTicketMutation = useDeleteTicket();
+
+  // Fetch delete preview when confirmation modal opens (dry-run)
+  const { data: deletePreview } = useTicketDeletePreview(ticket.id, showDeleteConfirm);
 
   // Comments - poll every 3 seconds when ticket is in progress (Ralph might be working)
   const { comments, loading: commentsLoading } = useComments(ticket.id, {
@@ -163,10 +198,11 @@ export default function TicketModal({
         setAttachments(data);
       } catch (error) {
         console.error("Failed to fetch attachments:", error);
+        showToast("error", `Failed to load attachments: ${error instanceof Error ? error.message : "Unknown error"}`);
       }
     };
     void fetchAttachments();
-  }, [ticket.id]);
+  }, [ticket.id, showToast]);
 
   // Handle file upload
   const handleFileUpload = useCallback(
@@ -178,7 +214,7 @@ export default function TicketModal({
         for (const file of Array.from(files)) {
           // Check file size (10MB max)
           if (file.size > 10 * 1024 * 1024) {
-            alert(`File "${file.name}" exceeds 10MB limit`);
+            showToast("error", `File "${file.name}" exceeds 10MB limit`);
             continue;
           }
 
@@ -202,12 +238,12 @@ export default function TicketModal({
         }
       } catch (error) {
         console.error("Failed to upload attachment:", error);
-        alert("Failed to upload attachment");
+        showToast("error", `Failed to upload attachment: ${error instanceof Error ? error.message : "Unknown error"}`);
       } finally {
         setIsUploadingAttachment(false);
       }
     },
-    [ticket.id]
+    [ticket.id, showToast]
   );
 
   // Handle drag and drop
@@ -245,10 +281,10 @@ export default function TicketModal({
         setAttachments((prev) => prev.filter((a) => a.id !== attachment.id));
       } catch (error) {
         console.error("Failed to delete attachment:", error);
-        alert("Failed to delete attachment");
+        showToast("error", `Failed to delete attachment: ${error instanceof Error ? error.message : "Unknown error"}`);
       }
     },
-    [ticket.id]
+    [ticket.id, showToast]
   );
 
   // Handle Start Work - launch Claude in terminal with context
@@ -401,9 +437,31 @@ export default function TicketModal({
         onSuccess: () => {
           setNewComment("");
         },
+        onError: (error) => {
+          showToast("error", `Failed to add comment: ${error instanceof Error ? error.message : "Unknown error"}`);
+        },
       }
     );
-  }, [newComment, ticket.id, createCommentMutation]);
+  }, [newComment, ticket.id, createCommentMutation, showToast]);
+
+  // Handle delete ticket confirmation
+  const handleDeleteConfirm = useCallback(() => {
+    setDeleteError(null);
+    deleteTicketMutation.mutate(
+      { ticketId: ticket.id, confirm: true },
+      {
+        onSuccess: () => {
+          setShowDeleteConfirm(false);
+          showToast("success", `Ticket "${ticket.title}" deleted`);
+          onClose();
+          onUpdate();
+        },
+        onError: (error: Error) => {
+          setDeleteError(error.message || "Failed to delete ticket");
+        },
+      }
+    );
+  }, [ticket.id, ticket.title, deleteTicketMutation, showToast, onClose, onUpdate]);
 
   const handleSave = useCallback(() => {
     // Build updates object conditionally to satisfy exactOptionalPropertyTypes
@@ -1024,15 +1082,7 @@ export default function TicketModal({
                     {comments.map((comment) => (
                       <div
                         key={comment.id}
-                        className={`rounded-lg text-sm ${
-                          comment.type === "progress"
-                            ? "p-2 bg-blue-900/20 border border-blue-800/50"
-                            : comment.type === "work_summary"
-                              ? "p-3 bg-purple-900/30 border border-purple-800"
-                              : comment.type === "test_report"
-                                ? "p-3 bg-green-900/30 border border-green-800"
-                                : "p-3 bg-slate-800"
-                        }`}
+                        className={`rounded-lg text-sm ${COMMENT_CONTAINER_STYLES[comment.type] ?? COMMENT_CONTAINER_STYLES.comment}`}
                       >
                         <div className="flex items-center gap-2 mb-1">
                           {comment.type === "progress" && (
@@ -1042,13 +1092,7 @@ export default function TicketModal({
                             </span>
                           )}
                           <span
-                            className={`font-medium ${
-                              comment.author === "ralph"
-                                ? "text-purple-400"
-                                : comment.author === "claude"
-                                  ? "text-cyan-400"
-                                  : "text-slate-300"
-                            }`}
+                            className={`font-medium ${COMMENT_AUTHOR_STYLES[comment.author] ?? COMMENT_AUTHOR_STYLES.user}`}
                           >
                             {comment.author === "ralph" && <Bot size={12} className="inline mr-1" />}
                             {comment.author === "claude" && <Terminal size={12} className="inline mr-1" />}
@@ -1057,21 +1101,11 @@ export default function TicketModal({
                           <span className="text-slate-500 text-xs">
                             {new Date(comment.createdAt).toLocaleString()}
                           </span>
-                          {comment.type !== "comment" && (
+                          {comment.type !== "comment" && COMMENT_BADGE_STYLES[comment.type] && (
                             <span
-                              className={`text-xs px-1.5 py-0.5 rounded ${
-                                comment.type === "progress"
-                                  ? "bg-blue-800 text-blue-200"
-                                  : comment.type === "work_summary"
-                                    ? "bg-purple-800 text-purple-200"
-                                    : "bg-green-800 text-green-200"
-                              }`}
+                              className={`text-xs px-1.5 py-0.5 rounded ${COMMENT_BADGE_STYLES[comment.type]}`}
                             >
-                              {comment.type === "progress"
-                                ? "Working..."
-                                : comment.type === "work_summary"
-                                  ? "Work Summary"
-                                  : "Test Report"}
+                              {COMMENT_BADGE_LABELS[comment.type]}
                             </span>
                           )}
                         </div>
@@ -1180,6 +1214,14 @@ export default function TicketModal({
           </div>
 
           <div className="flex gap-3">
+            {/* Delete button */}
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="flex items-center gap-2 px-4 py-2 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-lg transition-colors"
+            >
+              <Trash2 size={16} />
+              <span>Delete</span>
+            </button>
             <button
               onClick={onClose}
               className="px-4 py-2 text-slate-400 hover:text-gray-100 hover:bg-slate-800 rounded-lg transition-colors"
@@ -1195,6 +1237,23 @@ export default function TicketModal({
             </button>
           </div>
         </div>
+
+        {/* Delete Confirmation Modal */}
+        <DeleteConfirmationModal
+          isOpen={showDeleteConfirm}
+          onClose={() => {
+            setShowDeleteConfirm(false);
+            setDeleteError(null);
+          }}
+          onConfirm={handleDeleteConfirm}
+          isLoading={deleteTicketMutation.isPending}
+          entityType="ticket"
+          entityName={ticket.title}
+          preview={{
+            commentCount: deletePreview && "commentCount" in deletePreview ? deletePreview.commentCount : 0,
+          }}
+          error={deleteError}
+        />
       </div>
     </div>
   );

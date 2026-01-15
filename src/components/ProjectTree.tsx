@@ -7,6 +7,7 @@ import {
   Layers,
   Plus,
   Pencil,
+  Trash2,
 } from "lucide-react";
 import { type Epic, type ProjectBase, type ProjectWithEpics } from "../lib/hooks";
 
@@ -20,6 +21,7 @@ interface ProjectTreeProps {
   onAddEpic: (projectId: string) => void;
   onEditProject?: (project: ProjectBase) => void;
   onEditEpic?: (projectId: string, epic: Epic) => void;
+  onDeleteEpic?: (epic: Epic) => void;
 }
 
 export default function ProjectTree({
@@ -32,6 +34,7 @@ export default function ProjectTree({
   onAddEpic,
   onEditProject,
   onEditEpic,
+  onDeleteEpic,
 }: ProjectTreeProps) {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(
     new Set()
@@ -206,6 +209,18 @@ export default function ProjectTree({
                           title="Edit epic"
                         >
                           <Pencil size={10} className="text-slate-400" />
+                        </button>
+                      )}
+                      {onDeleteEpic && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteEpic(epic);
+                          }}
+                          className="p-0.5 hover:bg-red-900/50 rounded opacity-0 group-hover/epic:opacity-100 transition-opacity"
+                          title="Delete epic"
+                        >
+                          <Trash2 size={10} className="text-red-400" />
                         </button>
                       )}
                     </div>

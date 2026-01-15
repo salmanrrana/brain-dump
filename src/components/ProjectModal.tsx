@@ -3,6 +3,9 @@ import { X, ChevronDown, FolderOpen } from "lucide-react";
 import { useCreateProject, useUpdateProject, useDeleteProject, useModalKeyboard, type ProjectBase } from "../lib/hooks";
 import { type UpdateProjectInput } from "../api/projects";
 import DirectoryPicker from "./DirectoryPicker";
+import DeleteProjectModal from "./DeleteProjectModal";
+import { useToast } from "./Toast";
+import ErrorAlert from "./ErrorAlert";
 import { COLOR_OPTIONS } from "../lib/constants";
 
 const WORKING_METHOD_OPTIONS = [
@@ -30,8 +33,12 @@ export default function ProjectModal({
   const [path, setPath] = useState(project?.path ?? "");
   const [color, setColor] = useState(project?.color ?? "");
   const [workingMethod, setWorkingMethod] = useState(project?.workingMethod ?? "auto");
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDirectoryPickerOpen, setIsDirectoryPickerOpen] = useState(false);
+
+  // Toast
+  const { showToast } = useToast();
 
   // Mutation hooks
   const createMutation = useCreateProject();
@@ -40,12 +47,12 @@ export default function ProjectModal({
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const isDeleting = deleteMutation.isPending;
-  const error = createMutation.error || updateMutation.error || deleteMutation.error;
+  const error = createMutation.error || updateMutation.error;
 
   // Modal keyboard handling (Escape, focus trap)
   useModalKeyboard(modalRef, onClose, {
-    shouldPreventClose: useCallback(() => showDeleteConfirm, [showDeleteConfirm]),
-    onPreventedClose: useCallback(() => setShowDeleteConfirm(false), []),
+    shouldPreventClose: useCallback(() => showDeleteModal, [showDeleteModal]),
+    onPreventedClose: useCallback(() => setShowDeleteModal(false), []),
     initialFocusRef: nameInputRef,
   });
 
@@ -85,9 +92,15 @@ export default function ProjectModal({
   const handleDelete = () => {
     if (!project) return;
 
+    setDeleteError(null);
     deleteMutation.mutate({ projectId: project.id, confirm: true }, {
-      onSuccess: onSave,
-      onError: () => setShowDeleteConfirm(false),
+      onSuccess: () => {
+        showToast("success", `Project "${project.name}" deleted`);
+        onSave();
+      },
+      onError: (err) => {
+        setDeleteError(err instanceof Error ? err.message : "Failed to delete project");
+      },
     });
   };
 
@@ -125,36 +138,8 @@ export default function ProjectModal({
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* Error */}
-          {error && (
-            <div className="p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-300 text-sm">
-              {error instanceof Error ? error.message : "An error occurred"}
-            </div>
-          )}
+          <ErrorAlert error={error} />
 
-          {/* Delete Confirmation */}
-          {showDeleteConfirm && (
-            <div className="p-4 bg-red-900/30 border border-red-700 rounded-lg">
-              <p className="text-red-300 text-sm mb-3">
-                Are you sure you want to delete this project? This will also
-                delete all epics and tickets in this project.
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleDelete}
-                  disabled={isDeleting}
-                  className="px-3 py-1.5 bg-red-600 hover:bg-red-500 disabled:bg-slate-700 rounded text-sm font-medium"
-                >
-                  {isDeleting ? "Deleting..." : "Yes, Delete"}
-                </button>
-                <button
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Name */}
           <div>
@@ -266,8 +251,8 @@ export default function ProjectModal({
           <div>
             {isEditing && (
               <button
-                onClick={() => setShowDeleteConfirm(true)}
-                disabled={showDeleteConfirm}
+                onClick={() => setShowDeleteModal(true)}
+                disabled={showDeleteModal}
                 className="px-3 py-2 text-red-400 hover:text-red-300 hover:bg-slate-800 rounded-lg transition-colors text-sm"
               >
                 Delete Project
@@ -303,6 +288,22 @@ export default function ProjectModal({
         onSelect={(selectedPath) => setPath(selectedPath)}
         onClose={() => setIsDirectoryPickerOpen(false)}
       />
+
+      {/* Delete Project Modal */}
+      {project && (
+        <DeleteProjectModal
+          isOpen={showDeleteModal}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setDeleteError(null);
+          }}
+          onConfirm={handleDelete}
+          isLoading={isDeleting}
+          projectId={project.id}
+          projectName={project.name}
+          error={deleteError}
+        />
+      )}
     </div>
   );
 }

@@ -187,22 +187,30 @@ export const deleteProject = createServerFn({ method: "POST" })
 
     // Actually delete (use transaction for atomicity)
     // Note: FK cascade should handle most of this, but we do it explicitly for clarity
-    sqlite.transaction(() => {
-      // 1. Delete comments for all project tickets
-      if (projectTickets.length > 0) {
-        const ticketIds = projectTickets.map(t => t.id);
-        db.delete(ticketComments).where(inArray(ticketComments.ticketId, ticketIds)).run();
+    try {
+      sqlite.transaction(() => {
+        // 1. Delete comments for all project tickets
+        if (projectTickets.length > 0) {
+          const ticketIds = projectTickets.map(t => t.id);
+          db.delete(ticketComments).where(inArray(ticketComments.ticketId, ticketIds)).run();
+        }
+
+        // 2. Delete tickets
+        db.delete(tickets).where(eq(tickets.projectId, projectId)).run();
+
+        // 3. Delete epics
+        db.delete(epics).where(eq(epics.projectId, projectId)).run();
+
+        // 4. Delete project
+        db.delete(projects).where(eq(projects.id, projectId)).run();
+      })();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      if (message.includes("SQLITE_BUSY")) {
+        throw new Error("Failed to delete project: The database is busy. Please try again in a moment.");
       }
-
-      // 2. Delete tickets
-      db.delete(tickets).where(eq(tickets.projectId, projectId)).run();
-
-      // 3. Delete epics
-      db.delete(epics).where(eq(epics.projectId, projectId)).run();
-
-      // 4. Delete project
-      db.delete(projects).where(eq(projects.id, projectId)).run();
-    })();
+      throw new Error(`Failed to delete project: ${message}`);
+    }
 
     return {
       deleted: true,
