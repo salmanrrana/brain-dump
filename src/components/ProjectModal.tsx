@@ -5,6 +5,7 @@ import { type UpdateProjectInput } from "../api/projects";
 import DirectoryPicker from "./DirectoryPicker";
 import DeleteProjectModal from "./DeleteProjectModal";
 import { useToast } from "./Toast";
+import ErrorAlert from "./ErrorAlert";
 import { COLOR_OPTIONS } from "../lib/constants";
 
 const WORKING_METHOD_OPTIONS = [
@@ -137,11 +138,7 @@ export default function ProjectModal({
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* Error */}
-          {error && (
-            <div className="p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-300 text-sm">
-              {error instanceof Error ? error.message : "An error occurred"}
-            </div>
-          )}
+          <ErrorAlert error={error} />
 
 
           {/* Name */}

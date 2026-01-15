@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useModalKeyboard } from "../lib/hooks";
-import { deleteProject } from "../api/projects";
+import { useModalKeyboard, useProjectDeletePreview } from "../lib/hooks";
 import type { DeleteProjectPreview } from "../api/projects";
+import ErrorAlert from "./ErrorAlert";
 import { AlertTriangle, X, Loader2 } from "lucide-react";
 
 interface DeleteProjectModalProps {
@@ -70,13 +69,8 @@ function DeleteProjectModalContent({
   const [confirmationText, setConfirmationText] = useState("");
 
   // Fetch preview data
-  const { data: preview, isLoading: isLoadingPreview } = useQuery({
-    queryKey: ["project", projectId, "delete-preview"],
-    queryFn: async () => {
-      const result = await deleteProject({ data: { projectId, confirm: false } });
-      return result as DeleteProjectPreview;
-    },
-  });
+  const { data: previewData, isLoading: isLoadingPreview } = useProjectDeletePreview(projectId);
+  const preview = previewData as DeleteProjectPreview | undefined;
 
   // Focus input on mount
   useEffect(() => {
@@ -266,11 +260,7 @@ function DeleteProjectModalContent({
           </div>
 
           {/* Error message */}
-          {error && (
-            <div className="p-3 bg-red-900/30 border border-red-800 rounded-lg">
-              <p className="text-sm text-red-300">{error}</p>
-            </div>
-          )}
+          <ErrorAlert error={error} />
         </div>
 
         {/* Footer */}

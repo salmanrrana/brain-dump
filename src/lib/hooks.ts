@@ -573,6 +573,34 @@ export function useDeleteEpic() {
   });
 }
 
+// =============================================================================
+// DELETE PREVIEW HOOKS
+// =============================================================================
+
+/**
+ * Hook for fetching ticket delete preview (dry-run).
+ * @param ticketId - The ticket ID to preview deletion for
+ * @param enabled - Whether to fetch the preview (typically when modal opens)
+ */
+export function useTicketDeletePreview(ticketId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["ticket", ticketId, "delete-preview"] as const,
+    queryFn: () => deleteTicket({ data: { ticketId, confirm: false } }),
+    enabled,
+  });
+}
+
+/**
+ * Hook for fetching project delete preview (dry-run).
+ * @param projectId - The project ID to preview deletion for
+ */
+export function useProjectDeletePreview(projectId: string) {
+  return useQuery({
+    queryKey: ["project", projectId, "delete-preview"] as const,
+    queryFn: () => deleteProject({ data: { projectId, confirm: false } }),
+  });
+}
+
 // Hook for fetching projects with their epics
 export function useProjects() {
   const query = useQuery({

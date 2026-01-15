@@ -33,3 +33,18 @@ export function ensureExists<T>(
   }
   return entity;
 }
+
+/**
+ * Returns a pluralized string based on count.
+ * @param count - The number to check
+ * @param singular - The singular form of the word
+ * @param plural - Optional plural form (defaults to singular + "s")
+ * @returns Formatted string like "1 item" or "5 items"
+ */
+export function pluralize(
+  count: number,
+  singular: string,
+  plural?: string
+): string {
+  return `${count} ${count === 1 ? singular : plural ?? singular + "s"}`;
+}

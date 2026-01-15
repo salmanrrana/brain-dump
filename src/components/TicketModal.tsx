@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useModalKeyboard, useClickOutside, useDeleteTicket } from "../lib/hooks";
+import { useModalKeyboard, useClickOutside, useDeleteTicket, useTicketDeletePreview } from "../lib/hooks";
 import DeleteConfirmationModal from "./DeleteConfirmationModal";
-import { deleteTicket as deleteTicketFn } from "../api/tickets";
 import {
   X,
   Check,
@@ -57,6 +55,32 @@ const PRIORITY_OPTIONS = [
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
 ] as const;
+
+// Comment type styling lookup objects to avoid nested ternaries
+const COMMENT_CONTAINER_STYLES: Record<string, string> = {
+  progress: "p-2 bg-blue-900/20 border border-blue-800/50",
+  work_summary: "p-3 bg-purple-900/30 border border-purple-800",
+  test_report: "p-3 bg-green-900/30 border border-green-800",
+  comment: "p-3 bg-slate-800",
+};
+
+const COMMENT_AUTHOR_STYLES: Record<string, string> = {
+  ralph: "text-purple-400",
+  claude: "text-cyan-400",
+  user: "text-slate-300",
+};
+
+const COMMENT_BADGE_STYLES: Record<string, string> = {
+  progress: "bg-blue-800 text-blue-200",
+  work_summary: "bg-purple-800 text-purple-200",
+  test_report: "bg-green-800 text-green-200",
+};
+
+const COMMENT_BADGE_LABELS: Record<string, string> = {
+  progress: "Working...",
+  work_summary: "Work Summary",
+  test_report: "Test Report",
+};
 
 export default function TicketModal({
   ticket,
@@ -114,11 +138,7 @@ export default function TicketModal({
   const deleteTicketMutation = useDeleteTicket();
 
   // Fetch delete preview when confirmation modal opens (dry-run)
-  const { data: deletePreview } = useQuery({
-    queryKey: ["ticket", ticket.id, "delete-preview"],
-    queryFn: () => deleteTicketFn({ data: { ticketId: ticket.id, confirm: false } }),
-    enabled: showDeleteConfirm,
-  });
+  const { data: deletePreview } = useTicketDeletePreview(ticket.id, showDeleteConfirm);
 
   // Comments - poll every 3 seconds when ticket is in progress (Ralph might be working)
   const { comments, loading: commentsLoading } = useComments(ticket.id, {
@@ -1058,15 +1078,7 @@ export default function TicketModal({
                     {comments.map((comment) => (
                       <div
                         key={comment.id}
-                        className={`rounded-lg text-sm ${
-                          comment.type === "progress"
-                            ? "p-2 bg-blue-900/20 border border-blue-800/50"
-                            : comment.type === "work_summary"
-                              ? "p-3 bg-purple-900/30 border border-purple-800"
-                              : comment.type === "test_report"
-                                ? "p-3 bg-green-900/30 border border-green-800"
-                                : "p-3 bg-slate-800"
-                        }`}
+                        className={`rounded-lg text-sm ${COMMENT_CONTAINER_STYLES[comment.type] ?? COMMENT_CONTAINER_STYLES.comment}`}
                       >
                         <div className="flex items-center gap-2 mb-1">
                           {comment.type === "progress" && (
@@ -1076,13 +1088,7 @@ export default function TicketModal({
                             </span>
                           )}
                           <span
-                            className={`font-medium ${
-                              comment.author === "ralph"
-                                ? "text-purple-400"
-                                : comment.author === "claude"
-                                  ? "text-cyan-400"
-                                  : "text-slate-300"
-                            }`}
+                            className={`font-medium ${COMMENT_AUTHOR_STYLES[comment.author] ?? COMMENT_AUTHOR_STYLES.user}`}
                           >
                             {comment.author === "ralph" && <Bot size={12} className="inline mr-1" />}
                             {comment.author === "claude" && <Terminal size={12} className="inline mr-1" />}
@@ -1091,21 +1097,11 @@ export default function TicketModal({
                           <span className="text-slate-500 text-xs">
                             {new Date(comment.createdAt).toLocaleString()}
                           </span>
-                          {comment.type !== "comment" && (
+                          {comment.type !== "comment" && COMMENT_BADGE_STYLES[comment.type] && (
                             <span
-                              className={`text-xs px-1.5 py-0.5 rounded ${
-                                comment.type === "progress"
-                                  ? "bg-blue-800 text-blue-200"
-                                  : comment.type === "work_summary"
-                                    ? "bg-purple-800 text-purple-200"
-                                    : "bg-green-800 text-green-200"
-                              }`}
+                              className={`text-xs px-1.5 py-0.5 rounded ${COMMENT_BADGE_STYLES[comment.type]}`}
                             >
-                              {comment.type === "progress"
-                                ? "Working..."
-                                : comment.type === "work_summary"
-                                  ? "Work Summary"
-                                  : "Test Report"}
+                              {COMMENT_BADGE_LABELS[comment.type]}
                             </span>
                           )}
                         </div>

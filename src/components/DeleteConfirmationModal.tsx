@@ -1,5 +1,7 @@
 import { useRef } from "react";
 import { useModalKeyboard } from "../lib/hooks";
+import { pluralize } from "../lib/utils";
+import ErrorAlert from "./ErrorAlert";
 import { AlertTriangle, X, Loader2 } from "lucide-react";
 
 export type EntityType = "ticket" | "epic" | "project";
@@ -49,22 +51,22 @@ export default function DeleteConfirmationModal({
 
   if (entityType === "ticket") {
     if (preview.commentCount && preview.commentCount > 0) {
-      deletionItems.push(`${preview.commentCount} comment${preview.commentCount === 1 ? "" : "s"}`);
+      deletionItems.push(pluralize(preview.commentCount, "comment"));
     }
   } else if (entityType === "epic") {
     // Epics unlink tickets, not delete them
     if (preview.ticketCount && preview.ticketCount > 0) {
-      deletionItems.push(`${preview.ticketCount} ticket${preview.ticketCount === 1 ? "" : "s"} will be unlinked`);
+      deletionItems.push(`${pluralize(preview.ticketCount, "ticket")} will be unlinked`);
     }
   } else if (entityType === "project") {
     if (preview.epicCount && preview.epicCount > 0) {
-      deletionItems.push(`${preview.epicCount} epic${preview.epicCount === 1 ? "" : "s"}`);
+      deletionItems.push(pluralize(preview.epicCount, "epic"));
     }
     if (preview.ticketCount && preview.ticketCount > 0) {
-      deletionItems.push(`${preview.ticketCount} ticket${preview.ticketCount === 1 ? "" : "s"}`);
+      deletionItems.push(pluralize(preview.ticketCount, "ticket"));
     }
     if (preview.commentCount && preview.commentCount > 0) {
-      deletionItems.push(`${preview.commentCount} comment${preview.commentCount === 1 ? "" : "s"}`);
+      deletionItems.push(pluralize(preview.commentCount, "comment"));
     }
   }
 
@@ -142,11 +144,7 @@ export default function DeleteConfirmationModal({
           </p>
 
           {/* Error message */}
-          {error && (
-            <div className="p-3 bg-red-900/30 border border-red-800 rounded-lg">
-              <p className="text-sm text-red-300">{error}</p>
-            </div>
-          )}
+          <ErrorAlert error={error} />
         </div>
 
         {/* Footer */}
