@@ -57,3 +57,33 @@ export const STATUS_LABELS: Record<string, string> = {
   review: "Review",
   done: "Done",
 };
+
+// Status color utility for UI styling
+export function getStatusColor(status: string): string {
+  switch (status) {
+    case "done":
+      return "text-green-400";
+    case "in_progress":
+      return "text-amber-400";
+    case "review":
+    case "ai_review":
+    case "human_review":
+      return "text-purple-400";
+    case "ready":
+      return "text-blue-400";
+    default:
+      return "text-slate-400";
+  }
+}
+
+// Priority style utility for UI styling
+export function getPriorityStyle(priority: string): string {
+  switch (priority) {
+    case "high":
+      return "bg-red-900/50 text-red-300";
+    case "medium":
+      return "bg-yellow-900/50 text-yellow-300";
+    default:
+      return "bg-green-900/50 text-green-300";
+  }
+}

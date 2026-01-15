@@ -16,6 +16,7 @@ import EpicModal from "./EpicModal";
 import SettingsModal from "./SettingsModal";
 import DeleteConfirmationModal, { type DeletePreview } from "./DeleteConfirmationModal";
 import { useToast } from "./Toast";
+import { getStatusColor, getPriorityStyle } from "../lib/constants";
 import {
   useProjects,
   useSearch,
@@ -559,32 +560,6 @@ function AppHeader() {
     onSelectTicketFromSearch(result.id);
     clearSearch();
     setShowResults(false);
-  };
-
-  const getStatusColor = (status: string): string => {
-    switch (status) {
-      case "done":
-        return "text-green-400";
-      case "in_progress":
-        return "text-amber-400";
-      case "review":
-        return "text-purple-400";
-      case "ready":
-        return "text-blue-400";
-      default:
-        return "text-slate-400";
-    }
-  };
-
-  const getPriorityStyle = (priority: string): string => {
-    switch (priority) {
-      case "high":
-        return "bg-red-900/50 text-red-300";
-      case "medium":
-        return "bg-yellow-900/50 text-yellow-300";
-      default:
-        return "bg-green-900/50 text-green-300";
-    }
   };
 
   return (
