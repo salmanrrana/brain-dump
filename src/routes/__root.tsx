@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { TanStackDevtools } from "@tanstack/react-devtools";
@@ -9,17 +10,19 @@ import { ToastProvider } from "../components/Toast";
 
 import appCss from "../styles.css?url";
 
-// Create a client
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 30, // 30 seconds - allows faster refresh when returning from external changes
-      refetchOnWindowFocus: true, // Refetch stale queries when window regains focus
+// Factory function to create QueryClient with consistent options
+// Used inside useState to ensure per-component instance (SSR safety)
+function createQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        // Shorter staleTime to allow faster refresh when returning from external changes
+        staleTime: 1000 * 5, // 5 seconds
+        refetchOnWindowFocus: true, // Refetch stale queries when window regains focus
+      },
     },
-  },
-});
-
-export { queryClient };
+  });
+}
 
 export const Route = createRootRoute({
   head: () => ({
@@ -54,6 +57,11 @@ export const Route = createRootRoute({
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  // Create QueryClient inside component state to avoid SSR issues
+  // This ensures the focus manager is properly initialized on the client
+  // See: https://tanstack.com/query/latest/docs/framework/react/guides/ssr
+  const [queryClient] = useState(createQueryClient);
+
   return (
     <html lang="en" className="dark">
       <head>
