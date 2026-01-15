@@ -228,6 +228,8 @@ fi
     ? `  # Run Claude in Docker container
   # Claude Code auth is passed via mounted ~/.config/claude-code (uses your existing subscription)
   docker run --rm -it \\
+    --name "ralph-\${SESSION_ID}" \\
+    --network ralph-net \\
     -v "$PROJECT_PATH:/workspace" \\
     -v "\\$HOME/.config/claude-code:/home/ralph/.config/claude-code:ro" \\
     -v "\\$HOME/.gitconfig:/home/ralph/.gitconfig:ro" \\
@@ -248,6 +250,7 @@ MAX_ITERATIONS=\${1:-${maxIterations}}
 PROJECT_PATH="${projectPath}"
 PRD_FILE="$PROJECT_PATH/plans/prd.json"
 PROGRESS_FILE="$PROJECT_PATH/plans/progress.txt"
+SESSION_ID="$(date +%s)-$$"
 
 cd "$PROJECT_PATH"
 ${dockerImageCheck}
