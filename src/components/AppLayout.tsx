@@ -99,9 +99,23 @@ function getInitialViewMode(): "kanban" | "list" {
   return "kanban";
 }
 
-// Sanitize search snippet HTML - only allow safe highlight markers
+/**
+ * Sanitize search snippet HTML for safe rendering.
+ *
+ * Security approach (whitelist pattern):
+ * 1. Escape ALL HTML entities first - neutralizes any malicious content
+ * 2. Restore ONLY safe tags - mark and b without attributes
+ *
+ * This is secure because:
+ * - Source: SQLite FTS5 highlight() function output (predictable, server-generated)
+ * - Only 2 benign formatting tags allowed (mark, b) with no attributes
+ * - Tags are reconstructed without attributes, preventing attribute injection
+ * - Any other HTML (scripts, event handlers) remains escaped
+ *
+ * DOMPurify not needed - this narrow whitelist is sufficient and avoids dependency.
+ */
 function sanitizeSnippet(html: string): string {
-  // First escape all HTML
+  // Step 1: Escape ALL HTML entities
   const escaped = html
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -109,8 +123,7 @@ function sanitizeSnippet(html: string): string {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 
-  // Then restore only our safe highlight markers (from SQLite FTS5)
-  // FTS5 uses <mark> tags by default for highlighting
+  // Step 2: Restore only safe highlight markers (SQLite FTS5 uses mark tag by default)
   return escaped
     .replace(/&lt;mark&gt;/g, "<mark>")
     .replace(/&lt;\/mark&gt;/g, "</mark>")
