@@ -280,16 +280,17 @@ import {
 export interface UseSampleDataReturn {
   hasSampleData: boolean;
   isDeleting: boolean;
-  deleteSampleData: () => Promise<void>;
+  deleteSampleData: () => void;
 }
 
 /**
  * Hook for managing sample data lifecycle
  * Handles first launch detection and sample data deletion
+ * Uses TanStack Query mutation for proper query invalidation
  */
 export function useSampleData(onDeleted?: () => void): UseSampleDataReturn {
   const [hasSampleData, setHasSampleData] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const queryClient = useQueryClient();
 
   // Check for first launch and create sample data if needed
   useEffect(() => {
@@ -310,24 +311,30 @@ export function useSampleData(onDeleted?: () => void): UseSampleDataReturn {
     void initSampleData();
   }, []);
 
-  const deleteSampleData = useCallback(async () => {
-    if (!confirm("Delete all sample data? This cannot be undone.")) return;
-
-    setIsDeleting(true);
-    try {
-      await deleteSampleDataApi({ data: undefined });
+  // Use mutation for proper query invalidation
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteSampleDataApi({ data: undefined }),
+    onSuccess: () => {
       setHasSampleData(false);
+      // Invalidate all affected queries - projects, tickets, and tags
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTags });
       onDeleted?.();
-    } catch (error) {
+    },
+    onError: (error) => {
       console.error("Failed to delete sample data:", error);
-    } finally {
-      setIsDeleting(false);
-    }
-  }, [onDeleted]);
+    },
+  });
+
+  const deleteSampleData = useCallback(() => {
+    if (!confirm("Delete all sample data? This cannot be undone.")) return;
+    deleteMutation.mutate();
+  }, [deleteMutation]);
 
   return {
     hasSampleData,
-    isDeleting,
+    isDeleting: deleteMutation.isPending,
     deleteSampleData,
   };
 }
