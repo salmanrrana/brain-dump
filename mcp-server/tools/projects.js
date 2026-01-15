@@ -259,9 +259,20 @@ Returns:
         // 4. Delete project
         db.prepare("DELETE FROM projects WHERE id = ?").run(projectId);
       });
-      deleteProject();
 
-      log.info(`Deleted project: ${project.name} (${tickets.length} tickets, ${epics.length} epics, ${commentCount} comments)`);
+      try {
+        deleteProject();
+        log.info(`Deleted project: ${project.name} (${tickets.length} tickets, ${epics.length} epics, ${commentCount} comments)`);
+      } catch (error) {
+        log.error(`Failed to delete project "${project.name}": ${error.message}`);
+        const userMessage = error.message.includes("SQLITE_BUSY")
+          ? "The database is busy. Please try again in a moment."
+          : error.message;
+        return {
+          content: [{ type: "text", text: `❌ Failed to delete project: ${userMessage}` }],
+          isError: true,
+        };
+      }
 
       return {
         content: [{

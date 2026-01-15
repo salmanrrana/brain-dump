@@ -246,9 +246,20 @@ Returns:
         // 2. Delete ticket
         db.prepare("DELETE FROM tickets WHERE id = ?").run(ticketId);
       });
-      deleteTicket();
 
-      log.info(`Deleted ticket: ${ticket.title} (${comments.length} comments)`);
+      try {
+        deleteTicket();
+        log.info(`Deleted ticket: ${ticket.title} (${comments.length} comments)`);
+      } catch (error) {
+        log.error(`Failed to delete ticket "${ticket.title}": ${error.message}`);
+        const userMessage = error.message.includes("SQLITE_BUSY")
+          ? "The database is busy. Please try again in a moment."
+          : error.message;
+        return {
+          content: [{ type: "text", text: `❌ Failed to delete ticket: ${userMessage}` }],
+          isError: true,
+        };
+      }
 
       return {
         content: [{

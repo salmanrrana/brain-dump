@@ -198,10 +198,11 @@ export default function TicketModal({
         setAttachments(data);
       } catch (error) {
         console.error("Failed to fetch attachments:", error);
+        showToast("error", `Failed to load attachments: ${error instanceof Error ? error.message : "Unknown error"}`);
       }
     };
     void fetchAttachments();
-  }, [ticket.id]);
+  }, [ticket.id, showToast]);
 
   // Handle file upload
   const handleFileUpload = useCallback(
@@ -213,7 +214,7 @@ export default function TicketModal({
         for (const file of Array.from(files)) {
           // Check file size (10MB max)
           if (file.size > 10 * 1024 * 1024) {
-            alert(`File "${file.name}" exceeds 10MB limit`);
+            showToast("error", `File "${file.name}" exceeds 10MB limit`);
             continue;
           }
 
@@ -237,12 +238,12 @@ export default function TicketModal({
         }
       } catch (error) {
         console.error("Failed to upload attachment:", error);
-        alert("Failed to upload attachment");
+        showToast("error", `Failed to upload attachment: ${error instanceof Error ? error.message : "Unknown error"}`);
       } finally {
         setIsUploadingAttachment(false);
       }
     },
-    [ticket.id]
+    [ticket.id, showToast]
   );
 
   // Handle drag and drop
@@ -280,10 +281,10 @@ export default function TicketModal({
         setAttachments((prev) => prev.filter((a) => a.id !== attachment.id));
       } catch (error) {
         console.error("Failed to delete attachment:", error);
-        alert("Failed to delete attachment");
+        showToast("error", `Failed to delete attachment: ${error instanceof Error ? error.message : "Unknown error"}`);
       }
     },
-    [ticket.id]
+    [ticket.id, showToast]
   );
 
   // Handle Start Work - launch Claude in terminal with context
@@ -436,9 +437,12 @@ export default function TicketModal({
         onSuccess: () => {
           setNewComment("");
         },
+        onError: (error) => {
+          showToast("error", `Failed to add comment: ${error instanceof Error ? error.message : "Unknown error"}`);
+        },
       }
     );
-  }, [newComment, ticket.id, createCommentMutation]);
+  }, [newComment, ticket.id, createCommentMutation, showToast]);
 
   // Handle delete ticket confirmation
   const handleDeleteConfirm = useCallback(() => {

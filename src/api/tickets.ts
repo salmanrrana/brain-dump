@@ -387,12 +387,20 @@ export const deleteTicket = createServerFn({ method: "POST" })
 
     // Actually delete (comments cascade automatically via FK constraint)
     // Use transaction for atomicity
-    sqlite.transaction(() => {
-      // Delete comments first (even though FK cascade would handle it)
-      db.delete(ticketComments).where(eq(ticketComments.ticketId, ticketId)).run();
-      // Delete the ticket
-      db.delete(tickets).where(eq(tickets.id, ticketId)).run();
-    })();
+    try {
+      sqlite.transaction(() => {
+        // Delete comments first (even though FK cascade would handle it)
+        db.delete(ticketComments).where(eq(ticketComments.ticketId, ticketId)).run();
+        // Delete the ticket
+        db.delete(tickets).where(eq(tickets.id, ticketId)).run();
+      })();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      if (message.includes("SQLITE_BUSY")) {
+        throw new Error("Failed to delete ticket: The database is busy. Please try again in a moment.");
+      }
+      throw new Error(`Failed to delete ticket: ${message}`);
+    }
 
     return {
       deleted: true,

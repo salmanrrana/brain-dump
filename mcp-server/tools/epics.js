@@ -216,9 +216,20 @@ Returns:
 
         db.prepare("DELETE FROM epics WHERE id = ?").run(epicId);
       });
-      deleteEpic();
 
-      log.info(`Deleted epic: ${epic.title} (unlinked ${tickets.length} tickets)`);
+      try {
+        deleteEpic();
+        log.info(`Deleted epic: ${epic.title} (unlinked ${tickets.length} tickets)`);
+      } catch (error) {
+        log.error(`Failed to delete epic "${epic.title}": ${error.message}`);
+        const userMessage = error.message.includes("SQLITE_BUSY")
+          ? "The database is busy. Please try again in a moment."
+          : error.message;
+        return {
+          content: [{ type: "text", text: `❌ Failed to delete epic: ${userMessage}` }],
+          isError: true,
+        };
+      }
 
       return {
         content: [{

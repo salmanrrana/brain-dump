@@ -167,15 +167,23 @@ export const deleteEpic = createServerFn({ method: "POST" })
 
     // Actually delete (tickets get unlinked via FK onDelete: "set null")
     // Use transaction for atomicity
-    sqlite.transaction(() => {
-      // Explicitly unlink tickets (even though FK would handle it)
-      db.update(tickets)
-        .set({ epicId: null, updatedAt: new Date().toISOString() })
-        .where(eq(tickets.epicId, epicId))
-        .run();
-      // Delete the epic
-      db.delete(epics).where(eq(epics.id, epicId)).run();
-    })();
+    try {
+      sqlite.transaction(() => {
+        // Explicitly unlink tickets (even though FK would handle it)
+        db.update(tickets)
+          .set({ epicId: null, updatedAt: new Date().toISOString() })
+          .where(eq(tickets.epicId, epicId))
+          .run();
+        // Delete the epic
+        db.delete(epics).where(eq(epics.id, epicId)).run();
+      })();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      if (message.includes("SQLITE_BUSY")) {
+        throw new Error("Failed to delete epic: The database is busy. Please try again in a moment.");
+      }
+      throw new Error(`Failed to delete epic: ${message}`);
+    }
 
     return {
       deleted: true,

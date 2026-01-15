@@ -110,7 +110,10 @@ export default function EpicModal({
         showToast("success", `Epic "${epic.title}" deleted`);
         onSave();
       },
-      onError: () => setShowDeleteConfirm(false),
+      onError: (error) => {
+        setShowDeleteConfirm(false);
+        showToast("error", `Failed to delete epic: ${error instanceof Error ? error.message : "Unknown error"}`);
+      },
     });
   };
 

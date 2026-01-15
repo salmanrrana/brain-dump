@@ -69,7 +69,7 @@ function DeleteProjectModalContent({
   const [confirmationText, setConfirmationText] = useState("");
 
   // Fetch preview data
-  const { data: previewData, isLoading: isLoadingPreview } = useProjectDeletePreview(projectId);
+  const { data: previewData, isLoading: isLoadingPreview, error: previewError } = useProjectDeletePreview(projectId);
   const preview = previewData as DeleteProjectPreview | undefined;
 
   // Focus input on mount
@@ -158,6 +158,11 @@ function DeleteProjectModalContent({
               <Loader2 size={16} className="animate-spin" />
               <span>Loading preview...</span>
             </div>
+          )}
+
+          {/* Preview fetch error */}
+          {previewError && (
+            <ErrorAlert error={previewError instanceof Error ? previewError.message : "Failed to load deletion preview"} />
           )}
 
           {/* Preview data */}
