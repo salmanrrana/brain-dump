@@ -829,3 +829,181 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       ticketCount: epicTickets.length,
     };
   });
+
+// Companion container definitions
+export type CompanionService = "postgres" | "redis" | "mysql";
+
+export interface CompanionContainerConfig {
+  name: string;
+  image: string;
+  env: Record<string, string>;
+  port: { container: number; host: number };
+  connectionString: string;
+}
+
+const COMPANION_CONTAINERS: Record<CompanionService, CompanionContainerConfig> = {
+  postgres: {
+    name: "ralph-postgres",
+    image: "postgres:15-alpine",
+    env: { POSTGRES_PASSWORD: "postgres", POSTGRES_DB: "app" },
+    port: { container: 5432, host: 8400 },
+    connectionString: "postgresql://postgres:postgres@ralph-postgres:5432/app",
+  },
+  redis: {
+    name: "ralph-redis",
+    image: "redis:7-alpine",
+    env: {},
+    port: { container: 6379, host: 8401 },
+    connectionString: "redis://ralph-redis:6379",
+  },
+  mysql: {
+    name: "ralph-mysql",
+    image: "mysql:8",
+    env: { MYSQL_ROOT_PASSWORD: "mysql", MYSQL_DATABASE: "app" },
+    port: { container: 3306, host: 8402 },
+    connectionString: "mysql://root:mysql@ralph-mysql:3306/app",
+  },
+};
+
+// Start a companion container on ralph-net
+async function startCompanionContainer(
+  service: CompanionService
+): Promise<{ success: true; connectionString: string } | { success: false; message: string }> {
+  const { exec } = await import("child_process");
+  const { promisify } = await import("util");
+  const execAsync = promisify(exec);
+
+  const config = COMPANION_CONTAINERS[service];
+
+  // First ensure ralph-net network exists
+  const networkResult = await ensureDockerNetwork("ralph-net");
+  if (!networkResult.success) {
+    return networkResult;
+  }
+
+  // Check if container already running
+  try {
+    const { stdout } = await execAsync(`docker ps --filter "name=${config.name}" --format "{{.Names}}"`);
+    if (stdout.trim() === config.name) {
+      console.log(`[brain-dump] Companion container ${config.name} already running`);
+      return { success: true, connectionString: config.connectionString };
+    }
+  } catch {
+    // Container not running, continue to start it
+  }
+
+  // Build environment variables string
+  const envArgs = Object.entries(config.env)
+    .map(([key, value]) => `-e ${key}=${value}`)
+    .join(" ");
+
+  // Start the container
+  const command = `docker run -d --name ${config.name} --network ralph-net ${envArgs} -p ${config.port.host}:${config.port.container} ${config.image}`;
+
+  try {
+    await execAsync(command);
+    console.log(`[brain-dump] Started companion container ${config.name}`);
+    return { success: true, connectionString: config.connectionString };
+  } catch (error) {
+    return {
+      success: false,
+      message: `Failed to start ${service} container: ${error instanceof Error ? error.message : "Unknown error"}`,
+    };
+  }
+}
+
+// Stop a companion container
+async function stopCompanionContainer(
+  service: CompanionService
+): Promise<{ success: true } | { success: false; message: string }> {
+  const { exec } = await import("child_process");
+  const { promisify } = await import("util");
+  const execAsync = promisify(exec);
+
+  const config = COMPANION_CONTAINERS[service];
+
+  try {
+    await execAsync(`docker stop ${config.name} && docker rm ${config.name}`);
+    console.log(`[brain-dump] Stopped companion container ${config.name}`);
+    return { success: true };
+  } catch {
+    // Container may not exist or already stopped
+    return { success: true };
+  }
+}
+
+// Get companion container info for UI
+export const getCompanionContainerInfo = createServerFn({ method: "GET" }).handler(async () => {
+  return Object.entries(COMPANION_CONTAINERS).map(([service, config]) => ({
+    service: service as CompanionService,
+    name: config.name,
+    image: config.image,
+    hostPort: config.port.host,
+    connectionString: config.connectionString,
+  }));
+});
+
+// Start multiple companion containers
+export const startCompanionContainers = createServerFn({ method: "POST" })
+  .inputValidator((data: { services: CompanionService[] }) => data)
+  .handler(async ({ data }) => {
+    const { services } = data;
+    const results: { service: CompanionService; success: boolean; connectionString?: string; error?: string }[] = [];
+
+    for (const service of services) {
+      const result = await startCompanionContainer(service);
+      if (result.success) {
+        results.push({ service, success: true, connectionString: result.connectionString });
+      } else {
+        results.push({ service, success: false, error: result.message });
+      }
+    }
+
+    const allSuccess = results.every((r) => r.success);
+    return {
+      success: allSuccess,
+      results,
+      message: allSuccess
+        ? `Started ${services.length} companion container(s)`
+        : `Some containers failed to start`,
+    };
+  });
+
+// Stop all companion containers
+export const stopCompanionContainers = createServerFn({ method: "POST" })
+  .inputValidator((data: { services?: CompanionService[] }) => data)
+  .handler(async ({ data }) => {
+    // If no services specified, stop all
+    const services = data.services ?? (Object.keys(COMPANION_CONTAINERS) as CompanionService[]);
+
+    for (const service of services) {
+      await stopCompanionContainer(service);
+    }
+
+    return { success: true, message: `Stopped ${services.length} companion container(s)` };
+  });
+
+// Get running companion containers
+export const getRunningCompanionContainers = createServerFn({ method: "GET" }).handler(async () => {
+  const { exec } = await import("child_process");
+  const { promisify } = await import("util");
+  const execAsync = promisify(exec);
+
+  const running: { service: CompanionService; connectionString: string }[] = [];
+
+  for (const [service, config] of Object.entries(COMPANION_CONTAINERS)) {
+    try {
+      const { stdout } = await execAsync(`docker ps --filter "name=${config.name}" --format "{{.Names}}"`);
+      if (stdout.trim() === config.name) {
+        running.push({
+          service: service as CompanionService,
+          connectionString: config.connectionString,
+        });
+      }
+    } catch {
+      // Container not running
+    }
+  }
+
+  return { running };
+});

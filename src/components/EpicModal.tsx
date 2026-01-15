@@ -1,6 +1,17 @@
 import { useState, useRef, useCallback } from "react";
-import { X, ChevronDown, Bot, Loader2, Save } from "lucide-react";
-import { useCreateEpic, useUpdateEpic, useDeleteEpic, useSettings, useLaunchRalphForEpic, useModalKeyboard, useClickOutside } from "../lib/hooks";
+import { X, ChevronDown, Bot, Loader2, Save, Database, Server, Copy, Check } from "lucide-react";
+import {
+  useCreateEpic,
+  useUpdateEpic,
+  useDeleteEpic,
+  useSettings,
+  useLaunchRalphForEpic,
+  useModalKeyboard,
+  useClickOutside,
+  useCompanionContainerInfo,
+  useStartCompanionContainers,
+  type CompanionService,
+} from "../lib/hooks";
 import { useToast } from "./Toast";
 import ErrorAlert from "./ErrorAlert";
 import { COLOR_OPTIONS } from "../lib/constants";
@@ -42,6 +53,10 @@ export default function EpicModal({
     contextFile?: string;
   } | null>(null);
   const [showActionMenu, setShowActionMenu] = useState(false);
+  const [showRalphConfig, setShowRalphConfig] = useState(false);
+  const [selectedServices, setSelectedServices] = useState<CompanionService[]>([]);
+  const [startedContainers, setStartedContainers] = useState<{ service: CompanionService; connectionString: string }[]>([]);
+  const [copiedConnection, setCopiedConnection] = useState<string | null>(null);
   const actionMenuRef = useRef<HTMLDivElement>(null);
 
   // Toast
@@ -55,6 +70,8 @@ export default function EpicModal({
   // Settings and Ralph hooks
   const { settings } = useSettings();
   const launchRalphMutation = useLaunchRalphForEpic();
+  const { data: containerInfo } = useCompanionContainerInfo();
+  const startContainersMutation = useStartCompanionContainers();
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const isDeleting = deleteMutation.isPending;
@@ -62,10 +79,11 @@ export default function EpicModal({
 
   // Modal keyboard handling (Escape, focus trap)
   useModalKeyboard(modalRef, onClose, {
-    shouldPreventClose: useCallback(() => showActionMenu || showDeleteConfirm, [showActionMenu, showDeleteConfirm]),
+    shouldPreventClose: useCallback(() => showActionMenu || showDeleteConfirm || showRalphConfig, [showActionMenu, showDeleteConfirm, showRalphConfig]),
     onPreventedClose: useCallback(() => {
       if (showActionMenu) setShowActionMenu(false);
       else if (showDeleteConfirm) setShowDeleteConfirm(false);
+      else if (showRalphConfig) setShowRalphConfig(false);
     }, [showActionMenu, showDeleteConfirm]),
     initialFocusRef: titleInputRef,
   });
@@ -117,7 +135,7 @@ export default function EpicModal({
     });
   };
 
-  // Handle Start Ralph for entire epic
+  // Handle Start Ralph for entire epic (with optional companion containers)
   const handleStartRalph = useCallback(async () => {
     if (!epic) return;
 
@@ -125,6 +143,19 @@ export default function EpicModal({
     setRalphNotification(null);
 
     try {
+      // Start companion containers if selected
+      if (selectedServices.length > 0) {
+        const containerResult = await startContainersMutation.mutateAsync({ services: selectedServices });
+        if (containerResult.success) {
+          const started = containerResult.results
+            .filter((r) => r.success && r.connectionString)
+            .map((r) => ({ service: r.service, connectionString: r.connectionString! }));
+          setStartedContainers(started);
+        } else {
+          showToast("error", "Some companion containers failed to start");
+        }
+      }
+
       const result = await launchRalphMutation.mutateAsync({
         epicId: epic.id,
         maxIterations: 20, // More iterations for epics with multiple tickets
@@ -169,7 +200,25 @@ export default function EpicModal({
     } finally {
       setIsStartingRalph(false);
     }
-  }, [epic, settings?.terminalEmulator, launchRalphMutation, onSave]);
+  }, [epic, settings?.terminalEmulator, launchRalphMutation, onSave, selectedServices, startContainersMutation, showToast]);
+
+  // Copy connection string to clipboard
+  const copyConnectionString = useCallback(async (connectionString: string) => {
+    try {
+      await navigator.clipboard.writeText(connectionString);
+      setCopiedConnection(connectionString);
+      setTimeout(() => setCopiedConnection(null), 2000);
+    } catch {
+      showToast("error", "Failed to copy to clipboard");
+    }
+  }, [showToast]);
+
+  // Toggle service selection
+  const toggleService = useCallback((service: CompanionService) => {
+    setSelectedServices((prev) =>
+      prev.includes(service) ? prev.filter((s) => s !== service) : [...prev, service]
+    );
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -394,7 +443,7 @@ export default function EpicModal({
                 <button
                   onClick={() => {
                     setShowActionMenu(false);
-                    void handleStartRalph();
+                    setShowRalphConfig(true);
                   }}
                   disabled={isStartingRalph}
                   className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left border-t border-slate-700 disabled:opacity-50"
@@ -402,9 +451,108 @@ export default function EpicModal({
                   <Bot size={18} className="text-purple-400 mt-0.5 flex-shrink-0" />
                   <div>
                     <div className="font-medium text-gray-100">Start Ralph</div>
-                    <div className="text-xs text-slate-400">Autonomous mode for all tickets</div>
+                    <div className="text-xs text-slate-400">Configure & launch autonomous mode</div>
                   </div>
                 </button>
+              </div>
+            )}
+
+            {/* Ralph Configuration Panel */}
+            {showRalphConfig && isEditing && (
+              <div className="absolute right-0 bottom-full mb-2 w-80 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-10 overflow-hidden">
+                <div className="p-3 border-b border-slate-700">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Bot size={18} className="text-purple-400" />
+                      <span className="font-medium text-gray-100">Start Ralph</span>
+                    </div>
+                    <button
+                      onClick={() => setShowRalphConfig(false)}
+                      className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-gray-100"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Companion Services */}
+                <div className="p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Database size={14} className="text-slate-400" />
+                    <span className="text-sm font-medium text-slate-300">Companion Services</span>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-3">
+                    Select databases to start alongside Ralph on the ralph-net network.
+                  </p>
+                  <div className="space-y-2">
+                    {containerInfo?.map((info) => (
+                      <label
+                        key={info.service}
+                        className="flex items-center gap-3 p-2 rounded hover:bg-slate-700/50 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedServices.includes(info.service)}
+                          onChange={() => toggleService(info.service)}
+                          className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-cyan-500 focus:ring-cyan-500"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <Server size={14} className="text-slate-400 flex-shrink-0" />
+                            <span className="text-sm text-gray-100 capitalize">{info.service}</span>
+                            <span className="text-xs text-slate-500">:{info.hostPort}</span>
+                          </div>
+                          <div className="text-xs text-slate-500 truncate font-mono">
+                            {info.connectionString}
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Started Container Connection Strings */}
+                {startedContainers.length > 0 && (
+                  <div className="p-3 border-t border-slate-700 bg-green-900/20">
+                    <div className="text-xs font-medium text-green-400 mb-2">Running Containers:</div>
+                    {startedContainers.map((c) => (
+                      <div key={c.service} className="flex items-center gap-2 text-xs">
+                        <span className="capitalize text-slate-300">{c.service}:</span>
+                        <code className="flex-1 text-green-300 truncate">{c.connectionString}</code>
+                        <button
+                          onClick={() => copyConnectionString(c.connectionString)}
+                          className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-gray-100"
+                          title="Copy connection string"
+                        >
+                          {copiedConnection === c.connectionString ? <Check size={12} /> : <Copy size={12} />}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Launch Button */}
+                <div className="p-3 border-t border-slate-700">
+                  <button
+                    onClick={() => {
+                      setShowRalphConfig(false);
+                      void handleStartRalph();
+                    }}
+                    disabled={isStartingRalph}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-700 rounded-lg font-medium transition-colors"
+                  >
+                    {isStartingRalph ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Bot size={16} />
+                    )}
+                    <span>
+                      {selectedServices.length > 0
+                        ? `Start with ${selectedServices.length} service(s)`
+                        : "Start Ralph"}
+                    </span>
+                  </button>
+                </div>
               </div>
             )}
           </div>

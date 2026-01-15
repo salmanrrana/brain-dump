@@ -892,7 +892,15 @@ export function useBuildSandboxImage() {
 // RALPH HOOKS - Autonomous agent mode
 // =============================================================================
 
-import { launchRalphForTicket, launchRalphForEpic } from "../api/ralph";
+import {
+  launchRalphForTicket,
+  launchRalphForEpic,
+  getCompanionContainerInfo,
+  startCompanionContainers,
+  stopCompanionContainers,
+  getRunningCompanionContainers,
+  type CompanionService,
+} from "../api/ralph";
 import { launchProjectInception, launchSpecBreakdown } from "../api/inception";
 import { getComments, createComment, deleteComment, type Comment, type CreateCommentInput } from "../api/comments";
 
@@ -1008,3 +1016,50 @@ export function useLaunchSpecBreakdown() {
 }
 
 export type { SearchResult };
+export type { CompanionService };
+
+// =============================================================================
+// COMPANION CONTAINER HOOKS - Docker companion services for Ralph
+// =============================================================================
+
+// Hook for getting companion container info (available services)
+export function useCompanionContainerInfo() {
+  return useQuery({
+    queryKey: ["companionContainerInfo"],
+    queryFn: () => getCompanionContainerInfo(),
+    staleTime: Infinity, // Config doesn't change
+  });
+}
+
+// Hook for getting running companion containers
+export function useRunningCompanionContainers() {
+  return useQuery({
+    queryKey: ["runningCompanionContainers"],
+    queryFn: () => getRunningCompanionContainers(),
+    refetchInterval: 5000, // Poll every 5 seconds
+  });
+}
+
+// Hook for starting companion containers
+export function useStartCompanionContainers() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: { services: CompanionService[] }) => startCompanionContainers({ data }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["runningCompanionContainers"] });
+    },
+  });
+}
+
+// Hook for stopping companion containers
+export function useStopCompanionContainers() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: { services?: CompanionService[] }) => stopCompanionContainers({ data }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["runningCompanionContainers"] });
+    },
+  });
+}
