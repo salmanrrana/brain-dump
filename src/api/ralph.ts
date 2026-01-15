@@ -401,9 +401,12 @@ async function ensureDockerNetwork(
 }
 
 // Validate Docker setup for sandbox mode
-async function validateDockerSetup(): Promise<{ success: true } | { success: false; message: string }> {
+async function validateDockerSetup(): Promise<
+  { success: true; warnings?: string[] } | { success: false; message: string }
+> {
   const { existsSync } = await import("fs");
   const { join } = await import("path");
+  const warnings: string[] = [];
 
   // Check if Docker is running
   try {
@@ -451,6 +454,20 @@ async function validateDockerSetup(): Promise<{ success: true } | { success: fal
     }
   }
 
+  // Check SSH agent availability (warning, not blocking)
+  const sshAuthSock = process.env.SSH_AUTH_SOCK;
+  if (!sshAuthSock || !existsSync(sshAuthSock)) {
+    warnings.push(
+      "SSH agent not running - git push may not work from container. Start with: eval $(ssh-agent) && ssh-add"
+    );
+    console.log("[brain-dump] Warning: SSH agent not detected");
+  } else {
+    console.log("[brain-dump] SSH agent detected at:", sshAuthSock);
+  }
+
+  if (warnings.length > 0) {
+    return { success: true, warnings };
+  }
   return { success: true };
 }
 
@@ -614,11 +631,13 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     }
 
     // If sandbox mode, validate Docker setup
+    let sshWarnings: string[] | undefined;
     if (useSandbox) {
       const dockerResult = await validateDockerSetup();
       if (!dockerResult.success) {
         return dockerResult;
       }
+      sshWarnings = dockerResult.warnings;
     }
 
     // Create plans directory in project
@@ -683,6 +702,7 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
         message: `Opened VS Code with Ralph context for ticket "${ticket.title}". Check .claude/ralph-context.md for instructions.`,
         launchMethod: "vscode" as const,
         contextFile: contextResult.path,
+        warnings: sshWarnings,
       };
     }
 
@@ -699,6 +719,7 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
       message: `Launched Ralph in ${launchResult.terminal}`,
       terminalUsed: launchResult.terminal,
       launchMethod: "terminal" as const,
+      warnings: sshWarnings,
     };
   });
 
@@ -740,11 +761,13 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     }
 
     // If sandbox mode, validate Docker setup
+    let sshWarnings: string[] | undefined;
     if (useSandbox) {
       const dockerResult = await validateDockerSetup();
       if (!dockerResult.success) {
         return dockerResult;
       }
+      sshWarnings = dockerResult.warnings;
     }
 
     // Get all non-done tickets for this epic
@@ -834,6 +857,7 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
         launchMethod: "vscode" as const,
         contextFile: contextResult.path,
         ticketCount: epicTickets.length,
+        warnings: sshWarnings,
       };
     }
 
@@ -851,6 +875,7 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       terminalUsed: launchResult.terminal,
       launchMethod: "terminal" as const,
       ticketCount: epicTickets.length,
+      warnings: sshWarnings,
     };
   });
 
