@@ -72,6 +72,69 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Initialize git submodules (for vendored third-party skills)
+init_submodules() {
+    print_step "Initializing git submodules"
+
+    if ! command_exists git; then
+        print_warning "Git is not installed. Skipping submodule initialization."
+        print_info "Install git to enable vendored skills"
+        SKIPPED+=("Git submodules (git not installed)")
+        return 0
+    fi
+
+    if [ -f ".gitmodules" ]; then
+        if git submodule update --init --recursive; then
+            print_success "Git submodules initialized"
+            INSTALLED+=("Git submodules")
+        else
+            print_warning "Could not initialize submodules"
+            SKIPPED+=("Git submodules (init failed)")
+        fi
+    else
+        print_info "No submodules configured"
+        SKIPPED+=("Git submodules (none configured)")
+    fi
+}
+
+# Update vendored skills from upstream
+update_vendored_skills() {
+    print_step "Updating vendored skills"
+
+    if [ ! -f ".gitmodules" ]; then
+        print_error "No submodules configured"
+        FAILED+=("Skills update (no submodules)")
+        return 1
+    fi
+
+    if ! command_exists git; then
+        print_error "Git is not installed"
+        FAILED+=("Skills update (git not installed)")
+        return 1
+    fi
+
+    print_info "Pulling latest from upstream..."
+    if git submodule update --remote --merge; then
+        print_success "Skills updated to latest"
+
+        # Show what changed
+        if [ -d "vendor/agent-skills" ]; then
+            local latest_commit
+            latest_commit=$(cd vendor/agent-skills && git log -1 --format="%h %s" 2>/dev/null)
+            if [ -n "$latest_commit" ]; then
+                print_info "Latest: $latest_commit"
+            fi
+        fi
+
+        INSTALLED+=("Skills update")
+        return 0
+    else
+        print_error "Failed to update submodules"
+        FAILED+=("Skills update")
+        return 1
+    fi
+}
+
 # Install Node.js via nvm
 install_node() {
     print_step "Checking Node.js installation"
@@ -405,6 +468,88 @@ install_claude_plugins() {
     fi
 }
 
+# Setup Claude Code skills from vendored third-party skills
+setup_claude_skills() {
+    print_step "Setting up Claude Code skills"
+
+    CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
+    VENDORED_SKILLS="$(pwd)/vendor/agent-skills/skills"
+
+    if [ ! -d "$VENDORED_SKILLS" ]; then
+        print_warning "Vendored skills not found at $VENDORED_SKILLS"
+        print_info "Run: git submodule update --init"
+        SKIPPED+=("Claude skills (submodule not initialized)")
+        return 0
+    fi
+
+    if ! mkdir -p "$CLAUDE_SKILLS_DIR"; then
+        print_error "Failed to create Claude skills directory: $CLAUDE_SKILLS_DIR"
+        print_info "Check permissions on $HOME/.claude"
+        FAILED+=("Claude skills (directory creation failed)")
+        return 1
+    fi
+
+    local skills_installed=0
+    local skills_updated=0
+    local skills_failed=0
+
+    # Enable nullglob to handle case when no matching directories exist
+    local old_nullglob
+    old_nullglob=$(shopt -p nullglob 2>/dev/null || echo "shopt -u nullglob")
+    shopt -s nullglob
+
+    for skill_dir in "$VENDORED_SKILLS"/*/; do
+        if [ -d "$skill_dir" ] && [ -f "$skill_dir/SKILL.md" ]; then
+            local skill_name=$(basename "$skill_dir")
+            local target_path="$CLAUDE_SKILLS_DIR/$skill_name"
+
+            if [ -d "$target_path" ]; then
+                # Check if content is different
+                if ! diff -rq "$skill_dir" "$target_path" >/dev/null 2>&1; then
+                    # Backup-then-replace pattern for safe updates
+                    local backup_path="${target_path}.backup.$$"
+                    mv "$target_path" "$backup_path"
+                    if cp -r "$skill_dir" "$target_path"; then
+                        rm -rf "$backup_path"
+                        print_success "  $skill_name (updated)"
+                        skills_updated=$((skills_updated + 1))
+                    else
+                        # Restore from backup on failure
+                        mv "$backup_path" "$target_path"
+                        print_error "  $skill_name (update FAILED - restored previous)"
+                        skills_failed=$((skills_failed + 1))
+                    fi
+                else
+                    print_info "  $skill_name (exists)"
+                fi
+            else
+                if cp -r "$skill_dir" "$target_path"; then
+                    print_success "  $skill_name"
+                    skills_installed=$((skills_installed + 1))
+                else
+                    print_error "  $skill_name (install FAILED)"
+                    skills_failed=$((skills_failed + 1))
+                fi
+            fi
+        fi
+    done
+
+    # Restore previous nullglob setting
+    eval "$old_nullglob"
+
+    local total=$((skills_installed + skills_updated))
+    if [ $total -gt 0 ]; then
+        INSTALLED+=("Claude skills ($total)")
+        print_info "Skills location: $CLAUDE_SKILLS_DIR"
+    else
+        SKIPPED+=("Claude skills (already installed)")
+    fi
+
+    if [ $skills_failed -gt 0 ]; then
+        FAILED+=("Claude skills ($skills_failed failed)")
+    fi
+}
+
 # Setup project-specific Claude config
 setup_project_config() {
     print_step "Verifying project configuration"
@@ -699,7 +844,7 @@ setup_vscode_agents() {
     print_info "Agents will be available globally in all VS Code workspaces"
 }
 
-# Setup VS Code skills from .github/skills
+# Setup VS Code skills from .github/skills and vendor/agent-skills/skills
 # Per VS Code docs, global skills go to ~/.copilot/skills/
 setup_vscode_skills() {
     print_step "Setting up VS Code skills"
@@ -712,48 +857,108 @@ setup_vscode_skills() {
         return 0
     fi
 
-    SKILLS_SOURCE="$(pwd)/.github/skills"
-
-    if [ ! -d "$SKILLS_SOURCE" ]; then
-        print_warning "No .github/skills directory found in project"
-        SKIPPED+=("VS Code skills (no source skills)")
-        return 0
+    if ! mkdir -p "$COPILOT_SKILLS_DIR"; then
+        print_error "Failed to create Copilot skills directory: $COPILOT_SKILLS_DIR"
+        print_info "Check permissions on $HOME/.copilot"
+        FAILED+=("VS Code skills (directory creation failed)")
+        return 1
     fi
-
-    mkdir -p "$COPILOT_SKILLS_DIR"
 
     local skills_linked=0
     local skills_updated=0
+    local skills_failed=0
 
     # Enable nullglob to handle case when no matching directories exist
     local old_nullglob
     old_nullglob=$(shopt -p nullglob 2>/dev/null || echo "shopt -u nullglob")
     shopt -s nullglob
 
-    for skill_dir in "$SKILLS_SOURCE"/*/; do
-        if [ -d "$skill_dir" ]; then
-            local skill_name=$(basename "$skill_dir")
-            local target_path="$COPILOT_SKILLS_DIR/$skill_name"
-            # Copy directories directly (VS Code may not follow symlinks)
-            if [ -d "$target_path" ]; then
-                # Check if content is different by comparing file counts and sizes
-                if ! diff -rq "$skill_dir" "$target_path" >/dev/null 2>&1; then
-                    rm -rf "$target_path"
-                    cp -r "$skill_dir" "$target_path"
-                    print_success "  $skill_name (updated)"
-                    skills_updated=$((skills_updated + 1))
+    # Install project-specific skills from .github/skills
+    SKILLS_SOURCE="$(pwd)/.github/skills"
+
+    if [ -d "$SKILLS_SOURCE" ]; then
+        print_info "Installing project skills..."
+
+        for skill_dir in "$SKILLS_SOURCE"/*/; do
+            if [ -d "$skill_dir" ]; then
+                local skill_name=$(basename "$skill_dir")
+                local target_path="$COPILOT_SKILLS_DIR/$skill_name"
+                # Copy directories directly (VS Code may not follow symlinks)
+                if [ -d "$target_path" ]; then
+                    # Check if content is different by comparing file counts and sizes
+                    if ! diff -rq "$skill_dir" "$target_path" >/dev/null 2>&1; then
+                        # Backup-then-replace pattern for safe updates
+                        local backup_path="${target_path}.backup.$$"
+                        mv "$target_path" "$backup_path"
+                        if cp -r "$skill_dir" "$target_path"; then
+                            rm -rf "$backup_path"
+                            print_success "  $skill_name (updated)"
+                            skills_updated=$((skills_updated + 1))
+                        else
+                            # Restore from backup on failure
+                            mv "$backup_path" "$target_path"
+                            print_error "  $skill_name (update FAILED - restored previous)"
+                            skills_failed=$((skills_failed + 1))
+                        fi
+                    else
+                        print_info "  $skill_name (exists)"
+                    fi
                 else
-                    print_info "  $skill_name (exists)"
+                    # Remove broken symlink if exists
+                    [ -L "$target_path" ] && rm "$target_path"
+                    if cp -r "$skill_dir" "$target_path"; then
+                        print_success "  $skill_name"
+                        skills_linked=$((skills_linked + 1))
+                    else
+                        print_error "  $skill_name (install FAILED)"
+                        skills_failed=$((skills_failed + 1))
+                    fi
                 fi
-            else
-                # Remove broken symlink if exists
-                [ -L "$target_path" ] && rm "$target_path"
-                cp -r "$skill_dir" "$target_path"
-                print_success "  $skill_name"
-                skills_linked=$((skills_linked + 1))
             fi
-        fi
-    done
+        done
+    fi
+
+    # Also install vendored third-party skills
+    VENDORED_SKILLS="$(pwd)/vendor/agent-skills/skills"
+
+    if [ -d "$VENDORED_SKILLS" ]; then
+        print_info "Installing vendored skills..."
+
+        for skill_dir in "$VENDORED_SKILLS"/*/; do
+            if [ -d "$skill_dir" ] && [ -f "$skill_dir/SKILL.md" ]; then
+                local skill_name=$(basename "$skill_dir")
+                local target_path="$COPILOT_SKILLS_DIR/$skill_name"
+
+                if [ -d "$target_path" ]; then
+                    if ! diff -rq "$skill_dir" "$target_path" >/dev/null 2>&1; then
+                        # Backup-then-replace pattern for safe updates
+                        local backup_path="${target_path}.backup.$$"
+                        mv "$target_path" "$backup_path"
+                        if cp -r "$skill_dir" "$target_path"; then
+                            rm -rf "$backup_path"
+                            print_success "  $skill_name (updated)"
+                            skills_updated=$((skills_updated + 1))
+                        else
+                            # Restore from backup on failure
+                            mv "$backup_path" "$target_path"
+                            print_error "  $skill_name (update FAILED - restored previous)"
+                            skills_failed=$((skills_failed + 1))
+                        fi
+                    else
+                        print_info "  $skill_name (exists)"
+                    fi
+                else
+                    if cp -r "$skill_dir" "$target_path"; then
+                        print_success "  $skill_name"
+                        skills_linked=$((skills_linked + 1))
+                    else
+                        print_error "  $skill_name (install FAILED)"
+                        skills_failed=$((skills_failed + 1))
+                    fi
+                fi
+            fi
+        done
+    fi
 
     # Restore previous nullglob setting
     eval "$old_nullglob"
@@ -764,6 +969,10 @@ setup_vscode_skills() {
         print_info "Skills location: $COPILOT_SKILLS_DIR"
     else
         SKIPPED+=("VS Code skills (already linked)")
+    fi
+
+    if [ $skills_failed -gt 0 ]; then
+        FAILED+=("VS Code skills ($skills_failed failed)")
     fi
 }
 
@@ -964,14 +1173,16 @@ show_help() {
     echo "  If no IDE flag is provided, you'll be prompted to choose."
     echo ""
     echo "Other Options:"
-    echo "  --help      Show this help message"
-    echo "  --skip-node Skip Node.js installation check"
+    echo "  --help          Show this help message"
+    echo "  --skip-node     Skip Node.js installation check"
+    echo "  --update-skills Update vendored skills from upstream"
     echo ""
     echo "Examples:"
-    echo "  ./install.sh --claude          # Claude Code only"
-    echo "  ./install.sh --vscode          # VS Code only"
-    echo "  ./install.sh --claude --vscode # Both IDEs"
-    echo "  ./install.sh                   # Interactive prompt"
+    echo "  ./install.sh --claude                    # Claude Code only"
+    echo "  ./install.sh --vscode                    # VS Code only"
+    echo "  ./install.sh --claude --vscode           # Both IDEs"
+    echo "  ./install.sh --update-skills --claude    # Update and install skills"
+    echo "  ./install.sh                             # Interactive prompt"
     echo ""
     echo "This script will:"
     echo "  1. Install Node.js 18+ via nvm (if needed)"
@@ -990,6 +1201,7 @@ main() {
     SKIP_NODE=false
     SETUP_CLAUDE=false
     SETUP_VSCODE=false
+    UPDATE_SKILLS=false
     IDE_FLAG_PROVIDED=false
 
     for arg in "$@"; do
@@ -1008,6 +1220,9 @@ main() {
             --vscode)
                 SETUP_VSCODE=true
                 IDE_FLAG_PROVIDED=true
+                ;;
+            --update-skills)
+                UPDATE_SKILLS=true
                 ;;
         esac
     done
@@ -1045,6 +1260,14 @@ main() {
 
     echo ""
 
+    # Update vendored skills if requested
+    if [ "$UPDATE_SKILLS" = true ]; then
+        update_vendored_skills || true
+    fi
+
+    # Initialize git submodules first (vendored skills need to be pulled)
+    init_submodules || true
+
     # Run installation steps
     if [ "$SKIP_NODE" = false ]; then
         install_node || true
@@ -1062,6 +1285,7 @@ main() {
     if [ "$SETUP_CLAUDE" = true ]; then
         configure_mcp_server || true
         install_claude_plugins || true
+        setup_claude_skills || true
         setup_project_config || true
     fi
 

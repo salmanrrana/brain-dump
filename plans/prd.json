@@ -9,19 +9,106 @@
   ],
   "userStories": [
     {
-      "id": "cb2edce8-9c38-44bd-a86d-95022895c751",
-      "title": "un able to kick off ralph from a ticket",
-      "description": "steps to reproduce:\n- open a ticket\n- click on the select dropdown to expose options\n- click on \"Start with Ralph\"\n- see that the terminal appear to attemptt o open up but then closes immediately\n\nExpected behavior\nterminal window opens up to the directory of the project related to the ticket with informatiom related to the prd on this ticket so ralph cna complete the single task when its being triggered from inside of a ticket\n\nimportnat note\nwhen kick off ralph from a project, we do want raplh to make sure to only complete one task per terminal window at a time. but when kicking off ralph from a ticket, ralph will only complete that one ticket",
+      "id": "fc72ec9e-5bff-4abf-a9e0-bf699d8ee9eb",
+      "title": "Add Vercel agent-skills as git submodule",
+      "description": "## Overview\nAdd the Vercel agent-skills repository as a git submodule to vendor third-party skills.\n\n## Implementation\n```bash\ngit submodule add https://github.com/vercel-labs/agent-skills.git vendor/agent-skills\n```\n\nThis will create:\n- `vendor/agent-skills/` directory containing the Vercel skills\n- `.gitmodules` file tracking the submodule configuration\n\n## Skills Included\n- **react-best-practices** - 40+ React/Next.js optimization rules\n- **web-design-guidelines** - 100+ accessibility and UX rules\n\n## References\n- [Vercel Agent Skills Repo](https://github.com/vercel-labs/agent-skills)\n- [Agent Skills Specification](https://agentskills.io/specification)\n\n## Acceptance Criteria\n- [ ] Submodule added at `vendor/agent-skills/`\n- [ ] `.gitmodules` file created with correct configuration\n- [ ] `git submodule update --init` successfully pulls the skills",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "high",
+      "tags": [
+        "git",
+        "submodule",
+        "skills",
+        "vendor"
+      ],
+      "passes": true
+    },
+    {
+      "id": "cb343efa-f531-445d-b287-3ad11f1ed4d2",
+      "title": "Update install.sh to initialize git submodules",
+      "description": "## Overview\nAdd submodule initialization to install.sh so vendored skills are pulled automatically when users clone and install Brain Dump.\n\n## Implementation\nAdd a new step early in the install process:\n\n```bash\ninit_submodules() {\n    print_step \"Initializing git submodules\"\n    \n    if [ -f \".gitmodules\" ]; then\n        if git submodule update --init --recursive; then\n            print_success \"Git submodules initialized\"\n            INSTALLED+=(\"Git submodules\")\n        else\n            print_warning \"Could not initialize submodules\"\n            SKIPPED+=(\"Git submodules (init failed)\")\n        fi\n    else\n        print_info \"No submodules configured\"\n        SKIPPED+=(\"Git submodules (none configured)\")\n    fi\n}\n```\n\nCall this function after the directory check but before dependency installation.\n\n## Why This Matters\n- Users get the latest Vercel skills at time of install\n- No manual steps required\n- Submodule content is fetched on-demand (keeps clone fast)\n\n## Acceptance Criteria\n- [ ] `init_submodules()` function added to install.sh\n- [ ] Function called early in main() flow\n- [ ] Handles missing .gitmodules gracefully\n- [ ] Success/failure tracked in INSTALLED/SKIPPED arrays",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "high",
+      "tags": [
+        "install",
+        "bash",
+        "submodule"
+      ],
+      "passes": true
+    },
+    {
+      "id": "e283d509-254e-4630-b1ea-4089d9e71cd7",
+      "title": "Add setup_claude_skills() function to install.sh",
+      "description": "## Overview\nCreate a new function in install.sh that copies skills to `~/.claude/skills/` for Claude Code discovery.\n\n## Background\nClaude Code discovers skills by scanning `~/.claude/skills/` at startup. Each skill needs:\n- A directory named after the skill\n- A `SKILL.md` file with YAML frontmatter (name, description)\n\nSee: [Claude Code Skills Documentation](https://code.claude.com/docs/en/skills)\n\n## Implementation\n\n```bash\nsetup_claude_skills() {\n    print_step \"Setting up Claude Code skills\"\n    \n    CLAUDE_SKILLS_DIR=\"$HOME/.claude/skills\"\n    VENDORED_SKILLS=\"$(pwd)/vendor/agent-skills/skills\"\n    \n    if [ ! -d \"$VENDORED_SKILLS\" ]; then\n        print_warning \"Vendored skills not found at $VENDORED_SKILLS\"\n        print_info \"Run: git submodule update --init\"\n        SKIPPED+=(\"Claude skills (submodule not initialized)\")\n        return 0\n    fi\n    \n    mkdir -p \"$CLAUDE_SKILLS_DIR\"\n    \n    local skills_installed=0\n    local skills_updated=0\n    \n    for skill_dir in \"$VENDORED_SKILLS\"/*/; do\n        if [ -d \"$skill_dir\" ] && [ -f \"$skill_dir/SKILL.md\" ]; then\n            local skill_name=$(basename \"$skill_dir\")\n            local target_path=\"$CLAUDE_SKILLS_DIR/$skill_name\"\n            \n            if [ -d \"$target_path\" ]; then\n                # Update existing\n                rm -rf \"$target_path\"\n                cp -r \"$skill_dir\" \"$target_path\"\n                print_success \"  $skill_name (updated)\"\n                skills_updated=$((skills_updated + 1))\n            else\n                cp -r \"$skill_dir\" \"$target_path\"\n                print_success \"  $skill_name\"\n                skills_installed=$((skills_installed + 1))\n            fi\n        fi\n    done\n    \n    local total=$((skills_installed + skills_updated))\n    if [ $total -gt 0 ]; then\n        INSTALLED+=(\"Claude skills ($total)\")\n        print_info \"Skills location: $CLAUDE_SKILLS_DIR\"\n    else\n        SKIPPED+=(\"Claude skills (none found)\")\n    fi\n}\n```\n\n## Integration\n- Call this function when `SETUP_CLAUDE=true`\n- Add after `install_claude_plugins` in the Claude Code setup section\n\n## Acceptance Criteria\n- [ ] Function creates `~/.claude/skills/` if it doesn't exist\n- [ ] Copies each skill directory from `vendor/agent-skills/skills/`\n- [ ] Only copies directories containing `SKILL.md`\n- [ ] Updates existing skills (overwrites)\n- [ ] Tracks installed count in summary",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "high",
+      "tags": [
+        "install",
+        "claude-code",
+        "skills",
+        "bash"
+      ],
+      "passes": true
+    },
+    {
+      "id": "fc7c8121-b3eb-427f-a2a0-a4086b487050",
+      "title": "Update setup_vscode_skills() to include vendored skills",
+      "description": "## Overview\nModify the existing `setup_vscode_skills()` function to also copy vendored skills from the submodule to `~/.copilot/skills/`.\n\n## Background\nVS Code Copilot discovers skills from `~/.copilot/skills/` (global) or `.github/skills/` (workspace).\n\nSee: [VS Code Agent Skills Documentation](https://code.visualstudio.com/docs/copilot/customization/agent-skills)\n\n## Current Behavior\nThe function currently copies skills from `.github/skills/` to `~/.copilot/skills/`.\n\n## New Behavior\n1. Copy skills from `.github/skills/` (Brain Dump's own skills)\n2. **Also** copy skills from `vendor/agent-skills/skills/` (Vercel skills)\n\n## Implementation Changes\n\nAdd after the existing `.github/skills/` loop:\n\n```bash\n# Also install vendored third-party skills\nVENDORED_SKILLS=\"$(pwd)/vendor/agent-skills/skills\"\n\nif [ -d \"$VENDORED_SKILLS\" ]; then\n    print_info \"Installing vendored skills...\"\n    \n    for skill_dir in \"$VENDORED_SKILLS\"/*/; do\n        if [ -d \"$skill_dir\" ] && [ -f \"$skill_dir/SKILL.md\" ]; then\n            local skill_name=$(basename \"$skill_dir\")\n            local target_path=\"$COPILOT_SKILLS_DIR/$skill_name\"\n            \n            if [ -d \"$target_path\" ]; then\n                if ! diff -rq \"$skill_dir\" \"$target_path\" >/dev/null 2>&1; then\n                    rm -rf \"$target_path\"\n                    cp -r \"$skill_dir\" \"$target_path\"\n                    print_success \"  $skill_name (updated)\"\n                    skills_updated=$((skills_updated + 1))\n                else\n                    print_info \"  $skill_name (exists)\"\n                fi\n            else\n                cp -r \"$skill_dir\" \"$target_path\"\n                print_success \"  $skill_name\"\n                skills_linked=$((skills_linked + 1))\n            fi\n        fi\n    done\nfi\n```\n\n## Acceptance Criteria\n- [ ] Vendored skills copied alongside Brain Dump's own skills\n- [ ] Existing skills from `.github/skills/` still work\n- [ ] Update detection works for vendored skills\n- [ ] Summary shows total count from both sources",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "high",
+      "tags": [
+        "install",
+        "vscode",
+        "skills",
+        "bash"
+      ],
+      "passes": true
+    },
+    {
+      "id": "8a97205c-c886-4444-bbe4-ec5c2751a521",
+      "title": "Document skills update mechanism in README",
+      "description": "## Overview\nAdd documentation explaining:\n1. What skills are included with Brain Dump\n2. How skills work (discovery, activation)\n3. How to update skills to get the latest from Vercel\n\n## Content to Add\n\n### Section: \"Included Agent Skills\"\n\n```markdown\n## Included Agent Skills\n\nBrain Dump includes curated agent skills that provide specialized knowledge to Claude Code and VS Code Copilot:\n\n| Skill | Description | Source |\n|-------|-------------|--------|\n| react-best-practices | 40+ React/Next.js performance optimization rules | Vercel |\n| web-design-guidelines | 100+ accessibility and UX best practices | Vercel |\n| brain-dump-tickets | Manage Brain Dump tickets from conversation | Brain Dump |\n| ralph-workflow | Ralph autonomous agent workflow | Brain Dump |\n\n### How Skills Work\n\nSkills are discovered automatically by your AI agent:\n1. At startup, the agent loads skill names and descriptions (~100 tokens each)\n2. When your request matches a skill's keywords, the agent asks to use it\n3. Once approved, the full skill instructions load into context\n\n### Updating Skills\n\nTo get the latest skill updates from upstream:\n\n```bash\ncd brain-dump\ngit submodule update --remote    # Pull latest from Vercel\n./install.sh --claude --vscode   # Re-install to skill directories\n```\n\n### Learn More\n- [Claude Code Skills](https://code.claude.com/docs/en/skills)\n- [VS Code Agent Skills](https://code.visualstudio.com/docs/copilot/customization/agent-skills)\n- [Agent Skills Specification](https://agentskills.io/specification)\n```\n\n## Acceptance Criteria\n- [ ] Skills section added to README.md\n- [ ] Table lists all included skills with descriptions\n- [ ] Update instructions are clear and tested\n- [ ] Links to external documentation included",
       "acceptanceCriteria": [
         "Implement as described",
         "Verify functionality works as expected"
       ],
       "priority": "medium",
       "tags": [
-        "bug"
+        "documentation",
+        "readme",
+        "skills"
       ],
-      "passes": false
+      "passes": true
+    },
+    {
+      "id": "46f42fd7-67e2-436f-8836-fe7476c2abb1",
+      "title": "Add --update-skills flag to install.sh",
+      "description": "## Overview\nAdd a convenience flag to install.sh that updates vendored skills from upstream and re-installs them.\n\n## Usage\n```bash\n./install.sh --update-skills           # Update skills only\n./install.sh --update-skills --claude  # Update and install for Claude\n./install.sh --update-skills --vscode  # Update and install for VS Code\n```\n\n## Implementation\n\nAdd to argument parsing:\n```bash\n--update-skills)\n    UPDATE_SKILLS=true\n    ;;\n```\n\nAdd update function:\n```bash\nupdate_vendored_skills() {\n    print_step \"Updating vendored skills\"\n    \n    if [ ! -f \".gitmodules\" ]; then\n        print_error \"No submodules configured\"\n        return 1\n    fi\n    \n    print_info \"Pulling latest from upstream...\"\n    if git submodule update --remote --merge; then\n        print_success \"Skills updated to latest\"\n        \n        # Show what changed\n        cd vendor/agent-skills\n        local latest_commit=$(git log -1 --format=\"%h %s\")\n        print_info \"Latest: $latest_commit\"\n        cd ../..\n        \n        INSTALLED+=(\"Skills update\")\n        return 0\n    else\n        print_error \"Failed to update submodules\"\n        FAILED+=(\"Skills update\")\n        return 1\n    fi\n}\n```\n\nIn main():\n```bash\nif [ \"$UPDATE_SKILLS\" = true ]; then\n    update_vendored_skills || true\nfi\n```\n\n## Why This Matters\n- Single command to update skills\n- No need to remember git submodule commands\n- Shows what changed after update\n- Integrates with existing install flow\n\n## Acceptance Criteria\n- [ ] `--update-skills` flag recognized\n- [ ] `update_vendored_skills()` function pulls latest\n- [ ] Shows latest commit info after update\n- [ ] Works standalone or combined with IDE flags\n- [ ] Help text updated to document new flag",
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "priority": "low",
+      "tags": [
+        "install",
+        "bash",
+        "skills",
+        "cli"
+      ],
+      "passes": true
     }
   ],
-  "generatedAt": "2026-01-14T17:28:44.724Z"
+  "generatedAt": "2026-01-15T09:23:27.368Z",
+  "epicTitle": "Third-Party Agent Skills Integration"
 }

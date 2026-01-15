@@ -49,6 +49,37 @@ Go from "I have an idea" to "I have a backlog" in 5 minutes.
 - **Full-text search** - Find anything instantly
 - **File attachments** - Drag and drop onto tickets
 
+## Included Agent Skills
+
+Brain Dump includes curated agent skills that provide specialized knowledge to Claude Code and VS Code Copilot:
+
+| Skill | Description | Source |
+|-------|-------------|--------|
+| react-best-practices | 45 React/Next.js performance optimization rules | [Vercel](https://github.com/vercel-labs/agent-skills) |
+| web-design-guidelines | 100+ accessibility and UX best practices | [Vercel](https://github.com/vercel-labs/agent-skills) |
+
+### How Skills Work
+
+Skills are discovered automatically by your AI agent:
+1. At startup, the agent loads skill names and descriptions (~100 tokens each)
+2. When your request matches a skill's keywords, the agent asks to use it
+3. Once approved, the full skill instructions load into context
+
+### Updating Skills
+
+To get the latest skill updates from upstream:
+
+```bash
+cd brain-dump
+git submodule update --remote    # Pull latest from Vercel
+./install.sh --claude --vscode   # Re-install to skill directories
+```
+
+### Learn More
+- [Claude Code Skills](https://docs.anthropic.com/en/docs/claude-code/skills)
+- [VS Code Agent Skills](https://code.visualstudio.com/docs/copilot/copilot-extensibility-overview)
+- [Agent Skills Specification](https://agentskills.dev)
+
 ## Commands
 
 ```bash
