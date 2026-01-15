@@ -2288,3 +2288,112 @@ Set up MSW v2.12.7 with complete testing infrastructure:
 - Factory functions produce type-safe mock data
 
 ---
+
+### 2026-01-15 - Write Integration Tests for Delete Ticket Flow
+- Task: Write integration tests for delete ticket user flow
+- Ticket ID: 2f3d0e32-d935-41d0-850e-2ee4539f1dce
+- Success: true
+- Agent: Ralph
+- Branch: main
+
+**Testing Philosophy Applied (Kent C. Dodds):**
+- Test user behavior, not implementation details
+- Verify what users SEE and DO
+- Only mock at boundaries (server functions)
+
+**Tests Created (20 total):**
+
+| Category | Tests | Description |
+|----------|-------|-------------|
+| Happy path | 4 | Delete with preview, confirm click, singular grammar, empty comments |
+| Cancel flow | 4 | Cancel button, backdrop click, Escape key, no confirm call |
+| Error handling | 3 | Error display, modal stays open, retry allowed |
+| Loading state | 4 | "Deleting..." text, disabled buttons (delete, cancel, close) |
+| Accessibility | 2 | ARIA attributes, dialog role |
+| Modal visibility | 2 | isOpen false/true rendering |
+| Entity type | 1 | Correct "ticket" label display |
+
+**Files Created:**
+- `src/components/__tests__/delete-ticket.test.tsx` (354 lines)
+
+**Testing Results:**
+- All 422 tests passing (20 new)
+- No lint or type errors
+
+---
+
+### 2026-01-15 - Write Integration Tests for Delete Epic Flow
+- Task: Write integration tests for delete epic user flow
+- Ticket ID: d1c4f0f5-1f4a-49de-ada9-3932984f0a60
+- Success: true
+- Agent: Ralph
+- Branch: main
+
+**Testing Philosophy Applied (Kent C. Dodds):**
+- Test user behavior, not implementation details
+- Verify what users SEE and DO
+- Only mock at boundaries (server functions)
+
+**Tests Created (22 total):**
+
+| Category | Tests | Description |
+|----------|-------|-------------|
+| Happy path | 4 | Preview with unlinked tickets, confirm click, singular grammar, empty epic |
+| Epic-specific UX | 2 | Amber warning color, "This will affect" messaging |
+| Cancel flow | 4 | Cancel button, backdrop click, Escape key, no confirm call |
+| Error handling | 3 | Error display, modal stays open, retry allowed |
+| Loading state | 4 | "Deleting..." text, disabled buttons (delete, cancel, close) |
+| Accessibility | 2 | ARIA attributes, dialog role |
+| Modal visibility | 2 | isOpen false/true rendering |
+| Entity type | 1 | Correct "epic" label display |
+
+**Key Testing Points:**
+- Epic deletion UNLINKS tickets (not deletes)
+- Amber warning color (not red) since action is less destructive
+- "This will affect:" messaging (not "permanently delete")
+- "Tickets will remain in the project" reassurance
+
+**Files Created:**
+- `src/components/__tests__/delete-epic.test.tsx` (611 lines)
+
+**Testing Results:**
+- All 444 tests passing (22 new)
+- No lint errors in new file
+- Type checks pass (vendor submodule has pre-existing errors)
+
+---
+
+
+### 2026-01-15 - Fix Silent Failure Issues (Code Review Fixes)
+- Task: Fix issues identified by silent-failure-hunter review agent
+- Success: true
+- Agent: Claude
+- Commit: a5a3227
+
+**Issues Fixed:**
+
+| Issue | Fix |
+|-------|-----|
+| DeleteProjectModal preview error silently ignored | Added `previewError` state display with ErrorAlert |
+| EpicModal delete errors not shown to user | Added onError handler with toast notification |
+| TicketModal attachment errors use blocking `alert()` | Replaced with non-blocking toast notifications |
+| Comment creation errors silently swallowed | Added error toast on mutation failure |
+| Transaction errors lack user-friendly messages | Wrapped with descriptive error messages, special handling for SQLITE_BUSY |
+| MCP server delete operations lack error logging | Added try-catch with log.error() and user-friendly error responses |
+
+**Files Modified:**
+- `src/components/DeleteProjectModal.tsx` - Added previewError handling
+- `src/components/EpicModal.tsx` - Added delete onError toast
+- `src/components/TicketModal.tsx` - Replaced alerts with toasts for attachments/comments
+- `src/api/tickets.ts` - Wrapped delete transaction with user-friendly errors
+- `src/api/epics.ts` - Wrapped delete transaction with user-friendly errors
+- `src/api/projects.ts` - Wrapped delete transaction with user-friendly errors
+- `mcp-server/tools/tickets.js` - Added error logging
+- `mcp-server/tools/epics.js` - Added error logging
+- `mcp-server/tools/projects.js` - Added error logging
+
+**Testing Results:**
+- All 444 tests passing
+- No new lint errors
+
+---
