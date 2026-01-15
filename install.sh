@@ -495,58 +495,10 @@ configure_vscode_mcp() {
 
     BRAIN_DUMP_DIR="$(pwd)"
     MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/index.js"
-
-    # MCP config goes in VS Code User profile directory
     MCP_CONFIG_FILE="$VSCODE_TARGET/mcp.json"
 
-    # Check if mcp.json already exists
-    if [ -f "$MCP_CONFIG_FILE" ]; then
-        if grep -q '"brain-dump"' "$MCP_CONFIG_FILE"; then
-            print_success "brain-dump MCP server already configured in VS Code"
-            SKIPPED+=("VS Code MCP server (already configured)")
-            return 0
-        fi
-
-        # Try to add to existing config
-        print_info "Adding brain-dump to existing mcp.json..."
-
-        if command_exists node; then
-            local node_error
-            node_error=$(node -e "
-const fs = require('fs');
-const config = JSON.parse(fs.readFileSync('$MCP_CONFIG_FILE', 'utf8'));
-config.servers = config.servers || {};
-config.servers['brain-dump'] = {
-    type: 'stdio',
-    command: 'node',
-    args: ['$MCP_SERVER_PATH']
-};
-fs.writeFileSync('$MCP_CONFIG_FILE', JSON.stringify(config, null, 2));
-console.log('Config updated successfully');
-" 2>&1) && {
-                print_success "Added brain-dump to VS Code mcp.json"
-                INSTALLED+=("VS Code MCP server")
-                return 0
-            }
-            # Show the actual error if node command failed
-            if [ -n "$node_error" ]; then
-                print_warning "JSON merge failed: $node_error"
-            fi
-        fi
-
-        # Fallback to manual instructions
-        print_warning "Could not auto-merge. Please add this to servers in VS Code mcp.json:"
-        print_info "Location: $MCP_CONFIG_FILE"
-        echo ""
-        echo '  "brain-dump": {'
-        echo '    "type": "stdio",'
-        echo '    "command": "node",'
-        echo "    \"args\": [\"$MCP_SERVER_PATH\"]"
-        echo '  }'
-        echo ""
-        SKIPPED+=("VS Code MCP server (manual merge required)")
-    else
-        print_info "Creating VS Code mcp.json..."
+    # Helper function to create fresh MCP config
+    create_mcp_config() {
         cat > "$MCP_CONFIG_FILE" << EOF
 {
   "servers": {
@@ -558,10 +510,79 @@ console.log('Config updated successfully');
   }
 }
 EOF
+    }
+
+    # Check 1: Does the file exist?
+    if [ ! -f "$MCP_CONFIG_FILE" ]; then
+        print_info "Creating VS Code mcp.json..."
+        create_mcp_config
         print_success "Created VS Code mcp.json with brain-dump server"
-        print_info "Location: $MCP_CONFIG_FILE"
         INSTALLED+=("VS Code MCP server")
+        return 0
     fi
+
+    # Check 2: Does the file have content?
+    if [ ! -s "$MCP_CONFIG_FILE" ]; then
+        print_info "mcp.json is empty, recreating..."
+        create_mcp_config
+        print_success "Created VS Code mcp.json with brain-dump server"
+        INSTALLED+=("VS Code MCP server")
+        return 0
+    fi
+
+    # Check 3: Does it have a valid servers section?
+    if ! grep -q '"servers"' "$MCP_CONFIG_FILE"; then
+        print_info "mcp.json missing servers section, recreating..."
+        create_mcp_config
+        print_success "Created VS Code mcp.json with brain-dump server"
+        INSTALLED+=("VS Code MCP server")
+        return 0
+    fi
+
+    # Check 4: Is brain-dump already configured?
+    if grep -q '"brain-dump"' "$MCP_CONFIG_FILE"; then
+        print_success "brain-dump MCP server already configured in VS Code"
+        SKIPPED+=("VS Code MCP server (already configured)")
+        return 0
+    fi
+
+    # File exists with servers section but no brain-dump - try to add it
+    print_info "Adding brain-dump to existing mcp.json..."
+
+    if command_exists node; then
+        local node_error
+        node_error=$(node -e "
+const fs = require('fs');
+const config = JSON.parse(fs.readFileSync('$MCP_CONFIG_FILE', 'utf8'));
+config.servers = config.servers || {};
+config.servers['brain-dump'] = {
+    type: 'stdio',
+    command: 'node',
+    args: ['$MCP_SERVER_PATH']
+};
+fs.writeFileSync('$MCP_CONFIG_FILE', JSON.stringify(config, null, 2));
+console.log('Config updated successfully');
+" 2>&1) && {
+            print_success "Added brain-dump to VS Code mcp.json"
+            INSTALLED+=("VS Code MCP server")
+            return 0
+        }
+        if [ -n "$node_error" ]; then
+            print_warning "JSON merge failed: $node_error"
+        fi
+    fi
+
+    # Fallback to manual instructions
+    print_warning "Could not auto-merge. Please add this to servers in VS Code mcp.json:"
+    print_info "Location: $MCP_CONFIG_FILE"
+    echo ""
+    echo '  "brain-dump": {'
+    echo '    "type": "stdio",'
+    echo '    "command": "node",'
+    echo "    \"args\": [\"$MCP_SERVER_PATH\"]"
+    echo '  }'
+    echo ""
+    SKIPPED+=("VS Code MCP server (manual merge required)")
 }
 
 # Helper: link or update a symlink (handles broken symlinks and wrong targets)
@@ -713,31 +734,24 @@ setup_vscode_skills() {
         if [ -d "$skill_dir" ]; then
             local skill_name=$(basename "$skill_dir")
             local target_path="$COPILOT_SKILLS_DIR/$skill_name"
-            local result=$(link_or_update "$skill_dir" "$target_path")
-
-            case "$result" in
-                created)
-                    print_success "  $skill_name"
-                    skills_linked=$((skills_linked + 1))
-                    ;;
-                created_copy)
-                    print_success "  $skill_name"
-                    print_warning "    Created copy instead of symlink (updates won't sync)"
-                    skills_linked=$((skills_linked + 1))
-                    ;;
-                updated)
-                    print_success "  $skill_name (updated broken link)"
-                    skills_updated=$((skills_updated + 1))
-                    ;;
-                updated_copy)
+            # Copy directories directly (VS Code may not follow symlinks)
+            if [ -d "$target_path" ]; then
+                # Check if content is different by comparing file counts and sizes
+                if ! diff -rq "$skill_dir" "$target_path" >/dev/null 2>&1; then
+                    rm -rf "$target_path"
+                    cp -r "$skill_dir" "$target_path"
                     print_success "  $skill_name (updated)"
-                    print_warning "    Created copy instead of symlink (updates won't sync)"
                     skills_updated=$((skills_updated + 1))
-                    ;;
-                exists)
+                else
                     print_info "  $skill_name (exists)"
-                    ;;
-            esac
+                fi
+            else
+                # Remove broken symlink if exists
+                [ -L "$target_path" ] && rm "$target_path"
+                cp -r "$skill_dir" "$target_path"
+                print_success "  $skill_name"
+                skills_linked=$((skills_linked + 1))
+            fi
         fi
     done
 
@@ -789,31 +803,23 @@ setup_vscode_prompts() {
         if [ -f "$prompt_file" ]; then
             local prompt_name=$(basename "$prompt_file")
             local target_path="$PROMPTS_TARGET/$prompt_name"
-            local result=$(link_or_update "$prompt_file" "$target_path")
-
-            case "$result" in
-                created)
-                    print_success "  $prompt_name"
-                    prompts_linked=$((prompts_linked + 1))
-                    ;;
-                created_copy)
-                    print_success "  $prompt_name"
-                    print_warning "    Created copy instead of symlink (updates won't sync)"
-                    prompts_linked=$((prompts_linked + 1))
-                    ;;
-                updated)
-                    print_success "  $prompt_name (updated broken link)"
-                    prompts_updated=$((prompts_updated + 1))
-                    ;;
-                updated_copy)
+            # Copy files directly (VS Code may not follow symlinks)
+            if [ -f "$target_path" ]; then
+                # Check if content is different
+                if ! cmp -s "$prompt_file" "$target_path"; then
+                    cp "$prompt_file" "$target_path"
                     print_success "  $prompt_name (updated)"
-                    print_warning "    Created copy instead of symlink (updates won't sync)"
                     prompts_updated=$((prompts_updated + 1))
-                    ;;
-                exists)
+                else
                     print_info "  $prompt_name (exists)"
-                    ;;
-            esac
+                fi
+            else
+                # Remove broken symlink if exists
+                [ -L "$target_path" ] && rm "$target_path"
+                cp "$prompt_file" "$target_path"
+                print_success "  $prompt_name"
+                prompts_linked=$((prompts_linked + 1))
+            fi
         fi
     done
 
