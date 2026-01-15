@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 
 import type { Ticket } from "../lib/hooks";
+import { STATUS_ORDER, PRIORITY_ORDER } from "../lib/constants";
 
 interface Epic {
   id: string;
@@ -39,22 +40,6 @@ function SortIcon({
   );
 }
 
-const statusOrder: Record<string, number> = {
-  backlog: 0,
-  ready: 1,
-  in_progress: 2,
-  review: 3,
-  ai_review: 4,
-  human_review: 5,
-  done: 6,
-};
-
-const priorityOrder: Record<string, number> = {
-  high: 0,
-  medium: 1,
-  low: 2,
-};
-
 export default function TicketListView({
   tickets,
   epics,
@@ -77,12 +62,12 @@ export default function TicketListView({
           break;
         case "status":
           comparison =
-            (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
+            (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99);
           break;
         case "priority":
           comparison =
-            (priorityOrder[a.priority ?? ""] ?? 99) -
-            (priorityOrder[b.priority ?? ""] ?? 99);
+            (PRIORITY_ORDER[a.priority ?? ""] ?? 99) -
+            (PRIORITY_ORDER[b.priority ?? ""] ?? 99);
           break;
         case "createdAt":
           comparison =

@@ -8,6 +8,7 @@ import {
   deletePendingAttachments,
   type Attachment,
 } from "../api/attachments";
+import { PRIORITY_OPTIONS } from "../lib/constants";
 
 interface NewTicketModalProps {
   projects: ProjectWithEpics[];
@@ -16,13 +17,6 @@ interface NewTicketModalProps {
   onClose: () => void;
   onCreate: () => void;
 }
-
-const PRIORITY_OPTIONS = [
-  { value: "", label: "None" },
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-] as const;
 
 export default function NewTicketModal({
   projects,

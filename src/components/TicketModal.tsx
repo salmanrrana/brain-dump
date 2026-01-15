@@ -28,6 +28,7 @@ import {
   deleteAttachment,
   type Attachment,
 } from "../api/attachments";
+import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "../lib/constants";
 import { getTicketContext } from "../api/context";
 import { launchClaudeInTerminal } from "../api/terminal";
 import { safeJsonParse } from "../lib/utils";
@@ -38,23 +39,6 @@ interface TicketModalProps {
   onClose: () => void;
   onUpdate: () => void;
 }
-
-const STATUS_OPTIONS = [
-  { value: "backlog", label: "Backlog" },
-  { value: "ready", label: "Ready" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "review", label: "Review" },
-  { value: "ai_review", label: "AI Review" },
-  { value: "human_review", label: "Human Review" },
-  { value: "done", label: "Done" },
-] as const;
-
-const PRIORITY_OPTIONS = [
-  { value: "", label: "None" },
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-] as const;
 
 // Comment type styling lookup objects to avoid nested ternaries
 const COMMENT_CONTAINER_STYLES: Record<string, string> = {
