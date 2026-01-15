@@ -137,11 +137,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
     clearTags,
   } = useFilters();
 
-  // Sample data hook with callback to clear filters and refetch on deletion
+  // Sample data hook with callback to clear filters on deletion
+  // Note: Query invalidation is now handled by useSampleData internally
   const handleSampleDataDeleted = useCallback(() => {
     setProjectId(null);
-    refetchProjects();
-  }, [setProjectId, refetchProjects]);
+  }, [setProjectId]);
 
   const {
     hasSampleData,
