@@ -540,16 +540,9 @@ function AppHeader() {
     }
   };
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setShowResults(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  // Close search dropdown when clicking outside - uses the existing useClickOutside hook
+  const closeSearchResults = useCallback(() => setShowResults(false), []);
+  useClickOutside(searchRef, closeSearchResults, showResults);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     search(e.target.value);
