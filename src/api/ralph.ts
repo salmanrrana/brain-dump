@@ -581,7 +581,29 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       }
     }
 
-    // Launch terminal
+    // Branch based on workingMethod setting
+    const workingMethod = project.workingMethod || "auto";
+    console.log(`[brain-dump] Ralph launch: workingMethod="${workingMethod}" for project "${project.name}"`);
+
+    if (workingMethod === "vscode") {
+      // VS Code path: launch VS Code with the PRD file as context
+      console.log(`[brain-dump] Using VS Code launch path`);
+      const launchResult = await launchInVSCode(project.path, prdPath);
+
+      if (!launchResult.success) {
+        return launchResult;
+      }
+
+      return {
+        success: true,
+        message: `Opened VS Code with Ralph context for ${epicTickets.length} tickets. Check plans/prd.json for instructions.`,
+        launchMethod: "vscode" as const,
+        ticketCount: epicTickets.length,
+      };
+    }
+
+    // Terminal path (claude-code or auto): launch in terminal emulator
+    console.log(`[brain-dump] Using terminal launch path`);
     const launchResult = await launchInTerminal(project.path, scriptPath, preferredTerminal);
 
     if (!launchResult.success) {
@@ -592,6 +614,7 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       success: true,
       message: `Launched Ralph for ${epicTickets.length} tickets in ${launchResult.terminal}`,
       terminalUsed: launchResult.terminal,
+      launchMethod: "terminal" as const,
       ticketCount: epicTickets.length,
     };
   });
