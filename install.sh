@@ -90,6 +90,44 @@ init_submodules() {
     fi
 }
 
+# Update vendored skills from upstream
+update_vendored_skills() {
+    print_step "Updating vendored skills"
+
+    if [ ! -f ".gitmodules" ]; then
+        print_error "No submodules configured"
+        FAILED+=("Skills update (no submodules)")
+        return 1
+    fi
+
+    if ! command_exists git; then
+        print_error "Git is not installed"
+        FAILED+=("Skills update (git not installed)")
+        return 1
+    fi
+
+    print_info "Pulling latest from upstream..."
+    if git submodule update --remote --merge; then
+        print_success "Skills updated to latest"
+
+        # Show what changed
+        if [ -d "vendor/agent-skills" ]; then
+            local latest_commit
+            latest_commit=$(cd vendor/agent-skills && git log -1 --format="%h %s" 2>/dev/null)
+            if [ -n "$latest_commit" ]; then
+                print_info "Latest: $latest_commit"
+            fi
+        fi
+
+        INSTALLED+=("Skills update")
+        return 0
+    else
+        print_error "Failed to update submodules"
+        FAILED+=("Skills update")
+        return 1
+    fi
+}
+
 # Install Node.js via nvm
 install_node() {
     print_step "Checking Node.js installation"
@@ -1069,14 +1107,16 @@ show_help() {
     echo "  If no IDE flag is provided, you'll be prompted to choose."
     echo ""
     echo "Other Options:"
-    echo "  --help      Show this help message"
-    echo "  --skip-node Skip Node.js installation check"
+    echo "  --help          Show this help message"
+    echo "  --skip-node     Skip Node.js installation check"
+    echo "  --update-skills Update vendored skills from upstream"
     echo ""
     echo "Examples:"
-    echo "  ./install.sh --claude          # Claude Code only"
-    echo "  ./install.sh --vscode          # VS Code only"
-    echo "  ./install.sh --claude --vscode # Both IDEs"
-    echo "  ./install.sh                   # Interactive prompt"
+    echo "  ./install.sh --claude                    # Claude Code only"
+    echo "  ./install.sh --vscode                    # VS Code only"
+    echo "  ./install.sh --claude --vscode           # Both IDEs"
+    echo "  ./install.sh --update-skills --claude    # Update and install skills"
+    echo "  ./install.sh                             # Interactive prompt"
     echo ""
     echo "This script will:"
     echo "  1. Install Node.js 18+ via nvm (if needed)"
@@ -1095,6 +1135,7 @@ main() {
     SKIP_NODE=false
     SETUP_CLAUDE=false
     SETUP_VSCODE=false
+    UPDATE_SKILLS=false
     IDE_FLAG_PROVIDED=false
 
     for arg in "$@"; do
@@ -1113,6 +1154,9 @@ main() {
             --vscode)
                 SETUP_VSCODE=true
                 IDE_FLAG_PROVIDED=true
+                ;;
+            --update-skills)
+                UPDATE_SKILLS=true
                 ;;
         esac
     done
@@ -1149,6 +1193,11 @@ main() {
     fi
 
     echo ""
+
+    # Update vendored skills if requested
+    if [ "$UPDATE_SKILLS" = true ]; then
+        update_vendored_skills || true
+    fi
 
     # Initialize git submodules first (vendored skills need to be pulled)
     init_submodules || true
