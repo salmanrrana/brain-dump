@@ -14,6 +14,7 @@ import NewTicketModal from "./NewTicketModal";
 import ProjectModal from "./ProjectModal";
 import EpicModal from "./EpicModal";
 import SettingsModal from "./SettingsModal";
+import DeleteConfirmationModal, { type DeletePreview } from "./DeleteConfirmationModal";
 import { useToast } from "./Toast";
 import {
   useProjects,
@@ -25,12 +26,14 @@ import {
   useClickOutside,
   useLaunchProjectInception,
   useSettings,
+  useDeleteEpic,
   type Epic,
   type ProjectBase,
   type SearchResult,
   type ModalState,
   type Filters,
 } from "../lib/hooks";
+import { deleteEpic as deleteEpicFn } from "../api/epics";
 
 // App context for managing global state
 interface AppState {
@@ -65,6 +68,9 @@ interface AppState {
   hasSampleData: boolean;
   isDeletingSampleData: boolean;
   deleteSampleData: () => void;
+
+  // Epic deletion
+  onDeleteEpic: (epic: Epic) => void;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -148,6 +154,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [ticketRefreshKey, setTicketRefreshKey] = useState(0);
   const [selectedTicketIdFromSearch, setSelectedTicketIdFromSearch] = useState<string | null>(null);
 
+  // Delete epic state
+  const [epicToDelete, setEpicToDelete] = useState<Epic | null>(null);
+  const [deleteEpicPreview, setDeleteEpicPreview] = useState<DeletePreview>({});
+  const [deleteEpicError, setDeleteEpicError] = useState<string | null>(null);
+  const deleteEpicMutation = useDeleteEpic();
+  const { showToast } = useToast();
+
   // Get all epics from projects
   const allEpics = useMemo(() => {
     return projects.flatMap((p) => p.epics);
@@ -186,6 +199,55 @@ export default function AppLayout({ children }: AppLayoutProps) {
       setEpicId(null);
     }
   }, [closeModal, refetchProjects, modal, filters.epicId, setEpicId]);
+
+  // Delete epic handlers
+  const handleDeleteEpicClick = useCallback(async (epic: Epic) => {
+    setDeleteEpicError(null);
+    setEpicToDelete(epic);
+
+    // Fetch dry-run preview
+    try {
+      const preview = await deleteEpicFn({ data: { epicId: epic.id, confirm: false } });
+      if ("ticketsToUnlink" in preview) {
+        setDeleteEpicPreview({
+          ticketCount: preview.ticketsToUnlink.length,
+          tickets: preview.ticketsToUnlink.map(t => ({ title: t.title, status: t.status })),
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch delete preview:", error);
+      setDeleteEpicPreview({});
+    }
+  }, []);
+
+  const handleDeleteEpicConfirm = useCallback(() => {
+    if (!epicToDelete) return;
+
+    deleteEpicMutation.mutate(
+      { epicId: epicToDelete.id, confirm: true },
+      {
+        onSuccess: () => {
+          showToast("success", `Epic "${epicToDelete.title}" deleted`);
+          // If we deleted the selected epic, clear selection
+          if (filters.epicId === epicToDelete.id) {
+            setEpicId(null);
+          }
+          setEpicToDelete(null);
+          setDeleteEpicPreview({});
+          refetchProjects();
+        },
+        onError: (error) => {
+          setDeleteEpicError(error instanceof Error ? error.message : "Failed to delete epic");
+        },
+      }
+    );
+  }, [epicToDelete, deleteEpicMutation, showToast, filters.epicId, setEpicId, refetchProjects]);
+
+  const handleDeleteEpicCancel = useCallback(() => {
+    setEpicToDelete(null);
+    setDeleteEpicPreview({});
+    setDeleteEpicError(null);
+  }, []);
 
   // Search navigation handlers
   const onSelectTicketFromSearch = useCallback((ticketId: string) => {
@@ -276,6 +338,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
     hasSampleData,
     isDeletingSampleData,
     deleteSampleData,
+
+    // Epic deletion
+    onDeleteEpic: handleDeleteEpicClick,
   };
 
   return (
@@ -377,6 +442,20 @@ export default function AppLayout({ children }: AppLayoutProps) {
               </p>
             </div>
           </div>
+        )}
+
+        {/* Delete Epic Confirmation Modal */}
+        {epicToDelete && (
+          <DeleteConfirmationModal
+            isOpen={true}
+            onClose={handleDeleteEpicCancel}
+            onConfirm={handleDeleteEpicConfirm}
+            isLoading={deleteEpicMutation.isPending}
+            entityType="epic"
+            entityName={epicToDelete.title}
+            preview={deleteEpicPreview}
+            error={deleteEpicError}
+          />
         )}
       </div>
     </AppContext.Provider>
@@ -665,6 +744,7 @@ function Sidebar() {
     hasSampleData,
     isDeletingSampleData,
     deleteSampleData,
+    onDeleteEpic,
   } = useAppState();
 
   // Fetch tags based on current project/epic filter
@@ -728,6 +808,7 @@ function Sidebar() {
             onAddEpic={handleAddEpic}
             onEditProject={handleEditProject}
             onEditEpic={handleEditEpic}
+            onDeleteEpic={onDeleteEpic}
           />
         )}
 
