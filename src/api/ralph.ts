@@ -229,9 +229,34 @@ fi
     ? `PROMPT_FILE="$PROJECT_PATH/.ralph-prompt.md"`
     : `PROMPT_FILE=$(mktemp -t ralph-prompt) || { echo -e "\\033[0;31m❌ Failed to create temp file\\033[0m"; exit 1; }`;
 
+  // SSH setup for Docker sandbox mode
+  // This allows git push from inside container using host's SSH keys
+  const sshAgentSetup = useSandbox
+    ? `
+# SSH agent forwarding (if available)
+SSH_MOUNT_ARGS=""
+if [ -n "\\$SSH_AUTH_SOCK" ] && [ -S "\\$SSH_AUTH_SOCK" ]; then
+  echo -e "\\033[0;32m✓ SSH agent detected, enabling forwarding\\033[0m"
+  SSH_MOUNT_ARGS="-v \\$SSH_AUTH_SOCK:/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent"
+else
+  echo -e "\\033[0;33m⚠ SSH agent not running - git push may not work\\033[0m"
+  echo -e "\\033[0;33m  Start with: eval \\$(ssh-agent) && ssh-add\\033[0m"
+fi
+
+# Mount known_hosts to avoid SSH host verification prompts
+KNOWN_HOSTS_MOUNT=""
+if [ -f "\\$HOME/.ssh/known_hosts" ]; then
+  echo -e "\\033[0;32m✓ Mounting known_hosts for host verification\\033[0m"
+  KNOWN_HOSTS_MOUNT="-v \\$HOME/.ssh/known_hosts:/home/ralph/.ssh/known_hosts:ro"
+fi
+`
+    : "";
+
   const claudeInvocation = useSandbox
     ? `  # Run Claude in Docker container
   # Claude Code auth is passed via mounted ~/.config/claude-code (uses your existing subscription)
+  # SSH agent is forwarded if available (allows git push from container)
+  # known_hosts is mounted read-only to avoid SSH host verification prompts
   docker run --rm -it \\
     --name "ralph-\${SESSION_ID}" \\
     --network ralph-net \\
@@ -239,6 +264,8 @@ fi
     -v "\\$HOME/.config/claude-code:/home/ralph/.config/claude-code:ro" \\
     -v "\\$HOME/.gitconfig:/home/ralph/.gitconfig:ro" \\
     -v "\\$HOME/.config/gh:/home/ralph/.config/gh:ro" \\
+    \$SSH_MOUNT_ARGS \\
+    \$KNOWN_HOSTS_MOUNT \\
     -w /workspace \\
     "${imageName}" \\
     claude --dangerously-skip-permissions /workspace/.ralph-prompt.md`
@@ -258,7 +285,7 @@ PROGRESS_FILE="$PROJECT_PATH/plans/progress.txt"
 SESSION_ID="$(date +%s)-$$"
 
 cd "$PROJECT_PATH"
-${dockerImageCheck}
+${dockerImageCheck}${sshAgentSetup}
 # Ensure plans directory exists
 mkdir -p "$PROJECT_PATH/plans"
 
@@ -350,7 +377,19 @@ async function ensureDockerNetwork(
     await execAsync(`docker network inspect ${networkName}`);
     console.log(`[brain-dump] Docker network "${networkName}" already exists`);
     return { success: true };
-  } catch {
+  } catch (inspectError) {
+    const errorMessage = inspectError instanceof Error ? inspectError.message : String(inspectError);
+
+    // Only proceed to create if the error indicates "network not found"
+    // Other errors (Docker not running, permission denied) should be reported immediately
+    if (!errorMessage.includes("No such network") && !errorMessage.includes("not found")) {
+      console.error(`[brain-dump] Docker network inspect failed:`, errorMessage);
+      return {
+        success: false,
+        message: `Failed to check Docker network "${networkName}": ${errorMessage}. Ensure Docker is running.`,
+      };
+    }
+
     // Network doesn't exist, create it
     try {
       await execAsync(`docker network create ${networkName}`);
@@ -374,9 +413,12 @@ async function ensureDockerNetwork(
 }
 
 // Validate Docker setup for sandbox mode
-async function validateDockerSetup(): Promise<{ success: true } | { success: false; message: string }> {
+async function validateDockerSetup(): Promise<
+  { success: true; warnings?: string[] } | { success: false; message: string }
+> {
   const { existsSync } = await import("fs");
   const { join } = await import("path");
+  const warnings: string[] = [];
 
   // Check if Docker is running
   try {
@@ -424,6 +466,20 @@ async function validateDockerSetup(): Promise<{ success: true } | { success: fal
     }
   }
 
+  // Check SSH agent availability (warning, not blocking)
+  const sshAuthSock = process.env.SSH_AUTH_SOCK;
+  if (!sshAuthSock || !existsSync(sshAuthSock)) {
+    warnings.push(
+      "SSH agent not running - git push may not work from container. Start with: eval $(ssh-agent) && ssh-add"
+    );
+    console.log("[brain-dump] Warning: SSH agent not detected");
+  } else {
+    console.log("[brain-dump] SSH agent detected at:", sshAuthSock);
+  }
+
+  if (warnings.length > 0) {
+    return { success: true, warnings };
+  }
   return { success: true };
 }
 
@@ -587,11 +643,13 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     }
 
     // If sandbox mode, validate Docker setup
+    let sshWarnings: string[] | undefined;
     if (useSandbox) {
       const dockerResult = await validateDockerSetup();
       if (!dockerResult.success) {
         return dockerResult;
       }
+      sshWarnings = dockerResult.warnings;
     }
 
     // Create plans directory in project
@@ -656,6 +714,7 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
         message: `Opened VS Code with Ralph context for ticket "${ticket.title}". Check .claude/ralph-context.md for instructions.`,
         launchMethod: "vscode" as const,
         contextFile: contextResult.path,
+        warnings: sshWarnings,
       };
     }
 
@@ -672,6 +731,7 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
       message: `Launched Ralph in ${launchResult.terminal}`,
       terminalUsed: launchResult.terminal,
       launchMethod: "terminal" as const,
+      warnings: sshWarnings,
     };
   });
 
@@ -713,11 +773,13 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     }
 
     // If sandbox mode, validate Docker setup
+    let sshWarnings: string[] | undefined;
     if (useSandbox) {
       const dockerResult = await validateDockerSetup();
       if (!dockerResult.success) {
         return dockerResult;
       }
+      sshWarnings = dockerResult.warnings;
     }
 
     // Get all non-done tickets for this epic
@@ -807,6 +869,7 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
         launchMethod: "vscode" as const,
         contextFile: contextResult.path,
         ticketCount: epicTickets.length,
+        warnings: sshWarnings,
       };
     }
 
@@ -824,6 +887,7 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       terminalUsed: launchResult.terminal,
       launchMethod: "terminal" as const,
       ticketCount: epicTickets.length,
+      warnings: sshWarnings,
     };
   });
 
@@ -863,12 +927,17 @@ const COMPANION_CONTAINERS: Record<CompanionService, CompanionContainerConfig> =
 };
 
 // Check if a Docker container is running by name
-async function isContainerRunning(containerName: string): Promise<boolean> {
+// Returns { running: true/false } on success, or { error: string } if Docker fails
+async function isContainerRunning(
+  containerName: string
+): Promise<{ running: boolean } | { error: string }> {
   try {
     const { stdout } = await execAsync(`docker ps --filter "name=${containerName}" --format "{{.Names}}"`);
-    return stdout.trim() === containerName;
-  } catch {
-    return false;
+    return { running: stdout.trim() === containerName };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`[brain-dump] Failed to check container ${containerName}:`, errorMessage);
+    return { error: `Failed to check container status: ${errorMessage}` };
   }
 }
 
@@ -885,7 +954,11 @@ async function startCompanionContainer(
   }
 
   // Check if container already running
-  if (await isContainerRunning(config.name)) {
+  const containerStatus = await isContainerRunning(config.name);
+  if ("error" in containerStatus) {
+    return { success: false, message: containerStatus.error };
+  }
+  if (containerStatus.running) {
     console.log(`[brain-dump] Companion container ${config.name} already running`);
     return { success: true, connectionString: config.connectionString };
   }
@@ -920,9 +993,21 @@ async function stopCompanionContainer(
     await execAsync(`docker stop ${config.name} && docker rm ${config.name}`);
     console.log(`[brain-dump] Stopped companion container ${config.name}`);
     return { success: true };
-  } catch {
-    // Container may not exist or already stopped
-    return { success: true };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    // Only treat "not found" errors as success - container was already stopped/removed
+    if (errorMessage.includes("No such container") || errorMessage.includes("not found")) {
+      console.log(`[brain-dump] Container ${config.name} was not running`);
+      return { success: true };
+    }
+
+    // Other errors (Docker not running, permission denied, etc.) should be reported
+    console.error(`[brain-dump] Failed to stop container ${config.name}:`, errorMessage);
+    return {
+      success: false,
+      message: `Failed to stop ${service} container: ${errorMessage}`,
+    };
   }
 }
 
@@ -982,7 +1067,13 @@ export const getRunningCompanionContainers = createServerFn({ method: "GET" }).h
   const running: { service: CompanionService; connectionString: string }[] = [];
 
   for (const [service, config] of Object.entries(COMPANION_CONTAINERS)) {
-    if (await isContainerRunning(config.name)) {
+    const containerStatus = await isContainerRunning(config.name);
+    // Skip containers where we couldn't check status (Docker error) - log but don't fail
+    if ("error" in containerStatus) {
+      console.error(`[brain-dump] Skipping ${service}: ${containerStatus.error}`);
+      continue;
+    }
+    if (containerStatus.running) {
       running.push({
         service: service as CompanionService,
         connectionString: config.connectionString,
