@@ -23,8 +23,11 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | d
 RUN npm install -g @anthropic-ai/claude-code
 
 # Create non-root user for safety
+# Also create .ssh directory for known_hosts mount
 RUN useradd -m -s /bin/bash ralph \
     && mkdir -p /home/ralph/.config \
+    && mkdir -p /home/ralph/.ssh \
+    && chmod 700 /home/ralph/.ssh \
     && chown -R ralph:ralph /home/ralph
 
 # Set up working directory
