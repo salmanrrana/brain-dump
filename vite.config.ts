@@ -25,6 +25,8 @@ const config = defineConfig({
   ],
   test: {
     exclude: ['**/e2e/**', '**/node_modules/**'],
+    // MSW setup file for API mocking in tests
+    setupFiles: ['./src/mocks/vitest.setup.ts'],
     // Limit workers to prevent memory exhaustion (each worker can use ~4GB)
     pool: 'forks',
     poolOptions: {
