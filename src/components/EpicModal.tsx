@@ -36,6 +36,8 @@ export default function EpicModal({
   const [ralphNotification, setRalphNotification] = useState<{
     type: "success" | "error";
     message: string;
+    launchMethod?: "vscode" | "terminal";
+    contextFile?: string;
   } | null>(null);
   const [showActionMenu, setShowActionMenu] = useState(false);
   const actionMenuRef = useRef<HTMLDivElement>(null);
@@ -120,10 +122,24 @@ export default function EpicModal({
       });
 
       if (result.success) {
-        setRalphNotification({
+        // Check if VS Code launch path was used
+        const launchMethod = "launchMethod" in result ? result.launchMethod : undefined;
+        const contextFile = "contextFile" in result ? result.contextFile : undefined;
+
+        // Build notification with optional fields only when they have values
+        const notification: {
+          type: "success";
+          message: string;
+          launchMethod?: "vscode" | "terminal";
+          contextFile?: string;
+        } = {
           type: "success",
           message: result.message,
-        });
+        };
+        if (launchMethod) notification.launchMethod = launchMethod;
+        if (contextFile) notification.contextFile = contextFile;
+
+        setRalphNotification(notification);
         setTimeout(() => onSave(), 500);
       } else {
         setRalphNotification({
@@ -275,20 +291,38 @@ export default function EpicModal({
         {/* Ralph Notification */}
         {ralphNotification && (
           <div
-            className={`mx-4 mb-0 p-3 rounded-lg text-sm flex items-center gap-2 ${
+            className={`mx-4 mb-0 p-3 rounded-lg text-sm ${
               ralphNotification.type === "success"
                 ? "bg-green-900/50 text-green-300 border border-green-800"
                 : "bg-red-900/50 text-red-300 border border-red-800"
             }`}
           >
-            <Bot size={16} />
-            <span className="flex-1">{ralphNotification.message}</span>
-            <button
-              onClick={() => setRalphNotification(null)}
-              className="text-slate-400 hover:text-gray-100"
-            >
-              <X size={14} />
-            </button>
+            <div className="flex items-start gap-2">
+              <Bot size={16} className="mt-0.5 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <span>{ralphNotification.message}</span>
+                {/* VS Code-specific instructions */}
+                {ralphNotification.launchMethod === "vscode" && ralphNotification.contextFile && (
+                  <div className="mt-2 text-xs text-green-400/80">
+                    <p className="font-medium">Next steps:</p>
+                    <ol className="list-decimal list-inside mt-1 space-y-0.5">
+                      <li>Open the Ralph context file in VS Code</li>
+                      <li>Start a new chat with Claude</li>
+                      <li>Ask Claude to read and follow the instructions</li>
+                    </ol>
+                    <p className="mt-1.5 text-green-300/60 font-mono truncate">
+                      {ralphNotification.contextFile.replace(/^.*\/\.claude\//, ".claude/")}
+                    </p>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => setRalphNotification(null)}
+                className="text-slate-400 hover:text-gray-100 flex-shrink-0"
+              >
+                <X size={14} />
+              </button>
+            </div>
           </div>
         )}
 
