@@ -72,6 +72,24 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Initialize git submodules (for vendored third-party skills)
+init_submodules() {
+    print_step "Initializing git submodules"
+
+    if [ -f ".gitmodules" ]; then
+        if git submodule update --init --recursive; then
+            print_success "Git submodules initialized"
+            INSTALLED+=("Git submodules")
+        else
+            print_warning "Could not initialize submodules"
+            SKIPPED+=("Git submodules (init failed)")
+        fi
+    else
+        print_info "No submodules configured"
+        SKIPPED+=("Git submodules (none configured)")
+    fi
+}
+
 # Install Node.js via nvm
 install_node() {
     print_step "Checking Node.js installation"
@@ -1044,6 +1062,9 @@ main() {
     fi
 
     echo ""
+
+    # Initialize git submodules first (vendored skills need to be pulled)
+    init_submodules || true
 
     # Run installation steps
     if [ "$SKIP_NODE" = false ]; then
