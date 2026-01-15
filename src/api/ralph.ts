@@ -564,7 +564,35 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
       .where(eq(tickets.id, ticketId))
       .run();
 
-    // Launch terminal
+    // Branch based on workingMethod setting
+    const workingMethod = project.workingMethod || "auto";
+    console.log(`[brain-dump] Ralph ticket launch: workingMethod="${workingMethod}" for project "${project.name}"`);
+
+    if (workingMethod === "vscode") {
+      // VS Code path: generate context file and launch VS Code
+      console.log(`[brain-dump] Using VS Code launch path for single ticket`);
+
+      // Generate the context file for Claude in VS Code (single ticket PRD)
+      const contextContent = generateVSCodeContext(prd);
+      const contextPath = await writeVSCodeContext(project.path, contextContent);
+      console.log(`[brain-dump] Created Ralph context file: ${contextPath}`);
+
+      const launchResult = await launchInVSCode(project.path, contextPath);
+
+      if (!launchResult.success) {
+        return launchResult;
+      }
+
+      return {
+        success: true,
+        message: `Opened VS Code with Ralph context for ticket "${ticket.title}". Check .claude/ralph-context.md for instructions.`,
+        launchMethod: "vscode" as const,
+        contextFile: contextPath,
+      };
+    }
+
+    // Terminal path (claude-code or auto): launch in terminal emulator
+    console.log(`[brain-dump] Using terminal launch path for single ticket`);
     const launchResult = await launchInTerminal(project.path, scriptPath, preferredTerminal);
 
     if (!launchResult.success) {
@@ -575,6 +603,7 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
       success: true,
       message: `Launched Ralph in ${launchResult.terminal}`,
       terminalUsed: launchResult.terminal,
+      launchMethod: "terminal" as const,
     };
   });
 
