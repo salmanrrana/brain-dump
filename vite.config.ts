@@ -6,6 +6,8 @@ import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
 import { nitro } from 'nitro/vite'
 
+// Note: Vitest configuration is in vitest.config.ts
+// This separation is required for React 19 compatibility with TanStack Start
 const config = defineConfig({
   plugins: [
     devtools(),
@@ -23,21 +25,6 @@ const config = defineConfig({
     tanstackStart(),
     viteReact(),
   ],
-  test: {
-    exclude: ['**/e2e/**', '**/node_modules/**'],
-    // MSW setup file for API mocking in tests
-    setupFiles: ['./src/mocks/vitest.setup.ts'],
-    // Limit workers to prevent memory exhaustion (each worker can use ~4GB)
-    pool: 'forks',
-    poolOptions: {
-      forks: {
-        maxForks: 2,
-        minForks: 1,
-      },
-    },
-    // Force clean exit to prevent zombie processes
-    teardownTimeout: 5000,
-  },
 })
 
 export default config
