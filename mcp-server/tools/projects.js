@@ -128,4 +128,147 @@ Returns the created project with its generated ID.`,
       };
     }
   );
+
+  // Delete project
+  server.tool(
+    "delete_project",
+    `Delete a project and ALL its associated data.
+
+⚠️  DESTRUCTIVE OPERATION: This will permanently delete:
+- The project itself
+- ALL tickets in the project
+- ALL epics in the project
+- ALL comments on tickets in the project
+
+**Safety feature:** By default, this performs a DRY RUN showing what would be deleted.
+Set confirm=true to actually delete everything.
+
+Args:
+  projectId: The project ID to delete
+  confirm: Set to true to actually delete (default: false, dry run only)
+
+Returns:
+  - If confirm=false: Preview of everything that would be deleted
+  - If confirm=true: Confirmation of deletion with counts`,
+    {
+      projectId: z.string().describe("Project ID to delete"),
+      confirm: z.boolean().optional().default(false).describe("Set to true to actually delete (default: false, dry run)"),
+    },
+    async ({ projectId, confirm }) => {
+      const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+      if (!project) {
+        return {
+          content: [{ type: "text", text: `Project not found: ${projectId}` }],
+          isError: true,
+        };
+      }
+
+      // Gather all data that would be deleted
+      const epics = db.prepare("SELECT id, title FROM epics WHERE project_id = ?").all(projectId);
+      const tickets = db.prepare("SELECT id, title, status, epic_id FROM tickets WHERE project_id = ?").all(projectId);
+      const ticketIds = tickets.map(t => t.id);
+
+      let commentCount = 0;
+      if (ticketIds.length > 0) {
+        const placeholders = ticketIds.map(() => "?").join(",");
+        commentCount = db.prepare(`SELECT COUNT(*) as count FROM ticket_comments WHERE ticket_id IN (${placeholders})`).get(...ticketIds).count;
+      }
+
+      // Dry run - show what would be deleted
+      if (!confirm) {
+        let preview = `⚠️  DRY RUN - Delete Project Preview\n`;
+        preview += `${"═".repeat(50)}\n\n`;
+        preview += `Project: "${project.name}"\n`;
+        preview += `Path: ${project.path}\n`;
+        preview += `ID: ${projectId}\n\n`;
+        preview += `${"─".repeat(50)}\n`;
+        preview += `This will PERMANENTLY DELETE:\n`;
+        preview += `${"─".repeat(50)}\n\n`;
+
+        // Epics
+        preview += `📁 ${epics.length} Epic(s):\n`;
+        if (epics.length > 0) {
+          epics.forEach((e, i) => {
+            preview += `   ${i + 1}. ${e.title}\n`;
+          });
+        } else {
+          preview += `   (none)\n`;
+        }
+        preview += `\n`;
+
+        // Tickets grouped by epic
+        preview += `🎫 ${tickets.length} Ticket(s):\n`;
+        if (tickets.length > 0) {
+          // Group tickets by epic
+          const ticketsByEpic = {};
+          tickets.forEach(t => {
+            const epicKey = t.epic_id || "_none_";
+            if (!ticketsByEpic[epicKey]) ticketsByEpic[epicKey] = [];
+            ticketsByEpic[epicKey].push(t);
+          });
+
+          // Show tickets without epic first
+          if (ticketsByEpic["_none_"]) {
+            preview += `   (No epic):\n`;
+            ticketsByEpic["_none_"].forEach(t => {
+              preview += `     • [${t.status}] ${t.title}\n`;
+            });
+          }
+
+          // Show tickets by epic
+          epics.forEach(epic => {
+            if (ticketsByEpic[epic.id]) {
+              preview += `   ${epic.title}:\n`;
+              ticketsByEpic[epic.id].forEach(t => {
+                preview += `     • [${t.status}] ${t.title}\n`;
+              });
+            }
+          });
+        } else {
+          preview += `   (none)\n`;
+        }
+        preview += `\n`;
+
+        // Comments
+        preview += `💬 ${commentCount} Comment(s)\n\n`;
+
+        preview += `${"═".repeat(50)}\n`;
+        preview += `⚠️  THIS ACTION CANNOT BE UNDONE!\n`;
+        preview += `${"═".repeat(50)}\n\n`;
+        preview += `To confirm deletion, call delete_project with confirm=true`;
+
+        return {
+          content: [{ type: "text", text: preview }],
+        };
+      }
+
+      // Actually delete (wrapped in transaction for atomicity)
+      const deleteProject = db.transaction(() => {
+        // 1. Delete comments
+        if (ticketIds.length > 0) {
+          const placeholders = ticketIds.map(() => "?").join(",");
+          db.prepare(`DELETE FROM ticket_comments WHERE ticket_id IN (${placeholders})`).run(...ticketIds);
+        }
+
+        // 2. Delete tickets
+        db.prepare("DELETE FROM tickets WHERE project_id = ?").run(projectId);
+
+        // 3. Delete epics
+        db.prepare("DELETE FROM epics WHERE project_id = ?").run(projectId);
+
+        // 4. Delete project
+        db.prepare("DELETE FROM projects WHERE id = ?").run(projectId);
+      });
+      deleteProject();
+
+      log.info(`Deleted project: ${project.name} (${tickets.length} tickets, ${epics.length} epics, ${commentCount} comments)`);
+
+      return {
+        content: [{
+          type: "text",
+          text: `✅ Project "${project.name}" deleted successfully.\n\nDeleted:\n- ${epics.length} epic(s)\n- ${tickets.length} ticket(s)\n- ${commentCount} comment(s)`,
+        }],
+      };
+    }
+  );
 }

@@ -163,4 +163,99 @@ Returns the updated ticket.`,
       };
     }
   );
+
+  // Delete ticket
+  server.tool(
+    "delete_ticket",
+    `Delete a ticket and all its associated comments.
+
+**Safety feature:** By default, this performs a DRY RUN showing what would be deleted.
+Set confirm=true to actually delete the ticket.
+
+Args:
+  ticketId: The ticket ID to delete
+  confirm: Set to true to actually delete (default: false, dry run only)
+
+Returns:
+  - If confirm=false: Preview of the ticket and comments that would be deleted
+  - If confirm=true: Confirmation of deletion`,
+    {
+      ticketId: z.string().describe("Ticket ID to delete"),
+      confirm: z.boolean().optional().default(false).describe("Set to true to actually delete (default: false, dry run)"),
+    },
+    async ({ ticketId, confirm }) => {
+      const ticket = db.prepare(`
+        SELECT t.*, p.name as project_name, e.title as epic_title
+        FROM tickets t
+        JOIN projects p ON t.project_id = p.id
+        LEFT JOIN epics e ON t.epic_id = e.id
+        WHERE t.id = ?
+      `).get(ticketId);
+
+      if (!ticket) {
+        return {
+          content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
+          isError: true,
+        };
+      }
+
+      // Get comments that would be deleted
+      const comments = db.prepare("SELECT id, author, type, created_at FROM ticket_comments WHERE ticket_id = ?").all(ticketId);
+
+      // Dry run - show what would be deleted
+      if (!confirm) {
+        let preview = `⚠️  DRY RUN - Delete Ticket Preview\n`;
+        preview += `${"─".repeat(50)}\n\n`;
+        preview += `Ticket: "${ticket.title}"\n`;
+        preview += `ID: ${ticketId}\n`;
+        preview += `Status: ${ticket.status}\n`;
+        preview += `Project: ${ticket.project_name}\n`;
+        if (ticket.epic_title) {
+          preview += `Epic: ${ticket.epic_title}\n`;
+        }
+        preview += `\n`;
+
+        if (ticket.description) {
+          preview += `Description:\n${ticket.description.substring(0, 200)}${ticket.description.length > 200 ? "..." : ""}\n\n`;
+        }
+
+        preview += `${"─".repeat(50)}\n`;
+        preview += `This will also delete ${comments.length} comment(s):\n`;
+        if (comments.length > 0) {
+          comments.forEach((c, i) => {
+            const date = new Date(c.created_at).toLocaleDateString();
+            preview += `  ${i + 1}. [${c.type}] by ${c.author} on ${date}\n`;
+          });
+        } else {
+          preview += `  (none)\n`;
+        }
+
+        preview += `\n${"─".repeat(50)}\n`;
+        preview += `To confirm deletion, call delete_ticket with confirm=true`;
+
+        return {
+          content: [{ type: "text", text: preview }],
+        };
+      }
+
+      // Actually delete (wrapped in transaction for atomicity)
+      const deleteTicket = db.transaction(() => {
+        // 1. Delete comments
+        db.prepare("DELETE FROM ticket_comments WHERE ticket_id = ?").run(ticketId);
+
+        // 2. Delete ticket
+        db.prepare("DELETE FROM tickets WHERE id = ?").run(ticketId);
+      });
+      deleteTicket();
+
+      log.info(`Deleted ticket: ${ticket.title} (${comments.length} comments)`);
+
+      return {
+        content: [{
+          type: "text",
+          text: `✅ Ticket "${ticket.title}" deleted successfully.\n\nDeleted ${comments.length} comment(s).`,
+        }],
+      };
+    }
+  );
 }

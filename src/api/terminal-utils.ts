@@ -139,11 +139,20 @@ function escapeAppleScriptPath(path: string): string {
   return path.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
+// Build a command string, optionally inserting title args after the command name
+function buildCommand(cmd: string, titleArgs: string | undefined, rest: string): string {
+  if (titleArgs) {
+    return `${cmd} ${titleArgs} ${rest}`;
+  }
+  return `${cmd} ${rest}`;
+}
+
 // Build terminal launch command based on terminal type
 export function buildTerminalCommand(
   terminal: string,
   projectPath: string,
-  scriptPath: string
+  scriptPath: string,
+  windowTitle?: string
 ): string {
   // Validate terminal is in whitelist
   if (!isAllowedTerminal(terminal)) {
@@ -153,12 +162,18 @@ export function buildTerminalCommand(
   // Escape paths for bash context
   const safePath = escapeShellPath(projectPath);
   const safeScript = escapeShellPath(scriptPath);
+  const safeTitle = windowTitle ? escapeShellPath(windowTitle) : undefined;
 
   // Escape paths for AppleScript context (used by macOS terminals)
   const appleScriptPath = escapeAppleScriptPath(scriptPath);
+  const appleScriptTitle = windowTitle ? escapeAppleScriptPath(windowTitle) : undefined;
 
   // Detect platform
   const isMacOS = process.platform === "darwin";
+
+  // Common title argument format used by most terminals
+  const titleArg = safeTitle ? `--title="${safeTitle}"` : undefined;
+  const titleArgSpace = safeTitle ? `--title "${safeTitle}"` : undefined;
 
   switch (terminal) {
     // Cross-platform terminals
@@ -168,43 +183,52 @@ export function buildTerminalCommand(
         // The script already cd's to the working directory, so we don't pass --working-directory.
         // Passing too many args through 'open --args' causes Ghostty to create multiple tabs.
         // See: https://github.com/ghostty-org/ghostty/discussions/4434
-        return `open -n -a Ghostty --args -e "${safeScript}"`;
+        // Note: --title works with open --args on macOS
+        const macTitleArg = safeTitle ? ` --title="${safeTitle}"` : "";
+        return `open -n -a Ghostty --args${macTitleArg} -e "${safeScript}"`;
       }
-      // On Linux, use -e with script directly
-      return `ghostty --working-directory="${safePath}" -e "${safeScript}"`;
+      return buildCommand("ghostty", titleArg, `--working-directory="${safePath}" -e "${safeScript}"`);
     case "alacritty":
-      return `alacritty --working-directory "${safePath}" -e bash "${safeScript}"`;
+      return buildCommand("alacritty", titleArgSpace, `--working-directory "${safePath}" -e bash "${safeScript}"`);
     case "kitty":
-      return `kitty --directory "${safePath}" bash "${safeScript}"`;
+      return buildCommand("kitty", titleArgSpace, `--directory "${safePath}" bash "${safeScript}"`);
 
     // macOS terminals - use osascript (AppleScript) for reliable execution
     case "terminal.app":
-      // Terminal.app: Use AppleScript to run the script
+      // Terminal.app: Use AppleScript to run the script and optionally set window name
+      if (appleScriptTitle) {
+        return `osascript -e 'tell application "Terminal"' -e 'do script "${appleScriptPath}"' -e 'set custom title of front window to "${appleScriptTitle}"' -e 'end tell' -e 'tell application "Terminal" to activate'`;
+      }
       return `osascript -e 'tell application "Terminal" to do script "${appleScriptPath}"' -e 'tell application "Terminal" to activate'`;
     case "iterm2":
-      // iTerm2: Use AppleScript to create a new window and run the script
+      // iTerm2: Use AppleScript to create a new window, run the script, and set tab name
+      if (appleScriptTitle) {
+        return `osascript -e 'tell application "iTerm"' -e 'set newWindow to (create window with default profile command "${appleScriptPath}")' -e 'tell current session of current window to set name to "${appleScriptTitle}"' -e 'end tell' -e 'tell application "iTerm" to activate'`;
+      }
       return `osascript -e 'tell application "iTerm" to create window with default profile command "${appleScriptPath}"' -e 'tell application "iTerm" to activate'`;
     case "warp":
       // Warp: Use AppleScript to open Warp and execute the script
-      // Note: Warp's AppleScript support is limited, so we use 'do script' similar to Terminal.app
+      // Note: Warp's AppleScript support is limited, window title not supported
       return `osascript -e 'tell application "Warp" to activate' -e 'delay 0.5' -e 'tell application "System Events" to tell process "Warp" to keystroke "t" using command down' -e 'delay 0.3' -e 'tell application "System Events" to tell process "Warp" to keystroke "${appleScriptPath}"' -e 'tell application "System Events" to tell process "Warp" to key code 36'`;
 
     // Linux terminals
     case "gnome-terminal":
-      return `gnome-terminal --working-directory="${safePath}" -- "${safeScript}"`;
+      return buildCommand("gnome-terminal", titleArg, `--working-directory="${safePath}" -- "${safeScript}"`);
     case "konsole":
-      return `konsole --workdir "${safePath}" -e "${safeScript}"`;
+      // Konsole uses -p tabtitle="Title" for setting the tab title
+      return buildCommand("konsole", safeTitle ? `-p tabtitle="${safeTitle}"` : undefined, `--workdir "${safePath}" -e "${safeScript}"`);
     case "xfce4-terminal":
-      return `xfce4-terminal --working-directory="${safePath}" -e "${safeScript}"`;
+      return buildCommand("xfce4-terminal", titleArg, `--working-directory="${safePath}" -e "${safeScript}"`);
     case "mate-terminal":
-      return `mate-terminal --working-directory="${safePath}" -e "${safeScript}"`;
+      return buildCommand("mate-terminal", titleArg, `--working-directory="${safePath}" -e "${safeScript}"`);
     case "terminator":
-      return `terminator --working-directory="${safePath}" -e "${safeScript}"`;
+      return buildCommand("terminator", titleArg, `--working-directory="${safePath}" -e "${safeScript}"`);
     case "tilix":
-      return `tilix --working-directory="${safePath}" -e "${safeScript}"`;
+      return buildCommand("tilix", titleArg, `--working-directory="${safePath}" -e "${safeScript}"`);
     case "xterm":
-      return `xterm -e "${safeScript}"`;
+      return buildCommand("xterm", safeTitle ? `-title "${safeTitle}"` : undefined, `-e "${safeScript}"`);
     case "x-terminal-emulator":
-      return `x-terminal-emulator -e "${safeScript}"`;
+      // Generic x-terminal-emulator may or may not support --title
+      return buildCommand("x-terminal-emulator", titleArgSpace, `-e "${safeScript}"`);
   }
 }
