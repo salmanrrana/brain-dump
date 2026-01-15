@@ -8,7 +8,7 @@ import {
   useEffect,
   useCallback,
 } from "react";
-import { Search, LayoutGrid, List, Plus, X, Loader2, Settings, ChevronDown, Rocket } from "lucide-react";
+import { Search, LayoutGrid, List, Plus, X, Loader2, Settings, ChevronDown, Rocket, RefreshCw } from "lucide-react";
 import ProjectTree from "./ProjectTree";
 import NewTicketModal from "./NewTicketModal";
 import ProjectModal from "./ProjectModal";
@@ -27,6 +27,7 @@ import {
   useLaunchProjectInception,
   useSettings,
   useDeleteEpic,
+  useInvalidateQueries,
   type Epic,
   type ProjectBase,
   type SearchResult,
@@ -58,6 +59,8 @@ interface AppState {
 
   // Refresh
   ticketRefreshKey: number;
+  refreshAllData: () => void;
+  isRefreshing: boolean;
 
   // Search navigation
   selectedTicketIdFromSearch: string | null;
@@ -153,6 +156,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [viewMode, setViewModeState] = useState<"kanban" | "list">(getInitialViewMode);
   const [ticketRefreshKey, setTicketRefreshKey] = useState(0);
   const [selectedTicketIdFromSearch, setSelectedTicketIdFromSearch] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Get invalidate queries helper
+  const { invalidateAll } = useInvalidateQueries();
 
   // Delete epic state
   const [epicToDelete, setEpicToDelete] = useState<Epic | null>(null);
@@ -249,6 +256,18 @@ export default function AppLayout({ children }: AppLayoutProps) {
     setDeleteEpicError(null);
   }, []);
 
+  // Refresh all data handler
+  const refreshAllData = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await invalidateAll();
+      await refetchProjects();
+    } finally {
+      // Brief delay to show the animation
+      setTimeout(() => setIsRefreshing(false), 300);
+    }
+  }, [invalidateAll, refetchProjects]);
+
   // Search navigation handlers
   const onSelectTicketFromSearch = useCallback((ticketId: string) => {
     setSelectedTicketIdFromSearch(ticketId);
@@ -278,6 +297,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
             openNewTicket();
           }
           break;
+        case "r":
+          if (!isAnyModalOpen && !isRefreshing) {
+            e.preventDefault();
+            void refreshAllData();
+          }
+          break;
         case "/":
           if (!isAnyModalOpen) {
             e.preventDefault();
@@ -304,7 +329,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isAnyModalOpen, openNewTicket, openShortcuts, closeModal]);
+  }, [isAnyModalOpen, isRefreshing, openNewTicket, openShortcuts, closeModal, refreshAllData]);
 
   const appState: AppState = {
     // Filters
@@ -328,6 +353,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
     // Refresh
     ticketRefreshKey,
+    refreshAllData,
+    isRefreshing,
 
     // Search navigation
     selectedTicketIdFromSearch,
@@ -425,6 +452,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">n</kbd>
                 </div>
                 <div className="flex items-center justify-between">
+                  <span className="text-slate-300">Refresh data</span>
+                  <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">r</kbd>
+                </div>
+                <div className="flex items-center justify-between">
                   <span className="text-slate-300">Focus search</span>
                   <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">/</kbd>
                 </div>
@@ -470,6 +501,8 @@ function AppHeader() {
     openSettingsModal,
     filters,
     onSelectTicketFromSearch,
+    refreshAllData,
+    isRefreshing,
   } = useAppState();
   const { query, results, loading, search, clearSearch } =
     useSearch(filters.projectId);
@@ -661,6 +694,16 @@ function AppHeader() {
           <List size={18} />
         </button>
       </div>
+
+      {/* Refresh button */}
+      <button
+        onClick={() => void refreshAllData()}
+        disabled={isRefreshing}
+        className="p-2 text-slate-400 hover:text-gray-100 hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
+        title="Refresh data (r)"
+      >
+        <RefreshCw size={18} className={isRefreshing ? "animate-spin" : ""} />
+      </button>
 
       {/* Settings button */}
       <button
