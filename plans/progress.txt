@@ -2127,3 +2127,164 @@ The mutation hooks were already implemented in `src/lib/hooks.ts`:
 - No type errors in main codebase
 
 ---
+
+### 2026-01-15 - Create DeleteConfirmationModal Component
+- Task: Create reusable delete confirmation modal
+- Ticket ID: b92d7fdc-501b-4920-a7ee-8c8e660b80b8
+- Success: true
+- Agent: Ralph
+- Branch: main
+
+**Files Created:**
+- `src/components/DeleteConfirmationModal.tsx` (179 lines)
+
+**Component Features:**
+| Feature | Implementation |
+|---------|----------------|
+| Entity types | ticket, epic, project |
+| Preview display | Shows affected counts (tickets, epics, comments) |
+| Loading state | Spinner with "Deleting..." text |
+| Error state | Red error message box |
+| Accessibility | alertdialog role, focus trap, Escape key |
+| Epic handling | Different messaging (unlinks vs deletes) |
+
+**Acceptance Criteria:**
+- [x] Create `DeleteConfirmationModal` component
+- [x] Support different entity types (ticket, epic, project)
+- [x] Display preview of what will be deleted (from dry-run response)
+- [x] Show loading state during deletion
+- [x] Handle success/error states
+- [x] Accessible (focus trap, escape to close, aria labels)
+
+**Testing:**
+- All 374 tests passing
+- No lint errors
+- Type checks pass (vendor submodule has pre-existing errors)
+
+---
+
+### 2026-01-15 - Add Delete Ticket UI Flow to TicketModal
+- Task: Add delete ticket UI flow to TicketModal
+- Ticket ID: 55c8f208-8df1-4b55-a8bb-9fbf131903c3
+- Success: true
+- Agent: Ralph
+- Branch: main
+
+**Problem:**
+Users couldn't delete tickets from the UI - no delete button or confirmation flow existed in the TicketModal.
+
+**Solution:**
+Added complete delete ticket flow to TicketModal:
+
+1. **Delete Button** - Added red "Delete" button in footer with Trash2 icon
+2. **Dry-run Preview** - Uses useQuery to fetch comment count when confirmation modal opens
+3. **Confirmation Modal** - Reuses DeleteConfirmationModal component with ticket-specific messaging
+4. **Toast Notification** - Shows success message with ticket title on deletion
+5. **Error Handling** - Displays error message in confirmation modal if deletion fails
+6. **Query Invalidation** - Tickets and tags queries invalidated via useDeleteTicket hook
+
+**Files Modified:**
+- `src/components/TicketModal.tsx` (+60 lines)
+
+**User Flow:**
+1. User clicks "Delete" button in ticket modal footer
+2. DeleteConfirmationModal opens showing "This will permanently delete: X comments"
+3. User clicks "Delete Ticket" to confirm
+4. Toast shows "Ticket 'title' deleted"
+5. Both modals close, ticket disappears from board
+
+**Testing:**
+- All 374 tests passing
+- No lint errors in TicketModal.tsx
+- Type checks pass
+
+---
+
+### 2026-01-15 - Add Delete Project UI Flow
+- Task: Add delete project UI flow to Settings or Project switcher
+- Ticket ID: 4cbff83e-80b2-440c-9106-ad78835b09ee
+- Success: true
+- Agent: Ralph
+- Branch: main
+
+**Problem:**
+Users couldn't delete projects from the UI with the same level of safety as the MCP tools provided (dry-run preview, name confirmation).
+
+**Solution:**
+Created a specialized `DeleteProjectModal` component that extends beyond the generic `DeleteConfirmationModal`:
+
+1. **Name Confirmation** - User must type the exact project name to enable the delete button
+2. **Comprehensive Preview** - Shows all epics, tickets (grouped by epic), and comments
+3. **Toast Notification** - Success message with project name on deletion
+4. **Post-Delete Navigation** - Handled by AppLayout's `handleProjectSaved` callback
+
+**Files Created:**
+- `src/components/DeleteProjectModal.tsx` (210 lines)
+
+**Files Modified:**
+- `src/components/ProjectModal.tsx` - Now uses DeleteProjectModal instead of inline confirmation
+
+**Component Design:**
+| Feature | Implementation |
+|---------|----------------|
+| Name confirmation | Text input compared against projectName prop |
+| Preview fetching | React Query with `enabled: isOpen` |
+| State reset | Split component pattern - content unmounts when closed |
+| Ticket grouping | Map by epicId with name lookup |
+| Accessibility | alertdialog role, focus trap, keyboard handling |
+
+**Acceptance Criteria Met:**
+- [x] Add delete option in Settings modal under project management (via ProjectModal edit)
+- [x] Show comprehensive preview of ALL data to be deleted
+- [x] Require typing project name to confirm (extra safety)
+- [x] On confirm, redirect to another project or empty state (via AppLayout)
+- [x] Show success toast
+
+**Testing:**
+- All 374 tests passing
+- No lint errors in new files
+- Type checks pass (vendor submodule has pre-existing errors)
+
+---
+
+### 2026-01-15 - Set up MSW for API mocking in tests
+- Task: Set up Mock Service Worker (MSW) for integration tests
+- Ticket ID: 12b08edc-cceb-490b-be2e-a375bfec3030
+- Success: true
+- Agent: Ralph
+- Branch: main
+
+**Problem:**
+No API mocking infrastructure existed for integration tests following Kent C. Dodds testing philosophy.
+
+**Solution:**
+Set up MSW v2.12.7 with complete testing infrastructure:
+
+**Files Created:**
+| File | Purpose |
+|------|---------|
+| `src/mocks/factories.ts` | Type-safe mock data generators matching Drizzle schema |
+| `src/mocks/handlers.ts` | HTTP request handlers with in-memory data store |
+| `src/mocks/server.ts` | MSW node server with reset utilities |
+| `src/mocks/vitest.setup.ts` | Vitest lifecycle hooks (beforeAll/afterEach/afterAll) |
+| `src/mocks/index.ts` | Re-exports for easy imports |
+| `src/mocks/msw.test.ts` | 10 verification tests |
+
+**Files Modified:**
+| File | Change |
+|------|--------|
+| `package.json` | Added msw@2.12.7 as devDependency |
+| `vite.config.ts` | Added setupFiles for MSW integration |
+
+**Key Features:**
+- Factory functions: `createMockProject()`, `createMockEpic()`, `createMockTicket()`, etc.
+- In-memory data store simulates database for isolated tests
+- Handlers support dry-run previews for delete operations
+- Reset utilities ensure test isolation: `resetMockDataStore()`, `resetServer()`
+
+**Testing:**
+- All 384 tests passing (10 new MSW tests)
+- MSW correctly intercepts HTTP requests
+- Factory functions produce type-safe mock data
+
+---
