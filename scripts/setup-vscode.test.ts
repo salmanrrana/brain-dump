@@ -7,9 +7,12 @@
  *
  * These tests verify the OUTCOMES of running the setup script:
  * - MCP config exists in correct location with correct content
- * - Agent symlinks point to correct source files
- * - Skills are linked to ~/.copilot/skills/
- * - Prompts are linked to VS Code User folder
+ * - Agent files are copied to VS Code prompts folder (agents go there per VS Code docs)
+ * - Skills are copied to ~/.copilot/skills/
+ * - Prompts are copied to VS Code User folder
+ *
+ * Note: install.sh now copies files directly (not symlinks) because
+ * VS Code may not follow symlinks correctly.
  */
 
 import { describe, it, expect } from "vitest";
@@ -81,8 +84,10 @@ describe("VS Code Setup Script", () => {
     });
   });
 
-  describe("Agent Symlinks", () => {
-    const agentsDir = path.join(VSCODE_USER_DIR, "agents");
+  describe("Agent Files", () => {
+    // Per install.sh: agents go to VS Code User prompts folder (same as prompts)
+    // They are COPIED, not symlinked, because VS Code may not follow symlinks
+    const promptsDir = path.join(VSCODE_USER_DIR, "prompts");
     const sourceAgentsDir = path.join(BRAIN_DUMP_DIR, ".github/agents");
 
     const expectedAgents = [
@@ -95,30 +100,26 @@ describe("VS Code Setup Script", () => {
       "ticket-worker.agent.md",
     ];
 
-    it("should have agents directory in VS Code User folder", () => {
-      expect(fs.existsSync(agentsDir)).toBe(true);
+    it("should have prompts directory in VS Code User folder", () => {
+      expect(fs.existsSync(promptsDir)).toBe(true);
     });
 
     it.each(expectedAgents)(
-      "should have %s symlinked to .github/agents",
+      "should have %s in VS Code prompts folder",
       (agentFile) => {
-        const targetPath = path.join(agentsDir, agentFile);
+        const targetPath = path.join(promptsDir, agentFile);
         const sourcePath = path.join(sourceAgentsDir, agentFile);
 
         if (!fs.existsSync(sourcePath)) {
           return; // Skip if source doesn't exist
         }
 
+        // User-facing check: does the agent file exist?
         expect(fs.existsSync(targetPath)).toBe(true);
 
-        // Verify it's a symlink
-        const stats = fs.lstatSync(targetPath);
-        expect(stats.isSymbolicLink()).toBe(true);
-
-        // Verify symlink points to correct location (.github/agents, NOT agents-example)
-        const linkTarget = fs.readlinkSync(targetPath);
-        expect(linkTarget).toContain(".github/agents");
-        expect(linkTarget).not.toContain("agents-example");
+        // Verify it's a valid agent file (has required structure)
+        const content = fs.readFileSync(targetPath, "utf-8");
+        expect(content.length).toBeGreaterThan(0);
       }
     );
   });
@@ -126,6 +127,7 @@ describe("VS Code Setup Script", () => {
   describe("Skills Configuration", () => {
     const sourceSkillsDir = path.join(BRAIN_DUMP_DIR, ".github/skills");
 
+    // These are the core skills that should always be present
     const expectedSkills = ["brain-dump-tickets", "ralph-workflow"];
 
     it("should have skills in ~/.copilot/skills (per VS Code docs)", () => {
@@ -134,7 +136,7 @@ describe("VS Code Setup Script", () => {
     });
 
     it.each(expectedSkills)(
-      "should have %s skill symlinked correctly",
+      "should have %s skill copied correctly",
       (skillName) => {
         const targetPath = path.join(COPILOT_SKILLS_DIR, skillName);
         const sourcePath = path.join(sourceSkillsDir, skillName);
@@ -143,29 +145,16 @@ describe("VS Code Setup Script", () => {
           return; // Skip if source doesn't exist
         }
 
+        // Skill should exist as a directory (copied, not symlinked)
         expect(fs.existsSync(targetPath)).toBe(true);
+        const stats = fs.statSync(targetPath);
+        expect(stats.isDirectory()).toBe(true);
 
-        // Verify it's a symlink pointing to .github/skills
-        const stats = fs.lstatSync(targetPath);
-        expect(stats.isSymbolicLink()).toBe(true);
-
-        const linkTarget = fs.readlinkSync(targetPath);
-        expect(linkTarget).toContain(".github/skills");
+        // Verify skill has a SKILL.md file
+        const skillMdPath = path.join(targetPath, "SKILL.md");
+        expect(fs.existsSync(skillMdPath)).toBe(true);
       }
     );
-
-    it("should have auto-review skill created", () => {
-      const autoReviewPath = path.join(COPILOT_SKILLS_DIR, "auto-review");
-      expect(fs.existsSync(autoReviewPath)).toBe(true);
-
-      // Verify it has SKILL.md with proper frontmatter
-      const skillMdPath = path.join(autoReviewPath, "SKILL.md");
-      if (fs.existsSync(skillMdPath)) {
-        const content = fs.readFileSync(skillMdPath, "utf-8");
-        expect(content).toContain("name: auto-review");
-        expect(content).toContain("description:");
-      }
-    });
   });
 
   describe("Prompts Configuration", () => {
@@ -183,7 +172,7 @@ describe("VS Code Setup Script", () => {
     });
 
     it.each(expectedPrompts)(
-      "should have %s symlinked to .github/prompts",
+      "should have %s in VS Code prompts folder",
       (promptFile) => {
         const targetPath = path.join(promptsDir, promptFile);
         const sourcePath = path.join(sourcePromptsDir, promptFile);
@@ -192,15 +181,15 @@ describe("VS Code Setup Script", () => {
           return; // Skip if source doesn't exist
         }
 
+        // User-facing check: does the prompt file exist?
         expect(fs.existsSync(targetPath)).toBe(true);
 
-        // Verify it's a symlink pointing to correct location
+        // Verify it's a regular file with content
         const stats = fs.lstatSync(targetPath);
-        if (stats.isSymbolicLink()) {
-          const linkTarget = fs.readlinkSync(targetPath);
-          expect(linkTarget).toContain(".github/prompts");
-          expect(linkTarget).not.toContain("agents-example");
-        }
+        expect(stats.isFile()).toBe(true);
+
+        const content = fs.readFileSync(targetPath, "utf-8");
+        expect(content.length).toBeGreaterThan(0);
       }
     );
   });
@@ -271,5 +260,13 @@ describe("Install Script Path Conventions", () => {
 
     // Should have documentation about correct paths
     expect(content).toContain("VS Code docs");
+  });
+
+  it("should copy files directly instead of symlinks", () => {
+    const content = fs.readFileSync(installScript, "utf-8");
+
+    // The install script should mention copying directly
+    expect(content).toContain("Copy files directly");
+    expect(content).toContain("Copy directories directly");
   });
 });

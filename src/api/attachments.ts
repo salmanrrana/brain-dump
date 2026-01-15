@@ -208,6 +208,117 @@ export const uploadAttachment = createServerFn({ method: "POST" })
     };
   });
 
+// Upload attachment for a pending (not-yet-created) ticket
+export const uploadPendingAttachment = createServerFn({ method: "POST" })
+  .inputValidator((input: { ticketId: string; filename: string; data: string }) => {
+    if (!input.ticketId) throw new Error("Ticket ID is required");
+    if (!input.filename) throw new Error("Filename is required");
+    if (!input.data) throw new Error("File data is required");
+    return input;
+  })
+  .handler(async ({ data: { ticketId, filename, data } }) => {
+    const { join } = await import("path");
+    const { existsSync, mkdirSync, writeFileSync } = await import("fs");
+
+    validateMimeType(data, filename);
+
+    const base64Data = data.replace(/^data:[^;]+;base64,/, "");
+    const buffer = Buffer.from(base64Data, "base64");
+
+    if (buffer.length > MAX_FILE_SIZE) {
+      throw new Error(`File size exceeds maximum allowed size of 10MB`);
+    }
+
+    const baseDir = await getAttachmentsDir();
+    const ticketDir = join(baseDir, ticketId);
+    if (!existsSync(ticketDir)) {
+      mkdirSync(ticketDir, { recursive: true });
+    }
+
+    const sanitizedFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+
+    let finalFilename = sanitizedFilename;
+    let counter = 1;
+    while (existsSync(join(ticketDir, finalFilename))) {
+      const extIdx = sanitizedFilename.lastIndexOf(".");
+      if (extIdx > 0) {
+        finalFilename = `${sanitizedFilename.slice(0, extIdx)}_${counter}${sanitizedFilename.slice(extIdx)}`;
+      } else {
+        finalFilename = `${sanitizedFilename}_${counter}`;
+      }
+      counter++;
+    }
+
+    writeFileSync(join(ticketDir, finalFilename), buffer);
+
+    const ext = finalFilename.split(".").pop()?.toLowerCase() ?? "";
+    const isImage = ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext);
+    const mimeType = MIME_TYPES[ext] ?? "application/octet-stream";
+
+    return {
+      id: finalFilename,
+      filename: finalFilename,
+      size: buffer.length,
+      isImage,
+      url: `data:${mimeType};base64,${buffer.toString("base64")}`,
+    };
+  });
+
+// Delete all pending attachments for a ticket that was never created
+export const deletePendingAttachments = createServerFn({ method: "POST" })
+  .inputValidator((ticketId: string) => {
+    if (!ticketId) throw new Error("Ticket ID is required");
+    return ticketId;
+  })
+  .handler(async ({ data: ticketId }) => {
+    const { join } = await import("path");
+    const { existsSync, readdirSync, unlinkSync, rmdirSync } = await import("fs");
+
+    const baseDir = await getAttachmentsDir();
+    const ticketDir = join(baseDir, ticketId);
+
+    if (!existsSync(ticketDir)) {
+      return { success: true, deletedCount: 0 };
+    }
+
+    const files = readdirSync(ticketDir);
+    for (const file of files) {
+      unlinkSync(join(ticketDir, file));
+    }
+    rmdirSync(ticketDir);
+
+    return { success: true, deletedCount: files.length };
+  });
+
+// Delete a single pending attachment
+export const deletePendingAttachment = createServerFn({ method: "POST" })
+  .inputValidator((input: { ticketId: string; filename: string }) => {
+    if (!input.ticketId) throw new Error("Ticket ID is required");
+    if (!input.filename) throw new Error("Filename is required");
+    return input;
+  })
+  .handler(async ({ data: { ticketId, filename } }) => {
+    const { join } = await import("path");
+    const { existsSync, unlinkSync, readdirSync, rmdirSync } = await import("fs");
+
+    const baseDir = await getAttachmentsDir();
+    const filePath = join(baseDir, ticketId, filename);
+
+    if (!existsSync(filePath)) {
+      throw new Error(`Attachment not found: ${filename}`);
+    }
+
+    unlinkSync(filePath);
+
+    const ticketDir = join(baseDir, ticketId);
+    const remainingFiles = readdirSync(ticketDir);
+    if (remainingFiles.length === 0) {
+      rmdirSync(ticketDir);
+    }
+
+    return { success: true, deletedFilename: filename };
+  });
+
 // Delete attachment
 export const deleteAttachment = createServerFn({ method: "POST" })
   .inputValidator((input: { ticketId: string; filename: string }) => {

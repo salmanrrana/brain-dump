@@ -15,12 +15,14 @@ export interface Subtask {
 }
 
 export interface CreateTicketInput {
+  id?: string;
   title: string;
   description?: string;
   projectId: string;
   epicId?: string;
   priority?: TicketPriority;
   tags?: string[];
+  attachments?: string[];
 }
 
 export interface UpdateTicketInput {
@@ -169,7 +171,7 @@ export const createTicket = createServerFn({ method: "POST" })
 
     const position = (maxPosition?.maxPos ?? 0) + 1;
 
-    const id = randomUUID();
+    const id = input.id ?? randomUUID();
     const newTicket = {
       id,
       title: input.title.trim(),
@@ -184,7 +186,7 @@ export const createTicket = createServerFn({ method: "POST" })
       isBlocked: false,
       blockedReason: null,
       linkedFiles: null,
-      attachments: null,
+      attachments: input.attachments ? JSON.stringify(input.attachments) : null,
     };
 
     db.insert(tickets).values(newTicket).run();

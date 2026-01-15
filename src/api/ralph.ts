@@ -122,9 +122,11 @@ fi
     : "";
 
   // Different prompt file location and Claude invocation for sandbox vs native
+  // For native mode, use mktemp -t for cross-platform compatibility (works on both macOS and Linux)
+  // Add error handling to fail fast if temp file creation fails
   const promptFileSetup = useSandbox
     ? `PROMPT_FILE="$PROJECT_PATH/.ralph-prompt.md"`
-    : `PROMPT_FILE=$(mktemp /tmp/ralph-prompt-XXXXXX.md)`;
+    : `PROMPT_FILE=$(mktemp -t ralph-prompt) || { echo -e "\\033[0;31m❌ Failed to create temp file\\033[0m"; exit 1; }`;
 
   const claudeInvocation = useSandbox
     ? `  # Run Claude in Docker container
