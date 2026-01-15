@@ -89,7 +89,7 @@
         "readme",
         "skills"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "46f42fd7-67e2-436f-8836-fe7476c2abb1",
@@ -106,7 +106,7 @@
         "skills",
         "cli"
       ],
-      "passes": false
+      "passes": true
     }
   ],
   "generatedAt": "2026-01-15T09:23:27.368Z",
