@@ -82,7 +82,7 @@ export const getTickets = createServerFn({ method: "GET" })
 
       sql += " ORDER BY position";
 
-      const { sqlite } = await import("../lib/db");
+      // Use the already-imported sqlite instance for raw SQL queries
       const stmt = sqlite.prepare(sql);
       return stmt.all(...params) as typeof tickets.$inferSelect[];
     }
