@@ -84,7 +84,7 @@ export default function EpicModal({
       if (showActionMenu) setShowActionMenu(false);
       else if (showDeleteConfirm) setShowDeleteConfirm(false);
       else if (showRalphConfig) setShowRalphConfig(false);
-    }, [showActionMenu, showDeleteConfirm]),
+    }, [showActionMenu, showDeleteConfirm, showRalphConfig]),
     initialFocusRef: titleInputRef,
   });
 

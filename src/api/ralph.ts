@@ -3,6 +3,11 @@ import { db } from "../lib/db";
 import { tickets, epics, projects } from "../lib/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { safeJsonParse } from "../lib/utils";
+import { exec } from "child_process";
+import { promisify } from "util";
+
+// Shared promisified exec for all Docker operations
+const execAsync = promisify(exec);
 
 interface PRDUserStory {
   id: string;
@@ -340,10 +345,6 @@ exec bash
 async function ensureDockerNetwork(
   networkName: string
 ): Promise<{ success: true } | { success: false; message: string }> {
-  const { exec } = await import("child_process");
-  const { promisify } = await import("util");
-  const execAsync = promisify(exec);
-
   try {
     // Check if network already exists
     await execAsync(`docker network inspect ${networkName}`);
@@ -374,12 +375,8 @@ async function ensureDockerNetwork(
 
 // Validate Docker setup for sandbox mode
 async function validateDockerSetup(): Promise<{ success: true } | { success: false; message: string }> {
-  const { exec } = await import("child_process");
-  const { promisify } = await import("util");
   const { existsSync } = await import("fs");
   const { join } = await import("path");
-
-  const execAsync = promisify(exec);
 
   // Check if Docker is running
   try {
@@ -865,14 +862,20 @@ const COMPANION_CONTAINERS: Record<CompanionService, CompanionContainerConfig> =
   },
 };
 
+// Check if a Docker container is running by name
+async function isContainerRunning(containerName: string): Promise<boolean> {
+  try {
+    const { stdout } = await execAsync(`docker ps --filter "name=${containerName}" --format "{{.Names}}"`);
+    return stdout.trim() === containerName;
+  } catch {
+    return false;
+  }
+}
+
 // Start a companion container on ralph-net
 async function startCompanionContainer(
   service: CompanionService
 ): Promise<{ success: true; connectionString: string } | { success: false; message: string }> {
-  const { exec } = await import("child_process");
-  const { promisify } = await import("util");
-  const execAsync = promisify(exec);
-
   const config = COMPANION_CONTAINERS[service];
 
   // First ensure ralph-net network exists
@@ -882,14 +885,9 @@ async function startCompanionContainer(
   }
 
   // Check if container already running
-  try {
-    const { stdout } = await execAsync(`docker ps --filter "name=${config.name}" --format "{{.Names}}"`);
-    if (stdout.trim() === config.name) {
-      console.log(`[brain-dump] Companion container ${config.name} already running`);
-      return { success: true, connectionString: config.connectionString };
-    }
-  } catch {
-    // Container not running, continue to start it
+  if (await isContainerRunning(config.name)) {
+    console.log(`[brain-dump] Companion container ${config.name} already running`);
+    return { success: true, connectionString: config.connectionString };
   }
 
   // Build environment variables string
@@ -916,10 +914,6 @@ async function startCompanionContainer(
 async function stopCompanionContainer(
   service: CompanionService
 ): Promise<{ success: true } | { success: false; message: string }> {
-  const { exec } = await import("child_process");
-  const { promisify } = await import("util");
-  const execAsync = promisify(exec);
-
   const config = COMPANION_CONTAINERS[service];
 
   try {
@@ -985,23 +979,14 @@ export const stopCompanionContainers = createServerFn({ method: "POST" })
 
 // Get running companion containers
 export const getRunningCompanionContainers = createServerFn({ method: "GET" }).handler(async () => {
-  const { exec } = await import("child_process");
-  const { promisify } = await import("util");
-  const execAsync = promisify(exec);
-
   const running: { service: CompanionService; connectionString: string }[] = [];
 
   for (const [service, config] of Object.entries(COMPANION_CONTAINERS)) {
-    try {
-      const { stdout } = await execAsync(`docker ps --filter "name=${config.name}" --format "{{.Names}}"`);
-      if (stdout.trim() === config.name) {
-        running.push({
-          service: service as CompanionService,
-          connectionString: config.connectionString,
-        });
-      }
-    } catch {
-      // Container not running
+    if (await isContainerRunning(config.name)) {
+      running.push({
+        service: service as CompanionService,
+        connectionString: config.connectionString,
+      });
     }
   }
 
