@@ -333,6 +333,42 @@ exec bash
 `;
 }
 
+// Ensure Docker network exists for container networking
+async function ensureDockerNetwork(
+  networkName: string
+): Promise<{ success: true } | { success: false; message: string }> {
+  const { exec } = await import("child_process");
+  const { promisify } = await import("util");
+  const execAsync = promisify(exec);
+
+  try {
+    // Check if network already exists
+    await execAsync(`docker network inspect ${networkName}`);
+    console.log(`[brain-dump] Docker network "${networkName}" already exists`);
+    return { success: true };
+  } catch {
+    // Network doesn't exist, create it
+    try {
+      await execAsync(`docker network create ${networkName}`);
+      console.log(`[brain-dump] Created Docker network "${networkName}"`);
+      return { success: true };
+    } catch (createError) {
+      // Race condition: another process may have created it between our check and create
+      // Verify by checking again
+      try {
+        await execAsync(`docker network inspect ${networkName}`);
+        console.log(`[brain-dump] Docker network "${networkName}" exists (created by another process)`);
+        return { success: true };
+      } catch {
+        return {
+          success: false,
+          message: `Failed to create Docker network "${networkName}": ${createError instanceof Error ? createError.message : "Unknown error"}`,
+        };
+      }
+    }
+  }
+}
+
 // Validate Docker setup for sandbox mode
 async function validateDockerSetup(): Promise<{ success: true } | { success: false; message: string }> {
   const { exec } = await import("child_process");
@@ -350,6 +386,12 @@ async function validateDockerSetup(): Promise<{ success: true } | { success: fal
       success: false,
       message: "Docker is not running. Please start Docker Desktop or run 'sudo systemctl start docker'",
     };
+  }
+
+  // Ensure ralph-net network exists for container networking
+  const networkResult = await ensureDockerNetwork("ralph-net");
+  if (!networkResult.success) {
+    return networkResult;
   }
 
   // Check if image exists, build if not
