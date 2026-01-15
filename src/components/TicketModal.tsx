@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useModalKeyboard, useClickOutside } from "../lib/hooks";
+import { useQuery } from "@tanstack/react-query";
+import { useModalKeyboard, useClickOutside, useDeleteTicket } from "../lib/hooks";
+import DeleteConfirmationModal from "./DeleteConfirmationModal";
+import { deleteTicket as deleteTicketFn } from "../api/tickets";
 import {
   X,
   Check,
@@ -92,6 +95,8 @@ export default function TicketModal({
   } | null>(null);
   const [showStartWorkMenu, setShowStartWorkMenu] = useState(false);
   const startWorkMenuRef = useRef<HTMLDivElement>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Use mutation hook for type-safe updates with cache invalidation
   const updateTicketMutation = useUpdateTicket();
@@ -104,6 +109,16 @@ export default function TicketModal({
 
   // Ralph mutation hook
   const launchRalphMutation = useLaunchRalphForTicket();
+
+  // Delete mutation hook
+  const deleteTicketMutation = useDeleteTicket();
+
+  // Fetch delete preview when confirmation modal opens (dry-run)
+  const { data: deletePreview } = useQuery({
+    queryKey: ["ticket", ticket.id, "delete-preview"],
+    queryFn: () => deleteTicketFn({ data: { ticketId: ticket.id, confirm: false } }),
+    enabled: showDeleteConfirm,
+  });
 
   // Comments - poll every 3 seconds when ticket is in progress (Ralph might be working)
   const { comments, loading: commentsLoading } = useComments(ticket.id, {
@@ -404,6 +419,25 @@ export default function TicketModal({
       }
     );
   }, [newComment, ticket.id, createCommentMutation]);
+
+  // Handle delete ticket confirmation
+  const handleDeleteConfirm = useCallback(() => {
+    setDeleteError(null);
+    deleteTicketMutation.mutate(
+      { ticketId: ticket.id, confirm: true },
+      {
+        onSuccess: () => {
+          setShowDeleteConfirm(false);
+          showToast("success", `Ticket "${ticket.title}" deleted`);
+          onClose();
+          onUpdate();
+        },
+        onError: (error: Error) => {
+          setDeleteError(error.message || "Failed to delete ticket");
+        },
+      }
+    );
+  }, [ticket.id, ticket.title, deleteTicketMutation, showToast, onClose, onUpdate]);
 
   const handleSave = useCallback(() => {
     // Build updates object conditionally to satisfy exactOptionalPropertyTypes
@@ -1180,6 +1214,14 @@ export default function TicketModal({
           </div>
 
           <div className="flex gap-3">
+            {/* Delete button */}
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="flex items-center gap-2 px-4 py-2 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-lg transition-colors"
+            >
+              <Trash2 size={16} />
+              <span>Delete</span>
+            </button>
             <button
               onClick={onClose}
               className="px-4 py-2 text-slate-400 hover:text-gray-100 hover:bg-slate-800 rounded-lg transition-colors"
@@ -1195,6 +1237,23 @@ export default function TicketModal({
             </button>
           </div>
         </div>
+
+        {/* Delete Confirmation Modal */}
+        <DeleteConfirmationModal
+          isOpen={showDeleteConfirm}
+          onClose={() => {
+            setShowDeleteConfirm(false);
+            setDeleteError(null);
+          }}
+          onConfirm={handleDeleteConfirm}
+          isLoading={deleteTicketMutation.isPending}
+          entityType="ticket"
+          entityName={ticket.title}
+          preview={{
+            commentCount: deletePreview && "commentCount" in deletePreview ? deletePreview.commentCount : 0,
+          }}
+          error={deleteError}
+        />
       </div>
     </div>
   );
