@@ -97,18 +97,27 @@ export default function NewTicketModal({
     }
   }, [projectId, epicId, epics]);
 
+  // Handle file upload - uploads files in parallel for better performance
   const handleFileUpload = useCallback(
     async (files: FileList | null) => {
       if (!files || files.length === 0) return;
 
+      // Filter out oversized files first
+      const validFiles: File[] = [];
+      for (const file of Array.from(files)) {
+        if (file.size > 10 * 1024 * 1024) {
+          alert(`File "${file.name}" exceeds 10MB limit`);
+        } else {
+          validFiles.push(file);
+        }
+      }
+
+      if (validFiles.length === 0) return;
+
       setIsUploadingAttachment(true);
       try {
-        for (const file of Array.from(files)) {
-          if (file.size > 10 * 1024 * 1024) {
-            alert(`File "${file.name}" exceeds 10MB limit`);
-            continue;
-          }
-
+        // Upload all valid files in parallel
+        const uploadPromises = validFiles.map(async (file) => {
           const reader = new FileReader();
           const base64 = await new Promise<string>((resolve, reject) => {
             reader.onload = () => resolve(reader.result as string);
@@ -116,16 +125,17 @@ export default function NewTicketModal({
             reader.readAsDataURL(file);
           });
 
-          const newAttachment = await uploadPendingAttachment({
+          return uploadPendingAttachment({
             data: {
               ticketId: pendingTicketId,
               filename: file.name,
               data: base64,
             },
           });
+        });
 
-          setAttachments((prev) => [...prev, newAttachment]);
-        }
+        const newAttachments = await Promise.all(uploadPromises);
+        setAttachments((prev) => [...prev, ...newAttachments]);
       } catch (error) {
         console.error("Failed to upload attachment:", error);
         alert(error instanceof Error ? error.message : "Failed to upload attachment");
