@@ -89,6 +89,69 @@ Returns the created epic.`,
     }
   );
 
+  // Update epic
+  server.tool(
+    "update_epic",
+    `Update an existing epic's title, description, or color.
+
+Args:
+  epicId: The epic ID to update
+  title: New title (optional)
+  description: New description (optional)
+  color: New hex color (optional)
+
+Returns the updated epic.`,
+    {
+      epicId: z.string().describe("Epic ID to update"),
+      title: z.string().optional().describe("New title"),
+      description: z.string().optional().describe("New description"),
+      color: z.string().optional().describe("New hex color"),
+    },
+    async ({ epicId, title, description, color }) => {
+      const epic = db.prepare("SELECT * FROM epics WHERE id = ?").get(epicId);
+      if (!epic) {
+        return {
+          content: [{ type: "text", text: `Epic not found: ${epicId}` }],
+          isError: true,
+        };
+      }
+
+      // Build update query dynamically based on provided fields
+      const updates = [];
+      const values = [];
+
+      if (title !== undefined) {
+        updates.push("title = ?");
+        values.push(title.trim());
+      }
+      if (description !== undefined) {
+        updates.push("description = ?");
+        values.push(description.trim() || null);
+      }
+      if (color !== undefined) {
+        updates.push("color = ?");
+        values.push(color || null);
+      }
+
+      if (updates.length === 0) {
+        return {
+          content: [{ type: "text", text: "No updates provided. Specify at least one of: title, description, color" }],
+          isError: true,
+        };
+      }
+
+      values.push(epicId);
+      db.prepare(`UPDATE epics SET ${updates.join(", ")} WHERE id = ?`).run(...values);
+
+      const updatedEpic = db.prepare("SELECT * FROM epics WHERE id = ?").get(epicId);
+      log.info(`Updated epic: ${updatedEpic.title}`);
+
+      return {
+        content: [{ type: "text", text: `Epic updated!\n\n${JSON.stringify(updatedEpic, null, 2)}` }],
+      };
+    }
+  );
+
   // Delete epic
   server.tool(
     "delete_epic",
