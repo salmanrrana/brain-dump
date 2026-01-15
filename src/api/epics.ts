@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import { db } from "../lib/db";
-import { epics, projects } from "../lib/schema";
+import { db, sqlite } from "../lib/db";
+import { epics, projects, tickets } from "../lib/schema";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { ensureExists } from "../lib/utils";
@@ -96,19 +96,93 @@ export const updateEpic = createServerFn({ method: "POST" })
     return db.select().from(epics).where(eq(epics.id, id)).get();
   });
 
-// Delete an epic (tickets become orphaned - epic_id set to null)
+// Delete an epic with dry-run preview support
+// Note: Tickets are NOT deleted, just unlinked (epic_id set to null via FK constraint)
+export interface DeleteEpicInput {
+  epicId: string;
+  confirm?: boolean;
+}
+
+export interface UnlinkedTicket {
+  id: string;
+  title: string;
+  status: string;
+}
+
+export interface DeleteEpicPreview {
+  preview: true;
+  epic: {
+    id: string;
+    title: string;
+    description: string | null;
+    projectId: string;
+  };
+  ticketsToUnlink: UnlinkedTicket[];
+}
+
+export interface DeleteEpicResult {
+  deleted: true;
+  epic: {
+    id: string;
+    title: string;
+  };
+  ticketsUnlinked: number;
+}
+
 export const deleteEpic = createServerFn({ method: "POST" })
-  .inputValidator((id: string) => {
-    if (!id) {
+  .inputValidator((input: DeleteEpicInput) => {
+    if (!input.epicId) {
       throw new Error("Epic ID is required");
     }
-    return id;
+    return input;
   })
-  .handler(async ({ data: id }) => {
-    const existing = db.select().from(epics).where(eq(epics.id, id)).get();
-    ensureExists(existing, "Epic", id);
+  .handler(async ({ data: { epicId, confirm = false } }): Promise<DeleteEpicPreview | DeleteEpicResult> => {
+    const epicResult = db.select().from(epics).where(eq(epics.id, epicId)).get();
+    const epic = ensureExists(epicResult, "Epic", epicId);
 
-    db.delete(epics).where(eq(epics.id, id)).run();
+    // Get tickets that would be unlinked (not deleted)
+    const ticketsToUnlink = db
+      .select({
+        id: tickets.id,
+        title: tickets.title,
+        status: tickets.status,
+      })
+      .from(tickets)
+      .where(eq(tickets.epicId, epicId))
+      .all();
 
-    return { success: true, deletedId: id };
+    // Dry-run: return preview of what would be affected
+    if (!confirm) {
+      return {
+        preview: true,
+        epic: {
+          id: epic.id,
+          title: epic.title,
+          description: epic.description,
+          projectId: epic.projectId,
+        },
+        ticketsToUnlink,
+      };
+    }
+
+    // Actually delete (tickets get unlinked via FK onDelete: "set null")
+    // Use transaction for atomicity
+    sqlite.transaction(() => {
+      // Explicitly unlink tickets (even though FK would handle it)
+      db.update(tickets)
+        .set({ epicId: null, updatedAt: new Date().toISOString() })
+        .where(eq(tickets.epicId, epicId))
+        .run();
+      // Delete the epic
+      db.delete(epics).where(eq(epics.id, epicId)).run();
+    })();
+
+    return {
+      deleted: true,
+      epic: {
+        id: epic.id,
+        title: epic.title,
+      },
+      ticketsUnlinked: ticketsToUnlink.length,
+    };
   });

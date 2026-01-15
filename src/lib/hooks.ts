@@ -487,7 +487,8 @@ export function useDeleteTicket() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => deleteTicket({ data: id }),
+    mutationFn: (params: { ticketId: string; confirm?: boolean }) =>
+      deleteTicket({ data: params }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTags });
@@ -524,7 +525,8 @@ export function useDeleteProject() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => deleteProject({ data: id }),
+    mutationFn: (params: { projectId: string; confirm?: boolean }) =>
+      deleteProject({ data: params }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
@@ -562,7 +564,8 @@ export function useDeleteEpic() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => deleteEpic({ data: id }),
+    mutationFn: (params: { epicId: string; confirm?: boolean }) =>
+      deleteEpic({ data: params }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
