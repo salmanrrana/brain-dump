@@ -3,7 +3,7 @@ import { db, sqlite } from "../lib/db";
 import { tickets, projects, epics, ticketComments } from "../lib/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { ensureExists } from "../lib/utils";
+import { ensureExists, safeJsonStringify } from "../lib/utils";
 
 // Types
 export type TicketStatus = "backlog" | "ready" | "in_progress" | "review" | "ai_review" | "human_review" | "done";
@@ -179,12 +179,12 @@ export const createTicket = createServerFn({ method: "POST" })
       status: "backlog" as TicketStatus,
       priority: input.priority ?? null,
       position,
-      tags: input.tags ? JSON.stringify(input.tags) : null,
+      tags: safeJsonStringify(input.tags),
       subtasks: null,
       isBlocked: false,
       blockedReason: null,
       linkedFiles: null,
-      attachments: input.attachments ? JSON.stringify(input.attachments) : null,
+      attachments: safeJsonStringify(input.attachments),
     };
 
     db.insert(tickets).values(newTicket).run();
@@ -236,18 +236,14 @@ export const updateTicket = createServerFn({ method: "POST" })
     if (updates.priority !== undefined) updateData.priority = updates.priority;
     if (updates.epicId !== undefined) updateData.epicId = updates.epicId;
     if (updates.tags !== undefined)
-      updateData.tags = updates.tags ? JSON.stringify(updates.tags) : null;
+      updateData.tags = safeJsonStringify(updates.tags);
     if (updates.subtasks !== undefined)
-      updateData.subtasks = updates.subtasks
-        ? JSON.stringify(updates.subtasks)
-        : null;
+      updateData.subtasks = safeJsonStringify(updates.subtasks);
     if (updates.isBlocked !== undefined) updateData.isBlocked = updates.isBlocked;
     if (updates.blockedReason !== undefined)
       updateData.blockedReason = updates.blockedReason;
     if (updates.linkedFiles !== undefined)
-      updateData.linkedFiles = updates.linkedFiles
-        ? JSON.stringify(updates.linkedFiles)
-        : null;
+      updateData.linkedFiles = safeJsonStringify(updates.linkedFiles);
 
     if (Object.keys(updateData).length > 0) {
       updateData.updatedAt = new Date().toISOString();
