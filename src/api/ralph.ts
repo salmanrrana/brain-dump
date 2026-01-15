@@ -289,6 +289,89 @@ async function validateDockerSetup(): Promise<{ success: true } | { success: fal
   return { success: true };
 }
 
+// Check if VS Code CLI is available and get the path
+async function findVSCodeCli(): Promise<string | null> {
+  const { execSync } = await import("child_process");
+  const { existsSync } = await import("fs");
+
+  // First check if 'code' is in PATH
+  try {
+    execSync("which code", { stdio: "pipe" });
+    return "code";
+  } catch {
+    // Not in PATH, check common macOS locations
+  }
+
+  // macOS: Check the full path to VS Code CLI
+  const macOSPaths = [
+    "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
+    "/usr/local/bin/code",
+    `${process.env.HOME}/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code`,
+  ];
+
+  for (const codePath of macOSPaths) {
+    if (existsSync(codePath)) {
+      return codePath;
+    }
+  }
+
+  return null;
+}
+
+// Launch VS Code with project context
+async function launchInVSCode(
+  projectPath: string,
+  contextFilePath?: string
+): Promise<{ success: true } | { success: false; message: string }> {
+  const { exec } = await import("child_process");
+  const { existsSync } = await import("fs");
+
+  // Verify project path exists
+  if (!existsSync(projectPath)) {
+    return {
+      success: false,
+      message: `Project directory not found: ${projectPath}`,
+    };
+  }
+
+  // Find VS Code CLI
+  const codeCli = await findVSCodeCli();
+  if (!codeCli) {
+    return {
+      success: false,
+      message:
+        "VS Code CLI not found. Please install VS Code and ensure the 'code' command is available. " +
+        "In VS Code, open Command Palette (Cmd+Shift+P) and run 'Shell Command: Install code command in PATH'.",
+    };
+  }
+
+  // Build the command
+  // Note: projectPath and contextFilePath come from the database (trusted internal values)
+  // We quote paths to handle spaces but these are not arbitrary user input
+  // Use -n flag to open in new window, -g to not focus a specific file
+  let command = `"${codeCli}" -n "${projectPath}"`;
+
+  // If context file provided, open it as well
+  if (contextFilePath && existsSync(contextFilePath)) {
+    command += ` -g "${contextFilePath}"`;
+  }
+
+  try {
+    exec(command, (error) => {
+      if (error) {
+        console.error("VS Code launch error:", error);
+      }
+    });
+
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      message: `Failed to launch VS Code: ${error instanceof Error ? error.message : "Unknown error"}`,
+    };
+  }
+}
+
 // Shared launch logic for terminal
 async function launchInTerminal(
   projectPath: string,
