@@ -1687,3 +1687,133 @@ Ralph can now pick up tickets sequentially, starting with Epic 1 (foundation wor
 
 ---
 
+
+### 2026-01-15 - TanStack Query Window Focus Refetching
+- Task: Enable window focus refetching for automatic data sync
+- Ticket ID: 82951595-6b27-4dd2-99ec-76c908d8524e
+- Success: true
+- Agent: Ralph
+- Branch: fix/mktemp-macos-ralph
+
+**Problem:**
+When users created tickets via Claude Code or VS Code MCP integration, they wouldn't see the new tickets in the Brain Dump UI until they manually refreshed.
+
+**Solution:**
+Modified QueryClient configuration in `src/routes/__root.tsx`:
+1. Enabled `refetchOnWindowFocus: true` - queries now refetch when browser window regains focus
+2. Reduced `staleTime` from 60s to 30s - allows faster sync when returning from external changes
+
+**Why 30s staleTime?**
+- TanStack Query only refetches on window focus if query is "stale"
+- 60s was too long - users creating tickets externally and switching back within 60s wouldn't see changes
+- 30s balances responsiveness with avoiding unnecessary network requests
+- Hooks with extended cache times (terminals: 60s, docker: 30s) override this locally
+
+**Files Modified:**
+- `src/routes/__root.tsx` (2 lines changed)
+
+**Testing:**
+- All 359 tests passing
+- Type errors in NewTicketModal.tsx are pre-existing (separate ticket)
+
+---
+
+### 2026-01-15 - Edit Ticket Tag Autocomplete
+- Task: Add tag autocomplete to Edit Ticket modal (consistent with New Ticket modal)
+- Ticket ID: b859dbc8-c866-4d7e-a354-568e0947b722
+- Success: true
+- Agent: Ralph
+- Branch: fix/mktemp-macos-ralph
+
+**Problem:**
+When editing a ticket, the tag input didn't show autocomplete suggestions for existing tags or helper text for creating new tags - unlike the New Ticket modal which had this functionality.
+
+**Solution:**
+Updated `src/components/TicketModal.tsx` to match the tag autocomplete behavior in `NewTicketModal.tsx`:
+
+1. **Added useTags hook** - Fetches existing tags for the ticket's project
+2. **Tag suggestions dropdown** - Shows matching tags as user types (filtered by project)
+3. **Helper text** - "Press Enter to create" appears when input doesn't match existing tags
+4. **Keyboard navigation** - ArrowUp/Down to navigate suggestions, Enter to select, Escape to close
+
+**Files Modified:**
+- `src/components/TicketModal.tsx` (+180/-34 lines)
+
+**Key Changes:**
+| Feature | Implementation |
+|---------|----------------|
+| Tag fetching | `useTags(ticket.projectId)` hook |
+| Filtering | `tagSuggestions` memo with case-insensitive matching |
+| Helper text | `showCreateHelper` computed from input vs existing tags |
+| Keyboard | `handleTagInputKeyDown` for Arrow/Enter/Escape handling |
+| Click outside | useEffect to close dropdown on outside clicks |
+
+**Testing:**
+- All 359 tests passing
+- Type check passing
+- Lint check passing for TicketModal.tsx
+
+---
+
+## PRD Status: COMPLETE
+
+All user stories have passes: true.
+
+PRD_COMPLETE
+
+### 2026-01-15 - Third-Party Agent Skills Integration (Epic)
+- Task: Implement vendored third-party skills from Vercel
+- Agent: Ralph
+- Epic: Third-Party Agent Skills Integration
+
+**Tickets Completed (4 high-priority):**
+
+| Ticket | Title | Status |
+|--------|-------|--------|
+| fc72ec9e | Add Vercel agent-skills as git submodule | ✅ Complete |
+| cb343efa | Update install.sh to initialize git submodules | ✅ Complete |
+| e283d509 | Add setup_claude_skills() function to install.sh | ✅ Complete |
+| fc7c8121 | Update setup_vscode_skills() to include vendored skills | ✅ Complete |
+
+**Remaining (medium/low priority):**
+
+| Ticket | Title | Priority |
+|--------|-------|----------|
+| 8a97205c | Document skills update mechanism in README | medium |
+| 46f42fd7 | Add --update-skills flag to install.sh | low |
+
+**Implementation Summary:**
+
+1. **Git Submodule Setup**
+   - Added `vendor/agent-skills` pointing to vercel-labs/agent-skills
+   - Created `.gitmodules` configuration file
+   - Skills included: react-best-practices, web-design-guidelines, claude.ai
+
+2. **Automatic Submodule Init**
+   - Added `init_submodules()` function to install.sh
+   - Runs early in install process with --init --recursive
+   - Handles missing .gitmodules gracefully
+
+3. **Claude Code Skills**
+   - Added `setup_claude_skills()` function
+   - Copies skills to ~/.claude/skills/
+   - Only processes directories with SKILL.md
+   - Called when --claude flag used
+
+4. **VS Code Skills**
+   - Updated `setup_vscode_skills()` function
+   - Now processes both .github/skills/ and vendor/agent-skills/skills/
+   - Copies to ~/.copilot/skills/
+   - Combined count shown in summary
+
+**Files Modified:**
+- `.gitmodules` (new)
+- `vendor/agent-skills` (new submodule)
+- `install.sh` (138 lines added)
+
+**Testing:**
+- All 359 tests passing
+- Bash syntax valid
+- Git operations verified
+
+---
