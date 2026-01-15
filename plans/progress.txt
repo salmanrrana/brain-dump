@@ -1817,3 +1817,214 @@ PRD_COMPLETE
 - Git operations verified
 
 ---
+
+### 2026-01-15 - Create VS Code Launch Function
+- Task: Create launchInVSCode() function for VS Code working method
+- Ticket ID: 5c1809cf-4d0b-4e96-a5f3-6169c9f3a248
+- Success: true
+- Agent: Ralph
+- Branch: main
+
+**Problem:**
+No function existed to open VS Code with project context. Only `launchInTerminal()` existed for spawning terminal emulators.
+
+**Solution:**
+Added two new functions to `src/api/ralph.ts`:
+
+1. **findVSCodeCli()** - Detects VS Code CLI availability
+   - Checks if 'code' is in PATH first (using `which`)
+   - Falls back to common macOS locations:
+     - /Applications/Visual Studio Code.app/Contents/Resources/app/bin/code
+     - /usr/local/bin/code
+     - ~/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code
+   - Returns path to CLI or null if not found
+
+2. **launchInVSCode(projectPath, contextFilePath?)** - Opens VS Code
+   - Verifies project directory exists
+   - Provides helpful error message if code CLI not found
+   - Opens VS Code in new window (-n flag) at project path
+   - Optionally opens context file (-g flag) if provided
+   - Returns discriminated union: `{ success: true } | { success: false; message: string }`
+
+**Files Modified:**
+- `src/api/ralph.ts` (+83 lines)
+
+**Testing:**
+- All 359 tests passing
+- Function follows same pattern as launchInTerminal()
+
+**Notes:**
+- This is a foundation ticket for VS Code working method integration
+- The function will be used by launchRalphForEpic/Ticket when workingMethod is "vscode"
+- Next ticket: Branch Ralph launch flow based on workingMethod (e14154e2)
+
+---
+
+### 2026-01-15 - Branch Ralph Launch Flow Based on workingMethod
+- Task: Add conditional logic to launchRalphForEpic() for VS Code working method
+- Ticket ID: e14154e2-680d-4011-9970-455598afa9c8
+- Success: true
+- Agent: Ralph
+- Branch: main
+
+**Problem:**
+`launchRalphForEpic()` always called `launchInTerminal()` regardless of the project's workingMethod setting.
+
+**Solution:**
+Added conditional branching in `launchRalphForEpic()` based on `project.workingMethod`:
+- When "vscode": calls `launchInVSCode()` with PRD file as context
+- When "claude-code" or "auto": uses existing terminal launch path
+
+**Implementation Details:**
+| Feature | Implementation |
+|---------|----------------|
+| Read workingMethod | `const workingMethod = project.workingMethod \|\| "auto"` |
+| VS Code branch | Calls `launchInVSCode(project.path, prdPath)` |
+| Terminal branch | Continues existing `launchInTerminal()` logic |
+| Logging | `console.log` for debugging which path is taken |
+| Return type | Added `launchMethod: "vscode" \| "terminal"` field |
+
+**Files Modified:**
+- `src/api/ralph.ts` (+24 lines)
+
+**Acceptance Criteria Met:**
+- [x] `launchRalphForEpic()` reads `project.workingMethod` after fetching the project
+- [x] When workingMethod is "vscode", it branches to VS Code launch path
+- [x] When workingMethod is "claude-code" or "auto", it uses existing terminal path
+- [x] Add appropriate logging for which path is taken
+
+**Testing:**
+- All 359 tests passing
+- No new lint or type errors introduced
+
+**Notes:**
+- This ticket builds on 5c1809cf (launchInVSCode function)
+- Next ticket: f02a4635 (Generate Ralph context file for VS Code mode)
+
+---
+
+### 2026-01-15 - Generate Ralph Context File for VS Code Mode
+- Task: Create VS Code context file generation for Ralph mode
+- Ticket ID: f02a4635-53a5-445e-93c9-35e3a603f4df
+- Success: true
+- Agent: Ralph
+- Branch: main
+
+**Problem:**
+Terminal mode generates a bash script with context, but VS Code mode needs a markdown file that Claude can read.
+
+**Solution:**
+Added two new functions to `src/api/ralph.ts`:
+
+1. **generateVSCodeContext(prd)**: Creates markdown content containing:
+   - Project name and epic title
+   - Ralph workflow instructions (8 steps)
+   - Current tickets (incomplete vs completed)
+   - Rules for Ralph
+   - MCP tools reference
+   - Testing requirements
+
+2. **writeVSCodeContext(projectPath, content)**: Writes to `.claude/ralph-context.md`
+
+3. **Updated launchRalphForEpic()**: Now generates context file before launching VS Code
+
+**Files Modified:**
+- `src/api/ralph.ts` (+95 lines)
+
+**Acceptance Criteria Met:**
+- [x] New function `generateVSCodeContext()` created
+- [x] Creates `.claude/ralph-context.md` in project directory
+- [x] Contains PRD with tickets and their status
+- [x] Contains Ralph workflow instructions
+- [x] File is created before VS Code is opened
+
+**Testing:**
+- All 359 tests passing
+- No new lint or type errors introduced
+
+**Notes:**
+- Context file provides same information as bash script but in readable markdown
+- Claude in VS Code can read the file and understand the Ralph workflow
+- Next ticket: 0f1dd3ef (Update launchRalphForTicket for VS Code support)
+
+---
+
+### 2026-01-15 - Update launchRalphForTicket for VS Code Support
+- Task: Add VS Code working method branching to launchRalphForTicket()
+- Ticket ID: 0f1dd3ef-59a7-4dfe-be12-4b65eefe83a6
+- Success: true
+- Agent: Ralph
+- Branch: main
+
+**Problem:**
+`launchRalphForTicket()` always launched a terminal regardless of the project's workingMethod setting, while `launchRalphForEpic()` had been updated to support VS Code mode.
+
+**Solution:**
+Applied the same branching pattern from `launchRalphForEpic()` to `launchRalphForTicket()`:
+
+1. **Read workingMethod**: After fetching the project, check `project.workingMethod`
+2. **VS Code path**: When "vscode", generate context file and call `launchInVSCode()`
+3. **Terminal path**: When "claude-code" or "auto", use existing `launchInTerminal()`
+4. **Return type**: Added `launchMethod` field for consistency with epic function
+
+**Files Modified:**
+- `src/api/ralph.ts` (+30 lines)
+
+**Acceptance Criteria Met:**
+- [x] `launchRalphForTicket()` reads workingMethod from project
+- [x] Branches to VS Code launch when workingMethod is "vscode"
+- [x] Generates appropriate context for single-ticket work (reuses `generateVSCodeContext()`)
+- [x] Maintains backward compatibility with terminal mode
+
+**Testing:**
+- All 359 tests passing
+- No new lint or type errors introduced
+
+**Notes:**
+- Single ticket context works well because PRD is already generated with just that ticket
+- The `launchMethod` field in return type enables UI to show appropriate feedback
+- Next ticket: c28bcd99 (Add user feedback for VS Code launch status)
+
+---
+
+### 2026-01-15 - Add User Feedback for VS Code Launch Status
+- Task: Add VS Code-specific notifications to EpicModal.tsx
+- Ticket ID: c28bcd99-6046-435f-addd-5957eb56c20b
+- Success: true
+- Agent: Ralph
+- Branch: main
+
+**Problem:**
+When VS Code mode is used, the user needs feedback about what happened - did VS Code open? Where is the context file? What should they do next?
+
+**Solution:**
+Updated `src/components/EpicModal.tsx` to show VS Code-specific notifications:
+
+1. **Extended notification state** - Added `launchMethod` and `contextFile` fields to state type
+2. **Extract API response fields** - Use type narrowing to get `launchMethod` and `contextFile` from result
+3. **VS Code-specific UI** - Show "Next steps" instructions when VS Code mode detected:
+   - Open the Ralph context file in VS Code
+   - Start a new chat with Claude
+   - Ask Claude to read and follow the instructions
+4. **Context file path display** - Show truncated path (.claude/ralph-context.md)
+
+**Files Modified:**
+- `src/components/EpicModal.tsx` (+45/-11 lines)
+
+**Acceptance Criteria Met:**
+- [x] Different notification messages for VS Code vs terminal mode
+- [x] Clear instructions shown to user after VS Code opens
+- [x] Error messages if `code` CLI not found (handled by API)
+- [x] Notification includes path to context file
+
+**Testing:**
+- All 359 tests passing
+- Type check passing for EpicModal.tsx
+- Lint warning is pre-existing (unrelated to changes)
+
+**Notes:**
+- API already returned launchMethod and contextFile - UI just needed to display them
+- Conditional rendering keeps terminal notifications unchanged
+- Next ticket: 5028994f (Write tests for VS Code working method flow)
+
+---
