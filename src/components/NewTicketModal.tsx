@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { X, Plus, ChevronDown, Upload, FileIcon, Loader2, Trash2 } from "lucide-react";
 import type { Epic, ProjectWithEpics } from "../lib/hooks";
-import { useCreateTicket } from "../lib/hooks";
+import { useCreateTicket, useTags } from "../lib/hooks";
 import {
   uploadPendingAttachment,
   deletePendingAttachment,
@@ -45,10 +45,42 @@ export default function NewTicketModal({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+  const tagInputRef = useRef<HTMLInputElement>(null);
+  const tagDropdownRef = useRef<HTMLDivElement>(null);
 
   const pendingTicketId = useMemo(() => crypto.randomUUID(), []);
 
   const createTicketMutation = useCreateTicket();
+
+  // Fetch existing tags for the selected project
+  const {
+    tags: existingTags,
+    loading: tagsLoading,
+    error: tagsError,
+  } = useTags(projectId ? { projectId } : {});
+
+  // Filter suggestions based on input
+  const tagSuggestions = useMemo(() => {
+    if (!newTag.trim()) return [];
+    const input = newTag.toLowerCase().trim();
+    return existingTags.filter(
+      (tag) => tag.toLowerCase().includes(input) && !tags.includes(tag)
+    );
+  }, [newTag, existingTags, tags]);
+
+  // Check if current input exactly matches an existing tag (case-insensitive)
+  const inputMatchesExistingTag = useMemo(() => {
+    const input = newTag.toLowerCase().trim();
+    return existingTags.some((tag) => tag.toLowerCase() === input);
+  }, [newTag, existingTags]);
+
+  // Determine if we should show "press Enter" helper
+  const showCreateHelper =
+    newTag.trim().length > 0 &&
+    tagSuggestions.length === 0 &&
+    !inputMatchesExistingTag;
 
   const filteredEpics = projectId
     ? epics.filter((e) => e.projectId === projectId)
@@ -238,13 +270,69 @@ export default function NewTicketModal({
     });
   };
 
-  const addTag = () => {
-    const tag = newTag.trim();
+  const addTag = (tagToAdd?: string) => {
+    const tag = (tagToAdd ?? newTag).trim();
     if (tag && !tags.includes(tag)) {
       setTags([...tags, tag]);
       setNewTag("");
+      setIsTagDropdownOpen(false);
+      setSelectedSuggestionIndex(-1);
     }
   };
+
+  const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const isValidIndex =
+        selectedSuggestionIndex >= 0 &&
+        selectedSuggestionIndex < tagSuggestions.length;
+      if (isValidIndex) {
+        addTag(tagSuggestions[selectedSuggestionIndex]);
+      } else {
+        addTag();
+      }
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setIsTagDropdownOpen(true);
+      setSelectedSuggestionIndex((prev) =>
+        prev < tagSuggestions.length - 1 ? prev + 1 : prev
+      );
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedSuggestionIndex((prev) => (prev > 0 ? prev - 1 : -1));
+    } else if (e.key === "Escape") {
+      setIsTagDropdownOpen(false);
+      setSelectedSuggestionIndex(-1);
+    }
+  };
+
+  const handleTagInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewTag(e.target.value);
+    setSelectedSuggestionIndex(-1);
+    if (e.target.value.trim()) {
+      setIsTagDropdownOpen(true);
+    } else {
+      setIsTagDropdownOpen(false);
+    }
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        tagDropdownRef.current &&
+        !tagDropdownRef.current.contains(e.target as Node) &&
+        tagInputRef.current &&
+        !tagInputRef.current.contains(e.target as Node)
+      ) {
+        setIsTagDropdownOpen(false);
+        setSelectedSuggestionIndex(-1);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const removeTag = (tagToRemove: string) => {
     setTags(tags.filter((t) => t !== tagToRemove));
@@ -417,21 +505,75 @@ export default function NewTicketModal({
                 ))}
               </div>
             )}
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={newTag}
-                onChange={(e) => setNewTag(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addTag()}
-                placeholder="Add tag..."
-                className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-              />
-              <button
-                onClick={addTag}
-                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300"
-              >
-                <Plus size={16} />
-              </button>
+            <div className="relative">
+              <div className="flex gap-2">
+                <input
+                  ref={tagInputRef}
+                  type="text"
+                  value={newTag}
+                  onChange={handleTagInputChange}
+                  onKeyDown={handleTagInputKeyDown}
+                  onFocus={() => newTag.trim() && setIsTagDropdownOpen(true)}
+                  placeholder="Add tag..."
+                  className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  onClick={() => addTag()}
+                  className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300"
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
+
+              {/* Tag suggestions dropdown */}
+              {isTagDropdownOpen && (tagsLoading || tagSuggestions.length > 0) && (
+                <div
+                  ref={tagDropdownRef}
+                  className="absolute z-10 left-0 right-12 mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-lg max-h-40 overflow-y-auto"
+                >
+                  {tagsLoading ? (
+                    <div className="flex items-center justify-center gap-2 px-3 py-2 text-slate-400 text-sm">
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>Loading tags...</span>
+                    </div>
+                  ) : (
+                    tagSuggestions.map((tag, index) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => addTag(tag)}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-700 ${
+                          index === selectedSuggestionIndex
+                            ? "bg-slate-700 text-cyan-400"
+                            : "text-gray-100"
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {/* Tag loading error */}
+              {tagsError && (
+                <p className="mt-1 text-xs text-red-400">
+                  Failed to load tags: {tagsError}
+                </p>
+              )}
+
+              {/* Helper text for creating new tags */}
+              {showCreateHelper && (
+                <p className="mt-1 text-xs text-slate-500">
+                  Press{" "}
+                  <kbd className="px-1 py-0.5 bg-slate-700 rounded text-slate-400">
+                    Enter
+                  </kbd>{" "}
+                  to create &quot;{newTag.trim()}&quot; as a new tag
+                </p>
+              )}
             </div>
           </div>
 

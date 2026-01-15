@@ -85,24 +85,30 @@ export function useModalKeyboard(
  * @param ref - Ref to the container element
  * @param onClickOutside - Callback when clicked outside
  * @param isActive - Whether to listen for clicks (e.g., when dropdown is open)
+ * @param excludeRef - Optional ref to exclude from click-outside detection (e.g., a trigger button)
  */
 export function useClickOutside(
   ref: RefObject<HTMLElement | null>,
   onClickOutside: () => void,
-  isActive: boolean = true
+  isActive: boolean = true,
+  excludeRef?: RefObject<HTMLElement | null>
 ) {
   useEffect(() => {
     if (!isActive) return;
 
     const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const clickedOutsideMain = ref.current && !ref.current.contains(target);
+      const clickedOutsideExclude = !excludeRef?.current || !excludeRef.current.contains(target);
+
+      if (clickedOutsideMain && clickedOutsideExclude) {
         onClickOutside();
       }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [ref, onClickOutside, isActive]);
+  }, [ref, onClickOutside, isActive, excludeRef]);
 }
 
 // =============================================================================

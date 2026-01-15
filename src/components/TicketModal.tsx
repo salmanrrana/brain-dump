@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useModalKeyboard, useClickOutside } from "../lib/hooks";
 import {
   X,
@@ -18,7 +18,7 @@ import {
   Send,
 } from "lucide-react";
 import type { Ticket, Epic } from "../lib/hooks";
-import { useUpdateTicket, useSettings, useLaunchRalphForTicket, useComments, useCreateComment } from "../lib/hooks";
+import { useUpdateTicket, useSettings, useLaunchRalphForTicket, useComments, useCreateComment, useTags } from "../lib/hooks";
 import { useToast } from "./Toast";
 import type { Subtask, TicketStatus, TicketPriority } from "../api/tickets";
 import {
@@ -76,6 +76,10 @@ export default function TicketModal({
     ticket.blockedReason ?? ""
   );
   const [newTag, setNewTag] = useState("");
+  const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+  const tagInputRef = useRef<HTMLInputElement>(null);
+  const tagDropdownRef = useRef<HTMLDivElement>(null);
   const [newSubtask, setNewSubtask] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
@@ -109,6 +113,32 @@ export default function TicketModal({
   const [newComment, setNewComment] = useState("");
   const [showComments, setShowComments] = useState(true);
 
+  // Fetch existing tags for the ticket's project
+  const {
+    tags: existingTags,
+    loading: tagsLoading,
+    error: tagsError,
+  } = useTags(ticket.projectId ? { projectId: ticket.projectId } : {});
+
+  // Filter suggestions based on input and determine helper visibility
+  const { tagSuggestions, showCreateHelper } = useMemo(() => {
+    const trimmedInput = newTag.trim();
+    if (!trimmedInput) {
+      return { tagSuggestions: [], showCreateHelper: false };
+    }
+
+    const inputLower = trimmedInput.toLowerCase();
+    const suggestions = existingTags.filter(
+      (tag) => tag.toLowerCase().includes(inputLower) && !tags.includes(tag)
+    );
+    const exactMatch = existingTags.some((tag) => tag.toLowerCase() === inputLower);
+
+    return {
+      tagSuggestions: suggestions,
+      showCreateHelper: suggestions.length === 0 && !exactMatch,
+    };
+  }, [newTag, existingTags, tags]);
+
   // Modal keyboard handling (Escape, focus trap)
   useModalKeyboard(modalRef, onClose, {
     shouldPreventClose: useCallback(() => showStartWorkMenu, [showStartWorkMenu]),
@@ -117,6 +147,13 @@ export default function TicketModal({
 
   // Close dropdown when clicking outside
   useClickOutside(startWorkMenuRef, useCallback(() => setShowStartWorkMenu(false), []), showStartWorkMenu);
+
+  // Close tag dropdown when clicking outside
+  const closeTagDropdown = useCallback(() => {
+    setIsTagDropdownOpen(false);
+    setSelectedSuggestionIndex(-1);
+  }, []);
+  useClickOutside(tagDropdownRef, closeTagDropdown, isTagDropdownOpen, tagInputRef);
 
   // Fetch attachments on mount
   useEffect(() => {
@@ -405,12 +442,44 @@ export default function TicketModal({
     updateTicketMutation,
   ]);
 
-  const addTag = () => {
-    const tag = newTag.trim();
+  const addTag = (tagToAdd?: string) => {
+    const tag = (tagToAdd ?? newTag).trim();
     if (tag && !tags.includes(tag)) {
       setTags([...tags, tag]);
       setNewTag("");
+      closeTagDropdown();
     }
+  };
+
+  const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    switch (e.key) {
+      case "Enter": {
+        e.preventDefault();
+        const selectedTag = tagSuggestions[selectedSuggestionIndex];
+        addTag(selectedTag);
+        break;
+      }
+      case "ArrowDown":
+        e.preventDefault();
+        setIsTagDropdownOpen(true);
+        setSelectedSuggestionIndex((prev) =>
+          prev < tagSuggestions.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setSelectedSuggestionIndex((prev) => (prev > 0 ? prev - 1 : -1));
+        break;
+      case "Escape":
+        closeTagDropdown();
+        break;
+    }
+  };
+
+  const handleTagInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewTag(e.target.value);
+    setSelectedSuggestionIndex(-1);
+    setIsTagDropdownOpen(!!e.target.value.trim());
   };
 
   const removeTag = (tagToRemove: string) => {
@@ -624,37 +693,95 @@ export default function TicketModal({
             <label className="block text-sm font-medium text-slate-400 mb-1">
               Tags
             </label>
-            <div className="flex flex-wrap gap-2 mb-2">
-              {tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="flex items-center gap-1 px-2 py-1 bg-slate-700 text-slate-300 rounded text-sm"
-                >
-                  {tag}
-                  <button
-                    onClick={() => removeTag(tag)}
-                    className="hover:text-red-400"
+            {tags.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="flex items-center gap-1 px-2 py-1 bg-slate-700 text-slate-300 rounded text-sm"
                   >
-                    <X size={12} />
-                  </button>
-                </span>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={newTag}
-                onChange={(e) => setNewTag(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addTag()}
-                placeholder="Add tag..."
-                className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-              />
-              <button
-                onClick={addTag}
-                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300"
-              >
-                <Plus size={16} />
-              </button>
+                    {tag}
+                    <button
+                      onClick={() => removeTag(tag)}
+                      className="hover:text-red-400"
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="relative">
+              <div className="flex gap-2">
+                <input
+                  ref={tagInputRef}
+                  type="text"
+                  value={newTag}
+                  onChange={handleTagInputChange}
+                  onKeyDown={handleTagInputKeyDown}
+                  onFocus={() => {
+                    if (newTag.trim()) setIsTagDropdownOpen(true);
+                  }}
+                  placeholder="Add tag..."
+                  className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  onClick={() => addTag()}
+                  className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300"
+                >
+                  <Plus size={16} />
+                </button>
+              </div>
+
+              {/* Tag suggestions dropdown */}
+              {isTagDropdownOpen && (tagsLoading || tagSuggestions.length > 0) && (
+                <div
+                  ref={tagDropdownRef}
+                  className="absolute z-10 left-0 right-12 mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-lg max-h-40 overflow-y-auto"
+                >
+                  {tagsLoading ? (
+                    <div className="flex items-center justify-center gap-2 px-3 py-2 text-slate-400 text-sm">
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>Loading tags...</span>
+                    </div>
+                  ) : (
+                    tagSuggestions.map((tag, index) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => addTag(tag)}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-700 ${
+                          index === selectedSuggestionIndex
+                            ? "bg-slate-700 text-cyan-400"
+                            : "text-gray-100"
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {/* Tag loading error */}
+              {tagsError && (
+                <p className="mt-1 text-xs text-red-400">
+                  Failed to load tags: {tagsError}
+                </p>
+              )}
+
+              {/* Helper text for creating new tags */}
+              {showCreateHelper && (
+                <p className="mt-1 text-xs text-slate-500">
+                  Press{" "}
+                  <kbd className="px-1 py-0.5 bg-slate-700 rounded text-slate-400">
+                    Enter
+                  </kbd>{" "}
+                  to create &quot;{newTag.trim()}&quot; as a new tag
+                </p>
+              )}
             </div>
           </div>
 
