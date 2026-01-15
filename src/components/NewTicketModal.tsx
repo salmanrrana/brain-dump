@@ -55,7 +55,11 @@ export default function NewTicketModal({
   const createTicketMutation = useCreateTicket();
 
   // Fetch existing tags for the selected project
-  const { tags: existingTags } = useTags(projectId ? { projectId } : {});
+  const {
+    tags: existingTags,
+    loading: tagsLoading,
+    error: tagsError,
+  } = useTags(projectId ? { projectId } : {});
 
   // Filter suggestions based on input
   const tagSuggestions = useMemo(() => {
@@ -279,10 +283,10 @@ export default function NewTicketModal({
   const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      if (
+      const isValidIndex =
         selectedSuggestionIndex >= 0 &&
-        tagSuggestions[selectedSuggestionIndex]
-      ) {
+        selectedSuggestionIndex < tagSuggestions.length;
+      if (isValidIndex) {
         addTag(tagSuggestions[selectedSuggestionIndex]);
       } else {
         addTag();
@@ -524,26 +528,40 @@ export default function NewTicketModal({
               </div>
 
               {/* Tag suggestions dropdown */}
-              {isTagDropdownOpen && tagSuggestions.length > 0 && (
+              {isTagDropdownOpen && (tagsLoading || tagSuggestions.length > 0) && (
                 <div
                   ref={tagDropdownRef}
                   className="absolute z-10 left-0 right-12 mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-lg max-h-40 overflow-y-auto"
                 >
-                  {tagSuggestions.map((tag, index) => (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => addTag(tag)}
-                      className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-700 ${
-                        index === selectedSuggestionIndex
-                          ? "bg-slate-700 text-cyan-400"
-                          : "text-gray-100"
-                      }`}
-                    >
-                      {tag}
-                    </button>
-                  ))}
+                  {tagsLoading ? (
+                    <div className="flex items-center justify-center gap-2 px-3 py-2 text-slate-400 text-sm">
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>Loading tags...</span>
+                    </div>
+                  ) : (
+                    tagSuggestions.map((tag, index) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => addTag(tag)}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-700 ${
+                          index === selectedSuggestionIndex
+                            ? "bg-slate-700 text-cyan-400"
+                            : "text-gray-100"
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    ))
+                  )}
                 </div>
+              )}
+
+              {/* Tag loading error */}
+              {tagsError && (
+                <p className="mt-1 text-xs text-red-400">
+                  Failed to load tags: {tagsError}
+                </p>
               )}
 
               {/* Helper text for creating new tags */}
