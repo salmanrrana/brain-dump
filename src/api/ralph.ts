@@ -171,17 +171,28 @@ ${prd.testingRequirements.map((req) => `- ${req}`).join("\n")}
 }
 
 // Write VS Code context file to project
-async function writeVSCodeContext(projectPath: string, content: string): Promise<string> {
+async function writeVSCodeContext(
+  projectPath: string,
+  content: string
+): Promise<{ success: true; path: string } | { success: false; message: string }> {
   const { writeFileSync, mkdirSync } = await import("fs");
   const { join } = await import("path");
 
   const claudeDir = join(projectPath, ".claude");
-  mkdirSync(claudeDir, { recursive: true });
-
   const contextPath = join(claudeDir, "ralph-context.md");
-  writeFileSync(contextPath, content, "utf-8");
 
-  return contextPath;
+  try {
+    mkdirSync(claudeDir, { recursive: true });
+    writeFileSync(contextPath, content, "utf-8");
+    return { success: true, path: contextPath };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error(`[brain-dump] Failed to write VS Code context file to ${contextPath}:`, error);
+    return {
+      success: false,
+      message: `Failed to create Ralph context file in ${claudeDir}: ${message}. Check write permissions and disk space.`,
+    };
+  }
 }
 
 // Generate the Ralph bash script (unified for both native and Docker)
@@ -574,12 +585,27 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
 
       // Generate the context file for Claude in VS Code (single ticket PRD)
       const contextContent = generateVSCodeContext(prd);
-      const contextPath = await writeVSCodeContext(project.path, contextContent);
-      console.log(`[brain-dump] Created Ralph context file: ${contextPath}`);
+      const contextResult = await writeVSCodeContext(project.path, contextContent);
 
-      const launchResult = await launchInVSCode(project.path, contextPath);
+      if (!contextResult.success) {
+        // Rollback ticket status since launch failed
+        db.update(tickets)
+          .set({ status: ticket.status })
+          .where(eq(tickets.id, ticketId))
+          .run();
+        return contextResult;
+      }
+
+      console.log(`[brain-dump] Created Ralph context file: ${contextResult.path}`);
+
+      const launchResult = await launchInVSCode(project.path, contextResult.path);
 
       if (!launchResult.success) {
+        // Rollback ticket status since launch failed
+        db.update(tickets)
+          .set({ status: ticket.status })
+          .where(eq(tickets.id, ticketId))
+          .run();
         return launchResult;
       }
 
@@ -587,7 +613,7 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
         success: true,
         message: `Opened VS Code with Ralph context for ticket "${ticket.title}". Check .claude/ralph-context.md for instructions.`,
         launchMethod: "vscode" as const,
-        contextFile: contextPath,
+        contextFile: contextResult.path,
       };
     }
 
@@ -705,12 +731,31 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
 
       // Generate the context file for Claude in VS Code
       const contextContent = generateVSCodeContext(prd);
-      const contextPath = await writeVSCodeContext(project.path, contextContent);
-      console.log(`[brain-dump] Created Ralph context file: ${contextPath}`);
+      const contextResult = await writeVSCodeContext(project.path, contextContent);
 
-      const launchResult = await launchInVSCode(project.path, contextPath);
+      if (!contextResult.success) {
+        // Rollback ticket statuses since launch failed
+        for (const ticket of epicTickets) {
+          db.update(tickets)
+            .set({ status: ticket.status })
+            .where(eq(tickets.id, ticket.id))
+            .run();
+        }
+        return contextResult;
+      }
+
+      console.log(`[brain-dump] Created Ralph context file: ${contextResult.path}`);
+
+      const launchResult = await launchInVSCode(project.path, contextResult.path);
 
       if (!launchResult.success) {
+        // Rollback ticket statuses since launch failed
+        for (const ticket of epicTickets) {
+          db.update(tickets)
+            .set({ status: ticket.status })
+            .where(eq(tickets.id, ticket.id))
+            .run();
+        }
         return launchResult;
       }
 
@@ -718,7 +763,7 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
         success: true,
         message: `Opened VS Code with Ralph context for ${epicTickets.length} tickets. Check .claude/ralph-context.md for instructions.`,
         launchMethod: "vscode" as const,
-        contextFile: contextPath,
+        contextFile: contextResult.path,
         ticketCount: epicTickets.length,
       };
     }
