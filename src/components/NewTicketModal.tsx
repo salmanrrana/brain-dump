@@ -1,7 +1,13 @@
-import { useState, useEffect, useRef } from "react";
-import { X, Plus, ChevronDown } from "lucide-react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { X, Plus, ChevronDown, Upload, FileIcon, Loader2, Trash2 } from "lucide-react";
 import type { Epic, ProjectWithEpics } from "../lib/hooks";
 import { useCreateTicket } from "../lib/hooks";
+import {
+  uploadPendingAttachment,
+  deletePendingAttachment,
+  deletePendingAttachments,
+  type Attachment,
+} from "../api/attachments";
 
 interface NewTicketModalProps {
   projects: ProjectWithEpics[];
@@ -27,6 +33,7 @@ export default function NewTicketModal({
 }: NewTicketModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("");
@@ -35,18 +42,20 @@ export default function NewTicketModal({
   const [tags, setTags] = useState<string[]>([]);
   const [newTag, setNewTag] = useState("");
 
-  // Use mutation hook - handles loading state and cache invalidation automatically
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+
+  const pendingTicketId = useMemo(() => crypto.randomUUID(), []);
+
   const createTicketMutation = useCreateTicket();
 
-  // Filter epics by selected project
   const filteredEpics = projectId
     ? epics.filter((e) => e.projectId === projectId)
     : [];
 
-  // Get selected project for display
   const selectedProject = projects.find((p) => p.id === projectId);
 
-  // Clear epic when project changes (if epic doesn't belong to new project)
   useEffect(() => {
     if (epicId) {
       const epic = epics.find((e) => e.id === epicId);
@@ -56,18 +65,103 @@ export default function NewTicketModal({
     }
   }, [projectId, epicId, epics]);
 
-  // Handle Escape key
+  const handleFileUpload = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0) return;
+
+      setIsUploadingAttachment(true);
+      try {
+        for (const file of Array.from(files)) {
+          if (file.size > 10 * 1024 * 1024) {
+            alert(`File "${file.name}" exceeds 10MB limit`);
+            continue;
+          }
+
+          const reader = new FileReader();
+          const base64 = await new Promise<string>((resolve, reject) => {
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => reject(new Error(`Failed to read file "${file.name}"`));
+            reader.readAsDataURL(file);
+          });
+
+          const newAttachment = await uploadPendingAttachment({
+            data: {
+              ticketId: pendingTicketId,
+              filename: file.name,
+              data: base64,
+            },
+          });
+
+          setAttachments((prev) => [...prev, newAttachment]);
+        }
+      } catch (error) {
+        console.error("Failed to upload attachment:", error);
+        alert(error instanceof Error ? error.message : "Failed to upload attachment");
+      } finally {
+        setIsUploadingAttachment(false);
+      }
+    },
+    [pendingTicketId]
+  );
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDraggingOver(false);
+      void handleFileUpload(e.dataTransfer.files);
+    },
+    [handleFileUpload]
+  );
+
+  const handleDeleteAttachment = useCallback(
+    async (attachment: Attachment) => {
+      try {
+        await deletePendingAttachment({
+          data: {
+            ticketId: pendingTicketId,
+            filename: attachment.filename,
+          },
+        });
+        setAttachments((prev) => prev.filter((a) => a.id !== attachment.id));
+      } catch (error) {
+        console.error("Failed to delete attachment:", error);
+        alert(error instanceof Error ? error.message : "Failed to delete attachment");
+      }
+    },
+    [pendingTicketId]
+  );
+
+  const handleClose = useCallback(async () => {
+    if (attachments.length > 0) {
+      try {
+        await deletePendingAttachments({ data: pendingTicketId });
+      } catch (error) {
+        console.error("Failed to clean up attachments:", error);
+      }
+    }
+    onClose();
+  }, [attachments.length, pendingTicketId, onClose]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
+        void handleClose();
       }
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  }, [handleClose]);
 
-  // Focus trap
   useEffect(() => {
     const modal = modalRef.current;
     if (!modal) return;
@@ -103,18 +197,20 @@ export default function NewTicketModal({
   }, []);
 
   const handleCreate = () => {
-    // Validation
     const trimmedTitle = title.trim();
     if (!trimmedTitle || !projectId) return;
 
     const ticketData: {
+      id: string;
       title: string;
       projectId: string;
       description?: string;
       priority?: "high" | "medium" | "low";
       epicId?: string;
       tags?: string[];
+      attachments?: string[];
     } = {
+      id: pendingTicketId,
       title: trimmedTitle,
       projectId,
     };
@@ -131,11 +227,13 @@ export default function NewTicketModal({
     if (tags.length > 0) {
       ticketData.tags = tags;
     }
+    if (attachments.length > 0) {
+      ticketData.attachments = attachments.map((a) => a.filename);
+    }
 
-    // Use mutation - it handles cache invalidation automatically!
     createTicketMutation.mutate(ticketData, {
       onSuccess: () => {
-        onCreate(); // Close modal and notify parent
+        onCreate();
       },
     });
   };
@@ -154,14 +252,12 @@ export default function NewTicketModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60"
-        onClick={onClose}
+        onClick={() => void handleClose()}
         aria-hidden="true"
       />
 
-      {/* Modal */}
       <div
         ref={modalRef}
         role="dialog"
@@ -169,13 +265,12 @@ export default function NewTicketModal({
         aria-labelledby="modal-title"
         className="relative bg-slate-900 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
       >
-        {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-slate-800">
           <h2 id="modal-title" className="text-lg font-semibold text-gray-100">
             New Ticket
           </h2>
           <button
-            onClick={onClose}
+            onClick={() => void handleClose()}
             className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-gray-100"
             aria-label="Close modal"
           >
@@ -183,9 +278,7 @@ export default function NewTicketModal({
           </button>
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* Error */}
           {createTicketMutation.error && (
             <div className="p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-300 text-sm">
               {createTicketMutation.error instanceof Error
@@ -194,7 +287,6 @@ export default function NewTicketModal({
             </div>
           )}
 
-          {/* Title */}
           <div>
             <label className="block text-sm font-medium text-slate-400 mb-1">
               Title <span className="text-red-400">*</span>
@@ -209,7 +301,6 @@ export default function NewTicketModal({
             />
           </div>
 
-          {/* Description */}
           <div>
             <label className="block text-sm font-medium text-slate-400 mb-1">
               Description
@@ -223,7 +314,6 @@ export default function NewTicketModal({
             />
           </div>
 
-          {/* Project (required) */}
           <div>
             <label className="block text-sm font-medium text-slate-400 mb-1">
               Project <span className="text-red-400">*</span>
@@ -253,7 +343,6 @@ export default function NewTicketModal({
             )}
           </div>
 
-          {/* Priority and Epic */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-400 mb-1">
@@ -306,7 +395,6 @@ export default function NewTicketModal({
             </div>
           </div>
 
-          {/* Tags */}
           <div>
             <label className="block text-sm font-medium text-slate-400 mb-1">
               Tags
@@ -347,16 +435,113 @@ export default function NewTicketModal({
             </div>
           </div>
 
-          {/* Info */}
+          <div>
+            <label className="block text-sm font-medium text-slate-400 mb-2">
+              Attachments
+              {attachments.length > 0 && (
+                <span className="ml-2 text-slate-500">({attachments.length})</span>
+              )}
+            </label>
+
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+                isDraggingOver
+                  ? "border-cyan-500 bg-cyan-500/10"
+                  : "border-slate-700 hover:border-slate-600"
+              }`}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={(e) => void handleFileUpload(e.target.files)}
+                className="hidden"
+              />
+              {isUploadingAttachment ? (
+                <div className="flex items-center justify-center gap-2 text-slate-400">
+                  <Loader2 size={20} className="animate-spin" />
+                  <span>Uploading...</span>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Upload size={24} className="mx-auto text-slate-500" />
+                  <p className="text-sm text-slate-400">
+                    Drag and drop files here, or{" "}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-cyan-400 hover:text-cyan-300 underline"
+                    >
+                      browse
+                    </button>
+                  </p>
+                  <p className="text-xs text-slate-500">Max file size: 10MB</p>
+                </div>
+              )}
+            </div>
+
+            {attachments.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {attachments.map((attachment) => (
+                  <div
+                    key={attachment.id}
+                    className="flex items-center gap-3 p-2 bg-slate-800 rounded-lg group"
+                  >
+                    {attachment.isImage ? (
+                      <a
+                        href={attachment.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-shrink-0"
+                      >
+                        <img
+                          src={attachment.url}
+                          alt={attachment.filename}
+                          className="w-12 h-12 object-cover rounded"
+                        />
+                      </a>
+                    ) : (
+                      <div className="w-12 h-12 bg-slate-700 rounded flex items-center justify-center">
+                        <FileIcon size={20} className="text-slate-400" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <a
+                        href={attachment.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-gray-100 hover:text-cyan-400 truncate block"
+                      >
+                        {attachment.filename}
+                      </a>
+                      <p className="text-xs text-slate-500">
+                        {(attachment.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => void handleDeleteAttachment(attachment)}
+                      className="p-1 text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Delete"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="text-xs text-slate-500">
             Ticket will be created in <strong>Backlog</strong> status.
           </div>
         </div>
 
-        {/* Footer */}
         <div className="flex justify-end gap-3 p-4 border-t border-slate-800">
           <button
-            onClick={onClose}
+            onClick={() => void handleClose()}
             className="px-4 py-2 text-slate-400 hover:text-gray-100 hover:bg-slate-800 rounded-lg transition-colors"
           >
             Cancel

@@ -318,4 +318,53 @@ test.describe("Brain Dump E2E Tests", () => {
       await expect(page.locator("button:has-text('Start Work')")).toBeVisible();
     });
   });
+
+  test.describe("Attachments in New Ticket Modal", () => {
+    test("should show attachment section in new ticket modal", async ({ page }) => {
+      await page.getByRole("button", { name: "New Ticket" }).click();
+      await expect(page.locator("h2:has-text('New Ticket')")).toBeVisible({ timeout: 10000 });
+
+      await expect(page.locator("text=Attachments")).toBeVisible();
+      await expect(page.locator("text=Drag and drop files here")).toBeVisible();
+      await expect(page.locator("text=Max file size: 10MB")).toBeVisible();
+      await expect(page.locator("button:has-text('browse')")).toBeVisible();
+
+      await page.keyboard.press("Escape");
+    });
+
+    test("should show upload zone with visual feedback area", async ({ page }) => {
+      await page.getByRole("button", { name: "New Ticket" }).click();
+      await expect(page.locator("h2:has-text('New Ticket')")).toBeVisible({ timeout: 10000 });
+
+      const dropZone = page.locator(".border-dashed");
+      await expect(dropZone).toBeVisible();
+      await expect(dropZone.locator("text=Drag and drop files here")).toBeVisible();
+
+      await page.keyboard.press("Escape");
+    });
+
+    test("should create ticket without attachments", async ({ page }) => {
+      await page.getByRole("button", { name: "New Ticket" }).click();
+      await expect(page.locator("h2:has-text('New Ticket')")).toBeVisible({ timeout: 10000 });
+
+      await page.getByPlaceholder("What needs to be done?").fill("Ticket without attachments");
+      await page.locator("select").first().selectOption({ index: 1 });
+
+      await page.getByRole("button", { name: "Create Ticket" }).click();
+
+      await expect(page.locator("h2:has-text('New Ticket')")).not.toBeVisible({ timeout: 10000 });
+      await expect(page.locator("text=Ticket without attachments").first()).toBeVisible();
+    });
+
+    test("should have file input for attachment uploads", async ({ page }) => {
+      await page.getByRole("button", { name: "New Ticket" }).click();
+      await expect(page.locator("h2:has-text('New Ticket')")).toBeVisible({ timeout: 10000 });
+
+      const fileInput = page.locator('input[type="file"]');
+      await expect(fileInput).toHaveCount(1);
+      await expect(fileInput).toHaveAttribute("multiple", "");
+
+      await page.keyboard.press("Escape");
+    });
+  });
 });
