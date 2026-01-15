@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import { db } from "../lib/db";
-import { tickets, projects, epics } from "../lib/schema";
+import { db, sqlite } from "../lib/db";
+import { tickets, projects, epics, ticketComments } from "../lib/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
@@ -330,21 +330,86 @@ export const updateTicketPosition = createServerFn({ method: "POST" })
     return db.select().from(tickets).where(eq(tickets.id, id)).get();
   });
 
-// Delete a ticket
+// Delete a ticket with dry-run preview support
+export interface DeleteTicketInput {
+  ticketId: string;
+  confirm?: boolean;
+}
+
+export interface DeleteTicketPreview {
+  preview: true;
+  ticket: {
+    id: string;
+    title: string;
+    status: string;
+    projectId: string;
+    epicId: string | null;
+    description: string | null;
+  };
+  commentCount: number;
+}
+
+export interface DeleteTicketResult {
+  deleted: true;
+  ticket: {
+    id: string;
+    title: string;
+  };
+  commentCount: number;
+}
+
 export const deleteTicket = createServerFn({ method: "POST" })
-  .inputValidator((id: string) => {
-    if (!id) {
+  .inputValidator((input: DeleteTicketInput) => {
+    if (!input.ticketId) {
       throw new Error("Ticket ID is required");
     }
-    return id;
+    return input;
   })
-  .handler(async ({ data: id }) => {
-    const existing = db.select().from(tickets).where(eq(tickets.id, id)).get();
-    if (!existing) {
-      throw new Error(`Ticket not found: ${id}`);
+  .handler(async ({ data: { ticketId, confirm = false } }): Promise<DeleteTicketPreview | DeleteTicketResult> => {
+    const ticket = db.select().from(tickets).where(eq(tickets.id, ticketId)).get();
+    if (!ticket) {
+      throw new Error(`Ticket not found: ${ticketId}`);
     }
 
-    db.delete(tickets).where(eq(tickets.id, id)).run();
+    // Count comments that would be deleted
+    const commentCountResult = db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(ticketComments)
+      .where(eq(ticketComments.ticketId, ticketId))
+      .get();
+    const commentCount = commentCountResult?.count ?? 0;
 
-    return { success: true, deletedId: id };
+    // Dry-run: return preview of what would be deleted
+    if (!confirm) {
+      return {
+        preview: true,
+        ticket: {
+          id: ticket.id,
+          title: ticket.title,
+          status: ticket.status,
+          projectId: ticket.projectId,
+          epicId: ticket.epicId,
+          description: ticket.description,
+        },
+        commentCount,
+      };
+    }
+
+    // Actually delete (comments cascade automatically via FK constraint)
+    // Use transaction for atomicity
+    sqlite.transaction(() => {
+      // Delete comments first (even though FK cascade would handle it)
+      db.delete(ticketComments).where(eq(ticketComments.ticketId, ticketId)).run();
+      // Delete the ticket
+      db.delete(tickets).where(eq(tickets.id, ticketId)).run();
+    })();
+
+    return {
+      deleted: true,
+      ticket: {
+        id: ticket.id,
+        title: ticket.title,
+      },
+      commentCount,
+    };
   });

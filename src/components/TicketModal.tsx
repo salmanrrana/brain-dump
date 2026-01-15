@@ -261,12 +261,16 @@ export default function TicketModal({
       const contextResult = await getTicketContext({ data: ticket.id });
 
       // Try to launch Claude in terminal with preferred terminal from settings
+      // Window title format: [Project][Epic][Ticket] or [Project][Ticket]
       const launchResult = await launchClaudeInTerminal({
         data: {
           ticketId: ticket.id,
           context: contextResult.context,
           projectPath: contextResult.projectPath,
           preferredTerminal: settings?.terminalEmulator ?? null,
+          projectName: contextResult.projectName,
+          epicName: contextResult.epicName,
+          ticketTitle: contextResult.ticketTitle,
         },
       });
 

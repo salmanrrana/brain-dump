@@ -100,7 +100,7 @@ export default function EpicModal({
   const handleDelete = () => {
     if (!epic) return;
 
-    deleteMutation.mutate(epic.id, {
+    deleteMutation.mutate({ epicId: epic.id, confirm: true }, {
       onSuccess: onSave,
       onError: () => setShowDeleteConfirm(false),
     });

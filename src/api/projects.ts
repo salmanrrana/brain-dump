@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
-import { db } from "../lib/db";
-import { projects } from "../lib/schema";
-import { eq } from "drizzle-orm";
+import { db, sqlite } from "../lib/db";
+import { projects, epics, tickets, ticketComments } from "../lib/schema";
+import { eq, sql, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { existsSync } from "fs";
 import { ensureExists } from "../lib/utils";
@@ -84,19 +84,134 @@ export const updateProject = createServerFn({ method: "POST" })
     return db.select().from(projects).where(eq(projects.id, id)).get();
   });
 
-// Delete a project (cascades to epics and tickets)
+// Delete a project with dry-run preview support
+// Note: This cascades to delete ALL epics, tickets, and comments
+export interface DeleteProjectInput {
+  projectId: string;
+  confirm?: boolean;
+}
+
+export interface ProjectTicketInfo {
+  id: string;
+  title: string;
+  status: string;
+  epicId: string | null;
+}
+
+export interface ProjectEpicInfo {
+  id: string;
+  title: string;
+}
+
+export interface DeleteProjectPreview {
+  preview: true;
+  project: {
+    id: string;
+    name: string;
+    path: string;
+  };
+  epics: ProjectEpicInfo[];
+  tickets: ProjectTicketInfo[];
+  commentCount: number;
+}
+
+export interface DeleteProjectResult {
+  deleted: true;
+  project: {
+    id: string;
+    name: string;
+  };
+  epicCount: number;
+  ticketCount: number;
+  commentCount: number;
+}
+
 export const deleteProject = createServerFn({ method: "POST" })
-  .inputValidator((id: string) => {
-    if (!id) {
+  .inputValidator((input: DeleteProjectInput) => {
+    if (!input.projectId) {
       throw new Error("Project ID is required");
     }
-    return id;
+    return input;
   })
-  .handler(async ({ data: id }) => {
-    const existing = db.select().from(projects).where(eq(projects.id, id)).get();
-    ensureExists(existing, "Project", id);
+  .handler(async ({ data: { projectId, confirm = false } }): Promise<DeleteProjectPreview | DeleteProjectResult> => {
+    const projectResult = db.select().from(projects).where(eq(projects.id, projectId)).get();
+    const project = ensureExists(projectResult, "Project", projectId);
 
-    db.delete(projects).where(eq(projects.id, id)).run();
+    // Gather all data that would be deleted
+    const projectEpics = db
+      .select({
+        id: epics.id,
+        title: epics.title,
+      })
+      .from(epics)
+      .where(eq(epics.projectId, projectId))
+      .all();
 
-    return { success: true, deletedId: id };
+    const projectTickets = db
+      .select({
+        id: tickets.id,
+        title: tickets.title,
+        status: tickets.status,
+        epicId: tickets.epicId,
+      })
+      .from(tickets)
+      .where(eq(tickets.projectId, projectId))
+      .all();
+
+    // Count comments across all tickets
+    let commentCount = 0;
+    if (projectTickets.length > 0) {
+      const ticketIds = projectTickets.map(t => t.id);
+      const commentResult = db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(ticketComments)
+        .where(inArray(ticketComments.ticketId, ticketIds))
+        .get();
+      commentCount = commentResult?.count ?? 0;
+    }
+
+    // Dry-run: return preview of what would be deleted
+    if (!confirm) {
+      return {
+        preview: true,
+        project: {
+          id: project.id,
+          name: project.name,
+          path: project.path,
+        },
+        epics: projectEpics,
+        tickets: projectTickets,
+        commentCount,
+      };
+    }
+
+    // Actually delete (use transaction for atomicity)
+    // Note: FK cascade should handle most of this, but we do it explicitly for clarity
+    sqlite.transaction(() => {
+      // 1. Delete comments for all project tickets
+      if (projectTickets.length > 0) {
+        const ticketIds = projectTickets.map(t => t.id);
+        db.delete(ticketComments).where(inArray(ticketComments.ticketId, ticketIds)).run();
+      }
+
+      // 2. Delete tickets
+      db.delete(tickets).where(eq(tickets.projectId, projectId)).run();
+
+      // 3. Delete epics
+      db.delete(epics).where(eq(epics.projectId, projectId)).run();
+
+      // 4. Delete project
+      db.delete(projects).where(eq(projects.id, projectId)).run();
+    })();
+
+    return {
+      deleted: true,
+      project: {
+        id: project.id,
+        name: project.name,
+      },
+      epicCount: projectEpics.length,
+      ticketCount: projectTickets.length,
+      commentCount,
+    };
   });

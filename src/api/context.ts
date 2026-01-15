@@ -175,5 +175,7 @@ export const getTicketContext = createServerFn({ method: "GET" })
       projectPath: project.path,
       ticketId: ticket.id,
       ticketTitle: ticket.title,
+      projectName: project.name,
+      epicName: epic?.title ?? null,
     };
   });

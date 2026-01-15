@@ -85,7 +85,7 @@ export default function ProjectModal({
   const handleDelete = () => {
     if (!project) return;
 
-    deleteMutation.mutate(project.id, {
+    deleteMutation.mutate({ projectId: project.id, confirm: true }, {
       onSuccess: onSave,
       onError: () => setShowDeleteConfirm(false),
     });

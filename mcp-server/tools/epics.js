@@ -88,4 +88,81 @@ Returns the created epic.`,
       };
     }
   );
+
+  // Delete epic
+  server.tool(
+    "delete_epic",
+    `Delete an epic from a project.
+
+Deleting an epic will unlink all associated tickets (they will remain in the project
+but no longer belong to any epic). The tickets themselves are NOT deleted.
+
+**Safety feature:** By default, this performs a DRY RUN showing what would be affected.
+Set confirm=true to actually delete the epic.
+
+Args:
+  epicId: The epic ID to delete
+  confirm: Set to true to actually delete (default: false, dry run only)
+
+Returns:
+  - If confirm=false: Preview of what would be affected
+  - If confirm=true: Confirmation of deletion`,
+    {
+      epicId: z.string().describe("Epic ID to delete"),
+      confirm: z.boolean().optional().default(false).describe("Set to true to actually delete (default: false, dry run)"),
+    },
+    async ({ epicId, confirm }) => {
+      const epic = db.prepare("SELECT * FROM epics WHERE id = ?").get(epicId);
+      if (!epic) {
+        return {
+          content: [{ type: "text", text: `Epic not found: ${epicId}` }],
+          isError: true,
+        };
+      }
+
+      // Get tickets that would be unlinked
+      const tickets = db.prepare("SELECT id, title, status FROM tickets WHERE epic_id = ?").all(epicId);
+
+      // Dry run - show what would be affected
+      if (!confirm) {
+        let preview = `⚠️  DRY RUN - Delete Epic Preview\n`;
+        preview += `${"─".repeat(50)}\n\n`;
+        preview += `Epic: "${epic.title}"\n`;
+        preview += `ID: ${epicId}\n\n`;
+        preview += `This will UNLINK ${tickets.length} ticket(s) from this epic:\n`;
+
+        if (tickets.length > 0) {
+          tickets.forEach((t, i) => {
+            preview += `  ${i + 1}. [${t.status}] ${t.title}\n`;
+          });
+          preview += `\n(Tickets will remain in the project, just no longer associated with this epic)\n`;
+        }
+
+        preview += `\n${"─".repeat(50)}\n`;
+        preview += `To confirm deletion, call delete_epic with confirm=true`;
+
+        return {
+          content: [{ type: "text", text: preview }],
+        };
+      }
+
+      // Actually delete (wrapped in transaction for atomicity)
+      const deleteEpic = db.transaction(() => {
+        db.prepare("UPDATE tickets SET epic_id = NULL, updated_at = ? WHERE epic_id = ?")
+          .run(new Date().toISOString(), epicId);
+
+        db.prepare("DELETE FROM epics WHERE id = ?").run(epicId);
+      });
+      deleteEpic();
+
+      log.info(`Deleted epic: ${epic.title} (unlinked ${tickets.length} tickets)`);
+
+      return {
+        content: [{
+          type: "text",
+          text: `✅ Epic "${epic.title}" deleted successfully.\n\n${tickets.length} ticket(s) were unlinked from this epic.`,
+        }],
+      };
+    }
+  );
 }

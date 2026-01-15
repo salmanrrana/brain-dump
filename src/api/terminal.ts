@@ -153,13 +153,29 @@ exec bash
   return scriptPath;
 }
 
+// Build window title in format: [Project][Epic][Ticket] or [Project][Ticket]
+function buildWindowTitle(projectName: string, epicName: string | null, ticketTitle: string): string {
+  if (epicName) {
+    return `[${projectName}][${epicName}][${ticketTitle}]`;
+  }
+  return `[${projectName}][${ticketTitle}]`;
+}
+
 // Launch Claude in terminal with ticket context
 export const launchClaudeInTerminal = createServerFn({ method: "POST" })
   .inputValidator(
-    (data: { ticketId: string; context: string; projectPath: string; preferredTerminal?: string | null }) => data
+    (data: {
+      ticketId: string;
+      context: string;
+      projectPath: string;
+      preferredTerminal?: string | null;
+      projectName: string;
+      epicName: string | null;
+      ticketTitle: string;
+    }) => data
   )
   .handler(async ({ data }): Promise<LaunchClaudeResult> => {
-    const { ticketId, context, projectPath, preferredTerminal } = data;
+    const { ticketId, context, projectPath, preferredTerminal, projectName, epicName, ticketTitle } = data;
     const { exec } = await import("child_process");
     const { existsSync } = await import("fs");
 
@@ -211,6 +227,7 @@ export const launchClaudeInTerminal = createServerFn({ method: "POST" })
         .run();
     } catch (error) {
       console.error("Failed to update ticket status:", error);
+      warnings.push("Failed to update ticket status to 'In Progress'. You may need to update it manually.");
     }
 
     // Save current ticket ID to state file for CLI tool
@@ -233,14 +250,17 @@ export const launchClaudeInTerminal = createServerFn({ method: "POST" })
       );
     } catch (error) {
       console.error("Failed to save current ticket state:", error);
+      warnings.push("Could not save ticket state. The 'brain-dump' CLI commands may not work for this session.");
     }
 
-    // Create launch script and build terminal command
+    // Create launch script and build terminal command with window title
     const scriptPath = await createLaunchScript(projectPath, context);
+    const windowTitle = buildWindowTitle(projectName, epicName, ticketTitle);
     const terminalCommand = buildTerminalCommand(
       terminal,
       projectPath,
-      scriptPath
+      scriptPath,
+      windowTitle
     );
 
     try {
