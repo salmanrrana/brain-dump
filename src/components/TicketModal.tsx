@@ -204,21 +204,27 @@ export default function TicketModal({
     void fetchAttachments();
   }, [ticket.id, showToast]);
 
-  // Handle file upload
+  // Handle file upload - uploads files in parallel for better performance
   const handleFileUpload = useCallback(
     async (files: FileList | null) => {
       if (!files || files.length === 0) return;
 
+      // Filter out oversized files first
+      const validFiles: File[] = [];
+      for (const file of Array.from(files)) {
+        if (file.size > 10 * 1024 * 1024) {
+          showToast("error", `File "${file.name}" exceeds 10MB limit`);
+        } else {
+          validFiles.push(file);
+        }
+      }
+
+      if (validFiles.length === 0) return;
+
       setIsUploadingAttachment(true);
       try {
-        for (const file of Array.from(files)) {
-          // Check file size (10MB max)
-          if (file.size > 10 * 1024 * 1024) {
-            showToast("error", `File "${file.name}" exceeds 10MB limit`);
-            continue;
-          }
-
-          // Convert to base64
+        // Upload all valid files in parallel
+        const uploadPromises = validFiles.map(async (file) => {
           const reader = new FileReader();
           const base64 = await new Promise<string>((resolve, reject) => {
             reader.onload = () => resolve(reader.result as string);
@@ -226,16 +232,17 @@ export default function TicketModal({
             reader.readAsDataURL(file);
           });
 
-          const newAttachment = await uploadAttachment({
+          return uploadAttachment({
             data: {
               ticketId: ticket.id,
               filename: file.name,
               data: base64,
             },
           });
+        });
 
-          setAttachments((prev) => [...prev, newAttachment]);
-        }
+        const newAttachments = await Promise.all(uploadPromises);
+        setAttachments((prev) => [...prev, ...newAttachments]);
       } catch (error) {
         console.error("Failed to upload attachment:", error);
         showToast("error", `Failed to upload attachment: ${error instanceof Error ? error.message : "Unknown error"}`);
