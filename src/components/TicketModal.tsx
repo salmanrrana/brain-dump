@@ -120,26 +120,24 @@ export default function TicketModal({
     error: tagsError,
   } = useTags(ticket.projectId ? { projectId: ticket.projectId } : {});
 
-  // Filter suggestions based on input
-  const tagSuggestions = useMemo(() => {
-    if (!newTag.trim()) return [];
-    const input = newTag.toLowerCase().trim();
-    return existingTags.filter(
-      (tag) => tag.toLowerCase().includes(input) && !tags.includes(tag)
+  // Filter suggestions based on input and determine helper visibility
+  const { tagSuggestions, showCreateHelper } = useMemo(() => {
+    const trimmedInput = newTag.trim();
+    if (!trimmedInput) {
+      return { tagSuggestions: [], showCreateHelper: false };
+    }
+
+    const inputLower = trimmedInput.toLowerCase();
+    const suggestions = existingTags.filter(
+      (tag) => tag.toLowerCase().includes(inputLower) && !tags.includes(tag)
     );
+    const exactMatch = existingTags.some((tag) => tag.toLowerCase() === inputLower);
+
+    return {
+      tagSuggestions: suggestions,
+      showCreateHelper: suggestions.length === 0 && !exactMatch,
+    };
   }, [newTag, existingTags, tags]);
-
-  // Check if current input exactly matches an existing tag (case-insensitive)
-  const inputMatchesExistingTag = useMemo(() => {
-    const input = newTag.toLowerCase().trim();
-    return existingTags.some((tag) => tag.toLowerCase() === input);
-  }, [newTag, existingTags]);
-
-  // Determine if we should show "press Enter" helper
-  const showCreateHelper =
-    newTag.trim().length > 0 &&
-    tagSuggestions.length === 0 &&
-    !inputMatchesExistingTag;
 
   // Modal keyboard handling (Escape, focus trap)
   useModalKeyboard(modalRef, onClose, {
@@ -151,22 +149,11 @@ export default function TicketModal({
   useClickOutside(startWorkMenuRef, useCallback(() => setShowStartWorkMenu(false), []), showStartWorkMenu);
 
   // Close tag dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        tagDropdownRef.current &&
-        !tagDropdownRef.current.contains(e.target as Node) &&
-        tagInputRef.current &&
-        !tagInputRef.current.contains(e.target as Node)
-      ) {
-        setIsTagDropdownOpen(false);
-        setSelectedSuggestionIndex(-1);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+  const closeTagDropdown = useCallback(() => {
+    setIsTagDropdownOpen(false);
+    setSelectedSuggestionIndex(-1);
   }, []);
+  useClickOutside(tagDropdownRef, closeTagDropdown, isTagDropdownOpen, tagInputRef);
 
   // Fetch attachments on mount
   useEffect(() => {
@@ -460,45 +447,39 @@ export default function TicketModal({
     if (tag && !tags.includes(tag)) {
       setTags([...tags, tag]);
       setNewTag("");
-      setIsTagDropdownOpen(false);
-      setSelectedSuggestionIndex(-1);
+      closeTagDropdown();
     }
   };
 
   const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const isValidIndex =
-        selectedSuggestionIndex >= 0 &&
-        selectedSuggestionIndex < tagSuggestions.length;
-      if (isValidIndex) {
-        addTag(tagSuggestions[selectedSuggestionIndex]);
-      } else {
-        addTag();
+    switch (e.key) {
+      case "Enter": {
+        e.preventDefault();
+        const selectedTag = tagSuggestions[selectedSuggestionIndex];
+        addTag(selectedTag);
+        break;
       }
-    } else if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setIsTagDropdownOpen(true);
-      setSelectedSuggestionIndex((prev) =>
-        prev < tagSuggestions.length - 1 ? prev + 1 : prev
-      );
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setSelectedSuggestionIndex((prev) => (prev > 0 ? prev - 1 : -1));
-    } else if (e.key === "Escape") {
-      setIsTagDropdownOpen(false);
-      setSelectedSuggestionIndex(-1);
+      case "ArrowDown":
+        e.preventDefault();
+        setIsTagDropdownOpen(true);
+        setSelectedSuggestionIndex((prev) =>
+          prev < tagSuggestions.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setSelectedSuggestionIndex((prev) => (prev > 0 ? prev - 1 : -1));
+        break;
+      case "Escape":
+        closeTagDropdown();
+        break;
     }
   };
 
   const handleTagInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNewTag(e.target.value);
     setSelectedSuggestionIndex(-1);
-    if (e.target.value.trim()) {
-      setIsTagDropdownOpen(true);
-    } else {
-      setIsTagDropdownOpen(false);
-    }
+    setIsTagDropdownOpen(!!e.target.value.trim());
   };
 
   const removeTag = (tagToRemove: string) => {
