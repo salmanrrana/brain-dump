@@ -423,6 +423,65 @@ install_claude_plugins() {
     fi
 }
 
+# Setup Claude Code skills from vendored third-party skills
+setup_claude_skills() {
+    print_step "Setting up Claude Code skills"
+
+    CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
+    VENDORED_SKILLS="$(pwd)/vendor/agent-skills/skills"
+
+    if [ ! -d "$VENDORED_SKILLS" ]; then
+        print_warning "Vendored skills not found at $VENDORED_SKILLS"
+        print_info "Run: git submodule update --init"
+        SKIPPED+=("Claude skills (submodule not initialized)")
+        return 0
+    fi
+
+    mkdir -p "$CLAUDE_SKILLS_DIR"
+
+    local skills_installed=0
+    local skills_updated=0
+
+    # Enable nullglob to handle case when no matching directories exist
+    local old_nullglob
+    old_nullglob=$(shopt -p nullglob 2>/dev/null || echo "shopt -u nullglob")
+    shopt -s nullglob
+
+    for skill_dir in "$VENDORED_SKILLS"/*/; do
+        if [ -d "$skill_dir" ] && [ -f "$skill_dir/SKILL.md" ]; then
+            local skill_name=$(basename "$skill_dir")
+            local target_path="$CLAUDE_SKILLS_DIR/$skill_name"
+
+            if [ -d "$target_path" ]; then
+                # Check if content is different
+                if ! diff -rq "$skill_dir" "$target_path" >/dev/null 2>&1; then
+                    rm -rf "$target_path"
+                    cp -r "$skill_dir" "$target_path"
+                    print_success "  $skill_name (updated)"
+                    skills_updated=$((skills_updated + 1))
+                else
+                    print_info "  $skill_name (exists)"
+                fi
+            else
+                cp -r "$skill_dir" "$target_path"
+                print_success "  $skill_name"
+                skills_installed=$((skills_installed + 1))
+            fi
+        fi
+    done
+
+    # Restore previous nullglob setting
+    eval "$old_nullglob"
+
+    local total=$((skills_installed + skills_updated))
+    if [ $total -gt 0 ]; then
+        INSTALLED+=("Claude skills ($total)")
+        print_info "Skills location: $CLAUDE_SKILLS_DIR"
+    else
+        SKIPPED+=("Claude skills (already installed)")
+    fi
+}
+
 # Setup project-specific Claude config
 setup_project_config() {
     print_step "Verifying project configuration"
@@ -1083,6 +1142,7 @@ main() {
     if [ "$SETUP_CLAUDE" = true ]; then
         configure_mcp_server || true
         install_claude_plugins || true
+        setup_claude_skills || true
         setup_project_config || true
     fi
 
