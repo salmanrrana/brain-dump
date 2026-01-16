@@ -102,6 +102,7 @@ export function createMockSettings(overrides: Partial<Settings> = {}): Settings 
     autoCreatePr: overrides.autoCreatePr ?? true,
     prTargetBranch: overrides.prTargetBranch ?? "dev",
     defaultProjectsDirectory: overrides.defaultProjectsDirectory ?? null,
+    defaultWorkingMethod: overrides.defaultWorkingMethod ?? "auto",
     createdAt: overrides.createdAt ?? new Date().toISOString(),
     updatedAt: overrides.updatedAt ?? new Date().toISOString(),
   };
@@ -111,12 +112,14 @@ export function createMockSettings(overrides: Partial<Settings> = {}): Settings 
  * Create a project with associated epics and tickets
  * Useful for integration tests that need a complete data structure
  */
-export function createMockProjectWithData(options: {
-  projectOverrides?: Partial<Project>;
-  epicCount?: number;
-  ticketsPerEpic?: number;
-  commentsPerTicket?: number;
-} = {}): {
+export function createMockProjectWithData(
+  options: {
+    projectOverrides?: Partial<Project>;
+    epicCount?: number;
+    ticketsPerEpic?: number;
+    commentsPerTicket?: number;
+  } = {}
+): {
   project: Project;
   epics: Epic[];
   tickets: Ticket[];

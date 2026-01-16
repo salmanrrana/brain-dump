@@ -1,6 +1,25 @@
 import { useState, useEffect, useRef } from "react";
-import { X, ChevronDown, Check, Terminal, Bot, GitBranch, Loader2, AlertTriangle, CheckCircle, FolderPlus, Folder, Clock } from "lucide-react";
-import { useSettings, useUpdateSettings, useAvailableTerminals, useDockerStatus, useBuildSandboxImage } from "../lib/hooks";
+import {
+  X,
+  ChevronDown,
+  Check,
+  Terminal,
+  Bot,
+  GitBranch,
+  Loader2,
+  AlertTriangle,
+  CheckCircle,
+  FolderPlus,
+  Folder,
+  Clock,
+} from "lucide-react";
+import {
+  useSettings,
+  useUpdateSettings,
+  useAvailableTerminals,
+  useDockerStatus,
+  useBuildSandboxImage,
+} from "../lib/hooks";
 import { SUPPORTED_TERMINALS } from "../api/settings";
 import DirectoryPicker from "./DirectoryPicker";
 
@@ -24,10 +43,14 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   const [autoCreatePr, setAutoCreatePr] = useState(true);
   const [prTargetBranch, setPrTargetBranch] = useState("dev");
   const [defaultProjectsDirectory, setDefaultProjectsDirectory] = useState("");
+  const [defaultWorkingMethod, setDefaultWorkingMethod] = useState<
+    "auto" | "claude-code" | "vscode" | "opencode"
+  >("auto");
   const [hasChanges, setHasChanges] = useState(false);
   const [showDirectoryPicker, setShowDirectoryPicker] = useState(false);
 
   // Initialize state when settings load
+  /* eslint-disable react-hooks/set-state-in-effect -- syncing external data to state */
   useEffect(() => {
     if (settings) {
       setTerminalEmulator(settings.terminalEmulator ?? "");
@@ -36,10 +59,15 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       setAutoCreatePr(settings.autoCreatePr ?? true);
       setPrTargetBranch(settings.prTargetBranch ?? "dev");
       setDefaultProjectsDirectory(settings.defaultProjectsDirectory ?? "");
+      setDefaultWorkingMethod(
+        (settings.defaultWorkingMethod as "auto" | "claude-code" | "vscode" | "opencode") ?? "auto"
+      );
     }
   }, [settings]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Track changes
+  /* eslint-disable react-hooks/set-state-in-effect -- derived state from form values */
   useEffect(() => {
     if (settings) {
       const terminalChanged = terminalEmulator !== (settings.terminalEmulator ?? "");
@@ -48,9 +76,29 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       const prChanged = autoCreatePr !== (settings.autoCreatePr ?? true);
       const branchChanged = prTargetBranch !== (settings.prTargetBranch ?? "dev");
       const dirChanged = defaultProjectsDirectory !== (settings.defaultProjectsDirectory ?? "");
-      setHasChanges(terminalChanged || sandboxChanged || timeoutChanged || prChanged || branchChanged || dirChanged);
+      const workingMethodChanged =
+        defaultWorkingMethod !== (settings.defaultWorkingMethod ?? "auto");
+      setHasChanges(
+        terminalChanged ||
+          sandboxChanged ||
+          timeoutChanged ||
+          prChanged ||
+          branchChanged ||
+          dirChanged ||
+          workingMethodChanged
+      );
     }
-  }, [terminalEmulator, ralphSandbox, ralphTimeout, autoCreatePr, prTargetBranch, defaultProjectsDirectory, settings]);
+  }, [
+    terminalEmulator,
+    ralphSandbox,
+    ralphTimeout,
+    autoCreatePr,
+    prTargetBranch,
+    defaultProjectsDirectory,
+    defaultWorkingMethod,
+    settings,
+  ]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const isSaving = updateMutation.isPending;
   const error = updateMutation.error;
@@ -75,9 +123,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
     const firstElement = focusableElements[0] as HTMLElement;
-    const lastElement = focusableElements[
-      focusableElements.length - 1
-    ] as HTMLElement;
+    const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
 
     const handleTabKey = (e: KeyboardEvent) => {
       if (e.key !== "Tab") return;
@@ -110,6 +156,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         autoCreatePr,
         prTargetBranch: prTargetBranch || "dev",
         defaultProjectsDirectory: defaultProjectsDirectory || null,
+        defaultWorkingMethod,
       },
       { onSuccess: onClose }
     );
@@ -128,11 +175,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden="true" />
 
       {/* Modal */}
       <div
@@ -166,9 +209,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
           )}
 
           {loading ? (
-            <div className="text-center text-slate-400 py-8">
-              Loading settings...
-            </div>
+            <div className="text-center text-slate-400 py-8">Loading settings...</div>
           ) : (
             <>
               {/* Projects Section */}
@@ -194,9 +235,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                         {defaultProjectsDirectory}
                       </span>
                     ) : (
-                      <span className="text-slate-500 text-sm">
-                        Click to select a directory...
-                      </span>
+                      <span className="text-slate-500 text-sm">Click to select a directory...</span>
                     )}
                   </button>
                   {defaultProjectsDirectory && (
@@ -210,6 +249,36 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                   <p className="mt-2 text-xs text-slate-500">
                     New projects created via "Start from Scratch" will be placed in this directory.
                     Leave empty to choose each time.
+                  </p>
+                </div>
+
+                {/* Default Working Method */}
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-slate-400 mb-1">
+                    Default Environment
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={defaultWorkingMethod}
+                      onChange={(e) =>
+                        setDefaultWorkingMethod(
+                          e.target.value as "auto" | "claude-code" | "vscode" | "opencode"
+                        )
+                      }
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    >
+                      <option value="auto">Auto-detect</option>
+                      <option value="claude-code">Claude Code</option>
+                      <option value="vscode">VS Code</option>
+                      <option value="opencode">OpenCode</option>
+                    </select>
+                    <ChevronDown
+                      size={16}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                    />
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">
+                    Default working environment for new projects. Can be overridden per-project.
                   </p>
                 </div>
               </div>
@@ -251,8 +320,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                     />
                   </div>
                   <p className="mt-2 text-xs text-slate-500">
-                    Used when clicking "Start Work" on a ticket. Auto-detect will
-                    try Ghostty first, then fall back to other installed terminals.
+                    Used when clicking "Start Work" on a ticket. Auto-detect will try Ghostty first,
+                    then fall back to other installed terminals.
                   </p>
                 </div>
 
@@ -319,7 +388,11 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                       ) : (
                         <AlertTriangle size={14} className="text-yellow-400" />
                       )}
-                      <span className={dockerStatus.dockerAvailable ? "text-green-400" : "text-yellow-400"}>
+                      <span
+                        className={
+                          dockerStatus.dockerAvailable ? "text-green-400" : "text-yellow-400"
+                        }
+                      >
                         Docker: {dockerStatus.dockerAvailable ? "Installed" : "Not found"}
                       </span>
                     </div>
@@ -327,7 +400,17 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                     {!dockerStatus.dockerAvailable && (
                       <div className="mt-2 p-2 bg-slate-900 rounded text-xs text-slate-400">
                         <p className="font-medium text-slate-300 mb-1">Install Docker:</p>
-                        <p>Visit <a href="https://docs.docker.com/get-docker/" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">docs.docker.com/get-docker</a></p>
+                        <p>
+                          Visit{" "}
+                          <a
+                            href="https://docs.docker.com/get-docker/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-cyan-400 hover:underline"
+                          >
+                            docs.docker.com/get-docker
+                          </a>
+                        </p>
                       </div>
                     )}
 
@@ -339,7 +422,11 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                           ) : (
                             <AlertTriangle size={14} className="text-yellow-400" />
                           )}
-                          <span className={dockerStatus.dockerRunning ? "text-green-400" : "text-yellow-400"}>
+                          <span
+                            className={
+                              dockerStatus.dockerRunning ? "text-green-400" : "text-yellow-400"
+                            }
+                          >
                             Docker Daemon: {dockerStatus.dockerRunning ? "Running" : "Not running"}
                           </span>
                         </div>
@@ -348,8 +435,16 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                           <div className="mt-2 p-2 bg-slate-900 rounded text-xs text-slate-400">
                             <p className="font-medium text-slate-300 mb-1">Start Docker:</p>
                             <ul className="space-y-1 ml-2">
-                              <li>• <span className="text-slate-300">Mac/Windows:</span> Open Docker Desktop</li>
-                              <li>• <span className="text-slate-300">Linux:</span> <code className="bg-slate-800 px-1 rounded">sudo systemctl start docker</code></li>
+                              <li>
+                                • <span className="text-slate-300">Mac/Windows:</span> Open Docker
+                                Desktop
+                              </li>
+                              <li>
+                                • <span className="text-slate-300">Linux:</span>{" "}
+                                <code className="bg-slate-800 px-1 rounded">
+                                  sudo systemctl start docker
+                                </code>
+                              </li>
                             </ul>
                           </div>
                         )}
@@ -361,7 +456,11 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                             ) : (
                               <AlertTriangle size={14} className="text-yellow-400" />
                             )}
-                            <span className={dockerStatus.imageBuilt ? "text-green-400" : "text-yellow-400"}>
+                            <span
+                              className={
+                                dockerStatus.imageBuilt ? "text-green-400" : "text-yellow-400"
+                              }
+                            >
                               Sandbox Image: {dockerStatus.imageBuilt ? "Ready" : "Not built"}
                             </span>
                           </div>
@@ -372,8 +471,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                     {dockerStatus.dockerRunning && !dockerStatus.imageBuilt && (
                       <>
                         <p className="text-xs text-slate-400 mt-2">
-                          The sandbox image will be built automatically when you first launch Ralph with sandbox enabled.
-                          Or you can build it now:
+                          The sandbox image will be built automatically when you first launch Ralph
+                          with sandbox enabled. Or you can build it now:
                         </p>
                         <button
                           onClick={handleBuildImage}
@@ -393,7 +492,9 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                     )}
                     {buildImageMutation.isError && (
                       <p className="text-xs text-red-400 mt-1">
-                        {buildImageMutation.error instanceof Error ? buildImageMutation.error.message : "Build failed"}
+                        {buildImageMutation.error instanceof Error
+                          ? buildImageMutation.error.message
+                          : "Build failed"}
                       </p>
                     )}
                     {buildImageMutation.isSuccess && (

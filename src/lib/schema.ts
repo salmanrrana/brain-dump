@@ -93,6 +93,7 @@ export const settings = sqliteTable("settings", {
   autoCreatePr: integer("auto_create_pr", { mode: "boolean" }).default(true), // Auto-create PR when done
   prTargetBranch: text("pr_target_branch").default("dev"), // Target branch for PRs
   defaultProjectsDirectory: text("default_projects_directory"), // Where to create new projects
+  defaultWorkingMethod: text("default_working_method").default("auto"), // Default environment for new projects: 'auto', 'claude-code', 'vscode', 'opencode'
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),

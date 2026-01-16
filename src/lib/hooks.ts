@@ -925,6 +925,7 @@ export interface Settings {
   autoCreatePr: boolean | null;
   prTargetBranch: string | null;
   defaultProjectsDirectory: string | null;
+  defaultWorkingMethod: string | null;
   createdAt: string;
   updatedAt: string;
 }
