@@ -1,0 +1,21 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "brain-dump": {
+      "type": "local",
+      "command": ["node", "mcp-server/index.js"],
+      "enabled": true,
+      "environment": {
+        "BRAIN_DUMP_PATH": "."
+      }
+    }
+  },
+  "tools": {
+    "brain-dump_*": true
+  },
+  "permission": {
+    "skill": {
+      "*": "allow"
+    }
+  }
+}

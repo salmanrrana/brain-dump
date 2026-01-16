@@ -468,6 +468,225 @@ install_claude_plugins() {
     fi
 }
 
+# ============================================================================
+# OpenCode Integration
+# ============================================================================
+
+# Install OpenCode if not present
+install_opencode() {
+    print_step "Checking OpenCode installation"
+
+    if command_exists opencode; then
+        print_success "OpenCode already installed: $(opencode --version 2>/dev/null || echo "unknown")"
+        SKIPPED+=("OpenCode (already installed)")
+        return 0
+    fi
+
+    # Try installation methods: brew → direct download
+    if command_exists brew && brew install opencode; then
+        print_success "OpenCode installed via Homebrew"
+        INSTALLED+=("OpenCode")
+        return 0
+    fi
+
+    # Direct download fallback
+    local url=""
+    case "$OS" in
+        macos) url="https://github.com/anomalyco/opencode/releases/latest/download/opencode-macos" ;;
+        linux) url="https://github.com/anomalyco/opencode/releases/latest/download/opencode-linux" ;;
+        *) 
+            print_warning "Windows requires manual installation"
+            SKIPPED+=("OpenCode (manual install required)")
+            return 0
+            ;;
+    esac
+
+    if curl -L -o /usr/local/bin/opencode "$url" 2>/dev/null && chmod +x /usr/local/bin/opencode; then
+        print_success "OpenCode installed via direct download"
+        INSTALLED+=("OpenCode")
+        return 0
+    fi
+
+    print_error "OpenCode installation failed"
+    FAILED+=("OpenCode")
+    return 1
+}
+
+# Configure OpenCode with Brain Dump agents and skills
+setup_opencode() {
+    print_step "Configuring OpenCode for Brain Dump"
+
+    # Ensure .opencode directory exists
+    if [ ! -d ".opencode" ]; then
+        print_warning "Missing .opencode directory"
+        SKIPPED+=("OpenCode config (missing .opencode directory)")
+        return 1
+    fi
+
+    BRAIN_DUMP_DIR="$(pwd)"
+    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/index.js"
+    OPENCODE_CONFIG=".opencode/opencode.json"
+
+    # Create or update opencode.json with correct configuration
+    if [ ! -f "$OPENCODE_CONFIG" ]; then
+        print_info "Creating OpenCode configuration..."
+        cat > "$OPENCODE_CONFIG" << EOF
+{
+  "\$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "brain-dump": {
+      "type": "local",
+      "command": ["node", "mcp-server/index.js"],
+      "enabled": true,
+      "environment": {
+        "BRAIN_DUMP_PATH": "."
+      }
+    }
+  },
+  "tools": {
+    "brain-dump_*": true
+  },
+  "permission": {
+    "skill": {
+      "*": "allow"
+    }
+  }
+}
+EOF
+        print_success "Created OpenCode configuration"
+    else
+        # Check if type is "stdio" and update to "local"
+        if grep -q '"type": "stdio"' "$OPENCODE_CONFIG"; then
+            print_info "Updating OpenCode MCP type from 'stdio' to 'local'..."
+            # Create backup
+            cp "$OPENCODE_CONFIG" "$OPENCODE_CONFIG.backup"
+            
+            # Update the configuration
+            if command_exists node; then
+                local node_error
+                node_error=$(node -e "
+const fs = require('fs');
+const config = JSON.parse(fs.readFileSync('$OPENCODE_CONFIG', 'utf8'));
+if (config.mcp && config.mcp['brain-dump']) {
+    config.mcp['brain-dump'].type = 'local';
+    config.mcp['brain-dump'].command = ['node', 'mcp-server/index.js'];
+    config.mcp['brain-dump'].enabled = true;
+    config.mcp['brain-dump'].environment = config.mcp['brain-dump'].environment || {};
+    config.mcp['brain-dump'].environment.BRAIN_DUMP_PATH = '.';
+} else {
+    config.mcp = config.mcp || {};
+    config.mcp['brain-dump'] = {
+        type: 'local',
+        command: ['node', 'mcp-server/index.js'],
+        enabled: true,
+        environment: { BRAIN_DUMP_PATH: '.' }
+    };
+}
+config.tools = config.tools || {};
+config.tools['brain-dump_*'] = true;
+config.permission = config.permission || {};
+config.permission.skill = config.permission.skill || {};
+config.permission.skill['*'] = 'allow';
+fs.writeFileSync('$OPENCODE_CONFIG', JSON.stringify(config, null, 2));
+console.log('Configuration updated successfully');
+" 2>&1) && {
+                    print_success "Updated OpenCode configuration to use 'local' type"
+                    rm "$OPENCODE_CONFIG.backup" 2>/dev/null || true
+                } else {
+                    print_warning "Failed to update configuration: $node_error"
+                    print_warning "Restoring backup and providing manual instructions"
+                    mv "$OPENCODE_CONFIG.backup" "$OPENCODE_CONFIG" 2>/dev/null || true
+                    SKIPPED+=("OpenCode config (manual update needed)")
+                    return 0
+                }
+            else
+                print_warning "Node not available for config update"
+                SKIPPED+=("OpenCode config (manual update needed)")
+                return 0
+            fi
+        else
+            print_success "OpenCode configuration already exists"
+        fi
+    fi
+
+    # Validate configuration
+    if ! grep -q '"brain-dump"' "$OPENCODE_CONFIG"; then
+        print_warning "MCP server not configured in opencode.json"
+        SKIPPED+=("OpenCode config (MCP server missing)")
+        return 1
+    fi
+
+    # Count configured items
+    local agent_count=$(ls .opencode/agent/*.md 2>/dev/null | wc -l)
+    local skill_count=$(find .opencode/skill -name "SKILL.md" 2>/dev/null | wc -l)
+    
+    [ "$agent_count" -gt 0 ] && print_success "Found $agent_count agents"
+    [ "$skill_count" -gt 0 ] && print_success "Found $skill_count skills"
+
+    create_opencode_fallbacks
+    INSTALLED+=("OpenCode configuration")
+    return 0
+}
+
+# Create fallback agents for missing OpenCode plugins
+create_opencode_fallbacks() {
+    print_step "Creating fallback agents for missing plugins"
+
+    # Code reviewer fallback
+    if [ ! -f ".opencode/agent/code-reviewer-fallback.md" ]; then
+        cat > ".opencode/agent/code-reviewer-fallback.md" << 'EOF'
+---
+description: Fallback code reviewer when pr-review-toolkit is unavailable
+mode: subagent
+model: anthropic/claude-sonnet-4-20250514
+temperature: 0.1
+permission:
+  bash: deny
+  write: deny
+  edit: deny
+---
+
+Fallback code reviewer for when specialized tools are unavailable.
+
+## Review Process
+1. Identify changed files (git diff HEAD~1)
+2. Check style, error handling, security, logic
+3. Hunt silent failures (empty catches, fire-and-forget async)
+4. Provide structured report with critical/important/minor issues
+EOF
+        print_success "Created code-reviewer-fallback agent"
+    fi
+
+    # Code simplifier fallback  
+    if [ ! -f ".opencode/agent/code-simplifier-fallback.md" ]; then
+        cat > ".opencode/agent/code-simplifier-fallback.md" << 'EOF'
+---
+description: Fallback code simplifier when code-simplifier plugin is unavailable
+mode: subagent
+model: anthropic/claude-sonnet-4-20250514
+temperature: 0.2
+---
+
+Fallback code simplifier for when specialized tools are unavailable.
+
+## Simplification Principles
+1. **Remove Redundancy** - Duplicate code, unused imports, commented code
+2. **Improve Clarity** - Descriptive names, extract magic numbers
+3. **Reduce Complexity** - Flatten nesting, early returns, split functions
+4. **Enhance Readability** - Consistent formatting, logical grouping
+
+## What NOT to Change
+- Don't add new features or change public APIs
+- Don't "improve" working error handling  
+- Don't add abstractions for single-use code
+- Don't optimize prematurely
+EOF
+        print_success "Created code-simplifier-fallback agent"
+    fi
+
+    INSTALLED+=("OpenCode fallback agents")
+}
+
 # Setup Claude Code skills from vendored third-party skills
 setup_claude_skills() {
     print_step "Setting up Claude Code skills"
@@ -1050,32 +1269,43 @@ prompt_ide_selection() {
     echo ""
     echo "  1) Claude Code (CLI)"
     echo "  2) VS Code"
-    echo "  3) Both"
-    echo "  4) Skip IDE setup (just install Brain Dump)"
+    echo "  3) OpenCode"
+    echo "  4) All IDEs (Claude Code + VS Code + OpenCode)"
+    echo "  5) Skip IDE setup (just install Brain Dump)"
     echo ""
-    read -r -p "Enter choice [1-4]: " choice
+    read -r -p "Enter choice [1-5]: " choice
 
     case $choice in
         1)
             SETUP_CLAUDE=true
             SETUP_VSCODE=false
+            SETUP_OPENCODE=false
             ;;
         2)
             SETUP_CLAUDE=false
             SETUP_VSCODE=true
+            SETUP_OPENCODE=false
             ;;
         3)
-            SETUP_CLAUDE=true
-            SETUP_VSCODE=true
-            ;;
-        4)
             SETUP_CLAUDE=false
             SETUP_VSCODE=false
+            SETUP_OPENCODE=true
+            ;;
+        4)
+            SETUP_CLAUDE=true
+            SETUP_VSCODE=true
+            SETUP_OPENCODE=true
+            ;;
+        5)
+            SETUP_CLAUDE=false
+            SETUP_VSCODE=false
+            SETUP_OPENCODE=false
             ;;
         *)
             print_warning "Invalid choice, defaulting to Claude Code"
             SETUP_CLAUDE=true
             SETUP_VSCODE=false
+            SETUP_OPENCODE=false
             ;;
     esac
 }
@@ -1144,6 +1374,17 @@ print_summary() {
         echo "  5. Use @ralph or /start-ticket in Copilot Chat"
     fi
 
+    if [ "$SETUP_OPENCODE" = true ]; then
+        echo "  4. Start OpenCode in this directory: ${CYAN}opencode${NC}"
+        echo "  5. Use Tab to switch between Ralph and Build agents"
+        echo "  6. Use @ticket-worker, @planner, @code-reviewer as needed"
+        if ! command_exists opencode; then
+            echo ""
+            echo -e "${YELLOW}Note:${NC} Install OpenCode for full integration"
+            echo "  Visit https://opencode.ai for installation instructions"
+        fi
+    fi
+
     echo ""
 
     echo -e "${BLUE}Data locations:${NC}"
@@ -1151,11 +1392,23 @@ print_summary() {
     echo ""
 
     # Show how to add other IDE later
-    if [ "$SETUP_CLAUDE" = true ] && [ "$SETUP_VSCODE" = false ]; then
-        echo -e "${BLUE}Want VS Code too?${NC} Run: ${CYAN}./install.sh --vscode${NC}"
+    if [ "$SETUP_CLAUDE" = true ] && [ "$SETUP_VSCODE" = false ] && [ "$SETUP_OPENCODE" = false ]; then
+        echo -e "${BLUE}Want more IDEs?${NC} Run: ${CYAN}./install.sh --all${NC}"
         echo ""
-    elif [ "$SETUP_VSCODE" = true ] && [ "$SETUP_CLAUDE" = false ]; then
-        echo -e "${BLUE}Want Claude Code too?${NC} Run: ${CYAN}./install.sh --claude${NC}"
+    elif [ "$SETUP_VSCODE" = true ] && [ "$SETUP_CLAUDE" = false ] && [ "$SETUP_OPENCODE" = false ]; then
+        echo -e "${BLUE}Want more IDEs?${NC} Run: ${CYAN}./install.sh --all${NC}"
+        echo ""
+    elif [ "$SETUP_OPENCODE" = true ] && [ "$SETUP_CLAUDE" = false ] && [ "$SETUP_VSCODE" = false ]; then
+        echo -e "${BLUE}Want more IDEs?${NC} Run: ${CYAN}./install.sh --all${NC}"
+        echo ""
+    elif [ "$SETUP_CLAUDE" = true ] && [ "$SETUP_VSCODE" = true ] && [ "$SETUP_OPENCODE" = false ]; then
+        echo -e "${BLUE}Want OpenCode too?${NC} Run: ${CYAN}./install.sh --opencode${NC} or ${CYAN}./install.sh --all${NC}"
+        echo ""
+    elif [ "$SETUP_CLAUDE" = true ] && [ "$SETUP_OPENCODE" = true ] && [ "$SETUP_VSCODE" = false ]; then
+        echo -e "${BLUE}Want VS Code too?${NC} Run: ${CYAN}./install.sh --vscode${NC} or ${CYAN}./install.sh --all${NC}"
+        echo ""
+    elif [ "$SETUP_VSCODE" = true ] && [ "$SETUP_OPENCODE" = true ] && [ "$SETUP_CLAUDE" = false ]; then
+        echo -e "${BLUE}Want Claude Code too?${NC} Run: ${CYAN}./install.sh --claude${NC} or ${CYAN}./install.sh --all${NC}"
         echo ""
     fi
 }
@@ -1166,9 +1419,11 @@ show_help() {
     echo ""
     echo "Usage: ./install.sh [options]"
     echo ""
-    echo "IDE Options (pick one or both):"
+    echo "IDE Options:"
     echo "  --claude    Set up Claude Code integration (MCP server + plugins)"
     echo "  --vscode    Set up VS Code integration (MCP server + agents + skills + prompts)"
+    echo "  --opencode  Set up OpenCode integration (MCP server + agents + skills)"
+    echo "  --all        Set up all IDE integrations (Claude Code + VS Code + OpenCode)"
     echo ""
     echo "  If no IDE flag is provided, you'll be prompted to choose."
     echo ""
@@ -1178,11 +1433,11 @@ show_help() {
     echo "  --update-skills Update vendored skills from upstream"
     echo ""
     echo "Examples:"
-    echo "  ./install.sh --claude                    # Claude Code only"
-    echo "  ./install.sh --vscode                    # VS Code only"
-    echo "  ./install.sh --claude --vscode           # Both IDEs"
-    echo "  ./install.sh --update-skills --claude    # Update and install skills"
-    echo "  ./install.sh                             # Interactive prompt"
+    echo "  ./install.sh --claude           # Claude Code only"
+    echo "  ./install.sh --vscode           # VS Code only"
+    echo "  ./install.sh --opencode         # OpenCode only"
+    echo "  ./install.sh --all             # All IDEs"
+    echo "  ./install.sh                   # Interactive prompt"
     echo ""
     echo "This script will:"
     echo "  1. Install Node.js 18+ via nvm (if needed)"
@@ -1190,7 +1445,7 @@ show_help() {
     echo "  3. Install project dependencies"
     echo "  4. Run database migrations"
     echo "  5. Configure MCP server for your chosen IDE(s)"
-    echo "  6. Install plugins/agents as applicable"
+    echo "  6. Install IDE integrations as applicable"
     echo ""
     echo "The script is idempotent - safe to run multiple times."
 }
@@ -1201,6 +1456,7 @@ main() {
     SKIP_NODE=false
     SETUP_CLAUDE=false
     SETUP_VSCODE=false
+    SETUP_OPENCODE=false
     UPDATE_SKILLS=false
     IDE_FLAG_PROVIDED=false
 
@@ -1219,6 +1475,16 @@ main() {
                 ;;
             --vscode)
                 SETUP_VSCODE=true
+                IDE_FLAG_PROVIDED=true
+                ;;
+            --opencode)
+                SETUP_OPENCODE=true
+                IDE_FLAG_PROVIDED=true
+                ;;
+            --all)
+                SETUP_CLAUDE=true
+                SETUP_VSCODE=true
+                SETUP_OPENCODE=true
                 IDE_FLAG_PROVIDED=true
                 ;;
             --update-skills)
@@ -1297,10 +1563,16 @@ main() {
         setup_vscode_prompts || true
     fi
 
+    # OpenCode setup
+    if [ "$SETUP_OPENCODE" = true ]; then
+        install_opencode || true
+        setup_opencode || true
+    fi
+
     # If no IDE selected, just note it
-    if [ "$SETUP_CLAUDE" = false ] && [ "$SETUP_VSCODE" = false ]; then
+    if [ "$SETUP_CLAUDE" = false ] && [ "$SETUP_VSCODE" = false ] && [ "$SETUP_OPENCODE" = false ]; then
         print_step "Skipping IDE integration"
-        print_info "Run again with --claude or --vscode to set up IDE integration"
+        print_info "Run again with --claude, --vscode, or --opencode to set up IDE integration"
         SKIPPED+=("IDE integration (not selected)")
     fi
 

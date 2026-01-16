@@ -35,6 +35,7 @@ Don't know where to begin? Run `/inception` in Claude Code:
 ```
 
 Claude will interview you with quick multiple-choice questions about your idea, then generate:
+
 - A complete `spec.md` with requirements
 - A `plans/` folder with implementation steps
 - Tickets ready to work on
@@ -49,36 +50,71 @@ Go from "I have an idea" to "I have a backlog" in 5 minutes.
 - **Full-text search** - Find anything instantly
 - **File attachments** - Drag and drop onto tickets
 
-## Included Agent Skills
+## OpenCode Support
 
-Brain Dump includes curated agent skills that provide specialized knowledge to Claude Code and VS Code Copilot:
-
-| Skill | Description | Source |
-|-------|-------------|--------|
-| react-best-practices | 45 React/Next.js performance optimization rules | [Vercel](https://github.com/vercel-labs/agent-skills) |
-| web-design-guidelines | 100+ accessibility and UX best practices | [Vercel](https://github.com/vercel-labs/agent-skills) |
-
-### How Skills Work
-
-Skills are discovered automatically by your AI agent:
-1. At startup, the agent loads skill names and descriptions (~100 tokens each)
-2. When your request matches a skill's keywords, the agent asks to use it
-3. Once approved, the full skill instructions load into context
-
-### Updating Skills
-
-To get the latest skill updates from upstream:
+Brain Dump now supports OpenCode with full agent and skill integration.
 
 ```bash
-cd brain-dump
-git submodule update --remote    # Pull latest from Vercel
-./install.sh --claude --vscode   # Re-install to skill directories
+# Quick setup
+./install.sh --opencode     # OpenCode only
+./install.sh --all          # All IDEs (Claude + VS Code + OpenCode)
+./install.sh               # Interactive selection
+
+# Start OpenCode
+cd brain-dump && opencode
+```
+
+### Available Agents
+
+| Agent             | Mode     | Description                              |
+| ----------------- | -------- | ---------------------------------------- |
+| **ralph**         | Primary  | Autonomous backlog work                  |
+| **ticket-worker** | Subagent | Interactive single-ticket implementation |
+| **planner**       | Subagent | Create plans and tickets                 |
+| **code-reviewer** | Subagent | Automated quality checks                 |
+| **inception**     | Subagent | Start new projects                       |
+
+### Quick Usage
+
+```bash
+# Switch agents with Tab
+@ralph              # Autonomous work
+@ticket-worker      # Interactive ticket work
+@planner "feature"  # Plan new features
+@code-reviewer      # Review changes
+@inception          # Start new project
+```
+
+**Full guide**: [OpenCode Integration Guide](docs/opencode-setup.md)
+
+## VS Code & Claude Code Support
+
+Brain Dump also integrates with VS Code Copilot and Claude Code:
+
+```bash
+./install.sh --claude    # Claude Code integration
+./install.sh --vscode    # VS Code integration
+./install.sh --all       # All IDEs
+```
+
+### Skills Available
+
+| Skill                 | Description                         | Source |
+| --------------------- | ----------------------------------- | ------ |
+| react-best-practices  | React/Next.js performance rules     | Vercel |
+| web-design-guidelines | Accessibility and UX best practices | Vercel |
+
+Skills auto-discover based on your request context. Update with:
+
+```bash
+git submodule update --remote  # Pull latest
+./install.sh --claude --vscode  # Re-install
 ```
 
 ### Learn More
+
 - [Claude Code Skills](https://docs.anthropic.com/en/docs/claude-code/skills)
 - [VS Code Agent Skills](https://code.visualstudio.com/docs/copilot/copilot-extensibility-overview)
-- [Agent Skills Specification](https://agentskills.dev)
 
 ## Commands
 
@@ -92,11 +128,13 @@ pnpm db:studio    # Browse database
 ## Data
 
 Everything stored locally:
+
 - **macOS**: `~/Library/Application Support/brain-dump/`
 - **Linux**: `~/.local/share/brain-dump/`
 
 ## More Info
 
+- [OpenCode Integration Guide](docs/opencode-setup.md)
 - [MCP Server Tools](docs/mcp-tools.md)
 - [Ralph Workflow](docs/ralph.md)
 - [CLI Reference](docs/cli.md)
