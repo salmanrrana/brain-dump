@@ -126,11 +126,23 @@ export interface RalphServicesFile {
 
 /**
  * Default empty services file for initialization.
+ * @deprecated Use createEmptyServicesFile() instead to get a fresh timestamp.
  */
 export const EMPTY_SERVICES_FILE: RalphServicesFile = {
   services: [],
   updatedAt: new Date().toISOString(),
 };
+
+/**
+ * Factory function to create an empty services file with a fresh timestamp.
+ * Use this instead of EMPTY_SERVICES_FILE to avoid stale timestamps.
+ */
+export function createEmptyServicesFile(): RalphServicesFile {
+  return {
+    services: [],
+    updatedAt: new Date().toISOString(),
+  };
+}
 
 /**
  * The filename for service discovery (relative to project root).
@@ -170,10 +182,10 @@ export function inferTypeFromPort(port: number): ServiceType {
 
 /**
  * Validate that a port is within the allowed Docker port ranges.
+ * Derives from PORT_RANGES to maintain a single source of truth.
  */
 export function isValidServicePort(port: number): boolean {
-  return (port >= 8100 && port <= 8110) ||
-         (port >= 8200 && port <= 8210) ||
-         (port >= 8300 && port <= 8310) ||
-         (port >= 8400 && port <= 8410);
+  return Object.values(PORT_RANGES).some(
+    (range) => port >= range.min && port <= range.max
+  );
 }

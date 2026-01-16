@@ -34,7 +34,7 @@ import {
   deleteAttachment,
   type Attachment,
 } from "../api/attachments";
-import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "../lib/constants";
+import { STATUS_OPTIONS, PRIORITY_OPTIONS, POLLING_INTERVALS } from "../lib/constants";
 import { getTicketContext } from "../api/context";
 import { launchClaudeInTerminal } from "../api/terminal";
 import { safeJsonParse } from "../lib/utils";
@@ -158,14 +158,14 @@ export default function TicketModal({
   }, [projects, ticket.projectId]);
 
   // Service discovery - poll when ticket is in progress
-  const { runningServices } = useProjectServices(projectPath, {
+  const { runningServices, error: servicesError } = useProjectServices(projectPath, {
     enabled: status === "in_progress",
-    pollingInterval: 5000,
+    pollingInterval: POLLING_INTERVALS.SERVICES,
   });
 
-  // Comments - poll every 3 seconds when ticket is in progress (Ralph might be working)
+  // Comments - poll when ticket is in progress (Ralph might be working)
   const { comments, loading: commentsLoading } = useComments(ticket.id, {
-    pollingInterval: status === "in_progress" ? 3000 : 0,
+    pollingInterval: status === "in_progress" ? POLLING_INTERVALS.COMMENTS_ACTIVE : POLLING_INTERVALS.DISABLED,
   });
   const createCommentMutation = useCreateComment();
   const [newComment, setNewComment] = useState("");
@@ -1080,7 +1080,12 @@ export default function TicketModal({
             )}
           </div>
 
-          {/* Running Services - Only show when ticket is in progress and has services */}
+          {/* Running Services - Only show when ticket is in progress */}
+          {status === "in_progress" && servicesError && (
+            <div className="bg-red-900/30 border border-red-800 rounded-lg p-3 text-sm text-red-300">
+              <span className="font-medium">Service discovery error:</span> {servicesError}
+            </div>
+          )}
           {status === "in_progress" && runningServices.length > 0 && (
             <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
               <h4 className="text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
@@ -1089,8 +1094,9 @@ export default function TicketModal({
               </h4>
               <div className="space-y-1">
                 {runningServices.map((service) => {
-                  const IconComponent = SERVICE_TYPE_ICONS[service.type] || Server;
-                  const colorClass = SERVICE_TYPE_COLORS[service.type] || "text-slate-400";
+                  // Lookup tables are exhaustive for all ServiceType values, no fallback needed
+                  const IconComponent = SERVICE_TYPE_ICONS[service.type];
+                  const colorClass = SERVICE_TYPE_COLORS[service.type];
                   return (
                     <a
                       key={service.port}
