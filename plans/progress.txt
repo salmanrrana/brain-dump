@@ -2727,3 +2727,33 @@ All tickets completed successfully:
 - All 455 tests passing
 
 ---
+
+### 2026-01-16 - Add Verification Checklist to CLAUDE.md
+- Task: Add verification checklist to CLAUDE.md
+- Ticket ID: 8242565d-c58f-46b2-9975-5ebbd2564b64
+- PRD Ticket: 7.6 (05ef90fe-33ff-4ea3-ae09-2bbc9057dd49)
+- Success: true
+- Agent: Ralph
+- Branch: feature/8242565d-7-6-add-verification-checklist-to-claude-md
+
+**Changes to CLAUDE.md:**
+Added comprehensive Verification Checklist section with 7 subsections:
+
+| Section | Items |
+|---------|-------|
+| Code Quality (Always Required) | type-check, lint, test |
+| If You Added New Code | tests, typed errors, Drizzle ORM, patterns, no hardcoded values |
+| If You Modified Existing Code | existing tests, regressions, backward compatibility |
+| If UI Changes | manual verification, responsive, TanStack Query, accessibility |
+| If Database Changes | migrations, backup testing, schema |
+| If MCP Server Changes | tool testing, error responses, Zod validation |
+| Before Marking Complete | acceptance criteria, work summary, commit format |
+
+**Testing Results:**
+- All 491 tests passing
+- TypeScript type checking passes
+
+**PRD Status:**
+- Ticket 7.6 marked as `passes: true`
+
+---
