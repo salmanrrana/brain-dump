@@ -4,6 +4,36 @@ import { tickets } from "../lib/schema";
 import { eq } from "drizzle-orm";
 import { detectTerminal, isTerminalAvailable, buildTerminalCommand } from "./terminal-utils";
 
+// Check if OpenCode CLI is installed
+async function isOpenCodeInstalled(): Promise<{ installed: boolean; error?: string }> {
+  const { exec } = await import("child_process");
+  const { promisify } = await import("util");
+  const execAsync = promisify(exec);
+
+  try {
+    await execAsync("opencode --version");
+    return { installed: true };
+  } catch (error) {
+    // Check if it's a "command not found" error
+    const err = error as Error & { code?: string };
+    if (
+      err.code === "ENOENT" ||
+      err.message?.includes("not found") ||
+      err.message?.includes("command not found")
+    ) {
+      return {
+        installed: false,
+        error: "OpenCode CLI is not installed. Install it from: https://github.com/sst/opencode",
+      };
+    }
+    // Other errors - might be installed but having issues
+    return {
+      installed: false,
+      error: `OpenCode check failed: ${err.message}`,
+    };
+  }
+}
+
 interface LaunchResult {
   success: boolean;
   method: "terminal" | "clipboard";
@@ -410,6 +440,17 @@ export const launchOpenCodeInTerminal = createServerFn({ method: "POST" })
         success: false,
         method: "clipboard",
         message: `Project directory not found: ${projectPath}. Context copied to clipboard instead.`,
+      };
+    }
+
+    // Check if OpenCode is installed before proceeding
+    const openCodeCheck = await isOpenCodeInstalled();
+    if (!openCodeCheck.installed) {
+      return {
+        success: false,
+        method: "clipboard",
+        message:
+          openCodeCheck.error || "OpenCode is not installed. Context copied to clipboard instead.",
       };
     }
 
