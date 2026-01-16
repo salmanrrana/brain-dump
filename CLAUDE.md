@@ -93,6 +93,86 @@ Ralph is an autonomous agent mode that:
 3. Implements features, runs tests, updates status via MCP
 4. Continues until all tasks pass or max iterations reached
 
+### Hook-Based State Enforcement
+
+This project uses Claude Code hooks to enforce Ralph's workflow. Hooks provide guidance through feedback loops rather than just blocking actions.
+
+#### How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│              ENFORCEMENT THROUGH FEEDBACK                       │
+├─────────────────────────────────────────────────────────────────┤
+│   Claude: "I'll write the file now"                             │
+│              │                                                  │
+│              ▼                                                  │
+│   PreToolUse Hook: "BLOCKED - You are in 'analyzing' state      │
+│   but tried to write code. Call update_session_state FIRST."    │
+│              │                                                  │
+│              ▼                                                  │
+│   Claude: *calls update_session_state('implementing')*          │
+│   Claude: *retries Write* ✅                                    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Hook Scripts
+
+| Hook                          | File        | Enforces                                                                      |
+| ----------------------------- | ----------- | ----------------------------------------------------------------------------- |
+| enforce-state-before-write.sh | PreToolUse  | Must be in 'implementing', 'testing', or 'committing' state before Write/Edit |
+| record-state-change.sh        | PostToolUse | Logs state changes for debugging/audit                                        |
+
+#### State File
+
+When a Ralph session is active, `.claude/ralph-state.json` contains:
+
+```json
+{
+  "sessionId": "abc-123",
+  "ticketId": "def-456",
+  "currentState": "implementing",
+  "stateHistory": ["idle", "analyzing", "implementing"],
+  "startedAt": "2026-01-16T10:00:00Z",
+  "updatedAt": "2026-01-16T10:15:00Z"
+}
+```
+
+This file is:
+
+- Created by `create_ralph_session`
+- Updated by `update_session_state`
+- Removed by `complete_ralph_session`
+
+#### When NOT in Ralph Mode
+
+When no `.claude/ralph-state.json` exists, hooks allow all operations. This ensures normal Claude Code usage is unaffected.
+
+#### Cross-Environment Support
+
+Brain Dump supports multiple development environments:
+
+| Environment   | State Tracking | Hook Enforcement | Notes                                       |
+| ------------- | -------------- | ---------------- | ------------------------------------------- |
+| Claude Code   | ✅ Full        | ✅ Full          | Hooks guide behavior through feedback       |
+| OpenCode      | ✅ Full        | ❌ None          | State tracked via MCP, guidance via prompts |
+| VS Code + MCP | ✅ Full        | ❌ None          | State tracked via MCP, guidance via prompts |
+| Cursor        | ✅ Full        | ❌ None          | State tracked via MCP, guidance via prompts |
+
+**How it works:**
+
+- MCP tools (session creation, state updates) work identically in ALL environments
+- The state file (`.claude/ralph-state.json`) is written by MCP regardless of client
+- Hook enforcement is Claude Code specific
+- In non-Claude environments, proper state transitions rely on prompt-based guidance
+
+#### If You See a STATE ENFORCEMENT Message
+
+1. **Read the message** - it contains the exact MCP tool call needed
+2. **Call the specified tool** - e.g., `update_session_state({ sessionId: "...", state: "implementing" })`
+3. **Retry your original operation** - it will now succeed
+
+Do NOT try to work around state enforcement - it ensures work is properly tracked in the Brain Dump UI.
+
 ## Specifications
 
 ### Spec Template

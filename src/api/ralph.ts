@@ -183,6 +183,41 @@ In addition to session states, use emit_ralph_event for detailed progress:
 
 Note: The session state tools (update_session_state) automatically emit state_change events, so you don't need to call emit_ralph_event for state transitions
 
+## State Enforcement (Hooks)
+
+This project uses hooks to ENFORCE state transitions. If you try to write or edit code without being in the correct state, you will receive a block message.
+
+### How It Works
+1. When you create a session, a \`.claude/ralph-state.json\` file is created
+2. PreToolUse hooks check this file before allowing Write/Edit operations
+3. If you're not in 'implementing', 'testing', or 'committing' state, the operation is blocked
+4. The block message tells you exactly what MCP tool to call
+
+### When Blocked
+If you see a "STATE ENFORCEMENT" message:
+1. **Read the message carefully** - it contains the exact tool call you need
+2. **Call the specified MCP tool** - e.g., \`update_session_state({ sessionId: "...", state: "implementing" })\`
+3. **Retry your original operation** - it will now succeed
+
+### Example Flow
+\`\`\`
+# You try to write a file while in 'analyzing' state
+[BLOCKED] STATE ENFORCEMENT: You are in 'analyzing' state but tried to write/edit code.
+          You MUST first call: update_session_state({ sessionId: "xyz-789", state: "implementing" })
+
+# You call the MCP tool as instructed
+update_session_state({ sessionId: "xyz-789", state: "implementing" })
+# Returns: State Updated - analyzing → implementing
+
+# You retry your write operation
+[ALLOWED] - File written successfully
+\`\`\`
+
+### Important
+- Do NOT try to work around state enforcement
+- The hooks ensure your work is properly tracked in the Brain Dump UI
+- When your session completes, the state file is automatically removed
+
 ## Dev Server Management
 
 When starting a dev server for testing or development:

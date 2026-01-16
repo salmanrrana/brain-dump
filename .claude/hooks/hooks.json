@@ -1,6 +1,65 @@
 {
-  "description": "Brain Dump automatic code review hooks - triggers pr-review-toolkit and code-simplifier agents after task completion",
+  "description": "Brain Dump hooks configuration - includes automatic code review and Ralph state enforcement",
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": {
+          "tool_name": "Write"
+        },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.claude/hooks/enforce-state-before-write.sh"
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "tool_name": "Edit"
+        },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.claude/hooks/enforce-state-before-write.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": {
+          "tool_name": "mcp__brain-dump__update_session_state"
+        },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.claude/hooks/record-state-change.sh"
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "tool_name": "mcp__brain-dump__create_ralph_session"
+        },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.claude/hooks/record-state-change.sh"
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "tool_name": "mcp__brain-dump__complete_ralph_session"
+        },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.claude/hooks/record-state-change.sh"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

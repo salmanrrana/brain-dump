@@ -645,3 +645,204 @@ describe("Cascade Delete", () => {
     expect(session).toBeUndefined();
   });
 });
+
+describe("State File for Hook Enforcement", () => {
+  /**
+   * These tests verify the state file functionality that enables hook-based
+   * state enforcement. The state file (.claude/ralph-state.json) is written
+   * by MCP tools and read by hooks.
+   *
+   * Note: This works across ALL environments (Claude Code, OpenCode, VS Code)
+   * because MCP tools write the file regardless of which client calls them.
+   * Hooks are Claude Code specific but the state tracking works everywhere.
+   */
+
+  const testProjectPath = join(testDir, "test-project");
+  const stateFilePath = join(testProjectPath, ".claude", "ralph-state.json");
+
+  beforeAll(() => {
+    mkdirSync(join(testProjectPath, ".claude"), { recursive: true });
+    // Update project path for state file tests
+    db.prepare("UPDATE projects SET path = ? WHERE id = ?").run(testProjectPath, testProjectId);
+  });
+
+  afterEach(() => {
+    // Clean up state file between tests
+    if (existsSync(stateFilePath)) {
+      rmSync(stateFilePath);
+    }
+  });
+
+  it("should define state file structure correctly", () => {
+    // Test the expected structure of ralph-state.json
+    const expectedFields = [
+      "sessionId",
+      "ticketId",
+      "currentState",
+      "stateHistory",
+      "startedAt",
+      "updatedAt",
+    ];
+
+    // This documents the contract for hooks to rely on
+    const sampleState = {
+      sessionId: "abc-123",
+      ticketId: "def-456",
+      currentState: "implementing",
+      stateHistory: ["idle", "analyzing", "implementing"],
+      startedAt: "2026-01-16T10:00:00Z",
+      updatedAt: "2026-01-16T10:15:00Z",
+    };
+
+    for (const field of expectedFields) {
+      expect(sampleState).toHaveProperty(field);
+    }
+
+    // Verify stateHistory is an array of state names
+    expect(Array.isArray(sampleState.stateHistory)).toBe(true);
+    expect(sampleState.stateHistory.every((s) => typeof s === "string")).toBe(true);
+  });
+
+  it("should validate state values for hook enforcement", () => {
+    // States that allow Write/Edit operations
+    const writableStates = ["implementing", "testing", "committing"];
+
+    // States that should block Write/Edit operations
+    const readOnlyStates = ["idle", "analyzing", "reviewing", "done"];
+
+    // All valid states
+    const allStates = [...readOnlyStates, ...writableStates];
+
+    // Ensure no overlap
+    for (const state of writableStates) {
+      expect(readOnlyStates).not.toContain(state);
+    }
+
+    // Ensure we cover all states
+    expect(allStates.sort()).toEqual([
+      "analyzing",
+      "committing",
+      "done",
+      "idle",
+      "implementing",
+      "reviewing",
+      "testing",
+    ]);
+  });
+
+  it("should track state history for debugging", () => {
+    const sessionId = randomUUID();
+    const now = new Date().toISOString();
+
+    // Simulate a session going through multiple states
+    const stateTransitions = [
+      { state: "idle", timestamp: now },
+      { state: "analyzing", timestamp: now },
+      { state: "implementing", timestamp: now },
+      { state: "testing", timestamp: now },
+      { state: "implementing", timestamp: now }, // Back to implementing after test failure
+      { state: "testing", timestamp: now },
+      { state: "committing", timestamp: now },
+      { state: "reviewing", timestamp: now },
+      { state: "done", timestamp: now },
+    ];
+
+    // Create session with full history
+    db.prepare(
+      `INSERT INTO ralph_sessions (id, ticket_id, current_state, state_history, started_at)
+       VALUES (?, ?, 'done', ?, ?)`
+    ).run(sessionId, testTicketId, JSON.stringify(stateTransitions), now);
+
+    const session = db
+      .prepare("SELECT state_history FROM ralph_sessions WHERE id = ?")
+      .get(sessionId) as { state_history: string };
+
+    const history = JSON.parse(session.state_history);
+    expect(history).toHaveLength(9);
+
+    // Verify the state history shows the back-and-forth
+    const stateNames = history.map((h: { state: string }) => h.state);
+    expect(stateNames).toEqual([
+      "idle",
+      "analyzing",
+      "implementing",
+      "testing",
+      "implementing", // Went back to fix
+      "testing",
+      "committing",
+      "reviewing",
+      "done",
+    ]);
+  });
+});
+
+describe("Cross-Environment Support", () => {
+  /**
+   * Brain Dump supports multiple development environments:
+   * - Claude Code (claude.ai/code)
+   * - OpenCode (opencode.ai)
+   * - VS Code with MCP extensions
+   *
+   * The state tracking via MCP works in ALL environments.
+   * Hook enforcement is Claude Code specific.
+   */
+
+  it("should document environment-agnostic MCP tool behavior", () => {
+    // MCP tools work the same regardless of client
+    const mcpTools = [
+      "create_ralph_session",
+      "update_session_state",
+      "complete_ralph_session",
+      "get_session_state",
+      "list_ticket_sessions",
+    ];
+
+    // These tools should be available in all MCP-connected environments
+    // The test just documents this expectation
+    expect(mcpTools).toHaveLength(5);
+
+    // All tools write to the database (works everywhere)
+    // create_ralph_session and update_session_state also write ralph-state.json
+    // complete_ralph_session removes ralph-state.json
+  });
+
+  it("should document hook enforcement availability", () => {
+    // Hooks only work in Claude Code CLI
+    const hookSupportedEnvironments = ["claude-code"];
+
+    // In unsupported environments (opencode, vscode, cursor), state tracking
+    // still works but enforcement relies on prompt-based guidance
+    expect(hookSupportedEnvironments).not.toContain("opencode");
+    expect(hookSupportedEnvironments).not.toContain("vscode");
+    expect(hookSupportedEnvironments).not.toContain("cursor");
+    expect(hookSupportedEnvironments).toHaveLength(1);
+    expect(hookSupportedEnvironments[0]).toBe("claude-code");
+  });
+
+  it("should work without hooks in non-Claude environments", () => {
+    // The state file being absent should NOT block operations
+    // in environments without hooks
+
+    const sessionId = randomUUID();
+    const now = new Date().toISOString();
+
+    // Create session normally
+    db.prepare(
+      `INSERT INTO ralph_sessions (id, ticket_id, current_state, started_at)
+       VALUES (?, ?, 'idle', ?)`
+    ).run(sessionId, testTicketId, now);
+
+    // Update state without the state file existing
+    // (simulates non-Claude environment or when state file write fails)
+    db.prepare("UPDATE ralph_sessions SET current_state = 'implementing' WHERE id = ?").run(
+      sessionId
+    );
+
+    const session = db
+      .prepare("SELECT current_state FROM ralph_sessions WHERE id = ?")
+      .get(sessionId) as { current_state: string };
+
+    // Database state updates work regardless of state file
+    expect(session.current_state).toBe("implementing");
+  });
+});

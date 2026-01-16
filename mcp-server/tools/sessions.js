@@ -1,11 +1,85 @@
 /**
  * Session state management tools for Brain Dump MCP server.
  * Provides state machine observability for Ralph sessions.
+ * Includes local state file writing for hook-based state enforcement.
  * @module tools/sessions
  */
 import { z } from "zod";
 import { randomUUID } from "crypto";
+import { writeFileSync, mkdirSync, unlinkSync, existsSync } from "fs";
+import { join } from "path";
 import { log } from "../lib/logging.js";
+
+/**
+ * Write or update the ralph-state.json file for hooks to read.
+ * This enables hook-based state enforcement by providing a local file
+ * that PreToolUse hooks can check to determine the current session state.
+ *
+ * @param {string} projectPath - The project directory path
+ * @param {object} stateData - The state data to write
+ * @param {string} stateData.sessionId - The session ID
+ * @param {string} stateData.ticketId - The ticket ID
+ * @param {string} stateData.currentState - Current state (idle, analyzing, etc.)
+ * @param {string[]} stateData.stateHistory - Array of previous states
+ * @param {string} stateData.startedAt - ISO timestamp when session started
+ * @returns {boolean} - Whether the write was successful
+ */
+function writeRalphStateFile(projectPath, stateData) {
+  try {
+    const claudeDir = join(projectPath, ".claude");
+    const stateFilePath = join(claudeDir, "ralph-state.json");
+
+    // Ensure .claude directory exists
+    mkdirSync(claudeDir, { recursive: true });
+
+    const fileContent = {
+      ...stateData,
+      updatedAt: new Date().toISOString(),
+    };
+
+    writeFileSync(stateFilePath, JSON.stringify(fileContent, null, 2));
+    log.info(`Wrote ralph-state.json for hooks: state=${stateData.currentState}`);
+    return true;
+  } catch (err) {
+    log.warn(`Failed to write ralph-state.json: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * Remove the ralph-state.json file when a session completes.
+ * This prevents stale state from affecting future non-Ralph work.
+ *
+ * @param {string} projectPath - The project directory path
+ * @returns {boolean} - Whether the removal was successful
+ */
+function removeRalphStateFile(projectPath) {
+  try {
+    const stateFilePath = join(projectPath, ".claude", "ralph-state.json");
+    if (existsSync(stateFilePath)) {
+      unlinkSync(stateFilePath);
+      log.info("Removed ralph-state.json after session completion");
+    }
+    return true;
+  } catch (err) {
+    log.warn(`Failed to remove ralph-state.json: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * Safely parse state history JSON, returning empty array on failure.
+ * @param {string | null | undefined} stateHistoryJson - The raw JSON string
+ * @returns {Array<{state: string, timestamp: string, metadata?: object}>}
+ */
+function parseStateHistory(stateHistoryJson) {
+  if (!stateHistoryJson) return [];
+  try {
+    return JSON.parse(stateHistoryJson);
+  } catch {
+    return [];
+  }
+}
 
 // Valid session states that Ralph can transition through
 const VALID_STATES = [
@@ -47,8 +121,13 @@ Returns:
       ticketId: z.string().describe("The ticket ID to create a session for"),
     },
     async ({ ticketId }) => {
-      // Verify ticket exists
-      const ticket = db.prepare("SELECT id, title FROM tickets WHERE id = ?").get(ticketId);
+      // Verify ticket exists and get project path for state file
+      const ticket = db.prepare(
+        `SELECT t.id, t.title, p.path as project_path
+         FROM tickets t
+         JOIN projects p ON t.project_id = p.id
+         WHERE t.id = ?`
+      ).get(ticketId);
       if (!ticket) {
         return {
           content: [{
@@ -82,6 +161,15 @@ Returns:
           `INSERT INTO ralph_sessions (id, ticket_id, current_state, state_history, started_at)
            VALUES (?, ?, 'idle', ?, ?)`
         ).run(id, ticketId, initialHistory, now);
+
+        // Write local state file for hooks to read
+        writeRalphStateFile(ticket.project_path, {
+          sessionId: id,
+          ticketId,
+          currentState: "idle",
+          stateHistory: ["idle"],
+          startedAt: now,
+        });
 
         // Emit state_change event for UI
         try {
@@ -160,9 +248,13 @@ Returns:
       }).passthrough().optional().describe("Optional context about the state transition"),
     },
     async ({ sessionId, state, metadata }) => {
-      // Get current session
+      // Get current session with project path for state file
       const session = db.prepare(
-        "SELECT * FROM ralph_sessions WHERE id = ?"
+        `SELECT rs.*, t.title as ticket_title, p.path as project_path
+         FROM ralph_sessions rs
+         JOIN tickets t ON rs.ticket_id = t.id
+         JOIN projects p ON t.project_id = p.id
+         WHERE rs.id = ?`
       ).get(sessionId);
 
       if (!session) {
@@ -189,12 +281,7 @@ Returns:
       const now = new Date().toISOString();
 
       // Parse and update state history
-      let stateHistory = [];
-      try {
-        stateHistory = session.state_history ? JSON.parse(session.state_history) : [];
-      } catch {
-        stateHistory = [];
-      }
+      const stateHistory = parseStateHistory(session.state_history);
 
       stateHistory.push({
         state,
@@ -202,10 +289,22 @@ Returns:
         metadata: metadata || undefined,
       });
 
+      // Extract just the state names for the simple history array
+      const stateNames = stateHistory.map(h => h.state);
+
       try {
         db.prepare(
           "UPDATE ralph_sessions SET current_state = ?, state_history = ? WHERE id = ?"
         ).run(state, JSON.stringify(stateHistory), sessionId);
+
+        // Update local state file for hooks
+        writeRalphStateFile(session.project_path, {
+          sessionId,
+          ticketId: session.ticket_id,
+          currentState: state,
+          stateHistory: stateNames,
+          startedAt: session.started_at,
+        });
 
         // Emit state_change event for UI
         try {
@@ -226,20 +325,17 @@ Returns:
 
         log.info(`Session ${sessionId}: ${previousState} → ${state}`);
 
-        // Get associated ticket for context
-        const ticket = db.prepare("SELECT title FROM tickets WHERE id = ?").get(session.ticket_id);
-
         return {
           content: [{
             type: "text",
             text: `## State Updated
 
 **Session:** ${sessionId.substring(0, 8)}...
-**Ticket:** ${ticket?.title || session.ticket_id}
+**Ticket:** ${session.ticket_title || session.ticket_id}
 **Transition:** ${previousState} → **${state}**
 ${metadata?.message ? `**Context:** ${metadata.message}` : ""}
 
-State history: ${stateHistory.map(h => h.state).join(" → ")}`,
+State history: ${stateNames.join(" → ")}`,
           }],
         };
       } catch (err) {
@@ -276,7 +372,14 @@ Returns:
       errorMessage: z.string().optional().describe("Error details if outcome is 'failure'"),
     },
     async ({ sessionId, outcome, errorMessage }) => {
-      const session = db.prepare("SELECT * FROM ralph_sessions WHERE id = ?").get(sessionId);
+      // Get session with project path for cleanup
+      const session = db.prepare(
+        `SELECT rs.*, t.title as ticket_title, p.path as project_path
+         FROM ralph_sessions rs
+         JOIN tickets t ON rs.ticket_id = t.id
+         JOIN projects p ON t.project_id = p.id
+         WHERE rs.id = ?`
+      ).get(sessionId);
 
       if (!session) {
         return {
@@ -301,12 +404,7 @@ Returns:
       const now = new Date().toISOString();
 
       // Add 'done' to state history
-      let stateHistory = [];
-      try {
-        stateHistory = session.state_history ? JSON.parse(session.state_history) : [];
-      } catch {
-        stateHistory = [];
-      }
+      const stateHistory = parseStateHistory(session.state_history);
 
       stateHistory.push({
         state: "done",
@@ -320,6 +418,9 @@ Returns:
            SET current_state = 'done', state_history = ?, outcome = ?, error_message = ?, completed_at = ?
            WHERE id = ?`
         ).run(JSON.stringify(stateHistory), outcome, errorMessage || null, now, sessionId);
+
+        // Remove local state file - session is complete, no longer need hooks enforcement
+        removeRalphStateFile(session.project_path);
 
         // Emit completion event
         try {
@@ -339,8 +440,6 @@ Returns:
 
         log.info(`Session ${sessionId} completed with outcome: ${outcome}`);
 
-        const ticket = db.prepare("SELECT title FROM tickets WHERE id = ?").get(session.ticket_id);
-
         // Calculate duration
         const startedAt = new Date(session.started_at);
         const completedAt = new Date(now);
@@ -353,7 +452,7 @@ Returns:
             text: `## Session Completed
 
 **Session:** ${sessionId.substring(0, 8)}...
-**Ticket:** ${ticket?.title || session.ticket_id}
+**Ticket:** ${session.ticket_title || session.ticket_id}
 **Outcome:** ${outcome}
 **Duration:** ${durationMin} minutes
 ${errorMessage ? `**Error:** ${errorMessage}` : ""}
@@ -423,13 +522,7 @@ Returns:
         };
       }
 
-      let stateHistory = [];
-      try {
-        stateHistory = session.state_history ? JSON.parse(session.state_history) : [];
-      } catch {
-        stateHistory = [];
-      }
-
+      const stateHistory = parseStateHistory(session.state_history);
       const ticket = db.prepare("SELECT title FROM tickets WHERE id = ?").get(session.ticket_id);
 
       return {
@@ -488,23 +581,14 @@ Returns:
 
       const ticket = db.prepare("SELECT title FROM tickets WHERE id = ?").get(ticketId);
 
-      const sessionSummaries = sessions.map(s => {
-        let stateHistory = [];
-        try {
-          stateHistory = s.state_history ? JSON.parse(s.state_history) : [];
-        } catch {
-          stateHistory = [];
-        }
-
-        return {
-          id: s.id,
-          currentState: s.current_state,
-          outcome: s.outcome,
-          startedAt: s.started_at,
-          completedAt: s.completed_at,
-          stateCount: stateHistory.length,
-        };
-      });
+      const sessionSummaries = sessions.map(s => ({
+        id: s.id,
+        currentState: s.current_state,
+        outcome: s.outcome,
+        startedAt: s.started_at,
+        completedAt: s.completed_at,
+        stateCount: parseStateHistory(s.state_history).length,
+      }));
 
       return {
         content: [{
