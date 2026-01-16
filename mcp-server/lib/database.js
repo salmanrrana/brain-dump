@@ -148,6 +148,27 @@ export function runMigrations(db) {
   } catch (err) {
     log.error("Failed to check/add working_method column", err);
   }
+
+  // Create ralph_events table if it doesn't exist
+  try {
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ralph_events'").all();
+    if (tables.length === 0) {
+      db.prepare(`
+        CREATE TABLE ralph_events (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          type TEXT NOT NULL,
+          data TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+      `).run();
+      db.prepare("CREATE INDEX idx_ralph_events_session ON ralph_events(session_id)").run();
+      db.prepare("CREATE INDEX idx_ralph_events_created ON ralph_events(created_at)").run();
+      log.info("Created ralph_events table for real-time UI streaming");
+    }
+  } catch (err) {
+    log.error("Failed to create ralph_events table", err);
+  }
 }
 
 /**

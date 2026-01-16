@@ -33,7 +33,7 @@ interface PRDDocument {
 function generatePRD(
   projectName: string,
   projectPath: string,
-  ticketList: typeof tickets.$inferSelect[],
+  ticketList: (typeof tickets.$inferSelect)[],
   epicTitle?: string
 ): PRDDocument {
   const userStories: PRDUserStory[] = ticketList.map((ticket) => {
@@ -102,6 +102,50 @@ function getRalphPrompt(): string {
 - Run tests before completing
 - Keep changes minimal and focused
 - If stuck, note in progress.txt and move on
+
+## Real-time Progress Reporting
+
+Use emit_ralph_event to report progress during your work. The UI displays these events in real-time.
+
+### When to Call emit_ralph_event
+
+| Event Type    | When to Use | Example |
+|---------------|-------------|---------|
+| state_change  | When transitioning phases | Analyzing → Implementing → Testing |
+| thinking      | When starting to reason | Reading spec, planning approach |
+| tool_start    | Before calling Edit/Write/Bash | About to modify a file |
+| tool_end      | After tool completes | File edited successfully |
+| progress      | General updates | Halfway through implementation |
+| error         | When errors occur | Test failed, need to debug |
+
+### Example Usage
+
+After picking a ticket:
+\`\`\`
+emit_ralph_event({ sessionId: "<ticketId>", type: "state_change", data: { state: "analyzing", message: "Reading ticket specification..." } })
+\`\`\`
+
+Before editing code:
+\`\`\`
+emit_ralph_event({ sessionId: "<ticketId>", type: "tool_start", data: { tool: "Edit", file: "src/api/users.ts" } })
+\`\`\`
+
+After successful edit:
+\`\`\`
+emit_ralph_event({ sessionId: "<ticketId>", type: "tool_end", data: { tool: "Edit", success: true } })
+\`\`\`
+
+When running tests:
+\`\`\`
+emit_ralph_event({ sessionId: "<ticketId>", type: "state_change", data: { state: "testing", message: "Running test suite..." } })
+\`\`\`
+
+### States to Report
+- analyzing: Reading and understanding the task
+- implementing: Writing or modifying code
+- testing: Running tests or verifying behavior
+- committing: Creating git commits
+- completing: Finishing up and calling complete_ticket_work
 
 ## Dev Server Management
 
@@ -586,7 +630,8 @@ async function ensureDockerNetwork(
     console.log(`[brain-dump] Docker network "${networkName}" already exists`);
     return { success: true };
   } catch (inspectError) {
-    const errorMessage = inspectError instanceof Error ? inspectError.message : String(inspectError);
+    const errorMessage =
+      inspectError instanceof Error ? inspectError.message : String(inspectError);
 
     // Only proceed to create if the error indicates "network not found"
     // Other errors (Docker not running, permission denied) should be reported immediately
@@ -608,7 +653,9 @@ async function ensureDockerNetwork(
       // Verify by checking again
       try {
         await execAsync(`docker network inspect ${networkName}`);
-        console.log(`[brain-dump] Docker network "${networkName}" exists (created by another process)`);
+        console.log(
+          `[brain-dump] Docker network "${networkName}" exists (created by another process)`
+        );
         return { success: true };
       } catch {
         return {
@@ -634,7 +681,8 @@ async function validateDockerSetup(): Promise<
   } catch {
     return {
       success: false,
-      message: "Docker is not running. Please start Docker Desktop or run 'sudo systemctl start docker'",
+      message:
+        "Docker is not running. Please start Docker Desktop or run 'sudo systemctl start docker'",
     };
   }
 
@@ -816,7 +864,12 @@ async function launchInTerminal(
 // Launch Ralph for a single ticket
 export const launchRalphForTicket = createServerFn({ method: "POST" })
   .inputValidator(
-    (data: { ticketId: string; maxIterations?: number; preferredTerminal?: string | null; useSandbox?: boolean }) => data
+    (data: {
+      ticketId: string;
+      maxIterations?: number;
+      preferredTerminal?: string | null;
+      useSandbox?: boolean;
+    }) => data
   )
   .handler(async ({ data }) => {
     const { ticketId, maxIterations = 5, preferredTerminal, useSandbox = false } = data;
@@ -828,29 +881,17 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     const { eq: eqSettings } = await import("drizzle-orm");
 
     // Get settings for timeout configuration
-    const appSettings = db
-      .select()
-      .from(settings)
-      .where(eqSettings(settings.id, "default"))
-      .get();
+    const appSettings = db.select().from(settings).where(eqSettings(settings.id, "default")).get();
     const timeoutSeconds = appSettings?.ralphTimeout ?? DEFAULT_TIMEOUT_SECONDS;
 
     // Get the ticket with its project
-    const ticket = db
-      .select()
-      .from(tickets)
-      .where(eq(tickets.id, ticketId))
-      .get();
+    const ticket = db.select().from(tickets).where(eq(tickets.id, ticketId)).get();
 
     if (!ticket) {
       return { success: false, message: "Ticket not found" };
     }
 
-    const project = db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, ticket.projectId))
-      .get();
+    const project = db.select().from(projects).where(eq(projects.id, ticket.projectId)).get();
 
     if (!project) {
       return { success: false, message: "Project not found" };
@@ -894,14 +935,13 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     chmodSync(scriptPath, 0o700);
 
     // Update ticket status to in_progress
-    db.update(tickets)
-      .set({ status: "in_progress" })
-      .where(eq(tickets.id, ticketId))
-      .run();
+    db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticketId)).run();
 
     // Branch based on workingMethod setting
     const workingMethod = project.workingMethod || "auto";
-    console.log(`[brain-dump] Ralph ticket launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`);
+    console.log(
+      `[brain-dump] Ralph ticket launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`
+    );
 
     if (workingMethod === "vscode") {
       // VS Code path: generate context file and launch VS Code
@@ -913,10 +953,7 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
 
       if (!contextResult.success) {
         // Rollback ticket status since launch failed
-        db.update(tickets)
-          .set({ status: ticket.status })
-          .where(eq(tickets.id, ticketId))
-          .run();
+        db.update(tickets).set({ status: ticket.status }).where(eq(tickets.id, ticketId)).run();
         return contextResult;
       }
 
@@ -926,10 +963,7 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
 
       if (!launchResult.success) {
         // Rollback ticket status since launch failed
-        db.update(tickets)
-          .set({ status: ticket.status })
-          .where(eq(tickets.id, ticketId))
-          .run();
+        db.update(tickets).set({ status: ticket.status }).where(eq(tickets.id, ticketId)).run();
         return launchResult;
       }
 
@@ -962,7 +996,12 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
 // Launch Ralph for an entire epic
 export const launchRalphForEpic = createServerFn({ method: "POST" })
   .inputValidator(
-    (data: { epicId: string; maxIterations?: number; preferredTerminal?: string | null; useSandbox?: boolean }) => data
+    (data: {
+      epicId: string;
+      maxIterations?: number;
+      preferredTerminal?: string | null;
+      useSandbox?: boolean;
+    }) => data
   )
   .handler(async ({ data }) => {
     const { epicId, maxIterations = 20, preferredTerminal, useSandbox = false } = data;
@@ -974,29 +1013,17 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     const { eq: eqSettings } = await import("drizzle-orm");
 
     // Get settings for timeout configuration
-    const appSettings = db
-      .select()
-      .from(settings)
-      .where(eqSettings(settings.id, "default"))
-      .get();
+    const appSettings = db.select().from(settings).where(eqSettings(settings.id, "default")).get();
     const timeoutSeconds = appSettings?.ralphTimeout ?? DEFAULT_TIMEOUT_SECONDS;
 
     // Get the epic
-    const epic = db
-      .select()
-      .from(epics)
-      .where(eq(epics.id, epicId))
-      .get();
+    const epic = db.select().from(epics).where(eq(epics.id, epicId)).get();
 
     if (!epic) {
       return { success: false, message: "Epic not found" };
     }
 
-    const project = db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, epic.projectId))
-      .get();
+    const project = db.select().from(projects).where(eq(projects.id, epic.projectId)).get();
 
     if (!project) {
       return { success: false, message: "Project not found" };
@@ -1051,23 +1078,25 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     );
     const scriptDir = join(homedir(), ".brain-dump", "scripts");
     mkdirSync(scriptDir, { recursive: true });
-    const scriptPath = join(scriptDir, `ralph-epic-${useSandbox ? "docker-" : ""}${randomUUID()}.sh`);
+    const scriptPath = join(
+      scriptDir,
+      `ralph-epic-${useSandbox ? "docker-" : ""}${randomUUID()}.sh`
+    );
     writeFileSync(scriptPath, ralphScript, { mode: 0o700 });
     chmodSync(scriptPath, 0o700);
 
     // Update all tickets to in_progress
     for (const ticket of epicTickets) {
       if (ticket.status === "backlog" || ticket.status === "ready") {
-        db.update(tickets)
-          .set({ status: "in_progress" })
-          .where(eq(tickets.id, ticket.id))
-          .run();
+        db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticket.id)).run();
       }
     }
 
     // Branch based on workingMethod setting
     const workingMethod = project.workingMethod || "auto";
-    console.log(`[brain-dump] Ralph launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`);
+    console.log(
+      `[brain-dump] Ralph launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`
+    );
 
     if (workingMethod === "vscode") {
       // VS Code path: generate context file and launch VS Code
@@ -1080,10 +1109,7 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       if (!contextResult.success) {
         // Rollback ticket statuses since launch failed
         for (const ticket of epicTickets) {
-          db.update(tickets)
-            .set({ status: ticket.status })
-            .where(eq(tickets.id, ticket.id))
-            .run();
+          db.update(tickets).set({ status: ticket.status }).where(eq(tickets.id, ticket.id)).run();
         }
         return contextResult;
       }
@@ -1095,10 +1121,7 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       if (!launchResult.success) {
         // Rollback ticket statuses since launch failed
         for (const ticket of epicTickets) {
-          db.update(tickets)
-            .set({ status: ticket.status })
-            .where(eq(tickets.id, ticket.id))
-            .run();
+          db.update(tickets).set({ status: ticket.status }).where(eq(tickets.id, ticket.id)).run();
         }
         return launchResult;
       }
@@ -1130,4 +1153,3 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       warnings: sshWarnings,
     };
   });
-

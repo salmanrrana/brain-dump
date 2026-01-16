@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useState, useRef, useMemo, type RefObject } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 // =============================================================================
@@ -1209,6 +1209,111 @@ export function useProjectServices(
     updatedAt: query.data?.updatedAt,
     loading: query.isLoading,
     error: query.error?.message ?? null,
+    refetch: query.refetch,
+  };
+}
+
+// =============================================================================
+// RALPH EVENT STREAMING
+// =============================================================================
+
+import { getRalphEvents } from "../api/ralph-events";
+import type { RalphEventType, RalphEventData } from "./schema";
+
+/** Parsed Ralph event for UI consumption */
+export interface ParsedRalphEvent {
+  id: string;
+  sessionId: string;
+  type: RalphEventType;
+  data: RalphEventData;
+  createdAt: string;
+}
+
+/**
+ * Hook for streaming Ralph events from a session.
+ * Uses polling to fetch all events and derives state from the full event list.
+ *
+ * @param sessionId - The Ralph session ID (usually ticket ID)
+ * @param options - Configuration options
+ */
+export function useRalphEvents(
+  sessionId: string | null,
+  options: {
+    /** Whether to enable the stream (default: true when sessionId is provided) */
+    enabled?: boolean;
+    /** Polling interval in ms (default: 1000ms = 1 second) */
+    pollingInterval?: number;
+    /** Maximum events to return (default: 100) */
+    maxEvents?: number;
+  } = {}
+) {
+  const { enabled = true, pollingInterval = 1000, maxEvents = 100 } = options;
+  const queryClient = useQueryClient();
+
+  // Query fetches all events from the server
+  const query = useQuery({
+    queryKey: ["ralphEvents", sessionId],
+    queryFn: async (): Promise<ParsedRalphEvent[]> => {
+      if (!sessionId) {
+        return [];
+      }
+
+      const result = await getRalphEvents({
+        data: { sessionId, limit: maxEvents },
+      });
+
+      if (!result.success || !result.events) {
+        return [];
+      }
+
+      return result.events as ParsedRalphEvent[];
+    },
+    enabled: enabled && Boolean(sessionId),
+    refetchInterval: pollingInterval,
+  });
+
+  // Derive all values from query data using useMemo (no effects needed)
+  const events = useMemo(() => query.data ?? [], [query.data]);
+
+  const latestEvent = useMemo(() => {
+    if (events.length === 0) return null;
+    return events[events.length - 1] ?? null;
+  }, [events]);
+
+  // Get the current state from state_change events
+  const currentState = useMemo(() => {
+    const stateEvents = events.filter((e) => e.type === "state_change");
+    const lastStateEvent = stateEvents[stateEvents.length - 1];
+    return lastStateEvent?.data?.state ?? null;
+  }, [events]);
+
+  // Helper to get events of a specific type
+  const getEventsByType = useCallback(
+    (type: RalphEventType) => events.filter((e) => e.type === type),
+    [events]
+  );
+
+  // Clear events by invalidating the query (will refetch empty)
+  const clearEvents = useCallback(() => {
+    queryClient.setQueryData(["ralphEvents", sessionId], []);
+  }, [queryClient, sessionId]);
+
+  return {
+    /** All events for this session (up to maxEvents) */
+    events,
+    /** The most recent event */
+    latestEvent,
+    /** Current state from state_change events */
+    currentState,
+    /** Whether we're fetching events */
+    loading: query.isLoading,
+    /** Any error that occurred */
+    error: query.error?.message ?? null,
+    /** Get events of a specific type */
+    getEventsByType,
+    /** Clear all events (useful when session ends) */
+    clearEvents,
+    /** Force refetch events */
     refetch: query.refetch,
   };
 }

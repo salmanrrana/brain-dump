@@ -27,6 +27,7 @@ import { registerWorkflowTools } from "./tools/workflow.js";
 import { registerGitTools } from "./tools/git.js";
 import { registerFileTools } from "./tools/files.js";
 import { registerHealthTools } from "./tools/health.js";
+import { registerEventTools } from "./tools/events.js";
 
 import { existsSync, unlinkSync } from "fs";
 
@@ -97,6 +98,7 @@ registerWorkflowTools(server, db, detectEnvironment);
 registerGitTools(server, db);
 registerFileTools(server, db);
 registerHealthTools(server, db, detectEnvironment, getEnvironmentInfo);
+registerEventTools(server, db);
 
 // =============================================================================
 // CONNECT AND START

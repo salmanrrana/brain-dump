@@ -117,3 +117,45 @@ export type NewSettings = typeof settings.$inferInsert;
 
 export type TicketComment = typeof ticketComments.$inferSelect;
 export type NewTicketComment = typeof ticketComments.$inferInsert;
+
+// Ralph events table (for real-time UI streaming)
+export const ralphEvents = sqliteTable(
+  "ralph_events",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id").notNull(), // Links to a Ralph session (ticket ID or custom session)
+    type: text("type").notNull(), // 'thinking', 'tool_start', 'tool_end', 'file_change', 'progress', 'state_change', 'error'
+    data: text("data"), // JSON object with event-specific data
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    index("idx_ralph_events_session").on(table.sessionId),
+    index("idx_ralph_events_created").on(table.createdAt),
+  ]
+);
+
+export type RalphEvent = typeof ralphEvents.$inferSelect;
+export type NewRalphEvent = typeof ralphEvents.$inferInsert;
+
+// Ralph event types
+export type RalphEventType =
+  | "thinking" // Claude is processing
+  | "tool_start" // About to call a tool
+  | "tool_end" // Tool call completed
+  | "file_change" // File was modified
+  | "progress" // General progress update
+  | "state_change" // Session state transition
+  | "error"; // Error occurred
+
+// Ralph event data interface
+export interface RalphEventData {
+  message?: string;
+  tool?: string;
+  file?: string;
+  state?: string;
+  error?: string;
+  success?: boolean;
+  [key: string]: unknown;
+}
