@@ -69,6 +69,31 @@ Brain Drop now supports OpenCode with full agent and skill integration. OpenCode
    # The .opencode/ directory is already configured
    ```
 
+3. **Start OpenCode** in Brain Dump directory:
+   ```bash
+   opencode
+   ```
+
+### Installation Options
+
+```bash
+# OpenCode only
+./install.sh --opencode
+
+# All IDEs (Claude Code + VS Code + OpenCode)
+./install.sh --all
+
+# Interactive (choose from options)
+./install.sh
+```
+
+2. **Configure OpenCode** for Brain Dump:
+
+   ```bash
+   cd brain-dump
+   # The .opencode/ directory is already configured
+   ```
+
 3. **Start OpenCode** in the Brain Dump directory:
    ```bash
    opencode
