@@ -139,6 +139,58 @@ export const getTickets = createServerFn().handler(async () => {
 
 These are called from React components via TanStack Query.
 
+## DO/DON'T Guidelines
+
+### Database Queries
+
+| ✅ DO                                                                      | ❌ DON'T                                              |
+| -------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Use Drizzle ORM: `db.select().from(tickets)`                               | Raw SQL strings: `db.run("SELECT * FROM tickets")`    |
+| Use typed schema imports: `import { tickets } from "../lib/schema"`        | String-based table names                              |
+| Use `eq()`, `and()`, `sql` from drizzle-orm for conditions                 | String concatenation for WHERE clauses                |
+| Use transactions for multi-table operations: `db.transaction(() => {...})` | Multiple independent queries that should be atomic    |
+| Use `.get()` for single row, `.all()` for multiple                         | Assume query returns what you expect without checking |
+
+### React & TanStack Query
+
+| ✅ DO                                                                                                | ❌ DON'T                                                |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Use `useQuery` with `queryKeys` for data fetching                                                    | `useState` + `useEffect` for fetched data               |
+| Use `useMutation` with `onSuccess` for state changes                                                 | Direct API calls without proper cache invalidation      |
+| Invalidate queries after mutations: `queryClient.invalidateQueries({ queryKey: queryKeys.tickets })` | Manual cache manipulation or refetch after every change |
+| Use centralized `queryKeys` object from `src/lib/hooks.ts`                                           | Hardcoded query key strings throughout components       |
+| Create custom hooks in `src/lib/hooks.ts` for reusable query logic                                   | Duplicate query setup in multiple components            |
+
+### Server Functions
+
+| ✅ DO                                                                         | ❌ DON'T                                       |
+| ----------------------------------------------------------------------------- | ---------------------------------------------- |
+| Use `createServerFn({ method: "GET" })` for reads, `"POST"` for writes        | Mix GET/POST inconsistently                    |
+| Use `.inputValidator()` for type-safe input handling                          | Access raw input without validation            |
+| Return typed data directly: `return db.select().from(tickets).all()`          | Wrap in unnecessary response objects           |
+| Use `ensureExists()` for required lookups: `ensureExists(project, "Project")` | Return null and let caller handle missing data |
+| Import from `@tanstack/react-start` (not `@tanstack/react-start/server`)      | Wrong import path                              |
+
+### MCP Tool Implementation
+
+| ✅ DO                                                                                      | ❌ DON'T                                 |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------- |
+| Use Zod schemas for input validation: `{ ticketId: z.string() }`                           | Trust input without validation           |
+| Return structured `{ content: [{ type: "text", text: ... }] }` format                      | Return plain strings                     |
+| Set `isError: true` for error responses                                                    | Return error text without the error flag |
+| Use `log.info()` / `log.error()` from `../lib/logging.js`                                  | `console.log` in MCP server code         |
+| Include helpful error messages: `"Project not found. Use list_projects to see available."` | Generic "Not found" errors               |
+
+### Testing Patterns (Kent C. Dodds)
+
+| ✅ DO                                                     | ❌ DON'T                                                        |
+| --------------------------------------------------------- | --------------------------------------------------------------- |
+| Test user behavior: what users see, click, and experience | Test implementation details, internal state, or private methods |
+| Integration tests for workflows: test components together | Unit tests for every function                                   |
+| Real database fixtures with actual schema                 | Excessive mocking of internals                                  |
+| Tests that fail when user-facing behavior breaks          | Tests that break on refactoring internals                       |
+| Ask: "Does this test catch bugs users would encounter?"   | Chase 100% code coverage as a goal                              |
+
 ## Testing
 
 - Unit tests live alongside source files: `*.test.ts`
