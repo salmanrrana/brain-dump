@@ -233,8 +233,12 @@ export function getEnvironmentInfo(): EnvironmentInfo {
   } else if (process.cwd) {
     try {
       workspacePath = process.cwd();
-    } catch {
-      // Ignore cwd errors
+    } catch (error) {
+      // Log for debugging - cwd can fail if directory was deleted or permissions changed
+      console.warn(
+        "[environment] Could not determine working directory:",
+        error instanceof Error ? error.message : "Unknown error"
+      );
     }
   }
 

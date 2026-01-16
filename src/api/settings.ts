@@ -58,6 +58,13 @@ export const updateSettings = createServerFn({ method: "POST" })
         throw new Error(`Invalid terminal emulator: ${input.terminalEmulator}`);
       }
     }
+    // Validate working method if provided
+    if (input.defaultWorkingMethod !== undefined) {
+      const validMethods = ["auto", "claude-code", "vscode", "opencode"];
+      if (!validMethods.includes(input.defaultWorkingMethod)) {
+        throw new Error(`Invalid working method: ${input.defaultWorkingMethod}`);
+      }
+    }
     return input;
   })
   .handler(async ({ data: updates }) => {

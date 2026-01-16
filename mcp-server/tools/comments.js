@@ -7,7 +7,7 @@ import { randomUUID } from "crypto";
 import { log } from "../lib/logging.js";
 
 const AUTHORS = ["claude", "ralph", "user", "opencode"];
-const COMMENT_TYPES = ["comment", "work_summary", "test_report"];
+const COMMENT_TYPES = ["comment", "work_summary", "test_report", "progress"];
 
 /**
  * Register ticket comment tools with the MCP server.

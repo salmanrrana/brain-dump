@@ -104,7 +104,14 @@ export function getEnvironmentInfo() {
 
   if (process.env.VSCODE_CWD) workspacePath = process.env.VSCODE_CWD;
   else if (process.env.PWD) workspacePath = process.env.PWD;
-  else { try { workspacePath = process.cwd(); } catch { /* ignore */ } }
+  else {
+    try {
+      workspacePath = process.cwd();
+    } catch (error) {
+      // Log for debugging - cwd can fail if directory was deleted or permissions changed
+      console.warn("[environment] Could not determine working directory:", error.message);
+    }
+  }
 
   return { environment, workspacePath, envVarsDetected };
 }
