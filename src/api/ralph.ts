@@ -364,6 +364,8 @@ fi
   #   memory: ${resourceLimits.memory} (prevents OOM on host)
   #   cpus: ${resourceLimits.cpus} (prevents CPU monopolization)
   #   pids-limit: ${resourceLimits.pidsLimit} (prevents fork bombs)
+  # Security:
+  #   no-new-privileges: prevents privilege escalation inside container
   # Timeout:
   #   stop-timeout: ${stopGracePeriod}s (grace period before SIGKILL)
   docker run --rm -it \\
@@ -374,6 +376,7 @@ fi
     --cpus=${resourceLimits.cpus} \\
     --pids-limit=${resourceLimits.pidsLimit} \\
     --stop-timeout=${stopGracePeriod} \\
+    --security-opt=no-new-privileges:true \\
     -p 8100-8110:8100-8110 \\
     -p 8200-8210:8200-8210 \\
     -p 8300-8310:8300-8310 \\
