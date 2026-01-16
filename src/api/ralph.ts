@@ -264,15 +264,46 @@ async function writeVSCodeContext(
   }
 }
 
+// Resource limit configuration for Docker sandbox
+interface DockerResourceLimits {
+  memory: string; // e.g., "2g" for 2GB
+  cpus: string; // e.g., "1.5" for 1.5 cores
+  pidsLimit: number; // e.g., 256
+}
+
+const DEFAULT_RESOURCE_LIMITS: DockerResourceLimits = {
+  memory: "2g",
+  cpus: "1.5",
+  pidsLimit: 256,
+};
+
+// Default timeout for Ralph session (1 hour in seconds)
+const DEFAULT_TIMEOUT_SECONDS = 3600;
+
 // Generate the Ralph bash script (unified for both native and Docker)
 function generateRalphScript(
   projectPath: string,
   maxIterations: number = 10,
-  useSandbox: boolean = false
+  useSandbox: boolean = false,
+  resourceLimits: DockerResourceLimits = DEFAULT_RESOURCE_LIMITS,
+  timeoutSeconds: number = DEFAULT_TIMEOUT_SECONDS
 ): string {
   const imageName = "brain-dump-ralph-sandbox:latest";
   const sandboxHeader = useSandbox ? " (Docker Sandbox)" : "";
-  const containerInfo = useSandbox ? `echo -e "\\033[1;33m🐳 Container:\\033[0m ${imageName}"` : "";
+  // Format timeout for display (e.g., "1h", "30m", "1h 30m")
+  const timeoutHours = Math.floor(timeoutSeconds / 3600);
+  const timeoutMinutes = Math.floor((timeoutSeconds % 3600) / 60);
+  const timeoutDisplay =
+    timeoutHours > 0 && timeoutMinutes > 0
+      ? `${timeoutHours}h ${timeoutMinutes}m`
+      : timeoutHours > 0
+        ? `${timeoutHours}h`
+        : `${timeoutMinutes}m`;
+  const containerInfo = useSandbox
+    ? `echo -e "\\033[1;33m🐳 Container:\\033[0m ${imageName}"
+echo -e "\\033[1;33m📊 Resources:\\033[0m ${resourceLimits.memory} RAM, ${resourceLimits.cpus} CPUs, ${resourceLimits.pidsLimit} max PIDs"
+echo -e "\\033[1;33m⏱️  Timeout:\\033[0m ${timeoutDisplay}"`
+    : `echo -e "\\033[1;33m⏱️  Timeout:\\033[0m ${timeoutDisplay}"`;
 
   // Docker image check (only for sandbox mode)
   const dockerImageCheck = useSandbox
@@ -316,6 +347,9 @@ fi
 `
     : "";
 
+  // Grace period for container to stop cleanly (30 seconds)
+  const stopGracePeriod = 30;
+
   const claudeInvocation = useSandbox
     ? `  # Run Claude in Docker container
   # Claude Code auth is passed via mounted ~/.config/claude-code (uses your existing subscription)
@@ -326,9 +360,23 @@ fi
   #   8200-8210: Backend (Express, Fastify)
   #   8300-8310: Storybook, docs
   #   8400-8410: Databases (exposed for debugging)
+  # Resource limits:
+  #   memory: ${resourceLimits.memory} (prevents OOM on host)
+  #   cpus: ${resourceLimits.cpus} (prevents CPU monopolization)
+  #   pids-limit: ${resourceLimits.pidsLimit} (prevents fork bombs)
+  # Security:
+  #   no-new-privileges: prevents privilege escalation inside container
+  # Timeout:
+  #   stop-timeout: ${stopGracePeriod}s (grace period before SIGKILL)
   docker run --rm -it \\
     --name "ralph-\${SESSION_ID}" \\
     --network ralph-net \\
+    --memory=${resourceLimits.memory} \\
+    --memory-swap=${resourceLimits.memory} \\
+    --cpus=${resourceLimits.cpus} \\
+    --pids-limit=${resourceLimits.pidsLimit} \\
+    --stop-timeout=${stopGracePeriod} \\
+    --security-opt=no-new-privileges:true \\
     -p 8100-8110:8100-8110 \\
     -p 8200-8210:8200-8210 \\
     -p 8300-8310:8300-8310 \\
@@ -337,8 +385,8 @@ fi
     -v "\\$HOME/.config/claude-code:/home/ralph/.config/claude-code:ro" \\
     -v "\\$HOME/.gitconfig:/home/ralph/.gitconfig:ro" \\
     -v "\\$HOME/.config/gh:/home/ralph/.config/gh:ro" \\
-    \$SSH_MOUNT_ARGS \\
-    \$KNOWN_HOSTS_MOUNT \\
+    $SSH_MOUNT_ARGS \\
+    $KNOWN_HOSTS_MOUNT \\
     -w /workspace \\
     "${imageName}" \\
     claude --dangerously-skip-permissions /workspace/.ralph-prompt.md`
@@ -347,6 +395,93 @@ fi
 
   const iterationLabel = useSandbox ? "(Docker)" : "";
   const endMessage = useSandbox ? "" : `echo "Run again with: $0 <max_iterations>"`;
+
+  // Timeout trap handler - cleans up container and saves progress note
+  const timeoutTrapHandler = useSandbox
+    ? `
+# Timeout handling for graceful shutdown
+TIMEOUT_REACHED=false
+RALPH_TIMEOUT=${timeoutSeconds}
+
+handle_timeout() {
+  TIMEOUT_REACHED=true
+  echo ""
+  echo -e "\\033[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+  echo -e "\\033[0;31m⏰ TIMEOUT: Ralph session exceeded ${timeoutDisplay} limit\\033[0m"
+  echo -e "\\033[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+  echo ""
+
+  # Stop Docker container if running
+  if docker ps -q --filter "name=ralph-\${SESSION_ID}" | grep -q .; then
+    echo -e "\\033[0;33m🐳 Stopping Ralph container...\\033[0m"
+    docker stop "ralph-\${SESSION_ID}" 2>/dev/null || true
+  fi
+
+  # Log timeout to progress file
+  echo "" >> "$PROGRESS_FILE"
+  echo "---" >> "$PROGRESS_FILE"
+  echo "" >> "$PROGRESS_FILE"
+  echo "### $(date '+%Y-%m-%d %H:%M:%S') - Session Timeout" >> "$PROGRESS_FILE"
+  echo "- **Reason:** Timeout reached (${timeoutDisplay} limit)" >> "$PROGRESS_FILE"
+  echo "- **Status:** Session terminated, work may be incomplete" >> "$PROGRESS_FILE"
+  echo "- **Action:** Review progress and restart if needed" >> "$PROGRESS_FILE"
+
+  echo -e "\\033[0;33m📝 Timeout logged to progress.txt\\033[0m"
+  exit 124
+}
+
+# Set up alarm signal handler
+trap handle_timeout ALRM
+
+# Start background timer that will send ALRM after timeout
+(sleep $RALPH_TIMEOUT && kill -ALRM $$ 2>/dev/null) &
+TIMER_PID=$!
+
+# Clean up timer on normal exit
+cleanup_timer() {
+  kill $TIMER_PID 2>/dev/null || true
+}
+trap cleanup_timer EXIT
+`
+    : `
+# Timeout handling for graceful shutdown
+TIMEOUT_REACHED=false
+RALPH_TIMEOUT=${timeoutSeconds}
+
+handle_timeout() {
+  TIMEOUT_REACHED=true
+  echo ""
+  echo -e "\\033[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+  echo -e "\\033[0;31m⏰ TIMEOUT: Ralph session exceeded ${timeoutDisplay} limit\\033[0m"
+  echo -e "\\033[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+  echo ""
+
+  # Log timeout to progress file
+  echo "" >> "$PROGRESS_FILE"
+  echo "---" >> "$PROGRESS_FILE"
+  echo "" >> "$PROGRESS_FILE"
+  echo "### $(date '+%Y-%m-%d %H:%M:%S') - Session Timeout" >> "$PROGRESS_FILE"
+  echo "- **Reason:** Timeout reached (${timeoutDisplay} limit)" >> "$PROGRESS_FILE"
+  echo "- **Status:** Session terminated, work may be incomplete" >> "$PROGRESS_FILE"
+  echo "- **Action:** Review progress and restart if needed" >> "$PROGRESS_FILE"
+
+  echo -e "\\033[0;33m📝 Timeout logged to progress.txt\\033[0m"
+  exit 124
+}
+
+# Set up alarm signal handler
+trap handle_timeout ALRM
+
+# Start background timer that will send ALRM after timeout
+(sleep $RALPH_TIMEOUT && kill -ALRM $$ 2>/dev/null) &
+TIMER_PID=$!
+
+# Clean up timer on normal exit
+cleanup_timer() {
+  kill $TIMER_PID 2>/dev/null || true
+}
+trap cleanup_timer EXIT
+`;
 
   return `#!/bin/bash
 set -e
@@ -368,7 +503,7 @@ if [ ! -f "$PROGRESS_FILE" ]; then
   echo "# Use this to leave notes for the next iteration" >> "$PROGRESS_FILE"
   echo "" >> "$PROGRESS_FILE"
 fi
-
+${timeoutTrapHandler}
 echo ""
 echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
 echo -e "\\033[0;32m🧠 Brain Dump - Ralph Mode${sandboxHeader}\\033[0m"
@@ -689,6 +824,16 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     const { join } = await import("path");
     const { homedir } = await import("os");
     const { randomUUID } = await import("crypto");
+    const { settings } = await import("../lib/schema");
+    const { eq: eqSettings } = await import("drizzle-orm");
+
+    // Get settings for timeout configuration
+    const appSettings = db
+      .select()
+      .from(settings)
+      .where(eqSettings(settings.id, "default"))
+      .get();
+    const timeoutSeconds = appSettings?.ralphTimeout ?? DEFAULT_TIMEOUT_SECONDS;
 
     // Get the ticket with its project
     const ticket = db
@@ -734,8 +879,14 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     const prdPath = join(plansDir, "prd.json");
     writeFileSync(prdPath, JSON.stringify(prd, null, 2));
 
-    // Generate Ralph script
-    const ralphScript = generateRalphScript(project.path, maxIterations, useSandbox);
+    // Generate Ralph script with timeout
+    const ralphScript = generateRalphScript(
+      project.path,
+      maxIterations,
+      useSandbox,
+      DEFAULT_RESOURCE_LIMITS,
+      timeoutSeconds
+    );
     const scriptDir = join(homedir(), ".brain-dump", "scripts");
     mkdirSync(scriptDir, { recursive: true });
     const scriptPath = join(scriptDir, `ralph-${useSandbox ? "docker-" : ""}${randomUUID()}.sh`);
@@ -750,7 +901,7 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
 
     // Branch based on workingMethod setting
     const workingMethod = project.workingMethod || "auto";
-    console.log(`[brain-dump] Ralph ticket launch: workingMethod="${workingMethod}" for project "${project.name}"`);
+    console.log(`[brain-dump] Ralph ticket launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`);
 
     if (workingMethod === "vscode") {
       // VS Code path: generate context file and launch VS Code
@@ -819,6 +970,16 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     const { join } = await import("path");
     const { homedir } = await import("os");
     const { randomUUID } = await import("crypto");
+    const { settings } = await import("../lib/schema");
+    const { eq: eqSettings } = await import("drizzle-orm");
+
+    // Get settings for timeout configuration
+    const appSettings = db
+      .select()
+      .from(settings)
+      .where(eqSettings(settings.id, "default"))
+      .get();
+    const timeoutSeconds = appSettings?.ralphTimeout ?? DEFAULT_TIMEOUT_SECONDS;
 
     // Get the epic
     const epic = db
@@ -880,8 +1041,14 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     const prdPath = join(plansDir, "prd.json");
     writeFileSync(prdPath, JSON.stringify(prd, null, 2));
 
-    // Generate Ralph script
-    const ralphScript = generateRalphScript(project.path, maxIterations, useSandbox);
+    // Generate Ralph script with timeout
+    const ralphScript = generateRalphScript(
+      project.path,
+      maxIterations,
+      useSandbox,
+      DEFAULT_RESOURCE_LIMITS,
+      timeoutSeconds
+    );
     const scriptDir = join(homedir(), ".brain-dump", "scripts");
     mkdirSync(scriptDir, { recursive: true });
     const scriptPath = join(scriptDir, `ralph-epic-${useSandbox ? "docker-" : ""}${randomUUID()}.sh`);
@@ -900,7 +1067,7 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
 
     // Branch based on workingMethod setting
     const workingMethod = project.workingMethod || "auto";
-    console.log(`[brain-dump] Ralph launch: workingMethod="${workingMethod}" for project "${project.name}"`);
+    console.log(`[brain-dump] Ralph launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`);
 
     if (workingMethod === "vscode") {
       // VS Code path: generate context file and launch VS Code
@@ -1023,7 +1190,7 @@ async function startCompanionContainer(
   // First ensure ralph-net network exists
   const networkResult = await ensureDockerNetwork("ralph-net");
   if (!networkResult.success) {
-    return networkResult;
+    return { success: false, message: networkResult.message };
   }
 
   // Check if container already running
@@ -1107,7 +1274,9 @@ export const startCompanionContainers = createServerFn({ method: "POST" })
       if (result.success) {
         results.push({ service, success: true, connectionString: result.connectionString });
       } else {
-        results.push({ service, success: false, error: result.message });
+        // TypeScript narrowing: when success is false, message exists
+        const errorMessage = result.message;
+        results.push({ service, success: false, error: errorMessage });
       }
     }
 

@@ -851,6 +851,7 @@ export interface Settings {
   id: string;
   terminalEmulator: string | null;
   ralphSandbox: boolean | null;
+  ralphTimeout: number | null;
   autoCreatePr: boolean | null;
   prTargetBranch: string | null;
   defaultProjectsDirectory: string | null;

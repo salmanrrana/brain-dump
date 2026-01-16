@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 export interface UpdateSettingsInput {
   terminalEmulator?: string | null;
   ralphSandbox?: boolean;
+  ralphTimeout?: number; // Timeout in seconds (default: 3600 = 1 hour)
   autoCreatePr?: boolean;
   prTargetBranch?: string;
   defaultProjectsDirectory?: string | null;
@@ -72,6 +73,11 @@ export const updateSettings = createServerFn({ method: "POST" })
     }
     if (updates.ralphSandbox !== undefined) {
       updateData.ralphSandbox = updates.ralphSandbox;
+    }
+    if (updates.ralphTimeout !== undefined) {
+      // Validate timeout: minimum 5 minutes (300s), maximum 24 hours (86400s)
+      const timeout = Math.max(300, Math.min(86400, updates.ralphTimeout));
+      updateData.ralphTimeout = timeout;
     }
     if (updates.autoCreatePr !== undefined) {
       updateData.autoCreatePr = updates.autoCreatePr;
