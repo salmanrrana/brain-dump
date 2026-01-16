@@ -1,6 +1,12 @@
 import { useState, useRef, useCallback } from "react";
 import { X, ChevronDown, FolderOpen } from "lucide-react";
-import { useCreateProject, useUpdateProject, useDeleteProject, useModalKeyboard, type ProjectBase } from "../lib/hooks";
+import {
+  useCreateProject,
+  useUpdateProject,
+  useDeleteProject,
+  useModalKeyboard,
+  type ProjectBase,
+} from "../lib/hooks";
 import { type UpdateProjectInput } from "../api/projects";
 import DirectoryPicker from "./DirectoryPicker";
 import DeleteProjectModal from "./DeleteProjectModal";
@@ -12,6 +18,7 @@ const WORKING_METHOD_OPTIONS = [
   { value: "auto", label: "Auto-detect" },
   { value: "claude-code", label: "Claude Code" },
   { value: "vscode", label: "VS Code" },
+  { value: "opencode", label: "OpenCode" },
 ];
 
 interface ProjectModalProps {
@@ -20,11 +27,7 @@ interface ProjectModalProps {
   onSave: () => void;
 }
 
-export default function ProjectModal({
-  project,
-  onClose,
-  onSave,
-}: ProjectModalProps) {
+export default function ProjectModal({ project, onClose, onSave }: ProjectModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const isEditing = Boolean(project);
@@ -70,13 +73,15 @@ export default function ProjectModal({
       if (color) {
         updates.color = color;
       }
-      if (workingMethod === "auto" || workingMethod === "claude-code" || workingMethod === "vscode") {
+      if (
+        workingMethod === "auto" ||
+        workingMethod === "claude-code" ||
+        workingMethod === "vscode" ||
+        workingMethod === "opencode"
+      ) {
         updates.workingMethod = workingMethod;
       }
-      updateMutation.mutate(
-        { id: project.id, updates },
-        { onSuccess: onSave }
-      );
+      updateMutation.mutate({ id: project.id, updates }, { onSuccess: onSave });
     } else {
       createMutation.mutate(
         {
@@ -93,25 +98,24 @@ export default function ProjectModal({
     if (!project) return;
 
     setDeleteError(null);
-    deleteMutation.mutate({ projectId: project.id, confirm: true }, {
-      onSuccess: () => {
-        showToast("success", `Project "${project.name}" deleted`);
-        onSave();
-      },
-      onError: (err) => {
-        setDeleteError(err instanceof Error ? err.message : "Failed to delete project");
-      },
-    });
+    deleteMutation.mutate(
+      { projectId: project.id, confirm: true },
+      {
+        onSuccess: () => {
+          showToast("success", `Project "${project.name}" deleted`);
+          onSave();
+        },
+        onError: (err) => {
+          setDeleteError(err instanceof Error ? err.message : "Failed to delete project");
+        },
+      }
+    );
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden="true" />
 
       {/* Modal */}
       <div
@@ -139,7 +143,6 @@ export default function ProjectModal({
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* Error */}
           <ErrorAlert error={error} />
-
 
           {/* Name */}
           <div>
@@ -178,16 +181,12 @@ export default function ProjectModal({
                 <FolderOpen size={18} />
               </button>
             </div>
-            <p className="mt-1 text-xs text-slate-500">
-              Directory must exist on your filesystem
-            </p>
+            <p className="mt-1 text-xs text-slate-500">Directory must exist on your filesystem</p>
           </div>
 
           {/* Color */}
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">
-              Color
-            </label>
+            <label className="block text-sm font-medium text-slate-400 mb-1">Color</label>
             <div className="relative">
               <select
                 value={color}
@@ -207,10 +206,7 @@ export default function ProjectModal({
             </div>
             {color && (
               <div className="mt-2 flex items-center gap-2">
-                <span
-                  className="w-4 h-4 rounded"
-                  style={{ backgroundColor: color }}
-                />
+                <span className="w-4 h-4 rounded" style={{ backgroundColor: color }} />
                 <span className="text-xs text-slate-400">Preview</span>
               </div>
             )}
@@ -271,11 +267,7 @@ export default function ProjectModal({
               disabled={isSaving || !name.trim() || !path.trim()}
               className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-lg font-medium transition-colors"
             >
-              {isSaving
-                ? "Saving..."
-                : isEditing
-                  ? "Save Changes"
-                  : "Create Project"}
+              {isSaving ? "Saving..." : isEditing ? "Save Changes" : "Create Project"}
             </button>
           </div>
         </div>

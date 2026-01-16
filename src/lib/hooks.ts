@@ -169,16 +169,52 @@ export function useClickOutside(
 export type ModalState =
   | { type: "none" }
   | { type: "newTicket" }
-  | { type: "project"; project: { id: string; name: string; path: string; color: string | null; workingMethod: string | null } | null }
-  | { type: "epic"; projectId: string; epic: { id: string; title: string; description: string | null; projectId: string; color: string | null; createdAt: string } | null }
+  | {
+      type: "project";
+      project: {
+        id: string;
+        name: string;
+        path: string;
+        color: string | null;
+        workingMethod: string | null;
+      } | null;
+    }
+  | {
+      type: "epic";
+      projectId: string;
+      epic: {
+        id: string;
+        title: string;
+        description: string | null;
+        projectId: string;
+        color: string | null;
+        createdAt: string;
+      } | null;
+    }
   | { type: "settings" }
   | { type: "shortcuts" };
 
 export interface UseModalReturn {
   modal: ModalState;
   openNewTicket: () => void;
-  openProject: (project?: { id: string; name: string; path: string; color: string | null; workingMethod: string | null }) => void;
-  openEpic: (projectId: string, epic?: { id: string; title: string; description: string | null; projectId: string; color: string | null; createdAt: string }) => void;
+  openProject: (project?: {
+    id: string;
+    name: string;
+    path: string;
+    color: string | null;
+    workingMethod: string | null;
+  }) => void;
+  openEpic: (
+    projectId: string,
+    epic?: {
+      id: string;
+      title: string;
+      description: string | null;
+      projectId: string;
+      color: string | null;
+      createdAt: string;
+    }
+  ) => void;
   openSettings: () => void;
   openShortcuts: () => void;
   close: () => void;
@@ -196,13 +232,35 @@ export function useModal(): UseModalReturn {
     setModal({ type: "newTicket" });
   }, []);
 
-  const openProject = useCallback((project?: { id: string; name: string; path: string; color: string | null; workingMethod: string | null }) => {
-    setModal({ type: "project", project: project ?? null });
-  }, []);
+  const openProject = useCallback(
+    (project?: {
+      id: string;
+      name: string;
+      path: string;
+      color: string | null;
+      workingMethod: string | null;
+    }) => {
+      setModal({ type: "project", project: project ?? null });
+    },
+    []
+  );
 
-  const openEpic = useCallback((projectId: string, epic?: { id: string; title: string; description: string | null; projectId: string; color: string | null; createdAt: string }) => {
-    setModal({ type: "epic", projectId, epic: epic ?? null });
-  }, []);
+  const openEpic = useCallback(
+    (
+      projectId: string,
+      epic?: {
+        id: string;
+        title: string;
+        description: string | null;
+        projectId: string;
+        color: string | null;
+        createdAt: string;
+      }
+    ) => {
+      setModal({ type: "epic", projectId, epic: epic ?? null });
+    },
+    []
+  );
 
   const openSettings = useCallback(() => {
     setModal({ type: "settings" });
@@ -287,9 +345,7 @@ export function useFilters(): UseFiltersReturn {
   const toggleTag = useCallback((tag: string) => {
     setFilters((prev) => ({
       ...prev,
-      tags: prev.tags.includes(tag)
-        ? prev.tags.filter((t) => t !== tag)
-        : [...prev.tags, tag],
+      tags: prev.tags.includes(tag) ? prev.tags.filter((t) => t !== tag) : [...prev.tags, tag],
     }));
   }, []);
 
@@ -388,7 +444,14 @@ export function useSampleData(onDeleted?: () => void): UseSampleDataReturn {
 }
 
 import { getProjects, createProject, updateProject, deleteProject } from "../api/projects";
-import { getSettings, updateSettings, detectAvailableTerminals, getDockerStatus, buildSandboxImage, type UpdateSettingsInput } from "../api/settings";
+import {
+  getSettings,
+  updateSettings,
+  detectAvailableTerminals,
+  getDockerStatus,
+  buildSandboxImage,
+  type UpdateSettingsInput,
+} from "../api/settings";
 import { getEpicsByProject, createEpic, updateEpic, deleteEpic } from "../api/epics";
 import {
   getTickets,
@@ -505,8 +568,7 @@ export function useUpdateTicket() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { id: string; updates: UpdateTicketInput }) =>
-      updateTicket({ data }),
+    mutationFn: (data: { id: string; updates: UpdateTicketInput }) => updateTicket({ data }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTags });
@@ -518,8 +580,7 @@ export function useUpdateTicketStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { id: string; status: TicketStatus }) =>
-      updateTicketStatus({ data }),
+    mutationFn: (data: { id: string; status: TicketStatus }) => updateTicketStatus({ data }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
     },
@@ -530,8 +591,7 @@ export function useUpdateTicketPosition() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { id: string; position: number }) =>
-      updateTicketPosition({ data }),
+    mutationFn: (data: { id: string; position: number }) => updateTicketPosition({ data }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
     },
@@ -542,8 +602,7 @@ export function useDeleteTicket() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (params: { ticketId: string; confirm?: boolean }) =>
-      deleteTicket({ data: params }),
+    mutationFn: (params: { ticketId: string; confirm?: boolean }) => deleteTicket({ data: params }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTags });
@@ -556,8 +615,7 @@ export function useCreateProject() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { name: string; path: string; color?: string }) =>
-      createProject({ data }),
+    mutationFn: (data: { name: string; path: string; color?: string }) => createProject({ data }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
     },
@@ -568,8 +626,15 @@ export function useUpdateProject() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { id: string; updates: { name?: string; path?: string; color?: string; workingMethod?: "auto" | "claude-code" | "vscode" } }) =>
-      updateProject({ data }),
+    mutationFn: (data: {
+      id: string;
+      updates: {
+        name?: string;
+        path?: string;
+        color?: string;
+        workingMethod?: "auto" | "claude-code" | "vscode" | "opencode";
+      };
+    }) => updateProject({ data }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
     },
@@ -595,8 +660,12 @@ export function useCreateEpic() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { title: string; projectId: string; description?: string; color?: string }) =>
-      createEpic({ data }),
+    mutationFn: (data: {
+      title: string;
+      projectId: string;
+      description?: string;
+      color?: string;
+    }) => createEpic({ data }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
     },
@@ -607,8 +676,10 @@ export function useUpdateEpic() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { id: string; updates: { title?: string; description?: string; color?: string } }) =>
-      updateEpic({ data }),
+    mutationFn: (data: {
+      id: string;
+      updates: { title?: string; description?: string; color?: string };
+    }) => updateEpic({ data }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
     },
@@ -619,8 +690,7 @@ export function useDeleteEpic() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (params: { epicId: string; confirm?: boolean }) =>
-      deleteEpic({ data: params }),
+    mutationFn: (params: { epicId: string; confirm?: boolean }) => deleteEpic({ data: params }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
@@ -958,7 +1028,13 @@ export function useBuildSandboxImage() {
 
 import { launchRalphForTicket, launchRalphForEpic } from "../api/ralph";
 import { launchProjectInception, launchSpecBreakdown } from "../api/inception";
-import { getComments, createComment, deleteComment, type Comment, type CreateCommentInput } from "../api/comments";
+import {
+  getComments,
+  createComment,
+  deleteComment,
+  type Comment,
+  type CreateCommentInput,
+} from "../api/comments";
 
 // =============================================================================
 // COMMENTS HOOKS
@@ -1015,8 +1091,12 @@ export function useLaunchRalphForTicket() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { ticketId: string; maxIterations?: number; preferredTerminal?: string | null; useSandbox?: boolean }) =>
-      launchRalphForTicket({ data }),
+    mutationFn: (data: {
+      ticketId: string;
+      maxIterations?: number;
+      preferredTerminal?: string | null;
+      useSandbox?: boolean;
+    }) => launchRalphForTicket({ data }),
     onSuccess: () => {
       // Ticket status will be updated by Ralph, invalidate to reflect changes
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
@@ -1029,8 +1109,12 @@ export function useLaunchRalphForEpic() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { epicId: string; maxIterations?: number; preferredTerminal?: string | null; useSandbox?: boolean }) =>
-      launchRalphForEpic({ data }),
+    mutationFn: (data: {
+      epicId: string;
+      maxIterations?: number;
+      preferredTerminal?: string | null;
+      useSandbox?: boolean;
+    }) => launchRalphForEpic({ data }),
     onSuccess: () => {
       // Ticket statuses will be updated by Ralph, invalidate to reflect changes
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
@@ -1047,8 +1131,7 @@ export function useLaunchProjectInception() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { preferredTerminal?: string | null }) =>
-      launchProjectInception({ data }),
+    mutationFn: (data: { preferredTerminal?: string | null }) => launchProjectInception({ data }),
     onSuccess: () => {
       // A new project may be created, invalidate projects list
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
@@ -1061,8 +1144,11 @@ export function useLaunchSpecBreakdown() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { projectPath: string; projectName: string; preferredTerminal?: string | null }) =>
-      launchSpecBreakdown({ data }),
+    mutationFn: (data: {
+      projectPath: string;
+      projectName: string;
+      preferredTerminal?: string | null;
+    }) => launchSpecBreakdown({ data }),
     onSuccess: () => {
       // Tickets will be created, invalidate tickets and projects
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });

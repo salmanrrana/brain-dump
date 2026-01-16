@@ -17,16 +17,14 @@ export interface UpdateProjectInput {
   name?: string;
   path?: string;
   color?: string;
-  workingMethod?: "auto" | "claude-code" | "vscode";
+  workingMethod?: "auto" | "claude-code" | "vscode" | "opencode";
 }
 
 // Get all projects
-export const getProjects = createServerFn({ method: "GET" }).handler(
-  async () => {
-    const allProjects = db.select().from(projects).all();
-    return allProjects;
-  }
-);
+export const getProjects = createServerFn({ method: "GET" }).handler(async () => {
+  const allProjects = db.select().from(projects).all();
+  return allProjects;
+});
 
 // Create a new project
 export const createProject = createServerFn({ method: "POST" })
@@ -133,93 +131,99 @@ export const deleteProject = createServerFn({ method: "POST" })
     }
     return input;
   })
-  .handler(async ({ data: { projectId, confirm = false } }): Promise<DeleteProjectPreview | DeleteProjectResult> => {
-    const projectResult = db.select().from(projects).where(eq(projects.id, projectId)).get();
-    const project = ensureExists(projectResult, "Project", projectId);
+  .handler(
+    async ({
+      data: { projectId, confirm = false },
+    }): Promise<DeleteProjectPreview | DeleteProjectResult> => {
+      const projectResult = db.select().from(projects).where(eq(projects.id, projectId)).get();
+      const project = ensureExists(projectResult, "Project", projectId);
 
-    // Gather all data that would be deleted
-    const projectEpics = db
-      .select({
-        id: epics.id,
-        title: epics.title,
-      })
-      .from(epics)
-      .where(eq(epics.projectId, projectId))
-      .all();
+      // Gather all data that would be deleted
+      const projectEpics = db
+        .select({
+          id: epics.id,
+          title: epics.title,
+        })
+        .from(epics)
+        .where(eq(epics.projectId, projectId))
+        .all();
 
-    const projectTickets = db
-      .select({
-        id: tickets.id,
-        title: tickets.title,
-        status: tickets.status,
-        epicId: tickets.epicId,
-      })
-      .from(tickets)
-      .where(eq(tickets.projectId, projectId))
-      .all();
+      const projectTickets = db
+        .select({
+          id: tickets.id,
+          title: tickets.title,
+          status: tickets.status,
+          epicId: tickets.epicId,
+        })
+        .from(tickets)
+        .where(eq(tickets.projectId, projectId))
+        .all();
 
-    // Count comments across all tickets
-    let commentCount = 0;
-    if (projectTickets.length > 0) {
-      const ticketIds = projectTickets.map(t => t.id);
-      const commentResult = db
-        .select({ count: sql<number>`COUNT(*)` })
-        .from(ticketComments)
-        .where(inArray(ticketComments.ticketId, ticketIds))
-        .get();
-      commentCount = commentResult?.count ?? 0;
-    }
+      // Count comments across all tickets
+      let commentCount = 0;
+      if (projectTickets.length > 0) {
+        const ticketIds = projectTickets.map((t) => t.id);
+        const commentResult = db
+          .select({ count: sql<number>`COUNT(*)` })
+          .from(ticketComments)
+          .where(inArray(ticketComments.ticketId, ticketIds))
+          .get();
+        commentCount = commentResult?.count ?? 0;
+      }
 
-    // Dry-run: return preview of what would be deleted
-    if (!confirm) {
+      // Dry-run: return preview of what would be deleted
+      if (!confirm) {
+        return {
+          preview: true,
+          project: {
+            id: project.id,
+            name: project.name,
+            path: project.path,
+          },
+          epics: projectEpics,
+          tickets: projectTickets,
+          commentCount,
+        };
+      }
+
+      // Actually delete (use transaction for atomicity)
+      // Note: FK cascade should handle most of this, but we do it explicitly for clarity
+      try {
+        sqlite.transaction(() => {
+          // 1. Delete comments for all project tickets
+          if (projectTickets.length > 0) {
+            const ticketIds = projectTickets.map((t) => t.id);
+            db.delete(ticketComments).where(inArray(ticketComments.ticketId, ticketIds)).run();
+          }
+
+          // 2. Delete tickets
+          db.delete(tickets).where(eq(tickets.projectId, projectId)).run();
+
+          // 3. Delete epics
+          db.delete(epics).where(eq(epics.projectId, projectId)).run();
+
+          // 4. Delete project
+          db.delete(projects).where(eq(projects.id, projectId)).run();
+        })();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        if (message.includes("SQLITE_BUSY")) {
+          throw new Error(
+            "Failed to delete project: The database is busy. Please try again in a moment."
+          );
+        }
+        throw new Error(`Failed to delete project: ${message}`);
+      }
+
       return {
-        preview: true,
+        deleted: true,
         project: {
           id: project.id,
           name: project.name,
-          path: project.path,
         },
-        epics: projectEpics,
-        tickets: projectTickets,
+        epicCount: projectEpics.length,
+        ticketCount: projectTickets.length,
         commentCount,
       };
     }
-
-    // Actually delete (use transaction for atomicity)
-    // Note: FK cascade should handle most of this, but we do it explicitly for clarity
-    try {
-      sqlite.transaction(() => {
-        // 1. Delete comments for all project tickets
-        if (projectTickets.length > 0) {
-          const ticketIds = projectTickets.map(t => t.id);
-          db.delete(ticketComments).where(inArray(ticketComments.ticketId, ticketIds)).run();
-        }
-
-        // 2. Delete tickets
-        db.delete(tickets).where(eq(tickets.projectId, projectId)).run();
-
-        // 3. Delete epics
-        db.delete(epics).where(eq(epics.projectId, projectId)).run();
-
-        // 4. Delete project
-        db.delete(projects).where(eq(projects.id, projectId)).run();
-      })();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      if (message.includes("SQLITE_BUSY")) {
-        throw new Error("Failed to delete project: The database is busy. Please try again in a moment.");
-      }
-      throw new Error(`Failed to delete project: ${message}`);
-    }
-
-    return {
-      deleted: true,
-      project: {
-        id: project.id,
-        name: project.name,
-      },
-      epicCount: projectEpics.length,
-      ticketCount: projectTickets.length,
-      commentCount,
-    };
-  });
+  );
