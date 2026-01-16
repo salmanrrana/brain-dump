@@ -16,16 +16,20 @@ async function isOpenCodeInstalled(): Promise<{ installed: boolean; error?: stri
   } catch (error) {
     // Check if it's a "command not found" error
     const err = error as Error & { code?: string };
-    if (err.code === "ENOENT" || err.message?.includes("not found") || err.message?.includes("command not found")) {
+    if (
+      err.code === "ENOENT" ||
+      err.message?.includes("not found") ||
+      err.message?.includes("command not found")
+    ) {
       return {
         installed: false,
-        error: "OpenCode CLI is not installed. Install it from: https://github.com/sst/opencode"
+        error: "OpenCode CLI is not installed. Install it from: https://github.com/sst/opencode",
       };
     }
     // Other errors - might be installed but having issues
     return {
       installed: false,
-      error: `OpenCode check failed: ${err.message}`
+      error: `OpenCode check failed: ${err.message}`,
     };
   }
 }
@@ -445,7 +449,8 @@ export const launchOpenCodeInTerminal = createServerFn({ method: "POST" })
       return {
         success: false,
         method: "clipboard",
-        message: openCodeCheck.error || "OpenCode is not installed. Context copied to clipboard instead.",
+        message:
+          openCodeCheck.error || "OpenCode is not installed. Context copied to clipboard instead.",
       };
     }
 
