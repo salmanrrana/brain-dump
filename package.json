@@ -28,7 +28,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "ralph:build-sandbox": "docker build -t brain-dump-ralph-sandbox:latest -f docker/ralph-sandbox.Dockerfile docker/"
+    "ralph:build-sandbox": "docker build -t brain-dump-ralph-sandbox:latest -f docker/ralph-sandbox.Dockerfile docker/",
+    "prepare": "husky"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -52,6 +53,13 @@
     "tailwindcss": "^4.0.6",
     "vite-tsconfig-paths": "^6.0.2"
   },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{json,md,css}": "prettier --write"
+  },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "@playwright/test": "^1.57.0",
@@ -71,7 +79,9 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.26",
     "happy-dom": "^20.3.0",
+    "husky": "^9.1.7",
     "jsdom": "^27.0.0",
+    "lint-staged": "^16.2.7",
     "msw": "^2.12.7",
     "prettier": "^3.7.4",
     "tsx": "^4.21.0",
