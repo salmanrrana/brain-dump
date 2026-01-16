@@ -567,10 +567,11 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
           type: "success",
           message: `Context copied! Run: cd "${contextResult.projectPath}" && opencode`,
         });
-      } catch {
+      } catch (fallbackError) {
+        console.error("Failed to copy context to clipboard:", fallbackError);
         setStartWorkNotification({
           type: "error",
-          message: "Failed to start OpenCode",
+          message: `Failed to start OpenCode: ${fallbackError instanceof Error ? fallbackError.message : "Could not copy context to clipboard"}`,
         });
       }
     } finally {

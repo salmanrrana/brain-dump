@@ -43,8 +43,8 @@ export async function cleanupOldScripts(): Promise<void> {
             unlinkSync(filePath);
             cleanedCount++;
           }
-        } catch {
-          // Ignore individual file errors
+        } catch (fileError) {
+          console.warn(`[brain-dump] Failed to clean up script ${file}:`, fileError);
         }
       }
     }
@@ -74,8 +74,11 @@ function validateProjectPath(path: string): void {
     throw new Error("Invalid project path: contains null bytes");
   }
   // Check for shell metacharacters that could be dangerous
-  if (/[;&|<>]/.test(path)) {
-    throw new Error("Invalid project path: contains shell metacharacters");
+  const metaCharMatch = path.match(/[;&|<>]/);
+  if (metaCharMatch) {
+    throw new Error(
+      `Invalid project path: contains shell metacharacter '${metaCharMatch[0]}' at position ${path.indexOf(metaCharMatch[0])}`
+    );
   }
 }
 
@@ -310,7 +313,13 @@ async function createOpenCodeLaunchScript(projectPath: string, context: string):
   await cleanupOldScripts();
 
   const scriptDir = join(homedir(), ".brain-dump", "scripts");
-  mkdirSync(scriptDir, { recursive: true });
+  try {
+    mkdirSync(scriptDir, { recursive: true });
+  } catch (mkdirError) {
+    throw new Error(
+      `Failed to create script directory '${scriptDir}': ${mkdirError instanceof Error ? mkdirError.message : "Unknown error"}`
+    );
+  }
 
   const scriptPath = join(scriptDir, `launch-opencode-${randomUUID()}.sh`);
 
@@ -477,6 +486,7 @@ export const launchOpenCodeInTerminal = createServerFn({ method: "POST" })
 
     try {
       // Launch terminal (don't wait for it to complete)
+      // Note: exec is fire-and-forget - we can't know if the terminal window actually opened
       exec(terminalCommand, (error) => {
         if (error) {
           console.error("Terminal launch error:", error);
@@ -486,7 +496,7 @@ export const launchOpenCodeInTerminal = createServerFn({ method: "POST" })
       return {
         success: true,
         method: "terminal",
-        message: `Launched OpenCode in ${terminal}`,
+        message: `Opening OpenCode in ${terminal}... If no window appears, check that ${terminal} is running.`,
         terminalUsed: terminal,
         ...(warnings.length > 0 && { warnings }),
       };
