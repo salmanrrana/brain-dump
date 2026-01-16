@@ -93,18 +93,20 @@ function Home() {
 
   // Handle ticket selection from search
   useEffect(() => {
-    if (selectedTicketIdFromSearch) {
-      // Fetch the ticket and open the modal
-      getTicket({ data: selectedTicketIdFromSearch })
-        .then((ticket) => {
-          setSelectedTicket(ticket as Ticket);
-          clearSelectedTicketFromSearch();
-        })
-        .catch((error) => {
-          console.error("Failed to fetch ticket from search:", error);
-          clearSelectedTicketFromSearch();
-        });
-    }
+    if (!selectedTicketIdFromSearch) return;
+
+    const fetchAndSelectTicket = async () => {
+      try {
+        const ticket = await getTicket({ data: selectedTicketIdFromSearch });
+        setSelectedTicket(ticket as Ticket);
+      } catch (error) {
+        console.error("Failed to fetch ticket from search:", error);
+      } finally {
+        clearSelectedTicketFromSearch();
+      }
+    };
+
+    void fetchAndSelectTicket();
   }, [selectedTicketIdFromSearch, clearSelectedTicketFromSearch]);
 
   // Get all epics from projects for the list view

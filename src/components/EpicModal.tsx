@@ -10,6 +10,7 @@ import {
   useClickOutside,
   useCompanionContainerInfo,
   useStartCompanionContainers,
+  useAutoClearState,
   type CompanionService,
 } from "../lib/hooks";
 import { useToast } from "./Toast";
@@ -46,17 +47,19 @@ export default function EpicModal({
   const [color, setColor] = useState(epic?.color ?? "");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isStartingRalph, setIsStartingRalph] = useState(false);
-  const [ralphNotification, setRalphNotification] = useState<{
+  // Auto-clears to null after 5 seconds for notification clearing
+  const [ralphNotification, setRalphNotification] = useAutoClearState<{
     type: "success" | "error";
     message: string;
     launchMethod?: "vscode" | "terminal";
     contextFile?: string;
-  } | null>(null);
+  }>();
   const [showActionMenu, setShowActionMenu] = useState(false);
   const [showRalphConfig, setShowRalphConfig] = useState(false);
   const [selectedServices, setSelectedServices] = useState<CompanionService[]>([]);
   const [startedContainers, setStartedContainers] = useState<{ service: CompanionService; connectionString: string }[]>([]);
-  const [copiedConnection, setCopiedConnection] = useState<string | null>(null);
+  // Auto-clears after 2 seconds for copied state feedback
+  const [copiedConnection, setCopiedConnection] = useAutoClearState<string>(2000);
   const actionMenuRef = useRef<HTMLDivElement>(null);
 
   // Toast
@@ -189,8 +192,7 @@ export default function EpicModal({
           message: result.message,
         });
       }
-
-      setTimeout(() => setRalphNotification(null), 5000);
+      // Auto-hide is handled by useAutoClearState hook
     } catch (error) {
       console.error("Failed to start Ralph:", error);
       setRalphNotification({
@@ -207,11 +209,11 @@ export default function EpicModal({
     try {
       await navigator.clipboard.writeText(connectionString);
       setCopiedConnection(connectionString);
-      setTimeout(() => setCopiedConnection(null), 2000);
+      // Auto-clear is handled by useAutoClearState hook
     } catch {
       showToast("error", "Failed to copy to clipboard");
     }
-  }, [showToast]);
+  }, [showToast, setCopiedConnection]);
 
   // Toggle service selection
   const toggleService = useCallback((service: CompanionService) => {

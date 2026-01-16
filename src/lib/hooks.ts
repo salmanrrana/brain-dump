@@ -2,6 +2,54 @@ import { useCallback, useEffect, useState, useRef, type RefObject } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 // =============================================================================
+// STATE UTILITY HOOKS
+// =============================================================================
+
+/**
+ * Hook for state that automatically clears after a duration.
+ * Useful for notifications, copy confirmations, and other transient UI states.
+ *
+ * @param duration - Time in ms before auto-clearing (default: 5000ms)
+ * @returns Tuple of [value, setValue] where setValue triggers the auto-clear timer
+ */
+export function useAutoClearState<T>(duration = 5000): [T | null, (value: T | null) => void] {
+  const [value, setValue] = useState<T | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const setValueWithAutoClear = useCallback(
+    (newValue: T | null) => {
+      // Clear any existing timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+
+      setValue(newValue);
+
+      // Only set up auto-clear if we're setting a non-null value
+      if (newValue !== null) {
+        timeoutRef.current = setTimeout(() => {
+          setValue(null);
+          timeoutRef.current = null;
+        }, duration);
+      }
+    },
+    [duration]
+  );
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  return [value, setValueWithAutoClear];
+}
+
+// =============================================================================
 // MODAL UTILITY HOOKS
 // =============================================================================
 

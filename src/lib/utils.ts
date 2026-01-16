@@ -1,22 +1,34 @@
 /**
  * Safely parse JSON with a fallback value.
  * Returns the fallback if the input is null/undefined or parsing fails.
+ * Logs parsing failures for debugging data corruption issues.
  */
 export function safeJsonParse<T>(json: string | null | undefined, fallback: T): T {
   if (!json) return fallback;
   try {
     return JSON.parse(json) as T;
-  } catch {
+  } catch (error) {
+    // Log parsing failure for debugging - helps identify data corruption
+    console.error("[safeJsonParse] Failed to parse JSON:", {
+      preview: json.length > 100 ? json.substring(0, 100) + "..." : json,
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
     return fallback;
   }
 }
 
 /**
  * Safely stringify a value to JSON, returning null if the value is null/undefined.
+ * Handles circular references and other stringify errors gracefully.
  */
 export function safeJsonStringify<T>(value: T | null | undefined): string | null {
   if (value === null || value === undefined) return null;
-  return JSON.stringify(value);
+  try {
+    return JSON.stringify(value);
+  } catch (error) {
+    console.error("[safeJsonStringify] Failed to stringify value:", error);
+    return null;
+  }
 }
 
 /**

@@ -257,9 +257,18 @@ fi
   # Claude Code auth is passed via mounted ~/.config/claude-code (uses your existing subscription)
   # SSH agent is forwarded if available (allows git push from container)
   # known_hosts is mounted read-only to avoid SSH host verification prompts
+  # Port ranges exposed for dev servers:
+  #   8100-8110: Frontend (Vite, Next.js, React)
+  #   8200-8210: Backend (Express, Fastify)
+  #   8300-8310: Storybook, docs
+  #   8400-8410: Databases (exposed for debugging)
   docker run --rm -it \\
     --name "ralph-\${SESSION_ID}" \\
     --network ralph-net \\
+    -p 8100-8110:8100-8110 \\
+    -p 8200-8210:8200-8210 \\
+    -p 8300-8310:8300-8310 \\
+    -p 8400-8410:8400-8410 \\
     -v "$PROJECT_PATH:/workspace" \\
     -v "\\$HOME/.config/claude-code:/home/ralph/.config/claude-code:ro" \\
     -v "\\$HOME/.gitconfig:/home/ralph/.gitconfig:ro" \\

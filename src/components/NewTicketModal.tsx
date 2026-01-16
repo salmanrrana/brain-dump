@@ -8,6 +8,7 @@ import {
   deletePendingAttachments,
   type Attachment,
 } from "../api/attachments";
+import { PRIORITY_OPTIONS } from "../lib/constants";
 
 interface NewTicketModalProps {
   projects: ProjectWithEpics[];
@@ -16,13 +17,6 @@ interface NewTicketModalProps {
   onClose: () => void;
   onCreate: () => void;
 }
-
-const PRIORITY_OPTIONS = [
-  { value: "", label: "None" },
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-] as const;
 
 export default function NewTicketModal({
   projects,
@@ -97,38 +91,71 @@ export default function NewTicketModal({
     }
   }, [projectId, epicId, epics]);
 
+  // Handle file upload - uploads files in parallel for better performance
   const handleFileUpload = useCallback(
     async (files: FileList | null) => {
       if (!files || files.length === 0) return;
 
+      // Filter out oversized files first
+      const validFiles: File[] = [];
+      for (const file of Array.from(files)) {
+        if (file.size > 10 * 1024 * 1024) {
+          alert(`File "${file.name}" exceeds 10MB limit`);
+        } else {
+          validFiles.push(file);
+        }
+      }
+
+      if (validFiles.length === 0) return;
+
       setIsUploadingAttachment(true);
       try {
-        for (const file of Array.from(files)) {
-          if (file.size > 10 * 1024 * 1024) {
-            alert(`File "${file.name}" exceeds 10MB limit`);
-            continue;
-          }
-
+        // Upload all valid files in parallel using allSettled for partial success handling
+        const uploadPromises = validFiles.map(async (file) => {
           const reader = new FileReader();
           const base64 = await new Promise<string>((resolve, reject) => {
             reader.onload = () => resolve(reader.result as string);
-            reader.onerror = () => reject(new Error(`Failed to read file "${file.name}"`));
+            reader.onerror = () => {
+              const errorName = reader.error?.name ?? "UnknownError";
+              const errorMessage = reader.error?.message ?? "Unknown file read error";
+              reject(new Error(`Failed to read "${file.name}": ${errorName} - ${errorMessage}`));
+            };
             reader.readAsDataURL(file);
           });
 
-          const newAttachment = await uploadPendingAttachment({
+          const attachment = await uploadPendingAttachment({
             data: {
               ticketId: pendingTicketId,
               filename: file.name,
               data: base64,
             },
           });
+          return { file: file.name, attachment };
+        });
 
-          setAttachments((prev) => [...prev, newAttachment]);
+        const results = await Promise.allSettled(uploadPromises);
+        const succeeded: Attachment[] = [];
+        const failed: string[] = [];
+
+        for (const result of results) {
+          if (result.status === "fulfilled") {
+            succeeded.push(result.value.attachment);
+          } else {
+            failed.push(result.reason?.message || "Unknown error");
+          }
+        }
+
+        if (succeeded.length > 0) {
+          setAttachments((prev) => [...prev, ...succeeded]);
+        }
+
+        if (failed.length > 0) {
+          console.error("Some file uploads failed:", failed);
+          alert(`Failed to upload ${failed.length} file(s):\n${failed.join("\n")}`);
         }
       } catch (error) {
-        console.error("Failed to upload attachment:", error);
-        alert(error instanceof Error ? error.message : "Failed to upload attachment");
+        console.error("Failed to upload attachments:", error);
+        alert(error instanceof Error ? error.message : "Failed to upload attachments");
       } finally {
         setIsUploadingAttachment(false);
       }

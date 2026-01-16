@@ -13,41 +13,42 @@ export const getTicketContext = createServerFn({ method: "GET" })
     }
     return ticketId;
   })
-  .handler(async ({ data: ticketId }) => {
-    // Get the ticket
+  .handler(({ data: ticketId }) => {
+    // Get the ticket first (required for dependent queries)
     const ticket = db.select().from(tickets).where(eq(tickets.id, ticketId)).get();
     if (!ticket) {
       throw new Error(`Ticket not found: ${ticketId}`);
     }
 
-    // Get the project
-    const project = db.select().from(projects).where(eq(projects.id, ticket.projectId)).get();
+    // Get related data - better-sqlite3 is synchronous so no parallelization needed
+    const project = db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, ticket.projectId))
+      .get();
+
+    const epic = ticket.epicId
+      ? db.select().from(epics).where(eq(epics.id, ticket.epicId)).get()
+      : null;
+
+    const relatedTickets = ticket.epicId
+      ? db
+          .select()
+          .from(tickets)
+          .where(
+            and(
+              eq(tickets.epicId, ticket.epicId),
+              eq(tickets.status, "done"),
+              not(eq(tickets.id, ticket.id))
+            )
+          )
+          .orderBy(tickets.completedAt)
+          .limit(5)
+          .all()
+      : [];
+
     if (!project) {
       throw new Error(`Project not found: ${ticket.projectId}`);
-    }
-
-    // Get the epic if it exists
-    let epic = null;
-    if (ticket.epicId) {
-      epic = db.select().from(epics).where(eq(epics.id, ticket.epicId)).get();
-    }
-
-    // Get related completed tickets in same epic
-    let relatedTickets: typeof ticket[] = [];
-    if (ticket.epicId) {
-      relatedTickets = db
-        .select()
-        .from(tickets)
-        .where(
-          and(
-            eq(tickets.epicId, ticket.epicId),
-            eq(tickets.status, "done"),
-            not(eq(tickets.id, ticket.id))
-          )
-        )
-        .orderBy(tickets.completedAt)
-        .limit(5)
-        .all();
     }
 
     // Parse subtasks

@@ -19,7 +19,7 @@ import {
   Send,
 } from "lucide-react";
 import type { Ticket, Epic } from "../lib/hooks";
-import { useUpdateTicket, useSettings, useLaunchRalphForTicket, useComments, useCreateComment, useTags } from "../lib/hooks";
+import { useUpdateTicket, useSettings, useLaunchRalphForTicket, useComments, useCreateComment, useTags, useAutoClearState } from "../lib/hooks";
 import { useToast } from "./Toast";
 import type { Subtask, TicketStatus, TicketPriority } from "../api/tickets";
 import {
@@ -28,6 +28,7 @@ import {
   deleteAttachment,
   type Attachment,
 } from "../api/attachments";
+import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "../lib/constants";
 import { getTicketContext } from "../api/context";
 import { launchClaudeInTerminal } from "../api/terminal";
 import { safeJsonParse } from "../lib/utils";
@@ -38,23 +39,6 @@ interface TicketModalProps {
   onClose: () => void;
   onUpdate: () => void;
 }
-
-const STATUS_OPTIONS = [
-  { value: "backlog", label: "Backlog" },
-  { value: "ready", label: "Ready" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "review", label: "Review" },
-  { value: "ai_review", label: "AI Review" },
-  { value: "human_review", label: "Human Review" },
-  { value: "done", label: "Done" },
-] as const;
-
-const PRIORITY_OPTIONS = [
-  { value: "", label: "None" },
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-] as const;
 
 // Comment type styling lookup objects to avoid nested ternaries
 const COMMENT_CONTAINER_STYLES: Record<string, string> = {
@@ -113,10 +97,11 @@ export default function TicketModal({
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isStartingWork, setIsStartingWork] = useState(false);
-  const [startWorkNotification, setStartWorkNotification] = useState<{
+  // Auto-clears to null after 5 seconds for notification clearing
+  const [startWorkNotification, setStartWorkNotification] = useAutoClearState<{
     type: "success" | "error";
     message: string;
-  } | null>(null);
+  }>();
   const [showStartWorkMenu, setShowStartWorkMenu] = useState(false);
   const startWorkMenuRef = useRef<HTMLDivElement>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -204,41 +189,71 @@ export default function TicketModal({
     void fetchAttachments();
   }, [ticket.id, showToast]);
 
-  // Handle file upload
+  // Handle file upload - uploads files in parallel for better performance
   const handleFileUpload = useCallback(
     async (files: FileList | null) => {
       if (!files || files.length === 0) return;
 
+      // Filter out oversized files first
+      const validFiles: File[] = [];
+      for (const file of Array.from(files)) {
+        if (file.size > 10 * 1024 * 1024) {
+          showToast("error", `File "${file.name}" exceeds 10MB limit`);
+        } else {
+          validFiles.push(file);
+        }
+      }
+
+      if (validFiles.length === 0) return;
+
       setIsUploadingAttachment(true);
       try {
-        for (const file of Array.from(files)) {
-          // Check file size (10MB max)
-          if (file.size > 10 * 1024 * 1024) {
-            showToast("error", `File "${file.name}" exceeds 10MB limit`);
-            continue;
-          }
-
-          // Convert to base64
+        // Upload all valid files in parallel using allSettled for partial success handling
+        const uploadPromises = validFiles.map(async (file) => {
           const reader = new FileReader();
           const base64 = await new Promise<string>((resolve, reject) => {
             reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
+            reader.onerror = () => {
+              const errorName = reader.error?.name ?? "UnknownError";
+              const errorMessage = reader.error?.message ?? "Unknown file read error";
+              reject(new Error(`Failed to read "${file.name}": ${errorName} - ${errorMessage}`));
+            };
             reader.readAsDataURL(file);
           });
 
-          const newAttachment = await uploadAttachment({
+          const attachment = await uploadAttachment({
             data: {
               ticketId: ticket.id,
               filename: file.name,
               data: base64,
             },
           });
+          return { file: file.name, attachment };
+        });
 
-          setAttachments((prev) => [...prev, newAttachment]);
+        const results = await Promise.allSettled(uploadPromises);
+        const succeeded: Attachment[] = [];
+        const failed: string[] = [];
+
+        for (const result of results) {
+          if (result.status === "fulfilled") {
+            succeeded.push(result.value.attachment);
+          } else {
+            failed.push(result.reason?.message || "Unknown error");
+          }
+        }
+
+        if (succeeded.length > 0) {
+          setAttachments((prev) => [...prev, ...succeeded]);
+        }
+
+        if (failed.length > 0) {
+          console.error("Some file uploads failed:", failed);
+          showToast("error", `Failed to upload ${failed.length} file(s): ${failed.join(", ")}`);
         }
       } catch (error) {
-        console.error("Failed to upload attachment:", error);
-        showToast("error", `Failed to upload attachment: ${error instanceof Error ? error.message : "Unknown error"}`);
+        console.error("Failed to upload attachments:", error);
+        showToast("error", `Failed to upload attachments: ${error instanceof Error ? error.message : "Unknown error"}`);
       } finally {
         setIsUploadingAttachment(false);
       }
@@ -346,9 +361,7 @@ export default function TicketModal({
           message: launchResult.message,
         });
       }
-
-      // Auto-hide notification after 5 seconds
-      setTimeout(() => setStartWorkNotification(null), 5000);
+      // Auto-hide is handled by useAutoClearState hook
     } catch (error) {
       console.error("Failed to start work:", error);
       const message = error instanceof Error ? error.message : "An unexpected error occurred";
@@ -406,8 +419,7 @@ export default function TicketModal({
           message: result.message,
         });
       }
-
-      setTimeout(() => setStartWorkNotification(null), 5000);
+      // Auto-hide is handled by useAutoClearState hook
     } catch (error) {
       console.error("Failed to start Ralph:", error);
       const message = error instanceof Error ? error.message : "An unexpected error occurred";
