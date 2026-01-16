@@ -6,7 +6,7 @@ import { z } from "zod";
 import { randomUUID } from "crypto";
 import { log } from "../lib/logging.js";
 
-const AUTHORS = ["claude", "ralph", "user"];
+const AUTHORS = ["claude", "ralph", "user", "opencode"];
 const COMMENT_TYPES = ["comment", "work_summary", "test_report"];
 
 /**

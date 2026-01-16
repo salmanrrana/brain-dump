@@ -75,7 +75,7 @@ export const ticketComments = sqliteTable(
       .notNull()
       .references(() => tickets.id, { onDelete: "cascade" }),
     content: text("content").notNull(),
-    author: text("author").notNull(), // 'claude', 'ralph', or user identifier
+    author: text("author").notNull(), // 'claude', 'ralph', 'opencode', or user identifier
     type: text("type").notNull().default("comment"), // 'comment', 'work_summary', 'test_report'
     createdAt: text("created_at")
       .notNull()

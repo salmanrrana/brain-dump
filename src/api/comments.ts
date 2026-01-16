@@ -6,7 +6,7 @@ import { randomUUID } from "crypto";
 
 // Comment types
 export type CommentType = "comment" | "work_summary" | "test_report" | "progress";
-export type CommentAuthor = "claude" | "ralph" | "user";
+export type CommentAuthor = "claude" | "ralph" | "user" | "opencode";
 
 export interface CreateCommentInput {
   ticketId: string;
@@ -25,7 +25,7 @@ export interface Comment {
 }
 
 // Valid authors and types for validation
-const VALID_AUTHORS: CommentAuthor[] = ["claude", "ralph", "user"];
+const VALID_AUTHORS: CommentAuthor[] = ["claude", "ralph", "user", "opencode"];
 const VALID_TYPES: CommentType[] = ["comment", "work_summary", "test_report", "progress"];
 
 // Get comments for a ticket
@@ -89,11 +89,7 @@ export const createComment = createServerFn({ method: "POST" })
       })
       .run();
 
-    const comment = db
-      .select()
-      .from(ticketComments)
-      .where(eq(ticketComments.id, id))
-      .get();
+    const comment = db.select().from(ticketComments).where(eq(ticketComments.id, id)).get();
 
     if (!comment) {
       throw new Error("Failed to create comment");
