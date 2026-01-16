@@ -1,30 +1,40 @@
 # Ralph Sandbox - Isolated environment for autonomous coding
 # This container provides a safe environment for Ralph to work in
+#
+# Alpine-based for smaller image size (~50MB base vs ~180MB Debian)
+# Note: Alpine uses musl libc instead of glibc
 
-FROM node:20-bookworm-slim
+FROM node:20-alpine
 
 # Install essential tools
-RUN apt-get update && apt-get install -y \
+# --no-cache avoids storing the package index locally (smaller image)
+RUN apk add --no-cache \
     git \
     curl \
     bash \
     jq \
-    && rm -rf /var/lib/apt/lists/*
+    openssh-client
 
-# Install GitHub CLI
-RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
-    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-    && apt-get update \
-    && apt-get install -y gh \
-    && rm -rf /var/lib/apt/lists/*
+# Install GitHub CLI from official releases
+# Alpine doesn't have apt, so we download the binary directly
+RUN ARCH=$(uname -m) && \
+    case "$ARCH" in \
+        x86_64) GH_ARCH="linux_amd64" ;; \
+        aarch64) GH_ARCH="linux_arm64" ;; \
+        *) echo "Unsupported architecture: $ARCH" && exit 1 ;; \
+    esac && \
+    GH_VERSION=$(curl -sL https://api.github.com/repos/cli/cli/releases/latest | grep '"tag_name"' | cut -d'"' -f4 | sed 's/^v//') && \
+    curl -sL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_${GH_ARCH}.tar.gz" | tar xz && \
+    mv gh_${GH_VERSION}_${GH_ARCH}/bin/gh /usr/local/bin/ && \
+    rm -rf gh_${GH_VERSION}_${GH_ARCH}
 
 # Install Claude CLI globally
 RUN npm install -g @anthropic-ai/claude-code
 
 # Create non-root user for safety
+# Alpine uses adduser (BusyBox) instead of useradd
 # Also create .ssh directory for known_hosts mount
-RUN useradd -m -s /bin/bash ralph \
+RUN adduser -D -s /bin/bash ralph \
     && mkdir -p /home/ralph/.config \
     && mkdir -p /home/ralph/.ssh \
     && chmod 700 /home/ralph/.ssh \
