@@ -231,6 +231,59 @@ Follow these principles when writing or reviewing tests:
 - Tests that don't reflect real user workflows
 - Tests written just to increase coverage numbers
 
+## Verification Checklist
+
+After implementing ANY feature, you MUST complete these steps:
+
+### Code Quality (Always Required)
+
+- [ ] Run `pnpm type-check` - must pass with no errors
+- [ ] Run `pnpm lint` - must pass with no errors
+- [ ] Run `pnpm test` - all tests must pass
+
+### If You Added New Code
+
+- [ ] Added tests for new functionality (following Kent C. Dodds testing philosophy)
+- [ ] Used typed error classes (not generic `Error`)
+- [ ] Used Drizzle ORM (not raw SQL) - see DO/DON'T table above
+- [ ] Followed existing patterns from DO/DON'T tables
+- [ ] No hardcoded values that should be configurable
+
+### If You Modified Existing Code
+
+- [ ] Existing tests still pass
+- [ ] No regressions in related functionality
+- [ ] Updated tests if behavior changed
+- [ ] Did not break backward compatibility (unless explicitly requested)
+
+### If UI Changes
+
+- [ ] Manually verified in browser at `localhost:4242`
+- [ ] Checked responsive layout
+- [ ] Verified TanStack Query invalidates and updates correctly
+- [ ] Accessibility: keyboard navigation works, proper ARIA labels
+
+### If Database Changes
+
+- [ ] Migration file created via `pnpm db:generate`
+- [ ] Migration tested with `pnpm db:migrate`
+- [ ] Backup tested if schema changed (use `pnpm brain-dump backup` then test restore)
+- [ ] Updated `src/lib/schema.ts` with proper types and constraints
+
+### If MCP Server Changes
+
+- [ ] Tested tool via Claude Code integration
+- [ ] Verified error responses are informative (see DO/DON'T table)
+- [ ] Updated tool documentation if interface changed
+- [ ] Added Zod schema for input validation
+
+### Before Marking Complete
+
+- [ ] All acceptance criteria from ticket met
+- [ ] Work summary added via `add_ticket_comment` (for Ralph sessions)
+- [ ] Session completed with appropriate outcome (for Ralph sessions)
+- [ ] Committed with proper message format: `feat(<ticket-id>): <description>`
+
 ## Automatic Code Review
 
 **IMPORTANT: After completing any code changes (using Write, Edit, or NotebookEdit tools), you MUST run the code review pipeline before responding to the user.**
