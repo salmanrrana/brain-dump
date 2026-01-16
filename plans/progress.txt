@@ -2626,3 +2626,62 @@ All tickets completed successfully:
 - 1/7 tickets complete for "Docker Isolation Documentation" epic
 
 ---
+
+### 2026-01-16 - Remove Companion Container Logic from ralph.ts
+- Task: Remove companion container orchestration code
+- Ticket ID: 60143d5a-08d3-44c2-b7e3-dc0d28157c46
+- Success: true
+- Agent: Ralph
+- Branch: feature/ba638254-remove-companion-services-ui
+
+**Changes to src/api/ralph.ts (-194 lines):**
+- Removed COMPANION_CONTAINERS config (Postgres, Redis, MySQL)
+- Removed CompanionService type and CompanionContainerConfig interface
+- Removed isContainerRunning() helper function
+- Removed startCompanionContainer() and stopCompanionContainer() functions
+- Removed server functions: getCompanionContainerInfo, startCompanionContainers,
+  stopCompanionContainers, getRunningCompanionContainers
+
+**Changes to src/lib/hooks.ts (-56 lines):**
+- Removed useCompanionContainerInfo hook
+- Removed useRunningCompanionContainers hook
+- Removed useStartCompanionContainers hook
+- Removed useStopCompanionContainers hook
+- Removed CompanionService type export
+
+**What was kept:**
+- Core Docker sandbox logic
+- ralph-net network (still useful for sandbox)
+- SSH forwarding and known_hosts mounting
+- Port range mapping (8100-8410) for dev servers
+
+**Testing Results:**
+- All 455 tests passing
+
+**PRD Status:**
+- 2/7 tickets complete for "Docker Isolation Documentation" epic
+
+---
+
+### 2026-01-16 - Verify Settings Schema (No Changes Needed)
+- Task: Check for companion_containers field in settings schema
+- Ticket ID: 74384e14-a099-4394-a6b3-04f15e0cd948
+- Success: true
+- Agent: Ralph
+- Branch: feature/ba638254-remove-companion-services-ui
+
+**Investigation Results:**
+- src/lib/schema.ts: No companion_containers column exists
+- src/api/settings.ts: No companion container references
+- Entire codebase search: No "companion" references remaining
+
+**Conclusion:**
+The companion container feature was implemented entirely in application code
+(UI state, server functions, hooks) and never persisted to the database.
+No migration needed.
+
+**PRD Status:**
+- 3/7 tickets complete for "Docker Isolation Documentation" epic
+- All cleanup tickets done, remaining tickets are documentation
+
+---
