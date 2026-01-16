@@ -1,6 +1,17 @@
 {
-  "description": "Brain Dump automatic code review hooks - triggers pr-review-toolkit and code-simplifier agents after task completion",
+  "description": "Brain Dump hooks: enforce branch workflow and automatic code review",
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null); if [ \"$branch\" = \"main\" ] || [ \"$branch\" = \"master\" ] || [ \"$branch\" = \"develop\" ]; then echo '{\"ok\": false, \"reason\": \"BLOCKED: You are on the '\"$branch\"' branch. Before making code changes, you MUST call start_ticket_work(ticketId) via MCP to create a feature branch. This ensures all work is properly tracked and can be reviewed via PR. If you do not have a ticket ID, create a ticket first using create_ticket().\"}'; else echo '{\"ok\": true}'; fi"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
