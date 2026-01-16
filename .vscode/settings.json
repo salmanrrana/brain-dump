@@ -7,13 +7,5 @@
   },
   "files.readonlyInclude": {
     "**/routeTree.gen.ts": true
-  },
-  "spellright.language": [
-    "en"
-  ],
-  "spellright.documentTypes": [
-    "markdown",
-    "latex",
-    "plaintext"
-  ]
+  }
 }

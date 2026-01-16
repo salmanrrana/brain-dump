@@ -40,7 +40,6 @@ plans/progress.txt
 .idea/
 .vscode/*
 !.vscode/*.example
-!.vscode/settings.json
 
 # Generated PR description (from pre-push hook)
 .pr-description.md
