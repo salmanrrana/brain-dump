@@ -1,6 +1,45 @@
-# Git Push from Docker Container (Ralph Sandbox)
+# Docker Sandbox Configuration (Ralph)
 
-This document describes how Ralph can push code to GitHub from inside the Docker sandbox container.
+This document describes Docker configuration for Ralph sandbox mode, including port exposure and git push setup.
+
+## Port Exposure for Dev Servers
+
+When running Ralph in Docker sandbox mode, the following port ranges are exposed to allow developers to access dev servers from their host browser:
+
+| Port Range | Purpose | Examples |
+|------------|---------|----------|
+| 8100-8110 | Frontend dev servers | Vite, Next.js, React, Create React App |
+| 8200-8210 | Backend APIs | Express, Fastify, NestJS, Django |
+| 8300-8310 | Documentation & Storybook | Storybook, Docusaurus, VitePress |
+| 8400-8410 | Databases (debugging) | PostgreSQL GUI, Redis Commander |
+
+### Accessing Dev Servers
+
+When Ralph starts a dev server inside the container, use the exposed port from your host browser:
+
+```bash
+# Inside container - Ralph starts Vite on port 8100
+pnpm dev --port 8100 --host 0.0.0.0
+
+# On host - access the dev server
+open http://localhost:8100
+```
+
+**Important**: Dev servers must bind to `0.0.0.0` (not `localhost`) to be accessible from outside the container.
+
+### Port Convention in Practice
+
+When starting servers, use these port conventions:
+- First frontend project → 8100
+- Second frontend project → 8101
+- First backend API → 8200
+- Storybook → 8300
+
+---
+
+## Git Push from Container
+
+This section describes how Ralph can push code to GitHub from inside the Docker sandbox container.
 
 ## Overview
 
