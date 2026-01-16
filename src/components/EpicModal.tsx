@@ -171,9 +171,10 @@ export default function EpicModal({
       // Auto-hide is handled by useAutoClearState hook
     } catch (error) {
       console.error("Failed to start Ralph:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to launch Ralph";
       setRalphNotification({
         type: "error",
-        message: "Failed to launch Ralph",
+        message: errorMessage,
       });
     } finally {
       setIsStartingRalph(false);
