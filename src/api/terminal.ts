@@ -2,19 +2,18 @@ import { createServerFn } from "@tanstack/react-start";
 import { db } from "../lib/db";
 import { tickets } from "../lib/schema";
 import { eq } from "drizzle-orm";
-import {
-  detectTerminal,
-  isTerminalAvailable,
-  buildTerminalCommand,
-} from "./terminal-utils";
+import { detectTerminal, isTerminalAvailable, buildTerminalCommand } from "./terminal-utils";
 
-interface LaunchClaudeResult {
+interface LaunchResult {
   success: boolean;
   method: "terminal" | "clipboard";
   message: string;
   terminalUsed?: string;
   warnings?: string[];
 }
+
+// Legacy alias for backwards compatibility
+type LaunchClaudeResult = LaunchResult;
 
 // Clean up old launch scripts (older than 5 minutes)
 // Exported so it can be called on app startup
@@ -154,7 +153,11 @@ exec bash
 }
 
 // Build window title in format: [Project][Epic][Ticket] or [Project][Ticket]
-function buildWindowTitle(projectName: string, epicName: string | null, ticketTitle: string): string {
+function buildWindowTitle(
+  projectName: string,
+  epicName: string | null,
+  ticketTitle: string
+): string {
   if (epicName) {
     return `[${projectName}][${epicName}][${ticketTitle}]`;
   }
@@ -175,7 +178,15 @@ export const launchClaudeInTerminal = createServerFn({ method: "POST" })
     }) => data
   )
   .handler(async ({ data }): Promise<LaunchClaudeResult> => {
-    const { ticketId, context, projectPath, preferredTerminal, projectName, epicName, ticketTitle } = data;
+    const {
+      ticketId,
+      context,
+      projectPath,
+      preferredTerminal,
+      projectName,
+      epicName,
+      ticketTitle,
+    } = data;
     const { exec } = await import("child_process");
     const { existsSync } = await import("fs");
 
@@ -200,7 +211,9 @@ export const launchClaudeInTerminal = createServerFn({ method: "POST" })
       } else {
         // Preferred terminal not available - add warning
         const reason = result.error || "not installed";
-        warnings.push(`Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`);
+        warnings.push(
+          `Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`
+        );
       }
     }
 
@@ -213,21 +226,19 @@ export const launchClaudeInTerminal = createServerFn({ method: "POST" })
       return {
         success: false,
         method: "clipboard",
-        message:
-          "No supported terminal emulator found. Context copied to clipboard instead.",
+        message: "No supported terminal emulator found. Context copied to clipboard instead.",
         ...(warnings.length > 0 && { warnings }),
       };
     }
 
     // Update ticket status to in_progress
     try {
-      db.update(tickets)
-        .set({ status: "in_progress" })
-        .where(eq(tickets.id, ticketId))
-        .run();
+      db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticketId)).run();
     } catch (error) {
       console.error("Failed to update ticket status:", error);
-      warnings.push("Failed to update ticket status to 'In Progress'. You may need to update it manually.");
+      warnings.push(
+        "Failed to update ticket status to 'In Progress'. You may need to update it manually."
+      );
     }
 
     // Save current ticket ID to state file for CLI tool
@@ -250,18 +261,15 @@ export const launchClaudeInTerminal = createServerFn({ method: "POST" })
       );
     } catch (error) {
       console.error("Failed to save current ticket state:", error);
-      warnings.push("Could not save ticket state. The 'brain-dump' CLI commands may not work for this session.");
+      warnings.push(
+        "Could not save ticket state. The 'brain-dump' CLI commands may not work for this session."
+      );
     }
 
     // Create launch script and build terminal command with window title
     const scriptPath = await createLaunchScript(projectPath, context);
     const windowTitle = buildWindowTitle(projectName, epicName, ticketTitle);
-    const terminalCommand = buildTerminalCommand(
-      terminal,
-      projectPath,
-      scriptPath,
-      windowTitle
-    );
+    const terminalCommand = buildTerminalCommand(terminal, projectPath, scriptPath, windowTitle);
 
     try {
       // Launch terminal (don't wait for it to complete)
@@ -275,6 +283,210 @@ export const launchClaudeInTerminal = createServerFn({ method: "POST" })
         success: true,
         method: "terminal",
         message: `Launched Claude in ${terminal}`,
+        terminalUsed: terminal,
+        ...(warnings.length > 0 && { warnings }),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        method: "clipboard",
+        message: `Failed to launch terminal: ${error instanceof Error ? error.message : "Unknown error"}. Context copied to clipboard instead.`,
+        ...(warnings.length > 0 && { warnings }),
+      };
+    }
+  });
+
+// Create a temp script to launch OpenCode - similar to createLaunchScript but for OpenCode
+async function createOpenCodeLaunchScript(projectPath: string, context: string): Promise<string> {
+  const { writeFileSync, mkdirSync, chmodSync } = await import("fs");
+  const { join } = await import("path");
+  const { homedir } = await import("os");
+  const { randomUUID } = await import("crypto");
+
+  // Validate project path
+  validateProjectPath(projectPath);
+
+  // Clean up old scripts first
+  await cleanupOldScripts();
+
+  const scriptDir = join(homedir(), ".brain-dump", "scripts");
+  mkdirSync(scriptDir, { recursive: true });
+
+  const scriptPath = join(scriptDir, `launch-opencode-${randomUUID()}.sh`);
+
+  // Extract ticket title from context (first line after "# Task: ")
+  const titleMatch = context.match(/^# Task: (.+)$/m);
+  const ticketTitle = titleMatch?.[1] ?? "Unknown Task";
+
+  // Safely escape all user-provided content
+  const safeProjectPath = escapeForBashDoubleQuote(projectPath);
+  const safeTicketTitle = escapeForBashDoubleQuote(ticketTitle);
+
+  // Create a script that:
+  // 1. Changes to the project directory
+  // 2. Saves context to a file in the project
+  // 3. Shows brief visual confirmation (OpenCode branding)
+  // 4. Launches OpenCode with the prompt
+  // 5. Keeps the shell open after OpenCode exits
+  const script = `#!/bin/bash
+set -e  # Exit on error
+
+cd "${safeProjectPath}"
+
+# Save context to a hidden file in the project directory
+CONTEXT_FILE="${safeProjectPath}/.brain-dump-context.md"
+cat > "$CONTEXT_FILE" << 'BRAIN_DUMP_CONTEXT_EOF_7f3a9b2c'
+${context}
+BRAIN_DUMP_CONTEXT_EOF_7f3a9b2c
+
+# Brief visual confirmation (blue for OpenCode)
+echo ""
+echo -e "\\033[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo -e "\\033[0;34m💻 Brain Dump - Starting with OpenCode\\033[0m"
+echo -e "\\033[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo -e "\\033[1;33m📋 Task:\\033[0m ${safeTicketTitle}"
+echo -e "\\033[1;33m📁 Project:\\033[0m ${safeProjectPath}"
+echo -e "\\033[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo ""
+
+# Launch OpenCode with the context file
+opencode "$CONTEXT_FILE"
+
+# Cleanup context file
+rm -f "$CONTEXT_FILE"
+
+echo ""
+echo -e "\\033[0;34m✅ OpenCode session ended.\\033[0m"
+exec bash
+`;
+
+  // Use 0o700 - owner read/write/execute only
+  writeFileSync(scriptPath, script, { mode: 0o700 });
+  chmodSync(scriptPath, 0o700);
+
+  return scriptPath;
+}
+
+// Launch OpenCode in terminal with ticket context
+// Note: Uses exec() for terminal launching (same as launchClaudeInTerminal) because
+// terminal commands require shell interpretation. Input is validated by validateProjectPath.
+export const launchOpenCodeInTerminal = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: {
+      ticketId: string;
+      context: string;
+      projectPath: string;
+      preferredTerminal?: string | null;
+      projectName: string;
+      epicName: string | null;
+      ticketTitle: string;
+    }) => data
+  )
+  .handler(async ({ data }): Promise<LaunchResult> => {
+    const {
+      ticketId,
+      context,
+      projectPath,
+      preferredTerminal,
+      projectName,
+      epicName,
+      ticketTitle,
+    } = data;
+    const { exec } = await import("child_process");
+    const { existsSync } = await import("fs");
+
+    // Verify project path exists
+    if (!existsSync(projectPath)) {
+      return {
+        success: false,
+        method: "clipboard",
+        message: `Project directory not found: ${projectPath}. Context copied to clipboard instead.`,
+      };
+    }
+
+    // Determine which terminal to use
+    let terminal: string | null = null;
+    const warnings: string[] = [];
+
+    // If preferred terminal is set and available, use it
+    if (preferredTerminal) {
+      const result = await isTerminalAvailable(preferredTerminal);
+      if (result.available) {
+        terminal = preferredTerminal;
+      } else {
+        const reason = result.error || "not installed";
+        warnings.push(
+          `Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`
+        );
+      }
+    }
+
+    // Fallback to auto-detect if no preferred terminal or preferred is unavailable
+    if (!terminal) {
+      terminal = await detectTerminal();
+    }
+
+    if (!terminal) {
+      return {
+        success: false,
+        method: "clipboard",
+        message: "No supported terminal emulator found. Context copied to clipboard instead.",
+        ...(warnings.length > 0 && { warnings }),
+      };
+    }
+
+    // Update ticket status to in_progress
+    try {
+      db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticketId)).run();
+    } catch (error) {
+      console.error("Failed to update ticket status:", error);
+      warnings.push(
+        "Failed to update ticket status to 'In Progress'. You may need to update it manually."
+      );
+    }
+
+    // Save current ticket ID to state file for CLI tool
+    try {
+      const { writeFileSync, mkdirSync } = await import("fs");
+      const { join } = await import("path");
+      const { homedir } = await import("os");
+
+      const stateDir = join(homedir(), ".brain-dump");
+      mkdirSync(stateDir, { recursive: true });
+
+      const stateFile = join(stateDir, "current-ticket.json");
+      writeFileSync(
+        stateFile,
+        JSON.stringify({
+          ticketId,
+          projectPath,
+          startedAt: new Date().toISOString(),
+        })
+      );
+    } catch (error) {
+      console.error("Failed to save current ticket state:", error);
+      warnings.push(
+        "Could not save ticket state. The 'brain-dump' CLI commands may not work for this session."
+      );
+    }
+
+    // Create launch script and build terminal command with window title
+    const scriptPath = await createOpenCodeLaunchScript(projectPath, context);
+    const windowTitle = buildWindowTitle(projectName, epicName, ticketTitle);
+    const terminalCommand = buildTerminalCommand(terminal, projectPath, scriptPath, windowTitle);
+
+    try {
+      // Launch terminal (don't wait for it to complete)
+      exec(terminalCommand, (error) => {
+        if (error) {
+          console.error("Terminal launch error:", error);
+        }
+      });
+
+      return {
+        success: true,
+        method: "terminal",
+        message: `Launched OpenCode in ${terminal}`,
         terminalUsed: terminal,
         ...(warnings.length > 0 && { warnings }),
       };

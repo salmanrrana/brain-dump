@@ -1,5 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useModalKeyboard, useClickOutside, useDeleteTicket, useTicketDeletePreview } from "../lib/hooks";
+import {
+  useModalKeyboard,
+  useClickOutside,
+  useDeleteTicket,
+  useTicketDeletePreview,
+} from "../lib/hooks";
 import DeleteConfirmationModal from "./DeleteConfirmationModal";
 import {
   X,
@@ -22,9 +27,20 @@ import {
   BookOpen,
   Database,
   ExternalLink,
+  Code2,
 } from "lucide-react";
 import type { Ticket, Epic } from "../lib/hooks";
-import { useUpdateTicket, useSettings, useLaunchRalphForTicket, useComments, useCreateComment, useTags, useAutoClearState, useProjectServices, useProjects } from "../lib/hooks";
+import {
+  useUpdateTicket,
+  useSettings,
+  useLaunchRalphForTicket,
+  useComments,
+  useCreateComment,
+  useTags,
+  useAutoClearState,
+  useProjectServices,
+  useProjects,
+} from "../lib/hooks";
 import type { ServiceType } from "../lib/service-discovery";
 import { useToast } from "./Toast";
 import type { Subtask, TicketStatus, TicketPriority } from "../api/tickets";
@@ -36,7 +52,7 @@ import {
 } from "../api/attachments";
 import { STATUS_OPTIONS, PRIORITY_OPTIONS, POLLING_INTERVALS } from "../lib/constants";
 import { getTicketContext } from "../api/context";
-import { launchClaudeInTerminal } from "../api/terminal";
+import { launchClaudeInTerminal, launchOpenCodeInTerminal } from "../api/terminal";
 import { safeJsonParse } from "../lib/utils";
 
 interface TicketModalProps {
@@ -91,12 +107,7 @@ const SERVICE_TYPE_COLORS: Record<ServiceType, string> = {
   other: "text-slate-400",
 };
 
-export default function TicketModal({
-  ticket,
-  epics,
-  onClose,
-  onUpdate,
-}: TicketModalProps) {
+export default function TicketModal({ ticket, epics, onClose, onUpdate }: TicketModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useState(ticket.title);
   const [description, setDescription] = useState(ticket.description ?? "");
@@ -108,9 +119,7 @@ export default function TicketModal({
   const [tags, setTags] = useState<string[]>(() => safeJsonParse(ticket.tags, []));
   const [subtasks, setSubtasks] = useState<Subtask[]>(() => safeJsonParse(ticket.subtasks, []));
   const [isBlocked, setIsBlocked] = useState(ticket.isBlocked);
-  const [blockedReason, setBlockedReason] = useState(
-    ticket.blockedReason ?? ""
-  );
+  const [blockedReason, setBlockedReason] = useState(ticket.blockedReason ?? "");
   const [newTag, setNewTag] = useState("");
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
@@ -165,7 +174,8 @@ export default function TicketModal({
 
   // Comments - poll when ticket is in progress (Ralph might be working)
   const { comments, loading: commentsLoading } = useComments(ticket.id, {
-    pollingInterval: status === "in_progress" ? POLLING_INTERVALS.COMMENTS_ACTIVE : POLLING_INTERVALS.DISABLED,
+    pollingInterval:
+      status === "in_progress" ? POLLING_INTERVALS.COMMENTS_ACTIVE : POLLING_INTERVALS.DISABLED,
   });
   const createCommentMutation = useCreateComment();
   const [newComment, setNewComment] = useState("");
@@ -204,7 +214,11 @@ export default function TicketModal({
   });
 
   // Close dropdown when clicking outside
-  useClickOutside(startWorkMenuRef, useCallback(() => setShowStartWorkMenu(false), []), showStartWorkMenu);
+  useClickOutside(
+    startWorkMenuRef,
+    useCallback(() => setShowStartWorkMenu(false), []),
+    showStartWorkMenu
+  );
 
   // Close tag dropdown when clicking outside
   const closeTagDropdown = useCallback(() => {
@@ -221,7 +235,10 @@ export default function TicketModal({
         setAttachments(data);
       } catch (error) {
         console.error("Failed to fetch attachments:", error);
-        showToast("error", `Failed to load attachments: ${error instanceof Error ? error.message : "Unknown error"}`);
+        showToast(
+          "error",
+          `Failed to load attachments: ${error instanceof Error ? error.message : "Unknown error"}`
+        );
       }
     };
     void fetchAttachments();
@@ -291,7 +308,10 @@ export default function TicketModal({
         }
       } catch (error) {
         console.error("Failed to upload attachments:", error);
-        showToast("error", `Failed to upload attachments: ${error instanceof Error ? error.message : "Unknown error"}`);
+        showToast(
+          "error",
+          `Failed to upload attachments: ${error instanceof Error ? error.message : "Unknown error"}`
+        );
       } finally {
         setIsUploadingAttachment(false);
       }
@@ -334,7 +354,10 @@ export default function TicketModal({
         setAttachments((prev) => prev.filter((a) => a.id !== attachment.id));
       } catch (error) {
         console.error("Failed to delete attachment:", error);
-        showToast("error", `Failed to delete attachment: ${error instanceof Error ? error.message : "Unknown error"}`);
+        showToast(
+          "error",
+          `Failed to delete attachment: ${error instanceof Error ? error.message : "Unknown error"}`
+        );
       }
     },
     [ticket.id, showToast]
@@ -469,7 +492,91 @@ export default function TicketModal({
     } finally {
       setIsStartingWork(false);
     }
-  }, [ticket.id, onUpdate, settings?.terminalEmulator, settings?.ralphSandbox, launchRalphMutation, showToast]);
+  }, [
+    ticket.id,
+    onUpdate,
+    settings?.terminalEmulator,
+    settings?.ralphSandbox,
+    launchRalphMutation,
+    showToast,
+  ]);
+
+  // Handle Start OpenCode - open-source AI assistant
+  const handleStartOpenCode = useCallback(async () => {
+    setIsStartingWork(true);
+    setStartWorkNotification(null);
+    setShowStartWorkMenu(false);
+
+    try {
+      // Get ticket context
+      const contextResult = await getTicketContext({ data: ticket.id });
+
+      // Launch OpenCode in terminal
+      const launchResult = await launchOpenCodeInTerminal({
+        data: {
+          ticketId: ticket.id,
+          context: contextResult.context,
+          projectPath: contextResult.projectPath,
+          preferredTerminal: settings?.terminalEmulator ?? null,
+          projectName: contextResult.projectName,
+          epicName: contextResult.epicName,
+          ticketTitle: contextResult.ticketTitle,
+        },
+      });
+
+      // Show any warnings
+      if (launchResult.warnings) {
+        launchResult.warnings.forEach((warning) => showToast("info", warning));
+      }
+
+      if (launchResult.success && launchResult.method === "terminal") {
+        setStatus("in_progress");
+        setStartWorkNotification({
+          type: "success",
+          message: `OpenCode launched in ${launchResult.terminalUsed}! Ticket moved to In Progress.`,
+        });
+        setTimeout(() => onUpdate(), 500);
+      } else if (!launchResult.success) {
+        showToast("error", launchResult.message);
+
+        // Fallback: copy to clipboard
+        await navigator.clipboard.writeText(contextResult.context);
+
+        setStartWorkNotification({
+          type: "success",
+          message: `Context copied to clipboard. Run: cd "${contextResult.projectPath}" && opencode`,
+        });
+      } else {
+        // Clipboard fallback
+        await navigator.clipboard.writeText(contextResult.context);
+        setStartWorkNotification({
+          type: "success",
+          message: launchResult.message,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to start OpenCode:", error);
+      const message = error instanceof Error ? error.message : "An unexpected error occurred";
+      showToast("error", `Failed to launch OpenCode: ${message}`);
+
+      // Ultimate fallback: try clipboard only
+      try {
+        const contextResult = await getTicketContext({ data: ticket.id });
+        await navigator.clipboard.writeText(contextResult.context);
+        setStartWorkNotification({
+          type: "success",
+          message: `Context copied! Run: cd "${contextResult.projectPath}" && opencode`,
+        });
+      } catch {
+        setStartWorkNotification({
+          type: "error",
+          message: "Failed to start OpenCode",
+        });
+      }
+    } finally {
+      setIsStartingWork(false);
+    }
+  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast]);
 
   // Handle adding a comment
   const handleAddComment = useCallback(() => {
@@ -488,7 +595,10 @@ export default function TicketModal({
           setNewComment("");
         },
         onError: (error) => {
-          showToast("error", `Failed to add comment: ${error instanceof Error ? error.message : "Unknown error"}`);
+          showToast(
+            "error",
+            `Failed to add comment: ${error instanceof Error ? error.message : "Unknown error"}`
+          );
         },
       }
     );
@@ -535,10 +645,7 @@ export default function TicketModal({
       updates.subtasks = subtasks;
     }
 
-    updateTicketMutation.mutate(
-      { id: ticket.id, updates },
-      { onSuccess: onUpdate }
-    );
+    updateTicketMutation.mutate({ id: ticket.id, updates }, { onSuccess: onUpdate });
   }, [
     ticket.id,
     title,
@@ -574,9 +681,7 @@ export default function TicketModal({
       case "ArrowDown":
         e.preventDefault();
         setIsTagDropdownOpen(true);
-        setSelectedSuggestionIndex((prev) =>
-          prev < tagSuggestions.length - 1 ? prev + 1 : prev
-        );
+        setSelectedSuggestionIndex((prev) => (prev < tagSuggestions.length - 1 ? prev + 1 : prev));
         break;
       case "ArrowUp":
         e.preventDefault();
@@ -601,18 +706,13 @@ export default function TicketModal({
   const addSubtask = () => {
     const text = newSubtask.trim();
     if (text) {
-      setSubtasks([
-        ...subtasks,
-        { id: crypto.randomUUID(), text, completed: false },
-      ]);
+      setSubtasks([...subtasks, { id: crypto.randomUUID(), text, completed: false }]);
       setNewSubtask("");
     }
   };
 
   const toggleSubtask = (id: string) => {
-    setSubtasks(
-      subtasks.map((s) => (s.id === id ? { ...s, completed: !s.completed } : s))
-    );
+    setSubtasks(subtasks.map((s) => (s.id === id ? { ...s, completed: !s.completed } : s)));
   };
 
   const removeSubtask = (id: string) => {
@@ -646,11 +746,7 @@ export default function TicketModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden="true" />
 
       {/* Modal */}
       <div
@@ -678,9 +774,7 @@ export default function TicketModal({
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* Title */}
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">
-              Title
-            </label>
+            <label className="block text-sm font-medium text-slate-400 mb-1">Title</label>
             <input
               type="text"
               value={title}
@@ -691,9 +785,7 @@ export default function TicketModal({
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">
-              Description
-            </label>
+            <label className="block text-sm font-medium text-slate-400 mb-1">Description</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -705,9 +797,7 @@ export default function TicketModal({
           {/* Status, Priority, Epic */}
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">
-                Status
-              </label>
+              <label className="block text-sm font-medium text-slate-400 mb-1">Status</label>
               <div className="relative">
                 <select
                   value={status}
@@ -728,9 +818,7 @@ export default function TicketModal({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">
-                Priority
-              </label>
+              <label className="block text-sm font-medium text-slate-400 mb-1">Priority</label>
               <div className="relative">
                 <select
                   value={priority}
@@ -751,9 +839,7 @@ export default function TicketModal({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">
-                Epic
-              </label>
+              <label className="block text-sm font-medium text-slate-400 mb-1">Epic</label>
               <div className="relative">
                 <select
                   value={epicId}
@@ -802,9 +888,7 @@ export default function TicketModal({
 
           {/* Tags */}
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">
-              Tags
-            </label>
+            <label className="block text-sm font-medium text-slate-400 mb-1">Tags</label>
             {tags.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-2">
                 {tags.map((tag) => (
@@ -813,10 +897,7 @@ export default function TicketModal({
                     className="flex items-center gap-1 px-2 py-1 bg-slate-700 text-slate-300 rounded text-sm"
                   >
                     {tag}
-                    <button
-                      onClick={() => removeTag(tag)}
-                      className="hover:text-red-400"
-                    >
+                    <button onClick={() => removeTag(tag)} className="hover:text-red-400">
                       <X size={12} />
                     </button>
                   </span>
@@ -879,18 +960,13 @@ export default function TicketModal({
 
               {/* Tag loading error */}
               {tagsError && (
-                <p className="mt-1 text-xs text-red-400">
-                  Failed to load tags: {tagsError}
-                </p>
+                <p className="mt-1 text-xs text-red-400">Failed to load tags: {tagsError}</p>
               )}
 
               {/* Helper text for creating new tags */}
               {showCreateHelper && (
                 <p className="mt-1 text-xs text-slate-500">
-                  Press{" "}
-                  <kbd className="px-1 py-0.5 bg-slate-700 rounded text-slate-400">
-                    Enter
-                  </kbd>{" "}
+                  Press <kbd className="px-1 py-0.5 bg-slate-700 rounded text-slate-400">Enter</kbd>{" "}
                   to create &quot;{newTag.trim()}&quot; as a new tag
                 </p>
               )}
@@ -925,9 +1001,7 @@ export default function TicketModal({
                   </button>
                   <span
                     className={`flex-1 text-sm ${
-                      subtask.completed
-                        ? "text-slate-500 line-through"
-                        : "text-gray-100"
+                      subtask.completed ? "text-slate-500 line-through" : "text-gray-100"
                     }`}
                   >
                     {subtask.text}
@@ -1108,7 +1182,10 @@ export default function TicketModal({
                       <IconComponent size={14} className={colorClass} />
                       <span className="text-sm text-gray-100 flex-1">{service.name}</span>
                       <span className="text-xs text-slate-500">localhost:{service.port}</span>
-                      <ExternalLink size={12} className="text-slate-500 group-hover:text-cyan-400 transition-colors" />
+                      <ExternalLink
+                        size={12}
+                        className="text-slate-500 group-hover:text-cyan-400 transition-colors"
+                      />
                     </a>
                   );
                 })}
@@ -1124,9 +1201,7 @@ export default function TicketModal({
             >
               <MessageSquare size={16} />
               <span>Activity</span>
-              {comments.length > 0 && (
-                <span className="text-slate-500">({comments.length})</span>
-              )}
+              {comments.length > 0 && <span className="text-slate-500">({comments.length})</span>}
               <ChevronDown
                 size={14}
                 className={`transition-transform ${showComments ? "rotate-180" : ""}`}
@@ -1180,8 +1255,12 @@ export default function TicketModal({
                           <span
                             className={`font-medium ${COMMENT_AUTHOR_STYLES[comment.author] ?? COMMENT_AUTHOR_STYLES.user}`}
                           >
-                            {comment.author === "ralph" && <Bot size={12} className="inline mr-1" />}
-                            {comment.author === "claude" && <Terminal size={12} className="inline mr-1" />}
+                            {comment.author === "ralph" && (
+                              <Bot size={12} className="inline mr-1" />
+                            )}
+                            {comment.author === "claude" && (
+                              <Terminal size={12} className="inline mr-1" />
+                            )}
                             {comment.author.charAt(0).toUpperCase() + comment.author.slice(1)}
                           </span>
                           <span className="text-slate-500 text-xs">
@@ -1195,7 +1274,11 @@ export default function TicketModal({
                             </span>
                           )}
                         </div>
-                        <p className={`whitespace-pre-wrap ${comment.type === "progress" ? "text-blue-100 text-xs" : "text-gray-100"}`}>{comment.content}</p>
+                        <p
+                          className={`whitespace-pre-wrap ${comment.type === "progress" ? "text-blue-100 text-xs" : "text-gray-100"}`}
+                        >
+                          {comment.content}
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -1282,7 +1365,9 @@ export default function TicketModal({
                   <Terminal size={18} className="text-green-400 mt-0.5 flex-shrink-0" />
                   <div>
                     <div className="font-medium text-gray-100">Start with Claude</div>
-                    <div className="text-xs text-slate-400">Interactive session - you guide Claude</div>
+                    <div className="text-xs text-slate-400">
+                      Interactive session - you guide Claude
+                    </div>
                   </div>
                 </button>
                 <button
@@ -1292,7 +1377,19 @@ export default function TicketModal({
                   <Bot size={18} className="text-purple-400 mt-0.5 flex-shrink-0" />
                   <div>
                     <div className="font-medium text-gray-100">Start with Ralph</div>
-                    <div className="text-xs text-slate-400">Autonomous mode - runs until complete</div>
+                    <div className="text-xs text-slate-400">
+                      Autonomous mode - runs until complete
+                    </div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => void handleStartOpenCode()}
+                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left border-t border-slate-700"
+                >
+                  <Code2 size={18} className="text-blue-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="font-medium text-gray-100">Start with OpenCode</div>
+                    <div className="text-xs text-slate-400">Open-source AI assistant</div>
                   </div>
                 </button>
               </div>
@@ -1336,7 +1433,8 @@ export default function TicketModal({
           entityType="ticket"
           entityName={ticket.title}
           preview={{
-            commentCount: deletePreview && "commentCount" in deletePreview ? deletePreview.commentCount : 0,
+            commentCount:
+              deletePreview && "commentCount" in deletePreview ? deletePreview.commentCount : 0,
           }}
           error={deleteError}
         />
