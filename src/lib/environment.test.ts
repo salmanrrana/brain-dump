@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   detectEnvironment,
   isClaudeCode,
+  isOpenCode,
   isVSCode,
   getEnvironmentInfo,
   _setEnvironmentOverride,
@@ -19,6 +20,11 @@ describe("Environment Detection", () => {
     delete process.env.ANTHROPIC_API_KEY;
     delete process.env.MCP_SERVER_NAME;
     delete process.env.CLAUDE_CODE_TERMINAL_ID;
+    delete process.env.OPENCODE_EXPERIMENTAL;
+    delete process.env.OPENCODE_EXPERIMENTAL_LSP_TOOL;
+    delete process.env.OPENCODE_DEV_DEBUG;
+    delete process.env.OPENCODE_SERVER_PASSWORD;
+    delete process.env.OPENCODE_SERVER_USERNAME;
     delete process.env.VSCODE_GIT_ASKPASS_NODE;
     delete process.env.VSCODE_GIT_ASKPASS_MAIN;
     delete process.env.VSCODE_GIT_IPC_HANDLE;
@@ -47,6 +53,11 @@ describe("Environment Detection", () => {
     it("should return override when set to 'claude-code'", () => {
       _setEnvironmentOverride("claude-code");
       expect(detectEnvironment()).toBe("claude-code");
+    });
+
+    it("should return override when set to 'opencode'", () => {
+      _setEnvironmentOverride("opencode");
+      expect(detectEnvironment()).toBe("opencode");
     });
 
     it("should return override when set to 'vscode'", () => {
@@ -102,6 +113,43 @@ describe("Environment Detection", () => {
     it("should detect CLAUDE_CODE_TERMINAL_ID env var", () => {
       process.env.CLAUDE_CODE_TERMINAL_ID = "terminal-123";
       expect(detectEnvironment()).toBe("claude-code");
+    });
+  });
+
+  // ===========================================================================
+  // OPENCODE DETECTION TESTS
+  // ===========================================================================
+
+  describe("OpenCode Detection", () => {
+    it("should detect OPENCODE_EXPERIMENTAL env var", () => {
+      process.env.OPENCODE_EXPERIMENTAL = "true";
+      expect(detectEnvironment()).toBe("opencode");
+    });
+
+    it("should detect OPENCODE_EXPERIMENTAL_LSP_TOOL env var", () => {
+      process.env.OPENCODE_EXPERIMENTAL_LSP_TOOL = "true";
+      expect(detectEnvironment()).toBe("opencode");
+    });
+
+    it("should detect OPENCODE_DEV_DEBUG env var", () => {
+      process.env.OPENCODE_DEV_DEBUG = "true";
+      expect(detectEnvironment()).toBe("opencode");
+    });
+
+    it("should detect OPENCODE_SERVER_PASSWORD env var", () => {
+      process.env.OPENCODE_SERVER_PASSWORD = "secret";
+      expect(detectEnvironment()).toBe("opencode");
+    });
+
+    it("should detect OPENCODE_SERVER_USERNAME env var", () => {
+      process.env.OPENCODE_SERVER_USERNAME = "admin";
+      expect(detectEnvironment()).toBe("opencode");
+    });
+
+    it("should detect any OPENCODE_* prefixed env var", () => {
+      process.env.OPENCODE_CUSTOM_SETTING = "value";
+      expect(detectEnvironment()).toBe("opencode");
+      delete process.env.OPENCODE_CUSTOM_SETTING;
     });
   });
 
@@ -181,6 +229,36 @@ describe("Environment Detection", () => {
       expect(detectEnvironment()).toBe("claude-code");
     });
 
+    it("should prioritize Claude Code over OpenCode when both are present", () => {
+      process.env.OPENCODE_EXPERIMENTAL = "true";
+      process.env.CLAUDE_CODE = "true";
+
+      // Claude Code should win
+      expect(detectEnvironment()).toBe("claude-code");
+    });
+
+    it("should prioritize OpenCode over VS Code when both are present", () => {
+      process.env.VSCODE_GIT_ASKPASS_NODE = "/path/to/node";
+      process.env.OPENCODE_DEV_DEBUG = "true";
+
+      // OpenCode should win
+      expect(detectEnvironment()).toBe("opencode");
+    });
+
+    it("should prioritize Claude Code over both OpenCode and VS Code", () => {
+      process.env.VSCODE_GIT_ASKPASS_NODE = "/path/to/node";
+      process.env.OPENCODE_EXPERIMENTAL = "true";
+      process.env.CLAUDE_CODE = "true";
+
+      // Claude Code should win
+      expect(detectEnvironment()).toBe("claude-code");
+    });
+
+    it("should detect OpenCode when only OpenCode vars are present", () => {
+      process.env.OPENCODE_DEV_DEBUG = "true";
+      expect(detectEnvironment()).toBe("opencode");
+    });
+
     it("should detect VS Code when only VS Code vars are present", () => {
       process.env.VSCODE_GIT_ASKPASS_NODE = "/path/to/node";
       expect(detectEnvironment()).toBe("vscode");
@@ -201,6 +279,11 @@ describe("Environment Detection", () => {
       expect(isClaudeCode()).toBe(true);
     });
 
+    it("should return false when in OpenCode environment", () => {
+      _setEnvironmentOverride("opencode");
+      expect(isClaudeCode()).toBe(false);
+    });
+
     it("should return false when in VS Code environment", () => {
       _setEnvironmentOverride("vscode");
       expect(isClaudeCode()).toBe(false);
@@ -212,6 +295,28 @@ describe("Environment Detection", () => {
     });
   });
 
+  describe("isOpenCode", () => {
+    it("should return true when in OpenCode environment", () => {
+      _setEnvironmentOverride("opencode");
+      expect(isOpenCode()).toBe(true);
+    });
+
+    it("should return false when in Claude Code environment", () => {
+      _setEnvironmentOverride("claude-code");
+      expect(isOpenCode()).toBe(false);
+    });
+
+    it("should return false when in VS Code environment", () => {
+      _setEnvironmentOverride("vscode");
+      expect(isOpenCode()).toBe(false);
+    });
+
+    it("should return false when in unknown environment", () => {
+      _setEnvironmentOverride("unknown");
+      expect(isOpenCode()).toBe(false);
+    });
+  });
+
   describe("isVSCode", () => {
     it("should return true when in VS Code environment", () => {
       _setEnvironmentOverride("vscode");
@@ -220,6 +325,11 @@ describe("Environment Detection", () => {
 
     it("should return false when in Claude Code environment", () => {
       _setEnvironmentOverride("claude-code");
+      expect(isVSCode()).toBe(false);
+    });
+
+    it("should return false when in OpenCode environment", () => {
+      _setEnvironmentOverride("opencode");
       expect(isVSCode()).toBe(false);
     });
 
@@ -268,6 +378,21 @@ describe("Environment Detection", () => {
       expect(info.envVarsDetected).toContain("VSCODE_CWD");
     });
 
+    it("should list detected OpenCode env vars", () => {
+      process.env.OPENCODE_EXPERIMENTAL = "true";
+      process.env.OPENCODE_DEV_DEBUG = "true";
+      const info = getEnvironmentInfo();
+      expect(info.envVarsDetected).toContain("OPENCODE_EXPERIMENTAL");
+      expect(info.envVarsDetected).toContain("OPENCODE_DEV_DEBUG");
+    });
+
+    it("should list custom OPENCODE_* prefixed env vars", () => {
+      process.env.OPENCODE_CUSTOM_CONFIG = "value";
+      const info = getEnvironmentInfo();
+      expect(info.envVarsDetected).toContain("OPENCODE_CUSTOM_CONFIG");
+      delete process.env.OPENCODE_CUSTOM_CONFIG;
+    });
+
     it("should handle TERM_PROGRAM=vscode specially", () => {
       process.env.TERM_PROGRAM = "vscode";
       const info = getEnvironmentInfo();
@@ -294,8 +419,8 @@ describe("Environment Detection", () => {
 
   describe("Type Exports", () => {
     it("should export Environment type with correct values", () => {
-      const validEnvironments: Environment[] = ["claude-code", "vscode", "unknown"];
-      expect(validEnvironments.length).toBe(3);
+      const validEnvironments: Environment[] = ["claude-code", "opencode", "vscode", "unknown"];
+      expect(validEnvironments.length).toBe(4);
     });
   });
 });
