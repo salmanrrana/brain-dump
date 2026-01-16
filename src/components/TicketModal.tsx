@@ -17,9 +17,15 @@ import {
   Terminal,
   MessageSquare,
   Send,
+  Globe,
+  Server,
+  BookOpen,
+  Database,
+  ExternalLink,
 } from "lucide-react";
 import type { Ticket, Epic } from "../lib/hooks";
-import { useUpdateTicket, useSettings, useLaunchRalphForTicket, useComments, useCreateComment, useTags, useAutoClearState } from "../lib/hooks";
+import { useUpdateTicket, useSettings, useLaunchRalphForTicket, useComments, useCreateComment, useTags, useAutoClearState, useProjectServices, useProjects } from "../lib/hooks";
+import type { ServiceType } from "../lib/service-discovery";
 import { useToast } from "./Toast";
 import type { Subtask, TicketStatus, TicketPriority } from "../api/tickets";
 import {
@@ -28,7 +34,7 @@ import {
   deleteAttachment,
   type Attachment,
 } from "../api/attachments";
-import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "../lib/constants";
+import { STATUS_OPTIONS, PRIORITY_OPTIONS, POLLING_INTERVALS } from "../lib/constants";
 import { getTicketContext } from "../api/context";
 import { launchClaudeInTerminal } from "../api/terminal";
 import { safeJsonParse } from "../lib/utils";
@@ -64,6 +70,25 @@ const COMMENT_BADGE_LABELS: Record<string, string> = {
   progress: "Working...",
   work_summary: "Work Summary",
   test_report: "Test Report",
+};
+
+// Service type icons for the services panel
+const SERVICE_TYPE_ICONS: Record<ServiceType, typeof Globe> = {
+  frontend: Globe,
+  backend: Server,
+  storybook: BookOpen,
+  docs: BookOpen,
+  database: Database,
+  other: Server,
+};
+
+const SERVICE_TYPE_COLORS: Record<ServiceType, string> = {
+  frontend: "text-cyan-400",
+  backend: "text-purple-400",
+  storybook: "text-pink-400",
+  docs: "text-green-400",
+  database: "text-yellow-400",
+  other: "text-slate-400",
 };
 
 export default function TicketModal({
@@ -125,9 +150,22 @@ export default function TicketModal({
   // Fetch delete preview when confirmation modal opens (dry-run)
   const { data: deletePreview } = useTicketDeletePreview(ticket.id, showDeleteConfirm);
 
-  // Comments - poll every 3 seconds when ticket is in progress (Ralph might be working)
+  // Get project path for service discovery
+  const { projects } = useProjects();
+  const projectPath = useMemo(() => {
+    const project = projects.find((p) => p.id === ticket.projectId);
+    return project?.path ?? null;
+  }, [projects, ticket.projectId]);
+
+  // Service discovery - poll when ticket is in progress
+  const { runningServices, error: servicesError } = useProjectServices(projectPath, {
+    enabled: status === "in_progress",
+    pollingInterval: POLLING_INTERVALS.SERVICES,
+  });
+
+  // Comments - poll when ticket is in progress (Ralph might be working)
   const { comments, loading: commentsLoading } = useComments(ticket.id, {
-    pollingInterval: status === "in_progress" ? 3000 : 0,
+    pollingInterval: status === "in_progress" ? POLLING_INTERVALS.COMMENTS_ACTIVE : POLLING_INTERVALS.DISABLED,
   });
   const createCommentMutation = useCreateComment();
   const [newComment, setNewComment] = useState("");
@@ -1041,6 +1079,42 @@ export default function TicketModal({
               </div>
             )}
           </div>
+
+          {/* Running Services - Only show when ticket is in progress */}
+          {status === "in_progress" && servicesError && (
+            <div className="bg-red-900/30 border border-red-800 rounded-lg p-3 text-sm text-red-300">
+              <span className="font-medium">Service discovery error:</span> {servicesError}
+            </div>
+          )}
+          {status === "in_progress" && runningServices.length > 0 && (
+            <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
+              <h4 className="text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
+                <Globe size={14} className="text-cyan-400" />
+                Running Services
+              </h4>
+              <div className="space-y-1">
+                {runningServices.map((service) => {
+                  // Lookup tables are exhaustive for all ServiceType values, no fallback needed
+                  const IconComponent = SERVICE_TYPE_ICONS[service.type];
+                  const colorClass = SERVICE_TYPE_COLORS[service.type];
+                  return (
+                    <a
+                      key={service.port}
+                      href={`http://localhost:${service.port}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-2 py-1.5 bg-slate-900/50 rounded hover:bg-slate-700/50 transition-colors group"
+                    >
+                      <IconComponent size={14} className={colorClass} />
+                      <span className="text-sm text-gray-100 flex-1">{service.name}</span>
+                      <span className="text-xs text-slate-500">localhost:{service.port}</span>
+                      <ExternalLink size={12} className="text-slate-500 group-hover:text-cyan-400 transition-colors" />
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Activity / Comments */}
           <div>

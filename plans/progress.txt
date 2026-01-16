@@ -2433,3 +2433,168 @@ The `sanitizeSnippet` function uses a secure whitelist approach:
 - React Best Practices epic is COMPLETE
 
 ---
+
+### 2026-01-16 - Port Range Mapping Documentation
+- Task: Add port range mapping to Docker run command
+- Ticket ID: 120a88dd-bd05-495e-8faa-81d615ac722e
+- Success: true
+- Agent: Ralph
+- Branch: feature/120a88dd-add-port-range-mapping-to-docker-run-command
+
+**Implementation Summary:**
+- Port ranges were already implemented in `src/api/ralph.ts` (lines 268-271)
+- Added comprehensive documentation to `docs/docker-git-push.md`
+
+**Port Conventions Documented:**
+| Port Range | Purpose |
+|------------|---------|
+| 8100-8110 | Frontend dev servers (Vite, Next.js, React) |
+| 8200-8210 | Backend APIs (Express, Fastify, NestJS) |
+| 8300-8310 | Documentation & Storybook |
+| 8400-8410 | Databases (debugging) |
+
+**Files Modified:**
+- `docs/docker-git-push.md` - Renamed to "Docker Sandbox Configuration", added port exposure section
+
+**Testing Results:**
+- All 444 tests passing
+
+**PRD Status:**
+- 1/5 tickets complete for "Port Exposure & Service Discovery" epic
+
+---
+
+### 2026-01-16 - Create .ralph-services.json Schema
+- Task: Create .ralph-services.json schema for service discovery
+- Ticket ID: e74cfe6b-47b1-48b3-8e38-2e44e3bbbb73
+- Success: true
+- Agent: Ralph
+- Branch: feature/e74cfe6b-create-ralph-services-json-schema-for-service-disc
+
+**TypeScript Types Created (src/lib/service-discovery.ts):**
+| Export | Description |
+|--------|-------------|
+| `ServiceType` | Union: frontend, backend, storybook, docs, database, other |
+| `ServiceStatus` | Union: running, stopped, starting, error |
+| `RalphService` | Interface for individual service entries |
+| `RalphServicesFile` | Root schema with services[] and updatedAt |
+| `PORT_RANGES` | Constant mapping service types to port ranges |
+| `inferTypeFromPort()` | Utility to guess type from port number |
+| `isValidServicePort()` | Validate port is in allowed ranges |
+
+**Files Created:**
+- `src/lib/service-discovery.ts` - TypeScript types with JSDoc documentation
+- `.ralph-services.example.json` - Example file showing valid schema
+
+**Files Modified:**
+- `.gitignore` - Added `.ralph-services.json` (runtime state)
+
+**Testing Results:**
+- All 444 tests passing
+
+**PRD Status:**
+- 2/5 tickets complete for "Port Exposure & Service Discovery" epic
+
+---
+
+### 2026-01-16 - Add Ralph Agent Instructions for Service Discovery
+- Task: Add Ralph agent instructions to write service discovery file
+- Ticket ID: c9e15c37-0008-4362-8b34-26441b319862
+- Success: true
+- Agent: Ralph
+- Branch: feature/e74cfe6b-create-ralph-services-json-schema-for-service-disc
+
+**Changes to src/api/ralph.ts:**
+- Added "Dev Server Management" section to `getRalphPrompt()` function
+- Added same section to `generateVSCodeContext()` function for VS Code users
+
+**Instructions Added:**
+1. How to start dev servers with `--host 0.0.0.0` for container accessibility
+2. Port conventions (8100-8110 frontend, 8200-8210 backend, etc.)
+3. How to update `.ralph-services.json` when starting/stopping servers
+4. Complete JSON schema example inline
+
+**Testing Results:**
+- All 444 tests passing
+
+**PRD Status:**
+- 3/5 tickets complete for "Port Exposure & Service Discovery" epic
+
+---
+
+### 2026-01-16 - Add API Endpoint for Service Discovery
+- Task: Add API endpoint to read service discovery file
+- Ticket ID: fb81ec62-bd80-44a0-85ff-d529b39e3d0f
+- Success: true
+- Agent: Ralph
+- Branch: feature/e74cfe6b-create-ralph-services-json-schema-for-service-disc
+
+**New Files:**
+- `src/api/services.ts` - Server functions for reading `.ralph-services.json`
+- `src/api/services.test.ts` - 11 integration tests
+
+**Server Functions:**
+| Function | Purpose |
+|----------|---------|
+| `getProjectServices(projectPath)` | Read and parse the services file |
+| `hasRunningServices(projectPath)` | Quick check for running services count |
+
+**Error Handling:**
+- Non-existent file → empty services array (normal case)
+- Malformed JSON → empty services + console warning
+- Invalid structure → empty services + console warning
+
+**Testing Results:**
+- 455 tests passing (11 new tests added)
+
+**PRD Status:**
+- 4/5 tickets complete for "Port Exposure & Service Discovery" epic
+
+---
+
+### 2026-01-16 - Add Services Panel to TicketModal UI
+- Task: Add Services panel to TicketModal UI
+- Ticket ID: c0fb8852-9c08-4953-90ee-20219b2f831b
+- Success: true
+- Agent: Ralph
+- Branch: feature/e74cfe6b-create-ralph-services-json-schema-for-service-disc
+
+**New Hook (src/lib/hooks.ts):**
+- `useProjectServices(projectPath, options)`:
+  - Fetches `.ralph-services.json` from project
+  - Polls every 5 seconds when enabled
+  - Returns `{ services, runningServices, updatedAt, loading, error }`
+
+**TicketModal Updates:**
+- Running Services panel shows when ticket is `in_progress` with running services
+- Service type icons: Globe (frontend), Server (backend), BookOpen (docs), Database
+- Color coding: cyan (frontend), purple (backend), pink (storybook), green (docs), yellow (database)
+- External links open `http://localhost:{port}` in new tab
+
+**Testing Results:**
+- 11 service discovery tests passing
+- 454 other tests passing (1 pre-existing flaky test)
+
+**PRD Status:**
+- 5/5 tickets complete for "Port Exposure & Service Discovery" epic
+- **EPIC COMPLETE!** 🎉
+
+---
+
+## Epic Summary: Port Exposure & Service Discovery
+
+All tickets completed successfully:
+
+| Ticket | Status |
+|--------|--------|
+| Add port range mapping to Docker run command | ✅ Complete |
+| Create .ralph-services.json schema for service discovery | ✅ Complete |
+| Add Ralph agent instructions to write service discovery file | ✅ Complete |
+| Add API endpoint to read service discovery file | ✅ Complete |
+| Add Services panel to TicketModal UI | ✅ Complete |
+
+**Total Files Changed:** 9
+**New Files Created:** 5
+**Tests Added:** 11
+
+---

@@ -101,7 +101,38 @@ function getRalphPrompt(): string {
 - ONE ticket per iteration
 - Run tests before completing
 - Keep changes minimal and focused
-- If stuck, note in progress.txt and move on`;
+- If stuck, note in progress.txt and move on
+
+## Dev Server Management
+
+When starting a dev server for testing or development:
+1. Start with explicit port binding: \`pnpm dev --port 8100 --host 0.0.0.0\`
+2. Update \`.ralph-services.json\` with service info (see schema below)
+3. Use these port conventions:
+   - 8100-8110: Frontend (Vite, Next.js, React)
+   - 8200-8210: Backend (Express, Fastify, NestJS)
+   - 8300-8310: Storybook, docs
+   - 8400-8410: Databases (debugging)
+
+When stopping a dev server:
+1. Update \`.ralph-services.json\` to mark status as "stopped"
+
+### .ralph-services.json Schema
+\`\`\`json
+{
+  "services": [
+    {
+      "name": "vite-dev-server",
+      "type": "frontend",
+      "port": 8100,
+      "status": "running",
+      "healthEndpoint": "/",
+      "startedAt": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "updatedAt": "2024-01-15T10:35:00Z"
+}
+\`\`\``;
 }
 
 // Generate VS Code context file for Ralph mode
@@ -172,6 +203,39 @@ ${ticketList || "_No incomplete tickets_"}
 ## Testing Requirements
 
 ${prd.testingRequirements.map((req) => `- ${req}`).join("\n")}
+
+---
+
+## Dev Server Management
+
+When starting a dev server for testing or development:
+1. Start with explicit port binding: \`pnpm dev --port 8100 --host 0.0.0.0\`
+2. Update \`.ralph-services.json\` with service info (see schema below)
+3. Use these port conventions:
+   - 8100-8110: Frontend (Vite, Next.js, React)
+   - 8200-8210: Backend (Express, Fastify, NestJS)
+   - 8300-8310: Storybook, docs
+   - 8400-8410: Databases (debugging)
+
+When stopping a dev server:
+1. Update \`.ralph-services.json\` to mark status as "stopped"
+
+### .ralph-services.json Schema
+\`\`\`json
+{
+  "services": [
+    {
+      "name": "vite-dev-server",
+      "type": "frontend",
+      "port": 8100,
+      "status": "running",
+      "healthEndpoint": "/",
+      "startedAt": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "updatedAt": "2024-01-15T10:35:00Z"
+}
+\`\`\`
 `;
 }
 

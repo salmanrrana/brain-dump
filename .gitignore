@@ -34,6 +34,9 @@ todos.json
 plans/prd.json
 plans/progress.txt
 
+# Service discovery runtime state (Ralph creates this)
+.ralph-services.json
+
 .idea/
 .vscode/*
 !.vscode/*.example

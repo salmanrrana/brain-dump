@@ -1126,3 +1126,56 @@ export function useStopCompanionContainers() {
     },
   });
 }
+
+// =============================================================================
+// SERVICE DISCOVERY HOOKS
+// =============================================================================
+
+import { getProjectServices } from "../api/services";
+import type { RalphServicesFile, RalphService } from "./service-discovery";
+
+/**
+ * Hook for fetching running services from a project's .ralph-services.json file.
+ * Polls at configurable intervals when enabled.
+ *
+ * @param projectPath - Path to the project root
+ * @param options - Configuration options
+ * @returns Services data and query state
+ */
+export function useProjectServices(
+  projectPath: string | null | undefined,
+  options: {
+    /** Whether to enable the query (default: true) */
+    enabled?: boolean;
+    /** Polling interval in ms (default: 0, no polling) */
+    pollingInterval?: number;
+  } = {}
+) {
+  const { enabled = true, pollingInterval = 0 } = options;
+
+  const query = useQuery({
+    queryKey: ["projectServices", projectPath],
+    queryFn: async (): Promise<RalphServicesFile> => {
+      if (!projectPath) {
+        return { services: [], updatedAt: new Date().toISOString() };
+      }
+      return getProjectServices({ data: { projectPath } });
+    },
+    enabled: enabled && Boolean(projectPath),
+    refetchInterval: pollingInterval > 0 ? pollingInterval : false,
+  });
+
+  // Filter to only running services for convenience
+  const runningServices: RalphService[] = (query.data?.services ?? []).filter(
+    (s) => s.status === "running"
+  );
+
+  return {
+    services: query.data?.services ?? [],
+    runningServices,
+    updatedAt: query.data?.updatedAt,
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+    refetch: query.refetch,
+  };
+}
