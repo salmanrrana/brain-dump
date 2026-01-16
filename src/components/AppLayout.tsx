@@ -8,7 +8,18 @@ import {
   useEffect,
   useCallback,
 } from "react";
-import { Search, LayoutGrid, List, Plus, X, Loader2, Settings, ChevronDown, Rocket, RefreshCw } from "lucide-react";
+import {
+  Search,
+  LayoutGrid,
+  List,
+  Plus,
+  X,
+  Loader2,
+  Settings,
+  ChevronDown,
+  Rocket,
+  RefreshCw,
+} from "lucide-react";
 import ProjectTree from "./ProjectTree";
 import NewTicketModal from "./NewTicketModal";
 import ProjectModal from "./ProjectModal";
@@ -146,13 +157,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     isAnyOpen: isAnyModalOpen,
   } = useModal();
 
-  const {
-    filters,
-    setProjectId,
-    setEpicId,
-    toggleTag,
-    clearTags,
-  } = useFilters();
+  const { filters, setProjectId, setEpicId, toggleTag, clearTags } = useFilters();
 
   // Sample data hook with callback to clear filters on deletion
   // Note: Query invalidation is now handled by useSampleData internally
@@ -232,7 +237,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       if ("ticketsToUnlink" in preview) {
         setDeleteEpicPreview({
           ticketCount: preview.ticketsToUnlink.length,
-          tickets: preview.ticketsToUnlink.map(t => ({ title: t.title, status: t.status })),
+          tickets: preview.ticketsToUnlink.map((t) => ({ title: t.title, status: t.status })),
         });
       }
     } catch (error) {
@@ -296,11 +301,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if typing in input/textarea
       const target = e.target as HTMLElement;
-      if (
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable
-      ) {
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
         return;
       }
 
@@ -412,11 +413,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
         {/* Project Modal */}
         {modal.type === "project" && (
-          <ProjectModal
-            project={modal.project}
-            onClose={closeModal}
-            onSave={handleProjectSaved}
-          />
+          <ProjectModal project={modal.project} onClose={closeModal} onSave={handleProjectSaved} />
         )}
 
         {/* Epic Modal */}
@@ -430,18 +427,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
         )}
 
         {/* Settings Modal */}
-        {modal.type === "settings" && (
-          <SettingsModal onClose={closeModal} />
-        )}
+        {modal.type === "settings" && <SettingsModal onClose={closeModal} />}
 
         {/* Keyboard Shortcuts Help Modal */}
         {modal.type === "shortcuts" && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div
-              className="absolute inset-0 bg-black/60"
-              onClick={closeModal}
-              aria-hidden="true"
-            />
+            <div className="absolute inset-0 bg-black/60" onClick={closeModal} aria-hidden="true" />
             <div
               role="dialog"
               aria-modal="true"
@@ -463,23 +454,33 @@ export default function AppLayout({ children }: AppLayoutProps) {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-slate-300">New ticket</span>
-                  <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">n</kbd>
+                  <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">
+                    n
+                  </kbd>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-300">Refresh data</span>
-                  <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">r</kbd>
+                  <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">
+                    r
+                  </kbd>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-300">Focus search</span>
-                  <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">/</kbd>
+                  <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">
+                    /
+                  </kbd>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-300">Show shortcuts</span>
-                  <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">?</kbd>
+                  <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">
+                    ?
+                  </kbd>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-300">Close modal</span>
-                  <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">Esc</kbd>
+                  <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">
+                    Esc
+                  </kbd>
                 </div>
               </div>
               <p className="mt-4 text-xs text-slate-500">
@@ -518,8 +519,7 @@ function AppHeader() {
     refreshAllData,
     isRefreshing,
   } = useAppState();
-  const { query, results, loading, search, clearSearch } =
-    useSearch(filters.projectId);
+  const { query, results, loading, search, clearSearch } = useSearch(filters.projectId);
   const [showResults, setShowResults] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -580,10 +580,7 @@ function AppHeader() {
       {/* Search */}
       <div className="flex-1 max-w-md" ref={searchRef}>
         <div className="relative">
-          <Search
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-            size={18}
-          />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input
             ref={inputRef}
             type="text"
@@ -612,9 +609,7 @@ function AppHeader() {
           {showResults && query && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl max-h-80 overflow-y-auto z-50">
               {results.length === 0 && !loading && (
-                <div className="px-4 py-3 text-sm text-slate-500 text-center">
-                  No results found
-                </div>
+                <div className="px-4 py-3 text-sm text-slate-500 text-center">No results found</div>
               )}
               {results.map((result) => (
                 <button
@@ -634,9 +629,7 @@ function AppHeader() {
                       </span>
                     )}
                   </div>
-                  <div className="text-sm text-gray-100 mt-1">
-                    {result.title}
-                  </div>
+                  <div className="text-sm text-gray-100 mt-1">{result.title}</div>
                   {result.snippet && result.snippet !== result.title && (
                     <div
                       className="text-xs text-slate-400 mt-1 line-clamp-2"
@@ -730,9 +723,7 @@ function AppHeader() {
               <Plus size={18} className="text-cyan-400 mt-0.5 flex-shrink-0" />
               <div>
                 <div className="font-medium text-gray-100">New Ticket</div>
-                <div className="text-xs text-slate-400">
-                  Add a ticket to an existing project
-                </div>
+                <div className="text-xs text-slate-400">Add a ticket to an existing project</div>
               </div>
             </button>
             <button
@@ -744,7 +735,7 @@ function AppHeader() {
               <div>
                 <div className="font-medium text-gray-100">Start from Scratch</div>
                 <div className="text-xs text-slate-400">
-                  Create a new project with Claude
+                  Create a new project with AI assistance
                 </div>
               </div>
             </button>
@@ -816,9 +807,7 @@ function Sidebar() {
       {/* Project tree */}
       <nav className="flex-1 p-4 overflow-y-auto">
         {loading ? (
-          <div className="text-sm text-slate-500 py-4 text-center">
-            Loading...
-          </div>
+          <div className="text-sm text-slate-500 py-4 text-center">Loading...</div>
         ) : error ? (
           <div className="text-sm text-red-400 py-4 text-center">{error}</div>
         ) : (
