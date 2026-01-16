@@ -477,65 +477,37 @@ install_opencode() {
     print_step "Checking OpenCode installation"
 
     if command_exists opencode; then
-        OPENCODE_VERSION=$(opencode --version 2>/dev/null || echo "unknown")
-        print_success "OpenCode already installed: $OPENCODE_VERSION"
+        print_success "OpenCode already installed: $(opencode --version 2>/dev/null || echo "unknown")"
         SKIPPED+=("OpenCode (already installed)")
         return 0
     fi
 
-    print_info "OpenCode not found. Attempting to install..."
+    # Try installation methods: brew → direct download
+    if command_exists brew && brew install opencode; then
+        print_success "OpenCode installed via Homebrew"
+        INSTALLED+=("OpenCode")
+        return 0
+    fi
 
-    # Try different installation methods based on OS
+    # Direct download fallback
+    local url=""
     case "$OS" in
-        macos)
-            if command_exists brew; then
-                print_info "Installing OpenCode via Homebrew..."
-                if brew install opencode; then
-                    print_success "OpenCode installed via Homebrew"
-                    INSTALLED+=("OpenCode")
-                    return 0
-                fi
-            fi
-            # Fallback to direct download
-            print_info "Installing OpenCode via direct download..."
-            OPENCODE_URL="https://github.com/anomalyco/opencode/releases/latest/download/opencode-macos"
-            if curl -L -o /usr/local/bin/opencode "$OPENCODE_URL" 2>/dev/null; then
-                chmod +x /usr/local/bin/opencode
-                print_success "OpenCode installed via direct download"
-                INSTALLED+=("OpenCode")
-                return 0
-            fi
-            ;;
-        linux)
-            if command_exists brew; then
-                print_info "Installing OpenCode via Homebrew..."
-                if brew install opencode; then
-                    print_success "OpenCode installed via Homebrew"
-                    INSTALLED+=("OpenCode")
-                    return 0
-                fi
-            fi
-            # Fallback to direct download
-            print_info "Installing OpenCode via direct download..."
-            OPENCODE_URL="https://github.com/anomalyco/opencode/releases/latest/download/opencode-linux"
-            if curl -L -o /usr/local/bin/opencode "$OPENCODE_URL" 2>/dev/null; then
-                chmod +x /usr/local/bin/opencode
-                print_success "OpenCode installed via direct download"
-                INSTALLED+=("OpenCode")
-                return 0
-            fi
-            ;;
-        windows)
-            print_warning "Windows OpenCode installation requires manual steps"
-            print_info "Download from: https://github.com/anomalyco/opencode/releases"
-            print_info "Add to PATH and restart terminal"
+        macos) url="https://github.com/anomalyco/opencode/releases/latest/download/opencode-macos" ;;
+        linux) url="https://github.com/anomalyco/opencode/releases/latest/download/opencode-linux" ;;
+        *) 
+            print_warning "Windows requires manual installation"
             SKIPPED+=("OpenCode (manual install required)")
             return 0
             ;;
     esac
 
+    if curl -L -o /usr/local/bin/opencode "$url" 2>/dev/null && chmod +x /usr/local/bin/opencode; then
+        print_success "OpenCode installed via direct download"
+        INSTALLED+=("OpenCode")
+        return 0
+    fi
+
     print_error "OpenCode installation failed"
-    print_info "Please install manually: https://opencode.ai"
     FAILED+=("OpenCode")
     return 1
 }
@@ -544,46 +516,19 @@ install_opencode() {
 setup_opencode() {
     print_step "Configuring OpenCode for Brain Dump"
 
-    # Check if .opencode directory exists and is configured
-    if [ ! -d ".opencode" ]; then
-        print_warning "OpenCode configuration directory not found"
-        print_info "Expected: .opencode/ with opencode.json, agent/, and skill/"
-        SKIPPED+=("OpenCode config (missing .opencode directory)")
-        return 1
-    fi
+    # Validate configuration exists
+    [ ! -d ".opencode" ] && { print_warning "Missing .opencode directory"; SKIPPED+=("OpenCode config (missing .opencode directory)"); return 1; }
+    [ ! -f ".opencode/opencode.json" ] && { print_warning "Missing opencode.json"; SKIPPED+=("OpenCode config (missing opencode.json)"); return 1; }
+    ! grep -q '"brain-dump"' .opencode/opencode.json && { print_warning "MCP server not configured"; SKIPPED+=("OpenCode config (MCP server missing)"); return 1; }
 
-    if [ ! -f ".opencode/opencode.json" ]; then
-        print_warning "OpenCode config file not found"
-        SKIPPED+=("OpenCode config (missing opencode.json)")
-        return 1
-    fi
-
-    # Verify MCP server is configured in OpenCode config
-    if ! grep -q '"brain-dump"' .opencode/opencode.json; then
-        print_warning "Brain Dump MCP server not configured in OpenCode"
-        SKIPPED+=("OpenCode config (MCP server missing)")
-        return 1
-    fi
-
-    # Check if agents are configured
+    # Count configured items
     local agent_count=$(ls .opencode/agent/*.md 2>/dev/null | wc -l)
-    if [ "$agent_count" -gt 0 ]; then
-        print_success "Found $agent_count OpenCode agents configured"
-    else
-        print_warning "No OpenCode agents found in .opencode/agent/"
-    fi
-
-    # Check if skills are configured  
     local skill_count=$(find .opencode/skill -name "SKILL.md" 2>/dev/null | wc -l)
-    if [ "$skill_count" -gt 0 ]; then
-        print_success "Found $skill_count OpenCode skills configured"
-    else
-        print_warning "No OpenCode skills found in .opencode/skill/"
-    fi
+    
+    [ "$agent_count" -gt 0 ] && print_success "Found $agent_count agents"
+    [ "$skill_count" -gt 0 ] && print_success "Found $skill_count skills"
 
-    # Create fallback agents for missing plugins/tools
     create_opencode_fallbacks
-
     INSTALLED+=("OpenCode configuration")
     return 0
 }
@@ -592,7 +537,7 @@ setup_opencode() {
 create_opencode_fallbacks() {
     print_step "Creating fallback agents for missing plugins"
 
-    # Create code-reviewer-fallback if pr-review-toolkit not available
+    # Code reviewer fallback
     if [ ! -f ".opencode/agent/code-reviewer-fallback.md" ]; then
         cat > ".opencode/agent/code-reviewer-fallback.md" << 'EOF'
 ---
@@ -606,48 +551,18 @@ permission:
   edit: deny
 ---
 
-You are a code review agent that performs comprehensive code analysis when specialized review tools are unavailable.
+Fallback code reviewer for when specialized tools are unavailable.
 
 ## Review Process
-
-1. **Identify Changed Files**
-   Use git to find recently changed files (HEAD~1 for committed, unstaged/staged for pending).
-
-2. **Code Quality Review**
-   Check for:
-   - Style & consistency (project conventions)
-   - Error handling (all async operations handled, errors not silently swallowed)
-   - Security (no injection vulnerabilities, no hardcoded secrets)
-   - Logic issues (bugs, edge cases, race conditions)
-
-3. **Silent Failure Hunting**
-   Look for:
-   - Empty catch blocks that swallow errors
-   - Fire-and-forget async calls
-   - Overly broad catch blocks
-   - console.log errors without user notification
-
-4. **Best Practices Review**
-   Check for:
-   - Performance issues
-   - Type safety problems
-   - Unused code
-   - Missing documentation
-
-## Report Format
-
-Provide:
-- Files reviewed
-- Critical issues (must fix) - security, data loss risks
-- Important issues (should fix) - error handling, logic bugs
-- Minor issues (consider fixing) - style, naming
-- Positive findings
-- Summary with recommendation
+1. Identify changed files (git diff HEAD~1)
+2. Check style, error handling, security, logic
+3. Hunt silent failures (empty catches, fire-and-forget async)
+4. Provide structured report with critical/important/minor issues
 EOF
         print_success "Created code-reviewer-fallback agent"
     fi
 
-    # Create code-simplifier-fallback if code-simplifier not available
+    # Code simplifier fallback  
     if [ ! -f ".opencode/agent/code-simplifier-fallback.md" ]; then
         cat > ".opencode/agent/code-simplifier-fallback.md" << 'EOF'
 ---
@@ -657,39 +572,19 @@ model: anthropic/claude-sonnet-4-20250514
 temperature: 0.2
 ---
 
-You are a code simplification agent that improves code clarity, consistency, and maintainability when specialized tools are unavailable.
+Fallback code simplifier for when specialized tools are unavailable.
 
 ## Simplification Principles
-
-1. **Remove Redundancy**
-   - Eliminate duplicate code
-   - Remove unused variables/imports
-   - Delete commented-out code
-
-2. **Improve Clarity**
-   - Use descriptive names
-   - Break complex expressions
-   - Extract magic numbers to constants
-
-3. **Reduce Complexity**
-   - Flatten nesting
-   - Use early returns
-   - Split large functions
-
-4. **Enhance Readability**
-   - Consistent formatting
-   - Logical grouping
-   - Clear control flow
+1. **Remove Redundancy** - Duplicate code, unused imports, commented code
+2. **Improve Clarity** - Descriptive names, extract magic numbers
+3. **Reduce Complexity** - Flatten nesting, early returns, split functions
+4. **Enhance Readability** - Consistent formatting, logical grouping
 
 ## What NOT to Change
-
-- Don't add new features
-- Don't change public APIs without discussion
-- Don't "improve" working error handling
+- Don't add new features or change public APIs
+- Don't "improve" working error handling  
 - Don't add abstractions for single-use code
 - Don't optimize prematurely
-
-Focus on making the code more maintainable and easier to understand.
 EOF
         print_success "Created code-simplifier-fallback agent"
     fi

@@ -52,143 +52,69 @@ Go from "I have an idea" to "I have a backlog" in 5 minutes.
 
 ## OpenCode Support
 
-Brain Drop now supports OpenCode with full agent and skill integration. OpenCode provides specialized agents and tools for enhanced development workflows.
-
-### Quick Setup
-
-1. **Install OpenCode** (if not already installed):
-
-   ```bash
-   # Follow installation at https://opencode.ai
-   ```
-
-2. **Configure OpenCode** for Brain Dump:
-
-   ```bash
-   cd brain-dump
-   # The .opencode/ directory is already configured
-   ```
-
-3. **Start OpenCode** in Brain Dump directory:
-   ```bash
-   opencode
-   ```
-
-### Installation Options
+Brain Dump now supports OpenCode with full agent and skill integration.
 
 ```bash
-# OpenCode only
-./install.sh --opencode
+# Quick setup
+./install.sh --opencode     # OpenCode only
+./install.sh --all          # All IDEs (Claude + VS Code + OpenCode)
+./install.sh               # Interactive selection
 
-# All IDEs (Claude Code + VS Code + OpenCode)
-./install.sh --all
-
-# Interactive (choose from options)
-./install.sh
+# Start OpenCode
+cd brain-dump && opencode
 ```
-
-2. **Configure OpenCode** for Brain Dump:
-
-   ```bash
-   cd brain-dump
-   # The .opencode/ directory is already configured
-   ```
-
-3. **Start OpenCode** in the Brain Dump directory:
-   ```bash
-   opencode
-   ```
 
 ### Available Agents
 
-Brain Dump includes these OpenCode agents:
+| Agent             | Mode     | Description                              |
+| ----------------- | -------- | ---------------------------------------- |
+| **ralph**         | Primary  | Autonomous backlog work                  |
+| **ticket-worker** | Subagent | Interactive single-ticket implementation |
+| **planner**       | Subagent | Create plans and tickets                 |
+| **code-reviewer** | Subagent | Automated quality checks                 |
+| **inception**     | Subagent | Start new projects                       |
 
-| Agent             | Mode     | Description                                         |
-| ----------------- | -------- | --------------------------------------------------- |
-| **ralph**         | Primary  | Autonomous coding agent that works through backlogs |
-| **ticket-worker** | Subagent | Interactive single-ticket implementation            |
-| **planner**       | Subagent | Creates implementation plans and tickets            |
-| **code-reviewer** | Subagent | Automated code review and quality checks            |
-| **inception**     | Subagent | Starts new projects through interview               |
-
-### Usage Examples
+### Quick Usage
 
 ```bash
-# Switch between primary agents with Tab
-# Start autonomous work
-@ralph
-
-# Work on specific ticket interactively
-@ticket-worker
-
-# Plan new features
-@planner "Add user authentication"
-
-# Review recent changes
-@code-reviewer
-
-# Start new project
-@inception
+# Switch agents with Tab
+@ralph              # Autonomous work
+@ticket-worker      # Interactive ticket work
+@planner "feature"  # Plan new features
+@code-reviewer      # Review changes
+@inception          # Start new project
 ```
 
-### Brain Dump Skills
-
-OpenCode automatically discovers these specialized skills:
-
-| Skill               | Description                                        |
-| ------------------- | -------------------------------------------------- |
-| brain-dump-workflow | Complete Brain Dump ticket and workflow management |
-| ralph-autonomous    | Guide for Ralph's autonomous decision making       |
-| tanstack-query      | React Query patterns and best practices            |
-| tanstack-mutations  | Type-safe mutation patterns                        |
-| tanstack-forms      | Form integration with TanStack Query               |
-| tanstack-types      | TypeScript patterns for type safety                |
-| tanstack-errors     | Error handling strategies                          |
-
-### MCP Integration
-
-OpenCode connects to Brain Dump's MCP server for:
-
-- Creating and managing tickets
-- Starting ticket work with branch creation
-- Progress tracking and comments
-- Project and ticket discovery
+**Full guide**: [OpenCode Integration Guide](docs/opencode-setup.md)
 
 ## VS Code & Claude Code Support
 
-Brain Dump also works with VS Code Copilot and Claude Code:
-
-### Agent Skills (VS Code & Claude Code)
-
-| Skill                 | Description                                     | Source                                                |
-| --------------------- | ----------------------------------------------- | ----------------------------------------------------- |
-| react-best-practices  | 45 React/Next.js performance optimization rules | [Vercel](https://github.com/vercel-labs/agent-skills) |
-| web-design-guidelines | 100+ accessibility and UX best practices        | [Vercel](https://github.com/vercel-labs/agent-skills) |
-
-### How Skills Work
-
-Skills are discovered automatically by your AI agent:
-
-1. At startup, the agent loads skill names and descriptions (~100 tokens each)
-2. When your request matches a skill's keywords, the agent asks to use it
-3. Once approved, the full skill instructions load into context
-
-### Updating Skills
-
-To get the latest skill updates from upstream:
+Brain Dump also integrates with VS Code Copilot and Claude Code:
 
 ```bash
-cd brain-dump
-git submodule update --remote    # Pull latest from Vercel
-./install.sh --claude --vscode   # Re-install to skill directories
+./install.sh --claude    # Claude Code integration
+./install.sh --vscode    # VS Code integration
+./install.sh --all       # All IDEs
+```
+
+### Skills Available
+
+| Skill                 | Description                         | Source |
+| --------------------- | ----------------------------------- | ------ |
+| react-best-practices  | React/Next.js performance rules     | Vercel |
+| web-design-guidelines | Accessibility and UX best practices | Vercel |
+
+Skills auto-discover based on your request context. Update with:
+
+```bash
+git submodule update --remote  # Pull latest
+./install.sh --claude --vscode  # Re-install
 ```
 
 ### Learn More
 
-- [OpenCode Documentation](https://opencode.ai/docs/)
 - [Claude Code Skills](https://docs.anthropic.com/en/docs/claude-code/skills)
 - [VS Code Agent Skills](https://code.visualstudio.com/docs/copilot/copilot-extensibility-overview)
-- [Agent Skills Specification](https://agentskills.dev)
 
 ## Commands
 
