@@ -1,144 +1,196 @@
 # Brain Dump
 
-A local-first kanban board for AI-assisted development. Click an epic, Claude gets the context.
+**Your backlog, worked by AI.** A kanban board where clicking a ticket launches Claude, Copilot, or OpenCode with full context — or let Ralph, the autonomous agent, implement tickets while you're away.
 
 ![Kanban board](docs/screenshots/kanban-board.png)
 
-## Install
+## Quick Start
 
 ```bash
 git clone https://github.com/salmanrrana/brain-dump.git
-cd brain-dump
-./install.sh --claude   # or --vscode
+cd brain-dump && ./install.sh
 pnpm dev
 ```
 
-Open [http://localhost:4242](http://localhost:4242). Done.
+Open [localhost:4242](http://localhost:4242). Done.
 
-The installer handles Node.js, pnpm, dependencies, database, and MCP server setup automatically.
+---
 
-## How It Works
+## Why Brain Dump?
 
-1. **Create tickets** in the web UI (or use `/inception` to have Claude interview you)
-2. **Click "Start with Claude"** on a ticket
-3. Claude opens with full ticket context
-4. Work gets tracked automatically
+| Feature               | What It Does                                                                                 |
+| --------------------- | -------------------------------------------------------------------------------------------- |
+| **One-click context** | Click a ticket → AI opens with full context (description, acceptance criteria, linked files) |
+| **Ralph Mode**        | Autonomous agent works your backlog while you sleep                                          |
+| **MCP-powered**       | AI can update tickets, link commits, manage your board directly                              |
+| **Local-first**       | SQLite on your machine. Your data stays yours.                                               |
 
-That's it. No cloud, no accounts, all local.
+---
 
-## Start a New Project
+## Quick Reference
 
-Don't know where to begin? Run `/inception` in Claude Code:
+### Commands
+
+| Command          | Description                         |
+| ---------------- | ----------------------------------- |
+| `pnpm dev`       | Start Brain Dump (localhost:4242)   |
+| `pnpm check`     | Type-check + lint + test            |
+| `pnpm build`     | Build for production                |
+| `pnpm db:studio` | Browse database with Drizzle Studio |
+
+### CLI
+
+| Command                   | Description                   |
+| ------------------------- | ----------------------------- |
+| `brain-dump current`      | Show current ticket           |
+| `brain-dump done`         | Move current ticket to review |
+| `brain-dump complete`     | Move current ticket to done   |
+| `brain-dump backup`       | Create database backup        |
+| `brain-dump check`        | Quick integrity check         |
+| `brain-dump check --full` | Full database health check    |
+
+[Full CLI reference →](docs/cli.md)
+
+### Slash Commands
+
+| Command      | Description                         |
+| ------------ | ----------------------------------- |
+| `/inception` | Interview-driven project creation   |
+| `/breakdown` | Generate tickets from spec.md       |
+| `/review`    | Run code review pipeline (3 agents) |
+| `/simplify`  | Find refactoring opportunities      |
+
+### Agents
+
+| Agent             | What It Does                                                    |
+| ----------------- | --------------------------------------------------------------- |
+| **ralph**         | Autonomous backlog worker — iterates through tickets until done |
+| **ticket-worker** | Interactive single-ticket implementation                        |
+| **planner**       | Create plans and tickets from requirements                      |
+| **code-reviewer** | Automated quality checks                                        |
+| **inception**     | Start new projects from scratch                                 |
+
+### Key MCP Tools
+
+| Tool                    | Purpose                                   |
+| ----------------------- | ----------------------------------------- |
+| `start_ticket_work`     | Create branch + set status to in_progress |
+| `complete_ticket_work`  | Move to review + suggest next ticket      |
+| `create_ticket`         | Create new ticket                         |
+| `list_tickets`          | List tickets (filter by status, project)  |
+| `add_ticket_comment`    | Add work summaries or notes               |
+| `link_commit_to_ticket` | Track git history                         |
+
+[Full MCP reference →](docs/mcp-tools.md)
+
+---
+
+## Choose Your Environment
+
+All environments get the same MCP tools, agents, and workflows.
+
+| Environment     | Install                   | Best For                       |
+| --------------- | ------------------------- | ------------------------------ |
+| **Claude Code** | `./install.sh --claude`   | Terminal-native AI development |
+| **VS Code**     | `./install.sh --vscode`   | Copilot Chat + extensions      |
+| **OpenCode**    | `./install.sh --opencode` | Open-source AI coding          |
+| **All**         | `./install.sh --all`      | Try everything                 |
+
+<details>
+<summary><strong>Environment-specific details</strong></summary>
+
+### Claude Code
+
+- Click "Start with Claude" on any ticket → Claude opens with full context
+- Click "Start with Ralph" for autonomous mode
+- Uses `~/.claude.json` for MCP config
+- [Full setup guide →](docs/claude-code-setup.md)
+
+### VS Code (Copilot)
+
+- Agents available in Copilot Chat: `@ralph`, `@ticket-worker`, `@planner`
+- Background Agents for autonomous work
+- Uses `~/.vscode/mcp.json` for MCP config
+- [Full setup guide →](docs/vscode-setup.md)
+
+### OpenCode
+
+- Tab to switch agents, `@agent-name` to invoke subagents
+- Uses `.opencode/` directory for config
+- [Full setup guide →](docs/opencode-setup.md)
+
+</details>
+
+---
+
+## Key Workflows
+
+### Starting Fresh? Use Inception
 
 ```
-> /inception
+/inception
 ```
 
-Claude will interview you with quick multiple-choice questions about your idea, then generate:
+Claude interviews you with quick multiple-choice questions about your idea, then generates:
 
-- A complete `spec.md` with requirements
-- A `plans/` folder with implementation steps
+- Complete `spec.md` with requirements
+- `plans/` folder with implementation structure
 - Tickets ready to work on
 
-Go from "I have an idea" to "I have a backlog" in 5 minutes.
+### Have a Spec? Break It Down
 
-## Features
-
-- **Kanban board** - Drag tickets between Backlog → Ready → In Progress → Review → Done
-- **MCP integration** - Claude can create/update tickets from any project
-- **Ralph mode** - Autonomous agent that works through your backlog
-- **Full-text search** - Find anything instantly
-- **File attachments** - Drag and drop onto tickets
-
-## OpenCode Support
-
-Brain Dump now supports OpenCode with full agent and skill integration.
-
-```bash
-# Quick setup
-./install.sh --opencode     # OpenCode only
-./install.sh --all          # All IDEs (Claude + VS Code + OpenCode)
-./install.sh               # Interactive selection
-
-# Start OpenCode
-cd brain-dump && opencode
+```
+/breakdown path/to/project
 ```
 
-### Available Agents
+Reads your spec.md and creates epics + tickets in Brain Dump, sized for 1-4 hours of work.
 
-| Agent             | Mode     | Description                              |
-| ----------------- | -------- | ---------------------------------------- |
-| **ralph**         | Primary  | Autonomous backlog work                  |
-| **ticket-worker** | Subagent | Interactive single-ticket implementation |
-| **planner**       | Subagent | Create plans and tickets                 |
-| **code-reviewer** | Subagent | Automated quality checks                 |
-| **inception**     | Subagent | Start new projects                       |
+### Ready to Work? Click a Ticket
 
-### Quick Usage
+1. Open Brain Dump at [localhost:4242](http://localhost:4242)
+2. Click **"Start with Claude"** (or Ralph for autonomous)
+3. AI opens with full ticket context
+4. Work gets tracked automatically
 
-```bash
-# Switch agents with Tab
-@ralph              # Autonomous work
-@ticket-worker      # Interactive ticket work
-@planner "feature"  # Plan new features
-@code-reviewer      # Review changes
-@inception          # Start new project
-```
-
-**Full guide**: [OpenCode Integration Guide](docs/opencode-setup.md)
-
-## VS Code & Claude Code Support
-
-Brain Dump also integrates with VS Code Copilot and Claude Code:
+### Done? Complete the Ticket
 
 ```bash
-./install.sh --claude    # Claude Code integration
-./install.sh --vscode    # VS Code integration
-./install.sh --all       # All IDEs
+brain-dump done        # Move to review
+brain-dump complete    # Move to done (skip review)
 ```
 
-### Skills Available
+Or use MCP: `complete_ticket_work` adds a work summary and suggests the next ticket.
 
-| Skill                 | Description                         | Source |
-| --------------------- | ----------------------------------- | ------ |
-| react-best-practices  | React/Next.js performance rules     | Vercel |
-| web-design-guidelines | Accessibility and UX best practices | Vercel |
-
-Skills auto-discover based on your request context. Update with:
-
-```bash
-git submodule update --remote  # Pull latest
-./install.sh --claude --vscode  # Re-install
-```
-
-### Learn More
-
-- [Claude Code Skills](https://docs.anthropic.com/en/docs/claude-code/skills)
-- [VS Code Agent Skills](https://code.visualstudio.com/docs/copilot/copilot-extensibility-overview)
-
-## Commands
-
-```bash
-pnpm dev          # Start dev server
-pnpm build        # Build for production
-pnpm test         # Run tests
-pnpm db:studio    # Browse database
-```
+---
 
 ## Data
 
-Everything stored locally:
+All data is local: SQLite database on your machine.
 
-- **macOS**: `~/Library/Application Support/brain-dump/`
-- **Linux**: `~/.local/share/brain-dump/`
+| OS    | Location                                    |
+| ----- | ------------------------------------------- |
+| macOS | `~/Library/Application Support/brain-dump/` |
+| Linux | `~/.local/share/brain-dump/`                |
 
-## More Info
+Run `brain-dump backup` to create backups. [Data locations & backup procedures →](docs/data-locations.md)
 
-- [OpenCode Integration Guide](docs/opencode-setup.md)
-- [MCP Server Tools](docs/mcp-tools.md)
-- [Ralph Workflow](docs/ralph.md)
-- [CLI Reference](docs/cli.md)
-- [Troubleshooting](docs/troubleshooting.md)
+---
+
+## Learn More
+
+| Topic                 | Link                                                                                                 |
+| --------------------- | ---------------------------------------------------------------------------------------------------- |
+| Claude Code setup     | [docs/claude-code-setup.md](docs/claude-code-setup.md)                                               |
+| VS Code setup         | [docs/vscode-setup.md](docs/vscode-setup.md)                                                         |
+| OpenCode setup        | [docs/opencode-setup.md](docs/opencode-setup.md)                                                     |
+| MCP Tools reference   | [docs/mcp-tools.md](docs/mcp-tools.md)                                                               |
+| CLI reference         | [docs/cli.md](docs/cli.md)                                                                           |
+| Ralph autonomous mode | [docs/claude-code-setup.md#ralph-workflow-details](docs/claude-code-setup.md#ralph-workflow-details) |
+| Troubleshooting       | [docs/troubleshooting.md](docs/troubleshooting.md)                                                   |
+| Docker sandbox        | [docs/docker-sandbox-guide.md](docs/docker-sandbox-guide.md)                                         |
+| Backup & restore      | [docs/backup-restore.md](docs/backup-restore.md)                                                     |
+
+---
 
 ## License
 
