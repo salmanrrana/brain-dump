@@ -516,10 +516,105 @@ install_opencode() {
 setup_opencode() {
     print_step "Configuring OpenCode for Brain Dump"
 
-    # Validate configuration exists
-    [ ! -d ".opencode" ] && { print_warning "Missing .opencode directory"; SKIPPED+=("OpenCode config (missing .opencode directory)"); return 1; }
-    [ ! -f ".opencode/opencode.json" ] && { print_warning "Missing opencode.json"; SKIPPED+=("OpenCode config (missing opencode.json)"); return 1; }
-    ! grep -q '"brain-dump"' .opencode/opencode.json && { print_warning "MCP server not configured"; SKIPPED+=("OpenCode config (MCP server missing)"); return 1; }
+    # Ensure .opencode directory exists
+    if [ ! -d ".opencode" ]; then
+        print_warning "Missing .opencode directory"
+        SKIPPED+=("OpenCode config (missing .opencode directory)")
+        return 1
+    fi
+
+    BRAIN_DUMP_DIR="$(pwd)"
+    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/index.js"
+    OPENCODE_CONFIG=".opencode/opencode.json"
+
+    # Create or update opencode.json with correct configuration
+    if [ ! -f "$OPENCODE_CONFIG" ]; then
+        print_info "Creating OpenCode configuration..."
+        cat > "$OPENCODE_CONFIG" << EOF
+{
+  "\$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "brain-dump": {
+      "type": "local",
+      "command": ["node", "mcp-server/index.js"],
+      "enabled": true,
+      "environment": {
+        "BRAIN_DUMP_PATH": "."
+      }
+    }
+  },
+  "tools": {
+    "brain-dump_*": true
+  },
+  "permission": {
+    "skill": {
+      "*": "allow"
+    }
+  }
+}
+EOF
+        print_success "Created OpenCode configuration"
+    else
+        # Check if type is "stdio" and update to "local"
+        if grep -q '"type": "stdio"' "$OPENCODE_CONFIG"; then
+            print_info "Updating OpenCode MCP type from 'stdio' to 'local'..."
+            # Create backup
+            cp "$OPENCODE_CONFIG" "$OPENCODE_CONFIG.backup"
+            
+            # Update the configuration
+            if command_exists node; then
+                local node_error
+                node_error=$(node -e "
+const fs = require('fs');
+const config = JSON.parse(fs.readFileSync('$OPENCODE_CONFIG', 'utf8'));
+if (config.mcp && config.mcp['brain-dump']) {
+    config.mcp['brain-dump'].type = 'local';
+    config.mcp['brain-dump'].command = ['node', 'mcp-server/index.js'];
+    config.mcp['brain-dump'].enabled = true;
+    config.mcp['brain-dump'].environment = config.mcp['brain-dump'].environment || {};
+    config.mcp['brain-dump'].environment.BRAIN_DUMP_PATH = '.';
+} else {
+    config.mcp = config.mcp || {};
+    config.mcp['brain-dump'] = {
+        type: 'local',
+        command: ['node', 'mcp-server/index.js'],
+        enabled: true,
+        environment: { BRAIN_DUMP_PATH: '.' }
+    };
+}
+config.tools = config.tools || {};
+config.tools['brain-dump_*'] = true;
+config.permission = config.permission || {};
+config.permission.skill = config.permission.skill || {};
+config.permission.skill['*'] = 'allow';
+fs.writeFileSync('$OPENCODE_CONFIG', JSON.stringify(config, null, 2));
+console.log('Configuration updated successfully');
+" 2>&1) && {
+                    print_success "Updated OpenCode configuration to use 'local' type"
+                    rm "$OPENCODE_CONFIG.backup" 2>/dev/null || true
+                } else {
+                    print_warning "Failed to update configuration: $node_error"
+                    print_warning "Restoring backup and providing manual instructions"
+                    mv "$OPENCODE_CONFIG.backup" "$OPENCODE_CONFIG" 2>/dev/null || true
+                    SKIPPED+=("OpenCode config (manual update needed)")
+                    return 0
+                }
+            else
+                print_warning "Node not available for config update"
+                SKIPPED+=("OpenCode config (manual update needed)")
+                return 0
+            fi
+        else
+            print_success "OpenCode configuration already exists"
+        fi
+    fi
+
+    # Validate configuration
+    if ! grep -q '"brain-dump"' "$OPENCODE_CONFIG"; then
+        print_warning "MCP server not configured in opencode.json"
+        SKIPPED+=("OpenCode config (MCP server missing)")
+        return 1
+    fi
 
     # Count configured items
     local agent_count=$(ls .opencode/agent/*.md 2>/dev/null | wc -l)
