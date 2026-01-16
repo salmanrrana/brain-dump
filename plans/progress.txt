@@ -2598,3 +2598,31 @@ All tickets completed successfully:
 **Tests Added:** 11
 
 ---
+
+### 2026-01-16 - Remove Companion Services UI from EpicModal
+- Task: Remove the "Companion Services" section from EpicModal (Ralph config panel)
+- Ticket ID: ba638254-9cb2-4db0-858f-cbbeb14b4be2
+- Success: true
+- Agent: Ralph
+- Branch: feature/ba638254-remove-companion-services-ui
+
+**Changes to src/components/EpicModal.tsx:**
+- Removed companion services checkboxes (Postgres, Redis, MySQL)
+- Removed related state (selectedServices, startedContainers, copiedConnection)
+- Removed hooks (useCompanionContainerInfo, useStartCompanionContainers)
+- Removed showRalphConfig panel - "Start Ralph" now launches directly
+- Removed unused lucide-react imports (Database, Server, Copy, Check)
+
+**Testing Results:**
+- All 455 tests passing
+- TypeScript type checking passes
+- ESLint passes (no new warnings)
+
+**Net Change:**
+- 7 lines added, 148 lines removed
+- Simplified UX: dropdown menu with "Save Changes" and "Start Ralph"
+
+**PRD Status:**
+- 1/7 tickets complete for "Docker Isolation Documentation" epic
+
+---
