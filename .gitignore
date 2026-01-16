@@ -40,6 +40,9 @@ plans/progress.txt
 .idea/
 .vscode/*
 !.vscode/*.example
+
+# Generated PR description (from pre-push hook)
+.pr-description.md
 *.swp
 *.swo
 *~
