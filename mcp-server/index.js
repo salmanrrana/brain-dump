@@ -28,6 +28,7 @@ import { registerGitTools } from "./tools/git.js";
 import { registerFileTools } from "./tools/files.js";
 import { registerHealthTools } from "./tools/health.js";
 import { registerEventTools } from "./tools/events.js";
+import { registerSessionTools } from "./tools/sessions.js";
 
 import { existsSync, unlinkSync } from "fs";
 
@@ -99,6 +100,7 @@ registerGitTools(server, db);
 registerFileTools(server, db);
 registerHealthTools(server, db, detectEnvironment, getEnvironmentInfo);
 registerEventTools(server, db);
+registerSessionTools(server, db);
 
 // =============================================================================
 // CONNECT AND START

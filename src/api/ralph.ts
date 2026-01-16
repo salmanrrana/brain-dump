@@ -89,13 +89,15 @@ function getRalphPrompt(): string {
 2. Read plans/progress.txt for context from previous work
 3. Strategically pick ONE ticket (consider priority, dependencies, foundation work)
 4. Call start_ticket_work(ticketId) - this creates branch and posts progress
-5. Implement the feature:
+5. Create a session: create_ralph_session(ticketId) - enables state tracking
+6. Implement the feature:
    - Write the code
    - Run tests: pnpm test (or npm test)
    - Verify acceptance criteria
-6. Git commit: git commit -m "feat(<ticket-id>): <description>"
-7. Call complete_ticket_work(ticketId, "summary of changes") - this updates PRD and posts summary
-8. If all tickets complete, output: PRD_COMPLETE
+7. Git commit: git commit -m "feat(<ticket-id>): <description>"
+8. Call complete_ticket_work(ticketId, "summary of changes") - this updates PRD and posts summary
+9. Complete session: complete_ralph_session(sessionId, "success") - marks session done
+10. If all tickets complete, output: PRD_COMPLETE
 
 ## Rules
 - ONE ticket per iteration
@@ -103,49 +105,83 @@ function getRalphPrompt(): string {
 - Keep changes minimal and focused
 - If stuck, note in progress.txt and move on
 
+## Session State Tracking
+
+Use session tools to track your progress through work phases. The UI displays your current state.
+
+### Session Lifecycle
+
+1. **Create session** when starting a ticket:
+   \`\`\`
+   create_ralph_session({ ticketId: "<ticketId>" })
+   \`\`\`
+
+2. **Update state** as you transition through phases:
+   \`\`\`
+   update_session_state({ sessionId: "<sessionId>", state: "analyzing", metadata: { message: "Reading spec..." } })
+   \`\`\`
+
+3. **Complete session** when done:
+   \`\`\`
+   complete_ralph_session({ sessionId: "<sessionId>", outcome: "success" })
+   \`\`\`
+
+### Valid States (in typical order)
+| State | When to Use | Example |
+|-------|-------------|---------|
+| idle → analyzing | After creating session | Reading and understanding requirements |
+| analyzing → implementing | Starting to code | Writing or modifying source files |
+| implementing → testing | Running tests | Verifying behavior works correctly |
+| testing → implementing | Tests failed | Going back to fix issues |
+| implementing/testing → committing | Ready to commit | Creating git commits |
+| committing → reviewing | Final self-review | Checking work before completing |
+
+### Example Workflow
+\`\`\`
+# 1. Start work
+start_ticket_work({ ticketId: "abc-123" })
+
+# 2. Create session for state tracking
+create_ralph_session({ ticketId: "abc-123" })
+# Returns: { sessionId: "xyz-789", ... }
+
+# 3. Update state as you work
+update_session_state({ sessionId: "xyz-789", state: "analyzing", metadata: { message: "Reading ticket spec..." } })
+
+# ... read and understand the task ...
+
+update_session_state({ sessionId: "xyz-789", state: "implementing", metadata: { message: "Writing API endpoint" } })
+
+# ... write code ...
+
+update_session_state({ sessionId: "xyz-789", state: "testing", metadata: { message: "Running pnpm test" } })
+
+# ... run tests ...
+
+update_session_state({ sessionId: "xyz-789", state: "committing" })
+
+# ... git commit ...
+
+update_session_state({ sessionId: "xyz-789", state: "reviewing", metadata: { message: "Final self-review" } })
+
+# 4. Complete work
+complete_ticket_work({ ticketId: "abc-123", summary: "Added new API endpoint" })
+complete_ralph_session({ sessionId: "xyz-789", outcome: "success" })
+\`\`\`
+
 ## Real-time Progress Reporting
 
-Use emit_ralph_event to report progress during your work. The UI displays these events in real-time.
-
-### When to Call emit_ralph_event
+In addition to session states, use emit_ralph_event for detailed progress:
 
 | Event Type    | When to Use | Example |
 |---------------|-------------|---------|
-| state_change  | When transitioning phases | Analyzing → Implementing → Testing |
 | thinking      | When starting to reason | Reading spec, planning approach |
 | tool_start    | Before calling Edit/Write/Bash | About to modify a file |
 | tool_end      | After tool completes | File edited successfully |
 | progress      | General updates | Halfway through implementation |
 | error         | When errors occur | Test failed, need to debug |
 
-### Example Usage
-
-After picking a ticket:
-\`\`\`
-emit_ralph_event({ sessionId: "<ticketId>", type: "state_change", data: { state: "analyzing", message: "Reading ticket specification..." } })
-\`\`\`
-
-Before editing code:
-\`\`\`
-emit_ralph_event({ sessionId: "<ticketId>", type: "tool_start", data: { tool: "Edit", file: "src/api/users.ts" } })
-\`\`\`
-
-After successful edit:
-\`\`\`
-emit_ralph_event({ sessionId: "<ticketId>", type: "tool_end", data: { tool: "Edit", success: true } })
-\`\`\`
-
-When running tests:
-\`\`\`
-emit_ralph_event({ sessionId: "<ticketId>", type: "state_change", data: { state: "testing", message: "Running test suite..." } })
-\`\`\`
-
-### States to Report
-- analyzing: Reading and understanding the task
-- implementing: Writing or modifying code
-- testing: Running tests or verifying behavior
-- committing: Creating git commits
-- completing: Finishing up and calling complete_ticket_work
+Note: The session state tools (update_session_state) automatically emit state_change events, so you don't need to call emit_ralph_event for state transitions
 
 ## Dev Server Management
 

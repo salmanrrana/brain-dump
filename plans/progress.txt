@@ -2757,3 +2757,96 @@ Added comprehensive Verification Checklist section with 7 subsections:
 - Ticket 7.6 marked as `passes: true`
 
 ---
+
+## Session: 2026-01-16 (Ralph Iteration)
+
+### Ticket Completed: 7.7 Design and Implement MCP Event Emission System (ad64e28a)
+
+**Summary:**
+Implemented complete MCP event emission infrastructure for real-time UI streaming:
+
+1. **Database Schema**: Added ralph_events table with session_id, type, data columns and indexes
+2. **MCP Tools**: Created emit_ralph_event, get_ralph_events, clear_ralph_events tools in mcp-server/tools/events.js
+3. **API Endpoints**: Added polling-based API in src/api/ralph-events.ts
+4. **React Hook**: Created useRalphEvents hook using TanStack Query for polling
+5. **Ralph Prompt**: Updated with event emission guidelines and examples for 7 event types
+
+**Event Types Supported:**
+- thinking, tool_start, tool_end, file_change, progress, state_change, error
+
+**Files Created:**
+- mcp-server/tools/events.js
+- src/api/ralph-events.ts
+- integration-tests/ralph-events.test.ts
+
+**Files Modified:**
+- src/lib/schema.ts
+- mcp-server/lib/database.js
+- mcp-server/index.js
+- src/lib/hooks.ts
+- src/api/ralph.ts
+
+**Testing:**
+- All 491 unit tests passing
+- All 61 integration tests passing (14 new event tests)
+- TypeScript and lint checks passing
+
+**Commit:** a955aa9 feat(ad64e28a): implement MCP event emission system for real-time UI streaming
+
+**Next Suggested Ticket:** 7.13 Hook-Based State Enforcement (high priority)
+
+---
+
+## Session 7 - Ticket 7.11: State Machine Observability MCP Tool
+
+### Completed: 2026-01-16
+
+**Summary:** Implemented the state machine observability system for Ralph sessions.
+
+### What was implemented:
+
+1. **Database Schema** (`src/lib/schema.ts`):
+   - Added `ralphSessions` table with columns: id, ticketId, currentState, stateHistory, outcome, errorMessage, startedAt, completedAt
+   - Added indexes on ticket_id and current_state for efficient queries
+   - Added TypeScript types: `RalphSession`, `RalphSessionState`, `StateHistoryEntry`
+
+2. **MCP Migration** (`mcp-server/lib/database.js`):
+   - Added `ralph_sessions` table creation in `runMigrations()`
+   - Includes foreign key reference to tickets with CASCADE delete
+
+3. **Session MCP Tools** (`mcp-server/tools/sessions.js`):
+   - `create_ralph_session` - Creates a new session for a ticket
+   - `update_session_state` - Updates current state and maintains history
+   - `complete_ralph_session` - Marks session done with outcome
+   - `get_session_state` - Queries session state by ID or ticket
+   - `list_ticket_sessions` - Lists all sessions for a ticket
+
+4. **Ralph Prompt Updated** (`src/api/ralph.ts`):
+   - Added session lifecycle instructions (create → update → complete)
+   - Added valid states table with transition guidance
+   - Added example workflow showing full session usage
+
+5. **Integration Tests** (`integration-tests/ralph-sessions.test.ts`):
+   - 20 tests covering schema, lifecycle, state transitions, outcomes, queries, and cascade delete
+
+### Acceptance Criteria Status:
+- [x] `update_session_state` MCP tool implemented
+- [x] Sessions schema updated with state tracking
+- [x] Migration created and tested
+- [x] Ralph prompt updated with state reporting instructions
+- [x] State history preserved for debugging
+- [x] Integration test for state transitions
+
+### Technical Decisions:
+- Used ticket ID as the foreign key, but sessions have their own UUID
+- State history stored as JSON array with timestamps and optional metadata
+- Integrated with existing ralph_events system for state_change events
+- Sessions automatically emit events when state changes for UI consistency
+
+### Files Changed:
+- src/lib/schema.ts (added ralphSessions table)
+- mcp-server/lib/database.js (added migration)
+- mcp-server/tools/sessions.js (new file - 5 MCP tools)
+- mcp-server/index.js (import and register session tools)
+- src/api/ralph.ts (updated Ralph prompt)
+- integration-tests/ralph-sessions.test.ts (new test file)

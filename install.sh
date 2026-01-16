@@ -592,7 +592,7 @@ console.log('Configuration updated successfully');
 " 2>&1) && {
                     print_success "Updated OpenCode configuration to use 'local' type"
                     rm "$OPENCODE_CONFIG.backup" 2>/dev/null || true
-                } else {
+                } || {
                     print_warning "Failed to update configuration: $node_error"
                     print_warning "Restoring backup and providing manual instructions"
                     mv "$OPENCODE_CONFIG.backup" "$OPENCODE_CONFIG" 2>/dev/null || true

@@ -159,3 +159,46 @@ export interface RalphEventData {
   success?: boolean;
   [key: string]: unknown;
 }
+
+// Ralph sessions table (for state machine observability)
+export const ralphSessions = sqliteTable(
+  "ralph_sessions",
+  {
+    id: text("id").primaryKey(),
+    ticketId: text("ticket_id")
+      .notNull()
+      .references(() => tickets.id, { onDelete: "cascade" }),
+    currentState: text("current_state").notNull().default("idle"), // 'idle', 'analyzing', 'implementing', 'testing', 'committing', 'reviewing', 'done'
+    stateHistory: text("state_history"), // JSON array of {state, timestamp, metadata}
+    outcome: text("outcome"), // 'success', 'failure', 'timeout', 'cancelled', null while in progress
+    errorMessage: text("error_message"), // Error details if outcome is 'failure'
+    startedAt: text("started_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    completedAt: text("completed_at"),
+  },
+  (table) => [
+    index("idx_ralph_sessions_ticket").on(table.ticketId),
+    index("idx_ralph_sessions_state").on(table.currentState),
+  ]
+);
+
+export type RalphSession = typeof ralphSessions.$inferSelect;
+export type NewRalphSession = typeof ralphSessions.$inferInsert;
+
+// Ralph session states
+export type RalphSessionState =
+  | "idle" // Session created but work not started
+  | "analyzing" // Reading specs, understanding requirements
+  | "implementing" // Writing/editing code
+  | "testing" // Running tests, verifying behavior
+  | "committing" // Creating git commits
+  | "reviewing" // Self-review before completing
+  | "done"; // Session completed
+
+// State history entry interface
+export interface StateHistoryEntry {
+  state: RalphSessionState;
+  timestamp: string;
+  metadata?: Record<string, unknown>;
+}

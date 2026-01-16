@@ -169,6 +169,30 @@ export function runMigrations(db) {
   } catch (err) {
     log.error("Failed to create ralph_events table", err);
   }
+
+  // Create ralph_sessions table if it doesn't exist (for state machine observability)
+  try {
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ralph_sessions'").all();
+    if (tables.length === 0) {
+      db.prepare(`
+        CREATE TABLE ralph_sessions (
+          id TEXT PRIMARY KEY,
+          ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+          current_state TEXT NOT NULL DEFAULT 'idle',
+          state_history TEXT,
+          outcome TEXT,
+          error_message TEXT,
+          started_at TEXT NOT NULL DEFAULT (datetime('now')),
+          completed_at TEXT
+        )
+      `).run();
+      db.prepare("CREATE INDEX idx_ralph_sessions_ticket ON ralph_sessions(ticket_id)").run();
+      db.prepare("CREATE INDEX idx_ralph_sessions_state ON ralph_sessions(current_state)").run();
+      log.info("Created ralph_sessions table for state machine observability");
+    }
+  } catch (err) {
+    log.error("Failed to create ralph_sessions table", err);
+  }
 }
 
 /**
