@@ -29,12 +29,7 @@ interface EpicModalProps {
   onSave: () => void;
 }
 
-export default function EpicModal({
-  epic,
-  projectId,
-  onClose,
-  onSave,
-}: EpicModalProps) {
+export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const isEditing = Boolean(epic);
@@ -72,7 +67,10 @@ export default function EpicModal({
 
   // Modal keyboard handling (Escape, focus trap)
   useModalKeyboard(modalRef, onClose, {
-    shouldPreventClose: useCallback(() => showActionMenu || showDeleteConfirm, [showActionMenu, showDeleteConfirm]),
+    shouldPreventClose: useCallback(
+      () => showActionMenu || showDeleteConfirm,
+      [showActionMenu, showDeleteConfirm]
+    ),
     onPreventedClose: useCallback(() => {
       if (showActionMenu) setShowActionMenu(false);
       else if (showDeleteConfirm) setShowDeleteConfirm(false);
@@ -81,7 +79,11 @@ export default function EpicModal({
   });
 
   // Close action menu when clicking outside
-  useClickOutside(actionMenuRef, useCallback(() => setShowActionMenu(false), []), showActionMenu);
+  useClickOutside(
+    actionMenuRef,
+    useCallback(() => setShowActionMenu(false), []),
+    showActionMenu
+  );
 
   const handleSave = () => {
     const trimmedTitle = title.trim();
@@ -115,16 +117,22 @@ export default function EpicModal({
   const handleDelete = () => {
     if (!epic) return;
 
-    deleteMutation.mutate({ epicId: epic.id, confirm: true }, {
-      onSuccess: () => {
-        showToast("success", `Epic "${epic.title}" deleted`);
-        onSave();
-      },
-      onError: (error) => {
-        setShowDeleteConfirm(false);
-        showToast("error", `Failed to delete epic: ${error instanceof Error ? error.message : "Unknown error"}`);
-      },
-    });
+    deleteMutation.mutate(
+      { epicId: epic.id, confirm: true },
+      {
+        onSuccess: () => {
+          showToast("success", `Epic "${epic.title}" deleted`);
+          onSave();
+        },
+        onError: (error) => {
+          setShowDeleteConfirm(false);
+          showToast(
+            "error",
+            `Failed to delete epic: ${error instanceof Error ? error.message : "Unknown error"}`
+          );
+        },
+      }
+    );
   };
 
   // Handle Start Ralph for entire epic
@@ -179,16 +187,19 @@ export default function EpicModal({
     } finally {
       setIsStartingRalph(false);
     }
-  }, [epic, settings?.terminalEmulator, settings?.ralphSandbox, launchRalphMutation, onSave, setRalphNotification]);
+  }, [
+    epic,
+    settings?.terminalEmulator,
+    settings?.ralphSandbox,
+    launchRalphMutation,
+    onSave,
+    setRalphNotification,
+  ]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden="true" />
 
       {/* Modal */}
       <div
@@ -221,8 +232,8 @@ export default function EpicModal({
           {showDeleteConfirm && (
             <div className="p-4 bg-red-900/30 border border-red-700 rounded-lg">
               <p className="text-red-300 text-sm mb-3">
-                Are you sure you want to delete this epic? Tickets in this epic
-                will become orphaned (not deleted).
+                Are you sure you want to delete this epic? Tickets in this epic will become orphaned
+                (not deleted).
               </p>
               <div className="flex gap-2">
                 <button
@@ -259,9 +270,7 @@ export default function EpicModal({
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">
-              Description
-            </label>
+            <label className="block text-sm font-medium text-slate-400 mb-1">Description</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -273,9 +282,7 @@ export default function EpicModal({
 
           {/* Color */}
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">
-              Color
-            </label>
+            <label className="block text-sm font-medium text-slate-400 mb-1">Color</label>
             <div className="relative">
               <select
                 value={color}
@@ -295,10 +302,7 @@ export default function EpicModal({
             </div>
             {color && (
               <div className="mt-2 flex items-center gap-2">
-                <span
-                  className="w-4 h-4 rounded"
-                  style={{ backgroundColor: color }}
-                />
+                <span className="w-4 h-4 rounded" style={{ backgroundColor: color }} />
                 <span className="text-xs text-slate-400">Preview</span>
               </div>
             )}
@@ -318,14 +322,14 @@ export default function EpicModal({
               <Bot size={16} className="mt-0.5 flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <span>{ralphNotification.message}</span>
-                {/* VS Code-specific instructions */}
+                {/* Editor-specific instructions (VS Code, OpenCode, etc.) */}
                 {ralphNotification.launchMethod === "vscode" && ralphNotification.contextFile && (
                   <div className="mt-2 text-xs text-green-400/80">
                     <p className="font-medium">Next steps:</p>
                     <ol className="list-decimal list-inside mt-1 space-y-0.5">
-                      <li>Open the Ralph context file in VS Code</li>
-                      <li>Start a new chat with Claude</li>
-                      <li>Ask Claude to read and follow the instructions</li>
+                      <li>Open the Ralph context file in your editor</li>
+                      <li>Start a new chat with your AI assistant</li>
+                      <li>Ask the AI to read and follow the instructions</li>
                     </ol>
                     <p className="mt-1.5 text-green-300/60 font-mono truncate">
                       {ralphNotification.contextFile.replace(/^.*\/\.claude\//, ".claude/")}
@@ -365,11 +369,7 @@ export default function EpicModal({
                 disabled={isSaving || !title.trim()}
                 className={`flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:text-slate-500 font-medium transition-colors ${isEditing ? "rounded-l-lg" : "rounded-lg"}`}
               >
-                {isSaving ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <Save size={16} />
-                )}
+                {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                 <span>{isEditing ? "Save Changes" : "Create Epic"}</span>
               </button>
               {isEditing && (
@@ -412,7 +412,9 @@ export default function EpicModal({
                   <Bot size={18} className="text-purple-400 mt-0.5 flex-shrink-0" />
                   <div>
                     <div className="font-medium text-gray-100">Start Ralph</div>
-                    <div className="text-xs text-slate-400">Launch autonomous mode for this epic</div>
+                    <div className="text-xs text-slate-400">
+                      Launch autonomous mode for this epic
+                    </div>
                   </div>
                 </button>
               </div>
