@@ -1280,13 +1280,10 @@ prompt_ide_selection() {
     echo "  1) Claude Code (CLI)"
     echo "  2) VS Code"
     echo "  3) OpenCode"
-    echo "  4) Both Claude Code & VS Code"
-    echo "  5) Both Claude Code & OpenCode"
-    echo "  6) Both VS Code & OpenCode"
-    echo "  7) All three (Claude Code, VS Code, OpenCode)"
-    echo "  8) Skip IDE setup (just install Brain Dump)"
+    echo "  4) All IDEs (Claude Code + VS Code + OpenCode)"
+    echo "  5) Skip IDE setup (just install Brain Dump)"
     echo ""
-    read -r -p "Enter choice [1-8]: " choice
+    read -r -p "Enter choice [1-5]: " choice
 
     case $choice in
         1)
@@ -1307,24 +1304,9 @@ prompt_ide_selection() {
         4)
             SETUP_CLAUDE=true
             SETUP_VSCODE=true
-            SETUP_OPENCODE=false
+            SETUP_OPENCODE=true
             ;;
         5)
-            SETUP_CLAUDE=true
-            SETUP_VSCODE=false
-            SETUP_OPENCODE=true
-            ;;
-        6)
-            SETUP_CLAUDE=false
-            SETUP_VSCODE=true
-            SETUP_OPENCODE=true
-            ;;
-        7)
-            SETUP_CLAUDE=true
-            SETUP_VSCODE=true
-            SETUP_OPENCODE=true
-            ;;
-        8)
             SETUP_CLAUDE=false
             SETUP_VSCODE=false
             SETUP_OPENCODE=false
@@ -1421,16 +1403,22 @@ print_summary() {
 
     # Show how to add other IDE later
     if [ "$SETUP_CLAUDE" = true ] && [ "$SETUP_VSCODE" = false ] && [ "$SETUP_OPENCODE" = false ]; then
-        echo -e "${BLUE}Want VS Code too?${NC} Run: ${CYAN}./install.sh --vscode${NC}"
-        echo -e "${BLUE}Want OpenCode too?${NC} Run: ${CYAN}./install.sh --opencode${NC}"
+        echo -e "${BLUE}Want more IDEs?${NC} Run: ${CYAN}./install.sh --all${NC}"
         echo ""
     elif [ "$SETUP_VSCODE" = true ] && [ "$SETUP_CLAUDE" = false ] && [ "$SETUP_OPENCODE" = false ]; then
-        echo -e "${BLUE}Want Claude Code too?${NC} Run: ${CYAN}./install.sh --claude${NC}"
-        echo -e "${BLUE}Want OpenCode too?${NC} Run: ${CYAN}./install.sh --opencode${NC}"
+        echo -e "${BLUE}Want more IDEs?${NC} Run: ${CYAN}./install.sh --all${NC}"
         echo ""
     elif [ "$SETUP_OPENCODE" = true ] && [ "$SETUP_CLAUDE" = false ] && [ "$SETUP_VSCODE" = false ]; then
-        echo -e "${BLUE}Want Claude Code too?${NC} Run: ${CYAN}./install.sh --claude${NC}"
-        echo -e "${BLUE}Want VS Code too?${NC} Run: ${CYAN}./install.sh --vscode${NC}"
+        echo -e "${BLUE}Want more IDEs?${NC} Run: ${CYAN}./install.sh --all${NC}"
+        echo ""
+    elif [ "$SETUP_CLAUDE" = true ] && [ "$SETUP_VSCODE" = true ] && [ "$SETUP_OPENCODE" = false ]; then
+        echo -e "${BLUE}Want OpenCode too?${NC} Run: ${CYAN}./install.sh --opencode${NC} or ${CYAN}./install.sh --all${NC}"
+        echo ""
+    elif [ "$SETUP_CLAUDE" = true ] && [ "$SETUP_OPENCODE" = true ] && [ "$SETUP_VSCODE" = false ]; then
+        echo -e "${BLUE}Want VS Code too?${NC} Run: ${CYAN}./install.sh --vscode${NC} or ${CYAN}./install.sh --all${NC}"
+        echo ""
+    elif [ "$SETUP_VSCODE" = true ] && [ "$SETUP_OPENCODE" = true ] && [ "$SETUP_CLAUDE" = false ]; then
+        echo -e "${BLUE}Want Claude Code too?${NC} Run: ${CYAN}./install.sh --claude${NC} or ${CYAN}./install.sh --all${NC}"
         echo ""
     fi
 }
@@ -1441,10 +1429,11 @@ show_help() {
     echo ""
     echo "Usage: ./install.sh [options]"
     echo ""
-    echo "IDE Options (pick one or more):"
+    echo "IDE Options:"
     echo "  --claude    Set up Claude Code integration (MCP server + plugins)"
     echo "  --vscode    Set up VS Code integration (MCP server + agents + skills + prompts)"
     echo "  --opencode  Set up OpenCode integration (MCP server + agents + skills)"
+    echo "  --all        Set up all IDE integrations (Claude Code + VS Code + OpenCode)"
     echo ""
     echo "  If no IDE flag is provided, you'll be prompted to choose."
     echo ""
@@ -1454,14 +1443,11 @@ show_help() {
     echo "  --update-skills Update vendored skills from upstream"
     echo ""
     echo "Examples:"
-    echo "  ./install.sh --claude                    # Claude Code only"
-    echo "  ./install.sh --vscode                    # VS Code only"
-    echo "  ./install.sh --opencode                  # OpenCode only"
-    echo "  ./install.sh --claude --vscode           # Claude Code + VS Code"
-    echo "  ./install.sh --claude --opencode          # Claude Code + OpenCode"
-    echo "  ./install.sh --vscode --opencode          # VS Code + OpenCode"
-    echo "  ./install.sh --claude --vscode --opencode # All IDEs"
-    echo "  ./install.sh                             # Interactive prompt"
+    echo "  ./install.sh --claude           # Claude Code only"
+    echo "  ./install.sh --vscode           # VS Code only"
+    echo "  ./install.sh --opencode         # OpenCode only"
+    echo "  ./install.sh --all             # All IDEs"
+    echo "  ./install.sh                   # Interactive prompt"
     echo ""
     echo "This script will:"
     echo "  1. Install Node.js 18+ via nvm (if needed)"
@@ -1469,8 +1455,7 @@ show_help() {
     echo "  3. Install project dependencies"
     echo "  4. Run database migrations"
     echo "  5. Configure MCP server for your chosen IDE(s)"
-    echo "  6. Install OpenCode if selected"
-    echo "  7. Install plugins/agents/skills as applicable"
+    echo "  6. Install IDE integrations as applicable"
     echo ""
     echo "The script is idempotent - safe to run multiple times."
 }
@@ -1503,6 +1488,12 @@ main() {
                 IDE_FLAG_PROVIDED=true
                 ;;
             --opencode)
+                SETUP_OPENCODE=true
+                IDE_FLAG_PROVIDED=true
+                ;;
+            --all)
+                SETUP_CLAUDE=true
+                SETUP_VSCODE=true
                 SETUP_OPENCODE=true
                 IDE_FLAG_PROVIDED=true
                 ;;
