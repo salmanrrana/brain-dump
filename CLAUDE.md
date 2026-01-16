@@ -83,6 +83,33 @@ Ralph is an autonomous agent mode that:
 3. Implements features, runs tests, updates status via MCP
 4. Continues until all tasks pass or max iterations reached
 
+## Specifications
+
+### Spec Template
+For complex features, create detailed specs following the 6-layer pattern in `plans/spec-template.md`:
+
+1. **Overview** - WHY the feature exists (not just WHAT it does)
+2. **Reference Tables** - Configuration options, states, error codes
+3. **Type Definitions** - Complete TypeScript interfaces with JSDoc
+4. **State Machine** - Mermaid diagrams for stateful features
+5. **Design Decisions** - "Why X vs Y" with numbered rationale
+6. **Implementation Guide** - Step-by-step with copy-paste code
+
+### When to Write a Spec
+Create a detailed spec (using `plans/spec-template.md`) for:
+- Features with state machines or complex workflows
+- New MCP tools
+- Database schema changes
+- Features touching multiple components
+
+### Spec Location
+- Template: `plans/spec-template.md`
+- Specs: `plans/specs/{ticket-id}-{feature-name}.md`
+- Example: `plans/specs/7.11-state-machine-observability.md`
+
+### Key Principle
+> **"Explicit over Implicit"**: Every decision that could be made is made upfront, documented, and explained. Claude becomes an executor of a well-defined plan rather than an improviser working from vague requirements.
+
 ## Server Functions Pattern
 
 API functions in `src/api/` use TanStack Start's `createServerFn`:
