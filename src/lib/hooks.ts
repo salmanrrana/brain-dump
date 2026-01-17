@@ -528,6 +528,11 @@ export interface Ticket {
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
+  // Git/PR tracking fields
+  branchName: string | null;
+  prNumber: number | null;
+  prUrl: string | null;
+  prStatus: "draft" | "open" | "merged" | "closed" | null;
 }
 
 // Hook for invalidating queries - use this after mutations!

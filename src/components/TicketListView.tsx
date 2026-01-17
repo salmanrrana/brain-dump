@@ -1,9 +1,5 @@
 import { useState, useMemo } from "react";
-import {
-  ChevronUp,
-  ChevronDown,
-  AlertCircle,
-} from "lucide-react";
+import { ChevronUp, ChevronDown, AlertCircle, GitBranch, GitPullRequest } from "lucide-react";
 
 import type { Ticket } from "../lib/hooks";
 import { STATUS_ORDER, PRIORITY_ORDER } from "../lib/constants";
@@ -41,11 +37,7 @@ function SortIcon({
   );
 }
 
-export default function TicketListView({
-  tickets,
-  epics,
-  onTicketClick,
-}: TicketListViewProps) {
+export default function TicketListView({ tickets, epics, onTicketClick }: TicketListViewProps) {
   const [sortField, setSortField] = useState<SortField>("createdAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
@@ -62,17 +54,14 @@ export default function TicketListView({
           comparison = a.title.localeCompare(b.title);
           break;
         case "status":
-          comparison =
-            (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99);
+          comparison = (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99);
           break;
         case "priority":
           comparison =
-            (PRIORITY_ORDER[a.priority ?? ""] ?? 99) -
-            (PRIORITY_ORDER[b.priority ?? ""] ?? 99);
+            (PRIORITY_ORDER[a.priority ?? ""] ?? 99) - (PRIORITY_ORDER[b.priority ?? ""] ?? 99);
           break;
         case "createdAt":
-          comparison =
-            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
           break;
       }
 
@@ -123,15 +112,10 @@ export default function TicketListView({
               Priority
               <SortIcon field="priority" sortField={sortField} sortDirection={sortDirection} />
             </th>
-            <th className="text-left px-4 py-3 text-sm font-medium text-slate-400">
-              Epic
-            </th>
-            <th className="text-left px-4 py-3 text-sm font-medium text-slate-400">
-              Tags
-            </th>
-            <th className="text-left px-4 py-3 text-sm font-medium text-slate-400">
-              Subtasks
-            </th>
+            <th className="text-left px-4 py-3 text-sm font-medium text-slate-400">Epic</th>
+            <th className="text-left px-4 py-3 text-sm font-medium text-slate-400">Tags</th>
+            <th className="text-left px-4 py-3 text-sm font-medium text-slate-400">Branch / PR</th>
+            <th className="text-left px-4 py-3 text-sm font-medium text-slate-400">Subtasks</th>
             <th
               className="text-left px-4 py-3 text-sm font-medium text-slate-400 cursor-pointer hover:text-gray-100"
               onClick={() => handleSort("createdAt")}
@@ -144,10 +128,7 @@ export default function TicketListView({
         <tbody>
           {sortedTickets.length === 0 ? (
             <tr>
-              <td
-                colSpan={7}
-                className="px-4 py-8 text-center text-slate-500 text-sm"
-              >
+              <td colSpan={8} className="px-4 py-8 text-center text-slate-500 text-sm">
                 No tickets found
               </td>
             </tr>
@@ -155,10 +136,11 @@ export default function TicketListView({
             sortedTickets.map((ticket) => {
               const epic = ticket.epicId ? epicMap.get(ticket.epicId) : null;
               const tags = safeJsonParse<string[]>(ticket.tags, []);
-              const subtasks = safeJsonParse<{ id: string; text: string; completed: boolean }[]>(ticket.subtasks, []);
-              const completedSubtasks = subtasks.filter(
-                (s) => s.completed
-              ).length;
+              const subtasks = safeJsonParse<{ id: string; text: string; completed: boolean }[]>(
+                ticket.subtasks,
+                []
+              );
+              const completedSubtasks = subtasks.filter((s) => s.completed).length;
 
               return (
                 <tr
@@ -171,10 +153,7 @@ export default function TicketListView({
                     <div className="flex items-center gap-2">
                       {ticket.isBlocked && (
                         <span title={ticket.blockedReason ?? "Blocked"}>
-                          <AlertCircle
-                            size={14}
-                            className="text-red-500 flex-shrink-0"
-                          />
+                          <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
                         </span>
                       )}
                       <span className="text-sm text-gray-100 truncate max-w-xs">
@@ -190,17 +169,13 @@ export default function TicketListView({
 
                   {/* Priority */}
                   <td className="px-4 py-3">
-                    {ticket.priority && (
-                      <PriorityBadge priority={ticket.priority} />
-                    )}
+                    {ticket.priority && <PriorityBadge priority={ticket.priority} />}
                   </td>
 
                   {/* Epic */}
                   <td className="px-4 py-3">
                     {epic && (
-                      <span className="text-sm text-slate-300 truncate max-w-xs">
-                        {epic.title}
-                      </span>
+                      <span className="text-sm text-slate-300 truncate max-w-xs">{epic.title}</span>
                     )}
                   </td>
 
@@ -216,8 +191,39 @@ export default function TicketListView({
                         </span>
                       ))}
                       {tags.length > 3 && (
-                        <span className="text-xs text-slate-500">
-                          +{tags.length - 3}
+                        <span className="text-xs text-slate-500">+{tags.length - 3}</span>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Branch / PR */}
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      {ticket.branchName && (
+                        <span
+                          className="flex items-center gap-1 text-xs text-slate-400"
+                          title={ticket.branchName}
+                        >
+                          <GitBranch size={12} className="text-cyan-400" />
+                          <span className="truncate max-w-[120px]">
+                            {ticket.branchName.replace(/^feature\//, "")}
+                          </span>
+                        </span>
+                      )}
+                      {ticket.prNumber && (
+                        <span
+                          className={`flex items-center gap-1 text-xs ${
+                            ticket.prStatus === "merged"
+                              ? "text-purple-400"
+                              : ticket.prStatus === "closed"
+                                ? "text-red-400"
+                                : ticket.prStatus === "draft"
+                                  ? "text-slate-500"
+                                  : "text-green-400"
+                          }`}
+                          title={`PR #${ticket.prNumber} - ${ticket.prStatus ?? "open"}`}
+                        >
+                          <GitPullRequest size={12} />#{ticket.prNumber}
                         </span>
                       )}
                     </div>
@@ -283,11 +289,7 @@ function StatusBadge({ status }: { status: string }) {
     className: "bg-slate-700 text-slate-300",
   };
 
-  return (
-    <span className={`text-xs px-2 py-1 rounded ${config.className}`}>
-      {config.label}
-    </span>
-  );
+  return <span className={`text-xs px-2 py-1 rounded ${config.className}`}>{config.label}</span>;
 }
 
 function PriorityBadge({ priority }: { priority: string }) {
@@ -311,9 +313,5 @@ function PriorityBadge({ priority }: { priority: string }) {
     className: "bg-slate-700 text-slate-300",
   };
 
-  return (
-    <span className={`text-xs px-2 py-1 rounded ${config.className}`}>
-      {config.label}
-    </span>
-  );
+  return <span className={`text-xs px-2 py-1 rounded ${config.className}`}>{config.label}</span>;
 }

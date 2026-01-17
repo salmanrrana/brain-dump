@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { GitBranch, GitPullRequest } from "lucide-react";
 import { useAppState } from "../components/AppLayout";
 import { useTickets, useProjects, type Ticket, type StatusChange } from "../lib/hooks";
 import { useToast } from "../components/Toast";
@@ -146,17 +147,9 @@ function Home() {
   return (
     <div className="h-full">
       {viewMode === "list" ? (
-        <TicketListView
-          tickets={tickets}
-          epics={allEpics}
-          onTicketClick={handleTicketClick}
-        />
+        <TicketListView tickets={tickets} epics={allEpics} onTicketClick={handleTicketClick} />
       ) : (
-        <KanbanBoard
-          tickets={tickets}
-          onTicketClick={handleTicketClick}
-          onRefresh={refetch}
-        />
+        <KanbanBoard tickets={tickets} onTicketClick={handleTicketClick} onRefresh={refetch} />
       )}
 
       {/* Ticket Detail Modal */}
@@ -256,9 +249,7 @@ function KanbanBoard({
       targetStatus = overId;
       const columnTickets = ticketsByStatus[targetStatus] ?? [];
       targetPosition =
-        columnTickets.length > 0
-          ? (columnTickets[columnTickets.length - 1]?.position ?? 0) + 1
-          : 1;
+        columnTickets.length > 0 ? (columnTickets[columnTickets.length - 1]?.position ?? 0) + 1 : 1;
     } else {
       // Dropping on a ticket - get that ticket's column and position
       const targetTicket = tickets.find((t) => t.id === overId);
@@ -273,14 +264,25 @@ function KanbanBoard({
         targetPosition = (targetTicket.position ?? 1) / 2;
       } else {
         const prevTicket = columnTickets[targetIndex - 1];
-        targetPosition =
-          ((prevTicket?.position ?? 0) + (targetTicket.position ?? 0)) / 2;
+        targetPosition = ((prevTicket?.position ?? 0) + (targetTicket.position ?? 0)) / 2;
       }
     }
 
     // Update status if changed
     if (activeTicket.status !== targetStatus) {
-      await updateTicketStatus({ data: { id: activeTicket.id, status: targetStatus as "backlog" | "ready" | "in_progress" | "review" | "ai_review" | "human_review" | "done" } });
+      await updateTicketStatus({
+        data: {
+          id: activeTicket.id,
+          status: targetStatus as
+            | "backlog"
+            | "ready"
+            | "in_progress"
+            | "review"
+            | "ai_review"
+            | "human_review"
+            | "done",
+        },
+      });
     }
 
     // Update position
@@ -302,7 +304,9 @@ function KanbanBoard({
           <BoardColumn
             key={column.id}
             columnId={column.id}
-            title={column.title}            color={column.color}            tickets={ticketsByStatus[column.id] ?? []}
+            title={column.title}
+            color={column.color}
+            tickets={ticketsByStatus[column.id] ?? []}
             onTicketClick={onTicketClick}
           />
         ))}
@@ -372,18 +376,10 @@ function BoardColumn({
       </div>
 
       {/* Column content */}
-      <div
-        ref={setNodeRef}
-        className="flex-1 p-2 overflow-y-auto space-y-2 min-h-[200px]"
-      >
-        <SortableContext
-          items={tickets.map((t) => t.id)}
-          strategy={verticalListSortingStrategy}
-        >
+      <div ref={setNodeRef} className="flex-1 p-2 overflow-y-auto space-y-2 min-h-[200px]">
+        <SortableContext items={tickets.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {tickets.length === 0 ? (
-            <div className="text-center py-8 text-slate-500 text-sm">
-              Drop tickets here
-            </div>
+            <div className="text-center py-8 text-slate-500 text-sm">Drop tickets here</div>
           ) : (
             tickets.map((ticket) => (
               <SortableTicketCard
@@ -399,21 +395,10 @@ function BoardColumn({
   );
 }
 
-function SortableTicketCard({
-  ticket,
-  onClick,
-}: {
-  ticket: Ticket;
-  onClick: () => void;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: ticket.id });
+function SortableTicketCard({ ticket, onClick }: { ticket: Ticket; onClick: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: ticket.id,
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -456,32 +441,53 @@ function TicketCard({
             title={ticket.blockedReason ?? "Blocked"}
           />
         )}
-        <h4 className="text-sm font-medium text-gray-100 line-clamp-2">
-          {ticket.title}
-        </h4>
+        <h4 className="text-sm font-medium text-gray-100 line-clamp-2">{ticket.title}</h4>
       </div>
 
       {/* Tags */}
       {tags.length > 0 && (
         <div className="flex gap-1 flex-wrap mt-2">
           {tags.slice(0, 3).map((tag) => (
-            <span
-              key={tag}
-              className="text-xs px-1.5 py-0.5 bg-slate-700 text-slate-300 rounded"
-            >
+            <span key={tag} className="text-xs px-1.5 py-0.5 bg-slate-700 text-slate-300 rounded">
               {tag}
             </span>
           ))}
         </div>
       )}
 
+      {/* Git/PR indicators */}
+      {(ticket.branchName || ticket.prNumber) && (
+        <div className="flex items-center gap-2 mt-2 text-xs text-slate-400">
+          {ticket.branchName && (
+            <span className="flex items-center gap-1" title={ticket.branchName}>
+              <GitBranch size={12} className="text-cyan-400" />
+              <span className="truncate max-w-[100px]">
+                {ticket.branchName.replace(/^feature\//, "")}
+              </span>
+            </span>
+          )}
+          {ticket.prNumber && (
+            <span
+              className={`flex items-center gap-1 ${
+                ticket.prStatus === "merged"
+                  ? "text-purple-400"
+                  : ticket.prStatus === "closed"
+                    ? "text-red-400"
+                    : ticket.prStatus === "draft"
+                      ? "text-slate-500"
+                      : "text-green-400"
+              }`}
+              title={`PR #${ticket.prNumber} - ${ticket.prStatus ?? "open"}`}
+            >
+              <GitPullRequest size={12} />#{ticket.prNumber}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Bottom row: priority badge and subtask progress */}
       <div className="flex items-center justify-between mt-2">
-        {ticket.priority ? (
-          <PriorityBadge priority={ticket.priority} />
-        ) : (
-          <span />
-        )}
+        {ticket.priority ? <PriorityBadge priority={ticket.priority} /> : <span />}
         {subtasks.length > 0 && (
           <span className="text-xs text-slate-400">
             {completedSubtasks}/{subtasks.length}
@@ -513,9 +519,5 @@ function PriorityBadge({ priority }: { priority: string }) {
     className: "bg-slate-700 text-slate-300",
   };
 
-  return (
-    <span className={`text-xs px-2 py-0.5 rounded ${config.className}`}>
-      {config.label}
-    </span>
-  );
+  return <span className={`text-xs px-2 py-0.5 rounded ${config.className}`}>{config.label}</span>;
 }

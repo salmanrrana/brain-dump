@@ -201,7 +201,7 @@ Returns:
 
       const now = new Date().toISOString();
       try {
-        db.prepare("UPDATE tickets SET status = 'in_progress', updated_at = ? WHERE id = ?").run(now, ticketId);
+        db.prepare("UPDATE tickets SET status = 'in_progress', branch_name = ?, updated_at = ? WHERE id = ?").run(branchName, now, ticketId);
       } catch (dbErr) {
         log.error(`Failed to update ticket status: ${dbErr.message}`, { ticketId });
         // Attempt to clean up the branch we just created

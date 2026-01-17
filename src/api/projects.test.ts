@@ -56,7 +56,7 @@ describe("Projects API Logic", () => {
         subtasks TEXT,
         is_blocked INTEGER DEFAULT 0,
         blocked_reason TEXT,
-        linked_files TEXT,
+        linked_files TEXT, branch_name TEXT, pr_number INTEGER, pr_url TEXT, pr_status TEXT,
         attachments TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -88,10 +88,12 @@ describe("Projects API Logic", () => {
       const id1 = randomUUID();
       const id2 = randomUUID();
 
-      db.insert(schema.projects).values([
-        { id: id1, name: "Project 1", path: "/path/1" },
-        { id: id2, name: "Project 2", path: "/path/2" },
-      ]).run();
+      db.insert(schema.projects)
+        .values([
+          { id: id1, name: "Project 1", path: "/path/1" },
+          { id: id2, name: "Project 2", path: "/path/2" },
+        ])
+        .run();
 
       const result = db.select().from(schema.projects).all();
       expect(result).toHaveLength(2);
@@ -101,11 +103,13 @@ describe("Projects API Logic", () => {
   describe("getProject", () => {
     it("should return a project by ID", () => {
       const id = randomUUID();
-      db.insert(schema.projects).values({
-        id,
-        name: "Test Project",
-        path: "/test/path",
-      }).run();
+      db.insert(schema.projects)
+        .values({
+          id,
+          name: "Test Project",
+          path: "/test/path",
+        })
+        .run();
 
       const result = db.select().from(schema.projects).where(eq(schema.projects.id, id)).get();
       expect(result).toBeDefined();
@@ -113,7 +117,11 @@ describe("Projects API Logic", () => {
     });
 
     it("should return undefined for non-existent ID", () => {
-      const result = db.select().from(schema.projects).where(eq(schema.projects.id, "non-existent")).get();
+      const result = db
+        .select()
+        .from(schema.projects)
+        .where(eq(schema.projects.id, "non-existent"))
+        .get();
       expect(result).toBeUndefined();
     });
   });
@@ -121,12 +129,14 @@ describe("Projects API Logic", () => {
   describe("createProject", () => {
     it("should create a project with valid input", () => {
       const id = randomUUID();
-      db.insert(schema.projects).values({
-        id,
-        name: "New Project",
-        path: testDir,
-        color: "#ff0000",
-      }).run();
+      db.insert(schema.projects)
+        .values({
+          id,
+          name: "New Project",
+          path: testDir,
+          color: "#ff0000",
+        })
+        .run();
 
       const result = db.select().from(schema.projects).where(eq(schema.projects.id, id)).get();
       expect(result).toBeDefined();
@@ -137,19 +147,23 @@ describe("Projects API Logic", () => {
 
     it("should enforce unique path constraint", () => {
       const id1 = randomUUID();
-      db.insert(schema.projects).values({
-        id: id1,
-        name: "Project 1",
-        path: "/unique/path",
-      }).run();
+      db.insert(schema.projects)
+        .values({
+          id: id1,
+          name: "Project 1",
+          path: "/unique/path",
+        })
+        .run();
 
       const id2 = randomUUID();
       expect(() => {
-        db.insert(schema.projects).values({
-          id: id2,
-          name: "Project 2",
-          path: "/unique/path",
-        }).run();
+        db.insert(schema.projects)
+          .values({
+            id: id2,
+            name: "Project 2",
+            path: "/unique/path",
+          })
+          .run();
       }).toThrow();
     });
   });
@@ -157,11 +171,13 @@ describe("Projects API Logic", () => {
   describe("updateProject", () => {
     it("should update project name", () => {
       const id = randomUUID();
-      db.insert(schema.projects).values({
-        id,
-        name: "Original Name",
-        path: "/update/test",
-      }).run();
+      db.insert(schema.projects)
+        .values({
+          id,
+          name: "Original Name",
+          path: "/update/test",
+        })
+        .run();
 
       db.update(schema.projects)
         .set({ name: "Updated Name" })
@@ -174,16 +190,15 @@ describe("Projects API Logic", () => {
 
     it("should update project color", () => {
       const id = randomUUID();
-      db.insert(schema.projects).values({
-        id,
-        name: "Color Test",
-        path: "/color/test",
-      }).run();
-
-      db.update(schema.projects)
-        .set({ color: "#00ff00" })
-        .where(eq(schema.projects.id, id))
+      db.insert(schema.projects)
+        .values({
+          id,
+          name: "Color Test",
+          path: "/color/test",
+        })
         .run();
+
+      db.update(schema.projects).set({ color: "#00ff00" }).where(eq(schema.projects.id, id)).run();
 
       const result = db.select().from(schema.projects).where(eq(schema.projects.id, id)).get();
       expect(result?.color).toBe("#00ff00");
@@ -193,11 +208,13 @@ describe("Projects API Logic", () => {
   describe("deleteProject", () => {
     it("should delete a project", () => {
       const id = randomUUID();
-      db.insert(schema.projects).values({
-        id,
-        name: "To Delete",
-        path: "/delete/test",
-      }).run();
+      db.insert(schema.projects)
+        .values({
+          id,
+          name: "To Delete",
+          path: "/delete/test",
+        })
+        .run();
 
       db.delete(schema.projects).where(eq(schema.projects.id, id)).run();
 
@@ -209,17 +226,21 @@ describe("Projects API Logic", () => {
       const projectId = randomUUID();
       const epicId = randomUUID();
 
-      db.insert(schema.projects).values({
-        id: projectId,
-        name: "Cascade Delete Test",
-        path: "/cascade/delete",
-      }).run();
+      db.insert(schema.projects)
+        .values({
+          id: projectId,
+          name: "Cascade Delete Test",
+          path: "/cascade/delete",
+        })
+        .run();
 
-      db.insert(schema.epics).values({
-        id: epicId,
-        title: "Epic to Delete",
-        projectId: projectId,
-      }).run();
+      db.insert(schema.epics)
+        .values({
+          id: epicId,
+          title: "Epic to Delete",
+          projectId: projectId,
+        })
+        .run();
 
       db.delete(schema.projects).where(eq(schema.projects.id, projectId)).run();
 
@@ -231,18 +252,22 @@ describe("Projects API Logic", () => {
       const projectId = randomUUID();
       const ticketId = randomUUID();
 
-      db.insert(schema.projects).values({
-        id: projectId,
-        name: "Ticket Cascade Test",
-        path: "/ticket/cascade",
-      }).run();
+      db.insert(schema.projects)
+        .values({
+          id: projectId,
+          name: "Ticket Cascade Test",
+          path: "/ticket/cascade",
+        })
+        .run();
 
-      db.insert(schema.tickets).values({
-        id: ticketId,
-        title: "Ticket to Delete",
-        projectId: projectId,
-        position: 1,
-      }).run();
+      db.insert(schema.tickets)
+        .values({
+          id: ticketId,
+          title: "Ticket to Delete",
+          projectId: projectId,
+          position: 1,
+        })
+        .run();
 
       db.delete(schema.projects).where(eq(schema.projects.id, projectId)).run();
 

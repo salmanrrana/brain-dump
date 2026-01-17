@@ -149,6 +149,31 @@ export function runMigrations(db) {
     log.error("Failed to check/add working_method column", err);
   }
 
+  // Add git/PR tracking columns to tickets table
+  try {
+    const ticketColumns = db.prepare("PRAGMA table_info(tickets)").all();
+    const ticketColumnNames = ticketColumns.map(c => c.name);
+
+    if (!ticketColumnNames.includes("branch_name")) {
+      db.prepare("ALTER TABLE tickets ADD COLUMN branch_name TEXT").run();
+      log.info("Added branch_name column to tickets table");
+    }
+    if (!ticketColumnNames.includes("pr_number")) {
+      db.prepare("ALTER TABLE tickets ADD COLUMN pr_number INTEGER").run();
+      log.info("Added pr_number column to tickets table");
+    }
+    if (!ticketColumnNames.includes("pr_url")) {
+      db.prepare("ALTER TABLE tickets ADD COLUMN pr_url TEXT").run();
+      log.info("Added pr_url column to tickets table");
+    }
+    if (!ticketColumnNames.includes("pr_status")) {
+      db.prepare("ALTER TABLE tickets ADD COLUMN pr_status TEXT").run();
+      log.info("Added pr_status column to tickets table");
+    }
+  } catch (err) {
+    log.error("Failed to check/add git/PR tracking columns", err);
+  }
+
   // Create ralph_events table if it doesn't exist
   try {
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ralph_events'").all();

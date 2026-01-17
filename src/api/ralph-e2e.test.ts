@@ -61,7 +61,7 @@ const SCHEMA_SQL = `
     subtasks TEXT,
     is_blocked INTEGER DEFAULT 0,
     blocked_reason TEXT,
-    linked_files TEXT,
+    linked_files TEXT, branch_name TEXT, pr_number INTEGER, pr_url TEXT, pr_status TEXT,
     linked_commits TEXT,
     attachments TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),

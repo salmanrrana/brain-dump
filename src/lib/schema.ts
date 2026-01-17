@@ -58,6 +58,11 @@ export const tickets = sqliteTable(
       .notNull()
       .default(sql`(datetime('now'))`),
     completedAt: text("completed_at"),
+    // Git/PR tracking fields
+    branchName: text("branch_name"), // e.g., "feature/abc123-add-login"
+    prNumber: integer("pr_number"), // GitHub PR number
+    prUrl: text("pr_url"), // Full PR URL
+    prStatus: text("pr_status"), // 'draft' | 'open' | 'merged' | 'closed'
   },
   (table) => [
     index("idx_tickets_project").on(table.projectId),

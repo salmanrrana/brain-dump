@@ -52,7 +52,11 @@ describe("Database Schema", () => {
         attachments TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-        completed_at TEXT
+        completed_at TEXT,
+        branch_name TEXT,
+        pr_number INTEGER,
+        pr_url TEXT,
+        pr_status TEXT
       );
 
       CREATE INDEX idx_epics_project ON epics(project_id);
@@ -68,11 +72,13 @@ describe("Database Schema", () => {
 
   it("should insert and query a project", () => {
     const projectId = randomUUID();
-    db.insert(schema.projects).values({
-      id: projectId,
-      name: "Test Project",
-      path: "/tmp/test-project",
-    }).run();
+    db.insert(schema.projects)
+      .values({
+        id: projectId,
+        name: "Test Project",
+        path: "/tmp/test-project",
+      })
+      .run();
 
     const project = db
       .select()
@@ -89,24 +95,24 @@ describe("Database Schema", () => {
     const projectId = randomUUID();
     const epicId = randomUUID();
 
-    db.insert(schema.projects).values({
-      id: projectId,
-      name: "Epic Test Project",
-      path: "/tmp/epic-test",
-    }).run();
+    db.insert(schema.projects)
+      .values({
+        id: projectId,
+        name: "Epic Test Project",
+        path: "/tmp/epic-test",
+      })
+      .run();
 
-    db.insert(schema.epics).values({
-      id: epicId,
-      title: "Test Epic",
-      description: "A test epic",
-      projectId: projectId,
-    }).run();
+    db.insert(schema.epics)
+      .values({
+        id: epicId,
+        title: "Test Epic",
+        description: "A test epic",
+        projectId: projectId,
+      })
+      .run();
 
-    const epic = db
-      .select()
-      .from(schema.epics)
-      .where(eq(schema.epics.id, epicId))
-      .get();
+    const epic = db.select().from(schema.epics).where(eq(schema.epics.id, epicId)).get();
 
     expect(epic).toBeDefined();
     expect(epic?.title).toBe("Test Epic");
@@ -117,27 +123,27 @@ describe("Database Schema", () => {
     const projectId = randomUUID();
     const ticketId = randomUUID();
 
-    db.insert(schema.projects).values({
-      id: projectId,
-      name: "Ticket Test Project",
-      path: "/tmp/ticket-test",
-    }).run();
+    db.insert(schema.projects)
+      .values({
+        id: projectId,
+        name: "Ticket Test Project",
+        path: "/tmp/ticket-test",
+      })
+      .run();
 
-    db.insert(schema.tickets).values({
-      id: ticketId,
-      title: "Test Ticket",
-      description: "A test ticket",
-      projectId: projectId,
-      position: 1.0,
-      priority: "high",
-      tags: JSON.stringify(["test", "bug"]),
-    }).run();
+    db.insert(schema.tickets)
+      .values({
+        id: ticketId,
+        title: "Test Ticket",
+        description: "A test ticket",
+        projectId: projectId,
+        position: 1.0,
+        priority: "high",
+        tags: JSON.stringify(["test", "bug"]),
+      })
+      .run();
 
-    const ticket = db
-      .select()
-      .from(schema.tickets)
-      .where(eq(schema.tickets.id, ticketId))
-      .get();
+    const ticket = db.select().from(schema.tickets).where(eq(schema.tickets.id, ticketId)).get();
 
     expect(ticket).toBeDefined();
     expect(ticket?.title).toBe("Test Ticket");
@@ -149,27 +155,27 @@ describe("Database Schema", () => {
     const projectId = randomUUID();
     const epicId = randomUUID();
 
-    db.insert(schema.projects).values({
-      id: projectId,
-      name: "Cascade Test Project",
-      path: "/tmp/cascade-test",
-    }).run();
+    db.insert(schema.projects)
+      .values({
+        id: projectId,
+        name: "Cascade Test Project",
+        path: "/tmp/cascade-test",
+      })
+      .run();
 
-    db.insert(schema.epics).values({
-      id: epicId,
-      title: "Cascade Test Epic",
-      projectId: projectId,
-    }).run();
+    db.insert(schema.epics)
+      .values({
+        id: epicId,
+        title: "Cascade Test Epic",
+        projectId: projectId,
+      })
+      .run();
 
     // Delete project
     db.delete(schema.projects).where(eq(schema.projects.id, projectId)).run();
 
     // Epic should be gone
-    const epic = db
-      .select()
-      .from(schema.epics)
-      .where(eq(schema.epics.id, epicId))
-      .get();
+    const epic = db.select().from(schema.epics).where(eq(schema.epics.id, epicId)).get();
 
     expect(epic).toBeUndefined();
   });
