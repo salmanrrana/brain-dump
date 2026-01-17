@@ -179,9 +179,19 @@ The following hooks provide an automated workflow for code review and PR creatio
 
 | Hook              | File                            | Purpose                                                    |
 | ----------------- | ------------------------------- | ---------------------------------------------------------- |
+| Auto-PR creation  | `create-pr-on-ticket-start.sh`  | Creates draft PR immediately when `start_ticket_work` runs |
 | Pre-push review   | `enforce-review-before-push.sh` | Blocks `git push`/`gh pr create` until review is completed |
 | Post-ticket spawn | `spawn-next-ticket.sh`          | Spawns next ticket after `complete_ticket_work`            |
 | Post-PR spawn     | `spawn-after-pr.sh`             | Spawns next ticket after successful PR creation            |
+
+**Auto-PR Creation**: When `start_ticket_work` is called, the hook automatically:
+
+1. Creates an empty WIP commit on the new branch
+2. Pushes the branch to remote
+3. Creates a draft PR with the ticket title
+4. The PR is linked to the ticket for immediate tracking
+
+**PR Status Sync**: When `link_pr_to_ticket` is called, the MCP tool automatically syncs PR statuses for all tickets in the project. This updates any PRs that have been merged or closed since they were linked.
 
 **To enable these hooks**, add to `~/.claude/settings.json`:
 
@@ -209,6 +219,15 @@ The following hooks provide an automated workflow for code review and PR creatio
       }
     ],
     "PostToolUse": [
+      {
+        "matcher": "mcp__brain-dump__start_ticket_work",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/create-pr-on-ticket-start.sh"
+          }
+        ]
+      },
       {
         "matcher": "Bash(gh pr create:*)",
         "hooks": [

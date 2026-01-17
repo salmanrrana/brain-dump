@@ -8,6 +8,90 @@ import { log } from "../lib/logging.js";
 import { runGitCommand, shortId } from "../lib/git-utils.js";
 
 /**
+ * Sync PR statuses for all tickets in a project by querying GitHub.
+ * Updates any PRs that have been merged or closed.
+ *
+ * @param {import("better-sqlite3").Database} db
+ * @param {string} projectId - Project ID to sync
+ * @param {string} projectPath - Path to the project (for gh cli)
+ * @returns {{ synced: number, errors: string[] }}
+ */
+async function syncProjectPRStatuses(db, projectId, projectPath) {
+  const synced = [];
+  const errors = [];
+
+  // Get all tickets in this project that have a PR linked
+  const ticketsWithPRs = db
+    .prepare(
+      `SELECT id, title, pr_number, pr_status
+       FROM tickets
+       WHERE project_id = ? AND pr_number IS NOT NULL`
+    )
+    .all(projectId);
+
+  if (ticketsWithPRs.length === 0) {
+    return { synced: [], errors: [] };
+  }
+
+  log.info(`Syncing PR statuses for ${ticketsWithPRs.length} tickets in project ${projectId}`);
+
+  for (const ticket of ticketsWithPRs) {
+    try {
+      // Query GitHub for current PR state
+      const ghResult = runGitCommand(
+        `gh pr view ${ticket.pr_number} --json state,merged 2>/dev/null`,
+        projectPath
+      );
+
+      if (!ghResult.success) {
+        // PR might not exist or gh cli not available
+        continue;
+      }
+
+      let prData;
+      try {
+        prData = JSON.parse(ghResult.output);
+      } catch {
+        continue;
+      }
+
+      // Map GitHub state to our status
+      let newStatus = ticket.pr_status;
+      if (prData.merged === true || prData.state === "MERGED") {
+        newStatus = "merged";
+      } else if (prData.state === "CLOSED") {
+        newStatus = "closed";
+      } else if (prData.state === "OPEN") {
+        // Check if it's a draft (gh pr view includes isDraft in some versions)
+        newStatus = "open";
+      }
+
+      // Update if status changed
+      if (newStatus !== ticket.pr_status) {
+        const now = new Date().toISOString();
+        db.prepare("UPDATE tickets SET pr_status = ?, updated_at = ? WHERE id = ?").run(
+          newStatus,
+          now,
+          ticket.id
+        );
+        synced.push({
+          ticketId: ticket.id,
+          title: ticket.title,
+          prNumber: ticket.pr_number,
+          oldStatus: ticket.pr_status,
+          newStatus,
+        });
+        log.info(`Updated PR #${ticket.pr_number} status: ${ticket.pr_status} -> ${newStatus}`);
+      }
+    } catch (err) {
+      errors.push(`PR #${ticket.pr_number}: ${err.message}`);
+    }
+  }
+
+  return { synced, errors };
+}
+
+/**
  * Register git integration tools with the MCP server.
  * @param {import("@modelcontextprotocol/sdk/server/mcp.js").McpServer} server
  * @param {import("better-sqlite3").Database} db
@@ -149,6 +233,24 @@ Returns:
 
       log.info(`Linked PR #${prNumber} (${finalStatus}) to ticket ${ticketId}`);
 
+      // Sync PR statuses for all tickets in this project
+      let syncSummary = "";
+      if (existsSync(ticket.project_path)) {
+        try {
+          const syncResult = await syncProjectPRStatuses(db, ticket.project_id, ticket.project_path);
+          if (syncResult.synced.length > 0) {
+            syncSummary = `\n\n**PR Status Sync:**\nUpdated ${syncResult.synced.length} PR status(es):\n${syncResult.synced
+              .map((s) => `- PR #${s.prNumber}: ${s.oldStatus} → ${s.newStatus} ("${s.title}")`)
+              .join("\n")}`;
+          }
+          if (syncResult.errors.length > 0) {
+            log.warn(`PR sync errors: ${syncResult.errors.join(", ")}`);
+          }
+        } catch (syncErr) {
+          log.warn(`Failed to sync PR statuses: ${syncErr.message}`);
+        }
+      }
+
       return {
         content: [{
           type: "text",
@@ -157,7 +259,7 @@ Returns:
 **PR #${prNumber}** - ${finalStatus}
 ${finalPrUrl ? `**URL:** ${finalPrUrl}` : "(URL not available)"}
 
-The PR status will be displayed on the ticket in the Brain Dump UI.`,
+The PR status will be displayed on the ticket in the Brain Dump UI.${syncSummary}`,
         }],
       };
     }
