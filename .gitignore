@@ -33,6 +33,7 @@ todos.json
 
 plans/prd.json
 plans/progress.txt
+plans/archives/
 
 # Service discovery runtime state (Ralph creates this)
 .ralph-services.json
