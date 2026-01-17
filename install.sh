@@ -6,7 +6,8 @@
 #   ./install.sh                  # Install with prompts for IDE choice
 #   ./install.sh --claude         # Install with Claude Code integration
 #   ./install.sh --vscode         # Install with VS Code integration
-#   ./install.sh --claude --vscode # Install with both IDEs
+#   ./install.sh --claude --sandbox # Install with Claude Code + sandbox
+#   ./install.sh --all            # Install all IDEs + sandbox
 #   ./install.sh --help           # Show help
 #
 # After cloning, just run:
@@ -558,6 +559,92 @@ install_claude_plugins() {
     else
         SKIPPED+=("Claude plugins (already installed)")
     fi
+}
+
+# Configure Claude Code's native sandbox
+setup_claude_sandbox() {
+    print_step "Configuring Claude Code sandbox"
+
+    # Check if Claude CLI is installed
+    if ! command_exists claude; then
+        print_warning "Claude CLI not found. Skipping sandbox configuration."
+        print_info "Install Claude CLI first: npm install -g @anthropic-ai/claude-code"
+        print_info "Then run: ./install.sh --sandbox"
+        SKIPPED+=("Claude sandbox (CLI not installed)")
+        return 0
+    fi
+
+    CLAUDE_SETTINGS="$HOME/.claude/settings.json"
+    CLAUDE_DIR="$HOME/.claude"
+
+    # Ensure .claude directory exists
+    if ! mkdir -p "$CLAUDE_DIR"; then
+        print_error "Failed to create $CLAUDE_DIR"
+        FAILED+=("Claude sandbox (directory creation failed)")
+        return 1
+    fi
+
+    # Handle settings.json
+    if [ ! -f "$CLAUDE_SETTINGS" ]; then
+        print_info "Creating ~/.claude/settings.json with sandbox enabled..."
+        cat > "$CLAUDE_SETTINGS" << 'EOF'
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "sandbox": {
+    "enabled": true
+  }
+}
+EOF
+        print_success "Created ~/.claude/settings.json with sandbox enabled"
+        INSTALLED+=("Claude sandbox config")
+    else
+        # Check if sandbox is already configured
+        if grep -q '"sandbox"' "$CLAUDE_SETTINGS"; then
+            print_success "Sandbox already configured in settings.json"
+            SKIPPED+=("Claude sandbox (already configured)")
+        else
+            # Add sandbox configuration to existing settings
+            print_info "Adding sandbox configuration to existing settings.json..."
+
+            if command_exists node; then
+                local node_error
+                node_error=$(node -e "
+const fs = require('fs');
+const config = JSON.parse(fs.readFileSync('$CLAUDE_SETTINGS', 'utf8'));
+config.sandbox = config.sandbox || {};
+config.sandbox.enabled = true;
+fs.writeFileSync('$CLAUDE_SETTINGS', JSON.stringify(config, null, 2));
+console.log('Sandbox config added successfully');
+" 2>&1) && {
+                    print_success "Added sandbox configuration to settings.json"
+                    INSTALLED+=("Claude sandbox config")
+                    return 0
+                }
+                if [ -n "$node_error" ]; then
+                    print_warning "JSON merge failed: $node_error"
+                fi
+            fi
+
+            # Fallback to manual instructions
+            print_warning "Could not auto-merge. Please add this to ~/.claude/settings.json:"
+            echo ""
+            echo '  "sandbox": {'
+            echo '    "enabled": true'
+            echo '  }'
+            echo ""
+            SKIPPED+=("Claude sandbox (manual merge required)")
+            return 0
+        fi
+    fi
+
+    # Print usage instructions
+    echo ""
+    print_info "Sandbox Usage:"
+    echo "  • Run 'claude' normally - sandbox is now enabled by default"
+    echo "  • Use '/sandbox' command in Claude Code to toggle sandbox mode"
+    echo "  • Sandbox restricts file system and network access for safety"
+    echo ""
+    print_info "For more info: https://docs.anthropic.com/en/docs/claude-code/sandboxing"
 }
 
 # ============================================================================
@@ -1515,22 +1602,26 @@ show_help() {
     echo "  --claude    Set up Claude Code integration (MCP server + plugins)"
     echo "  --vscode    Set up VS Code integration (MCP server + agents + skills + prompts)"
     echo "  --opencode  Set up OpenCode integration (MCP server + agents + skills)"
-    echo "  --all        Set up all IDE integrations (Claude Code + VS Code + OpenCode)"
+    echo "  --all       Set up all IDE integrations + sandbox"
     echo ""
     echo "  If no IDE flag is provided, you'll be prompted to choose."
     echo ""
-    echo "Other Options:"
+    echo "Security Options:"
+    echo "  --sandbox       Enable Claude Code's native sandbox mode"
     echo "  --docker        Set up Docker sandbox for Ralph (optional)"
+    echo ""
+    echo "Other Options:"
     echo "  --help          Show this help message"
     echo "  --skip-node     Skip Node.js installation check"
     echo "  --update-skills Update vendored skills from upstream"
     echo ""
     echo "Examples:"
     echo "  ./install.sh --claude           # Claude Code only"
+    echo "  ./install.sh --claude --sandbox # Claude Code with sandbox enabled"
     echo "  ./install.sh --vscode           # VS Code only"
     echo "  ./install.sh --opencode         # OpenCode only"
-    echo "  ./install.sh --all             # All IDEs"
-    echo "  ./install.sh                   # Interactive prompt"
+    echo "  ./install.sh --all              # All IDEs + sandbox"
+    echo "  ./install.sh                    # Interactive prompt"
     echo ""
     echo "This script will:"
     echo "  1. Install Node.js 18+ via nvm (if needed)"
@@ -1551,6 +1642,7 @@ main() {
     SETUP_VSCODE=false
     SETUP_OPENCODE=false
     SETUP_DOCKER=false
+    SETUP_SANDBOX=false
     UPDATE_SKILLS=false
     IDE_FLAG_PROVIDED=false
 
@@ -1579,10 +1671,14 @@ main() {
                 SETUP_CLAUDE=true
                 SETUP_VSCODE=true
                 SETUP_OPENCODE=true
+                SETUP_SANDBOX=true
                 IDE_FLAG_PROVIDED=true
                 ;;
             --docker)
                 SETUP_DOCKER=true
+                ;;
+            --sandbox)
+                SETUP_SANDBOX=true
                 ;;
             --update-skills)
                 UPDATE_SKILLS=true
@@ -1655,6 +1751,11 @@ main() {
         install_claude_plugins || true
         setup_claude_skills || true
         setup_project_config || true
+    fi
+
+    # Claude sandbox setup (can be used with or without --claude)
+    if [ "$SETUP_SANDBOX" = true ]; then
+        setup_claude_sandbox || true
     fi
 
     # VS Code setup
