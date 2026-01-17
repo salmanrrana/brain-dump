@@ -15,10 +15,20 @@
  */
 
 import { useState, useCallback } from "react";
-import { ChevronDown, ChevronUp, Copy, Check, AlertTriangle, Loader2 } from "lucide-react";
-import { useProjectServices } from "../lib/hooks";
+import {
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Check,
+  AlertTriangle,
+  Loader2,
+  Play,
+  Square,
+} from "lucide-react";
+import { useProjectServices, useStartService, useStopService } from "../lib/hooks";
 import type { RalphService, ServiceStatus } from "../lib/service-discovery";
 import { useAutoClearState } from "../lib/hooks";
+import { useToast } from "./Toast";
 
 interface ContainerStatusSectionProps {
   /** Path to the selected project (null if none selected) */
@@ -90,17 +100,25 @@ function ContainerRow({
   service,
   onCopy,
   isCopied,
+  onStart,
+  onStop,
+  isLoading,
 }: {
   service: RalphService;
   onCopy: (text: string) => void;
   isCopied: boolean;
+  onStart: () => void;
+  onStop: () => void;
+  isLoading: boolean;
 }) {
   const { color, pulseClass, label } = getStatusIndicator(service.status);
   const connectionString = getConnectionString(service);
+  const isRunning = service.status === "running";
+  const isStopped = service.status === "stopped";
 
   return (
     <div className="py-2 px-2 hover:bg-slate-800/50 rounded transition-colors">
-      {/* Top row: status + name + port */}
+      {/* Top row: status + name + action buttons */}
       <div className="flex items-center gap-2">
         {/* Status indicator */}
         <span
@@ -114,14 +132,40 @@ function ContainerRow({
           {service.name}
         </span>
 
-        {/* Port */}
-        {service.status === "running" && (
-          <span className="text-xs text-slate-400">:{service.port}</span>
-        )}
+        {/* Port (for running services) */}
+        {isRunning && <span className="text-xs text-slate-400">:{service.port}</span>}
+
+        {/* Action buttons */}
+        {isLoading ? (
+          <Loader2
+            size={14}
+            className="animate-spin text-slate-400"
+            aria-label="Loading"
+            aria-busy="true"
+          />
+        ) : isRunning ? (
+          <button
+            onClick={onStop}
+            className="p-1 hover:bg-red-900/50 rounded transition-colors text-red-400 hover:text-red-300"
+            title={`Stop ${service.name}`}
+            aria-label={`Stop ${service.name}`}
+          >
+            <Square size={12} />
+          </button>
+        ) : isStopped ? (
+          <button
+            onClick={onStart}
+            className="p-1 hover:bg-green-900/50 rounded transition-colors text-green-400 hover:text-green-300"
+            title={`Start ${service.name}`}
+            aria-label={`Start ${service.name}`}
+          >
+            <Play size={12} />
+          </button>
+        ) : null}
       </div>
 
       {/* Bottom row: connection string + copy button (only for running services) */}
-      {service.status === "running" && connectionString && (
+      {isRunning && connectionString && (
         <div className="flex items-center gap-2 mt-1 ml-4">
           <span className="text-xs text-slate-500 truncate flex-1" title={connectionString}>
             {connectionString}
@@ -143,12 +187,18 @@ function ContainerRow({
 export default function ContainerStatusSection({ projectPath }: ContainerStatusSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [copiedId, setCopiedId] = useAutoClearState<string>(2000); // Clear after 2s
+  const [loadingServiceId, setLoadingServiceId] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   // Fetch services with 5s polling
   const { services, runningServices, loading, error } = useProjectServices(projectPath, {
     enabled: Boolean(projectPath),
     pollingInterval: 5000, // 5 seconds
   });
+
+  // Mutation hooks for start/stop
+  const startServiceMutation = useStartService();
+  const stopServiceMutation = useStopService();
 
   // Handle copy to clipboard
   const handleCopy = useCallback(
@@ -161,6 +211,56 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
       }
     },
     [setCopiedId]
+  );
+
+  // Handle starting a service
+  const handleStartService = useCallback(
+    async (service: RalphService) => {
+      if (!projectPath) return;
+
+      const serviceId = `${service.name}-${service.port}`;
+      setLoadingServiceId(serviceId);
+
+      try {
+        await startServiceMutation.mutateAsync({
+          projectPath,
+          serviceName: service.name,
+          servicePort: service.port,
+        });
+        showToast("success", `Started ${service.name}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to start service";
+        showToast("error", message);
+      } finally {
+        setLoadingServiceId(null);
+      }
+    },
+    [projectPath, startServiceMutation, showToast]
+  );
+
+  // Handle stopping a service
+  const handleStopService = useCallback(
+    async (service: RalphService) => {
+      if (!projectPath) return;
+
+      const serviceId = `${service.name}-${service.port}`;
+      setLoadingServiceId(serviceId);
+
+      try {
+        await stopServiceMutation.mutateAsync({
+          projectPath,
+          serviceName: service.name,
+          servicePort: service.port,
+        });
+        showToast("success", `Stopped ${service.name}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to stop service";
+        showToast("error", message);
+      } finally {
+        setLoadingServiceId(null);
+      }
+    },
+    [projectPath, stopServiceMutation, showToast]
   );
 
   // Don't render if no project selected or no services configured
@@ -230,14 +330,20 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
         {/* Service list */}
         {services.length > 0 && (
           <div className="space-y-0.5">
-            {services.map((service) => (
-              <ContainerRow
-                key={`${service.name}-${service.port}`}
-                service={service}
-                onCopy={(text) => handleCopy(text, `${service.name}-${service.port}`)}
-                isCopied={copiedId === `${service.name}-${service.port}`}
-              />
-            ))}
+            {services.map((service) => {
+              const serviceId = `${service.name}-${service.port}`;
+              return (
+                <ContainerRow
+                  key={serviceId}
+                  service={service}
+                  onCopy={(text) => handleCopy(text, serviceId)}
+                  isCopied={copiedId === serviceId}
+                  onStart={() => handleStartService(service)}
+                  onStop={() => handleStopService(service)}
+                  isLoading={loadingServiceId === serviceId}
+                />
+              );
+            })}
           </div>
         )}
       </div>

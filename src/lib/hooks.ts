@@ -1287,7 +1287,7 @@ export type { SearchResult };
 // SERVICE DISCOVERY HOOKS
 // =============================================================================
 
-import { getProjectServices } from "../api/services";
+import { getProjectServices, startService, stopService, stopAllServices } from "../api/services";
 import type { RalphServicesFile, RalphService } from "./service-discovery";
 
 /**
@@ -1334,6 +1334,91 @@ export function useProjectServices(
     error: query.error?.message ?? null,
     refetch: query.refetch,
   };
+}
+
+/**
+ * Mutation hook to start a service.
+ *
+ * Updates the service status in .ralph-services.json to "running".
+ * Note: This only updates the status file, not the actual process.
+ */
+export function useStartService() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: {
+      projectPath: string;
+      serviceName: string;
+      servicePort: number;
+    }) => {
+      const result = await startService({ data: params });
+      if (!result.success) {
+        throw new Error(result.error ?? "Failed to start service");
+      }
+      return result;
+    },
+    onSuccess: (_data, variables) => {
+      // Invalidate the services query to refresh the list
+      void queryClient.invalidateQueries({
+        queryKey: ["projectServices", variables.projectPath],
+      });
+    },
+  });
+}
+
+/**
+ * Mutation hook to stop a service.
+ *
+ * Updates the service status in .ralph-services.json to "stopped".
+ * Note: This only updates the status file, not the actual process.
+ */
+export function useStopService() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: {
+      projectPath: string;
+      serviceName: string;
+      servicePort: number;
+    }) => {
+      const result = await stopService({ data: params });
+      if (!result.success) {
+        throw new Error(result.error ?? "Failed to stop service");
+      }
+      return result;
+    },
+    onSuccess: (_data, variables) => {
+      // Invalidate the services query to refresh the list
+      void queryClient.invalidateQueries({
+        queryKey: ["projectServices", variables.projectPath],
+      });
+    },
+  });
+}
+
+/**
+ * Mutation hook to stop all running services in a project.
+ *
+ * Updates all services with "running" status to "stopped" in .ralph-services.json.
+ */
+export function useStopAllServices() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: { projectPath: string }) => {
+      const result = await stopAllServices({ data: params });
+      if (!result.success) {
+        throw new Error(result.error ?? "Failed to stop services");
+      }
+      return result;
+    },
+    onSuccess: (_data, variables) => {
+      // Invalidate the services query to refresh the list
+      void queryClient.invalidateQueries({
+        queryKey: ["projectServices", variables.projectPath],
+      });
+    },
+  });
 }
 
 // =============================================================================
