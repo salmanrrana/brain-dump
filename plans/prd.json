@@ -376,7 +376,7 @@
     {
       "id": "fc6f8adc-088c-4158-a07b-e1abf8e1b1b2",
       "title": "Add Container Resource Usage Display",
-      "passes": false,
+      "passes": true,
       "overview": "Show CPU and memory usage for each running container in the sidebar.",
       "types": [],
       "designDecisions": [],
