@@ -113,7 +113,7 @@ function getRalphPrompt(): string {
 
 ## Your Task
 1. Read plans/prd.json to see incomplete tickets (passes: false)
-2. Read plans/progress.txt for context from previous work
+2. Read recent progress context: \`tail -100 plans/progress.txt\` (use Bash tool)
 3. Strategically pick ONE ticket (consider priority, dependencies, foundation work)
 4. Call start_ticket_work(ticketId) - this creates branch and posts progress
 5. Create a session: create_ralph_session(ticketId) - enables state tracking
@@ -331,7 +331,7 @@ ${epicHeader}
 You are Ralph, an autonomous coding agent. Follow these steps:
 
 1. **Read PRD** - Check \`plans/prd.json\` for incomplete tickets (\`passes: false\`)
-2. **Read Progress** - Check \`plans/progress.txt\` for context from previous work
+2. **Read Progress** - Run \`tail -100 plans/progress.txt\` for recent context from previous work
 3. **Pick ONE ticket** - Strategically choose based on priority, dependencies, foundation work
 4. **Start work** - Call \`start_ticket_work(ticketId)\` via MCP
 5. **Implement** - Write code, run tests (\`pnpm test\`), verify acceptance criteria
@@ -696,6 +696,38 @@ if [ ! -f "$PROGRESS_FILE" ]; then
   echo "# Use this to leave notes for the next iteration" >> "$PROGRESS_FILE"
   echo "" >> "$PROGRESS_FILE"
 fi
+
+# Rotate progress file if it exceeds 500 lines
+rotate_progress_file() {
+  if [ -f "$PROGRESS_FILE" ]; then
+    LINE_COUNT=$(wc -l < "$PROGRESS_FILE" | tr -d ' ')
+    if [ "$LINE_COUNT" -gt 500 ]; then
+      ARCHIVE_DIR="$PROJECT_PATH/plans/archives"
+      mkdir -p "$ARCHIVE_DIR"
+      TIMESTAMP=$(date '+%Y%m%d-%H%M%S')
+      ARCHIVE_FILE="$ARCHIVE_DIR/progress-$TIMESTAMP.txt"
+
+      # Keep last 100 lines in active file, archive the rest
+      LINES_TO_ARCHIVE=$((LINE_COUNT - 100))
+      head -n "$LINES_TO_ARCHIVE" "$PROGRESS_FILE" > "$ARCHIVE_FILE"
+      tail -n 100 "$PROGRESS_FILE" > "$PROGRESS_FILE.tmp"
+
+      # Add header to rotated file
+      {
+        echo "# Ralph Progress Log"
+        echo "# Previous entries archived to: archives/progress-$TIMESTAMP.txt"
+        echo ""
+        cat "$PROGRESS_FILE.tmp"
+      } > "$PROGRESS_FILE"
+      rm -f "$PROGRESS_FILE.tmp"
+
+      echo -e "\\033[0;33m📦 Archived $(echo $LINES_TO_ARCHIVE) lines to archives/progress-$TIMESTAMP.txt\\033[0m"
+    fi
+  fi
+}
+
+# Run rotation before starting
+rotate_progress_file
 ${timeoutTrapHandler}
 echo ""
 echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
