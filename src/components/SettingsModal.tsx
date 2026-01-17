@@ -21,7 +21,11 @@ import {
   useDockerStatus,
   useBuildSandboxImage,
 } from "../lib/hooks";
-import { SUPPORTED_TERMINALS } from "../api/settings";
+import {
+  SUPPORTED_TERMINALS,
+  DOCKER_RUNTIME_TYPES,
+  type DockerRuntimeSetting,
+} from "../api/settings";
 import DirectoryPicker from "./DirectoryPicker";
 
 interface SettingsModalProps {
@@ -49,6 +53,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   >("auto");
   const [conversationLoggingEnabled, setConversationLoggingEnabled] = useState(true);
   const [conversationRetentionDays, setConversationRetentionDays] = useState(90);
+  const [dockerRuntime, setDockerRuntime] = useState<DockerRuntimeSetting>("auto");
   const [hasChanges, setHasChanges] = useState(false);
   const [showDirectoryPicker, setShowDirectoryPicker] = useState(false);
 
@@ -67,6 +72,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       );
       setConversationLoggingEnabled(settings.conversationLoggingEnabled ?? true);
       setConversationRetentionDays(settings.conversationRetentionDays ?? 90);
+      // Docker runtime: null in DB means auto-detect, display as "auto"
+      setDockerRuntime((settings.dockerRuntime as DockerRuntimeSetting) ?? "auto");
     }
   }, [settings]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -87,6 +94,9 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         conversationLoggingEnabled !== (settings.conversationLoggingEnabled ?? true);
       const retentionChanged =
         conversationRetentionDays !== (settings.conversationRetentionDays ?? 90);
+      // Compare dockerRuntime: null in DB equals "auto" in UI
+      const currentDbRuntime = settings.dockerRuntime ?? "auto";
+      const dockerRuntimeChanged = dockerRuntime !== currentDbRuntime;
       setHasChanges(
         terminalChanged ||
           sandboxChanged ||
@@ -96,7 +106,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
           dirChanged ||
           workingMethodChanged ||
           loggingEnabledChanged ||
-          retentionChanged
+          retentionChanged ||
+          dockerRuntimeChanged
       );
     }
   }, [
@@ -109,6 +120,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     defaultWorkingMethod,
     conversationLoggingEnabled,
     conversationRetentionDays,
+    dockerRuntime,
     settings,
   ]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -172,6 +184,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         defaultWorkingMethod,
         conversationLoggingEnabled,
         conversationRetentionDays,
+        // "auto" in UI means null in DB (auto-detect)
+        dockerRuntime: dockerRuntime === "auto" ? null : dockerRuntime,
       },
       { onSuccess: onClose }
     );
@@ -524,6 +538,83 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                   <p className="mt-2 text-xs text-yellow-400">
                     Docker is required for sandbox mode. Install Docker to use this feature.
                   </p>
+                )}
+
+                {/* Docker Runtime Selection */}
+                {dockerStatus?.dockerAvailable && (
+                  <div className="mt-4">
+                    <label
+                      htmlFor="docker-runtime-select"
+                      className="block text-sm font-medium text-slate-400 mb-1"
+                    >
+                      Docker Runtime
+                    </label>
+                    <div className="relative">
+                      <select
+                        id="docker-runtime-select"
+                        value={dockerRuntime}
+                        onChange={(e) => setDockerRuntime(e.target.value as DockerRuntimeSetting)}
+                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      >
+                        {DOCKER_RUNTIME_TYPES.map((runtime) => (
+                          <option key={runtime} value={runtime}>
+                            {runtime === "auto"
+                              ? "Auto-detect (recommended)"
+                              : runtime === "docker-desktop"
+                                ? "Docker Desktop"
+                                : runtime.charAt(0).toUpperCase() + runtime.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        size={16}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                      />
+                    </div>
+
+                    {/* Show detected runtime status */}
+                    {dockerStatus.dockerRunning && (
+                      <div className="mt-2 flex items-center gap-2 text-xs" aria-live="polite">
+                        {dockerRuntime === "auto" ? (
+                          <>
+                            <CheckCircle size={14} className="text-green-400" />
+                            <span className="text-green-400">
+                              Detected: {dockerStatus.runtimeType || "Docker"}
+                            </span>
+                          </>
+                        ) : dockerStatus.runtimeType === dockerRuntime ? (
+                          <>
+                            <CheckCircle size={14} className="text-green-400" />
+                            <span className="text-green-400">Connected</span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertTriangle size={14} className="text-yellow-400" />
+                            <span className="text-yellow-400" role="alert">
+                              {dockerRuntime} not detected (using{" "}
+                              {dockerStatus.runtimeType || "default"})
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Show socket path */}
+                    {dockerStatus.dockerRunning && dockerStatus.socketPath && (
+                      <p className="mt-1 text-xs text-slate-500 font-mono truncate">
+                        Socket: {dockerStatus.socketPath}
+                      </p>
+                    )}
+
+                    <p className="mt-2 text-xs text-slate-500">
+                      Select which Docker runtime to use. Auto-detect works for most setups.
+                      {dockerStatus.runtimeType === "lima" && (
+                        <span className="block mt-1 text-purple-400">
+                          Lima detected - perfect for Docker Desktop alternatives!
+                        </span>
+                      )}
+                    </p>
+                  </div>
                 )}
 
                 {/* Session Timeout */}

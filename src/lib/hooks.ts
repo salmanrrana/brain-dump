@@ -952,6 +952,9 @@ export interface DockerStatus {
   dockerRunning: boolean;
   imageBuilt: boolean;
   imageTag: string;
+  // Runtime detection info (from docker-utils)
+  runtimeType: string | null; // 'lima' | 'colima' | 'rancher' | 'docker-desktop' | 'podman' | 'unknown'
+  socketPath: string | null; // Detected/configured socket path
 }
 
 // =============================================================================
