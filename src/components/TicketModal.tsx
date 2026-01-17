@@ -28,6 +28,9 @@ import {
   Database,
   ExternalLink,
   Code2,
+  GitBranch,
+  GitPullRequest,
+  Copy,
 } from "lucide-react";
 import type { Ticket, Epic } from "../lib/hooks";
 import {
@@ -50,7 +53,13 @@ import {
   deleteAttachment,
   type Attachment,
 } from "../api/attachments";
-import { STATUS_OPTIONS, PRIORITY_OPTIONS, POLLING_INTERVALS } from "../lib/constants";
+import {
+  STATUS_OPTIONS,
+  PRIORITY_OPTIONS,
+  POLLING_INTERVALS,
+  getPrStatusIconColor,
+  getPrStatusBadgeStyle,
+} from "../lib/constants";
 import { getTicketContext } from "../api/context";
 import { launchClaudeInTerminal, launchOpenCodeInTerminal } from "../api/terminal";
 import { safeJsonParse } from "../lib/utils";
@@ -445,7 +454,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     } finally {
       setIsStartingWork(false);
     }
-  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast]);
+  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification]);
 
   // Handle Start Ralph - autonomous mode
   const handleStartRalph = useCallback(async () => {
@@ -499,6 +508,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     settings?.ralphSandbox,
     launchRalphMutation,
     showToast,
+    setStartWorkNotification,
   ]);
 
   // Handle Start OpenCode - open-source AI assistant
@@ -577,7 +587,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     } finally {
       setIsStartingWork(false);
     }
-  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast]);
+  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification]);
 
   // Handle adding a comment
   const handleAddComment = useCallback(() => {
@@ -861,6 +871,65 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
               </div>
             </div>
           </div>
+
+          {/* Git/PR Info (read-only, populated by MCP tools) */}
+          {(ticket.branchName || ticket.prNumber) && (
+            <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 space-y-2">
+              <div className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+                Git / PR
+              </div>
+
+              {/* Branch name */}
+              {ticket.branchName && (
+                <div className="flex items-center gap-2">
+                  <GitBranch size={14} className="text-cyan-400 flex-shrink-0" />
+                  <code className="text-sm text-slate-200 bg-slate-700/50 px-2 py-0.5 rounded font-mono truncate flex-1">
+                    {ticket.branchName}
+                  </code>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigator.clipboard.writeText(ticket.branchName ?? "");
+                      showToast("success", "Branch copied!");
+                    }}
+                    className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-slate-200 transition-colors"
+                    title="Copy branch name"
+                  >
+                    <Copy size={14} />
+                  </button>
+                </div>
+              )}
+
+              {/* PR link */}
+              {ticket.prNumber && (
+                <div className="flex items-center gap-2">
+                  <GitPullRequest
+                    size={14}
+                    className={`flex-shrink-0 ${getPrStatusIconColor(ticket.prStatus)}`}
+                  />
+                  {ticket.prUrl ? (
+                    <a
+                      href={ticket.prUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      PR #{ticket.prNumber}
+                      <ExternalLink size={12} />
+                    </a>
+                  ) : (
+                    <span className="text-sm text-slate-200">PR #{ticket.prNumber}</span>
+                  )}
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded ${getPrStatusBadgeStyle(ticket.prStatus)}`}
+                  >
+                    {ticket.prStatus ?? "open"}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Blocked */}
           <div className="space-y-2">

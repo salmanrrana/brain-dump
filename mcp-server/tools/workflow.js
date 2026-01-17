@@ -201,7 +201,7 @@ Returns:
 
       const now = new Date().toISOString();
       try {
-        db.prepare("UPDATE tickets SET status = 'in_progress', updated_at = ? WHERE id = ?").run(now, ticketId);
+        db.prepare("UPDATE tickets SET status = 'in_progress', branch_name = ?, updated_at = ? WHERE id = ?").run(branchName, now, ticketId);
       } catch (dbErr) {
         log.error(`Failed to update ticket status: ${dbErr.message}`, { ticketId });
         // Attempt to clean up the branch we just created
@@ -230,7 +230,8 @@ Returns:
           if (subtasks.length > 0) {
             acceptanceCriteria = subtasks.map(s => s.title || s);
           }
-        } catch {
+        } catch (parseErr) {
+          log.warn(`Failed to parse subtasks for ticket ${ticketId}:`, parseErr);
           // Keep default criteria if parsing fails
         }
       }
@@ -311,6 +312,7 @@ Returns:
       }
 
       let commitsInfo = "", prDescription = "";
+      let changedFiles = [];
 
       if (existsSync(ticket.project_path)) {
         const gitCheck = runGitCommand("git rev-parse --git-dir", ticket.project_path);
@@ -331,6 +333,15 @@ Returns:
             commitsInfo = commitsResult.output;
             const commitLines = commitsInfo.split("\n").filter(l => l.trim());
             prDescription = `## Summary\n${summary || ticket.title}\n\n## Changes\n${commitLines.map(c => `- ${c.substring(c.indexOf(" ") + 1)}`).join("\n")}\n\n## Ticket\n- ID: ${shortId(ticketId)}\n- Title: ${ticket.title}\n`;
+          }
+
+          // Get list of changed files for code review guidance
+          const filesResult = runGitCommand(
+            `git diff ${baseBranch}..HEAD --name-only 2>/dev/null || git diff HEAD~5..HEAD --name-only 2>/dev/null`,
+            ticket.project_path
+          );
+          if (filesResult.success && filesResult.output) {
+            changedFiles = filesResult.output.split("\n").filter(f => f.trim());
           }
         }
       }
@@ -368,6 +379,7 @@ Returns:
 
       const environment = detectEnvironment();
       const contextResetGuidance = getContextResetGuidance(environment);
+      const codeReviewGuidance = getCodeReviewGuidance(environment, changedFiles);
 
       // Build response sections
       const sections = [
@@ -392,6 +404,9 @@ ${prdResult.success
 ${prDescription}
 \`\`\``);
       }
+
+      // Code review guidance
+      sections.push(codeReviewGuidance);
 
       // Next ticket suggestion
       const { nextTicket } = nextTicketSuggestion;
@@ -430,4 +445,61 @@ function getContextResetGuidance(environment) {
   };
   const instruction = resetInstructions[environment] || "Start a new conversation for the next task.";
   return `\n## Context Reset Required\n\nThis ticket has been completed. ${instruction}`;
+}
+
+/**
+ * Generate code review instructions based on the environment.
+ * @param {string} environment - The detected environment
+ * @param {string[]} changedFiles - List of files changed in the branch
+ * @returns {string} Markdown instructions for running code review
+ */
+function getCodeReviewGuidance(environment, changedFiles = []) {
+  const hasCodeChanges = changedFiles.some(file =>
+    /\.(ts|tsx|js|jsx|py|go|rs)$/.test(file) &&
+    !/\.(test|spec)\.(ts|tsx|js|jsx)$/.test(file) &&
+    !/node_modules|dist|build/.test(file)
+  );
+
+  if (!hasCodeChanges && changedFiles.length > 0) {
+    return `## Code Review
+
+No source code changes detected. Review may be skipped.`;
+  }
+
+  const reviewAgents = [
+    "**code-reviewer** - Checks code against project guidelines",
+    "**silent-failure-hunter** - Identifies error handling issues",
+    "**code-simplifier** - Simplifies and refines code",
+  ];
+
+  const environmentInstructions = {
+    "claude-code": `Run \`/review\` to launch the review pipeline, or use the Task tool to launch these agents in parallel:
+- \`pr-review-toolkit:code-reviewer\`
+- \`pr-review-toolkit:silent-failure-hunter\`
+- \`pr-review-toolkit:code-simplifier\``,
+    "vscode": `Use MCP tools to run these review agents:
+1. code-reviewer - Reviews against CLAUDE.md guidelines
+2. silent-failure-hunter - Checks error handling
+3. code-simplifier - Simplifies complex code
+
+These can be run via the MCP panel or by asking your AI assistant.`,
+    "opencode": `Run the review pipeline by asking your assistant to launch:
+- code-reviewer
+- silent-failure-hunter
+- code-simplifier`,
+  };
+
+  const instructions = environmentInstructions[environment] || environmentInstructions["vscode"];
+
+  return `## Code Review Recommended
+
+Before creating a PR, run the code review pipeline to catch issues early.
+
+### Review Agents:
+${reviewAgents.map(a => `- ${a}`).join("\n")}
+
+### How to Run:
+${instructions}
+
+${changedFiles.length > 0 ? `### Files to Review:\n${changedFiles.slice(0, 10).map(f => `- ${f}`).join("\n")}${changedFiles.length > 10 ? `\n- ... and ${changedFiles.length - 10} more` : ""}` : ""}`;
 }

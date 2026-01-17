@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdirSync, writeFileSync, rmSync, existsSync } from "fs";
+import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { randomUUID } from "crypto";
@@ -52,7 +52,7 @@ function getServices(projectPath: string): RalphServicesFile {
   }
 
   try {
-    const content = require("fs").readFileSync(servicesFile, "utf-8");
+    const content = readFileSync(servicesFile, "utf-8");
     const parsed = JSON.parse(content);
     if (!parsed || !Array.isArray(parsed.services)) {
       return { services: [], updatedAt: new Date().toISOString() };
@@ -180,9 +180,7 @@ describe("Service Discovery API", () => {
 
     it("should return true when there are running services", () => {
       const services: RalphServicesFile = {
-        services: [
-          { name: "frontend", type: "frontend", port: 8100, status: "running" },
-        ],
+        services: [{ name: "frontend", type: "frontend", port: 8100, status: "running" }],
         updatedAt: "2024-01-15",
       };
 

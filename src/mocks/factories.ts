@@ -72,6 +72,11 @@ export function createMockTicket(overrides: Partial<Ticket> = {}): Ticket {
     createdAt: overrides.createdAt ?? new Date().toISOString(),
     updatedAt: overrides.updatedAt ?? new Date().toISOString(),
     completedAt: overrides.completedAt ?? null,
+    // Git/PR tracking fields
+    branchName: overrides.branchName ?? null,
+    prNumber: overrides.prNumber ?? null,
+    prUrl: overrides.prUrl ?? null,
+    prStatus: overrides.prStatus ?? null,
   };
 }
 

@@ -148,6 +148,103 @@ export function runMigrations(db) {
   } catch (err) {
     log.error("Failed to check/add working_method column", err);
   }
+
+  // Add git/PR tracking columns to tickets table
+  try {
+    const ticketColumns = db.prepare("PRAGMA table_info(tickets)").all();
+    const ticketColumnNames = ticketColumns.map(c => c.name);
+
+    if (!ticketColumnNames.includes("branch_name")) {
+      db.prepare("ALTER TABLE tickets ADD COLUMN branch_name TEXT").run();
+      log.info("Added branch_name column to tickets table");
+    }
+    if (!ticketColumnNames.includes("pr_number")) {
+      db.prepare("ALTER TABLE tickets ADD COLUMN pr_number INTEGER").run();
+      log.info("Added pr_number column to tickets table");
+    }
+    if (!ticketColumnNames.includes("pr_url")) {
+      db.prepare("ALTER TABLE tickets ADD COLUMN pr_url TEXT").run();
+      log.info("Added pr_url column to tickets table");
+    }
+    if (!ticketColumnNames.includes("pr_status")) {
+      db.prepare("ALTER TABLE tickets ADD COLUMN pr_status TEXT").run();
+      log.info("Added pr_status column to tickets table");
+    }
+  } catch (err) {
+    log.error("Failed to check/add git/PR tracking columns", err);
+  }
+
+  // Create ralph_events table if it doesn't exist
+  try {
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ralph_events'").all();
+    if (tables.length === 0) {
+      db.prepare(`
+        CREATE TABLE ralph_events (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          type TEXT NOT NULL,
+          data TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+      `).run();
+      db.prepare("CREATE INDEX idx_ralph_events_session ON ralph_events(session_id)").run();
+      db.prepare("CREATE INDEX idx_ralph_events_created ON ralph_events(created_at)").run();
+      log.info("Created ralph_events table for real-time UI streaming");
+    }
+  } catch (err) {
+    log.error("Failed to create ralph_events table", err);
+  }
+
+  // Create ralph_sessions table if it doesn't exist (for state machine observability)
+  try {
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ralph_sessions'").all();
+    if (tables.length === 0) {
+      db.prepare(`
+        CREATE TABLE ralph_sessions (
+          id TEXT PRIMARY KEY,
+          ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+          current_state TEXT NOT NULL DEFAULT 'idle',
+          state_history TEXT,
+          outcome TEXT,
+          error_message TEXT,
+          started_at TEXT NOT NULL DEFAULT (datetime('now')),
+          completed_at TEXT
+        )
+      `).run();
+      db.prepare("CREATE INDEX idx_ralph_sessions_ticket ON ralph_sessions(ticket_id)").run();
+      db.prepare("CREATE INDEX idx_ralph_sessions_state ON ralph_sessions(current_state)").run();
+      log.info("Created ralph_sessions table for state machine observability");
+    } else {
+      // Add missing columns if table already exists (migration from older schema)
+      const columns = db.prepare("PRAGMA table_info(ralph_sessions)").all();
+      const columnNames = columns.map(c => c.name);
+
+      if (!columnNames.includes("current_state")) {
+        db.prepare("ALTER TABLE ralph_sessions ADD COLUMN current_state TEXT NOT NULL DEFAULT 'idle'").run();
+        log.info("Added current_state column to ralph_sessions table");
+      }
+      if (!columnNames.includes("state_history")) {
+        db.prepare("ALTER TABLE ralph_sessions ADD COLUMN state_history TEXT").run();
+        log.info("Added state_history column to ralph_sessions table");
+      }
+      if (!columnNames.includes("completed_at")) {
+        db.prepare("ALTER TABLE ralph_sessions ADD COLUMN completed_at TEXT").run();
+        log.info("Added completed_at column to ralph_sessions table");
+      }
+
+      // Create index on current_state if it doesn't exist
+      try {
+        db.prepare("CREATE INDEX IF NOT EXISTS idx_ralph_sessions_state ON ralph_sessions(current_state)").run();
+      } catch (err) {
+        // Index may already exist with a different name, or table structure differs
+        if (!err.message?.includes("already exists")) {
+          log.warn("Failed to create idx_ralph_sessions_state index", err);
+        }
+      }
+    }
+  } catch (err) {
+    log.error("Failed to create/migrate ralph_sessions table", err);
+  }
 }
 
 /**

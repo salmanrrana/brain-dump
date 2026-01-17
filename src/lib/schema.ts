@@ -58,6 +58,11 @@ export const tickets = sqliteTable(
       .notNull()
       .default(sql`(datetime('now'))`),
     completedAt: text("completed_at"),
+    // Git/PR tracking fields
+    branchName: text("branch_name"), // e.g., "feature/abc123-add-login"
+    prNumber: integer("pr_number"), // GitHub PR number
+    prUrl: text("pr_url"), // Full PR URL
+    prStatus: text("pr_status"), // 'draft' | 'open' | 'merged' | 'closed'
   },
   (table) => [
     index("idx_tickets_project").on(table.projectId),
@@ -117,3 +122,88 @@ export type NewSettings = typeof settings.$inferInsert;
 
 export type TicketComment = typeof ticketComments.$inferSelect;
 export type NewTicketComment = typeof ticketComments.$inferInsert;
+
+// Ralph events table (for real-time UI streaming)
+export const ralphEvents = sqliteTable(
+  "ralph_events",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id").notNull(), // Links to a Ralph session (ticket ID or custom session)
+    type: text("type").notNull(), // 'thinking', 'tool_start', 'tool_end', 'file_change', 'progress', 'state_change', 'error'
+    data: text("data"), // JSON object with event-specific data
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    index("idx_ralph_events_session").on(table.sessionId),
+    index("idx_ralph_events_created").on(table.createdAt),
+  ]
+);
+
+export type RalphEvent = typeof ralphEvents.$inferSelect;
+export type NewRalphEvent = typeof ralphEvents.$inferInsert;
+
+// Ralph event types
+export type RalphEventType =
+  | "thinking" // Claude is processing
+  | "tool_start" // About to call a tool
+  | "tool_end" // Tool call completed
+  | "file_change" // File was modified
+  | "progress" // General progress update
+  | "state_change" // Session state transition
+  | "error"; // Error occurred
+
+// Ralph event data interface
+export interface RalphEventData {
+  message?: string;
+  tool?: string;
+  file?: string;
+  state?: string;
+  error?: string;
+  success?: boolean;
+  [key: string]: unknown;
+}
+
+// Ralph sessions table (for state machine observability)
+export const ralphSessions = sqliteTable(
+  "ralph_sessions",
+  {
+    id: text("id").primaryKey(),
+    ticketId: text("ticket_id")
+      .notNull()
+      .references(() => tickets.id, { onDelete: "cascade" }),
+    currentState: text("current_state").notNull().default("idle"), // 'idle', 'analyzing', 'implementing', 'testing', 'committing', 'reviewing', 'done'
+    stateHistory: text("state_history"), // JSON array of {state, timestamp, metadata}
+    outcome: text("outcome"), // 'success', 'failure', 'timeout', 'cancelled', null while in progress
+    errorMessage: text("error_message"), // Error details if outcome is 'failure'
+    startedAt: text("started_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    completedAt: text("completed_at"),
+  },
+  (table) => [
+    index("idx_ralph_sessions_ticket").on(table.ticketId),
+    index("idx_ralph_sessions_state").on(table.currentState),
+  ]
+);
+
+export type RalphSession = typeof ralphSessions.$inferSelect;
+export type NewRalphSession = typeof ralphSessions.$inferInsert;
+
+// Ralph session states
+export type RalphSessionState =
+  | "idle" // Session created but work not started
+  | "analyzing" // Reading specs, understanding requirements
+  | "implementing" // Writing/editing code
+  | "testing" // Running tests, verifying behavior
+  | "committing" // Creating git commits
+  | "reviewing" // Self-review before completing
+  | "done"; // Session completed
+
+// State history entry interface
+export interface StateHistoryEntry {
+  state: RalphSessionState;
+  timestamp: string;
+  metadata?: Record<string, unknown>;
+}

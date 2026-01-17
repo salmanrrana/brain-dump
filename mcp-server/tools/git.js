@@ -57,7 +57,12 @@ Returns:
 
       let linkedCommits = [];
       if (ticket.linked_commits) {
-        try { linkedCommits = JSON.parse(ticket.linked_commits); } catch { linkedCommits = []; }
+        try {
+          linkedCommits = JSON.parse(ticket.linked_commits);
+        } catch (parseErr) {
+          log.warn(`Failed to parse linked_commits for ticket ${ticketId}:`, parseErr);
+          linkedCommits = [];
+        }
       }
 
       const alreadyLinked = linkedCommits.some(c => c.hash === commitHash || c.hash.startsWith(commitHash) || commitHash.startsWith(c.hash));
@@ -78,6 +83,81 @@ Returns:
         content: [{
           type: "text",
           text: `Commit linked to ticket "${ticket.title}"!\n\nCommit: ${commitHash}\nMessage: ${commitMessage || "(no message)"}\n\nAll linked commits (${linkedCommits.length}):\n${linkedCommits.map(c => `- ${shortId(c.hash)}: ${c.message || "(no message)"}`).join("\n")}`,
+        }],
+      };
+    }
+  );
+
+  // Link PR to ticket
+  server.tool(
+    "link_pr_to_ticket",
+    `Link a GitHub PR to a ticket for status tracking.
+
+Associates a pull request with a ticket so the UI can display PR status.
+Call this after creating a PR with 'gh pr create'.
+
+Args:
+  ticketId: The ticket ID to link the PR to
+  prNumber: The GitHub PR number
+  prUrl: Optional full PR URL (auto-generated if not provided)
+  prStatus: Optional status ('draft', 'open', 'merged', 'closed') - defaults to 'open'
+
+Returns:
+  Updated ticket with PR information.`,
+    {
+      ticketId: z.string().describe("Ticket ID to link the PR to"),
+      prNumber: z.number().int().describe("GitHub PR number"),
+      prUrl: z.string().optional().describe("Full PR URL (optional, will be auto-generated if in git repo)"),
+      prStatus: z.enum(["draft", "open", "merged", "closed"]).optional().describe("PR status (default: 'open')"),
+    },
+    async ({ ticketId, prNumber, prUrl, prStatus }) => {
+      const ticket = db.prepare(`
+        SELECT t.*, p.name as project_name, p.path as project_path
+        FROM tickets t JOIN projects p ON t.project_id = p.id WHERE t.id = ?
+      `).get(ticketId);
+
+      if (!ticket) {
+        return { content: [{ type: "text", text: `Ticket not found: ${ticketId}` }], isError: true };
+      }
+
+      // Try to auto-detect PR URL if not provided
+      let finalPrUrl = prUrl;
+      if (!finalPrUrl && existsSync(ticket.project_path)) {
+        const remoteResult = runGitCommand("git remote get-url origin 2>/dev/null", ticket.project_path);
+        if (remoteResult.success && remoteResult.output) {
+          const remote = remoteResult.output.trim();
+          // Parse GitHub URL (supports both SSH and HTTPS formats)
+          const match = remote.match(/github\.com[:/](.+?)(?:\.git)?$/);
+          if (match) {
+            const repoPath = match[1].replace(/\.git$/, "");
+            finalPrUrl = `https://github.com/${repoPath}/pull/${prNumber}`;
+          }
+        }
+      }
+
+      const finalStatus = prStatus || "open";
+      const now = new Date().toISOString();
+
+      try {
+        db.prepare(
+          "UPDATE tickets SET pr_number = ?, pr_url = ?, pr_status = ?, updated_at = ? WHERE id = ?"
+        ).run(prNumber, finalPrUrl || null, finalStatus, now, ticketId);
+      } catch (dbErr) {
+        log.error(`Failed to update ticket with PR info: ${dbErr.message}`, { ticketId });
+        return { content: [{ type: "text", text: `Failed to link PR: ${dbErr.message}` }], isError: true };
+      }
+
+      log.info(`Linked PR #${prNumber} (${finalStatus}) to ticket ${ticketId}`);
+
+      return {
+        content: [{
+          type: "text",
+          text: `PR linked to ticket "${ticket.title}"!
+
+**PR #${prNumber}** - ${finalStatus}
+${finalPrUrl ? `**URL:** ${finalPrUrl}` : "(URL not available)"}
+
+The PR status will be displayed on the ticket in the Brain Dump UI.`,
         }],
       };
     }

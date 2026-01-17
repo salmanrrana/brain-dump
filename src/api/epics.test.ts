@@ -49,7 +49,7 @@ describe("Epics API Logic", () => {
         subtasks TEXT,
         is_blocked INTEGER DEFAULT 0,
         blocked_reason TEXT,
-        linked_files TEXT,
+        linked_files TEXT, branch_name TEXT, pr_number INTEGER, pr_url TEXT, pr_status TEXT,
         attachments TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -158,11 +158,7 @@ describe("Epics API Logic", () => {
         })
         .run();
 
-      const result = db
-        .select()
-        .from(schema.epics)
-        .where(eq(schema.epics.id, epicId))
-        .get();
+      const result = db.select().from(schema.epics).where(eq(schema.epics.id, epicId)).get();
       expect(result).toBeDefined();
       expect(result?.title).toBe("Test Epic");
       expect(result?.description).toBe("A test epic");
@@ -193,11 +189,7 @@ describe("Epics API Logic", () => {
         })
         .run();
 
-      const result = db
-        .select()
-        .from(schema.epics)
-        .where(eq(schema.epics.id, epicId))
-        .get();
+      const result = db.select().from(schema.epics).where(eq(schema.epics.id, epicId)).get();
       expect(result).toBeDefined();
       expect(result?.title).toBe("New Epic");
       expect(result?.description).toBe("Epic description");
@@ -217,11 +209,7 @@ describe("Epics API Logic", () => {
         })
         .run();
 
-      const result = db
-        .select()
-        .from(schema.epics)
-        .where(eq(schema.epics.id, epicId))
-        .get();
+      const result = db.select().from(schema.epics).where(eq(schema.epics.id, epicId)).get();
       expect(result).toBeDefined();
       expect(result?.title).toBe("Minimal Epic");
       expect(result?.description).toBeNull();
@@ -261,11 +249,7 @@ describe("Epics API Logic", () => {
         .where(eq(schema.epics.id, epicId))
         .run();
 
-      const result = db
-        .select()
-        .from(schema.epics)
-        .where(eq(schema.epics.id, epicId))
-        .get();
+      const result = db.select().from(schema.epics).where(eq(schema.epics.id, epicId)).get();
       expect(result?.title).toBe("Updated Title");
     });
 
@@ -286,11 +270,7 @@ describe("Epics API Logic", () => {
         .where(eq(schema.epics.id, epicId))
         .run();
 
-      const result = db
-        .select()
-        .from(schema.epics)
-        .where(eq(schema.epics.id, epicId))
-        .get();
+      const result = db.select().from(schema.epics).where(eq(schema.epics.id, epicId)).get();
       expect(result?.description).toBe("New description");
     });
 
@@ -306,16 +286,9 @@ describe("Epics API Logic", () => {
         })
         .run();
 
-      db.update(schema.epics)
-        .set({ color: "#00ff00" })
-        .where(eq(schema.epics.id, epicId))
-        .run();
+      db.update(schema.epics).set({ color: "#00ff00" }).where(eq(schema.epics.id, epicId)).run();
 
-      const result = db
-        .select()
-        .from(schema.epics)
-        .where(eq(schema.epics.id, epicId))
-        .get();
+      const result = db.select().from(schema.epics).where(eq(schema.epics.id, epicId)).get();
       expect(result?.color).toBe("#00ff00");
     });
   });
@@ -335,11 +308,7 @@ describe("Epics API Logic", () => {
 
       db.delete(schema.epics).where(eq(schema.epics.id, epicId)).run();
 
-      const result = db
-        .select()
-        .from(schema.epics)
-        .where(eq(schema.epics.id, epicId))
-        .get();
+      const result = db.select().from(schema.epics).where(eq(schema.epics.id, epicId)).get();
       expect(result).toBeUndefined();
     });
 
@@ -368,11 +337,7 @@ describe("Epics API Logic", () => {
 
       db.delete(schema.epics).where(eq(schema.epics.id, epicId)).run();
 
-      const ticket = db
-        .select()
-        .from(schema.tickets)
-        .where(eq(schema.tickets.id, ticketId))
-        .get();
+      const ticket = db.select().from(schema.tickets).where(eq(schema.tickets.id, ticketId)).get();
       expect(ticket).toBeDefined();
       expect(ticket?.epicId).toBeNull();
     });
@@ -393,11 +358,7 @@ describe("Epics API Logic", () => {
 
       db.delete(schema.projects).where(eq(schema.projects.id, projectId)).run();
 
-      const epic = db
-        .select()
-        .from(schema.epics)
-        .where(eq(schema.epics.id, epicId))
-        .get();
+      const epic = db.select().from(schema.epics).where(eq(schema.epics.id, epicId)).get();
       expect(epic).toBeUndefined();
     });
   });

@@ -20,7 +20,11 @@ function validatePath(inputPath: string): string {
   }
 
   // Check for obviously malicious patterns
-  if (inputPath.includes("..") && (inputPath.includes("../..") || inputPath.match(/\.\.[\\/]/g)?.length! > 3)) {
+  const parentDirMatches = inputPath.match(/\.\.[\\/]/g);
+  if (
+    inputPath.includes("..") &&
+    (inputPath.includes("../..") || (parentDirMatches && parentDirMatches.length > 3))
+  ) {
     throw new Error("Invalid path: excessive parent directory traversal");
   }
 
@@ -62,8 +66,9 @@ export const listDirectory = createServerFn({ method: "GET" })
     // Resolve symlinks to get the real path
     try {
       resolvedPath = await realpath(resolvedPath);
-    } catch {
-      // If realpath fails, continue with the resolved path
+    } catch (error) {
+      console.warn(`[Filesystem] realpath failed for ${resolvedPath}:`, error);
+      // Continue with the resolved path
     }
 
     // Validate the resolved path as well
@@ -91,8 +96,9 @@ export const listDirectory = createServerFn({ method: "GET" })
               isDirectory: true,
             });
           }
-        } catch {
-          // Skip items we can't access
+        } catch (error) {
+          // Skip items we can't access (e.g., permission denied)
+          console.debug?.(`[Filesystem] Cannot stat ${itemPath}:`, error);
         }
       }
 

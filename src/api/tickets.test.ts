@@ -49,7 +49,7 @@ describe("Tickets API Logic", () => {
         subtasks TEXT,
         is_blocked INTEGER DEFAULT 0,
         blocked_reason TEXT,
-        linked_files TEXT,
+        linked_files TEXT, branch_name TEXT, pr_number INTEGER, pr_url TEXT, pr_status TEXT,
         attachments TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -152,12 +152,7 @@ describe("Tickets API Logic", () => {
       const result = db
         .select()
         .from(schema.tickets)
-        .where(
-          and(
-            eq(schema.tickets.projectId, projectId),
-            eq(schema.tickets.status, "backlog")
-          )
-        )
+        .where(and(eq(schema.tickets.projectId, projectId), eq(schema.tickets.status, "backlog")))
         .all();
       expect(result).toHaveLength(1);
       expect(result[0]?.title).toBe("Backlog");
@@ -211,11 +206,7 @@ describe("Tickets API Logic", () => {
         })
         .run();
 
-      const result = db
-        .select()
-        .from(schema.tickets)
-        .where(eq(schema.tickets.id, ticketId))
-        .get();
+      const result = db.select().from(schema.tickets).where(eq(schema.tickets.id, ticketId)).get();
       expect(result).toBeDefined();
       expect(result?.title).toBe("Test Ticket");
       expect(result?.priority).toBe("high");
@@ -245,11 +236,7 @@ describe("Tickets API Logic", () => {
         })
         .run();
 
-      const result = db
-        .select()
-        .from(schema.tickets)
-        .where(eq(schema.tickets.id, ticketId))
-        .get();
+      const result = db.select().from(schema.tickets).where(eq(schema.tickets.id, ticketId)).get();
       expect(result).toBeDefined();
       expect(result?.title).toBe("New Ticket");
       expect(result?.status).toBe("backlog");
@@ -273,11 +260,7 @@ describe("Tickets API Logic", () => {
         })
         .run();
 
-      const result = db
-        .select()
-        .from(schema.tickets)
-        .where(eq(schema.tickets.id, ticketId))
-        .get();
+      const result = db.select().from(schema.tickets).where(eq(schema.tickets.id, ticketId)).get();
       expect(result).toBeDefined();
       expect(result?.title).toBe("Full Ticket");
       expect(result?.description).toBe("A detailed description");
@@ -321,11 +304,7 @@ describe("Tickets API Logic", () => {
         .where(eq(schema.tickets.id, ticketId))
         .run();
 
-      const result = db
-        .select()
-        .from(schema.tickets)
-        .where(eq(schema.tickets.id, ticketId))
-        .get();
+      const result = db.select().from(schema.tickets).where(eq(schema.tickets.id, ticketId)).get();
       expect(result?.title).toBe("Updated Title");
     });
 
@@ -347,11 +326,7 @@ describe("Tickets API Logic", () => {
         .where(eq(schema.tickets.id, ticketId))
         .run();
 
-      const result = db
-        .select()
-        .from(schema.tickets)
-        .where(eq(schema.tickets.id, ticketId))
-        .get();
+      const result = db.select().from(schema.tickets).where(eq(schema.tickets.id, ticketId)).get();
       expect(result?.status).toBe("in_progress");
     });
 
@@ -378,11 +353,7 @@ describe("Tickets API Logic", () => {
         .where(eq(schema.tickets.id, ticketId))
         .run();
 
-      const result = db
-        .select()
-        .from(schema.tickets)
-        .where(eq(schema.tickets.id, ticketId))
-        .get();
+      const result = db.select().from(schema.tickets).where(eq(schema.tickets.id, ticketId)).get();
       expect(JSON.parse(result?.subtasks ?? "[]")).toEqual(subtasks);
     });
 
@@ -404,11 +375,7 @@ describe("Tickets API Logic", () => {
         .where(eq(schema.tickets.id, ticketId))
         .run();
 
-      const result = db
-        .select()
-        .from(schema.tickets)
-        .where(eq(schema.tickets.id, ticketId))
-        .get();
+      const result = db.select().from(schema.tickets).where(eq(schema.tickets.id, ticketId)).get();
       expect(result?.isBlocked).toBe(true);
       expect(result?.blockedReason).toBe("Waiting for design");
     });
@@ -434,11 +401,7 @@ describe("Tickets API Logic", () => {
         .where(eq(schema.tickets.id, ticketId))
         .run();
 
-      const result = db
-        .select()
-        .from(schema.tickets)
-        .where(eq(schema.tickets.id, ticketId))
-        .get();
+      const result = db.select().from(schema.tickets).where(eq(schema.tickets.id, ticketId)).get();
       expect(result?.status).toBe("review");
       expect(result?.title).toBe("Ticket");
       expect(result?.description).toBe("Description");
@@ -463,11 +426,7 @@ describe("Tickets API Logic", () => {
         .where(eq(schema.tickets.id, ticketId))
         .run();
 
-      const result = db
-        .select()
-        .from(schema.tickets)
-        .where(eq(schema.tickets.id, ticketId))
-        .get();
+      const result = db.select().from(schema.tickets).where(eq(schema.tickets.id, ticketId)).get();
       expect(result?.status).toBe("done");
       expect(result?.completedAt).toBeDefined();
     });
@@ -487,16 +446,9 @@ describe("Tickets API Logic", () => {
         })
         .run();
 
-      db.update(schema.tickets)
-        .set({ position: 5.5 })
-        .where(eq(schema.tickets.id, ticketId))
-        .run();
+      db.update(schema.tickets).set({ position: 5.5 }).where(eq(schema.tickets.id, ticketId)).run();
 
-      const result = db
-        .select()
-        .from(schema.tickets)
-        .where(eq(schema.tickets.id, ticketId))
-        .get();
+      const result = db.select().from(schema.tickets).where(eq(schema.tickets.id, ticketId)).get();
       expect(result?.position).toBe(5.5);
     });
 
@@ -541,11 +493,7 @@ describe("Tickets API Logic", () => {
 
       db.delete(schema.tickets).where(eq(schema.tickets.id, ticketId)).run();
 
-      const result = db
-        .select()
-        .from(schema.tickets)
-        .where(eq(schema.tickets.id, ticketId))
-        .get();
+      const result = db.select().from(schema.tickets).where(eq(schema.tickets.id, ticketId)).get();
       expect(result).toBeUndefined();
     });
   });
@@ -566,11 +514,7 @@ describe("Tickets API Logic", () => {
 
       db.delete(schema.projects).where(eq(schema.projects.id, projectId)).run();
 
-      const ticket = db
-        .select()
-        .from(schema.tickets)
-        .where(eq(schema.tickets.id, ticketId))
-        .get();
+      const ticket = db.select().from(schema.tickets).where(eq(schema.tickets.id, ticketId)).get();
       expect(ticket).toBeUndefined();
     });
 
@@ -591,11 +535,7 @@ describe("Tickets API Logic", () => {
 
       db.delete(schema.epics).where(eq(schema.epics.id, epicId)).run();
 
-      const ticket = db
-        .select()
-        .from(schema.tickets)
-        .where(eq(schema.tickets.id, ticketId))
-        .get();
+      const ticket = db.select().from(schema.tickets).where(eq(schema.tickets.id, ticketId)).get();
       expect(ticket).toBeDefined();
       expect(ticket?.epicId).toBeNull();
     });

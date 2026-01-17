@@ -8,7 +8,7 @@ import { randomUUID } from "crypto";
 /**
  * FTS5 Search Tests - Testing User Behavior
  * Following Kent C. Dodds methodology: testing what users actually do
- * 
+ *
  * User workflows tested:
  * 1. User searches for tickets by typing in search box
  * 2. User expects to find tickets by title, description, tags, and subtasks
@@ -59,7 +59,7 @@ describe("FTS5 Search - User Experience", () => {
         subtasks TEXT,
         is_blocked INTEGER DEFAULT 0,
         blocked_reason TEXT,
-        linked_files TEXT,
+        linked_files TEXT, branch_name TEXT, pr_number INTEGER, pr_url TEXT, pr_status TEXT,
         attachments TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -177,7 +177,7 @@ describe("FTS5 Search - User Experience", () => {
 
       const stmt = sqlite.prepare(sql);
       return stmt.all(...params) as SearchResult[];
-    } catch (error) {
+    } catch {
       // Fallback to LIKE search
       let sql = `
         SELECT
@@ -219,27 +219,29 @@ describe("FTS5 Search - User Experience", () => {
       // Given: User has created tickets with specific titles
       const authTicketId = randomUUID();
       const loginTicketId = randomUUID();
-      
-      db.insert(schema.tickets).values([
-        {
-          id: authTicketId,
-          title: "Implement user authentication",
-          projectId,
-          position: 1,
-        },
-        {
-          id: loginTicketId,
-          title: "Create login form",
-          projectId,
-          position: 2,
-        },
-        {
-          id: randomUUID(),
-          title: "Setup database",
-          projectId,
-          position: 3,
-        }
-      ]).run();
+
+      db.insert(schema.tickets)
+        .values([
+          {
+            id: authTicketId,
+            title: "Implement user authentication",
+            projectId,
+            position: 1,
+          },
+          {
+            id: loginTicketId,
+            title: "Create login form",
+            projectId,
+            position: 2,
+          },
+          {
+            id: randomUUID(),
+            title: "Setup database",
+            projectId,
+            position: 3,
+          },
+        ])
+        .run();
 
       // When: User searches for "auth"
       const results = searchTicketsDirectly("auth", projectId);
@@ -255,23 +257,25 @@ describe("FTS5 Search - User Experience", () => {
     it("should find tickets by description content", () => {
       // Given: Tickets with specific description content
       const reactTicketId = randomUUID();
-      
-      db.insert(schema.tickets).values([
-        {
-          id: reactTicketId,
-          title: "Frontend work",
-          description: "Build the user interface using React and Tailwind CSS",
-          projectId,
-          position: 1,
-        },
-        {
-          id: randomUUID(),
-          title: "Backend API",
-          description: "Create REST API endpoints",
-          projectId,
-          position: 2,
-        }
-      ]).run();
+
+      db.insert(schema.tickets)
+        .values([
+          {
+            id: reactTicketId,
+            title: "Frontend work",
+            description: "Build the user interface using React and Tailwind CSS",
+            projectId,
+            position: 1,
+          },
+          {
+            id: randomUUID(),
+            title: "Backend API",
+            description: "Create REST API endpoints",
+            projectId,
+            position: 2,
+          },
+        ])
+        .run();
 
       // When: User searches for "React"
       const results = searchTicketsDirectly("React", projectId);
@@ -287,23 +291,25 @@ describe("FTS5 Search - User Experience", () => {
     it("should find tickets by tags", () => {
       // Given: Tickets with specific tags
       const frontendTicketId = randomUUID();
-      
-      db.insert(schema.tickets).values([
-        {
-          id: frontendTicketId,
-          title: "Build component library",
-          tags: JSON.stringify(["frontend", "react", "components"]),
-          projectId,
-          position: 1,
-        },
-        {
-          id: randomUUID(),
-          title: "Setup database",
-          tags: JSON.stringify(["backend", "database"]),
-          projectId,
-          position: 2,
-        }
-      ]).run();
+
+      db.insert(schema.tickets)
+        .values([
+          {
+            id: frontendTicketId,
+            title: "Build component library",
+            tags: JSON.stringify(["frontend", "react", "components"]),
+            projectId,
+            position: 1,
+          },
+          {
+            id: randomUUID(),
+            title: "Setup database",
+            tags: JSON.stringify(["backend", "database"]),
+            projectId,
+            position: 2,
+          },
+        ])
+        .run();
 
       // When: User searches for "frontend"
       const results = searchTicketsDirectly("frontend", projectId);
@@ -319,19 +325,21 @@ describe("FTS5 Search - User Experience", () => {
     it("should find tickets by subtask content", () => {
       // Given: Tickets with specific subtasks
       const setupTicketId = randomUUID();
-      
-      db.insert(schema.tickets).values([
-        {
-          id: setupTicketId,
-          title: "Project setup",
-          subtasks: JSON.stringify([
-            { id: randomUUID(), text: "Install Docker", completed: false },
-            { id: randomUUID(), text: "Configure TypeScript", completed: true }
-          ]),
-          projectId,
-          position: 1,
-        }
-      ]).run();
+
+      db.insert(schema.tickets)
+        .values([
+          {
+            id: setupTicketId,
+            title: "Project setup",
+            subtasks: JSON.stringify([
+              { id: randomUUID(), text: "Install Docker", completed: false },
+              { id: randomUUID(), text: "Configure TypeScript", completed: true },
+            ]),
+            projectId,
+            position: 1,
+          },
+        ])
+        .run();
 
       // When: User searches for "Docker"
       const results = searchTicketsDirectly("Docker", projectId);
@@ -347,16 +355,18 @@ describe("FTS5 Search - User Experience", () => {
     it("should return search results with highlighted snippets", () => {
       // Given: A ticket with searchable content
       const ticketId = randomUUID();
-      
-      db.insert(schema.tickets).values([
-        {
-          id: ticketId,
-          title: "Authentication system",
-          description: "Implement OAuth2 authentication with JWT tokens for secure user login",
-          projectId,
-          position: 1,
-        }
-      ]).run();
+
+      db.insert(schema.tickets)
+        .values([
+          {
+            id: ticketId,
+            title: "Authentication system",
+            description: "Implement OAuth2 authentication with JWT tokens for secure user login",
+            projectId,
+            position: 1,
+          },
+        ])
+        .run();
 
       // When: User searches for "OAuth2"
       const results = searchTicketsDirectly("OAuth2", projectId);
@@ -369,16 +379,18 @@ describe("FTS5 Search - User Experience", () => {
     it("should work immediately after creating new tickets", () => {
       // Given: User creates a new ticket
       const newTicketId = randomUUID();
-      
-      db.insert(schema.tickets).values([
-        {
-          id: newTicketId,
-          title: "Brand new feature",
-          description: "Just created this ticket",
-          projectId,
-          position: 1,
-        }
-      ]).run();
+
+      db.insert(schema.tickets)
+        .values([
+          {
+            id: newTicketId,
+            title: "Brand new feature",
+            description: "Just created this ticket",
+            projectId,
+            position: 1,
+          },
+        ])
+        .run();
 
       // When: User immediately searches for the new content
       const results = searchTicketsDirectly("brand new", projectId);
@@ -394,22 +406,24 @@ describe("FTS5 Search - User Experience", () => {
     it("should work correctly after updating tickets", () => {
       // Given: User has an existing ticket
       const ticketId = randomUUID();
-      
-      db.insert(schema.tickets).values([
-        {
-          id: ticketId,
-          title: "Original title",
-          description: "Original description",
-          projectId,
-          position: 1,
-        }
-      ]).run();
+
+      db.insert(schema.tickets)
+        .values([
+          {
+            id: ticketId,
+            title: "Original title",
+            description: "Original description",
+            projectId,
+            position: 1,
+          },
+        ])
+        .run();
 
       // When: User updates the ticket
       db.update(schema.tickets)
         .set({
           title: "Updated title with special keywords",
-          description: "Updated description content"
+          description: "Updated description content",
         })
         .where(eq(schema.tickets.id, ticketId))
         .run();
@@ -429,26 +443,26 @@ describe("FTS5 Search - User Experience", () => {
       // Given: User has tickets
       const keepTicketId = randomUUID();
       const deleteTicketId = randomUUID();
-      
-      db.insert(schema.tickets).values([
-        {
-          id: keepTicketId,
-          title: "Keep this ticket",
-          projectId,
-          position: 1,
-        },
-        {
-          id: deleteTicketId,
-          title: "Delete this ticket",
-          projectId,
-          position: 2,
-        }
-      ]).run();
+
+      db.insert(schema.tickets)
+        .values([
+          {
+            id: keepTicketId,
+            title: "Keep this ticket",
+            projectId,
+            position: 1,
+          },
+          {
+            id: deleteTicketId,
+            title: "Delete this ticket",
+            projectId,
+            position: 2,
+          },
+        ])
+        .run();
 
       // When: User deletes a ticket
-      db.delete(schema.tickets)
-        .where(eq(schema.tickets.id, deleteTicketId))
-        .run();
+      db.delete(schema.tickets).where(eq(schema.tickets.id, deleteTicketId)).run();
 
       // And: User searches for content from deleted ticket
       const results = searchTicketsDirectly("delete", projectId);
@@ -468,16 +482,18 @@ describe("FTS5 Search - User Experience", () => {
     it("should handle special characters in search without breaking", () => {
       // Given: Tickets exist
       const ticketId = randomUUID();
-      
-      db.insert(schema.tickets).values([
-        {
-          id: ticketId,
-          title: "API endpoints",
-          description: "Create /api/users endpoint",
-          projectId,
-          position: 1,
-        }
-      ]).run();
+
+      db.insert(schema.tickets)
+        .values([
+          {
+            id: ticketId,
+            title: "API endpoints",
+            description: "Create /api/users endpoint",
+            projectId,
+            position: 1,
+          },
+        ])
+        .run();
 
       // When: User searches with special characters
       const results = searchTicketsDirectly("/api/", projectId);
@@ -493,30 +509,34 @@ describe("FTS5 Search - User Experience", () => {
     it("should filter results by project when specified", () => {
       // Given: Tickets in different projects
       const otherProjectId = randomUUID();
-      
-      db.insert(schema.projects).values({
-        id: otherProjectId,
-        name: "Other Project",
-        path: `/tmp/other-${otherProjectId}`,
-      }).run();
+
+      db.insert(schema.projects)
+        .values({
+          id: otherProjectId,
+          name: "Other Project",
+          path: `/tmp/other-${otherProjectId}`,
+        })
+        .run();
 
       const thisProjectTicketId = randomUUID();
       const otherProjectTicketId = randomUUID();
-      
-      db.insert(schema.tickets).values([
-        {
-          id: thisProjectTicketId,
-          title: "Authentication in this project",
-          projectId,
-          position: 1,
-        },
-        {
-          id: otherProjectTicketId,
-          title: "Authentication in other project",
-          projectId: otherProjectId,
-          position: 1,
-        }
-      ]).run();
+
+      db.insert(schema.tickets)
+        .values([
+          {
+            id: thisProjectTicketId,
+            title: "Authentication in this project",
+            projectId,
+            position: 1,
+          },
+          {
+            id: otherProjectTicketId,
+            title: "Authentication in other project",
+            projectId: otherProjectId,
+            position: 1,
+          },
+        ])
+        .run();
 
       // When: User searches within a specific project
       const results = searchTicketsDirectly("authentication", projectId);
@@ -540,7 +560,7 @@ describe("FTS5 Search - User Experience", () => {
         projectId,
         position: i + 1,
       }));
-      
+
       db.insert(schema.tickets).values(ticketsData).run();
 
       // When: User searches
@@ -557,27 +577,35 @@ describe("FTS5 Search - User Experience", () => {
       // This tests our race condition fix
       // Given: Some tickets exist
       const ticketId = randomUUID();
-      
-      db.insert(schema.tickets).values([
-        {
-          id: ticketId,
-          title: "Test idempotency",
-          projectId,
-          position: 1,
-        }
-      ]).run();
+
+      db.insert(schema.tickets)
+        .values([
+          {
+            id: ticketId,
+            title: "Test idempotency",
+            projectId,
+            position: 1,
+          },
+        ])
+        .run();
 
       // When: We simulate our migration logic (only populate if FTS table is empty)
-      const ftsEmpty = sqlite.prepare("SELECT COUNT(*) as count FROM tickets_fts").get() as { count: number };
-      
+      const ftsEmpty = sqlite.prepare("SELECT COUNT(*) as count FROM tickets_fts").get() as {
+        count: number;
+      };
+
       if (ftsEmpty.count === 0) {
         // This is what our fixed migration does
-        sqlite.prepare(`
+        sqlite
+          .prepare(
+            `
           INSERT INTO tickets_fts(rowid, title, description, tags, subtasks)
           SELECT rowid, title, COALESCE(description, ''), COALESCE(tags, ''), COALESCE(subtasks, '')
           FROM tickets
           WHERE NOT EXISTS (SELECT 1 FROM tickets_fts LIMIT 1)
-        `).run();
+        `
+          )
+          .run();
       }
 
       // Then: Search should work correctly

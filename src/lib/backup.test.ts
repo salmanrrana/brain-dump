@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { existsSync, rmSync, mkdirSync, writeFileSync } from "fs";
+import { existsSync, rmSync, mkdirSync, writeFileSync, utimesSync } from "fs";
 import { join } from "path";
 import Database from "better-sqlite3";
 import {
@@ -83,7 +83,7 @@ describe("Backup Utilities", () => {
       // Set the file's mtime to yesterday
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
-      require("fs").utimesSync(markerPath, yesterday, yesterday);
+      utimesSync(markerPath, yesterday, yesterday);
 
       expect(wasBackupCreatedToday()).toBe(false);
     });
@@ -114,7 +114,7 @@ describe("Backup Utilities", () => {
     it("should return false for truncated database", () => {
       // Write an incomplete SQLite header (truncated at a random point)
       const dbPath = join(testBase, "truncated.db");
-      writeFileSync(dbPath, "SQLite format 3\0");  // Partial header
+      writeFileSync(dbPath, "SQLite format 3\0"); // Partial header
 
       expect(verifyBackup(dbPath)).toBe(false);
     });
@@ -202,7 +202,9 @@ describe("Backup Utilities", () => {
 
       // Verify backup content
       const backupDb = new Database(backupPath, { readonly: true });
-      const row = backupDb.prepare("SELECT * FROM tickets WHERE id = '1'").get() as { title: string };
+      const row = backupDb.prepare("SELECT * FROM tickets WHERE id = '1'").get() as {
+        title: string;
+      };
       expect(row.title).toBe("Test Ticket");
       backupDb.close();
     });
@@ -439,10 +441,15 @@ describe("Backup Utilities", () => {
       // Verify backup content
       const backupDb = new Database(backupPath, { readonly: true });
 
-      const project = backupDb.prepare("SELECT * FROM projects WHERE id = 'p1'").get() as { name: string };
+      const project = backupDb.prepare("SELECT * FROM projects WHERE id = 'p1'").get() as {
+        name: string;
+      };
       expect(project.name).toBe("Project 1");
 
-      const tickets = backupDb.prepare("SELECT * FROM tickets ORDER BY id").all() as { id: string; title: string }[];
+      const tickets = backupDb.prepare("SELECT * FROM tickets ORDER BY id").all() as {
+        id: string;
+        title: string;
+      }[];
       expect(tickets).toHaveLength(2);
       expect(tickets[0]?.title).toBe("Ticket 1");
       expect(tickets[1]?.title).toBe("Ticket 2");

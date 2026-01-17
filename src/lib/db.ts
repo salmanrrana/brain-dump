@@ -44,8 +44,8 @@ const lockResult = initializeLockSync("vite", () => {
     stopWatching(); // Stop file watcher
     sqlite.pragma("wal_checkpoint(TRUNCATE)");
     sqlite.close();
-  } catch {
-    // Ignore errors during cleanup
+  } catch (error) {
+    console.warn("[DB] Cleanup error during shutdown:", error);
   }
 });
 if (lockResult.acquired) {
@@ -142,10 +142,38 @@ function seedSampleData() {
 
   // Create sample tickets
   const sampleTickets = [
-    { id: 'sample-1', title: 'Welcome to Brain Dump!', desc: 'This is your personal task management system. Drag tickets between columns to update their status.', status: 'backlog', priority: 'medium', pos: 1000 },
-    { id: 'sample-2', title: 'Try the "Start Work" button', desc: 'Click "Start Work" on a ticket to open Claude Code with full context.', status: 'ready', priority: 'high', pos: 2000 },
-    { id: 'sample-3', title: 'Create your own project', desc: 'Click the + button in the sidebar to add a new project with your actual code path.', status: 'backlog', priority: 'low', pos: 3000 },
-    { id: 'sample-4', title: 'Use keyboard shortcuts', desc: 'Press "n" for new ticket, "/" to search, "?" for help.', status: 'backlog', priority: 'medium', pos: 4000 },
+    {
+      id: "sample-1",
+      title: "Welcome to Brain Dump!",
+      desc: "This is your personal task management system. Drag tickets between columns to update their status.",
+      status: "backlog",
+      priority: "medium",
+      pos: 1000,
+    },
+    {
+      id: "sample-2",
+      title: 'Try the "Start Work" button',
+      desc: 'Click "Start Work" on a ticket to open Claude Code with full context.',
+      status: "ready",
+      priority: "high",
+      pos: 2000,
+    },
+    {
+      id: "sample-3",
+      title: "Create your own project",
+      desc: "Click the + button in the sidebar to add a new project with your actual code path.",
+      status: "backlog",
+      priority: "low",
+      pos: 3000,
+    },
+    {
+      id: "sample-4",
+      title: "Use keyboard shortcuts",
+      desc: 'Press "n" for new ticket, "/" to search, "?" for help.',
+      status: "backlog",
+      priority: "medium",
+      pos: 4000,
+    },
   ];
 
   // Use parameterized query for ticket insertion
@@ -179,9 +207,7 @@ migrateProjectsTable();
 // Initialize FTS5 table for search if it doesn't exist
 function initFTS5() {
   const tableExists = sqlite
-    .prepare(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='tickets_fts'"
-    )
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='tickets_fts'")
     .get();
 
   if (!tableExists) {
@@ -232,9 +258,7 @@ function initFTS5() {
 
 // Check if tickets table exists before initializing FTS
 const ticketsTableExists = sqlite
-  .prepare(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name='tickets'"
-  )
+  .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='tickets'")
   .get();
 
 if (ticketsTableExists) {
@@ -244,9 +268,7 @@ if (ticketsTableExists) {
 // Initialize settings table if it doesn't exist
 function initSettings() {
   const settingsExists = sqlite
-    .prepare(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='settings'"
-    )
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'")
     .get();
 
   if (!settingsExists) {
@@ -291,9 +313,7 @@ initSettings();
 // Initialize ticket_comments table if it doesn't exist
 function initTicketComments() {
   const commentsExists = sqlite
-    .prepare(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='ticket_comments'"
-    )
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ticket_comments'")
     .get();
 
   if (!commentsExists) {
@@ -342,7 +362,7 @@ async function cleanupLaunchScripts() {
     const { cleanupOldScripts } = await import("../api/terminal");
     await cleanupOldScripts();
   } catch (error) {
-    // Ignore - terminal module might not be loaded yet
+    console.warn("[DB] Failed to cleanup launch scripts:", error);
   }
 }
 cleanupLaunchScripts();

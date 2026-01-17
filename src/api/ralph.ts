@@ -33,7 +33,7 @@ interface PRDDocument {
 function generatePRD(
   projectName: string,
   projectPath: string,
-  ticketList: typeof tickets.$inferSelect[],
+  ticketList: (typeof tickets.$inferSelect)[],
   epicTitle?: string
 ): PRDDocument {
   const userStories: PRDUserStory[] = ticketList.map((ticket) => {
@@ -89,19 +89,158 @@ function getRalphPrompt(): string {
 2. Read plans/progress.txt for context from previous work
 3. Strategically pick ONE ticket (consider priority, dependencies, foundation work)
 4. Call start_ticket_work(ticketId) - this creates branch and posts progress
-5. Implement the feature:
+5. Create a session: create_ralph_session(ticketId) - enables state tracking
+6. Implement the feature:
    - Write the code
    - Run tests: pnpm test (or npm test)
    - Verify acceptance criteria
-6. Git commit: git commit -m "feat(<ticket-id>): <description>"
-7. Call complete_ticket_work(ticketId, "summary of changes") - this updates PRD and posts summary
-8. If all tickets complete, output: PRD_COMPLETE
+7. Git commit: git commit -m "feat(<ticket-id>): <description>"
+8. Call complete_ticket_work(ticketId, "summary of changes") - this updates PRD and posts summary
+9. Complete session: complete_ralph_session(sessionId, "success") - marks session done
+10. If all tickets complete, output: PRD_COMPLETE
 
 ## Rules
 - ONE ticket per iteration
 - Run tests before completing
 - Keep changes minimal and focused
 - If stuck, note in progress.txt and move on
+- **Follow the Verification Checklist in CLAUDE.md before marking any ticket complete**
+
+## Verification (from CLAUDE.md)
+
+Before completing ANY ticket, you MUST:
+
+### Code Quality (Always Required)
+- Run \`pnpm type-check\` - must pass with no errors
+- Run \`pnpm lint\` - must pass with no errors
+- Run \`pnpm test\` - all tests must pass
+
+### If You Added New Code
+- Added tests for new functionality
+- Used Drizzle ORM (not raw SQL)
+- Followed patterns in CLAUDE.md DO/DON'T tables
+
+### If You Modified Existing Code
+- Existing tests still pass
+- Updated tests if behavior changed
+
+### Before Marking Complete
+- All acceptance criteria from ticket met
+- Work summary added via \`add_ticket_comment\`
+- Committed with format: \`feat(<ticket-id>): <description>\`
+
+## Session State Tracking
+
+Use session tools to track your progress through work phases. The UI displays your current state.
+
+### Session Lifecycle
+
+1. **Create session** when starting a ticket:
+   \`\`\`
+   create_ralph_session({ ticketId: "<ticketId>" })
+   \`\`\`
+
+2. **Update state** as you transition through phases:
+   \`\`\`
+   update_session_state({ sessionId: "<sessionId>", state: "analyzing", metadata: { message: "Reading spec..." } })
+   \`\`\`
+
+3. **Complete session** when done:
+   \`\`\`
+   complete_ralph_session({ sessionId: "<sessionId>", outcome: "success" })
+   \`\`\`
+
+### Valid States (in typical order)
+| State | When to Use | Example |
+|-------|-------------|---------|
+| idle → analyzing | After creating session | Reading and understanding requirements |
+| analyzing → implementing | Starting to code | Writing or modifying source files |
+| implementing → testing | Running tests | Verifying behavior works correctly |
+| testing → implementing | Tests failed | Going back to fix issues |
+| implementing/testing → committing | Ready to commit | Creating git commits |
+| committing → reviewing | Final self-review | Checking work before completing |
+
+### Example Workflow
+\`\`\`
+# 1. Start work
+start_ticket_work({ ticketId: "abc-123" })
+
+# 2. Create session for state tracking
+create_ralph_session({ ticketId: "abc-123" })
+# Returns: { sessionId: "xyz-789", ... }
+
+# 3. Update state as you work
+update_session_state({ sessionId: "xyz-789", state: "analyzing", metadata: { message: "Reading ticket spec..." } })
+
+# ... read and understand the task ...
+
+update_session_state({ sessionId: "xyz-789", state: "implementing", metadata: { message: "Writing API endpoint" } })
+
+# ... write code ...
+
+update_session_state({ sessionId: "xyz-789", state: "testing", metadata: { message: "Running pnpm test" } })
+
+# ... run tests ...
+
+update_session_state({ sessionId: "xyz-789", state: "committing" })
+
+# ... git commit ...
+
+update_session_state({ sessionId: "xyz-789", state: "reviewing", metadata: { message: "Final self-review" } })
+
+# 4. Complete work
+complete_ticket_work({ ticketId: "abc-123", summary: "Added new API endpoint" })
+complete_ralph_session({ sessionId: "xyz-789", outcome: "success" })
+\`\`\`
+
+## Real-time Progress Reporting
+
+In addition to session states, use emit_ralph_event for detailed progress:
+
+| Event Type    | When to Use | Example |
+|---------------|-------------|---------|
+| thinking      | When starting to reason | Reading spec, planning approach |
+| tool_start    | Before calling Edit/Write/Bash | About to modify a file |
+| tool_end      | After tool completes | File edited successfully |
+| progress      | General updates | Halfway through implementation |
+| error         | When errors occur | Test failed, need to debug |
+
+Note: The session state tools (update_session_state) automatically emit state_change events, so you don't need to call emit_ralph_event for state transitions
+
+## State Enforcement (Hooks)
+
+This project uses hooks to ENFORCE state transitions. If you try to write or edit code without being in the correct state, you will receive a block message.
+
+### How It Works
+1. When you create a session, a \`.claude/ralph-state.json\` file is created
+2. PreToolUse hooks check this file before allowing Write/Edit operations
+3. If you're not in 'implementing', 'testing', or 'committing' state, the operation is blocked
+4. The block message tells you exactly what MCP tool to call
+
+### When Blocked
+If you see a "STATE ENFORCEMENT" message:
+1. **Read the message carefully** - it contains the exact tool call you need
+2. **Call the specified MCP tool** - e.g., \`update_session_state({ sessionId: "...", state: "implementing" })\`
+3. **Retry your original operation** - it will now succeed
+
+### Example Flow
+\`\`\`
+# You try to write a file while in 'analyzing' state
+[BLOCKED] STATE ENFORCEMENT: You are in 'analyzing' state but tried to write/edit code.
+          You MUST first call: update_session_state({ sessionId: "xyz-789", state: "implementing" })
+
+# You call the MCP tool as instructed
+update_session_state({ sessionId: "xyz-789", state: "implementing" })
+# Returns: State Updated - analyzing → implementing
+
+# You retry your write operation
+[ALLOWED] - File written successfully
+\`\`\`
+
+### Important
+- Do NOT try to work around state enforcement
+- The hooks ensure your work is properly tracked in the Brain Dump UI
+- When your session completes, the state file is automatically removed
 
 ## Dev Server Management
 
@@ -189,6 +328,32 @@ ${ticketList || "_No incomplete tickets_"}
 - Run tests before completing
 - Keep changes minimal and focused
 - If stuck, note in \`plans/progress.txt\` and move on
+- **Follow the Verification Checklist in CLAUDE.md before marking any ticket complete**
+
+---
+
+## Verification (from CLAUDE.md)
+
+Before completing ANY ticket, you MUST:
+
+### Code Quality (Always Required)
+- Run \`pnpm type-check\` - must pass with no errors
+- Run \`pnpm lint\` - must pass with no errors
+- Run \`pnpm test\` - all tests must pass
+
+### If You Added New Code
+- Added tests for new functionality
+- Used Drizzle ORM (not raw SQL)
+- Followed patterns in CLAUDE.md DO/DON'T tables
+
+### If You Modified Existing Code
+- Existing tests still pass
+- Updated tests if behavior changed
+
+### Before Marking Complete
+- All acceptance criteria from ticket met
+- Work summary added via \`add_ticket_comment\`
+- Committed with format: \`feat(<ticket-id>): <description>\`
 
 ---
 
@@ -586,7 +751,8 @@ async function ensureDockerNetwork(
     console.log(`[brain-dump] Docker network "${networkName}" already exists`);
     return { success: true };
   } catch (inspectError) {
-    const errorMessage = inspectError instanceof Error ? inspectError.message : String(inspectError);
+    const errorMessage =
+      inspectError instanceof Error ? inspectError.message : String(inspectError);
 
     // Only proceed to create if the error indicates "network not found"
     // Other errors (Docker not running, permission denied) should be reported immediately
@@ -608,7 +774,9 @@ async function ensureDockerNetwork(
       // Verify by checking again
       try {
         await execAsync(`docker network inspect ${networkName}`);
-        console.log(`[brain-dump] Docker network "${networkName}" exists (created by another process)`);
+        console.log(
+          `[brain-dump] Docker network "${networkName}" exists (created by another process)`
+        );
         return { success: true };
       } catch {
         return {
@@ -634,7 +802,8 @@ async function validateDockerSetup(): Promise<
   } catch {
     return {
       success: false,
-      message: "Docker is not running. Please start Docker Desktop or run 'sudo systemctl start docker'",
+      message:
+        "Docker is not running. Please start Docker Desktop or run 'sudo systemctl start docker'",
     };
   }
 
@@ -816,7 +985,12 @@ async function launchInTerminal(
 // Launch Ralph for a single ticket
 export const launchRalphForTicket = createServerFn({ method: "POST" })
   .inputValidator(
-    (data: { ticketId: string; maxIterations?: number; preferredTerminal?: string | null; useSandbox?: boolean }) => data
+    (data: {
+      ticketId: string;
+      maxIterations?: number;
+      preferredTerminal?: string | null;
+      useSandbox?: boolean;
+    }) => data
   )
   .handler(async ({ data }) => {
     const { ticketId, maxIterations = 5, preferredTerminal, useSandbox = false } = data;
@@ -828,29 +1002,17 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     const { eq: eqSettings } = await import("drizzle-orm");
 
     // Get settings for timeout configuration
-    const appSettings = db
-      .select()
-      .from(settings)
-      .where(eqSettings(settings.id, "default"))
-      .get();
+    const appSettings = db.select().from(settings).where(eqSettings(settings.id, "default")).get();
     const timeoutSeconds = appSettings?.ralphTimeout ?? DEFAULT_TIMEOUT_SECONDS;
 
     // Get the ticket with its project
-    const ticket = db
-      .select()
-      .from(tickets)
-      .where(eq(tickets.id, ticketId))
-      .get();
+    const ticket = db.select().from(tickets).where(eq(tickets.id, ticketId)).get();
 
     if (!ticket) {
       return { success: false, message: "Ticket not found" };
     }
 
-    const project = db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, ticket.projectId))
-      .get();
+    const project = db.select().from(projects).where(eq(projects.id, ticket.projectId)).get();
 
     if (!project) {
       return { success: false, message: "Project not found" };
@@ -894,14 +1056,13 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     chmodSync(scriptPath, 0o700);
 
     // Update ticket status to in_progress
-    db.update(tickets)
-      .set({ status: "in_progress" })
-      .where(eq(tickets.id, ticketId))
-      .run();
+    db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticketId)).run();
 
     // Branch based on workingMethod setting
     const workingMethod = project.workingMethod || "auto";
-    console.log(`[brain-dump] Ralph ticket launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`);
+    console.log(
+      `[brain-dump] Ralph ticket launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`
+    );
 
     if (workingMethod === "vscode") {
       // VS Code path: generate context file and launch VS Code
@@ -913,10 +1074,7 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
 
       if (!contextResult.success) {
         // Rollback ticket status since launch failed
-        db.update(tickets)
-          .set({ status: ticket.status })
-          .where(eq(tickets.id, ticketId))
-          .run();
+        db.update(tickets).set({ status: ticket.status }).where(eq(tickets.id, ticketId)).run();
         return contextResult;
       }
 
@@ -926,10 +1084,7 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
 
       if (!launchResult.success) {
         // Rollback ticket status since launch failed
-        db.update(tickets)
-          .set({ status: ticket.status })
-          .where(eq(tickets.id, ticketId))
-          .run();
+        db.update(tickets).set({ status: ticket.status }).where(eq(tickets.id, ticketId)).run();
         return launchResult;
       }
 
@@ -962,7 +1117,12 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
 // Launch Ralph for an entire epic
 export const launchRalphForEpic = createServerFn({ method: "POST" })
   .inputValidator(
-    (data: { epicId: string; maxIterations?: number; preferredTerminal?: string | null; useSandbox?: boolean }) => data
+    (data: {
+      epicId: string;
+      maxIterations?: number;
+      preferredTerminal?: string | null;
+      useSandbox?: boolean;
+    }) => data
   )
   .handler(async ({ data }) => {
     const { epicId, maxIterations = 20, preferredTerminal, useSandbox = false } = data;
@@ -974,29 +1134,17 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     const { eq: eqSettings } = await import("drizzle-orm");
 
     // Get settings for timeout configuration
-    const appSettings = db
-      .select()
-      .from(settings)
-      .where(eqSettings(settings.id, "default"))
-      .get();
+    const appSettings = db.select().from(settings).where(eqSettings(settings.id, "default")).get();
     const timeoutSeconds = appSettings?.ralphTimeout ?? DEFAULT_TIMEOUT_SECONDS;
 
     // Get the epic
-    const epic = db
-      .select()
-      .from(epics)
-      .where(eq(epics.id, epicId))
-      .get();
+    const epic = db.select().from(epics).where(eq(epics.id, epicId)).get();
 
     if (!epic) {
       return { success: false, message: "Epic not found" };
     }
 
-    const project = db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, epic.projectId))
-      .get();
+    const project = db.select().from(projects).where(eq(projects.id, epic.projectId)).get();
 
     if (!project) {
       return { success: false, message: "Project not found" };
@@ -1051,23 +1199,25 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     );
     const scriptDir = join(homedir(), ".brain-dump", "scripts");
     mkdirSync(scriptDir, { recursive: true });
-    const scriptPath = join(scriptDir, `ralph-epic-${useSandbox ? "docker-" : ""}${randomUUID()}.sh`);
+    const scriptPath = join(
+      scriptDir,
+      `ralph-epic-${useSandbox ? "docker-" : ""}${randomUUID()}.sh`
+    );
     writeFileSync(scriptPath, ralphScript, { mode: 0o700 });
     chmodSync(scriptPath, 0o700);
 
     // Update all tickets to in_progress
     for (const ticket of epicTickets) {
       if (ticket.status === "backlog" || ticket.status === "ready") {
-        db.update(tickets)
-          .set({ status: "in_progress" })
-          .where(eq(tickets.id, ticket.id))
-          .run();
+        db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticket.id)).run();
       }
     }
 
     // Branch based on workingMethod setting
     const workingMethod = project.workingMethod || "auto";
-    console.log(`[brain-dump] Ralph launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`);
+    console.log(
+      `[brain-dump] Ralph launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`
+    );
 
     if (workingMethod === "vscode") {
       // VS Code path: generate context file and launch VS Code
@@ -1080,10 +1230,7 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       if (!contextResult.success) {
         // Rollback ticket statuses since launch failed
         for (const ticket of epicTickets) {
-          db.update(tickets)
-            .set({ status: ticket.status })
-            .where(eq(tickets.id, ticket.id))
-            .run();
+          db.update(tickets).set({ status: ticket.status }).where(eq(tickets.id, ticket.id)).run();
         }
         return contextResult;
       }
@@ -1095,10 +1242,7 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       if (!launchResult.success) {
         // Rollback ticket statuses since launch failed
         for (const ticket of epicTickets) {
-          db.update(tickets)
-            .set({ status: ticket.status })
-            .where(eq(tickets.id, ticket.id))
-            .run();
+          db.update(tickets).set({ status: ticket.status }).where(eq(tickets.id, ticket.id)).run();
         }
         return launchResult;
       }
@@ -1130,4 +1274,3 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       warnings: sshWarnings,
     };
   });
-
