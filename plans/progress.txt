@@ -292,3 +292,64 @@ All 18 tickets completed successfully:
   - Updated tests to match current script behavior (mounts ~/.claude.json only)
   - All acceptance criteria verified: hooks work with 30s staleTime, error handling
 
+
+---
+
+### 2026-01-17 - Docker Runtime Selection in Settings Modal (Ticket 2fb5d889)
+- **Ticket ID:** 2fb5d889-5ef0-40a6-88e2-b7f8a5fba603
+- **Task:** Add Docker Runtime dropdown to Settings Modal
+- **Success:** true
+- **Notes:**
+  - Already implemented in SettingsModal.tsx lines 543-618
+  - Dropdown with all runtime types via DOCKER_RUNTIME_TYPES constant
+  - Status indicator with aria-live="polite" for accessibility
+  - Socket path display with monospace font
+
+---
+
+### 2026-01-17 - Container Status Sidebar Section (Ticket 16d24387)
+- **Ticket ID:** 16d24387-1008-4c2f-8f2e-916745391bda
+- **Task:** Create Container Status Sidebar Section
+- **Success:** true
+- **Notes:**
+  - Fully implemented in ContainerStatusSection.tsx (487 lines)
+  - Collapsible with smooth animation
+  - Running count in header
+  - 5s polling for real-time updates
+  - Status indicators for all states
+
+---
+
+### 2026-01-17 - Container Start/Stop Actions (Ticket 25a30799)
+- **Ticket ID:** 25a30799-fab2-4da1-976f-55841e450195
+- **Task:** Add Container Start/Stop Actions to Sidebar
+- **Success:** true
+- **Notes:**
+  - Implemented in ContainerRow component within ContainerStatusSection.tsx
+  - Start/Stop buttons with loading spinners
+  - Toast notifications for success/error
+
+---
+
+### 2026-01-17 - Stop All Containers Quick Action (Ticket 03f58ab0)
+- **Ticket ID:** 03f58ab0-c918-4e40-9c03-d538a9a12810
+- **Task:** Add Stop All Containers Quick Action
+- **Success:** true
+- **Notes:**
+  - Inline confirmation with Yes/No buttons
+  - Escape key cancels confirmation
+  - Loading state prevents double-clicks
+  - Toast shows count of stopped containers
+
+---
+
+### 2026-01-17 - Live Container Logs Modal (Ticket c6808fc8)
+- **Ticket ID:** c6808fc8-61bd-4e19-83d9-2262533da761
+- **Task:** Add live container logs modal
+- **Success:** true
+- **Notes:**
+  - Implemented in ContainerLogsModal.tsx
+  - Streaming logs with auto-scroll
+  - Copy logs button
+  - Close without stopping container
+

@@ -129,7 +129,7 @@
     {
       "id": "2fb5d889-5ef0-40a6-88e2-b7f8a5fba603",
       "title": "Add Docker Runtime Selection to Settings Modal",
-      "passes": false,
+      "passes": true,
       "overview": "Add \"Docker Runtime\" section to Settings Modal within the Ralph (Autonomous Mode) section.",
       "types": [],
       "designDecisions": [],
@@ -156,7 +156,7 @@
     {
       "id": "16d24387-1008-4c2f-8f2e-916745391bda",
       "title": "Create Container Status Sidebar Section",
-      "passes": false,
+      "passes": true,
       "overview": "Create collapsible sidebar section showing running companion containers with real-time status.",
       "types": [],
       "designDecisions": [],
@@ -184,7 +184,7 @@
     {
       "id": "25a30799-fab2-4da1-976f-55841e450195",
       "title": "Add Container Start/Stop Actions to Sidebar",
-      "passes": false,
+      "passes": true,
       "overview": "Add inline start/stop action buttons for each container in the Container Status sidebar section.",
       "types": [],
       "designDecisions": [],
@@ -213,7 +213,7 @@
     {
       "id": "03f58ab0-c918-4e40-9c03-d538a9a12810",
       "title": "Add Stop All Containers Quick Action",
-      "passes": false,
+      "passes": true,
       "overview": "Add \"Stop All\" button to Container Status sidebar header for bulk container shutdown.",
       "types": [],
       "designDecisions": [],
@@ -404,7 +404,7 @@
     {
       "id": "c6808fc8-61bd-4e19-83d9-2262533da761",
       "title": "Add live container logs modal to Container Status sidebar",
-      "passes": false,
+      "passes": true,
       "overview": "Add the ability to view live streaming logs from running Docker containers directly in the Brain Dump UI. When Ralph runs in Docker sandbox mode, users should be able to click on the container in the sidebar to open a modal showing real-time logs.",
       "types": [],
       "designDecisions": [],
