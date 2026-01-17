@@ -241,6 +241,100 @@ remove_data() {
     fi
 }
 
+# Remove Docker sandbox artifacts
+remove_docker() {
+    print_step "Removing Docker sandbox artifacts"
+
+    # Check if Docker is available
+    if ! command -v docker >/dev/null 2>&1; then
+        print_info "Docker not installed, skipping Docker cleanup"
+        SKIPPED+=("Docker cleanup (Docker not installed)")
+        return 0
+    fi
+
+    # Detect DOCKER_HOST for Lima/Colima
+    if [ -z "${DOCKER_HOST:-}" ]; then
+        local lima_sock="$HOME/.lima/docker/sock/docker.sock"
+        local colima_sock="$HOME/.colima/default/docker.sock"
+
+        if [ -S "$lima_sock" ]; then
+            export DOCKER_HOST="unix://$lima_sock"
+        elif [ -S "$colima_sock" ]; then
+            export DOCKER_HOST="unix://$colima_sock"
+        fi
+    fi
+
+    # Check if Docker is running
+    if ! docker info >/dev/null 2>&1; then
+        print_warning "Docker is not running"
+        print_info "Start Docker to clean up containers, network, and image"
+        SKIPPED+=("Docker cleanup (Docker not running)")
+        # Still clean up scripts directory
+        if [ -d "$HOME/.brain-dump/scripts" ]; then
+            rm -rf "$HOME/.brain-dump/scripts"
+            print_success "Removed Ralph scripts directory"
+            REMOVED+=("Ralph scripts (~/.brain-dump/scripts)")
+        fi
+        return 0
+    fi
+
+    # Stop and remove any running ralph containers
+    local ralph_containers
+    ralph_containers=$(docker ps -a --filter "name=ralph-" --format "{{.Names}}" 2>/dev/null || true)
+    if [ -n "$ralph_containers" ]; then
+        print_info "Stopping Ralph containers..."
+        echo "$ralph_containers" | while read -r container; do
+            docker stop "$container" >/dev/null 2>&1 || true
+            docker rm "$container" >/dev/null 2>&1 || true
+        done
+        print_success "Removed Ralph containers"
+        REMOVED+=("Ralph containers")
+    else
+        print_info "No Ralph containers found"
+    fi
+
+    # Remove ralph-net network
+    if docker network inspect ralph-net >/dev/null 2>&1; then
+        print_info "Removing ralph-net network..."
+        if docker network rm ralph-net >/dev/null 2>&1; then
+            print_success "Removed ralph-net network"
+            REMOVED+=("Docker network (ralph-net)")
+        else
+            print_warning "Could not remove ralph-net network (may be in use)"
+            SKIPPED+=("Docker network (in use)")
+        fi
+    else
+        print_info "ralph-net network not found"
+    fi
+
+    # Remove brain-dump-ralph-sandbox image
+    if docker image inspect brain-dump-ralph-sandbox:latest >/dev/null 2>&1; then
+        print_info "Removing brain-dump-ralph-sandbox image..."
+        if docker rmi brain-dump-ralph-sandbox:latest >/dev/null 2>&1; then
+            print_success "Removed brain-dump-ralph-sandbox image"
+            REMOVED+=("Docker image (brain-dump-ralph-sandbox)")
+        else
+            print_warning "Could not remove image (may be in use)"
+            SKIPPED+=("Docker image (in use)")
+        fi
+    else
+        print_info "brain-dump-ralph-sandbox image not found"
+    fi
+
+    # Remove Ralph scripts directory
+    if [ -d "$HOME/.brain-dump/scripts" ]; then
+        rm -rf "$HOME/.brain-dump/scripts"
+        print_success "Removed Ralph scripts directory"
+        REMOVED+=("Ralph scripts (~/.brain-dump/scripts)")
+    fi
+
+    # Clean up empty .brain-dump directory if it exists
+    if [ -d "$HOME/.brain-dump" ] && [ -z "$(ls -A "$HOME/.brain-dump" 2>/dev/null)" ]; then
+        rmdir "$HOME/.brain-dump"
+        print_success "Removed empty ~/.brain-dump directory"
+    fi
+}
+
 # Print summary
 print_summary() {
     echo ""
@@ -278,21 +372,24 @@ show_help() {
     echo "Options:"
     echo "  --vscode    Remove VS Code integration only"
     echo "  --claude    Remove Claude Code integration only"
-    echo "  --all       Remove everything (including database and data)"
+    echo "  --docker    Remove Docker sandbox artifacts only"
+    echo "  --all       Remove everything (including database, data, and Docker)"
     echo "  --help      Show this help message"
     echo ""
-    echo "Without options, removes IDE integrations but keeps data."
+    echo "Without options, removes IDE integrations but keeps data and Docker."
     echo ""
     echo "What gets removed:"
     echo "  VS Code:     MCP config, agents, skills, prompts"
     echo "  Claude Code: MCP config in ~/.claude.json"
-    echo "  Data (--all): Database, attachments, backups"
+    echo "  Docker:      ralph-net network, sandbox image, running containers"
+    echo "  Data (--all): Database, attachments, backups, ~/.brain-dump/scripts"
 }
 
 # Main
 main() {
     REMOVE_VSCODE=false
     REMOVE_CLAUDE=false
+    REMOVE_DOCKER=false
     REMOVE_DATA=false
 
     # Parse arguments
@@ -313,9 +410,13 @@ main() {
                 --claude)
                     REMOVE_CLAUDE=true
                     ;;
+                --docker)
+                    REMOVE_DOCKER=true
+                    ;;
                 --all)
                     REMOVE_VSCODE=true
                     REMOVE_CLAUDE=true
+                    REMOVE_DOCKER=true
                     REMOVE_DATA=true
                     ;;
             esac
@@ -329,6 +430,7 @@ main() {
 
     [ "$REMOVE_VSCODE" = true ] && remove_vscode
     [ "$REMOVE_CLAUDE" = true ] && remove_claude
+    [ "$REMOVE_DOCKER" = true ] && remove_docker
     [ "$REMOVE_DATA" = true ] && remove_data
 
     print_summary

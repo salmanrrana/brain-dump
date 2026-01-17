@@ -330,6 +330,98 @@ run_migrations() {
     fi
 }
 
+# Setup Docker sandbox for Ralph (optional)
+setup_docker_sandbox() {
+    print_step "Setting up Docker sandbox for Ralph"
+
+    # Check if Docker is available
+    if ! command_exists docker; then
+        print_warning "Docker is not installed"
+        print_info "Docker sandbox is optional - Ralph can run without it"
+        print_info "To install Docker:"
+        if [ "$OS" = "macos" ]; then
+            print_info "  brew install --cask docker"
+            print_info "  # Or use Lima: brew install lima && limactl start"
+        else
+            print_info "  https://docs.docker.com/engine/install/"
+        fi
+        SKIPPED+=("Docker sandbox (Docker not installed)")
+        return 0
+    fi
+
+    # Detect DOCKER_HOST for Lima/Colima
+    local docker_host=""
+    if [ -z "${DOCKER_HOST:-}" ]; then
+        # Check for Lima socket
+        local lima_sock="$HOME/.lima/docker/sock/docker.sock"
+        local colima_sock="$HOME/.colima/default/docker.sock"
+
+        if [ -S "$lima_sock" ]; then
+            docker_host="unix://$lima_sock"
+            print_info "Detected Lima Docker socket"
+        elif [ -S "$colima_sock" ]; then
+            docker_host="unix://$colima_sock"
+            print_info "Detected Colima Docker socket"
+        fi
+    else
+        docker_host="$DOCKER_HOST"
+        print_info "Using existing DOCKER_HOST: $docker_host"
+    fi
+
+    # Test Docker connectivity
+    local docker_cmd="docker"
+    if [ -n "$docker_host" ]; then
+        export DOCKER_HOST="$docker_host"
+    fi
+
+    if ! $docker_cmd info >/dev/null 2>&1; then
+        print_warning "Docker is installed but not running"
+        print_info "Start Docker and run: ./install.sh --docker"
+        SKIPPED+=("Docker sandbox (Docker not running)")
+        return 0
+    fi
+
+    print_success "Docker is available"
+
+    # Create ralph-net network if it doesn't exist
+    if ! $docker_cmd network inspect ralph-net >/dev/null 2>&1; then
+        print_info "Creating ralph-net Docker network..."
+        if $docker_cmd network create ralph-net >/dev/null 2>&1; then
+            print_success "Created ralph-net network"
+            INSTALLED+=("Docker network (ralph-net)")
+        else
+            print_warning "Could not create ralph-net network"
+            SKIPPED+=("Docker network (creation failed)")
+        fi
+    else
+        print_info "ralph-net network already exists"
+        SKIPPED+=("Docker network (already exists)")
+    fi
+
+    # Build the sandbox image
+    local dockerfile_path="$(pwd)/docker/Dockerfile.ralph-sandbox"
+    if [ ! -f "$dockerfile_path" ]; then
+        print_warning "Dockerfile not found at $dockerfile_path"
+        print_info "The image will be built automatically on first Ralph run"
+        SKIPPED+=("Docker image (will build on demand)")
+        return 0
+    fi
+
+    print_info "Building brain-dump-ralph-sandbox image (this may take a minute)..."
+    if $docker_cmd build -t brain-dump-ralph-sandbox:latest -f "$dockerfile_path" "$(pwd)/docker" >/dev/null 2>&1; then
+        print_success "Built brain-dump-ralph-sandbox:latest image"
+        INSTALLED+=("Docker sandbox image")
+    else
+        print_warning "Could not build Docker image"
+        print_info "The image will be built automatically on first Ralph run"
+        SKIPPED+=("Docker image (build failed, will retry on demand)")
+    fi
+
+    # Create scripts directory
+    mkdir -p "$HOME/.brain-dump/scripts"
+    print_success "Docker sandbox setup complete"
+}
+
 # Configure MCP server in ~/.claude.json
 configure_mcp_server() {
     print_step "Configuring Claude Code MCP server"
@@ -1428,6 +1520,7 @@ show_help() {
     echo "  If no IDE flag is provided, you'll be prompted to choose."
     echo ""
     echo "Other Options:"
+    echo "  --docker        Set up Docker sandbox for Ralph (optional)"
     echo "  --help          Show this help message"
     echo "  --skip-node     Skip Node.js installation check"
     echo "  --update-skills Update vendored skills from upstream"
@@ -1457,6 +1550,7 @@ main() {
     SETUP_CLAUDE=false
     SETUP_VSCODE=false
     SETUP_OPENCODE=false
+    SETUP_DOCKER=false
     UPDATE_SKILLS=false
     IDE_FLAG_PROVIDED=false
 
@@ -1486,6 +1580,9 @@ main() {
                 SETUP_VSCODE=true
                 SETUP_OPENCODE=true
                 IDE_FLAG_PROVIDED=true
+                ;;
+            --docker)
+                SETUP_DOCKER=true
                 ;;
             --update-skills)
                 UPDATE_SKILLS=true
@@ -1546,6 +1643,11 @@ main() {
     install_dependencies || true
     install_mcp_dependencies || true
     run_migrations || true
+
+    # Docker sandbox setup (optional)
+    if [ "$SETUP_DOCKER" = true ]; then
+        setup_docker_sandbox || true
+    fi
 
     # Claude Code setup
     if [ "$SETUP_CLAUDE" = true ]; then

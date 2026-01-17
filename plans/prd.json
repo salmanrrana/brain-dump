@@ -430,7 +430,7 @@
     {
       "id": "29718896-fea8-4108-ae9e-fc0aa33c64bc",
       "title": "Explicit Docker mode UI with dedicated buttons and project status indicators",
-      "passes": false,
+      "passes": true,
       "overview": "Replace the implicit Docker sandbox mode (toggle buried in Settings) with an explicit, discoverable UI that makes Docker mode a first-class option when starting Ralph.\nCurrently, users must:\n1. Open Settings modal\n2. Find and enable \"Run Ralph in Docker container\" toggle\n3. Start Ralph normally\n4. Hope they remember Docker mode is enabled\nThis is not discoverable and the state is invisible.",
       "types": [],
       "designDecisions": [],
