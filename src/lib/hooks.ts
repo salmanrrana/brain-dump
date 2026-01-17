@@ -936,6 +936,9 @@ export interface Settings {
   prTargetBranch: string | null;
   defaultProjectsDirectory: string | null;
   defaultWorkingMethod: string | null;
+  // Enterprise conversation logging
+  conversationLoggingEnabled: boolean | null;
+  conversationRetentionDays: number | null;
   createdAt: string;
   updatedAt: string;
 }
