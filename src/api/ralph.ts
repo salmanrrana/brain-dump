@@ -5,64 +5,85 @@ import { eq, and, inArray } from "drizzle-orm";
 import { safeJsonParse } from "../lib/utils";
 import { exec } from "child_process";
 import { promisify } from "util";
+import {
+  extractOverview,
+  extractTypeDefinitions,
+  extractDesignDecisions,
+  extractImplementationGuide,
+  extractAcceptanceCriteria,
+  extractReferences,
+  getProjectContext,
+  type EnhancedPRDItem,
+  type EnhancedPRDDocument,
+} from "../lib/prd-extraction";
 
 // Shared promisified exec for all Docker operations
 const execAsync = promisify(exec);
 
-interface PRDUserStory {
-  id: string;
-  title: string;
-  description: string | null;
-  acceptanceCriteria: string[];
-  priority: string | null;
-  tags: string[];
-  passes: boolean;
-}
-
-interface PRDDocument {
-  projectName: string;
-  projectPath: string;
-  epicTitle?: string;
-  epicDescription?: string;
-  testingRequirements: string[];
-  userStories: PRDUserStory[];
-  generatedAt: string;
-}
-
-// Generate PRD JSON from tickets
-function generatePRD(
+/**
+ * Generate enhanced PRD with Loom-style structure.
+ * Extracts structured content from ticket descriptions including:
+ * - Overview (WHY the feature exists)
+ * - Type definitions
+ * - Design decisions with rationale
+ * - Implementation guides
+ * - Acceptance criteria
+ * - References to files and docs
+ * - Project context from CLAUDE.md
+ */
+function generateEnhancedPRD(
   projectName: string,
   projectPath: string,
   ticketList: (typeof tickets.$inferSelect)[],
-  epicTitle?: string
-): PRDDocument {
-  const userStories: PRDUserStory[] = ticketList.map((ticket) => {
-    const tags = safeJsonParse<string[]>(ticket.tags, []);
+  epicTitle?: string,
+  epicDescription?: string
+): EnhancedPRDDocument {
+  // Get project context from CLAUDE.md
+  const projectContext = getProjectContext(projectPath);
 
-    // Parse subtasks as acceptance criteria if they exist
-    let acceptanceCriteria: string[] = [];
-    const subtasks = safeJsonParse<{ text: string }[]>(ticket.subtasks, []);
-    if (subtasks.length > 0) {
-      acceptanceCriteria = subtasks.map((st) => st.text || String(st));
+  const userStories: EnhancedPRDItem[] = ticketList.map((ticket) => {
+    const tags = safeJsonParse<string[]>(ticket.tags, []);
+    const description = ticket.description;
+
+    // Extract structured content from ticket description
+    const overview = extractOverview(description);
+    const types = extractTypeDefinitions(description);
+    const designDecisions = extractDesignDecisions(description);
+    const implementationGuide = extractImplementationGuide(description);
+    const references = extractReferences(description);
+
+    // Extract acceptance criteria from description, fallback to subtasks
+    let acceptanceCriteria = extractAcceptanceCriteria(description);
+    if (acceptanceCriteria.length === 0) {
+      // Fallback: use subtasks as acceptance criteria
+      const subtasks = safeJsonParse<{ text: string }[]>(ticket.subtasks, []);
+      if (subtasks.length > 0) {
+        acceptanceCriteria = subtasks.map((st) => st.text || String(st));
+      }
     }
 
-    // If no subtasks, create basic acceptance criteria from description
-    if (acceptanceCriteria.length === 0 && ticket.description) {
+    // If still no criteria, provide defaults
+    if (acceptanceCriteria.length === 0 && description) {
       acceptanceCriteria = ["Implement as described", "Verify functionality works as expected"];
     }
 
     return {
       id: ticket.id,
       title: ticket.title,
-      description: ticket.description,
+      passes: ticket.status === "done",
+      overview,
+      types,
+      designDecisions,
+      implementationGuide,
       acceptanceCriteria,
+      references,
+      description,
       priority: ticket.priority,
       tags,
-      passes: ticket.status === "done",
     };
   });
 
-  const result: PRDDocument = {
+  const result: EnhancedPRDDocument = {
     projectName,
     projectPath,
     testingRequirements: [
@@ -72,11 +93,17 @@ function generatePRD(
       "Coverage metrics are meaningless - user flow coverage is everything",
     ],
     userStories,
+    projectContext,
     generatedAt: new Date().toISOString(),
   };
+
   if (epicTitle !== undefined) {
     result.epicTitle = epicTitle;
   }
+  if (epicDescription !== undefined) {
+    result.epicDescription = epicDescription;
+  }
+
   return result;
 }
 
@@ -276,7 +303,8 @@ When stopping a dev server:
 
 // Generate VS Code context file for Ralph mode
 // This creates a markdown file that Claude in VS Code can read
-function generateVSCodeContext(prd: PRDDocument): string {
+// Accepts either legacy PRDDocument or EnhancedPRDDocument
+function generateVSCodeContext(prd: EnhancedPRDDocument): string {
   const incompleteTickets = prd.userStories.filter((story) => !story.passes);
   const completedTickets = prd.userStories.filter((story) => story.passes);
 
@@ -1036,8 +1064,8 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     const plansDir = join(project.path, "plans");
     mkdirSync(plansDir, { recursive: true });
 
-    // Generate PRD with just this ticket
-    const prd = generatePRD(project.name, project.path, [ticket]);
+    // Generate enhanced PRD with Loom-style structure for this ticket
+    const prd = generateEnhancedPRD(project.name, project.path, [ticket]);
     const prdPath = join(plansDir, "prd.json");
     writeFileSync(prdPath, JSON.stringify(prd, null, 2));
 
@@ -1184,8 +1212,14 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     const plansDir = join(project.path, "plans");
     mkdirSync(plansDir, { recursive: true });
 
-    // Generate PRD with all epic tickets
-    const prd = generatePRD(project.name, project.path, epicTickets, epic.title);
+    // Generate enhanced PRD with Loom-style structure for all epic tickets
+    const prd = generateEnhancedPRD(
+      project.name,
+      project.path,
+      epicTickets,
+      epic.title,
+      epic.description ?? undefined
+    );
     const prdPath = join(plansDir, "prd.json");
     writeFileSync(prdPath, JSON.stringify(prd, null, 2));
 
