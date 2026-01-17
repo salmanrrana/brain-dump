@@ -450,6 +450,8 @@ import {
   detectAvailableTerminals,
   getDockerStatus,
   buildSandboxImage,
+  detectDockerRuntimes,
+  getActiveDockerRuntime,
   type UpdateSettingsInput,
 } from "../api/settings";
 import { getEpicsByProject, createEpic, updateEpic, deleteEpic } from "../api/epics";
@@ -480,6 +482,9 @@ export const queryKeys = {
   search: (query: string, projectId?: string) => ["search", query, projectId] as const,
   settings: ["settings"] as const,
   availableTerminals: ["available-terminals"] as const,
+  // Docker runtime detection
+  dockerRuntimes: ["dockerRuntimes"] as const,
+  activeDockerRuntime: ["activeDockerRuntime"] as const,
 };
 
 // Types
@@ -1040,6 +1045,64 @@ export function useBuildSandboxImage() {
       queryClient.invalidateQueries({ queryKey: ["docker-status"] });
     },
   });
+}
+
+// =============================================================================
+// DOCKER RUNTIME DETECTION HOOKS
+// =============================================================================
+
+import type { DockerRuntimeInfo } from "./docker-runtime";
+
+/**
+ * Hook for fetching all available Docker runtimes on the system.
+ * Returns a list of detected runtimes with availability status and socket paths.
+ * Used by the Settings UI to show which runtimes are available for selection.
+ *
+ * Results are cached for 30 seconds to avoid repeated filesystem checks.
+ */
+export function useAvailableDockerRuntimes() {
+  const query = useQuery({
+    queryKey: queryKeys.dockerRuntimes,
+    queryFn: async () => {
+      const runtimes = await detectDockerRuntimes();
+      return runtimes as DockerRuntimeInfo[];
+    },
+    staleTime: 30_000, // 30 seconds - runtimes don't change frequently
+  });
+
+  return {
+    runtimes: query.data ?? [],
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+    refetch: query.refetch,
+  };
+}
+
+/**
+ * Hook for getting the currently active Docker runtime.
+ * This respects user preference (from settings) over auto-detection.
+ *
+ * Use this when you need to know which runtime would actually be used
+ * for Docker commands (as opposed to what's available).
+ *
+ * Results are cached for 30 seconds.
+ */
+export function useActiveDockerRuntime() {
+  const query = useQuery({
+    queryKey: queryKeys.activeDockerRuntime,
+    queryFn: async () => {
+      const runtime = await getActiveDockerRuntime();
+      return runtime as DockerRuntimeInfo;
+    },
+    staleTime: 30_000, // 30 seconds
+  });
+
+  return {
+    runtime: query.data ?? null,
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+    refetch: query.refetch,
+  };
 }
 
 // =============================================================================
