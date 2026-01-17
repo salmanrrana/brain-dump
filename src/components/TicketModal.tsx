@@ -4,6 +4,7 @@ import {
   useClickOutside,
   useDeleteTicket,
   useTicketDeletePreview,
+  useDockerAvailability,
 } from "../lib/hooks";
 import DeleteConfirmationModal from "./DeleteConfirmationModal";
 import {
@@ -31,6 +32,7 @@ import {
   GitBranch,
   GitPullRequest,
   Copy,
+  Container,
 } from "lucide-react";
 import type { Ticket, Epic } from "../lib/hooks";
 import {
@@ -163,6 +165,13 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
 
   // Ralph mutation hook
   const launchRalphMutation = useLaunchRalphForTicket();
+
+  // Docker availability for Ralph sandbox mode
+  const {
+    isAvailable: dockerAvailable,
+    message: dockerMessage,
+    loading: dockerLoading,
+  } = useDockerAvailability();
 
   // Delete mutation hook
   const deleteTicketMutation = useDeleteTicket();
@@ -466,59 +475,62 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
   }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification]);
 
   // Handle Start Ralph - autonomous mode
-  const handleStartRalph = useCallback(async () => {
-    setIsStartingWork(true);
-    setStartWorkNotification(null);
-    setShowStartWorkMenu(false);
+  // useSandbox param allows explicit choice at launch time, overriding settings default
+  const handleStartRalph = useCallback(
+    async ({ useSandbox }: { useSandbox: boolean }) => {
+      setIsStartingWork(true);
+      setStartWorkNotification(null);
+      setShowStartWorkMenu(false);
 
-    try {
-      const result = await launchRalphMutation.mutateAsync({
-        ticketId: ticket.id,
-        maxIterations: 5,
-        preferredTerminal: settings?.terminalEmulator ?? null,
-        useSandbox: settings?.ralphSandbox ?? false,
-      });
-
-      // Show any warnings (e.g., preferred terminal not available)
-      if ("warnings" in result && result.warnings) {
-        (result.warnings as string[]).forEach((warning: string) => showToast("info", warning));
-      }
-
-      if (result.success) {
-        setStatus("in_progress");
-        setStartWorkNotification({
-          type: "success",
-          message: result.message,
+      try {
+        const result = await launchRalphMutation.mutateAsync({
+          ticketId: ticket.id,
+          maxIterations: 5,
+          preferredTerminal: settings?.terminalEmulator ?? null,
+          useSandbox,
         });
-        setTimeout(() => onUpdate(), 500);
-      } else {
-        showToast("error", result.message);
+
+        // Show any warnings (e.g., preferred terminal not available)
+        if ("warnings" in result && result.warnings) {
+          (result.warnings as string[]).forEach((warning: string) => showToast("info", warning));
+        }
+
+        if (result.success) {
+          setStatus("in_progress");
+          setStartWorkNotification({
+            type: "success",
+            message: result.message,
+          });
+          setTimeout(() => onUpdate(), 500);
+        } else {
+          showToast("error", result.message);
+          setStartWorkNotification({
+            type: "error",
+            message: result.message,
+          });
+        }
+        // Auto-hide is handled by useAutoClearState hook
+      } catch (error) {
+        console.error("Failed to start Ralph:", error);
+        const message = error instanceof Error ? error.message : "An unexpected error occurred";
+        showToast("error", `Failed to launch Ralph: ${message}`);
         setStartWorkNotification({
           type: "error",
-          message: result.message,
+          message: "Failed to launch Ralph",
         });
+      } finally {
+        setIsStartingWork(false);
       }
-      // Auto-hide is handled by useAutoClearState hook
-    } catch (error) {
-      console.error("Failed to start Ralph:", error);
-      const message = error instanceof Error ? error.message : "An unexpected error occurred";
-      showToast("error", `Failed to launch Ralph: ${message}`);
-      setStartWorkNotification({
-        type: "error",
-        message: "Failed to launch Ralph",
-      });
-    } finally {
-      setIsStartingWork(false);
-    }
-  }, [
-    ticket.id,
-    onUpdate,
-    settings?.terminalEmulator,
-    settings?.ralphSandbox,
-    launchRalphMutation,
-    showToast,
-    setStartWorkNotification,
-  ]);
+    },
+    [
+      ticket.id,
+      onUpdate,
+      settings?.terminalEmulator,
+      launchRalphMutation,
+      showToast,
+      setStartWorkNotification,
+    ]
+  );
 
   // Handle Start OpenCode - open-source AI assistant
   const handleStartOpenCode = useCallback(async () => {
@@ -1461,14 +1473,36 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                   </div>
                 </button>
                 <button
-                  onClick={() => void handleStartRalph()}
+                  onClick={() => void handleStartRalph({ useSandbox: false })}
                   className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left border-t border-slate-700"
                 >
                   <Bot size={18} className="text-purple-400 mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="font-medium text-gray-100">Start with Ralph</div>
+                    <div className="font-medium text-gray-100">Start Ralph (Native)</div>
+                    <div className="text-xs text-slate-400">Runs on your machine directly</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => void handleStartRalph({ useSandbox: true })}
+                  disabled={dockerLoading || !dockerAvailable}
+                  className={`w-full flex items-start gap-3 px-4 py-3 transition-colors text-left border-t border-slate-700 ${
+                    dockerLoading || !dockerAvailable
+                      ? "opacity-50 cursor-not-allowed"
+                      : "hover:bg-slate-700"
+                  }`}
+                  title={!dockerAvailable ? dockerMessage : undefined}
+                  aria-disabled={!dockerAvailable}
+                  aria-describedby={!dockerAvailable ? "docker-unavailable-msg" : undefined}
+                >
+                  <Container size={18} className="text-cyan-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="font-medium text-gray-100">Start Ralph in Docker</div>
                     <div className="text-xs text-slate-400">
-                      Autonomous mode - runs until complete
+                      {dockerLoading
+                        ? "Checking Docker..."
+                        : !dockerAvailable
+                          ? dockerMessage
+                          : "Isolated container environment"}
                     </div>
                   </div>
                 </button>
