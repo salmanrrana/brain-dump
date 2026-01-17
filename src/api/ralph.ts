@@ -531,9 +531,9 @@ fi
     ? `
 # SSH agent forwarding (if available)
 SSH_MOUNT_ARGS=""
-if [ -n "\\$SSH_AUTH_SOCK" ] && [ -S "\\$SSH_AUTH_SOCK" ]; then
+if [ -n "$SSH_AUTH_SOCK" ] && [ -S "$SSH_AUTH_SOCK" ]; then
   echo -e "\\033[0;32m✓ SSH agent detected, enabling forwarding\\033[0m"
-  SSH_MOUNT_ARGS="-v \\$SSH_AUTH_SOCK:/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent"
+  SSH_MOUNT_ARGS="-v $SSH_AUTH_SOCK:/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent"
 else
   echo -e "\\033[0;33m⚠ SSH agent not running - git push may not work\\033[0m"
   echo -e "\\033[0;33m  Start with: eval \\$(ssh-agent) && ssh-add\\033[0m"
@@ -541,9 +541,9 @@ fi
 
 # Mount known_hosts to avoid SSH host verification prompts
 KNOWN_HOSTS_MOUNT=""
-if [ -f "\\$HOME/.ssh/known_hosts" ]; then
+if [ -f "$HOME/.ssh/known_hosts" ]; then
   echo -e "\\033[0;32m✓ Mounting known_hosts for host verification\\033[0m"
-  KNOWN_HOSTS_MOUNT="-v \\$HOME/.ssh/known_hosts:/home/ralph/.ssh/known_hosts:ro"
+  KNOWN_HOSTS_MOUNT="-v $HOME/.ssh/known_hosts:/home/ralph/.ssh/known_hosts:ro"
 fi
 `
     : "";
@@ -583,9 +583,9 @@ fi
     -p 8300-8310:8300-8310 \\
     -p 8400-8410:8400-8410 \\
     -v "$PROJECT_PATH:/workspace" \\
-    -v "\\$HOME/.config/claude-code:/home/ralph/.config/claude-code:ro" \\
-    -v "\\$HOME/.gitconfig:/home/ralph/.gitconfig:ro" \\
-    -v "\\$HOME/.config/gh:/home/ralph/.config/gh:ro" \\
+    -v "$HOME/.config/claude-code:/home/ralph/.config/claude-code:ro" \\
+    -v "$HOME/.gitconfig:/home/ralph/.gitconfig:ro" \\
+    -v "$HOME/.config/gh:/home/ralph/.config/gh:ro" \\
     $SSH_MOUNT_ARGS \\
     $KNOWN_HOSTS_MOUNT \\
     -w /workspace \\
