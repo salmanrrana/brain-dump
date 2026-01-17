@@ -415,16 +415,26 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                   </div>
                 </button>
                 <button
-                  onClick={() => void handleStartRalph({ useSandbox: true })}
-                  disabled={dockerLoading || !dockerAvailable}
-                  className={`w-full flex items-start gap-3 px-4 py-3 transition-colors text-left border-t border-slate-700 ${
+                  onClick={(e) => {
+                    // Prevent action when disabled but keep button focusable for accessibility
+                    if (dockerLoading || !dockerAvailable) {
+                      e.preventDefault();
+                      return;
+                    }
+                    void handleStartRalph({ useSandbox: true });
+                  }}
+                  className={`w-full flex items-start gap-3 px-4 py-3 transition-colors text-left border-t border-slate-700 group relative ${
                     dockerLoading || !dockerAvailable
                       ? "opacity-50 cursor-not-allowed"
                       : "hover:bg-slate-700"
                   }`}
-                  title={!dockerAvailable ? dockerMessage : undefined}
-                  aria-disabled={!dockerAvailable}
-                  aria-describedby={!dockerAvailable ? "docker-unavailable-msg" : undefined}
+                  aria-disabled={dockerLoading || !dockerAvailable}
+                  aria-describedby={!dockerAvailable ? "docker-unavailable-msg-epic" : undefined}
+                  aria-label={
+                    !dockerAvailable
+                      ? `Start Ralph in Docker (unavailable: ${dockerMessage})`
+                      : undefined
+                  }
                 >
                   <Container size={18} className="text-cyan-400 mt-0.5 flex-shrink-0" />
                   <div>
@@ -437,7 +447,22 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                           : "Isolated container environment"}
                     </div>
                   </div>
+                  {/* Tooltip visible on hover and focus */}
+                  {!dockerAvailable && dockerMessage && (
+                    <span
+                      role="tooltip"
+                      className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-slate-900 text-xs text-slate-300 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 group-focus:opacity-100 transition-opacity z-20"
+                    >
+                      {dockerMessage}
+                    </span>
+                  )}
                 </button>
+                {/* Hidden message for screen readers */}
+                {!dockerAvailable && (
+                  <span id="docker-unavailable-msg-epic" className="sr-only">
+                    Docker is unavailable. {dockerMessage}
+                  </span>
+                )}
               </div>
             )}
           </div>
