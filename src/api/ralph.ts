@@ -527,11 +527,28 @@ fi
 
   // SSH setup for Docker sandbox mode
   // This allows git push from inside container using host's SSH keys
+  // Note: Lima/Colima on macOS runs Docker in a VM, so we can't directly mount the macOS SSH socket
   const sshAgentSetup = useSandbox
     ? `
 # SSH agent forwarding (if available)
+# Note: With Lima/Colima, the macOS SSH socket isn't accessible from the Docker VM
 SSH_MOUNT_ARGS=""
-if [ -n "$SSH_AUTH_SOCK" ] && [ -S "$SSH_AUTH_SOCK" ]; then
+USING_VM_DOCKER=false
+
+# Detect if Docker is running via Lima/Colima VM
+if [ -n "\${DOCKER_HOST:-}" ]; then
+  case "$DOCKER_HOST" in
+    */.lima/*|*/.colima/*)
+      USING_VM_DOCKER=true
+      ;;
+  esac
+fi
+
+if [ "$USING_VM_DOCKER" = "true" ]; then
+  echo -e "\\033[0;33m⚠ Docker via Lima/Colima detected - SSH agent forwarding not available\\033[0m"
+  echo -e "\\033[0;33m  Git SSH operations will use container's own SSH config\\033[0m"
+  echo -e "\\033[0;33m  For SSH pushes, configure SSH keys inside the container or use HTTPS\\033[0m"
+elif [ -n "$SSH_AUTH_SOCK" ] && [ -S "$SSH_AUTH_SOCK" ]; then
   echo -e "\\033[0;32m✓ SSH agent detected, enabling forwarding\\033[0m"
   SSH_MOUNT_ARGS="-v $SSH_AUTH_SOCK:/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent"
 else
@@ -539,7 +556,7 @@ else
   echo -e "\\033[0;33m  Start with: eval \\$(ssh-agent) && ssh-add\\033[0m"
 fi
 
-# Mount known_hosts to avoid SSH host verification prompts
+# Mount known_hosts to avoid SSH host verification prompts (this should work with Lima too)
 KNOWN_HOSTS_MOUNT=""
 if [ -f "$HOME/.ssh/known_hosts" ]; then
   echo -e "\\033[0;32m✓ Mounting known_hosts for host verification\\033[0m"
@@ -547,37 +564,60 @@ if [ -f "$HOME/.ssh/known_hosts" ]; then
 fi
 
 # Claude Code config mounts (location varies by platform)
-# macOS: ~/.claude/ and ~/.claude.json
-# Linux: ~/.config/claude-code/ (XDG) or ~/.claude/
-# Using bash array to properly handle variable mount arguments
+# IMPORTANT: Only mount the auth file (~/.claude.json), NOT the ~/.claude/ directory
+# Claude needs to write to ~/.claude/ for session data, statsig, todos, debug logs
+# If we mount it as read-only, Claude fails with EROFS errors
+# By only mounting ~/.claude.json, Claude can authenticate but create its own session data
 EXTRA_MOUNTS=()
 CLAUDE_CONFIG_FOUND=false
 
-if [ -d "$HOME/.claude" ]; then
-  echo -e "\\033[0;32m✓ Mounting Claude config from ~/.claude/\\033[0m"
-  EXTRA_MOUNTS+=(-v "$HOME/.claude:/home/ralph/.claude:ro")
-  CLAUDE_CONFIG_FOUND=true
-fi
+# Mount only the auth token file, not the entire directory
 if [ -f "$HOME/.claude.json" ]; then
   echo -e "\\033[0;32m✓ Mounting Claude auth from ~/.claude.json\\033[0m"
   EXTRA_MOUNTS+=(-v "$HOME/.claude.json:/home/ralph/.claude.json:ro")
   CLAUDE_CONFIG_FOUND=true
 fi
-# Fallback for XDG-style config on Linux
-if [ "$CLAUDE_CONFIG_FOUND" = "false" ] && [ -d "$HOME/.config/claude-code" ]; then
-  echo -e "\\033[0;32m✓ Mounting Claude config from ~/.config/claude-code/\\033[0m"
-  EXTRA_MOUNTS+=(-v "$HOME/.config/claude-code:/home/ralph/.config/claude-code:ro")
-  CLAUDE_CONFIG_FOUND=true
-fi
+
+# Fallback for XDG-style config on Linux - mount settings.json only if it exists
 if [ "$CLAUDE_CONFIG_FOUND" = "false" ]; then
-  echo -e "\\033[0;31m❌ Claude config not found - container may not be authenticated\\033[0m"
-  echo -e "\\033[0;33m  Expected: ~/.claude/ or ~/.config/claude-code/\\033[0m"
+  if [ -f "$HOME/.config/claude-code/settings.json" ]; then
+    echo -e "\\033[0;32m✓ Mounting Claude settings from ~/.config/claude-code/settings.json\\033[0m"
+    EXTRA_MOUNTS+=(-v "$HOME/.config/claude-code/settings.json:/home/ralph/.config/claude-code/settings.json:ro")
+    CLAUDE_CONFIG_FOUND=true
+  fi
+fi
+
+if [ "$CLAUDE_CONFIG_FOUND" = "false" ]; then
+  echo -e "\\033[0;31m❌ Claude auth not found - container may not be authenticated\\033[0m"
+  echo -e "\\033[0;33m  Expected: ~/.claude.json or ~/.config/claude-code/settings.json\\033[0m"
 fi
 
 # GitHub CLI config mount (optional)
 if [ -d "$HOME/.config/gh" ]; then
   echo -e "\\033[0;32m✓ Mounting GitHub CLI config\\033[0m"
   EXTRA_MOUNTS+=(-v "$HOME/.config/gh:/home/ralph/.config/gh:ro")
+fi
+
+# API key handling for Docker container
+# Claude stores API key in macOS keychain, which isn't accessible from Docker
+# We need to extract it and pass via environment variable
+ANTHROPIC_API_KEY_ARG=""
+if [ -n "\${ANTHROPIC_API_KEY:-}" ]; then
+  echo -e "\\033[0;32m✓ Using ANTHROPIC_API_KEY from environment\\033[0m"
+  ANTHROPIC_API_KEY_ARG="-e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY"
+elif command -v security >/dev/null 2>&1; then
+  # macOS: Try to get API key from keychain
+  KEYCHAIN_KEY=$(security find-generic-password -s "Claude" -a "$(whoami)" -w 2>/dev/null || true)
+  if [ -n "$KEYCHAIN_KEY" ]; then
+    echo -e "\\033[0;32m✓ Retrieved Claude API key from macOS keychain\\033[0m"
+    ANTHROPIC_API_KEY_ARG="-e ANTHROPIC_API_KEY=$KEYCHAIN_KEY"
+  else
+    echo -e "\\033[0;33m⚠ Could not retrieve Claude API key from keychain\\033[0m"
+    echo -e "\\033[0;33m  You may need to set ANTHROPIC_API_KEY environment variable\\033[0m"
+    echo -e "\\033[0;33m  Or run: claude login (to add key to keychain)\\033[0m"
+  fi
+else
+  echo -e "\\033[0;33m⚠ No API key found - set ANTHROPIC_API_KEY environment variable\\033[0m"
 fi
 `
     : "";
@@ -621,6 +661,7 @@ fi
     "\${EXTRA_MOUNTS[@]}" \\
     $SSH_MOUNT_ARGS \\
     $KNOWN_HOSTS_MOUNT \\
+    $ANTHROPIC_API_KEY_ARG \\
     -w /workspace \\
     "${imageName}" \\
     claude --dangerously-skip-permissions /workspace/.ralph-prompt.md`
