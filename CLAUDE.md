@@ -180,6 +180,7 @@ The following hooks provide an automated workflow for code review and PR creatio
 | Hook              | File                            | Purpose                                                    |
 | ----------------- | ------------------------------- | ---------------------------------------------------------- |
 | Auto-PR creation  | `create-pr-on-ticket-start.sh`  | Creates draft PR immediately when `start_ticket_work` runs |
+| Commit tracking   | `link-commit-to-ticket.sh`      | Outputs commit/PR link commands after each git commit      |
 | Pre-push review   | `enforce-review-before-push.sh` | Blocks `git push`/`gh pr create` until review is completed |
 | Post-ticket spawn | `spawn-next-ticket.sh`          | Spawns next ticket after `complete_ticket_work`            |
 | Post-PR spawn     | `spawn-after-pr.sh`             | Spawns next ticket after successful PR creation            |
@@ -190,6 +191,12 @@ The following hooks provide an automated workflow for code review and PR creatio
 2. Pushes the branch to remote
 3. Creates a draft PR with the ticket title
 4. The PR is linked to the ticket for immediate tracking
+
+**Commit Tracking**: After each `git commit`, the hook outputs:
+
+1. The commit hash and message
+2. MCP commands to link the commit to the active ticket
+3. MCP commands to link the PR if one exists for the branch
 
 **PR Status Sync**: When `link_pr_to_ticket` is called, the MCP tool automatically syncs PR statuses for all tickets in the project. This updates any PRs that have been merged or closed since they were linked.
 
@@ -225,6 +232,15 @@ The following hooks provide an automated workflow for code review and PR creatio
           {
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/create-pr-on-ticket-start.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash(git commit:*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/link-commit-to-ticket.sh"
           }
         ]
       },
