@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import ProjectTree from "./ProjectTree";
 import ContainerStatusSection from "./ContainerStatusSection";
+import ContainerLogsModal from "./ContainerLogsModal";
 import NewTicketModal from "./NewTicketModal";
 import ProjectModal from "./ProjectModal";
 import EpicModal from "./EpicModal";
@@ -41,6 +42,7 @@ import {
   useSettings,
   useDeleteEpic,
   useInvalidateQueries,
+  useRalphContainers,
   type Epic,
   type ProjectBase,
   type SearchResult,
@@ -763,6 +765,35 @@ function Sidebar() {
     onDeleteEpic,
   } = useAppState();
 
+  // Fetch running Ralph containers for Docker indicators
+  const { containers: ralphContainers } = useRalphContainers({
+    enabled: true,
+    pollingInterval: 5000,
+  });
+
+  // Build set of project IDs with running Docker containers
+  const projectsWithDockerContainers = useMemo(() => {
+    const projectIds = new Set<string>();
+    for (const container of ralphContainers) {
+      if (container.isRunning && container.projectId) {
+        projectIds.add(container.projectId);
+      }
+    }
+    return projectIds;
+  }, [ralphContainers]);
+
+  // State for container logs modal from Docker indicator click
+  const [dockerLogsProjectId, setDockerLogsProjectId] = useState<string | null>(null);
+
+  // Find the container name for the logs modal
+  const dockerLogsContainerName = useMemo(() => {
+    if (!dockerLogsProjectId) return null;
+    const container = ralphContainers.find(
+      (c) => c.isRunning && c.projectId === dockerLogsProjectId
+    );
+    return container?.name ?? null;
+  }, [dockerLogsProjectId, ralphContainers]);
+
   // Fetch tags based on current project/epic filter
   const tagFilters = useMemo(() => {
     const f: { projectId?: string; epicId?: string } = {};
@@ -823,6 +854,8 @@ function Sidebar() {
             projects={projects}
             selectedProjectId={filters.projectId}
             selectedEpicId={filters.epicId}
+            projectsWithDockerContainers={projectsWithDockerContainers}
+            onDockerIndicatorClick={setDockerLogsProjectId}
             onSelectProject={handleSelectProject}
             onSelectEpic={handleSelectEpic}
             onAddProject={handleAddProject}
@@ -895,6 +928,13 @@ function Sidebar() {
       <div className="p-4 border-t border-slate-800">
         <p className="text-xs text-slate-500 text-center">Brain Dump v0.1.0</p>
       </div>
+
+      {/* Container Logs Modal for Docker indicator click */}
+      <ContainerLogsModal
+        isOpen={dockerLogsProjectId !== null}
+        onClose={() => setDockerLogsProjectId(null)}
+        containerName={dockerLogsContainerName}
+      />
     </aside>
   );
 }
