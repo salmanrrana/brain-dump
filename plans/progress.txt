@@ -208,3 +208,72 @@ All 18 tickets completed successfully:
   - Per user request: "covering our ass" - make it crystal clear this is local-only
 
 ---
+
+---
+
+### 2026-01-17 - Docker Runtime Detection Module (Ticket bf82d056)
+- **Ticket ID:** bf82d056-4e08-4ed2-802a-d4563b02fe2f
+- **Task:** Create Docker runtime detection module with Lima-first strategy
+- **Success:** true
+- **Commit:** 9432599
+- **Files:** src/lib/docker-runtime.ts (new)
+- **Notes:**
+  - Created cross-platform Docker runtime detection module
+  - Implemented: detectDockerRuntime(), getDockerSocketPath(), isDockerRuntimeAvailable(), getAllAvailableRuntimes()
+  - Lima-first detection on macOS, DOCKER_HOST env var support
+  - 30-second caching to avoid repeated filesystem checks
+  - All 628 tests pass, type-check and lint clean
+
+---
+
+### 2026-01-17 - Docker Runtime Config to Schema (Ticket c5250732)
+- **Ticket ID:** c5250732-c0c7-4fd1-a869-52e1e369ef07
+- **Task:** Add Docker runtime config to database schema
+- **Success:** true
+- **Commit:** e01e99b
+- **Files:** src/lib/schema.ts, src/api/settings.ts, src/lib/hooks.ts, src/mocks/factories.ts, drizzle/0005_worried_slapstick.sql
+- **Notes:**
+  - Added dockerRuntime and dockerSocketPath columns to settings table
+  - Updated UpdateSettingsInput interface with new fields
+  - Added DOCKER_RUNTIME_TYPES validation array
+  - Migration created and applied successfully
+  - All 628 tests pass, type-check and lint clean
+
+---
+
+---
+
+### 2026-01-17 05:42:42 - Session Timeout
+- **Reason:** Timeout reached (1h limit)
+- **Status:** Session terminated, work may be incomplete
+- **Action:** Review progress and restart if needed
+
+---
+
+### 2026-01-17 05:51:47 - Session Timeout
+- **Reason:** Timeout reached (1h limit)
+- **Status:** Session terminated, work may be incomplete
+- **Action:** Review progress and restart if needed
+
+---
+
+### 2026-01-17 - Update Docker Commands to Use Detected Socket (Ticket 316e34ea)
+- **Ticket ID:** 316e34ea-67ed-4858-b2d5-31f1e4f06d5e
+- **Task:** Update all Docker commands to use detected/configured socket path
+- **Success:** true
+- **Files:** src/api/docker-utils.ts, src/api/ralph.ts, src/api/settings.ts
+- **Notes:**
+  - Created docker-utils.ts with execDockerCommand(), getDockerCommandPrefix(), getDockerHostEnvValue()
+  - All Docker commands in ralph.ts use execDockerCommand (network, image, build operations)
+  - All Docker commands in settings.ts use execDockerCommand (status, build)
+  - generateRalphScript() includes DOCKER_HOST for non-default sockets
+  - All 27 test files pass, type-check and lint clean
+
+
+---
+
+### 2026-01-17 - PRD Cleanup: Marking Previously Completed Tickets
+- **bf82d056**: Create Docker Runtime Detection Module - marked as passing (src/lib/docker-runtime.ts already exists)
+- **c5250732**: Add Docker Runtime Config to Schema - marked as passing (dockerRuntime, dockerSocketPath columns exist)
+- These were completed in previous sessions but PRD wasn't updated
+

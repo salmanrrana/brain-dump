@@ -153,16 +153,26 @@ export async function execDockerCommand(
 }
 
 /**
+ * Result from Docker accessibility check.
+ */
+export interface DockerAccessResult {
+  accessible: boolean;
+  error?: string;
+}
+
+/**
  * Check if Docker daemon is running and accessible with current configuration.
  *
- * @returns true if Docker is accessible
+ * @returns Object with accessible boolean and optional error message
  */
-export async function isDockerAccessible(): Promise<boolean> {
+export async function isDockerAccessible(): Promise<DockerAccessResult> {
   try {
     await execDockerCommand("info", { timeout: 5000 });
-    return true;
-  } catch {
-    return false;
+    return { accessible: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[docker-utils] Docker not accessible: ${message}`);
+    return { accessible: false, error: message };
   }
 }
 
@@ -177,7 +187,145 @@ export async function getDockerVersion(): Promise<string | null> {
       timeout: 5000,
     });
     return stdout.trim() || null;
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[docker-utils] Failed to get Docker version: ${message}`);
     return null;
+  }
+}
+
+// =============================================================================
+// CONTAINER LOG UTILITIES
+// =============================================================================
+
+/**
+ * Container info returned from Docker ps.
+ */
+export interface ContainerInfo {
+  id: string;
+  name: string;
+  image: string;
+  status: string;
+  createdAt: string;
+  isRunning: boolean;
+}
+
+/**
+ * Result from listContainers with error info.
+ */
+export interface ListContainersResult {
+  containers: ContainerInfo[];
+  error?: string;
+}
+
+/**
+ * List running containers matching a name pattern.
+ *
+ * @param namePattern - Pattern to match container names (e.g., "ralph-*")
+ * @returns Object with containers array and optional error message
+ */
+export async function listContainers(namePattern?: string): Promise<ListContainersResult> {
+  try {
+    // Use JSON format for reliable parsing
+    const filterArg = namePattern ? `--filter "name=${namePattern}"` : "";
+    const { stdout } = await execDockerCommand(`ps -a ${filterArg} --format '{{json .}}'`, {
+      timeout: 10000,
+    });
+
+    if (!stdout.trim()) {
+      return { containers: [] };
+    }
+
+    // Parse each line as JSON
+    const containers: ContainerInfo[] = [];
+    for (const line of stdout.trim().split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const data = JSON.parse(line);
+        containers.push({
+          id: data.ID,
+          name: data.Names,
+          image: data.Image,
+          status: data.Status,
+          createdAt: data.CreatedAt,
+          isRunning: data.State === "running",
+        });
+      } catch {
+        // Log malformed lines for debugging
+        console.warn(
+          `[docker-utils] Skipped malformed container JSON: ${line.substring(0, 100)}...`
+        );
+      }
+    }
+
+    return { containers };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[docker-utils] Failed to list containers: ${message}`);
+    return { containers: [], error: `Failed to list containers: ${message}` };
+  }
+}
+
+/**
+ * Get logs from a Docker container.
+ *
+ * @param containerName - Name or ID of the container
+ * @param options - Options for log retrieval
+ * @returns Log content string
+ */
+export async function getContainerLogs(
+  containerName: string,
+  options: {
+    /** Number of lines to retrieve (default: 500) */
+    tail?: number;
+    /** Get logs since this timestamp (ISO 8601 or relative like "5m") */
+    since?: string;
+    /** Include timestamps in output */
+    timestamps?: boolean;
+  } = {}
+): Promise<{ logs: string; containerRunning: boolean }> {
+  const { tail = 500, since, timestamps = false } = options;
+
+  try {
+    // Build command arguments
+    const args: string[] = ["logs"];
+
+    if (tail > 0) {
+      args.push(`--tail=${tail}`);
+    }
+
+    if (since) {
+      args.push(`--since="${since}"`);
+    }
+
+    if (timestamps) {
+      args.push("--timestamps");
+    }
+
+    args.push(`"${containerName}"`);
+
+    // Docker logs outputs to stderr for some content, so we combine both
+    const { stdout, stderr } = await execDockerCommand(args.join(" "), {
+      timeout: 30000,
+    });
+
+    // Docker logs sends some output to stderr (like progress indicators)
+    const logs = stdout + stderr;
+
+    // Check if container is still running
+    const { stdout: stateOutput } = await execDockerCommand(
+      `inspect --format='{{.State.Running}}' "${containerName}"`,
+      { timeout: 5000 }
+    );
+    const containerRunning = stateOutput.trim() === "true";
+
+    return { logs, containerRunning };
+  } catch (error) {
+    // Check if container doesn't exist
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes("No such container")) {
+      return { logs: "", containerRunning: false };
+    }
+    throw error;
   }
 }

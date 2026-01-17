@@ -472,7 +472,7 @@ const DEFAULT_RESOURCE_LIMITS: DockerResourceLimits = {
 const DEFAULT_TIMEOUT_SECONDS = 3600;
 
 // Generate the Ralph bash script (unified for both native and Docker)
-function generateRalphScript(
+export function generateRalphScript(
   projectPath: string,
   maxIterations: number = 10,
   useSandbox: boolean = false,
@@ -531,9 +531,9 @@ fi
     ? `
 # SSH agent forwarding (if available)
 SSH_MOUNT_ARGS=""
-if [ -n "\\$SSH_AUTH_SOCK" ] && [ -S "\\$SSH_AUTH_SOCK" ]; then
+if [ -n "$SSH_AUTH_SOCK" ] && [ -S "$SSH_AUTH_SOCK" ]; then
   echo -e "\\033[0;32m✓ SSH agent detected, enabling forwarding\\033[0m"
-  SSH_MOUNT_ARGS="-v \\$SSH_AUTH_SOCK:/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent"
+  SSH_MOUNT_ARGS="-v $SSH_AUTH_SOCK:/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent"
 else
   echo -e "\\033[0;33m⚠ SSH agent not running - git push may not work\\033[0m"
   echo -e "\\033[0;33m  Start with: eval \\$(ssh-agent) && ssh-add\\033[0m"
@@ -541,9 +541,43 @@ fi
 
 # Mount known_hosts to avoid SSH host verification prompts
 KNOWN_HOSTS_MOUNT=""
-if [ -f "\\$HOME/.ssh/known_hosts" ]; then
+if [ -f "$HOME/.ssh/known_hosts" ]; then
   echo -e "\\033[0;32m✓ Mounting known_hosts for host verification\\033[0m"
-  KNOWN_HOSTS_MOUNT="-v \\$HOME/.ssh/known_hosts:/home/ralph/.ssh/known_hosts:ro"
+  KNOWN_HOSTS_MOUNT="-v $HOME/.ssh/known_hosts:/home/ralph/.ssh/known_hosts:ro"
+fi
+
+# Claude Code config mounts (location varies by platform)
+# macOS: ~/.claude/ and ~/.claude.json
+# Linux: ~/.config/claude-code/ (XDG) or ~/.claude/
+# Using bash array to properly handle variable mount arguments
+EXTRA_MOUNTS=()
+CLAUDE_CONFIG_FOUND=false
+
+if [ -d "$HOME/.claude" ]; then
+  echo -e "\\033[0;32m✓ Mounting Claude config from ~/.claude/\\033[0m"
+  EXTRA_MOUNTS+=(-v "$HOME/.claude:/home/ralph/.claude:ro")
+  CLAUDE_CONFIG_FOUND=true
+fi
+if [ -f "$HOME/.claude.json" ]; then
+  echo -e "\\033[0;32m✓ Mounting Claude auth from ~/.claude.json\\033[0m"
+  EXTRA_MOUNTS+=(-v "$HOME/.claude.json:/home/ralph/.claude.json:ro")
+  CLAUDE_CONFIG_FOUND=true
+fi
+# Fallback for XDG-style config on Linux
+if [ "$CLAUDE_CONFIG_FOUND" = "false" ] && [ -d "$HOME/.config/claude-code" ]; then
+  echo -e "\\033[0;32m✓ Mounting Claude config from ~/.config/claude-code/\\033[0m"
+  EXTRA_MOUNTS+=(-v "$HOME/.config/claude-code:/home/ralph/.config/claude-code:ro")
+  CLAUDE_CONFIG_FOUND=true
+fi
+if [ "$CLAUDE_CONFIG_FOUND" = "false" ]; then
+  echo -e "\\033[0;31m❌ Claude config not found - container may not be authenticated\\033[0m"
+  echo -e "\\033[0;33m  Expected: ~/.claude/ or ~/.config/claude-code/\\033[0m"
+fi
+
+# GitHub CLI config mount (optional)
+if [ -d "$HOME/.config/gh" ]; then
+  echo -e "\\033[0;32m✓ Mounting GitHub CLI config\\033[0m"
+  EXTRA_MOUNTS+=(-v "$HOME/.config/gh:/home/ralph/.config/gh:ro")
 fi
 `
     : "";
@@ -553,7 +587,7 @@ fi
 
   const claudeInvocation = useSandbox
     ? `  # Run Claude in Docker container
-  # Claude Code auth is passed via mounted ~/.config/claude-code (uses your existing subscription)
+  # Claude Code auth is passed via mounted config (platform-dependent location)
   # SSH agent is forwarded if available (allows git push from container)
   # known_hosts is mounted read-only to avoid SSH host verification prompts
   # Port ranges exposed for dev servers:
@@ -583,9 +617,8 @@ fi
     -p 8300-8310:8300-8310 \\
     -p 8400-8410:8400-8410 \\
     -v "$PROJECT_PATH:/workspace" \\
-    -v "\\$HOME/.config/claude-code:/home/ralph/.config/claude-code:ro" \\
-    -v "\\$HOME/.gitconfig:/home/ralph/.gitconfig:ro" \\
-    -v "\\$HOME/.config/gh:/home/ralph/.config/gh:ro" \\
+    -v "$HOME/.gitconfig:/home/ralph/.gitconfig:ro" \\
+    "\${EXTRA_MOUNTS[@]}" \\
     $SSH_MOUNT_ARGS \\
     $KNOWN_HOSTS_MOUNT \\
     -w /workspace \\
@@ -638,11 +671,13 @@ trap handle_timeout ALRM
 (sleep $RALPH_TIMEOUT && kill -ALRM $$ 2>/dev/null) &
 TIMER_PID=$!
 
-# Clean up timer on normal exit
-cleanup_timer() {
+# Clean up timer and services file on exit
+cleanup_on_exit() {
   kill $TIMER_PID 2>/dev/null || true
+  # Remove .ralph-services.json to prevent stale data in UI
+  rm -f "$PROJECT_PATH/.ralph-services.json" 2>/dev/null || true
 }
-trap cleanup_timer EXIT
+trap cleanup_on_exit EXIT
 `
     : `
 # Timeout handling for graceful shutdown
@@ -677,11 +712,13 @@ trap handle_timeout ALRM
 (sleep $RALPH_TIMEOUT && kill -ALRM $$ 2>/dev/null) &
 TIMER_PID=$!
 
-# Clean up timer on normal exit
-cleanup_timer() {
+# Clean up timer and services file on normal exit
+cleanup_on_exit() {
   kill $TIMER_PID 2>/dev/null || true
+  # Remove .ralph-services.json to prevent stale data in UI
+  rm -f "$PROJECT_PATH/.ralph-services.json" 2>/dev/null || true
 }
-trap cleanup_timer EXIT
+trap cleanup_on_exit EXIT
 `;
 
   return `#!/bin/bash
@@ -867,11 +904,11 @@ async function validateDockerSetup(): Promise<
   // Check if Docker is running (uses configured/detected socket)
   try {
     await execDockerCommand("info");
-  } catch {
+  } catch (error) {
+    const errorDetail = error instanceof Error ? error.message : String(error);
     return {
       success: false,
-      message:
-        "Docker is not running. Please start Docker Desktop or run 'sudo systemctl start docker'",
+      message: `Docker is not accessible: ${errorDetail}. Please ensure Docker is running and you have permission to access the Docker socket.`,
     };
   }
 

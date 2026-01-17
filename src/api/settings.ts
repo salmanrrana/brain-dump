@@ -247,3 +247,29 @@ export const buildSandboxImage = createServerFn({ method: "POST" }).handler(asyn
     return { success: false, message: `Failed to build sandbox image: ${errorMessage}` };
   }
 });
+
+// =============================================================================
+// DOCKER RUNTIME DETECTION
+// =============================================================================
+
+/**
+ * Detect all available Docker runtimes on the system.
+ * Returns a list of runtimes with their availability status and socket paths.
+ * Used by the Settings UI to show which runtimes are available for selection.
+ */
+export const detectDockerRuntimes = createServerFn({ method: "GET" }).handler(async () => {
+  const { getAllAvailableRuntimes } = await import("../lib/docker-runtime");
+  const runtimes = await getAllAvailableRuntimes();
+  return runtimes;
+});
+
+/**
+ * Get the currently active Docker runtime.
+ * This respects user preference (from settings) over auto-detection.
+ * Returns the effective runtime that would be used for Docker commands.
+ */
+export const getActiveDockerRuntime = createServerFn({ method: "GET" }).handler(async () => {
+  const { getEffectiveDockerRuntime } = await import("./docker-utils");
+  const runtime = await getEffectiveDockerRuntime();
+  return runtime;
+});
