@@ -8,6 +8,7 @@ import {
   Plus,
   Pencil,
   Trash2,
+  Container,
 } from "lucide-react";
 import { type Epic, type ProjectBase, type ProjectWithEpics } from "../lib/hooks";
 
@@ -15,6 +16,10 @@ interface ProjectTreeProps {
   projects: ProjectWithEpics[];
   selectedProjectId: string | null;
   selectedEpicId: string | null;
+  /** Set of project IDs that have running Docker containers */
+  projectsWithDockerContainers?: Set<string>;
+  /** Callback when Docker indicator is clicked */
+  onDockerIndicatorClick?: (projectId: string) => void;
   onSelectProject: (projectId: string | null) => void;
   onSelectEpic: (epicId: string | null, projectId: string) => void;
   onAddProject: () => void;
@@ -28,6 +33,8 @@ export default function ProjectTree({
   projects,
   selectedProjectId,
   selectedEpicId,
+  projectsWithDockerContainers,
+  onDockerIndicatorClick,
   onSelectProject,
   onSelectEpic,
   onAddProject,
@@ -36,9 +43,7 @@ export default function ProjectTree({
   onEditEpic,
   onDeleteEpic,
 }: ProjectTreeProps) {
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(
-    new Set()
-  );
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
 
   const toggleProject = (projectId: string) => {
     setExpandedProjects((prev) => {
@@ -72,9 +77,7 @@ export default function ProjectTree({
     <div className="space-y-1">
       {/* Header with add button */}
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-          Projects
-        </h2>
+        <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Projects</h2>
         <button
           onClick={onAddProject}
           className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-gray-100 transition-colors"
@@ -86,24 +89,21 @@ export default function ProjectTree({
 
       {/* Empty state */}
       {projects.length === 0 && (
-        <div className="text-sm text-slate-500 py-4 text-center">
-          No projects yet
-        </div>
+        <div className="text-sm text-slate-500 py-4 text-center">No projects yet</div>
       )}
 
       {/* Project list */}
       {projects.map((project) => {
         const isExpanded = expandedProjects.has(project.id);
         const isSelected = selectedProjectId === project.id && !selectedEpicId;
+        const hasDockerContainer = projectsWithDockerContainers?.has(project.id);
 
         return (
           <div key={project.id}>
             {/* Project row */}
             <div
               className={`flex items-center gap-1 px-2 py-1.5 rounded-lg cursor-pointer group ${
-                isSelected
-                  ? "bg-cyan-600/20 text-cyan-400"
-                  : "hover:bg-slate-800 text-slate-300"
+                isSelected ? "bg-cyan-600/20 text-cyan-400" : "hover:bg-slate-800 text-slate-300"
               }`}
             >
               {/* Expand/collapse button */}
@@ -141,6 +141,21 @@ export default function ProjectTree({
                 )}
                 <span className="text-sm truncate">{project.name}</span>
               </div>
+
+              {/* Docker container indicator (always visible when running) */}
+              {hasDockerContainer && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDockerIndicatorClick?.(project.id);
+                  }}
+                  className="p-0.5 hover:bg-cyan-900/50 rounded transition-colors"
+                  title="Ralph running in Docker - click to view logs"
+                  aria-label="Docker container running"
+                >
+                  <Container size={14} className="text-cyan-400 animate-pulse" />
+                </button>
+              )}
 
               {/* Edit project button (visible on hover) */}
               {onEditProject && (
@@ -196,9 +211,7 @@ export default function ProjectTree({
                         style={{ color: epic.color ?? undefined }}
                         className={epic.color ? "" : "text-slate-400"}
                       />
-                      <span className="flex-1 text-sm truncate">
-                        {epic.title}
-                      </span>
+                      <span className="flex-1 text-sm truncate">{epic.title}</span>
                       {onEditEpic && (
                         <button
                           onClick={(e) => {
@@ -231,9 +244,7 @@ export default function ProjectTree({
 
             {/* Empty epics state */}
             {isExpanded && project.epics.length === 0 && (
-              <div className="ml-6 py-2 text-xs text-slate-500">
-                No epics yet
-              </div>
+              <div className="ml-6 py-2 text-xs text-slate-500">No epics yet</div>
             )}
           </div>
         );

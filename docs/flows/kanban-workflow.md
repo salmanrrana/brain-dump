@@ -8,13 +8,13 @@ Your kanban board is the single source of truth. Every ticket, every status chan
 
 ## TL;DR — Quick Reference
 
-| Action | How |
-|--------|-----|
-| Create project | Settings → "Add Project" → Select folder |
-| Create ticket | Click "+" in any column |
-| Start work | Click "Start with Claude" on ticket |
-| Move ticket | Drag to new column |
-| Complete work | `complete_ticket_work(ticketId)` or drag to Done |
+| Action         | How                                              |
+| -------------- | ------------------------------------------------ |
+| Create project | Settings → "Add Project" → Select folder         |
+| Create ticket  | Click "+" in any column                          |
+| Start work     | Click "Start with Claude" on ticket              |
+| Move ticket    | Drag to new column                               |
+| Complete work  | `complete_ticket_work(ticketId)` or drag to Done |
 
 **Status flow:** `backlog` → `ready` → `in_progress` → `review` → `done`
 
@@ -137,11 +137,11 @@ flowchart LR
 
 **Project Fields:**
 
-| Field | Purpose |
-|-------|---------|
-| `path` | Links project to filesystem (must be unique) |
-| `workingMethod` | `auto`, `claude-code`, `vscode`, `opencode` |
-| `color` | UI theme color for visual distinction |
+| Field           | Purpose                                      |
+| --------------- | -------------------------------------------- |
+| `path`          | Links project to filesystem (must be unique) |
+| `workingMethod` | `auto`, `claude-code`, `vscode`, `opencode`  |
+| `color`         | UI theme color for visual distinction        |
 
 ---
 
@@ -167,16 +167,16 @@ flowchart LR
 
 **Ticket Fields:**
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| `title` | string | Short description (shown on card) |
+| Field         | Type     | Purpose                                         |
+| ------------- | -------- | ----------------------------------------------- |
+| `title`       | string   | Short description (shown on card)               |
 | `description` | markdown | Full context for AI (acceptance criteria, etc.) |
-| `status` | enum | Kanban column |
-| `priority` | enum | `high`, `medium`, `low` |
-| `tags` | array | Categorization (filterable) |
-| `subtasks` | array | Checklist items |
-| `linkedFiles` | array | Reference paths for AI context |
-| `position` | float | Sort order within column |
+| `status`      | enum     | Kanban column                                   |
+| `priority`    | enum     | `high`, `medium`, `low`                         |
+| `tags`        | array    | Categorization (filterable)                     |
+| `subtasks`    | array    | Checklist items                                 |
+| `linkedFiles` | array    | Reference paths for AI context                  |
+| `position`    | float    | Sort order within column                        |
 
 ---
 
@@ -202,15 +202,15 @@ stateDiagram-v2
 
 **Status Descriptions:**
 
-| Status | Meaning | Who's Working | Column Color |
-|--------|---------|---------------|--------------|
-| `backlog` | Not yet ready | Nobody | Slate |
-| `ready` | Groomed and ready | Nobody | Slate |
-| `in_progress` | Active development | Human or AI | Slate |
-| `review` | Manual code review | Human reviewer | Slate |
-| `ai_review` | Ralph completed work | Awaiting human | **Amber** |
-| `human_review` | Human verifying AI | Human reviewer | **Rose** |
-| `done` | Complete | Nobody | Slate |
+| Status         | Meaning              | Who's Working  | Column Color |
+| -------------- | -------------------- | -------------- | ------------ |
+| `backlog`      | Not yet ready        | Nobody         | Slate        |
+| `ready`        | Groomed and ready    | Nobody         | Slate        |
+| `in_progress`  | Active development   | Human or AI    | Slate        |
+| `review`       | Manual code review   | Human reviewer | Slate        |
+| `ai_review`    | Ralph completed work | Awaiting human | **Amber**    |
+| `human_review` | Human verifying AI   | Human reviewer | **Rose**     |
+| `done`         | Complete             | Nobody         | Slate        |
 
 ---
 
@@ -290,6 +290,7 @@ flowchart TD
 ```
 
 **Example:**
+
 ```
 Existing positions: [1.0, 2.0, 3.0]
 Drop between 1.0 and 2.0 → position = 1.5
@@ -310,8 +311,8 @@ create_ticket({
   description: "## Overview\n...",
   priority: "high",
   epicId: "optional-uuid",
-  tags: ["auth", "frontend"]
-})
+  tags: ["auth", "frontend"],
+});
 ```
 
 ### Workflow Tools
@@ -334,13 +335,13 @@ flowchart LR
 list_tickets({
   projectId: "uuid",
   status: "in_progress",
-  limit: 20
-})
+  limit: 20,
+});
 
 // Find tickets linked to a file
 get_tickets_for_file({
-  filePath: "src/api/auth.ts"
-})
+  filePath: "src/api/auth.ts",
+});
 ```
 
 ---
@@ -363,11 +364,11 @@ flowchart TD
 
 **Cascade Rules:**
 
-| Delete | What Happens |
-|--------|--------------|
+| Delete  | What Happens                             |
+| ------- | ---------------------------------------- |
 | Project | All epics, tickets, and comments deleted |
-| Epic | Tickets **unlinked** (not deleted) |
-| Ticket | All comments deleted |
+| Epic    | Tickets **unlinked** (not deleted)       |
+| Ticket  | All comments deleted                     |
 
 ---
 
@@ -378,6 +379,7 @@ flowchart TD
 **Cause:** Ticket might be in a different project or have a filter applied
 
 **Fix:**
+
 1. Check the project selector in the sidebar
 2. Clear any status filters
 3. Search by ticket title: `list_tickets({ title: "your search" })`
@@ -387,6 +389,7 @@ flowchart TD
 **Cause:** Usually a stale UI state
 
 **Fix:**
+
 1. Refresh the page
 2. Check browser console for errors
 3. Ensure you're dragging from the ticket card, not buttons
@@ -396,12 +399,13 @@ flowchart TD
 **Cause:** MCP tool might have failed mid-operation
 
 **Fix:**
+
 ```typescript
 // Manually update status
 update_ticket_status({
   ticketId: "your-ticket-id",
-  status: "ready"  // or desired status
-})
+  status: "ready", // or desired status
+});
 ```
 
 ### Comments not appearing
@@ -409,6 +413,7 @@ update_ticket_status({
 **Cause:** TanStack Query cache might be stale
 
 **Fix:**
+
 1. Refresh the page
 2. Click on another ticket and back
 3. Check that the comment was actually created: `get_ticket_comments({ ticketId: "..." })`

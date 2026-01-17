@@ -180,12 +180,12 @@ Run `brain-dump backup` to create backups. [Data locations & backup procedures â
 
 Understand exactly how Brain Dump works with visual flow diagrams:
 
-| Flow | What You'll Learn |
-| ---- | ----------------- |
-| [Kanban & Tickets](docs/flows/kanban-workflow.md) | Data model, status transitions, drag-drop board |
-| [Ralph Autonomous Agent](docs/flows/ralph-workflow.md) | State machine, iteration loop, how Ralph picks and completes tickets |
-| [Docker Sandbox](docs/flows/docker-runtime.md) | Container isolation, terminal detection, resource limits |
-| [Code Review Pipeline](docs/flows/code-review-pipeline.md) | Three-agent review system, hook enforcement, quality gates |
+| Flow                                                       | What You'll Learn                                                    |
+| ---------------------------------------------------------- | -------------------------------------------------------------------- |
+| [Kanban & Tickets](docs/flows/kanban-workflow.md)          | Data model, status transitions, drag-drop board                      |
+| [Ralph Autonomous Agent](docs/flows/ralph-workflow.md)     | State machine, iteration loop, how Ralph picks and completes tickets |
+| [Docker Sandbox](docs/flows/docker-runtime.md)             | Container isolation, terminal detection, resource limits             |
+| [Code Review Pipeline](docs/flows/code-review-pipeline.md) | Three-agent review system, hook enforcement, quality gates           |
 
 See the [complete flows index](docs/flows/README.md) for the big picture.
 
@@ -193,17 +193,17 @@ See the [complete flows index](docs/flows/README.md) for the big picture.
 
 ## Learn More
 
-| Topic                 | Link                                                                                                 |
-| --------------------- | ---------------------------------------------------------------------------------------------------- |
-| Claude Code setup     | [docs/claude-code-setup.md](docs/claude-code-setup.md)                                               |
-| VS Code setup         | [docs/vscode-setup.md](docs/vscode-setup.md)                                                         |
-| OpenCode setup        | [docs/opencode-setup.md](docs/opencode-setup.md)                                                     |
-| MCP Tools reference   | [docs/mcp-tools.md](docs/mcp-tools.md)                                                               |
-| CLI reference         | [docs/cli.md](docs/cli.md)                                                                           |
-| Ralph autonomous mode | [docs/flows/ralph-workflow.md](docs/flows/ralph-workflow.md)                                         |
-| Troubleshooting       | [docs/troubleshooting.md](docs/troubleshooting.md)                                                   |
-| Docker sandbox        | [docs/docker-sandbox-guide.md](docs/docker-sandbox-guide.md)                                         |
-| Backup & restore      | [docs/backup-restore.md](docs/backup-restore.md)                                                     |
+| Topic                 | Link                                                         |
+| --------------------- | ------------------------------------------------------------ |
+| Claude Code setup     | [docs/claude-code-setup.md](docs/claude-code-setup.md)       |
+| VS Code setup         | [docs/vscode-setup.md](docs/vscode-setup.md)                 |
+| OpenCode setup        | [docs/opencode-setup.md](docs/opencode-setup.md)             |
+| MCP Tools reference   | [docs/mcp-tools.md](docs/mcp-tools.md)                       |
+| CLI reference         | [docs/cli.md](docs/cli.md)                                   |
+| Ralph autonomous mode | [docs/flows/ralph-workflow.md](docs/flows/ralph-workflow.md) |
+| Troubleshooting       | [docs/troubleshooting.md](docs/troubleshooting.md)           |
+| Docker sandbox        | [docs/docker-sandbox-guide.md](docs/docker-sandbox-guide.md) |
+| Backup & restore      | [docs/backup-restore.md](docs/backup-restore.md)             |
 
 ---
 

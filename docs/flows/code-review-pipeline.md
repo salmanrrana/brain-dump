@@ -8,14 +8,15 @@ Never ship code without a second opinion. Brain Dump runs three review agents in
 
 ## TL;DR — Quick Reference
 
-| Action | How |
-|--------|-----|
-| Run review manually | `/review` command |
-| Check review status | `ls -la .claude/.review-completed` |
-| Review marker valid for | 30 minutes (push) or 5 minutes (conversation end) |
-| Skip review (minor changes) | Automatic if ≤2 files, <50 lines changed |
+| Action                      | How                                               |
+| --------------------------- | ------------------------------------------------- |
+| Run review manually         | `/review` command                                 |
+| Check review status         | `ls -la .claude/.review-completed`                |
+| Review marker valid for     | 30 minutes (push) or 5 minutes (conversation end) |
+| Skip review (minor changes) | Automatic if ≤2 files, <50 lines changed          |
 
 **Three agents run in parallel:**
+
 - **Code Reviewer** — Style, security, logic errors
 - **Silent Failure Hunter** — Empty catches, missing error handling
 - **Code Simplifier** — Redundancy, complexity, naming
@@ -113,6 +114,7 @@ flowchart LR
 ```
 
 **What it catches:**
+
 - Style inconsistencies (naming, formatting)
 - Security vulnerabilities (injection, XSS, OWASP top 10)
 - Logic errors (edge cases, race conditions)
@@ -137,14 +139,14 @@ flowchart LR
 
 **Severity Levels:**
 
-| Level | Pattern | Example |
-|-------|---------|---------|
-| 🔴 **CRITICAL** | Empty catch blocks | `catch (e) {}` |
-| 🔴 **CRITICAL** | Fire-and-forget async | `fetch(url)` without `.catch()` |
-| 🟡 **HIGH** | console.log only | `catch (e) { console.log(e) }` |
-| 🟡 **HIGH** | Overly broad catches | `catch (Error e)` catches everything |
-| 🟠 **MEDIUM** | Missing UI error state | No error display to user |
-| ⚪ **LOW** | Fallback hiding failures | Default values masking issues |
+| Level           | Pattern                  | Example                              |
+| --------------- | ------------------------ | ------------------------------------ |
+| 🔴 **CRITICAL** | Empty catch blocks       | `catch (e) {}`                       |
+| 🔴 **CRITICAL** | Fire-and-forget async    | `fetch(url)` without `.catch()`      |
+| 🟡 **HIGH**     | console.log only         | `catch (e) { console.log(e) }`       |
+| 🟡 **HIGH**     | Overly broad catches     | `catch (Error e)` catches everything |
+| 🟠 **MEDIUM**   | Missing UI error state   | No error display to user             |
+| ⚪ **LOW**      | Fallback hiding failures | Default values masking issues        |
 
 ---
 
@@ -163,6 +165,7 @@ flowchart LR
 ```
 
 **What it looks for:**
+
 - Nested ternaries (prefer switch/if-else)
 - Duplicate code patterns
 - Unclear variable names
@@ -206,12 +209,13 @@ sequenceDiagram
 
 ### Two Types of Review Checks
 
-| Hook | When It Runs | Marker Age Limit | Purpose |
-|------|--------------|------------------|---------|
-| **Stop Hook** | Conversation ending | 5 minutes | Remind before you leave |
-| **PreToolUse Hook** | Before `git push` / `gh pr create` | 30 minutes | Block unreviewed pushes |
+| Hook                | When It Runs                       | Marker Age Limit | Purpose                 |
+| ------------------- | ---------------------------------- | ---------------- | ----------------------- |
+| **Stop Hook**       | Conversation ending                | 5 minutes        | Remind before you leave |
+| **PreToolUse Hook** | Before `git push` / `gh pr create` | 30 minutes       | Block unreviewed pushes |
 
 **Why different timeouts?**
+
 - **5 minutes for conversation end:** You might have made changes after review
 - **30 minutes for push:** Gives you time to fix issues before pushing
 
@@ -232,6 +236,7 @@ flowchart LR
 ```
 
 **Why it expires:**
+
 - Prevents pushing old, unreviewed code
 - Encourages re-review after more changes
 - Balances convenience and safety
@@ -266,6 +271,7 @@ flowchart LR
 ### Skip Conditions
 
 Review is **automatically skipped** for:
+
 - Documentation only (`.md` files)
 - Config files (`package.json`, `tsconfig.json`)
 - Generated files (`*.d.ts`, `dist/`)
@@ -287,17 +293,21 @@ flowchart LR
 ```
 
 **Example ticket comment:**
+
 ```markdown
 ## Code Review Summary
 
 ### 🔴 Critical Issues (1)
+
 - `src/api/auth.ts:45` - SQL injection vulnerability
 
 ### 🟡 Important (2)
+
 - `src/components/Form.tsx:23` - Missing error boundary
 - `src/lib/utils.ts:89` - Async operation without error handling
 
 ### 💡 Suggestions (1)
+
 - Consider extracting validation logic to separate function
 ```
 
@@ -332,6 +342,7 @@ flowchart LR
 **Cause:** Review marker expired or was never created
 
 **Fix:**
+
 ```bash
 # Check if marker exists and its age
 ls -la .claude/.review-completed
@@ -346,6 +357,7 @@ ls -la .claude/.review-completed
 **Cause:** Usually a configuration or permissions issue
 
 **Fix:**
+
 1. Check the agent is enabled in `auto-review.config.json`
 2. Try running `/review` with verbose output
 3. Check Claude Code logs for errors
@@ -355,6 +367,7 @@ ls -la .claude/.review-completed
 **Cause:** Large number of changed files
 
 **Fix:**
+
 - Review runs on changed files only
 - Break up large PRs into smaller chunks
 - Consider reviewing incrementally as you work
@@ -364,6 +377,7 @@ ls -la .claude/.review-completed
 **Cause:** Agent doesn't understand your codebase context
 
 **Fix:**
+
 - Add exceptions to your CLAUDE.md
 - Use `// review-ignore: reason` comments for known issues
 - Configure exclusion patterns in `auto-review.config.json`

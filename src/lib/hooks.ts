@@ -491,6 +491,8 @@ export const queryKeys = {
     containers: () => ["ralph", "containers"] as const,
     containerLogs: (containerName: string, tail: number) =>
       ["ralph", "containerLogs", containerName, tail] as const,
+    containerStats: (containerNames?: string[]) =>
+      ["ralph", "containerStats", containerNames ?? "all"] as const,
     events: (sessionId: string) => ["ralph", "events", sessionId] as const,
   },
   // Project services
@@ -1677,6 +1679,80 @@ export function useRalphContainerLogs(
     hasNewLogs,
     loading: query.isLoading,
     error: query.data?.error ?? query.error?.message ?? null,
+    refetch: query.refetch,
+  };
+}
+
+// =============================================================================
+// RALPH CONTAINER STATS
+// =============================================================================
+
+import { getRalphContainerStats } from "../api/services";
+import type { ContainerStats, ContainerStatsResult } from "../api/docker-utils";
+
+// Re-export types for components
+export type { ContainerStats, ContainerStatsResult };
+
+/**
+ * Hook for fetching resource usage stats for Ralph containers.
+ *
+ * Uses `docker stats --no-stream` which is heavier than `docker ps`,
+ * so polls less frequently (default: 10 seconds).
+ *
+ * @param containerNames - Optional list of container names to filter
+ * @param options - Configuration options
+ * @returns Container stats and query state
+ */
+export function useContainerStats(
+  containerNames?: string[],
+  options: {
+    /** Whether to enable the query (default: true) */
+    enabled?: boolean;
+    /** Polling interval in ms (default: 10000ms = 10 seconds) */
+    pollingInterval?: number;
+  } = {}
+) {
+  const { enabled = true, pollingInterval = 10_000 } = options;
+
+  const query = useQuery({
+    queryKey: queryKeys.ralph.containerStats(containerNames),
+    queryFn: async (): Promise<ContainerStatsResult> => {
+      // Only include containerNames in data if provided (exactOptionalPropertyTypes)
+      return getRalphContainerStats({
+        data: containerNames ? { containerNames } : {},
+      });
+    },
+    enabled,
+    refetchInterval: pollingInterval,
+    // Prevent refetch on window focus since we're polling (TanStack Query best practice)
+    staleTime: pollingInterval,
+    refetchOnWindowFocus: false,
+  });
+
+  // Create a map for efficient lookup by container name
+  const statsMap = useMemo(() => {
+    const map = new Map<string, ContainerStats>();
+    const stats = query.data?.stats;
+    if (stats) {
+      for (const stat of stats) {
+        map.set(stat.name, stat);
+      }
+    }
+    return map;
+  }, [query.data]);
+
+  return {
+    /** Array of container stats */
+    stats: query.data?.stats ?? [],
+    /** Map of containerName -> stats for O(1) lookup */
+    statsMap,
+    /** Get stats for a specific container by name */
+    getStats: (name: string) => statsMap.get(name) ?? null,
+    /** Any error that occurred (from Docker or query) */
+    error: query.data?.error ?? query.error?.message ?? null,
+    /** Whether we're fetching stats */
+    loading: query.isLoading,
+    /** Force refetch stats */
     refetch: query.refetch,
   };
 }

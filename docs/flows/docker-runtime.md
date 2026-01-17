@@ -8,13 +8,13 @@ Give AI access to your code without giving it access to your system. Docker Sand
 
 ## TL;DR — Quick Reference
 
-| Action | How |
-|--------|-----|
-| Enable Docker Sandbox | Check "Use Docker Sandbox" before starting Ralph |
-| Check Docker status | `docker info` |
-| View running containers | `docker ps \| grep ralph` |
-| Stop stuck container | `docker stop ralph-{session-id}` |
-| Rebuild sandbox image | `docker build -t brain-dump-ralph-sandbox:latest -f docker/ralph-sandbox.Dockerfile .` |
+| Action                  | How                                                                                    |
+| ----------------------- | -------------------------------------------------------------------------------------- |
+| Enable Docker Sandbox   | Check "Use Docker Sandbox" before starting Ralph                                       |
+| Check Docker status     | `docker info`                                                                          |
+| View running containers | `docker ps \| grep ralph`                                                              |
+| Stop stuck container    | `docker stop ralph-{session-id}`                                                       |
+| Rebuild sandbox image   | `docker build -t brain-dump-ralph-sandbox:latest -f docker/ralph-sandbox.Dockerfile .` |
 
 **Resource limits:** 2GB RAM, 1.5 CPUs, 256 max PIDs
 
@@ -49,13 +49,13 @@ flowchart LR
     style B3 fill:#22c55e,color:#fff
 ```
 
-| Native Mode | Docker Sandbox |
-|-------------|----------------|
-| Full filesystem access | Only your project folder |
-| Can install system packages | Isolated environment |
-| Can access other projects | Can't see other code |
-| Uses all system resources | Capped at 2GB RAM, 1.5 CPUs |
-| Processes can escape | no-new-privileges enforced |
+| Native Mode                 | Docker Sandbox              |
+| --------------------------- | --------------------------- |
+| Full filesystem access      | Only your project folder    |
+| Can install system packages | Isolated environment        |
+| Can access other projects   | Can't see other code        |
+| Uses all system resources   | Capped at 2GB RAM, 1.5 CPUs |
+| Processes can escape        | no-new-privileges enforced  |
 
 ---
 
@@ -91,13 +91,13 @@ flowchart TB
 
 ### What Gets Mounted
 
-| Mount | Path in Container | Access | Purpose |
-|-------|-------------------|--------|---------|
-| Project | `/workspace` | Read-write | Your code |
-| Claude config | `~/.claude/` | Read-only | API authentication |
-| Git config | `~/.gitconfig` | Read-only | Commit identity |
-| SSH agent | `/ssh-agent` | Socket | Git push without keys |
-| known_hosts | `~/.ssh/known_hosts` | Read-only | GitHub verification |
+| Mount         | Path in Container    | Access     | Purpose               |
+| ------------- | -------------------- | ---------- | --------------------- |
+| Project       | `/workspace`         | Read-write | Your code             |
+| Claude config | `~/.claude/`         | Read-only  | API authentication    |
+| Git config    | `~/.gitconfig`       | Read-only  | Commit identity       |
+| SSH agent     | `/ssh-agent`         | Socket     | Git push without keys |
+| known_hosts   | `~/.ssh/known_hosts` | Read-only  | GitHub verification   |
 
 ### What's Protected
 
@@ -135,13 +135,13 @@ flowchart TD
 
 **Supported Runtimes:**
 
-| Runtime | Platform | Priority |
-|---------|----------|----------|
-| Lima | macOS | 1 (checked first) |
-| Colima | macOS | 2 |
-| Rancher Desktop | macOS/Linux | 3 |
-| Docker Desktop | All | 4 |
-| Podman | Linux | 5 |
+| Runtime         | Platform    | Priority          |
+| --------------- | ----------- | ----------------- |
+| Lima            | macOS       | 1 (checked first) |
+| Colima          | macOS       | 2                 |
+| Rancher Desktop | macOS/Linux | 3                 |
+| Docker Desktop  | All         | 4                 |
+| Podman          | Linux       | 5                 |
 
 ---
 
@@ -224,6 +224,7 @@ sequenceDiagram
 ```
 
 **What this means:**
+
 - SSH keys stay on your machine
 - Container can still push to GitHub
 - Passphrase prompts appear on your host
@@ -279,14 +280,15 @@ sequenceDiagram
 
 When your project runs dev servers, access them from your host:
 
-| Container Port | Host Port | Purpose |
-|----------------|-----------|---------|
-| 8100-8110 | 8100-8110 | Frontend (Vite, Next.js) |
-| 8200-8210 | 8200-8210 | Backend (Express, Fastify) |
-| 8300-8310 | 8300-8310 | Docs (Storybook) |
-| 8400-8410 | 8400-8410 | Database tools |
+| Container Port | Host Port | Purpose                    |
+| -------------- | --------- | -------------------------- |
+| 8100-8110      | 8100-8110 | Frontend (Vite, Next.js)   |
+| 8200-8210      | 8200-8210 | Backend (Express, Fastify) |
+| 8300-8310      | 8300-8310 | Docs (Storybook)           |
+| 8400-8410      | 8400-8410 | Database tools             |
 
 **Access dev server:**
+
 ```bash
 # If Ralph starts Vite on 8100 inside container
 open http://localhost:8100
@@ -317,6 +319,7 @@ flowchart TD
 ```
 
 **What happens on timeout:**
+
 1. `SIGALRM` signal received
 2. Logged to `plans/progress.txt`
 3. Container stopped with 30-second grace period
@@ -332,6 +335,7 @@ flowchart TD
 **Symptoms:** "Docker not found" error when starting Ralph
 
 **Fix:**
+
 ```bash
 # Check if Docker is running
 docker info
@@ -350,6 +354,7 @@ colima start
 **Symptoms:** "git push" fails with authentication error
 
 **Fix:**
+
 ```bash
 # Check if agent is running
 echo $SSH_AUTH_SOCK
@@ -367,6 +372,7 @@ ssh-add -l
 **Symptoms:** "Container already exists" or "Port in use" errors
 
 **Fix:**
+
 ```bash
 # Find stuck containers
 docker ps -a | grep ralph
@@ -383,6 +389,7 @@ lsof -i :8100
 **Symptoms:** Container exits immediately or restarts repeatedly
 
 **Fix:**
+
 ```bash
 # Check container logs
 docker logs ralph-session-id
@@ -397,6 +404,7 @@ docker build -t brain-dump-ralph-sandbox:latest -f docker/ralph-sandbox.Dockerfi
 **Symptoms:** Can't reach npm registry, GitHub, etc.
 
 **Fix:**
+
 ```bash
 # Check network exists
 docker network ls | grep ralph-net
@@ -414,6 +422,7 @@ docker run --rm --network ralph-net alpine ping -c 3 github.com
 **Symptoms:** Stale state files, orphaned containers
 
 **Fix:**
+
 ```bash
 # Clean up everything
 rm -f .claude/ralph-state.json

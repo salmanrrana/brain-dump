@@ -1,5 +1,14 @@
 import { useState, useRef, useCallback } from "react";
-import { X, ChevronDown, Bot, Loader2, Save } from "lucide-react";
+import {
+  X,
+  ChevronDown,
+  Bot,
+  Loader2,
+  Save,
+  CheckCircle,
+  AlertTriangle,
+  Container,
+} from "lucide-react";
 import {
   useCreateEpic,
   useUpdateEpic,
@@ -9,6 +18,7 @@ import {
   useModalKeyboard,
   useClickOutside,
   useAutoClearState,
+  useDockerStatus,
 } from "../lib/hooks";
 import { useToast } from "./Toast";
 import ErrorAlert from "./ErrorAlert";
@@ -60,6 +70,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   // Settings and Ralph hooks
   const { settings } = useSettings();
   const launchRalphMutation = useLaunchRalphForEpic();
+  const { dockerStatus } = useDockerStatus();
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const isDeleting = deleteMutation.isPending;
@@ -136,65 +147,72 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   };
 
   // Handle Start Ralph for entire epic
-  const handleStartRalph = useCallback(async () => {
-    if (!epic) return;
+  // @param forceDocker - If true, always uses Docker sandbox regardless of settings
+  const handleStartRalph = useCallback(
+    async (forceDocker?: boolean) => {
+      if (!epic) return;
 
-    setIsStartingRalph(true);
-    setRalphNotification(null);
+      setIsStartingRalph(true);
+      setRalphNotification(null);
 
-    try {
-      const result = await launchRalphMutation.mutateAsync({
-        epicId: epic.id,
-        maxIterations: 20, // More iterations for epics with multiple tickets
-        preferredTerminal: settings?.terminalEmulator ?? null,
-        useSandbox: settings?.ralphSandbox ?? false,
-      });
+      // Use Docker if explicitly requested or if sandbox mode is enabled in settings
+      const useSandbox = forceDocker === true || (settings?.ralphSandbox ?? false);
 
-      if (result.success) {
-        // Check if VS Code launch path was used
-        const launchMethod = "launchMethod" in result ? result.launchMethod : undefined;
-        const contextFile = "contextFile" in result ? result.contextFile : undefined;
+      try {
+        const result = await launchRalphMutation.mutateAsync({
+          epicId: epic.id,
+          maxIterations: 20, // More iterations for epics with multiple tickets
+          preferredTerminal: settings?.terminalEmulator ?? null,
+          useSandbox,
+        });
 
-        // Build notification with optional fields only when they have values
-        const notification: {
-          type: "success";
-          message: string;
-          launchMethod?: "vscode" | "terminal";
-          contextFile?: string;
-        } = {
-          type: "success",
-          message: result.message,
-        };
-        if (launchMethod) notification.launchMethod = launchMethod;
-        if (contextFile) notification.contextFile = contextFile;
+        if (result.success) {
+          // Check if VS Code launch path was used
+          const launchMethod = "launchMethod" in result ? result.launchMethod : undefined;
+          const contextFile = "contextFile" in result ? result.contextFile : undefined;
 
-        setRalphNotification(notification);
-        setTimeout(() => onSave(), 500);
-      } else {
+          // Build notification with optional fields only when they have values
+          const notification: {
+            type: "success";
+            message: string;
+            launchMethod?: "vscode" | "terminal";
+            contextFile?: string;
+          } = {
+            type: "success",
+            message: result.message,
+          };
+          if (launchMethod) notification.launchMethod = launchMethod;
+          if (contextFile) notification.contextFile = contextFile;
+
+          setRalphNotification(notification);
+          setTimeout(() => onSave(), 500);
+        } else {
+          setRalphNotification({
+            type: "error",
+            message: result.message,
+          });
+        }
+        // Auto-hide is handled by useAutoClearState hook
+      } catch (error) {
+        console.error("Failed to start Ralph:", error);
+        const errorMessage = error instanceof Error ? error.message : "Failed to launch Ralph";
         setRalphNotification({
           type: "error",
-          message: result.message,
+          message: errorMessage,
         });
+      } finally {
+        setIsStartingRalph(false);
       }
-      // Auto-hide is handled by useAutoClearState hook
-    } catch (error) {
-      console.error("Failed to start Ralph:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to launch Ralph";
-      setRalphNotification({
-        type: "error",
-        message: errorMessage,
-      });
-    } finally {
-      setIsStartingRalph(false);
-    }
-  }, [
-    epic,
-    settings?.terminalEmulator,
-    settings?.ralphSandbox,
-    launchRalphMutation,
-    onSave,
-    setRalphNotification,
-  ]);
+    },
+    [
+      epic,
+      settings?.terminalEmulator,
+      settings?.ralphSandbox,
+      launchRalphMutation,
+      onSave,
+      setRalphNotification,
+    ]
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -414,6 +432,65 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                     <div className="font-medium text-gray-100">Start Ralph</div>
                     <div className="text-xs text-slate-400">
                       Launch autonomous mode for this epic
+                    </div>
+                    {/* Docker Runtime Indicator - only when sandbox mode enabled */}
+                    {settings?.ralphSandbox && (
+                      <div className="mt-1 flex items-center gap-1.5 text-xs">
+                        {dockerStatus?.dockerRunning ? (
+                          <>
+                            <CheckCircle size={12} className="text-green-400" />
+                            <span className="text-green-400">
+                              Using {dockerStatus.runtimeType || "Docker"}
+                            </span>
+                          </>
+                        ) : dockerStatus?.dockerAvailable ? (
+                          <>
+                            <AlertTriangle size={12} className="text-yellow-400" />
+                            <span className="text-yellow-400">Docker not running</span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertTriangle size={12} className="text-yellow-400" />
+                            <span className="text-yellow-400">Docker not detected</span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </button>
+                {/* Dedicated "Start in Docker" option - always visible */}
+                <button
+                  onClick={() => {
+                    setShowActionMenu(false);
+                    void handleStartRalph(true); // forceDocker = true
+                  }}
+                  disabled={isStartingRalph || !dockerStatus?.dockerRunning}
+                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left border-t border-slate-700 disabled:opacity-50"
+                >
+                  <Container size={18} className="text-cyan-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="font-medium text-gray-100">Start in Docker</div>
+                    <div className="text-xs text-slate-400">Run in isolated Docker container</div>
+                    {/* Docker status indicator */}
+                    <div className="mt-1 flex items-center gap-1.5 text-xs">
+                      {dockerStatus?.dockerRunning ? (
+                        <>
+                          <CheckCircle size={12} className="text-green-400" />
+                          <span className="text-green-400">
+                            {dockerStatus.runtimeType || "Docker"} ready
+                          </span>
+                        </>
+                      ) : dockerStatus?.dockerAvailable ? (
+                        <>
+                          <AlertTriangle size={12} className="text-yellow-400" />
+                          <span className="text-yellow-400">Docker not running</span>
+                        </>
+                      ) : (
+                        <>
+                          <AlertTriangle size={12} className="text-slate-500" />
+                          <span className="text-slate-500">Docker not available</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </button>

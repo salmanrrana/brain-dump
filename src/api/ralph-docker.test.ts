@@ -52,18 +52,17 @@ describe("Ralph Docker Sandbox", () => {
       // Verify the script uses bash arrays for mounts (user-facing behavior)
       expect(script).toContain("EXTRA_MOUNTS=()");
 
-      // Verify it checks for ~/.claude/ directory
-      expect(script).toContain('if [ -d "$HOME/.claude" ]');
-      expect(script).toContain("EXTRA_MOUNTS+=(-v");
-      expect(script).toContain("/.claude:/home/ralph/.claude:ro");
-
-      // Verify it checks for ~/.claude.json file
+      // Verify it checks for ~/.claude.json auth file (NOT the directory - see CLAUDE.md)
+      // Only the auth file is mounted, not the directory, so Claude can write session data
       expect(script).toContain('if [ -f "$HOME/.claude.json" ]');
+      expect(script).toContain("EXTRA_MOUNTS+=(-v");
       expect(script).toContain("/.claude.json:/home/ralph/.claude.json:ro");
 
-      // Verify fallback for Linux XDG path
+      // Verify fallback for Linux XDG path - mounts settings.json specifically, not whole directory
       expect(script).toContain('if [ "$CLAUDE_CONFIG_FOUND" = "false" ]');
-      expect(script).toContain("/.config/claude-code:/home/ralph/.config/claude-code:ro");
+      expect(script).toContain(
+        "/.config/claude-code/settings.json:/home/ralph/.config/claude-code/settings.json:ro"
+      );
 
       // Verify docker run uses the array correctly
       expect(script).toContain('"${EXTRA_MOUNTS[@]}"');

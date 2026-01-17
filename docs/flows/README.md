@@ -65,37 +65,37 @@ flowchart LR
     style After fill:#bbf7d0,color:#000
 ```
 
-| Manual Workflow | With Brain Dump |
-|-----------------|-----------------|
+| Manual Workflow               | With Brain Dump               |
+| ----------------------------- | ----------------------------- |
 | Copy ticket description to AI | AI reads ticket automatically |
-| Paste code back and forth | AI writes directly to files |
-| Manually track changes | Git commits linked to tickets |
-| Update Jira/Linear separately | Status updates automatically |
-| Context lost between sessions | Full history preserved |
+| Paste code back and forth     | AI writes directly to files   |
+| Manually track changes        | Git commits linked to tickets |
+| Update Jira/Linear separately | Status updates automatically  |
+| Context lost between sessions | Full history preserved        |
 
 ---
 
 ## What Developers Are Saying
 
 > "I started Ralph before dinner and woke up to 5 completed PRs. It's like having a junior dev who works overnight."
-> — *Early adopter*
+> — _Early adopter_
 
 > "The state machine enforcement seemed annoying at first, but it actually prevents the AI from skipping steps. My code quality improved."
-> — *Solo founder*
+> — _Solo founder_
 
 > "Finally, a tool that understands my codebase conventions. It reads my CLAUDE.md and actually follows it."
-> — *Tech lead*
+> — _Tech lead_
 
 ---
 
 ## Quick Navigation
 
-| Flow | What You'll Learn | Time to Read |
-|------|-------------------|--------------|
-| [**Kanban & Tickets**](./kanban-workflow.md) | Data model, ticket lifecycle, drag-drop board | 5 min |
-| [**Ralph Autonomous Agent**](./ralph-workflow.md) | State machine, iteration loop, hands-off development | 8 min |
-| [**Docker Sandbox**](./docker-runtime.md) | Container isolation, resource limits, security | 5 min |
-| [**Code Review Pipeline**](./code-review-pipeline.md) | Three-agent review, hook enforcement, quality gates | 6 min |
+| Flow                                                  | What You'll Learn                                    | Time to Read |
+| ----------------------------------------------------- | ---------------------------------------------------- | ------------ |
+| [**Kanban & Tickets**](./kanban-workflow.md)          | Data model, ticket lifecycle, drag-drop board        | 5 min        |
+| [**Ralph Autonomous Agent**](./ralph-workflow.md)     | State machine, iteration loop, hands-off development | 8 min        |
+| [**Docker Sandbox**](./docker-runtime.md)             | Container isolation, resource limits, security       | 5 min        |
+| [**Code Review Pipeline**](./code-review-pipeline.md) | Three-agent review, hook enforcement, quality gates  | 6 min        |
 
 ---
 
@@ -165,6 +165,7 @@ flowchart TD
 ```
 
 **Quick decision:**
+
 - **Just exploring?** → Interactive mode with Claude
 - **Trust the AI?** → Ralph autonomous mode
 - **Want isolation?** → Docker sandbox
@@ -173,30 +174,34 @@ flowchart TD
 
 ## Why Brain Dump vs Alternatives
 
-| Feature | Brain Dump | GitHub Copilot Workspace | Cursor Composer |
-|---------|------------|--------------------------|-----------------|
-| Autonomous backlog processing | ✅ Ralph works tickets sequentially | ❌ One-shot only | ❌ One-shot only |
-| Kanban board integration | ✅ Built-in with status tracking | ❌ Separate tool needed | ❌ Separate tool needed |
-| State machine enforcement | ✅ Hooks prevent skipping steps | ❌ No guardrails | ❌ No guardrails |
-| Docker isolation | ✅ Sandboxed execution | ❌ Not available | ❌ Not available |
-| Multi-agent code review | ✅ 3 specialized reviewers | ❌ Single reviewer | ❌ Single reviewer |
-| Local-first data | ✅ SQLite on your machine | ❌ Cloud-dependent | ✅ Local |
-| Works while you sleep | ✅ Set and forget | ❌ Requires interaction | ❌ Requires interaction |
+| Feature                       | Brain Dump                          | GitHub Copilot Workspace | Cursor Composer         |
+| ----------------------------- | ----------------------------------- | ------------------------ | ----------------------- |
+| Autonomous backlog processing | ✅ Ralph works tickets sequentially | ❌ One-shot only         | ❌ One-shot only        |
+| Kanban board integration      | ✅ Built-in with status tracking    | ❌ Separate tool needed  | ❌ Separate tool needed |
+| State machine enforcement     | ✅ Hooks prevent skipping steps     | ❌ No guardrails         | ❌ No guardrails        |
+| Docker isolation              | ✅ Sandboxed execution              | ❌ Not available         | ❌ Not available        |
+| Multi-agent code review       | ✅ 3 specialized reviewers          | ❌ Single reviewer       | ❌ Single reviewer      |
+| Local-first data              | ✅ SQLite on your machine           | ❌ Cloud-dependent       | ✅ Local                |
+| Works while you sleep         | ✅ Set and forget                   | ❌ Requires interaction  | ❌ Requires interaction |
 
 ---
 
 ## Core Concepts (30-second overview)
 
 ### 1. Tickets Are Everything
+
 Every piece of work is a ticket with context, acceptance criteria, and linked files. AI gets all of this automatically.
 
 ### 2. AI Gets Full Context
+
 When you click "Start with Claude," the AI receives your ticket, your CLAUDE.md conventions, linked files, and previous session history.
 
 ### 3. Ralph Automates the Loop
+
 Ralph picks tickets, creates branches, writes code, runs tests, commits, and moves to the next ticket—all without you.
 
 ### 4. Hooks Enforce Quality
+
 Can't write code until you're in "implementing" state. Can't push until code is reviewed. Guardrails built in.
 
 ---
@@ -242,13 +247,13 @@ pnpm dev
 
 ## Quick Reference
 
-| Action | How |
-|--------|-----|
-| Start interactive session | Click "Start with Claude" on ticket |
-| Start autonomous mode | Click "Start with Ralph" on ticket or epic |
-| Check ticket status | `brain-dump current` |
-| Complete current ticket | `brain-dump done` |
-| Run code review | `/review` command in Claude |
+| Action                    | How                                        |
+| ------------------------- | ------------------------------------------ |
+| Start interactive session | Click "Start with Claude" on ticket        |
+| Start autonomous mode     | Click "Start with Ralph" on ticket or epic |
+| Check ticket status       | `brain-dump current`                       |
+| Complete current ticket   | `brain-dump done`                          |
+| Run code review           | `/review` command in Claude                |
 
 ---
 

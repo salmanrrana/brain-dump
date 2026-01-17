@@ -32,6 +32,7 @@ import {
   useStopService,
   useStopAllServices,
   useRalphContainers,
+  useContainerStats,
   useAutoClearState,
 } from "../lib/hooks";
 import type { RalphService, ServiceStatus } from "../lib/service-discovery";
@@ -81,6 +82,17 @@ function getStatusIndicator(status: ServiceStatus): {
 
 /** Service types that use HTTP protocol */
 const HTTP_SERVICE_TYPES = new Set(["frontend", "backend", "storybook", "docs"]);
+
+/**
+ * Format bytes to a human-readable string.
+ */
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  const value = bytes / Math.pow(1024, i);
+  return `${value.toFixed(value < 10 ? 1 : 0)} ${units[i]}`;
+}
 
 /**
  * Get connection string for a service based on its type.
@@ -210,6 +222,16 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
       enabled: Boolean(projectPath),
       pollingInterval: 3000,
     });
+
+  // Fetch container stats (CPU/memory) - only when section is expanded
+  // Poll every 10 seconds (heavier than docker ps)
+  const { getStats } = useContainerStats(ralphContainer ? [ralphContainer.name] : undefined, {
+    enabled: isExpanded && hasRalphContainer,
+    pollingInterval: 10_000,
+  });
+
+  // Get stats for the Ralph container
+  const ralphStats = ralphContainer ? getStats(ralphContainer.name) : null;
 
   // Mutation hooks for start/stop
   const startServiceMutation = useStartService();
@@ -453,6 +475,33 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
                   {/* View logs hint */}
                   <span className="text-xs text-slate-500">View logs</span>
                 </div>
+
+                {/* Resource stats (CPU/Memory) - only shown when available */}
+                {ralphStats && (
+                  <div className="ml-6 mt-1 text-xs text-slate-400 flex gap-3">
+                    <span title={`CPU: ${ralphStats.cpuPercent}`}>
+                      CPU: <span className="text-cyan-400">{ralphStats.cpuPercent}</span>
+                    </span>
+                    <span title={ralphStats.memUsage}>
+                      RAM:{" "}
+                      <span className="text-cyan-400">{formatBytes(ralphStats.memUsedBytes)}</span>
+                    </span>
+                  </div>
+                )}
+
+                {/* Project origin info - show which project/epic started this container */}
+                {ralphContainer.projectName && (
+                  <div className="ml-6 mt-1 text-xs text-slate-500 truncate">
+                    Started by: <span className="text-slate-400">{ralphContainer.projectName}</span>
+                    {ralphContainer.epicTitle && (
+                      <span className="text-slate-500"> ({ralphContainer.epicTitle})</span>
+                    )}
+                  </div>
+                )}
+                {/* Containers without labels show "Unknown" origin */}
+                {!ralphContainer.projectName && (
+                  <div className="ml-6 mt-1 text-xs text-slate-500">Started by: Unknown</div>
+                )}
               </button>
             )}
 

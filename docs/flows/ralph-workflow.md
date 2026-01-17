@@ -8,13 +8,13 @@ Start Ralph, walk away, come back to completed PRs. No babysitting required.
 
 ## TL;DR — Quick Reference
 
-| Action | Command/Tool |
-|--------|--------------|
-| Start Ralph on ticket | Click "Start with Ralph" in UI |
-| Start Ralph on epic | Click "Start with Ralph" on epic card |
-| Check Ralph's progress | View `plans/progress.txt` |
-| Stop Ralph safely | Close terminal or `Ctrl+C` |
-| Cancel mid-ticket | `complete_ralph_session(sessionId, "cancelled")` |
+| Action                 | Command/Tool                                     |
+| ---------------------- | ------------------------------------------------ |
+| Start Ralph on ticket  | Click "Start with Ralph" in UI                   |
+| Start Ralph on epic    | Click "Start with Ralph" on epic card            |
+| Check Ralph's progress | View `plans/progress.txt`                        |
+| Stop Ralph safely      | Close terminal or `Ctrl+C`                       |
+| Cancel mid-ticket      | `complete_ralph_session(sessionId, "cancelled")` |
 
 **States that allow writing code:** `implementing`, `testing`, `committing`
 
@@ -140,15 +140,15 @@ stateDiagram-v2
 
 **State Permissions:**
 
-| State | Can Write Code? | What's Happening |
-|-------|-----------------|------------------|
-| `idle` | 🚫 No | Session just created |
-| `analyzing` | 🚫 No | Reading specs, planning approach |
-| `implementing` | ✅ **Yes** | Writing code |
-| `testing` | ✅ **Yes** | Running tests, fixing failures |
-| `committing` | ✅ **Yes** | Git operations |
-| `reviewing` | 🚫 No | Final self-review |
-| `done` | 🚫 No | Session complete |
+| State          | Can Write Code? | What's Happening                 |
+| -------------- | --------------- | -------------------------------- |
+| `idle`         | 🚫 No           | Session just created             |
+| `analyzing`    | 🚫 No           | Reading specs, planning approach |
+| `implementing` | ✅ **Yes**      | Writing code                     |
+| `testing`      | ✅ **Yes**      | Running tests, fixing failures   |
+| `committing`   | ✅ **Yes**      | Git operations                   |
+| `reviewing`    | 🚫 No           | Final self-review                |
+| `done`         | 🚫 No           | Session complete                 |
 
 ---
 
@@ -181,6 +181,7 @@ sequenceDiagram
 ```
 
 **When blocked, Claude sees:**
+
 ```
 STATE ENFORCEMENT: You are in 'analyzing' state but tried to write code.
 
@@ -231,11 +232,11 @@ flowchart LR
 
 ### Safe Ways to Stop
 
-| Method | When to Use | What Happens |
-|--------|-------------|--------------|
-| **Close terminal** | Anytime | Script terminates, partial work preserved |
-| **Ctrl+C** | Anytime | Graceful shutdown, current work saved |
-| **Let it timeout** | After 1 hour | Auto-stops, logs timeout to progress.txt |
+| Method             | When to Use  | What Happens                              |
+| ------------------ | ------------ | ----------------------------------------- |
+| **Close terminal** | Anytime      | Script terminates, partial work preserved |
+| **Ctrl+C**         | Anytime      | Graceful shutdown, current work saved     |
+| **Let it timeout** | After 1 hour | Auto-stops, logs timeout to progress.txt  |
 
 ### Cancel Mid-Ticket
 
@@ -243,25 +244,25 @@ If Ralph is in the middle of a ticket and you want to cancel cleanly:
 
 ```typescript
 // Get the current session ID
-get_session_state({ ticketId: "your-ticket-id" })
+get_session_state({ ticketId: "your-ticket-id" });
 // Returns: { sessionId: "abc-123", currentState: "implementing", ... }
 
 // Cancel the session
 complete_ralph_session({
   sessionId: "abc-123",
-  outcome: "cancelled"
-})
+  outcome: "cancelled",
+});
 ```
 
 This marks the session as cancelled and removes the state file, so hooks stop enforcing.
 
 ### What Happens to Partial Work?
 
-| Scenario | Uncommitted Code | Ticket Status | PRD |
-|----------|------------------|---------------|-----|
+| Scenario       | Uncommitted Code               | Ticket Status       | PRD         |
+| -------------- | ------------------------------ | ------------------- | ----------- |
 | Close terminal | Preserved in working directory | Stays `in_progress` | Not updated |
-| Ctrl+C | Preserved in working directory | Stays `in_progress` | Not updated |
-| Timeout | Preserved in working directory | Stays `in_progress` | Not updated |
+| Ctrl+C         | Preserved in working directory | Stays `in_progress` | Not updated |
+| Timeout        | Preserved in working directory | Stays `in_progress` | Not updated |
 | Cancel via MCP | Preserved in working directory | Stays `in_progress` | Not updated |
 
 **To resume:** Just start Ralph again. It will pick up incomplete tickets.
@@ -318,6 +319,7 @@ Ralph uses `plans/prd.json` as its single source of truth:
 ```
 
 **Key Field: `passes`**
+
 - `false` = Ticket needs work (Ralph will pick it)
 - `true` = Ticket is done (Ralph skips it)
 - Ralph iterates until all are `true`
@@ -348,28 +350,28 @@ flowchart TD
 
 ```typescript
 // Start tracking work
-create_ralph_session({ ticketId: "uuid" })
+create_ralph_session({ ticketId: "uuid" });
 // Returns: { sessionId: "abc", state: "idle" }
 
 // Transition state (required before writing code)
 update_session_state({
   sessionId: "abc",
   state: "implementing",
-  metadata: { message: "Starting LoginForm component" }
-})
+  metadata: { message: "Starting LoginForm component" },
+});
 
 // Complete session
 complete_ralph_session({
   sessionId: "abc",
-  outcome: "success"  // or "failure", "timeout", "cancelled"
-})
+  outcome: "success", // or "failure", "timeout", "cancelled"
+});
 ```
 
 ### Workflow Tools
 
 ```typescript
 // Start working on ticket (creates branch, sets status)
-start_ticket_work({ ticketId: "uuid" })
+start_ticket_work({ ticketId: "uuid" });
 // Creates branch: feature/abc-login-form
 // Sets status: in_progress
 // Returns: acceptance criteria, linked files
@@ -377,8 +379,8 @@ start_ticket_work({ ticketId: "uuid" })
 // Complete ticket (updates PRD, suggests next)
 complete_ticket_work({
   ticketId: "uuid",
-  summary: "Implemented login form with validation"
-})
+  summary: "Implemented login form with validation",
+});
 // Sets status: review
 // Updates PRD: passes = true
 // Suggests next ticket
@@ -398,21 +400,21 @@ emit_ralph_event({
   type: "state_change",
   data: {
     state: "implementing",
-    message: "Writing LoginForm component"
-  }
-})
+    message: "Writing LoginForm component",
+  },
+});
 ```
 
 **Event Types:**
 
-| Type | When |
-|------|------|
-| `thinking` | Analyzing/planning |
-| `tool_start` | Before tool call |
-| `tool_end` | After tool call |
-| `file_change` | File modified |
-| `state_change` | State transition |
-| `error` | Error occurred |
+| Type           | When               |
+| -------------- | ------------------ |
+| `thinking`     | Analyzing/planning |
+| `tool_start`   | Before tool call   |
+| `tool_end`     | After tool call    |
+| `file_change`  | File modified      |
+| `state_change` | State transition   |
+| `error`        | Error occurred     |
 
 ### Progress File
 
@@ -420,6 +422,7 @@ All work is logged to `plans/progress.txt`:
 
 ```markdown
 ### 2026-01-17 - Add login form (abc-123)
+
 - **Task:** Implement login form with validation
 - **Success:** true
 - **Files:** src/components/LoginForm.tsx, src/api/auth.ts
@@ -477,6 +480,7 @@ flowchart TB
 ```
 
 **Benefits:**
+
 - 🔒 Network isolation
 - 💾 Resource limits (2GB RAM, 1.5 CPUs)
 - 🛡️ Can't affect host system
@@ -505,6 +509,7 @@ flowchart LR
 ```
 
 **Enable with:**
+
 ```bash
 export AUTO_SPAWN_NEXT_TICKET=1
 ```
@@ -520,6 +525,7 @@ This spawns a fresh terminal for each ticket, avoiding context pollution.
 **Cause:** The PRD isn't being updated (passes: true not set)
 
 **Fix:**
+
 1. Check if `complete_ticket_work` was called: `cat plans/prd.json | grep passes`
 2. If not, manually update: Edit `plans/prd.json` and set `passes: true`
 3. Restart Ralph
@@ -529,6 +535,7 @@ This spawns a fresh terminal for each ticket, avoiding context pollution.
 **Cause:** You're trying to write code in the wrong state
 
 **Fix:**
+
 1. Check current state: `cat .claude/ralph-state.json`
 2. Call `update_session_state` with the correct state
 3. Retry your operation
@@ -538,6 +545,7 @@ This spawns a fresh terminal for each ticket, avoiding context pollution.
 **Cause:** Terminal was closed unexpectedly
 
 **Fix:**
+
 ```bash
 # Remove the state file
 rm .claude/ralph-state.json
@@ -550,6 +558,7 @@ rm .claude/ralph-state.json
 **Cause:** PRD was updated but ticket status wasn't
 
 **Fix:**
+
 1. Check ticket status in Brain Dump UI
 2. Manually move tickets to "Review" or "Done" status
 3. Or run `complete_ticket_work` for each ticket

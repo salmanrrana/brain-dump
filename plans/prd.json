@@ -129,7 +129,7 @@
     {
       "id": "2fb5d889-5ef0-40a6-88e2-b7f8a5fba603",
       "title": "Add Docker Runtime Selection to Settings Modal",
-      "passes": false,
+      "passes": true,
       "overview": "Add \"Docker Runtime\" section to Settings Modal within the Ralph (Autonomous Mode) section.",
       "types": [],
       "designDecisions": [],
@@ -156,7 +156,7 @@
     {
       "id": "16d24387-1008-4c2f-8f2e-916745391bda",
       "title": "Create Container Status Sidebar Section",
-      "passes": false,
+      "passes": true,
       "overview": "Create collapsible sidebar section showing running companion containers with real-time status.",
       "types": [],
       "designDecisions": [],
@@ -184,7 +184,7 @@
     {
       "id": "25a30799-fab2-4da1-976f-55841e450195",
       "title": "Add Container Start/Stop Actions to Sidebar",
-      "passes": false,
+      "passes": true,
       "overview": "Add inline start/stop action buttons for each container in the Container Status sidebar section.",
       "types": [],
       "designDecisions": [],
@@ -213,7 +213,7 @@
     {
       "id": "03f58ab0-c918-4e40-9c03-d538a9a12810",
       "title": "Add Stop All Containers Quick Action",
-      "passes": false,
+      "passes": true,
       "overview": "Add \"Stop All\" button to Container Status sidebar header for bulk container shutdown.",
       "types": [],
       "designDecisions": [],
@@ -241,7 +241,7 @@
     {
       "id": "1b5e2e24-1f3e-4392-94a4-b41e8c749cd4",
       "title": "Create Docker Runtime Detection Unit Tests",
-      "passes": false,
+      "passes": true,
       "overview": "Create comprehensive unit tests for the Docker runtime detection module.",
       "types": [],
       "designDecisions": [],
@@ -269,7 +269,7 @@
     {
       "id": "40818428-b62f-48a0-930d-dae76c3bf072",
       "title": "Add Runtime Detection Integration Tests",
-      "passes": false,
+      "passes": true,
       "overview": "Create integration tests verifying Docker runtime detection works end-to-end with actual Docker operations.",
       "types": [],
       "designDecisions": [],
@@ -297,7 +297,7 @@
     {
       "id": "870e199a-bc38-40ba-b931-1fe0868d8f64",
       "title": "Add Runtime Status to Ralph Launch Panel",
-      "passes": false,
+      "passes": true,
       "overview": "Add small runtime indicator to EpicModal Ralph panel showing which Docker runtime will be used.",
       "types": [],
       "designDecisions": [],
@@ -323,7 +323,7 @@
     {
       "id": "6328ea7e-47f8-4082-964c-841e5c81abbf",
       "title": "Track Project Origin for Containers",
-      "passes": false,
+      "passes": true,
       "overview": "Track which project/epic launched each companion container so the UI can display \"Started by: Project Name (Epic)\".",
       "types": [],
       "designDecisions": [],
@@ -350,7 +350,7 @@
     {
       "id": "df385a2b-09b8-41e9-9e12-cc82342b4023",
       "title": "Add Container Logs Viewer",
-      "passes": false,
+      "passes": true,
       "overview": "Add ability to view container logs from the sidebar. Can either open in system terminal or show inline in a modal.",
       "types": [],
       "designDecisions": [],
@@ -376,7 +376,7 @@
     {
       "id": "fc6f8adc-088c-4158-a07b-e1abf8e1b1b2",
       "title": "Add Container Resource Usage Display",
-      "passes": false,
+      "passes": true,
       "overview": "Show CPU and memory usage for each running container in the sidebar.",
       "types": [],
       "designDecisions": [],
@@ -399,6 +399,54 @@
         "frontend",
         "backend",
         "monitoring"
+      ]
+    },
+    {
+      "id": "c6808fc8-61bd-4e19-83d9-2262533da761",
+      "title": "Add live container logs modal to Container Status sidebar",
+      "passes": true,
+      "overview": "Add the ability to view live streaming logs from running Docker containers directly in the Brain Dump UI. When Ralph runs in Docker sandbox mode, users should be able to click on the container in the sidebar to open a modal showing real-time logs.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Container Status sidebar shows a clickable indicator when Ralph container is running",
+        "Clicking opens a modal with streaming logs from `docker logs -f ralph-{session}`",
+        "Logs auto-scroll to bottom as new content arrives",
+        "Modal has a \"Copy logs\" button to copy full log content",
+        "Modal can be closed without stopping the container",
+        "Show iteration progress parsed from logs (e.g., \"Iteration 2/5\")"
+      ],
+      "references": [],
+      "description": "## Overview\n\nAdd the ability to view live streaming logs from running Docker containers directly in the Brain Dump UI. When Ralph runs in Docker sandbox mode, users should be able to click on the container in the sidebar to open a modal showing real-time logs.\n\n## User Story\n\nAs a developer using Ralph in Docker sandbox mode, I want to see the live output/logs of the container so I can monitor what Ralph is doing without switching to a terminal.\n\n## Acceptance Criteria\n\n- [ ] Container Status sidebar shows a clickable indicator when Ralph container is running\n- [ ] Clicking opens a modal with streaming logs from `docker logs -f ralph-{session}`\n- [ ] Logs auto-scroll to bottom as new content arrives\n- [ ] Modal has a \"Copy logs\" button to copy full log content\n- [ ] Modal can be closed without stopping the container\n- [ ] Show iteration progress parsed from logs (e.g., \"Iteration 2/5\")\n\n## Technical Approach\n\n1. **API endpoint**: Create `getContainerLogs` server function that streams logs via `docker logs -f`\n2. **WebSocket or polling**: Use either WebSocket for real-time streaming or polling with `docker logs --since`\n3. **UI component**: Create `ContainerLogsModal` component with:\n   - Auto-scrolling log viewer (ANSI color support would be nice)\n   - Pause/resume scrolling\n   - Copy to clipboard\n   - Close button\n4. **Integration**: Add click handler to Container Status section for Ralph containers\n\n## Design Notes\n\n- Use monospace font for logs (same as terminal)\n- Support ANSI color codes if feasible (or strip them for simplicity)\n- Max log buffer to prevent memory issues (e.g., keep last 1000 lines)\n- Show \"Container stopped\" message when container exits",
+      "priority": "medium",
+      "tags": [
+        "ui",
+        "docker",
+        "ralph",
+        "logs"
+      ]
+    },
+    {
+      "id": "29718896-fea8-4108-ae9e-fc0aa33c64bc",
+      "title": "Explicit Docker mode UI with dedicated buttons and project status indicators",
+      "passes": true,
+      "overview": "Replace the implicit Docker sandbox mode (toggle buried in Settings) with an explicit, discoverable UI that makes Docker mode a first-class option when starting Ralph.\nCurrently, users must:\n1. Open Settings modal\n2. Find and enable \"Run Ralph in Docker container\" toggle\n3. Start Ralph normally\n4. Hope they remember Docker mode is enabled\nThis is not discoverable and the state is invisible.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [],
+      "description": "## Overview\n\nReplace the implicit Docker sandbox mode (toggle buried in Settings) with an explicit, discoverable UI that makes Docker mode a first-class option when starting Ralph.\n\n## Problem\n\nCurrently, users must:\n1. Open Settings modal\n2. Find and enable \"Run Ralph in Docker container\" toggle\n3. Start Ralph normally\n4. Hope they remember Docker mode is enabled\n\nThis is not discoverable and the state is invisible.\n\n## Proposed Solution\n\nMake Docker mode explicit and visible:\n\n1. **Ticket/Project Actions**: Add dedicated \"Start in Docker\" button alongside \"Start Ralph\"\n2. **Project Status Indicators**: Show 🐳 icon on project in sidebar when Ralph is running in Docker\n3. **Container Logs Access**: Click the Docker indicator to open logs modal\n4. **Settings Simplification**: Remove the toggle, or make it a \"default preference\" only\n\n## User Stories\n\n- As a user, I want to see a clear \"Run in Docker\" option so I know it's available\n- As a user, I want to see at a glance which projects have Docker containers running\n- As a user, I want quick access to container logs from the sidebar\n\n## Questions to Resolve\n\n- Where should the \"Start in Docker\" button live? (Ticket modal? Project context menu? Both?)\n- Should we show Docker availability status before clicking?\n- How do we handle the case where Docker is not available/running?\n- Should we keep the Settings toggle as a \"default\" preference?\n\n## Needs Architecture Review\n\nThis ticket needs architecture planning before implementation to determine:\n- Component structure and state management\n- How to detect Docker availability efficiently\n- Integration with existing Ralph start flow",
+      "priority": "medium",
+      "tags": [
+        "ux",
+        "docker",
+        "ralph",
+        "architecture"
       ]
     }
   ],
@@ -528,7 +576,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-17T11:42:51.141Z",
+  "generatedAt": "2026-01-17T19:45:59.414Z",
   "epicTitle": "Docker Container Status & Runtime Detection",
   "epicDescription": "Add persistent visibility of running Docker containers to Brain Dump's UI, with Lima-first runtime detection for users without Docker Desktop.\n\n**Goals:**\n- Show running containers in sidebar (always visible, not hidden in modals)\n- Auto-detect Lima/Colima/Podman runtimes\n- Let users configure runtime in Settings\n- Provide actionable error messages for common issues\n\n**User Stories:**\n- As a Lima user, I want Brain Dump to auto-detect my Docker socket so containers work without manual config\n- As a developer, I want to see running containers at a glance so I know what services are available\n- As a user, I want to copy connection strings quickly so I can use them in my code"
 }
