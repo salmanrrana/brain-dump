@@ -1043,7 +1043,12 @@ export function useBuildSandboxImage() {
 // RALPH HOOKS - Autonomous agent mode
 // =============================================================================
 
-import { launchRalphForTicket, launchRalphForEpic } from "../api/ralph";
+import {
+  launchRalphForTicket,
+  launchRalphForEpic,
+  getActiveRalphSessions,
+  type ActiveRalphSession,
+} from "../api/ralph";
 import { launchProjectInception, launchSpecBreakdown } from "../api/inception";
 import {
   getComments,
@@ -1138,6 +1143,42 @@ export function useLaunchRalphForEpic() {
     },
   });
 }
+
+/**
+ * Hook for fetching all active Ralph sessions.
+ * Returns a map of ticketId -> session for efficient lookup in kanban board.
+ *
+ * Uses polling to keep the status updated in real-time.
+ */
+export function useActiveRalphSessions(options: { pollingInterval?: number } = {}) {
+  const { pollingInterval = 5000 } = options; // Default: poll every 5 seconds
+
+  const query = useQuery({
+    queryKey: ["activeRalphSessions"],
+    queryFn: async (): Promise<Record<string, ActiveRalphSession>> => {
+      return getActiveRalphSessions();
+    },
+    // Poll frequently to show real-time status
+    refetchInterval: pollingInterval > 0 ? pollingInterval : false,
+    // Sessions can change at any time via MCP
+    staleTime: 0,
+  });
+
+  return {
+    /** Map of ticketId -> active session (for O(1) lookup) */
+    sessions: query.data ?? {},
+    /** Check if a ticket has an active Ralph session */
+    hasActiveSession: (ticketId: string) => Boolean(query.data?.[ticketId]),
+    /** Get the active session for a ticket (if any) */
+    getSession: (ticketId: string) => query.data?.[ticketId] ?? null,
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+    refetch: query.refetch,
+  };
+}
+
+// Re-export the ActiveRalphSession type for components
+export type { ActiveRalphSession };
 
 // =============================================================================
 // PROJECT INCEPTION HOOKS - Start from scratch workflow

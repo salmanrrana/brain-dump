@@ -2,7 +2,15 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GitBranch, GitPullRequest } from "lucide-react";
 import { useAppState } from "../components/AppLayout";
-import { useTickets, useProjects, type Ticket, type StatusChange } from "../lib/hooks";
+import {
+  useTickets,
+  useProjects,
+  useActiveRalphSessions,
+  type Ticket,
+  type StatusChange,
+  type ActiveRalphSession,
+} from "../lib/hooks";
+import { RalphStatusBadge } from "../components/RalphStatusBadge";
 import { useToast } from "../components/Toast";
 import TicketListView from "../components/TicketListView";
 import TicketModal from "../components/TicketModal";
@@ -76,6 +84,9 @@ function Home() {
     onStatusChange: handleStatusChange,
   });
 
+  // Fetch active Ralph sessions for status display on cards
+  const { getSession: getRalphSession } = useActiveRalphSessions();
+
   // Refetch when ticketRefreshKey changes (e.g., after creating a new ticket)
   useEffect(() => {
     if (ticketRefreshKey > 0) {
@@ -140,7 +151,12 @@ function Home() {
       {viewMode === "list" ? (
         <TicketListView tickets={tickets} epics={allEpics} onTicketClick={handleTicketClick} />
       ) : (
-        <KanbanBoard tickets={tickets} onTicketClick={handleTicketClick} onRefresh={refetch} />
+        <KanbanBoard
+          tickets={tickets}
+          onTicketClick={handleTicketClick}
+          onRefresh={refetch}
+          getRalphSession={getRalphSession}
+        />
       )}
 
       {/* Ticket Detail Modal */}
@@ -172,10 +188,12 @@ function KanbanBoard({
   tickets,
   onTicketClick,
   onRefresh,
+  getRalphSession,
 }: {
   tickets: Ticket[];
   onTicketClick: (ticket: Ticket) => void;
   onRefresh: () => void;
+  getRalphSession: (ticketId: string) => ActiveRalphSession | null;
 }) {
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
 
@@ -303,6 +321,7 @@ function KanbanBoard({
             color={column.color}
             tickets={ticketsByStatus[column.id] ?? []}
             onTicketClick={onTicketClick}
+            getRalphSession={getRalphSession}
           />
         ))}
       </div>
@@ -323,12 +342,14 @@ function BoardColumn({
   color,
   tickets,
   onTicketClick,
+  getRalphSession,
 }: {
   columnId: string;
   title: string;
   color: string;
   tickets: Ticket[];
   onTicketClick: (ticket: Ticket) => void;
+  getRalphSession: (ticketId: string) => ActiveRalphSession | null;
 }) {
   const { setNodeRef } = useSortable({
     id: columnId,
@@ -381,6 +402,7 @@ function BoardColumn({
                 key={ticket.id}
                 ticket={ticket}
                 onClick={() => onTicketClick(ticket)}
+                ralphSession={getRalphSession(ticket.id)}
               />
             ))
           )}
@@ -390,7 +412,15 @@ function BoardColumn({
   );
 }
 
-function SortableTicketCard({ ticket, onClick }: { ticket: Ticket; onClick: () => void }) {
+function SortableTicketCard({
+  ticket,
+  onClick,
+  ralphSession,
+}: {
+  ticket: Ticket;
+  onClick: () => void;
+  ralphSession: ActiveRalphSession | null;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: ticket.id,
   });
@@ -403,7 +433,12 @@ function SortableTicketCard({ ticket, onClick }: { ticket: Ticket; onClick: () =
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <TicketCard ticket={ticket} onClick={onClick} isDragging={isDragging} />
+      <TicketCard
+        ticket={ticket}
+        onClick={onClick}
+        isDragging={isDragging}
+        ralphSession={ralphSession}
+      />
     </div>
   );
 }
@@ -412,10 +447,12 @@ function TicketCard({
   ticket,
   onClick,
   isDragging = false,
+  ralphSession = null,
 }: {
   ticket: Ticket;
   onClick: () => void;
   isDragging?: boolean;
+  ralphSession?: ActiveRalphSession | null;
 }) {
   const tags = safeJsonParse<string[]>(ticket.tags, []);
   const subtasks = safeJsonParse<Subtask[]>(ticket.subtasks, []);
@@ -428,7 +465,7 @@ function TicketCard({
         isDragging ? "ring-2 ring-cyan-500 shadow-lg" : "hover:bg-slate-700"
       }`}
     >
-      {/* Title with blocked indicator */}
+      {/* Title with blocked indicator and Ralph status */}
       <div className="flex items-start gap-2">
         {ticket.isBlocked && (
           <span
@@ -436,7 +473,14 @@ function TicketCard({
             title={ticket.blockedReason ?? "Blocked"}
           />
         )}
-        <h4 className="text-sm font-medium text-gray-100 line-clamp-2">{ticket.title}</h4>
+        <div className="flex-1 min-w-0">
+          <h4 className="text-sm font-medium text-gray-100 line-clamp-2">{ticket.title}</h4>
+          {ralphSession && (
+            <div className="mt-1">
+              <RalphStatusBadge session={ralphSession} size="sm" />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tags */}
