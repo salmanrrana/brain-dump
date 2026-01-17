@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { join } from "path";
-import { existsSync, rmSync, mkdirSync, writeFileSync, readFileSync } from "fs";
+import { existsSync, rmSync, mkdirSync, writeFileSync, readFileSync, statSync } from "fs";
 import {
   getLockFilePath,
   isProcessRunning,
@@ -199,7 +199,6 @@ describe("Lock File Utilities", () => {
       acquireLock("cli");
 
       const lockPath = getLockFilePath();
-      const { statSync } = require("fs");
       const stats = statSync(lockPath);
 
       // Check mode is 0600 (owner rw only)

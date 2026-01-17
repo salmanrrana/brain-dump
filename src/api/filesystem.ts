@@ -20,7 +20,11 @@ function validatePath(inputPath: string): string {
   }
 
   // Check for obviously malicious patterns
-  if (inputPath.includes("..") && (inputPath.includes("../..") || inputPath.match(/\.\.[\\/]/g)?.length! > 3)) {
+  const parentDirMatches = inputPath.match(/\.\.[\\/]/g);
+  if (
+    inputPath.includes("..") &&
+    (inputPath.includes("../..") || (parentDirMatches && parentDirMatches.length > 3))
+  ) {
     throw new Error("Invalid path: excessive parent directory traversal");
   }
 
