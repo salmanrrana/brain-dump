@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { ChevronUp, ChevronDown, AlertCircle, GitBranch, GitPullRequest } from "lucide-react";
 
 import type { Ticket } from "../lib/hooks";
-import { STATUS_ORDER, PRIORITY_ORDER } from "../lib/constants";
+import { STATUS_ORDER, PRIORITY_ORDER, getPrStatusIconColor } from "../lib/constants";
 import { safeJsonParse } from "../lib/utils";
 
 interface Epic {
@@ -212,15 +212,7 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
                       )}
                       {ticket.prNumber && (
                         <span
-                          className={`flex items-center gap-1 text-xs ${
-                            ticket.prStatus === "merged"
-                              ? "text-purple-400"
-                              : ticket.prStatus === "closed"
-                                ? "text-red-400"
-                                : ticket.prStatus === "draft"
-                                  ? "text-slate-500"
-                                  : "text-green-400"
-                          }`}
+                          className={`flex items-center gap-1 text-xs ${getPrStatusIconColor(ticket.prStatus)}`}
                           title={`PR #${ticket.prNumber} - ${ticket.prStatus ?? "open"}`}
                         >
                           <GitPullRequest size={12} />#{ticket.prNumber}

@@ -53,7 +53,13 @@ import {
   deleteAttachment,
   type Attachment,
 } from "../api/attachments";
-import { STATUS_OPTIONS, PRIORITY_OPTIONS, POLLING_INTERVALS } from "../lib/constants";
+import {
+  STATUS_OPTIONS,
+  PRIORITY_OPTIONS,
+  POLLING_INTERVALS,
+  getPrStatusIconColor,
+  getPrStatusBadgeStyle,
+} from "../lib/constants";
 import { getTicketContext } from "../api/context";
 import { launchClaudeInTerminal, launchOpenCodeInTerminal } from "../api/terminal";
 import { safeJsonParse } from "../lib/utils";
@@ -899,15 +905,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 <div className="flex items-center gap-2">
                   <GitPullRequest
                     size={14}
-                    className={`flex-shrink-0 ${
-                      ticket.prStatus === "merged"
-                        ? "text-purple-400"
-                        : ticket.prStatus === "closed"
-                          ? "text-red-400"
-                          : ticket.prStatus === "draft"
-                            ? "text-slate-400"
-                            : "text-green-400"
-                    }`}
+                    className={`flex-shrink-0 ${getPrStatusIconColor(ticket.prStatus)}`}
                   />
                   {ticket.prUrl ? (
                     <a
@@ -924,15 +922,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                     <span className="text-sm text-slate-200">PR #{ticket.prNumber}</span>
                   )}
                   <span
-                    className={`text-xs px-2 py-0.5 rounded ${
-                      ticket.prStatus === "merged"
-                        ? "bg-purple-900/50 text-purple-300"
-                        : ticket.prStatus === "closed"
-                          ? "bg-red-900/50 text-red-300"
-                          : ticket.prStatus === "draft"
-                            ? "bg-slate-700 text-slate-300"
-                            : "bg-green-900/50 text-green-300"
-                    }`}
+                    className={`text-xs px-2 py-0.5 rounded ${getPrStatusBadgeStyle(ticket.prStatus)}`}
                   >
                     {ticket.prStatus ?? "open"}
                   </span>

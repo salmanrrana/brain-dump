@@ -8,6 +8,7 @@ import TicketListView from "../components/TicketListView";
 import TicketModal from "../components/TicketModal";
 import type { Subtask } from "../api/tickets";
 import { safeJsonParse } from "../lib/utils";
+import { getPrStatusIconColor } from "../lib/constants";
 import {
   DndContext,
   DragOverlay,
@@ -468,15 +469,7 @@ function TicketCard({
           )}
           {ticket.prNumber && (
             <span
-              className={`flex items-center gap-1 ${
-                ticket.prStatus === "merged"
-                  ? "text-purple-400"
-                  : ticket.prStatus === "closed"
-                    ? "text-red-400"
-                    : ticket.prStatus === "draft"
-                      ? "text-slate-500"
-                      : "text-green-400"
-              }`}
+              className={`flex items-center gap-1 ${getPrStatusIconColor(ticket.prStatus)}`}
               title={`PR #${ticket.prNumber} - ${ticket.prStatus ?? "open"}`}
             >
               <GitPullRequest size={12} />#{ticket.prNumber}

@@ -88,3 +88,34 @@ export const POLLING_INTERVALS = {
   /** No polling - used when feature is disabled */
   DISABLED: 0,
 } as const;
+
+// PR status type for type safety
+export type PrStatus = "draft" | "open" | "merged" | "closed";
+
+// PR status icon color utility for UI styling
+export function getPrStatusIconColor(status: string | null | undefined): string {
+  switch (status) {
+    case "merged":
+      return "text-purple-400";
+    case "closed":
+      return "text-red-400";
+    case "draft":
+      return "text-slate-400";
+    default:
+      return "text-green-400";
+  }
+}
+
+// PR status badge style utility for UI styling (icon + background)
+export function getPrStatusBadgeStyle(status: string | null | undefined): string {
+  switch (status) {
+    case "merged":
+      return "bg-purple-900/50 text-purple-300";
+    case "closed":
+      return "bg-red-900/50 text-red-300";
+    case "draft":
+      return "bg-slate-700 text-slate-300";
+    default:
+      return "bg-green-900/50 text-green-300";
+  }
+}
