@@ -540,6 +540,8 @@ function getContextResetGuidance(environment) {
 
 /**
  * Generate code review instructions based on the environment.
+ * In Claude Code, review is enforced by a Stop hook before conversation ends.
+ * In other environments, clear instructions are provided.
  * @param {string} environment - The detected environment
  * @param {string[]} changedFiles - List of files changed in the branch
  * @returns {string} Markdown instructions for running code review
@@ -563,11 +565,20 @@ No source code changes detected. Review may be skipped.`;
     "**code-simplifier** - Simplifies and refines code",
   ];
 
+  // Claude Code has automatic review enforcement via Stop hook
+  if (environment === "claude-code") {
+    return `## Code Review
+
+**Automatic Review Enabled:** The Stop hook will prompt for \`/review\` before conversation ends.
+
+When prompted, run \`/review\` to launch all three review agents in parallel:
+${reviewAgents.map(a => `- ${a}`).join("\n")}
+
+${changedFiles.length > 0 ? `### Files Changed:\n${changedFiles.slice(0, 10).map(f => `- ${f}`).join("\n")}${changedFiles.length > 10 ? `\n- ... and ${changedFiles.length - 10} more` : ""}` : ""}`;
+  }
+
+  // Other environments need manual review
   const environmentInstructions = {
-    "claude-code": `Run \`/review\` to launch the review pipeline, or use the Task tool to launch these agents in parallel:
-- \`pr-review-toolkit:code-reviewer\`
-- \`pr-review-toolkit:silent-failure-hunter\`
-- \`pr-review-toolkit:code-simplifier\``,
     "vscode": `Use MCP tools to run these review agents:
 1. code-reviewer - Reviews against CLAUDE.md guidelines
 2. silent-failure-hunter - Checks error handling
@@ -582,7 +593,7 @@ These can be run via the MCP panel or by asking your AI assistant.`,
 
   const instructions = environmentInstructions[environment] || environmentInstructions["vscode"];
 
-  return `## Code Review Recommended
+  return `## Code Review Required
 
 Before creating a PR, run the code review pipeline to catch issues early.
 

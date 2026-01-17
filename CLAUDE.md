@@ -173,9 +173,59 @@ Brain Dump supports multiple development environments:
 
 Do NOT try to work around state enforcement - it ensures work is properly tracked in the Brain Dump UI.
 
+#### Automated PR Workflow
+
+The following hooks provide an automated workflow for code review and PR creation:
+
+| Hook              | File                            | Purpose                                                    |
+| ----------------- | ------------------------------- | ---------------------------------------------------------- |
+| Pre-push review   | `enforce-review-before-push.sh` | Blocks `git push`/`gh pr create` until review is completed |
+| Post-ticket spawn | `spawn-next-ticket.sh`          | Spawns next ticket after `complete_ticket_work`            |
+| Post-PR spawn     | `spawn-after-pr.sh`             | Spawns next ticket after successful PR creation            |
+
+**To enable these hooks**, add to `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash(git push:*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/enforce-review-before-push.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash(gh pr create:*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/enforce-review-before-push.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash(gh pr create:*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/spawn-after-pr.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
 #### Auto-Spawn Next Ticket (Experimental)
 
-When enabled, completing a ticket can automatically spawn a new terminal window with Claude ready to work on the next suggested ticket. This provides:
+When enabled, completing a ticket or creating a PR can automatically spawn a new terminal window with Claude ready to work on the next suggested ticket. This provides:
 
 - **Automatic context reset** - Fresh Claude session for each ticket
 - **Seamless workflow** - No manual context clearing needed
@@ -187,9 +237,9 @@ When enabled, completing a ticket can automatically spawn a new terminal window 
 export AUTO_SPAWN_NEXT_TICKET=1
 ```
 
-The hook (`spawn-next-ticket.sh`) will:
+The hooks will:
 
-1. Parse the next ticket ID from `complete_ticket_work` output
+1. Parse the next ticket ID from `complete_ticket_work` output or PRD file
 2. Spawn a new terminal (Ghostty, iTerm2, or Terminal.app on macOS; Ghostty, Kitty, or GNOME Terminal on Linux)
 3. Start Claude with a prompt to begin the next ticket
 
@@ -390,15 +440,25 @@ After implementing ANY feature, you MUST complete these steps:
 
 **IMPORTANT: After completing any code changes (using Write, Edit, or NotebookEdit tools), you MUST run the code review pipeline before responding to the user.**
 
-The review pipeline consists of three agents that should be run in parallel:
+### How It Works
+
+The code review system is enforced automatically via hooks:
+
+1. **Stop Hook (`check-for-code-changes.sh`)**: Detects uncommitted source file changes when the conversation ends and blocks until `/review` is run
+2. **Review Skill (`/review`)**: Launches all 3 review agents in parallel and summarizes findings
+3. **Marker File (`.claude/.review-completed`)**: Prevents duplicate review prompts within 5 minutes
+
+### Review Pipeline
+
+The pipeline consists of three agents that should be run in parallel:
 
 1. `pr-review-toolkit:code-reviewer` - Reviews code against project guidelines
 2. `pr-review-toolkit:silent-failure-hunter` - Identifies silent failures and error handling issues
 3. `pr-review-toolkit:code-simplifier` - Simplifies and refines code for clarity
 
-You can run all three at once using: `/review`
+Run all three at once using: `/review`
 
-**When to skip review:**
+### When to Skip Review
 
 - Documentation-only changes (.md files)
 - Configuration file changes (package.json, tsconfig.json, etc.)
@@ -406,3 +466,37 @@ You can run all three at once using: `/review`
 - Read-only operations (searching, exploring)
 
 **This is mandatory** - the Stop hook will remind you if you forget, but you should proactively run reviews after completing code work.
+
+## Enterprise Conversation Logging
+
+Brain Dump includes enterprise-grade conversation logging for compliance auditing (SOC2, GDPR, ISO 27001).
+
+### Features
+
+- **Automatic session tracking**: Sessions created/ended automatically with `start_ticket_work`/`complete_ticket_work`
+- **Tamper detection**: HMAC-SHA256 content hashing on all messages
+- **Secret detection**: Automatic scanning for 20+ credential patterns
+- **Retention policies**: Configurable 7-365 day retention with legal hold support
+- **Audit trail**: All access to logs is recorded
+
+### MCP Tools
+
+| Tool                         | Purpose                                     |
+| ---------------------------- | ------------------------------------------- |
+| `start_conversation_session` | Create a new session for compliance logging |
+| `log_conversation_message`   | Record a message with tamper detection      |
+| `end_conversation_session`   | Mark session as complete                    |
+| `list_conversation_sessions` | Query sessions with filters                 |
+| `export_compliance_logs`     | Generate JSON export for auditors           |
+| `archive_old_sessions`       | Delete old sessions (respects legal hold)   |
+
+### Settings
+
+Configure via Settings UI:
+
+- **Enable Conversation Logging**: Toggle on/off (default: on)
+- **Retention Period**: 7-365 days (default: 90)
+
+### Documentation
+
+For detailed documentation including SQL queries, GDPR compliance, and troubleshooting, see [docs/enterprise-logging.md](docs/enterprise-logging.md).

@@ -348,7 +348,7 @@
     {
       "id": "d2e00521-b5b9-465d-ad2a-7c5c58928493",
       "title": "16. Document conversation logging for enterprise users",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -387,6 +387,33 @@
         "dx",
         "ralph",
         "automation"
+      ]
+    },
+    {
+      "id": "89cb2e28-51b8-429f-9e67-812305b17308",
+      "title": "Automated PR workflow: review, fix, push, then spawn next ticket",
+      "passes": true,
+      "overview": "Implement a fully automated workflow for commits being pushed to PRs:\n1. **Before push**: Run code review, auto-apply fixes\n2. **After push**: Check ticket status, spawn new window if complete\nThis creates a seamless flow for Ralph and Claude sessions.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Code review runs automatically before any PR push",
+        "Code-simplifier fixes applied without confirmation",
+        "Deferred improvements become tickets in same epic",
+        "New terminal spawns after push if ticket complete",
+        "Works for both Ralph and Claude sessions",
+        "Fully automated - no manual intervention"
+      ],
+      "references": [],
+      "description": "## Overview\n\nImplement a fully automated workflow for commits being pushed to PRs:\n\n1. **Before push**: Run code review, auto-apply fixes\n2. **After push**: Check ticket status, spawn new window if complete\n\nThis creates a seamless flow for Ralph and Claude sessions.\n\n## Workflow\n\n```\nWork Complete\n     ↓\n┌─────────────────────────────────┐\n│ PreToolUse Hook (git push/PR)   │\n│ 1. Run code review pipeline     │\n│ 2. Auto-apply code-simplifier   │\n│ 3. Create tickets for deferred  │\n│ 4. Allow push to proceed        │\n└─────────────────────────────────┘\n     ↓\nPush to PR\n     ↓\n┌─────────────────────────────────┐\n│ PostToolUse Hook (git push/PR)  │\n│ 1. Check if ticket is complete  │\n│ 2. If complete, spawn new       │\n│    terminal for next ticket     │\n└─────────────────────────────────┘\n```\n\n## Implementation\n\n### Pre-Push Review Hook\n- Intercept `git push` or `gh pr create` commands\n- Run review agents on changed files:\n  - code-reviewer\n  - silent-failure-hunter\n  - code-simplifier\n- Auto-apply code-simplifier recommendations (NO confirmation)\n- Create low-priority tickets in same epic for deferred items\n- Allow original command to proceed\n\n### Post-Push Spawn Hook\n- After successful push to PR\n- Check current ticket status via MCP\n- If ticket is marked complete (review state)\n- Spawn new terminal window with Claude for next ticket\n- Provides fresh context for new work\n\n## Acceptance Criteria\n\n- [ ] Code review runs automatically before any PR push\n- [ ] Code-simplifier fixes applied without confirmation\n- [ ] Deferred improvements become tickets in same epic\n- [ ] New terminal spawns after push if ticket complete\n- [ ] Works for both Ralph and Claude sessions\n- [ ] Fully automated - no manual intervention",
+      "priority": "low",
+      "tags": [
+        "automation",
+        "hooks",
+        "code-review",
+        "dx",
+        "workflow"
       ]
     }
   ],
@@ -516,7 +543,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-17T07:39:50.601Z",
+  "generatedAt": "2026-01-17T08:41:56.010Z",
   "epicTitle": "Enterprise Conversation Logging",
   "epicDescription": "Add enterprise-grade conversation logging for compliance auditing. Stores AI conversation sessions and messages with HMAC tamper detection, secret detection, retention policies, and export capabilities for SOC2/ISO 27001/GDPR compliance."
 }
