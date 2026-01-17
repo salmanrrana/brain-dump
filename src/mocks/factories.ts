@@ -108,6 +108,8 @@ export function createMockSettings(overrides: Partial<Settings> = {}): Settings 
     prTargetBranch: overrides.prTargetBranch ?? "dev",
     defaultProjectsDirectory: overrides.defaultProjectsDirectory ?? null,
     defaultWorkingMethod: overrides.defaultWorkingMethod ?? "auto",
+    dockerRuntime: overrides.dockerRuntime ?? null,
+    dockerSocketPath: overrides.dockerSocketPath ?? null,
     conversationRetentionDays: overrides.conversationRetentionDays ?? 90,
     conversationLoggingEnabled: overrides.conversationLoggingEnabled ?? true,
     createdAt: overrides.createdAt ?? new Date().toISOString(),

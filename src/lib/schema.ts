@@ -99,6 +99,9 @@ export const settings = sqliteTable("settings", {
   prTargetBranch: text("pr_target_branch").default("dev"), // Target branch for PRs
   defaultProjectsDirectory: text("default_projects_directory"), // Where to create new projects
   defaultWorkingMethod: text("default_working_method").default("auto"), // Default environment for new projects: 'auto', 'claude-code', 'vscode', 'opencode'
+  // Docker runtime settings
+  dockerRuntime: text("docker_runtime"), // 'auto' | 'lima' | 'colima' | 'rancher' | 'docker-desktop' | 'podman' - null = auto-detect
+  dockerSocketPath: text("docker_socket_path"), // Custom socket path override (null = use detected path)
   // Enterprise conversation logging settings
   conversationRetentionDays: integer("conversation_retention_days").default(90), // Days to retain conversation logs (default: 90)
   conversationLoggingEnabled: integer("conversation_logging_enabled", { mode: "boolean" }).default(

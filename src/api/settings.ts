@@ -3,6 +3,17 @@ import { db } from "../lib/db";
 import { settings } from "../lib/schema";
 import { eq } from "drizzle-orm";
 
+// Valid Docker runtime types for settings
+export const DOCKER_RUNTIME_TYPES = [
+  "auto",
+  "lima",
+  "colima",
+  "rancher",
+  "docker-desktop",
+  "podman",
+] as const;
+export type DockerRuntimeSetting = (typeof DOCKER_RUNTIME_TYPES)[number];
+
 // Types
 export interface UpdateSettingsInput {
   terminalEmulator?: string | null;
@@ -12,6 +23,9 @@ export interface UpdateSettingsInput {
   prTargetBranch?: string;
   defaultProjectsDirectory?: string | null;
   defaultWorkingMethod?: "auto" | "claude-code" | "vscode" | "opencode";
+  // Docker runtime settings
+  dockerRuntime?: DockerRuntimeSetting | null; // null = auto-detect
+  dockerSocketPath?: string | null; // Custom socket path override
   // Enterprise conversation logging
   conversationLoggingEnabled?: boolean;
   conversationRetentionDays?: number; // Days to retain logs (7-365)
@@ -68,6 +82,16 @@ export const updateSettings = createServerFn({ method: "POST" })
         throw new Error(`Invalid working method: ${input.defaultWorkingMethod}`);
       }
     }
+    // Validate Docker runtime if provided
+    if (
+      input.dockerRuntime !== undefined &&
+      input.dockerRuntime !== null &&
+      !DOCKER_RUNTIME_TYPES.includes(input.dockerRuntime)
+    ) {
+      throw new Error(
+        `Invalid Docker runtime: ${input.dockerRuntime}. Valid values: ${DOCKER_RUNTIME_TYPES.join(", ")}`
+      );
+    }
     return input;
   })
   .handler(async ({ data: updates }) => {
@@ -97,6 +121,14 @@ export const updateSettings = createServerFn({ method: "POST" })
     }
     if (updates.defaultWorkingMethod !== undefined) {
       updateData.defaultWorkingMethod = updates.defaultWorkingMethod;
+    }
+    // Docker runtime settings
+    if (updates.dockerRuntime !== undefined) {
+      // Store null for "auto" to indicate auto-detection, otherwise store the explicit value
+      updateData.dockerRuntime = updates.dockerRuntime === "auto" ? null : updates.dockerRuntime;
+    }
+    if (updates.dockerSocketPath !== undefined) {
+      updateData.dockerSocketPath = updates.dockerSocketPath || null;
     }
     if (updates.conversationLoggingEnabled !== undefined) {
       updateData.conversationLoggingEnabled = updates.conversationLoggingEnabled;
@@ -147,36 +179,45 @@ export const detectAvailableTerminals = createServerFn({ method: "GET" }).handle
 
 // Check if Docker is available and get sandbox image status
 export const getDockerStatus = createServerFn({ method: "GET" }).handler(async () => {
-  const { exec } = await import("child_process");
-  const { promisify } = await import("util");
-  const execAsync = promisify(exec);
+  const { execDockerCommand, getEffectiveDockerRuntime } = await import("./docker-utils");
 
   const status = {
     dockerAvailable: false,
     dockerRunning: false,
     imageBuilt: false,
     imageTag: "brain-dump-ralph-sandbox:latest",
+    // Include runtime info for UI display
+    runtimeType: null as string | null,
+    socketPath: null as string | null,
   };
 
-  // Check if Docker is installed
+  // Check if Docker is installed (basic check, doesn't need socket)
   try {
+    const { exec } = await import("child_process");
+    const { promisify } = await import("util");
+    const execAsync = promisify(exec);
     await execAsync("docker --version");
     status.dockerAvailable = true;
   } catch {
     return status;
   }
 
-  // Check if Docker daemon is running
+  // Check if Docker daemon is running with configured/detected socket
   try {
-    await execAsync("docker info");
+    await execDockerCommand("info");
     status.dockerRunning = true;
+
+    // Get runtime info for display
+    const runtime = await getEffectiveDockerRuntime();
+    status.runtimeType = runtime.type;
+    status.socketPath = runtime.socketPath;
   } catch {
     return status;
   }
 
   // Check if sandbox image exists
   try {
-    await execAsync(`docker image inspect ${status.imageTag}`);
+    await execDockerCommand(`image inspect ${status.imageTag}`);
     status.imageBuilt = true;
   } catch {
     // Image not built yet
@@ -187,10 +228,8 @@ export const getDockerStatus = createServerFn({ method: "GET" }).handler(async (
 
 // Build the Ralph sandbox Docker image
 export const buildSandboxImage = createServerFn({ method: "POST" }).handler(async () => {
-  const { exec } = await import("child_process");
-  const { promisify } = await import("util");
   const { join } = await import("path");
-  const execAsync = promisify(exec);
+  const { execDockerCommand } = await import("./docker-utils");
 
   // Find the docker directory relative to this file
   // In production, we need to find it from the project root
@@ -198,8 +237,8 @@ export const buildSandboxImage = createServerFn({ method: "POST" }).handler(asyn
   const contextPath = join(process.cwd(), "docker");
 
   try {
-    const { stdout } = await execAsync(
-      `docker build -t brain-dump-ralph-sandbox:latest -f "${dockerfilePath}" "${contextPath}"`,
+    const { stdout } = await execDockerCommand(
+      `build -t brain-dump-ralph-sandbox:latest -f "${dockerfilePath}" "${contextPath}"`,
       { timeout: 300000 } // 5 minute timeout
     );
     return { success: true, message: "Sandbox image built successfully", output: stdout };

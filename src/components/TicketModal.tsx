@@ -43,7 +43,9 @@ import {
   useAutoClearState,
   useProjectServices,
   useProjects,
+  useActiveRalphSessions,
 } from "../lib/hooks";
+import { RalphStatusBadge } from "./RalphStatusBadge";
 import type { ServiceType } from "../lib/service-discovery";
 import { useToast } from "./Toast";
 import type { Subtask, TicketStatus, TicketPriority } from "../api/tickets";
@@ -189,6 +191,13 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
   const createCommentMutation = useCreateComment();
   const [newComment, setNewComment] = useState("");
   const [showComments, setShowComments] = useState(true);
+
+  // Ralph session status - poll when ticket is in progress
+  const { getSession: getRalphSession } = useActiveRalphSessions({
+    pollingInterval:
+      status === "in_progress" ? POLLING_INTERVALS.COMMENTS_ACTIVE : POLLING_INTERVALS.DISABLED,
+  });
+  const ralphSession = getRalphSession(ticket.id);
 
   // Fetch existing tags for the ticket's project
   const {
@@ -793,6 +802,17 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
               className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
             />
           </div>
+
+          {/* Ralph Status - show when Ralph is working on this ticket */}
+          {ralphSession && (
+            <div className="flex items-center gap-2 p-3 bg-slate-800/50 border border-slate-700 rounded-lg">
+              <span className="text-sm text-slate-400">Ralph Status:</span>
+              <RalphStatusBadge session={ralphSession} size="md" />
+              <span className="text-xs text-slate-500 ml-auto">
+                Started {new Date(ralphSession.startedAt).toLocaleTimeString()}
+              </span>
+            </div>
+          )}
 
           {/* Description */}
           <div>
