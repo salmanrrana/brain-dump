@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { X, ChevronDown, Bot, Loader2, Save } from "lucide-react";
+import { X, ChevronDown, Bot, Loader2, Save, CheckCircle, AlertTriangle } from "lucide-react";
 import {
   useCreateEpic,
   useUpdateEpic,
@@ -9,6 +9,7 @@ import {
   useModalKeyboard,
   useClickOutside,
   useAutoClearState,
+  useDockerStatus,
 } from "../lib/hooks";
 import { useToast } from "./Toast";
 import ErrorAlert from "./ErrorAlert";
@@ -60,6 +61,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   // Settings and Ralph hooks
   const { settings } = useSettings();
   const launchRalphMutation = useLaunchRalphForEpic();
+  const { dockerStatus } = useDockerStatus();
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const isDeleting = deleteMutation.isPending;
@@ -415,6 +417,29 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                     <div className="text-xs text-slate-400">
                       Launch autonomous mode for this epic
                     </div>
+                    {/* Docker Runtime Indicator - only when sandbox mode enabled */}
+                    {settings?.ralphSandbox && (
+                      <div className="mt-1 flex items-center gap-1.5 text-xs">
+                        {dockerStatus?.dockerRunning ? (
+                          <>
+                            <CheckCircle size={12} className="text-green-400" />
+                            <span className="text-green-400">
+                              Using {dockerStatus.runtimeType || "Docker"}
+                            </span>
+                          </>
+                        ) : dockerStatus?.dockerAvailable ? (
+                          <>
+                            <AlertTriangle size={12} className="text-yellow-400" />
+                            <span className="text-yellow-400">Docker not running</span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertTriangle size={12} className="text-yellow-400" />
+                            <span className="text-yellow-400">Docker not detected</span>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </button>
               </div>
