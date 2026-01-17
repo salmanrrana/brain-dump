@@ -549,30 +549,35 @@ fi
 # Claude Code config mounts (location varies by platform)
 # macOS: ~/.claude/ and ~/.claude.json
 # Linux: ~/.config/claude-code/ (XDG) or ~/.claude/
-CLAUDE_CONFIG_MOUNTS=""
+# Using bash array to properly handle variable mount arguments
+EXTRA_MOUNTS=()
+CLAUDE_CONFIG_FOUND=false
+
 if [ -d "$HOME/.claude" ]; then
   echo -e "\\033[0;32m✓ Mounting Claude config from ~/.claude/\\033[0m"
-  CLAUDE_CONFIG_MOUNTS="-v $HOME/.claude:/home/ralph/.claude:ro"
+  EXTRA_MOUNTS+=(-v "$HOME/.claude:/home/ralph/.claude:ro")
+  CLAUDE_CONFIG_FOUND=true
 fi
 if [ -f "$HOME/.claude.json" ]; then
   echo -e "\\033[0;32m✓ Mounting Claude auth from ~/.claude.json\\033[0m"
-  CLAUDE_CONFIG_MOUNTS="$CLAUDE_CONFIG_MOUNTS -v $HOME/.claude.json:/home/ralph/.claude.json:ro"
+  EXTRA_MOUNTS+=(-v "$HOME/.claude.json:/home/ralph/.claude.json:ro")
+  CLAUDE_CONFIG_FOUND=true
 fi
 # Fallback for XDG-style config on Linux
-if [ -z "$CLAUDE_CONFIG_MOUNTS" ] && [ -d "$HOME/.config/claude-code" ]; then
+if [ "$CLAUDE_CONFIG_FOUND" = "false" ] && [ -d "$HOME/.config/claude-code" ]; then
   echo -e "\\033[0;32m✓ Mounting Claude config from ~/.config/claude-code/\\033[0m"
-  CLAUDE_CONFIG_MOUNTS="-v $HOME/.config/claude-code:/home/ralph/.config/claude-code:ro"
+  EXTRA_MOUNTS+=(-v "$HOME/.config/claude-code:/home/ralph/.config/claude-code:ro")
+  CLAUDE_CONFIG_FOUND=true
 fi
-if [ -z "$CLAUDE_CONFIG_MOUNTS" ]; then
+if [ "$CLAUDE_CONFIG_FOUND" = "false" ]; then
   echo -e "\\033[0;31m❌ Claude config not found - container may not be authenticated\\033[0m"
   echo -e "\\033[0;33m  Expected: ~/.claude/ or ~/.config/claude-code/\\033[0m"
 fi
 
 # GitHub CLI config mount (optional)
-GH_CONFIG_MOUNT=""
 if [ -d "$HOME/.config/gh" ]; then
   echo -e "\\033[0;32m✓ Mounting GitHub CLI config\\033[0m"
-  GH_CONFIG_MOUNT="-v $HOME/.config/gh:/home/ralph/.config/gh:ro"
+  EXTRA_MOUNTS+=(-v "$HOME/.config/gh:/home/ralph/.config/gh:ro")
 fi
 `
     : "";
@@ -613,8 +618,7 @@ fi
     -p 8400-8410:8400-8410 \\
     -v "$PROJECT_PATH:/workspace" \\
     -v "$HOME/.gitconfig:/home/ralph/.gitconfig:ro" \\
-    $CLAUDE_CONFIG_MOUNTS \\
-    $GH_CONFIG_MOUNT \\
+    "\${EXTRA_MOUNTS[@]}" \\
     $SSH_MOUNT_ARGS \\
     $KNOWN_HOSTS_MOUNT \\
     -w /workspace \\
