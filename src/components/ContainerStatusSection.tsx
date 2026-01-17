@@ -453,6 +453,20 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
                   {/* View logs hint */}
                   <span className="text-xs text-slate-500">View logs</span>
                 </div>
+
+                {/* Project origin info - show which project/epic started this container */}
+                {ralphContainer.projectName && (
+                  <div className="ml-6 mt-1 text-xs text-slate-500 truncate">
+                    Started by: <span className="text-slate-400">{ralphContainer.projectName}</span>
+                    {ralphContainer.epicTitle && (
+                      <span className="text-slate-500"> ({ralphContainer.epicTitle})</span>
+                    )}
+                  </div>
+                )}
+                {/* Containers without labels show "Unknown" origin */}
+                {!ralphContainer.projectName && (
+                  <div className="ml-6 mt-1 text-xs text-slate-500">Started by: Unknown</div>
+                )}
               </button>
             )}
 

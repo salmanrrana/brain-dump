@@ -208,6 +208,11 @@ export interface ContainerInfo {
   status: string;
   createdAt: string;
   isRunning: boolean;
+  /** Project origin - tracked via Docker labels */
+  projectId?: string | undefined;
+  projectName?: string | undefined;
+  epicId?: string | undefined;
+  epicTitle?: string | undefined;
 }
 
 /**
@@ -216,6 +221,32 @@ export interface ContainerInfo {
 export interface ListContainersResult {
   containers: ContainerInfo[];
   error?: string;
+}
+
+/**
+ * Parse Docker labels from comma-separated string format.
+ * Docker ps --format outputs labels as "key=value,key2=value2"
+ *
+ * @param labelsStr - Comma-separated labels string from docker ps
+ * @returns Object with label key-value pairs
+ */
+function parseDockerLabels(labelsStr: string): Record<string, string> {
+  if (!labelsStr || labelsStr.trim() === "") {
+    return {};
+  }
+
+  const labels: Record<string, string> = {};
+  // Split by comma, but handle values that might contain commas (though unlikely for our labels)
+  const parts = labelsStr.split(",");
+  for (const part of parts) {
+    const eqIdx = part.indexOf("=");
+    if (eqIdx > 0) {
+      const key = part.substring(0, eqIdx).trim();
+      const value = part.substring(eqIdx + 1).trim();
+      labels[key] = value;
+    }
+  }
+  return labels;
 }
 
 /**
@@ -242,6 +273,8 @@ export async function listContainers(namePattern?: string): Promise<ListContaine
       if (!line.trim()) continue;
       try {
         const data = JSON.parse(line);
+        // Parse labels for project origin tracking
+        const labels = parseDockerLabels(data.Labels || "");
         containers.push({
           id: data.ID,
           name: data.Names,
@@ -249,6 +282,11 @@ export async function listContainers(namePattern?: string): Promise<ListContaine
           status: data.Status,
           createdAt: data.CreatedAt,
           isRunning: data.State === "running",
+          // Extract Brain Dump project origin labels
+          projectId: labels["brain-dump.project-id"],
+          projectName: labels["brain-dump.project-name"],
+          epicId: labels["brain-dump.epic-id"],
+          epicTitle: labels["brain-dump.epic-title"],
         });
       } catch {
         // Log malformed lines for debugging

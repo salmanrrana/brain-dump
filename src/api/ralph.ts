@@ -471,6 +471,14 @@ const DEFAULT_RESOURCE_LIMITS: DockerResourceLimits = {
 // Default timeout for Ralph session (1 hour in seconds)
 const DEFAULT_TIMEOUT_SECONDS = 3600;
 
+// Project origin info for Docker label tracking
+interface ProjectOriginInfo {
+  projectId: string;
+  projectName: string;
+  epicId?: string | undefined;
+  epicTitle?: string | undefined;
+}
+
 // Generate the Ralph bash script (unified for both native and Docker)
 export function generateRalphScript(
   projectPath: string,
@@ -478,7 +486,8 @@ export function generateRalphScript(
   useSandbox: boolean = false,
   resourceLimits: DockerResourceLimits = DEFAULT_RESOURCE_LIMITS,
   timeoutSeconds: number = DEFAULT_TIMEOUT_SECONDS,
-  dockerHostEnv: string | null = null
+  dockerHostEnv: string | null = null,
+  projectOrigin?: ProjectOriginInfo | undefined
 ): string {
   const imageName = "brain-dump-ralph-sandbox:latest";
   const sandboxHeader = useSandbox ? " (Docker Sandbox)" : "";
@@ -625,6 +634,19 @@ fi
   // Grace period for container to stop cleanly (30 seconds)
   const stopGracePeriod = 30;
 
+  // Build Docker labels for project origin tracking
+  // These labels allow the UI to display "Started by: [Project] ([Epic])"
+  const projectLabels = projectOrigin
+    ? `--label "brain-dump.project-id=${projectOrigin.projectId}" \\
+    --label "brain-dump.project-name=${projectOrigin.projectName.replace(/"/g, '\\"')}"${
+      projectOrigin.epicId
+        ? ` \\
+    --label "brain-dump.epic-id=${projectOrigin.epicId}" \\
+    --label "brain-dump.epic-title=${(projectOrigin.epicTitle ?? "").replace(/"/g, '\\"')}"`
+        : ""
+    } \\`
+    : "";
+
   const claudeInvocation = useSandbox
     ? `  # Run Claude in Docker container
   # Claude Code auth is passed via mounted config (platform-dependent location)
@@ -643,6 +665,9 @@ fi
   #   no-new-privileges: prevents privilege escalation inside container
   # Timeout:
   #   stop-timeout: ${stopGracePeriod}s (grace period before SIGKILL)
+  # Labels:
+  #   brain-dump.project-id/project-name: Tracks which project started this container
+  #   brain-dump.epic-id/epic-title: Tracks which epic (if applicable)
   docker run --rm -it \\
     --name "ralph-\${SESSION_ID}" \\
     --network ralph-net \\
@@ -652,6 +677,7 @@ fi
     --pids-limit=${resourceLimits.pidsLimit} \\
     --stop-timeout=${stopGracePeriod} \\
     --security-opt=no-new-privileges:true \\
+    ${projectLabels}
     -p 8100-8110:8100-8110 \\
     -p 8200-8210:8200-8210 \\
     -p 8300-8310:8300-8310 \\
@@ -1190,14 +1216,20 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     const prdPath = join(plansDir, "prd.json");
     writeFileSync(prdPath, JSON.stringify(prd, null, 2));
 
-    // Generate Ralph script with timeout and Docker host config
+    // Generate Ralph script with timeout, Docker host config, and project origin
     const ralphScript = generateRalphScript(
       project.path,
       maxIterations,
       useSandbox,
       DEFAULT_RESOURCE_LIMITS,
       timeoutSeconds,
-      dockerHostEnv
+      dockerHostEnv,
+      useSandbox
+        ? {
+            projectId: project.id,
+            projectName: project.name,
+          }
+        : undefined
     );
     const scriptDir = join(homedir(), ".brain-dump", "scripts");
     mkdirSync(scriptDir, { recursive: true });
@@ -1348,14 +1380,22 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     const prdPath = join(plansDir, "prd.json");
     writeFileSync(prdPath, JSON.stringify(prd, null, 2));
 
-    // Generate Ralph script with timeout and Docker host config
+    // Generate Ralph script with timeout, Docker host config, and project/epic origin
     const ralphScript = generateRalphScript(
       project.path,
       maxIterations,
       useSandbox,
       DEFAULT_RESOURCE_LIMITS,
       timeoutSeconds,
-      dockerHostEnv
+      dockerHostEnv,
+      useSandbox
+        ? {
+            projectId: project.id,
+            projectName: project.name,
+            epicId: epic.id,
+            epicTitle: epic.title,
+          }
+        : undefined
     );
     const scriptDir = join(homedir(), ".brain-dump", "scripts");
     mkdirSync(scriptDir, { recursive: true });
