@@ -24,16 +24,19 @@ import {
   Loader2,
   Play,
   Square,
+  Terminal,
 } from "lucide-react";
 import {
   useProjectServices,
   useStartService,
   useStopService,
   useStopAllServices,
+  useRalphContainers,
+  useAutoClearState,
 } from "../lib/hooks";
 import type { RalphService, ServiceStatus } from "../lib/service-discovery";
-import { useAutoClearState } from "../lib/hooks";
 import { useToast } from "./Toast";
+import ContainerLogsModal from "./ContainerLogsModal";
 
 interface ContainerStatusSectionProps {
   /** Path to the selected project (null if none selected) */
@@ -195,6 +198,7 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
   const [loadingServiceId, setLoadingServiceId] = useState<string | null>(null);
   const [stopAllConfirming, setStopAllConfirming] = useState(false);
   const [stopAllLoading, setStopAllLoading] = useState(false);
+  const [logsModalOpen, setLogsModalOpen] = useState(false);
   const { showToast } = useToast();
 
   // Fetch services with 5s polling
@@ -202,6 +206,13 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
     enabled: Boolean(projectPath),
     pollingInterval: 5000, // 5 seconds
   });
+
+  // Fetch Ralph containers (Docker sandbox mode)
+  const { runningContainer: ralphContainer, hasRunningContainer: hasRalphContainer } =
+    useRalphContainers({
+      enabled: Boolean(projectPath),
+      pollingInterval: 3000,
+    });
 
   // Mutation hooks for start/stop
   const startServiceMutation = useStartService();
@@ -304,13 +315,13 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [stopAllConfirming]);
 
-  // Don't render if no project selected or no services configured
-  if (!projectPath || (services.length === 0 && !loading)) {
+  // Don't render if no project selected or no content to show
+  if (!projectPath || (services.length === 0 && !loading && !hasRalphContainer)) {
     return null;
   }
 
-  const runningCount = runningServices.length;
-  const hasServices = services.length > 0;
+  const runningCount = runningServices.length + (hasRalphContainer ? 1 : 0);
+  const hasServices = services.length > 0 || hasRalphContainer;
 
   return (
     <div className="mt-6">
@@ -415,13 +426,39 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
         )}
 
         {/* Empty state (project has no services) */}
-        {!loading && !error && services.length === 0 && (
+        {!loading && !error && services.length === 0 && !hasRalphContainer && (
           <div className="text-xs text-slate-500 py-2">No containers configured</div>
         )}
 
-        {/* Service list */}
-        {services.length > 0 && (
+        {/* Service/container list */}
+        {hasServices && (
           <div className="space-y-0.5">
+            {/* Ralph container (Docker sandbox mode) */}
+            {hasRalphContainer && ralphContainer && (
+              <button
+                onClick={() => setLogsModalOpen(true)}
+                className="w-full py-2 px-2 hover:bg-slate-800/50 rounded transition-colors text-left"
+                title="Click to view logs"
+              >
+                <div className="flex items-center gap-2">
+                  {/* Status indicator */}
+                  <span
+                    className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"
+                    title="Running"
+                    aria-label="Running"
+                  />
+
+                  {/* Container name with terminal icon */}
+                  <Terminal size={14} className="text-cyan-400" />
+                  <span className="text-sm text-gray-100 flex-1 truncate">Ralph (Docker)</span>
+
+                  {/* View logs hint */}
+                  <span className="text-xs text-slate-500">View logs</span>
+                </div>
+              </button>
+            )}
+
+            {/* Service containers */}
             {services.map((service) => {
               const serviceId = `${service.name}-${service.port}`;
               return (
@@ -439,6 +476,13 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
           </div>
         )}
       </div>
+
+      {/* Container Logs Modal */}
+      <ContainerLogsModal
+        isOpen={logsModalOpen}
+        onClose={() => setLogsModalOpen(false)}
+        containerName={ralphContainer?.name ?? null}
+      />
     </div>
   );
 }

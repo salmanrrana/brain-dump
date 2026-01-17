@@ -1287,7 +1287,14 @@ export type { SearchResult };
 // SERVICE DISCOVERY HOOKS
 // =============================================================================
 
-import { getProjectServices, startService, stopService, stopAllServices } from "../api/services";
+import {
+  getProjectServices,
+  startService,
+  stopService,
+  stopAllServices,
+  listRalphContainers,
+  getRalphContainerLogs,
+} from "../api/services";
 import type { RalphServicesFile, RalphService } from "./service-discovery";
 
 /**
@@ -1522,6 +1529,132 @@ export function useRalphEvents(
     /** Clear all events (useful when session ends) */
     clearEvents,
     /** Force refetch events */
+    refetch: query.refetch,
+  };
+}
+
+// =============================================================================
+// RALPH CONTAINER LOGS
+// =============================================================================
+
+import type { ContainerInfo } from "../api/docker-utils";
+
+/**
+ * Hook for listing running Ralph containers.
+ * Polls at configurable intervals to detect when Ralph starts/stops.
+ *
+ * @param options - Configuration options
+ * @returns List of Ralph containers and query state
+ */
+export function useRalphContainers(
+  options: {
+    /** Whether to enable the query (default: true) */
+    enabled?: boolean;
+    /** Polling interval in ms (default: 3000ms) */
+    pollingInterval?: number;
+  } = {}
+) {
+  const { enabled = true, pollingInterval = 3000 } = options;
+
+  const query = useQuery({
+    queryKey: ["ralphContainers"],
+    queryFn: async (): Promise<ContainerInfo[]> => {
+      return listRalphContainers();
+    },
+    enabled,
+    refetchInterval: pollingInterval,
+  });
+
+  // Find the most recent running Ralph container
+  const runningContainer = useMemo(() => {
+    const containers = query.data ?? [];
+    return containers.find((c) => c.isRunning) ?? null;
+  }, [query.data]);
+
+  return {
+    containers: query.data ?? [],
+    runningContainer,
+    hasRunningContainer: Boolean(runningContainer),
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+    refetch: query.refetch,
+  };
+}
+
+/**
+ * Hook for fetching logs from a Ralph container.
+ * Uses polling to stream logs in near real-time.
+ *
+ * @param containerName - Name of the container to fetch logs from
+ * @param options - Configuration options
+ * @returns Log content and container status
+ */
+export function useRalphContainerLogs(
+  containerName: string | null,
+  options: {
+    /** Whether to enable the query (default: true when containerName is provided) */
+    enabled?: boolean;
+    /** Polling interval in ms (default: 1000ms) */
+    pollingInterval?: number;
+    /** Number of lines to fetch (default: 500) */
+    tail?: number;
+  } = {}
+) {
+  const { enabled = true, pollingInterval = 1000, tail = 500 } = options;
+
+  // Track the previous log length for detecting new content
+  const [prevLogLength, setPrevLogLength] = useState(0);
+
+  const query = useQuery({
+    queryKey: ["ralphContainerLogs", containerName, tail],
+    queryFn: async (): Promise<{
+      logs: string;
+      containerRunning: boolean;
+      error?: string;
+    }> => {
+      if (!containerName) {
+        return { logs: "", containerRunning: false };
+      }
+      return getRalphContainerLogs({ data: { containerName, tail } });
+    },
+    enabled: enabled && Boolean(containerName),
+    refetchInterval: pollingInterval,
+  });
+
+  // Parse iteration info from logs
+  const iterationInfo = useMemo(() => {
+    const logs = query.data?.logs ?? "";
+    // Look for patterns like "Ralph Iteration 2 of 5 (Docker)"
+    const match = logs.match(/Ralph Iteration (\d+) of (\d+)/g);
+    if (!match || match.length === 0) {
+      return null;
+    }
+    // Get the last match (most recent iteration)
+    const lastMatch = match[match.length - 1];
+    const numbers = lastMatch?.match(/(\d+) of (\d+)/);
+    if (!numbers) return null;
+    return {
+      current: parseInt(numbers[1] ?? "0", 10),
+      total: parseInt(numbers[2] ?? "0", 10),
+    };
+  }, [query.data?.logs]);
+
+  // Detect if new logs have arrived using effect to update state
+  const currentLogLength = query.data?.logs?.length ?? 0;
+  const hasNewLogs = currentLogLength > prevLogLength;
+
+  // Update previous length after render
+  useEffect(() => {
+    setPrevLogLength(currentLogLength);
+  }, [currentLogLength]);
+
+  return {
+    logs: query.data?.logs ?? "",
+    containerRunning: query.data?.containerRunning ?? false,
+    iterationInfo,
+    hasNewLogs,
+    loading: query.isLoading,
+    error: query.data?.error ?? query.error?.message ?? null,
     refetch: query.refetch,
   };
 }

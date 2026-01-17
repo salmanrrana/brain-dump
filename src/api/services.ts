@@ -411,3 +411,68 @@ export const stopAllServices = createServerFn({ method: "POST" })
       }
     }
   );
+
+// =============================================================================
+// DOCKER CONTAINER LOGS
+// =============================================================================
+
+/**
+ * List running Ralph containers.
+ *
+ * Ralph containers are named "ralph-{session-id}" and run the brain-dump-ralph-sandbox image.
+ *
+ * @returns Array of Ralph container info
+ */
+export const listRalphContainers = createServerFn({ method: "GET" }).handler(async () => {
+  const { listContainers } = await import("./docker-utils");
+
+  const containers = await listContainers("ralph-");
+
+  // Filter to only include containers running our sandbox image
+  return containers.filter(
+    (c) => c.image === "brain-dump-ralph-sandbox:latest" || c.name.startsWith("ralph-")
+  );
+});
+
+/**
+ * Get logs from a Ralph container.
+ *
+ * @param containerName - Name of the Ralph container
+ * @param since - Optional timestamp to get logs since
+ * @returns Log content and container status
+ */
+export const getRalphContainerLogs = createServerFn({ method: "GET" })
+  .inputValidator((data: { containerName: string; since?: string; tail?: number }) => {
+    if (!data.containerName || typeof data.containerName !== "string") {
+      throw new Error("containerName is required and must be a string");
+    }
+    return data;
+  })
+  .handler(
+    async ({
+      data,
+    }): Promise<{
+      logs: string;
+      containerRunning: boolean;
+      error?: string;
+    }> => {
+      const { containerName, since, tail = 500 } = data;
+      const { getContainerLogs } = await import("./docker-utils");
+
+      try {
+        const result = await getContainerLogs(containerName, {
+          tail,
+          ...(since ? { since } : {}),
+          timestamps: false,
+        });
+        return result;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        return {
+          logs: "",
+          containerRunning: false,
+          error: errorMessage,
+        };
+      }
+    }
+  );

@@ -181,3 +181,126 @@ export async function getDockerVersion(): Promise<string | null> {
     return null;
   }
 }
+
+// =============================================================================
+// CONTAINER LOG UTILITIES
+// =============================================================================
+
+/**
+ * Container info returned from Docker ps.
+ */
+export interface ContainerInfo {
+  id: string;
+  name: string;
+  image: string;
+  status: string;
+  createdAt: string;
+  isRunning: boolean;
+}
+
+/**
+ * List running containers matching a name pattern.
+ *
+ * @param namePattern - Pattern to match container names (e.g., "ralph-*")
+ * @returns Array of container info objects
+ */
+export async function listContainers(namePattern?: string): Promise<ContainerInfo[]> {
+  try {
+    // Use JSON format for reliable parsing
+    const filterArg = namePattern ? `--filter "name=${namePattern}"` : "";
+    const { stdout } = await execDockerCommand(`ps -a ${filterArg} --format '{{json .}}'`, {
+      timeout: 10000,
+    });
+
+    if (!stdout.trim()) {
+      return [];
+    }
+
+    // Parse each line as JSON
+    const containers: ContainerInfo[] = [];
+    for (const line of stdout.trim().split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const data = JSON.parse(line);
+        containers.push({
+          id: data.ID,
+          name: data.Names,
+          image: data.Image,
+          status: data.Status,
+          createdAt: data.CreatedAt,
+          isRunning: data.State === "running",
+        });
+      } catch {
+        // Skip malformed lines
+      }
+    }
+
+    return containers;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Get logs from a Docker container.
+ *
+ * @param containerName - Name or ID of the container
+ * @param options - Options for log retrieval
+ * @returns Log content string
+ */
+export async function getContainerLogs(
+  containerName: string,
+  options: {
+    /** Number of lines to retrieve (default: 500) */
+    tail?: number;
+    /** Get logs since this timestamp (ISO 8601 or relative like "5m") */
+    since?: string;
+    /** Include timestamps in output */
+    timestamps?: boolean;
+  } = {}
+): Promise<{ logs: string; containerRunning: boolean }> {
+  const { tail = 500, since, timestamps = false } = options;
+
+  try {
+    // Build command arguments
+    const args: string[] = ["logs"];
+
+    if (tail > 0) {
+      args.push(`--tail=${tail}`);
+    }
+
+    if (since) {
+      args.push(`--since="${since}"`);
+    }
+
+    if (timestamps) {
+      args.push("--timestamps");
+    }
+
+    args.push(`"${containerName}"`);
+
+    // Docker logs outputs to stderr for some content, so we combine both
+    const { stdout, stderr } = await execDockerCommand(args.join(" "), {
+      timeout: 30000,
+    });
+
+    // Docker logs sends some output to stderr (like progress indicators)
+    const logs = stdout + stderr;
+
+    // Check if container is still running
+    const { stdout: stateOutput } = await execDockerCommand(
+      `inspect --format='{{.State.Running}}' "${containerName}"`,
+      { timeout: 5000 }
+    );
+    const containerRunning = stateOutput.trim() === "true";
+
+    return { logs, containerRunning };
+  } catch (error) {
+    // Check if container doesn't exist
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes("No such container")) {
+      return { logs: "", containerRunning: false };
+    }
+    throw error;
+  }
+}
