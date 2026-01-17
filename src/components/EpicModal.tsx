@@ -1,14 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import {
-  X,
-  ChevronDown,
-  Bot,
-  Loader2,
-  Save,
-  CheckCircle,
-  AlertTriangle,
-  Container,
-} from "lucide-react";
+import { X, ChevronDown, Bot, Loader2, Save, Container } from "lucide-react";
 import {
   useCreateEpic,
   useUpdateEpic,
@@ -18,7 +9,7 @@ import {
   useModalKeyboard,
   useClickOutside,
   useAutoClearState,
-  useDockerStatus,
+  useDockerAvailability,
 } from "../lib/hooks";
 import { useToast } from "./Toast";
 import ErrorAlert from "./ErrorAlert";
@@ -70,7 +61,11 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   // Settings and Ralph hooks
   const { settings } = useSettings();
   const launchRalphMutation = useLaunchRalphForEpic();
-  const { dockerStatus } = useDockerStatus();
+  const {
+    isAvailable: dockerAvailable,
+    message: dockerMessage,
+    loading: dockerLoading,
+  } = useDockerAvailability();
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const isDeleting = deleteMutation.isPending;
@@ -147,16 +142,13 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   };
 
   // Handle Start Ralph for entire epic
-  // @param forceDocker - If true, always uses Docker sandbox regardless of settings
+  // useSandbox param allows explicit choice at launch time, overriding settings default
   const handleStartRalph = useCallback(
-    async (forceDocker?: boolean) => {
+    async ({ useSandbox }: { useSandbox: boolean }) => {
       if (!epic) return;
 
       setIsStartingRalph(true);
       setRalphNotification(null);
-
-      // Use Docker if explicitly requested or if sandbox mode is enabled in settings
-      const useSandbox = forceDocker === true || (settings?.ralphSandbox ?? false);
 
       try {
         const result = await launchRalphMutation.mutateAsync({
@@ -204,14 +196,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
         setIsStartingRalph(false);
       }
     },
-    [
-      epic,
-      settings?.terminalEmulator,
-      settings?.ralphSandbox,
-      launchRalphMutation,
-      onSave,
-      setRalphNotification,
-    ]
+    [epic, settings?.terminalEmulator, launchRalphMutation, onSave, setRalphNotification]
   );
 
   return (
@@ -420,77 +405,36 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                   </div>
                 </button>
                 <button
-                  onClick={() => {
-                    setShowActionMenu(false);
-                    void handleStartRalph();
-                  }}
-                  disabled={isStartingRalph}
-                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left border-t border-slate-700 disabled:opacity-50"
+                  onClick={() => void handleStartRalph({ useSandbox: false })}
+                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left border-t border-slate-700"
                 >
                   <Bot size={18} className="text-purple-400 mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="font-medium text-gray-100">Start Ralph</div>
-                    <div className="text-xs text-slate-400">
-                      Launch autonomous mode for this epic
-                    </div>
-                    {/* Docker Runtime Indicator - only when sandbox mode enabled */}
-                    {settings?.ralphSandbox && (
-                      <div className="mt-1 flex items-center gap-1.5 text-xs">
-                        {dockerStatus?.dockerRunning ? (
-                          <>
-                            <CheckCircle size={12} className="text-green-400" />
-                            <span className="text-green-400">
-                              Using {dockerStatus.runtimeType || "Docker"}
-                            </span>
-                          </>
-                        ) : dockerStatus?.dockerAvailable ? (
-                          <>
-                            <AlertTriangle size={12} className="text-yellow-400" />
-                            <span className="text-yellow-400">Docker not running</span>
-                          </>
-                        ) : (
-                          <>
-                            <AlertTriangle size={12} className="text-yellow-400" />
-                            <span className="text-yellow-400">Docker not detected</span>
-                          </>
-                        )}
-                      </div>
-                    )}
+                    <div className="font-medium text-gray-100">Start Ralph (Native)</div>
+                    <div className="text-xs text-slate-400">Runs on your machine directly</div>
                   </div>
                 </button>
-                {/* Dedicated "Start in Docker" option - always visible */}
                 <button
-                  onClick={() => {
-                    setShowActionMenu(false);
-                    void handleStartRalph(true); // forceDocker = true
-                  }}
-                  disabled={isStartingRalph || !dockerStatus?.dockerRunning}
-                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left border-t border-slate-700 disabled:opacity-50"
+                  onClick={() => void handleStartRalph({ useSandbox: true })}
+                  disabled={dockerLoading || !dockerAvailable}
+                  className={`w-full flex items-start gap-3 px-4 py-3 transition-colors text-left border-t border-slate-700 ${
+                    dockerLoading || !dockerAvailable
+                      ? "opacity-50 cursor-not-allowed"
+                      : "hover:bg-slate-700"
+                  }`}
+                  title={!dockerAvailable ? dockerMessage : undefined}
+                  aria-disabled={!dockerAvailable}
+                  aria-describedby={!dockerAvailable ? "docker-unavailable-msg" : undefined}
                 >
                   <Container size={18} className="text-cyan-400 mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="font-medium text-gray-100">Start in Docker</div>
-                    <div className="text-xs text-slate-400">Run in isolated Docker container</div>
-                    {/* Docker status indicator */}
-                    <div className="mt-1 flex items-center gap-1.5 text-xs">
-                      {dockerStatus?.dockerRunning ? (
-                        <>
-                          <CheckCircle size={12} className="text-green-400" />
-                          <span className="text-green-400">
-                            {dockerStatus.runtimeType || "Docker"} ready
-                          </span>
-                        </>
-                      ) : dockerStatus?.dockerAvailable ? (
-                        <>
-                          <AlertTriangle size={12} className="text-yellow-400" />
-                          <span className="text-yellow-400">Docker not running</span>
-                        </>
-                      ) : (
-                        <>
-                          <AlertTriangle size={12} className="text-slate-500" />
-                          <span className="text-slate-500">Docker not available</span>
-                        </>
-                      )}
+                    <div className="font-medium text-gray-100">Start Ralph in Docker</div>
+                    <div className="text-xs text-slate-400">
+                      {dockerLoading
+                        ? "Checking Docker..."
+                        : !dockerAvailable
+                          ? dockerMessage
+                          : "Isolated container environment"}
                     </div>
                   </div>
                 </button>
