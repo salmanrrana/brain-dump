@@ -171,7 +171,9 @@ function readServicesFile(projectPath: string): RalphServicesFile | null {
     }
 
     return parsed;
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[services] Failed to read services file ${servicesFile}: ${message}`);
     return null;
   }
 }
@@ -438,6 +440,31 @@ export const listRalphContainers = createServerFn({ method: "GET" }).handler(asy
     (c) => c.image === "brain-dump-ralph-sandbox:latest" || c.name.startsWith("ralph-")
   );
 });
+
+/**
+ * Get resource usage stats for Ralph containers.
+ *
+ * Uses `docker stats --no-stream` to get a snapshot of CPU, memory, and I/O usage.
+ * This is a heavier operation than listing containers, so should be polled less frequently.
+ *
+ * @param containerNames - Optional list of container names to filter
+ * @returns Container stats array
+ */
+export const getRalphContainerStats = createServerFn({ method: "GET" })
+  .inputValidator((data: { containerNames?: string[] }) => data)
+  .handler(async ({ data }) => {
+    const { getContainerStats } = await import("./docker-utils");
+    const { containerNames } = data;
+
+    const result = await getContainerStats(containerNames);
+
+    // Log any Docker errors for debugging
+    if (result.error) {
+      console.warn(`[services] Docker container stats error: ${result.error}`);
+    }
+
+    return result;
+  });
 
 /**
  * Get logs from a Ralph container.

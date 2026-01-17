@@ -304,6 +304,167 @@ export async function listContainers(namePattern?: string): Promise<ListContaine
   }
 }
 
+// =============================================================================
+// CONTAINER STATS UTILITIES
+// =============================================================================
+
+/**
+ * Resource usage stats for a single container.
+ */
+export interface ContainerStats {
+  /** Container name */
+  name: string;
+  /** Container ID (short) */
+  id: string;
+  /** CPU usage percentage (e.g., "0.15%") */
+  cpuPercent: string;
+  /** CPU usage as a number (e.g., 0.15) */
+  cpuValue: number;
+  /** Memory usage string (e.g., "24.5MiB / 7.75GiB") */
+  memUsage: string;
+  /** Memory used in bytes */
+  memUsedBytes: number;
+  /** Memory limit in bytes */
+  memLimitBytes: number;
+  /** Memory percentage (e.g., "0.31%") */
+  memPercent: string;
+  /** Memory percentage as a number */
+  memValue: number;
+  /** Network I/O (e.g., "1.2kB / 500B") */
+  netIO: string;
+  /** Block I/O (e.g., "0B / 0B") */
+  blockIO: string;
+  /** Number of PIDs */
+  pids: number;
+}
+
+/**
+ * Result from getContainerStats.
+ */
+export interface ContainerStatsResult {
+  stats: ContainerStats[];
+  error?: string;
+}
+
+// Hoisted regex for memory parsing (js-hoist-regexp)
+const MEMORY_UNIT_REGEX = /^([\d.]+)\s*([A-Za-z]+)?$/;
+
+/**
+ * Parse memory/size strings to bytes.
+ * Handles: B, kB, KB, KiB, MB, MiB, GB, GiB, TB, TiB
+ */
+function parseMemoryToBytes(memStr: string): number {
+  const cleaned = memStr.trim();
+  const match = cleaned.match(MEMORY_UNIT_REGEX);
+  if (!match) return 0;
+
+  const value = parseFloat(match[1] ?? "0");
+  const unit = (match[2] ?? "B").toLowerCase();
+
+  const multipliers: Record<string, number> = {
+    b: 1,
+    kb: 1000,
+    kib: 1024,
+    mb: 1000 * 1000,
+    mib: 1024 * 1024,
+    gb: 1000 * 1000 * 1000,
+    gib: 1024 * 1024 * 1024,
+    tb: 1000 * 1000 * 1000 * 1000,
+    tib: 1024 * 1024 * 1024 * 1024,
+  };
+
+  return value * (multipliers[unit] ?? 1);
+}
+
+/**
+ * Parse percentage string to number.
+ * "0.15%" -> 0.15
+ */
+function parsePercentToNumber(percentStr: string): number {
+  const cleaned = percentStr.replace("%", "").trim();
+  return parseFloat(cleaned) || 0;
+}
+
+/**
+ * Get resource usage stats for running containers.
+ *
+ * Uses `docker stats --no-stream` which returns a snapshot (not streaming).
+ * This is a heavier operation than `docker ps`, so should be polled less frequently.
+ *
+ * @param containerNames - Optional list of container names to filter (default: all Ralph containers)
+ * @returns Object with stats array and optional error message
+ */
+export async function getContainerStats(containerNames?: string[]): Promise<ContainerStatsResult> {
+  try {
+    // Build command - filter by container names if provided
+    let command = "stats --no-stream --format '{{json .}}'";
+    if (containerNames && containerNames.length > 0) {
+      // Add container names to filter
+      command += " " + containerNames.map((n) => `"${n}"`).join(" ");
+    }
+
+    const { stdout } = await execDockerCommand(command, {
+      timeout: 15000, // Stats can be slow
+    });
+
+    if (!stdout.trim()) {
+      return { stats: [] };
+    }
+
+    // Parse each line as JSON
+    const stats: ContainerStats[] = [];
+    for (const line of stdout.trim().split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const data = JSON.parse(line) as Record<string, unknown>;
+        // Validate required fields exist
+        if (typeof data.Name !== "string" || typeof data.ID !== "string") {
+          console.warn(
+            `[docker-utils] Container stats JSON missing required fields: ${line.substring(0, 100)}...`
+          );
+          continue;
+        }
+        // Parse memory usage "24.5MiB / 7.75GiB"
+        const memUsageStr = typeof data.MemUsage === "string" ? data.MemUsage : "0B / 0B";
+        const memParts = memUsageStr.split("/").map((s) => s.trim());
+        const memUsedBytes = parseMemoryToBytes(memParts[0] ?? "0B");
+        const memLimitBytes = parseMemoryToBytes(memParts[1] ?? "0B");
+
+        stats.push({
+          name: data.Name,
+          id: data.ID,
+          cpuPercent: typeof data.CPUPerc === "string" ? data.CPUPerc : "0%",
+          cpuValue: parsePercentToNumber(typeof data.CPUPerc === "string" ? data.CPUPerc : "0%"),
+          memUsage: memUsageStr,
+          memUsedBytes,
+          memLimitBytes,
+          memPercent: typeof data.MemPerc === "string" ? data.MemPerc : "0%",
+          memValue: parsePercentToNumber(typeof data.MemPerc === "string" ? data.MemPerc : "0%"),
+          netIO: typeof data.NetIO === "string" ? data.NetIO : "0B / 0B",
+          blockIO: typeof data.BlockIO === "string" ? data.BlockIO : "0B / 0B",
+          pids: typeof data.PIDs === "string" ? parseInt(data.PIDs, 10) : 0,
+        });
+      } catch (error) {
+        // Only catch JSON parse errors specifically
+        if (error instanceof SyntaxError) {
+          console.warn(
+            `[docker-utils] Malformed container stats JSON (parse error): ${line.substring(0, 100)}...`
+          );
+        } else {
+          // Re-throw unexpected errors
+          throw error;
+        }
+      }
+    }
+
+    return { stats };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[docker-utils] Failed to get container stats: ${message}`);
+    return { stats: [], error: `Failed to get container stats: ${message}` };
+  }
+}
+
 /**
  * Get logs from a Docker container.
  *
