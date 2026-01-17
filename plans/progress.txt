@@ -2850,3 +2850,43 @@ Implemented complete MCP event emission infrastructure for real-time UI streamin
 - mcp-server/index.js (import and register session tools)
 - src/api/ralph.ts (updated Ralph prompt)
 - integration-tests/ralph-sessions.test.ts (new test file)
+
+---
+
+### 2026-01-16 18:00:40 - Session Timeout
+- **Reason:** Timeout reached (1h limit)
+- **Status:** Session terminated, work may be incomplete
+- **Action:** Review progress and restart if needed
+
+---
+
+## Session: 2026-01-17 (Ralph Iteration)
+
+### Ticket Completed: 7.6 Add Verification Checklist to CLAUDE.md (05ef90fe)
+
+**Summary:**
+Updated Ralph prompts (both terminal and VS Code) to reference the verification checklist in CLAUDE.md.
+
+**Key Changes:**
+1. Added verification checklist reference to Ralph's rules section in getRalphPrompt()
+2. Added inline verification steps to ensure Ralph follows CLAUDE.md standards before completing tickets
+3. Updated VS Code context generator (generateVSCodeContext) with the same verification reference
+4. Fixed MCP database migration to add missing columns for ralph_sessions table (current_state, state_history, completed_at)
+5. Fixed MCP session creation to include project_id for backwards compatibility with older schema
+
+**Files Modified:**
+- src/api/ralph.ts (added verification sections to both prompts)
+- mcp-server/lib/database.js (added ALTER TABLE migrations for existing ralph_sessions)
+- mcp-server/tools/sessions.js (fixed INSERT to include project_id)
+
+**Acceptance Criteria:**
+- [x] Verification checklist added to CLAUDE.md (already present)
+- [x] Checklist covers: code quality, new code, modifications, UI, database, MCP
+- [x] Ralph prompt updated to reference checklist (both terminal and VS Code prompts)
+- [N/A] Pre-commit hook references - replaced by hook-based state enforcement (7.13)
+
+**Testing:**
+- 491 unit tests passing
+- TypeScript type-check passing
+- ESLint passing for modified files (pre-existing issues in other files are tracked in tickets 7.16-7.18)
+

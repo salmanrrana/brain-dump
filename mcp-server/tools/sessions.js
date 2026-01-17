@@ -156,11 +156,15 @@ Returns:
       const now = new Date().toISOString();
       const initialHistory = JSON.stringify([{ state: "idle", timestamp: now }]);
 
+      // Get the project ID from the ticket for backwards compatibility with older schema
+      const projectId = db.prepare("SELECT project_id FROM tickets WHERE id = ?").get(ticketId)?.project_id;
+
       try {
+        // Include project_id for backwards compatibility with older ralph_sessions schema
         db.prepare(
-          `INSERT INTO ralph_sessions (id, ticket_id, current_state, state_history, started_at)
-           VALUES (?, ?, 'idle', ?, ?)`
-        ).run(id, ticketId, initialHistory, now);
+          `INSERT INTO ralph_sessions (id, ticket_id, project_id, current_state, state_history, started_at)
+           VALUES (?, ?, ?, 'idle', ?, ?)`
+        ).run(id, ticketId, projectId, initialHistory, now);
 
         // Write local state file for hooks to read
         writeRalphStateFile(ticket.project_path, {

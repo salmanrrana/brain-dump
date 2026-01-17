@@ -189,9 +189,33 @@ export function runMigrations(db) {
       db.prepare("CREATE INDEX idx_ralph_sessions_ticket ON ralph_sessions(ticket_id)").run();
       db.prepare("CREATE INDEX idx_ralph_sessions_state ON ralph_sessions(current_state)").run();
       log.info("Created ralph_sessions table for state machine observability");
+    } else {
+      // Add missing columns if table already exists (migration from older schema)
+      const columns = db.prepare("PRAGMA table_info(ralph_sessions)").all();
+      const columnNames = columns.map(c => c.name);
+
+      if (!columnNames.includes("current_state")) {
+        db.prepare("ALTER TABLE ralph_sessions ADD COLUMN current_state TEXT NOT NULL DEFAULT 'idle'").run();
+        log.info("Added current_state column to ralph_sessions table");
+      }
+      if (!columnNames.includes("state_history")) {
+        db.prepare("ALTER TABLE ralph_sessions ADD COLUMN state_history TEXT").run();
+        log.info("Added state_history column to ralph_sessions table");
+      }
+      if (!columnNames.includes("completed_at")) {
+        db.prepare("ALTER TABLE ralph_sessions ADD COLUMN completed_at TEXT").run();
+        log.info("Added completed_at column to ralph_sessions table");
+      }
+
+      // Create index on current_state if it doesn't exist
+      try {
+        db.prepare("CREATE INDEX IF NOT EXISTS idx_ralph_sessions_state ON ralph_sessions(current_state)").run();
+      } catch {
+        // Index may already exist with a different name
+      }
     }
   } catch (err) {
-    log.error("Failed to create ralph_sessions table", err);
+    log.error("Failed to create/migrate ralph_sessions table", err);
   }
 }
 

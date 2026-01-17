@@ -104,6 +104,30 @@ function getRalphPrompt(): string {
 - Run tests before completing
 - Keep changes minimal and focused
 - If stuck, note in progress.txt and move on
+- **Follow the Verification Checklist in CLAUDE.md before marking any ticket complete**
+
+## Verification (from CLAUDE.md)
+
+Before completing ANY ticket, you MUST:
+
+### Code Quality (Always Required)
+- Run \`pnpm type-check\` - must pass with no errors
+- Run \`pnpm lint\` - must pass with no errors
+- Run \`pnpm test\` - all tests must pass
+
+### If You Added New Code
+- Added tests for new functionality
+- Used Drizzle ORM (not raw SQL)
+- Followed patterns in CLAUDE.md DO/DON'T tables
+
+### If You Modified Existing Code
+- Existing tests still pass
+- Updated tests if behavior changed
+
+### Before Marking Complete
+- All acceptance criteria from ticket met
+- Work summary added via \`add_ticket_comment\`
+- Committed with format: \`feat(<ticket-id>): <description>\`
 
 ## Session State Tracking
 
@@ -304,6 +328,32 @@ ${ticketList || "_No incomplete tickets_"}
 - Run tests before completing
 - Keep changes minimal and focused
 - If stuck, note in \`plans/progress.txt\` and move on
+- **Follow the Verification Checklist in CLAUDE.md before marking any ticket complete**
+
+---
+
+## Verification (from CLAUDE.md)
+
+Before completing ANY ticket, you MUST:
+
+### Code Quality (Always Required)
+- Run \`pnpm type-check\` - must pass with no errors
+- Run \`pnpm lint\` - must pass with no errors
+- Run \`pnpm test\` - all tests must pass
+
+### If You Added New Code
+- Added tests for new functionality
+- Used Drizzle ORM (not raw SQL)
+- Followed patterns in CLAUDE.md DO/DON'T tables
+
+### If You Modified Existing Code
+- Existing tests still pass
+- Updated tests if behavior changed
+
+### Before Marking Complete
+- All acceptance criteria from ticket met
+- Work summary added via \`add_ticket_comment\`
+- Committed with format: \`feat(<ticket-id>): <description>\`
 
 ---
 
