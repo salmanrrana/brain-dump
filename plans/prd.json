@@ -269,7 +269,7 @@
     {
       "id": "40818428-b62f-48a0-930d-dae76c3bf072",
       "title": "Add Runtime Detection Integration Tests",
-      "passes": false,
+      "passes": true,
       "overview": "Create integration tests verifying Docker runtime detection works end-to-end with actual Docker operations.",
       "types": [],
       "designDecisions": [],
@@ -297,7 +297,7 @@
     {
       "id": "870e199a-bc38-40ba-b931-1fe0868d8f64",
       "title": "Add Runtime Status to Ralph Launch Panel",
-      "passes": false,
+      "passes": true,
       "overview": "Add small runtime indicator to EpicModal Ralph panel showing which Docker runtime will be used.",
       "types": [],
       "designDecisions": [],
@@ -323,7 +323,7 @@
     {
       "id": "6328ea7e-47f8-4082-964c-841e5c81abbf",
       "title": "Track Project Origin for Containers",
-      "passes": false,
+      "passes": true,
       "overview": "Track which project/epic launched each companion container so the UI can display \"Started by: Project Name (Epic)\".",
       "types": [],
       "designDecisions": [],

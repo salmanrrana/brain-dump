@@ -375,3 +375,34 @@ All 18 tickets completed successfully:
   - Mocks process.platform for cross-platform testing
   - All 658 tests pass
 
+
+---
+
+### 2026-01-17 - Track Project Origin for Containers (Ticket 6328ea7e)
+- **Ticket ID:** 6328ea7e-47f8-4082-964c-841e5c81abbf
+- **Task:** Track which project/epic launched each Docker container
+- **Success:** true
+- **Commit:** fd3b9ae
+- **Files:** 
+  - src/api/docker-utils.ts - Added ContainerInfo type fields, parseDockerLabels()
+  - src/api/ralph.ts - Added ProjectOriginInfo interface, Docker labels to container launch
+  - src/components/ContainerStatusSection.tsx - Display project origin in UI
+- **Notes:**
+  - Added Docker labels (brain-dump.project-id, project-name, epic-id, epic-title)
+  - parseDockerLabels() helper parses comma-separated labels from docker ps
+  - generateRalphScript() adds --label flags when useSandbox is true
+  - launchRalphForTicket/Epic pass project info to generateRalphScript
+  - UI displays "Started by: [Project] ([Epic])" for running containers
+  - Containers without labels show "Unknown" origin for backward compatibility
+  - All 662 tests pass, type-check and lint clean
+
+---
+
+### 2026-01-17 - Ticket Status Cleanup
+- **Task:** Sync Brain Dump ticket statuses with PRD passes values
+- **Success:** true
+- **Notes:**
+  - Updated c6808fc8 (Live container logs modal) from in_progress to done
+  - Updated df385a2b (Container Logs Viewer) from in_progress to done
+  - Updated 6328ea7e (Track Project Origin) from review to done
+  - All completed Docker tickets now have correct status
