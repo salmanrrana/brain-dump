@@ -5,7 +5,7 @@
  * Features auto-scroll, copy to clipboard, and iteration progress display.
  */
 
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { useModalKeyboard, useRalphContainerLogs } from "../lib/hooks";
 import { X, Copy, Check, Loader2, Terminal, Pause, Play } from "lucide-react";
 
@@ -15,12 +15,15 @@ interface ContainerLogsModalProps {
   containerName: string | null;
 }
 
+// Hoisted regex for ANSI escape codes (js-hoist-regexp)
+// eslint-disable-next-line no-control-regex
+const ANSI_ESCAPE_REGEX = /\x1B\[[0-9;]*[A-Za-z]/g;
+
 /**
  * Strip ANSI escape codes from a string for cleaner display.
  */
 function stripAnsi(str: string): string {
-  // eslint-disable-next-line no-control-regex
-  return str.replace(/\x1B\[[0-9;]*[A-Za-z]/g, "");
+  return str.replace(ANSI_ESCAPE_REGEX, "");
 }
 
 export default function ContainerLogsModal({
@@ -82,9 +85,10 @@ export default function ContainerLogsModal({
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
-  if (!isOpen) return null;
+  // Memoize the cleaned logs to avoid recomputing on every render (rerender-memo)
+  const cleanLogs = useMemo(() => stripAnsi(logs), [logs]);
 
-  const cleanLogs = stripAnsi(logs);
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -194,8 +198,8 @@ export default function ContainerLogsModal({
           )}
         </div>
 
-        {/* Footer with auto-scroll indicator */}
-        {!autoScroll && logs && (
+        {/* Footer with auto-scroll indicator (rendering-conditional-render: use ternary) */}
+        {!autoScroll && logs ? (
           <div className="shrink-0 px-4 py-2 bg-slate-800/50 border-t border-slate-800 flex items-center justify-center">
             <button
               onClick={handleResumeAutoScroll}
@@ -205,7 +209,7 @@ export default function ContainerLogsModal({
               Resume auto-scroll
             </button>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

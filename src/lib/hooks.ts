@@ -1539,6 +1539,10 @@ export function useRalphEvents(
 
 import type { ContainerInfo } from "../api/docker-utils";
 
+// Hoisted regex for parsing Ralph iteration info (js-hoist-regexp)
+const RALPH_ITERATION_REGEX = /Ralph Iteration (\d+) of (\d+)/g;
+const ITERATION_NUMBERS_REGEX = /(\d+) of (\d+)/;
+
 /**
  * Hook for listing running Ralph containers.
  * Polls at configurable intervals to detect when Ralph starts/stops.
@@ -1563,6 +1567,9 @@ export function useRalphContainers(
     },
     enabled,
     refetchInterval: pollingInterval,
+    // Prevent refetch on window focus since we're polling (TanStack Query best practice)
+    staleTime: pollingInterval,
+    refetchOnWindowFocus: false,
   });
 
   // Find the most recent running Ralph container
@@ -1619,19 +1626,22 @@ export function useRalphContainerLogs(
     },
     enabled: enabled && Boolean(containerName),
     refetchInterval: pollingInterval,
+    // Prevent refetch on window focus since we're polling (TanStack Query best practice)
+    staleTime: pollingInterval,
+    refetchOnWindowFocus: false,
   });
 
-  // Parse iteration info from logs
+  // Parse iteration info from logs using hoisted regex (js-hoist-regexp)
+  // Note: String.match() with global regex returns all matches without using lastIndex
   const iterationInfo = useMemo(() => {
     const logs = query.data?.logs ?? "";
-    // Look for patterns like "Ralph Iteration 2 of 5 (Docker)"
-    const match = logs.match(/Ralph Iteration (\d+) of (\d+)/g);
+    const match = logs.match(RALPH_ITERATION_REGEX);
     if (!match || match.length === 0) {
       return null;
     }
     // Get the last match (most recent iteration)
     const lastMatch = match[match.length - 1];
-    const numbers = lastMatch?.match(/(\d+) of (\d+)/);
+    const numbers = lastMatch?.match(ITERATION_NUMBERS_REGEX);
     if (!numbers) return null;
     return {
       current: parseInt(numbers[1] ?? "0", 10),
