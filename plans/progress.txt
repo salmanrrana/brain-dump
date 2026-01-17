@@ -277,3 +277,18 @@ All 18 tickets completed successfully:
 - **c5250732**: Add Docker Runtime Config to Schema - marked as passing (dockerRuntime, dockerSocketPath columns exist)
 - These were completed in previous sessions but PRD wasn't updated
 
+
+---
+
+### 2026-01-17 - Docker Runtime Query Hooks (Ticket bcdf2f06)
+- **Ticket ID:** bcdf2f06-9f99-4d7a-a48d-f299f8e5e4b0
+- **Task:** Create TanStack Query hooks for Docker runtime detection
+- **Success:** true
+- **Commit:** 63d64c8
+- **Files:** src/api/ralph.ts, src/api/ralph-docker.test.ts
+- **Notes:**
+  - Hooks were already implemented in previous session
+  - Fixed lint error: removed unnecessary escape in bash script
+  - Updated tests to match current script behavior (mounts ~/.claude.json only)
+  - All acceptance criteria verified: hooks work with 30s staleTime, error handling
+

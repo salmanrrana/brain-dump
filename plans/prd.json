@@ -400,6 +400,54 @@
         "backend",
         "monitoring"
       ]
+    },
+    {
+      "id": "c6808fc8-61bd-4e19-83d9-2262533da761",
+      "title": "Add live container logs modal to Container Status sidebar",
+      "passes": false,
+      "overview": "Add the ability to view live streaming logs from running Docker containers directly in the Brain Dump UI. When Ralph runs in Docker sandbox mode, users should be able to click on the container in the sidebar to open a modal showing real-time logs.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Container Status sidebar shows a clickable indicator when Ralph container is running",
+        "Clicking opens a modal with streaming logs from `docker logs -f ralph-{session}`",
+        "Logs auto-scroll to bottom as new content arrives",
+        "Modal has a \"Copy logs\" button to copy full log content",
+        "Modal can be closed without stopping the container",
+        "Show iteration progress parsed from logs (e.g., \"Iteration 2/5\")"
+      ],
+      "references": [],
+      "description": "## Overview\n\nAdd the ability to view live streaming logs from running Docker containers directly in the Brain Dump UI. When Ralph runs in Docker sandbox mode, users should be able to click on the container in the sidebar to open a modal showing real-time logs.\n\n## User Story\n\nAs a developer using Ralph in Docker sandbox mode, I want to see the live output/logs of the container so I can monitor what Ralph is doing without switching to a terminal.\n\n## Acceptance Criteria\n\n- [ ] Container Status sidebar shows a clickable indicator when Ralph container is running\n- [ ] Clicking opens a modal with streaming logs from `docker logs -f ralph-{session}`\n- [ ] Logs auto-scroll to bottom as new content arrives\n- [ ] Modal has a \"Copy logs\" button to copy full log content\n- [ ] Modal can be closed without stopping the container\n- [ ] Show iteration progress parsed from logs (e.g., \"Iteration 2/5\")\n\n## Technical Approach\n\n1. **API endpoint**: Create `getContainerLogs` server function that streams logs via `docker logs -f`\n2. **WebSocket or polling**: Use either WebSocket for real-time streaming or polling with `docker logs --since`\n3. **UI component**: Create `ContainerLogsModal` component with:\n   - Auto-scrolling log viewer (ANSI color support would be nice)\n   - Pause/resume scrolling\n   - Copy to clipboard\n   - Close button\n4. **Integration**: Add click handler to Container Status section for Ralph containers\n\n## Design Notes\n\n- Use monospace font for logs (same as terminal)\n- Support ANSI color codes if feasible (or strip them for simplicity)\n- Max log buffer to prevent memory issues (e.g., keep last 1000 lines)\n- Show \"Container stopped\" message when container exits",
+      "priority": "medium",
+      "tags": [
+        "ui",
+        "docker",
+        "ralph",
+        "logs"
+      ]
+    },
+    {
+      "id": "29718896-fea8-4108-ae9e-fc0aa33c64bc",
+      "title": "Explicit Docker mode UI with dedicated buttons and project status indicators",
+      "passes": false,
+      "overview": "Replace the implicit Docker sandbox mode (toggle buried in Settings) with an explicit, discoverable UI that makes Docker mode a first-class option when starting Ralph.\nCurrently, users must:\n1. Open Settings modal\n2. Find and enable \"Run Ralph in Docker container\" toggle\n3. Start Ralph normally\n4. Hope they remember Docker mode is enabled\nThis is not discoverable and the state is invisible.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [],
+      "description": "## Overview\n\nReplace the implicit Docker sandbox mode (toggle buried in Settings) with an explicit, discoverable UI that makes Docker mode a first-class option when starting Ralph.\n\n## Problem\n\nCurrently, users must:\n1. Open Settings modal\n2. Find and enable \"Run Ralph in Docker container\" toggle\n3. Start Ralph normally\n4. Hope they remember Docker mode is enabled\n\nThis is not discoverable and the state is invisible.\n\n## Proposed Solution\n\nMake Docker mode explicit and visible:\n\n1. **Ticket/Project Actions**: Add dedicated \"Start in Docker\" button alongside \"Start Ralph\"\n2. **Project Status Indicators**: Show 🐳 icon on project in sidebar when Ralph is running in Docker\n3. **Container Logs Access**: Click the Docker indicator to open logs modal\n4. **Settings Simplification**: Remove the toggle, or make it a \"default preference\" only\n\n## User Stories\n\n- As a user, I want to see a clear \"Run in Docker\" option so I know it's available\n- As a user, I want to see at a glance which projects have Docker containers running\n- As a user, I want quick access to container logs from the sidebar\n\n## Questions to Resolve\n\n- Where should the \"Start in Docker\" button live? (Ticket modal? Project context menu? Both?)\n- Should we show Docker availability status before clicking?\n- How do we handle the case where Docker is not available/running?\n- Should we keep the Settings toggle as a \"default\" preference?\n\n## Needs Architecture Review\n\nThis ticket needs architecture planning before implementation to determine:\n- Component structure and state management\n- How to detect Docker availability efficiently\n- Integration with existing Ralph start flow",
+      "priority": "medium",
+      "tags": [
+        "ux",
+        "docker",
+        "ralph",
+        "architecture"
+      ]
     }
   ],
   "projectContext": {
@@ -528,7 +576,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-17T11:42:51.141Z",
+  "generatedAt": "2026-01-17T19:45:59.414Z",
   "epicTitle": "Docker Container Status & Runtime Detection",
   "epicDescription": "Add persistent visibility of running Docker containers to Brain Dump's UI, with Lima-first runtime detection for users without Docker Desktop.\n\n**Goals:**\n- Show running containers in sidebar (always visible, not hidden in modals)\n- Auto-detect Lima/Colima/Podman runtimes\n- Let users configure runtime in Settings\n- Provide actionable error messages for common issues\n\n**User Stories:**\n- As a Lima user, I want Brain Dump to auto-detect my Docker socket so containers work without manual config\n- As a developer, I want to see running containers at a glance so I know what services are available\n- As a user, I want to copy connection strings quickly so I can use them in my code"
 }
