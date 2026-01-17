@@ -350,7 +350,7 @@
     {
       "id": "df385a2b-09b8-41e9-9e12-cc82342b4023",
       "title": "Add Container Logs Viewer",
-      "passes": false,
+      "passes": true,
       "overview": "Add ability to view container logs from the sidebar. Can either open in system terminal or show inline in a modal.",
       "types": [],
       "designDecisions": [],
