@@ -472,7 +472,7 @@ const DEFAULT_RESOURCE_LIMITS: DockerResourceLimits = {
 const DEFAULT_TIMEOUT_SECONDS = 3600;
 
 // Generate the Ralph bash script (unified for both native and Docker)
-function generateRalphScript(
+export function generateRalphScript(
   projectPath: string,
   maxIterations: number = 10,
   useSandbox: boolean = false,
@@ -904,11 +904,11 @@ async function validateDockerSetup(): Promise<
   // Check if Docker is running (uses configured/detected socket)
   try {
     await execDockerCommand("info");
-  } catch {
+  } catch (error) {
+    const errorDetail = error instanceof Error ? error.message : String(error);
     return {
       success: false,
-      message:
-        "Docker is not running. Please start Docker Desktop or run 'sudo systemctl start docker'",
+      message: `Docker is not accessible: ${errorDetail}. Please ensure Docker is running and you have permission to access the Docker socket.`,
     };
   }
 

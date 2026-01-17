@@ -426,10 +426,15 @@ export const stopAllServices = createServerFn({ method: "POST" })
 export const listRalphContainers = createServerFn({ method: "GET" }).handler(async () => {
   const { listContainers } = await import("./docker-utils");
 
-  const containers = await listContainers("ralph-");
+  const result = await listContainers("ralph-");
+
+  // Log any Docker errors for debugging
+  if (result.error) {
+    console.warn(`[services] Docker container list error: ${result.error}`);
+  }
 
   // Filter to only include containers running our sandbox image
-  return containers.filter(
+  return result.containers.filter(
     (c) => c.image === "brain-dump-ralph-sandbox:latest" || c.name.startsWith("ralph-")
   );
 });

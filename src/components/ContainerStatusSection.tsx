@@ -79,6 +79,9 @@ function getStatusIndicator(status: ServiceStatus): {
   }
 }
 
+/** Service types that use HTTP protocol */
+const HTTP_SERVICE_TYPES = new Set(["frontend", "backend", "storybook", "docs"]);
+
 /**
  * Get connection string for a service based on its type.
  */
@@ -86,19 +89,13 @@ function getConnectionString(service: RalphService): string | null {
   const host = "localhost";
   const port = service.port;
 
-  switch (service.type) {
-    case "frontend":
-    case "backend":
-    case "storybook":
-    case "docs":
-      return `http://${host}:${port}`;
-    case "database":
-      // Database services might have specific connection formats
-      // For now, just return the host:port
-      return `${host}:${port}`;
-    default:
-      return `${host}:${port}`;
+  // Only web services get http:// prefix
+  if (HTTP_SERVICE_TYPES.has(service.type)) {
+    return `http://${host}:${port}`;
   }
+
+  // Database and other services just get host:port
+  return `${host}:${port}`;
 }
 
 /**
@@ -227,9 +224,10 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
         setCopiedId(serviceId);
       } catch (err) {
         console.error("Failed to copy to clipboard:", err);
+        showToast("error", "Failed to copy to clipboard");
       }
     },
-    [setCopiedId]
+    [setCopiedId, showToast]
   );
 
   // Handle starting a service

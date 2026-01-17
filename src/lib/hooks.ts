@@ -485,6 +485,16 @@ export const queryKeys = {
   // Docker runtime detection
   dockerRuntimes: ["dockerRuntimes"] as const,
   activeDockerRuntime: ["activeDockerRuntime"] as const,
+  // Ralph container monitoring (hierarchical for easy invalidation)
+  ralph: {
+    all: ["ralph"] as const,
+    containers: () => ["ralph", "containers"] as const,
+    containerLogs: (containerName: string, tail: number) =>
+      ["ralph", "containerLogs", containerName, tail] as const,
+    events: (sessionId: string) => ["ralph", "events", sessionId] as const,
+  },
+  // Project services
+  projectServices: (projectPath: string) => ["projectServices", projectPath] as const,
 };
 
 // Types
@@ -1317,10 +1327,10 @@ export function useProjectServices(
   const { enabled = true, pollingInterval = 0 } = options;
 
   const query = useQuery({
-    queryKey: ["projectServices", projectPath],
-    queryFn: async (): Promise<RalphServicesFile> => {
+    queryKey: queryKeys.projectServices(projectPath ?? ""),
+    queryFn: async () => {
       if (!projectPath) {
-        return { services: [], updatedAt: new Date().toISOString() };
+        return { services: [], updatedAt: new Date().toISOString() } as RalphServicesFile;
       }
       return getProjectServices({ data: { projectPath } });
     },
@@ -1365,9 +1375,9 @@ export function useStartService() {
       return result;
     },
     onSuccess: (_data, variables) => {
-      // Invalidate the services query to refresh the list
-      void queryClient.invalidateQueries({
-        queryKey: ["projectServices", variables.projectPath],
+      // Return promise to keep mutation pending until queries refetch (TanStack best practice)
+      return queryClient.invalidateQueries({
+        queryKey: queryKeys.projectServices(variables.projectPath),
       });
     },
   });
@@ -1395,9 +1405,9 @@ export function useStopService() {
       return result;
     },
     onSuccess: (_data, variables) => {
-      // Invalidate the services query to refresh the list
-      void queryClient.invalidateQueries({
-        queryKey: ["projectServices", variables.projectPath],
+      // Return promise to keep mutation pending until queries refetch (TanStack best practice)
+      return queryClient.invalidateQueries({
+        queryKey: queryKeys.projectServices(variables.projectPath),
       });
     },
   });
@@ -1420,9 +1430,9 @@ export function useStopAllServices() {
       return result;
     },
     onSuccess: (_data, variables) => {
-      // Invalidate the services query to refresh the list
-      void queryClient.invalidateQueries({
-        queryKey: ["projectServices", variables.projectPath],
+      // Return promise to keep mutation pending until queries refetch (TanStack best practice)
+      return queryClient.invalidateQueries({
+        queryKey: queryKeys.projectServices(variables.projectPath),
       });
     },
   });
@@ -1467,24 +1477,33 @@ export function useRalphEvents(
 
   // Query fetches all events from the server
   const query = useQuery({
-    queryKey: ["ralphEvents", sessionId],
-    queryFn: async (): Promise<ParsedRalphEvent[]> => {
+    queryKey: queryKeys.ralph.events(sessionId ?? ""),
+    queryFn: async () => {
       if (!sessionId) {
-        return [];
+        return [] as ParsedRalphEvent[];
       }
 
       const result = await getRalphEvents({
         data: { sessionId, limit: maxEvents },
       });
 
-      if (!result.success || !result.events) {
-        return [];
+      // Throw on failure so TanStack Query shows error state
+      if (!result.success) {
+        throw new Error(result.message || "Failed to fetch Ralph events");
+      }
+
+      // Return empty array if no events (distinct from failure)
+      if (!result.events) {
+        return [] as ParsedRalphEvent[];
       }
 
       return result.events as ParsedRalphEvent[];
     },
     enabled: enabled && Boolean(sessionId),
     refetchInterval: pollingInterval,
+    // Prevent refetch on window focus since we're polling (TanStack Query best practice)
+    staleTime: pollingInterval,
+    refetchOnWindowFocus: false,
   });
 
   // Derive all values from query data using useMemo (no effects needed)
@@ -1537,8 +1556,6 @@ export function useRalphEvents(
 // RALPH CONTAINER LOGS
 // =============================================================================
 
-import type { ContainerInfo } from "../api/docker-utils";
-
 // Hoisted regex for parsing Ralph iteration info (js-hoist-regexp)
 const RALPH_ITERATION_REGEX = /Ralph Iteration (\d+) of (\d+)/g;
 const ITERATION_NUMBERS_REGEX = /(\d+) of (\d+)/;
@@ -1561,10 +1578,8 @@ export function useRalphContainers(
   const { enabled = true, pollingInterval = 3000 } = options;
 
   const query = useQuery({
-    queryKey: ["ralphContainers"],
-    queryFn: async (): Promise<ContainerInfo[]> => {
-      return listRalphContainers();
-    },
+    queryKey: queryKeys.ralph.containers(),
+    queryFn: listRalphContainers, // Let type be inferred from API function
     enabled,
     refetchInterval: pollingInterval,
     // Prevent refetch on window focus since we're polling (TanStack Query best practice)
@@ -1610,15 +1625,12 @@ export function useRalphContainerLogs(
   const { enabled = true, pollingInterval = 1000, tail = 500 } = options;
 
   // Track the previous log length for detecting new content
+  // Using useState because hasNewLogs is used for rendering (auto-scroll behavior)
   const [prevLogLength, setPrevLogLength] = useState(0);
 
   const query = useQuery({
-    queryKey: ["ralphContainerLogs", containerName, tail],
-    queryFn: async (): Promise<{
-      logs: string;
-      containerRunning: boolean;
-      error?: string;
-    }> => {
+    queryKey: queryKeys.ralph.containerLogs(containerName ?? "", tail),
+    queryFn: async () => {
       if (!containerName) {
         return { logs: "", containerRunning: false };
       }
@@ -1649,7 +1661,7 @@ export function useRalphContainerLogs(
     };
   }, [query.data?.logs]);
 
-  // Detect if new logs have arrived using effect to update state
+  // Detect if new logs have arrived
   const currentLogLength = query.data?.logs?.length ?? 0;
   const hasNewLogs = currentLogLength > prevLogLength;
 

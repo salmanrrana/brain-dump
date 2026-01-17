@@ -35,6 +35,7 @@ export default function ContainerLogsModal({
   const logsEndRef = useRef<HTMLDivElement>(null);
   const logsContainerRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
 
   // Modal keyboard handling (Escape to close, focus trap)
@@ -73,9 +74,12 @@ export default function ContainerLogsModal({
     try {
       await navigator.clipboard.writeText(stripAnsi(logs));
       setCopied(true);
+      setCopyError(false);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error("Failed to copy logs:", err);
+      setCopyError(true);
+      setTimeout(() => setCopyError(false), 3000);
     }
   }, [logs]);
 
@@ -154,10 +158,16 @@ export default function ContainerLogsModal({
               onClick={handleCopy}
               disabled={!logs}
               className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-gray-100 disabled:opacity-50"
-              title={copied ? "Copied!" : "Copy logs"}
-              aria-label={copied ? "Copied" : "Copy logs to clipboard"}
+              title={copyError ? "Copy failed!" : copied ? "Copied!" : "Copy logs"}
+              aria-label={copyError ? "Copy failed" : copied ? "Copied" : "Copy logs to clipboard"}
             >
-              {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
+              {copyError ? (
+                <X size={16} className="text-red-400" />
+              ) : copied ? (
+                <Check size={16} className="text-green-400" />
+              ) : (
+                <Copy size={16} />
+              )}
             </button>
 
             {/* Close button */}

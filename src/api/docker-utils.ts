@@ -153,16 +153,26 @@ export async function execDockerCommand(
 }
 
 /**
+ * Result from Docker accessibility check.
+ */
+export interface DockerAccessResult {
+  accessible: boolean;
+  error?: string;
+}
+
+/**
  * Check if Docker daemon is running and accessible with current configuration.
  *
- * @returns true if Docker is accessible
+ * @returns Object with accessible boolean and optional error message
  */
-export async function isDockerAccessible(): Promise<boolean> {
+export async function isDockerAccessible(): Promise<DockerAccessResult> {
   try {
     await execDockerCommand("info", { timeout: 5000 });
-    return true;
-  } catch {
-    return false;
+    return { accessible: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[docker-utils] Docker not accessible: ${message}`);
+    return { accessible: false, error: message };
   }
 }
 
@@ -177,7 +187,9 @@ export async function getDockerVersion(): Promise<string | null> {
       timeout: 5000,
     });
     return stdout.trim() || null;
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[docker-utils] Failed to get Docker version: ${message}`);
     return null;
   }
 }
@@ -199,12 +211,20 @@ export interface ContainerInfo {
 }
 
 /**
+ * Result from listContainers with error info.
+ */
+export interface ListContainersResult {
+  containers: ContainerInfo[];
+  error?: string;
+}
+
+/**
  * List running containers matching a name pattern.
  *
  * @param namePattern - Pattern to match container names (e.g., "ralph-*")
- * @returns Array of container info objects
+ * @returns Object with containers array and optional error message
  */
-export async function listContainers(namePattern?: string): Promise<ContainerInfo[]> {
+export async function listContainers(namePattern?: string): Promise<ListContainersResult> {
   try {
     // Use JSON format for reliable parsing
     const filterArg = namePattern ? `--filter "name=${namePattern}"` : "";
@@ -213,7 +233,7 @@ export async function listContainers(namePattern?: string): Promise<ContainerInf
     });
 
     if (!stdout.trim()) {
-      return [];
+      return { containers: [] };
     }
 
     // Parse each line as JSON
@@ -231,13 +251,18 @@ export async function listContainers(namePattern?: string): Promise<ContainerInf
           isRunning: data.State === "running",
         });
       } catch {
-        // Skip malformed lines
+        // Log malformed lines for debugging
+        console.warn(
+          `[docker-utils] Skipped malformed container JSON: ${line.substring(0, 100)}...`
+        );
       }
     }
 
-    return containers;
-  } catch {
-    return [];
+    return { containers };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[docker-utils] Failed to list containers: ${message}`);
+    return { containers: [], error: `Failed to list containers: ${message}` };
   }
 }
 
