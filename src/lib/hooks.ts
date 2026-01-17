@@ -485,6 +485,8 @@ export const queryKeys = {
   // Docker runtime detection
   dockerRuntimes: ["dockerRuntimes"] as const,
   activeDockerRuntime: ["activeDockerRuntime"] as const,
+  // Docker availability (for UI buttons)
+  dockerAvailability: ["docker-availability"] as const,
   // Ralph container monitoring (hierarchical for easy invalidation)
   ralph: {
     all: ["ralph"] as const,
@@ -1055,8 +1057,54 @@ export function useBuildSandboxImage() {
     mutationFn: () => buildSandboxImage(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["docker-status"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dockerAvailability });
     },
   });
+}
+
+// =============================================================================
+// DOCKER AVAILABILITY HOOK
+// =============================================================================
+
+import { getDockerUnavailableMessage } from "./docker-messages";
+
+/**
+ * Hook for checking Docker availability with caching.
+ *
+ * Provides a consumer-friendly interface for checking if Docker can be used
+ * to run Ralph in sandbox mode. Caches status for 30 seconds to prevent
+ * excessive Docker checks when modals are opened/closed.
+ *
+ * Multiple components using this hook share the same cached query (deduplication).
+ *
+ * @returns Object with:
+ *   - isAvailable: Whether Docker daemon is running
+ *   - isImageBuilt: Whether the sandbox image exists
+ *   - message: User-friendly message if Docker is unavailable
+ *   - loading: Whether status is being fetched
+ *   - refetch: Function to force refresh the status
+ */
+export function useDockerAvailability() {
+  const query = useQuery({
+    queryKey: queryKeys.dockerAvailability,
+    queryFn: async () => {
+      const status = await getDockerStatus();
+      return {
+        available: status.dockerAvailable && status.dockerRunning,
+        imageBuilt: status.imageBuilt,
+        message: getDockerUnavailableMessage(status),
+      };
+    },
+    staleTime: 30_000, // 30 seconds - prevents flicker on modal re-open
+  });
+
+  return {
+    isAvailable: query.data?.available ?? false,
+    isImageBuilt: query.data?.imageBuilt ?? false,
+    message: query.data?.message,
+    loading: query.isLoading,
+    refetch: query.refetch,
+  };
 }
 
 // =============================================================================
