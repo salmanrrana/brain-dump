@@ -44,8 +44,8 @@ const lockResult = initializeLockSync("vite", () => {
     stopWatching(); // Stop file watcher
     sqlite.pragma("wal_checkpoint(TRUNCATE)");
     sqlite.close();
-  } catch {
-    // Ignore errors during cleanup
+  } catch (error) {
+    console.warn("[DB] Cleanup error during shutdown:", error);
   }
 });
 if (lockResult.acquired) {
@@ -361,8 +361,8 @@ async function cleanupLaunchScripts() {
   try {
     const { cleanupOldScripts } = await import("../api/terminal");
     await cleanupOldScripts();
-  } catch {
-    // Ignore - terminal module might not be loaded yet
+  } catch (error) {
+    console.warn("[DB] Failed to cleanup launch scripts:", error);
   }
 }
 cleanupLaunchScripts();

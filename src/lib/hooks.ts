@@ -826,16 +826,19 @@ export function useSearch(projectId?: string | null) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const search = useCallback(
     async (searchQuery: string) => {
       if (!searchQuery.trim()) {
         setResults([]);
+        setSearchError(null);
         return;
       }
 
       setLoading(true);
+      setSearchError(null);
       try {
         const searchData: { query: string; projectId?: string } = {
           query: searchQuery,
@@ -850,6 +853,7 @@ export function useSearch(projectId?: string | null) {
       } catch (err) {
         console.error("Search failed:", err);
         setResults([]);
+        setSearchError(err instanceof Error ? err.message : "Search failed");
       } finally {
         setLoading(false);
       }
@@ -889,9 +893,10 @@ export function useSearch(projectId?: string | null) {
   const clearSearch = useCallback(() => {
     setQuery("");
     setResults([]);
+    setSearchError(null);
   }, []);
 
-  return { query, results, loading, search: debouncedSearch, clearSearch };
+  return { query, results, loading, error: searchError, search: debouncedSearch, clearSearch };
 }
 
 // Hook for fetching unique tags with optional project/epic filter

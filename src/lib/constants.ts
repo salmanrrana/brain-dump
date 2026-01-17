@@ -119,3 +119,26 @@ export function getPrStatusBadgeStyle(status: string | null | undefined): string
       return "bg-green-900/50 text-green-300";
   }
 }
+
+// Status badge configuration for consistent styling across components
+export const STATUS_BADGE_CONFIG: Record<string, { label: string; className: string }> = {
+  backlog: { label: "Backlog", className: "bg-slate-700 text-slate-300" },
+  ready: { label: "Ready", className: "bg-blue-900/50 text-blue-300" },
+  in_progress: { label: "In Progress", className: "bg-amber-900/50 text-amber-300" },
+  review: { label: "Review", className: "bg-purple-900/50 text-purple-300" },
+  ai_review: { label: "AI Review", className: "bg-orange-900/50 text-orange-300" },
+  human_review: { label: "Human Review", className: "bg-rose-900/50 text-rose-300" },
+  done: { label: "Done", className: "bg-green-900/50 text-green-300" },
+};
+
+// Priority badge configuration for consistent styling across components
+export const PRIORITY_BADGE_CONFIG: Record<string, { label: string; className: string }> = {
+  high: { label: "High", className: "bg-red-900/50 text-red-300" },
+  medium: { label: "Medium", className: "bg-yellow-900/50 text-yellow-300" },
+  low: { label: "Low", className: "bg-green-900/50 text-green-300" },
+};
+
+// Get status label from status value
+export function getStatusLabel(status: string): string {
+  return STATUS_BADGE_CONFIG[status]?.label ?? status;
+}

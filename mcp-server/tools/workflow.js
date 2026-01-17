@@ -230,7 +230,8 @@ Returns:
           if (subtasks.length > 0) {
             acceptanceCriteria = subtasks.map(s => s.title || s);
           }
-        } catch {
+        } catch (parseErr) {
+          log.warn(`Failed to parse subtasks for ticket ${ticketId}:`, parseErr);
           // Keep default criteria if parsing fails
         }
       }

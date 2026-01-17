@@ -57,7 +57,12 @@ Returns:
 
       let linkedCommits = [];
       if (ticket.linked_commits) {
-        try { linkedCommits = JSON.parse(ticket.linked_commits); } catch { linkedCommits = []; }
+        try {
+          linkedCommits = JSON.parse(ticket.linked_commits);
+        } catch (parseErr) {
+          log.warn(`Failed to parse linked_commits for ticket ${ticketId}:`, parseErr);
+          linkedCommits = [];
+        }
       }
 
       const alreadyLinked = linkedCommits.some(c => c.hash === commitHash || c.hash.startsWith(commitHash) || commitHash.startsWith(c.hash));

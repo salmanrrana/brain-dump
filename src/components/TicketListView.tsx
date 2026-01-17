@@ -2,7 +2,13 @@ import { useState, useMemo } from "react";
 import { ChevronUp, ChevronDown, AlertCircle, GitBranch, GitPullRequest } from "lucide-react";
 
 import type { Ticket } from "../lib/hooks";
-import { STATUS_ORDER, PRIORITY_ORDER, getPrStatusIconColor } from "../lib/constants";
+import {
+  STATUS_ORDER,
+  PRIORITY_ORDER,
+  STATUS_BADGE_CONFIG,
+  PRIORITY_BADGE_CONFIG,
+  getPrStatusIconColor,
+} from "../lib/constants";
 import { safeJsonParse } from "../lib/utils";
 
 interface Epic {
@@ -245,38 +251,7 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const statusConfig: Record<string, { label: string; className: string }> = {
-    backlog: {
-      label: "Backlog",
-      className: "bg-slate-700 text-slate-300",
-    },
-    ready: {
-      label: "Ready",
-      className: "bg-blue-900/50 text-blue-300",
-    },
-    in_progress: {
-      label: "In Progress",
-      className: "bg-amber-900/50 text-amber-300",
-    },
-    review: {
-      label: "Review",
-      className: "bg-purple-900/50 text-purple-300",
-    },
-    ai_review: {
-      label: "AI Review",
-      className: "bg-orange-900/50 text-orange-300",
-    },
-    human_review: {
-      label: "Human Review",
-      className: "bg-rose-900/50 text-rose-300",
-    },
-    done: {
-      label: "Done",
-      className: "bg-green-900/50 text-green-300",
-    },
-  };
-
-  const config = statusConfig[status] ?? {
+  const config = STATUS_BADGE_CONFIG[status] ?? {
     label: status,
     className: "bg-slate-700 text-slate-300",
   };
@@ -285,22 +260,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function PriorityBadge({ priority }: { priority: string }) {
-  const priorityConfig: Record<string, { label: string; className: string }> = {
-    high: {
-      label: "High",
-      className: "bg-red-900/50 text-red-300",
-    },
-    medium: {
-      label: "Medium",
-      className: "bg-yellow-900/50 text-yellow-300",
-    },
-    low: {
-      label: "Low",
-      className: "bg-green-900/50 text-green-300",
-    },
-  };
-
-  const config = priorityConfig[priority] ?? {
+  const config = PRIORITY_BADGE_CONFIG[priority] ?? {
     label: priority,
     className: "bg-slate-700 text-slate-300",
   };

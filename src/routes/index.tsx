@@ -8,7 +8,7 @@ import TicketListView from "../components/TicketListView";
 import TicketModal from "../components/TicketModal";
 import type { Subtask } from "../api/tickets";
 import { safeJsonParse } from "../lib/utils";
-import { getPrStatusIconColor } from "../lib/constants";
+import { getPrStatusIconColor, getStatusLabel, PRIORITY_BADGE_CONFIG } from "../lib/constants";
 import {
   DndContext,
   DragOverlay,
@@ -57,18 +57,8 @@ function Home() {
   // Handle status changes from external sources (CLI, hooks)
   const handleStatusChange = useCallback(
     (change: StatusChange) => {
-      const statusLabels: Record<string, string> = {
-        backlog: "Backlog",
-        ready: "Ready",
-        in_progress: "In Progress",
-        review: "Review",
-        ai_review: "AI Review",
-        human_review: "Human Review",
-        done: "Done",
-      };
-
-      const fromLabel = statusLabels[change.fromStatus] ?? change.fromStatus;
-      const toLabel = statusLabels[change.toStatus] ?? change.toStatus;
+      const fromLabel = getStatusLabel(change.fromStatus);
+      const toLabel = getStatusLabel(change.toStatus);
 
       // Special message for auto-completion to review
       if (change.toStatus === "review") {
@@ -269,28 +259,32 @@ function KanbanBoard({
       }
     }
 
-    // Update status if changed
-    if (activeTicket.status !== targetStatus) {
-      await updateTicketStatus({
-        data: {
-          id: activeTicket.id,
-          status: targetStatus as
-            | "backlog"
-            | "ready"
-            | "in_progress"
-            | "review"
-            | "ai_review"
-            | "human_review"
-            | "done",
-        },
-      });
+    try {
+      // Update status if changed
+      if (activeTicket.status !== targetStatus) {
+        await updateTicketStatus({
+          data: {
+            id: activeTicket.id,
+            status: targetStatus as
+              | "backlog"
+              | "ready"
+              | "in_progress"
+              | "review"
+              | "ai_review"
+              | "human_review"
+              | "done",
+          },
+        });
+      }
+
+      // Update position
+      await updateTicketPosition({ data: { id: activeTicket.id, position: targetPosition } });
+    } catch (error) {
+      console.error("Failed to update ticket during drag:", error);
+    } finally {
+      // Refresh tickets to ensure UI is in sync
+      onRefresh();
     }
-
-    // Update position
-    await updateTicketPosition({ data: { id: activeTicket.id, position: targetPosition } });
-
-    // Refresh tickets
-    onRefresh();
   };
 
   return (
@@ -492,22 +486,7 @@ function TicketCard({
 }
 
 function PriorityBadge({ priority }: { priority: string }) {
-  const priorityConfig: Record<string, { label: string; className: string }> = {
-    high: {
-      label: "High",
-      className: "bg-red-900/50 text-red-300",
-    },
-    medium: {
-      label: "Medium",
-      className: "bg-yellow-900/50 text-yellow-300",
-    },
-    low: {
-      label: "Low",
-      className: "bg-green-900/50 text-green-300",
-    },
-  };
-
-  const config = priorityConfig[priority] ?? {
+  const config = PRIORITY_BADGE_CONFIG[priority] ?? {
     label: priority,
     className: "bg-slate-700 text-slate-300",
   };

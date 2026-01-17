@@ -235,8 +235,11 @@ export function runMigrations(db) {
       // Create index on current_state if it doesn't exist
       try {
         db.prepare("CREATE INDEX IF NOT EXISTS idx_ralph_sessions_state ON ralph_sessions(current_state)").run();
-      } catch {
-        // Index may already exist with a different name
+      } catch (err) {
+        // Index may already exist with a different name, or table structure differs
+        if (!err.message?.includes("already exists")) {
+          log.warn("Failed to create idx_ralph_sessions_state index", err);
+        }
       }
     }
   } catch (err) {
