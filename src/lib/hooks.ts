@@ -936,6 +936,9 @@ export interface Settings {
   prTargetBranch: string | null;
   defaultProjectsDirectory: string | null;
   defaultWorkingMethod: string | null;
+  // Docker runtime settings
+  dockerRuntime: string | null; // 'lima' | 'colima' | 'rancher' | 'docker-desktop' | 'podman' | null (auto)
+  dockerSocketPath: string | null; // Custom socket path override
   // Enterprise conversation logging
   conversationLoggingEnabled: boolean | null;
   conversationRetentionDays: number | null;
