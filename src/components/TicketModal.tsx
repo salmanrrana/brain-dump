@@ -445,7 +445,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     } finally {
       setIsStartingWork(false);
     }
-  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast]);
+  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification]);
 
   // Handle Start Ralph - autonomous mode
   const handleStartRalph = useCallback(async () => {
@@ -499,6 +499,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     settings?.ralphSandbox,
     launchRalphMutation,
     showToast,
+    setStartWorkNotification,
   ]);
 
   // Handle Start OpenCode - open-source AI assistant
@@ -577,7 +578,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     } finally {
       setIsStartingWork(false);
     }
-  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast]);
+  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification]);
 
   // Handle adding a comment
   const handleAddComment = useCallback(() => {
