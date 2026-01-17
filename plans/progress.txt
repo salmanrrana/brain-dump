@@ -2927,3 +2927,180 @@ MCP server files (index.js, lib/environment.js, lib/lock.js) had lint errors for
 - [x] Solution doesn't affect browser-side code linting
 - [x] All 491 tests pass
 - [x] TypeScript type-check passes
+
+---
+
+### 2026-01-16 19:49:58 - Session Timeout
+- **Reason:** Timeout reached (1h limit)
+- **Status:** Session terminated, work may be incomplete
+- **Action:** Review progress and restart if needed
+
+---
+
+### 2026-01-16 22:15:26 - Session Timeout
+- **Reason:** Timeout reached (1h limit)
+- **Status:** Session terminated, work may be incomplete
+- **Action:** Review progress and restart if needed
+
+---
+
+### 2026-01-17 - Enterprise Conversation Logging: Schema (Ticket 1)
+- **Ticket ID:** 0a658517-4d48-4e49-99c2-ec1de165d6f0
+- **Task:** Add conversation logging schema to Drizzle ORM
+- **Success:** true
+- **Files:** src/lib/schema.ts
+- **Notes:**
+  - Added 3 new tables for enterprise compliance logging:
+    - `conversation_sessions`: Project/ticket linking, environment detection, data classification, legal hold
+    - `conversation_messages`: HMAC-SHA256 content hashing, sequence numbering, secret detection
+    - `audit_log_access`: Audit trail for conversation log access
+  - Added 10 indexes across tables for efficient querying
+  - Type exports: ConversationSession, ConversationMessage, AuditLogAccess + supporting types
+  - All 531 tests pass, type-check and lint clean
+
+---
+
+### 2026-01-17 - Enterprise Conversation Logging: Runtime Migration (Ticket 2)
+- **Ticket ID:** 6f3b6c20-0726-4856-973b-6c529e413961
+- **Task:** Add runtime migration for conversation tables
+- **Success:** true
+- **Files:** src/lib/db.ts, src/lib/schema.ts, src/mocks/factories.ts
+- **Notes:**
+  - Added 3 migration functions to src/lib/db.ts:
+    - `initRalphEvents()`: Creates ralph_events table
+    - `initRalphSessions()`: Creates ralph_sessions table
+    - `initConversationLogging()`: Creates conversation_sessions, conversation_messages, audit_log_access
+  - Added settings columns: conversation_retention_days (90), conversation_logging_enabled (true)
+  - Updated schema.ts with new settings fields
+  - Updated factories.ts for mock data
+  - All 531 tests pass, type-check and lint clean
+
+---
+
+### 2026-01-17 - Enterprise Conversation Logging: MCP Server Migration (Ticket 3)
+- **Ticket ID:** 7fd8d48b-87e4-4cac-ad9f-af1af107acb2
+- **Task:** Add MCP server migration for conversation tables
+- **Success:** true
+- **Files:** mcp-server/lib/database.js
+- **Notes:**
+  - Added migrations to runMigrations() for:
+    - conversation_sessions: 11 columns, 4 indexes
+    - conversation_messages: 10 columns, 3 indexes (including compound session+seq)
+    - audit_log_access: 6 columns, 3 indexes
+  - Added settings columns migration: conversation_retention_days, conversation_logging_enabled
+  - Follows existing MCP server migration patterns (try/catch with log.error())
+  - Ensures both entry points (main app and MCP server) create same schema
+  - All 531 tests pass
+
+---
+
+### 2026-01-17 - Enterprise Conversation Logging: Secret Detection (Ticket 4)
+- **Ticket ID:** 0136e42d-8b9f-427b-8313-1e1abdc97d26
+- **Task:** Create secret detection utility module
+- **Success:** true
+- **Files:** mcp-server/lib/secrets.js, mcp-server/lib/secrets.test.ts
+- **Notes:**
+  - Created secret detection module with 20+ patterns covering:
+    - OpenAI, Anthropic API keys
+    - AWS Access Key ID and Secret Access Key
+    - GitHub tokens (PAT, OAuth, App)
+    - Slack tokens (Bot, User, App, Refresh)
+    - Private keys (RSA, EC, Generic, OpenSSH)
+    - Generic password assignments
+    - Bearer/Basic auth tokens
+    - Database connection strings
+    - Google API keys, Stripe keys, SendGrid keys, Twilio credentials
+  - Three main functions:
+    - `detectSecrets()`: Returns types and counts (NOT actual values for security)
+    - `containsSecrets()`: Fast boolean check with early return
+    - `redactSecrets()`: Replaces secrets with placeholder for safe logging
+  - 29 comprehensive tests covering all patterns
+  - All 560 tests pass (29 new), type-check and lint clean
+
+---
+
+### 2026-01-17 - Enterprise Conversation Logging: start_conversation_session (Ticket 5)
+- **Ticket ID:** 35bdea52-f3e5-44af-abdc-c1dd196fd01c
+- **Task:** Implement start_conversation_session MCP tool
+- **Success:** true
+- **Files:** mcp-server/tools/conversations.js, mcp-server/tools/conversations.test.ts, mcp-server/index.js
+- **Notes:**
+  - Created new conversation tools module with start_conversation_session tool
+  - Tool creates conversation session records for enterprise compliance
+  - Features:
+    - Validates projectId and ticketId if provided
+    - Auto-detects environment (claude-code, vscode, opencode, unknown)
+    - Supports data classification levels (public, internal, confidential, restricted)
+    - Accepts optional session metadata as JSON
+    - Returns session ID for use in subsequent message logging
+  - Registered tool in mcp-server/index.js with detectEnvironment dependency
+  - 11 comprehensive tests covering all functionality
+  - All 571 tests pass, type-check and lint clean
+
+---
+
+### 2026-01-17 - Enterprise Conversation Logging: log_conversation_message (Ticket 6)
+- **Ticket ID:** e375d404-e050-4013-a045-b7bc731aa18f
+- **Task:** Implement log_conversation_message MCP tool
+- **Success:** true
+- **Files:** mcp-server/tools/conversations.js, mcp-server/tools/conversations.test.ts
+- **Notes:**
+  - Added log_conversation_message tool to conversations module
+  - Features:
+    - Logs messages to existing conversation sessions
+    - Computes HMAC-SHA256 content hash using derived key (hostname + sessionId)
+    - Auto-detects potential secrets using containsSecrets() from secrets.js
+    - Auto-assigns sequential numbers within sessions
+    - Validates session exists and hasn't ended
+    - Supports tool calls, token counts, and model IDs
+  - Security design: Content hashing enables tamper detection, secrets flagged but not leaked
+  - 12 comprehensive tests covering all functionality
+  - All 583 tests pass, type-check and lint clean
+
+---
+
+### 2026-01-17 01:39:41 - Session Timeout
+- **Reason:** Timeout reached (1h limit)
+- **Status:** Session terminated, work may be incomplete
+- **Action:** Review progress and restart if needed
+
+---
+
+### 2026-01-17 - Enterprise Conversation Logging: Auto-create Sessions in Workflow (Ticket 12)
+- **Ticket ID:** 05d71b38-4d03-4b49-b9a1-5690f35addf9
+- **Task:** Auto-create/end conversation sessions in workflow tools
+- **Success:** true
+- **Commit:** 8a37f8d
+- **Files:** mcp-server/tools/workflow.js
+- **Notes:**
+  - Added createConversationSession() helper: creates session linked to ticket and project
+  - Added endConversationSessions() helper: ends active sessions and counts messages
+  - Modified start_ticket_work to auto-create session after status update
+  - Modified complete_ticket_work to auto-end sessions and report summary
+  - Session info displayed in tool responses for transparency
+  - All 628 unit tests and 87 integration tests passing
+
+---
+
+### 2026-01-17 - Automate Code Review Pipeline (Ticket 17)
+- **Ticket ID:** 9df0c1cb-caad-4571-a12c-ad592d64039e
+- **Task:** Add auto-spawn next ticket hook for context reset
+- **Success:** true
+- **Commit:** 9981113
+- **Files Created:** .claude/hooks/spawn-next-ticket.sh
+- **Files Modified:** CLAUDE.md
+- **Notes:**
+  - Created spawn-next-ticket.sh PostToolUse hook for complete_ticket_work
+  - Hook parses next ticket ID and spawns new terminal with Claude
+  - Supports Ghostty, iTerm2, Terminal.app (macOS); Ghostty, Kitty, GNOME Terminal (Linux)
+  - Opt-in via AUTO_SPAWN_NEXT_TICKET=1 environment variable
+  - Documented existing code review infrastructure in CLAUDE.md
+  - The Stop hook + /review skill already provide code review automation
+  - All 628 unit tests passing
+
+---
+
+### 2026-01-17 02:00:35 - Session Timeout
+- **Reason:** Timeout reached (1h limit)
+- **Status:** Session terminated, work may be incomplete
+- **Action:** Review progress and restart if needed

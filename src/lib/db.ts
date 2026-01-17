@@ -335,6 +335,171 @@ function initTicketComments() {
 
 initTicketComments();
 
+// Initialize ralph_events table if it doesn't exist
+function initRalphEvents() {
+  const eventsExists = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ralph_events'")
+    .get();
+
+  if (!eventsExists) {
+    console.log("Creating ralph_events table...");
+    sqlite.exec(`
+      CREATE TABLE ralph_events (
+        id TEXT PRIMARY KEY NOT NULL,
+        session_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        data TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    sqlite.exec(`CREATE INDEX idx_ralph_events_session ON ralph_events (session_id)`);
+    sqlite.exec(`CREATE INDEX idx_ralph_events_created ON ralph_events (created_at)`);
+    console.log("ralph_events table created successfully");
+  }
+}
+
+initRalphEvents();
+
+// Initialize ralph_sessions table if it doesn't exist
+function initRalphSessions() {
+  const sessionsExists = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ralph_sessions'")
+    .get();
+
+  if (!sessionsExists) {
+    console.log("Creating ralph_sessions table...");
+    sqlite.exec(`
+      CREATE TABLE ralph_sessions (
+        id TEXT PRIMARY KEY NOT NULL,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        current_state TEXT NOT NULL DEFAULT 'idle',
+        state_history TEXT,
+        outcome TEXT,
+        error_message TEXT,
+        started_at TEXT NOT NULL DEFAULT (datetime('now')),
+        completed_at TEXT
+      )
+    `);
+    sqlite.exec(`CREATE INDEX idx_ralph_sessions_ticket ON ralph_sessions (ticket_id)`);
+    sqlite.exec(`CREATE INDEX idx_ralph_sessions_state ON ralph_sessions (current_state)`);
+    console.log("ralph_sessions table created successfully");
+  }
+}
+
+initRalphSessions();
+
+// Initialize conversation logging tables for enterprise compliance
+function initConversationLogging() {
+  // Create conversation_sessions table
+  const conversationSessionsExists = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='conversation_sessions'")
+    .get();
+
+  if (!conversationSessionsExists) {
+    console.log("Creating conversation_sessions table...");
+    sqlite.exec(`
+      CREATE TABLE conversation_sessions (
+        id TEXT PRIMARY KEY NOT NULL,
+        project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+        ticket_id TEXT REFERENCES tickets(id) ON DELETE SET NULL,
+        user_id TEXT,
+        environment TEXT NOT NULL DEFAULT 'unknown',
+        session_metadata TEXT,
+        data_classification TEXT DEFAULT 'internal',
+        legal_hold INTEGER DEFAULT 0,
+        started_at TEXT NOT NULL DEFAULT (datetime('now')),
+        ended_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    sqlite.exec(
+      `CREATE INDEX idx_conversation_sessions_project ON conversation_sessions (project_id)`
+    );
+    sqlite.exec(
+      `CREATE INDEX idx_conversation_sessions_ticket ON conversation_sessions (ticket_id)`
+    );
+    sqlite.exec(`CREATE INDEX idx_conversation_sessions_user ON conversation_sessions (user_id)`);
+    sqlite.exec(
+      `CREATE INDEX idx_conversation_sessions_started ON conversation_sessions (started_at)`
+    );
+    console.log("conversation_sessions table created successfully");
+  }
+
+  // Create conversation_messages table
+  const conversationMessagesExists = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='conversation_messages'")
+    .get();
+
+  if (!conversationMessagesExists) {
+    console.log("Creating conversation_messages table...");
+    sqlite.exec(`
+      CREATE TABLE conversation_messages (
+        id TEXT PRIMARY KEY NOT NULL,
+        session_id TEXT NOT NULL REFERENCES conversation_sessions(id) ON DELETE CASCADE,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        content_hash TEXT NOT NULL,
+        tool_calls TEXT,
+        token_count INTEGER,
+        model_id TEXT,
+        sequence_number INTEGER NOT NULL,
+        contains_potential_secrets INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    sqlite.exec(
+      `CREATE INDEX idx_conversation_messages_session ON conversation_messages (session_id)`
+    );
+    sqlite.exec(
+      `CREATE INDEX idx_conversation_messages_session_seq ON conversation_messages (session_id, sequence_number)`
+    );
+    sqlite.exec(
+      `CREATE INDEX idx_conversation_messages_created ON conversation_messages (created_at)`
+    );
+    console.log("conversation_messages table created successfully");
+  }
+
+  // Create audit_log_access table
+  const auditLogExists = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='audit_log_access'")
+    .get();
+
+  if (!auditLogExists) {
+    console.log("Creating audit_log_access table...");
+    sqlite.exec(`
+      CREATE TABLE audit_log_access (
+        id TEXT PRIMARY KEY NOT NULL,
+        accessor_id TEXT NOT NULL,
+        target_type TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        result TEXT NOT NULL,
+        accessed_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    sqlite.exec(`CREATE INDEX idx_audit_log_accessor ON audit_log_access (accessor_id)`);
+    sqlite.exec(`CREATE INDEX idx_audit_log_target ON audit_log_access (target_type, target_id)`);
+    sqlite.exec(`CREATE INDEX idx_audit_log_accessed ON audit_log_access (accessed_at)`);
+    console.log("audit_log_access table created successfully");
+  }
+
+  // Add conversation logging settings to settings table
+  const settingsInfo = sqlite.prepare("PRAGMA table_info(settings)").all() as { name: string }[];
+  const settingsColumns = settingsInfo.map((col) => col.name);
+
+  if (!settingsColumns.includes("conversation_retention_days")) {
+    console.log("Adding conversation_retention_days column to settings...");
+    sqlite.exec("ALTER TABLE settings ADD COLUMN conversation_retention_days INTEGER DEFAULT 90");
+  }
+
+  if (!settingsColumns.includes("conversation_logging_enabled")) {
+    console.log("Adding conversation_logging_enabled column to settings...");
+    sqlite.exec("ALTER TABLE settings ADD COLUMN conversation_logging_enabled INTEGER DEFAULT 1");
+  }
+}
+
+initConversationLogging();
+
 // Perform daily backup maintenance (deferred 5s to avoid blocking startup)
 // VACUUM INTO can take 10+ seconds on larger databases
 const BACKUP_DEFER_MS = 5000;

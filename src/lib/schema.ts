@@ -99,6 +99,11 @@ export const settings = sqliteTable("settings", {
   prTargetBranch: text("pr_target_branch").default("dev"), // Target branch for PRs
   defaultProjectsDirectory: text("default_projects_directory"), // Where to create new projects
   defaultWorkingMethod: text("default_working_method").default("auto"), // Default environment for new projects: 'auto', 'claude-code', 'vscode', 'opencode'
+  // Enterprise conversation logging settings
+  conversationRetentionDays: integer("conversation_retention_days").default(90), // Days to retain conversation logs (default: 90)
+  conversationLoggingEnabled: integer("conversation_logging_enabled", { mode: "boolean" }).default(
+    true
+  ), // Enable/disable conversation logging
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),
@@ -207,3 +212,121 @@ export interface StateHistoryEntry {
   timestamp: string;
   metadata?: Record<string, unknown>;
 }
+
+// ============================================
+// Enterprise Conversation Logging Tables
+// ============================================
+
+// Conversation sessions table - tracks AI conversation sessions for compliance
+export const conversationSessions = sqliteTable(
+  "conversation_sessions",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
+    ticketId: text("ticket_id").references(() => tickets.id, {
+      onDelete: "set null",
+    }),
+    userId: text("user_id"), // Nullable for future multi-user support
+    environment: text("environment").notNull().default("unknown"), // 'claude-code', 'vscode', 'opencode', 'unknown'
+    sessionMetadata: text("session_metadata"), // JSON object with additional context
+    dataClassification: text("data_classification").default("internal"), // 'public', 'internal', 'confidential', 'restricted'
+    legalHold: integer("legal_hold", { mode: "boolean" }).default(false), // Prevents deletion for legal/audit purposes
+    startedAt: text("started_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    endedAt: text("ended_at"), // Null while session is active
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    index("idx_conversation_sessions_project").on(table.projectId),
+    index("idx_conversation_sessions_ticket").on(table.ticketId),
+    index("idx_conversation_sessions_user").on(table.userId),
+    index("idx_conversation_sessions_started").on(table.startedAt),
+  ]
+);
+
+export type ConversationSession = typeof conversationSessions.$inferSelect;
+export type NewConversationSession = typeof conversationSessions.$inferInsert;
+
+// Conversation messages table - stores individual messages within a session
+export const conversationMessages = sqliteTable(
+  "conversation_messages",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => conversationSessions.id, { onDelete: "cascade" }),
+    role: text("role").notNull(), // 'user', 'assistant', 'system', 'tool'
+    content: text("content").notNull(),
+    contentHash: text("content_hash").notNull(), // HMAC-SHA256 for tamper detection
+    toolCalls: text("tool_calls"), // JSON array of {name, parameters, result}
+    tokenCount: integer("token_count"), // Token usage for the message
+    modelId: text("model_id"), // Model identifier (e.g., 'claude-3-opus')
+    sequenceNumber: integer("sequence_number").notNull(), // Order within session
+    containsPotentialSecrets: integer("contains_potential_secrets", {
+      mode: "boolean",
+    }).default(false), // Flag if secret patterns detected
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    index("idx_conversation_messages_session").on(table.sessionId),
+    index("idx_conversation_messages_session_seq").on(table.sessionId, table.sequenceNumber),
+    index("idx_conversation_messages_created").on(table.createdAt),
+  ]
+);
+
+export type ConversationMessage = typeof conversationMessages.$inferSelect;
+export type NewConversationMessage = typeof conversationMessages.$inferInsert;
+
+// Message role types
+export type ConversationRole = "user" | "assistant" | "system" | "tool";
+
+// Tool call interface for JSON storage
+export interface ToolCall {
+  name: string;
+  parameters?: Record<string, unknown>;
+  result?: unknown;
+}
+
+// Audit log access table - tracks who accessed conversation logs
+export const auditLogAccess = sqliteTable(
+  "audit_log_access",
+  {
+    id: text("id").primaryKey(),
+    accessorId: text("accessor_id").notNull(), // Who accessed (user ID or system identifier)
+    targetType: text("target_type").notNull(), // 'session', 'message', 'export'
+    targetId: text("target_id").notNull(), // ID of the accessed resource
+    action: text("action").notNull(), // 'read', 'export', 'delete', 'legal_hold'
+    result: text("result").notNull(), // 'success', 'denied', 'error'
+    accessedAt: text("accessed_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    index("idx_audit_log_accessor").on(table.accessorId),
+    index("idx_audit_log_target").on(table.targetType, table.targetId),
+    index("idx_audit_log_accessed").on(table.accessedAt),
+  ]
+);
+
+export type AuditLogAccess = typeof auditLogAccess.$inferSelect;
+export type NewAuditLogAccess = typeof auditLogAccess.$inferInsert;
+
+// Data classification levels
+export type DataClassification =
+  | "public" // Non-sensitive, publicly shareable
+  | "internal" // Internal use, default for most conversations
+  | "confidential" // Sensitive business data
+  | "restricted"; // Highly sensitive, regulatory requirements
+
+// Audit action types
+export type AuditAction = "read" | "export" | "delete" | "legal_hold";
+
+// Audit result types
+export type AuditResult = "success" | "denied" | "error";

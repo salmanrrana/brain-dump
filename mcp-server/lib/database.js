@@ -245,6 +245,108 @@ export function runMigrations(db) {
   } catch (err) {
     log.error("Failed to create/migrate ralph_sessions table", err);
   }
+
+  // ===========================================
+  // Enterprise Conversation Logging Tables
+  // ===========================================
+
+  // Create conversation_sessions table for compliance logging
+  try {
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='conversation_sessions'").all();
+    if (tables.length === 0) {
+      db.prepare(`
+        CREATE TABLE conversation_sessions (
+          id TEXT PRIMARY KEY NOT NULL,
+          project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+          ticket_id TEXT REFERENCES tickets(id) ON DELETE SET NULL,
+          user_id TEXT,
+          environment TEXT NOT NULL DEFAULT 'unknown',
+          session_metadata TEXT,
+          data_classification TEXT DEFAULT 'internal',
+          legal_hold INTEGER DEFAULT 0,
+          started_at TEXT NOT NULL DEFAULT (datetime('now')),
+          ended_at TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+      `).run();
+      db.prepare("CREATE INDEX idx_conversation_sessions_project ON conversation_sessions(project_id)").run();
+      db.prepare("CREATE INDEX idx_conversation_sessions_ticket ON conversation_sessions(ticket_id)").run();
+      db.prepare("CREATE INDEX idx_conversation_sessions_user ON conversation_sessions(user_id)").run();
+      db.prepare("CREATE INDEX idx_conversation_sessions_started ON conversation_sessions(started_at)").run();
+      log.info("Created conversation_sessions table for enterprise compliance logging");
+    }
+  } catch (err) {
+    log.error("Failed to create conversation_sessions table", err);
+  }
+
+  // Create conversation_messages table for message logging with tamper detection
+  try {
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='conversation_messages'").all();
+    if (tables.length === 0) {
+      db.prepare(`
+        CREATE TABLE conversation_messages (
+          id TEXT PRIMARY KEY NOT NULL,
+          session_id TEXT NOT NULL REFERENCES conversation_sessions(id) ON DELETE CASCADE,
+          role TEXT NOT NULL,
+          content TEXT NOT NULL,
+          content_hash TEXT NOT NULL,
+          tool_calls TEXT,
+          token_count INTEGER,
+          model_id TEXT,
+          sequence_number INTEGER NOT NULL,
+          contains_potential_secrets INTEGER DEFAULT 0,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+      `).run();
+      db.prepare("CREATE INDEX idx_conversation_messages_session ON conversation_messages(session_id)").run();
+      db.prepare("CREATE INDEX idx_conversation_messages_session_seq ON conversation_messages(session_id, sequence_number)").run();
+      db.prepare("CREATE INDEX idx_conversation_messages_created ON conversation_messages(created_at)").run();
+      log.info("Created conversation_messages table for message logging with tamper detection");
+    }
+  } catch (err) {
+    log.error("Failed to create conversation_messages table", err);
+  }
+
+  // Create audit_log_access table for tracking access to conversation logs
+  try {
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='audit_log_access'").all();
+    if (tables.length === 0) {
+      db.prepare(`
+        CREATE TABLE audit_log_access (
+          id TEXT PRIMARY KEY NOT NULL,
+          accessor_id TEXT NOT NULL,
+          target_type TEXT NOT NULL,
+          target_id TEXT NOT NULL,
+          action TEXT NOT NULL,
+          result TEXT NOT NULL,
+          accessed_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+      `).run();
+      db.prepare("CREATE INDEX idx_audit_log_accessor ON audit_log_access(accessor_id)").run();
+      db.prepare("CREATE INDEX idx_audit_log_target ON audit_log_access(target_type, target_id)").run();
+      db.prepare("CREATE INDEX idx_audit_log_accessed ON audit_log_access(accessed_at)").run();
+      log.info("Created audit_log_access table for compliance audit trail");
+    }
+  } catch (err) {
+    log.error("Failed to create audit_log_access table", err);
+  }
+
+  // Add conversation logging settings columns if missing
+  try {
+    const settingsColumns = db.prepare("PRAGMA table_info(settings)").all();
+    const settingsColumnNames = settingsColumns.map(c => c.name);
+
+    if (!settingsColumnNames.includes("conversation_retention_days")) {
+      db.prepare("ALTER TABLE settings ADD COLUMN conversation_retention_days INTEGER DEFAULT 90").run();
+      log.info("Added conversation_retention_days column to settings table");
+    }
+    if (!settingsColumnNames.includes("conversation_logging_enabled")) {
+      db.prepare("ALTER TABLE settings ADD COLUMN conversation_logging_enabled INTEGER DEFAULT 1").run();
+      log.info("Added conversation_logging_enabled column to settings table");
+    }
+  } catch (err) {
+    log.error("Failed to add conversation logging settings columns", err);
+  }
 }
 
 /**

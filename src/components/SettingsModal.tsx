@@ -12,6 +12,7 @@ import {
   FolderPlus,
   Folder,
   Clock,
+  FileText,
 } from "lucide-react";
 import {
   useSettings,
@@ -46,6 +47,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   const [defaultWorkingMethod, setDefaultWorkingMethod] = useState<
     "auto" | "claude-code" | "vscode" | "opencode"
   >("auto");
+  const [conversationLoggingEnabled, setConversationLoggingEnabled] = useState(true);
+  const [conversationRetentionDays, setConversationRetentionDays] = useState(90);
   const [hasChanges, setHasChanges] = useState(false);
   const [showDirectoryPicker, setShowDirectoryPicker] = useState(false);
 
@@ -62,6 +65,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       setDefaultWorkingMethod(
         (settings.defaultWorkingMethod as "auto" | "claude-code" | "vscode" | "opencode") ?? "auto"
       );
+      setConversationLoggingEnabled(settings.conversationLoggingEnabled ?? true);
+      setConversationRetentionDays(settings.conversationRetentionDays ?? 90);
     }
   }, [settings]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -78,6 +83,10 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       const dirChanged = defaultProjectsDirectory !== (settings.defaultProjectsDirectory ?? "");
       const workingMethodChanged =
         defaultWorkingMethod !== (settings.defaultWorkingMethod ?? "auto");
+      const loggingEnabledChanged =
+        conversationLoggingEnabled !== (settings.conversationLoggingEnabled ?? true);
+      const retentionChanged =
+        conversationRetentionDays !== (settings.conversationRetentionDays ?? 90);
       setHasChanges(
         terminalChanged ||
           sandboxChanged ||
@@ -85,7 +94,9 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
           prChanged ||
           branchChanged ||
           dirChanged ||
-          workingMethodChanged
+          workingMethodChanged ||
+          loggingEnabledChanged ||
+          retentionChanged
       );
     }
   }, [
@@ -96,6 +107,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     prTargetBranch,
     defaultProjectsDirectory,
     defaultWorkingMethod,
+    conversationLoggingEnabled,
+    conversationRetentionDays,
     settings,
   ]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -157,6 +170,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         prTargetBranch: prTargetBranch || "dev",
         defaultProjectsDirectory: defaultProjectsDirectory || null,
         defaultWorkingMethod,
+        conversationLoggingEnabled,
+        conversationRetentionDays,
       },
       { onSuccess: onClose }
     );
@@ -596,6 +611,74 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                     Feature branches will target this branch for PRs (typically "dev" or "main")
                   </p>
                 </div>
+              </div>
+
+              {/* Conversation Logging Section */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <FileText size={18} className="text-amber-400" />
+                  <h3 className="text-sm font-semibold text-gray-100 uppercase tracking-wide">
+                    Conversation Logging
+                  </h3>
+                </div>
+
+                {/* Enable Logging Toggle */}
+                <div className="flex items-center justify-between py-2">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300">
+                      Enable Conversation Logging
+                    </label>
+                    <p className="text-xs text-slate-500">
+                      Record AI conversations for compliance auditing
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setConversationLoggingEnabled(!conversationLoggingEnabled)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      conversationLoggingEnabled ? "bg-amber-600" : "bg-slate-700"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        conversationLoggingEnabled ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Retention Period */}
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-slate-400 mb-1">
+                    Retention Period (days)
+                  </label>
+                  <input
+                    type="number"
+                    min={7}
+                    max={365}
+                    value={conversationRetentionDays}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value, 10);
+                      if (!isNaN(value)) {
+                        setConversationRetentionDays(Math.max(7, Math.min(365, value)));
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    disabled={!conversationLoggingEnabled}
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    Conversation logs older than this will be archived (7-365 days)
+                  </p>
+                </div>
+
+                {conversationLoggingEnabled && (
+                  <div className="mt-3 p-3 bg-slate-800/50 rounded-lg">
+                    <p className="text-xs text-slate-400">
+                      <span className="text-amber-400 font-medium">Enterprise feature:</span>{" "}
+                      Conversation logging creates an audit trail of all AI interactions for SOC2,
+                      GDPR, and ISO 27001 compliance.
+                    </p>
+                  </div>
+                )}
               </div>
             </>
           )}

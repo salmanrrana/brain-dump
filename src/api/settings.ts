@@ -12,6 +12,9 @@ export interface UpdateSettingsInput {
   prTargetBranch?: string;
   defaultProjectsDirectory?: string | null;
   defaultWorkingMethod?: "auto" | "claude-code" | "vscode" | "opencode";
+  // Enterprise conversation logging
+  conversationLoggingEnabled?: boolean;
+  conversationRetentionDays?: number; // Days to retain logs (7-365)
 }
 
 // List of supported terminal emulators
@@ -94,6 +97,14 @@ export const updateSettings = createServerFn({ method: "POST" })
     }
     if (updates.defaultWorkingMethod !== undefined) {
       updateData.defaultWorkingMethod = updates.defaultWorkingMethod;
+    }
+    if (updates.conversationLoggingEnabled !== undefined) {
+      updateData.conversationLoggingEnabled = updates.conversationLoggingEnabled;
+    }
+    if (updates.conversationRetentionDays !== undefined) {
+      // Validate retention: minimum 7 days, maximum 365 days
+      const retention = Math.max(7, Math.min(365, updates.conversationRetentionDays));
+      updateData.conversationRetentionDays = retention;
     }
 
     db.update(settings).set(updateData).where(eq(settings.id, "default")).run();
