@@ -39,7 +39,7 @@ async function syncProjectPRStatuses(db, projectId, projectPath) {
     try {
       // Query GitHub for current PR state
       const ghResult = runGitCommand(
-        `gh pr view ${ticket.pr_number} --json state,merged 2>/dev/null`,
+        `gh pr view ${ticket.pr_number} --json state,mergedAt 2>/dev/null`,
         projectPath
       );
 
@@ -56,13 +56,14 @@ async function syncProjectPRStatuses(db, projectId, projectPath) {
       }
 
       // Map GitHub state to our status
+      // GitHub returns: state = "MERGED" | "CLOSED" | "OPEN"
+      // mergedAt = ISO timestamp if merged, null otherwise
       let newStatus = ticket.pr_status;
-      if (prData.merged === true || prData.state === "MERGED") {
+      if (prData.state === "MERGED" || prData.mergedAt) {
         newStatus = "merged";
       } else if (prData.state === "CLOSED") {
         newStatus = "closed";
       } else if (prData.state === "OPEN") {
-        // Check if it's a draft (gh pr view includes isDraft in some versions)
         newStatus = "open";
       }
 
