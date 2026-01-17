@@ -14,7 +14,7 @@
  * @see src/lib/service-discovery.ts for service types
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -25,7 +25,12 @@ import {
   Play,
   Square,
 } from "lucide-react";
-import { useProjectServices, useStartService, useStopService } from "../lib/hooks";
+import {
+  useProjectServices,
+  useStartService,
+  useStopService,
+  useStopAllServices,
+} from "../lib/hooks";
 import type { RalphService, ServiceStatus } from "../lib/service-discovery";
 import { useAutoClearState } from "../lib/hooks";
 import { useToast } from "./Toast";
@@ -188,6 +193,8 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
   const [isExpanded, setIsExpanded] = useState(true);
   const [copiedId, setCopiedId] = useAutoClearState<string>(2000); // Clear after 2s
   const [loadingServiceId, setLoadingServiceId] = useState<string | null>(null);
+  const [stopAllConfirming, setStopAllConfirming] = useState(false);
+  const [stopAllLoading, setStopAllLoading] = useState(false);
   const { showToast } = useToast();
 
   // Fetch services with 5s polling
@@ -199,6 +206,7 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
   // Mutation hooks for start/stop
   const startServiceMutation = useStartService();
   const stopServiceMutation = useStopService();
+  const stopAllServicesMutation = useStopAllServices();
 
   // Handle copy to clipboard
   const handleCopy = useCallback(
@@ -263,6 +271,39 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
     [projectPath, stopServiceMutation, showToast]
   );
 
+  // Handle stopping all services
+  const handleStopAll = useCallback(async () => {
+    if (!projectPath) return;
+
+    setStopAllLoading(true);
+
+    try {
+      const result = await stopAllServicesMutation.mutateAsync({ projectPath });
+      const count = result.stoppedCount;
+      showToast("success", `Stopped ${count} container${count === 1 ? "" : "s"}`);
+      setStopAllConfirming(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to stop containers";
+      showToast("error", message);
+    } finally {
+      setStopAllLoading(false);
+    }
+  }, [projectPath, stopAllServicesMutation, showToast]);
+
+  // Handle escape key to cancel confirmation
+  useEffect(() => {
+    if (!stopAllConfirming) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setStopAllConfirming(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [stopAllConfirming]);
+
   // Don't render if no project selected or no services configured
   if (!projectPath || (services.length === 0 && !loading)) {
     return null;
@@ -274,28 +315,79 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
   return (
     <div className="mt-6">
       {/* Header */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center justify-between w-full mb-2 group"
-        aria-expanded={isExpanded}
-        aria-controls="container-status-list"
-      >
-        <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-          Containers
-        </h2>
+      <div className="flex items-center justify-between w-full mb-2">
+        {/* Left side: title (clickable to expand/collapse) */}
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="flex items-center gap-2 group"
+          aria-expanded={isExpanded}
+          aria-controls="container-status-list"
+        >
+          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            Containers
+          </h2>
+          {/* Expand/collapse icon */}
+          <span className="text-slate-400 group-hover:text-gray-100 transition-colors">
+            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </span>
+        </button>
+
+        {/* Right side: Stop All + count */}
         <div className="flex items-center gap-2">
-          {/* Running count badge (always visible) */}
+          {/* Stop All button/confirmation */}
+          {runningCount > 0 && (
+            <>
+              {stopAllConfirming ? (
+                <div
+                  className="flex items-center gap-1 text-xs"
+                  role="alertdialog"
+                  aria-label="Confirmation required"
+                >
+                  {stopAllLoading ? (
+                    <span className="text-slate-400 flex items-center gap-1">
+                      <Loader2 size={12} className="animate-spin" />
+                      Stopping...
+                    </span>
+                  ) : (
+                    <>
+                      <span className="text-slate-300">Stop all?</span>
+                      <button
+                        onClick={handleStopAll}
+                        className="px-1.5 py-0.5 bg-red-900/50 hover:bg-red-900/70 text-red-300 rounded transition-colors"
+                        aria-label="Confirm stop all containers"
+                      >
+                        Yes
+                      </button>
+                      <button
+                        onClick={() => setStopAllConfirming(false)}
+                        className="px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded transition-colors"
+                        aria-label="Cancel"
+                      >
+                        No
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <button
+                  onClick={() => setStopAllConfirming(true)}
+                  className="text-xs text-red-400 hover:text-red-300 hover:bg-red-900/50 px-1.5 py-0.5 rounded transition-colors"
+                  aria-label="Stop all running containers"
+                >
+                  Stop All
+                </button>
+              )}
+            </>
+          )}
+
+          {/* Running count badge */}
           {runningCount > 0 && (
             <span className="text-xs bg-green-900/50 text-green-400 px-1.5 py-0.5 rounded">
               {runningCount}
             </span>
           )}
-          {/* Expand/collapse icon */}
-          <span className="text-slate-400 group-hover:text-gray-100 transition-colors">
-            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </span>
         </div>
-      </button>
+      </div>
 
       {/* Content with animation */}
       <div
