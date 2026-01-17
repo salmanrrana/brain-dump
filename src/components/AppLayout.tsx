@@ -21,6 +21,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import ProjectTree from "./ProjectTree";
+import ContainerStatusSection from "./ContainerStatusSection";
 import NewTicketModal from "./NewTicketModal";
 import ProjectModal from "./ProjectModal";
 import EpicModal from "./EpicModal";
@@ -772,6 +773,13 @@ function Sidebar() {
 
   const { tags: availableTags } = useTags(tagFilters);
 
+  // Get the selected project's path for container status section
+  const selectedProjectPath = useMemo(() => {
+    if (!filters.projectId) return null;
+    const selectedProject = projects.find((p) => p.id === filters.projectId);
+    return selectedProject?.path ?? null;
+  }, [filters.projectId, projects]);
+
   const handleSelectProject = (projectId: string | null) => {
     setProjectId(projectId);
   };
@@ -862,6 +870,9 @@ function Sidebar() {
             </div>
           </div>
         )}
+
+        {/* Container status - shows running Docker services for selected project */}
+        <ContainerStatusSection projectPath={selectedProjectPath} />
       </nav>
 
       {/* Sample data banner */}
