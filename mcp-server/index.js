@@ -29,6 +29,7 @@ import { registerFileTools } from "./tools/files.js";
 import { registerHealthTools } from "./tools/health.js";
 import { registerEventTools } from "./tools/events.js";
 import { registerSessionTools } from "./tools/sessions.js";
+import { registerConversationTools } from "./tools/conversations.js";
 
 import { unlinkSync } from "fs";
 
@@ -101,6 +102,7 @@ registerFileTools(server, db);
 registerHealthTools(server, db, detectEnvironment, getEnvironmentInfo);
 registerEventTools(server, db);
 registerSessionTools(server, db);
+registerConversationTools(server, db, detectEnvironment);
 
 // =============================================================================
 // CONNECT AND START

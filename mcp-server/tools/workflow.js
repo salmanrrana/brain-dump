@@ -1,7 +1,8 @@
 /**
  * Workflow tools for Brain Dump MCP server.
  * Handles starting and completing ticket work (includes git branch creation).
- * Smart workflow automation - handles comments, PRD updates, and next ticket suggestions.
+ * Smart workflow automation - handles comments, PRD updates, next ticket suggestions,
+ * and automatic conversation session management for compliance logging.
  * @module tools/workflow
  */
 import { z } from "zod";
@@ -10,6 +11,77 @@ import { randomUUID } from "crypto";
 import { join } from "path";
 import { log } from "../lib/logging.js";
 import { runGitCommand, shortId, generateBranchName } from "../lib/git-utils.js";
+
+/**
+ * Create a conversation session for compliance logging.
+ * Auto-links to project and ticket for context.
+ * @param {import("better-sqlite3").Database} db
+ * @param {string} ticketId
+ * @param {string} projectId
+ * @param {string} environment
+ * @returns {{ success: boolean, sessionId?: string, error?: string }}
+ */
+function createConversationSession(db, ticketId, projectId, environment) {
+  const id = randomUUID();
+  const now = new Date().toISOString();
+
+  try {
+    db.prepare(`
+      INSERT INTO conversation_sessions
+      (id, project_id, ticket_id, environment, data_classification, started_at, created_at)
+      VALUES (?, ?, ?, ?, 'internal', ?, ?)
+    `).run(id, projectId, ticketId, environment, now, now);
+
+    log.info(`Auto-created conversation session ${id} for ticket ${ticketId}`);
+    return { success: true, sessionId: id };
+  } catch (err) {
+    log.error(`Failed to create conversation session for ticket ${ticketId}: ${err.message}`);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * End any active conversation sessions for a ticket.
+ * Sets ended_at timestamp and returns session summary.
+ * @param {import("better-sqlite3").Database} db
+ * @param {string} ticketId
+ * @returns {{ success: boolean, sessionsEnded: number, messageCount?: number, error?: string }}
+ */
+function endConversationSessions(db, ticketId) {
+  const now = new Date().toISOString();
+
+  try {
+    // Find active sessions for this ticket
+    const activeSessions = db.prepare(`
+      SELECT id FROM conversation_sessions
+      WHERE ticket_id = ? AND ended_at IS NULL
+    `).all(ticketId);
+
+    if (activeSessions.length === 0) {
+      return { success: true, sessionsEnded: 0 };
+    }
+
+    // Count total messages across sessions
+    const sessionIds = activeSessions.map(s => s.id);
+    const messageCount = db.prepare(`
+      SELECT COUNT(*) as count FROM conversation_messages
+      WHERE session_id IN (${sessionIds.map(() => "?").join(",")})
+    `).get(...sessionIds)?.count || 0;
+
+    // End all active sessions
+    db.prepare(`
+      UPDATE conversation_sessions
+      SET ended_at = ?
+      WHERE ticket_id = ? AND ended_at IS NULL
+    `).run(now, ticketId);
+
+    log.info(`Auto-ended ${activeSessions.length} conversation session(s) for ticket ${ticketId} (${messageCount} messages)`);
+    return { success: true, sessionsEnded: activeSessions.length, messageCount };
+  } catch (err) {
+    log.error(`Failed to end conversation sessions for ticket ${ticketId}: ${err.message}`);
+    return { success: false, sessionsEnded: 0, error: err.message };
+  }
+}
 
 /**
  * Add a comment to a ticket (internal helper).
@@ -215,6 +287,13 @@ Returns:
         log.warn(`Comment not saved for ticket ${ticketId}: ${commentResult.error}`);
       }
 
+      // Auto-create conversation session for compliance logging
+      const environment = detectEnvironment();
+      const sessionResult = createConversationSession(db, ticketId, ticket.project_id, environment);
+      const sessionInfo = sessionResult.success
+        ? `**Conversation Session:** \`${sessionResult.sessionId}\` (auto-created for compliance logging)`
+        : "";
+
       const updatedTicket = db.prepare(`
         SELECT t.*, p.name as project_name, p.path as project_path
         FROM tickets t JOIN projects p ON t.project_id = p.id WHERE t.id = ?
@@ -247,6 +326,7 @@ Returns:
 **Branch:** \`${branchName}\` ${branchCreated ? "(created)" : "(checked out)"}
 **Project:** ${updatedTicket.project_name}
 **Path:** ${updatedTicket.project_path}
+${sessionInfo ? `\n${sessionInfo}` : ""}
 
 ---
 
@@ -367,6 +447,12 @@ Returns:
         log.error(`PRD update failed for ticket ${ticketId}: ${prdResult.message}`);
       }
 
+      // End any active conversation sessions for this ticket
+      const sessionEndResult = endConversationSessions(db, ticketId);
+      const sessionEndInfo = sessionEndResult.sessionsEnded > 0
+        ? `### Conversation Sessions\n${sessionEndResult.sessionsEnded} session(s) ended (${sessionEndResult.messageCount || 0} messages logged)`
+        : "";
+
       // Suggest next ticket
       const nextTicketSuggestion = suggestNextTicket(ticket.project_path, ticketId);
 
@@ -397,6 +483,11 @@ ${prdResult.success
   ? prdResult.message
   : `**FAILED:** ${prdResult.message}\n\nThe PRD was not updated. This may cause issues with automated workflows.`}`,
       ];
+
+      // Add conversation session summary if sessions were ended
+      if (sessionEndInfo) {
+        sections.push(sessionEndInfo);
+      }
 
       if (prDescription) {
         sections.push(`### Suggested PR Description

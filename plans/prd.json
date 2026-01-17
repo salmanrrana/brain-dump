@@ -1,0 +1,522 @@
+{
+  "projectName": "Brain Dump",
+  "projectPath": "/Users/salman.rana/code/brain-dump",
+  "testingRequirements": [
+    "Tests must validate user-facing behavior, not implementation details",
+    "Focus on what users actually do - integration tests over unit tests",
+    "Don't mock excessively - test real behavior where possible",
+    "Coverage metrics are meaningless - user flow coverage is everything"
+  ],
+  "userStories": [
+    {
+      "id": "0a658517-4d48-4e49-99c2-ec1de165d6f0",
+      "title": "1. Add conversation logging schema to Drizzle",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [
+        "src/lib/schema.ts"
+      ],
+      "description": "Add Drizzle ORM schema definitions for the three new tables in `src/lib/schema.ts`:\n\n**conversation_sessions**\n- id, project_id (FK), ticket_id (FK), user_id (nullable for future multi-user)\n- environment, session_metadata (JSON), data_classification\n- legal_hold, started_at, ended_at, created_at\n- Indexes on project_id, ticket_id, user_id, started_at\n\n**conversation_messages**\n- id, session_id (FK with CASCADE), role (user/assistant/system/tool)\n- content, content_hash (HMAC-SHA256), tool_calls (JSON)\n- token_count, model_id, sequence_number\n- contains_potential_secrets flag, created_at\n- Indexes on session_id, (session_id, sequence_number), created_at\n\n**audit_log_access**\n- id, accessor_id, target_type, target_id, action, result, accessed_at\n\nAlso add type exports for all new tables.",
+      "priority": "high",
+      "tags": [
+        "schema",
+        "database",
+        "foundation"
+      ]
+    },
+    {
+      "id": "6f3b6c20-0726-4856-973b-6c529e413961",
+      "title": "2. Add runtime migration for conversation tables",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [
+        "src/lib/db.ts"
+      ],
+      "description": "Add runtime SQL migration in `src/lib/db.ts` to create the conversation tables if they don't exist.\n\n**Tasks:**\n1. Add `initConversationLogging()` function after existing migrations\n2. Create conversation_sessions table with all columns and indexes\n3. Create conversation_messages table with all columns and indexes\n4. Create audit_log_access table\n5. Add settings columns: `conversation_retention_days` (default 90), `conversation_logging_enabled` (default 1)\n6. Use existing pattern of checking PRAGMA table_info before ALTER TABLE\n\n**Verification:**\n```bash\nsqlite3 ~/Library/Application\\ Support/brain-dump/brain-dump.db \".schema conversation_sessions\"\n```",
+      "priority": "high",
+      "tags": [
+        "migration",
+        "database",
+        "foundation"
+      ]
+    },
+    {
+      "id": "7fd8d48b-87e4-4cac-ad9f-af1af107acb2",
+      "title": "3. Add MCP server migration for conversation tables",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [
+        "mcp-server/lib/database.js"
+      ],
+      "description": "Add migration in `mcp-server/lib/database.js` to create conversation tables for the MCP server.\n\n**Tasks:**\n1. Add table creation in `runMigrations()` function\n2. Check if tables exist before creating (same pattern as existing migrations)\n3. Create all three tables: conversation_sessions, conversation_messages, audit_log_access\n4. Add settings columns if missing\n5. Log migration progress\n\nThis mirrors the main app migration to ensure both entry points create the schema.",
+      "priority": "high",
+      "tags": [
+        "migration",
+        "mcp-server",
+        "foundation"
+      ]
+    },
+    {
+      "id": "0136e42d-8b9f-427b-8313-1e1abdc97d26",
+      "title": "4. Create secret detection utility module",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [
+        "mcp-server/lib/secrets.js"
+      ],
+      "description": "Create `mcp-server/lib/secrets.js` with regex patterns to detect potential credentials in conversation content.\n\n**Patterns to detect:**\n- OpenAI API keys: `sk-[a-zA-Z0-9]{32,}`\n- Anthropic API keys: `sk-ant-[a-zA-Z0-9-]{32,}`\n- AWS Access Keys: `AKIA[0-9A-Z]{16}`\n- GitHub PATs: `ghp_[a-zA-Z0-9]{36}`\n- Slack tokens: `xox[baprs]-[a-zA-Z0-9-]+`\n- Private keys: `-----BEGIN (RSA |EC |)PRIVATE KEY-----`\n- Generic password patterns: `password\\s*[:=]\\s*['\"][^'\"]+['\"]`\n\n**Exports:**\n```javascript\nexport function detectSecrets(content) {\n  // Returns { detected: boolean, types: string[] }\n}\n```\n\nDo NOT log or store the actual secrets - only flag that they were detected.",
+      "priority": "high",
+      "tags": [
+        "security",
+        "utility",
+        "mcp-server"
+      ]
+    },
+    {
+      "id": "35bdea52-f3e5-44af-abdc-c1dd196fd01c",
+      "title": "5. Implement start_conversation_session MCP tool",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [
+        "mcp-server/tools/conversations.js",
+        "mcp-server/tools/comments.js"
+      ],
+      "description": "Create `mcp-server/tools/conversations.js` and implement the first MCP tool.\n\n**Tool: start_conversation_session**\n- Creates a new conversation session record\n- Optional projectId and ticketId linking\n- Auto-detects environment (claude-code, vscode, unknown)\n- Accepts optional metadata JSON\n- Returns created session with ID\n\n**Parameters:**\n- projectId (optional): Link to project\n- ticketId (optional): Link to ticket  \n- metadata (optional): JSON object with additional context\n\n**Implementation:**\n1. Validate projectId exists if provided\n2. Validate ticketId exists if provided\n3. Generate UUID, capture timestamp\n4. Insert into conversation_sessions\n5. Return session JSON\n\nFollow existing patterns from `mcp-server/tools/comments.js`.",
+      "priority": "high",
+      "tags": [
+        "mcp-tool",
+        "core"
+      ]
+    },
+    {
+      "id": "e375d404-e050-4013-a045-b7bc731aa18f",
+      "title": "6. Implement log_conversation_message MCP tool",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [
+        "mcp-server/tools/conversations.js"
+      ],
+      "description": "Add the message logging tool to `mcp-server/tools/conversations.js`.\n\n**Tool: log_conversation_message**\n- Logs a single message to an existing session\n- Computes HMAC-SHA256 content hash for tamper detection\n- Detects potential secrets in content\n- Auto-assigns sequence number\n\n**Parameters:**\n- sessionId (required): Session to log to\n- role (required): user, assistant, system, or tool\n- content (required): Full message text\n- toolCalls (optional): Array of {name, parameters, result}\n- tokenCount (optional): Token usage\n- modelId (optional): Model identifier\n- metadata (optional): Additional JSON\n\n**Implementation:**\n1. Validate session exists and not ended\n2. Compute HMAC-SHA256 hash of content\n3. Run secret detection, set flag if found\n4. Get next sequence number for session\n5. Insert message record\n6. Return message ID and hash\n\n**HMAC Key:** Derive from machine ID + session ID (simple approach for now).",
+      "priority": "high",
+      "tags": [
+        "mcp-tool",
+        "core",
+        "security"
+      ]
+    },
+    {
+      "id": "1d6428a7-02b9-4967-9f57-b759ad16f833",
+      "title": "7. Implement end_conversation_session MCP tool",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [
+        "mcp-server/tools/conversations.js"
+      ],
+      "description": "Add session ending tool to `mcp-server/tools/conversations.js`.\n\n**Tool: end_conversation_session**\n- Marks a session as complete with end timestamp\n- Prevents further messages from being logged\n- Returns session summary with message count\n\n**Parameters:**\n- sessionId (required): Session to end\n\n**Implementation:**\n1. Validate session exists\n2. Check if already ended (return early if so)\n3. Update ended_at timestamp\n4. Count total messages in session\n5. Return updated session with message count\n\n**Edge cases:**\n- Already ended session: Return current state, no error\n- Non-existent session: Return isError: true",
+      "priority": "high",
+      "tags": [
+        "mcp-tool",
+        "core"
+      ]
+    },
+    {
+      "id": "e070033a-ad18-4f90-86ed-a6a6f32d8b13",
+      "title": "8. Implement list_conversation_sessions MCP tool",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [
+        "mcp-server/tools/conversations.js"
+      ],
+      "description": "Add session listing/query tool to `mcp-server/tools/conversations.js`.\n\n**Tool: list_conversation_sessions**\n- Query sessions with flexible filters\n- Includes message count per session\n- Joins project/ticket names for context\n\n**Parameters:**\n- projectId (optional): Filter by project\n- ticketId (optional): Filter by ticket\n- environment (optional): Filter by environment\n- startDate (optional): Sessions started after (ISO)\n- endDate (optional): Sessions started before (ISO)\n- includeActive (optional, default true): Include open sessions\n- limit (optional, default 50, max 200): Result limit\n\n**Implementation:**\n1. Build dynamic SQL query with filters\n2. JOIN projects and tickets for names\n3. Subquery for message_count per session\n4. Order by started_at DESC\n5. Return array of sessions\n\nFollow pagination pattern from existing ticket list tools.",
+      "priority": "high",
+      "tags": [
+        "mcp-tool",
+        "query"
+      ]
+    },
+    {
+      "id": "123c5283-9557-4175-b8ca-e0b19d774625",
+      "title": "9. Implement export_compliance_logs MCP tool",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [
+        "mcp-server/tools/conversations.js"
+      ],
+      "description": "Add compliance export tool to `mcp-server/tools/conversations.js`.\n\n**Tool: export_compliance_logs**\n- Generates JSON export for auditors\n- Verifies content integrity (recomputes hashes)\n- Includes full session and message data\n\n**Parameters:**\n- sessionId (optional): Export single session\n- projectId (optional): Export all project sessions\n- startDate (required): Start of date range (ISO)\n- endDate (required): End of date range (ISO)\n- includeContent (optional, default true): Include message text\n- verifyIntegrity (optional, default true): Recompute and verify hashes\n\n**Export Format:**\n```json\n{\n  \"exportMetadata\": { \"exportedAt\", \"dateRange\", \"sessionCount\" },\n  \"integrityReport\": { \"totalMessages\", \"validMessages\", \"invalidMessageIds\" },\n  \"sessions\": [{ ...session, \"messages\": [...] }]\n}\n```\n\n**Implementation:**\n1. Query sessions in date range\n2. For each session, query all messages\n3. If verifyIntegrity, recompute HMAC and compare\n4. Build integrity report\n5. Log export action to audit_log_access table\n6. Return full JSON export",
+      "priority": "high",
+      "tags": [
+        "mcp-tool",
+        "compliance",
+        "export"
+      ]
+    },
+    {
+      "id": "3b5822c3-47bb-4009-bafd-503fbbbb6e04",
+      "title": "10. Implement archive_old_sessions MCP tool",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [
+        "mcp-server/tools/conversations.js"
+      ],
+      "description": "Add retention cleanup tool to `mcp-server/tools/conversations.js`.\n\n**Tool: archive_old_sessions**\n- Deletes sessions older than retention period\n- Respects legal_hold flag (never deletes held sessions)\n- Dry-run by default for safety\n\n**Parameters:**\n- retentionDays (optional): Override default (reads from settings if not provided)\n- confirm (optional, default false): Actually delete vs dry-run\n\n**Implementation:**\n1. Get retention from settings if not specified (default 90)\n2. Calculate cutoff date\n3. Find sessions older than cutoff WHERE legal_hold = 0\n4. If !confirm: Return preview of what would be deleted\n5. If confirm: Use transaction to delete messages then sessions\n6. Log action to audit_log_access\n7. Return deletion summary\n\n**Safety:**\n- Always show dry-run first\n- Never delete legal_hold = 1 sessions\n- Use CASCADE for messages (handled by FK)\n- Log all deletions for audit trail",
+      "priority": "high",
+      "tags": [
+        "mcp-tool",
+        "retention",
+        "compliance"
+      ]
+    },
+    {
+      "id": "74483795-9460-48cc-8fb5-2bbee6eca0f0",
+      "title": "11. Register conversation tools in MCP server",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [
+        "mcp-server/index.js"
+      ],
+      "description": "Wire up conversation tools in `mcp-server/index.js`.\n\n**Tasks:**\n1. Add import: `import { registerConversationTools } from \"./tools/conversations.js\";`\n2. Add registration after other tools: `registerConversationTools(server, db, detectEnvironment);`\n\n**Verification:**\nAfter restart, the following tools should be available:\n- start_conversation_session\n- log_conversation_message\n- end_conversation_session\n- list_conversation_sessions\n- export_compliance_logs\n- archive_old_sessions\n\nTest by calling `start_conversation_session` without parameters.",
+      "priority": "high",
+      "tags": [
+        "mcp-server",
+        "integration"
+      ]
+    },
+    {
+      "id": "05d71b38-4d03-4b49-b9a1-5690f35addf9",
+      "title": "12. Auto-create sessions in workflow tools",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [
+        "mcp-server/tools/workflow.js"
+      ],
+      "description": "Integrate conversation logging with existing workflow in `mcp-server/tools/workflow.js`.\n\n**Modifications to start_ticket_work:**\n1. After successful status update, create a conversation session\n2. Link session to ticket and project\n3. Store session ID in response for reference\n4. Log info about session creation\n\n**Modifications to complete_ticket_work:**\n1. Find active session linked to ticket\n2. End the session with ended_at timestamp\n3. Include session summary in completion response\n\n**Implementation:**\n```javascript\n// In start_ticket_work, after status update:\nconst sessionId = randomUUID();\ndb.prepare(`INSERT INTO conversation_sessions (...) VALUES (...)`).run(...);\n\n// In complete_ticket_work, before returning:\nconst session = db.prepare(`SELECT id FROM conversation_sessions \n  WHERE ticket_id = ? AND ended_at IS NULL`).get(ticketId);\nif (session) {\n  db.prepare(`UPDATE conversation_sessions SET ended_at = ? WHERE id = ?`).run(now, session.id);\n}\n```\n\nThis provides automatic session lifecycle tied to ticket work.",
+      "priority": "medium",
+      "tags": [
+        "integration",
+        "workflow"
+      ]
+    },
+    {
+      "id": "27aa4145-e9ad-4d08-8ce7-cd214fea224c",
+      "title": "13. Add tests for conversation MCP tools",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [
+        "mcp-server/tools/conversations.test.js",
+        "src/lib/db.test.ts"
+      ],
+      "description": "Create test file `mcp-server/tools/conversations.test.js` for all 6 MCP tools.\n\n**Test Cases:**\n\n**start_conversation_session:**\n- Creates session without links\n- Creates session with valid projectId\n- Creates session with valid ticketId\n- Rejects invalid projectId\n- Stores metadata correctly\n\n**log_conversation_message:**\n- Logs message to valid session\n- Rejects logging to ended session\n- Rejects logging to non-existent session\n- Computes correct HMAC hash\n- Detects secrets and sets flag\n- Increments sequence numbers correctly\n\n**end_conversation_session:**\n- Ends active session\n- Returns current state for already-ended session\n- Rejects non-existent session\n\n**list_conversation_sessions:**\n- Returns all sessions\n- Filters by projectId\n- Filters by date range\n- Respects limit parameter\n- Includes message counts\n\n**export_compliance_logs:**\n- Exports single session\n- Exports date range\n- Verifies integrity correctly\n- Detects tampered content\n- Logs access to audit table\n\n**archive_old_sessions:**\n- Dry-run shows preview\n- Respects retention days\n- Never deletes legal_hold sessions\n- Actually deletes with confirm=true\n\nFollow test patterns from existing `src/lib/db.test.ts`.",
+      "priority": "medium",
+      "tags": [
+        "testing",
+        "quality"
+      ]
+    },
+    {
+      "id": "3febe675-c817-488a-a95a-2e90330fce51",
+      "title": "14. Add tests for secret detection patterns",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [
+        "mcp-server/lib/secrets.test.js"
+      ],
+      "description": "Create test file `mcp-server/lib/secrets.test.js` for secret detection utility.\n\n**Test Cases:**\n\n**API Key Detection:**\n- Detects OpenAI keys: `sk-abc123...`\n- Detects Anthropic keys: `sk-ant-api03-...`\n- Detects AWS access keys: `AKIAIOSFODNN7EXAMPLE`\n- Detects GitHub PATs: `ghp_xxxxxxxxxxxx`\n- Detects Slack tokens: `xoxb-...`\n\n**Private Key Detection:**\n- Detects RSA private keys\n- Detects EC private keys\n- Detects generic private keys\n\n**Password Pattern Detection:**\n- Detects `password = \"secret\"`\n- Detects `password: 'secret'`\n- Handles edge cases (no false positives on \"password policy\")\n\n**False Positive Prevention:**\n- Does NOT flag normal code\n- Does NOT flag URLs without credentials\n- Does NOT flag base64 that looks like keys\n\n**Return Format:**\n- Returns `{ detected: true, types: [\"openai_key\", \"aws_key\"] }`\n- Returns `{ detected: false, types: [] }` for clean content",
+      "priority": "medium",
+      "tags": [
+        "testing",
+        "security"
+      ]
+    },
+    {
+      "id": "2e00e464-ef42-4382-8dba-36e9c3e9a9c7",
+      "title": "15. Add retention settings to Settings UI",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [],
+      "description": "Add UI controls for conversation logging settings in the Settings panel.\n\n**New Settings Fields:**\n1. **Conversation Retention (days)** - Number input, min 7, max 365, default 90\n2. **Enable Conversation Logging** - Toggle switch, default on\n\n**Location:** Settings component (find existing settings UI)\n\n**Implementation:**\n1. Add form fields to existing settings form\n2. Validate retention is 7-365 range\n3. Call updateSettings API on save\n4. Show current values from settings query\n\n**UI Design:**\n```\nConversation Logging\n────────────────────\n[ ] Enable conversation logging\n\nRetention Period\n[  90  ] days (7-365)\n\nLogs older than this will be automatically archived.\n```\n\nThis is lower priority - core functionality works without UI.",
+      "priority": "low",
+      "tags": [
+        "ui",
+        "settings"
+      ]
+    },
+    {
+      "id": "d2e00521-b5b9-465d-ad2a-7c5c58928493",
+      "title": "16. Document conversation logging for enterprise users",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [],
+      "description": "Add documentation for the enterprise conversation logging feature.\n\n**Update CLAUDE.md:**\n- Add section on conversation logging\n- Document MCP tools available\n- Explain compliance coverage (SOC2, GDPR, ISO 27001)\n\n**Create docs/enterprise-logging.md:**\n1. Overview and purpose\n2. What data is captured\n3. Retention policies\n4. Export format for auditors\n5. GDPR data subject requests (export/delete)\n6. Security features (HMAC, secret detection)\n7. Legal hold capability\n8. DBeaver/SQL queries for direct access\n\n**Database queries for auditors:**\n```sql\n-- All sessions in date range\nSELECT * FROM conversation_sessions WHERE started_at BETWEEN ? AND ?;\n\n-- Message count by author\nSELECT role, COUNT(*) FROM conversation_messages GROUP BY role;\n\n-- Sessions with potential secrets\nSELECT s.* FROM conversation_sessions s\nJOIN conversation_messages m ON m.session_id = s.id\nWHERE m.contains_potential_secrets = 1;\n```",
+      "priority": "low",
+      "tags": [
+        "documentation",
+        "enterprise"
+      ]
+    },
+    {
+      "id": "9df0c1cb-caad-4571-a12c-ad592d64039e",
+      "title": "Automate code review pipeline after successful commits",
+      "passes": true,
+      "overview": "Currently the Stop hook manually enforces code review after code changes are detected. This is reactive and can be missed. The review pipeline should be integrated into the workflow automatically.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Code review runs automatically after commits during Ralph sessions",
+        "Review findings are surfaced to the user",
+        "Code-simplifier fixes can be auto-applied with user confirmation",
+        "Works in both Claude Code and other MCP-enabled environments"
+      ],
+      "references": [],
+      "description": "## Problem\n\nCurrently the Stop hook manually enforces code review after code changes are detected. This is reactive and can be missed. The review pipeline should be integrated into the workflow automatically.\n\n## Proposed Solution\n\nIntegrate the code review pipeline into the `complete_ticket_work` MCP tool or as a post-commit git hook. This ensures:\n\n1. Code review runs automatically after successful commits\n2. The 3 review agents (code-reviewer, silent-failure-hunter, code-simplifier) analyze the changes\n3. Issues are surfaced before the ticket is marked complete\n4. Any code-simplifier fixes are applied before final review\n\n## Implementation Options\n\n### Option A: Integrate into `complete_ticket_work`\n- Pros: Works in any environment (Claude Code, VS Code, OpenCode)\n- Cons: Only triggers on ticket completion, not all commits\n\n### Option B: Git post-commit hook\n- Pros: Triggers on every commit automatically\n- Cons: Adds latency to commits, may be too frequent for small changes\n\n### Option C: Hybrid approach\n- Run lightweight lint check on every commit (post-commit)\n- Run full review pipeline on `complete_ticket_work`\n\n## Acceptance Criteria\n\n- [ ] Code review runs automatically after commits during Ralph sessions\n- [ ] Review findings are surfaced to the user\n- [ ] Code-simplifier fixes can be auto-applied with user confirmation\n- [ ] Works in both Claude Code and other MCP-enabled environments",
+      "priority": "medium",
+      "tags": [
+        "enhancement",
+        "dx",
+        "ralph",
+        "automation"
+      ]
+    }
+  ],
+  "projectContext": {
+    "techStack": [
+      "Framework: TanStack Start (React 19 + Vite + Nitro)",
+      "Database: SQLite with better-sqlite3, Drizzle ORM",
+      "Styling: Tailwind CSS v4",
+      "State: TanStack Query for server state",
+      "Drag & Drop: @dnd-kit"
+    ],
+    "dosDonts": [
+      {
+        "category": "Database Queries",
+        "dos": [
+          "Use Drizzle ORM: `db.select().from(tickets)`",
+          "Use typed schema imports: `import { tickets } from \"../lib/schema\"`",
+          "Use `eq()`, `and()`, `sql` from drizzle-orm for conditions",
+          "Use transactions for multi-table operations: `db.transaction(() => {...})`",
+          "Use `.get()` for single row, `.all()` for multiple"
+        ],
+        "donts": [
+          "Raw SQL strings: `db.run(\"SELECT * FROM tickets\")`",
+          "String-based table names",
+          "String concatenation for WHERE clauses",
+          "Multiple independent queries that should be atomic",
+          "Assume query returns what you expect without checking"
+        ]
+      },
+      {
+        "category": "React & TanStack Query",
+        "dos": [
+          "Use `useQuery` with `queryKeys` for data fetching",
+          "Use `useMutation` with `onSuccess` for state changes",
+          "Invalidate queries after mutations: `queryClient.invalidateQueries({ queryKey: queryKeys.tickets })`",
+          "Use centralized `queryKeys` object from `src/lib/hooks.ts`",
+          "Create custom hooks in `src/lib/hooks.ts` for reusable query logic"
+        ],
+        "donts": [
+          "`useState` + `useEffect` for fetched data",
+          "Direct API calls without proper cache invalidation",
+          "Manual cache manipulation or refetch after every change",
+          "Hardcoded query key strings throughout components",
+          "Duplicate query setup in multiple components"
+        ]
+      },
+      {
+        "category": "Server Functions",
+        "dos": [
+          "Use `createServerFn({ method: \"GET\" })` for reads, `\"POST\"` for writes",
+          "Use `.inputValidator()` for type-safe input handling",
+          "Return typed data directly: `return db.select().from(tickets).all()`",
+          "Use `ensureExists()` for required lookups: `ensureExists(project, \"Project\")`",
+          "Import from `@tanstack/react-start` (not `@tanstack/react-start/server`)"
+        ],
+        "donts": [
+          "Mix GET/POST inconsistently",
+          "Access raw input without validation",
+          "Wrap in unnecessary response objects",
+          "Return null and let caller handle missing data",
+          "Wrong import path"
+        ]
+      },
+      {
+        "category": "MCP Tool Implementation",
+        "dos": [
+          "Use Zod schemas for input validation: `{ ticketId: z.string() }`",
+          "Return structured `{ content: [{ type: \"text\", text: ... }] }` format",
+          "Set `isError: true` for error responses",
+          "Use `log.info()` / `log.error()` from `../lib/logging.js`",
+          "Include helpful error messages: `\"Project not found. Use list_projects to see available.\"`"
+        ],
+        "donts": [
+          "Trust input without validation",
+          "Return plain strings",
+          "Return error text without the error flag",
+          "`console.log` in MCP server code",
+          "Generic \"Not found\" errors"
+        ]
+      },
+      {
+        "category": "Testing Patterns (Kent C. Dodds)",
+        "dos": [
+          "Test user behavior: what users see, click, and experience",
+          "Integration tests for workflows: test components together",
+          "Real database fixtures with actual schema",
+          "Tests that fail when user-facing behavior breaks",
+          "Ask: \"Does this test catch bugs users would encounter?\""
+        ],
+        "donts": [
+          "Test implementation details, internal state, or private methods",
+          "Unit tests for every function",
+          "Excessive mocking of internals",
+          "Tests that break on refactoring internals",
+          "Chase 100% code coverage as a goal"
+        ]
+      }
+    ],
+    "verificationSteps": [
+      "Run `pnpm type-check` - must pass with no errors",
+      "Run `pnpm lint` - must pass with no errors",
+      "Run `pnpm test` - all tests must pass",
+      "Added tests for new functionality (following Kent C. Dodds testing philosophy)",
+      "Used typed error classes (not generic `Error`)",
+      "Used Drizzle ORM (not raw SQL) - see DO/DON'T table above",
+      "Followed existing patterns from DO/DON'T tables",
+      "No hardcoded values that should be configurable",
+      "Existing tests still pass",
+      "No regressions in related functionality",
+      "Updated tests if behavior changed",
+      "Did not break backward compatibility (unless explicitly requested)",
+      "Manually verified in browser at `localhost:4242`",
+      "Checked responsive layout",
+      "Verified TanStack Query invalidates and updates correctly",
+      "Accessibility: keyboard navigation works, proper ARIA labels",
+      "Migration file created via `pnpm db:generate`",
+      "Migration tested with `pnpm db:migrate`",
+      "Backup tested if schema changed (use `pnpm brain-dump backup` then test restore)",
+      "Updated `src/lib/schema.ts` with proper types and constraints",
+      "Tested tool via Claude Code integration",
+      "Verified error responses are informative (see DO/DON'T table)",
+      "Updated tool documentation if interface changed",
+      "Added Zod schema for input validation",
+      "All acceptance criteria from ticket met",
+      "Work summary added via `add_ticket_comment` (for Ralph sessions)",
+      "Session completed with appropriate outcome (for Ralph sessions)",
+      "Committed with proper message format: `feat(<ticket-id>): <description>`"
+    ]
+  },
+  "generatedAt": "2026-01-17T07:39:50.601Z",
+  "epicTitle": "Enterprise Conversation Logging",
+  "epicDescription": "Add enterprise-grade conversation logging for compliance auditing. Stores AI conversation sessions and messages with HMAC tamper detection, secret detection, retention policies, and export capabilities for SOC2/ISO 27001/GDPR compliance."
+}

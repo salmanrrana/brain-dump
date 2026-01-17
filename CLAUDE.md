@@ -173,6 +173,28 @@ Brain Dump supports multiple development environments:
 
 Do NOT try to work around state enforcement - it ensures work is properly tracked in the Brain Dump UI.
 
+#### Auto-Spawn Next Ticket (Experimental)
+
+When enabled, completing a ticket can automatically spawn a new terminal window with Claude ready to work on the next suggested ticket. This provides:
+
+- **Automatic context reset** - Fresh Claude session for each ticket
+- **Seamless workflow** - No manual context clearing needed
+- **Pipeline feel** - Tickets flow naturally from one to the next
+
+**To enable:**
+
+```bash
+export AUTO_SPAWN_NEXT_TICKET=1
+```
+
+The hook (`spawn-next-ticket.sh`) will:
+
+1. Parse the next ticket ID from `complete_ticket_work` output
+2. Spawn a new terminal (Ghostty, iTerm2, or Terminal.app on macOS; Ghostty, Kitty, or GNOME Terminal on Linux)
+3. Start Claude with a prompt to begin the next ticket
+
+**Note:** This is opt-in because spawning new windows can be surprising if unexpected.
+
 ## Specifications
 
 ### Spec Template
