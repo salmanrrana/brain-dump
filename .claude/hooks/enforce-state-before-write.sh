@@ -21,8 +21,11 @@ if [[ "$TOOL_NAME" != "Write" && "$TOOL_NAME" != "Edit" ]]; then
   exit 0
 fi
 
+# Use CLAUDE_PROJECT_DIR for reliable path resolution
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+
 # Check if we're in Ralph mode (state file exists)
-STATE_FILE=".claude/ralph-state.json"
+STATE_FILE="$PROJECT_DIR/.claude/ralph-state.json"
 if [[ ! -f "$STATE_FILE" ]]; then
   # Not in Ralph mode - allow normal operation
   echo '{"decision": "allow"}'

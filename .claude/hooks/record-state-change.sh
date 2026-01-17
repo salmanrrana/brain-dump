@@ -23,13 +23,16 @@ case "$TOOL_NAME" in
     ;;
 esac
 
+# Use CLAUDE_PROJECT_DIR for reliable path resolution
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+
 # Extract state info
 STATE=$(echo "$INPUT" | jq -r '.tool_input.state // "session"')
 SESSION_ID=$(echo "$INPUT" | jq -r '.tool_input.sessionId // .tool_input.ticketId // "unknown"')
 TIMESTAMP=$(date -Iseconds)
 
 # Log to state change log
-LOG_FILE=".claude/ralph-state.log"
+LOG_FILE="$PROJECT_DIR/.claude/ralph-state.log"
 mkdir -p "$(dirname "$LOG_FILE")"
 
 case "$TOOL_NAME" in

@@ -27,6 +27,9 @@ if [[ "$TOOL_NAME" != "Read" ]]; then
   exit 0
 fi
 
+# Use CLAUDE_PROJECT_DIR for reliable path resolution
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+
 # Only enforce for spec/plan files
 # Skip enforcement for general reads
 case "$FILE_PATH" in
@@ -41,7 +44,7 @@ case "$FILE_PATH" in
 esac
 
 # Check if session exists (state file present)
-STATE_FILE=".claude/ralph-state.json"
+STATE_FILE="$PROJECT_DIR/.claude/ralph-state.json"
 if [[ -f "$STATE_FILE" ]]; then
   # Session exists - allow reading spec
   echo '{"decision": "allow"}'
