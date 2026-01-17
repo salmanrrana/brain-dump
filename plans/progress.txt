@@ -353,3 +353,25 @@ All 18 tickets completed successfully:
   - Copy logs button
   - Close without stopping container
 
+
+---
+
+### 2026-01-17 - Docker Runtime Detection Unit Tests (Ticket 1b5e2e24)
+- **Ticket ID:** 1b5e2e24-1f3e-4392-94a4-b41e8c749cd4
+- **Task:** Create comprehensive unit tests for docker-runtime.ts
+- **Success:** true
+- **Commit:** 01820fa
+- **Files:** src/lib/docker-runtime.test.ts (NEW)
+- **Tests Added:** 23 new tests
+- **Categories:**
+  - Detection Order Tests (5)
+  - DOCKER_HOST Override Tests (4)
+  - Platform-Specific Tests (3)
+  - Error Handling Tests (2)
+  - Helper Function Tests (4)
+  - Caching Tests (2)
+- **Notes:**
+  - Mocks fs module to control socket existence
+  - Mocks process.platform for cross-platform testing
+  - All 658 tests pass
+
