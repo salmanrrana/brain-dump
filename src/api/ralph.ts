@@ -638,11 +638,13 @@ trap handle_timeout ALRM
 (sleep $RALPH_TIMEOUT && kill -ALRM $$ 2>/dev/null) &
 TIMER_PID=$!
 
-# Clean up timer on normal exit
-cleanup_timer() {
+# Clean up timer and services file on exit
+cleanup_on_exit() {
   kill $TIMER_PID 2>/dev/null || true
+  # Remove .ralph-services.json to prevent stale data in UI
+  rm -f "$PROJECT_PATH/.ralph-services.json" 2>/dev/null || true
 }
-trap cleanup_timer EXIT
+trap cleanup_on_exit EXIT
 `
     : `
 # Timeout handling for graceful shutdown
@@ -677,11 +679,13 @@ trap handle_timeout ALRM
 (sleep $RALPH_TIMEOUT && kill -ALRM $$ 2>/dev/null) &
 TIMER_PID=$!
 
-# Clean up timer on normal exit
-cleanup_timer() {
+# Clean up timer and services file on normal exit
+cleanup_on_exit() {
   kill $TIMER_PID 2>/dev/null || true
+  # Remove .ralph-services.json to prevent stale data in UI
+  rm -f "$PROJECT_PATH/.ralph-services.json" 2>/dev/null || true
 }
-trap cleanup_timer EXIT
+trap cleanup_on_exit EXIT
 `;
 
   return `#!/bin/bash

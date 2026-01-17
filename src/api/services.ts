@@ -8,7 +8,7 @@
  */
 
 import { createServerFn } from "@tanstack/react-start";
-import { existsSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, unlinkSync } from "fs";
 import { join } from "path";
 import type { RalphServicesFile, RalphService, ServiceStatus } from "../lib/service-discovery";
 import { SERVICES_FILENAME, createEmptyServicesFile } from "../lib/service-discovery";
@@ -355,6 +355,9 @@ export const stopService = createServerFn({ method: "POST" })
 /**
  * Stop all running services in a project.
  *
+ * After stopping all services, deletes the .ralph-services.json file
+ * to prevent stale data from appearing in the UI.
+ *
  * @param projectPath - Absolute path to the project root
  * @returns Count of services stopped or error
  */
@@ -369,33 +372,42 @@ export const stopAllServices = createServerFn({ method: "POST" })
         return { success: false, stoppedCount: 0, error: "Project path does not exist" };
       }
 
+      const servicesFile = join(projectPath, SERVICES_FILENAME);
+
+      // If file doesn't exist, nothing to stop
+      if (!existsSync(servicesFile)) {
+        return { success: true, stoppedCount: 0 };
+      }
+
       const servicesData = readServicesFile(projectPath);
 
       if (!servicesData) {
         return { success: false, stoppedCount: 0, error: "Services file not found or invalid" };
       }
 
-      // Count and stop all running services
-      let stoppedCount = 0;
-      for (const service of servicesData.services) {
-        if (service.status === "running") {
-          service.status = "stopped";
-          stoppedCount++;
-        }
-      }
+      // Count running services
+      const stoppedCount = servicesData.services.filter((s) => s.status === "running").length;
 
       if (stoppedCount === 0) {
+        // No running services, but file exists - clean it up
+        try {
+          unlinkSync(servicesFile);
+          console.log(`[services] Cleaned up stale services file: ${servicesFile}`);
+        } catch {
+          // Ignore deletion errors
+        }
         return { success: true, stoppedCount: 0 };
       }
 
-      servicesData.updatedAt = new Date().toISOString();
-
+      // Delete the services file to clean up
+      // (no point keeping a file with all stopped services)
       try {
-        writeServicesFile(projectPath, servicesData);
+        unlinkSync(servicesFile);
+        console.log(`[services] Deleted services file after stopping ${stoppedCount} services`);
         return { success: true, stoppedCount };
       } catch (error) {
-        console.error(`[services] Error stopping all services:`, error);
-        return { success: false, stoppedCount: 0, error: "Failed to update services file" };
+        console.error(`[services] Error deleting services file:`, error);
+        return { success: false, stoppedCount: 0, error: "Failed to clean up services file" };
       }
     }
   );
