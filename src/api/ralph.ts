@@ -1,10 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { db } from "../lib/db";
-import { tickets, epics, projects } from "../lib/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { tickets, epics, projects, ralphSessions, type RalphSessionState } from "../lib/schema";
+import { eq, and, inArray, isNull, desc } from "drizzle-orm";
 import { safeJsonParse } from "../lib/utils";
-import { exec } from "child_process";
-import { promisify } from "util";
 import {
   extractOverview,
   extractTypeDefinitions,
@@ -17,8 +15,8 @@ import {
   type EnhancedPRDDocument,
 } from "../lib/prd-extraction";
 
-// Shared promisified exec for all Docker operations
-const execAsync = promisify(exec);
+// Import Docker utilities for socket-aware Docker commands
+import { execDockerCommand, getDockerHostEnvValue } from "./docker-utils";
 
 /**
  * Generate enhanced PRD with Loom-style structure.
@@ -479,10 +477,20 @@ function generateRalphScript(
   maxIterations: number = 10,
   useSandbox: boolean = false,
   resourceLimits: DockerResourceLimits = DEFAULT_RESOURCE_LIMITS,
-  timeoutSeconds: number = DEFAULT_TIMEOUT_SECONDS
+  timeoutSeconds: number = DEFAULT_TIMEOUT_SECONDS,
+  dockerHostEnv: string | null = null
 ): string {
   const imageName = "brain-dump-ralph-sandbox:latest";
   const sandboxHeader = useSandbox ? " (Docker Sandbox)" : "";
+
+  // Docker host setup - export DOCKER_HOST if using non-default socket
+  const dockerHostSetup = dockerHostEnv
+    ? `
+# Docker socket configuration (Lima/Colima/Rancher/Podman)
+export DOCKER_HOST="${dockerHostEnv}"
+echo -e "\\033[1;33m🐳 Docker Host:\\033[0m ${dockerHostEnv}"
+`
+    : "";
   // Format timeout for display (e.g., "1h", "30m", "1h 30m")
   const timeoutHours = Math.floor(timeoutSeconds / 3600);
   const timeoutMinutes = Math.floor((timeoutSeconds % 3600) / 60);
@@ -686,7 +694,7 @@ PROGRESS_FILE="$PROJECT_PATH/plans/progress.txt"
 SESSION_ID="$(date +%s)-$$"
 
 cd "$PROJECT_PATH"
-${dockerImageCheck}${sshAgentSetup}
+${dockerHostSetup}${dockerImageCheck}${sshAgentSetup}
 # Ensure plans directory exists
 mkdir -p "$PROJECT_PATH/plans"
 
@@ -806,8 +814,8 @@ async function ensureDockerNetwork(
   networkName: string
 ): Promise<{ success: true } | { success: false; message: string }> {
   try {
-    // Check if network already exists
-    await execAsync(`docker network inspect ${networkName}`);
+    // Check if network already exists (uses configured/detected socket)
+    await execDockerCommand(`network inspect ${networkName}`);
     console.log(`[brain-dump] Docker network "${networkName}" already exists`);
     return { success: true };
   } catch (inspectError) {
@@ -826,14 +834,14 @@ async function ensureDockerNetwork(
 
     // Network doesn't exist, create it
     try {
-      await execAsync(`docker network create ${networkName}`);
+      await execDockerCommand(`network create ${networkName}`);
       console.log(`[brain-dump] Created Docker network "${networkName}"`);
       return { success: true };
     } catch (createError) {
       // Race condition: another process may have created it between our check and create
       // Verify by checking again
       try {
-        await execAsync(`docker network inspect ${networkName}`);
+        await execDockerCommand(`network inspect ${networkName}`);
         console.log(
           `[brain-dump] Docker network "${networkName}" exists (created by another process)`
         );
@@ -856,9 +864,9 @@ async function validateDockerSetup(): Promise<
   const { join } = await import("path");
   const warnings: string[] = [];
 
-  // Check if Docker is running
+  // Check if Docker is running (uses configured/detected socket)
   try {
-    await execAsync("docker info");
+    await execDockerCommand("info");
   } catch {
     return {
       success: false,
@@ -875,7 +883,7 @@ async function validateDockerSetup(): Promise<
 
   // Check if image exists, build if not
   try {
-    await execAsync("docker image inspect brain-dump-ralph-sandbox:latest");
+    await execDockerCommand("image inspect brain-dump-ralph-sandbox:latest");
   } catch {
     // Image doesn't exist, try to build it
     console.log("[brain-dump] Building sandbox image...");
@@ -890,8 +898,8 @@ async function validateDockerSetup(): Promise<
     }
 
     try {
-      await execAsync(
-        `docker build -t brain-dump-ralph-sandbox:latest -f "${dockerfilePath}" "${contextPath}"`,
+      await execDockerCommand(
+        `build -t brain-dump-ralph-sandbox:latest -f "${dockerfilePath}" "${contextPath}"`,
         { timeout: 300000 }
       );
       console.log("[brain-dump] Sandbox image built successfully");
@@ -1084,12 +1092,15 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
 
     // If sandbox mode, validate Docker setup
     let sshWarnings: string[] | undefined;
+    let dockerHostEnv: string | null = null;
     if (useSandbox) {
       const dockerResult = await validateDockerSetup();
       if (!dockerResult.success) {
         return dockerResult;
       }
       sshWarnings = dockerResult.warnings;
+      // Get Docker host env value for non-default sockets
+      dockerHostEnv = await getDockerHostEnvValue();
     }
 
     // Create plans directory in project
@@ -1101,13 +1112,14 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     const prdPath = join(plansDir, "prd.json");
     writeFileSync(prdPath, JSON.stringify(prd, null, 2));
 
-    // Generate Ralph script with timeout
+    // Generate Ralph script with timeout and Docker host config
     const ralphScript = generateRalphScript(
       project.path,
       maxIterations,
       useSandbox,
       DEFAULT_RESOURCE_LIMITS,
-      timeoutSeconds
+      timeoutSeconds,
+      dockerHostEnv
     );
     const scriptDir = join(homedir(), ".brain-dump", "scripts");
     mkdirSync(scriptDir, { recursive: true });
@@ -1216,12 +1228,15 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
 
     // If sandbox mode, validate Docker setup
     let sshWarnings: string[] | undefined;
+    let dockerHostEnv: string | null = null;
     if (useSandbox) {
       const dockerResult = await validateDockerSetup();
       if (!dockerResult.success) {
         return dockerResult;
       }
       sshWarnings = dockerResult.warnings;
+      // Get Docker host env value for non-default sockets
+      dockerHostEnv = await getDockerHostEnvValue();
     }
 
     // Get all non-done tickets for this epic
@@ -1255,13 +1270,14 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     const prdPath = join(plansDir, "prd.json");
     writeFileSync(prdPath, JSON.stringify(prd, null, 2));
 
-    // Generate Ralph script with timeout
+    // Generate Ralph script with timeout and Docker host config
     const ralphScript = generateRalphScript(
       project.path,
       maxIterations,
       useSandbox,
       DEFAULT_RESOURCE_LIMITS,
-      timeoutSeconds
+      timeoutSeconds,
+      dockerHostEnv
     );
     const scriptDir = join(homedir(), ".brain-dump", "scripts");
     mkdirSync(scriptDir, { recursive: true });
@@ -1340,3 +1356,96 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       warnings: sshWarnings,
     };
   });
+
+// =============================================================================
+// RALPH SESSION STATUS
+// =============================================================================
+
+/**
+ * Response type for active Ralph session query
+ */
+// JSON value type for metadata (compatible with exactOptionalPropertyTypes)
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+export interface ActiveRalphSession {
+  id: string;
+  ticketId: string;
+  currentState: RalphSessionState;
+  startedAt: string;
+  stateHistory: Array<{
+    state: string;
+    timestamp: string;
+    metadata?: Record<string, JsonValue> | undefined;
+  }> | null;
+}
+
+/**
+ * Get active Ralph session for a ticket (if any).
+ * An active session is one that has not been completed (completedAt is null).
+ */
+export const getActiveRalphSession = createServerFn({ method: "GET" })
+  .inputValidator((ticketId: string) => ticketId)
+  .handler(async ({ data: ticketId }): Promise<ActiveRalphSession | null> => {
+    const session = db
+      .select({
+        id: ralphSessions.id,
+        ticketId: ralphSessions.ticketId,
+        currentState: ralphSessions.currentState,
+        startedAt: ralphSessions.startedAt,
+        stateHistory: ralphSessions.stateHistory,
+      })
+      .from(ralphSessions)
+      .where(and(eq(ralphSessions.ticketId, ticketId), isNull(ralphSessions.completedAt)))
+      .orderBy(desc(ralphSessions.startedAt))
+      .limit(1)
+      .get();
+
+    if (!session) {
+      return null;
+    }
+
+    return {
+      id: session.id,
+      ticketId: session.ticketId,
+      currentState: session.currentState as RalphSessionState,
+      startedAt: session.startedAt,
+      stateHistory: safeJsonParse(session.stateHistory, null),
+    };
+  });
+
+/**
+ * Get all active Ralph sessions (for batch fetching on kanban board).
+ * Returns a map of ticketId -> session for efficient lookup.
+ */
+export const getActiveRalphSessions = createServerFn({ method: "GET" }).handler(
+  async (): Promise<Record<string, ActiveRalphSession>> => {
+    const sessions = db
+      .select({
+        id: ralphSessions.id,
+        ticketId: ralphSessions.ticketId,
+        currentState: ralphSessions.currentState,
+        startedAt: ralphSessions.startedAt,
+        stateHistory: ralphSessions.stateHistory,
+      })
+      .from(ralphSessions)
+      .where(isNull(ralphSessions.completedAt))
+      .orderBy(desc(ralphSessions.startedAt))
+      .all();
+
+    const result: Record<string, ActiveRalphSession> = {};
+    for (const session of sessions) {
+      // Only keep the most recent session per ticket
+      if (!result[session.ticketId]) {
+        result[session.ticketId] = {
+          id: session.id,
+          ticketId: session.ticketId,
+          currentState: session.currentState as RalphSessionState,
+          startedAt: session.startedAt,
+          stateHistory: safeJsonParse(session.stateHistory, null),
+        };
+      }
+    }
+
+    return result;
+  }
+);
