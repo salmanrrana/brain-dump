@@ -388,10 +388,11 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                 <div className="flex items-center justify-between py-2">
                   <div>
                     <label className="block text-sm font-medium text-slate-300">
-                      Docker Sandbox
+                      Prefer Docker Sandbox by Default
                     </label>
                     <p className="text-xs text-slate-500">
-                      Run Ralph in an isolated Docker container for safety
+                      When enabled, Docker mode will be pre-selected when starting Ralph. You can
+                      always choose either mode.
                     </p>
                   </div>
                   <button
