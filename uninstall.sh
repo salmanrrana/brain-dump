@@ -6,6 +6,8 @@
 #   ./uninstall.sh              # Interactive uninstall
 #   ./uninstall.sh --vscode     # Remove VS Code integration only
 #   ./uninstall.sh --claude     # Remove Claude Code integration only
+#   ./uninstall.sh --sandbox    # Remove Claude Code sandbox configuration
+#   ./uninstall.sh --devcontainer # Remove devcontainer Docker volumes
 #   ./uninstall.sh --all        # Remove everything (including data)
 #   ./uninstall.sh --help       # Show help
 
@@ -211,6 +213,49 @@ try {
     fi
 }
 
+# Remove Claude Code sandbox configuration
+remove_sandbox() {
+    print_step "Removing Claude Code sandbox configuration"
+
+    CLAUDE_SETTINGS="$HOME/.claude/settings.json"
+
+    # Check if settings.json exists
+    if [ ! -f "$CLAUDE_SETTINGS" ]; then
+        print_info "Claude settings.json not found"
+        SKIPPED+=("Claude sandbox (no settings.json)")
+        return 0
+    fi
+
+    # Check if sandbox is configured
+    if ! grep -q '"sandbox"' "$CLAUDE_SETTINGS"; then
+        print_info "No sandbox configuration found in settings.json"
+        SKIPPED+=("Claude sandbox (not configured)")
+        return 0
+    fi
+
+    # Remove sandbox configuration
+    if command -v node >/dev/null 2>&1; then
+        node -e "
+const fs = require('fs');
+try {
+    const config = JSON.parse(fs.readFileSync('$CLAUDE_SETTINGS', 'utf8'));
+    if (config.sandbox) {
+        delete config.sandbox;
+        fs.writeFileSync('$CLAUDE_SETTINGS', JSON.stringify(config, null, 2));
+        console.log('removed');
+    }
+} catch (e) {
+    console.error(e.message);
+}
+" 2>/dev/null && print_success "Removed sandbox configuration from ~/.claude/settings.json" && REMOVED+=("Claude sandbox config")
+    else
+        print_warning "Could not remove sandbox config from settings.json (node not found)"
+        print_info "Manually edit: $CLAUDE_SETTINGS"
+        print_info "Remove the \"sandbox\" section"
+        SKIPPED+=("Claude sandbox (manual removal needed)")
+    fi
+}
+
 # Remove data (database, attachments, backups)
 remove_data() {
     print_step "Removing Brain Dump data"
@@ -335,6 +380,89 @@ remove_docker() {
     fi
 }
 
+# Remove devcontainer Docker volumes (NOT user data)
+remove_devcontainer() {
+    print_step "Removing devcontainer Docker volumes"
+
+    # Check if Docker is available
+    if ! command -v docker >/dev/null 2>&1; then
+        print_info "Docker not installed, skipping devcontainer cleanup"
+        SKIPPED+=("Devcontainer cleanup (Docker not installed)")
+        return 0
+    fi
+
+    # Detect DOCKER_HOST for Lima/Colima
+    if [ -z "${DOCKER_HOST:-}" ]; then
+        local lima_sock="$HOME/.lima/docker/sock/docker.sock"
+        local colima_sock="$HOME/.colima/default/docker.sock"
+
+        if [ -S "$lima_sock" ]; then
+            export DOCKER_HOST="unix://$lima_sock"
+        elif [ -S "$colima_sock" ]; then
+            export DOCKER_HOST="unix://$colima_sock"
+        fi
+    fi
+
+    # Check if Docker is running
+    if ! docker info >/dev/null 2>&1; then
+        print_warning "Docker is not running"
+        print_info "Start Docker to clean up devcontainer volumes"
+        SKIPPED+=("Devcontainer cleanup (Docker not running)")
+        return 0
+    fi
+
+    # Named volumes to remove (these are NOT user data - just caches)
+    local volumes_to_remove=(
+        "brain-dump-pnpm-store"
+        "brain-dump-bashhistory"
+        "brain-dump-claude-config"
+    )
+
+    local volumes_removed=0
+    for volume in "${volumes_to_remove[@]}"; do
+        if docker volume inspect "$volume" >/dev/null 2>&1; then
+            print_info "Removing volume: $volume..."
+            if docker volume rm "$volume" >/dev/null 2>&1; then
+                print_success "Removed $volume"
+                volumes_removed=$((volumes_removed + 1))
+            else
+                print_warning "Could not remove $volume (may be in use)"
+                SKIPPED+=("Docker volume ($volume)")
+            fi
+        else
+            print_info "$volume not found"
+        fi
+    done
+
+    if [ $volumes_removed -gt 0 ]; then
+        REMOVED+=("Devcontainer volumes ($volumes_removed)")
+    fi
+
+    # Optionally remove the devcontainer image
+    if docker image inspect brain-dump-devcontainer:latest >/dev/null 2>&1; then
+        echo ""
+        print_info "Found brain-dump-devcontainer image."
+        read -r -p "Remove devcontainer image? (y/N): " confirm
+        if [[ "$confirm" =~ ^[Yy]$ ]]; then
+            if docker rmi brain-dump-devcontainer:latest >/dev/null 2>&1; then
+                print_success "Removed brain-dump-devcontainer image"
+                REMOVED+=("Devcontainer image")
+            else
+                print_warning "Could not remove image (may be in use)"
+                SKIPPED+=("Devcontainer image (in use)")
+            fi
+        else
+            print_info "Keeping devcontainer image"
+            SKIPPED+=("Devcontainer image (user chose to keep)")
+        fi
+    fi
+
+    # Note: We do NOT remove the bind-mounted data directory
+    # That's the user's Brain Dump database, not a devcontainer artifact
+    print_info "Note: Your Brain Dump data (database) is NOT removed."
+    print_info "Use --all to remove data, or manually delete your data directory."
+}
+
 # Print summary
 print_summary() {
     echo ""
@@ -370,25 +498,32 @@ show_help() {
     echo "Usage: ./uninstall.sh [options]"
     echo ""
     echo "Options:"
-    echo "  --vscode    Remove VS Code integration only"
-    echo "  --claude    Remove Claude Code integration only"
-    echo "  --docker    Remove Docker sandbox artifacts only"
-    echo "  --all       Remove everything (including database, data, and Docker)"
-    echo "  --help      Show this help message"
+    echo "  --vscode       Remove VS Code integration only"
+    echo "  --claude       Remove Claude Code integration only"
+    echo "  --sandbox      Remove Claude Code sandbox configuration"
+    echo "  --devcontainer Remove devcontainer Docker volumes (not user data)"
+    echo "  --docker       Remove Docker sandbox artifacts only"
+    echo "  --all          Remove everything (including database, data, and Docker)"
+    echo "  --help         Show this help message"
     echo ""
     echo "Without options, removes IDE integrations but keeps data and Docker."
     echo ""
     echo "What gets removed:"
-    echo "  VS Code:     MCP config, agents, skills, prompts"
-    echo "  Claude Code: MCP config in ~/.claude.json"
-    echo "  Docker:      ralph-net network, sandbox image, running containers"
-    echo "  Data (--all): Database, attachments, backups, ~/.brain-dump/scripts"
+    echo "  VS Code:       MCP config, agents, skills, prompts"
+    echo "  Claude Code:   MCP config in ~/.claude.json"
+    echo "  Sandbox:       Sandbox config in ~/.claude/settings.json"
+    echo "  Devcontainer:  Docker volumes (pnpm store, bash history, claude config)"
+    echo "                 Does NOT remove your Brain Dump data (bind-mounted)"
+    echo "  Docker:        ralph-net network, sandbox image, running containers"
+    echo "  Data (--all):  Database, attachments, backups, ~/.brain-dump/scripts"
 }
 
 # Main
 main() {
     REMOVE_VSCODE=false
     REMOVE_CLAUDE=false
+    REMOVE_SANDBOX=false
+    REMOVE_DEVCONTAINER=false
     REMOVE_DOCKER=false
     REMOVE_DATA=false
 
@@ -410,12 +545,20 @@ main() {
                 --claude)
                     REMOVE_CLAUDE=true
                     ;;
+                --sandbox)
+                    REMOVE_SANDBOX=true
+                    ;;
+                --devcontainer)
+                    REMOVE_DEVCONTAINER=true
+                    ;;
                 --docker)
                     REMOVE_DOCKER=true
                     ;;
                 --all)
                     REMOVE_VSCODE=true
                     REMOVE_CLAUDE=true
+                    REMOVE_SANDBOX=true
+                    REMOVE_DEVCONTAINER=true
                     REMOVE_DOCKER=true
                     REMOVE_DATA=true
                     ;;
@@ -430,6 +573,8 @@ main() {
 
     [ "$REMOVE_VSCODE" = true ] && remove_vscode
     [ "$REMOVE_CLAUDE" = true ] && remove_claude
+    [ "$REMOVE_SANDBOX" = true ] && remove_sandbox
+    [ "$REMOVE_DEVCONTAINER" = true ] && remove_devcontainer
     [ "$REMOVE_DOCKER" = true ] && remove_docker
     [ "$REMOVE_DATA" = true ] && remove_data
 
