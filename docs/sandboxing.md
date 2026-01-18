@@ -1,5 +1,9 @@
 # Sandboxing Options
 
+> **⚠️ Experimental Feature**
+>
+> Brain Dump's sandboxing capabilities are under active development and may change significantly. Some features may not work on all platforms or configurations. If you encounter issues, please [report them](https://github.com/salmanrrana/brain-dump/issues).
+
 Brain Dump supports three levels of isolation for AI-assisted development. Choose based on your security requirements, team setup, and tooling preferences.
 
 ## Quick Comparison
@@ -113,6 +117,25 @@ Edit `~/.claude/settings.json`:
 
 ## Option 2: Devcontainer (Docker + VS Code)
 
+> **⚠️ Experimental - Known Issues on macOS**
+>
+> The devcontainer integration has significant limitations on **macOS with Lima or Docker Desktop**:
+>
+> | Issue                         | Description                                                                                 |
+> | ----------------------------- | ------------------------------------------------------------------------------------------- |
+> | **Lima read-only mounts**     | Lima's home directory mount is read-only by default - `pnpm install` will fail with `EROFS` |
+> | **Port forwarding broken**    | VS Code's automatic port forwarding often fails with Lima/Docker Desktop                    |
+> | **Native module rebuilds**    | `better-sqlite3` and other native modules need manual rebuilding inside container           |
+> | **Simple Browser unusable**   | VS Code's Simple Browser doesn't execute JavaScript properly                                |
+> | **Database not auto-created** | Must manually trigger database initialization (visit app or run `npx tsx`)                  |
+> | **Permission issues**         | Docker volumes may have incorrect ownership                                                 |
+>
+> **Recommendation**: For most users, use **Native Sandbox** (Option 1) instead. The devcontainer is best suited for:
+>
+> - GitHub Codespaces (where port forwarding works correctly)
+> - CI/CD environments
+> - Teams requiring strict container-based standardization
+
 A full Docker container with network firewall. Works with Claude Code, OpenCode, and VS Code.
 
 ### Prerequisites
@@ -208,6 +231,24 @@ curl https://api.github.com/zen
 
 ### Troubleshooting
 
+#### Lima: Read-Only Filesystem (EROFS)
+
+If you see `EROFS: read-only file system` during `pnpm install`, Lima's home directory mount is read-only.
+
+**Fix:** Edit `~/.lima/docker/lima.yaml`:
+
+```yaml
+mounts:
+  - location: "~"
+    writable: true # Add this line
+```
+
+Then restart Lima:
+
+```bash
+limactl stop docker && limactl start docker
+```
+
 #### Container Won't Start
 
 ```bash
@@ -220,6 +261,31 @@ lsof -i :4242
 # Rebuild container
 docker build -t brain-dump-dev -f .devcontainer/Dockerfile .devcontainer/
 ```
+
+#### Malformed DOCKER_HOST
+
+If Docker commands fail with cryptic errors, check your `DOCKER_HOST` environment variable:
+
+```bash
+echo $DOCKER_HOST
+```
+
+Common issues:
+
+- Typos like `unix://$HOME/.lima/docker/sockexport` (extra characters after `.sock`)
+- Missing socket file
+
+**Fix:** Check your shell config (`~/.zshrc` or `~/.bashrc`) for malformed exports:
+
+```bash
+# Correct format for Lima:
+export DOCKER_HOST="unix://$HOME/.lima/docker/sock/docker.sock"
+
+# Correct format for Colima:
+export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"
+```
+
+The `install.sh` script now validates `DOCKER_HOST` and warns about malformed values.
 
 #### pnpm Install Fails
 
@@ -239,11 +305,38 @@ Check bind mount path:
 
 ```bash
 # Inside container
-ls -la /home/node/.brain-dump/
+ls -la /home/node/.local/share/brain-dump/
 
-# If empty, check host path exists
-# macOS: ~/Library/Application Support/brain-dump/
-# Linux: ~/.local/share/brain-dump/
+# If empty, create it manually:
+npx tsx -e "import './src/lib/db.ts'"
+```
+
+#### Native Module Errors (ELF Header)
+
+If you see `invalid ELF header` errors with `better-sqlite3`:
+
+```bash
+# Rebuild native modules inside container
+cd /workspace && pnpm rebuild better-sqlite3
+
+# Or rebuild all native modules
+pnpm rebuild
+```
+
+This happens because the host's native modules (macOS) are incompatible with Linux.
+
+#### Port Forwarding Not Working
+
+VS Code's port forwarding may fail with Lima/Docker Desktop:
+
+```bash
+# Inside container, run dev server with --host
+pnpm dev --host
+
+# Options to access from host:
+# 1. Use VS Code Simple Browser (limited - no JS execution)
+# 2. Use localtunnel: npx localtunnel --port 4242
+# 3. Test via curl inside container: curl http://localhost:4242
 ```
 
 #### Extensions Not Installing
