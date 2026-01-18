@@ -647,6 +647,118 @@ console.log('Sandbox config added successfully');
     print_info "For more info: https://docs.anthropic.com/en/docs/claude-code/sandboxing"
 }
 
+# Setup devcontainer environment
+setup_devcontainer() {
+    print_step "Setting up devcontainer environment"
+
+    local DEVCONTAINER_DIR=".devcontainer"
+
+    # Check if .devcontainer directory exists
+    if [ ! -d "$DEVCONTAINER_DIR" ]; then
+        print_error ".devcontainer/ directory not found"
+        print_info "The devcontainer files should be in the repository."
+        print_info "Make sure you have cloned the full repository."
+        FAILED+=("Devcontainer (.devcontainer/ missing)")
+        return 1
+    fi
+
+    # Check if Dockerfile exists
+    if [ ! -f "$DEVCONTAINER_DIR/Dockerfile" ]; then
+        print_error ".devcontainer/Dockerfile not found"
+        FAILED+=("Devcontainer (Dockerfile missing)")
+        return 1
+    fi
+
+    # Check if devcontainer.json exists
+    if [ ! -f "$DEVCONTAINER_DIR/devcontainer.json" ]; then
+        print_error ".devcontainer/devcontainer.json not found"
+        FAILED+=("Devcontainer (devcontainer.json missing)")
+        return 1
+    fi
+
+    print_success "Devcontainer files found"
+
+    # Check if Docker is installed
+    local docker_cmd=""
+    if command_exists docker; then
+        docker_cmd="docker"
+    elif command_exists podman; then
+        docker_cmd="podman"
+        print_info "Using Podman as Docker alternative"
+    else
+        print_error "Docker is not installed"
+        print_info "Install Docker Desktop from: https://www.docker.com/products/docker-desktop"
+        FAILED+=("Devcontainer (Docker not installed)")
+        return 1
+    fi
+
+    # Check if Docker is running
+    if ! $docker_cmd info >/dev/null 2>&1; then
+        print_error "Docker is not running"
+        print_info "Please start Docker Desktop and try again"
+        FAILED+=("Devcontainer (Docker not running)")
+        return 1
+    fi
+
+    print_success "Docker is available and running"
+
+    # Check VS Code and Remote-Containers extension
+    if command_exists code; then
+        print_info "VS Code detected - checking for Remote-Containers extension..."
+        if code --list-extensions 2>/dev/null | grep -qi "ms-vscode-remote.remote-containers"; then
+            print_success "Remote-Containers extension is installed"
+        else
+            print_warning "Remote-Containers extension not installed"
+            print_info "Install it from: https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers"
+            print_info "Or run: code --install-extension ms-vscode-remote.remote-containers"
+        fi
+    fi
+
+    # Optionally pre-build the container image
+    echo ""
+    print_info "Would you like to pre-build the devcontainer image now? (y/N)"
+    read -r -n 1 prebuild_choice
+    echo ""
+
+    if [[ "$prebuild_choice" =~ ^[Yy]$ ]]; then
+        print_info "Building devcontainer image..."
+        if $docker_cmd build -t brain-dump-devcontainer -f "$DEVCONTAINER_DIR/Dockerfile" "$DEVCONTAINER_DIR" >/dev/null 2>&1; then
+            print_success "Built brain-dump-devcontainer image"
+            INSTALLED+=("Devcontainer image")
+        else
+            print_warning "Failed to build image (this is optional - VS Code will build it on first use)"
+            SKIPPED+=("Devcontainer image (optional build failed)")
+        fi
+    else
+        print_info "Skipping image pre-build (VS Code will build it on first use)"
+        SKIPPED+=("Devcontainer image (not pre-built)")
+    fi
+
+    # Print usage instructions
+    echo ""
+    print_success "Devcontainer setup complete!"
+    echo ""
+    print_info "How to use the devcontainer:"
+    echo ""
+    echo "  VS Code:"
+    echo "    1. Open this project in VS Code"
+    echo "    2. Press Cmd/Ctrl+Shift+P and select 'Dev Containers: Reopen in Container'"
+    echo "    3. Wait for the container to build (first time only)"
+    echo ""
+    echo "  CLI (devcontainer CLI):"
+    echo "    devcontainer up --workspace-folder ."
+    echo "    devcontainer exec --workspace-folder . bash"
+    echo ""
+    echo "  Notes:"
+    echo "    • The container has network isolation (firewall) enabled"
+    echo "    • Your database is bind-mounted from the host"
+    echo "    • Port 4242 is forwarded for the dev server"
+    echo ""
+
+    INSTALLED+=("Devcontainer setup")
+    return 0
+}
+
 # ============================================================================
 # OpenCode Integration
 # ============================================================================
@@ -1608,6 +1720,7 @@ show_help() {
     echo ""
     echo "Security Options:"
     echo "  --sandbox       Enable Claude Code's native sandbox mode"
+    echo "  --devcontainer  Set up devcontainer environment (Docker + network isolation)"
     echo "  --docker        Set up Docker sandbox for Ralph (optional)"
     echo ""
     echo "Other Options:"
@@ -1616,12 +1729,13 @@ show_help() {
     echo "  --update-skills Update vendored skills from upstream"
     echo ""
     echo "Examples:"
-    echo "  ./install.sh --claude           # Claude Code only"
-    echo "  ./install.sh --claude --sandbox # Claude Code with sandbox enabled"
-    echo "  ./install.sh --vscode           # VS Code only"
-    echo "  ./install.sh --opencode         # OpenCode only"
-    echo "  ./install.sh --all              # All IDEs + sandbox"
-    echo "  ./install.sh                    # Interactive prompt"
+    echo "  ./install.sh --claude            # Claude Code only"
+    echo "  ./install.sh --claude --sandbox  # Claude Code with sandbox enabled"
+    echo "  ./install.sh --devcontainer      # Set up devcontainer environment"
+    echo "  ./install.sh --vscode            # VS Code only"
+    echo "  ./install.sh --opencode          # OpenCode only"
+    echo "  ./install.sh --all               # All IDEs + sandbox"
+    echo "  ./install.sh                     # Interactive prompt"
     echo ""
     echo "This script will:"
     echo "  1. Install Node.js 18+ via nvm (if needed)"
@@ -1643,6 +1757,7 @@ main() {
     SETUP_OPENCODE=false
     SETUP_DOCKER=false
     SETUP_SANDBOX=false
+    SETUP_DEVCONTAINER=false
     UPDATE_SKILLS=false
     IDE_FLAG_PROVIDED=false
 
@@ -1679,6 +1794,9 @@ main() {
                 ;;
             --sandbox)
                 SETUP_SANDBOX=true
+                ;;
+            --devcontainer)
+                SETUP_DEVCONTAINER=true
                 ;;
             --update-skills)
                 UPDATE_SKILLS=true
@@ -1756,6 +1874,11 @@ main() {
     # Claude sandbox setup (can be used with or without --claude)
     if [ "$SETUP_SANDBOX" = true ]; then
         setup_claude_sandbox || true
+    fi
+
+    # Devcontainer setup (Docker + network isolation)
+    if [ "$SETUP_DEVCONTAINER" = true ]; then
+        setup_devcontainer || true
     fi
 
     # VS Code setup
