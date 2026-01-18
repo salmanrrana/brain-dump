@@ -223,6 +223,48 @@ describe("useDockerAvailability", () => {
       // Still only one API call (shared cache)
       expect(mockGetDockerStatus).toHaveBeenCalledTimes(1);
     });
+
+    it("should refetch after stale time expires (cache invalidation)", async () => {
+      // This test verifies the cache invalidation behavior by checking
+      // the QueryClient cache state directly after data is set as stale.
+      // Manually invalidating simulates what happens when staleTime (30s) passes.
+
+      const queryClient = createTestQueryClient();
+      const wrapper = createWrapper(queryClient);
+
+      // First call returns Docker available
+      mockGetDockerStatus.mockResolvedValueOnce(createDockerStatus({ dockerRunning: true }));
+
+      const { result } = renderHook(() => useDockerAvailability(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      expect(result.current.isAvailable).toBe(true);
+      expect(mockGetDockerStatus).toHaveBeenCalledTimes(1);
+
+      // Second call returns Docker unavailable (simulating daemon stopped)
+      mockGetDockerStatus.mockResolvedValueOnce(
+        createDockerStatus({ dockerRunning: false })
+      );
+
+      // Manually invalidate the cache to simulate stale time expiration
+      // This is equivalent to what happens when staleTime (30s) passes
+      await act(async () => {
+        await queryClient.invalidateQueries({ queryKey: ["docker-availability"] });
+      });
+
+      // Wait for the refetch to complete
+      await waitFor(() => {
+        expect(mockGetDockerStatus).toHaveBeenCalledTimes(2);
+      });
+
+      // After refetch, should show updated status
+      await waitFor(() => {
+        expect(result.current.isAvailable).toBe(false);
+      });
+    });
   });
 
   describe("refetch behavior", () => {
