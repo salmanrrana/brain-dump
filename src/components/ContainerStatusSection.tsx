@@ -24,7 +24,7 @@ import {
   Loader2,
   Play,
   Square,
-  Terminal,
+  Container,
 } from "lucide-react";
 import {
   useProjectServices,
@@ -468,8 +468,8 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
                     aria-label="Running"
                   />
 
-                  {/* Container name with terminal icon */}
-                  <Terminal size={14} className="text-cyan-400" />
+                  {/* Container name with Docker container icon */}
+                  <Container size={14} className="text-cyan-400" />
                   <span className="text-sm text-gray-100 flex-1 truncate">Ralph (Docker)</span>
 
                   {/* View logs hint */}
