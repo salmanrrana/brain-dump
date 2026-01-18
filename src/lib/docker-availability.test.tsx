@@ -245,9 +245,7 @@ describe("useDockerAvailability", () => {
       expect(mockGetDockerStatus).toHaveBeenCalledTimes(1);
 
       // Second call returns Docker unavailable (simulating daemon stopped)
-      mockGetDockerStatus.mockResolvedValueOnce(
-        createDockerStatus({ dockerRunning: false })
-      );
+      mockGetDockerStatus.mockResolvedValueOnce(createDockerStatus({ dockerRunning: false }));
 
       // Manually invalidate the cache to simulate stale time expiration
       // This is equivalent to what happens when staleTime (30s) passes
