@@ -13,6 +13,7 @@
   "scripts": {
     "brain-dump": "npx tsx cli/brain-dump.ts",
     "dev": "vite dev --port 4242",
+    "dev:v2": "vite dev --port 4243",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
