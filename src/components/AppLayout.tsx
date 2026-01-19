@@ -390,12 +390,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <AppContext.Provider value={appState}>
-      <div className="min-h-screen bg-slate-950 text-gray-100 flex">
-        {/* Sidebar */}
+      <div className="h-screen grid grid-cols-[256px_1fr] text-gray-100">
+        {/* Sidebar - 256px (w-64 equivalent) */}
         <Sidebar />
 
-        {/* Main content area */}
-        <div className="flex-1 flex flex-col min-w-0">
+        {/* Main content area - takes remaining space */}
+        <div className="flex flex-col min-w-0 overflow-hidden">
           {/* Header */}
           <AppHeader />
 
@@ -837,7 +837,13 @@ function Sidebar() {
   };
 
   return (
-    <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col">
+    <aside
+      className="flex flex-col"
+      style={{
+        backgroundColor: "var(--bg-secondary)",
+        borderRight: "1px solid var(--border-primary)",
+      }}
+    >
       {/* Logo/Title */}
       <div className="h-14 flex items-center px-4 border-b border-slate-800">
         <h1 className="text-3xl">🧠 💩</h1>
