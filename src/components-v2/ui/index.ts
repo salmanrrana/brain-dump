@@ -7,3 +7,4 @@ export * from "./ThemeSwitcher";
 
 // Core components
 export * from "./Button";
+export * from "./Input";
