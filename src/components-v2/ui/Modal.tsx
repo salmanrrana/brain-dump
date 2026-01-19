@@ -1,0 +1,318 @@
+/**
+ * Modal Component
+ *
+ * A base modal component with overlay, focus trap, animations, and
+ * portal rendering. Designed to be composable with Modal.Header,
+ * Modal.Body, and Modal.Footer subcomponents.
+ *
+ * Uses CSS custom properties from the design system for automatic theme adaptation.
+ *
+ * @example
+ * ```tsx
+ * import { Modal } from '@/components-v2/ui/Modal';
+ *
+ * // Basic usage
+ * const [isOpen, setIsOpen] = useState(false);
+ *
+ * <Modal isOpen={isOpen} onClose={() => setIsOpen(false)}>
+ *   <p>Modal content here</p>
+ * </Modal>
+ *
+ * // With size
+ * <Modal isOpen={isOpen} onClose={onClose} size="lg">
+ *   <p>Large modal content</p>
+ * </Modal>
+ *
+ * // Without close on overlay click
+ * <Modal isOpen={isOpen} onClose={onClose} closeOnOverlayClick={false}>
+ *   <p>Must use close button or Escape key</p>
+ * </Modal>
+ * ```
+ */
+
+import {
+  useEffect,
+  useRef,
+  useCallback,
+  type ReactNode,
+  type KeyboardEvent,
+  type MouseEvent,
+} from "react";
+import { createPortal } from "react-dom";
+
+// =============================================================================
+// TYPES
+// =============================================================================
+
+export type ModalSize = "sm" | "md" | "lg" | "xl";
+
+export interface ModalProps {
+  /** Whether the modal is open */
+  isOpen: boolean;
+  /** Callback when the modal should close */
+  onClose: () => void;
+  /** Modal width size */
+  size?: ModalSize;
+  /** Whether clicking the overlay closes the modal (default: true) */
+  closeOnOverlayClick?: boolean;
+  /** Modal content */
+  children: ReactNode;
+  /** Additional CSS classes for the modal container */
+  className?: string;
+  /** Additional inline styles for the modal container */
+  style?: React.CSSProperties;
+  /** ID for the modal element */
+  id?: string;
+  /** Accessible label for the modal */
+  "aria-label"?: string;
+  /** ID of the element that labels the modal */
+  "aria-labelledby"?: string;
+  /** ID of the element that describes the modal */
+  "aria-describedby"?: string;
+}
+
+// =============================================================================
+// SIZE CONFIGURATION
+// =============================================================================
+
+/**
+ * Width values for each modal size.
+ */
+const SIZE_WIDTHS: Record<ModalSize, string> = {
+  sm: "400px",
+  md: "500px",
+  lg: "600px",
+  xl: "800px",
+};
+
+// =============================================================================
+// STYLE CONFIGURATION
+// =============================================================================
+
+/**
+ * Styles for the overlay backdrop.
+ */
+const getOverlayStyles = (isVisible: boolean): React.CSSProperties => ({
+  position: "fixed",
+  inset: 0,
+  backgroundColor: "rgba(0, 0, 0, 0.7)",
+  backdropFilter: "blur(4px)",
+  zIndex: "var(--z-modal-backdrop)" as unknown as number,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "var(--spacing-4)",
+  opacity: isVisible ? 1 : 0,
+  transition: "opacity var(--transition-normal)",
+  pointerEvents: isVisible ? "auto" : "none",
+});
+
+/**
+ * Styles for the modal container.
+ */
+const getModalStyles = (size: ModalSize, isVisible: boolean): React.CSSProperties => ({
+  position: "relative",
+  width: "100%",
+  maxWidth: SIZE_WIDTHS[size],
+  maxHeight: "calc(100vh - var(--spacing-8))",
+  backgroundColor: "var(--bg-card)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-xl)",
+  boxShadow: "var(--shadow-xl)",
+  zIndex: "var(--z-modal)" as unknown as number,
+  display: "flex",
+  flexDirection: "column",
+  overflow: "hidden",
+  opacity: isVisible ? 1 : 0,
+  transform: isVisible ? "scale(1)" : "scale(0.95)",
+  transition: "opacity var(--transition-normal), transform var(--transition-normal)",
+});
+
+/**
+ * Styles for the scrollable content area.
+ */
+const getContentStyles = (): React.CSSProperties => ({
+  flex: 1,
+  overflowY: "auto",
+  overflowX: "hidden",
+});
+
+// =============================================================================
+// FOCUS TRAP UTILITIES
+// =============================================================================
+
+/**
+ * Get all focusable elements within a container.
+ */
+const FOCUSABLE_SELECTORS = [
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "a[href]",
+  '[tabindex]:not([tabindex="-1"])',
+].join(", ");
+
+function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTORS));
+}
+
+// =============================================================================
+// MODAL COMPONENT
+// =============================================================================
+
+/**
+ * Modal component with theme-aware styling.
+ *
+ * Features:
+ * - Overlay with backdrop blur
+ * - Focus trap (tab stays within modal)
+ * - Escape key closes modal
+ * - Click outside closes modal (optional)
+ * - Enter/exit animations (fade + scale)
+ * - Portal renders to body
+ * - Scrollable content area
+ * - Multiple sizes (sm, md, lg, xl)
+ */
+export function Modal({
+  isOpen,
+  onClose,
+  size = "md",
+  closeOnOverlayClick = true,
+  children,
+  className = "",
+  style,
+  id,
+  "aria-label": ariaLabel,
+  "aria-labelledby": ariaLabelledby,
+  "aria-describedby": ariaDescribedby,
+}: ModalProps) {
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousActiveElement = useRef<HTMLElement | null>(null);
+
+  // Handle escape key
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      }
+
+      // Focus trap: Tab and Shift+Tab
+      if (event.key === "Tab" && modalRef.current) {
+        const focusableElements = getFocusableElements(modalRef.current);
+        if (focusableElements.length === 0) {
+          event.preventDefault();
+          return;
+        }
+
+        const firstElement = focusableElements[0] as HTMLElement;
+        const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+        if (event.shiftKey) {
+          // Shift+Tab: If on first element, go to last
+          if (document.activeElement === firstElement) {
+            event.preventDefault();
+            lastElement.focus();
+          }
+        } else {
+          // Tab: If on last element, go to first
+          if (document.activeElement === lastElement) {
+            event.preventDefault();
+            firstElement.focus();
+          }
+        }
+      }
+    },
+    [onClose]
+  );
+
+  // Handle overlay click
+  const handleOverlayClick = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      // Only close if clicking the overlay itself, not the modal content
+      if (closeOnOverlayClick && event.target === event.currentTarget) {
+        onClose();
+      }
+    },
+    [closeOnOverlayClick, onClose]
+  );
+
+  // Focus management: save previous focus and focus modal on open
+  useEffect(() => {
+    if (isOpen) {
+      // Save currently focused element
+      previousActiveElement.current = document.activeElement as HTMLElement;
+
+      // Focus the modal or first focusable element
+      requestAnimationFrame(() => {
+        if (modalRef.current) {
+          const focusableElements = getFocusableElements(modalRef.current);
+          const firstElement = focusableElements[0];
+          if (firstElement) {
+            firstElement.focus();
+          } else {
+            // If no focusable elements, focus the modal itself
+            modalRef.current.focus();
+          }
+        }
+      });
+    } else {
+      // Restore focus when closing
+      if (previousActiveElement.current) {
+        previousActiveElement.current.focus();
+        previousActiveElement.current = null;
+      }
+    }
+  }, [isOpen]);
+
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isOpen]);
+
+  // Don't render anything if not open
+  if (!isOpen) {
+    return null;
+  }
+
+  // Use portal to render at body level
+  return createPortal(
+    <div
+      style={getOverlayStyles(isOpen)}
+      onClick={handleOverlayClick}
+      onKeyDown={handleKeyDown}
+      data-testid="modal-overlay"
+      aria-hidden={!isOpen}
+    >
+      <div
+        ref={modalRef}
+        id={id}
+        role="dialog"
+        aria-modal="true"
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabelledby}
+        aria-describedby={ariaDescribedby}
+        tabIndex={-1}
+        style={{ ...getModalStyles(size, isOpen), ...style }}
+        className={className}
+        data-testid="modal-container"
+        data-size={size}
+        data-open={isOpen ? "true" : undefined}
+      >
+        <div style={getContentStyles()}>{children}</div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+export default Modal;
