@@ -99,7 +99,7 @@
     {
       "id": "5a06e93c-36d1-427d-8080-42ea0e6bf4ca",
       "title": "05 - Document parallel development workflow",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
