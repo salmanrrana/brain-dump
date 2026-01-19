@@ -12,6 +12,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Plus, Settings } from "lucide-react";
 import { Modal } from "./Modal";
 
 // =============================================================================
@@ -551,6 +552,165 @@ describe("Modal", () => {
 
       expect(screen.getByText("Modal 1")).toBeInTheDocument();
       expect(screen.getByText("Modal 2")).toBeInTheDocument();
+    });
+  });
+});
+
+// =============================================================================
+// MODAL.HEADER TESTS
+// =============================================================================
+
+describe("Modal.Header", () => {
+  describe("Acceptance Criteria", () => {
+    it("should render gradient icon area with provided icon", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Header icon={Plus} title="Test Title" onClose={() => {}} />
+        </Modal>
+      );
+
+      const header = screen.getByTestId("modal-header");
+      expect(header).toBeInTheDocument();
+
+      // Icon should be rendered (lucide icons render as svg)
+      // The svg is inside a div with gradient background
+      const headerElement = screen.getByTestId("modal-header");
+      const svgs = headerElement.querySelectorAll("svg");
+      // Should have at least 2 svgs: the icon and the close button X
+      expect(svgs.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("should render title text", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Header icon={Plus} title="Create New Ticket" onClose={() => {}} />
+        </Modal>
+      );
+
+      expect(screen.getByText("Create New Ticket")).toBeInTheDocument();
+      // Title should be in an h2 element
+      expect(screen.getByRole("heading", { name: "Create New Ticket" })).toBeInTheDocument();
+    });
+
+    it("should render close button on right", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Header icon={Plus} title="Test" onClose={() => {}} />
+        </Modal>
+      );
+
+      const closeButton = screen.getByTestId("modal-close-button");
+      expect(closeButton).toBeInTheDocument();
+      expect(closeButton).toHaveAttribute("aria-label", "Close modal");
+    });
+
+    it("should call onClose when close button is clicked", async () => {
+      const user = userEvent.setup();
+      const onClose = vi.fn();
+
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Header icon={Plus} title="Test" onClose={onClose} />
+        </Modal>
+      );
+
+      await user.click(screen.getByTestId("modal-close-button"));
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("should have sticky positioning for scroll", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Header icon={Plus} title="Test" onClose={() => {}} />
+        </Modal>
+      );
+
+      const header = screen.getByTestId("modal-header");
+      expect(header).toHaveStyle({ position: "sticky", top: "0" });
+    });
+
+    it("should have border bottom separator", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Header icon={Plus} title="Test" onClose={() => {}} />
+        </Modal>
+      );
+
+      const header = screen.getByTestId("modal-header");
+      // Check that border-bottom style contains the CSS variable
+      // Note: jsdom doesn't compute CSS variables, so we check the raw style
+      const style = header.getAttribute("style");
+      expect(style).toContain("border-bottom:");
+    });
+  });
+
+  describe("Icon variations", () => {
+    it("should render without icon when not provided", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Header title="No Icon" onClose={() => {}} />
+        </Modal>
+      );
+
+      expect(screen.getByText("No Icon")).toBeInTheDocument();
+      // Should still have close button
+      expect(screen.getByTestId("modal-close-button")).toBeInTheDocument();
+    });
+
+    it("should accept different icon components", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Header icon={Settings} title="Settings" onClose={() => {}} />
+        </Modal>
+      );
+
+      expect(screen.getByText("Settings")).toBeInTheDocument();
+    });
+  });
+
+  describe("Accessibility", () => {
+    it("should have accessible close button", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Header icon={Plus} title="Test" onClose={() => {}} />
+        </Modal>
+      );
+
+      const closeButton = screen.getByRole("button", { name: "Close modal" });
+      expect(closeButton).toBeInTheDocument();
+    });
+
+    it("should render title as heading for screen readers", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Header icon={Plus} title="Important Modal" onClose={() => {}} />
+        </Modal>
+      );
+
+      expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Important Modal");
+    });
+  });
+
+  describe("Keyboard navigation", () => {
+    it("should be focusable via Tab", async () => {
+      const user = userEvent.setup();
+
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Header icon={Plus} title="Test" onClose={() => {}} />
+          <button data-testid="other-button">Other</button>
+        </Modal>
+      );
+
+      // First focus should go to close button (first focusable element)
+      await waitFor(() => {
+        expect(screen.getByTestId("modal-close-button")).toHaveFocus();
+      });
+
+      // Tab to next element
+      await user.tab();
+      expect(screen.getByTestId("other-button")).toHaveFocus();
     });
   });
 });

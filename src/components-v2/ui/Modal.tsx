@@ -37,14 +37,27 @@ import {
   type ReactNode,
   type KeyboardEvent,
   type MouseEvent,
+  type ElementType,
 } from "react";
 import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 
 // =============================================================================
 // TYPES
 // =============================================================================
 
 export type ModalSize = "sm" | "md" | "lg" | "xl";
+
+export interface ModalHeaderProps {
+  /** Icon to display in the gradient area (Lucide icon component) */
+  icon?: ElementType;
+  /** Modal title text */
+  title: string;
+  /** Callback when the close button is clicked */
+  onClose: () => void;
+  /** Additional CSS classes */
+  className?: string;
+}
 
 export interface ModalProps {
   /** Whether the modal is open */
@@ -174,6 +187,144 @@ function getFocusableElements(container: HTMLElement): HTMLElement[] {
  * - Scrollable content area
  * - Multiple sizes (sm, md, lg, xl)
  */
+// =============================================================================
+// MODAL HEADER SUBCOMPONENT
+// =============================================================================
+
+/**
+ * Styles for the header container.
+ * Sticky positioning keeps it at the top during scroll.
+ */
+const getHeaderStyles = (): React.CSSProperties => ({
+  position: "sticky",
+  top: 0,
+  display: "flex",
+  alignItems: "center",
+  gap: "var(--spacing-3)",
+  padding: "var(--spacing-4)",
+  borderBottom: "1px solid var(--border-primary)",
+  backgroundColor: "var(--bg-card)",
+  zIndex: 1,
+});
+
+/**
+ * Styles for the gradient icon area.
+ */
+const getIconAreaStyles = (): React.CSSProperties => ({
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "40px",
+  height: "40px",
+  borderRadius: "var(--radius-lg)",
+  background: "var(--gradient-accent)",
+  flexShrink: 0,
+});
+
+/**
+ * Styles for the icon inside the gradient area.
+ */
+const getIconStyles = (): React.CSSProperties => ({
+  width: "20px",
+  height: "20px",
+  color: "white",
+});
+
+/**
+ * Styles for the title text.
+ */
+const getTitleStyles = (): React.CSSProperties => ({
+  flex: 1,
+  fontSize: "var(--font-size-lg)",
+  fontWeight: "var(--font-weight-semibold)" as unknown as number,
+  color: "var(--text-primary)",
+  margin: 0,
+});
+
+/**
+ * Styles for the close button.
+ */
+const getCloseButtonStyles = (): React.CSSProperties => ({
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "32px",
+  height: "32px",
+  borderRadius: "var(--radius-md)",
+  border: "none",
+  backgroundColor: "transparent",
+  color: "var(--text-secondary)",
+  cursor: "pointer",
+  flexShrink: 0,
+  transition: "background-color var(--transition-fast), color var(--transition-fast)",
+});
+
+/**
+ * Modal header component with gradient icon area.
+ *
+ * Features:
+ * - Gradient icon area on left using accent colors
+ * - Title text
+ * - Close button (X) on right
+ * - Sticky at top during scroll
+ * - Border bottom separator
+ *
+ * @example
+ * ```tsx
+ * <Modal.Header
+ *   icon={Plus}
+ *   title="Create New Ticket"
+ *   onClose={onClose}
+ * />
+ * ```
+ */
+function ModalHeader({ icon: Icon, title, onClose, className = "" }: ModalHeaderProps) {
+  return (
+    <header style={getHeaderStyles()} className={className} data-testid="modal-header">
+      {/* Gradient icon area */}
+      {Icon && (
+        <div style={getIconAreaStyles()}>
+          <Icon style={getIconStyles()} aria-hidden="true" />
+        </div>
+      )}
+
+      {/* Title */}
+      <h2 style={getTitleStyles()}>{title}</h2>
+
+      {/* Close button */}
+      <button
+        type="button"
+        onClick={onClose}
+        style={getCloseButtonStyles()}
+        aria-label="Close modal"
+        data-testid="modal-close-button"
+        onMouseOver={(e) => {
+          e.currentTarget.style.backgroundColor = "var(--bg-hover)";
+          e.currentTarget.style.color = "var(--text-primary)";
+        }}
+        onMouseOut={(e) => {
+          e.currentTarget.style.backgroundColor = "transparent";
+          e.currentTarget.style.color = "var(--text-secondary)";
+        }}
+        onFocus={(e) => {
+          e.currentTarget.style.backgroundColor = "var(--bg-hover)";
+          e.currentTarget.style.color = "var(--text-primary)";
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.backgroundColor = "transparent";
+          e.currentTarget.style.color = "var(--text-secondary)";
+        }}
+      >
+        <X size={20} aria-hidden="true" />
+      </button>
+    </header>
+  );
+}
+
+// =============================================================================
+// MODAL COMPONENT
+// =============================================================================
+
 export function Modal({
   isOpen,
   onClose,
@@ -314,5 +465,8 @@ export function Modal({
     document.body
   );
 }
+
+// Attach subcomponents for compound component pattern
+Modal.Header = ModalHeader;
 
 export default Modal;
