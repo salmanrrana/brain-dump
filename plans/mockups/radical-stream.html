@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Brain Dump - Stream Mode (Minimalist Flow)</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg: #fafafa;
+      --card: #ffffff;
+      --text: #111111;
+      --text-soft: #666666;
+      --text-muted: #999999;
+      --border: #e5e5e5;
+      --accent: #000000;
+      --done: #22c55e;
+      --progress: #3b82f6;
+      --review: #f59e0b;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ========== ULTRA MINIMAL HEADER ========== */
+    .header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 56px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 32px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+    }
+
+    .logo {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+    }
+
+    .header-center {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .nav-pill {
+      padding: 6px 14px;
+      font-size: 13px;
+      color: var(--text-soft);
+      cursor: pointer;
+      border-radius: 100px;
+      transition: all 0.2s;
+    }
+
+    .nav-pill:hover {
+      background: var(--border);
+    }
+
+    .nav-pill.active {
+      background: var(--accent);
+      color: white;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      color: var(--text-soft);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--done);
+    }
+
+    .icon-btn {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .icon-btn:hover {
+      background: var(--border);
+    }
+
+    /* ========== MAIN LAYOUT ========== */
+    .main {
+      display: flex;
+      height: 100vh;
+      padding-top: 56px;
+    }
+
+    /* ========== SIDEBAR - MINIMAL ========== */
+    .sidebar {
+      width: 240px;
+      border-right: 1px solid var(--border);
+      padding: 24px 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-section {
+      padding: 0 16px;
+      margin-bottom: 24px;
+    }
+
+    .sidebar-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .project-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      margin: 0 -12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .project-link:hover {
+      background: var(--border);
+    }
+
+    .project-link.active {
+      background: var(--accent);
+      color: white;
+    }
+
+    .project-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .project-name {
+      font-size: 14px;
+      font-weight: 500;
+      flex: 1;
+    }
+
+    .project-count {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .project-link.active .project-count {
+      color: rgba(255,255,255,0.7);
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 0 16px;
+    }
+
+    .add-project {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+      color: var(--text-soft);
+      cursor: pointer;
+      border-radius: 8px;
+      transition: background 0.15s;
+    }
+
+    .add-project:hover {
+      background: var(--border);
+    }
+
+    /* ========== STREAM VIEW ========== */
+    .stream-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .stream-header {
+      padding: 24px 32px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .stream-title {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+    }
+
+    .stream-meta {
+      font-size: 13px;
+      color: var(--text-soft);
+      margin-top: 4px;
+    }
+
+    .stream-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .action-btn {
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .action-btn:hover {
+      border-color: var(--text-muted);
+    }
+
+    .action-btn.primary {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    /* The Stream */
+    .stream {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 32px;
+    }
+
+    .stream-section {
+      padding: 24px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .stream-section:last-child {
+      border-bottom: none;
+    }
+
+    .section-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .section-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .section-indicator.progress {
+      background: var(--progress);
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+    }
+
+    .section-indicator.review {
+      background: var(--review);
+    }
+
+    .section-indicator.done {
+      background: var(--done);
+    }
+
+    .section-indicator.backlog {
+      background: var(--text-muted);
+    }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-soft);
+    }
+
+    .section-count {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Stream Cards */
+    .stream-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .stream-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 20px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .stream-card:hover {
+      border-color: var(--text-muted);
+      transform: translateX(4px);
+    }
+
+    .stream-card.ai-active {
+      border-color: var(--progress);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .card-priority {
+      width: 4px;
+      height: 40px;
+      border-radius: 2px;
+    }
+
+    .card-priority.high { background: #ef4444; }
+    .card-priority.medium { background: #f59e0b; }
+    .card-priority.low { background: #22c55e; }
+
+    .card-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 500;
+      margin-bottom: 4px;
+      line-height: 1.4;
+    }
+
+    .card-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .card-id {
+      font-weight: 600;
+    }
+
+    .card-tags {
+      display: flex;
+      gap: 6px;
+    }
+
+    .card-tag {
+      padding: 2px 8px;
+      background: var(--bg);
+      border-radius: 4px;
+      font-size: 11px;
+    }
+
+    .card-ai {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: rgba(59, 130, 246, 0.1);
+      color: var(--progress);
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .card-ai .pulse {
+      width: 6px;
+      height: 6px;
+      background: var(--progress);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.2); }
+    }
+
+    .card-action {
+      padding: 8px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--card);
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .card-action:hover {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    /* Empty State */
+    .empty-section {
+      padding: 24px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13px;
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+    }
+
+    /* ========== QUICK ACTIONS FOOTER ========== */
+    .quick-actions {
+      padding: 16px 32px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--card);
+    }
+
+    .keyboard-hints {
+      display: flex;
+      gap: 24px;
+    }
+
+    .hint {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .key {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 6px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .summary {
+      display: flex;
+      gap: 20px;
+      font-size: 13px;
+    }
+
+    .summary-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .summary-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    /* Demo Badge */
+    .demo-badge {
+      position: fixed;
+      top: 64px;
+      right: 32px;
+      background: var(--accent);
+      color: white;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      z-index: 100;
+    }
+
+    /* Dark Mode */
+    body.dark {
+      --bg: #0a0a0a;
+      --card: #141414;
+      --text: #fafafa;
+      --text-soft: #a0a0a0;
+      --text-muted: #666666;
+      --border: #262626;
+      --accent: #ffffff;
+    }
+
+    body.dark .action-btn.primary {
+      color: #000000;
+    }
+
+    body.dark .card-tag {
+      background: var(--card);
+      border: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="demo-badge">Stream Mode - Minimalist Flow</div>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="logo">Brain Dump</div>
+
+    <div class="header-center">
+      <div class="nav-pill active">Stream</div>
+      <div class="nav-pill">Board</div>
+      <div class="nav-pill">Timeline</div>
+    </div>
+
+    <div class="header-right">
+      <div class="status-pill">
+        <span class="status-dot"></span>
+        <span>Docker Ready</span>
+      </div>
+      <div class="status-pill">
+        <span class="status-dot" style="background: var(--progress);"></span>
+        <span>Claude Active</span>
+      </div>
+      <div class="icon-btn" onclick="toggleDark()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="5"/>
+          <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+        </svg>
+      </div>
+    </div>
+  </header>
+
+  <div class="main">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-title">Projects</div>
+
+        <div class="project-link active">
+          <div class="project-dot" style="background: #3b82f6;"></div>
+          <span class="project-name">Brain Dump</span>
+          <span class="project-count">20</span>
+        </div>
+
+        <div class="project-link">
+          <div class="project-dot" style="background: #8b5cf6;"></div>
+          <span class="project-name">UI Consumer</span>
+          <span class="project-count">8</span>
+        </div>
+
+        <div class="project-link">
+          <div class="project-dot" style="background: #f59e0b;"></div>
+          <span class="project-name">Microservices</span>
+          <span class="project-count">12</span>
+        </div>
+
+        <div class="project-link">
+          <div class="project-dot" style="background: #22c55e;"></div>
+          <span class="project-name">TanStack Docs</span>
+          <span class="project-count">5</span>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="add-project">
+          <span>+</span>
+          <span>New Project</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Stream -->
+    <main class="stream-container">
+      <div class="stream-header">
+        <div>
+          <h1 class="stream-title">Brain Dump</h1>
+          <p class="stream-meta">Ralph Workflow Epic · 13 of 20 complete</p>
+        </div>
+        <div class="stream-actions">
+          <button class="action-btn">Filter</button>
+          <button class="action-btn primary">+ New Ticket</button>
+        </div>
+      </div>
+
+      <div class="stream">
+
+        <!-- In Progress -->
+        <div class="stream-section">
+          <div class="section-label">
+            <div class="section-indicator progress"></div>
+            <span class="section-title">In Progress</span>
+            <span class="section-count">· 2</span>
+          </div>
+
+          <div class="stream-cards">
+            <div class="stream-card ai-active">
+              <div class="card-priority high"></div>
+              <div class="card-content">
+                <div class="card-title">Add Docker daemon launch from settings</div>
+                <div class="card-meta">
+                  <span class="card-id">#42</span>
+                  <div class="card-tags">
+                    <span class="card-tag">docker</span>
+                    <span class="card-tag">ux</span>
+                  </div>
+                </div>
+              </div>
+              <div class="card-ai">
+                <span class="pulse"></span>
+                Claude working
+              </div>
+            </div>
+
+            <div class="stream-card">
+              <div class="card-priority high"></div>
+              <div class="card-content">
+                <div class="card-title">Fix Google Maps blocking render waterfall</div>
+                <div class="card-meta">
+                  <span class="card-id">#41</span>
+                  <div class="card-tags">
+                    <span class="card-tag">performance</span>
+                  </div>
+                </div>
+              </div>
+              <button class="card-action">Start</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Review -->
+        <div class="stream-section">
+          <div class="section-label">
+            <div class="section-indicator review"></div>
+            <span class="section-title">In Review</span>
+            <span class="section-count">· 3</span>
+          </div>
+
+          <div class="stream-cards">
+            <div class="stream-card">
+              <div class="card-priority high"></div>
+              <div class="card-content">
+                <div class="card-title">Branch Ralph launch terminal handling</div>
+                <div class="card-meta">
+                  <span class="card-id">#40</span>
+                  <div class="card-tags">
+                    <span class="card-tag">ralph</span>
+                  </div>
+                </div>
+              </div>
+              <button class="card-action">Approve</button>
+            </div>
+
+            <div class="stream-card">
+              <div class="card-priority medium"></div>
+              <div class="card-content">
+                <div class="card-title">Create VS Code launch method flow</div>
+                <div class="card-meta">
+                  <span class="card-id">#39</span>
+                  <div class="card-tags">
+                    <span class="card-tag">vscode</span>
+                  </div>
+                </div>
+              </div>
+              <button class="card-action">Approve</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ready -->
+        <div class="stream-section">
+          <div class="section-label">
+            <div class="section-indicator backlog"></div>
+            <span class="section-title">Ready</span>
+            <span class="section-count">· 0</span>
+          </div>
+
+          <div class="empty-section">
+            Drag tickets here when ready to start
+          </div>
+        </div>
+
+        <!-- Up Next (Backlog preview) -->
+        <div class="stream-section">
+          <div class="section-label">
+            <div class="section-indicator backlog"></div>
+            <span class="section-title">Up Next</span>
+            <span class="section-count">· 12</span>
+          </div>
+
+          <div class="stream-cards">
+            <div class="stream-card" style="opacity: 0.7;">
+              <div class="card-priority high"></div>
+              <div class="card-content">
+                <div class="card-title">Parallelize file uploads in TicketModal</div>
+                <div class="card-meta">
+                  <span class="card-id">#35</span>
+                  <div class="card-tags">
+                    <span class="card-tag">performance</span>
+                  </div>
+                </div>
+              </div>
+              <button class="card-action">Queue</button>
+            </div>
+
+            <div class="stream-card" style="opacity: 0.6;">
+              <div class="card-priority medium"></div>
+              <div class="card-content">
+                <div class="card-title">Add per-query staleTime configuration</div>
+                <div class="card-meta">
+                  <span class="card-id">#38</span>
+                  <div class="card-tags">
+                    <span class="card-tag">tanstack-query</span>
+                  </div>
+                </div>
+              </div>
+              <button class="card-action">Queue</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="quick-actions">
+        <div class="keyboard-hints">
+          <div class="hint">
+            <span class="key">J</span>
+            <span>Next</span>
+          </div>
+          <div class="hint">
+            <span class="key">K</span>
+            <span>Previous</span>
+          </div>
+          <div class="hint">
+            <span class="key">Enter</span>
+            <span>Open</span>
+          </div>
+          <div class="hint">
+            <span class="key">N</span>
+            <span>New ticket</span>
+          </div>
+        </div>
+
+        <div class="summary">
+          <div class="summary-item">
+            <div class="summary-dot" style="background: var(--progress);"></div>
+            <span>2 active</span>
+          </div>
+          <div class="summary-item">
+            <div class="summary-dot" style="background: var(--review);"></div>
+            <span>3 review</span>
+          </div>
+          <div class="summary-item">
+            <div class="summary-dot" style="background: var(--done);"></div>
+            <span>13 done</span>
+          </div>
+        </div>
+      </div>
+    </main>
+
+  </div>
+
+  <script>
+    function toggleDark() {
+      document.body.classList.toggle('dark');
+    }
+  </script>
+</body>
+</html>

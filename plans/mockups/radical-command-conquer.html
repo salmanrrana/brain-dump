@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Brain Dump - Command Mode (C&C Red Alert Inspired)</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-dark: #0a0a0a;
+      --bg-panel: #1a1a1a;
+      --bg-button: #2a2a2a;
+      --border-dark: #333333;
+      --border-light: #444444;
+
+      /* C&C Colors */
+      --red-soviet: #cc0000;
+      --red-glow: rgba(204, 0, 0, 0.5);
+      --gold-select: #ffcc00;
+      --gold-glow: rgba(255, 204, 0, 0.4);
+      --green-power: #00cc00;
+      --green-glow: rgba(0, 204, 0, 0.4);
+      --blue-allied: #0066cc;
+      --cyan-radar: #00cccc;
+      --amber-warning: #cc9900;
+
+      --text-bright: #cccccc;
+      --text-dim: #888888;
+      --text-terminal: #00ff00;
+    }
+
+    body {
+      font-family: 'Share Tech Mono', monospace;
+      background: var(--bg-dark);
+      color: var(--text-bright);
+      height: 100vh;
+      overflow: hidden;
+      cursor: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><polygon points="0,0 0,16 4,12 8,20 10,19 6,11 12,11" fill="%23ffcc00"/></svg>') 0 0, auto;
+    }
+
+    /* Scanlines overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.1) 0px,
+        rgba(0, 0, 0, 0.1) 1px,
+        transparent 1px,
+        transparent 2px
+      );
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* ========== MAIN LAYOUT ========== */
+    .command-interface {
+      display: grid;
+      grid-template-columns: 1fr 220px;
+      grid-template-rows: auto 1fr auto;
+      height: 100vh;
+      gap: 2px;
+      background: var(--border-dark);
+    }
+
+    /* ========== TOP BAR - MISSION STATUS ========== */
+    .top-bar {
+      grid-column: 1 / -1;
+      background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+      border-bottom: 3px solid var(--red-soviet);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 16px;
+      height: 48px;
+    }
+
+    .mission-id {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .logo-badge {
+      background: var(--red-soviet);
+      padding: 4px 12px;
+      font-family: 'Orbitron', monospace;
+      font-weight: 900;
+      font-size: 14px;
+      letter-spacing: 2px;
+      border: 2px solid #ff3333;
+      box-shadow: 0 0 10px var(--red-glow);
+    }
+
+    .mission-name {
+      font-family: 'Orbitron', monospace;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      color: var(--gold-select);
+    }
+
+    .status-indicators {
+      display: flex;
+      gap: 20px;
+    }
+
+    .status-light {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .light-bulb {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid currentColor;
+    }
+
+    .light-bulb.active {
+      background: currentColor;
+      box-shadow: 0 0 10px currentColor;
+      animation: blink 2s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    .credits-display {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'Orbitron', monospace;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--gold-select);
+    }
+
+    .credits-icon {
+      font-size: 20px;
+    }
+
+    /* ========== BATTLEFIELD (Main Area) ========== */
+    .battlefield {
+      background: #111111;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Grid pattern */
+    .battlefield::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0, 204, 204, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 204, 204, 0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+
+    /* Mission Briefing Overlay */
+    .briefing-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+
+    .briefing-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .briefing-panel {
+      width: 600px;
+      background: var(--bg-panel);
+      border: 3px solid var(--red-soviet);
+      box-shadow: 0 0 40px var(--red-glow);
+    }
+
+    .briefing-header {
+      background: var(--red-soviet);
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .briefing-title {
+      font-family: 'Orbitron', monospace;
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .briefing-close {
+      width: 24px;
+      height: 24px;
+      background: #990000;
+      border: 2px solid #cc0000;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .briefing-content {
+      padding: 20px;
+    }
+
+    .briefing-video {
+      width: 100%;
+      height: 200px;
+      background: #000;
+      border: 2px solid var(--border-light);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .commander-face {
+      font-size: 80px;
+      animation: staticNoise 0.5s infinite;
+    }
+
+    @keyframes staticNoise {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.95; }
+    }
+
+    .briefing-text {
+      font-size: 13px;
+      line-height: 1.8;
+      color: var(--text-terminal);
+      margin-bottom: 16px;
+      padding: 12px;
+      background: #0a0a0a;
+      border: 1px solid var(--border-dark);
+    }
+
+    .objectives-list {
+      list-style: none;
+    }
+
+    .objectives-list li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border-dark);
+      font-size: 12px;
+    }
+
+    .obj-marker {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--gold-select);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+    }
+
+    .obj-marker.complete {
+      background: var(--green-power);
+      border-color: var(--green-power);
+    }
+
+    .briefing-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .brief-btn {
+      flex: 1;
+      padding: 12px;
+      font-family: 'Orbitron', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border: 2px solid;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .brief-btn.primary {
+      background: var(--red-soviet);
+      border-color: #ff3333;
+      color: white;
+    }
+
+    .brief-btn.primary:hover {
+      box-shadow: 0 0 20px var(--red-glow);
+    }
+
+    .brief-btn.secondary {
+      background: var(--bg-button);
+      border-color: var(--border-light);
+      color: var(--text-bright);
+    }
+
+    /* Unit Cards on Battlefield */
+    .unit-container {
+      position: absolute;
+      inset: 20px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      overflow-y: auto;
+      padding: 10px;
+    }
+
+    .unit-card {
+      background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+      border: 2px solid var(--border-dark);
+      padding: 0;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .unit-card:hover {
+      border-color: var(--gold-select);
+      box-shadow: 0 0 20px var(--gold-glow);
+    }
+
+    .unit-card.selected {
+      border-color: var(--gold-select);
+      box-shadow: 0 0 30px var(--gold-glow);
+    }
+
+    .unit-card.ai-active {
+      border-color: var(--cyan-radar);
+      box-shadow: 0 0 20px rgba(0, 204, 204, 0.4);
+      animation: processingPulse 2s infinite;
+    }
+
+    @keyframes processingPulse {
+      0%, 100% { box-shadow: 0 0 20px rgba(0, 204, 204, 0.4); }
+      50% { box-shadow: 0 0 40px rgba(0, 204, 204, 0.6); }
+    }
+
+    .unit-status-bar {
+      height: 4px;
+      background: var(--border-dark);
+    }
+
+    .unit-status-bar .fill {
+      height: 100%;
+      transition: width 0.3s;
+    }
+
+    .unit-status-bar .fill.high { background: var(--red-soviet); }
+    .unit-status-bar .fill.medium { background: var(--amber-warning); }
+    .unit-status-bar .fill.low { background: var(--green-power); }
+
+    .unit-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      background: rgba(0, 0, 0, 0.3);
+      border-bottom: 1px solid var(--border-dark);
+    }
+
+    .unit-id {
+      font-family: 'Orbitron', monospace;
+      font-size: 11px;
+      color: var(--gold-select);
+    }
+
+    .unit-priority {
+      font-size: 9px;
+      padding: 2px 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .unit-priority.high {
+      background: var(--red-soviet);
+      color: white;
+    }
+
+    .unit-priority.medium {
+      background: var(--amber-warning);
+      color: black;
+    }
+
+    .unit-priority.low {
+      background: var(--green-power);
+      color: black;
+    }
+
+    .unit-body {
+      padding: 12px;
+    }
+
+    .unit-name {
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.4;
+      margin-bottom: 8px;
+    }
+
+    .unit-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .unit-tag {
+      font-size: 9px;
+      padding: 2px 6px;
+      background: var(--bg-button);
+      border: 1px solid var(--border-dark);
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .unit-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: rgba(0, 0, 0, 0.3);
+      border-top: 1px solid var(--border-dark);
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    .ai-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--cyan-radar);
+    }
+
+    .ai-indicator .pulse {
+      width: 8px;
+      height: 8px;
+      background: var(--cyan-radar);
+      border-radius: 50%;
+      animation: aiPulse 1s infinite;
+    }
+
+    @keyframes aiPulse {
+      0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 204, 204, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(0, 204, 204, 0); }
+      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 204, 204, 0); }
+    }
+
+    /* ========== RIGHT SIDEBAR ========== */
+    .sidebar {
+      background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 50%, #0a0a0a 100%);
+      border-left: 3px solid var(--border-dark);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Power Meter */
+    .power-section {
+      padding: 10px;
+      background: #0a0a0a;
+      border-bottom: 2px solid var(--border-dark);
+    }
+
+    .power-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .power-bar {
+      height: 20px;
+      background: #1a1a1a;
+      border: 2px solid var(--border-dark);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .power-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #006600 0%, #00cc00 50%, #00ff00 100%);
+      box-shadow: 0 0 10px var(--green-glow);
+      transition: width 0.5s;
+    }
+
+    .power-markers {
+      position: absolute;
+      inset: 0;
+      display: flex;
+    }
+
+    .power-markers span {
+      flex: 1;
+      border-right: 1px solid rgba(0,0,0,0.5);
+    }
+
+    /* Radar/Minimap */
+    .radar-section {
+      padding: 10px;
+      border-bottom: 2px solid var(--border-dark);
+    }
+
+    .radar-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+    }
+
+    .radar-screen {
+      width: 100%;
+      aspect-ratio: 1;
+      background: #001a1a;
+      border: 2px solid var(--cyan-radar);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .radar-screen::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at center, transparent 0%, rgba(0, 204, 204, 0.1) 100%);
+    }
+
+    .radar-sweep {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 50%;
+      height: 2px;
+      background: linear-gradient(90deg, var(--cyan-radar), transparent);
+      transform-origin: left center;
+      animation: sweep 4s linear infinite;
+    }
+
+    @keyframes sweep {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .radar-blip {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      animation: blipFade 4s infinite;
+    }
+
+    .radar-blip.active {
+      background: var(--cyan-radar);
+      box-shadow: 0 0 10px var(--cyan-radar);
+    }
+
+    .radar-blip.done {
+      background: var(--green-power);
+    }
+
+    .radar-blip.queue {
+      background: var(--amber-warning);
+    }
+
+    @keyframes blipFade {
+      0%, 20% { opacity: 1; }
+      80%, 100% { opacity: 0.3; }
+    }
+
+    /* Build Queue */
+    .build-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .build-tabs {
+      display: flex;
+      background: #0a0a0a;
+    }
+
+    .build-tab {
+      flex: 1;
+      padding: 8px;
+      text-align: center;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .build-tab:hover {
+      background: var(--bg-button);
+    }
+
+    .build-tab.active {
+      color: var(--gold-select);
+      border-bottom-color: var(--gold-select);
+    }
+
+    .build-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 4px;
+      padding: 8px;
+      overflow-y: auto;
+      background: #0a0a0a;
+    }
+
+    .build-item {
+      aspect-ratio: 1;
+      background: var(--bg-button);
+      border: 2px solid var(--border-dark);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .build-item:hover {
+      border-color: var(--gold-select);
+      box-shadow: 0 0 10px var(--gold-glow);
+    }
+
+    .build-item .icon {
+      font-size: 24px;
+      margin-bottom: 4px;
+    }
+
+    .build-item .label {
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-dim);
+    }
+
+    .build-item .count {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--gold-select);
+    }
+
+    .build-item.building {
+      border-color: var(--cyan-radar);
+    }
+
+    .build-item.building::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 4px;
+      background: var(--cyan-radar);
+      animation: buildProgress 3s infinite linear;
+    }
+
+    @keyframes buildProgress {
+      from { width: 0%; }
+      to { width: 100%; }
+    }
+
+    /* Action Bar */
+    .action-bar {
+      padding: 8px;
+      background: #0a0a0a;
+      border-top: 2px solid var(--border-dark);
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+    }
+
+    .action-btn {
+      padding: 10px 8px;
+      font-family: 'Orbitron', monospace;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border: 2px solid var(--border-light);
+      background: var(--bg-button);
+      color: var(--text-bright);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .action-btn:hover {
+      border-color: var(--gold-select);
+      box-shadow: 0 0 10px var(--gold-glow);
+    }
+
+    .action-btn.primary {
+      grid-column: 1 / -1;
+      background: var(--red-soviet);
+      border-color: #ff3333;
+    }
+
+    .action-btn.primary:hover {
+      box-shadow: 0 0 20px var(--red-glow);
+    }
+
+    /* ========== BOTTOM BAR ========== */
+    .bottom-bar {
+      grid-column: 1 / -1;
+      background: linear-gradient(0deg, #1a1a1a 0%, #2a2a2a 100%);
+      border-top: 3px solid var(--red-soviet);
+      padding: 8px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 40px;
+    }
+
+    .console-output {
+      font-size: 11px;
+      color: var(--text-terminal);
+    }
+
+    .console-output::before {
+      content: '> ';
+      color: var(--gold-select);
+    }
+
+    .hotkeys {
+      display: flex;
+      gap: 16px;
+    }
+
+    .hotkey {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    .key {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 4px;
+      background: var(--bg-button);
+      border: 1px solid var(--border-light);
+      font-size: 9px;
+      font-weight: 700;
+    }
+
+    /* Demo Badge */
+    .demo-badge {
+      position: fixed;
+      top: 56px;
+      left: 16px;
+      background: var(--red-soviet);
+      color: white;
+      padding: 6px 12px;
+      font-family: 'Orbitron', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      z-index: 100;
+      border: 2px solid #ff3333;
+      box-shadow: 0 0 20px var(--red-glow);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="demo-badge">COMMAND MODE - C&C INSPIRED</div>
+
+  <div class="command-interface">
+
+    <!-- Top Bar -->
+    <header class="top-bar">
+      <div class="mission-id">
+        <div class="logo-badge">BRAIN DUMP</div>
+        <div class="mission-name">Operation: Ralph Workflow</div>
+      </div>
+
+      <div class="status-indicators">
+        <div class="status-light" style="color: var(--green-power);">
+          <div class="light-bulb active"></div>
+          <span>Docker Online</span>
+        </div>
+        <div class="status-light" style="color: var(--cyan-radar);">
+          <div class="light-bulb active"></div>
+          <span>Claude Active</span>
+        </div>
+        <div class="status-light" style="color: var(--green-power);">
+          <div class="light-bulb active"></div>
+          <span>MCP Link</span>
+        </div>
+      </div>
+
+      <div class="credits-display">
+        <span class="credits-icon">💰</span>
+        <span>13 / 20 COMPLETE</span>
+      </div>
+    </header>
+
+    <!-- Battlefield (Main Area) -->
+    <main class="battlefield">
+
+      <!-- Mission Briefing Overlay -->
+      <div class="briefing-overlay" id="briefing">
+        <div class="briefing-panel">
+          <div class="briefing-header">
+            <span class="briefing-title">Mission Briefing - Unit #42</span>
+            <button class="briefing-close" onclick="closeBriefing()">×</button>
+          </div>
+          <div class="briefing-content">
+            <div class="briefing-video">
+              <span class="commander-face">🤖</span>
+            </div>
+            <div class="briefing-text">
+              Commander, your mission is to implement Docker daemon launch capability.
+              Users must be able to start their Docker runtime directly from Brain Dump's UI.
+              Detect Lima, Docker Desktop, or Colima and provide a one-click experience.
+              Time is of the essence. Good luck.
+            </div>
+            <ul class="objectives-list">
+              <li>
+                <span class="obj-marker complete">✓</span>
+                <span>Detect installed Docker runtime</span>
+              </li>
+              <li>
+                <span class="obj-marker complete">✓</span>
+                <span>Create server functions for start/stop</span>
+              </li>
+              <li>
+                <span class="obj-marker"></span>
+                <span>Add UI controls to Settings panel</span>
+              </li>
+              <li>
+                <span class="obj-marker"></span>
+                <span>Implement startup banner check</span>
+              </li>
+            </ul>
+            <div class="briefing-actions">
+              <button class="brief-btn primary" onclick="closeBriefing()">ACKNOWLEDGED</button>
+              <button class="brief-btn secondary">VIEW INTEL</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Unit Cards -->
+      <div class="unit-container">
+
+        <!-- Active Unit (AI Working) -->
+        <div class="unit-card ai-active selected" onclick="openBriefing()">
+          <div class="unit-status-bar">
+            <div class="fill high" style="width: 100%;"></div>
+          </div>
+          <div class="unit-header">
+            <span class="unit-id">UNIT #42</span>
+            <span class="unit-priority high">HIGH PRIORITY</span>
+          </div>
+          <div class="unit-body">
+            <div class="unit-name">Add Docker daemon launch from settings</div>
+            <div class="unit-tags">
+              <span class="unit-tag">docker</span>
+              <span class="unit-tag">ux</span>
+              <span class="unit-tag">enhancement</span>
+            </div>
+          </div>
+          <div class="unit-footer">
+            <span>IN PROGRESS</span>
+            <div class="ai-indicator">
+              <span class="pulse"></span>
+              <span>CLAUDE ENGAGED</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Other Active -->
+        <div class="unit-card">
+          <div class="unit-status-bar">
+            <div class="fill high" style="width: 100%;"></div>
+          </div>
+          <div class="unit-header">
+            <span class="unit-id">UNIT #41</span>
+            <span class="unit-priority high">HIGH PRIORITY</span>
+          </div>
+          <div class="unit-body">
+            <div class="unit-name">Fix Google Maps blocking render waterfall</div>
+            <div class="unit-tags">
+              <span class="unit-tag">performance</span>
+              <span class="unit-tag">critical</span>
+            </div>
+          </div>
+          <div class="unit-footer">
+            <span>IN PROGRESS</span>
+            <span>AWAITING ORDERS</span>
+          </div>
+        </div>
+
+        <!-- Review Units -->
+        <div class="unit-card">
+          <div class="unit-status-bar">
+            <div class="fill medium" style="width: 100%;"></div>
+          </div>
+          <div class="unit-header">
+            <span class="unit-id">UNIT #40</span>
+            <span class="unit-priority high">HIGH PRIORITY</span>
+          </div>
+          <div class="unit-body">
+            <div class="unit-name">Branch Ralph launch terminal handling</div>
+            <div class="unit-tags">
+              <span class="unit-tag">ralph</span>
+              <span class="unit-tag">terminal</span>
+            </div>
+          </div>
+          <div class="unit-footer">
+            <span>IN REVIEW</span>
+            <span>PR #45 OPEN</span>
+          </div>
+        </div>
+
+        <div class="unit-card">
+          <div class="unit-status-bar">
+            <div class="fill medium" style="width: 100%;"></div>
+          </div>
+          <div class="unit-header">
+            <span class="unit-id">UNIT #39</span>
+            <span class="unit-priority medium">MEDIUM</span>
+          </div>
+          <div class="unit-body">
+            <div class="unit-name">Create VS Code launch method flow</div>
+            <div class="unit-tags">
+              <span class="unit-tag">vscode</span>
+              <span class="unit-tag">enhancement</span>
+            </div>
+          </div>
+          <div class="unit-footer">
+            <span>IN REVIEW</span>
+            <span>PR #44 OPEN</span>
+          </div>
+        </div>
+
+        <!-- Backlog Units -->
+        <div class="unit-card" style="opacity: 0.7;">
+          <div class="unit-status-bar">
+            <div class="fill low" style="width: 100%;"></div>
+          </div>
+          <div class="unit-header">
+            <span class="unit-id">UNIT #38</span>
+            <span class="unit-priority medium">MEDIUM</span>
+          </div>
+          <div class="unit-body">
+            <div class="unit-name">Add per-query staleTime configuration</div>
+            <div class="unit-tags">
+              <span class="unit-tag">tanstack-query</span>
+            </div>
+          </div>
+          <div class="unit-footer">
+            <span>BACKLOG</span>
+            <span>QUEUED</span>
+          </div>
+        </div>
+
+        <div class="unit-card" style="opacity: 0.7;">
+          <div class="unit-status-bar">
+            <div class="fill high" style="width: 100%;"></div>
+          </div>
+          <div class="unit-header">
+            <span class="unit-id">UNIT #35</span>
+            <span class="unit-priority high">HIGH PRIORITY</span>
+          </div>
+          <div class="unit-body">
+            <div class="unit-name">Parallelize file uploads in TicketModal</div>
+            <div class="unit-tags">
+              <span class="unit-tag">performance</span>
+              <span class="unit-tag">async-parallel</span>
+            </div>
+          </div>
+          <div class="unit-footer">
+            <span>BACKLOG</span>
+            <span>QUEUED</span>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- Right Sidebar -->
+    <aside class="sidebar">
+
+      <!-- Power Meter -->
+      <div class="power-section">
+        <div class="power-label">
+          <span>POWER STATUS</span>
+          <span style="color: var(--green-power);">OPTIMAL</span>
+        </div>
+        <div class="power-bar">
+          <div class="power-fill" style="width: 85%;"></div>
+          <div class="power-markers">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Radar -->
+      <div class="radar-section">
+        <div class="radar-label">TACTICAL RADAR</div>
+        <div class="radar-screen">
+          <div class="radar-sweep"></div>
+          <!-- Blips represent tickets -->
+          <div class="radar-blip active" style="top: 30%; left: 40%;"></div>
+          <div class="radar-blip active" style="top: 50%; left: 60%;"></div>
+          <div class="radar-blip queue" style="top: 70%; left: 30%;"></div>
+          <div class="radar-blip queue" style="top: 25%; left: 70%;"></div>
+          <div class="radar-blip done" style="top: 60%; left: 20%;"></div>
+          <div class="radar-blip done" style="top: 40%; left: 80%;"></div>
+          <div class="radar-blip done" style="top: 80%; left: 55%;"></div>
+        </div>
+      </div>
+
+      <!-- Build Queue -->
+      <div class="build-section">
+        <div class="build-tabs">
+          <div class="build-tab active">Units</div>
+          <div class="build-tab">Epics</div>
+          <div class="build-tab">Intel</div>
+        </div>
+        <div class="build-grid">
+          <div class="build-item building">
+            <span class="icon">⚡</span>
+            <span class="label">Active</span>
+            <span class="count">2</span>
+          </div>
+          <div class="build-item">
+            <span class="icon">👀</span>
+            <span class="label">Review</span>
+            <span class="count">3</span>
+          </div>
+          <div class="build-item">
+            <span class="icon">📥</span>
+            <span class="label">Backlog</span>
+            <span class="count">12</span>
+          </div>
+          <div class="build-item">
+            <span class="icon">✓</span>
+            <span class="label">Done</span>
+            <span class="count">13</span>
+          </div>
+          <div class="build-item">
+            <span class="icon">🐳</span>
+            <span class="label">Docker</span>
+          </div>
+          <div class="build-item">
+            <span class="icon">🤖</span>
+            <span class="label">Claude</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Bar -->
+      <div class="action-bar">
+        <button class="action-btn">NEW UNIT</button>
+        <button class="action-btn">SETTINGS</button>
+        <button class="action-btn primary">DEPLOY CLAUDE</button>
+      </div>
+
+    </aside>
+
+    <!-- Bottom Bar -->
+    <footer class="bottom-bar">
+      <div class="console-output" id="console">
+        Unit #42 - Claude engaged. Implementing Docker detection...
+      </div>
+      <div class="hotkeys">
+        <div class="hotkey">
+          <span class="key">N</span>
+          <span>New Unit</span>
+        </div>
+        <div class="hotkey">
+          <span class="key">D</span>
+          <span>Deploy</span>
+        </div>
+        <div class="hotkey">
+          <span class="key">R</span>
+          <span>Radar</span>
+        </div>
+        <div class="hotkey">
+          <span class="key">ESC</span>
+          <span>Deselect</span>
+        </div>
+      </div>
+    </footer>
+
+  </div>
+
+  <script>
+    // Console messages
+    const messages = [
+      "Unit #42 - Claude engaged. Implementing Docker detection...",
+      "Construction complete.",
+      "New unit ready.",
+      "Building...",
+      "Unit #42 - Server functions created successfully.",
+      "Radar scan complete. 2 units active.",
+      "Mission objective updated.",
+      "Unit #42 - UI components in progress..."
+    ];
+
+    let msgIndex = 0;
+    setInterval(() => {
+      msgIndex = (msgIndex + 1) % messages.length;
+      document.getElementById('console').textContent = messages[msgIndex];
+    }, 4000);
+
+    function openBriefing() {
+      document.getElementById('briefing').classList.add('active');
+    }
+
+    function closeBriefing() {
+      document.getElementById('briefing').classList.remove('active');
+    }
+
+    // Play "acknowledged" style feedback
+    document.querySelectorAll('.unit-card').forEach(card => {
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.unit-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+      });
+    });
+  </script>
+</body>
+</html>

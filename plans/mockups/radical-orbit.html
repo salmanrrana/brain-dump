@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Brain Dump - Orbit Mode (Mission Control)</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-void: #050510;
+      --bg-panel: #0a0a1a;
+      --bg-card: #101025;
+      --border: rgba(255, 255, 255, 0.08);
+      --text-bright: #ffffff;
+      --text-dim: #6b7280;
+      --text-muted: #374151;
+
+      --orbit-1: #06b6d4;
+      --orbit-2: #8b5cf6;
+      --orbit-3: #f59e0b;
+      --orbit-4: #10b981;
+
+      --status-active: #22c55e;
+      --status-warning: #eab308;
+      --status-error: #ef4444;
+    }
+
+    body {
+      font-family: 'JetBrains Mono', 'SF Mono', monospace;
+      background: var(--bg-void);
+      color: var(--text-bright);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ========== STARFIELD BACKGROUND ========== */
+    .starfield {
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(2px 2px at 20px 30px, rgba(255,255,255,0.3), transparent),
+        radial-gradient(2px 2px at 40px 70px, rgba(255,255,255,0.2), transparent),
+        radial-gradient(1px 1px at 90px 40px, rgba(255,255,255,0.4), transparent),
+        radial-gradient(2px 2px at 130px 80px, rgba(255,255,255,0.2), transparent),
+        radial-gradient(1px 1px at 160px 120px, rgba(255,255,255,0.3), transparent);
+      background-size: 200px 200px;
+      animation: drift 60s linear infinite;
+      pointer-events: none;
+    }
+
+    @keyframes drift {
+      from { transform: translateX(0); }
+      to { transform: translateX(-200px); }
+    }
+
+    /* ========== MAIN LAYOUT ========== */
+    .mission-control {
+      display: grid;
+      grid-template-columns: 280px 1fr 320px;
+      grid-template-rows: 60px 1fr;
+      height: 100vh;
+      gap: 1px;
+      background: var(--border);
+    }
+
+    /* ========== TOP BAR ========== */
+    .top-bar {
+      grid-column: 1 / -1;
+      background: var(--bg-panel);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .mission-id {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .mission-logo {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--orbit-1), var(--orbit-2));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .mission-name {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .mission-time {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    .status-bar {
+      display: flex;
+      gap: 24px;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .status-dot.active {
+      background: var(--status-active);
+      box-shadow: 0 0 10px var(--status-active);
+      animation: statusPulse 2s infinite;
+    }
+
+    .status-dot.warning {
+      background: var(--status-warning);
+      box-shadow: 0 0 10px var(--status-warning);
+    }
+
+    @keyframes statusPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .clock {
+      font-size: 20px;
+      font-weight: 300;
+      letter-spacing: 2px;
+      color: var(--orbit-1);
+    }
+
+    /* ========== LEFT PANEL - PROJECTS ========== */
+    .projects-panel {
+      background: var(--bg-panel);
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .panel-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--text-dim);
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .project-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .project-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: var(--bg-card);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .project-item:hover {
+      border-color: var(--orbit-1);
+    }
+
+    .project-item.active {
+      border-color: var(--orbit-1);
+      box-shadow: 0 0 20px rgba(6, 182, 212, 0.1);
+    }
+
+    .project-orbit {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 2px solid;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      position: relative;
+    }
+
+    .project-orbit::after {
+      content: '';
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      background: currentColor;
+      border-radius: 50%;
+      top: 0;
+      right: 0;
+      animation: orbitDot 3s linear infinite;
+    }
+
+    @keyframes orbitDot {
+      from { transform: rotate(0deg) translateX(13px) rotate(0deg); }
+      to { transform: rotate(360deg) translateX(13px) rotate(-360deg); }
+    }
+
+    .project-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .project-name {
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .project-status {
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    .project-session {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .project-session.active {
+      background: var(--status-active);
+      box-shadow: 0 0 8px var(--status-active);
+    }
+
+    .project-session.inactive {
+      background: var(--text-muted);
+    }
+
+    /* ========== CENTER - ORBITAL VIEW ========== */
+    .orbital-view {
+      background: var(--bg-void);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* Orbital Rings */
+    .orbit-ring {
+      position: absolute;
+      border: 1px solid;
+      border-radius: 50%;
+      opacity: 0.3;
+    }
+
+    .orbit-ring.ring-1 {
+      width: 200px;
+      height: 200px;
+      border-color: var(--orbit-4);
+    }
+
+    .orbit-ring.ring-2 {
+      width: 340px;
+      height: 340px;
+      border-color: var(--orbit-1);
+    }
+
+    .orbit-ring.ring-3 {
+      width: 480px;
+      height: 480px;
+      border-color: var(--orbit-2);
+    }
+
+    .orbit-ring.ring-4 {
+      width: 620px;
+      height: 620px;
+      border-color: var(--orbit-3);
+    }
+
+    /* Center - You */
+    .center-node {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, var(--orbit-1), var(--orbit-2));
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      box-shadow:
+        0 0 40px rgba(6, 182, 212, 0.4),
+        0 0 80px rgba(139, 92, 246, 0.2);
+      z-index: 10;
+      position: relative;
+    }
+
+    .center-label {
+      position: absolute;
+      bottom: -30px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--text-dim);
+    }
+
+    /* Orbital Tickets */
+    .orbital-ticket {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      background: var(--bg-card);
+      border-radius: 12px;
+      border: 2px solid;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      z-index: 5;
+    }
+
+    .orbital-ticket:hover {
+      transform: scale(1.15);
+      z-index: 20;
+    }
+
+    .orbital-ticket .number {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .orbital-ticket .priority {
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 2px;
+    }
+
+    /* Orbit positions */
+    .orbital-ticket.done {
+      border-color: var(--orbit-4);
+      color: var(--orbit-4);
+    }
+
+    .orbital-ticket.review {
+      border-color: var(--orbit-1);
+      color: var(--orbit-1);
+      box-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+    }
+
+    .orbital-ticket.progress {
+      border-color: var(--orbit-2);
+      color: var(--orbit-2);
+      box-shadow: 0 0 30px rgba(139, 92, 246, 0.4);
+      animation: activePulse 2s infinite;
+    }
+
+    @keyframes activePulse {
+      0%, 100% {
+        box-shadow: 0 0 30px rgba(139, 92, 246, 0.4);
+      }
+      50% {
+        box-shadow: 0 0 50px rgba(139, 92, 246, 0.6);
+      }
+    }
+
+    .orbital-ticket.backlog {
+      border-color: var(--orbit-3);
+      color: var(--orbit-3);
+      opacity: 0.7;
+    }
+
+    /* AI Working Indicator */
+    .ai-indicator {
+      position: absolute;
+      bottom: 30px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      background: var(--bg-panel);
+      border: 1px solid var(--orbit-2);
+      border-radius: 100px;
+      font-size: 12px;
+    }
+
+    .ai-beacon {
+      width: 12px;
+      height: 12px;
+      background: var(--orbit-2);
+      border-radius: 50%;
+      animation: beaconPulse 1.5s infinite;
+    }
+
+    @keyframes beaconPulse {
+      0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.7);
+      }
+      70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 15px rgba(139, 92, 246, 0);
+      }
+      100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+      }
+    }
+
+    /* ========== RIGHT PANEL - MISSION DETAILS ========== */
+    .details-panel {
+      background: var(--bg-panel);
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .current-mission {
+      background: var(--bg-card);
+      border-radius: 12px;
+      border: 1px solid var(--orbit-2);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+
+    .mission-header {
+      padding: 16px;
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(6, 182, 212, 0.1));
+      border-bottom: 1px solid var(--border);
+    }
+
+    .mission-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      background: var(--orbit-2);
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    .mission-title {
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .mission-body {
+      padding: 16px;
+    }
+
+    .mission-desc {
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-dim);
+      margin-bottom: 16px;
+    }
+
+    .mission-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .metric {
+      background: var(--bg-void);
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .metric-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--orbit-1);
+    }
+
+    .metric-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    /* Telemetry */
+    .telemetry {
+      margin-top: 20px;
+    }
+
+    .telemetry-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+    }
+
+    .telemetry-label {
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .telemetry-value {
+      font-weight: 600;
+    }
+
+    .telemetry-value.good {
+      color: var(--status-active);
+    }
+
+    .telemetry-value.warning {
+      color: var(--status-warning);
+    }
+
+    /* Action Buttons */
+    .actions {
+      margin-top: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .action-btn {
+      padding: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-bright);
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+
+    .action-btn:hover {
+      border-color: var(--orbit-1);
+      box-shadow: 0 0 20px rgba(6, 182, 212, 0.2);
+    }
+
+    .action-btn.primary {
+      background: linear-gradient(135deg, var(--orbit-1), var(--orbit-2));
+      border: none;
+    }
+
+    .action-btn.primary:hover {
+      box-shadow: 0 0 30px rgba(6, 182, 212, 0.4);
+    }
+
+    /* Demo Badge */
+    .demo-badge {
+      position: fixed;
+      top: 70px;
+      left: 290px;
+      background: var(--orbit-2);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="starfield"></div>
+  <div class="demo-badge">Orbit Mode - Mission Control</div>
+
+  <div class="mission-control">
+
+    <!-- Top Bar -->
+    <header class="top-bar">
+      <div class="mission-id">
+        <div class="mission-logo">🧠</div>
+        <div>
+          <div class="mission-name">Brain Dump</div>
+          <div class="mission-time">Mission Elapsed: 2d 4h 32m</div>
+        </div>
+      </div>
+
+      <div class="status-bar">
+        <div class="status-item">
+          <span class="status-dot active"></span>
+          <span>Docker Online</span>
+        </div>
+        <div class="status-item">
+          <span class="status-dot active"></span>
+          <span>Claude Active</span>
+        </div>
+        <div class="status-item">
+          <span class="status-dot active"></span>
+          <span>MCP Connected</span>
+        </div>
+      </div>
+
+      <div class="clock" id="clock">14:32:47</div>
+    </header>
+
+    <!-- Left Panel -->
+    <aside class="projects-panel">
+      <div class="panel-title">
+        <span>Active Missions</span>
+        <span>4</span>
+      </div>
+
+      <div class="project-list">
+        <div class="project-item active">
+          <div class="project-orbit" style="border-color: var(--orbit-1); color: var(--orbit-1);">
+            🧠
+          </div>
+          <div class="project-info">
+            <div class="project-name">Brain Dump</div>
+            <div class="project-status">Docker • Claude</div>
+          </div>
+          <div class="project-session active"></div>
+        </div>
+
+        <div class="project-item">
+          <div class="project-orbit" style="border-color: var(--orbit-2); color: var(--orbit-2);">
+            📱
+          </div>
+          <div class="project-info">
+            <div class="project-name">UI Consumer</div>
+            <div class="project-status">Local • VS Code</div>
+          </div>
+          <div class="project-session inactive"></div>
+        </div>
+
+        <div class="project-item">
+          <div class="project-orbit" style="border-color: var(--orbit-3); color: var(--orbit-3);">
+            🔧
+          </div>
+          <div class="project-info">
+            <div class="project-name">Microservices</div>
+            <div class="project-status">Docker • OpenCode</div>
+          </div>
+          <div class="project-session active"></div>
+        </div>
+
+        <div class="project-item">
+          <div class="project-orbit" style="border-color: var(--orbit-4); color: var(--orbit-4);">
+            📚
+          </div>
+          <div class="project-info">
+            <div class="project-name">TanStack Docs</div>
+            <div class="project-status">Local • Claude</div>
+          </div>
+          <div class="project-session inactive"></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Center - Orbital View -->
+    <main class="orbital-view">
+      <!-- Orbit Rings -->
+      <div class="orbit-ring ring-1"></div>
+      <div class="orbit-ring ring-2"></div>
+      <div class="orbit-ring ring-3"></div>
+      <div class="orbit-ring ring-4"></div>
+
+      <!-- Center (You) -->
+      <div class="center-node">
+        👤
+        <span class="center-label">You</span>
+      </div>
+
+      <!-- Tickets in Orbit -->
+      <!-- Done (innermost) -->
+      <div class="orbital-ticket done" style="transform: translate(-70px, -60px);">
+        <span class="number">#36</span>
+        <span class="priority">Done</span>
+      </div>
+      <div class="orbital-ticket done" style="transform: translate(80px, 40px);">
+        <span class="number">#34</span>
+        <span class="priority">Done</span>
+      </div>
+
+      <!-- Review -->
+      <div class="orbital-ticket review" style="transform: translate(-150px, 30px);">
+        <span class="number">#40</span>
+        <span class="priority">Review</span>
+      </div>
+      <div class="orbital-ticket review" style="transform: translate(120px, -120px);">
+        <span class="number">#39</span>
+        <span class="priority">Review</span>
+      </div>
+
+      <!-- In Progress (AI active) -->
+      <div class="orbital-ticket progress" style="transform: translate(-200px, -100px);">
+        <span class="number">#42</span>
+        <span class="priority">Active</span>
+      </div>
+      <div class="orbital-ticket progress" style="transform: translate(200px, 80px);">
+        <span class="number">#41</span>
+        <span class="priority">Active</span>
+      </div>
+
+      <!-- Backlog (outermost) -->
+      <div class="orbital-ticket backlog" style="transform: translate(-280px, 60px);">
+        <span class="number">#38</span>
+        <span class="priority">Backlog</span>
+      </div>
+      <div class="orbital-ticket backlog" style="transform: translate(260px, -160px);">
+        <span class="number">#35</span>
+        <span class="priority">Backlog</span>
+      </div>
+      <div class="orbital-ticket backlog" style="transform: translate(-100px, 240px);">
+        <span class="number">#33</span>
+        <span class="priority">Backlog</span>
+      </div>
+
+      <!-- AI Indicator -->
+      <div class="ai-indicator">
+        <div class="ai-beacon"></div>
+        <span>Claude working on #42</span>
+      </div>
+    </main>
+
+    <!-- Right Panel -->
+    <aside class="details-panel">
+      <div class="panel-title">Current Mission</div>
+
+      <div class="current-mission">
+        <div class="mission-header">
+          <div class="mission-badge">Active • #42</div>
+          <h3 class="mission-title">Add Docker daemon launch from settings</h3>
+        </div>
+        <div class="mission-body">
+          <p class="mission-desc">
+            Enable users to start Docker runtime directly from Brain Dump UI. Detect Lima, Docker Desktop, or Colima.
+          </p>
+          <div class="mission-metrics">
+            <div class="metric">
+              <div class="metric-value">65%</div>
+              <div class="metric-label">Progress</div>
+            </div>
+            <div class="metric">
+              <div class="metric-value">3</div>
+              <div class="metric-label">Subtasks</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="telemetry">
+        <div class="panel-title">System Telemetry</div>
+        <div class="telemetry-row">
+          <span class="telemetry-label">Docker Status</span>
+          <span class="telemetry-value good">● Online</span>
+        </div>
+        <div class="telemetry-row">
+          <span class="telemetry-label">AI Session</span>
+          <span class="telemetry-value good">● Active</span>
+        </div>
+        <div class="telemetry-row">
+          <span class="telemetry-label">Epic Progress</span>
+          <span class="telemetry-value">13 / 20</span>
+        </div>
+        <div class="telemetry-row">
+          <span class="telemetry-label">Session Duration</span>
+          <span class="telemetry-value">1h 23m</span>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="action-btn primary">Complete Mission</button>
+        <button class="action-btn">View All Missions</button>
+        <button class="action-btn">Launch New Mission</button>
+      </div>
+    </aside>
+
+  </div>
+
+  <script>
+    // Update clock
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('clock').textContent =
+        now.toTimeString().split(' ')[0];
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+  </script>
+</body>
+</html>

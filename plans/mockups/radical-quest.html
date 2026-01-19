@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Brain Dump - Quest Mode (Miyamoto Inspired)</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-dark: #1a1c2c;
+      --bg-medium: #262b44;
+      --bg-light: #3a4466;
+      --text-light: #f4f4f4;
+      --text-dim: #8b92a8;
+      --gold: #f4b41a;
+      --gold-glow: rgba(244, 180, 26, 0.4);
+      --green: #3abb85;
+      --green-glow: rgba(58, 187, 133, 0.4);
+      --red: #e84a5f;
+      --blue: #4a90d9;
+      --blue-glow: rgba(74, 144, 217, 0.4);
+      --purple: #9b5de5;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-light);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ========== MAP CONTAINER ========== */
+    .map-container {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+      background:
+        radial-gradient(ellipse at 30% 20%, rgba(74, 144, 217, 0.1) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 80%, rgba(155, 93, 229, 0.1) 0%, transparent 50%),
+        var(--bg-dark);
+      overflow: hidden;
+    }
+
+    /* Grid pattern overlay */
+    .map-container::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+
+    /* ========== HEADER / HUD ========== */
+    .hud {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 30px;
+      background: linear-gradient(180deg, rgba(26, 28, 44, 0.95) 0%, transparent 100%);
+      z-index: 100;
+    }
+
+    .hud-left {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .world-name {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .world-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 0 20px var(--blue-glow);
+    }
+
+    .world-title {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .world-subtitle {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    /* Progress Bar */
+    .quest-progress {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 20px;
+      background: var(--bg-medium);
+      border-radius: 100px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .progress-label {
+      font-size: 12px;
+      color: var(--text-dim);
+      font-weight: 600;
+    }
+
+    .progress-bar {
+      width: 200px;
+      height: 8px;
+      background: var(--bg-dark);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--green), var(--blue));
+      border-radius: 4px;
+      box-shadow: 0 0 10px var(--green-glow);
+      transition: width 0.5s ease;
+    }
+
+    .progress-text {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--green);
+    }
+
+    .hud-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    /* Companion (AI) */
+    .companion {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      background: var(--bg-medium);
+      border-radius: 100px;
+      border: 1px solid var(--gold);
+      box-shadow: 0 0 20px var(--gold-glow);
+    }
+
+    .companion-avatar {
+      width: 28px;
+      height: 28px;
+      background: var(--gold);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      animation: companionBounce 2s infinite;
+    }
+
+    @keyframes companionBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-3px); }
+    }
+
+    .companion-speech {
+      font-size: 12px;
+      color: var(--gold);
+      font-weight: 500;
+      max-width: 200px;
+    }
+
+    /* Status Icons */
+    .status-icon {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      background: var(--bg-medium);
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    .status-icon .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+    }
+
+    /* ========== MAP NODES (QUEST LOCATIONS) ========== */
+    .quest-node {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      cursor: pointer;
+      transition: transform 0.3s;
+    }
+
+    .quest-node:hover {
+      transform: scale(1.1);
+    }
+
+    .node-marker {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      position: relative;
+      transition: all 0.3s;
+    }
+
+    /* Node States */
+    .quest-node.completed .node-marker {
+      background: var(--bg-light);
+      border: 3px solid var(--green);
+      box-shadow: 0 0 20px var(--green-glow);
+    }
+
+    .quest-node.current .node-marker {
+      background: linear-gradient(135deg, var(--gold), #ffcc00);
+      border: 3px solid var(--gold);
+      box-shadow: 0 0 30px var(--gold-glow);
+      animation: currentPulse 2s infinite;
+    }
+
+    @keyframes currentPulse {
+      0%, 100% {
+        box-shadow: 0 0 30px var(--gold-glow);
+      }
+      50% {
+        box-shadow: 0 0 50px var(--gold-glow), 0 0 80px rgba(244, 180, 26, 0.2);
+      }
+    }
+
+    .quest-node.locked .node-marker {
+      background: var(--bg-medium);
+      border: 3px solid var(--bg-light);
+      opacity: 0.5;
+    }
+
+    .quest-node.available .node-marker {
+      background: var(--bg-medium);
+      border: 3px solid var(--blue);
+      box-shadow: 0 0 15px var(--blue-glow);
+    }
+
+    .node-label {
+      margin-top: 10px;
+      padding: 6px 12px;
+      background: var(--bg-medium);
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      max-width: 120px;
+      text-align: center;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .quest-node.current .node-label {
+      background: var(--gold);
+      color: var(--bg-dark);
+      border-color: var(--gold);
+    }
+
+    /* Connection Paths */
+    .path-line {
+      position: absolute;
+      height: 3px;
+      background: var(--bg-light);
+      transform-origin: left center;
+      z-index: -1;
+    }
+
+    .path-line.completed {
+      background: linear-gradient(90deg, var(--green), var(--blue));
+      box-shadow: 0 0 10px var(--green-glow);
+    }
+
+    /* ========== QUEST PANEL (TICKET DETAILS) ========== */
+    .quest-panel {
+      position: fixed;
+      right: 30px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 380px;
+      background: var(--bg-medium);
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.1);
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+
+    .panel-header {
+      padding: 24px;
+      background: linear-gradient(135deg, var(--gold), #e6a700);
+      color: var(--bg-dark);
+    }
+
+    .panel-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    .panel-title {
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+
+    .panel-content {
+      padding: 24px;
+    }
+
+    .panel-description {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text-dim);
+      margin-bottom: 24px;
+    }
+
+    .panel-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      padding: 20px;
+      background: var(--bg-dark);
+      border-radius: 12px;
+      margin-bottom: 24px;
+    }
+
+    .stat {
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--gold);
+    }
+
+    .stat-label {
+      font-size: 10px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 4px;
+    }
+
+    .panel-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .action-btn {
+      flex: 1;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .action-btn.primary {
+      background: linear-gradient(135deg, var(--gold), #e6a700);
+      color: var(--bg-dark);
+    }
+
+    .action-btn.primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px var(--gold-glow);
+    }
+
+    .action-btn.secondary {
+      background: var(--bg-dark);
+      color: var(--text-light);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    /* ========== LEGEND ========== */
+    .legend {
+      position: fixed;
+      left: 30px;
+      bottom: 30px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 16px;
+      background: var(--bg-medium);
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .legend-title {
+      font-size: 10px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    .legend-icon {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+    }
+
+    .legend-icon.completed {
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green-glow);
+    }
+
+    .legend-icon.current {
+      background: var(--gold);
+      box-shadow: 0 0 8px var(--gold-glow);
+    }
+
+    .legend-icon.available {
+      background: var(--blue);
+      box-shadow: 0 0 8px var(--blue-glow);
+    }
+
+    .legend-icon.locked {
+      background: var(--bg-light);
+    }
+
+    /* ========== DEMO ========== */
+    .demo-badge {
+      position: fixed;
+      top: 80px;
+      left: 30px;
+      background: var(--purple);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="demo-badge">Quest Mode - Miyamoto Inspired</div>
+
+  <div class="map-container">
+
+    <!-- HUD -->
+    <header class="hud">
+      <div class="hud-left">
+        <div class="world-name">
+          <div class="world-icon">🧠</div>
+          <div>
+            <div class="world-title">Brain Dump</div>
+            <div class="world-subtitle">Ralph Workflow Epic</div>
+          </div>
+        </div>
+
+        <div class="quest-progress">
+          <span class="progress-label">Epic Progress</span>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: 65%"></div>
+          </div>
+          <span class="progress-text">13/20</span>
+        </div>
+      </div>
+
+      <div class="hud-right">
+        <div class="companion">
+          <div class="companion-avatar">🤖</div>
+          <div class="companion-speech">Working on Docker support...</div>
+        </div>
+
+        <div class="status-icon">
+          <span class="dot"></span>
+          <span>🐳 Docker Ready</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Quest Nodes -->
+    <!-- Completed Nodes -->
+    <div class="quest-node completed" style="left: 10%; top: 30%;">
+      <div class="node-marker">✓</div>
+      <div class="node-label">Setup MCP Server</div>
+    </div>
+
+    <div class="quest-node completed" style="left: 18%; top: 45%;">
+      <div class="node-marker">✓</div>
+      <div class="node-label">Add Project CRUD</div>
+    </div>
+
+    <div class="quest-node completed" style="left: 28%; top: 35%;">
+      <div class="node-marker">✓</div>
+      <div class="node-label">Implement Tickets</div>
+    </div>
+
+    <div class="quest-node completed" style="left: 25%; top: 55%;">
+      <div class="node-marker">✓</div>
+      <div class="node-label">Add Conversation Logging</div>
+    </div>
+
+    <!-- Current Quest -->
+    <div class="quest-node current" style="left: 40%; top: 40%;">
+      <div class="node-marker">⚡</div>
+      <div class="node-label">Docker Launch UI</div>
+    </div>
+
+    <!-- Available Quests -->
+    <div class="quest-node available" style="left: 52%; top: 30%;">
+      <div class="node-marker">🎯</div>
+      <div class="node-label">Settings Overhaul</div>
+    </div>
+
+    <div class="quest-node available" style="left: 55%; top: 55%;">
+      <div class="node-marker">🎯</div>
+      <div class="node-label">Sidebar Redesign</div>
+    </div>
+
+    <!-- Locked Quests (Fog of War) -->
+    <div class="quest-node locked" style="left: 68%; top: 40%;">
+      <div class="node-marker">🔒</div>
+      <div class="node-label">???</div>
+    </div>
+
+    <div class="quest-node locked" style="left: 75%; top: 55%;">
+      <div class="node-marker">🔒</div>
+      <div class="node-label">???</div>
+    </div>
+
+    <div class="quest-node locked" style="left: 80%; top: 35%;">
+      <div class="node-marker">🔒</div>
+      <div class="node-label">???</div>
+    </div>
+
+    <!-- Final Boss (Epic Completion) -->
+    <div class="quest-node locked" style="left: 88%; top: 45%;">
+      <div class="node-marker" style="width: 80px; height: 80px; font-size: 32px;">👑</div>
+      <div class="node-label">Epic Complete!</div>
+    </div>
+
+    <!-- Quest Panel -->
+    <div class="quest-panel">
+      <div class="panel-header">
+        <div class="panel-badge">Current Quest • #42</div>
+        <h2 class="panel-title">Add Docker daemon launch from settings</h2>
+      </div>
+      <div class="panel-content">
+        <p class="panel-description">
+          Enable users to start their Docker runtime directly from Brain Dump's UI. Detect Lima, Docker Desktop, or Colima and provide a seamless one-click experience.
+        </p>
+
+        <div class="panel-stats">
+          <div class="stat">
+            <div class="stat-value">High</div>
+            <div class="stat-label">Priority</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value">3</div>
+            <div class="stat-label">Subtasks</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value">65%</div>
+            <div class="stat-label">Progress</div>
+          </div>
+        </div>
+
+        <div class="panel-actions">
+          <button class="action-btn primary">Complete Quest</button>
+          <button class="action-btn secondary">View Details</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="legend">
+      <div class="legend-title">Quest Status</div>
+      <div class="legend-item">
+        <div class="legend-icon completed"></div>
+        <span>Completed</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-icon current"></div>
+        <span>Current Quest</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-icon available"></div>
+        <span>Available</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-icon locked"></div>
+        <span>Undiscovered</span>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Add some interactivity
+    document.querySelectorAll('.quest-node').forEach(node => {
+      node.addEventListener('click', () => {
+        // Could open details panel or start quest
+        if (node.classList.contains('available')) {
+          alert('Start this quest?');
+        }
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Brain Dump - UI Redesign Mockup v1</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-primary: #0f1419;
+      --bg-secondary: #1a1f2e;
+      --bg-tertiary: #232b3d;
+      --bg-hover: #2a3447;
+      --border-color: #2d3748;
+      --text-primary: #e2e8f0;
+      --text-secondary: #a0aec0;
+      --text-muted: #718096;
+      --accent-blue: #4299e1;
+      --accent-cyan: #38b2ac;
+      --accent-green: #48bb78;
+      --accent-yellow: #ecc94b;
+      --accent-orange: #ed8936;
+      --accent-red: #fc8181;
+      --accent-purple: #9f7aea;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ========== HEADER ========== */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      height: 56px;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: 18px;
+    }
+
+    .logo-icon {
+      font-size: 24px;
+    }
+
+    .search-bar {
+      display: flex;
+      align-items: center;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 8px 12px;
+      width: 300px;
+      margin-left: 24px;
+    }
+
+    .search-bar input {
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      outline: none;
+      width: 100%;
+      margin-left: 8px;
+    }
+
+    .search-bar input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .docker-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .docker-status:hover {
+      background: var(--bg-hover);
+    }
+
+    .docker-status.running {
+      color: var(--accent-green);
+    }
+
+    .docker-status.stopped {
+      color: var(--accent-yellow);
+    }
+
+    .docker-status .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .docker-status.running .status-dot {
+      box-shadow: 0 0 8px var(--accent-green);
+    }
+
+    .settings-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .settings-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    /* ========== MAIN LAYOUT ========== */
+    .main-layout {
+      display: flex;
+      height: calc(100vh - 56px);
+    }
+
+    /* ========== SIDEBAR ========== */
+    .sidebar {
+      width: 280px;
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-section {
+      padding: 16px;
+    }
+
+    .sidebar-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .sidebar-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+    }
+
+    .add-btn {
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    .add-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    /* Project Items */
+    .project-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .project-item {
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .project-header {
+      display: flex;
+      align-items: center;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+      gap: 10px;
+    }
+
+    .project-header:hover {
+      background: var(--bg-hover);
+    }
+
+    .project-item.active .project-header {
+      background: var(--bg-tertiary);
+    }
+
+    .project-expand {
+      color: var(--text-muted);
+      font-size: 10px;
+      transition: transform 0.2s;
+    }
+
+    .project-item.expanded .project-expand {
+      transform: rotate(90deg);
+    }
+
+    .project-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+    }
+
+    .project-name {
+      flex: 1;
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .project-env-badge {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--bg-primary);
+    }
+
+    .project-details {
+      padding: 8px 12px 12px 34px;
+      display: none;
+    }
+
+    .project-item.expanded .project-details {
+      display: block;
+    }
+
+    .project-detail-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .project-detail-row .icon {
+      width: 16px;
+      text-align: center;
+    }
+
+    .session-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .session-status .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .session-status.active .dot {
+      background: var(--accent-green);
+      box-shadow: 0 0 6px var(--accent-green);
+    }
+
+    .session-status.inactive .dot {
+      background: var(--text-muted);
+    }
+
+    .progress-bar {
+      height: 4px;
+      background: var(--bg-primary);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.3s;
+    }
+
+    .progress-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Tags Section */
+    .tags-section {
+      margin-top: auto;
+      border-top: 1px solid var(--border-color);
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .tags-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tag-item {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tag-item:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    /* ========== KANBAN BOARD ========== */
+    .kanban-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .kanban-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .kanban-title {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .kanban-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .view-toggle {
+      display: flex;
+      background: var(--bg-tertiary);
+      border-radius: 6px;
+      padding: 2px;
+    }
+
+    .view-toggle button {
+      padding: 6px 12px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .view-toggle button.active {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .new-ticket-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      background: var(--accent-cyan);
+      color: var(--bg-primary);
+      border: none;
+      border-radius: 6px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .new-ticket-btn:hover {
+      opacity: 0.9;
+    }
+
+    .kanban-board {
+      flex: 1;
+      display: flex;
+      gap: 20px;
+      padding: 20px 24px;
+      overflow-x: auto;
+    }
+
+    .kanban-column {
+      min-width: 300px;
+      max-width: 300px;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .column-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .column-title {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .column-count {
+      background: var(--bg-tertiary);
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .column-cards {
+      flex: 1;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+    }
+
+    .ticket-card {
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      padding: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 1px solid transparent;
+    }
+
+    .ticket-card:hover {
+      border-color: var(--border-color);
+      transform: translateY(-1px);
+    }
+
+    .ticket-card.active {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 0 1px var(--accent-cyan);
+    }
+
+    .ticket-title {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 10px;
+      line-height: 1.4;
+    }
+
+    .ticket-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 10px;
+    }
+
+    .ticket-tag {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: var(--bg-primary);
+      color: var(--text-secondary);
+    }
+
+    .ticket-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .ticket-priority {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-weight: 500;
+    }
+
+    .ticket-priority.high {
+      background: rgba(252, 129, 129, 0.2);
+      color: var(--accent-red);
+    }
+
+    .ticket-priority.medium {
+      background: rgba(236, 201, 75, 0.2);
+      color: var(--accent-yellow);
+    }
+
+    .ticket-priority.low {
+      background: rgba(72, 187, 120, 0.2);
+      color: var(--accent-green);
+    }
+
+    .ticket-id {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Empty State */
+    .empty-column {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+      font-size: 13px;
+      text-align: center;
+      border: 2px dashed var(--border-color);
+      border-radius: 8px;
+      margin: 12px;
+    }
+
+    /* ========== INTERACTIVE DEMO ========== */
+    .demo-controls {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 100;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+
+    .demo-controls h4 {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .demo-controls button {
+      padding: 8px 12px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+
+    .demo-controls button:hover {
+      background: var(--bg-hover);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">
+        <span class="logo-icon">🧠</span>
+        <span>Brain Dump</span>
+      </div>
+      <div class="search-bar">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="m21 21-4.35-4.35"></path>
+        </svg>
+        <input type="text" placeholder="Search tickets...">
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="docker-status running" id="dockerStatus" onclick="toggleDocker()">
+        <span>🐳</span>
+        <span class="status-dot"></span>
+        <span id="dockerText">Running</span>
+      </div>
+      <button class="settings-btn" title="Settings">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN LAYOUT -->
+  <div class="main-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-section-header">
+          <span class="sidebar-section-title">Projects</span>
+          <button class="add-btn">+</button>
+        </div>
+
+        <div class="project-list">
+          <!-- Active Project (Expanded) -->
+          <div class="project-item active expanded">
+            <div class="project-header">
+              <span class="project-expand">▶</span>
+              <div class="project-color" style="background: var(--accent-cyan)"></div>
+              <span class="project-name">Brain Dump</span>
+              <span class="project-env-badge">🐳 Claude</span>
+            </div>
+            <div class="project-details">
+              <div class="project-detail-row">
+                <span class="icon">📊</span>
+                <div class="session-status active">
+                  <span class="dot"></span>
+                  <span>Session active</span>
+                </div>
+              </div>
+              <div class="project-detail-row">
+                <span class="icon">📍</span>
+                <span>Epic: Ralph Workflow</span>
+              </div>
+              <div class="project-detail-row">
+                <span class="icon">🎫</span>
+                <span>#42 Add Docker support</span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-bar-fill" style="width: 65%; background: var(--accent-cyan)"></div>
+              </div>
+              <div class="progress-label">Epic: 65% complete (13/20 tickets)</div>
+            </div>
+          </div>
+
+          <!-- Collapsed Project -->
+          <div class="project-item">
+            <div class="project-header" onclick="this.parentElement.classList.toggle('expanded')">
+              <span class="project-expand">▶</span>
+              <div class="project-color" style="background: var(--accent-purple)"></div>
+              <span class="project-name">UI Command Consumer</span>
+              <span class="project-env-badge">💻 VS Code</span>
+            </div>
+            <div class="project-details">
+              <div class="project-detail-row">
+                <span class="icon">📊</span>
+                <div class="session-status inactive">
+                  <span class="dot"></span>
+                  <span>No active session</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Another Project -->
+          <div class="project-item">
+            <div class="project-header" onclick="this.parentElement.classList.toggle('expanded')">
+              <span class="project-expand">▶</span>
+              <div class="project-color" style="background: var(--accent-orange)"></div>
+              <span class="project-name">TanStack Query Docs</span>
+              <span class="project-env-badge">🤖 OpenCode</span>
+            </div>
+            <div class="project-details">
+              <div class="project-detail-row">
+                <span class="icon">📊</span>
+                <div class="session-status inactive">
+                  <span class="dot"></span>
+                  <span>No active session</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Docker + OpenCode Project -->
+          <div class="project-item">
+            <div class="project-header" onclick="this.parentElement.classList.toggle('expanded')">
+              <span class="project-expand">▶</span>
+              <div class="project-color" style="background: var(--accent-green)"></div>
+              <span class="project-name">Microservices API</span>
+              <span class="project-env-badge">🐳 OpenCode</span>
+            </div>
+            <div class="project-details">
+              <div class="project-detail-row">
+                <span class="icon">📊</span>
+                <div class="session-status active">
+                  <span class="dot"></span>
+                  <span>Session active</span>
+                </div>
+              </div>
+              <div class="project-detail-row">
+                <span class="icon">🎫</span>
+                <span>#18 API rate limiting</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tags Section -->
+      <div class="sidebar-section tags-section">
+        <div class="sidebar-section-header">
+          <span class="sidebar-section-title">Tags</span>
+        </div>
+        <div class="tags-list">
+          <span class="tag-item">bug</span>
+          <span class="tag-item">enhancement</span>
+          <span class="tag-item">performance</span>
+          <span class="tag-item">ux</span>
+          <span class="tag-item">docker</span>
+          <span class="tag-item">ralph</span>
+          <span class="tag-item">critical</span>
+          <span class="tag-item">testing</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- KANBAN BOARD -->
+    <main class="kanban-container">
+      <div class="kanban-header">
+        <h1 class="kanban-title">Brain Dump</h1>
+        <div class="kanban-actions">
+          <div class="view-toggle">
+            <button class="active">Board</button>
+            <button>List</button>
+          </div>
+          <button class="new-ticket-btn">
+            <span>+</span>
+            <span>New Ticket</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="kanban-board">
+        <!-- Backlog Column -->
+        <div class="kanban-column">
+          <div class="column-header">
+            <span class="column-title">Backlog</span>
+            <span class="column-count">12</span>
+          </div>
+          <div class="column-cards">
+            <div class="ticket-card">
+              <div class="ticket-title">Add per-query staleTime configuration</div>
+              <div class="ticket-tags">
+                <span class="ticket-tag">enhancement</span>
+                <span class="ticket-tag">tanstack-query</span>
+              </div>
+              <div class="ticket-footer">
+                <span class="ticket-priority medium">Medium</span>
+                <span class="ticket-id">#38</span>
+              </div>
+            </div>
+            <div class="ticket-card">
+              <div class="ticket-title">Parallelize file uploads in TicketModal</div>
+              <div class="ticket-tags">
+                <span class="ticket-tag">performance</span>
+                <span class="ticket-tag">critical</span>
+              </div>
+              <div class="ticket-footer">
+                <span class="ticket-priority high">High</span>
+                <span class="ticket-id">#35</span>
+              </div>
+            </div>
+            <div class="ticket-card">
+              <div class="ticket-title">Consolidate setTimeout patterns</div>
+              <div class="ticket-tags">
+                <span class="ticket-tag">refactor</span>
+                <span class="ticket-tag">state-management</span>
+              </div>
+              <div class="ticket-footer">
+                <span class="ticket-priority low">Low</span>
+                <span class="ticket-id">#29</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ready Column -->
+        <div class="kanban-column">
+          <div class="column-header">
+            <span class="column-title">Ready</span>
+            <span class="column-count">0</span>
+          </div>
+          <div class="column-cards">
+            <div class="empty-column">
+              Drop tickets here when ready to start
+            </div>
+          </div>
+        </div>
+
+        <!-- In Progress Column -->
+        <div class="kanban-column">
+          <div class="column-header">
+            <span class="column-title">In Progress</span>
+            <span class="column-count">2</span>
+          </div>
+          <div class="column-cards">
+            <div class="ticket-card active">
+              <div class="ticket-title">Add Docker daemon launch from settings</div>
+              <div class="ticket-tags">
+                <span class="ticket-tag">docker</span>
+                <span class="ticket-tag">ux</span>
+                <span class="ticket-tag">enhancement</span>
+              </div>
+              <div class="ticket-footer">
+                <span class="ticket-priority high">High</span>
+                <span class="ticket-id">#42</span>
+              </div>
+            </div>
+            <div class="ticket-card">
+              <div class="ticket-title">Fix Google Maps blocking render</div>
+              <div class="ticket-tags">
+                <span class="ticket-tag">performance</span>
+                <span class="ticket-tag">critical</span>
+              </div>
+              <div class="ticket-footer">
+                <span class="ticket-priority high">High</span>
+                <span class="ticket-id">#41</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Review Column -->
+        <div class="kanban-column">
+          <div class="column-header">
+            <span class="column-title">Review</span>
+            <span class="column-count">3</span>
+          </div>
+          <div class="column-cards">
+            <div class="ticket-card">
+              <div class="ticket-title">Branch Ralph launch terminal handling</div>
+              <div class="ticket-tags">
+                <span class="ticket-tag">ralph</span>
+                <span class="ticket-tag">terminal</span>
+              </div>
+              <div class="ticket-footer">
+                <span class="ticket-priority high">High</span>
+                <span class="ticket-id">#40</span>
+              </div>
+            </div>
+            <div class="ticket-card">
+              <div class="ticket-title">Create VS Code launch method</div>
+              <div class="ticket-tags">
+                <span class="ticket-tag">vscode</span>
+                <span class="ticket-tag">enhancement</span>
+              </div>
+              <div class="ticket-footer">
+                <span class="ticket-priority medium">Medium</span>
+                <span class="ticket-id">#39</span>
+              </div>
+            </div>
+            <div class="ticket-card">
+              <div class="ticket-title">Implement strategic Suspense boundaries</div>
+              <div class="ticket-tags">
+                <span class="ticket-tag">performance</span>
+                <span class="ticket-tag">suspense</span>
+              </div>
+              <div class="ticket-footer">
+                <span class="ticket-priority medium">Medium</span>
+                <span class="ticket-id">#37</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Done Column -->
+        <div class="kanban-column">
+          <div class="column-header">
+            <span class="column-title">Done</span>
+            <span class="column-count">8</span>
+          </div>
+          <div class="column-cards">
+            <div class="ticket-card">
+              <div class="ticket-title">Add conversation logging for compliance</div>
+              <div class="ticket-tags">
+                <span class="ticket-tag">enterprise</span>
+                <span class="ticket-tag">logging</span>
+              </div>
+              <div class="ticket-footer">
+                <span class="ticket-priority high">High</span>
+                <span class="ticket-id">#36</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Demo Controls -->
+  <div class="demo-controls">
+    <h4>Demo Controls</h4>
+    <button onclick="toggleDocker()">Toggle Docker Status</button>
+    <button onclick="toggleSession()">Toggle Session Status</button>
+  </div>
+
+  <script>
+    let dockerRunning = true;
+    let sessionActive = true;
+
+    function toggleDocker() {
+      dockerRunning = !dockerRunning;
+      const el = document.getElementById('dockerStatus');
+      const text = document.getElementById('dockerText');
+
+      if (dockerRunning) {
+        el.classList.remove('stopped');
+        el.classList.add('running');
+        text.textContent = 'Running';
+      } else {
+        el.classList.remove('running');
+        el.classList.add('stopped');
+        text.textContent = 'Stopped';
+      }
+    }
+
+    function toggleSession() {
+      sessionActive = !sessionActive;
+      const sessions = document.querySelectorAll('.project-item.active .session-status');
+      sessions.forEach(el => {
+        if (sessionActive) {
+          el.classList.remove('inactive');
+          el.classList.add('active');
+          el.querySelector('span:last-child').textContent = 'Session active';
+        } else {
+          el.classList.remove('active');
+          el.classList.add('inactive');
+          el.querySelector('span:last-child').textContent = 'No active session';
+        }
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,272 @@
+{
+  "projectName": "Brain Dump UI v2",
+  "projectPath": "/Users/salman.rana/code/brain-dump",
+  "featureBranch": "feature/ui-v2",
+  "ports": {
+    "oldUI": 4242,
+    "newUI": 4243
+  },
+  "testingRequirements": [
+    "Tests must validate user-facing behavior, not implementation details",
+    "Focus on what users actually do - integration tests over unit tests",
+    "Don't mock excessively - test real behavior where possible",
+    "Coverage metrics are meaningless - user flow coverage is everything",
+    "All E2E tests must pass before merge",
+    "Lighthouse scores > 90 for performance and accessibility"
+  ],
+  "sprints": [
+    {
+      "id": 0,
+      "name": "Setup",
+      "epicId": "f5c4330e-e740-44bb-a832-946e298e3c1c",
+      "hours": "2-3h",
+      "goal": "Create feature branch, configure parallel development, verify both UIs can run",
+      "tickets": [
+        {"number": "01", "title": "Create feature/ui-v2 branch"},
+        {"number": "02", "title": "Add dev:v2 script for port 4243"},
+        {"number": "03", "title": "Create src/components-v2/ directory"},
+        {"number": "04", "title": "Verify parallel UI development setup"},
+        {"number": "05", "title": "Document parallel dev workflow"}
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Foundation & Design System",
+      "epicId": "0971c025-d585-47a2-8791-b1f3681e345c",
+      "hours": "28-32h",
+      "goal": "Establish theme system, CSS variables, and atomic component library",
+      "tickets": [
+        {"number": "06", "title": "Create CSS variables with theme definitions"},
+        {"number": "07", "title": "Create ThemeContext with localStorage persistence"},
+        {"number": "08", "title": "Create ThemeProvider component"},
+        {"number": "09", "title": "Create ThemeSwitcher component"},
+        {"number": "10", "title": "Integrate theme CSS into styles.css"},
+        {"number": "11", "title": "Create Button component (4 variants)"},
+        {"number": "12", "title": "Create Input component"},
+        {"number": "13", "title": "Create Select component"},
+        {"number": "14", "title": "Create Card component"},
+        {"number": "15", "title": "Create Badge component"},
+        {"number": "16", "title": "Create IconButton component"},
+        {"number": "17", "title": "Create Toggle component"},
+        {"number": "18", "title": "Create Checkbox component"},
+        {"number": "19", "title": "Create Modal base component"},
+        {"number": "20", "title": "Create ModalHeader subcomponent"},
+        {"number": "21", "title": "Create ModalBody and ModalFooter"},
+        {"number": "22", "title": "Create useModal hook"},
+        {"number": "23", "title": "Create root layout with app shell"},
+        {"number": "24", "title": "Create Toast component"},
+        {"number": "25", "title": "Create ToastProvider with useToast hook"}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Navigation & Layout",
+      "epicId": "1568326a-9289-4219-94da-878fcd49c39f",
+      "hours": "26-30h",
+      "goal": "Build icon sidebar, header with search, projects panel, and dashboard view",
+      "tickets": [
+        {"number": "26", "title": "Create IconSidebar component"},
+        {"number": "27", "title": "Create NavItem component with tooltips"},
+        {"number": "28", "title": "Integrate sidebar routing with TanStack Router"},
+        {"number": "29", "title": "Create Header component"},
+        {"number": "30", "title": "Create SearchBar with FTS5 integration"},
+        {"number": "31", "title": "Create StatusPill component"},
+        {"number": "32", "title": "Create NewTicketDropdown component"},
+        {"number": "33", "title": "Create ProjectsPanel slide-out component"},
+        {"number": "34", "title": "Create ProjectItem component"},
+        {"number": "35", "title": "Create useProjectsPanel hook"},
+        {"number": "36", "title": "Add search filtering to ProjectsPanel"},
+        {"number": "37", "title": "Create Dashboard route"},
+        {"number": "38", "title": "Create StatsGrid component"},
+        {"number": "39", "title": "Create CurrentFocusCard component"},
+        {"number": "40", "title": "Create UpNextQueue component"}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Kanban Board",
+      "epicId": "41c0c203-8349-4aa6-a005-5e2426d1def5",
+      "hours": "30-34h",
+      "goal": "Build kanban board with new card design and drag-and-drop",
+      "tickets": [
+        {"number": "41", "title": "Create KanbanBoard component"},
+        {"number": "42", "title": "Create KanbanColumn component"},
+        {"number": "43", "title": "Create Board route as default"},
+        {"number": "44", "title": "Create TicketCard component"},
+        {"number": "45", "title": "Add AI-active glow state to TicketCard"},
+        {"number": "46", "title": "Create GitInfo component"},
+        {"number": "47", "title": "Create TicketTags component"},
+        {"number": "48", "title": "Create DndProvider setup"},
+        {"number": "49", "title": "Create SortableTicketCard wrapper"},
+        {"number": "50", "title": "Add DragOverlay for drag preview"},
+        {"number": "51", "title": "Implement status update on drop"},
+        {"number": "52", "title": "Create BoardHeader with filters"},
+        {"number": "53", "title": "Create useFilters hook"},
+        {"number": "54", "title": "Integrate filters with board query"}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Ticket Flows",
+      "epicId": "c16ad8d3-cbec-46e8-8084-3716a81be13a",
+      "hours": "32-36h",
+      "goal": "Build Create/Edit Ticket modals with activity section and launch actions",
+      "tickets": [
+        {"number": "55", "title": "Create CreateTicketModal shell"},
+        {"number": "56", "title": "Add form fields to CreateTicketModal"},
+        {"number": "57", "title": "Create EpicSelect dependent dropdown"},
+        {"number": "58", "title": "Create TagInput component"},
+        {"number": "59", "title": "Add form validation to CreateTicketModal"},
+        {"number": "60", "title": "Wire CreateTicketModal to TanStack Query mutation"},
+        {"number": "61", "title": "Create EditTicketModal shell"},
+        {"number": "62", "title": "Add status dropdown to EditTicketModal"},
+        {"number": "63", "title": "Create BlockedToggle component"},
+        {"number": "64", "title": "Create SubtaskList component"},
+        {"number": "65", "title": "Add delete with confirmation to EditTicketModal"},
+        {"number": "66", "title": "Create LaunchActions section"},
+        {"number": "67", "title": "Create SplitButton component"},
+        {"number": "68", "title": "Add LaunchOption items"},
+        {"number": "69", "title": "Integrate LaunchActions with terminal API"},
+        {"number": "70", "title": "Create ActivitySection container"},
+        {"number": "71", "title": "Create Comment component with 4 types"},
+        {"number": "72", "title": "Create CommentAvatar component"},
+        {"number": "73", "title": "Create CommentInput component"},
+        {"number": "74", "title": "Add code block rendering to comments"}
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Detail Views & Project Flows",
+      "epicId": "26da714e-ed39-4a1e-a59d-1c3d597aaeea",
+      "hours": "26-30h",
+      "goal": "Build Ticket Detail drill-down, Project/Epic modals, Inception flow",
+      "tickets": [
+        {"number": "75", "title": "Create ticket detail route"},
+        {"number": "76", "title": "Create BackNavigation component"},
+        {"number": "77", "title": "Create TicketDetailHeader component"},
+        {"number": "78", "title": "Create TicketDescription component"},
+        {"number": "79", "title": "Create SubtasksProgress component"},
+        {"number": "80", "title": "Create RelatedTickets panel"},
+        {"number": "81", "title": "Integrate ActivitySection in detail view"},
+        {"number": "82", "title": "Create CreateProjectModal"},
+        {"number": "83", "title": "Create EditProjectModal"},
+        {"number": "84", "title": "Create ColorPicker component"},
+        {"number": "85", "title": "Create WorkingMethodSelect component"},
+        {"number": "86", "title": "Create CreateEpicModal"},
+        {"number": "87", "title": "Add Create New option to EpicSelect"},
+        {"number": "88", "title": "Create InceptionModal"},
+        {"number": "89", "title": "Add Skip AI link to InceptionModal"},
+        {"number": "90", "title": "Wire InceptionModal to NewTicketDropdown"}
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Settings & Polish",
+      "epicId": "db03da6e-37ac-4def-bbe8-3902059619eb",
+      "hours": "24-28h",
+      "goal": "Build tabbed Settings modal, keyboard navigation, responsive design, accessibility",
+      "tickets": [
+        {"number": "91", "title": "Create SettingsModal with tabbed navigation"},
+        {"number": "92", "title": "Create TabNav component"},
+        {"number": "93", "title": "Create GeneralTab settings"},
+        {"number": "94", "title": "Create RalphTab settings"},
+        {"number": "95", "title": "Create GitTab settings"},
+        {"number": "96", "title": "Create EnterpriseTab settings"},
+        {"number": "97", "title": "Create global keyboard shortcuts hook"},
+        {"number": "98", "title": "Add keyboard navigation to IconSidebar"},
+        {"number": "99", "title": "Add keyboard navigation to KanbanBoard"},
+        {"number": "100", "title": "Create ShortcutsModal"},
+        {"number": "101", "title": "Add mobile sidebar with hamburger menu"},
+        {"number": "102", "title": "Add responsive board with horizontal scroll"},
+        {"number": "103", "title": "Add responsive full-screen modals"},
+        {"number": "104", "title": "Add ARIA labels throughout"},
+        {"number": "105", "title": "Add visible focus indicators"},
+        {"number": "106", "title": "Add skip-to-content link"},
+        {"number": "107", "title": "Add reduced motion support"}
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Testing & Performance",
+      "epicId": "fff21567-8b84-462e-9fb2-b153af6813c3",
+      "hours": "20-24h",
+      "goal": "E2E tests for all flows, performance optimization, visual regression, final polish",
+      "tickets": [
+        {"number": "108", "title": "E2E test: Create Ticket flow"},
+        {"number": "109", "title": "E2E test: Edit Ticket flow"},
+        {"number": "110", "title": "E2E test: Ticket Detail drill-down"},
+        {"number": "111", "title": "E2E test: Create Epic flow"},
+        {"number": "112", "title": "E2E test: Create Project flow"},
+        {"number": "113", "title": "E2E test: Edit Project flow"},
+        {"number": "114", "title": "E2E test: Inception flow"},
+        {"number": "115", "title": "E2E test: Launch Actions"},
+        {"number": "116", "title": "E2E test: Settings flow"},
+        {"number": "117", "title": "E2E test: Projects Panel navigation"},
+        {"number": "118", "title": "Performance: Memoization audit"},
+        {"number": "119", "title": "Performance: Bundle analysis"},
+        {"number": "120", "title": "Performance: TanStack Query optimization"},
+        {"number": "121", "title": "Performance: Lazy load routes"},
+        {"number": "122", "title": "Visual regression: Theme screenshots"},
+        {"number": "123", "title": "Visual regression: Component screenshots"},
+        {"number": "124", "title": "Final polish: Loading skeletons"},
+        {"number": "125", "title": "Final polish: Error boundaries"},
+        {"number": "126", "title": "Final polish: Empty states"},
+        {"number": "127", "title": "Final polish: Animation consistency"}
+      ]
+    }
+  ],
+  "themes": [
+    {
+      "name": "Ember",
+      "accent": "orange",
+      "description": "Warm, energetic theme with orange accents"
+    },
+    {
+      "name": "Mint",
+      "accent": "emerald",
+      "description": "Fresh, calm theme with emerald accents"
+    },
+    {
+      "name": "Solar",
+      "accent": "gold",
+      "description": "Bright, optimistic theme with gold accents"
+    }
+  ],
+  "sharedBackend": [
+    "src/api/tickets.ts",
+    "src/api/projects.ts",
+    "src/api/epics.ts",
+    "src/api/settings.ts",
+    "src/api/terminal.ts",
+    "src/api/ralph.ts",
+    "src/api/search.ts",
+    "src/lib/schema.ts",
+    "src/lib/db.ts",
+    "src/lib/xdg.ts",
+    "mcp-server/*",
+    "cli/*"
+  ],
+  "rebuildFrontend": [
+    "src/components/*",
+    "src/routes/*",
+    "src/styles.css",
+    "src/lib/theme.ts",
+    "src/lib/hooks.ts (UI hooks only)"
+  ],
+  "totalEstimatedHours": "190-220h",
+  "mergeChecklist": [
+    "All E2E tests pass",
+    "All unit tests pass",
+    "pnpm type-check passes",
+    "pnpm lint passes",
+    "pnpm build succeeds",
+    "Lighthouse scores > 90",
+    "Manual testing of all 10 flows",
+    "Side-by-side comparison complete",
+    "No regressions in functionality",
+    "MCP tools work with new UI",
+    "CLI tool works with new UI",
+    "Documentation updated"
+  ],
+  "generatedAt": "2026-01-19T19:32:00.000Z"
+}
