@@ -9,27 +9,114 @@
   ],
   "userStories": [
     {
-      "id": "2c3b973e-843f-4764-8841-46040c8a5795",
-      "title": "Fix devcontainer configuration issues discovered during testing",
+      "id": "75b24d41-d6c7-4e68-b16a-332dbc8e662e",
+      "title": "01 - Create feature/ui-v2 branch",
       "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Update sandboxing documentation with Lima writable mount requirement",
-        "Verify MCP server works inside devcontainer after rebuild",
-        "Test that `check_docker_host()` catches malformed values",
-        "Ensure all three providers (VS Code, Claude Code, OpenCode) work in devcontainer"
+        "Branch `feature/ui-v2` created from main",
+        "Branch pushed to remote"
       ],
       "references": [],
-      "description": "## Summary\n\nDuring testing of ticket `9ac8e425`, several devcontainer configuration issues were discovered and fixed. This ticket tracks the changes and ensures they're properly tested.\n\n## Issues Fixed\n\n### 1. Lima writable mount (CRITICAL)\n- **Problem**: Lima's home directory mount was read-only by default, causing `EROFS: read-only file system` during `pnpm install`\n- **Fix**: Must add `writable: true` to Lima's `~/.lima/docker/lima.yaml`:\n  ```yaml\n  mounts:\n    - location: \"~\"\n      writable: true\n  ```\n- **Note**: This is a user-side configuration, but we should document it in the sandboxing docs\n\n### 2. XDG directory paths for MCP server\n- **Problem**: MCP server uses XDG paths (`~/.local/share/brain-dump`, `~/.local/state/brain-dump`) but devcontainer only mounted `~/.brain-dump`\n- **Fix**: Updated `devcontainer.json` to mount correct XDG paths:\n  ```json\n  \"source=brain-dump-xdg-data-${devcontainerId},target=/home/node/.local/share/brain-dump,type=volume\",\n  \"source=brain-dump-xdg-state-${devcontainerId},target=/home/node/.local/state/brain-dump,type=volume\"\n  ```\n\n### 3. DOCKER_HOST validation\n- **Problem**: Malformed `DOCKER_HOST` values (e.g., `sockexport` suffix) cause cryptic errors\n- **Fix**: Added `check_docker_host()` function to `install.sh`\n\n## Acceptance Criteria\n\n- [ ] Update sandboxing documentation with Lima writable mount requirement\n- [ ] Verify MCP server works inside devcontainer after rebuild\n- [ ] Test that `check_docker_host()` catches malformed values\n- [ ] Ensure all three providers (VS Code, Claude Code, OpenCode) work in devcontainer\n\n## Related\n\n- Parent ticket: `9ac8e425` (Test devcontainer with all three providers)\n- Files changed: `.devcontainer/devcontainer.json`, `install.sh`",
+      "description": "Create the `feature/ui-v2` branch from main for parallel UI development.\n\n**Acceptance Criteria:**\n- [ ] Branch `feature/ui-v2` created from main\n- [ ] Branch pushed to remote\n\n**Commands:**\n```bash\ngit checkout main\ngit pull\ngit checkout -b feature/ui-v2\ngit push -u origin feature/ui-v2\n```",
       "priority": "high",
       "tags": [
-        "devcontainer",
-        "bugfix",
-        "lima",
-        "xdg"
+        "setup",
+        "git"
+      ]
+    },
+    {
+      "id": "1544e96f-006c-47d2-b59c-7b96e54476a4",
+      "title": "02 - Add dev:v2 script to package.json",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`dev:v2` script added to package.json",
+        "Runs on port 4243",
+        "Can run alongside `dev` script"
+      ],
+      "references": [],
+      "description": "Add `dev:v2` npm script to run the new UI on port 4243 while the old UI runs on 4242.\n\n**Acceptance Criteria:**\n- [ ] `dev:v2` script added to package.json\n- [ ] Runs on port 4243\n- [ ] Can run alongside `dev` script\n\n**Changes:**\n```json\n{\n  \"scripts\": {\n    \"dev\": \"vinxi dev --port 4242\",\n    \"dev:v2\": \"vinxi dev --port 4243\"\n  }\n}\n```\n\n**Validation:**\nRun `pnpm dev` and `pnpm dev:v2` in separate terminals - both should load without conflict.",
+      "priority": "high",
+      "tags": [
+        "setup",
+        "config"
+      ]
+    },
+    {
+      "id": "f42887e8-2c2e-43a8-96d8-277a02822ff0",
+      "title": "03 - Create src/components-v2/ directory structure",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`src/components-v2/` directory created with subdirs",
+        "Empty index.ts exports in each directory",
+        ".gitkeep files where needed"
+      ],
+      "references": [
+        "src/components-v2/",
+        "src/components/"
+      ],
+      "description": "Create the temporary component directory structure for the new UI during development.\n\n**Acceptance Criteria:**\n- [ ] `src/components-v2/` directory created with subdirs\n- [ ] Empty index.ts exports in each directory\n- [ ] .gitkeep files where needed\n\n**Directory Structure:**\n```\nsrc/components-v2/\n├── ui/\n├── navigation/\n├── dashboard/\n├── board/\n├── tickets/\n├── projects/\n├── epics/\n├── inception/\n└── settings/\n```\n\n**Note:** This structure will eventually replace `src/components/` after merge.",
+      "priority": "medium",
+      "tags": [
+        "setup",
+        "structure"
+      ]
+    },
+    {
+      "id": "bf4d5e12-1235-4754-b76c-b73ccaa94d7d",
+      "title": "04 - Verify parallel UI development works",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Old UI loads at http://localhost:4242",
+        "New UI loads at http://localhost:4243",
+        "Both share the same SQLite database",
+        "Changes in one UI reflect in the other after refresh",
+        "No port conflicts or file locking issues"
+      ],
+      "references": [],
+      "description": "Test that both UIs can run simultaneously on different ports.\n\n**Acceptance Criteria:**\n- [ ] Old UI loads at http://localhost:4242\n- [ ] New UI loads at http://localhost:4243\n- [ ] Both share the same SQLite database\n- [ ] Changes in one UI reflect in the other after refresh\n- [ ] No port conflicts or file locking issues\n\n**Test Steps:**\n1. Terminal 1: `git checkout main && pnpm dev`\n2. Terminal 2: `git checkout feature/ui-v2 && pnpm dev:v2`\n3. Create a ticket in old UI\n4. Verify it appears in new UI (after refresh)\n5. Vice versa",
+      "priority": "high",
+      "tags": [
+        "setup",
+        "testing"
+      ]
+    },
+    {
+      "id": "5a06e93c-36d1-427d-8080-42ea0e6bf4ca",
+      "title": "05 - Document parallel development workflow",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "README section added to `feature/ui-v2` branch",
+        "Explains branch strategy",
+        "Explains port assignments",
+        "Explains what's shared vs rebuilt",
+        "Includes common commands"
+      ],
+      "references": [],
+      "description": "Create documentation for the parallel development workflow so developers know how to work on both UIs.\n\n**Acceptance Criteria:**\n- [ ] README section added to `feature/ui-v2` branch\n- [ ] Explains branch strategy\n- [ ] Explains port assignments\n- [ ] Explains what's shared vs rebuilt\n- [ ] Includes common commands\n\n**Content to Document:**\n- Branch strategy (main = old UI, feature/ui-v2 = new UI)\n- Port assignments (4242 vs 4243)\n- Shared backend files (src/api/, src/lib/schema.ts, mcp-server/)\n- New frontend files (src/components-v2/, src/routes-v2/)\n- Development workflow commands\n- Merge checklist reference",
+      "priority": "medium",
+      "tags": [
+        "setup",
+        "docs"
       ]
     }
   ],
@@ -159,5 +246,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-18T07:51:30.117Z"
+  "generatedAt": "2026-01-19T20:19:33.307Z",
+  "epicTitle": "UI v2 Sprint 0: Setup & Parallel Development",
+  "epicDescription": "**GREENFIELD REBUILD** - Start fresh on `feature/ui-v2` branch.\n\n## Branch Strategy\n- Create NEW `feature/ui-v2` branch from main\n- This is a complete UI rebuild, NOT a migration\n- Old UI code stays on main (port 4242) for reference\n- New UI runs on port 4243 during development\n\n## What's Shared (Unchanged)\n- `src/api/*` - All server functions\n- `src/lib/schema.ts` - Database schema\n- `src/lib/db.ts` - Database connection\n- `mcp-server/*` - MCP integration\n- `cli/*` - CLI tool\n\n## What's Rebuilt (New Files)\n- `src/components/*` - All new components\n- `src/routes/*` - New route structure  \n- `src/styles.css` - New with CSS variables\n- `src/lib/theme.ts` - New theme system\n\n## Parallel Development\nBoth UIs can run simultaneously:\n- `pnpm dev` → port 4242 (old UI on main)\n- `pnpm dev:v2` → port 4243 (new UI on feature/ui-v2)\n\n## Important\n- Do NOT try to migrate existing components\n- Start fresh with the Neon Productivity design\n- Reference old code for API patterns only"
 }
