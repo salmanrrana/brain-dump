@@ -3,7 +3,7 @@
 // Components are organized by feature area.
 
 // Re-export from feature directories as components are added:
-// export * from "./ui";
+export * from "./ui";
 // export * from "./navigation";
 // export * from "./dashboard";
 // export * from "./board";
@@ -12,6 +12,3 @@
 // export * from "./epics";
 // export * from "./inception";
 // export * from "./settings";
-
-// Placeholder export to make this a valid TypeScript module
-export {};
