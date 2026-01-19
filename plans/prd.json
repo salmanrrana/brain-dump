@@ -31,7 +31,7 @@
     {
       "id": "1544e96f-006c-47d2-b59c-7b96e54476a4",
       "title": "02 - Add dev:v2 script to package.json",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],

@@ -143,3 +143,16 @@
   - Verification: type-check ✅, lint ✅ (2 pre-existing warnings), 714 tests ✅
   - Branch ready for parallel UI development on port 4243
 
+
+---
+
+### 2026-01-19 - Add dev:v2 Script (Ticket 1544e96f)
+- **Ticket ID:** 1544e96f-006c-47d2-b59c-7b96e54476a4
+- **Task:** Add dev:v2 script to package.json for parallel UI development
+- **Success:** true
+- **Commit:** 0a7ad21
+- **Notes:**
+  - Added `dev:v2` script: `vite dev --port 4243`
+  - Runs alongside `dev` (port 4242) without conflict
+  - Verification: type-check ✅, lint ✅ (2 pre-existing warnings), 714 tests ✅
+
