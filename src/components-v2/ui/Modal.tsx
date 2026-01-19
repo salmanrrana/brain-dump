@@ -59,6 +59,22 @@ export interface ModalHeaderProps {
   className?: string;
 }
 
+export interface ModalBodyProps {
+  /** Body content */
+  children: ReactNode;
+  /** Additional CSS classes */
+  className?: string;
+}
+
+export interface ModalFooterProps {
+  /** Footer content (typically buttons) */
+  children: ReactNode;
+  /** Additional CSS classes */
+  className?: string;
+  /** Alignment of footer content (default: 'right') */
+  align?: "left" | "center" | "right";
+}
+
 export interface ModalProps {
   /** Whether the modal is open */
   isOpen: boolean;
@@ -322,6 +338,103 @@ function ModalHeader({ icon: Icon, title, onClose, className = "" }: ModalHeader
 }
 
 // =============================================================================
+// MODAL BODY SUBCOMPONENT
+// =============================================================================
+
+/**
+ * Styles for the body container.
+ */
+const getBodyStyles = (): React.CSSProperties => ({
+  flex: 1,
+  overflowY: "auto",
+  overflowX: "hidden",
+  padding: "var(--spacing-4)",
+});
+
+/**
+ * Modal body component for scrollable content area.
+ *
+ * Features:
+ * - Scrolls when content overflows
+ * - Consistent padding from design system
+ * - Flexible height (grows to fill available space)
+ *
+ * @example
+ * ```tsx
+ * <Modal.Body>
+ *   <form>
+ *     <input type="text" />
+ *     <textarea />
+ *   </form>
+ * </Modal.Body>
+ * ```
+ */
+function ModalBody({ children, className = "" }: ModalBodyProps) {
+  return (
+    <div style={getBodyStyles()} className={className} data-testid="modal-body">
+      {children}
+    </div>
+  );
+}
+
+// =============================================================================
+// MODAL FOOTER SUBCOMPONENT
+// =============================================================================
+
+/**
+ * Styles for the footer container.
+ */
+const getFooterStyles = (align: "left" | "center" | "right"): React.CSSProperties => {
+  const justifyMap = {
+    left: "flex-start",
+    center: "center",
+    right: "flex-end",
+  };
+
+  return {
+    position: "sticky",
+    bottom: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: justifyMap[align],
+    gap: "var(--spacing-3)",
+    padding: "var(--spacing-4)",
+    borderTop: "1px solid var(--border-primary)",
+    backgroundColor: "var(--bg-card)",
+  };
+};
+
+/**
+ * Modal footer component for action buttons.
+ *
+ * Features:
+ * - Sticky at bottom during scroll
+ * - Border top separator
+ * - Aligns content (default: right)
+ * - Gap between children for button spacing
+ *
+ * @example
+ * ```tsx
+ * <Modal.Footer>
+ *   <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+ *   <Button variant="primary" onClick={onSave}>Save</Button>
+ * </Modal.Footer>
+ *
+ * // Left-aligned footer
+ * <Modal.Footer align="left">
+ *   <Button>Delete</Button>
+ * </Modal.Footer>
+ * ```
+ */
+function ModalFooter({ children, className = "", align = "right" }: ModalFooterProps) {
+  return (
+    <footer style={getFooterStyles(align)} className={className} data-testid="modal-footer">
+      {children}
+    </footer>
+  );
+}
+
+// =============================================================================
 // MODAL COMPONENT
 // =============================================================================
 
@@ -468,5 +581,7 @@ export function Modal({
 
 // Attach subcomponents for compound component pattern
 Modal.Header = ModalHeader;
+Modal.Body = ModalBody;
+Modal.Footer = ModalFooter;
 
 export default Modal;

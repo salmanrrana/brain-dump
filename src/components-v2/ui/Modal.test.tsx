@@ -714,3 +714,259 @@ describe("Modal.Header", () => {
     });
   });
 });
+
+// =============================================================================
+// MODAL.BODY TESTS
+// =============================================================================
+
+describe("Modal.Body", () => {
+  describe("Acceptance Criteria", () => {
+    it("should render children content", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Body>
+            <p data-testid="body-content">Body content here</p>
+          </Modal.Body>
+        </Modal>
+      );
+
+      expect(screen.getByTestId("body-content")).toBeInTheDocument();
+      expect(screen.getByText("Body content here")).toBeInTheDocument();
+    });
+
+    it("should have scrollable overflow", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Body>Content</Modal.Body>
+        </Modal>
+      );
+
+      const body = screen.getByTestId("modal-body");
+      expect(body).toHaveStyle({ overflowY: "auto" });
+    });
+
+    it("should have consistent padding", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Body>Content</Modal.Body>
+        </Modal>
+      );
+
+      const body = screen.getByTestId("modal-body");
+      // Check that padding style contains CSS variable
+      const style = body.getAttribute("style");
+      expect(style).toContain("padding:");
+    });
+
+    it("should have flex: 1 to fill available space", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Body>Content</Modal.Body>
+        </Modal>
+      );
+
+      const body = screen.getByTestId("modal-body");
+      expect(body).toHaveStyle({ flex: "1" });
+    });
+
+    it("should accept className prop", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Body className="custom-body-class">Content</Modal.Body>
+        </Modal>
+      );
+
+      expect(screen.getByTestId("modal-body")).toHaveClass("custom-body-class");
+    });
+  });
+
+  describe("Scroll behavior", () => {
+    it("should render tall content without breaking", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Body>
+            <div style={{ height: "2000px" }}>Very tall content</div>
+          </Modal.Body>
+        </Modal>
+      );
+
+      expect(screen.getByText("Very tall content")).toBeInTheDocument();
+    });
+  });
+});
+
+// =============================================================================
+// MODAL.FOOTER TESTS
+// =============================================================================
+
+describe("Modal.Footer", () => {
+  describe("Acceptance Criteria", () => {
+    it("should render children content", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Footer>
+            <button data-testid="footer-btn">Save</button>
+          </Modal.Footer>
+        </Modal>
+      );
+
+      expect(screen.getByTestId("footer-btn")).toBeInTheDocument();
+    });
+
+    it("should have sticky positioning at bottom", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Footer>Buttons</Modal.Footer>
+        </Modal>
+      );
+
+      const footer = screen.getByTestId("modal-footer");
+      expect(footer).toHaveStyle({ position: "sticky", bottom: "0" });
+    });
+
+    it("should have border top separator", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Footer>Buttons</Modal.Footer>
+        </Modal>
+      );
+
+      const footer = screen.getByTestId("modal-footer");
+      const style = footer.getAttribute("style");
+      expect(style).toContain("border-top:");
+    });
+
+    it("should align buttons right by default", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Footer>Buttons</Modal.Footer>
+        </Modal>
+      );
+
+      const footer = screen.getByTestId("modal-footer");
+      expect(footer).toHaveStyle({ justifyContent: "flex-end" });
+    });
+
+    it("should support left alignment", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Footer align="left">Buttons</Modal.Footer>
+        </Modal>
+      );
+
+      const footer = screen.getByTestId("modal-footer");
+      expect(footer).toHaveStyle({ justifyContent: "flex-start" });
+    });
+
+    it("should support center alignment", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Footer align="center">Buttons</Modal.Footer>
+        </Modal>
+      );
+
+      const footer = screen.getByTestId("modal-footer");
+      expect(footer).toHaveStyle({ justifyContent: "center" });
+    });
+
+    it("should accept className prop", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Footer className="custom-footer">Buttons</Modal.Footer>
+        </Modal>
+      );
+
+      expect(screen.getByTestId("modal-footer")).toHaveClass("custom-footer");
+    });
+
+    it("should have gap between children", () => {
+      render(
+        <Modal isOpen={true} onClose={() => {}}>
+          <Modal.Footer>
+            <button>Cancel</button>
+            <button>Save</button>
+          </Modal.Footer>
+        </Modal>
+      );
+
+      const footer = screen.getByTestId("modal-footer");
+      const style = footer.getAttribute("style");
+      expect(style).toContain("gap:");
+    });
+  });
+});
+
+// =============================================================================
+// COMPOUND COMPONENT INTEGRATION TESTS
+// =============================================================================
+
+describe("Modal Compound Components", () => {
+  it("should render all subcomponents together", () => {
+    const onClose = vi.fn();
+
+    render(
+      <Modal isOpen={true} onClose={onClose}>
+        <Modal.Header icon={Plus} title="Create Item" onClose={onClose} />
+        <Modal.Body>
+          <input data-testid="input" type="text" placeholder="Name" />
+        </Modal.Body>
+        <Modal.Footer>
+          <button data-testid="cancel-btn">Cancel</button>
+          <button data-testid="save-btn">Save</button>
+        </Modal.Footer>
+      </Modal>
+    );
+
+    // Header
+    expect(screen.getByText("Create Item")).toBeInTheDocument();
+    expect(screen.getByTestId("modal-close-button")).toBeInTheDocument();
+
+    // Body
+    expect(screen.getByTestId("input")).toBeInTheDocument();
+
+    // Footer
+    expect(screen.getByTestId("cancel-btn")).toBeInTheDocument();
+    expect(screen.getByTestId("save-btn")).toBeInTheDocument();
+  });
+
+  it("should maintain proper tab order across subcomponents", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+
+    render(
+      <Modal isOpen={true} onClose={onClose}>
+        <Modal.Header icon={Plus} title="Test" onClose={onClose} />
+        <Modal.Body>
+          <input data-testid="input-1" type="text" />
+          <input data-testid="input-2" type="text" />
+        </Modal.Body>
+        <Modal.Footer>
+          <button data-testid="btn-1">Cancel</button>
+          <button data-testid="btn-2">Save</button>
+        </Modal.Footer>
+      </Modal>
+    );
+
+    // First focus goes to close button in header
+    await waitFor(() => {
+      expect(screen.getByTestId("modal-close-button")).toHaveFocus();
+    });
+
+    // Tab through elements
+    await user.tab();
+    expect(screen.getByTestId("input-1")).toHaveFocus();
+
+    await user.tab();
+    expect(screen.getByTestId("input-2")).toHaveFocus();
+
+    await user.tab();
+    expect(screen.getByTestId("btn-1")).toHaveFocus();
+
+    await user.tab();
+    expect(screen.getByTestId("btn-2")).toHaveFocus();
+
+    // Tab wraps back to close button
+    await user.tab();
+    expect(screen.getByTestId("modal-close-button")).toHaveFocus();
+  });
+});
