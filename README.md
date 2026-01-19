@@ -1,5 +1,9 @@
 # Brain Dump
 
+> **⚠️ Experimental Tool**
+>
+> Brain Dump is under active development and continuously evolving. Features may change, break, or be removed without notice. Not all configurations are fully supported. Use at your own risk and [report issues](https://github.com/salmanrrana/brain-dump/issues) to help us improve!
+
 **Your backlog, worked by AI.** A kanban board where clicking a ticket launches Claude, Copilot, or OpenCode with full context — or let Ralph, the autonomous agent, implement tickets while you're away.
 
 ![Kanban board](docs/screenshots/kanban-board.png)
