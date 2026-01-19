@@ -4,3 +4,6 @@
 // Theme system
 export * from "./ThemeProvider";
 export * from "./ThemeSwitcher";
+
+// Core components
+export * from "./Button";
