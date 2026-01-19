@@ -52,7 +52,7 @@
     {
       "id": "f42887e8-2c2e-43a8-96d8-277a02822ff0",
       "title": "03 - Create src/components-v2/ directory structure",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
