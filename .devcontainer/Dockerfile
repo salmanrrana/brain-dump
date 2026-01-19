@@ -60,9 +60,12 @@ RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhisto
 # Environment indicator for devcontainer detection
 ENV DEVCONTAINER=true
 
-# Create workspace and config directories
-RUN mkdir -p /workspace /home/node/.claude && \
-    chown -R node:node /workspace /home/node/.claude
+# Create workspace, config, and XDG-compliant data directories
+RUN mkdir -p /workspace /home/node/.claude \
+    /home/node/.local/share/brain-dump \
+    /home/node/.local/state/brain-dump/logs \
+    /home/node/.local/state/brain-dump/backups && \
+    chown -R node:node /workspace /home/node/.claude /home/node/.local
 
 WORKDIR /workspace
 

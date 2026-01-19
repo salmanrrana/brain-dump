@@ -7,7 +7,7 @@
 #   ./uninstall.sh --vscode     # Remove VS Code integration only
 #   ./uninstall.sh --claude     # Remove Claude Code integration only
 #   ./uninstall.sh --sandbox    # Remove Claude Code sandbox configuration
-#   ./uninstall.sh --devcontainer # Remove devcontainer Docker volumes
+#   ./uninstall.sh --devcontainer # Remove devcontainer Docker volumes (experimental feature)
 #   ./uninstall.sh --all        # Remove everything (including data)
 #   ./uninstall.sh --help       # Show help
 
@@ -80,6 +80,24 @@ get_vscode_paths() {
             COPILOT_SKILLS_DIR="$USERPROFILE/.copilot/skills"
             ;;
     esac
+}
+
+# Remove brain-dump environment variables from shell config
+remove_shell_env() {
+    local marker="# brain-dump"
+    local removed=0
+
+    for shell_rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
+        if [ -f "$shell_rc" ] && grep -q "$marker" "$shell_rc"; then
+            # Remove lines with our marker
+            sed -i.bak "/$marker/d" "$shell_rc" 2>/dev/null || \
+                sed -i '' "/$marker/d" "$shell_rc" 2>/dev/null
+            rm -f "${shell_rc}.bak"
+            removed=$((removed + 1))
+        fi
+    done
+
+    return $removed
 }
 
 # Get data paths based on OS
@@ -411,12 +429,31 @@ remove_devcontainer() {
         return 0
     fi
 
+    # Remove shell environment variables added by install.sh
+    if remove_shell_env; then
+        print_success "Removed brain-dump environment variables from shell config"
+        REMOVED+=("Shell environment variables")
+    fi
+
     # Named volumes to remove (these are NOT user data - just caches)
+    # Note: Volume names include devcontainer ID suffix, so we use pattern matching
     local volumes_to_remove=(
         "brain-dump-pnpm-store"
         "brain-dump-bashhistory"
         "brain-dump-claude-config"
+        "brain-dump-xdg-data"
+        "brain-dump-xdg-state"
+        "brain-dump-data"
     )
+
+    # Provide Lima cleanup guidance
+    if [ -S "$HOME/.lima/docker/sock/docker.sock" ]; then
+        echo ""
+        print_info "Lima detected. If you modified lima.yaml for writable mounts,"
+        print_info "you may want to revert those changes manually:"
+        print_info "  File: ~/.lima/docker/lima.yaml"
+        echo ""
+    fi
 
     local volumes_removed=0
     for volume in "${volumes_to_remove[@]}"; do
@@ -455,6 +492,12 @@ remove_devcontainer() {
             print_info "Keeping devcontainer image"
             SKIPPED+=("Devcontainer image (user chose to keep)")
         fi
+    fi
+
+    # Remove shell environment variable
+    if remove_shell_env; then
+        print_success "Removed BRAIN_DUMP_HOST_DATA_DIR from shell config"
+        REMOVED+=("Shell env (BRAIN_DUMP_HOST_DATA_DIR)")
     fi
 
     # Note: We do NOT remove the bind-mounted data directory
@@ -501,7 +544,7 @@ show_help() {
     echo "  --vscode       Remove VS Code integration only"
     echo "  --claude       Remove Claude Code integration only"
     echo "  --sandbox      Remove Claude Code sandbox configuration"
-    echo "  --devcontainer Remove devcontainer Docker volumes (not user data)"
+    echo "  --devcontainer Remove devcontainer Docker volumes [EXPERIMENTAL feature]"
     echo "  --docker       Remove Docker sandbox artifacts only"
     echo "  --all          Remove everything (including database, data, and Docker)"
     echo "  --help         Show this help message"

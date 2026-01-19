@@ -68,6 +68,47 @@ detect_os() {
     esac
 }
 
+# Check for malformed DOCKER_HOST (e.g., "sockexport" typo)
+check_docker_host() {
+    [ -z "${DOCKER_HOST:-}" ] && return 0
+    if echo "$DOCKER_HOST" | grep -qE 'sock[a-zA-Z]|\.sock[^/]'; then
+        print_error "DOCKER_HOST appears malformed: $DOCKER_HOST"
+        print_info "Check your shell config (~/.zshrc or ~/.bashrc)"
+        return 1
+    fi
+}
+
+# Add environment variable to shell config
+# Uses a marker comment so we can find and remove it later
+add_shell_env() {
+    local var_name="$1"
+    local var_value="$2"
+    local marker="# brain-dump"
+    local line="export ${var_name}=\"${var_value}\" ${marker}"
+
+    # Determine shell config file
+    local shell_rc=""
+    if [ -n "${ZSH_VERSION:-}" ] || [ -f "$HOME/.zshrc" ]; then
+        shell_rc="$HOME/.zshrc"
+    elif [ -f "$HOME/.bashrc" ]; then
+        shell_rc="$HOME/.bashrc"
+    elif [ -f "$HOME/.bash_profile" ]; then
+        shell_rc="$HOME/.bash_profile"
+    else
+        return 1
+    fi
+
+    # Check if already set
+    if grep -q "^export ${var_name}=.*${marker}" "$shell_rc" 2>/dev/null; then
+        return 0  # Already configured
+    fi
+
+    # Add to shell config
+    echo "" >> "$shell_rc"
+    echo "$line" >> "$shell_rc"
+    return 0
+}
+
 # Check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
@@ -375,6 +416,11 @@ setup_docker_sandbox() {
         export DOCKER_HOST="$docker_host"
     fi
 
+    if ! check_docker_host; then
+        FAILED+=("Docker sandbox (DOCKER_HOST malformed)")
+        return 1
+    fi
+
     if ! $docker_cmd info >/dev/null 2>&1; then
         print_warning "Docker is installed but not running"
         print_info "Start Docker and run: ./install.sh --docker"
@@ -651,6 +697,29 @@ console.log('Sandbox config added successfully');
 setup_devcontainer() {
     print_step "Setting up devcontainer environment"
 
+    # Experimental warning
+    echo ""
+    print_warning "╔══════════════════════════════════════════════════════════════╗"
+    print_warning "║  EXPERIMENTAL: Devcontainer support has known issues         ║"
+    print_warning "╠══════════════════════════════════════════════════════════════╣"
+    print_warning "║  • Port forwarding often fails on macOS (Lima/Docker Desktop)║"
+    print_warning "║  • Native modules require manual rebuilding                  ║"
+    print_warning "║  • Database may need manual initialization                   ║"
+    print_warning "║  • VS Code Simple Browser doesn't execute JavaScript         ║"
+    print_warning "║                                                              ║"
+    print_warning "║  Recommended: Use './install.sh --sandbox' instead           ║"
+    print_warning "║  See: docs/sandboxing.md for details                         ║"
+    print_warning "╚══════════════════════════════════════════════════════════════╝"
+    echo ""
+
+    print_info "Do you want to continue with devcontainer setup? (y/N)"
+    read -r response
+    if [[ ! "$response" =~ ^[Yy] ]]; then
+        print_info "Devcontainer setup cancelled. Try './install.sh --sandbox' instead."
+        SKIPPED+=("Devcontainer (user cancelled)")
+        return 0
+    fi
+
     local DEVCONTAINER_DIR=".devcontainer"
 
     # Check if .devcontainer directory exists
@@ -692,6 +761,17 @@ setup_devcontainer() {
         return 1
     fi
 
+    if ! check_docker_host; then
+        # Extra help for devcontainer users
+        if [ -S "$HOME/.lima/docker/sock/docker.sock" ]; then
+            print_info "Try: export DOCKER_HOST=unix://\$HOME/.lima/docker/sock/docker.sock"
+        elif [ -S "$HOME/.colima/default/docker.sock" ]; then
+            print_info "Try: export DOCKER_HOST=unix://\$HOME/.colima/default/docker.sock"
+        fi
+        FAILED+=("Devcontainer (DOCKER_HOST malformed)")
+        return 1
+    fi
+
     # Check if Docker is running
     if ! $docker_cmd info >/dev/null 2>&1; then
         print_error "Docker is not running"
@@ -701,6 +781,54 @@ setup_devcontainer() {
     fi
 
     print_success "Docker is available and running"
+
+    # Check for Lima and provide writable mount guidance
+    if [ -S "$HOME/.lima/docker/sock/docker.sock" ]; then
+        local lima_yaml="$HOME/.lima/docker/lima.yaml"
+        if [ -f "$lima_yaml" ]; then
+            # Check if home directory mount has writable: true
+            if ! grep -A1 'location: "~"' "$lima_yaml" 2>/dev/null | grep -q 'writable: true'; then
+                echo ""
+                print_warning "Lima detected: Home directory mount may be read-only!"
+                print_info "The devcontainer needs write access to your project directory."
+                echo ""
+                echo "  Add 'writable: true' to your Lima config:"
+                echo "  File: $lima_yaml"
+                echo ""
+                echo "  mounts:"
+                echo "    - location: \"~\""
+                echo "      writable: true    # <-- Add this line"
+                echo ""
+                echo "  Then restart Lima: limactl stop docker && limactl start docker"
+                echo ""
+                print_info "Without this, 'pnpm install' will fail with EROFS (read-only filesystem)"
+                echo ""
+            else
+                print_success "Lima home directory mount is writable"
+            fi
+        fi
+    fi
+
+    # Configure BRAIN_DUMP_HOST_DATA_DIR for devcontainer bind mount
+    local data_dir=""
+    if [ "$OS" = "macos" ]; then
+        data_dir="$HOME/Library/Application Support/brain-dump"
+    else
+        data_dir="$HOME/.local/share/brain-dump"
+    fi
+
+    # Create data directory if it doesn't exist
+    mkdir -p "$data_dir"
+
+    # Add to shell config
+    if add_shell_env "BRAIN_DUMP_HOST_DATA_DIR" "$data_dir"; then
+        print_success "Added BRAIN_DUMP_HOST_DATA_DIR to shell config"
+        export BRAIN_DUMP_HOST_DATA_DIR="$data_dir"
+        INSTALLED+=("Shell env (BRAIN_DUMP_HOST_DATA_DIR)")
+    else
+        print_warning "Could not add BRAIN_DUMP_HOST_DATA_DIR to shell config"
+        print_info "Add manually: export BRAIN_DUMP_HOST_DATA_DIR=\"$data_dir\""
+    fi
 
     # Check VS Code and Remote-Containers extension
     if command_exists code; then
@@ -1720,7 +1848,7 @@ show_help() {
     echo ""
     echo "Security Options:"
     echo "  --sandbox       Enable Claude Code's native sandbox mode"
-    echo "  --devcontainer  Set up devcontainer environment (Docker + network isolation)"
+    echo "  --devcontainer  [EXPERIMENTAL] Set up devcontainer (has known issues on macOS)"
     echo "  --docker        Set up Docker sandbox for Ralph (optional)"
     echo ""
     echo "Other Options:"
@@ -1731,7 +1859,7 @@ show_help() {
     echo "Examples:"
     echo "  ./install.sh --claude            # Claude Code only"
     echo "  ./install.sh --claude --sandbox  # Claude Code with sandbox enabled"
-    echo "  ./install.sh --devcontainer      # Set up devcontainer environment"
+    echo "  ./install.sh --devcontainer      # [EXPERIMENTAL] Set up devcontainer"
     echo "  ./install.sh --vscode            # VS Code only"
     echo "  ./install.sh --opencode          # OpenCode only"
     echo "  ./install.sh --all               # All IDEs + sandbox"

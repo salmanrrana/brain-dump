@@ -44,13 +44,13 @@
     "source=brain-dump-pnpm-store-${devcontainerId},target=/home/node/.local/share/pnpm,type=volume",
     "source=brain-dump-bashhistory-${devcontainerId},target=/commandhistory,type=volume",
     "source=brain-dump-claude-config-${devcontainerId},target=/home/node/.claude,type=volume",
-    "source=${localEnv:BRAIN_DUMP_HOST_DATA_DIR:${localEnv:HOME}/Library/Application Support/brain-dump},target=/home/node/.brain-dump,type=bind,consistency=cached"
+    "source=brain-dump-xdg-data-${devcontainerId},target=/home/node/.local/share/brain-dump,type=volume",
+    "source=brain-dump-xdg-state-${devcontainerId},target=/home/node/.local/state/brain-dump,type=volume"
   ],
   "containerEnv": {
     "NODE_OPTIONS": "--max-old-space-size=4096",
     "PNPM_HOME": "/home/node/.local/share/pnpm",
     "CLAUDE_CONFIG_DIR": "/home/node/.claude",
-    "BRAIN_DUMP_DATA_DIR": "/home/node/.brain-dump",
     "POWERLEVEL9K_DISABLE_GITSTATUS": "true"
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
