@@ -9,114 +9,600 @@
   ],
   "userStories": [
     {
-      "id": "75b24d41-d6c7-4e68-b16a-332dbc8e662e",
-      "title": "01 - Create feature/ui-v2 branch",
+      "id": "9a4bc7a1-89bf-4a7f-b22b-6500738d7496",
+      "title": "06 - Create CSS variables with theme data attributes",
       "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Branch `feature/ui-v2` created from main",
-        "Branch pushed to remote"
-      ],
-      "references": [],
-      "description": "Create the `feature/ui-v2` branch from main for parallel UI development.\n\n**Acceptance Criteria:**\n- [ ] Branch `feature/ui-v2` created from main\n- [ ] Branch pushed to remote\n\n**Commands:**\n```bash\ngit checkout main\ngit pull\ngit checkout -b feature/ui-v2\ngit push -u origin feature/ui-v2\n```",
-      "priority": "high",
-      "tags": [
-        "setup",
-        "git"
-      ]
-    },
-    {
-      "id": "1544e96f-006c-47d2-b59c-7b96e54476a4",
-      "title": "02 - Add dev:v2 script to package.json",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`dev:v2` script added to package.json",
-        "Runs on port 4243",
-        "Can run alongside `dev` script"
-      ],
-      "references": [],
-      "description": "Add `dev:v2` npm script to run the new UI on port 4243 while the old UI runs on 4242.\n\n**Acceptance Criteria:**\n- [ ] `dev:v2` script added to package.json\n- [ ] Runs on port 4243\n- [ ] Can run alongside `dev` script\n\n**Changes:**\n```json\n{\n  \"scripts\": {\n    \"dev\": \"vinxi dev --port 4242\",\n    \"dev:v2\": \"vinxi dev --port 4243\"\n  }\n}\n```\n\n**Validation:**\nRun `pnpm dev` and `pnpm dev:v2` in separate terminals - both should load without conflict.",
-      "priority": "high",
-      "tags": [
-        "setup",
-        "config"
-      ]
-    },
-    {
-      "id": "f42887e8-2c2e-43a8-96d8-277a02822ff0",
-      "title": "03 - Create src/components-v2/ directory structure",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`src/components-v2/` directory created with subdirs",
-        "Empty index.ts exports in each directory",
-        ".gitkeep files where needed"
+        "All 3 themes defined: Ember (orange), Mint (emerald), Solar (gold)",
+        "Base colors: `--bg-primary` (#0a0a0a), `--bg-secondary` (#111111)",
+        "Accent colors vary by theme",
+        "Typography scale variables",
+        "Spacing scale variables",
+        "Border radius variables",
+        "Shadow variables"
       ],
       "references": [
-        "src/components-v2/",
-        "src/components/"
+        "src/styles/variables.css"
       ],
-      "description": "Create the temporary component directory structure for the new UI during development.\n\n**Acceptance Criteria:**\n- [ ] `src/components-v2/` directory created with subdirs\n- [ ] Empty index.ts exports in each directory\n- [ ] .gitkeep files where needed\n\n**Directory Structure:**\n```\nsrc/components-v2/\n├── ui/\n├── navigation/\n├── dashboard/\n├── board/\n├── tickets/\n├── projects/\n├── epics/\n├── inception/\n└── settings/\n```\n\n**Note:** This structure will eventually replace `src/components/` after merge.",
-      "priority": "medium",
-      "tags": [
-        "setup",
-        "structure"
-      ]
-    },
-    {
-      "id": "bf4d5e12-1235-4754-b76c-b73ccaa94d7d",
-      "title": "04 - Verify parallel UI development works",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Old UI loads at http://localhost:4242",
-        "New UI loads at http://localhost:4243",
-        "Both share the same SQLite database",
-        "Changes in one UI reflect in the other after refresh",
-        "No port conflicts or file locking issues"
-      ],
-      "references": [],
-      "description": "Test that both UIs can run simultaneously on different ports.\n\n**Acceptance Criteria:**\n- [ ] Old UI loads at http://localhost:4242\n- [ ] New UI loads at http://localhost:4243\n- [ ] Both share the same SQLite database\n- [ ] Changes in one UI reflect in the other after refresh\n- [ ] No port conflicts or file locking issues\n\n**Test Steps:**\n1. Terminal 1: `git checkout main && pnpm dev`\n2. Terminal 2: `git checkout feature/ui-v2 && pnpm dev:v2`\n3. Create a ticket in old UI\n4. Verify it appears in new UI (after refresh)\n5. Vice versa",
+      "description": "Create CSS custom properties for the Neon Productivity design system with `:root` defaults and `[data-theme]` overrides.\n\n**Files to Create:**\n- `src/styles/variables.css`\n\n**Acceptance Criteria:**\n- [ ] All 3 themes defined: Ember (orange), Mint (emerald), Solar (gold)\n- [ ] Base colors: `--bg-primary` (#0a0a0a), `--bg-secondary` (#111111)\n- [ ] Accent colors vary by theme\n- [ ] Typography scale variables\n- [ ] Spacing scale variables\n- [ ] Border radius variables\n- [ ] Shadow variables\n\n**Theme Colors:**\n```css\n/* Ember Theme */\n--accent-primary: #f97316;\n--accent-secondary: #ea580c;\n\n/* Mint Theme */\n--accent-primary: #10b981;\n--accent-secondary: #059669;\n\n/* Solar Theme */\n--accent-primary: #eab308;\n--accent-secondary: #ca8a04;\n```\n\n**Tests:** Visual inspection of all 3 themes",
       "priority": "high",
       "tags": [
-        "setup",
-        "testing"
+        "theme",
+        "css"
       ]
     },
     {
-      "id": "5a06e93c-36d1-427d-8080-42ea0e6bf4ca",
-      "title": "05 - Document parallel development workflow",
+      "id": "d8b3c109-acc6-4025-9def-f4f96f7330b6",
+      "title": "07 - Create ThemeContext with localStorage persistence",
+      "passes": true,
+      "overview": "",
+      "types": [
+        {
+          "name": "ThemeContextValue",
+          "code": "interface ThemeContextValue {\n  theme: Theme;\n  setTheme: (theme: Theme) => void;\n}"
+        },
+        {
+          "name": "Theme",
+          "code": "type Theme = 'ember' | 'mint' | 'solar';"
+        }
+      ],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`useTheme()` hook returns `{theme, setTheme}`",
+        "Persists to `brain-dump-theme` localStorage key",
+        "Defaults to 'ember' if no preference stored",
+        "SSR safe (no hydration mismatch)",
+        "`useTheme()` returns correct initial theme",
+        "`setTheme()` updates theme",
+        "Theme persists after refresh"
+      ],
+      "references": [
+        "src/lib/theme.ts",
+        "src/lib/theme.test.ts"
+      ],
+      "description": "Create React context for theme management with localStorage persistence.\n\n**Files to Create:**\n- `src/lib/theme.ts`\n- `src/lib/theme.test.ts`\n\n**Acceptance Criteria:**\n- [ ] `useTheme()` hook returns `{theme, setTheme}`\n- [ ] Persists to `brain-dump-theme` localStorage key\n- [ ] Defaults to 'ember' if no preference stored\n- [ ] SSR safe (no hydration mismatch)\n\n**Interface:**\n```typescript\ntype Theme = 'ember' | 'mint' | 'solar';\n\ninterface ThemeContextValue {\n  theme: Theme;\n  setTheme: (theme: Theme) => void;\n}\n\nexport function useTheme(): ThemeContextValue;\n```\n\n**Tests:**\n- [ ] `useTheme()` returns correct initial theme\n- [ ] `setTheme()` updates theme\n- [ ] Theme persists after refresh",
+      "priority": "high",
+      "tags": [
+        "theme",
+        "react",
+        "state"
+      ]
+    },
+    {
+      "id": "7eac68ca-74a0-4453-bafd-4a84bd3ae9e6",
+      "title": "08 - Create ThemeProvider component",
       "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "README section added to `feature/ui-v2` branch",
-        "Explains branch strategy",
-        "Explains port assignments",
-        "Explains what's shared vs rebuilt",
-        "Includes common commands"
+        "Wraps children with ThemeContext.Provider",
+        "Sets `data-theme` attribute on `document.documentElement`",
+        "Updates attribute when theme changes",
+        "Handles SSR gracefully",
+        "`data-theme` attribute set on mount",
+        "`data-theme` updates when theme changes"
       ],
-      "references": [],
-      "description": "Create documentation for the parallel development workflow so developers know how to work on both UIs.\n\n**Acceptance Criteria:**\n- [ ] README section added to `feature/ui-v2` branch\n- [ ] Explains branch strategy\n- [ ] Explains port assignments\n- [ ] Explains what's shared vs rebuilt\n- [ ] Includes common commands\n\n**Content to Document:**\n- Branch strategy (main = old UI, feature/ui-v2 = new UI)\n- Port assignments (4242 vs 4243)\n- Shared backend files (src/api/, src/lib/schema.ts, mcp-server/)\n- New frontend files (src/components-v2/, src/routes-v2/)\n- Development workflow commands\n- Merge checklist reference",
+      "references": [
+        "src/components/ui/ThemeProvider.tsx",
+        "src/components/ui/ThemeProvider.test.tsx"
+      ],
+      "description": "Create the ThemeProvider component that wraps the app and sets the `data-theme` attribute on the document.\n\n**Files to Create:**\n- `src/components/ui/ThemeProvider.tsx`\n- `src/components/ui/ThemeProvider.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Wraps children with ThemeContext.Provider\n- [ ] Sets `data-theme` attribute on `document.documentElement`\n- [ ] Updates attribute when theme changes\n- [ ] Handles SSR gracefully\n\n**Usage:**\n```tsx\n<ThemeProvider>\n  <App />\n</ThemeProvider>\n```\n\n**Tests:**\n- [ ] `data-theme` attribute set on mount\n- [ ] `data-theme` updates when theme changes",
+      "priority": "high",
+      "tags": [
+        "theme",
+        "react",
+        "component"
+      ]
+    },
+    {
+      "id": "7f363772-d191-4aa2-bb35-15dc866cb096",
+      "title": "09 - Create ThemeSwitcher component",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "3 color dot buttons (Ember=orange, Mint=emerald, Solar=gold)",
+        "Click changes theme via `setTheme()`",
+        "Current theme has ring/glow indicator",
+        "Hover shows theme name tooltip",
+        "Accessible (keyboard nav, aria-labels)",
+        "Click changes theme",
+        "Active theme is visually indicated",
+        "Keyboard navigation works"
+      ],
+      "references": [
+        "src/components/ui/ThemeSwitcher.tsx",
+        "src/components/ui/ThemeSwitcher.test.tsx"
+      ],
+      "description": "Create the theme switcher UI with 3 color dot buttons.\n\n**Files to Create:**\n- `src/components/ui/ThemeSwitcher.tsx`\n- `src/components/ui/ThemeSwitcher.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] 3 color dot buttons (Ember=orange, Mint=emerald, Solar=gold)\n- [ ] Click changes theme via `setTheme()`\n- [ ] Current theme has ring/glow indicator\n- [ ] Hover shows theme name tooltip\n- [ ] Accessible (keyboard nav, aria-labels)\n\n**Design:**\n```\n[🟠] [🟢] [🟡]  <- Color dots\n ^-- Active indicator (ring)\n```\n\n**Tests:**\n- [ ] Click changes theme\n- [ ] Active theme is visually indicated\n- [ ] Keyboard navigation works",
       "priority": "medium",
       "tags": [
-        "setup",
-        "docs"
+        "theme",
+        "component",
+        "ui"
+      ]
+    },
+    {
+      "id": "53ccdd44-ece5-4a33-ac56-0694a08b76db",
+      "title": "10 - Integrate theme CSS into styles.css",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Tailwind CSS imported",
+        "`variables.css` imported",
+        "Body uses CSS variables for background/text",
+        "Smooth theme transition (150ms)",
+        "Dark theme as base (no light mode)"
+      ],
+      "references": [
+        "src/styles.css"
+      ],
+      "description": "Create the main styles.css file that imports Tailwind and theme variables.\n\n**Files to Create/Modify:**\n- `src/styles.css` (new, replaces old)\n\n**Acceptance Criteria:**\n- [ ] Tailwind CSS imported\n- [ ] `variables.css` imported\n- [ ] Body uses CSS variables for background/text\n- [ ] Smooth theme transition (150ms)\n- [ ] Dark theme as base (no light mode)\n\n**Structure:**\n```css\n@import 'tailwindcss';\n@import './styles/variables.css';\n\nbody {\n  background-color: var(--bg-primary);\n  color: var(--text-primary);\n  transition: background-color 150ms, color 150ms;\n}\n```\n\n**Tests:** Visual - verify body colors change with theme",
+      "priority": "high",
+      "tags": [
+        "theme",
+        "css",
+        "tailwind"
+      ]
+    },
+    {
+      "id": "48e27909-545e-4d29-80e0-ed334639d9b2",
+      "title": "11 - Create Button component with 4 variants",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "4 variants: primary (gradient), secondary (border), ghost (transparent), danger (red)",
+        "3 sizes: sm, md, lg",
+        "Disabled state (opacity + cursor)",
+        "Loading state with spinner",
+        "Icon support (left/right)",
+        "Uses CSS variables for colors",
+        "All variants render correctly",
+        "Disabled state works",
+        "Click handler fires",
+        "Loading state shows spinner"
+      ],
+      "references": [
+        "src/components/ui/Button.tsx",
+        "src/components/ui/Button.test.tsx"
+      ],
+      "description": "Create the core Button component with primary, secondary, ghost, and danger variants.\n\n**Files to Create:**\n- `src/components/ui/Button.tsx`\n- `src/components/ui/Button.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] 4 variants: primary (gradient), secondary (border), ghost (transparent), danger (red)\n- [ ] 3 sizes: sm, md, lg\n- [ ] Disabled state (opacity + cursor)\n- [ ] Loading state with spinner\n- [ ] Icon support (left/right)\n- [ ] Uses CSS variables for colors\n\n**Variants:**\n```tsx\n<Button variant=\"primary\">Save</Button>      // Gradient bg\n<Button variant=\"secondary\">Cancel</Button>  // Border only\n<Button variant=\"ghost\">More</Button>        // No border\n<Button variant=\"danger\">Delete</Button>     // Red bg\n```\n\n**Tests:**\n- [ ] All variants render correctly\n- [ ] Disabled state works\n- [ ] Click handler fires\n- [ ] Loading state shows spinner",
+      "priority": "high",
+      "tags": [
+        "component",
+        "ui"
+      ]
+    },
+    {
+      "id": "05813c65-eb27-45ba-be06-2e588f8e472c",
+      "title": "12 - Create Input component",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Text input variant",
+        "Search input variant (with icon)",
+        "Textarea variant (multiline)",
+        "Focus ring uses `--accent-primary`",
+        "Error state with red border",
+        "Disabled state",
+        "Placeholder styling",
+        "Value changes on input",
+        "Error state displays",
+        "Focus ring visible"
+      ],
+      "references": [
+        "src/components/ui/Input.tsx",
+        "src/components/ui/Input.test.tsx"
+      ],
+      "description": "Create the Input component for text, search, and textarea variants.\n\n**Files to Create:**\n- `src/components/ui/Input.tsx`\n- `src/components/ui/Input.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Text input variant\n- [ ] Search input variant (with icon)\n- [ ] Textarea variant (multiline)\n- [ ] Focus ring uses `--accent-primary`\n- [ ] Error state with red border\n- [ ] Disabled state\n- [ ] Placeholder styling\n\n**Interface:**\n```tsx\ninterface InputProps {\n  variant?: 'text' | 'search' | 'textarea';\n  error?: string;\n  label?: string;\n  // ...standard input props\n}\n```\n\n**Tests:**\n- [ ] Value changes on input\n- [ ] Error state displays\n- [ ] Focus ring visible",
+      "priority": "high",
+      "tags": [
+        "component",
+        "ui",
+        "form"
+      ]
+    },
+    {
+      "id": "507444f8-fd77-48c2-bb8d-ba12c75030ba",
+      "title": "13 - Create Select component",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Custom styled dropdown (not native select)",
+        "Chevron icon on right",
+        "Keyboard navigation (arrow keys, Enter, Escape)",
+        "Search/filter within options (optional)",
+        "Uses CSS variables for colors",
+        "Click outside closes dropdown",
+        "Opens on click",
+        "Selection changes value",
+        "Keyboard navigation works",
+        "Escape closes dropdown"
+      ],
+      "references": [
+        "src/components/ui/Select.tsx",
+        "src/components/ui/Select.test.tsx"
+      ],
+      "description": "Create custom styled Select dropdown component with keyboard navigation.\n\n**Files to Create:**\n- `src/components/ui/Select.tsx`\n- `src/components/ui/Select.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Custom styled dropdown (not native select)\n- [ ] Chevron icon on right\n- [ ] Keyboard navigation (arrow keys, Enter, Escape)\n- [ ] Search/filter within options (optional)\n- [ ] Uses CSS variables for colors\n- [ ] Click outside closes dropdown\n\n**Interface:**\n```tsx\ninterface SelectProps<T> {\n  options: { value: T; label: string }[];\n  value: T;\n  onChange: (value: T) => void;\n  placeholder?: string;\n}\n```\n\n**Tests:**\n- [ ] Opens on click\n- [ ] Selection changes value\n- [ ] Keyboard navigation works\n- [ ] Escape closes dropdown",
+      "priority": "medium",
+      "tags": [
+        "component",
+        "ui",
+        "form"
+      ]
+    },
+    {
+      "id": "f8dd3c76-f233-4aeb-9826-1a0ccbfb2ad8",
+      "title": "14 - Create Card component",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Background uses `--bg-card`",
+        "Border uses `--border-primary`",
+        "Optional `glow` prop for AI-active state",
+        "Glow uses accent color with pulse animation",
+        "Padding and border radius from design system",
+        "Hover state (optional)"
+      ],
+      "references": [
+        "src/components/ui/Card.tsx"
+      ],
+      "description": "Create base Card component with optional glow effect for AI-active states.\n\n**Files to Create:**\n- `src/components/ui/Card.tsx`\n\n**Acceptance Criteria:**\n- [ ] Background uses `--bg-card`\n- [ ] Border uses `--border-primary`\n- [ ] Optional `glow` prop for AI-active state\n- [ ] Glow uses accent color with pulse animation\n- [ ] Padding and border radius from design system\n- [ ] Hover state (optional)\n\n**Usage:**\n```tsx\n<Card>Basic card content</Card>\n<Card glow>AI is working on this</Card>\n<Card hoverable onClick={handleClick}>Clickable card</Card>\n```\n\n**Tests:** Visual inspection",
+      "priority": "medium",
+      "tags": [
+        "component",
+        "ui"
+      ]
+    },
+    {
+      "id": "72c37bdb-db7b-458e-adf8-866ca6bc19e7",
+      "title": "15 - Create Badge component",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Status variant (backlog=gray, in_progress=blue, review=purple, done=green)",
+        "Priority variant (high=red, medium=orange, low=gray)",
+        "PR status variant (open=green, draft=gray, merged=purple, closed=red)",
+        "Pill shape with rounded corners",
+        "Size options: sm, md",
+        "Correct colors for each status",
+        "All variants render"
+      ],
+      "references": [
+        "src/components/ui/Badge.tsx",
+        "src/components/ui/Badge.test.tsx"
+      ],
+      "description": "Create Badge component for status, priority, and PR status indicators.\n\n**Files to Create:**\n- `src/components/ui/Badge.tsx`\n- `src/components/ui/Badge.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Status variant (backlog=gray, in_progress=blue, review=purple, done=green)\n- [ ] Priority variant (high=red, medium=orange, low=gray)\n- [ ] PR status variant (open=green, draft=gray, merged=purple, closed=red)\n- [ ] Pill shape with rounded corners\n- [ ] Size options: sm, md\n\n**Usage:**\n```tsx\n<Badge variant=\"status\" value=\"in_progress\" />\n<Badge variant=\"priority\" value=\"high\" />\n<Badge variant=\"pr-status\" value=\"merged\" />\n```\n\n**Tests:**\n- [ ] Correct colors for each status\n- [ ] All variants render",
+      "priority": "medium",
+      "tags": [
+        "component",
+        "ui"
+      ]
+    },
+    {
+      "id": "ac253418-7a86-478b-9b9b-a8692e88346f",
+      "title": "16 - Create IconButton component",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Square shape (1:1 aspect ratio)",
+        "3 sizes: sm (24px), md (32px), lg (40px)",
+        "Ghost and filled variants",
+        "Hover state with background",
+        "Accepts Lucide React icons",
+        "Tooltip on hover (optional)"
+      ],
+      "references": [
+        "src/components/ui/IconButton.tsx"
+      ],
+      "description": "Create square IconButton component for icon-only actions.\n\n**Files to Create:**\n- `src/components/ui/IconButton.tsx`\n\n**Acceptance Criteria:**\n- [ ] Square shape (1:1 aspect ratio)\n- [ ] 3 sizes: sm (24px), md (32px), lg (40px)\n- [ ] Ghost and filled variants\n- [ ] Hover state with background\n- [ ] Accepts Lucide React icons\n- [ ] Tooltip on hover (optional)\n\n**Usage:**\n```tsx\n<IconButton icon={X} onClick={handleClose} aria-label=\"Close\" />\n<IconButton icon={Edit} variant=\"filled\" size=\"sm\" />\n```\n\n**Tests:** Visual inspection",
+      "priority": "medium",
+      "tags": [
+        "component",
+        "ui"
+      ]
+    },
+    {
+      "id": "ded5f05f-6ed9-4056-b896-5ef84a3e8c61",
+      "title": "17 - Create Toggle component",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Switch/toggle style (not checkbox)",
+        "Gradient fill when ON using accent colors",
+        "Gray fill when OFF",
+        "Smooth slide animation",
+        "Accessible (role=\"switch\", aria-checked)",
+        "Disabled state",
+        "Click toggles state",
+        "Visual indicator matches state",
+        "Disabled prevents toggle"
+      ],
+      "references": [
+        "src/components/ui/Toggle.tsx",
+        "src/components/ui/Toggle.test.tsx"
+      ],
+      "description": "Create switch-style Toggle component for boolean settings.\n\n**Files to Create:**\n- `src/components/ui/Toggle.tsx`\n- `src/components/ui/Toggle.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Switch/toggle style (not checkbox)\n- [ ] Gradient fill when ON using accent colors\n- [ ] Gray fill when OFF\n- [ ] Smooth slide animation\n- [ ] Accessible (role=\"switch\", aria-checked)\n- [ ] Disabled state\n\n**Usage:**\n```tsx\n<Toggle checked={enabled} onChange={setEnabled} />\n<Toggle checked={true} disabled />\n```\n\n**Tests:**\n- [ ] Click toggles state\n- [ ] Visual indicator matches state\n- [ ] Disabled prevents toggle",
+      "priority": "medium",
+      "tags": [
+        "component",
+        "ui",
+        "form"
+      ]
+    },
+    {
+      "id": "3641a40d-436b-4f96-9b27-4ea89d36bd8c",
+      "title": "18 - Create Checkbox component",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Custom styled (not native checkbox)",
+        "Checkmark uses accent color",
+        "Indeterminate state support",
+        "Label support (inline text)",
+        "Disabled state",
+        "Accessible (proper input underneath)"
+      ],
+      "references": [
+        "src/components/ui/Checkbox.tsx"
+      ],
+      "description": "Create styled Checkbox component for multi-select forms and subtasks.\n\n**Files to Create:**\n- `src/components/ui/Checkbox.tsx`\n\n**Acceptance Criteria:**\n- [ ] Custom styled (not native checkbox)\n- [ ] Checkmark uses accent color\n- [ ] Indeterminate state support\n- [ ] Label support (inline text)\n- [ ] Disabled state\n- [ ] Accessible (proper input underneath)\n\n**Usage:**\n```tsx\n<Checkbox checked={done} onChange={setDone} label=\"Task completed\" />\n<Checkbox indeterminate label=\"Some items selected\" />\n```\n\n**Tests:** Visual inspection",
+      "priority": "low",
+      "tags": [
+        "component",
+        "ui",
+        "form"
+      ]
+    },
+    {
+      "id": "1101db9a-e4bf-42ac-9a2a-4b2c5109bce2",
+      "title": "19 - Create Modal base component",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Overlay with backdrop blur",
+        "Focus trap (tab stays within modal)",
+        "Escape key closes modal",
+        "Click outside closes modal (optional prop)",
+        "Enter/exit animations (fade + scale)",
+        "Portal renders to body",
+        "Scrollable content area",
+        "Sizes: sm (400px), md (500px), lg (600px), xl (800px)",
+        "Modal renders when open",
+        "Escape closes modal",
+        "Focus trapped within modal"
+      ],
+      "references": [
+        "src/components/ui/Modal.tsx",
+        "src/components/ui/Modal.test.tsx"
+      ],
+      "description": "Create the base Modal component with overlay, focus trap, and animations.\n\n**Files to Create:**\n- `src/components/ui/Modal.tsx`\n- `src/components/ui/Modal.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Overlay with backdrop blur\n- [ ] Focus trap (tab stays within modal)\n- [ ] Escape key closes modal\n- [ ] Click outside closes modal (optional prop)\n- [ ] Enter/exit animations (fade + scale)\n- [ ] Portal renders to body\n- [ ] Scrollable content area\n- [ ] Sizes: sm (400px), md (500px), lg (600px), xl (800px)\n\n**Interface:**\n```tsx\ninterface ModalProps {\n  isOpen: boolean;\n  onClose: () => void;\n  size?: 'sm' | 'md' | 'lg' | 'xl';\n  closeOnOverlayClick?: boolean;\n  children: React.ReactNode;\n}\n```\n\n**Tests:**\n- [ ] Modal renders when open\n- [ ] Escape closes modal\n- [ ] Focus trapped within modal",
+      "priority": "high",
+      "tags": [
+        "component",
+        "ui",
+        "modal"
+      ]
+    },
+    {
+      "id": "6cca5ce1-7bdb-4a4e-b871-bc7c726d610b",
+      "title": "20 - Create ModalHeader subcomponent",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Gradient icon area on left (uses accent colors)",
+        "Title text",
+        "Close button (X) on right",
+        "Sticky at top during scroll",
+        "Border bottom separator"
+      ],
+      "references": [
+        "src/components/ui/Modal.tsx"
+      ],
+      "description": "Create the ModalHeader subcomponent with gradient icon area per mockup design.\n\n**Files to Modify:**\n- `src/components/ui/Modal.tsx` (add Modal.Header)\n\n**Acceptance Criteria:**\n- [ ] Gradient icon area on left (uses accent colors)\n- [ ] Title text\n- [ ] Close button (X) on right\n- [ ] Sticky at top during scroll\n- [ ] Border bottom separator\n\n**Design per mockup:**\n```\n┌─────────────────────────────────────┐\n│ [🎯] Create New Ticket          [×] │\n│  ^-- gradient bg                    │\n└─────────────────────────────────────┘\n```\n\n**Usage:**\n```tsx\n<Modal.Header icon={Plus} title=\"Create New Ticket\" onClose={onClose} />\n```\n\n**Tests:** Visual inspection",
+      "priority": "medium",
+      "tags": [
+        "component",
+        "ui",
+        "modal"
+      ]
+    },
+    {
+      "id": "df71f7dc-8fc0-4e97-9004-e5bec49a2e8a",
+      "title": "21 - Create ModalBody and ModalFooter subcomponents",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Modal.Body scrolls when content overflows",
+        "Modal.Body has consistent padding",
+        "Modal.Footer sticky at bottom",
+        "Modal.Footer has border top separator",
+        "Footer aligns buttons right by default"
+      ],
+      "references": [
+        "src/components/ui/Modal.tsx"
+      ],
+      "description": "Create ModalBody (scrollable content area) and ModalFooter (sticky action buttons).\n\n**Files to Modify:**\n- `src/components/ui/Modal.tsx` (add Modal.Body, Modal.Footer)\n\n**Acceptance Criteria:**\n- [ ] Modal.Body scrolls when content overflows\n- [ ] Modal.Body has consistent padding\n- [ ] Modal.Footer sticky at bottom\n- [ ] Modal.Footer has border top separator\n- [ ] Footer aligns buttons right by default\n\n**Usage:**\n```tsx\n<Modal>\n  <Modal.Header ... />\n  <Modal.Body>\n    {/* Form fields */}\n  </Modal.Body>\n  <Modal.Footer>\n    <Button variant=\"secondary\">Cancel</Button>\n    <Button variant=\"primary\">Save</Button>\n  </Modal.Footer>\n</Modal>\n```\n\n**Tests:** Visual inspection - scroll behavior",
+      "priority": "medium",
+      "tags": [
+        "component",
+        "ui",
+        "modal"
+      ]
+    },
+    {
+      "id": "0d1a0001-a3ba-41e9-87b2-3d77c6819fff",
+      "title": "22 - Create useModal hook",
+      "passes": true,
+      "overview": "",
+      "types": [
+        {
+          "name": "UseModalReturn",
+          "code": "interface UseModalReturn {\n  isOpen: boolean;\n  open: () => void;\n  close: () => void;\n  toggle: () => void;\n}"
+        }
+      ],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Returns `{isOpen, open, close, toggle}`",
+        "`open()` sets isOpen to true",
+        "`close()` sets isOpen to false",
+        "`toggle()` flips isOpen state",
+        "Memoized functions (stable references)",
+        "Initial state correct",
+        "`open()` works",
+        "`close()` works",
+        "`toggle()` works"
+      ],
+      "references": [
+        "src/lib/modal-hooks.ts",
+        "src/lib/modal-hooks.test.ts"
+      ],
+      "description": "Create useModal hook for modal open/close state management.\n\n**Files to Create:**\n- `src/lib/modal-hooks.ts`\n- `src/lib/modal-hooks.test.ts`\n\n**Acceptance Criteria:**\n- [ ] Returns `{isOpen, open, close, toggle}` \n- [ ] `open()` sets isOpen to true\n- [ ] `close()` sets isOpen to false\n- [ ] `toggle()` flips isOpen state\n- [ ] Memoized functions (stable references)\n\n**Interface:**\n```typescript\ninterface UseModalReturn {\n  isOpen: boolean;\n  open: () => void;\n  close: () => void;\n  toggle: () => void;\n}\n\nexport function useModal(initialState?: boolean): UseModalReturn;\n```\n\n**Tests:**\n- [ ] Initial state correct\n- [ ] `open()` works\n- [ ] `close()` works\n- [ ] `toggle()` works",
+      "priority": "medium",
+      "tags": [
+        "hook",
+        "state"
+      ]
+    },
+    {
+      "id": "96a142a0-5427-448e-9e9d-c95e6f43e265",
+      "title": "23 - Create root layout with app shell",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "CSS Grid layout: 64px sidebar + 1fr content",
+        "ThemeProvider wraps entire app",
+        "QueryClientProvider for TanStack Query",
+        "ToastProvider for notifications",
+        "Outlet for nested routes",
+        "Full viewport height"
+      ],
+      "references": [
+        "src/routes/__root.tsx"
+      ],
+      "description": "Create the root layout component that establishes the app shell grid structure.\n\n**Files to Create:**\n- `src/routes/__root.tsx`\n\n**Acceptance Criteria:**\n- [ ] CSS Grid layout: 64px sidebar + 1fr content\n- [ ] ThemeProvider wraps entire app\n- [ ] QueryClientProvider for TanStack Query\n- [ ] ToastProvider for notifications\n- [ ] Outlet for nested routes\n- [ ] Full viewport height\n\n**Layout:**\n```\n┌──────┬───────────────────────────────┐\n│      │                               │\n│ Side │        Content Area           │\n│  bar │         (Outlet)              │\n│      │                               │\n│ 64px │           1fr                 │\n└──────┴───────────────────────────────┘\n```\n\n**Tests:** Visual - verify grid structure",
+      "priority": "high",
+      "tags": [
+        "layout",
+        "routing"
+      ]
+    },
+    {
+      "id": "25e0acb2-69f4-433d-8c8f-aa3b43270a33",
+      "title": "24 - Create Toast component",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "3 variants: success (green), error (red), info (blue)",
+        "Icon per variant (check, x, info)",
+        "Auto-dismiss after configurable duration",
+        "Manual dismiss button",
+        "Slide-in animation from top-right",
+        "Stack multiple toasts",
+        "Uses CSS variables for colors"
+      ],
+      "references": [
+        "src/components/ui/Toast.tsx"
+      ],
+      "description": "Create Toast notification component for success/error/info messages.\n\n**Files to Create:**\n- `src/components/ui/Toast.tsx`\n\n**Acceptance Criteria:**\n- [ ] 3 variants: success (green), error (red), info (blue)\n- [ ] Icon per variant (check, x, info)\n- [ ] Auto-dismiss after configurable duration\n- [ ] Manual dismiss button\n- [ ] Slide-in animation from top-right\n- [ ] Stack multiple toasts\n- [ ] Uses CSS variables for colors\n\n**Design:**\n```\n┌────────────────────────────┐\n│ ✓ Ticket created!      [×] │\n└────────────────────────────┘\n```\n\n**Tests:** Visual inspection",
+      "priority": "medium",
+      "tags": [
+        "component",
+        "ui",
+        "notification"
+      ]
+    },
+    {
+      "id": "2c2f43bc-afea-412d-ad97-61f70650a3fe",
+      "title": "25 - Create ToastProvider and useToast hook",
+      "passes": true,
+      "overview": "",
+      "types": [
+        {
+          "name": "ToastOptions",
+          "code": "interface ToastOptions {\n  message: string;\n  variant?: 'success' | 'error' | 'info';\n  duration?: number;\n}"
+        },
+        {
+          "name": "UseToastReturn",
+          "code": "interface UseToastReturn {\n  toast: (options: ToastOptions) => void;\n  success: (message: string) => void;\n  error: (message: string) => void;\n  info: (message: string) => void;\n}"
+        }
+      ],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "ToastProvider wraps app (in root layout)",
+        "`useToast()` returns `{toast, success, error, info}`",
+        "`toast({message, variant, duration})` for custom",
+        "`success(message)` shorthand",
+        "`error(message)` shorthand",
+        "`info(message)` shorthand",
+        "Default duration: 3000ms",
+        "`success()` shows green toast",
+        "`error()` shows red toast",
+        "Toast auto-dismisses"
+      ],
+      "references": [
+        "src/lib/toast.tsx",
+        "src/lib/toast.test.tsx"
+      ],
+      "description": "Create ToastProvider context and useToast hook for showing toasts from anywhere.\n\n**Files to Create:**\n- `src/lib/toast.tsx`\n- `src/lib/toast.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] ToastProvider wraps app (in root layout)\n- [ ] `useToast()` returns `{toast, success, error, info}`\n- [ ] `toast({message, variant, duration})` for custom\n- [ ] `success(message)` shorthand\n- [ ] `error(message)` shorthand\n- [ ] `info(message)` shorthand\n- [ ] Default duration: 3000ms\n\n**Interface:**\n```typescript\ninterface ToastOptions {\n  message: string;\n  variant?: 'success' | 'error' | 'info';\n  duration?: number;\n}\n\ninterface UseToastReturn {\n  toast: (options: ToastOptions) => void;\n  success: (message: string) => void;\n  error: (message: string) => void;\n  info: (message: string) => void;\n}\n```\n\n**Tests:**\n- [ ] `success()` shows green toast\n- [ ] `error()` shows red toast\n- [ ] Toast auto-dismisses",
+      "priority": "medium",
+      "tags": [
+        "hook",
+        "context",
+        "notification"
       ]
     }
   ],
@@ -246,7 +732,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-19T20:19:33.307Z",
-  "epicTitle": "UI v2 Sprint 0: Setup & Parallel Development",
-  "epicDescription": "**GREENFIELD REBUILD** - Start fresh on `feature/ui-v2` branch.\n\n## Branch Strategy\n- Create NEW `feature/ui-v2` branch from main\n- This is a complete UI rebuild, NOT a migration\n- Old UI code stays on main (port 4242) for reference\n- New UI runs on port 4243 during development\n\n## What's Shared (Unchanged)\n- `src/api/*` - All server functions\n- `src/lib/schema.ts` - Database schema\n- `src/lib/db.ts` - Database connection\n- `mcp-server/*` - MCP integration\n- `cli/*` - CLI tool\n\n## What's Rebuilt (New Files)\n- `src/components/*` - All new components\n- `src/routes/*` - New route structure  \n- `src/styles.css` - New with CSS variables\n- `src/lib/theme.ts` - New theme system\n\n## Parallel Development\nBoth UIs can run simultaneously:\n- `pnpm dev` → port 4242 (old UI on main)\n- `pnpm dev:v2` → port 4243 (new UI on feature/ui-v2)\n\n## Important\n- Do NOT try to migrate existing components\n- Start fresh with the Neon Productivity design\n- Reference old code for API patterns only"
+  "generatedAt": "2026-01-19T22:57:59.639Z",
+  "epicTitle": "UI v2 Sprint 1: Foundation & Design System",
+  "epicDescription": "Implement the Neon Productivity design system with three themes (Ember, Mint, Solar), CSS custom properties, typography scale, and core UI primitives."
 }
