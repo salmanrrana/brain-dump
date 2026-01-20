@@ -489,7 +489,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
       try {
         const result = await launchRalphMutation.mutateAsync({
           ticketId: ticket.id,
-          maxIterations: 5,
+          // maxIterations now uses global setting from Settings
           preferredTerminal: settings?.terminalEmulator ?? null,
           useSandbox,
           aiBackend,

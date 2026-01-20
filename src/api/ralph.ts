@@ -1165,7 +1165,7 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     }) => data
   )
   .handler(async ({ data }) => {
-    const { ticketId, maxIterations = 5, preferredTerminal, useSandbox = false } = data;
+    const { ticketId, maxIterations, preferredTerminal, useSandbox = false } = data;
     const { writeFileSync, mkdirSync, existsSync, chmodSync } = await import("fs");
     const { join } = await import("path");
     const { homedir } = await import("os");
@@ -1173,9 +1173,10 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     const { settings } = await import("../lib/schema");
     const { eq: eqSettings } = await import("drizzle-orm");
 
-    // Get settings for timeout configuration
+    // Get settings for timeout and iterations configuration
     const appSettings = db.select().from(settings).where(eqSettings(settings.id, "default")).get();
     const timeoutSeconds = appSettings?.ralphTimeout ?? DEFAULT_TIMEOUT_SECONDS;
+    const effectiveMaxIterations = maxIterations ?? appSettings?.ralphMaxIterations ?? 10;
 
     // Get the ticket with its project
     const ticket = db.select().from(tickets).where(eq(tickets.id, ticketId)).get();
@@ -1219,7 +1220,7 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     // Generate Ralph script with timeout, Docker host config, and project origin
     const ralphScript = generateRalphScript(
       project.path,
-      maxIterations,
+      effectiveMaxIterations,
       useSandbox,
       DEFAULT_RESOURCE_LIMITS,
       timeoutSeconds,
@@ -1307,7 +1308,7 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     }) => data
   )
   .handler(async ({ data }) => {
-    const { epicId, maxIterations = 20, preferredTerminal, useSandbox = false } = data;
+    const { epicId, maxIterations, preferredTerminal, useSandbox = false } = data;
     const { writeFileSync, mkdirSync, existsSync, chmodSync } = await import("fs");
     const { join } = await import("path");
     const { homedir } = await import("os");
@@ -1315,9 +1316,10 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     const { settings } = await import("../lib/schema");
     const { eq: eqSettings } = await import("drizzle-orm");
 
-    // Get settings for timeout configuration
+    // Get settings for timeout and iterations configuration
     const appSettings = db.select().from(settings).where(eqSettings(settings.id, "default")).get();
     const timeoutSeconds = appSettings?.ralphTimeout ?? DEFAULT_TIMEOUT_SECONDS;
+    const effectiveMaxIterations = maxIterations ?? appSettings?.ralphMaxIterations ?? 10;
 
     // Get the epic
     const epic = db.select().from(epics).where(eq(epics.id, epicId)).get();
@@ -1383,7 +1385,7 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     // Generate Ralph script with timeout, Docker host config, and project/epic origin
     const ralphScript = generateRalphScript(
       project.path,
-      maxIterations,
+      effectiveMaxIterations,
       useSandbox,
       DEFAULT_RESOURCE_LIMITS,
       timeoutSeconds,

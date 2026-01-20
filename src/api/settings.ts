@@ -19,6 +19,7 @@ export interface UpdateSettingsInput {
   terminalEmulator?: string | null;
   ralphSandbox?: boolean;
   ralphTimeout?: number; // Timeout in seconds (default: 3600 = 1 hour)
+  ralphMaxIterations?: number; // Max iterations for Ralph loop (default: 10)
   autoCreatePr?: boolean;
   prTargetBranch?: string;
   defaultProjectsDirectory?: string | null;
@@ -109,6 +110,11 @@ export const updateSettings = createServerFn({ method: "POST" })
       // Validate timeout: minimum 5 minutes (300s), maximum 24 hours (86400s)
       const timeout = Math.max(300, Math.min(86400, updates.ralphTimeout));
       updateData.ralphTimeout = timeout;
+    }
+    if (updates.ralphMaxIterations !== undefined) {
+      // Validate iterations: minimum 1, maximum 100
+      const iterations = Math.max(1, Math.min(100, updates.ralphMaxIterations));
+      updateData.ralphMaxIterations = iterations;
     }
     if (updates.autoCreatePr !== undefined) {
       updateData.autoCreatePr = updates.autoCreatePr;

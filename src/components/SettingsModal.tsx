@@ -13,6 +13,7 @@ import {
   Folder,
   Clock,
   FileText,
+  Repeat,
 } from "lucide-react";
 import {
   useSettings,
@@ -45,6 +46,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   const [terminalEmulator, setTerminalEmulator] = useState<string>("");
   const [ralphSandbox, setRalphSandbox] = useState(false);
   const [ralphTimeout, setRalphTimeout] = useState(3600); // Default 1 hour
+  const [ralphMaxIterations, setRalphMaxIterations] = useState(10); // Default 10 iterations
   const [autoCreatePr, setAutoCreatePr] = useState(true);
   const [prTargetBranch, setPrTargetBranch] = useState("dev");
   const [defaultProjectsDirectory, setDefaultProjectsDirectory] = useState("");
@@ -64,6 +66,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       setTerminalEmulator(settings.terminalEmulator ?? "");
       setRalphSandbox(settings.ralphSandbox ?? false);
       setRalphTimeout(settings.ralphTimeout ?? 3600);
+      setRalphMaxIterations(settings.ralphMaxIterations ?? 10);
       setAutoCreatePr(settings.autoCreatePr ?? true);
       setPrTargetBranch(settings.prTargetBranch ?? "dev");
       setDefaultProjectsDirectory(settings.defaultProjectsDirectory ?? "");
@@ -85,6 +88,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       const terminalChanged = terminalEmulator !== (settings.terminalEmulator ?? "");
       const sandboxChanged = ralphSandbox !== (settings.ralphSandbox ?? false);
       const timeoutChanged = ralphTimeout !== (settings.ralphTimeout ?? 3600);
+      const iterationsChanged = ralphMaxIterations !== (settings.ralphMaxIterations ?? 10);
       const prChanged = autoCreatePr !== (settings.autoCreatePr ?? true);
       const branchChanged = prTargetBranch !== (settings.prTargetBranch ?? "dev");
       const dirChanged = defaultProjectsDirectory !== (settings.defaultProjectsDirectory ?? "");
@@ -101,6 +105,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         terminalChanged ||
           sandboxChanged ||
           timeoutChanged ||
+          iterationsChanged ||
           prChanged ||
           branchChanged ||
           dirChanged ||
@@ -114,6 +119,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     terminalEmulator,
     ralphSandbox,
     ralphTimeout,
+    ralphMaxIterations,
     autoCreatePr,
     prTargetBranch,
     defaultProjectsDirectory,
@@ -178,6 +184,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         terminalEmulator: terminalEmulator || null,
         ralphSandbox,
         ralphTimeout,
+        ralphMaxIterations,
         autoCreatePr,
         prTargetBranch: prTargetBranch || "dev",
         defaultProjectsDirectory: defaultProjectsDirectory || null,
@@ -650,6 +657,41 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                   <p className="mt-2 text-xs text-slate-500">
                     Ralph session will stop after this duration to prevent runaway processes.
                     Progress is saved before timeout.
+                  </p>
+                </div>
+
+                {/* Max Iterations */}
+                <div className="mt-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Repeat size={14} className="text-slate-400" />
+                    <label className="block text-sm font-medium text-slate-300">
+                      Max Iterations
+                    </label>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: "5", value: 5 },
+                      { label: "10", value: 10 },
+                      { label: "20", value: 20 },
+                      { label: "50", value: 50 },
+                      { label: "100", value: 100 },
+                    ].map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => setRalphMaxIterations(option.value)}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                          ralphMaxIterations === option.value
+                            ? "bg-purple-600 text-white"
+                            : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">
+                    Maximum number of autonomous iterations before Ralph stops. Higher values allow
+                    more work but increase token usage.
                   </p>
                 </div>
               </div>
