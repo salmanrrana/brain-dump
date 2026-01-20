@@ -75,8 +75,32 @@ OpenCode automatically discovers Brain Dump skills:
 | `brain-dump-workflow` | Working with tickets/backlog  |
 | `ralph-autonomous`    | Ralph working autonomously    |
 | `tanstack-*`          | React Query/Forms development |
+| `review-aggregation`  | Combining review findings     |
 
 Skills load automatically based on context or by request.
+
+## Extended Review Agents
+
+For deeper code analysis, these specialized review agents are available:
+
+| Agent                        | Purpose                              | Invocation                     |
+| ---------------------------- | ------------------------------------ | ------------------------------ |
+| @context7-library-compliance | Verify library usage against docs    | `@context7-library-compliance` |
+| @react-best-practices        | React/Next.js patterns               | `@react-best-practices`        |
+| @cruft-detector              | Find unnecessary code, shallow tests | `@cruft-detector`              |
+| @senior-engineer             | Synthesize findings (run last)       | `@senior-engineer`             |
+
+### Extended Review Workflow
+
+```bash
+# After standard code review, run extended agents
+@context7-library-compliance Review my API changes
+@react-best-practices Check component patterns
+@cruft-detector Scan for cruft
+@senior-engineer Provide final recommendation
+```
+
+**Note:** In OpenCode, agents must be invoked manually (no auto-chaining hooks).
 
 ## MCP Tools
 
