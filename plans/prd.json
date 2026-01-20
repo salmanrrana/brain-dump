@@ -9,392 +9,567 @@
   ],
   "userStories": [
     {
-      "id": "d0bca8ec-40ee-478b-9689-af6ef08bc138",
-      "title": "41 - Create KanbanBoard component",
-      "passes": true,
+      "id": "251af0d1-2805-4d7e-9e48-056c53ba7e37",
+      "title": "55 - Create CreateTicketModal shell",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Horizontal scroll container for columns",
-        "7 columns for each status",
-        "Responsive: scrolls on smaller screens",
-        "Fetches tickets via TanStack Query",
-        "Groups tickets by status",
-        "Loading skeleton while fetching"
+        "Uses Modal base component",
+        "2-column layout for form fields",
+        "Modal.Header with \"Create New Ticket\" title",
+        "Modal.Body with form",
+        "Modal.Footer with Cancel/Create buttons",
+        "Opens from NewTicketDropdown",
+        "Escape closes modal"
       ],
       "references": [
-        "src/components/board/KanbanBoard.tsx"
+        "src/components/tickets/CreateTicketModal.tsx"
       ],
-      "description": "Create the main kanban board container with horizontal scrolling columns.\n\n**Files to Create:**\n- `src/components/board/KanbanBoard.tsx`\n\n**Acceptance Criteria:**\n- [ ] Horizontal scroll container for columns\n- [ ] 7 columns for each status\n- [ ] Responsive: scrolls on smaller screens\n- [ ] Fetches tickets via TanStack Query\n- [ ] Groups tickets by status\n- [ ] Loading skeleton while fetching\n\n**Columns (in order):**\n```tsx\nconst columns = [\n  'backlog', 'ready', 'in_progress', \n  'review', 'ai_review', 'human_review', 'done'\n];\n```\n\n**Tests:** Visual inspection",
+      "description": "Create the Create Ticket modal with 2-column form layout.\n\n**Files to Create:**\n- `src/components/tickets/CreateTicketModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Uses Modal base component\n- [ ] 2-column layout for form fields\n- [ ] Modal.Header with \"Create New Ticket\" title\n- [ ] Modal.Body with form\n- [ ] Modal.Footer with Cancel/Create buttons\n- [ ] Opens from NewTicketDropdown\n- [ ] Escape closes modal\n\n**Layout:**\n```\n┌─────────────────────────────────────────────────────────────┐\n│ [📝] Create New Ticket                                   [×] │\n├─────────────────────────────────────────────────────────────┤\n│ Title *                                                      │\n│ [_________________________________________________]          │\n│                                                              │\n│ Description                                                  │\n│ [_________________________________________________]          │\n│ [_________________________________________________]          │\n│                                                              │\n│ Project *              │ Priority                           │\n│ [Project ▾]            │ [Priority ▾]                       │\n│                                                              │\n│ Epic                   │ Tags                               │\n│ [Epic ▾]               │ [+tag] [+tag]                      │\n├─────────────────────────────────────────────────────────────┤\n│                               [Cancel]  [Create Ticket]      │\n└─────────────────────────────────────────────────────────────┘\n```\n\n**Tests:** Visual inspection",
       "priority": "high",
       "tags": [
-        "board",
-        "component"
+        "modal",
+        "ticket",
+        "form"
       ]
     },
     {
-      "id": "7a95b0e9-0265-4e8a-a113-c7228fbe2252",
-      "title": "42 - Create KanbanColumn component",
-      "passes": true,
+      "id": "98330174-2394-4d71-aade-d700c2ae1bf5",
+      "title": "56 - Add form fields to CreateTicketModal",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Column header with status label",
-        "Ticket count badge",
-        "Drop zone for drag-and-drop",
-        "Scrollable ticket list",
-        "Empty state message",
-        "Status-specific accent color on header",
-        "Min-width: 280px, max-width: 320px"
+        "Title input (required, text)",
+        "Description textarea (optional, multiline)",
+        "Project select (required, dropdown)",
+        "Priority select (optional, dropdown: low/medium/high)",
+        "Epic select (optional, filtered by project)",
+        "Tags input (optional, multi-select)",
+        "Form state management (controlled)",
+        "All fields accept input",
+        "Project select populates"
       ],
       "references": [
-        "src/components/board/KanbanColumn.tsx"
+        "src/components/tickets/CreateTicketModal.tsx"
       ],
-      "description": "Create individual kanban column with header, count, and drop zone.\n\n**Files to Create:**\n- `src/components/board/KanbanColumn.tsx`\n\n**Acceptance Criteria:**\n- [ ] Column header with status label\n- [ ] Ticket count badge\n- [ ] Drop zone for drag-and-drop\n- [ ] Scrollable ticket list\n- [ ] Empty state message\n- [ ] Status-specific accent color on header\n- [ ] Min-width: 280px, max-width: 320px\n\n**Layout:**\n```\n┌─────────────────────┐\n│ In Progress    (3)  │  <- Header with count\n├─────────────────────┤\n│ ┌─────────────────┐ │\n│ │ Ticket Card 1   │ │\n│ └─────────────────┘ │\n│ ┌─────────────────┐ │\n│ │ Ticket Card 2   │ │\n│ └─────────────────┘ │\n│                     │  <- Drop zone\n└─────────────────────┘\n```\n\n**Tests:** Visual inspection",
+      "description": "Implement all form fields for ticket creation.\n\n**Files to Modify:**\n- `src/components/tickets/CreateTicketModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Title input (required, text)\n- [ ] Description textarea (optional, multiline)\n- [ ] Project select (required, dropdown)\n- [ ] Priority select (optional, dropdown: low/medium/high)\n- [ ] Epic select (optional, filtered by project)\n- [ ] Tags input (optional, multi-select)\n- [ ] Form state management (controlled)\n\n**Form Fields:**\n```tsx\ninterface CreateTicketForm {\n  title: string;        // required\n  description: string;  // optional\n  projectId: string;    // required\n  priority: 'low' | 'medium' | 'high';  // default: medium\n  epicId: string | null;  // optional\n  tags: string[];       // optional\n}\n```\n\n**E2E Tests:**\n- [ ] All fields accept input\n- [ ] Project select populates",
       "priority": "high",
       "tags": [
-        "board",
-        "component"
+        "modal",
+        "ticket",
+        "form"
       ]
     },
     {
-      "id": "50e5e604-de2e-4108-93fc-7877ed0d97f1",
-      "title": "43 - Create Board route as default",
-      "passes": true,
+      "id": "cc14ddf1-d01f-4ea3-82d1-8b3105ec8caa",
+      "title": "57 - Create EpicSelect component with project filtering",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Route at `/` shows kanban board",
-        "Integrates KanbanBoard component",
-        "Header with board title",
-        "Filter controls (BoardHeader)",
-        "Uses existing ticket query hooks",
-        "Navigate to `/` shows board",
-        "Board has 7 columns",
-        "Tickets render in correct columns"
+        "Dropdown of epics filtered by projectId",
+        "Disabled when no project selected",
+        "\"No epic\" option to clear selection",
+        "\"Create New Epic\" option at bottom",
+        "Updates when project changes",
+        "Shows epic color indicator",
+        "Disabled when no project",
+        "Filters correctly by project",
+        "Create epic opens modal"
       ],
       "references": [
-        "src/routes/index.tsx"
+        "src/components/tickets/EpicSelect.tsx",
+        "src/components/tickets/EpicSelect.test.tsx"
       ],
-      "description": "Set up the board route as the default/index route for the app.\n\n**Files to Create:**\n- `src/routes/index.tsx`\n\n**Acceptance Criteria:**\n- [ ] Route at `/` shows kanban board\n- [ ] Integrates KanbanBoard component\n- [ ] Header with board title\n- [ ] Filter controls (BoardHeader)\n- [ ] Uses existing ticket query hooks\n\n**E2E Tests:**\n- [ ] Navigate to `/` shows board\n- [ ] Board has 7 columns\n- [ ] Tickets render in correct columns",
-      "priority": "high",
-      "tags": [
-        "board",
-        "routing"
-      ]
-    },
-    {
-      "id": "04631a36-8202-492a-a68c-4b27d8c0ae75",
-      "title": "44 - Create TicketCard component",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Priority indicator on left border (red=high, orange=medium, gray=low)",
-        "Ticket title (truncate at 2 lines)",
-        "Tags row (max 3 visible)",
-        "Git info (branch, PR badge)",
-        "Click opens ticket detail/modal",
-        "Hover shows subtle elevation",
-        "Card background uses `--bg-card`",
-        "Priority border correct",
-        "Title truncates",
-        "Click handler fires"
-      ],
-      "references": [
-        "src/components/board/TicketCard.tsx",
-        "src/components/board/TicketCard.test.tsx"
-      ],
-      "description": "Create the ticket card component for the kanban board with new design.\n\n**Files to Create:**\n- `src/components/board/TicketCard.tsx`\n- `src/components/board/TicketCard.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Priority indicator on left border (red=high, orange=medium, gray=low)\n- [ ] Ticket title (truncate at 2 lines)\n- [ ] Tags row (max 3 visible)\n- [ ] Git info (branch, PR badge)\n- [ ] Click opens ticket detail/modal\n- [ ] Hover shows subtle elevation\n- [ ] Card background uses `--bg-card`\n\n**Layout:**\n```\n┌────────────────────────────────┐\n│▌ Implement user auth          │  <- Red border = high priority\n│  [auth] [backend]             │  <- Tags\n│  🌿 feature/auth  🔗 #42      │  <- Branch + PR\n└────────────────────────────────┘\n```\n\n**Tests:**\n- [ ] Priority border correct\n- [ ] Title truncates\n- [ ] Click handler fires",
-      "priority": "high",
-      "tags": [
-        "board",
-        "component"
-      ]
-    },
-    {
-      "id": "fa7fe824-cc8f-4c80-a0a6-62a8001d3ddf",
-      "title": "45 - Add AI-active glow state to TicketCard",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Detect AI-active state (ticket has active Ralph session)",
-        "Apply glow effect using accent color",
-        "Subtle pulse animation (opacity oscillation)",
-        "Glow visible but not overwhelming",
-        "Performance: CSS animation, not JS"
-      ],
-      "references": [
-        "src/components/board/TicketCard.tsx"
-      ],
-      "description": "Add pulsing glow effect to ticket cards when AI (Ralph) is actively working on them.\n\n**Files to Modify:**\n- `src/components/board/TicketCard.tsx`\n\n**Acceptance Criteria:**\n- [ ] Detect AI-active state (ticket has active Ralph session)\n- [ ] Apply glow effect using accent color\n- [ ] Subtle pulse animation (opacity oscillation)\n- [ ] Glow visible but not overwhelming\n- [ ] Performance: CSS animation, not JS\n\n**CSS Animation:**\n```css\n@keyframes ai-pulse {\n  0%, 100% { box-shadow: 0 0 8px var(--accent-primary); }\n  50% { box-shadow: 0 0 16px var(--accent-primary); }\n}\n\n.ai-active {\n  animation: ai-pulse 2s ease-in-out infinite;\n}\n```\n\n**Tests:** Visual inspection with mock AI-active ticket",
+      "description": "Create epic selector that filters epics by selected project.\n\n**Files to Create:**\n- `src/components/tickets/EpicSelect.tsx`\n- `src/components/tickets/EpicSelect.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Dropdown of epics filtered by projectId\n- [ ] Disabled when no project selected\n- [ ] \"No epic\" option to clear selection\n- [ ] \"Create New Epic\" option at bottom\n- [ ] Updates when project changes\n- [ ] Shows epic color indicator\n\n**Interface:**\n```tsx\ninterface EpicSelectProps {\n  projectId: string | null;\n  value: string | null;\n  onChange: (epicId: string | null) => void;\n}\n```\n\n**Tests:**\n- [ ] Disabled when no project\n- [ ] Filters correctly by project\n- [ ] Create epic opens modal",
       "priority": "medium",
       "tags": [
-        "board",
-        "animation"
+        "component",
+        "form"
       ]
     },
     {
-      "id": "88518d32-10d0-4b3b-847d-7730665ecf10",
-      "title": "46 - Create GitInfo component",
-      "passes": true,
+      "id": "26f13880-179b-4957-b6d9-0da12613f037",
+      "title": "58 - Create TagInput component",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Branch badge with branch icon",
-        "PR badge with number and status color",
-        "PR status colors: open=green, draft=gray, merged=purple, closed=red",
-        "Truncate long branch names",
-        "Tooltip shows full branch name",
-        "Hide if no git info"
+        "Pills for each selected tag",
+        "X button to remove tag",
+        "Input field to add new tag",
+        "Autocomplete from existing tags",
+        "Enter adds tag",
+        "Comma separates multiple tags",
+        "Prevents duplicates",
+        "Case-insensitive matching",
+        "Add tag works",
+        "Remove tag works",
+        "Autocomplete shows",
+        "No duplicates"
       ],
       "references": [
-        "src/components/board/GitInfo.tsx"
+        "src/components/tickets/TagInput.tsx",
+        "src/components/tickets/TagInput.test.tsx"
       ],
-      "description": "Create component showing git branch and PR status on ticket cards.\n\n**Files to Create:**\n- `src/components/board/GitInfo.tsx`\n\n**Acceptance Criteria:**\n- [ ] Branch badge with branch icon\n- [ ] PR badge with number and status color\n- [ ] PR status colors: open=green, draft=gray, merged=purple, closed=red\n- [ ] Truncate long branch names\n- [ ] Tooltip shows full branch name\n- [ ] Hide if no git info\n\n**Layout:**\n```\n🌿 feature/ui-v2  🔗 #42 ●  <- Branch + PR number + status dot\n```\n\n**Tests:** Visual inspection",
+      "description": "Create tag input with add/remove pills and autocomplete.\n\n**Files to Create:**\n- `src/components/tickets/TagInput.tsx`\n- `src/components/tickets/TagInput.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Pills for each selected tag\n- [ ] X button to remove tag\n- [ ] Input field to add new tag\n- [ ] Autocomplete from existing tags\n- [ ] Enter adds tag\n- [ ] Comma separates multiple tags\n- [ ] Prevents duplicates\n- [ ] Case-insensitive matching\n\n**Layout:**\n```\n┌────────────────────────────────────────────┐\n│ [auth ×] [backend ×] [_add tag...______] │\n└────────────────────────────────────────────┘\n  ┌─────────────────┐\n  │ api             │  <- Autocomplete dropdown\n  │ api-gateway     │\n  └─────────────────┘\n```\n\n**Tests:**\n- [ ] Add tag works\n- [ ] Remove tag works\n- [ ] Autocomplete shows\n- [ ] No duplicates",
       "priority": "medium",
       "tags": [
-        "board",
-        "component"
+        "component",
+        "form"
       ]
     },
     {
-      "id": "49b9394b-2767-4aba-9a4e-3e53029357db",
-      "title": "47 - Create TicketTags component",
-      "passes": true,
+      "id": "5b653a12-4fe8-4365-8e5a-1500d2d62bc7",
+      "title": "59 - Add form validation to CreateTicketModal",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Show up to 3 tag pills",
-        "\"+N more\" indicator if more than 3",
-        "Hover on \"+N\" shows tooltip with remaining tags",
-        "Tag colors from predefined palette",
-        "Compact size for card use",
-        "Hide if no tags"
+        "Title required validation",
+        "Project required validation",
+        "Error messages below fields",
+        "Red border on invalid fields",
+        "Validate on blur",
+        "Validate on submit",
+        "Disable submit when invalid",
+        "Focus first invalid field on submit",
+        "Submit blocked without title",
+        "Error message shows",
+        "Valid form submits"
       ],
       "references": [
-        "src/components/board/TicketTags.tsx"
+        "src/components/tickets/CreateTicketModal.tsx"
       ],
-      "description": "Create component showing ticket tags with overflow handling.\n\n**Files to Create:**\n- `src/components/board/TicketTags.tsx`\n\n**Acceptance Criteria:**\n- [ ] Show up to 3 tag pills\n- [ ] \"+N more\" indicator if more than 3\n- [ ] Hover on \"+N\" shows tooltip with remaining tags\n- [ ] Tag colors from predefined palette\n- [ ] Compact size for card use\n- [ ] Hide if no tags\n\n**Layout:**\n```\n[auth] [backend] [api] +2 more\n```\n\n**Tests:** Visual inspection",
+      "description": "Implement validation for required fields and error display.\n\n**Files to Modify:**\n- `src/components/tickets/CreateTicketModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Title required validation\n- [ ] Project required validation\n- [ ] Error messages below fields\n- [ ] Red border on invalid fields\n- [ ] Validate on blur\n- [ ] Validate on submit\n- [ ] Disable submit when invalid\n- [ ] Focus first invalid field on submit\n\n**Validation Rules:**\n```tsx\nconst rules = {\n  title: { required: 'Title is required', maxLength: 200 },\n  projectId: { required: 'Please select a project' },\n};\n```\n\n**Tests:**\n- [ ] Submit blocked without title\n- [ ] Error message shows\n- [ ] Valid form submits",
+      "priority": "medium",
+      "tags": [
+        "validation",
+        "form"
+      ]
+    },
+    {
+      "id": "8e1bc6a7-75b5-45c6-9866-8dcf68d88deb",
+      "title": "60 - Implement submit with TanStack Query mutation",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Uses existing `createTicket` server function",
+        "Shows loading state during submit",
+        "Closes modal on success",
+        "Shows success toast",
+        "Invalidates tickets query (board updates)",
+        "Shows error toast on failure",
+        "Reset form on close",
+        "Create ticket",
+        "Appears on board",
+        "Toast shows"
+      ],
+      "references": [
+        "src/components/tickets/CreateTicketModal.tsx"
+      ],
+      "description": "Wire up form submission to create ticket via mutation.\n\n**Files to Modify:**\n- `src/components/tickets/CreateTicketModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Uses existing `createTicket` server function\n- [ ] Shows loading state during submit\n- [ ] Closes modal on success\n- [ ] Shows success toast\n- [ ] Invalidates tickets query (board updates)\n- [ ] Shows error toast on failure\n- [ ] Reset form on close\n\n**Implementation:**\n```tsx\nconst createMutation = useMutation({\n  mutationFn: createTicket,\n  onSuccess: () => {\n    queryClient.invalidateQueries({ queryKey: ['tickets'] });\n    toast.success('Ticket created!');\n    onClose();\n  },\n  onError: (err) => {\n    toast.error('Failed to create ticket');\n  },\n});\n```\n\n**E2E Tests:**\n- [ ] Create ticket\n- [ ] Appears on board\n- [ ] Toast shows",
+      "priority": "high",
+      "tags": [
+        "mutation",
+        "form"
+      ]
+    },
+    {
+      "id": "f7995df6-f90f-4e55-a4cf-e4df237f0820",
+      "title": "61 - Create EditTicketModal shell",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Extends create modal layout",
+        "Loads existing ticket data",
+        "Prefills all form fields",
+        "Modal.Header with \"Edit Ticket\" title",
+        "Additional sections: Status, Blocked, Subtasks",
+        "Delete button in footer (danger variant)",
+        "Save Changes button"
+      ],
+      "references": [
+        "src/components/tickets/EditTicketModal.tsx"
+      ],
+      "description": "Create the Edit Ticket modal extending the create modal pattern.\n\n**Files to Create:**\n- `src/components/tickets/EditTicketModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Extends create modal layout\n- [ ] Loads existing ticket data\n- [ ] Prefills all form fields\n- [ ] Modal.Header with \"Edit Ticket\" title\n- [ ] Additional sections: Status, Blocked, Subtasks\n- [ ] Delete button in footer (danger variant)\n- [ ] Save Changes button\n\n**Additional Sections vs Create:**\n- Status dropdown\n- Blocked toggle with reason\n- Subtasks list\n- Delete button\n\n**Tests:** Visual inspection",
+      "priority": "high",
+      "tags": [
+        "modal",
+        "ticket",
+        "form"
+      ]
+    },
+    {
+      "id": "83fbabce-8989-4b42-baf6-05abda7e7673",
+      "title": "62 - Add status dropdown to EditTicketModal",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Dropdown with all 7 statuses",
+        "Current status pre-selected",
+        "Status color indicator",
+        "Updates ticket status on save",
+        "Follows status flow (any → any allowed)"
+      ],
+      "references": [
+        "src/components/tickets/EditTicketModal.tsx"
+      ],
+      "description": "Add status selection dropdown with all 7 status options.\n\n**Files to Modify:**\n- `src/components/tickets/EditTicketModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Dropdown with all 7 statuses\n- [ ] Current status pre-selected\n- [ ] Status color indicator\n- [ ] Updates ticket status on save\n- [ ] Follows status flow (any → any allowed)\n\n**Status Options:**\n```tsx\nconst statuses = [\n  { value: 'backlog', label: 'Backlog', color: 'gray' },\n  { value: 'ready', label: 'Ready', color: 'blue' },\n  { value: 'in_progress', label: 'In Progress', color: 'yellow' },\n  { value: 'review', label: 'Review', color: 'purple' },\n  { value: 'ai_review', label: 'AI Review', color: 'cyan' },\n  { value: 'human_review', label: 'Human Review', color: 'pink' },\n  { value: 'done', label: 'Done', color: 'green' },\n];\n```\n\n**Tests:** Visual inspection",
+      "priority": "medium",
+      "tags": [
+        "modal",
+        "form"
+      ]
+    },
+    {
+      "id": "394b9cdd-0615-409a-93f2-3d944d9471c6",
+      "title": "63 - Create BlockedToggle component",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Checkbox/toggle to mark as blocked",
+        "Reason input appears when checked",
+        "Reason required when blocked",
+        "Visual indicator (red/warning)",
+        "Saves is_blocked and blocked_reason"
+      ],
+      "references": [
+        "src/components/tickets/BlockedToggle.tsx"
+      ],
+      "description": "Create toggle for marking ticket as blocked with reason input.\n\n**Files to Create:**\n- `src/components/tickets/BlockedToggle.tsx`\n\n**Acceptance Criteria:**\n- [ ] Checkbox/toggle to mark as blocked\n- [ ] Reason input appears when checked\n- [ ] Reason required when blocked\n- [ ] Visual indicator (red/warning)\n- [ ] Saves is_blocked and blocked_reason\n\n**Layout:**\n```\n☐ Mark as Blocked\n\n[When checked:]\n☑ Mark as Blocked\n  Reason: [_________________________]\n           Waiting on API team\n```\n\n**Tests:** Visual + reason validation",
       "priority": "low",
       "tags": [
-        "board",
-        "component"
+        "component",
+        "form"
       ]
     },
     {
-      "id": "d31deebb-1148-4314-9004-e95d2281064e",
-      "title": "48 - Set up DndProvider with @dnd-kit",
-      "passes": true,
+      "id": "f994d35f-40c5-47d7-880b-66820512ca76",
+      "title": "64 - Create SubtaskList component",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Wrap KanbanBoard with DndContext",
-        "Configure sensors (pointer, keyboard)",
-        "Set up collision detection",
-        "Provide drag start/end/over handlers",
-        "Accessibility announcements"
+        "List of subtask items",
+        "Checkbox to mark complete",
+        "Text input for subtask title",
+        "Delete button per subtask",
+        "\"Add subtask\" button",
+        "Inline editing",
+        "Progress indicator (X of Y complete)",
+        "Add subtask",
+        "Check/uncheck subtask",
+        "Delete subtask",
+        "Progress updates"
       ],
       "references": [
-        "src/components/board/DndProvider.tsx"
+        "src/components/tickets/SubtaskList.tsx",
+        "src/components/tickets/SubtaskList.test.tsx"
       ],
-      "description": "Set up the @dnd-kit context provider for drag-and-drop functionality.\n\n**Files to Create:**\n- `src/components/board/DndProvider.tsx`\n\n**Acceptance Criteria:**\n- [ ] Wrap KanbanBoard with DndContext\n- [ ] Configure sensors (pointer, keyboard)\n- [ ] Set up collision detection\n- [ ] Provide drag start/end/over handlers\n- [ ] Accessibility announcements\n\n**Implementation:**\n```tsx\nimport { \n  DndContext, \n  PointerSensor, \n  KeyboardSensor,\n  useSensor, \n  useSensors,\n  closestCorners\n} from '@dnd-kit/core';\n\nexport function DndProvider({ children, onDragEnd }) {\n  const sensors = useSensors(\n    useSensor(PointerSensor),\n    useSensor(KeyboardSensor)\n  );\n  \n  return (\n    <DndContext \n      sensors={sensors} \n      collisionDetection={closestCorners}\n      onDragEnd={onDragEnd}\n    >\n      {children}\n    </DndContext>\n  );\n}\n```\n\n**Tests:** Visual - drag initiates",
-      "priority": "high",
-      "tags": [
-        "board",
-        "dnd"
-      ]
-    },
-    {
-      "id": "c0cf7a63-807e-41f5-81e6-1c511ba6640b",
-      "title": "49 - Create SortableTicketCard wrapper",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Wraps TicketCard with useSortable",
-        "Apply drag styles (opacity, transform)",
-        "Handle drag handle (entire card is draggable)",
-        "Keyboard accessible dragging",
-        "Visual feedback during drag"
-      ],
-      "references": [
-        "src/components/board/SortableTicketCard.tsx"
-      ],
-      "description": "Create draggable wrapper for ticket cards using @dnd-kit/sortable.\n\n**Files to Create:**\n- `src/components/board/SortableTicketCard.tsx`\n\n**Acceptance Criteria:**\n- [ ] Wraps TicketCard with useSortable\n- [ ] Apply drag styles (opacity, transform)\n- [ ] Handle drag handle (entire card is draggable)\n- [ ] Keyboard accessible dragging\n- [ ] Visual feedback during drag\n\n**Implementation:**\n```tsx\nimport { useSortable } from '@dnd-kit/sortable';\nimport { CSS } from '@dnd-kit/utilities';\n\nexport function SortableTicketCard({ ticket }) {\n  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = \n    useSortable({ id: ticket.id });\n    \n  const style = {\n    transform: CSS.Transform.toString(transform),\n    transition,\n    opacity: isDragging ? 0.5 : 1,\n  };\n  \n  return (\n    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>\n      <TicketCard ticket={ticket} />\n    </div>\n  );\n}\n```\n\n**Tests (E2E):** Drag ticket card",
-      "priority": "high",
-      "tags": [
-        "board",
-        "dnd"
-      ]
-    },
-    {
-      "id": "4ee27d39-8c2a-47c9-882e-01ac74ef7cac",
-      "title": "50 - Create DragOverlay for card preview",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "DragOverlay shows card preview while dragging",
-        "Preview follows cursor smoothly",
-        "Shows same card design as original",
-        "Slightly elevated/scaled for depth",
-        "Cursor changes to grabbing"
-      ],
-      "references": [
-        "src/components/board/KanbanBoard.tsx"
-      ],
-      "description": "Create drag overlay showing card preview while dragging.\n\n**Files to Modify:**\n- `src/components/board/KanbanBoard.tsx`\n\n**Acceptance Criteria:**\n- [ ] DragOverlay shows card preview while dragging\n- [ ] Preview follows cursor smoothly\n- [ ] Shows same card design as original\n- [ ] Slightly elevated/scaled for depth\n- [ ] Cursor changes to grabbing\n\n**Implementation:**\n```tsx\nimport { DragOverlay } from '@dnd-kit/core';\n\n// In KanbanBoard\n<DragOverlay>\n  {activeTicket ? (\n    <TicketCard ticket={activeTicket} isOverlay />\n  ) : null}\n</DragOverlay>\n```\n\n**Tests:** Visual - card follows cursor during drag",
+      "description": "Create subtask list with add/remove/check functionality.\n\n**Files to Create:**\n- `src/components/tickets/SubtaskList.tsx`\n- `src/components/tickets/SubtaskList.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] List of subtask items\n- [ ] Checkbox to mark complete\n- [ ] Text input for subtask title\n- [ ] Delete button per subtask\n- [ ] \"Add subtask\" button\n- [ ] Inline editing\n- [ ] Progress indicator (X of Y complete)\n\n**Layout:**\n```\nSubtasks (2/4 complete)\n☑ Set up database schema\n☑ Create API endpoints  \n☐ Build UI components\n☐ Write tests\n[+ Add subtask]\n```\n\n**Tests:**\n- [ ] Add subtask\n- [ ] Check/uncheck subtask\n- [ ] Delete subtask\n- [ ] Progress updates",
       "priority": "medium",
       "tags": [
-        "board",
-        "dnd"
+        "component",
+        "form"
       ]
     },
     {
-      "id": "1ad45ec8-3046-45a2-8d66-2ac4fd643879",
-      "title": "51 - Implement status update on drop",
-      "passes": true,
+      "id": "aec1e0fd-9cc5-438c-9043-d8076ba7d873",
+      "title": "65 - Add delete ticket with confirmation",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Detect drop into different column",
-        "Call existing `updateTicket` mutation",
-        "Update status to match target column",
-        "Optimistic update (instant UI)",
-        "Rollback on error",
-        "Invalidate tickets query",
-        "Show toast on success/error",
-        "Drag ticket to new column",
-        "Status updates in database",
-        "Card stays in new column after refresh"
+        "Delete button (danger variant) in footer",
+        "Confirmation modal before delete",
+        "\"Are you sure?\" message with ticket title",
+        "Cancel/Delete buttons",
+        "Deletes ticket on confirm",
+        "Closes both modals on success",
+        "Shows success toast",
+        "Invalidates queries",
+        "Delete ticket",
+        "Removed from board"
       ],
       "references": [
-        "src/components/board/KanbanBoard.tsx"
+        "src/components/tickets/EditTicketModal.tsx"
       ],
-      "description": "Update ticket status when dropped in a new column.\n\n**Files to Modify:**\n- `src/components/board/KanbanBoard.tsx`\n\n**Acceptance Criteria:**\n- [ ] Detect drop into different column\n- [ ] Call existing `updateTicket` mutation\n- [ ] Update status to match target column\n- [ ] Optimistic update (instant UI)\n- [ ] Rollback on error\n- [ ] Invalidate tickets query\n- [ ] Show toast on success/error\n\n**Implementation:**\n```tsx\nconst handleDragEnd = async (event) => {\n  const { active, over } = event;\n  if (!over) return;\n  \n  const ticketId = active.id;\n  const newStatus = over.data.current?.status;\n  \n  if (newStatus && newStatus !== activeTicket.status) {\n    await updateTicket({ id: ticketId, status: newStatus });\n  }\n};\n```\n\n**E2E Tests:**\n- [ ] Drag ticket to new column\n- [ ] Status updates in database\n- [ ] Card stays in new column after refresh",
-      "priority": "high",
+      "description": "Add delete functionality with confirmation dialog.\n\n**Files to Modify:**\n- `src/components/tickets/EditTicketModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Delete button (danger variant) in footer\n- [ ] Confirmation modal before delete\n- [ ] \"Are you sure?\" message with ticket title\n- [ ] Cancel/Delete buttons\n- [ ] Deletes ticket on confirm\n- [ ] Closes both modals on success\n- [ ] Shows success toast\n- [ ] Invalidates queries\n\n**Confirmation Dialog:**\n```\n┌─────────────────────────────────────┐\n│ ⚠️ Delete Ticket?                   │\n├─────────────────────────────────────┤\n│ Are you sure you want to delete     │\n│ \"Implement user auth\"?              │\n│                                     │\n│ This action cannot be undone.       │\n├─────────────────────────────────────┤\n│           [Cancel]  [Delete]        │\n└─────────────────────────────────────┘\n```\n\n**E2E Tests:**\n- [ ] Delete ticket\n- [ ] Removed from board",
+      "priority": "medium",
       "tags": [
-        "board",
-        "dnd",
+        "modal",
         "mutation"
       ]
     },
     {
-      "id": "712c2f95-56dc-4729-90ac-2f53eda2d4d4",
-      "title": "52 - Create BoardHeader with filter chips",
-      "passes": true,
+      "id": "ab504b33-c8c4-4163-bb48-f18051a44212",
+      "title": "66 - Create LaunchActions section",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Project dropdown filter",
-        "Epic dropdown filter",
-        "Tag multi-select filter",
-        "Clear all filters button",
-        "Active filter count indicator",
-        "Filters sync with URL params"
+        "Section header: \"Start Work With\"",
+        "Grid of option cards",
+        "Each card has icon, name, description",
+        "Recommended option highlighted",
+        "Click launches terminal with selected tool",
+        "Only shown when ticket is in workable state"
       ],
       "references": [
-        "src/components/board/BoardHeader.tsx"
+        "src/components/tickets/LaunchActions.tsx"
       ],
-      "description": "Create board header with project, epic, and tag filter chips.\n\n**Files to Create:**\n- `src/components/board/BoardHeader.tsx`\n\n**Acceptance Criteria:**\n- [ ] Project dropdown filter\n- [ ] Epic dropdown filter\n- [ ] Tag multi-select filter\n- [ ] Clear all filters button\n- [ ] Active filter count indicator\n- [ ] Filters sync with URL params\n\n**Layout:**\n```\n┌─────────────────────────────────────────────────────────────┐\n│ Board    [Project ▾] [Epic ▾] [Tags ▾]    Clear (3 active) │\n└─────────────────────────────────────────────────────────────┘\n```\n\n**Tests:** Visual inspection",
-      "priority": "medium",
+      "description": "Create the \"Start Work With\" section showing AI launch options.\n\n**Files to Create:**\n- `src/components/tickets/LaunchActions.tsx`\n\n**Acceptance Criteria:**\n- [ ] Section header: \"Start Work With\"\n- [ ] Grid of option cards\n- [ ] Each card has icon, name, description\n- [ ] Recommended option highlighted\n- [ ] Click launches terminal with selected tool\n- [ ] Only shown when ticket is in workable state\n\n**Layout:**\n```\nStart Work With\n┌─────────────────┐ ┌─────────────────┐\n│ ⭐ Claude       │ │ 🤖 Ralph        │\n│ Recommended     │ │ Native Mode     │\n│ Interactive AI  │ │ Autonomous      │\n└─────────────────┘ └─────────────────┘\n┌─────────────────┐ ┌─────────────────┐\n│ 🐳 Ralph Docker │ │ 💻 OpenCode     │\n│ Sandboxed       │ │ Alternative     │\n└─────────────────┘ └─────────────────┘\n```\n\n**Tests:** Visual inspection",
+      "priority": "high",
       "tags": [
-        "board",
-        "filter"
+        "component",
+        "launch"
       ]
     },
     {
-      "id": "1270fb23-1d04-4b1b-85d6-e00f451fff8b",
-      "title": "53 - Create useFilters hook with URL sync",
-      "passes": true,
-      "overview": "",
-      "types": [
-        {
-          "name": "Filters",
-          "code": "interface Filters {\n  projectId: string | null;\n  epicId: string | null;\n  tags: string[];\n}"
-        },
-        {
-          "name": "UseFiltersReturn",
-          "code": "interface UseFiltersReturn {\n  filters: Filters;\n  setFilter: (key: keyof Filters, value: any) => void;\n  clearFilters: () => void;\n  hasActiveFilters: boolean;\n  activeFilterCount: number;\n}"
-        }
-      ],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Filter state: projectId, epicId, tags[]",
-        "URL params sync (shareable filtered views)",
-        "`setFilter(key, value)` to update single filter",
-        "`clearFilters()` to reset all",
-        "Persists across navigation",
-        "Initial state from URL params",
-        "URL updates when filter changes",
-        "Initial state from URL"
-      ],
-      "references": [
-        "src/lib/filter-hooks.ts",
-        "src/lib/filter-hooks.test.ts"
-      ],
-      "description": "Create hook for managing board filters with URL synchronization.\n\n**Files to Create:**\n- `src/lib/filter-hooks.ts`\n- `src/lib/filter-hooks.test.ts`\n\n**Acceptance Criteria:**\n- [ ] Filter state: projectId, epicId, tags[]\n- [ ] URL params sync (shareable filtered views)\n- [ ] `setFilter(key, value)` to update single filter\n- [ ] `clearFilters()` to reset all\n- [ ] Persists across navigation\n- [ ] Initial state from URL params\n\n**Interface:**\n```typescript\ninterface Filters {\n  projectId: string | null;\n  epicId: string | null;\n  tags: string[];\n}\n\ninterface UseFiltersReturn {\n  filters: Filters;\n  setFilter: (key: keyof Filters, value: any) => void;\n  clearFilters: () => void;\n  hasActiveFilters: boolean;\n  activeFilterCount: number;\n}\n```\n\n**Tests:**\n- [ ] URL updates when filter changes\n- [ ] Initial state from URL",
-      "priority": "medium",
-      "tags": [
-        "hook",
-        "filter"
-      ]
-    },
-    {
-      "id": "7f7a17d5-3ffc-4d9d-b15f-c88d03dabe5d",
-      "title": "54 - Integrate filters with board query",
-      "passes": true,
+      "id": "284dbb24-db03-4de6-9966-6be6ab56b539",
+      "title": "67 - Create SplitButton component",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Pass filters to tickets query",
-        "Server filters tickets by project/epic/tags",
-        "Client shows filtered tickets only",
-        "Empty state when no tickets match",
-        "Filter change triggers refetch",
-        "Loading state during filter change",
-        "Select project filter",
-        "Board shows only that project's tickets",
-        "Clear filter shows all"
+        "Main button on left (primary action)",
+        "Dropdown chevron on right",
+        "Click main = execute primary action",
+        "Click chevron = show dropdown",
+        "Dropdown with alternative actions",
+        "Keyboard accessible",
+        "Main click fires primary",
+        "Dropdown opens",
+        "Option click fires handler"
       ],
       "references": [
-        "src/components/board/KanbanBoard.tsx"
+        "src/components/ui/SplitButton.tsx",
+        "src/components/ui/SplitButton.test.tsx"
       ],
-      "description": "Apply filters to the tickets query for filtered board views.\n\n**Files to Modify:**\n- `src/components/board/KanbanBoard.tsx`\n\n**Acceptance Criteria:**\n- [ ] Pass filters to tickets query\n- [ ] Server filters tickets by project/epic/tags\n- [ ] Client shows filtered tickets only\n- [ ] Empty state when no tickets match\n- [ ] Filter change triggers refetch\n- [ ] Loading state during filter change\n\n**Implementation:**\n```tsx\nconst { filters } = useFilters();\n\nconst { data: tickets } = useQuery({\n  queryKey: ['tickets', filters],\n  queryFn: () => getTickets(filters),\n});\n```\n\n**E2E Tests:**\n- [ ] Select project filter\n- [ ] Board shows only that project's tickets\n- [ ] Clear filter shows all",
+      "description": "Create split button with main action and dropdown for alternatives.\n\n**Files to Create:**\n- `src/components/ui/SplitButton.tsx`\n- `src/components/ui/SplitButton.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Main button on left (primary action)\n- [ ] Dropdown chevron on right\n- [ ] Click main = execute primary action\n- [ ] Click chevron = show dropdown\n- [ ] Dropdown with alternative actions\n- [ ] Keyboard accessible\n\n**Layout:**\n```\n┌─────────────────────┬───┐\n│ Start with Claude   │ ▾ │\n└─────────────────────┴───┘\n                      ┌─────────────────┐\n                      │ Ralph Native    │\n                      │ Ralph Docker    │\n                      │ OpenCode        │\n                      └─────────────────┘\n```\n\n**Tests:**\n- [ ] Main click fires primary\n- [ ] Dropdown opens\n- [ ] Option click fires handler",
       "priority": "medium",
       "tags": [
-        "board",
-        "filter",
-        "query"
+        "component",
+        "ui"
+      ]
+    },
+    {
+      "id": "b2f2902c-8c3d-4e5a-b195-11a67e63d89a",
+      "title": "68 - Create LaunchOption item components",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Claude option (recommended, interactive)",
+        "Ralph Native option (autonomous, native)",
+        "Ralph Docker option (autonomous, sandboxed)",
+        "OpenCode option (alternative)",
+        "Hover state with glow",
+        "Selected state",
+        "Disabled state when unavailable"
+      ],
+      "references": [
+        "src/components/tickets/LaunchActions.tsx"
+      ],
+      "description": "Create individual launch option cards for each AI tool.\n\n**Files to Modify:**\n- `src/components/tickets/LaunchActions.tsx`\n\n**Acceptance Criteria:**\n- [ ] Claude option (recommended, interactive)\n- [ ] Ralph Native option (autonomous, native)\n- [ ] Ralph Docker option (autonomous, sandboxed)\n- [ ] OpenCode option (alternative)\n- [ ] Hover state with glow\n- [ ] Selected state\n- [ ] Disabled state when unavailable\n\n**Options Config:**\n```tsx\nconst launchOptions = [\n  { id: 'claude', icon: Sparkles, name: 'Claude', desc: 'Interactive AI assistance', recommended: true },\n  { id: 'ralph-native', icon: Bot, name: 'Ralph Native', desc: 'Autonomous agent' },\n  { id: 'ralph-docker', icon: Container, name: 'Ralph Docker', desc: 'Sandboxed agent' },\n  { id: 'opencode', icon: Terminal, name: 'OpenCode', desc: 'Alternative client' },\n];\n```\n\n**Tests:** Visual inspection",
+      "priority": "medium",
+      "tags": [
+        "component",
+        "launch"
+      ]
+    },
+    {
+      "id": "47defbde-163e-4cd3-a67e-65c06c5a7794",
+      "title": "69 - Integrate LaunchActions with terminal API",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Uses existing `launchTerminal` server function",
+        "Passes ticket ID and launch type",
+        "Shows loading state during launch",
+        "Error handling with toast",
+        "Updates ticket status after launch",
+        "Closes modal after successful launch",
+        "Click Claude → terminal opens",
+        "Click Ralph → Ralph starts"
+      ],
+      "references": [
+        "src/components/tickets/LaunchActions.tsx"
+      ],
+      "description": "Wire up launch options to existing terminal API server functions.\n\n**Files to Modify:**\n- `src/components/tickets/LaunchActions.tsx`\n\n**Acceptance Criteria:**\n- [ ] Uses existing `launchTerminal` server function\n- [ ] Passes ticket ID and launch type\n- [ ] Shows loading state during launch\n- [ ] Error handling with toast\n- [ ] Updates ticket status after launch\n- [ ] Closes modal after successful launch\n\n**Implementation:**\n```tsx\nconst handleLaunch = async (type: LaunchType) => {\n  try {\n    await launchTerminal({ ticketId: ticket.id, type });\n    toast.success(`Started ${type}`);\n    onClose();\n  } catch (err) {\n    toast.error('Failed to launch terminal');\n  }\n};\n```\n\n**Manual Tests:**\n- [ ] Click Claude → terminal opens\n- [ ] Click Ralph → Ralph starts",
+      "priority": "high",
+      "tags": [
+        "integration",
+        "api"
+      ]
+    },
+    {
+      "id": "66f4c4da-0924-4111-bf7a-a0b78783f452",
+      "title": "70 - Create ActivitySection container",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Section header: \"Activity\"",
+        "Scrollable comment list",
+        "Newest comments at bottom",
+        "Comment input at bottom",
+        "Empty state: \"No activity yet\"",
+        "Uses TanStack Query for comments",
+        "Auto-scroll to bottom on new comment"
+      ],
+      "references": [
+        "src/components/tickets/ActivitySection.tsx"
+      ],
+      "description": "Create the activity/comments section container for tickets.\n\n**Files to Create:**\n- `src/components/tickets/ActivitySection.tsx`\n\n**Acceptance Criteria:**\n- [ ] Section header: \"Activity\"\n- [ ] Scrollable comment list\n- [ ] Newest comments at bottom\n- [ ] Comment input at bottom\n- [ ] Empty state: \"No activity yet\"\n- [ ] Uses TanStack Query for comments\n- [ ] Auto-scroll to bottom on new comment\n\n**Layout:**\n```\nActivity\n┌────────────────────────────────────┐\n│ [Comment 1]                        │\n│ [Comment 2]                        │\n│ [Comment 3]                        │  <- Scrollable\n├────────────────────────────────────┤\n│ [Add a comment...          ] [Send]│  <- Fixed at bottom\n└────────────────────────────────────┘\n```\n\n**Tests:** Visual inspection",
+      "priority": "medium",
+      "tags": [
+        "component",
+        "activity"
+      ]
+    },
+    {
+      "id": "fded1cd5-0fb0-4caf-9bc7-bc4660bf937d",
+      "title": "71 - Create Comment component",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "4 comment types with distinct colors:",
+        "Avatar on left",
+        "Author name and timestamp",
+        "Markdown-rendered content",
+        "Expandable for long content"
+      ],
+      "references": [
+        "src/components/tickets/Comment.tsx"
+      ],
+      "description": "Create individual comment component with type-specific styling.\n\n**Files to Create:**\n- `src/components/tickets/Comment.tsx`\n\n**Acceptance Criteria:**\n- [ ] 4 comment types with distinct colors:\n  - progress: teal left border\n  - work_summary: purple left border\n  - test_report: green left border\n  - comment: default gray border\n- [ ] Avatar on left\n- [ ] Author name and timestamp\n- [ ] Markdown-rendered content\n- [ ] Expandable for long content\n\n**Layout:**\n```\n┌────────────────────────────────────┐\n│ [👤] Claude · 2 hours ago          │\n│ │ Work Summary                     │  <- Purple border\n│ │ - Implemented auth endpoints     │\n│ │ - Added validation               │\n│ │ - Updated tests                  │\n└────────────────────────────────────┘\n```\n\n**Tests:** Visual - all 4 types",
+      "priority": "medium",
+      "tags": [
+        "component",
+        "activity"
+      ]
+    },
+    {
+      "id": "e905a17b-df1e-4c97-a78a-bd693f7635e2",
+      "title": "72 - Create CommentAvatar component",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Gradient backgrounds by author type:",
+        "First letter or icon",
+        "Consistent size (32px)",
+        "Rounded full"
+      ],
+      "references": [
+        "src/components/tickets/CommentAvatar.tsx"
+      ],
+      "description": "Create avatar component with author-specific gradients.\n\n**Files to Create:**\n- `src/components/tickets/CommentAvatar.tsx`\n\n**Acceptance Criteria:**\n- [ ] Gradient backgrounds by author type:\n  - claude: purple gradient\n  - ralph: cyan gradient\n  - user: orange gradient (from theme)\n  - opencode: green gradient\n- [ ] First letter or icon\n- [ ] Consistent size (32px)\n- [ ] Rounded full\n\n**Author Styles:**\n```tsx\nconst authorStyles = {\n  claude: { gradient: 'from-purple-500 to-violet-500', icon: '✨' },\n  ralph: { gradient: 'from-cyan-500 to-blue-500', icon: '🤖' },\n  user: { gradient: 'from-orange-500 to-amber-500', letter: true },\n  opencode: { gradient: 'from-green-500 to-emerald-500', icon: '💻' },\n};\n```\n\n**Tests:** Visual inspection",
+      "priority": "low",
+      "tags": [
+        "component",
+        "activity"
+      ]
+    },
+    {
+      "id": "bdf7c541-e594-4692-800d-49b7d1736890",
+      "title": "73 - Create CommentInput component",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Textarea for comment content",
+        "Send button (icon or text)",
+        "Ctrl+Enter to submit",
+        "Disabled state while submitting",
+        "Clear after successful submit",
+        "Uses existing `addTicketComment` API",
+        "Type and submit",
+        "Comment appears in list"
+      ],
+      "references": [
+        "src/components/tickets/CommentInput.tsx",
+        "src/components/tickets/CommentInput.test.tsx"
+      ],
+      "description": "Create comment input with submit functionality.\n\n**Files to Create:**\n- `src/components/tickets/CommentInput.tsx`\n- `src/components/tickets/CommentInput.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Textarea for comment content\n- [ ] Send button (icon or text)\n- [ ] Ctrl+Enter to submit\n- [ ] Disabled state while submitting\n- [ ] Clear after successful submit\n- [ ] Uses existing `addTicketComment` API\n\n**Implementation:**\n```tsx\nconst addCommentMutation = useMutation({\n  mutationFn: addTicketComment,\n  onSuccess: () => {\n    queryClient.invalidateQueries({ queryKey: ['comments', ticketId] });\n    setContent('');\n  },\n});\n```\n\n**Tests:**\n- [ ] Type and submit\n- [ ] Comment appears in list",
+      "priority": "medium",
+      "tags": [
+        "component",
+        "form"
+      ]
+    },
+    {
+      "id": "36d66de5-42db-4822-8b5b-62d26f29c5ad",
+      "title": "74 - Add code block rendering to comments",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Detect markdown code blocks in content",
+        "Apply syntax highlighting (basic)",
+        "Dark theme code blocks",
+        "Copy button on code blocks",
+        "Language indicator",
+        "Horizontal scroll for long lines"
+      ],
+      "references": [
+        "src/components/tickets/Comment.tsx"
+      ],
+      "description": "Add syntax highlighting for code blocks in work summaries.\n\n**Files to Modify:**\n- `src/components/tickets/Comment.tsx`\n\n**Acceptance Criteria:**\n- [ ] Detect markdown code blocks in content\n- [ ] Apply syntax highlighting (basic)\n- [ ] Dark theme code blocks\n- [ ] Copy button on code blocks\n- [ ] Language indicator\n- [ ] Horizontal scroll for long lines\n\n**Implementation:**\n```tsx\n// Use a lightweight highlighter\nimport { highlight } from 'prismjs';\n\n// Or simpler: just style code blocks without full highlighting\n<pre className=\"bg-bg-secondary rounded p-3 overflow-x-auto\">\n  <code>{codeContent}</code>\n</pre>\n```\n\n**Tests:** Visual - paste comment with code block",
+      "priority": "low",
+      "tags": [
+        "component",
+        "markdown"
       ]
     }
   ],
@@ -524,7 +699,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-20T21:36:33.012Z",
-  "epicTitle": "UI v2 Sprint 3: Kanban Board",
-  "epicDescription": "Implement the core kanban board with drag-and-drop columns, ticket cards with visual hierarchy, column headers with counts, and smooth animations."
+  "generatedAt": "2026-01-20T22:16:02.014Z",
+  "epicTitle": "UI v2 Sprint 4: Ticket Flows",
+  "epicDescription": "Build ticket creation, editing, and management flows including quick-add inline creation, full ticket modal, subtasks, comments, and file attachments UI."
 }

@@ -1,7 +1,8 @@
 import { type FC, useState, useRef, useCallback, useEffect, type KeyboardEvent } from "react";
 import { X, Ticket, Loader2 } from "lucide-react";
-import { useCreateTicket, useClickOutside, useProjects } from "../../lib/hooks";
+import { useCreateTicket, useClickOutside, useProjects, useTags } from "../../lib/hooks";
 import { useToast } from "../Toast";
+import { TagInput } from "./TagInput";
 
 /** Priority options for ticket creation */
 const PRIORITY_OPTIONS = [
@@ -57,6 +58,7 @@ export const CreateTicketModal: FC<CreateTicketModalProps> = ({
   const { showToast } = useToast();
   const createMutation = useCreateTicket();
   const { projects } = useProjects();
+  const { tags: availableTags } = useTags();
 
   const isSaving = createMutation.isPending;
   const error = createMutation.error;
@@ -499,22 +501,18 @@ export const CreateTicketModal: FC<CreateTicketModalProps> = ({
               )}
             </div>
 
-            {/* Tags placeholder - will be replaced by TagInput component */}
+            {/* Tags input with autocomplete */}
             <div>
               <label style={labelStyles} htmlFor="ticket-tags">
                 Tags
               </label>
-              <div
-                style={{
-                  ...inputStyles,
-                  display: "flex",
-                  alignItems: "center",
-                  color: "var(--text-tertiary)",
-                  fontSize: "var(--font-size-sm)",
-                }}
-              >
-                Tags coming soon...
-              </div>
+              <TagInput
+                id="ticket-tags"
+                value={tags}
+                onChange={setTags}
+                availableTags={availableTags}
+                placeholder="Add tags..."
+              />
             </div>
           </div>
         </div>
