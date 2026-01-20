@@ -2,6 +2,7 @@ import type { FC } from "react";
 import { useMemo } from "react";
 import { useTickets, type Ticket } from "../../lib/hooks";
 import { TicketCard } from "./TicketCard";
+import { KanbanColumn } from "./KanbanColumn";
 import type { TicketStatus } from "../../api/tickets";
 
 export interface KanbanBoardProps {
@@ -126,7 +127,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
               <div style={columnHeaderStyles}>
                 <div style={skeletonHeaderStyles} />
               </div>
-              <div style={columnContentStyles}>
+              <div style={skeletonColumnContentStyles}>
                 {[1, 2, 3].map((i) => (
                   <div key={i} style={skeletonCardStyles} />
                 ))}
@@ -161,47 +162,23 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
           const accentColor = COLUMN_COLORS[status];
 
           return (
-            <div
+            <KanbanColumn
               key={status}
-              style={columnStyles}
-              role="list"
-              aria-label={`${COLUMN_LABELS[status]} column, ${count} tickets`}
-              data-testid={`column-${status}`}
-              data-status={status}
+              status={status}
+              label={COLUMN_LABELS[status]}
+              count={count}
+              accentColor={accentColor}
             >
-              {/* Column Header */}
-              <div style={columnHeaderStyles}>
-                <div style={headerContentStyles}>
-                  <span
-                    style={{ ...headerAccentStyles, backgroundColor: accentColor }}
-                    aria-hidden="true"
+              {columnTickets.map((ticket) => (
+                <div key={ticket.id} role="listitem">
+                  <TicketCard
+                    ticket={ticket}
+                    {...(onTicketClick ? { onClick: onTicketClick } : {})}
+                    isAiActive={aiActiveSessions[ticket.id] ?? false}
                   />
-                  <h3 style={headerTitleStyles}>{COLUMN_LABELS[status]}</h3>
-                  <span style={countBadgeStyles} data-testid={`count-${status}`}>
-                    {count}
-                  </span>
                 </div>
-              </div>
-
-              {/* Column Content */}
-              <div style={columnContentStyles}>
-                {count === 0 ? (
-                  <div style={emptyStateStyles} role="listitem">
-                    <span style={emptyTextStyles}>No tickets</span>
-                  </div>
-                ) : (
-                  columnTickets.map((ticket) => (
-                    <div key={ticket.id} role="listitem">
-                      <TicketCard
-                        ticket={ticket}
-                        {...(onTicketClick ? { onClick: onTicketClick } : {})}
-                        isAiActive={aiActiveSessions[ticket.id] ?? false}
-                      />
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+              ))}
+            </KanbanColumn>
           );
         })}
       </div>
@@ -252,42 +229,8 @@ const columnHeaderStyles: React.CSSProperties = {
   flexShrink: 0,
 };
 
-const headerContentStyles: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--spacing-2)",
-};
-
-const headerAccentStyles: React.CSSProperties = {
-  width: "4px",
-  height: "16px",
-  borderRadius: "2px",
-  flexShrink: 0,
-};
-
-const headerTitleStyles: React.CSSProperties = {
-  margin: 0,
-  fontSize: "var(--font-size-sm)",
-  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-  color: "var(--text-primary)",
-  flex: 1,
-};
-
-const countBadgeStyles: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  minWidth: "20px",
-  height: "20px",
-  padding: "0 var(--spacing-2)",
-  fontSize: "var(--font-size-xs)",
-  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-  color: "var(--text-secondary)",
-  background: "var(--bg-tertiary)",
-  borderRadius: "var(--radius-full)",
-};
-
-const columnContentStyles: React.CSSProperties = {
+// Skeleton column content (for loading state only)
+const skeletonColumnContentStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: "var(--spacing-2)",
@@ -295,18 +238,6 @@ const columnContentStyles: React.CSSProperties = {
   flex: 1,
   overflowY: "auto",
   minHeight: 0,
-};
-
-const emptyStateStyles: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "var(--spacing-8) var(--spacing-4)",
-};
-
-const emptyTextStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-sm)",
-  color: "var(--text-tertiary)",
 };
 
 // Loading skeleton styles
