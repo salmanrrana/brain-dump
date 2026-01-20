@@ -195,6 +195,55 @@ See the [complete flows index](docs/flows/README.md) for the big picture.
 
 ---
 
+## UI v2 Development (feature/ui-v2 Branch)
+
+Brain Dump is undergoing a greenfield UI rebuild on the `feature/ui-v2` branch. Both UIs can run simultaneously during development.
+
+### Branch Strategy
+
+| Branch          | Purpose                         | Port |
+| --------------- | ------------------------------- | ---- |
+| `main`          | Current stable UI               | 4242 |
+| `feature/ui-v2` | New UI under active development | 4243 |
+
+### Quick Start (Parallel Development)
+
+```bash
+# Terminal 1: Run old UI
+git checkout main && pnpm dev          # http://localhost:4242
+
+# Terminal 2: Run new UI
+git checkout feature/ui-v2 && pnpm dev:v2   # http://localhost:4243
+```
+
+### What's Shared vs Rebuilt
+
+| Shared (Backend)                      | Rebuilt (Frontend)             |
+| ------------------------------------- | ------------------------------ |
+| `src/api/*` - Server functions        | `src/components-v2/*` - New UI |
+| `src/lib/schema.ts` - Database schema | `src/routes-v2/*` - New routes |
+| `src/lib/db.ts` - Database connection | `src/styles.css` - New styles  |
+| `mcp-server/*` - MCP integration      | `src/lib/theme.ts` - Theme     |
+| `cli/*` - CLI tool                    |                                |
+
+### Development Commands
+
+| Command       | Description                         |
+| ------------- | ----------------------------------- |
+| `pnpm dev`    | Start old UI (localhost:4242)       |
+| `pnpm dev:v2` | Start new UI (localhost:4243)       |
+| `pnpm check`  | Type-check + lint + test (both UIs) |
+
+### Important Notes
+
+- Both UIs share the same SQLite database (WAL mode enables concurrent access)
+- Do NOT try to migrate existing components — start fresh with the new design
+- Reference old code for API patterns only
+
+[Verification documentation →](docs/parallel-development-verification.md)
+
+---
+
 ## Learn More
 
 | Topic                 | Link                                                         |

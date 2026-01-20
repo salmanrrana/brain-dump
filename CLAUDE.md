@@ -391,34 +391,73 @@ These are called from React components via TanStack Query.
 
 **"The more your tests resemble the way your software is used, the more confidence they can give you."**
 
-Follow these principles when writing or reviewing tests:
+**The single most important question: "What real user behavior does this test verify?"**
 
-1. **Test user behavior, not implementation details**
-   - Bad: Testing internal state, private methods, component internals
-   - Good: Testing what users see, click, and experience
+If you cannot answer this question with a concrete user action and expected outcome, DO NOT write the test.
 
-2. **Coverage metrics are meaningless - user flow coverage is everything**
-   - Don't chase 100% code coverage
-   - Ask: "Does this test catch bugs users would actually encounter?"
+### Concrete Examples
 
-3. **Integration tests > unit tests for most cases**
-   - Test components together as users experience them
-   - Only unit test pure utility functions and complex algorithms
+**GOOD tests (real user behavior):**
 
-4. **Don't mock too much**
-   - Excessive mocking means you're testing mocks, not real behavior
-   - Mock network boundaries, not internal modules
+```typescript
+// User sees loading state → User sees data
+it("shows loading then displays tickets when data loads", () => {...});
 
-5. **Write tests that fail for the right reasons**
-   - Tests should break when user-facing behavior breaks
-   - Tests should NOT break when refactoring internals
+// User clicks button → something visible happens
+it("moves ticket to done column when user clicks complete", () => {...});
 
-**When reviewing tests, reject:**
+// User sees error message when something fails
+it("shows error message when API request fails", () => {...});
 
-- Tests that verify implementation details
-- Tests with excessive mocking
-- Tests that don't reflect real user workflows
-- Tests written just to increase coverage numbers
+// User input produces expected output
+it("filters tickets when user types in search box", () => {...});
+```
+
+**BAD tests (DO NOT WRITE THESE):**
+
+```typescript
+// ❌ Testing that a function was called
+it("calls onComplete callback when clicked", () => {...});
+
+// ❌ Testing internal state
+it("sets isLoading to true during fetch", () => {...});
+
+// ❌ Testing that console.log was called
+it("logs error to console when parsing fails", () => {...});
+
+// ❌ Testing implementation details
+it("uses useMemo for expensive calculation", () => {...});
+
+// ❌ Testing CSS/styles
+it("applies correct className when selected", () => {...});
+
+// ❌ Negative tests that verify absence of behavior
+it("does not render button when disabled", () => {...}); // Unless user SEES something different
+
+// ❌ Testing props are passed correctly
+it("passes onClick handler to child component", () => {...});
+
+// ❌ Testing for coverage, not behavior
+it("handles edge case where value is undefined", () => {...}); // Unless user encounters this
+```
+
+### The Litmus Test
+
+Before writing ANY test, ask yourself:
+
+1. **Can a user trigger this?** (click, type, navigate, wait)
+2. **Can a user see the result?** (text on screen, element appears/disappears, navigation occurs)
+3. **Would a user report a bug if this broke?**
+
+If the answer to all three is YES, write the test. Otherwise, don't.
+
+### Rules
+
+1. **Test user flows, not functions** - A user doesn't call `handleClick()`, they click a button
+2. **Test visible outcomes, not internal state** - A user doesn't check `isLoading`, they see a spinner
+3. **Test error messages, not error handling** - A user doesn't catch exceptions, they read error text
+4. **Mock boundaries, not internals** - Mock the API, not the hook that calls it
+5. **Fewer, meaningful tests > many trivial tests** - 8 real tests beat 21 implementation tests
 
 ## Verification Checklist
 
@@ -432,7 +471,7 @@ After implementing ANY feature, you MUST complete these steps:
 
 ### If You Added New Code
 
-- [ ] Added tests for new functionality (following Kent C. Dodds testing philosophy)
+- [ ] Added tests for new functionality (ONLY tests that verify real user behavior - see Testing Philosophy above)
 - [ ] Used typed error classes (not generic `Error`)
 - [ ] Used Drizzle ORM (not raw SQL) - see DO/DON'T table above
 - [ ] Followed existing patterns from DO/DON'T tables

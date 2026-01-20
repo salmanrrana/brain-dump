@@ -7,6 +7,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 
 import AppLayout from "../components/AppLayout";
 import { ToastProvider } from "../components/Toast";
+import { ThemeProvider } from "../lib/theme";
 
 import appCss from "../styles.css?url";
 
@@ -67,11 +68,13 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <head>
         <HeadContent />
       </head>
-      <body className="bg-slate-950">
+      <body className="h-screen overflow-hidden">
         <QueryClientProvider client={queryClient}>
-          <ToastProvider>
-            <AppLayout>{children}</AppLayout>
-          </ToastProvider>
+          <ThemeProvider>
+            <ToastProvider>
+              <AppLayout>{children}</AppLayout>
+            </ToastProvider>
+          </ThemeProvider>
           <ReactQueryDevtools initialIsOpen={false} />
         </QueryClientProvider>
         <TanStackDevtools

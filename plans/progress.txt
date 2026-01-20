@@ -1,132 +1,311 @@
 # Ralph Progress Log
-# Previous entries archived to: archives/progress-20260118-015130.txt
+# Previous entries archived to: archives/progress-20260119-173640.txt
 
-- **Files:** 
-  - .devcontainer/Dockerfile (NEW) - Main container definition
-  - .devcontainer/init-firewall.sh (NEW) - Placeholder for firewall script
-- **Notes:**
-  - Base: node:20 with pnpm 9 via corepack
-  - Build tools for better-sqlite3: python3, make, g++
-  - Firewall tools: iptables, ipset, iproute2, dnsutils, aggregate, jq
-  - Non-root node user with sudo access for init-firewall.sh
-  - zsh with powerline10k and git-delta for better terminal experience
-  - All acceptance criteria verified via docker build and container tests
+
+### Features Verified:
+- 3 themes defined: Ember (orange), Mint (emerald), Solar (gold)
+- Base colors: --bg-primary (#0a0a0a), --bg-secondary (#111111)
+- Accent colors vary by theme via [data-theme] selectors
+- Typography scale (8 sizes from xs to 4xl)
+- Spacing scale (14 values from 0 to 24)
+- Border radius scale (7 values from none to full)
+- Shadow variables including glow effects
+- Z-index scale for proper stacking
+
+### Next Suggested Ticket
+- **ID:** d8b3c109-acc6-4025-9def-f4f96f7330b6
+- **Title:** 07 - Create ThemeContext with localStorage persistence
+- **Priority:** high
 
 ---
 
-### 2026-01-18 - Create .devcontainer/devcontainer.json (Ticket 10904211)
-- **Ticket ID:** 10904211-7723-4438-bab5-cd497d64e849
-- **Task:** Create devcontainer.json configuration
+## Ralph Iteration Complete
+
+### Ticket: 23 - Create root layout with app shell
+- **Status:** ✅ COMPLETED
+- **Commit:** 760d550
+- **Files:** src/routes/__root.tsx, src/components/AppLayout.tsx
+- **Tests:** 995 passing
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅
+
+### Changes Made:
+- Added ThemeProvider to wrap entire app in __root.tsx
+- Converted AppLayout from flexbox to CSS Grid (grid-cols-[256px_1fr])
+- Set h-screen and overflow-hidden on body for full viewport height
+- Updated sidebar styling to use CSS variables (--bg-secondary, --border-primary)
+
+### Next Suggested Ticket
+- **ID:** 6cca5ce1-7bdb-4a4e-b871-bc7c726d610b
+- **Title:** 20 - Create ModalHeader subcomponent
+- **Priority:** medium
+
+---
+
+## Ralph Iteration Complete
+
+### Ticket: 20 - Create ModalHeader subcomponent
+- **Status:** ✅ COMPLETED
+- **Commit:** 28b7ccd
+- **Files:** src/components-v2/ui/Modal.tsx, src/components-v2/ui/Modal.test.tsx
+- **Tests:** 1006 passing (50 in Modal.test.tsx, 11 new for Header)
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅
+
+### Features Implemented:
+- Modal.Header compound component attached to Modal
+- Gradient icon area on left using --gradient-accent
+- Title text as h2 heading for accessibility
+- Close button (X) on right with hover/focus states
+- Sticky positioning at top during scroll
+- Border bottom separator using CSS variables
+
+### Next Suggested Ticket
+- **ID:** df71f7dc-8fc0-4e97-9004-e5bec49a2e8a
+- **Title:** 21 - Create ModalBody and ModalFooter subcomponents
+- **Priority:** medium
+
+---
+
+## Ralph Session Complete - UI v2 Sprint 1 FINISHED!
+
+### Session Summary (2026-01-19)
+All remaining Sprint 1 tickets completed in this session:
+
+| Ticket | Title | Commit | Tests Added |
+|--------|-------|--------|-------------|
+| 21 | Create ModalBody and ModalFooter subcomponents | 23c122e | 16 |
+| 22 | Create useModal hook | 6c6f262 | 18 |
+| 24 | Create Toast component | 9963886 | 28 |
+| 25 | Create ToastProvider and useToast hook | 9136346 | 18 |
+| 18 | Create Checkbox component | 6614097 | 33 |
+
+### Final Test Count
+- **Total Tests:** 1119 passing (up from 995)
+- **New Tests Added:** 113 tests in this session
+
+### Sprint 1 Complete! 🎉
+All 20 tickets in "UI v2 Sprint 1: Foundation & Design System" are now DONE.
+
+#### Components Created:
+- **Theme System:** CSS variables, ThemeContext, ThemeProvider, ThemeSwitcher
+- **Form Components:** Button, Input, Select, Checkbox, Toggle
+- **Display Components:** Card, Badge, IconButton
+- **Modal System:** Modal, Modal.Header, Modal.Body, Modal.Footer, useModal
+- **Notifications:** Toast, ToastContainer, ToastProvider, useToast
+- **Layout:** Root layout with app shell, CSS Grid sidebar
+
+#### Architecture Notes:
+- All components use CSS custom properties for theme adaptation
+- Inline styles used consistently (not Tailwind classes for v2 components)
+- Compound component pattern for Modal (Modal.Header, etc.)
+- Context + hook pattern for Toast (ToastProvider + useToast)
+- Full accessibility support (ARIA attributes, keyboard navigation, focus management)
+
+---
+
+---
+
+### 2026-01-20 - Ralph Session Analysis
+- **Task:** Start UI v2 Sprint 2 work
+- **Finding:** Sprint 1 (Foundation) and partial Sprint 2 (Navigation) already complete on feature/ui-v2
+- **Components Implemented:**
+  - Sprint 1: All 20 tickets (06-25) - Theme system, Button, Input, Select, Card, Badge, IconButton, Toggle, Checkbox, Modal, Toast
+  - Sprint 2 Navigation (26-30): IconSidebar, NavItem, Router integration, Header, SearchBar
+- **Components NOT Implemented:**
+  - Sprint 2 Dashboard (31-40): StatusPill, NewTicketDropdown, ProjectsPanel, ProjectItem, useProjectsPanel, search filtering, Dashboard route, StatsGrid, CurrentFocusCard, UpNextQueue
+- **Action:** Need to regenerate PRD for remaining Sprint 2 Dashboard tickets
+
+
+---
+
+### 2026-01-20 - Ticket 32 Complete (NewTicketDropdown)
+- **Ticket ID:** f3c3461b-a3f3-49cb-b259-bf37b8a71cf5
+- **Task:** Create NewTicketDropdown component
 - **Success:** true
-- **Commit:** ce3ab07
-- **Files:** .devcontainer/devcontainer.json (NEW)
+- **Commit:** 463f74a
+- **Files:**
+  - src/components/navigation/NewTicketDropdown.tsx (NEW)
+  - src/components/navigation/NewTicketDropdown.test.tsx (NEW)
+  - src/components/navigation/index.ts (updated exports)
 - **Notes:**
-  - Uses pnpm 9 via corepack (not npm)
-  - VS Code extensions: Claude Code, ESLint, Prettier, Tailwind, GitLens
-  - NET_ADMIN/NET_RAW capabilities for firewall
-  - Persistent volumes: pnpm store, bash history, Claude config
-  - SQLite bind-mounted from host via BRAIN_DUMP_HOST_DATA_DIR
-  - Port 4242 forwarded
-  - Linux users: Set BRAIN_DUMP_HOST_DATA_DIR=~/.local/share/brain-dump
-  - All acceptance criteria met and verified
-
----
-
-### 2026-01-18 - Create .devcontainer/init-firewall.sh (Ticket 0f4a7e8c)
-- **Ticket ID:** 0f4a7e8c-59d7-4c3b-be11-6de5bc24b2c1
-- **Task:** Create firewall initialization script for network isolation
-- **Success:** true
-- **Commit:** 6dce724
-- **Files:** .devcontainer/init-firewall.sh (UPDATED from placeholder)
-- **Notes:**
-  - Allowed: npm, GitHub, Anthropic API, telemetry, VS Code extensions
-  - Preserves Docker DNS rules (127.0.0.11) before flushing
-  - Uses ipset hash:net for efficient IP matching
-  - Validates all IPs/CIDRs before adding
-  - Uses REJECT instead of DROP for immediate feedback
-  - Built-in verification tests for blocked/allowed domains
-  - Full integration testing in ticket 9ac8e425
-
----
-
-### 2026-01-17 20:45:49 - Session Timeout
-- **Reason:** Timeout reached (2h limit)
-- **Status:** Session terminated, work may be incomplete
-- **Action:** Review progress and restart if needed
-
----
-
-### 2026-01-18 - Add --devcontainer option to install.sh (Ticket 4bf8fa2a)
-- **Ticket ID:** 4bf8fa2a-b19a-473e-af1e-19417eeb6270
-- **Task:** Add --devcontainer option to install.sh
-- **Success:** true
-- **Commit:** c274099
-- **Files:** install.sh (modified)
-- **Notes:**
-  - setup_devcontainer function: 110 lines
-  - Checks .devcontainer/ files, Docker running, VS Code extension
-  - Optionally pre-builds container image
-  - Podman support as Docker alternative
-  - Clear next steps for VS Code and CLI usage
+  - Primary gradient button with chevron indicator
+  - Dropdown menu: "New Ticket" and "Start from Scratch" options
+  - Full keyboard accessibility (Tab, Enter/Space, ArrowUp/Down, Escape)
+  - Click-outside-to-close via useClickOutside hook
+  - 14 comprehensive tests pass
   - All acceptance criteria met
 
 ---
 
-### 2026-01-18 - Document Sandboxing Options (Ticket 27b01368)
-- **Ticket ID:** 27b01368-abd1-47da-b2bc-b37185958648
-- **Task:** Create comprehensive sandboxing documentation
+### 2026-01-20 - Ticket 31 Complete (StatusPill)
+- **Ticket ID:** 7d945ec4-93a3-43ae-909a-2489ee2d4bf2
+- **Task:** Create StatusPill component
 - **Success:** true
-- **Commit:** 081542b
-- **Files:** docs/sandboxing.md (NEW)
-- **Notes:**
-  - Created docs/sandboxing.md with 430+ lines of documentation
-  - Documents all three sandbox options:
-    1. Native Sandbox (Claude Code) - bubblewrap/Seatbelt
-    2. Devcontainer (Docker + VS Code) - firewall + isolation
-    3. Ralph Sandbox - autonomous agent work
-  - Quick comparison table and "When to Use Which" guidance
-  - Troubleshooting sections for common issues
-  - Security considerations and best practices
-  - Extensive references including VS Code devcontainer docs
-  - All 714 tests pass, type-check and lint clean
+- **Commit:** dc6913c
+- **Files:**
+  - src/components/navigation/StatusPill.tsx (NEW)
+  - src/components/navigation/StatusPill.test.tsx (NEW)
+  - src/components/navigation/index.ts (updated exports)
+- **Features:**
+  - Compact dot + label pattern for status display
+  - 7 ticket status values (backlog, ready, in_progress, review, ai_review, human_review, done)
+  - Two sizes: sm (6px dot) and md (8px dot)
+  - Theme-aware via CSS custom properties (--status-*)
+  - Full accessibility with role="status" and aria-label
+  - 18 comprehensive tests pass
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (999 total)
 
-**EPIC STATUS: Sandboxing & Devcontainer Support**
-- 6 of 8 tickets complete:
-  - 3945ae33: Create .devcontainer/Dockerfile ✅
-  - 10904211: Create .devcontainer/devcontainer.json ✅
-  - 0f4a7e8c: Create .devcontainer/init-firewall.sh ✅
-  - 822e5169: Add --sandbox option (already done) ✅
-  - 4bf8fa2a: Add --devcontainer option ✅
-  - 27b01368: Document sandboxing options ✅
-  - 2c3b973e: Fix devcontainer configuration issues ✅
-- Remaining:
-  - 165e4cd5: Update uninstall.sh (low priority)
-  - 9ac8e425: Test devcontainer with all three providers (requires manual testing)
 
 ---
 
-### 2026-01-18 - Fix devcontainer configuration issues (Ticket 2c3b973e)
-- **Ticket ID:** 2c3b973e-843f-4764-8841-46040c8a5795
-- **Task:** Fix devcontainer configuration issues discovered during testing
+### 2026-01-20 - Ticket 37 Complete (Dashboard Route)
+- **Ticket ID:** 37ab31cc-d937-44e9-a5d0-6281cc101e99
+- **Task:** Create Dashboard route
 - **Success:** true
-- **Commit:** e30da3b
-- **Files:** docs/sandboxing.md (modified)
-- **Notes:**
-  - Updated sandboxing documentation with Lima writable mount requirement
-  - Added troubleshooting section for EROFS errors with Lima
-  - Added troubleshooting section for malformed DOCKER_HOST values
-  - Verified check_docker_host() catches malformed values (sockexport, .socketfoo, sockert)
-  - Verified XDG paths correctly mounted in devcontainer.json
-  - Type-check and lint pass; tests pass when run individually
-  - Acceptance criteria met:
-    - ✅ Update sandboxing documentation with Lima writable mount requirement
-    - ✅ Verify MCP server works inside devcontainer after rebuild (XDG paths correct)
-    - ✅ Test that check_docker_host() catches malformed values
-    - ⏳ Ensure all three providers work in devcontainer (requires manual testing - ticket 9ac8e425)
+- **Commit:** 91c39e6
+- **Files:**
+  - src/routes/dashboard.tsx (NEW)
+  - src/routeTree.gen.ts (auto-generated)
+- **Features:**
+  - Route at /dashboard using createFileRoute
+  - StatsGrid with 4 metrics (Total, In Progress, AI Active, Done)
+  - CurrentFocusCard showing ticket with active Ralph session
+  - UpNextQueue showing next 5 priority-ordered tickets
+  - Inline placeholder components (to be extracted in tickets 38-40)
+- **Note:** Ticket 36 (search filtering) was already implemented in ticket 33
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1013 total)
 
 ---
 
-### 2026-01-19 12:58:55 - Session Timeout
-- **Reason:** Timeout reached (2h limit)
-- **Status:** Session terminated, work may be incomplete
-- **Action:** Review progress and restart if needed
+### 2026-01-20 - Ticket 38 Complete (StatsGrid Component)
+- **Ticket ID:** 0ae86982-3c09-43f0-893c-5c8ad8de45d7
+- **Task:** Create StatsGrid component
+- **Success:** true
+- **Commit:** 542a9ce
+- **Files:**
+  - src/components/dashboard/StatsGrid.tsx (NEW)
+  - src/components/dashboard/StatsGrid.test.tsx (NEW - 22 tests)
+  - src/components/dashboard/index.ts (NEW)
+  - src/routes/dashboard.tsx (updated to use extracted component)
+- **Features:**
+  - 4 stat cards: Total, In Progress, AI Active, Done
+  - Click handlers with typed StatFilter for board navigation
+  - Keyboard accessibility (Enter/Space, tabIndex)
+  - Test IDs for easy testing
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1035 total, 22 new)
+
+---
+
+### 2026-01-20 - Ticket 39 Complete (CurrentFocusCard Component)
+- **Ticket ID:** 91841fb8-51a3-4d2b-b66d-d494ca730a7b
+- **Task:** Create CurrentFocusCard component
+- **Success:** true
+- **Commit:** dbe939f
+- **Files:**
+  - src/components/dashboard/CurrentFocusCard.tsx (NEW)
+  - src/components/dashboard/CurrentFocusCard.test.tsx (NEW - 28 tests)
+  - src/components/dashboard/index.ts (updated exports)
+  - src/routes/dashboard.tsx (uses extracted component)
+- **Features:**
+  - Displays currently active/focused ticket with AI session integration
+  - Ticket title and truncated description preview (100 chars)
+  - AI activity indicator with glow animation when Ralph session active
+  - Subtask progress bar with completion count (e.g., "3/5 subtasks")
+  - Time since work started (e.g., "Started 2h ago", "Just started")
+  - Click handler with keyboard support for navigation to ticket detail
+  - Empty state with icon and helpful message
+  - Full accessibility support (ARIA roles, labels, keyboard navigation)
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1063 total, 28 new)
+
+---
+
+### Remaining Sprint 2 Dashboard Tickets
+- **34 - ProjectItem component** (medium) - Enhanced project item for ProjectsPanel
+- **40 - UpNextQueue component** (medium) - Extract from dashboard.tsx with Start button
+
+---
+
+### 2026-01-20 - Ticket 40 Complete (UpNextQueue Component)
+- **Ticket ID:** 14d8bb8e-e0b0-4f2d-85af-441311e95561
+- **Task:** Create UpNextQueue component
+- **Success:** true
+- **Commit:** 96e6bd1
+- **Files:**
+  - src/components/dashboard/UpNextQueue.tsx (NEW)
+  - src/components/dashboard/UpNextQueue.test.tsx (NEW - 35 tests)
+  - src/components/dashboard/index.ts (updated exports)
+  - src/routes/dashboard.tsx (uses extracted component)
+- **Features:**
+  - Shows next 5 tickets in priority order (high → medium → low)
+  - Priority badges with accessible color dots and labels
+  - Project name display for additional context
+  - Click handler for viewing ticket details
+  - "Start" button to begin work on tickets
+  - Empty state when queue is empty
+  - Full keyboard accessibility (Tab, Enter/Space)
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1098 total, 35 new)
+
+---
+
+### Dashboard Components Complete
+All 3 dashboard components from Sprint 2 are now extracted:
+- StatsGrid (ticket 38) ✅
+- CurrentFocusCard (ticket 39) ✅  
+- UpNextQueue (ticket 40) ✅
+
+### 2026-01-20 - PRD Sync
+Updated PRD to reflect completed tickets from previous sessions:
+- 26 - IconSidebar component ✅ (commit 9a8a2bf)
+- 27 - NavItem component ✅ (commit d49fb62)
+- 28 - Router integration ✅ (commit 30cab69)
+- 29 - Header component ✅ (commit 992d690)
+- 30 - SearchBar ✅ (commit bb0381c)
+- 31 - StatusPill ✅ (commit dc6913c)
+- 32 - NewTicketDropdown ✅ (commit 463f74a)
+- 33 - ProjectsPanel ✅ (commit 51dc10d)
+- 35 - useProjectsPanel hook ✅ (commit 509e066)
+- 37 - Dashboard route ✅ (commit 91c39e6)
+- 38 - StatsGrid ✅ (commit 542a9ce)
+- 39 - CurrentFocusCard ✅ (already marked)
+- 40 - UpNextQueue ✅ (already marked)
+
+### 2026-01-20 - Ticket 34 Complete (ProjectItem Component)
+- **Ticket ID:** 0dd854b1-e9c0-4438-a750-56fb308246ff
+- **Task:** Create ProjectItem component
+- **Success:** true
+- **Commit:** e44d495
+- **Files:**
+  - src/components/navigation/ProjectItem.tsx (NEW)
+  - src/components/navigation/ProjectItem.test.tsx (NEW - 28 tests)
+  - src/components/navigation/index.ts (updated exports)
+- **Features:**
+  - Color indicator circle (project.color)
+  - Project name and truncated path with tooltip
+  - Ticket stats: total, in progress counts
+  - AI active indicator with glow effect when Ralph running
+  - Hover actions: edit and delete buttons
+  - Click to select, double-click to edit
+  - Full keyboard accessibility (Enter/Space, Tab)
+  - Proper ARIA (role=option, aria-selected)
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1126 total, 28 new)
+
+---
+
+## 🎉 UI v2 Sprint 2 COMPLETE!
+
+All 15 tickets in "UI v2 Sprint 2: Navigation & Layout" are now DONE:
+- 26 - IconSidebar component ✅
+- 27 - NavItem component ✅
+- 28 - Router integration ✅
+- 29 - Header component ✅
+- 30 - SearchBar with FTS5 ✅
+- 31 - StatusPill component ✅
+- 32 - NewTicketDropdown ✅
+- 33 - ProjectsPanel ✅
+- 34 - ProjectItem component ✅
+- 35 - useProjectsPanel hook ✅
+- 37 - Dashboard route ✅
+- 38 - StatsGrid component ✅
+- 39 - CurrentFocusCard component ✅
+- 40 - UpNextQueue component ✅
+
+PRD_COMPLETE
