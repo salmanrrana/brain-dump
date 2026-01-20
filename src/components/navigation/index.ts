@@ -9,3 +9,6 @@ export type { ProjectsPanelProps, Project as ProjectsPanelProject } from "./Proj
 
 export { StatusPill } from "./StatusPill";
 export type { StatusPillProps, TicketStatus } from "./StatusPill";
+
+export { ProjectItem } from "./ProjectItem";
+export type { ProjectItemProps, ProjectStats } from "./ProjectItem";
