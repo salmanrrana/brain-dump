@@ -1244,6 +1244,7 @@ export function useLaunchRalphForTicket() {
       maxIterations?: number;
       preferredTerminal?: string | null;
       useSandbox?: boolean;
+      aiBackend?: "claude" | "opencode";
     }) => launchRalphForTicket({ data }),
     onSuccess: () => {
       // Ticket status will be updated by Ralph, invalidate to reflect changes
@@ -1262,6 +1263,7 @@ export function useLaunchRalphForEpic() {
       maxIterations?: number;
       preferredTerminal?: string | null;
       useSandbox?: boolean;
+      aiBackend?: "claude" | "opencode";
     }) => launchRalphForEpic({ data }),
     onSuccess: () => {
       // Ticket statuses will be updated by Ralph, invalidate to reflect changes

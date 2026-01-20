@@ -166,12 +166,9 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
   // Ralph mutation hook
   const launchRalphMutation = useLaunchRalphForTicket();
 
-  // Docker availability for Ralph sandbox mode
-  const {
-    isAvailable: dockerAvailable,
-    message: dockerMessage,
-    loading: dockerLoading,
-  } = useDockerAvailability();
+  // Docker availability for Ralph sandbox mode - not currently used since Docker options are disabled
+  // but keeping the hook call for future re-enablement
+  useDockerAvailability();
 
   // Delete mutation hook
   const deleteTicketMutation = useDeleteTicket();
@@ -476,8 +473,15 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
 
   // Handle Start Ralph - autonomous mode
   // useSandbox param allows explicit choice at launch time, overriding settings default
+  // aiBackend param allows choosing between Claude and OpenCode
   const handleStartRalph = useCallback(
-    async ({ useSandbox }: { useSandbox: boolean }) => {
+    async ({
+      useSandbox,
+      aiBackend,
+    }: {
+      useSandbox: boolean;
+      aiBackend: "claude" | "opencode";
+    }) => {
       setIsStartingWork(true);
       setStartWorkNotification(null);
       setShowStartWorkMenu(false);
@@ -488,6 +492,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
           maxIterations: 5,
           preferredTerminal: settings?.terminalEmulator ?? null,
           useSandbox,
+          aiBackend,
         });
 
         // Show any warnings (e.g., preferred terminal not available)
@@ -1457,6 +1462,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
             {/* Dropdown Menu */}
             {showStartWorkMenu && (
               <div className="absolute left-0 bottom-full mb-2 w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-10 overflow-hidden">
+                {/* Interactive Sessions */}
                 <button
                   onClick={() => {
                     setShowStartWorkMenu(false);
@@ -1473,72 +1479,82 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                   </div>
                 </button>
                 <button
-                  onClick={() => void handleStartRalph({ useSandbox: false })}
-                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left border-t border-slate-700"
-                >
-                  <Bot size={18} className="text-purple-400 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="font-medium text-gray-100">Start Ralph (Native)</div>
-                    <div className="text-xs text-slate-400">Runs on your machine directly</div>
-                  </div>
-                </button>
-                <button
-                  onClick={(e) => {
-                    // Prevent action when disabled but keep button focusable for accessibility
-                    if (dockerLoading || !dockerAvailable) {
-                      e.preventDefault();
-                      return;
-                    }
-                    void handleStartRalph({ useSandbox: true });
-                  }}
-                  className={`w-full flex items-start gap-3 px-4 py-3 transition-colors text-left border-t border-slate-700 group relative ${
-                    dockerLoading || !dockerAvailable
-                      ? "opacity-50 cursor-not-allowed"
-                      : "hover:bg-slate-700"
-                  }`}
-                  aria-disabled={dockerLoading || !dockerAvailable}
-                  aria-describedby={!dockerAvailable ? "docker-unavailable-msg-ticket" : undefined}
-                  aria-label={
-                    !dockerAvailable
-                      ? `Start Ralph in Docker (unavailable: ${dockerMessage})`
-                      : undefined
-                  }
-                >
-                  <Container size={18} className="text-cyan-400 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="font-medium text-gray-100">Start Ralph in Docker</div>
-                    <div className="text-xs text-slate-400">
-                      {dockerLoading
-                        ? "Checking Docker..."
-                        : !dockerAvailable
-                          ? dockerMessage
-                          : "Isolated container environment"}
-                    </div>
-                  </div>
-                  {/* Tooltip visible on hover and focus */}
-                  {!dockerAvailable && dockerMessage && (
-                    <span
-                      role="tooltip"
-                      className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-slate-900 text-xs text-slate-300 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 group-focus:opacity-100 transition-opacity z-20"
-                    >
-                      {dockerMessage}
-                    </span>
-                  )}
-                </button>
-                {/* Hidden message for screen readers */}
-                {!dockerAvailable && (
-                  <span id="docker-unavailable-msg-ticket" className="sr-only">
-                    Docker is unavailable. {dockerMessage}
-                  </span>
-                )}
-                <button
                   onClick={() => void handleStartOpenCode()}
                   className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left border-t border-slate-700"
                 >
                   <Code2 size={18} className="text-blue-400 mt-0.5 flex-shrink-0" />
                   <div>
                     <div className="font-medium text-gray-100">Start with OpenCode</div>
-                    <div className="text-xs text-slate-400">Open-source AI assistant</div>
+                    <div className="text-xs text-slate-400">
+                      Interactive session - you guide OpenCode
+                    </div>
+                  </div>
+                </button>
+
+                {/* Ralph Section Divider */}
+                <div className="px-4 py-2 bg-slate-900/50 border-t border-slate-700">
+                  <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    Autonomous (Ralph)
+                  </div>
+                </div>
+
+                {/* Ralph with Claude - Native */}
+                <button
+                  onClick={() => void handleStartRalph({ useSandbox: false, aiBackend: "claude" })}
+                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left"
+                >
+                  <Bot size={18} className="text-purple-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="font-medium text-gray-100">Start Ralph (Claude)</div>
+                    <div className="text-xs text-slate-400">Runs on your machine directly</div>
+                  </div>
+                </button>
+
+                {/* Ralph with Claude - Docker (Disabled for now) */}
+                <button
+                  disabled
+                  className="w-full flex items-start gap-3 px-4 py-3 transition-colors text-left border-t border-slate-700 opacity-50 cursor-not-allowed"
+                  aria-disabled="true"
+                  aria-label="Start Ralph (Claude) in Docker - Coming soon"
+                >
+                  <Container size={18} className="text-slate-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="font-medium text-slate-400">Start Ralph (Claude) in Docker</div>
+                    <div className="text-xs text-slate-500">
+                      Coming soon - sandbox mode in progress
+                    </div>
+                  </div>
+                </button>
+
+                {/* Ralph with OpenCode - Native */}
+                <button
+                  onClick={() =>
+                    void handleStartRalph({ useSandbox: false, aiBackend: "opencode" })
+                  }
+                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left border-t border-slate-700"
+                >
+                  <Code2 size={18} className="text-blue-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="font-medium text-gray-100">Start Ralph (OpenCode)</div>
+                    <div className="text-xs text-slate-400">Runs on your machine directly</div>
+                  </div>
+                </button>
+
+                {/* Ralph with OpenCode - Docker (Disabled for now) */}
+                <button
+                  disabled
+                  className="w-full flex items-start gap-3 px-4 py-3 transition-colors text-left border-t border-slate-700 opacity-50 cursor-not-allowed"
+                  aria-disabled="true"
+                  aria-label="Start Ralph (OpenCode) in Docker - Coming soon"
+                >
+                  <Container size={18} className="text-slate-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="font-medium text-slate-400">
+                      Start Ralph (OpenCode) in Docker
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      Coming soon - needs OpenCode Docker image
+                    </div>
                   </div>
                 </button>
               </div>
