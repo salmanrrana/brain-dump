@@ -1,5 +1,4 @@
 import type { FC } from "react";
-import { useMemo } from "react";
 
 export interface TicketTagsProps {
   /** Array of tag strings */
@@ -10,36 +9,20 @@ export interface TicketTagsProps {
 
 /**
  * TicketTags - Displays ticket tags with overflow handling.
- *
- * Features:
- * - Shows up to maxVisible tag pills (default 3)
- * - "+N more" indicator for overflow
- * - Hover tooltip on overflow shows remaining tags
- * - Color coding from predefined palette based on tag name hash
- * - Compact size for card use
- * - Returns null if no tags
- *
- * Layout:
- * ```
- * [auth] [backend] [api] +2 more
- * ```
+ * Shows up to maxVisible tags (default 3) with "+N more" indicator.
+ * Returns null if no tags.
  */
 export const TicketTags: FC<TicketTagsProps> = ({ tags, maxVisible = 3 }) => {
+  // Early return if no tags
+  if (!tags || tags.length === 0) {
+    return null;
+  }
+
   // Split tags into visible and overflow
   const visibleTags = tags.slice(0, maxVisible);
   const overflowTags = tags.slice(maxVisible);
   const hasOverflow = overflowTags.length > 0;
-
-  // Create tooltip text for overflow indicator
-  // Memoize to avoid recalculating on every render
-  const overflowTooltip = useMemo(() => {
-    return overflowTags.join(", ");
-  }, [overflowTags]);
-
-  // Hide if no tags (after all hooks, to satisfy rules-of-hooks)
-  if (!tags || tags.length === 0) {
-    return null;
-  }
+  const overflowTooltip = overflowTags.join(", ");
 
   return (
     <div style={containerStyles}>

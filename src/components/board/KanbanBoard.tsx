@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   useTickets,
   useUpdateTicketStatus,
@@ -175,88 +175,103 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
     return grouped;
   }, [tickets]);
 
-  const handleDragStart = (event: DragStartEvent) => {
-    const ticket = tickets.find((t) => t.id === event.active.id);
-    if (ticket) {
-      setActiveTicket(ticket);
-    }
-  };
+  const handleDragStart = useCallback(
+    (event: DragStartEvent) => {
+      const ticket = tickets.find((t) => t.id === event.active.id);
+      if (ticket) {
+        setActiveTicket(ticket);
+      }
+    },
+    [tickets]
+  );
 
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveTicket(null);
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event;
+      setActiveTicket(null);
 
-    if (!over) return;
+      if (!over) return;
 
-    const draggedTicket = tickets.find((t) => t.id === active.id);
-    if (!draggedTicket) return;
+      const draggedTicket = tickets.find((t) => t.id === active.id);
+      if (!draggedTicket) return;
 
-    // Determine the target column
-    const overId = over.id as string;
-    let targetStatus: string;
-    let targetPosition: number;
+      // Determine the target column
+      const overId = over.id as string;
+      let targetStatus: string;
+      let targetPosition: number;
 
-    // Check if dropping on a column or a ticket
-    // COLUMNS contains the status IDs which are used as droppable IDs for empty columns
-    const isColumn = COLUMNS.includes(overId as TicketStatus);
+      // Check if dropping on a column or a ticket
+      // COLUMNS contains the status IDs which are used as droppable IDs for empty columns
+      const isColumn = COLUMNS.includes(overId as TicketStatus);
 
-    if (isColumn) {
-      // Dropping on a column - add to end
-      targetStatus = overId;
-      const columnTickets = ticketsByStatus[targetStatus as TicketStatus] ?? [];
-      targetPosition =
-        columnTickets.length > 0 ? (columnTickets[columnTickets.length - 1]?.position ?? 0) + 1 : 1;
-    } else {
-      // Dropping on a ticket - get that ticket's column and position
-      const targetTicket = tickets.find((t) => t.id === overId);
-      if (!targetTicket) return;
-
-      targetStatus = targetTicket.status;
-      const columnTickets = ticketsByStatus[targetStatus as TicketStatus] ?? [];
-      const targetIndex = columnTickets.findIndex((t) => t.id === overId);
-
-      // Calculate new position between tickets
-      if (targetIndex === 0) {
-        targetPosition = (targetTicket.position ?? 1) / 2;
+      if (isColumn) {
+        // Dropping on a column - add to end
+        targetStatus = overId;
+        const columnTickets = ticketsByStatus[targetStatus as TicketStatus] ?? [];
+        targetPosition =
+          columnTickets.length > 0
+            ? (columnTickets[columnTickets.length - 1]?.position ?? 0) + 1
+            : 1;
       } else {
-        const prevTicket = columnTickets[targetIndex - 1];
-        targetPosition = ((prevTicket?.position ?? 0) + (targetTicket.position ?? 0)) / 2;
+        // Dropping on a ticket - get that ticket's column and position
+        const targetTicket = tickets.find((t) => t.id === overId);
+        if (!targetTicket) return;
+
+        targetStatus = targetTicket.status;
+        const columnTickets = ticketsByStatus[targetStatus as TicketStatus] ?? [];
+        const targetIndex = columnTickets.findIndex((t) => t.id === overId);
+
+        // Calculate new position between tickets
+        if (targetIndex === 0) {
+          targetPosition = (targetTicket.position ?? 1) / 2;
+        } else {
+          const prevTicket = columnTickets[targetIndex - 1];
+          targetPosition = ((prevTicket?.position ?? 0) + (targetTicket.position ?? 0)) / 2;
+        }
       }
-    }
 
-    // Track if status changed for toast message
-    const statusChanged = draggedTicket.status !== targetStatus;
+      // Track if status changed for toast message
+      const statusChanged = draggedTicket.status !== targetStatus;
 
-    try {
-      // Update status if it changed
-      if (statusChanged) {
-        await updateStatusMutation.mutateAsync({
+      try {
+        // Update status if it changed
+        if (statusChanged) {
+          await updateStatusMutation.mutateAsync({
+            id: draggedTicket.id,
+            status: targetStatus as TicketStatus,
+          });
+        }
+
+        // Update position
+        await updatePositionMutation.mutateAsync({
           id: draggedTicket.id,
-          status: targetStatus as TicketStatus,
+          position: targetPosition,
         });
-      }
 
-      // Update position
-      await updatePositionMutation.mutateAsync({
-        id: draggedTicket.id,
-        position: targetPosition,
-      });
-
-      // Show success toast only for status changes (position-only changes are silent)
-      if (statusChanged) {
-        const toLabel = COLUMN_LABELS[targetStatus as TicketStatus] ?? targetStatus;
-        showToast("success", `Moved "${truncateTitle(draggedTicket.title)}" to ${toLabel}`);
+        // Show success toast only for status changes (position-only changes are silent)
+        if (statusChanged) {
+          const toLabel = COLUMN_LABELS[targetStatus as TicketStatus] ?? targetStatus;
+          showToast("success", `Moved "${truncateTitle(draggedTicket.title)}" to ${toLabel}`);
+        }
+      } catch (error) {
+        console.error("Failed to update ticket during drag:", error);
+        showToast(
+          "error",
+          `Failed to move ticket: ${error instanceof Error ? error.message : "Unknown error"}`
+        );
+        // Query invalidation from mutations will handle rollback, but also trigger manual refresh
+        handleRefresh();
       }
-    } catch (error) {
-      console.error("Failed to update ticket during drag:", error);
-      showToast(
-        "error",
-        `Failed to move ticket: ${error instanceof Error ? error.message : "Unknown error"}`
-      );
-      // Query invalidation from mutations will handle rollback, but also trigger manual refresh
-      handleRefresh();
-    }
-  };
+    },
+    [
+      tickets,
+      ticketsByStatus,
+      updateStatusMutation,
+      updatePositionMutation,
+      showToast,
+      handleRefresh,
+    ]
+  );
 
   // Loading skeleton
   if (loading) {
@@ -322,7 +337,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
                     <SortableTicketCard
                       key={ticket.id}
                       ticket={ticket}
-                      onClick={onTicketClick ? () => onTicketClick(ticket) : () => {}}
+                      onClick={onTicketClick && (() => onTicketClick(ticket))}
                       ralphSession={
                         getRalphSession
                           ? getRalphSession(ticket.id)

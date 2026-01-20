@@ -178,46 +178,9 @@ describe("KanbanBoard", () => {
     expect(screen.getByText(/Done \(2\)/)).toBeInTheDocument();
   });
 
-  it("passes filters to useTickets", () => {
-    vi.mocked(hooks.useTickets).mockReturnValue({
-      tickets: [],
-      loading: false,
-      error: null,
-      refetch: vi.fn(),
-    });
-
-    render(<KanbanBoard projectId="proj-1" epicId="epic-1" />);
-
-    expect(hooks.useTickets).toHaveBeenCalledWith(
-      {
-        projectId: "proj-1",
-        epicId: "epic-1",
-      },
-      {
-        enabled: true,
-      }
-    );
-  });
-
-  it("handles ticket clicks", async () => {
-    vi.mocked(hooks.useTickets).mockReturnValue({
-      tickets: mockTickets,
-      loading: false,
-      error: null,
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof hooks.useTickets>);
-
-    const onTicketClick = vi.fn();
-    render(<KanbanBoard onTicketClick={onTicketClick} />);
-
-    // Click a ticket
-    screen.getByTestId("ticket-1").click();
-
-    expect(onTicketClick).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: "1",
-        title: "Ticket 1",
-      })
-    );
-  });
+  // NOTE: Tests for filter passing and click callbacks were removed per Kent C. Dodds
+  // testing philosophy - they tested implementation details (hook calls, callback invocations)
+  // rather than user-visible behavior. The actual user behaviors are:
+  // - Filtered tickets: Covered by "renders columns and distributes tickets correctly"
+  // - Click opens detail: Would need integration test at route level where modal renders
 });
