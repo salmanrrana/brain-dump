@@ -384,13 +384,104 @@ ls -la .claude/.review-completed
 
 ---
 
+## Extended Review Pipeline
+
+After the initial pr-review-toolkit agents complete, an **extended review pipeline** provides deeper analysis with specialized agents.
+
+### Extended Review Agents
+
+| Agent                       | Focus                                  | When It Runs        |
+| --------------------------- | -------------------------------------- | ------------------- |
+| context7-library-compliance | Verifies library usage against docs    | Always              |
+| react-best-practices        | React/Next.js patterns and performance | If .tsx/.jsx files  |
+| cruft-detector              | Unnecessary code and shallow tests     | Always              |
+| senior-engineer             | Synthesizes all findings (runs last)   | After others finish |
+
+### How to Trigger Extended Review
+
+**Automatic (Claude Code):**
+
+After `/review` completes, the `chain-extended-review.sh` hook automatically triggers extended review.
+
+**Manual:**
+
+```
+/extended-review
+```
+
+### Extended Review Flow
+
+```mermaid
+flowchart TB
+    A["/review completes"] --> B["SubagentStop hook fires"]
+    B --> C["chain-extended-review.sh"]
+    C --> D["Triggers /extended-review"]
+
+    subgraph Phase1["⚡ Phase 1 - Parallel"]
+        E["🔍 context7-library-compliance"]
+        F["⚛️ react-best-practices"]
+        G["🧹 cruft-detector"]
+    end
+
+    D --> E
+    D --> F
+    D --> G
+
+    E --> H["Phase 1 Complete"]
+    F --> H
+    G --> H
+
+    subgraph Phase2["📊 Phase 2 - Synthesis"]
+        I["👨‍💼 senior-engineer"]
+    end
+
+    H --> I
+    I --> J["Final Report"]
+
+    style E fill:#6366f1,color:#fff
+    style F fill:#ec4899,color:#fff
+    style G fill:#f59e0b,color:#000
+    style I fill:#22c55e,color:#fff
+```
+
+### What Each Extended Agent Does
+
+**context7-library-compliance:**
+
+- Queries Context7 for up-to-date documentation
+- Compares code patterns against official best practices
+- Flags deprecated APIs and anti-patterns
+
+**react-best-practices:**
+
+- Server vs Client Component usage
+- Hooks rules and anti-patterns
+- Performance optimizations (memoization, code splitting)
+- Accessibility compliance
+
+**cruft-detector:**
+
+- Comments that describe "what" instead of "why"
+- Dead/commented-out code
+- Shallow tests that don't test real behavior
+- Over-engineered abstractions
+
+**senior-engineer:**
+
+- Synthesizes all findings from previous agents
+- Applies priority matrix (P0-P3)
+- Provides final APPROVE / APPROVE WITH FIXES / REQUEST CHANGES recommendation
+
+---
+
 ## Ready to Try the Review Pipeline?
 
 1. **Make some code changes** — Edit a few source files
 2. **Run `/review`** — Watch the three agents work in parallel
-3. **Review the findings** — Critical issues first
-4. **Fix and retry** — Review again to confirm fixes
-5. **Push with confidence** — You've earned it
+3. **Extended review runs automatically** — Four more specialized agents analyze your code
+4. **Review the findings** — Critical issues first
+5. **Fix and retry** — Review again to confirm fixes
+6. **Push with confidence** — You've earned it
 
 **Pro tip:** Run `/review` frequently as you work, not just before pushing. Catching issues early is easier than fixing them later.
 

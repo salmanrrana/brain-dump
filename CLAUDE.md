@@ -200,7 +200,7 @@ The following hooks provide an automated workflow for code review and PR creatio
 
 **PR Status Sync**: When `link_pr_to_ticket` is called, the MCP tool automatically syncs PR statuses for all tickets in the project. This updates any PRs that have been merged or closed since they were linked.
 
-**To enable these hooks**, add to `~/.claude/settings.json`:
+**To enable these hooks**, run `scripts/setup-claude-code.sh` which installs hooks globally to `~/.claude/hooks/` and configures `~/.claude/settings.json`:
 
 ```json
 {
@@ -211,7 +211,7 @@ The following hooks provide an automated workflow for code review and PR creatio
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/enforce-review-before-push.sh"
+            "command": "$HOME/.claude/hooks/enforce-review-before-push.sh"
           }
         ]
       },
@@ -220,7 +220,7 @@ The following hooks provide an automated workflow for code review and PR creatio
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/enforce-review-before-push.sh"
+            "command": "$HOME/.claude/hooks/enforce-review-before-push.sh"
           }
         ]
       }
@@ -231,7 +231,7 @@ The following hooks provide an automated workflow for code review and PR creatio
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/create-pr-on-ticket-start.sh"
+            "command": "$HOME/.claude/hooks/create-pr-on-ticket-start.sh"
           }
         ]
       },
@@ -240,7 +240,7 @@ The following hooks provide an automated workflow for code review and PR creatio
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/link-commit-to-ticket.sh"
+            "command": "$HOME/.claude/hooks/link-commit-to-ticket.sh"
           }
         ]
       },
@@ -249,7 +249,7 @@ The following hooks provide an automated workflow for code review and PR creatio
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/spawn-after-pr.sh"
+            "command": "$HOME/.claude/hooks/spawn-after-pr.sh"
           }
         ]
       }
@@ -257,6 +257,8 @@ The following hooks provide an automated workflow for code review and PR creatio
   }
 }
 ```
+
+**Note:** Using `$HOME/.claude/hooks/` (not `$CLAUDE_PROJECT_DIR`) ensures hooks work from any directory, not just within the brain-dump project.
 
 #### Auto-Spawn Next Ticket (Experimental)
 
