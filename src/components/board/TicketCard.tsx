@@ -1,4 +1,5 @@
 import type { Ticket } from "../../lib/schema";
+import { GitInfo } from "./GitInfo";
 
 export interface TicketCardProps {
   ticket: Ticket;
@@ -29,22 +30,6 @@ export function TicketCard({
         return "border-l-gray-400";
       default:
         return "border-l-transparent";
-    }
-  };
-
-  // Determine PR status color
-  const getPrStatusColor = (status: string | null) => {
-    switch (status) {
-      case "open":
-        return "text-green-500";
-      case "draft":
-        return "text-gray-500";
-      case "merged":
-        return "text-purple-500";
-      case "closed":
-        return "text-red-500";
-      default:
-        return "text-gray-500";
     }
   };
 
@@ -91,32 +76,13 @@ export function TicketCard({
         </div>
       )}
 
-      {/* Git Info */}
-      {(ticket.branchName || ticket.prNumber) && (
-        <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
-          {ticket.branchName && (
-            <div className="flex items-center gap-1 overflow-hidden" title={ticket.branchName}>
-              <span>🌿</span>
-              <span className="truncate max-w-[120px]">{ticket.branchName.split("/").pop()}</span>
-            </div>
-          )}
-
-          {ticket.prNumber && (
-            <div className="flex items-center gap-1">
-              <span>🔗</span>
-              <a
-                href={ticket.prUrl || "#"}
-                target="_blank"
-                rel="noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className={`hover:underline ${getPrStatusColor(ticket.prStatus)}`}
-              >
-                #{ticket.prNumber}
-              </a>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Git Info - Branch and PR status */}
+      <GitInfo
+        branchName={ticket.branchName}
+        prNumber={ticket.prNumber}
+        prUrl={ticket.prUrl}
+        prStatus={ticket.prStatus}
+      />
     </div>
   );
 }

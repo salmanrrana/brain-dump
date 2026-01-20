@@ -148,7 +148,7 @@
     {
       "id": "88518d32-10d0-4b3b-847d-7730665ecf10",
       "title": "46 - Create GitInfo component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
