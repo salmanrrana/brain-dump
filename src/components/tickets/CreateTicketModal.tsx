@@ -3,6 +3,7 @@ import { X, Ticket, Loader2 } from "lucide-react";
 import { useCreateTicket, useClickOutside, useProjects, useTags } from "../../lib/hooks";
 import { useToast } from "../Toast";
 import { TagInput } from "./TagInput";
+import { EpicSelect } from "./EpicSelect";
 
 /** Priority options for ticket creation */
 const PRIORITY_OPTIONS = [
@@ -531,39 +532,20 @@ export const CreateTicketModal: FC<CreateTicketModalProps> = ({
             </div>
           </div>
 
-          {/* 2-column row: Epic + Tags (placeholders for now) */}
+          {/* 2-column row: Epic + Tags */}
           <div style={twoColumnGridStyles}>
-            {/* Epic dropdown */}
+            {/* Epic dropdown with color indicators */}
             <div>
               <label style={labelStyles} htmlFor="ticket-epic">
                 Epic
               </label>
-              <select
+              <EpicSelect
                 id="ticket-epic"
-                value={epicId}
-                onChange={(e) => setEpicId(e.target.value)}
-                style={selectStyles}
-                className="focus:border-[var(--accent-primary)]"
-                disabled={!projectId}
-              >
-                <option value="">No epic</option>
-                {projectEpics.map((epic) => (
-                  <option key={epic.id} value={epic.id}>
-                    {epic.title}
-                  </option>
-                ))}
-              </select>
-              {!projectId && (
-                <p
-                  style={{
-                    marginTop: "var(--spacing-1)",
-                    color: "var(--text-tertiary)",
-                    fontSize: "var(--font-size-xs)",
-                  }}
-                >
-                  Select a project first
-                </p>
-              )}
+                projectId={projectId || null}
+                value={epicId || null}
+                onChange={(newEpicId) => setEpicId(newEpicId ?? "")}
+                epics={projectEpics}
+              />
             </div>
 
             {/* Tags input with autocomplete */}
