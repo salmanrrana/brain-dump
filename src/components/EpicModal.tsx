@@ -158,7 +158,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
       try {
         const result = await launchRalphMutation.mutateAsync({
           epicId: epic.id,
-          maxIterations: 20, // More iterations for epics with multiple tickets
+          // maxIterations now uses global setting from Settings
           preferredTerminal: settings?.terminalEmulator ?? null,
           useSandbox,
           aiBackend,
