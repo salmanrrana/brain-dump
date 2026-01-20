@@ -243,11 +243,7 @@ const getOptionStyles = (isSelected: boolean, isHighlighted: boolean): React.CSS
   borderRadius: "var(--radius-md)",
   cursor: "pointer",
   transition: "all var(--transition-fast)",
-  backgroundColor: isHighlighted
-    ? "var(--bg-hover)"
-    : isSelected
-      ? "var(--bg-hover)"
-      : "transparent",
+  backgroundColor: isHighlighted || isSelected ? "var(--bg-hover)" : "transparent",
   color: isSelected ? "var(--accent-primary)" : "var(--text-primary)",
   fontSize: "var(--font-size-base)",
   lineHeight: "var(--line-height-normal)",
@@ -525,7 +521,7 @@ export function Select<T = string>({
     >
       {/* Label */}
       {label && (
-        <label htmlFor={selectId} style={getLabelStyles()}>
+        <label id={`${selectId}-label`} htmlFor={selectId} style={getLabelStyles()}>
           {label}
         </label>
       )}

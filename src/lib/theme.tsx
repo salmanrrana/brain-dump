@@ -17,7 +17,15 @@
  * ```
  */
 
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  type ReactNode,
+} from "react";
 
 // =============================================================================
 // TYPES
@@ -84,8 +92,11 @@ export function getStoredTheme(): Theme | null {
       return stored;
     }
     return null;
-  } catch {
+  } catch (error) {
     // localStorage can throw in certain environments (e.g., private browsing)
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[ThemeProvider] Failed to read from localStorage:", error);
+    }
     return null;
   }
 }
@@ -104,8 +115,11 @@ export function saveTheme(theme: Theme): void {
 
   try {
     localStorage.setItem(THEME_STORAGE_KEY, theme);
-  } catch {
+  } catch (error) {
     // Silently fail if localStorage is unavailable
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[ThemeProvider] Failed to write to localStorage:", error);
+    }
   }
 }
 
@@ -192,10 +206,13 @@ export function ThemeProvider({ children, initialTheme }: ThemeProviderProps) {
     // Note: applyTheme is called in the effect above when theme changes
   }, []);
 
-  const value: ThemeContextValue = {
-    theme,
-    setTheme,
-  };
+  const value = useMemo<ThemeContextValue>(
+    () => ({
+      theme,
+      setTheme,
+    }),
+    [theme, setTheme]
+  );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

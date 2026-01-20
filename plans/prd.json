@@ -11,7 +11,7 @@
     {
       "id": "9a4bc7a1-89bf-4a7f-b22b-6500738d7496",
       "title": "06 - Create CSS variables with theme data attributes",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -38,7 +38,7 @@
     {
       "id": "d8b3c109-acc6-4025-9def-f4f96f7330b6",
       "title": "07 - Create ThemeContext with localStorage persistence",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [
         {
@@ -76,7 +76,7 @@
     {
       "id": "7eac68ca-74a0-4453-bafd-4a84bd3ae9e6",
       "title": "08 - Create ThemeProvider component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -104,7 +104,7 @@
     {
       "id": "7f363772-d191-4aa2-bb35-15dc866cb096",
       "title": "09 - Create ThemeSwitcher component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -134,7 +134,7 @@
     {
       "id": "53ccdd44-ece5-4a33-ac56-0694a08b76db",
       "title": "10 - Integrate theme CSS into styles.css",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -160,7 +160,7 @@
     {
       "id": "48e27909-545e-4d29-80e0-ed334639d9b2",
       "title": "11 - Create Button component with 4 variants",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -191,7 +191,7 @@
     {
       "id": "05813c65-eb27-45ba-be06-2e588f8e472c",
       "title": "12 - Create Input component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -223,7 +223,7 @@
     {
       "id": "507444f8-fd77-48c2-bb8d-ba12c75030ba",
       "title": "13 - Create Select component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -255,7 +255,7 @@
     {
       "id": "f8dd3c76-f233-4aeb-9826-1a0ccbfb2ad8",
       "title": "14 - Create Card component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -281,7 +281,7 @@
     {
       "id": "72c37bdb-db7b-458e-adf8-866ca6bc19e7",
       "title": "15 - Create Badge component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -309,7 +309,7 @@
     {
       "id": "ac253418-7a86-478b-9b9b-a8692e88346f",
       "title": "16 - Create IconButton component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -335,7 +335,7 @@
     {
       "id": "ded5f05f-6ed9-4056-b896-5ef84a3e8c61",
       "title": "17 - Create Toggle component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -366,7 +366,7 @@
     {
       "id": "3641a40d-436b-4f96-9b27-4ea89d36bd8c",
       "title": "18 - Create Checkbox component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -393,7 +393,7 @@
     {
       "id": "1101db9a-e4bf-42ac-9a2a-4b2c5109bce2",
       "title": "19 - Create Modal base component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -426,7 +426,7 @@
     {
       "id": "6cca5ce1-7bdb-4a4e-b871-bc7c726d610b",
       "title": "20 - Create ModalHeader subcomponent",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -452,7 +452,7 @@
     {
       "id": "df71f7dc-8fc0-4e97-9004-e5bec49a2e8a",
       "title": "21 - Create ModalBody and ModalFooter subcomponents",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -478,7 +478,7 @@
     {
       "id": "0d1a0001-a3ba-41e9-87b2-3d77c6819fff",
       "title": "22 - Create useModal hook",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [
         {
@@ -513,7 +513,7 @@
     {
       "id": "96a142a0-5427-448e-9e9d-c95e6f43e265",
       "title": "23 - Create root layout with app shell",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -539,7 +539,7 @@
     {
       "id": "25e0acb2-69f4-433d-8c8f-aa3b43270a33",
       "title": "24 - Create Toast component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -567,7 +567,7 @@
     {
       "id": "2c2f43bc-afea-412d-ad97-61f70650a3fe",
       "title": "25 - Create ToastProvider and useToast hook",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [
         {
@@ -732,7 +732,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-19T22:57:59.639Z",
+  "generatedAt": "2026-01-20T00:02:15.644Z",
   "epicTitle": "UI v2 Sprint 1: Foundation & Design System",
   "epicDescription": "Implement the Neon Productivity design system with three themes (Ember, Mint, Solar), CSS custom properties, typography scale, and core UI primitives."
 }

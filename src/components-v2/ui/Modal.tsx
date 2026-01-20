@@ -548,6 +548,11 @@ export function Modal({
     return null;
   }
 
+  // SSR safety: don't render portal on server
+  if (typeof document === "undefined" || !document.body) {
+    return null;
+  }
+
   // Use portal to render at body level
   return createPortal(
     <div

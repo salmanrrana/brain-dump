@@ -341,6 +341,11 @@ export function ToastContainer({ toasts, onRemove }: ToastContainerProps) {
     return null;
   }
 
+  // SSR safety: don't render portal on server
+  if (typeof document === "undefined" || !document.body) {
+    return null;
+  }
+
   // Render to body via portal
   return createPortal(
     <div style={getContainerStyles()} data-testid="toast-container">
