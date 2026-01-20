@@ -3,6 +3,15 @@ import { Target, Zap, Clock } from "lucide-react";
 import type { Ticket } from "../../lib/hooks";
 import type { ActiveRalphSession } from "../../api/ralph";
 import { type Subtask } from "../../api/tickets";
+import {
+  sectionStyles,
+  sectionHeaderStyles,
+  sectionTitleStyles,
+  sectionContentStyles,
+  emptyStateStyles,
+  emptyTextStyles,
+  emptySubtextStyles,
+} from "./shared-styles";
 
 export interface CurrentFocusCardProps {
   /** The ticket currently being focused on (in_progress with AI active) */
@@ -37,27 +46,35 @@ export interface CurrentFocusCardProps {
  * ```
  */
 export const CurrentFocusCard: FC<CurrentFocusCardProps> = ({ ticket, session, onClick }) => {
-  // Parse subtasks from JSON string
+  // Parse subtasks from JSON string - log errors for debugging malformed data
   const subtasksJson = ticket?.subtasks ?? null;
+  const ticketId = ticket?.id;
   const subtasks = useMemo<Subtask[]>(() => {
     if (!subtasksJson) return [];
     try {
       return JSON.parse(subtasksJson) as Subtask[];
-    } catch {
+    } catch (err) {
+      console.error("Failed to parse subtasks JSON:", err, { ticketId });
       return [];
     }
-  }, [subtasksJson]);
+  }, [subtasksJson, ticketId]);
 
-  // Calculate subtask progress
   const completedSubtasks = subtasks.filter((s) => s.completed).length;
   const totalSubtasks = subtasks.length;
   const progressPercent = totalSubtasks > 0 ? (completedSubtasks / totalSubtasks) * 100 : 0;
 
-  // Calculate time since started
+  // Calculate time since started - validate date to prevent NaN display
   const sessionStartedAt = session?.startedAt ?? null;
   const timeAgo = useMemo(() => {
     if (!sessionStartedAt) return null;
     const started = new Date(sessionStartedAt);
+
+    // Validate the parsed date
+    if (isNaN(started.getTime())) {
+      console.warn("Invalid session start date:", sessionStartedAt);
+      return null;
+    }
+
     const now = new Date();
     const diffMs = now.getTime() - started.getTime();
     const diffMins = Math.floor(diffMs / (1000 * 60));
@@ -87,13 +104,11 @@ export const CurrentFocusCard: FC<CurrentFocusCardProps> = ({ ticket, session, o
 
   return (
     <section style={sectionStyles} data-testid="current-focus-card">
-      {/* Header */}
       <div style={sectionHeaderStyles}>
         <Target size={18} style={{ color: "var(--accent-primary)" }} aria-hidden="true" />
         <h2 style={sectionTitleStyles}>Current Focus</h2>
       </div>
 
-      {/* Content */}
       <div style={sectionContentStyles}>
         {ticket ? (
           <div
@@ -105,7 +120,6 @@ export const CurrentFocusCard: FC<CurrentFocusCardProps> = ({ ticket, session, o
             aria-label={onClick ? `View ticket: ${ticket.title}` : undefined}
             data-testid="focus-ticket"
           >
-            {/* Title Row */}
             <div style={focusTicketHeaderStyles}>
               <span style={focusTicketTitleStyles}>{ticket.title}</span>
               {isAiActive && (
@@ -120,7 +134,6 @@ export const CurrentFocusCard: FC<CurrentFocusCardProps> = ({ ticket, session, o
               )}
             </div>
 
-            {/* Description Preview */}
             {ticket.description && (
               <p style={focusTicketDescStyles} data-testid="ticket-description">
                 {ticket.description.slice(0, 100)}
@@ -128,7 +141,6 @@ export const CurrentFocusCard: FC<CurrentFocusCardProps> = ({ ticket, session, o
               </p>
             )}
 
-            {/* Subtask Progress */}
             {totalSubtasks > 0 && (
               <div style={progressContainerStyles} data-testid="subtask-progress">
                 <div style={progressBarContainerStyles}>
@@ -147,7 +159,6 @@ export const CurrentFocusCard: FC<CurrentFocusCardProps> = ({ ticket, session, o
               </div>
             )}
 
-            {/* Time Since Started */}
             {timeAgo && (
               <div style={timeStyles} data-testid="time-started">
                 <Clock size={12} style={{ opacity: 0.6 }} aria-hidden="true" />
@@ -168,38 +179,8 @@ export const CurrentFocusCard: FC<CurrentFocusCardProps> = ({ ticket, session, o
 };
 
 // ============================================================================
-// Styles
+// Styles (component-specific; shared styles imported from ./shared-styles.ts)
 // ============================================================================
-
-const sectionStyles: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-lg)",
-  border: "1px solid var(--border-primary)",
-  overflow: "hidden",
-};
-
-const sectionHeaderStyles: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--spacing-2)",
-  padding: "var(--spacing-4)",
-  borderBottom: "1px solid var(--border-primary)",
-};
-
-const sectionTitleStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-base)",
-  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-  color: "var(--text-primary)",
-  margin: 0,
-};
-
-const sectionContentStyles: React.CSSProperties = {
-  flex: 1,
-  padding: "var(--spacing-4)",
-  overflowY: "auto",
-};
 
 const focusTicketStyles: React.CSSProperties = {
   padding: "var(--spacing-4)",
@@ -273,27 +254,6 @@ const timeStyles: React.CSSProperties = {
   marginTop: "var(--spacing-2)",
   fontSize: "var(--font-size-xs)",
   color: "var(--text-tertiary)",
-};
-
-const emptyStateStyles: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "var(--spacing-8)",
-  textAlign: "center",
-  color: "var(--text-tertiary)",
-};
-
-const emptyTextStyles: React.CSSProperties = {
-  marginTop: "var(--spacing-2)",
-  fontSize: "var(--font-size-base)",
-  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-};
-
-const emptySubtextStyles: React.CSSProperties = {
-  marginTop: "var(--spacing-1)",
-  fontSize: "var(--font-size-sm)",
 };
 
 export default CurrentFocusCard;

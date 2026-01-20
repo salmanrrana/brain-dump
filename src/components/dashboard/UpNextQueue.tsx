@@ -1,6 +1,15 @@
 import { type FC } from "react";
 import { ListOrdered, Play } from "lucide-react";
 import type { Ticket } from "../../lib/hooks";
+import {
+  sectionStyles,
+  sectionHeaderStyles,
+  sectionTitleStyles,
+  sectionContentStyles,
+  emptyStateStyles,
+  emptyTextStyles,
+  emptySubtextStyles,
+} from "./shared-styles";
 
 export interface UpNextQueueProps {
   /** Array of tickets to display in priority order (max 5) */
@@ -71,13 +80,11 @@ export const UpNextQueue: FC<UpNextQueueProps> = ({ tickets, onClick, onStart })
 
   return (
     <section style={sectionStyles} data-testid="up-next-queue">
-      {/* Header */}
       <div style={sectionHeaderStyles}>
         <ListOrdered size={18} style={{ color: "var(--accent-primary)" }} aria-hidden="true" />
         <h2 style={sectionTitleStyles}>Up Next</h2>
       </div>
 
-      {/* Content */}
       <div style={sectionContentStyles}>
         {tickets.length > 0 ? (
           <ol style={queueListStyles} data-testid="queue-list">
@@ -92,15 +99,12 @@ export const UpNextQueue: FC<UpNextQueueProps> = ({ tickets, onClick, onStart })
                   aria-label={onClick ? `View ticket: ${ticket.title}` : undefined}
                   data-testid={`queue-item-${index}`}
                 >
-                  {/* Index Number */}
                   <span style={queueIndexStyles} aria-hidden="true">
                     {index + 1}.
                   </span>
 
-                  {/* Priority Badge */}
                   <PriorityBadge priority={ticket.priority} />
 
-                  {/* Ticket Info */}
                   <div style={ticketInfoStyles}>
                     <span style={queueTitleStyles}>{ticket.title}</span>
                     {ticket.projectName && (
@@ -110,9 +114,9 @@ export const UpNextQueue: FC<UpNextQueueProps> = ({ tickets, onClick, onStart })
                     )}
                   </div>
 
-                  {/* Start Button */}
                   {onStart && (
                     <button
+                      type="button"
                       style={startButtonStyles}
                       onClick={(e) => handleStartClick(ticket.id, e)}
                       onKeyDown={(e) => handleStartKeyDown(ticket.id, e)}
@@ -175,38 +179,8 @@ const PriorityBadge: FC<PriorityBadgeProps> = ({ priority }) => {
 };
 
 // ============================================================================
-// Styles
+// Styles (component-specific; shared styles imported from ./shared-styles.ts)
 // ============================================================================
-
-const sectionStyles: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-lg)",
-  border: "1px solid var(--border-primary)",
-  overflow: "hidden",
-};
-
-const sectionHeaderStyles: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--spacing-2)",
-  padding: "var(--spacing-4)",
-  borderBottom: "1px solid var(--border-primary)",
-};
-
-const sectionTitleStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-base)",
-  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-  color: "var(--text-primary)",
-  margin: 0,
-};
-
-const sectionContentStyles: React.CSSProperties = {
-  flex: 1,
-  padding: "var(--spacing-4)",
-  overflowY: "auto",
-};
 
 const queueListStyles: React.CSSProperties = {
   listStyle: "none",
@@ -284,27 +258,6 @@ const startButtonStyles: React.CSSProperties = {
   cursor: "pointer",
   transition: "background var(--transition-fast)",
   flexShrink: 0,
-};
-
-const emptyStateStyles: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "var(--spacing-8)",
-  textAlign: "center",
-  color: "var(--text-tertiary)",
-};
-
-const emptyTextStyles: React.CSSProperties = {
-  marginTop: "var(--spacing-2)",
-  fontSize: "var(--font-size-base)",
-  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-};
-
-const emptySubtextStyles: React.CSSProperties = {
-  marginTop: "var(--spacing-1)",
-  fontSize: "var(--font-size-sm)",
 };
 
 export default UpNextQueue;

@@ -1,5 +1,6 @@
-import { type FC, useState, useCallback, type KeyboardEvent, type MouseEvent } from "react";
+import { type FC, useState, type MouseEvent } from "react";
 import { Pencil, Trash2, Zap } from "lucide-react";
+import { createEnterSpaceHandler } from "../../lib/keyboard-utils";
 
 export interface ProjectStats {
   /** Total number of tickets in the project */
@@ -36,24 +37,14 @@ export interface ProjectItemProps {
 }
 
 /**
- * Truncates a path to show ~ prefix for home directory and limit length.
+ * Truncates a path by keeping the last maxLength characters.
+ * Full path is shown in tooltip, so this just ensures UI doesn't overflow.
  */
 function truncatePath(path: string, maxLength: number = 30): string {
-  // Replace home directory with ~
-  const homeDir =
-    typeof window !== "undefined" ? undefined : process.env.HOME || process.env.USERPROFILE;
-  let displayPath = path;
-
-  if (homeDir && path.startsWith(homeDir)) {
-    displayPath = "~" + path.slice(homeDir.length);
+  if (path.length <= maxLength) {
+    return path;
   }
-
-  // If still too long, truncate with ellipsis
-  if (displayPath.length > maxLength) {
-    return "..." + displayPath.slice(-maxLength + 3);
-  }
-
-  return displayPath;
+  return "..." + path.slice(-maxLength + 3);
 }
 
 /**
@@ -85,44 +76,22 @@ export const ProjectItem: FC<ProjectItemProps> = ({
 }) => {
   const [isHovered, setIsHovered] = useState(false);
 
-  const handleClick = useCallback(() => {
-    onClick?.(id);
-  }, [id, onClick]);
+  const handleClick = () => onClick?.(id);
+  const handleDoubleClick = () => onDoubleClick?.(id);
+  const handleKeyDown = onClick ? createEnterSpaceHandler(() => onClick(id)) : undefined;
 
-  const handleDoubleClick = useCallback(() => {
-    onDoubleClick?.(id);
-  }, [id, onDoubleClick]);
+  const handleEditClick = (e: MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    onEdit?.(id);
+  };
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLDivElement>) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        onClick?.(id);
-      }
-    },
-    [id, onClick]
-  );
+  const handleDeleteClick = (e: MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    onDelete?.(id);
+  };
 
-  const handleEditClick = useCallback(
-    (e: MouseEvent<HTMLButtonElement>) => {
-      e.stopPropagation();
-      onEdit?.(id);
-    },
-    [id, onEdit]
-  );
-
-  const handleDeleteClick = useCallback(
-    (e: MouseEvent<HTMLButtonElement>) => {
-      e.stopPropagation();
-      onDelete?.(id);
-    },
-    [id, onDelete]
-  );
-
-  // Build stats text
   const statsText = stats ? `${stats.total} tickets · ${stats.inProgress} in progress` : undefined;
 
-  // Container styles
   const containerStyles: React.CSSProperties = {
     position: "relative",
     display: "flex",
@@ -136,23 +105,20 @@ export const ProjectItem: FC<ProjectItemProps> = ({
     cursor: "pointer",
     transition: "all var(--transition-fast)",
     textAlign: "left",
-    // AI active glow effect
     ...(isAiActive && {
       boxShadow: "0 0 12px var(--accent-primary), inset 0 0 2px var(--accent-primary)",
     }),
   };
 
-  // Color dot styles
   const colorDotStyles: React.CSSProperties = {
     width: "12px",
     height: "12px",
     borderRadius: "var(--radius-full)",
     background: color || "var(--text-tertiary)",
     flexShrink: 0,
-    marginTop: "4px", // Align with first line of text
+    marginTop: "4px", // Vertically align with name text
   };
 
-  // Content container
   const contentStyles: React.CSSProperties = {
     flex: 1,
     minWidth: 0,
@@ -161,7 +127,6 @@ export const ProjectItem: FC<ProjectItemProps> = ({
     gap: "var(--spacing-1)",
   };
 
-  // Header row (name + AI indicator)
   const headerStyles: React.CSSProperties = {
     display: "flex",
     alignItems: "center",
@@ -169,7 +134,6 @@ export const ProjectItem: FC<ProjectItemProps> = ({
     gap: "var(--spacing-2)",
   };
 
-  // Project name
   const nameStyles: React.CSSProperties = {
     color: "var(--text-primary)",
     fontSize: "var(--font-size-sm)",
@@ -180,7 +144,6 @@ export const ProjectItem: FC<ProjectItemProps> = ({
     margin: 0,
   };
 
-  // AI indicator
   const aiIndicatorStyles: React.CSSProperties = {
     display: "inline-flex",
     alignItems: "center",
@@ -189,7 +152,6 @@ export const ProjectItem: FC<ProjectItemProps> = ({
     flexShrink: 0,
   };
 
-  // Path styles
   const pathStyles: React.CSSProperties = {
     color: "var(--text-tertiary)",
     fontSize: "var(--font-size-xs)",
@@ -199,14 +161,12 @@ export const ProjectItem: FC<ProjectItemProps> = ({
     margin: 0,
   };
 
-  // Stats styles
   const statsStyles: React.CSSProperties = {
     color: "var(--text-secondary)",
     fontSize: "var(--font-size-xs)",
     margin: 0,
   };
 
-  // Hover actions container
   const actionsStyles: React.CSSProperties = {
     position: "absolute",
     right: "var(--spacing-2)",
@@ -250,12 +210,9 @@ export const ProjectItem: FC<ProjectItemProps> = ({
       data-testid={`project-item-${id}`}
       className="hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-primary)]"
     >
-      {/* Color indicator */}
       <span style={colorDotStyles} aria-hidden="true" data-testid="color-indicator" />
 
-      {/* Content */}
       <div style={contentStyles}>
-        {/* Header: Name + AI indicator */}
         <div style={headerStyles}>
           <p style={nameStyles} data-testid="project-name">
             {name}
@@ -272,12 +229,10 @@ export const ProjectItem: FC<ProjectItemProps> = ({
           )}
         </div>
 
-        {/* Path */}
         <p style={pathStyles} data-testid="project-path">
           {truncatePath(path)}
         </p>
 
-        {/* Stats */}
         {statsText && (
           <p style={statsStyles} data-testid="project-stats">
             {statsText}
@@ -285,7 +240,6 @@ export const ProjectItem: FC<ProjectItemProps> = ({
         )}
       </div>
 
-      {/* Hover actions */}
       {(onEdit || onDelete) && (
         <div style={actionsStyles} data-testid="hover-actions">
           {onEdit && (

@@ -4,7 +4,56 @@ import { StatsGrid, CurrentFocusCard, UpNextQueue } from "../components/dashboar
 
 export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
+  errorComponent: DashboardError,
 });
+
+/**
+ * Error component for dashboard route - shows user-friendly error with retry option.
+ */
+function DashboardError({ error }: { error: Error }) {
+  console.error("Dashboard error:", error);
+
+  return (
+    <div style={errorContainerStyles}>
+      <h2 style={errorTitleStyles}>Dashboard Error</h2>
+      <p style={errorMessageStyles}>{error.message}</p>
+      <button type="button" onClick={() => window.location.reload()} style={errorButtonStyles}>
+        Reload Page
+      </button>
+    </div>
+  );
+}
+
+const errorContainerStyles: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  height: "100%",
+  gap: "var(--spacing-4)",
+  color: "var(--text-primary)",
+};
+
+const errorTitleStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-xl)",
+  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+  margin: 0,
+};
+
+const errorMessageStyles: React.CSSProperties = {
+  color: "var(--text-secondary)",
+  margin: 0,
+};
+
+const errorButtonStyles: React.CSSProperties = {
+  padding: "var(--spacing-2) var(--spacing-4)",
+  background: "var(--accent-primary)",
+  color: "white",
+  border: "none",
+  borderRadius: "var(--radius-md)",
+  cursor: "pointer",
+  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+};
 
 /**
  * Dashboard route - Overview page with stats, current focus, and up next queue.
@@ -24,11 +73,13 @@ export const Route = createFileRoute("/dashboard")({
  * └─────────────────────────────────────────────────────────────┘
  */
 function Dashboard() {
-  // Fetch all tickets for stats calculation
   const { tickets, loading, error } = useTickets();
+  const { sessions, error: sessionsError } = useActiveRalphSessions();
 
-  // Fetch active Ralph sessions to identify AI-active tickets
-  const { sessions } = useActiveRalphSessions();
+  // Sessions error is non-critical - log and continue without AI indicators
+  if (sessionsError) {
+    console.error("Failed to load Ralph sessions:", sessionsError);
+  }
 
   if (loading) {
     return (
@@ -46,18 +97,17 @@ function Dashboard() {
     );
   }
 
-  // Calculate stats
   const totalCount = tickets.length;
   const inProgressCount = tickets.filter((t) => t.status === "in_progress").length;
   const aiActiveCount = Object.keys(sessions).length;
   const doneCount = tickets.filter((t) => t.status === "done").length;
 
-  // Get current focus (in_progress ticket with active Ralph session)
+  // Current focus = in_progress ticket with active Ralph session
   const currentFocusTicket = tickets.find(
     (t) => t.status === "in_progress" && sessions[t.id] !== undefined
   );
 
-  // Get up next queue (priority order: high → medium → low, exclude done/in_progress)
+  // Up next = highest priority first, excludes done/in_progress/blocked
   const upNextTickets = tickets
     .filter((t) => !["done", "in_progress"].includes(t.status) && !t.isBlocked)
     .sort((a, b) => {
@@ -71,10 +121,8 @@ function Dashboard() {
 
   return (
     <div style={containerStyles}>
-      {/* Page Title */}
       <h1 style={titleStyles}>Dashboard</h1>
 
-      {/* Stats Grid */}
       <StatsGrid
         total={totalCount}
         inProgress={inProgressCount}
@@ -82,15 +130,11 @@ function Dashboard() {
         done={doneCount}
       />
 
-      {/* Main Content Grid */}
       <div style={mainGridStyles}>
-        {/* Current Focus Section */}
         <CurrentFocusCard
           ticket={currentFocusTicket ?? null}
           session={currentFocusTicket ? sessions[currentFocusTicket.id] : null}
         />
-
-        {/* Up Next Queue Section */}
         <UpNextQueue tickets={upNextTickets} />
       </div>
     </div>
@@ -115,7 +159,6 @@ const titleStyles: React.CSSProperties = {
   margin: 0,
 };
 
-// Main Grid Styles
 const mainGridStyles: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "1fr 1fr",
