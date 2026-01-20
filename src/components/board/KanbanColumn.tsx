@@ -1,4 +1,5 @@
-import type { FC, ReactNode } from "react";
+import { memo } from "react";
+import type { ReactNode } from "react";
 import type { TicketStatus } from "../../api/tickets";
 
 export interface KanbanColumnProps {
@@ -44,7 +45,7 @@ export interface KanbanColumnProps {
  * └─────────────────────┘
  * ```
  */
-export const KanbanColumn: FC<KanbanColumnProps> = ({
+export const KanbanColumn = memo(function KanbanColumn({
   status,
   label,
   count,
@@ -52,7 +53,7 @@ export const KanbanColumn: FC<KanbanColumnProps> = ({
   children,
   testId,
   innerRef,
-}) => {
+}: KanbanColumnProps) {
   const isEmpty = count === 0;
   const columnTestId = testId ?? `column-${status}`;
 
@@ -95,11 +96,7 @@ export const KanbanColumn: FC<KanbanColumnProps> = ({
       </div>
     </div>
   );
-};
-
-// ============================================================================
-// Styles
-// ============================================================================
+});
 
 const columnStyles: React.CSSProperties = {
   display: "flex",

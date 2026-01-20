@@ -64,7 +64,7 @@
     {
       "id": "50e5e604-de2e-4108-93fc-7877ed0d97f1",
       "title": "43 - Create Board route as default",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -123,7 +123,7 @@
     {
       "id": "fa7fe824-cc8f-4c80-a0a6-62a8001d3ddf",
       "title": "45 - Add AI-active glow state to TicketCard",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -148,7 +148,7 @@
     {
       "id": "88518d32-10d0-4b3b-847d-7730665ecf10",
       "title": "46 - Create GitInfo component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -174,7 +174,7 @@
     {
       "id": "49b9394b-2767-4aba-9a4e-3e53029357db",
       "title": "47 - Create TicketTags component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -200,7 +200,7 @@
     {
       "id": "d31deebb-1148-4314-9004-e95d2281064e",
       "title": "48 - Set up DndProvider with @dnd-kit",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -225,7 +225,7 @@
     {
       "id": "c0cf7a63-807e-41f5-81e6-1c511ba6640b",
       "title": "49 - Create SortableTicketCard wrapper",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -250,7 +250,7 @@
     {
       "id": "4ee27d39-8c2a-47c9-882e-01ac74ef7cac",
       "title": "50 - Create DragOverlay for card preview",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -275,7 +275,7 @@
     {
       "id": "1ad45ec8-3046-45a2-8d66-2ac4fd643879",
       "title": "51 - Implement status update on drop",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -306,7 +306,7 @@
     {
       "id": "712c2f95-56dc-4729-90ac-2f53eda2d4d4",
       "title": "52 - Create BoardHeader with filter chips",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -332,7 +332,7 @@
     {
       "id": "1270fb23-1d04-4b1b-85d6-e00f451fff8b",
       "title": "53 - Create useFilters hook with URL sync",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [
         {
@@ -370,7 +370,7 @@
     {
       "id": "7f7a17d5-3ffc-4d9d-b15f-c88d03dabe5d",
       "title": "54 - Integrate filters with board query",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -524,7 +524,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-20T17:40:37.843Z",
+  "generatedAt": "2026-01-20T21:36:33.012Z",
   "epicTitle": "UI v2 Sprint 3: Kanban Board",
   "epicDescription": "Implement the core kanban board with drag-and-drop columns, ticket cards with visual hierarchy, column headers with counts, and smooth animations."
 }

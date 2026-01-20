@@ -1,4 +1,5 @@
-import type { FC } from "react";
+import { memo } from "react";
+import type { FC } from "react"; // Used by TagPill
 
 export interface TicketTagsProps {
   /** Array of tag strings */
@@ -12,13 +13,11 @@ export interface TicketTagsProps {
  * Shows up to maxVisible tags (default 3) with "+N more" indicator.
  * Returns null if no tags.
  */
-export const TicketTags: FC<TicketTagsProps> = ({ tags, maxVisible = 3 }) => {
-  // Early return if no tags
+export const TicketTags = memo(function TicketTags({ tags, maxVisible = 3 }: TicketTagsProps) {
   if (!tags || tags.length === 0) {
     return null;
   }
 
-  // Split tags into visible and overflow
   const visibleTags = tags.slice(0, maxVisible);
   const overflowTags = tags.slice(maxVisible);
   const hasOverflow = overflowTags.length > 0;
@@ -41,7 +40,7 @@ export const TicketTags: FC<TicketTagsProps> = ({ tags, maxVisible = 3 }) => {
       )}
     </div>
   );
-};
+});
 
 /**
  * TagPill - Individual tag badge with color.
@@ -65,10 +64,6 @@ const TagPill: FC<TagPillProps> = ({ tag }) => {
     </span>
   );
 };
-
-// =============================================================================
-// Color Palette
-// =============================================================================
 
 /**
  * Predefined color palette for tags.
@@ -108,10 +103,6 @@ function getTagColor(tag: string): { bg: string; text: string } {
   const index = hashString(tag) % TAG_COLORS.length;
   return TAG_COLORS[index]!;
 }
-
-// =============================================================================
-// Styles
-// =============================================================================
 
 const containerStyles: React.CSSProperties = {
   display: "flex",

@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import type { Ticket } from "../../lib/schema";
 import { GitInfo } from "./GitInfo";
 import { TicketTags } from "./TicketTags";
@@ -10,29 +11,43 @@ export interface TicketCardProps {
   isDragging?: boolean;
 }
 
-export function TicketCard({
+const PRIORITY_BORDER_COLORS: Record<string, string> = {
+  high: "border-l-red-500",
+  medium: "border-l-orange-500",
+  low: "border-l-gray-400",
+};
+
+/**
+ * Safely parse tags JSON with fallback to empty array.
+ * Prevents crashes from malformed JSON in database.
+ */
+function parseTagsSafely(tagsJson: string | null): string[] {
+  if (!tagsJson) return [];
+  try {
+    const parsed = JSON.parse(tagsJson);
+    if (!Array.isArray(parsed)) {
+      console.warn("Ticket tags is not an array, falling back to empty array");
+      return [];
+    }
+    return parsed.filter((tag): tag is string => typeof tag === "string");
+  } catch {
+    console.warn("Failed to parse ticket tags JSON, falling back to empty array");
+    return [];
+  }
+}
+
+export const TicketCard = memo(function TicketCard({
   ticket,
   onClick,
   isAiActive = false,
   isOverlay = false,
   isDragging = false,
 }: TicketCardProps) {
-  // Parse JSON fields
-  const tags = ticket.tags ? (JSON.parse(ticket.tags) as string[]) : [];
+  // Memoize tag parsing to avoid expensive JSON.parse on every render
+  const tags = useMemo(() => parseTagsSafely(ticket.tags), [ticket.tags]);
 
-  // Determine priority color
-  const getPriorityColor = (priority: string | null) => {
-    switch (priority) {
-      case "high":
-        return "border-l-red-500";
-      case "medium":
-        return "border-l-orange-500";
-      case "low":
-        return "border-l-gray-400";
-      default:
-        return "border-l-transparent";
-    }
-  };
+  const priorityBorderClass =
+    PRIORITY_BORDER_COLORS[ticket.priority ?? ""] ?? "border-l-transparent";
 
   return (
     <div
@@ -46,22 +61,19 @@ export function TicketCard({
         }
       }}
       className={`
-        group relative flex flex-col gap-2 rounded-lg border border-border/50 
+        group relative flex flex-col gap-2 rounded-lg border border-border/50
         bg-card p-3 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5
-        border-l-4 ${getPriorityColor(ticket.priority)}
+        border-l-4 ${priorityBorderClass}
         ${isAiActive ? "ring-2 ring-primary/50 shadow-[0_0_12px_rgba(139,92,246,0.3)] animate-pulse-slow" : ""}
         ${isOverlay ? "rotate-2 scale-105 shadow-xl cursor-grabbing" : isDragging ? "opacity-50" : "cursor-pointer"}
       `}
     >
-      {/* Title */}
       <h3 className="line-clamp-2 text-sm font-medium leading-snug text-foreground">
         {ticket.title}
       </h3>
 
-      {/* Tags - Colored pills with overflow handling */}
       <TicketTags tags={tags} />
 
-      {/* Git Info - Branch and PR status */}
       <GitInfo
         branchName={ticket.branchName}
         prNumber={ticket.prNumber}
@@ -70,6 +82,6 @@ export function TicketCard({
       />
     </div>
   );
-}
+});
 
 export default TicketCard;
