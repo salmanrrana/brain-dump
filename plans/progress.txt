@@ -422,3 +422,24 @@ PRD_COMPLETE
 - **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1211 passed, 64 test files)
 
 ---
+
+### 2026-01-20 - Ticket 61 Complete (EditTicketModal Shell)
+- **Ticket ID:** f7995df6-f90f-4e55-a4cf-e4df237f0820
+- **Task:** Create EditTicketModal shell component
+- **Success:** true
+- **Commit:** f3ba405
+- **Files:**
+  - src/components/tickets/EditTicketModal.tsx (NEW - 527 lines)
+  - src/components/tickets/index.ts (updated exports)
+- **Features:**
+  - Pre-filled form fields from existing ticket data
+  - 2-column layout matching CreateTicketModal design
+  - Status dropdown with all 7 statuses and color indicators
+  - Blocked toggle with conditional reason input
+  - Subtasks section with progress display and toggle completion
+  - Delete button (danger variant) in footer left side
+  - Save Changes button with TanStack Query mutation
+  - Project field read-only (cannot be changed after creation)
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1211 passed)
+
+---
