@@ -83,13 +83,17 @@ function Home() {
         setSelectedTicket(ticket as Ticket);
       } catch (error) {
         console.error("Failed to fetch ticket from search:", error);
+        showToast(
+          "error",
+          `Failed to open ticket: ${error instanceof Error ? error.message : "Unknown error"}`
+        );
       } finally {
         clearSelectedTicketFromSearch();
       }
     };
 
     void fetchAndSelectTicket();
-  }, [selectedTicketIdFromSearch, clearSelectedTicketFromSearch]);
+  }, [selectedTicketIdFromSearch, clearSelectedTicketFromSearch, showToast]);
 
   // Get all epics from projects for the list view
   const allEpics = useMemo(() => {

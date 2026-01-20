@@ -1,4 +1,5 @@
-import type { FC } from "react";
+import { memo } from "react";
+import type { FC } from "react"; // Used by PrBadge
 import { GitBranch, ExternalLink } from "lucide-react";
 
 export interface GitInfoProps {
@@ -26,7 +27,12 @@ export interface GitInfoProps {
  * 🌿 feature/ui-v2  🔗 #42 ●  <- Branch + PR number + status dot
  * ```
  */
-export const GitInfo: FC<GitInfoProps> = ({ branchName, prNumber, prUrl, prStatus }) => {
+export const GitInfo = memo(function GitInfo({
+  branchName,
+  prNumber,
+  prUrl,
+  prStatus,
+}: GitInfoProps) {
   // Hide if no git info
   if (!branchName && !prNumber) {
     return null;
@@ -53,7 +59,7 @@ export const GitInfo: FC<GitInfoProps> = ({ branchName, prNumber, prUrl, prStatu
       {prNumber && <PrBadge prNumber={prNumber} prUrl={prUrl} prStatus={prStatus} />}
     </div>
   );
-};
+});
 
 /**
  * PrBadge - Internal component for PR number and status display.
@@ -94,10 +100,6 @@ const PrBadge: FC<PrBadgeProps> = ({ prNumber, prUrl, prStatus }) => {
   return content;
 };
 
-// =============================================================================
-// Helpers
-// =============================================================================
-
 /**
  * Get color for PR status.
  * - open: green
@@ -137,10 +139,6 @@ function getPrStatusLabel(status: string | null | undefined): string {
       return "Unknown";
   }
 }
-
-// =============================================================================
-// Styles
-// =============================================================================
 
 const containerStyles: React.CSSProperties = {
   display: "flex",

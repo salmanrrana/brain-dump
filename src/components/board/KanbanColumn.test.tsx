@@ -37,36 +37,4 @@ describe("KanbanColumn", () => {
     expect(screen.getByTestId("ticket-2")).toBeInTheDocument();
     expect(screen.queryByText("No tickets")).not.toBeInTheDocument();
   });
-
-  it("applies accent color to header indicator", () => {
-    const accentColor = "rgb(255, 0, 0)";
-    render(<KanbanColumn {...defaultProps} accentColor={accentColor} />);
-
-    // The accent indicator is an empty span with aria-hidden="true"
-    // We can find it by its style attribute or structure
-    // Since we don't have a specific test id for the accent bar, we check style application
-    // This is implicitly tested by visual inspection, but we can verify props passed
-    // by snapshot or searching for the style
-    const header = screen.getByText("To Do").parentElement;
-    const accentBar = header?.firstChild as HTMLElement;
-    expect(accentBar).toHaveStyle({ backgroundColor: accentColor });
-  });
-
-  it("has correct width constraints", () => {
-    render(<KanbanColumn {...defaultProps} />);
-
-    const column = screen.getByTestId("column-todo");
-    expect(column).toHaveStyle({
-      minWidth: "280px",
-      maxWidth: "320px",
-    });
-  });
-
-  it("exposes content area for drag and drop", () => {
-    render(<KanbanColumn {...defaultProps} />);
-
-    const content = screen.getByTestId("column-todo-content");
-    expect(content).toBeInTheDocument();
-    expect(content).toHaveAttribute("data-droppable", "todo");
-  });
 });

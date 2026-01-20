@@ -22,6 +22,7 @@ import {
   useSensors,
   type DragStartEvent,
   type DragEndEvent,
+  type Announcements,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -38,8 +39,6 @@ export interface KanbanBoardProps {
   tags?: string[];
   /** Handler when a ticket card is clicked */
   onTicketClick?: (ticket: Ticket) => void;
-  /** Map of ticketId -> isAiActive for Ralph session tracking - DEPRECATED: use getRalphSession */
-  aiActiveSessions?: Record<string, boolean>;
   /** Function to get active Ralph session for a ticket */
   getRalphSession?: (ticketId: string) => ActiveRalphSession | null;
   /** Handler to refresh data */
@@ -91,12 +90,41 @@ const COLUMN_COLORS: Record<TicketStatus, string> = {
   done: "var(--status-done)",
 };
 
+/** Screen reader announcements for drag-and-drop operations */
+const announcements: Announcements = {
+  onDragStart() {
+    return "Picked up ticket. Press space to drop, or escape to cancel.";
+  },
+  onDragOver({ over }) {
+    if (over) {
+      const overStatus = over.data.current?.status as string | undefined;
+      if (overStatus) {
+        return `Ticket is now over the ${overStatus.replace("_", " ")} column.`;
+      }
+      return "Ticket is over a drop zone.";
+    }
+    return "Ticket is no longer over a drop zone.";
+  },
+  onDragEnd({ over }) {
+    if (over) {
+      const overStatus = over.data.current?.status as string | undefined;
+      if (overStatus) {
+        return `Ticket dropped in ${overStatus.replace("_", " ")} column.`;
+      }
+      return "Ticket was dropped.";
+    }
+    return "Ticket was dropped outside of a drop zone. No changes made.";
+  },
+  onDragCancel() {
+    return "Drag cancelled. Ticket returned to original position.";
+  },
+};
+
 export const KanbanBoard: FC<KanbanBoardProps> = ({
   projectId,
   epicId,
   tags = [],
   onTicketClick,
-  aiActiveSessions = {},
   getRalphSession,
   onRefresh,
   tickets: providedTickets,
@@ -308,6 +336,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
       collisionDetection={closestCenter}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      accessibility={{ announcements }}
     >
       <div
         style={boardContainerStyles}
@@ -338,13 +367,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
                       key={ticket.id}
                       ticket={ticket}
                       onClick={onTicketClick && (() => onTicketClick(ticket))}
-                      ralphSession={
-                        getRalphSession
-                          ? getRalphSession(ticket.id)
-                          : aiActiveSessions[ticket.id]
-                            ? ({ status: "analyzing" } as unknown as ActiveRalphSession) // Fallback mock for legacy prop
-                            : null
-                      }
+                      ralphSession={getRalphSession?.(ticket.id) ?? null}
                     />
                   ))}
                 </SortableContext>
@@ -357,11 +380,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
             <TicketCard
               ticket={activeTicket}
               isOverlay
-              isAiActive={
-                getRalphSession
-                  ? !!getRalphSession(activeTicket.id)
-                  : !!aiActiveSessions[activeTicket.id]
-              }
+              isAiActive={!!getRalphSession?.(activeTicket.id)}
             />
           ) : null}
         </DragOverlay>
@@ -370,21 +389,10 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
   );
 };
 
-// ============================================================================
-// Helpers
-// ============================================================================
-
-/**
- * Truncate title for toast messages to prevent overly long notifications.
- */
 function truncateTitle(title: string, maxLength = 30): string {
   if (title.length <= maxLength) return title;
   return `${title.slice(0, maxLength - 3)}...`;
 }
-
-// ============================================================================
-// Styles
-// ============================================================================
 
 const boardContainerStyles: React.CSSProperties = {
   display: "flex",
