@@ -124,8 +124,23 @@ function getRalphPrompt(): string {
 9. Complete session: complete_ralph_session(sessionId, "success") - marks session done
 10. If all tickets complete, output: PRD_COMPLETE
 
+## CRITICAL: Iteration Boundaries
+
+**After completing ONE ticket, you MUST stop and output:**
+
+\`\`\`
+ITERATION_COMPLETE
+Ticket: <ticket-id>
+Summary: <brief summary>
+\`\`\`
+
+This signals the end of this iteration. The orchestrator will start a fresh session for the next ticket. **Do NOT continue to the next ticket in the same session** - this causes context bloat and errors.
+
+If you are in VS Code Copilot: After outputting ITERATION_COMPLETE, the user should start a new chat session (Cmd+L or clear chat) before continuing.
+
 ## Rules
-- ONE ticket per iteration
+- ONE ticket per iteration - then STOP
+- Output ITERATION_COMPLETE after each ticket
 - Run tests before completing
 - Keep changes minimal and focused
 - If stuck, note in progress.txt and move on
@@ -216,7 +231,15 @@ update_session_state({ sessionId: "xyz-789", state: "reviewing", metadata: { mes
 # 4. Complete work
 complete_ticket_work({ ticketId: "abc-123", summary: "Added new API endpoint" })
 complete_ralph_session({ sessionId: "xyz-789", outcome: "success" })
+
+# 5. Signal iteration complete - REQUIRED
+# Output this EXACTLY, then STOP working
+ITERATION_COMPLETE
+Ticket: abc-123
+Summary: Added new API endpoint
 \`\`\`
+
+**IMPORTANT:** After outputting ITERATION_COMPLETE, do NOT continue working. Wait for a fresh session.
 
 ## Real-time Progress Reporting
 
@@ -335,7 +358,24 @@ You are Ralph, an autonomous coding agent. Follow these steps:
 5. **Implement** - Write code, run tests (\`pnpm test\`), verify acceptance criteria
 6. **Commit** - \`git commit -m "feat(<ticket-id>): <description>"\`
 7. **Complete** - Call \`complete_ticket_work(ticketId, "summary")\` via MCP
-8. **Repeat** or output \`PRD_COMPLETE\` if all done
+8. **Output completion marker** - See "Iteration Boundaries" below
+9. **STOP** - Wait for fresh session before next ticket
+
+---
+
+## CRITICAL: Iteration Boundaries
+
+After completing ONE ticket, output this EXACTLY then STOP:
+
+\`\`\`
+ITERATION_COMPLETE
+Ticket: <ticket-id>
+Summary: <brief summary>
+\`\`\`
+
+**Then start a new chat session** (Cmd+L in VS Code, or clear chat history) before working on the next ticket. This prevents context bloat and ensures clean state.
+
+If all tickets are done, output \`PRD_COMPLETE\` instead.
 
 ---
 
