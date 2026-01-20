@@ -14,6 +14,7 @@ import { RalphStatusBadge } from "../components/RalphStatusBadge";
 import { useToast } from "../components/Toast";
 import TicketListView from "../components/TicketListView";
 import TicketModal from "../components/TicketModal";
+import { BoardHeader } from "../components/board";
 import type { Subtask } from "../api/tickets";
 import { safeJsonParse } from "../lib/utils";
 import { getPrStatusIconColor, getStatusLabel, PRIORITY_BADGE_CONFIG } from "../lib/constants";
@@ -130,6 +131,11 @@ function Home() {
     setSelectedTicket(null);
   };
 
+  // Handler to clear all filters (stub for future useFilters hook in ticket 53)
+  const handleClearFilters = useCallback(() => {
+    console.log("Clear filters - will be implemented with useFilters hook");
+  }, []);
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -147,17 +153,30 @@ function Home() {
   }
 
   return (
-    <div className="h-full">
-      {viewMode === "list" ? (
-        <TicketListView tickets={tickets} epics={allEpics} onTicketClick={handleTicketClick} />
-      ) : (
-        <KanbanBoard
-          tickets={tickets}
-          onTicketClick={handleTicketClick}
-          onRefresh={refetch}
-          getRalphSession={getRalphSession}
+    <div style={boardContainerStyles}>
+      {/* Board Header with filters */}
+      {viewMode === "kanban" && (
+        <BoardHeader
+          projectId={appFilters.projectId}
+          epicId={appFilters.epicId}
+          tags={appFilters.tags}
+          onClearFilters={handleClearFilters}
         />
       )}
+
+      {/* Main content area */}
+      <div style={contentAreaStyles}>
+        {viewMode === "list" ? (
+          <TicketListView tickets={tickets} epics={allEpics} onTicketClick={handleTicketClick} />
+        ) : (
+          <KanbanBoard
+            tickets={tickets}
+            onTicketClick={handleTicketClick}
+            onRefresh={refetch}
+            getRalphSession={getRalphSession}
+          />
+        )}
+      </div>
 
       {/* Ticket Detail Modal */}
       {selectedTicket && (
@@ -537,3 +556,21 @@ function PriorityBadge({ priority }: { priority: string }) {
 
   return <span className={`text-xs px-2 py-0.5 rounded ${config.className}`}>{config.label}</span>;
 }
+
+// ============================================================================
+// Container Styles
+// ============================================================================
+
+const boardContainerStyles: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  height: "100%",
+  minHeight: 0,
+  overflow: "hidden",
+};
+
+const contentAreaStyles: React.CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  overflow: "hidden",
+};
