@@ -143,10 +143,6 @@ export const UpNextQueue: FC<UpNextQueueProps> = ({ tickets, onClick, onStart })
   );
 };
 
-// ============================================================================
-// Priority Badge Sub-component
-// ============================================================================
-
 interface PriorityBadgeProps {
   priority: string | null;
 }
@@ -177,10 +173,6 @@ const PriorityBadge: FC<PriorityBadgeProps> = ({ priority }) => {
     />
   );
 };
-
-// ============================================================================
-// Styles (component-specific; shared styles imported from ./shared-styles.ts)
-// ============================================================================
 
 const queueListStyles: React.CSSProperties = {
   listStyle: "none",
@@ -250,7 +242,7 @@ const startButtonStyles: React.CSSProperties = {
   alignItems: "center",
   padding: "var(--spacing-1) var(--spacing-2)",
   background: "var(--accent-primary)",
-  color: "white",
+  color: "var(--text-on-accent)",
   border: "none",
   borderRadius: "var(--radius-sm)",
   fontSize: "var(--font-size-xs)",

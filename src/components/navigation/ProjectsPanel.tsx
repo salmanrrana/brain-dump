@@ -1,4 +1,12 @@
-import { type FC, useState, useRef, useCallback, useEffect, type KeyboardEvent } from "react";
+import {
+  type FC,
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  useMemo,
+  type KeyboardEvent,
+} from "react";
 import { X, Search, Plus, Folder } from "lucide-react";
 import { useClickOutside } from "../../lib/hooks";
 
@@ -48,8 +56,11 @@ function injectKeyframes(): void {
     style.textContent = PANEL_KEYFRAMES;
     document.head.appendChild(style);
     keyframesInjected = true;
-  } catch {
+  } catch (error) {
     // Animation unavailable but component still functional
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[ProjectsPanel] Failed to inject keyframes:", error);
+    }
   }
 }
 
@@ -108,10 +119,11 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
     [onClose]
   );
 
-  // Filter projects based on search
-  const filteredProjects = projects.filter((project) =>
-    project.name.toLowerCase().includes(search.toLowerCase())
-  );
+  // Filter projects based on search (memoized to avoid recalculation on every render)
+  const filteredProjects = useMemo(() => {
+    const searchLower = search.toLowerCase();
+    return projects.filter((project) => project.name.toLowerCase().includes(searchLower));
+  }, [projects, search]);
 
   // Handle project selection
   const handleSelectProject = useCallback(

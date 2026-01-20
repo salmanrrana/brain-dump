@@ -178,10 +178,6 @@ export const CurrentFocusCard: FC<CurrentFocusCardProps> = ({ ticket, session, o
   );
 };
 
-// ============================================================================
-// Styles (component-specific; shared styles imported from ./shared-styles.ts)
-// ============================================================================
-
 const focusTicketStyles: React.CSSProperties = {
   padding: "var(--spacing-4)",
   background: "var(--bg-tertiary)",
