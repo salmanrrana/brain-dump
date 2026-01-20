@@ -39,7 +39,7 @@
     {
       "id": "98330174-2394-4d71-aade-d700c2ae1bf5",
       "title": "56 - Add form fields to CreateTicketModal",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -69,7 +69,7 @@
     {
       "id": "cc14ddf1-d01f-4ea3-82d1-8b3105ec8caa",
       "title": "57 - Create EpicSelect component with project filtering",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -99,7 +99,7 @@
     {
       "id": "26f13880-179b-4957-b6d9-0da12613f037",
       "title": "58 - Create TagInput component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -132,7 +132,7 @@
     {
       "id": "5b653a12-4fe8-4365-8e5a-1500d2d62bc7",
       "title": "59 - Add form validation to CreateTicketModal",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -163,7 +163,7 @@
     {
       "id": "8e1bc6a7-75b5-45c6-9866-8dcf68d88deb",
       "title": "60 - Implement submit with TanStack Query mutation",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -699,7 +699,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-20T22:16:02.014Z",
+  "generatedAt": "2026-01-20T23:16:44.087Z",
   "epicTitle": "UI v2 Sprint 4: Ticket Flows",
   "epicDescription": "Build ticket creation, editing, and management flows including quick-add inline creation, full ticket modal, subtasks, comments, and file attachments UI."
 }
