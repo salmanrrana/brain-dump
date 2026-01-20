@@ -11,7 +11,7 @@
     {
       "id": "d0bca8ec-40ee-478b-9689-af6ef08bc138",
       "title": "41 - Create KanbanBoard component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -37,7 +37,7 @@
     {
       "id": "7a95b0e9-0265-4e8a-a113-c7228fbe2252",
       "title": "42 - Create KanbanColumn component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -92,7 +92,7 @@
     {
       "id": "04631a36-8202-492a-a68c-4b27d8c0ae75",
       "title": "44 - Create TicketCard component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -306,7 +306,7 @@
     {
       "id": "712c2f95-56dc-4729-90ac-2f53eda2d4d4",
       "title": "52 - Create BoardHeader with filter chips",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -332,7 +332,7 @@
     {
       "id": "1270fb23-1d04-4b1b-85d6-e00f451fff8b",
       "title": "53 - Create useFilters hook with URL sync",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [
         {
@@ -524,7 +524,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-20T17:40:37.843Z",
+  "generatedAt": "2026-01-20T19:19:58.561Z",
   "epicTitle": "UI v2 Sprint 3: Kanban Board",
   "epicDescription": "Implement the core kanban board with drag-and-drop columns, ticket cards with visual hierarchy, column headers with counts, and smooth animations."
 }

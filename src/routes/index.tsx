@@ -109,10 +109,8 @@ function Home() {
     setSelectedTicket(null);
   };
 
-  // Handler to clear all filters (stub for future useFilters hook in ticket 53)
-  const handleClearFilters = useCallback(() => {
-    console.log("Clear filters - will be implemented with useFilters hook");
-  }, []);
+  // Get clearAllFilters from app state (which uses the URL-synced useFilters hook)
+  const { clearAllFilters } = useAppState();
 
   if (loading) {
     return (
@@ -138,7 +136,7 @@ function Home() {
           projectId={appFilters.projectId}
           epicId={appFilters.epicId}
           tags={appFilters.tags}
-          onClearFilters={handleClearFilters}
+          onClearFilters={clearAllFilters}
         />
       )}
 
