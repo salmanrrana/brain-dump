@@ -1,9 +1,10 @@
 import type { FC } from "react";
 import { useMemo } from "react";
-import { useTickets, type Ticket } from "../../lib/hooks";
+import { useTickets } from "../../lib/hooks";
 import { TicketCard } from "./TicketCard";
 import { KanbanColumn } from "./KanbanColumn";
 import type { TicketStatus } from "../../api/tickets";
+import type { Ticket } from "../../lib/schema";
 
 export interface KanbanBoardProps {
   /** Optional project ID to filter tickets */
@@ -173,7 +174,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
                 <div key={ticket.id} role="listitem">
                   <TicketCard
                     ticket={ticket}
-                    {...(onTicketClick ? { onClick: onTicketClick } : {})}
+                    onClick={onTicketClick ? (t) => onTicketClick(t) : undefined}
                     isAiActive={aiActiveSessions[ticket.id] ?? false}
                   />
                 </div>
