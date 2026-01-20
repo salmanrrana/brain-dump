@@ -1,8 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { type FC } from "react";
-import { ListOrdered } from "lucide-react";
 import { useTickets, useActiveRalphSessions } from "../lib/hooks";
-import { StatsGrid, CurrentFocusCard } from "../components/dashboard";
+import { StatsGrid, CurrentFocusCard, UpNextQueue } from "../components/dashboard";
 
 export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
@@ -100,65 +98,6 @@ function Dashboard() {
 }
 
 // ============================================================================
-// Up Next Queue Component (placeholder - will be extracted to ticket 40)
-// ============================================================================
-
-interface UpNextQueueProps {
-  tickets: Array<{
-    id: string;
-    title: string;
-    priority: string | null;
-    projectName?: string;
-  }>;
-}
-
-const UpNextQueue: FC<UpNextQueueProps> = ({ tickets }) => {
-  const getPriorityIndicator = (priority: string | null) => {
-    switch (priority) {
-      case "high":
-        return "🔴";
-      case "medium":
-        return "🟠";
-      case "low":
-        return "⚪";
-      default:
-        return "⚪";
-    }
-  };
-
-  return (
-    <section style={sectionStyles}>
-      <div style={sectionHeaderStyles}>
-        <ListOrdered size={18} style={{ color: "var(--accent-primary)" }} aria-hidden="true" />
-        <h2 style={sectionTitleStyles}>Up Next</h2>
-      </div>
-
-      <div style={sectionContentStyles}>
-        {tickets.length > 0 ? (
-          <ol style={queueListStyles}>
-            {tickets.map((ticket, index) => (
-              <li key={ticket.id} style={queueItemStyles}>
-                <span style={queueIndexStyles}>{index + 1}.</span>
-                <span style={queuePriorityStyles} title={ticket.priority ?? "No priority"}>
-                  {getPriorityIndicator(ticket.priority)}
-                </span>
-                <span style={queueTitleStyles}>{ticket.title}</span>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <div style={emptyStateStyles}>
-            <ListOrdered size={32} style={{ opacity: 0.3 }} aria-hidden="true" />
-            <p style={emptyTextStyles}>Queue empty</p>
-            <p style={emptySubtextStyles}>All tickets are either done or in progress</p>
-          </div>
-        )}
-      </div>
-    </section>
-  );
-};
-
-// ============================================================================
 // Styles
 // ============================================================================
 
@@ -183,97 +122,4 @@ const mainGridStyles: React.CSSProperties = {
   gap: "var(--spacing-6)",
   flex: 1,
   minHeight: 0,
-};
-
-// Section Styles
-const sectionStyles: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-lg)",
-  border: "1px solid var(--border-primary)",
-  overflow: "hidden",
-};
-
-const sectionHeaderStyles: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--spacing-2)",
-  padding: "var(--spacing-4)",
-  borderBottom: "1px solid var(--border-primary)",
-};
-
-const sectionTitleStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-base)",
-  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-  color: "var(--text-primary)",
-  margin: 0,
-};
-
-const sectionContentStyles: React.CSSProperties = {
-  flex: 1,
-  padding: "var(--spacing-4)",
-  overflowY: "auto",
-};
-
-// Up Next Queue Styles
-const queueListStyles: React.CSSProperties = {
-  listStyle: "none",
-  margin: 0,
-  padding: 0,
-  display: "flex",
-  flexDirection: "column",
-  gap: "var(--spacing-2)",
-};
-
-const queueItemStyles: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--spacing-2)",
-  padding: "var(--spacing-3)",
-  background: "var(--bg-tertiary)",
-  borderRadius: "var(--radius-md)",
-  cursor: "pointer",
-  transition: "background var(--transition-fast)",
-};
-
-const queueIndexStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-sm)",
-  color: "var(--text-tertiary)",
-  width: "20px",
-};
-
-const queuePriorityStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-xs)",
-};
-
-const queueTitleStyles: React.CSSProperties = {
-  flex: 1,
-  fontSize: "var(--font-size-sm)",
-  color: "var(--text-primary)",
-  whiteSpace: "nowrap",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-};
-
-// Empty State Styles
-const emptyStateStyles: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "var(--spacing-8)",
-  textAlign: "center",
-  color: "var(--text-tertiary)",
-};
-
-const emptyTextStyles: React.CSSProperties = {
-  marginTop: "var(--spacing-2)",
-  fontSize: "var(--font-size-base)",
-  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-};
-
-const emptySubtextStyles: React.CSSProperties = {
-  marginTop: "var(--spacing-1)",
-  fontSize: "var(--font-size-sm)",
 };
