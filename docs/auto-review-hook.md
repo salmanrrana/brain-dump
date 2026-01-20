@@ -50,6 +50,7 @@ The full hook configuration is already included in this project's settings.
 To disable the hook, either:
 
 ### Option 1: Remove the hooks section
+
 ```json
 {
   "hooks": {}
@@ -57,6 +58,7 @@ To disable the hook, either:
 ```
 
 ### Option 2: Set Stop to empty array
+
 ```json
 {
   "hooks": {
@@ -70,11 +72,13 @@ To disable the hook, either:
 The hook triggers when Claude uses Write, Edit, or NotebookEdit tools to modify source code files:
 
 **Triggers review:**
+
 - `.ts`, `.tsx`, `.js`, `.jsx` files
 - `.py`, `.go`, `.rs` files
 - Test files (`*.test.ts`, `*.spec.ts`, etc.)
 
 **Does NOT trigger review:**
+
 - Documentation files (`.md`, README)
 - Configuration files (`package.json`, `tsconfig.json`)
 - Git operations only
@@ -86,6 +90,7 @@ The hook triggers when Claude uses Write, Edit, or NotebookEdit tools to modify 
 ### 1. Code Reviewer (`pr-review-toolkit:code-reviewer`)
 
 Reviews code against project guidelines in CLAUDE.md:
+
 - Checks for style violations
 - Verifies best practices
 - Reports only high-confidence issues (confidence >= 80)
@@ -93,6 +98,7 @@ Reviews code against project guidelines in CLAUDE.md:
 ### 2. Silent Failure Hunter (`pr-review-toolkit:silent-failure-hunter`)
 
 Identifies error handling issues:
+
 - Empty catch blocks
 - Silent failures
 - Inadequate error messages
@@ -101,6 +107,7 @@ Identifies error handling issues:
 ### 3. Code Simplifier (`code-simplifier:code-simplifier`)
 
 Refines code for clarity:
+
 - Removes redundancy
 - Simplifies complex logic
 - Improves readability
@@ -111,6 +118,7 @@ Refines code for clarity:
 ### Adjusting the Prompt
 
 You can modify the hook prompt in `.claude/settings.local.json` to:
+
 - Change which file types trigger review
 - Adjust the sensitivity
 - Add additional conditions
@@ -162,13 +170,57 @@ Modify the prompt to be more specific about which changes should trigger review:
 ### Performance concerns
 
 The review pipeline adds processing time after each response. If this is too slow:
+
 - Disable specific agents in the prompt
 - Use the hook only for PR reviews, not during development
 - Consider using a SubagentStop hook instead of Stop
+
+## Extended Review Auto-Chain
+
+After the initial pr-review-toolkit agents complete, an extended review pipeline can automatically trigger for deeper analysis.
+
+### How It Works
+
+The `chain-extended-review.sh` hook (SubagentStop) tracks when pr-review-toolkit agents complete. After a threshold is met (default: 2 agents), it triggers the extended review.
+
+### Extended Review Agents
+
+| Agent                       | Purpose                                |
+| --------------------------- | -------------------------------------- |
+| context7-library-compliance | Verify library usage against docs      |
+| react-best-practices        | React/Next.js patterns (if applicable) |
+| cruft-detector              | Find unnecessary code & shallow tests  |
+| senior-engineer             | Synthesize findings & recommend        |
+
+### Execution Flow
+
+1. `/review` runs pr-review-toolkit agents
+2. SubagentStop hook fires after each agent
+3. `chain-extended-review.sh` tracks completions
+4. After threshold reached, outputs trigger message
+5. Claude runs `/extended-review` command
+6. Extended agents run in two phases (parallel, then synthesis)
+
+### Configuration
+
+The chain hook is in `.claude/hooks/chain-extended-review.sh` with:
+
+- `THRESHOLD=2` - Number of pr-review agents before triggering
+- Tracking file at `.claude/.extended-review-pending`
+
+### Manual Trigger
+
+You can also run extended review manually:
+
+```
+/extended-review
+```
 
 ## Related Files
 
 - `.claude/settings.local.json` - Hook configuration
 - `.claude/hooks/auto-review.md` - Hook documentation
 - `.claude/hooks/auto-review.config.json` - Configuration schema
+- `.claude/hooks/chain-extended-review.sh` - Extended review auto-trigger
+- `.claude/hooks/detect-libraries.sh` - Library detection for Context7
 - `.claude/hooks/hooks.json` - Portable hook definition

@@ -41,6 +41,7 @@ Click **"Start with Claude"** on any ticket in Brain Dump to:
 3. Automatically move the ticket to "In Progress"
 
 The context includes:
+
 - Ticket title and description
 - Subtasks / acceptance criteria
 - Epic information
@@ -60,6 +61,7 @@ Click **"Start with Ralph"** on a ticket or epic to run Claude autonomously:
    - Repeats until all tasks pass
 
 **Key features:**
+
 - Fresh context per iteration (no context bloat)
 - Progress persisted in `plans/progress.txt`
 - Automatic git branching and commits
@@ -80,23 +82,43 @@ Claude auto-detects your project and updates Brain Dump in real-time.
 
 ## Available MCP Tools
 
-| Tool | Description |
-|------|-------------|
-| `list_projects` | List all registered projects |
-| `find_project_by_path` | Auto-detect project from current directory |
-| `create_project` | Register a new project |
-| `create_ticket` | Create a ticket |
-| `list_tickets` | List tickets with filters |
-| `update_ticket_status` | Move ticket between columns |
-| `list_epics` | List epics for a project |
-| `create_epic` | Create a new epic |
-| `add_ticket_comment` | Add comments or work summaries |
-| `get_ticket_comments` | Get all comments for a ticket |
-| `start_ticket_work` | Start work (creates git branch) |
-| `complete_ticket_work` | Complete work and move to review |
-| `link_commit_to_ticket` | Link git commits |
-| `link_files_to_ticket` | Associate files with a ticket |
-| `get_tickets_for_file` | Find tickets related to a file |
+| Tool                    | Description                                |
+| ----------------------- | ------------------------------------------ |
+| `list_projects`         | List all registered projects               |
+| `find_project_by_path`  | Auto-detect project from current directory |
+| `create_project`        | Register a new project                     |
+| `create_ticket`         | Create a ticket                            |
+| `list_tickets`          | List tickets with filters                  |
+| `update_ticket_status`  | Move ticket between columns                |
+| `list_epics`            | List epics for a project                   |
+| `create_epic`           | Create a new epic                          |
+| `add_ticket_comment`    | Add comments or work summaries             |
+| `get_ticket_comments`   | Get all comments for a ticket              |
+| `start_ticket_work`     | Start work (creates git branch)            |
+| `complete_ticket_work`  | Complete work and move to review           |
+| `link_commit_to_ticket` | Link git commits                           |
+| `link_files_to_ticket`  | Associate files with a ticket              |
+| `get_tickets_for_file`  | Find tickets related to a file             |
+
+## Available Commands
+
+| Command            | Description                                                                                                 |
+| ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `/review`          | Run the initial code review pipeline (3 pr-review-toolkit agents)                                           |
+| `/extended-review` | Run extended review with library compliance, React patterns, cruft detection, and senior engineer synthesis |
+| `/inception`       | Start a new project with guided interview                                                                   |
+| `/breakdown`       | Break down features into tickets                                                                            |
+
+## Extended Review Pipeline
+
+After `/review` completes, an extended review automatically runs with deeper analysis:
+
+1. **context7-library-compliance** - Verifies library usage against official docs
+2. **react-best-practices** - Reviews React/Next.js patterns (if applicable)
+3. **cruft-detector** - Finds unnecessary code and shallow tests
+4. **senior-engineer** - Synthesizes all findings with prioritized recommendations
+
+The extended review is triggered by the `chain-extended-review.sh` SubagentStop hook after the initial pr-review-toolkit agents complete.
 
 ## Terminal Emulator Selection
 
@@ -140,11 +162,13 @@ Persisted at `plans/progress.txt`:
 # Ralph Progress Log
 
 ## Iteration 1 - 2024-01-01 10:00
+
 - Completed: Add auth database schema
 - Changes: Created users table, sessions table
 - Notes: Using bcrypt for password hashing
 
 ## Iteration 2 - 2024-01-01 10:30
+
 - Completed: Add auth API endpoints
 - Changes: POST /login, POST /logout, GET /me
 - Notes: All tests passing
@@ -171,12 +195,12 @@ For isolated execution, enable Sandbox Mode in Settings:
 
 ## Comparison with VS Code
 
-| Feature | Claude Code | VS Code (Copilot) |
-|---------|-------------|-------------------|
-| **Autonomous execution** | Native (bash loop) | Via Background Agents |
-| **Model** | Claude models | Copilot models |
-| **Context management** | Fresh per iteration | Managed by Copilot |
-| **Best for** | Fully autonomous backlogs | Interactive development |
+| Feature                  | Claude Code               | VS Code (Copilot)       |
+| ------------------------ | ------------------------- | ----------------------- |
+| **Autonomous execution** | Native (bash loop)        | Via Background Agents   |
+| **Model**                | Claude models             | Copilot models          |
+| **Context management**   | Fresh per iteration       | Managed by Copilot      |
+| **Best for**             | Fully autonomous backlogs | Interactive development |
 
 Both integrate with Brain Dump's MCP server for ticket management.
 

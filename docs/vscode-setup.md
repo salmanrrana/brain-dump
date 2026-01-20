@@ -12,6 +12,7 @@ cd /path/to/brain-dump
 ```
 
 This configures:
+
 - Brain Dump MCP server (ticket management tools)
 - Ralph and other agents (autonomous coding)
 - Skills (ticket workflows)
@@ -21,14 +22,14 @@ After running, restart VS Code.
 
 ## Comparison: VS Code vs Claude Code
 
-| Feature | VS Code (Copilot) | Claude Code (Terminal) |
-|---------|-------------------|------------------------|
-| **Autonomous execution** | Via Background Agents | Native (bash loop) |
-| **Model** | Copilot models (GPT-4, Claude) | Claude models |
-| **Git isolation** | Worktrees (automatic) | Branches (manual) |
-| **Context management** | Managed by Copilot | Fresh per iteration |
-| **MCP tool access** | Yes | Yes |
-| **Best for** | Interactive + occasional automation | Fully autonomous backlogs |
+| Feature                  | VS Code (Copilot)                   | Claude Code (Terminal)    |
+| ------------------------ | ----------------------------------- | ------------------------- |
+| **Autonomous execution** | Via Background Agents               | Native (bash loop)        |
+| **Model**                | Copilot models (GPT-4, Claude)      | Claude models             |
+| **Git isolation**        | Worktrees (automatic)               | Branches (manual)         |
+| **Context management**   | Managed by Copilot                  | Fresh per iteration       |
+| **MCP tool access**      | Yes                                 | Yes                       |
+| **Best for**             | Interactive + occasional automation | Fully autonomous backlogs |
 
 **Recommendation:** Use Claude Code (terminal) mode for grinding through large backlogs autonomously. Use VS Code when you want interactive development with Copilot Chat and Brain Dump integration.
 
@@ -54,11 +55,11 @@ Create `~/.vscode/mcp.json` (global) or `.vscode/mcp.json` (per-project):
 
 Copy from Brain Dump to your VS Code user profile:
 
-| OS | VS Code User Profile Path |
-|----|---------------------------|
-| Linux | `~/.config/Code/User/` |
-| macOS | `~/Library/Application Support/Code/User/` |
-| Windows | `%APPDATA%\Code\User\` |
+| OS      | VS Code User Profile Path                  |
+| ------- | ------------------------------------------ |
+| Linux   | `~/.config/Code/User/`                     |
+| macOS   | `~/Library/Application Support/Code/User/` |
+| Windows | `%APPDATA%\Code\User\`                     |
 
 ```bash
 # Linux example
@@ -115,11 +116,35 @@ Focuses on implementing one ticket at a time with full Brain Dump integration.
 
 Quick commands for common workflows:
 
-| Command | Description |
-|---------|-------------|
-| `/start-ticket` | Start working on a ticket (creates branch, sets status) |
-| `/complete-ticket` | Complete current ticket with work summary |
-| `/create-tickets` | Create tickets from a feature description |
+| Command            | Description                                             |
+| ------------------ | ------------------------------------------------------- |
+| `/start-ticket`    | Start working on a ticket (creates branch, sets status) |
+| `/complete-ticket` | Complete current ticket with work summary               |
+| `/create-tickets`  | Create tickets from a feature description               |
+
+## Extended Review Agents
+
+For deeper code analysis beyond the standard review, these extended review agents are available:
+
+| Agent                        | Purpose                                                  |
+| ---------------------------- | -------------------------------------------------------- |
+| @context7-library-compliance | Verify library usage against official Context7 docs      |
+| @react-best-practices        | Review React/Next.js patterns and performance            |
+| @cruft-detector              | Find unnecessary code, shallow tests, over-engineering   |
+| @senior-engineer             | Synthesize all findings with prioritized recommendations |
+
+### Running Extended Review
+
+In VS Code, manually invoke each agent after your initial code review:
+
+```
+@context7-library-compliance Review the authentication changes
+@react-best-practices Check the UserList component
+@cruft-detector Scan for unnecessary code in src/
+@senior-engineer Provide final recommendation
+```
+
+**Note:** Unlike Claude Code which auto-chains these agents via hooks, VS Code requires manual invocation.
 
 ## Using Background Agents (Autonomous Mode)
 
@@ -150,11 +175,13 @@ VS Code's Background Agents provide autonomous execution similar to Claude Code'
 With the MCP server configured, these tools are available in any chat:
 
 ### Project Management
+
 - `list_projects` - List all registered projects
 - `find_project_by_path` - Find project by directory
 - `create_project` - Register a new project
 
 ### Ticket Operations
+
 - `list_tickets` - List tickets (with filters)
 - `create_ticket` - Create a new ticket
 - `update_ticket_status` - Update status
@@ -162,6 +189,7 @@ With the MCP server configured, these tools are available in any chat:
 - `complete_ticket_work` - Complete work
 
 ### Progress Tracking
+
 - `add_ticket_comment` - Add comments or work summaries
 - `get_ticket_comments` - Get ticket comments
 - `link_commit_to_ticket` - Link commits
