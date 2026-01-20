@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { type FC } from "react";
-import { Target, ListOrdered, Zap } from "lucide-react";
+import { ListOrdered } from "lucide-react";
 import { useTickets, useActiveRalphSessions } from "../lib/hooks";
-import { StatsGrid } from "../components/dashboard";
+import { StatsGrid, CurrentFocusCard } from "../components/dashboard";
 
 export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
@@ -87,7 +87,10 @@ function Dashboard() {
       {/* Main Content Grid */}
       <div style={mainGridStyles}>
         {/* Current Focus Section */}
-        <CurrentFocusCard ticket={currentFocusTicket ?? null} />
+        <CurrentFocusCard
+          ticket={currentFocusTicket ?? null}
+          session={currentFocusTicket ? sessions[currentFocusTicket.id] : null}
+        />
 
         {/* Up Next Queue Section */}
         <UpNextQueue tickets={upNextTickets} />
@@ -95,55 +98,6 @@ function Dashboard() {
     </div>
   );
 }
-
-// ============================================================================
-// Current Focus Card Component (placeholder - will be extracted to ticket 39)
-// ============================================================================
-
-interface CurrentFocusCardProps {
-  ticket: {
-    id: string;
-    title: string;
-    description: string | null;
-    status: string;
-  } | null;
-}
-
-const CurrentFocusCard: FC<CurrentFocusCardProps> = ({ ticket }) => {
-  return (
-    <section style={sectionStyles}>
-      <div style={sectionHeaderStyles}>
-        <Target size={18} style={{ color: "var(--accent-primary)" }} aria-hidden="true" />
-        <h2 style={sectionTitleStyles}>Current Focus</h2>
-      </div>
-
-      <div style={sectionContentStyles}>
-        {ticket ? (
-          <div style={focusTicketStyles}>
-            <div style={focusTicketHeaderStyles}>
-              <span style={focusTicketTitleStyles}>{ticket.title}</span>
-              <span style={aiIndicatorStyles} title="AI Active">
-                <Zap size={14} />
-              </span>
-            </div>
-            {ticket.description && (
-              <p style={focusTicketDescStyles}>
-                {ticket.description.slice(0, 100)}
-                {ticket.description.length > 100 ? "..." : ""}
-              </p>
-            )}
-          </div>
-        ) : (
-          <div style={emptyStateStyles}>
-            <Target size={32} style={{ opacity: 0.3 }} aria-hidden="true" />
-            <p style={emptyTextStyles}>No active focus</p>
-            <p style={emptySubtextStyles}>Start working on a ticket to see it here</p>
-          </div>
-        )}
-      </div>
-    </section>
-  );
-};
 
 // ============================================================================
 // Up Next Queue Component (placeholder - will be extracted to ticket 40)
@@ -260,42 +214,6 @@ const sectionContentStyles: React.CSSProperties = {
   flex: 1,
   padding: "var(--spacing-4)",
   overflowY: "auto",
-};
-
-// Current Focus Styles
-const focusTicketStyles: React.CSSProperties = {
-  padding: "var(--spacing-4)",
-  background: "var(--bg-tertiary)",
-  borderRadius: "var(--radius-md)",
-  border: "1px solid var(--border-secondary)",
-};
-
-const focusTicketHeaderStyles: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: "var(--spacing-2)",
-};
-
-const focusTicketTitleStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-base)",
-  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-  color: "var(--text-primary)",
-};
-
-const aiIndicatorStyles: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  color: "var(--accent-warning)",
-  animation: "pulse 2s infinite",
-};
-
-const focusTicketDescStyles: React.CSSProperties = {
-  marginTop: "var(--spacing-2)",
-  fontSize: "var(--font-size-sm)",
-  color: "var(--text-secondary)",
-  lineHeight: 1.5,
 };
 
 // Up Next Queue Styles
