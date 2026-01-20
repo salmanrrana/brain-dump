@@ -14,13 +14,7 @@ export interface NewTicketDropdownProps {
 interface MenuItem {
   label: string;
   icon: LucideIcon;
-  action: "newTicket" | "startFromScratch";
 }
-
-const MENU_ITEMS: MenuItem[] = [
-  { label: "New Ticket", icon: FileText, action: "newTicket" },
-  { label: "Start from Scratch", icon: Rocket, action: "startFromScratch" },
-];
 
 const DROPDOWN_KEYFRAMES = `
 @keyframes newtickdropdown-fade {
@@ -37,8 +31,9 @@ function injectKeyframes(): void {
     style.textContent = DROPDOWN_KEYFRAMES;
     document.head.appendChild(style);
     keyframesInjected = true;
-  } catch {
-    // Animation unavailable but component functional
+  } catch (error) {
+    // Animation unavailable but component still functional
+    console.warn("[NewTicketDropdown] Failed to inject keyframes:", error);
   }
 }
 
@@ -73,6 +68,21 @@ export const NewTicketDropdown: FC<NewTicketDropdownProps> = ({
 
   injectKeyframes();
 
+  // Define menu items with their handlers
+  const menuItems: Array<MenuItem & { onSelect: () => void }> = useMemo(
+    () => [
+      { label: "New Ticket", icon: FileText, onSelect: () => onNewTicket?.() },
+      { label: "Start from Scratch", icon: Rocket, onSelect: () => onStartFromScratch?.() },
+    ],
+    [onNewTicket, onStartFromScratch]
+  );
+
+  const closeDropdown = useCallback(() => {
+    setIsOpen(false);
+    setFocusedIndex(-1);
+    buttonRef.current?.focus();
+  }, []);
+
   // Close dropdown when clicking outside
   useClickOutside(
     containerRef,
@@ -89,22 +99,12 @@ export const NewTicketDropdown: FC<NewTicketDropdownProps> = ({
     setFocusedIndex(-1);
   }, [disabled]);
 
-  const closeDropdown = useCallback(() => {
-    setIsOpen(false);
-    setFocusedIndex(-1);
-    buttonRef.current?.focus();
-  }, []);
-
-  const handleAction = useCallback(
-    (action: MenuItem["action"]) => {
-      if (action === "newTicket") {
-        onNewTicket?.();
-      } else {
-        onStartFromScratch?.();
-      }
+  const handleSelect = useCallback(
+    (item: (typeof menuItems)[number]) => {
+      item.onSelect();
       closeDropdown();
     },
-    [onNewTicket, onStartFromScratch, closeDropdown]
+    [closeDropdown]
   );
 
   const handleKeyDown = useCallback(
@@ -118,7 +118,7 @@ export const NewTicketDropdown: FC<NewTicketDropdownProps> = ({
         return;
       }
 
-      const itemCount = MENU_ITEMS.length;
+      const itemCount = menuItems.length;
 
       switch (e.key) {
         case "Escape":
@@ -137,9 +137,9 @@ export const NewTicketDropdown: FC<NewTicketDropdownProps> = ({
         case " ":
           e.preventDefault();
           if (focusedIndex >= 0 && focusedIndex < itemCount) {
-            const item = MENU_ITEMS[focusedIndex];
+            const item = menuItems[focusedIndex];
             if (item) {
-              handleAction(item.action);
+              handleSelect(item);
             }
           }
           break;
@@ -149,7 +149,7 @@ export const NewTicketDropdown: FC<NewTicketDropdownProps> = ({
           break;
       }
     },
-    [isOpen, focusedIndex, toggleDropdown, closeDropdown, handleAction]
+    [isOpen, focusedIndex, menuItems, toggleDropdown, closeDropdown, handleSelect]
   );
 
   // Styles
@@ -253,14 +253,14 @@ export const NewTicketDropdown: FC<NewTicketDropdownProps> = ({
 
       {isOpen && (
         <div style={dropdownStyles} role="listbox" aria-label="New ticket options">
-          {MENU_ITEMS.map((item, index) => {
+          {menuItems.map((item, index) => {
             const Icon = item.icon;
             return (
               <button
                 key={item.label}
                 type="button"
                 style={getMenuItemStyles(index === focusedIndex)}
-                onClick={() => handleAction(item.action)}
+                onClick={() => handleSelect(item)}
                 onMouseEnter={() => setFocusedIndex(index)}
                 onMouseLeave={() => setFocusedIndex(-1)}
                 role="option"
