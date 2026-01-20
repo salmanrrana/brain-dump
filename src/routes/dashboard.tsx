@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { useTickets, useActiveRalphSessions } from "../lib/hooks";
 import { StatsGrid, CurrentFocusCard, UpNextQueue } from "../components/dashboard";
 
@@ -76,6 +77,22 @@ function Dashboard() {
   const { tickets, loading, error } = useTickets();
   const { sessions, error: sessionsError } = useActiveRalphSessions();
 
+  // Up next = highest priority first, excludes done/in_progress/blocked
+  // Memoized to avoid expensive filter/sort on every render
+  // NOTE: Must be called before early returns to satisfy React Hooks rules
+  const upNextTickets = useMemo(() => {
+    const priorityOrder = { high: 0, medium: 1, low: 2 };
+    return tickets
+      .filter((t) => !["done", "in_progress"].includes(t.status) && !t.isBlocked)
+      .sort((a, b) => {
+        const aPriority = priorityOrder[a.priority as keyof typeof priorityOrder] ?? 3;
+        const bPriority = priorityOrder[b.priority as keyof typeof priorityOrder] ?? 3;
+        if (aPriority !== bPriority) return aPriority - bPriority;
+        return a.position - b.position;
+      })
+      .slice(0, 5);
+  }, [tickets]);
+
   // Sessions error is non-critical - log and continue without AI indicators
   if (sessionsError) {
     console.error("Failed to load Ralph sessions:", sessionsError);
@@ -107,18 +124,6 @@ function Dashboard() {
     (t) => t.status === "in_progress" && sessions[t.id] !== undefined
   );
 
-  // Up next = highest priority first, excludes done/in_progress/blocked
-  const upNextTickets = tickets
-    .filter((t) => !["done", "in_progress"].includes(t.status) && !t.isBlocked)
-    .sort((a, b) => {
-      const priorityOrder = { high: 0, medium: 1, low: 2 };
-      const aPriority = priorityOrder[a.priority as keyof typeof priorityOrder] ?? 3;
-      const bPriority = priorityOrder[b.priority as keyof typeof priorityOrder] ?? 3;
-      if (aPriority !== bPriority) return aPriority - bPriority;
-      return a.position - b.position;
-    })
-    .slice(0, 5);
-
   return (
     <div style={containerStyles}>
       <h1 style={titleStyles}>Dashboard</h1>
@@ -140,10 +145,6 @@ function Dashboard() {
     </div>
   );
 }
-
-// ============================================================================
-// Styles
-// ============================================================================
 
 const containerStyles: React.CSSProperties = {
   display: "flex",

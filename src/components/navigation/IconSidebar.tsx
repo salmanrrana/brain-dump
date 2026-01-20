@@ -77,8 +77,12 @@ export const IconSidebar: FC<IconSidebarProps> = ({
   try {
     const location = useLocation();
     currentPath = disableRouterIntegration ? (activePathProp ?? "/") : location.pathname;
-  } catch {
+  } catch (error) {
     // Router context not available (testing without RouterProvider)
+    // This is expected in tests but indicates a bug if seen in production
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[IconSidebar] Router context unavailable, using fallback path:", error);
+    }
     currentPath = activePathProp ?? "/";
   }
 

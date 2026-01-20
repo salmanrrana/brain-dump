@@ -1,4 +1,10 @@
-import { forwardRef, useState, type ButtonHTMLAttributes, type ElementType } from "react";
+import {
+  forwardRef,
+  useState,
+  useEffect,
+  type ButtonHTMLAttributes,
+  type ElementType,
+} from "react";
 
 export interface NavItemProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** Lucide React icon component */
@@ -38,8 +44,11 @@ function injectKeyframes(): void {
     style.textContent = TOOLTIP_KEYFRAMES;
     document.head.appendChild(style);
     keyframesInjected = true;
-  } catch {
+  } catch (error) {
     // Tooltip animation will not be available, but component remains functional
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[NavItem] Failed to inject tooltip keyframes:", error);
+    }
   }
 }
 
@@ -61,8 +70,10 @@ export const NavItem = forwardRef<HTMLButtonElement, NavItemProps>(function NavI
   const [showTooltip, setShowTooltip] = useState(false);
   const iconSize = Math.round(size * 0.5);
 
-  // Inject keyframes for tooltip animation
-  injectKeyframes();
+  // Inject keyframes for tooltip animation (useEffect to avoid side effects during render)
+  useEffect(() => {
+    injectKeyframes();
+  }, []);
 
   // Base styles for the button
   const baseStyles: React.CSSProperties = {
@@ -78,7 +89,7 @@ export const NavItem = forwardRef<HTMLButtonElement, NavItemProps>(function NavI
     cursor: disabled ? "not-allowed" : "pointer",
     opacity: disabled ? 0.5 : 1,
     background: active ? "var(--gradient-accent)" : "transparent",
-    color: active ? "#ffffff" : "var(--text-secondary)",
+    color: active ? "var(--text-on-accent)" : "var(--text-secondary)",
     border: "none",
     position: "relative",
     boxShadow: active ? "var(--shadow-glow)" : "none",

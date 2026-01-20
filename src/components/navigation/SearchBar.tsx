@@ -1,4 +1,4 @@
-import { type FC, useState, useRef, useCallback, type KeyboardEvent } from "react";
+import { type FC, useState, useRef, useCallback, useEffect, type KeyboardEvent } from "react";
 import { Search, X, Loader2 } from "lucide-react";
 import { useSearch, useClickOutside, type SearchResult } from "../../lib/hooks";
 
@@ -24,8 +24,11 @@ function injectKeyframes(): void {
     style.textContent = DROPDOWN_KEYFRAMES;
     document.head.appendChild(style);
     keyframesInjected = true;
-  } catch {
+  } catch (error) {
     // Animation unavailable but component functional
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[SearchBar] Failed to inject dropdown keyframes:", error);
+    }
   }
 }
 
@@ -63,7 +66,10 @@ export const SearchBar: FC<SearchBarProps> = ({
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const isOpen = query.trim().length > 0 && !isClosed;
 
-  injectKeyframes();
+  // Inject keyframes for dropdown animation (useEffect to avoid side effects during render)
+  useEffect(() => {
+    injectKeyframes();
+  }, []);
 
   useClickOutside(
     containerRef,

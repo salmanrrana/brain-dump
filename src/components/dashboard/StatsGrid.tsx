@@ -129,10 +129,6 @@ export const StatsGrid: FC<StatsGridProps> = ({
   );
 };
 
-// ============================================================================
-// Styles
-// ============================================================================
-
 const gridStyles: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(4, 1fr)",
