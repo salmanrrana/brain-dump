@@ -1,5 +1,6 @@
 import type { Ticket } from "../../lib/schema";
 import { GitInfo } from "./GitInfo";
+import { TicketTags } from "./TicketTags";
 
 export interface TicketCardProps {
   ticket: Ticket;
@@ -57,24 +58,8 @@ export function TicketCard({
         {ticket.title}
       </h3>
 
-      {/* Tags */}
-      {tags.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {tags.slice(0, 3).map((tag) => (
-            <span
-              key={tag}
-              className="inline-flex items-center rounded-full bg-secondary/50 px-1.5 py-0.5 text-[10px] text-secondary-foreground"
-            >
-              {tag}
-            </span>
-          ))}
-          {tags.length > 3 && (
-            <span className="inline-flex items-center rounded-full bg-secondary/50 px-1.5 py-0.5 text-[10px] text-secondary-foreground">
-              +{tags.length - 3}
-            </span>
-          )}
-        </div>
-      )}
+      {/* Tags - Colored pills with overflow handling */}
+      <TicketTags tags={tags} />
 
       {/* Git Info - Branch and PR status */}
       <GitInfo

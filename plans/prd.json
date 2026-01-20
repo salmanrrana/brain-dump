@@ -174,7 +174,7 @@
     {
       "id": "49b9394b-2767-4aba-9a4e-3e53029357db",
       "title": "47 - Create TicketTags component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
