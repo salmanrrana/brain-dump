@@ -216,7 +216,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
     }
 
     try {
-      // Update status if changed
+      // Optimistic update for status
       if (activeTicket.status !== targetStatus) {
         await updateTicketStatus({
           data: {
@@ -230,8 +230,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
       await updateTicketPosition({ data: { id: activeTicket.id, position: targetPosition } });
     } catch (error) {
       console.error("Failed to update ticket during drag:", error);
-    } finally {
-      // Refresh tickets to ensure UI is in sync
+      // Revert optimistic update by refetching
       handleRefresh();
     }
   };
