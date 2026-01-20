@@ -1320,10 +1320,17 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       maxIterations?: number;
       preferredTerminal?: string | null;
       useSandbox?: boolean;
+      aiBackend?: "claude" | "opencode";
     }) => data
   )
   .handler(async ({ data }) => {
-    const { epicId, maxIterations = 20, preferredTerminal, useSandbox = false } = data;
+    const {
+      epicId,
+      maxIterations = 20,
+      preferredTerminal,
+      useSandbox = false,
+      aiBackend = "claude",
+    } = data;
     const { writeFileSync, mkdirSync, existsSync, chmodSync } = await import("fs");
     const { join } = await import("path");
     const { homedir } = await import("os");
@@ -1411,7 +1418,8 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
             epicId: epic.id,
             epicTitle: epic.title,
           }
-        : undefined
+        : undefined,
+      aiBackend
     );
     const scriptDir = join(homedir(), ".brain-dump", "scripts");
     mkdirSync(scriptDir, { recursive: true });
