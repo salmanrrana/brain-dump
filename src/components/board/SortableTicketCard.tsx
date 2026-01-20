@@ -6,7 +6,7 @@ import type { ActiveRalphSession } from "../../lib/hooks";
 
 interface SortableTicketCardProps {
   ticket: Ticket;
-  onClick: () => void;
+  onClick?: (() => void) | undefined;
   ralphSession: ActiveRalphSession | null;
 }
 
