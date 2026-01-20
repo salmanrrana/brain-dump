@@ -400,3 +400,25 @@ PRD_COMPLETE
 - **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1192 total, 5 new)
 
 ---
+
+### 2026-01-20 - Ticket 57 Complete (EpicSelect Component)
+- **Ticket ID:** cc14ddf1-d01f-4ea3-82d1-8b3105ec8caa
+- **Task:** Create EpicSelect component with project filtering
+- **Success:** true
+- **Commit:** 6356892
+- **Files:**
+  - src/components/tickets/EpicSelect.tsx (NEW - 320 lines)
+  - src/components/tickets/EpicSelect.test.tsx (NEW - 19 tests)
+  - src/components/tickets/index.ts (updated exports)
+  - src/components/tickets/CreateTicketModal.tsx (integrated EpicSelect)
+- **Features:**
+  - Dropdown of epics filtered by projectId
+  - Disabled when no project selected with helper text
+  - "No epic" option to clear selection
+  - "Create New Epic" option at bottom (optional via onCreateEpic prop)
+  - Color indicators for each epic option
+  - Full keyboard navigation (Arrow keys, Enter, Escape, Home, End)
+  - ARIA-compliant accessibility (listbox role, aria-expanded, aria-selected)
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1211 passed, 64 test files)
+
+---

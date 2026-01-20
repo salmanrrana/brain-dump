@@ -69,7 +69,7 @@
     {
       "id": "cc14ddf1-d01f-4ea3-82d1-8b3105ec8caa",
       "title": "57 - Create EpicSelect component with project filtering",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
