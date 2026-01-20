@@ -487,7 +487,8 @@ export function generateRalphScript(
   resourceLimits: DockerResourceLimits = DEFAULT_RESOURCE_LIMITS,
   timeoutSeconds: number = DEFAULT_TIMEOUT_SECONDS,
   dockerHostEnv: string | null = null,
-  projectOrigin?: ProjectOriginInfo | undefined
+  projectOrigin?: ProjectOriginInfo | undefined,
+  aiBackend: "claude" | "opencode" = "claude"
 ): string {
   const imageName = "brain-dump-ralph-sandbox:latest";
   const sandboxHeader = useSandbox ? " (Docker Sandbox)" : "";
@@ -647,8 +648,12 @@ fi
     } \\`
     : "";
 
-  const claudeInvocation = useSandbox
-    ? `  # Run Claude in Docker container
+  // AI backend display name
+  const aiName = aiBackend === "opencode" ? "OpenCode" : "Claude";
+
+  // Generate the AI invocation command based on backend choice
+  const aiInvocation = useSandbox
+    ? `  # Run ${aiName} in Docker container
   # Claude Code auth is passed via mounted config (platform-dependent location)
   # SSH agent is forwarded if available (allows git push from container)
   # known_hosts is mounted read-only to avoid SSH host verification prompts
@@ -691,7 +696,10 @@ fi
     -w /workspace \\
     "${imageName}" \\
     claude --dangerously-skip-permissions /workspace/.ralph-prompt.md`
-    : `  # Run Claude directly - no output capture so it streams naturally
+    : aiBackend === "opencode"
+      ? `  # Run OpenCode directly with prompt
+  opencode "$PROJECT_PATH" --prompt "$(cat "$PROMPT_FILE")"`
+      : `  # Run Claude directly - no output capture so it streams naturally
   claude --dangerously-skip-permissions "$PROMPT_FILE"`;
 
   const iterationLabel = useSandbox ? "(Docker)" : "";
@@ -866,18 +874,18 @@ for i in $(seq 1 $MAX_ITERATIONS); do
 ${getRalphPrompt()}
 RALPH_PROMPT_EOF
 
-  echo -e "\\033[0;33m⏳ Starting Claude${useSandbox ? " in Docker sandbox" : " (autonomous mode)"}...\\033[0m"
+  echo -e "\\033[0;33m⏳ Starting ${aiName}${useSandbox ? " in Docker sandbox" : " (autonomous mode)"}...\\033[0m"
   echo ""
 
-${claudeInvocation}
-  CLAUDE_EXIT_CODE=$?
+${aiInvocation}
+  AI_EXIT_CODE=$?
 
   rm -f "$PROMPT_FILE"
 
   echo ""
   echo -e "\\033[0;36m───────────────────────────────────────────────────────────\\033[0m"
   echo -e "\\033[0;36m  Iteration $i complete at $(date '+%H:%M:%S')\\033[0m"
-  echo -e "\\033[0;36m  Exit code: $CLAUDE_EXIT_CODE\\033[0m"
+  echo -e "\\033[0;36m  Exit code: $AI_EXIT_CODE\\033[0m"
   echo -e "\\033[0;36m───────────────────────────────────────────────────────────\\033[0m"
 
   # Check if all tasks in PRD are complete (all have passes:true)
@@ -1162,10 +1170,17 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
       maxIterations?: number;
       preferredTerminal?: string | null;
       useSandbox?: boolean;
+      aiBackend?: "claude" | "opencode";
     }) => data
   )
   .handler(async ({ data }) => {
-    const { ticketId, maxIterations = 5, preferredTerminal, useSandbox = false } = data;
+    const {
+      ticketId,
+      maxIterations = 5,
+      preferredTerminal,
+      useSandbox = false,
+      aiBackend = "claude",
+    } = data;
     const { writeFileSync, mkdirSync, existsSync, chmodSync } = await import("fs");
     const { join } = await import("path");
     const { homedir } = await import("os");
@@ -1229,7 +1244,8 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
             projectId: project.id,
             projectName: project.name,
           }
-        : undefined
+        : undefined,
+      aiBackend
     );
     const scriptDir = join(homedir(), ".brain-dump", "scripts");
     mkdirSync(scriptDir, { recursive: true });
