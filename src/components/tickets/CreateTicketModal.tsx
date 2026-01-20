@@ -51,9 +51,16 @@ export const CreateTicketModal: FC<CreateTicketModalProps> = ({
   const [epicId, setEpicId] = useState("");
   const [tags, setTags] = useState<string[]>([]);
 
+  // Validation state - tracks which fields user has interacted with
+  const [touched, setTouched] = useState<{ title: boolean; projectId: boolean }>({
+    title: false,
+    projectId: false,
+  });
+
   // Refs
   const modalRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const projectSelectRef = useRef<HTMLSelectElement>(null);
 
   // Hooks
   const { showToast } = useToast();
@@ -76,7 +83,19 @@ export const CreateTicketModal: FC<CreateTicketModalProps> = ({
     setPriority("");
     setEpicId("");
     setTags([]);
+    setTouched({ title: false, projectId: false });
   }, [defaultProjectId]);
+
+  // Validation errors - computed from current values
+  const errors = {
+    title: title.trim().length === 0 ? "Title is required" : null,
+    projectId: projectId.length === 0 ? "Please select a project" : null,
+  };
+
+  // Mark a field as touched (called on blur)
+  const handleBlur = useCallback((field: "title" | "projectId") => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  }, []);
 
   // Handle close - resets form and calls onClose
   const handleClose = useCallback(() => {
@@ -126,9 +145,20 @@ export const CreateTicketModal: FC<CreateTicketModalProps> = ({
 
   // Handle form submission
   const handleSubmit = useCallback(() => {
+    // Mark all required fields as touched to show any errors
+    setTouched({ title: true, projectId: true });
+
     const trimmedTitle = title.trim();
 
-    if (!trimmedTitle || !projectId) return;
+    // Validate and focus first invalid field
+    if (!trimmedTitle) {
+      titleInputRef.current?.focus();
+      return;
+    }
+    if (!projectId) {
+      projectSelectRef.current?.focus();
+      return;
+    }
 
     // Build input object, only including optional fields if they have values
     // (exactOptionalPropertyTypes requires omitting rather than passing undefined)
@@ -195,9 +225,6 @@ export const CreateTicketModal: FC<CreateTicketModalProps> = ({
   );
 
   if (!isOpen) return null;
-
-  // Check if form is valid for submission
-  const isFormValid = title.trim().length > 0 && projectId.length > 0;
 
   // Styles using CSS variables for theming
   const overlayStyles: React.CSSProperties = {
@@ -317,6 +344,16 @@ export const CreateTicketModal: FC<CreateTicketModalProps> = ({
     fontSize: "var(--font-size-sm)",
   };
 
+  // Field-level error message style
+  const fieldErrorStyles: React.CSSProperties = {
+    marginTop: "var(--spacing-1)",
+    color: "#ef4444",
+    fontSize: "var(--font-size-xs)",
+  };
+
+  // Style for invalid input borders
+  const invalidBorderStyle = "1px solid #ef4444";
+
   const footerStyles: React.CSSProperties = {
     display: "flex",
     justifyContent: "flex-end",
@@ -348,8 +385,8 @@ export const CreateTicketModal: FC<CreateTicketModalProps> = ({
     color: "var(--text-on-accent)",
     fontSize: "var(--font-size-base)",
     fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-    cursor: isSaving || !isFormValid ? "not-allowed" : "pointer",
-    opacity: isSaving || !isFormValid ? 0.5 : 1,
+    cursor: isSaving ? "not-allowed" : "pointer",
+    opacity: isSaving ? 0.5 : 1,
     transition: "all var(--transition-fast)",
   };
 
@@ -399,12 +436,23 @@ export const CreateTicketModal: FC<CreateTicketModalProps> = ({
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              onBlur={() => handleBlur("title")}
               onKeyDown={handleFieldKeyDown}
               placeholder="What needs to be done?"
-              style={inputStyles}
+              style={{
+                ...inputStyles,
+                border: touched.title && errors.title ? invalidBorderStyle : inputStyles.border,
+              }}
               className="focus:border-[var(--accent-primary)]"
               autoComplete="off"
+              aria-invalid={touched.title && errors.title ? "true" : undefined}
+              aria-describedby={touched.title && errors.title ? "title-error" : undefined}
             />
+            {touched.title && errors.title && (
+              <p id="title-error" style={fieldErrorStyles} role="alert">
+                {errors.title}
+              </p>
+            )}
           </div>
 
           {/* Description field - full width */}
@@ -431,11 +479,23 @@ export const CreateTicketModal: FC<CreateTicketModalProps> = ({
                 Project <span style={{ color: "#ef4444" }}>*</span>
               </label>
               <select
+                ref={projectSelectRef}
                 id="ticket-project"
                 value={projectId}
                 onChange={(e) => handleProjectChange(e.target.value)}
-                style={selectStyles}
+                onBlur={() => handleBlur("projectId")}
+                style={{
+                  ...selectStyles,
+                  border:
+                    touched.projectId && errors.projectId
+                      ? invalidBorderStyle
+                      : selectStyles.border,
+                }}
                 className="focus:border-[var(--accent-primary)]"
+                aria-invalid={touched.projectId && errors.projectId ? "true" : undefined}
+                aria-describedby={
+                  touched.projectId && errors.projectId ? "project-error" : undefined
+                }
               >
                 <option value="">Select a project...</option>
                 {projects.map((project) => (
@@ -444,6 +504,11 @@ export const CreateTicketModal: FC<CreateTicketModalProps> = ({
                   </option>
                 ))}
               </select>
+              {touched.projectId && errors.projectId && (
+                <p id="project-error" style={fieldErrorStyles} role="alert">
+                  {errors.projectId}
+                </p>
+              )}
             </div>
 
             {/* Priority dropdown */}
@@ -513,7 +578,7 @@ export const CreateTicketModal: FC<CreateTicketModalProps> = ({
             type="button"
             style={submitButtonStyles}
             onClick={handleSubmit}
-            disabled={isSaving || !isFormValid}
+            disabled={isSaving}
             className="hover:opacity-90"
           >
             {isSaving && <Loader2 size={16} className="animate-spin" aria-hidden="true" />}
