@@ -34,3 +34,18 @@ code {
 .animate-slide-in {
   animation: slide-in 0.3s ease-out;
 }
+
+/* AI-active glow animation for ticket cards */
+@keyframes ai-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 8px var(--accent-primary, rgba(139, 92, 246, 0.5));
+  }
+  50% {
+    box-shadow: 0 0 16px var(--accent-primary, rgba(139, 92, 246, 0.7));
+  }
+}
+
+.animate-pulse-slow {
+  animation: ai-pulse 2s ease-in-out infinite;
+}

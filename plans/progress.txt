@@ -309,3 +309,30 @@ All 15 tickets in "UI v2 Sprint 2: Navigation & Layout" are now DONE:
 - 40 - UpNextQueue component ✅
 
 PRD_COMPLETE
+
+---
+
+### 2026-01-20 - Sprint 3 Kanban Board COMPLETE
+
+All 14 tickets in "UI v2 Sprint 3: Kanban Board" are now DONE:
+- 41 - Create KanbanBoard component ✅
+- 42 - Create KanbanColumn component ✅
+- 43 - Create Board route as default ✅
+- 44 - Create TicketCard component ✅
+- 45 - Add AI-active glow state to TicketCard ✅
+- 46 - Create GitInfo component ✅
+- 47 - Create TicketTags component ✅
+- 48 - Set up DndProvider with @dnd-kit ✅
+- 49 - Create SortableTicketCard wrapper ✅
+- 50 - Create DragOverlay for card preview ✅
+- 51 - Implement status update on drop ✅
+- 52 - Create BoardHeader with filter chips ✅
+- 53 - Create useFilters hook with URL sync ✅
+- 54 - Integrate filters with board query ✅
+
+**Key commits:**
+- d683f41 feat(52-53): BoardHeader with filter chips and URL-synced useFilters hook
+- a548a0f feat(46): Create GitInfo component for branch and PR display
+- 38cfd50 feat(47): Create TicketTags component with colored pills
+
+PRD_COMPLETE
