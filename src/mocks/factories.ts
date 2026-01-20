@@ -104,6 +104,7 @@ export function createMockSettings(overrides: Partial<Settings> = {}): Settings 
     terminalEmulator: overrides.terminalEmulator ?? null,
     ralphSandbox: overrides.ralphSandbox ?? false,
     ralphTimeout: overrides.ralphTimeout ?? 3600,
+    ralphMaxIterations: overrides.ralphMaxIterations ?? 10,
     autoCreatePr: overrides.autoCreatePr ?? true,
     prTargetBranch: overrides.prTargetBranch ?? "dev",
     defaultProjectsDirectory: overrides.defaultProjectsDirectory ?? null,

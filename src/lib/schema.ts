@@ -95,6 +95,7 @@ export const settings = sqliteTable("settings", {
   terminalEmulator: text("terminal_emulator"), // null = auto-detect
   ralphSandbox: integer("ralph_sandbox", { mode: "boolean" }).default(false), // Run Ralph in Docker
   ralphTimeout: integer("ralph_timeout").default(3600), // Timeout in seconds (default: 1 hour)
+  ralphMaxIterations: integer("ralph_max_iterations").default(10), // Max iterations for Ralph loop (default: 10)
   autoCreatePr: integer("auto_create_pr", { mode: "boolean" }).default(true), // Auto-create PR when done
   prTargetBranch: text("pr_target_branch").default("dev"), // Target branch for PRs
   defaultProjectsDirectory: text("default_projects_directory"), // Where to create new projects
