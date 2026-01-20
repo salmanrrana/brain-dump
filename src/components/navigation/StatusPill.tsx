@@ -1,4 +1,4 @@
-import { type FC, useMemo } from "react";
+import type { FC } from "react";
 
 export type TicketStatus =
   | "backlog"
@@ -10,34 +10,24 @@ export type TicketStatus =
   | "done";
 
 export interface StatusPillProps {
-  /** The ticket status to display */
   status: TicketStatus;
-  /** Size variant */
   size?: "sm" | "md";
-  /** Additional className for the container */
   className?: string;
-  /** Additional inline styles */
   style?: React.CSSProperties;
 }
 
-/**
- * Color mapping for each status value.
- * Uses CSS custom properties defined in variables.css.
- */
+// Maps status to CSS custom properties from variables.css
 const STATUS_COLORS: Record<TicketStatus, string> = {
   backlog: "var(--status-backlog)",
   ready: "var(--status-ready)",
   in_progress: "var(--status-in-progress)",
   review: "var(--status-review)",
-  ai_review: "var(--status-review)", // Same as review
-  human_review: "var(--status-review)", // Same as review
+  ai_review: "var(--status-review)",
+  human_review: "var(--status-review)",
   done: "var(--status-done)",
 };
 
-/**
- * Display labels for each status value.
- * Converts snake_case to human-readable format.
- */
+// Labels match Brain Dump's PRD terminology
 const STATUS_LABELS: Record<TicketStatus, string> = {
   backlog: "Backlog",
   ready: "Ready",
@@ -48,9 +38,6 @@ const STATUS_LABELS: Record<TicketStatus, string> = {
   done: "Done",
 };
 
-/**
- * Size configurations for the pill and dot.
- */
 const SIZE_CONFIG = {
   sm: {
     dotSize: "6px",
@@ -67,64 +54,38 @@ const SIZE_CONFIG = {
 };
 
 /**
- * StatusPill - Compact status indicator with colored dot and label.
- *
- * Features:
- * - **Colored dot**: Small circle indicator matching status color
- * - **Label text**: Human-readable status name
- * - **Two sizes**: sm (compact) and md (default)
- * - **Theme-aware**: Uses CSS custom properties for colors
- *
- * Design:
- * ```
- * ● In Progress
- * ^-- colored dot
- * ```
- *
- * Use cases:
- * - Ticket cards in kanban view
- * - Current focus card in dashboard
- * - Up next queue items
- * - Any compact status display
+ * Compact status indicator with colored dot and label.
+ * Used in ticket cards, dashboard focus card, and up-next queue.
  */
 export const StatusPill: FC<StatusPillProps> = ({ status, size = "md", className = "", style }) => {
   const color = STATUS_COLORS[status];
   const label = STATUS_LABELS[status];
   const sizeConfig = SIZE_CONFIG[size];
 
-  const containerStyles: React.CSSProperties = useMemo(
-    () => ({
-      display: "inline-flex",
-      alignItems: "center",
-      gap: sizeConfig.gap,
-      padding: sizeConfig.padding,
-      backgroundColor: "var(--bg-tertiary)",
-      borderRadius: "var(--radius-full)",
-      ...style,
-    }),
-    [sizeConfig, style]
-  );
+  const containerStyles: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: sizeConfig.gap,
+    padding: sizeConfig.padding,
+    backgroundColor: "var(--bg-tertiary)",
+    borderRadius: "var(--radius-full)",
+    ...style,
+  };
 
-  const dotStyles: React.CSSProperties = useMemo(
-    () => ({
-      width: sizeConfig.dotSize,
-      height: sizeConfig.dotSize,
-      borderRadius: "50%",
-      backgroundColor: color,
-      flexShrink: 0,
-    }),
-    [sizeConfig.dotSize, color]
-  );
+  const dotStyles: React.CSSProperties = {
+    width: sizeConfig.dotSize,
+    height: sizeConfig.dotSize,
+    borderRadius: "50%",
+    backgroundColor: color,
+    flexShrink: 0,
+  };
 
-  const labelStyles: React.CSSProperties = useMemo(
-    () => ({
-      fontSize: sizeConfig.fontSize,
-      fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-      color: "var(--text-secondary)",
-      whiteSpace: "nowrap",
-    }),
-    [sizeConfig.fontSize]
-  );
+  const labelStyles: React.CSSProperties = {
+    fontSize: sizeConfig.fontSize,
+    fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+    color: "var(--text-secondary)",
+    whiteSpace: "nowrap",
+  };
 
   return (
     <span

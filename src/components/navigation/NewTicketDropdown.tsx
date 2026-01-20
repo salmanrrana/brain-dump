@@ -1,19 +1,25 @@
-import { type FC, useState, useRef, useCallback, useMemo, type KeyboardEvent } from "react";
+import {
+  type FC,
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  useMemo,
+  type KeyboardEvent,
+} from "react";
 import { Plus, ChevronDown, FileText, Rocket, type LucideIcon } from "lucide-react";
 import { useClickOutside } from "../../lib/hooks";
 
 export interface NewTicketDropdownProps {
-  /** Handler when "New Ticket" is selected */
   onNewTicket?: () => void;
-  /** Handler when "Start from Scratch" is selected */
   onStartFromScratch?: () => void;
-  /** Disable the dropdown button */
   disabled?: boolean;
 }
 
 interface MenuItem {
   label: string;
   icon: LucideIcon;
+  onSelect: () => void;
 }
 
 const DROPDOWN_KEYFRAMES = `
@@ -38,23 +44,8 @@ function injectKeyframes(): void {
 }
 
 /**
- * NewTicketDropdown - Primary "New" button with dropdown menu for ticket creation.
- *
- * Features:
- * - **Primary button**: Gradient background with "+ New" text
- * - **Dropdown menu**: Two options - "New Ticket" and "Start from Scratch"
- * - **Keyboard accessible**: Tab to focus, Enter/Space to toggle, Arrow keys to navigate
- * - **Click outside closes**: Uses useClickOutside hook
- * - **Escape closes**: Keyboard dismiss support
- *
- * Design:
- * ```
- * [+ New v]
- *   +--------------------+
- *   | New Ticket         |
- *   | Start from Scratch |
- *   +--------------------+
- * ```
+ * Primary "New" button with dropdown for ticket creation.
+ * Supports full keyboard navigation (Tab, Enter/Space, Arrow keys, Escape).
  */
 export const NewTicketDropdown: FC<NewTicketDropdownProps> = ({
   onNewTicket,
@@ -63,13 +54,17 @@ export const NewTicketDropdown: FC<NewTicketDropdownProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
+  const [isHovering, setIsHovering] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  injectKeyframes();
+  // Inject CSS keyframes once on mount
+  useEffect(() => {
+    injectKeyframes();
+  }, []);
 
-  // Define menu items with their handlers
-  const menuItems: Array<MenuItem & { onSelect: () => void }> = useMemo(
+  // useMemo justified: menuItems is a dependency of handleKeyDown callback
+  const menuItems: MenuItem[] = useMemo(
     () => [
       { label: "New Ticket", icon: FileText, onSelect: () => onNewTicket?.() },
       { label: "Start from Scratch", icon: Rocket, onSelect: () => onStartFromScratch?.() },
@@ -83,15 +78,12 @@ export const NewTicketDropdown: FC<NewTicketDropdownProps> = ({
     buttonRef.current?.focus();
   }, []);
 
-  // Close dropdown when clicking outside
-  useClickOutside(
-    containerRef,
-    useCallback(() => {
-      setIsOpen(false);
-      setFocusedIndex(-1);
-    }, []),
-    isOpen
-  );
+  const handleClickOutside = useCallback(() => {
+    setIsOpen(false);
+    setFocusedIndex(-1);
+  }, []);
+
+  useClickOutside(containerRef, handleClickOutside, isOpen);
 
   const toggleDropdown = useCallback(() => {
     if (disabled) return;
@@ -100,7 +92,7 @@ export const NewTicketDropdown: FC<NewTicketDropdownProps> = ({
   }, [disabled]);
 
   const handleSelect = useCallback(
-    (item: (typeof menuItems)[number]) => {
+    (item: MenuItem) => {
       item.onSelect();
       closeDropdown();
     },
@@ -152,27 +144,26 @@ export const NewTicketDropdown: FC<NewTicketDropdownProps> = ({
     [isOpen, focusedIndex, menuItems, toggleDropdown, closeDropdown, handleSelect]
   );
 
-  // Styles
-  const buttonStyles: React.CSSProperties = useMemo(
-    () => ({
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: "var(--spacing-1)",
-      height: "36px",
-      padding: "0 var(--spacing-3)",
-      background: disabled ? "var(--bg-tertiary)" : "var(--gradient-accent)",
-      color: disabled ? "var(--text-muted)" : "#ffffff",
-      border: "none",
-      borderRadius: "var(--radius-lg)",
-      fontSize: "var(--font-size-sm)",
-      fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-      cursor: disabled ? "not-allowed" : "pointer",
-      opacity: disabled ? 0.5 : 1,
-      transition: "all var(--transition-normal)",
-    }),
-    [disabled]
-  );
+  const buttonStyles: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "var(--spacing-1)",
+    height: "36px",
+    padding: "0 var(--spacing-3)",
+    background: disabled ? "var(--bg-tertiary)" : "var(--gradient-accent)",
+    color: disabled ? "var(--text-muted)" : "var(--text-on-accent, #ffffff)",
+    border: "none",
+    borderRadius: "var(--radius-lg)",
+    fontSize: "var(--font-size-sm)",
+    fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.5 : 1,
+    transition: "all var(--transition-normal)",
+    // Hover state applied via isHovering state instead of imperative DOM manipulation
+    filter: isHovering && !disabled ? "brightness(1.1)" : "none",
+    boxShadow: isHovering && !disabled ? "var(--shadow-glow-sm)" : "none",
+  };
 
   const dropdownStyles: React.CSSProperties = {
     position: "absolute",
@@ -208,17 +199,8 @@ export const NewTicketDropdown: FC<NewTicketDropdownProps> = ({
     flexShrink: 0,
   };
 
-  const handleButtonHover = (e: React.MouseEvent<HTMLButtonElement>, isHovering: boolean) => {
-    if (disabled) return;
-    const target = e.currentTarget;
-    if (isHovering) {
-      target.style.filter = "brightness(1.1)";
-      target.style.boxShadow = "var(--shadow-glow-sm)";
-    } else {
-      target.style.filter = "none";
-      target.style.boxShadow = "none";
-    }
-  };
+  // Generate unique ID for ARIA activedescendant pattern
+  const getOptionId = (index: number) => `new-ticket-option-${index}`;
 
   return (
     <div
@@ -231,8 +213,8 @@ export const NewTicketDropdown: FC<NewTicketDropdownProps> = ({
         type="button"
         style={buttonStyles}
         onClick={toggleDropdown}
-        onMouseEnter={(e) => handleButtonHover(e, true)}
-        onMouseLeave={(e) => handleButtonHover(e, false)}
+        onMouseEnter={() => setIsHovering(true)}
+        onMouseLeave={() => setIsHovering(false)}
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
@@ -252,12 +234,18 @@ export const NewTicketDropdown: FC<NewTicketDropdownProps> = ({
       </button>
 
       {isOpen && (
-        <div style={dropdownStyles} role="listbox" aria-label="New ticket options">
+        <div
+          style={dropdownStyles}
+          role="listbox"
+          aria-label="New ticket options"
+          aria-activedescendant={focusedIndex >= 0 ? getOptionId(focusedIndex) : undefined}
+        >
           {menuItems.map((item, index) => {
             const Icon = item.icon;
             return (
               <button
                 key={item.label}
+                id={getOptionId(index)}
                 type="button"
                 style={getMenuItemStyles(index === focusedIndex)}
                 onClick={() => handleSelect(item)}
