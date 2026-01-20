@@ -1,35 +1,4 @@
-/**
- * Toggle Component
- *
- * A switch-style toggle for boolean settings with smooth animations,
- * gradient fill when ON, and full accessibility support.
- *
- * Uses CSS custom properties from the design system for automatic theme adaptation.
- *
- * @example
- * ```tsx
- * import { Toggle } from '@/components-v2/ui/Toggle';
- *
- * // Basic usage
- * <Toggle checked={enabled} onChange={setEnabled} />
- *
- * // With label
- * <Toggle checked={enabled} onChange={setEnabled} label="Enable notifications" />
- *
- * // Disabled state
- * <Toggle checked={true} disabled />
- *
- * // Different sizes
- * <Toggle size="sm" checked={enabled} onChange={setEnabled} />
- * <Toggle size="lg" checked={enabled} onChange={setEnabled} />
- * ```
- */
-
 import { forwardRef, useId, type InputHTMLAttributes } from "react";
-
-// =============================================================================
-// TYPES
-// =============================================================================
 
 export type ToggleSize = "sm" | "md" | "lg";
 
@@ -48,10 +17,6 @@ export interface ToggleProps extends Omit<
   /** Position of the label relative to toggle */
   labelPosition?: "left" | "right";
 }
-
-// =============================================================================
-// STYLE CONFIGURATION
-// =============================================================================
 
 /**
  * Size-specific dimensions for the toggle track and thumb.
@@ -92,10 +57,6 @@ const SIZE_STYLES: Record<
     fontSize: "var(--font-size-base)",
   },
 };
-
-// =============================================================================
-// COMPONENT
-// =============================================================================
 
 /**
  * Toggle component with accessible switch styling.

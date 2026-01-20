@@ -1,37 +1,4 @@
-/**
- * IconButton Component
- *
- * A square button component designed for icon-only actions. Features 2 variants
- * (ghost and filled) and 3 sizes (sm, md, lg) with optional tooltip support.
- *
- * Uses CSS custom properties from the design system for automatic theme adaptation.
- *
- * @example
- * ```tsx
- * import { IconButton } from '@/components-v2/ui/IconButton';
- * import { X, Edit, Plus } from 'lucide-react';
- *
- * // Basic usage with close button
- * <IconButton icon={X} onClick={handleClose} aria-label="Close" />
- *
- * // Filled variant (for emphasis)
- * <IconButton icon={Plus} variant="filled" aria-label="Add item" />
- *
- * // Different sizes
- * <IconButton icon={Edit} size="sm" aria-label="Edit" />
- * <IconButton icon={Edit} size="md" aria-label="Edit" />
- * <IconButton icon={Edit} size="lg" aria-label="Edit" />
- *
- * // With tooltip
- * <IconButton icon={X} tooltip="Close modal" aria-label="Close" />
- * ```
- */
-
 import { forwardRef, useState, type ButtonHTMLAttributes, type ElementType } from "react";
-
-// =============================================================================
-// TYPES
-// =============================================================================
 
 export type IconButtonVariant = "ghost" | "filled";
 export type IconButtonSize = "sm" | "md" | "lg";
@@ -46,10 +13,6 @@ export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>
   /** Tooltip text to show on hover */
   tooltip?: string;
 }
-
-// =============================================================================
-// STYLE CONFIGURATION
-// =============================================================================
 
 /**
  * Size-specific styles for button dimensions and icon sizing.
@@ -97,10 +60,6 @@ const VARIANT_STYLES: Record<
   },
 };
 
-// =============================================================================
-// TOOLTIP KEYFRAMES
-// =============================================================================
-
 /**
  * CSS keyframes for tooltip fade-in animation.
  * Injected into head on first render if tooltip is used.
@@ -132,10 +91,6 @@ function injectKeyframes(): void {
     // Tooltip animation will not be available, but component remains functional
   }
 }
-
-// =============================================================================
-// COMPONENT
-// =============================================================================
 
 /**
  * IconButton component for icon-only actions.

@@ -1,36 +1,3 @@
-/**
- * Input Component
- *
- * A versatile input component with 3 variants (text, search, textarea),
- * support for labels, error states, and disabled states.
- *
- * Uses CSS custom properties from the design system for automatic theme adaptation.
- *
- * @example
- * ```tsx
- * import { Input } from '@/components-v2/ui/Input';
- * import { Search } from 'lucide-react';
- *
- * // Basic text input
- * <Input placeholder="Enter your name" />
- *
- * // With label
- * <Input label="Email" placeholder="you@example.com" />
- *
- * // Search variant with icon
- * <Input variant="search" placeholder="Search tickets..." />
- *
- * // Textarea variant
- * <Input variant="textarea" placeholder="Enter description..." rows={4} />
- *
- * // Error state
- * <Input error="This field is required" />
- *
- * // Disabled state
- * <Input disabled placeholder="Cannot edit" />
- * ```
- */
-
 import {
   forwardRef,
   type InputHTMLAttributes,
@@ -38,10 +5,6 @@ import {
   type ReactNode,
   useId,
 } from "react";
-
-// =============================================================================
-// TYPES
-// =============================================================================
 
 export type InputVariant = "text" | "search" | "textarea";
 
@@ -75,10 +38,6 @@ function isTextareaProps(props: InputProps): props is TextareaInputProps {
   return props.variant === "textarea";
 }
 
-// =============================================================================
-// SEARCH ICON COMPONENT
-// =============================================================================
-
 /**
  * Simple search icon using SVG.
  * Uses currentColor to inherit text color from parent.
@@ -110,10 +69,6 @@ function SearchIcon({
     </svg>
   );
 }
-
-// =============================================================================
-// STYLE CONFIGURATION
-// =============================================================================
 
 /**
  * Base styles for the input container/wrapper.
@@ -197,10 +152,6 @@ const getErrorStyles = (): React.CSSProperties => ({
   marginTop: "var(--spacing-1)",
   lineHeight: "var(--line-height-tight)",
 });
-
-// =============================================================================
-// INPUT COMPONENT
-// =============================================================================
 
 /**
  * Input component with theme-aware styling.

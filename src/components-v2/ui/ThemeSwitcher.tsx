@@ -1,45 +1,9 @@
-/**
- * ThemeSwitcher Component
- *
- * A UI component that displays 3 color dot buttons for switching between
- * the Ember (orange), Mint (emerald), and Solar (gold) themes.
- *
- * Features:
- * - 3 color dot buttons representing each theme
- * - Current theme indicated with ring/glow effect
- * - Hover tooltips showing theme names
- * - Full keyboard navigation (Tab, Enter, Space)
- * - Accessible with proper aria-labels
- *
- * @example
- * ```tsx
- * // Basic usage in any component within ThemeProvider
- * import { ThemeSwitcher } from '@/components-v2/ui/ThemeSwitcher';
- *
- * function Header() {
- *   return (
- *     <header>
- *       <ThemeSwitcher />
- *     </header>
- *   );
- * }
- * ```
- */
-
 import { useTheme, THEMES, type Theme } from "../../lib/theme";
-
-// =============================================================================
-// TYPES
-// =============================================================================
 
 export interface ThemeSwitcherProps {
   /** Additional CSS class names */
   className?: string;
 }
-
-// =============================================================================
-// THEME CONFIGURATION
-// =============================================================================
 
 /**
  * Theme metadata for rendering the switcher buttons.
@@ -62,10 +26,6 @@ const THEME_CONFIG: Record<Theme, { name: string; color: string; description: st
     description: "Gold accent theme",
   },
 };
-
-// =============================================================================
-// COMPONENT
-// =============================================================================
 
 /**
  * Theme switcher component with 3 color dot buttons.

@@ -1,68 +1,17 @@
-/**
- * Button Component
- *
- * A versatile button component with 4 variants (primary, secondary, ghost, danger),
- * 3 sizes (sm, md, lg), and support for loading states and icons.
- *
- * Uses CSS custom properties from the design system for automatic theme adaptation.
- *
- * @example
- * ```tsx
- * import { Button } from '@/components-v2/ui/Button';
- * import { Save, Trash } from 'lucide-react';
- *
- * // Basic variants
- * <Button variant="primary">Save</Button>
- * <Button variant="secondary">Cancel</Button>
- * <Button variant="ghost">More</Button>
- * <Button variant="danger">Delete</Button>
- *
- * // With icons
- * <Button variant="primary" iconLeft={<Save />}>Save</Button>
- * <Button variant="danger" iconRight={<Trash />}>Delete</Button>
- *
- * // Loading state
- * <Button variant="primary" isLoading>Saving...</Button>
- *
- * // Sizes
- * <Button size="sm">Small</Button>
- * <Button size="md">Medium</Button>
- * <Button size="lg">Large</Button>
- * ```
- */
-
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
-
-// =============================================================================
-// TYPES
-// =============================================================================
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 export type ButtonSize = "sm" | "md" | "lg";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  /** Visual style variant */
   variant?: ButtonVariant;
-  /** Button size */
   size?: ButtonSize;
-  /** Show loading spinner and disable interactions */
   isLoading?: boolean;
-  /** Icon to display on the left side */
   iconLeft?: ReactNode;
-  /** Icon to display on the right side */
   iconRight?: ReactNode;
-  /** Button contents */
   children?: ReactNode;
 }
 
-// =============================================================================
-// SPINNER COMPONENT
-// =============================================================================
-
-/**
- * Simple loading spinner using CSS animation.
- * Inherits color from parent for seamless integration.
- */
 function Spinner({ className = "", style }: { className?: string; style?: React.CSSProperties }) {
   return (
     <svg
@@ -83,13 +32,6 @@ function Spinner({ className = "", style }: { className?: string; style?: React.
   );
 }
 
-// =============================================================================
-// STYLE CONFIGURATION
-// =============================================================================
-
-/**
- * Size-specific styles for padding, font size, and icon dimensions.
- */
 const SIZE_STYLES: Record<
   ButtonSize,
   { padding: string; fontSize: string; iconSize: string; spinnerSize: string }
@@ -114,10 +56,6 @@ const SIZE_STYLES: Record<
   },
 };
 
-/**
- * Variant-specific styles for colors, backgrounds, borders, and hover states.
- * Uses CSS custom properties to adapt to theme changes.
- */
 const VARIANT_STYLES: Record<
   ButtonVariant,
   {
@@ -151,23 +89,10 @@ const VARIANT_STYLES: Record<
     background: "var(--error)",
     color: "#ffffff",
     border: "none",
-    hoverBackground: "#dc2626", // error-600 for hover
+    hoverBackground: "#dc2626",
   },
 };
 
-// =============================================================================
-// COMPONENT
-// =============================================================================
-
-/**
- * Button component with theme-aware styling.
- *
- * Supports 4 variants:
- * - **primary**: Gradient background using accent colors (for main actions)
- * - **secondary**: Transparent with border (for alternative actions)
- * - **ghost**: Transparent with no border (for subtle actions)
- * - **danger**: Red background (for destructive actions)
- */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   {
     variant = "primary",
@@ -187,7 +112,6 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   const sizeStyles = SIZE_STYLES[size];
   const variantStyles = VARIANT_STYLES[variant];
 
-  // Base styles that apply to all buttons
   const baseStyles: React.CSSProperties = {
     display: "inline-flex",
     alignItems: "center",
@@ -227,7 +151,6 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
           if (variantStyles.hoverBorder) {
             target.style.border = variantStyles.hoverBorder;
           }
-          // Add brightness filter for primary to simulate hover
           if (variant === "primary") {
             target.style.filter = "brightness(1.1)";
           }
@@ -245,7 +168,6 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       }}
       {...props}
     >
-      {/* Loading spinner replaces left icon when loading */}
       {isLoading ? (
         <Spinner
           className="shrink-0"
@@ -262,10 +184,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         )
       )}
 
-      {/* Button text */}
       {children && <span>{children}</span>}
 
-      {/* Right icon (not shown when loading) */}
       {iconRight && !isLoading && (
         <span
           className="shrink-0"

@@ -1,62 +1,4 @@
-/**
- * Select Component
- *
- * A custom styled dropdown select component with keyboard navigation,
- * search/filter capability, and accessible design.
- *
- * Uses CSS custom properties from the design system for automatic theme adaptation.
- *
- * @example
- * ```tsx
- * import { Select } from '@/components-v2/ui/Select';
- *
- * // Basic usage
- * const [value, setValue] = useState('option1');
- * <Select
- *   options={[
- *     { value: 'option1', label: 'Option 1' },
- *     { value: 'option2', label: 'Option 2' },
- *   ]}
- *   value={value}
- *   onChange={setValue}
- * />
- *
- * // With placeholder
- * <Select
- *   options={options}
- *   value={value}
- *   onChange={setValue}
- *   placeholder="Select an option..."
- * />
- *
- * // With label and error
- * <Select
- *   label="Priority"
- *   options={priorities}
- *   value={priority}
- *   onChange={setPriority}
- *   error="Please select a priority"
- * />
- *
- * // With search/filter
- * <Select
- *   options={manyOptions}
- *   value={selected}
- *   onChange={setSelected}
- *   searchable
- *   searchPlaceholder="Type to filter..."
- * />
- *
- * // Disabled state
- * <Select options={options} value={value} onChange={setValue} disabled />
- * ```
- */
-
 import { useState, useRef, useEffect, useCallback, useId, type KeyboardEvent } from "react";
-
-// =============================================================================
-// TYPES
-// =============================================================================
 
 export interface SelectOption<T = string> {
   /** The value stored when this option is selected */
@@ -91,10 +33,6 @@ export interface SelectProps<T = string> {
   /** ID for the select element */
   id?: string;
 }
-
-// =============================================================================
-// CHEVRON ICON COMPONENT
-// =============================================================================
 
 /**
  * Simple chevron icon using SVG.
@@ -150,10 +88,6 @@ function CheckIcon({ style }: { style?: React.CSSProperties }) {
     </svg>
   );
 }
-
-// =============================================================================
-// STYLE CONFIGURATION
-// =============================================================================
 
 /**
  * Styles for the wrapper container.
@@ -292,10 +226,6 @@ const getNoResultsStyles = (): React.CSSProperties => ({
   fontSize: "var(--font-size-sm)",
   textAlign: "center",
 });
-
-// =============================================================================
-// SELECT COMPONENT
-// =============================================================================
 
 /**
  * Select component with theme-aware styling.

@@ -1,36 +1,5 @@
-/**
- * Checkbox Component
- *
- * A custom styled checkbox component with support for checked, indeterminate,
- * and disabled states. Uses a visually hidden native checkbox for accessibility
- * with a custom styled visual overlay.
- *
- * Uses CSS custom properties from the design system for automatic theme adaptation.
- *
- * @example
- * ```tsx
- * import { Checkbox } from '@/components-v2/ui/Checkbox';
- *
- * // Basic usage
- * <Checkbox checked={done} onChange={setDone} />
- *
- * // With label
- * <Checkbox checked={done} onChange={setDone} label="Task completed" />
- *
- * // Indeterminate state (for "select all" with partial selection)
- * <Checkbox indeterminate label="Some items selected" />
- *
- * // Disabled
- * <Checkbox checked={true} disabled label="Cannot change" />
- * ```
- */
-
 import { forwardRef, useId, useState, type InputHTMLAttributes } from "react";
 import { Check, Minus } from "lucide-react";
-
-// =============================================================================
-// TYPES
-// =============================================================================
 
 export interface CheckboxProps extends Omit<
   InputHTMLAttributes<HTMLInputElement>,
@@ -47,10 +16,6 @@ export interface CheckboxProps extends Omit<
   /** Additional CSS classes for the container */
   className?: string;
 }
-
-// =============================================================================
-// STYLE CONFIGURATION
-// =============================================================================
 
 /**
  * Styles for the visually hidden native checkbox.
@@ -125,10 +90,6 @@ const getLabelStyles = (): React.CSSProperties => ({
   color: "var(--text-primary)",
   lineHeight: "var(--line-height-normal)",
 });
-
-// =============================================================================
-// CHECKBOX COMPONENT
-// =============================================================================
 
 /**
  * Custom styled Checkbox component.

@@ -1,35 +1,6 @@
-/**
- * Toast Component
- *
- * A notification component for displaying success, error, and info messages.
- * Supports auto-dismiss, manual dismiss, and stacking multiple toasts.
- *
- * Uses CSS custom properties from the design system for automatic theme adaptation.
- *
- * @example
- * ```tsx
- * import { Toast } from '@/components-v2/ui/Toast';
- *
- * // Basic variants
- * <Toast variant="success" message="Ticket created!" onDismiss={handleDismiss} />
- * <Toast variant="error" message="Failed to save" onDismiss={handleDismiss} />
- * <Toast variant="info" message="Processing..." onDismiss={handleDismiss} />
- *
- * // With auto-dismiss
- * <Toast variant="success" message="Saved!" duration={3000} onDismiss={handleDismiss} />
- *
- * // Without auto-dismiss
- * <Toast variant="info" message="Click to dismiss" duration={0} onDismiss={handleDismiss} />
- * ```
- */
-
 import { useEffect, useState, useCallback, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X, Check, AlertCircle, Info } from "lucide-react";
-
-// =============================================================================
-// TYPES
-// =============================================================================
 
 export type ToastVariant = "success" | "error" | "info";
 
@@ -58,10 +29,6 @@ export interface ToastData {
   /** Auto-dismiss duration in ms */
   duration: number;
 }
-
-// =============================================================================
-// VARIANT CONFIGURATION
-// =============================================================================
 
 /**
  * Style and icon configuration for each toast variant.
@@ -94,10 +61,6 @@ const VARIANT_CONFIG: Record<
     borderColor: "var(--info)",
   },
 };
-
-// =============================================================================
-// STYLE CONFIGURATION
-// =============================================================================
 
 /**
  * Base styles for the toast container.
@@ -179,10 +142,6 @@ const getDismissButtonStyles = (): React.CSSProperties => ({
   flexShrink: 0,
   transition: "background-color var(--transition-fast), color var(--transition-fast)",
 });
-
-// =============================================================================
-// TOAST COMPONENT
-// =============================================================================
 
 /**
  * Individual toast notification component.
@@ -293,10 +252,6 @@ export function Toast({
     </div>
   );
 }
-
-// =============================================================================
-// TOAST CONTAINER COMPONENT
-// =============================================================================
 
 /**
  * Styles for the toast container that holds stacked toasts.

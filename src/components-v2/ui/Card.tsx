@@ -1,34 +1,4 @@
-/**
- * Card Component
- *
- * A versatile container component with support for hover states and
- * an optional glow effect for AI-active states.
- *
- * Uses CSS custom properties from the design system for automatic theme adaptation.
- *
- * @example
- * ```tsx
- * import { Card } from '@/components-v2/ui/Card';
- *
- * // Basic card
- * <Card>Basic card content</Card>
- *
- * // Card with glow effect (for AI-active states)
- * <Card glow>AI is working on this</Card>
- *
- * // Clickable card with hover effect
- * <Card hoverable onClick={handleClick}>Clickable card</Card>
- *
- * // Card with custom padding
- * <Card padding="lg">More spacious content</Card>
- * ```
- */
-
 import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
-
-// =============================================================================
-// TYPES
-// =============================================================================
 
 export type CardPadding = "none" | "sm" | "md" | "lg";
 
@@ -43,10 +13,6 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children?: ReactNode;
 }
 
-// =============================================================================
-// STYLE CONFIGURATION
-// =============================================================================
-
 /**
  * Padding values mapped to CSS custom properties.
  */
@@ -56,10 +22,6 @@ const PADDING_STYLES: Record<CardPadding, string> = {
   md: "var(--spacing-4)",
   lg: "var(--spacing-6)",
 };
-
-// =============================================================================
-// KEYFRAMES CSS
-// =============================================================================
 
 /**
  * CSS keyframes for the glow pulse animation.
@@ -90,10 +52,6 @@ function injectKeyframes(): void {
     // Glow animation will not be available, but component remains functional
   }
 }
-
-// =============================================================================
-// COMPONENT
-// =============================================================================
 
 /**
  * Card component with theme-aware styling.

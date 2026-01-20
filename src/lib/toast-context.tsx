@@ -68,7 +68,7 @@ interface ToastContextValue extends UseToastReturn {
 }
 
 // =============================================================================
-// CONSTANTS
+
 // =============================================================================
 
 /** Default auto-dismiss duration in milliseconds */
@@ -90,7 +90,7 @@ function generateToastId(): string {
 }
 
 // =============================================================================
-// CONTEXT
+
 // =============================================================================
 
 /**
@@ -100,7 +100,7 @@ function generateToastId(): string {
 const ToastContext = createContext<ToastContextValue | undefined>(undefined);
 
 // =============================================================================
-// PROVIDER
+
 // =============================================================================
 
 export interface ToastProviderProps {
@@ -195,7 +195,7 @@ export function ToastProvider({ children }: ToastProviderProps) {
 }
 
 // =============================================================================
-// HOOK
+
 // =============================================================================
 
 /**

@@ -1,43 +1,4 @@
-/**
- * Badge Component
- *
- * A versatile badge component for displaying status, priority, and PR status indicators.
- * Uses pill shape with rounded corners and size variants (sm, md).
- *
- * Uses CSS custom properties from the design system for automatic theme adaptation.
- *
- * @example
- * ```tsx
- * import { Badge } from '@/components-v2/ui/Badge';
- *
- * // Status badges (for ticket workflow)
- * <Badge variant="status" value="backlog" />
- * <Badge variant="status" value="in_progress" />
- * <Badge variant="status" value="review" />
- * <Badge variant="status" value="done" />
- *
- * // Priority badges
- * <Badge variant="priority" value="high" />
- * <Badge variant="priority" value="medium" />
- * <Badge variant="priority" value="low" />
- *
- * // PR status badges
- * <Badge variant="pr-status" value="open" />
- * <Badge variant="pr-status" value="draft" />
- * <Badge variant="pr-status" value="merged" />
- * <Badge variant="pr-status" value="closed" />
- *
- * // Size variants
- * <Badge variant="status" value="done" size="sm" />
- * <Badge variant="status" value="done" size="md" />
- * ```
- */
-
 import { forwardRef, type HTMLAttributes } from "react";
-
-// =============================================================================
-// TYPES
-// =============================================================================
 
 export type BadgeVariant = "status" | "priority" | "pr-status";
 export type BadgeSize = "sm" | "md";
@@ -63,10 +24,6 @@ export interface BadgeProps extends Omit<HTMLAttributes<HTMLSpanElement>, "child
   /** Badge size */
   size?: BadgeSize;
 }
-
-// =============================================================================
-// STYLE CONFIGURATION
-// =============================================================================
 
 /**
  * Size-specific styles for padding and font size.
@@ -139,10 +96,6 @@ const DISPLAY_LABELS: Record<BadgeValue, string> = {
   closed: "Closed",
 };
 
-// =============================================================================
-// HELPER FUNCTIONS
-// =============================================================================
-
 /**
  * Get the background color for a badge based on its variant and value.
  */
@@ -161,10 +114,6 @@ function getBackgroundColor(variant: BadgeVariant, value: BadgeValue): string {
 
 /** Text color for all badges - white for contrast against colored backgrounds */
 const BADGE_TEXT_COLOR = "#ffffff";
-
-// =============================================================================
-// COMPONENT
-// =============================================================================
 
 /**
  * Badge component for displaying status, priority, and PR status indicators.

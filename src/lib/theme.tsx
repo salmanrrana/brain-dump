@@ -1,22 +1,3 @@
-/**
- * Theme Context and Hook for Brain Dump
- *
- * Provides theme management with localStorage persistence and SSR safety.
- * The theme system uses CSS custom properties via data-theme attributes
- * defined in src/styles/variables.css.
- *
- * @example
- * ```tsx
- * // In your app root
- * <ThemeProvider>
- *   <App />
- * </ThemeProvider>
- *
- * // In any component
- * const { theme, setTheme } = useTheme();
- * ```
- */
-
 import {
   createContext,
   useContext,
@@ -26,10 +7,6 @@ import {
   useMemo,
   type ReactNode,
 } from "react";
-
-// =============================================================================
-// TYPES
-// =============================================================================
 
 /**
  * Available theme options.
@@ -49,10 +26,6 @@ export interface ThemeContextValue {
   setTheme: (theme: Theme) => void;
 }
 
-// =============================================================================
-// CONSTANTS
-// =============================================================================
-
 /** localStorage key for theme persistence */
 export const THEME_STORAGE_KEY = "brain-dump-theme";
 
@@ -61,10 +34,6 @@ export const DEFAULT_THEME: Theme = "ember";
 
 /** All valid theme values for validation */
 export const THEMES: readonly Theme[] = ["ember", "mint", "solar"] as const;
-
-// =============================================================================
-// HELPERS
-// =============================================================================
 
 /**
  * Validates that a value is a valid Theme.
@@ -138,19 +107,11 @@ export function applyTheme(theme: Theme): void {
   document.documentElement.setAttribute("data-theme", theme);
 }
 
-// =============================================================================
-// CONTEXT
-// =============================================================================
-
 /**
  * React context for theme state.
  * Default value is undefined to detect missing provider.
  */
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
-
-// =============================================================================
-// PROVIDER
-// =============================================================================
 
 export interface ThemeProviderProps {
   /** Child components to wrap */
@@ -216,10 +177,6 @@ export function ThemeProvider({ children, initialTheme }: ThemeProviderProps) {
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
-
-// =============================================================================
-// HOOK
-// =============================================================================
 
 /**
  * Hook to access theme context.

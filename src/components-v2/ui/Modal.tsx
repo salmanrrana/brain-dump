@@ -1,35 +1,3 @@
-/**
- * Modal Component
- *
- * A base modal component with overlay, focus trap, animations, and
- * portal rendering. Designed to be composable with Modal.Header,
- * Modal.Body, and Modal.Footer subcomponents.
- *
- * Uses CSS custom properties from the design system for automatic theme adaptation.
- *
- * @example
- * ```tsx
- * import { Modal } from '@/components-v2/ui/Modal';
- *
- * // Basic usage
- * const [isOpen, setIsOpen] = useState(false);
- *
- * <Modal isOpen={isOpen} onClose={() => setIsOpen(false)}>
- *   <p>Modal content here</p>
- * </Modal>
- *
- * // With size
- * <Modal isOpen={isOpen} onClose={onClose} size="lg">
- *   <p>Large modal content</p>
- * </Modal>
- *
- * // Without close on overlay click
- * <Modal isOpen={isOpen} onClose={onClose} closeOnOverlayClick={false}>
- *   <p>Must use close button or Escape key</p>
- * </Modal>
- * ```
- */
-
 import {
   useEffect,
   useRef,
@@ -41,10 +9,6 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
-
-// =============================================================================
-// TYPES
-// =============================================================================
 
 export type ModalSize = "sm" | "md" | "lg" | "xl";
 
@@ -100,10 +64,6 @@ export interface ModalProps {
   "aria-describedby"?: string;
 }
 
-// =============================================================================
-// SIZE CONFIGURATION
-// =============================================================================
-
 /**
  * Width values for each modal size.
  */
@@ -113,10 +73,6 @@ const SIZE_WIDTHS: Record<ModalSize, string> = {
   lg: "600px",
   xl: "800px",
 };
-
-// =============================================================================
-// STYLE CONFIGURATION
-// =============================================================================
 
 /**
  * Styles for the overlay backdrop.
@@ -166,10 +122,6 @@ const getContentStyles = (): React.CSSProperties => ({
   overflowX: "hidden",
 });
 
-// =============================================================================
-// FOCUS TRAP UTILITIES
-// =============================================================================
-
 /**
  * Get all focusable elements within a container.
  */
@@ -186,10 +138,6 @@ function getFocusableElements(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTORS));
 }
 
-// =============================================================================
-// MODAL COMPONENT
-// =============================================================================
-
 /**
  * Modal component with theme-aware styling.
  *
@@ -203,9 +151,6 @@ function getFocusableElements(container: HTMLElement): HTMLElement[] {
  * - Scrollable content area
  * - Multiple sizes (sm, md, lg, xl)
  */
-// =============================================================================
-// MODAL HEADER SUBCOMPONENT
-// =============================================================================
 
 /**
  * Styles for the header container.
@@ -337,10 +282,6 @@ function ModalHeader({ icon: Icon, title, onClose, className = "" }: ModalHeader
   );
 }
 
-// =============================================================================
-// MODAL BODY SUBCOMPONENT
-// =============================================================================
-
 /**
  * Styles for the body container.
  */
@@ -376,10 +317,6 @@ function ModalBody({ children, className = "" }: ModalBodyProps) {
     </div>
   );
 }
-
-// =============================================================================
-// MODAL FOOTER SUBCOMPONENT
-// =============================================================================
 
 /**
  * Styles for the footer container.
@@ -433,10 +370,6 @@ function ModalFooter({ children, className = "", align = "right" }: ModalFooterP
     </footer>
   );
 }
-
-// =============================================================================
-// MODAL COMPONENT
-// =============================================================================
 
 export function Modal({
   isOpen,
