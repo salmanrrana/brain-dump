@@ -59,6 +59,7 @@ interface AppState {
   setEpicId: (id: string | null, projectId?: string) => void;
   toggleTag: (tag: string) => void;
   clearTagFilters: () => void;
+  clearAllFilters: () => void;
 
   // View
   viewMode: "kanban" | "list";
@@ -160,7 +161,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     isAnyOpen: isAnyModalOpen,
   } = useModal();
 
-  const { filters, setProjectId, setEpicId, toggleTag, clearTags } = useFilters();
+  const { filters, setProjectId, setEpicId, toggleTag, clearTags, clearAll } = useFilters();
 
   // Sample data hook with callback to clear filters on deletion
   // Note: Query invalidation is now handled by useSampleData internally
@@ -356,6 +357,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     setEpicId,
     toggleTag,
     clearTagFilters: clearTags,
+    clearAllFilters: clearAll,
 
     // View
     viewMode,

@@ -131,7 +131,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
   const [epicId, setEpicId] = useState(ticket.epicId ?? "");
   const [tags, setTags] = useState<string[]>(() => safeJsonParse(ticket.tags, []));
   const [subtasks, setSubtasks] = useState<Subtask[]>(() => safeJsonParse(ticket.subtasks, []));
-  const [isBlocked, setIsBlocked] = useState(ticket.isBlocked);
+  const [isBlocked, setIsBlocked] = useState(ticket.isBlocked ?? false);
   const [blockedReason, setBlockedReason] = useState(ticket.blockedReason ?? "");
   const [newTag, setNewTag] = useState("");
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);

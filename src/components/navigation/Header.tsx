@@ -128,7 +128,7 @@ export const Header: FC<HeaderProps> = ({
     height: "36px",
     padding: "0 var(--spacing-3)",
     background: "var(--gradient-accent)",
-    color: "#ffffff",
+    color: "var(--text-on-accent)",
     border: "none",
     borderRadius: "var(--radius-lg)",
     fontSize: "var(--font-size-sm)",
@@ -150,7 +150,6 @@ export const Header: FC<HeaderProps> = ({
 
   return (
     <header style={headerStyles} role="banner">
-      {/* Logo/Brand area */}
       <div style={logoAreaStyles}>
         {logo ?? (
           <div style={brandStyles}>
@@ -159,7 +158,6 @@ export const Header: FC<HeaderProps> = ({
         )}
       </div>
 
-      {/* Search area */}
       <div style={searchAreaStyles}>
         {searchSlot ?? (
           <div style={placeholderSearchStyles}>
@@ -169,9 +167,7 @@ export const Header: FC<HeaderProps> = ({
         )}
       </div>
 
-      {/* Right section: Status pills + Actions */}
       <div style={rightSectionStyles}>
-        {/* Status pills area */}
         <div style={statusAreaStyles}>
           {statusSlot ?? (
             <>
@@ -187,7 +183,6 @@ export const Header: FC<HeaderProps> = ({
           )}
         </div>
 
-        {/* Actions area (New button) */}
         {actionsSlot ?? (
           <button
             type="button"

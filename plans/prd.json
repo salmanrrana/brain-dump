@@ -9,398 +9,392 @@
   ],
   "userStories": [
     {
-      "id": "dbf5d869-2678-406f-aacd-08ecdf27c71d",
-      "title": "26 - Create IconSidebar component",
+      "id": "d0bca8ec-40ee-478b-9689-af6ef08bc138",
+      "title": "41 - Create KanbanBoard component",
       "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "64px fixed width",
-        "Full viewport height",
-        "4 nav items: Dashboard, Board, Projects, Settings",
-        "Icons from lucide-react",
-        "Active item has gradient background + glow",
-        "Background uses `--bg-secondary`",
-        "All 4 items render",
-        "Active item highlighted",
-        "Navigation works"
+        "Horizontal scroll container for columns",
+        "7 columns for each status",
+        "Responsive: scrolls on smaller screens",
+        "Fetches tickets via TanStack Query",
+        "Groups tickets by status",
+        "Loading skeleton while fetching"
       ],
       "references": [
-        "src/components/navigation/IconSidebar.tsx",
-        "src/components/navigation/IconSidebar.test.tsx"
+        "src/components/board/KanbanBoard.tsx"
       ],
-      "description": "Create the 64px icon-based sidebar for main navigation.\n\n**Files to Create:**\n- `src/components/navigation/IconSidebar.tsx`\n- `src/components/navigation/IconSidebar.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] 64px fixed width\n- [ ] Full viewport height\n- [ ] 4 nav items: Dashboard, Board, Projects, Settings\n- [ ] Icons from lucide-react\n- [ ] Active item has gradient background + glow\n- [ ] Background uses `--bg-secondary`\n\n**Nav Items:**\n```tsx\nconst navItems = [\n  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },\n  { icon: Kanban, label: 'Board', path: '/' },\n  { icon: Folder, label: 'Projects', action: 'openProjectsPanel' },\n  { icon: Settings, label: 'Settings', action: 'openSettings' },\n];\n```\n\n**Tests:**\n- [ ] All 4 items render\n- [ ] Active item highlighted\n- [ ] Navigation works",
+      "description": "Create the main kanban board container with horizontal scrolling columns.\n\n**Files to Create:**\n- `src/components/board/KanbanBoard.tsx`\n\n**Acceptance Criteria:**\n- [ ] Horizontal scroll container for columns\n- [ ] 7 columns for each status\n- [ ] Responsive: scrolls on smaller screens\n- [ ] Fetches tickets via TanStack Query\n- [ ] Groups tickets by status\n- [ ] Loading skeleton while fetching\n\n**Columns (in order):**\n```tsx\nconst columns = [\n  'backlog', 'ready', 'in_progress', \n  'review', 'ai_review', 'human_review', 'done'\n];\n```\n\n**Tests:** Visual inspection",
       "priority": "high",
       "tags": [
-        "navigation",
+        "board",
         "component"
       ]
     },
     {
-      "id": "47b6b6f0-dbd7-47ab-8db3-6161b0f2f911",
-      "title": "27 - Create NavItem component",
+      "id": "7a95b0e9-0265-4e8a-a113-c7228fbe2252",
+      "title": "42 - Create KanbanColumn component",
       "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Icon centered in square button",
-        "Tooltip shows label on hover (appears to right)",
-        "Active state: gradient background + glow effect",
-        "Hover state: subtle background change",
-        "Keyboard accessible (Tab, Enter)",
-        "aria-current for active state"
+        "Column header with status label",
+        "Ticket count badge",
+        "Drop zone for drag-and-drop",
+        "Scrollable ticket list",
+        "Empty state message",
+        "Status-specific accent color on header",
+        "Min-width: 280px, max-width: 320px"
       ],
       "references": [
-        "src/components/navigation/NavItem.tsx"
+        "src/components/board/KanbanColumn.tsx"
       ],
-      "description": "Create individual navigation item component with tooltip.\n\n**Files to Create:**\n- `src/components/navigation/NavItem.tsx`\n\n**Acceptance Criteria:**\n- [ ] Icon centered in square button\n- [ ] Tooltip shows label on hover (appears to right)\n- [ ] Active state: gradient background + glow effect\n- [ ] Hover state: subtle background change\n- [ ] Keyboard accessible (Tab, Enter)\n- [ ] aria-current for active state\n\n**Visual States:**\n```\nDefault:  [🏠]  <- gray icon, transparent bg\nHover:    [🏠]  <- gray icon, hover bg\nActive:   [🏠]  <- white icon, gradient bg, glow\n```\n\n**Tests:** Visual inspection + keyboard nav",
-      "priority": "medium",
+      "description": "Create individual kanban column with header, count, and drop zone.\n\n**Files to Create:**\n- `src/components/board/KanbanColumn.tsx`\n\n**Acceptance Criteria:**\n- [ ] Column header with status label\n- [ ] Ticket count badge\n- [ ] Drop zone for drag-and-drop\n- [ ] Scrollable ticket list\n- [ ] Empty state message\n- [ ] Status-specific accent color on header\n- [ ] Min-width: 280px, max-width: 320px\n\n**Layout:**\n```\n┌─────────────────────┐\n│ In Progress    (3)  │  <- Header with count\n├─────────────────────┤\n│ ┌─────────────────┐ │\n│ │ Ticket Card 1   │ │\n│ └─────────────────┘ │\n│ ┌─────────────────┐ │\n│ │ Ticket Card 2   │ │\n│ └─────────────────┘ │\n│                     │  <- Drop zone\n└─────────────────────┘\n```\n\n**Tests:** Visual inspection",
+      "priority": "high",
       "tags": [
-        "navigation",
+        "board",
         "component"
       ]
     },
     {
-      "id": "aaff7427-23e9-4745-be5d-ae6ea3dfe198",
-      "title": "28 - Integrate sidebar with TanStack Router",
+      "id": "50e5e604-de2e-4108-93fc-7877ed0d97f1",
+      "title": "43 - Create Board route as default",
       "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Clicks navigate to correct routes",
-        "Active state syncs with current route",
-        "Uses `<Link>` from TanStack Router",
-        "Projects item opens panel (not route)",
-        "Settings item opens modal (not route)",
-        "Click Dashboard → /dashboard route",
-        "Click Board → / route"
+        "Route at `/` shows kanban board",
+        "Integrates KanbanBoard component",
+        "Header with board title",
+        "Filter controls (BoardHeader)",
+        "Uses existing ticket query hooks",
+        "Navigate to `/` shows board",
+        "Board has 7 columns",
+        "Tickets render in correct columns"
       ],
       "references": [
-        "src/components/navigation/IconSidebar.tsx"
+        "src/routes/index.tsx"
       ],
-      "description": "Wire up sidebar navigation to TanStack Router for route changes.\n\n**Files to Modify:**\n- `src/components/navigation/IconSidebar.tsx`\n\n**Acceptance Criteria:**\n- [ ] Clicks navigate to correct routes\n- [ ] Active state syncs with current route\n- [ ] Uses `<Link>` from TanStack Router\n- [ ] Projects item opens panel (not route)\n- [ ] Settings item opens modal (not route)\n\n**Implementation:**\n```tsx\nimport { Link, useLocation } from '@tanstack/react-router';\n\n// For route items\n<Link to={item.path}>\n  <NavItem active={location.pathname === item.path} />\n</Link>\n\n// For action items (Projects, Settings)\n<button onClick={item.action}>\n  <NavItem />\n</button>\n```\n\n**Tests (E2E):**\n- [ ] Click Dashboard → /dashboard route\n- [ ] Click Board → / route",
+      "description": "Set up the board route as the default/index route for the app.\n\n**Files to Create:**\n- `src/routes/index.tsx`\n\n**Acceptance Criteria:**\n- [ ] Route at `/` shows kanban board\n- [ ] Integrates KanbanBoard component\n- [ ] Header with board title\n- [ ] Filter controls (BoardHeader)\n- [ ] Uses existing ticket query hooks\n\n**E2E Tests:**\n- [ ] Navigate to `/` shows board\n- [ ] Board has 7 columns\n- [ ] Tickets render in correct columns",
       "priority": "high",
       "tags": [
-        "navigation",
+        "board",
         "routing"
       ]
     },
     {
-      "id": "17787d6d-fb92-4ddf-bcda-83257fa053e0",
-      "title": "29 - Create Header component",
+      "id": "04631a36-8202-492a-a68c-4b27d8c0ae75",
+      "title": "44 - Create TicketCard component",
       "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Full width header at top of content area",
-        "Logo/brand area on left",
-        "Search bar in center",
-        "Status pills on right (Docker, AI)",
-        "\"New\" button on far right",
-        "Height: 64px",
-        "Background: `--bg-secondary`"
+        "Priority indicator on left border (red=high, orange=medium, gray=low)",
+        "Ticket title (truncate at 2 lines)",
+        "Tags row (max 3 visible)",
+        "Git info (branch, PR badge)",
+        "Click opens ticket detail/modal",
+        "Hover shows subtle elevation",
+        "Card background uses `--bg-card`",
+        "Priority border correct",
+        "Title truncates",
+        "Click handler fires"
       ],
       "references": [
-        "src/components/navigation/Header.tsx"
+        "src/components/board/TicketCard.tsx",
+        "src/components/board/TicketCard.test.tsx"
       ],
-      "description": "Create the main header bar with logo, search, and status indicators.\n\n**Files to Create:**\n- `src/components/navigation/Header.tsx`\n\n**Acceptance Criteria:**\n- [ ] Full width header at top of content area\n- [ ] Logo/brand area on left\n- [ ] Search bar in center\n- [ ] Status pills on right (Docker, AI)\n- [ ] \"New\" button on far right\n- [ ] Height: 64px\n- [ ] Background: `--bg-secondary`\n\n**Layout:**\n```\n┌─────────────────────────────────────────────────────────────┐\n│ Brain Dump    [🔍 Search...     ]    🐳 Running  ⚡ AI   [+]│\n└─────────────────────────────────────────────────────────────┘\n```\n\n**Tests:** Visual inspection",
+      "description": "Create the ticket card component for the kanban board with new design.\n\n**Files to Create:**\n- `src/components/board/TicketCard.tsx`\n- `src/components/board/TicketCard.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Priority indicator on left border (red=high, orange=medium, gray=low)\n- [ ] Ticket title (truncate at 2 lines)\n- [ ] Tags row (max 3 visible)\n- [ ] Git info (branch, PR badge)\n- [ ] Click opens ticket detail/modal\n- [ ] Hover shows subtle elevation\n- [ ] Card background uses `--bg-card`\n\n**Layout:**\n```\n┌────────────────────────────────┐\n│▌ Implement user auth          │  <- Red border = high priority\n│  [auth] [backend]             │  <- Tags\n│  🌿 feature/auth  🔗 #42      │  <- Branch + PR\n└────────────────────────────────┘\n```\n\n**Tests:**\n- [ ] Priority border correct\n- [ ] Title truncates\n- [ ] Click handler fires",
       "priority": "high",
       "tags": [
-        "navigation",
+        "board",
         "component"
       ]
     },
     {
-      "id": "a00e72ab-95d5-4a53-ba88-e7a6ecb097ef",
-      "title": "30 - Create SearchBar with FTS5 integration",
+      "id": "fa7fe824-cc8f-4c80-a0a6-62a8001d3ddf",
+      "title": "45 - Add AI-active glow state to TicketCard",
       "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Search input with icon",
-        "Debounced search (300ms)",
-        "Dropdown shows results as user types",
-        "Results show ticket title, project, status",
-        "Keyboard navigation (↑↓ arrows, Enter)",
-        "Click result navigates to ticket",
-        "Empty state: \"No results\"",
-        "Uses existing `searchTickets` API",
-        "Search returns results",
-        "Keyboard navigation works",
-        "Click opens ticket"
+        "Detect AI-active state (ticket has active Ralph session)",
+        "Apply glow effect using accent color",
+        "Subtle pulse animation (opacity oscillation)",
+        "Glow visible but not overwhelming",
+        "Performance: CSS animation, not JS"
       ],
       "references": [
-        "src/components/navigation/SearchBar.tsx",
-        "src/components/navigation/SearchBar.test.tsx"
+        "src/components/board/TicketCard.tsx"
       ],
-      "description": "Create search bar component with dropdown results using existing FTS5 search API.\n\n**Files to Create:**\n- `src/components/navigation/SearchBar.tsx`\n- `src/components/navigation/SearchBar.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Search input with icon\n- [ ] Debounced search (300ms)\n- [ ] Dropdown shows results as user types\n- [ ] Results show ticket title, project, status\n- [ ] Keyboard navigation (↑↓ arrows, Enter)\n- [ ] Click result navigates to ticket\n- [ ] Empty state: \"No results\"\n- [ ] Uses existing `searchTickets` API\n\n**Interface:**\n```tsx\n// Uses existing API\nconst results = await searchTickets({ query: searchTerm });\n```\n\n**Tests:**\n- [ ] Search returns results\n- [ ] Keyboard navigation works\n- [ ] Click opens ticket",
-      "priority": "high",
+      "description": "Add pulsing glow effect to ticket cards when AI (Ralph) is actively working on them.\n\n**Files to Modify:**\n- `src/components/board/TicketCard.tsx`\n\n**Acceptance Criteria:**\n- [ ] Detect AI-active state (ticket has active Ralph session)\n- [ ] Apply glow effect using accent color\n- [ ] Subtle pulse animation (opacity oscillation)\n- [ ] Glow visible but not overwhelming\n- [ ] Performance: CSS animation, not JS\n\n**CSS Animation:**\n```css\n@keyframes ai-pulse {\n  0%, 100% { box-shadow: 0 0 8px var(--accent-primary); }\n  50% { box-shadow: 0 0 16px var(--accent-primary); }\n}\n\n.ai-active {\n  animation: ai-pulse 2s ease-in-out infinite;\n}\n```\n\n**Tests:** Visual inspection with mock AI-active ticket",
+      "priority": "medium",
       "tags": [
-        "search",
+        "board",
+        "animation"
+      ]
+    },
+    {
+      "id": "88518d32-10d0-4b3b-847d-7730665ecf10",
+      "title": "46 - Create GitInfo component",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Branch badge with branch icon",
+        "PR badge with number and status color",
+        "PR status colors: open=green, draft=gray, merged=purple, closed=red",
+        "Truncate long branch names",
+        "Tooltip shows full branch name",
+        "Hide if no git info"
+      ],
+      "references": [
+        "src/components/board/GitInfo.tsx"
+      ],
+      "description": "Create component showing git branch and PR status on ticket cards.\n\n**Files to Create:**\n- `src/components/board/GitInfo.tsx`\n\n**Acceptance Criteria:**\n- [ ] Branch badge with branch icon\n- [ ] PR badge with number and status color\n- [ ] PR status colors: open=green, draft=gray, merged=purple, closed=red\n- [ ] Truncate long branch names\n- [ ] Tooltip shows full branch name\n- [ ] Hide if no git info\n\n**Layout:**\n```\n🌿 feature/ui-v2  🔗 #42 ●  <- Branch + PR number + status dot\n```\n\n**Tests:** Visual inspection",
+      "priority": "medium",
+      "tags": [
+        "board",
         "component"
       ]
     },
     {
-      "id": "7d945ec4-93a3-43ae-909a-2489ee2d4bf2",
-      "title": "31 - Create StatusPill component",
+      "id": "49b9394b-2767-4aba-9a4e-3e53029357db",
+      "title": "47 - Create TicketTags component",
       "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Pill shape with icon + text",
-        "Docker status: Running (green), Stopped (gray), Error (red)",
-        "AI status: Active (pulse animation), Idle (gray)",
-        "Hover shows tooltip with details",
-        "Polls for status updates (or uses query)"
+        "Show up to 3 tag pills",
+        "\"+N more\" indicator if more than 3",
+        "Hover on \"+N\" shows tooltip with remaining tags",
+        "Tag colors from predefined palette",
+        "Compact size for card use",
+        "Hide if no tags"
       ],
       "references": [
-        "src/components/navigation/StatusPill.tsx"
+        "src/components/board/TicketTags.tsx"
       ],
-      "description": "Create status indicator pills for Docker and AI activity status.\n\n**Files to Create:**\n- `src/components/navigation/StatusPill.tsx`\n\n**Acceptance Criteria:**\n- [ ] Pill shape with icon + text\n- [ ] Docker status: Running (green), Stopped (gray), Error (red)\n- [ ] AI status: Active (pulse animation), Idle (gray)\n- [ ] Hover shows tooltip with details\n- [ ] Polls for status updates (or uses query)\n\n**Variants:**\n```tsx\n<StatusPill variant=\"docker\" status=\"running\" />  // 🐳 Running\n<StatusPill variant=\"ai\" status=\"active\" />       // ⚡ Active (pulse)\n```\n\n**Tests:** Visual inspection",
+      "description": "Create component showing ticket tags with overflow handling.\n\n**Files to Create:**\n- `src/components/board/TicketTags.tsx`\n\n**Acceptance Criteria:**\n- [ ] Show up to 3 tag pills\n- [ ] \"+N more\" indicator if more than 3\n- [ ] Hover on \"+N\" shows tooltip with remaining tags\n- [ ] Tag colors from predefined palette\n- [ ] Compact size for card use\n- [ ] Hide if no tags\n\n**Layout:**\n```\n[auth] [backend] [api] +2 more\n```\n\n**Tests:** Visual inspection",
       "priority": "low",
       "tags": [
-        "status",
+        "board",
         "component"
       ]
     },
     {
-      "id": "f3c3461b-a3f3-49cb-b259-bf37b8a71cf5",
-      "title": "32 - Create NewTicketDropdown component",
+      "id": "d31deebb-1148-4314-9004-e95d2281064e",
+      "title": "48 - Set up DndProvider with @dnd-kit",
       "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Primary \"+\" button opens dropdown",
-        "Two options: \"New Ticket\", \"Start from Scratch\"",
-        "\"New Ticket\" opens CreateTicketModal",
-        "\"Start from Scratch\" opens InceptionModal",
-        "Keyboard accessible",
-        "Click outside closes dropdown"
+        "Wrap KanbanBoard with DndContext",
+        "Configure sensors (pointer, keyboard)",
+        "Set up collision detection",
+        "Provide drag start/end/over handlers",
+        "Accessibility announcements"
       ],
       "references": [
-        "src/components/navigation/NewTicketDropdown.tsx"
+        "src/components/board/DndProvider.tsx"
       ],
-      "description": "Create the \"New\" button with dropdown for ticket creation options.\n\n**Files to Create:**\n- `src/components/navigation/NewTicketDropdown.tsx`\n\n**Acceptance Criteria:**\n- [ ] Primary \"+\" button opens dropdown\n- [ ] Two options: \"New Ticket\", \"Start from Scratch\"\n- [ ] \"New Ticket\" opens CreateTicketModal\n- [ ] \"Start from Scratch\" opens InceptionModal\n- [ ] Keyboard accessible\n- [ ] Click outside closes dropdown\n\n**Design:**\n```\n[+ New ▾]\n  ┌────────────────────┐\n  │ 📝 New Ticket      │\n  │ 🚀 Start from Scratch │\n  └────────────────────┘\n```\n\n**Tests:** Visual + click handlers",
-      "priority": "medium",
-      "tags": [
-        "navigation",
-        "dropdown"
-      ]
-    },
-    {
-      "id": "9b12159a-ebbe-4ebf-bd50-f98e6d85bd3a",
-      "title": "33 - Create ProjectsPanel component",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "320px width panel",
-        "Slides out from left, covering sidebar",
-        "z-index above sidebar (z-100)",
-        "Header with \"Projects\" title and close button",
-        "Search input to filter projects",
-        "List of ProjectItem components",
-        "\"Add Project\" button at bottom",
-        "Backdrop overlay (optional)",
-        "Panel opens/closes",
-        "Projects list renders",
-        "Search filters projects"
-      ],
-      "references": [
-        "src/components/navigation/ProjectsPanel.tsx",
-        "src/components/navigation/ProjectsPanel.test.tsx"
-      ],
-      "description": "Create the slide-out projects panel that overlays the sidebar.\n\n**Files to Create:**\n- `src/components/navigation/ProjectsPanel.tsx`\n- `src/components/navigation/ProjectsPanel.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] 320px width panel\n- [ ] Slides out from left, covering sidebar\n- [ ] z-index above sidebar (z-100)\n- [ ] Header with \"Projects\" title and close button\n- [ ] Search input to filter projects\n- [ ] List of ProjectItem components\n- [ ] \"Add Project\" button at bottom\n- [ ] Backdrop overlay (optional)\n\n**Animation:**\n- Slide in from left (transform: translateX)\n- 200ms duration, ease-out\n\n**Tests:**\n- [ ] Panel opens/closes\n- [ ] Projects list renders\n- [ ] Search filters projects",
+      "description": "Set up the @dnd-kit context provider for drag-and-drop functionality.\n\n**Files to Create:**\n- `src/components/board/DndProvider.tsx`\n\n**Acceptance Criteria:**\n- [ ] Wrap KanbanBoard with DndContext\n- [ ] Configure sensors (pointer, keyboard)\n- [ ] Set up collision detection\n- [ ] Provide drag start/end/over handlers\n- [ ] Accessibility announcements\n\n**Implementation:**\n```tsx\nimport { \n  DndContext, \n  PointerSensor, \n  KeyboardSensor,\n  useSensor, \n  useSensors,\n  closestCorners\n} from '@dnd-kit/core';\n\nexport function DndProvider({ children, onDragEnd }) {\n  const sensors = useSensors(\n    useSensor(PointerSensor),\n    useSensor(KeyboardSensor)\n  );\n  \n  return (\n    <DndContext \n      sensors={sensors} \n      collisionDetection={closestCorners}\n      onDragEnd={onDragEnd}\n    >\n      {children}\n    </DndContext>\n  );\n}\n```\n\n**Tests:** Visual - drag initiates",
       "priority": "high",
       "tags": [
-        "navigation",
-        "panel"
+        "board",
+        "dnd"
       ]
     },
     {
-      "id": "0dd854b1-e9c0-4438-a750-56fb308246ff",
-      "title": "34 - Create ProjectItem component",
+      "id": "c0cf7a63-807e-41f5-81e6-1c511ba6640b",
+      "title": "49 - Create SortableTicketCard wrapper",
       "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Color indicator circle (project.color)",
-        "Project name",
-        "Path (truncated, tooltip for full)",
-        "Ticket stats: total, in progress, done",
-        "AI active indicator (glow if Ralph running)",
-        "Click selects project (sets filter)",
-        "Double-click opens edit modal",
-        "Hover shows actions (edit, delete)"
+        "Wraps TicketCard with useSortable",
+        "Apply drag styles (opacity, transform)",
+        "Handle drag handle (entire card is draggable)",
+        "Keyboard accessible dragging",
+        "Visual feedback during drag"
       ],
       "references": [
-        "src/components/navigation/ProjectItem.tsx"
+        "src/components/board/SortableTicketCard.tsx"
       ],
-      "description": "Create individual project item for the projects panel list.\n\n**Files to Create:**\n- `src/components/navigation/ProjectItem.tsx`\n\n**Acceptance Criteria:**\n- [ ] Color indicator circle (project.color)\n- [ ] Project name\n- [ ] Path (truncated, tooltip for full)\n- [ ] Ticket stats: total, in progress, done\n- [ ] AI active indicator (glow if Ralph running)\n- [ ] Click selects project (sets filter)\n- [ ] Double-click opens edit modal\n- [ ] Hover shows actions (edit, delete)\n\n**Layout:**\n```\n┌────────────────────────────────────┐\n│ 🟣 Brain Dump              ⚡      │\n│    ~/code/brain-dump              │\n│    12 tickets · 3 in progress     │\n└────────────────────────────────────┘\n```\n\n**Tests:** Visual inspection",
-      "priority": "medium",
+      "description": "Create draggable wrapper for ticket cards using @dnd-kit/sortable.\n\n**Files to Create:**\n- `src/components/board/SortableTicketCard.tsx`\n\n**Acceptance Criteria:**\n- [ ] Wraps TicketCard with useSortable\n- [ ] Apply drag styles (opacity, transform)\n- [ ] Handle drag handle (entire card is draggable)\n- [ ] Keyboard accessible dragging\n- [ ] Visual feedback during drag\n\n**Implementation:**\n```tsx\nimport { useSortable } from '@dnd-kit/sortable';\nimport { CSS } from '@dnd-kit/utilities';\n\nexport function SortableTicketCard({ ticket }) {\n  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = \n    useSortable({ id: ticket.id });\n    \n  const style = {\n    transform: CSS.Transform.toString(transform),\n    transition,\n    opacity: isDragging ? 0.5 : 1,\n  };\n  \n  return (\n    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>\n      <TicketCard ticket={ticket} />\n    </div>\n  );\n}\n```\n\n**Tests (E2E):** Drag ticket card",
+      "priority": "high",
       "tags": [
-        "navigation",
-        "component"
+        "board",
+        "dnd"
       ]
     },
     {
-      "id": "891b7952-dc33-432e-8662-19d1514ddfeb",
-      "title": "35 - Create useProjectsPanel hook",
+      "id": "4ee27d39-8c2a-47c9-882e-01ac74ef7cac",
+      "title": "50 - Create DragOverlay for card preview",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "DragOverlay shows card preview while dragging",
+        "Preview follows cursor smoothly",
+        "Shows same card design as original",
+        "Slightly elevated/scaled for depth",
+        "Cursor changes to grabbing"
+      ],
+      "references": [
+        "src/components/board/KanbanBoard.tsx"
+      ],
+      "description": "Create drag overlay showing card preview while dragging.\n\n**Files to Modify:**\n- `src/components/board/KanbanBoard.tsx`\n\n**Acceptance Criteria:**\n- [ ] DragOverlay shows card preview while dragging\n- [ ] Preview follows cursor smoothly\n- [ ] Shows same card design as original\n- [ ] Slightly elevated/scaled for depth\n- [ ] Cursor changes to grabbing\n\n**Implementation:**\n```tsx\nimport { DragOverlay } from '@dnd-kit/core';\n\n// In KanbanBoard\n<DragOverlay>\n  {activeTicket ? (\n    <TicketCard ticket={activeTicket} isOverlay />\n  ) : null}\n</DragOverlay>\n```\n\n**Tests:** Visual - card follows cursor during drag",
+      "priority": "medium",
+      "tags": [
+        "board",
+        "dnd"
+      ]
+    },
+    {
+      "id": "1ad45ec8-3046-45a2-8d66-2ac4fd643879",
+      "title": "51 - Implement status update on drop",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Detect drop into different column",
+        "Call existing `updateTicket` mutation",
+        "Update status to match target column",
+        "Optimistic update (instant UI)",
+        "Rollback on error",
+        "Invalidate tickets query",
+        "Show toast on success/error",
+        "Drag ticket to new column",
+        "Status updates in database",
+        "Card stays in new column after refresh"
+      ],
+      "references": [
+        "src/components/board/KanbanBoard.tsx"
+      ],
+      "description": "Update ticket status when dropped in a new column.\n\n**Files to Modify:**\n- `src/components/board/KanbanBoard.tsx`\n\n**Acceptance Criteria:**\n- [ ] Detect drop into different column\n- [ ] Call existing `updateTicket` mutation\n- [ ] Update status to match target column\n- [ ] Optimistic update (instant UI)\n- [ ] Rollback on error\n- [ ] Invalidate tickets query\n- [ ] Show toast on success/error\n\n**Implementation:**\n```tsx\nconst handleDragEnd = async (event) => {\n  const { active, over } = event;\n  if (!over) return;\n  \n  const ticketId = active.id;\n  const newStatus = over.data.current?.status;\n  \n  if (newStatus && newStatus !== activeTicket.status) {\n    await updateTicket({ id: ticketId, status: newStatus });\n  }\n};\n```\n\n**E2E Tests:**\n- [ ] Drag ticket to new column\n- [ ] Status updates in database\n- [ ] Card stays in new column after refresh",
+      "priority": "high",
+      "tags": [
+        "board",
+        "dnd",
+        "mutation"
+      ]
+    },
+    {
+      "id": "712c2f95-56dc-4729-90ac-2f53eda2d4d4",
+      "title": "52 - Create BoardHeader with filter chips",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Project dropdown filter",
+        "Epic dropdown filter",
+        "Tag multi-select filter",
+        "Clear all filters button",
+        "Active filter count indicator",
+        "Filters sync with URL params"
+      ],
+      "references": [
+        "src/components/board/BoardHeader.tsx"
+      ],
+      "description": "Create board header with project, epic, and tag filter chips.\n\n**Files to Create:**\n- `src/components/board/BoardHeader.tsx`\n\n**Acceptance Criteria:**\n- [ ] Project dropdown filter\n- [ ] Epic dropdown filter\n- [ ] Tag multi-select filter\n- [ ] Clear all filters button\n- [ ] Active filter count indicator\n- [ ] Filters sync with URL params\n\n**Layout:**\n```\n┌─────────────────────────────────────────────────────────────┐\n│ Board    [Project ▾] [Epic ▾] [Tags ▾]    Clear (3 active) │\n└─────────────────────────────────────────────────────────────┘\n```\n\n**Tests:** Visual inspection",
+      "priority": "medium",
+      "tags": [
+        "board",
+        "filter"
+      ]
+    },
+    {
+      "id": "1270fb23-1d04-4b1b-85d6-e00f451fff8b",
+      "title": "53 - Create useFilters hook with URL sync",
       "passes": true,
       "overview": "",
       "types": [
         {
-          "name": "UseProjectsPanelReturn",
-          "code": "interface UseProjectsPanelReturn {\n  isOpen: boolean;\n  open: () => void;\n  close: () => void;\n  toggle: () => void;\n}"
+          "name": "Filters",
+          "code": "interface Filters {\n  projectId: string | null;\n  epicId: string | null;\n  tags: string[];\n}"
+        },
+        {
+          "name": "UseFiltersReturn",
+          "code": "interface UseFiltersReturn {\n  filters: Filters;\n  setFilter: (key: keyof Filters, value: any) => void;\n  clearFilters: () => void;\n  hasActiveFilters: boolean;\n  activeFilterCount: number;\n}"
         }
       ],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "`useProjectsPanel()` returns `{isOpen, open, close, toggle}`",
-        "Click outside panel triggers close",
-        "Escape key triggers close",
-        "State shared across components (context)",
-        "Open/close state works",
-        "Click outside closes",
-        "Escape closes"
+        "Filter state: projectId, epicId, tags[]",
+        "URL params sync (shareable filtered views)",
+        "`setFilter(key, value)` to update single filter",
+        "`clearFilters()` to reset all",
+        "Persists across navigation",
+        "Initial state from URL params",
+        "URL updates when filter changes",
+        "Initial state from URL"
       ],
       "references": [
-        "src/lib/navigation-hooks.ts",
-        "src/lib/navigation-hooks.test.ts"
+        "src/lib/filter-hooks.ts",
+        "src/lib/filter-hooks.test.ts"
       ],
-      "description": "Create hook for managing projects panel open/close state.\n\n**Files to Create:**\n- `src/lib/navigation-hooks.ts`\n- `src/lib/navigation-hooks.test.ts`\n\n**Acceptance Criteria:**\n- [ ] `useProjectsPanel()` returns `{isOpen, open, close, toggle}`\n- [ ] Click outside panel triggers close\n- [ ] Escape key triggers close\n- [ ] State shared across components (context)\n\n**Interface:**\n```typescript\ninterface UseProjectsPanelReturn {\n  isOpen: boolean;\n  open: () => void;\n  close: () => void;\n  toggle: () => void;\n}\n\nexport function useProjectsPanel(): UseProjectsPanelReturn;\n```\n\n**Tests:**\n- [ ] Open/close state works\n- [ ] Click outside closes\n- [ ] Escape closes",
+      "description": "Create hook for managing board filters with URL synchronization.\n\n**Files to Create:**\n- `src/lib/filter-hooks.ts`\n- `src/lib/filter-hooks.test.ts`\n\n**Acceptance Criteria:**\n- [ ] Filter state: projectId, epicId, tags[]\n- [ ] URL params sync (shareable filtered views)\n- [ ] `setFilter(key, value)` to update single filter\n- [ ] `clearFilters()` to reset all\n- [ ] Persists across navigation\n- [ ] Initial state from URL params\n\n**Interface:**\n```typescript\ninterface Filters {\n  projectId: string | null;\n  epicId: string | null;\n  tags: string[];\n}\n\ninterface UseFiltersReturn {\n  filters: Filters;\n  setFilter: (key: keyof Filters, value: any) => void;\n  clearFilters: () => void;\n  hasActiveFilters: boolean;\n  activeFilterCount: number;\n}\n```\n\n**Tests:**\n- [ ] URL updates when filter changes\n- [ ] Initial state from URL",
       "priority": "medium",
       "tags": [
         "hook",
-        "state"
+        "filter"
       ]
     },
     {
-      "id": "37ab31cc-d937-44e9-a5d0-6281cc101e99",
-      "title": "37 - Create Dashboard route",
+      "id": "7f7a17d5-3ffc-4d9d-b15f-c88d03dabe5d",
+      "title": "54 - Integrate filters with board query",
       "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Route at `/dashboard`",
-        "Page title \"Dashboard\"",
-        "Grid layout with stat cards",
-        "Current Focus section",
-        "Up Next queue section",
-        "Uses TanStack Query for data"
+        "Pass filters to tickets query",
+        "Server filters tickets by project/epic/tags",
+        "Client shows filtered tickets only",
+        "Empty state when no tickets match",
+        "Filter change triggers refetch",
+        "Loading state during filter change",
+        "Select project filter",
+        "Board shows only that project's tickets",
+        "Clear filter shows all"
       ],
       "references": [
-        "src/routes/dashboard.tsx"
+        "src/components/board/KanbanBoard.tsx"
       ],
-      "description": "Create the Dashboard page with stats overview and quick access.\n\n**Files to Create:**\n- `src/routes/dashboard.tsx`\n\n**Acceptance Criteria:**\n- [ ] Route at `/dashboard`\n- [ ] Page title \"Dashboard\"\n- [ ] Grid layout with stat cards\n- [ ] Current Focus section\n- [ ] Up Next queue section\n- [ ] Uses TanStack Query for data\n\n**Layout:**\n```\n┌─────────────────────────────────────────────────────────────┐\n│ Dashboard                                                    │\n├─────────────────────────────────────────────────────────────┤\n│ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐                │\n│ │ Total  │ │In Prog │ │AI Active│ │ Done   │                │\n│ │  24    │ │   3    │ │   1    │ │  15    │                │\n│ └────────┘ └────────┘ └────────┘ └────────┘                │\n├─────────────────────────────────────────────────────────────┤\n│ Current Focus              │ Up Next                        │\n│ ┌──────────────────────┐   │ 1. Ticket A                   │\n│ │ Active Ticket        │   │ 2. Ticket B                   │\n│ └──────────────────────┘   │ 3. Ticket C                   │\n└─────────────────────────────────────────────────────────────┘\n```\n\n**Tests:** Visual inspection",
-      "priority": "high",
-      "tags": [
-        "route",
-        "dashboard"
-      ]
-    },
-    {
-      "id": "0ae86982-3c09-43f0-893c-5c8ad8de45d7",
-      "title": "38 - Create StatsGrid component",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "4 stat cards in a row",
-        "Total tickets count",
-        "In Progress count",
-        "AI Active count (tickets with Ralph session)",
-        "Done count",
-        "Each card has icon, label, value",
-        "Click navigates to filtered board view",
-        "Correct counts displayed",
-        "Click filters work"
-      ],
-      "references": [
-        "src/components/dashboard/StatsGrid.tsx",
-        "src/components/dashboard/StatsGrid.test.tsx"
-      ],
-      "description": "Create the stats grid showing ticket counts across statuses.\n\n**Files to Create:**\n- `src/components/dashboard/StatsGrid.tsx`\n- `src/components/dashboard/StatsGrid.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] 4 stat cards in a row\n- [ ] Total tickets count\n- [ ] In Progress count\n- [ ] AI Active count (tickets with Ralph session)\n- [ ] Done count\n- [ ] Each card has icon, label, value\n- [ ] Click navigates to filtered board view\n\n**Stat Cards:**\n```tsx\nconst stats = [\n  { icon: Ticket, label: 'Total', value: 24, filter: null },\n  { icon: Clock, label: 'In Progress', value: 3, filter: 'in_progress' },\n  { icon: Zap, label: 'AI Active', value: 1, filter: 'ai_active' },\n  { icon: Check, label: 'Done', value: 15, filter: 'done' },\n];\n```\n\n**Tests:**\n- [ ] Correct counts displayed\n- [ ] Click filters work",
+      "description": "Apply filters to the tickets query for filtered board views.\n\n**Files to Modify:**\n- `src/components/board/KanbanBoard.tsx`\n\n**Acceptance Criteria:**\n- [ ] Pass filters to tickets query\n- [ ] Server filters tickets by project/epic/tags\n- [ ] Client shows filtered tickets only\n- [ ] Empty state when no tickets match\n- [ ] Filter change triggers refetch\n- [ ] Loading state during filter change\n\n**Implementation:**\n```tsx\nconst { filters } = useFilters();\n\nconst { data: tickets } = useQuery({\n  queryKey: ['tickets', filters],\n  queryFn: () => getTickets(filters),\n});\n```\n\n**E2E Tests:**\n- [ ] Select project filter\n- [ ] Board shows only that project's tickets\n- [ ] Clear filter shows all",
       "priority": "medium",
       "tags": [
-        "dashboard",
-        "component"
-      ]
-    },
-    {
-      "id": "91841fb8-51a3-4d2b-b66d-d494ca730a7b",
-      "title": "39 - Create CurrentFocusCard component",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Shows ticket currently being worked on (in_progress + AI active)",
-        "Displays title, description preview, progress",
-        "AI activity indicator (glow if Ralph active)",
-        "Click navigates to ticket detail",
-        "Empty state: \"No active focus\"",
-        "Shows time since started"
-      ],
-      "references": [
-        "src/components/dashboard/CurrentFocusCard.tsx"
-      ],
-      "description": "Create card showing the currently active/focused ticket.\n\n**Files to Create:**\n- `src/components/dashboard/CurrentFocusCard.tsx`\n\n**Acceptance Criteria:**\n- [ ] Shows ticket currently being worked on (in_progress + AI active)\n- [ ] Displays title, description preview, progress\n- [ ] AI activity indicator (glow if Ralph active)\n- [ ] Click navigates to ticket detail\n- [ ] Empty state: \"No active focus\"\n- [ ] Shows time since started\n\n**Layout:**\n```\n┌────────────────────────────────────┐\n│ 🎯 Current Focus                   │\n├────────────────────────────────────┤\n│ Implement dark mode toggle    ⚡   │\n│ Adding theme switching...          │\n│ ████████░░░░ 3/5 subtasks         │\n│ Started 2h ago                     │\n└────────────────────────────────────┘\n```\n\n**Tests:** Visual inspection",
-      "priority": "medium",
-      "tags": [
-        "dashboard",
-        "component"
-      ]
-    },
-    {
-      "id": "14d8bb8e-e0b0-4f2d-85af-441311e95561",
-      "title": "40 - Create UpNextQueue component",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Shows next 5 tickets in priority order",
-        "Priority: high → medium → low, then by position",
-        "Excludes done/blocked tickets",
-        "Shows title, priority badge, project",
-        "Click opens ticket",
-        "\"Start\" button to begin work",
-        "Empty state: \"Queue empty\""
-      ],
-      "references": [
-        "src/components/dashboard/UpNextQueue.tsx"
-      ],
-      "description": "Create queue showing next tickets to work on in priority order.\n\n**Files to Create:**\n- `src/components/dashboard/UpNextQueue.tsx`\n\n**Acceptance Criteria:**\n- [ ] Shows next 5 tickets in priority order\n- [ ] Priority: high → medium → low, then by position\n- [ ] Excludes done/blocked tickets\n- [ ] Shows title, priority badge, project\n- [ ] Click opens ticket\n- [ ] \"Start\" button to begin work\n- [ ] Empty state: \"Queue empty\"\n\n**Layout:**\n```\n┌────────────────────────────────────┐\n│ 📋 Up Next                         │\n├────────────────────────────────────┤\n│ 1. 🔴 Add login validation  [Start]│\n│ 2. 🟠 Update API docs              │\n│ 3. 🟠 Fix navbar styling           │\n│ 4. ⚪ Refactor utils               │\n│ 5. ⚪ Add unit tests               │\n└────────────────────────────────────┘\n```\n\n**Tests:** Visual + verify priority order",
-      "priority": "medium",
-      "tags": [
-        "dashboard",
-        "component"
+        "board",
+        "filter",
+        "query"
       ]
     }
   ],
@@ -503,7 +497,7 @@
       "Run `pnpm type-check` - must pass with no errors",
       "Run `pnpm lint` - must pass with no errors",
       "Run `pnpm test` - all tests must pass",
-      "Added tests for new functionality (following Kent C. Dodds testing philosophy)",
+      "Added tests for new functionality (ONLY tests that verify real user behavior - see Testing Philosophy above)",
       "Used typed error classes (not generic `Error`)",
       "Used Drizzle ORM (not raw SQL) - see DO/DON'T table above",
       "Followed existing patterns from DO/DON'T tables",
@@ -530,7 +524,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-20T12:13:39.466Z",
-  "epicTitle": "UI v2 Sprint 2: Navigation & Layout",
-  "epicDescription": "Build the app shell with collapsible sidebar, project switcher, quick actions bar, keyboard navigation system, and responsive layout breakpoints."
+  "generatedAt": "2026-01-20T21:36:33.012Z",
+  "epicTitle": "UI v2 Sprint 3: Kanban Board",
+  "epicDescription": "Implement the core kanban board with drag-and-drop columns, ticket cards with visual hierarchy, column headers with counts, and smooth animations."
 }

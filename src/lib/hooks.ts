@@ -288,92 +288,23 @@ export function useModal(): UseModalReturn {
   };
 }
 
-/**
- * Filter state for project/epic/tag filtering
- */
-export interface Filters {
-  projectId: string | null;
-  epicId: string | null;
-  tags: string[];
-}
+// =============================================================================
+// FILTER STATE HOOKS - Re-exported from filter-hooks module
+// =============================================================================
 
-export interface UseFiltersReturn {
-  filters: Filters;
-  setProjectId: (id: string | null) => void;
-  setEpicId: (id: string | null, projectId?: string) => void;
-  setTags: (tags: string[]) => void;
-  toggleTag: (tag: string) => void;
-  clearTags: () => void;
-  clearAll: () => void;
-}
+// Re-export filter hooks with URL synchronization
+// The useFiltersWithUrl hook syncs filter state with URL search params
+// for shareable/bookmarkable filtered views
+export {
+  useFiltersWithUrl,
+  type Filters,
+  type UseFiltersWithUrlReturn,
+  type UseFiltersReturn,
+} from "./filter-hooks";
 
-/**
- * Hook for managing filter state
- * Replaces 3 separate useState calls and related handlers
- */
-export function useFilters(): UseFiltersReturn {
-  const [filters, setFilters] = useState<Filters>({
-    projectId: null,
-    epicId: null,
-    tags: [],
-  });
-
-  const setProjectId = useCallback((id: string | null) => {
-    setFilters((prev) => ({
-      ...prev,
-      projectId: id,
-      epicId: null, // Clear epic when project changes
-    }));
-  }, []);
-
-  const setEpicId = useCallback((id: string | null, projectId?: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      epicId: id,
-      // If projectId is provided (e.g., when selecting an epic), set it too
-      ...(projectId !== undefined ? { projectId } : {}),
-    }));
-  }, []);
-
-  const setTags = useCallback((tags: string[]) => {
-    setFilters((prev) => ({
-      ...prev,
-      tags,
-    }));
-  }, []);
-
-  const toggleTag = useCallback((tag: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      tags: prev.tags.includes(tag) ? prev.tags.filter((t) => t !== tag) : [...prev.tags, tag],
-    }));
-  }, []);
-
-  const clearTags = useCallback(() => {
-    setFilters((prev) => ({
-      ...prev,
-      tags: [],
-    }));
-  }, []);
-
-  const clearAll = useCallback(() => {
-    setFilters({
-      projectId: null,
-      epicId: null,
-      tags: [],
-    });
-  }, []);
-
-  return {
-    filters,
-    setProjectId,
-    setEpicId,
-    setTags,
-    toggleTag,
-    clearTags,
-    clearAll,
-  };
-}
+// Alias for backward compatibility - components importing useFilters will
+// automatically get URL synchronization
+export { useFiltersWithUrl as useFilters } from "./filter-hooks";
 
 import {
   checkFirstLaunch,
@@ -540,7 +471,7 @@ export interface Ticket {
   epicId: string | null;
   tags: string | null;
   subtasks: string | null;
-  isBlocked: boolean;
+  isBlocked: boolean | null;
   blockedReason: string | null;
   linkedFiles: string | null;
   attachments: string | null;
@@ -792,11 +723,15 @@ export interface StatusChange {
 // Polling disabled by default (pollingInterval = 0) for performance
 export function useTickets(
   filters: TicketFilters = {},
-  options: { pollingInterval?: number; onStatusChange?: (change: StatusChange) => void } = {}
+  options: {
+    pollingInterval?: number;
+    onStatusChange?: (change: StatusChange) => void;
+    enabled?: boolean;
+  } = {}
 ) {
   const prevTicketsRef = useRef<Map<string, string>>(new Map());
   const isInitialLoad = useRef(true);
-  const { pollingInterval = 0, onStatusChange } = options;
+  const { pollingInterval = 0, onStatusChange, enabled = true } = options;
 
   const query = useQuery({
     queryKey: queryKeys.tickets(filters),
@@ -804,6 +739,7 @@ export function useTickets(
       const ticketList = await getTickets({ data: filters });
       return ticketList as Ticket[];
     },
+    enabled,
     // Always stale - tickets can be created/updated via MCP externally
     staleTime: 0,
     refetchInterval: pollingInterval > 0 ? pollingInterval : false,

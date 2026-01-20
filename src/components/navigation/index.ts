@@ -12,3 +12,12 @@ export type { StatusPillProps, TicketStatus } from "./StatusPill";
 
 export { ProjectItem } from "./ProjectItem";
 export type { ProjectItemProps, ProjectStats } from "./ProjectItem";
+
+export { Header } from "./Header";
+export type { HeaderProps } from "./Header";
+
+export { IconSidebar } from "./IconSidebar";
+export type { IconSidebarProps, NavItemConfig } from "./IconSidebar";
+
+export { SearchBar } from "./SearchBar";
+export type { SearchBarProps } from "./SearchBar";
