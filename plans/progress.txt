@@ -336,3 +336,47 @@ All 14 tickets in "UI v2 Sprint 3: Kanban Board" are now DONE:
 - 38cfd50 feat(47): Create TicketTags component with colored pills
 
 PRD_COMPLETE
+
+### 2026-01-20 - Ticket 55 Verified Complete (CreateTicketModal Shell)
+- **Ticket ID:** 251af0d1-2805-4d7e-9e48-056c53ba7e37
+- **Task:** Create CreateTicketModal shell component
+- **Success:** true (already completed in previous session)
+- **Commit:** c2d39a0
+- **Files:**
+  - src/components/tickets/CreateTicketModal.tsx (549 lines)
+  - src/components/tickets/CreateTicketModal.test.tsx (341 lines)
+  - src/components/tickets/index.ts (updated exports)
+- **Features:**
+  - 2-column form layout (Project/Priority row, Epic/Tags row)
+  - Modal.Header with "Create New Ticket" title and close button
+  - Modal.Body with form fields: Title (required), Description, Project (required), Priority, Epic (disabled until project selected), Tags (placeholder)
+  - Modal.Footer with Cancel and "Create Ticket" buttons
+  - Escape key closes modal via handleKeyDown
+  - TanStack Query mutation for ticket creation
+  - Toast notifications for success/error feedback
+  - Full keyboard accessibility
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1166 passed, 62 test files)
+
+---
+
+### 2026-01-20 - Ticket 58 Complete (TagInput Component)
+- **Ticket ID:** 26f13880-179b-4957-b6d9-0da12613f037
+- **Task:** Create TagInput component with autocomplete
+- **Success:** true
+- **Commit:** c724321
+- **Files:**
+  - src/components/tickets/TagInput.tsx (NEW - 385 lines)
+  - src/components/tickets/TagInput.test.tsx (NEW - 21 tests)
+  - src/components/tickets/index.ts (updated exports)
+  - src/components/tickets/CreateTicketModal.tsx (integrated TagInput)
+- **Features:**
+  - Pill display with consistent colors (hash-based like TicketTags)
+  - Remove tag via X button with accessibility
+  - Add tags via Enter or comma separation
+  - Autocomplete dropdown with arrow key navigation
+  - Case-insensitive duplicate prevention
+  - Max tags limit support with auto-hide
+  - Full ARIA support for screen readers
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1187 total, 21 new)
+
+---

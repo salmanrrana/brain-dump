@@ -11,7 +11,7 @@
     {
       "id": "251af0d1-2805-4d7e-9e48-056c53ba7e37",
       "title": "55 - Create CreateTicketModal shell",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -99,7 +99,7 @@
     {
       "id": "26f13880-179b-4957-b6d9-0da12613f037",
       "title": "58 - Create TagInput component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
