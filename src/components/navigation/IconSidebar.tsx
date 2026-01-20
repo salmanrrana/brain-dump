@@ -1,4 +1,5 @@
 import { type FC, type ReactNode } from "react";
+import { Link, useLocation } from "@tanstack/react-router";
 import { LayoutDashboard, Kanban, Folder, Settings, type LucideIcon } from "lucide-react";
 import { NavItem } from "./NavItem";
 
@@ -14,9 +15,16 @@ export interface NavItemConfig {
 }
 
 export interface IconSidebarProps {
-  /** Current active path for highlighting the active nav item */
+  /**
+   * Current active path for highlighting the active nav item.
+   * @deprecated Will be auto-detected from TanStack Router when not provided.
+   */
   activePath?: string;
-  /** Handler for route navigation */
+  /**
+   * Handler for route navigation.
+   * @deprecated Route navigation now uses TanStack Router's <Link> component.
+   * This prop is only used for testing/storybook scenarios.
+   */
   onNavigate?: (path: string) => void;
   /** Handler for action items (Projects panel, Settings modal) */
   onAction?: (action: "openProjectsPanel" | "openSettings") => void;
@@ -24,6 +32,11 @@ export interface IconSidebarProps {
   navItems?: NavItemConfig[];
   /** Additional content to render at the bottom of the sidebar */
   footer?: ReactNode;
+  /**
+   * When true, disables TanStack Router integration (for testing).
+   * Uses onNavigate callback instead of <Link> components.
+   */
+  disableRouterIntegration?: boolean;
 }
 
 /**
@@ -51,12 +64,24 @@ const defaultNavItems: NavItemConfig[] = [
  * (Projects panel, Settings modal) via the `onNavigate` and `onAction` callbacks.
  */
 export const IconSidebar: FC<IconSidebarProps> = ({
-  activePath = "/",
+  activePath: activePathProp,
   onNavigate,
   onAction,
   navItems = defaultNavItems,
   footer,
+  disableRouterIntegration = false,
 }) => {
+  // Use TanStack Router's location for active state detection
+  // Falls back to activePathProp for testing scenarios
+  let currentPath: string;
+  try {
+    const location = useLocation();
+    currentPath = disableRouterIntegration ? (activePathProp ?? "/") : location.pathname;
+  } catch {
+    // Router context not available (testing without RouterProvider)
+    currentPath = activePathProp ?? "/";
+  }
+
   const sidebarStyles: React.CSSProperties = {
     display: "flex",
     flexDirection: "column",
@@ -85,32 +110,67 @@ export const IconSidebar: FC<IconSidebarProps> = ({
     gap: "var(--spacing-2)",
   };
 
-  const handleItemClick = (item: NavItemConfig) => {
+  const handleActionClick = (item: NavItemConfig) => {
+    if (item.action && onAction) {
+      onAction(item.action);
+    }
+  };
+
+  const handleLegacyNavigate = (item: NavItemConfig) => {
     if (item.path && onNavigate) {
       onNavigate(item.path);
-    } else if (item.action && onAction) {
-      onAction(item.action);
     }
   };
 
   const isActive = (item: NavItemConfig): boolean => {
     if (!item.path) return false;
-    return item.path === activePath;
+    return item.path === currentPath;
+  };
+
+  /**
+   * Renders a nav item - either as a Link (for routes) or button (for actions).
+   * When router integration is disabled (testing), uses buttons for everything.
+   */
+  const renderNavItem = (item: NavItemConfig) => {
+    const navItemElement = (
+      <NavItem
+        key={item.label}
+        icon={item.icon}
+        label={item.label}
+        active={isActive(item)}
+        onClick={item.action ? () => handleActionClick(item) : undefined}
+      />
+    );
+
+    // Route items: use Link for proper navigation (unless disabled for testing)
+    if (item.path && !disableRouterIntegration) {
+      return (
+        <Link key={item.label} to={item.path} style={{ textDecoration: "none" }}>
+          {navItemElement}
+        </Link>
+      );
+    }
+
+    // Action items: always use the NavItem's onClick
+    // Testing mode: also use onClick with legacy handler
+    if (item.path && disableRouterIntegration) {
+      return (
+        <NavItem
+          key={item.label}
+          icon={item.icon}
+          label={item.label}
+          active={isActive(item)}
+          onClick={() => handleLegacyNavigate(item)}
+        />
+      );
+    }
+
+    return navItemElement;
   };
 
   return (
     <aside style={sidebarStyles} role="navigation" aria-label="Main navigation">
-      <nav style={navStyles}>
-        {navItems.map((item) => (
-          <NavItem
-            key={item.label}
-            icon={item.icon}
-            label={item.label}
-            active={isActive(item)}
-            onClick={() => handleItemClick(item)}
-          />
-        ))}
-      </nav>
+      <nav style={navStyles}>{navItems.map(renderNavItem)}</nav>
 
       {footer && <div style={footerStyles}>{footer}</div>}
     </aside>
