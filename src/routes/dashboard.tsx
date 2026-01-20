@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { type FC } from "react";
-import { Ticket, Clock, Zap, Check, Target, ListOrdered } from "lucide-react";
+import { Target, ListOrdered, Zap } from "lucide-react";
 import { useTickets, useActiveRalphSessions } from "../lib/hooks";
+import { StatsGrid } from "../components/dashboard";
 
 export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
@@ -94,45 +95,6 @@ function Dashboard() {
     </div>
   );
 }
-
-// ============================================================================
-// Stats Grid Component (placeholder - will be extracted to ticket 38)
-// ============================================================================
-
-interface StatsGridProps {
-  total: number;
-  inProgress: number;
-  aiActive: number;
-  done: number;
-}
-
-const StatsGrid: FC<StatsGridProps> = ({ total, inProgress, aiActive, done }) => {
-  const stats = [
-    { icon: Ticket, label: "Total", value: total, color: "var(--text-secondary)" },
-    { icon: Clock, label: "In Progress", value: inProgress, color: "var(--status-in-progress)" },
-    { icon: Zap, label: "AI Active", value: aiActive, color: "var(--accent-warning)" },
-    { icon: Check, label: "Done", value: done, color: "var(--status-done)" },
-  ];
-
-  return (
-    <div style={statsGridStyles}>
-      {stats.map((stat) => {
-        const Icon = stat.icon;
-        return (
-          <div key={stat.label} style={statCardStyles}>
-            <div style={statIconWrapperStyles}>
-              <Icon size={20} style={{ color: stat.color }} aria-hidden="true" />
-            </div>
-            <div style={statContentStyles}>
-              <span style={statValueStyles}>{stat.value}</span>
-              <span style={statLabelStyles}>{stat.label}</span>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
 
 // ============================================================================
 // Current Focus Card Component (placeholder - will be extracted to ticket 39)
@@ -258,50 +220,6 @@ const titleStyles: React.CSSProperties = {
   fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
   color: "var(--text-primary)",
   margin: 0,
-};
-
-// Stats Grid Styles
-const statsGridStyles: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(4, 1fr)",
-  gap: "var(--spacing-4)",
-};
-
-const statCardStyles: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--spacing-3)",
-  padding: "var(--spacing-4)",
-  background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-lg)",
-  border: "1px solid var(--border-primary)",
-};
-
-const statIconWrapperStyles: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  width: "40px",
-  height: "40px",
-  borderRadius: "var(--radius-md)",
-  background: "var(--bg-tertiary)",
-};
-
-const statContentStyles: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-};
-
-const statValueStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-2xl)",
-  fontWeight: "var(--font-weight-bold)" as React.CSSProperties["fontWeight"],
-  color: "var(--text-primary)",
-  lineHeight: 1,
-};
-
-const statLabelStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-sm)",
-  color: "var(--text-secondary)",
 };
 
 // Main Grid Styles
