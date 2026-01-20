@@ -14,6 +14,8 @@ export interface KanbanColumnProps {
   children?: ReactNode;
   /** Test ID prefix for targeting in tests */
   testId?: string;
+  /** Ref for drop target */
+  innerRef?: React.Ref<HTMLDivElement>;
 }
 
 /**
@@ -41,9 +43,6 @@ export interface KanbanColumnProps {
  * │                     │  <- Drop zone / scrollable area
  * └─────────────────────┘
  * ```
- *
- * This component is designed to be wrapped by @dnd-kit's useDroppable
- * in ticket 48 for drag-and-drop functionality.
  */
 export const KanbanColumn: FC<KanbanColumnProps> = ({
   status,
@@ -52,6 +51,7 @@ export const KanbanColumn: FC<KanbanColumnProps> = ({
   accentColor,
   children,
   testId,
+  innerRef,
 }) => {
   const isEmpty = count === 0;
   const columnTestId = testId ?? `column-${status}`;
@@ -59,10 +59,11 @@ export const KanbanColumn: FC<KanbanColumnProps> = ({
   return (
     <div
       style={columnStyles}
-      role="list"
+      role="region"
       aria-label={`${label} column, ${count} tickets`}
       data-testid={columnTestId}
       data-status={status}
+      ref={innerRef}
     >
       {/* Column Header */}
       <div style={columnHeaderStyles}>
@@ -85,7 +86,7 @@ export const KanbanColumn: FC<KanbanColumnProps> = ({
         data-droppable={status}
       >
         {isEmpty ? (
-          <div style={emptyStateStyles} role="listitem">
+          <div style={emptyStateStyles} role="status">
             <span style={emptyTextStyles}>No tickets</span>
           </div>
         ) : (
@@ -110,12 +111,14 @@ const columnStyles: React.CSSProperties = {
   background: "var(--bg-secondary)",
   borderRadius: "var(--radius-lg)",
   border: "1px solid var(--border-primary)",
+  overflow: "hidden", // Ensure children respect radius
 };
 
 const columnHeaderStyles: React.CSSProperties = {
   padding: "var(--spacing-3) var(--spacing-4)",
   borderBottom: "1px solid var(--border-primary)",
   flexShrink: 0,
+  background: "var(--bg-secondary)", // Ensure header sits on top
 };
 
 const headerContentStyles: React.CSSProperties = {
@@ -156,11 +159,12 @@ const countBadgeStyles: React.CSSProperties = {
 const columnContentStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "var(--spacing-2)",
+  gap: "var(--spacing-3)",
   padding: "var(--spacing-3)",
   flex: 1,
   overflowY: "auto",
   minHeight: 0,
+  scrollbarWidth: "thin",
 };
 
 const emptyStateStyles: React.CSSProperties = {
@@ -168,6 +172,9 @@ const emptyStateStyles: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   padding: "var(--spacing-8) var(--spacing-4)",
+  border: "2px dashed var(--border-secondary)",
+  borderRadius: "var(--radius-md)",
+  margin: "var(--spacing-2) 0",
 };
 
 const emptyTextStyles: React.CSSProperties = {
