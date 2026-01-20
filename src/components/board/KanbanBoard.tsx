@@ -1,24 +1,55 @@
 import type { FC } from "react";
-import { useMemo } from "react";
-import { useTickets, type Ticket } from "../../lib/hooks";
+import { useMemo, useState } from "react";
+import { useTickets } from "../../lib/hooks";
 import { TicketCard } from "./TicketCard";
 import { KanbanColumn } from "./KanbanColumn";
+import { SortableTicketCard } from "./SortableTicketCard";
 import type { TicketStatus } from "../../api/tickets";
+import { updateTicketStatus, updateTicketPosition } from "../../api/tickets";
+import type { Ticket } from "../../lib/schema";
+import type { ActiveRalphSession } from "../../lib/hooks";
+import {
+  DndContext,
+  DragOverlay,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragStartEvent,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 
 export interface KanbanBoardProps {
   /** Optional project ID to filter tickets */
   projectId?: string | null;
   /** Optional epic ID to filter tickets */
   epicId?: string | null;
+  /** Optional tags to filter tickets */
+  tags?: string[];
   /** Handler when a ticket card is clicked */
   onTicketClick?: (ticket: Ticket) => void;
-  /** Map of ticketId -> isAiActive for Ralph session tracking */
+  /** Map of ticketId -> isAiActive for Ralph session tracking - DEPRECATED: use getRalphSession */
   aiActiveSessions?: Record<string, boolean>;
+  /** Function to get active Ralph session for a ticket */
+  getRalphSession?: (ticketId: string) => ActiveRalphSession | null;
+  /** Handler to refresh data */
+  onRefresh?: () => void;
+  /** Pre-loaded tickets (optional, will fetch if not provided) */
+  tickets?: Ticket[];
+  /** Loading state (optional) */
+  loading?: boolean;
+  /** Error state (optional) */
+  error?: string | null;
 }
 
 /**
  * Status columns in display order.
- * These match the TicketStatus type from the tickets API.
  */
 const COLUMNS: TicketStatus[] = [
   "backlog",
@@ -44,7 +75,7 @@ const COLUMN_LABELS: Record<TicketStatus, string> = {
 };
 
 /**
- * Accent colors for column headers (matches design system status colors).
+ * Accent colors for column headers.
  */
 const COLUMN_COLORS: Record<TicketStatus, string> = {
   backlog: "var(--status-backlog)",
@@ -56,44 +87,54 @@ const COLUMN_COLORS: Record<TicketStatus, string> = {
   done: "var(--status-done)",
 };
 
-/**
- * KanbanBoard - Main kanban board with horizontal scrolling columns.
- *
- * Features:
- * - 7 columns for each ticket status
- * - Horizontal scroll container for responsive layout
- * - Fetches tickets via TanStack Query with optional filters
- * - Groups tickets by status into columns
- * - Loading skeleton while data is being fetched
- * - Empty state per column when no tickets
- *
- * Layout:
- * ```
- * ┌─────────────────────────────────────────────────────────────────────────────┐
- * │ [Backlog (3)] [Ready (2)] [In Progress (1)] [Review (0)] ... [Done (5)]     │
- * │    │Card│       │Card│       │Card│                           │Card│        │
- * │    │Card│       │Card│                                        │Card│        │
- * │    │Card│                                                     │Card│        │
- * │                                                               │Card│        │
- * │                                                               │Card│        │
- * └─────────────────────────────────────────────────────────────────────────────┘
- * ```
- */
 export const KanbanBoard: FC<KanbanBoardProps> = ({
   projectId,
   epicId,
+  tags = [],
   onTicketClick,
   aiActiveSessions = {},
+  getRalphSession,
+  onRefresh,
+  tickets: providedTickets,
+  loading: providedLoading,
+  error: providedError,
 }) => {
-  // Fetch tickets with optional filters
-  const filters = useMemo(() => {
-    const f: { projectId?: string; epicId?: string } = {};
+  // Use provided data or fetch internally
+  const internalFilters = useMemo(() => {
+    const f: { projectId?: string; epicId?: string; tags?: string[] } = {};
     if (projectId) f.projectId = projectId;
     if (epicId) f.epicId = epicId;
+    if (tags.length > 0) f.tags = tags;
     return f;
-  }, [projectId, epicId]);
+  }, [projectId, epicId, tags]);
 
-  const { tickets, loading, error } = useTickets(filters);
+  const {
+    tickets: fetchedTickets,
+    loading: internalLoading,
+    error: internalError,
+    refetch,
+  } = useTickets(internalFilters, {
+    enabled: !providedTickets, // Only fetch if tickets not provided
+  });
+
+  const tickets = providedTickets ?? fetchedTickets;
+  const loading = providedLoading ?? internalLoading;
+  const error = providedError ?? internalError;
+  const handleRefresh = onRefresh ?? refetch;
+
+  // DnD State
+  const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // Group tickets by status
   const ticketsByStatus = useMemo(() => {
@@ -107,6 +148,8 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
       done: [],
     };
 
+    if (!tickets) return grouped;
+
     for (const ticket of tickets) {
       const status = ticket.status as TicketStatus;
       if (grouped[status]) {
@@ -114,8 +157,83 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
       }
     }
 
+    // Sort by position within each column
+    for (const status of Object.keys(grouped)) {
+      const s = status as TicketStatus;
+      grouped[s].sort((a, b) => a.position - b.position);
+    }
+
     return grouped;
   }, [tickets]);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const ticket = tickets.find((t) => t.id === event.active.id);
+    if (ticket) {
+      setActiveTicket(ticket);
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveTicket(null);
+
+    if (!over) return;
+
+    const activeTicket = tickets.find((t) => t.id === active.id);
+    if (!activeTicket) return;
+
+    // Determine the target column
+    const overId = over.id as string;
+    let targetStatus: string;
+    let targetPosition: number;
+
+    // Check if dropping on a column or a ticket
+    // COLUMNS contains the status IDs which are used as droppable IDs for empty columns
+    const isColumn = COLUMNS.includes(overId as TicketStatus);
+
+    if (isColumn) {
+      // Dropping on a column - add to end
+      targetStatus = overId;
+      const columnTickets = ticketsByStatus[targetStatus as TicketStatus] ?? [];
+      targetPosition =
+        columnTickets.length > 0 ? (columnTickets[columnTickets.length - 1]?.position ?? 0) + 1 : 1;
+    } else {
+      // Dropping on a ticket - get that ticket's column and position
+      const targetTicket = tickets.find((t) => t.id === overId);
+      if (!targetTicket) return;
+
+      targetStatus = targetTicket.status;
+      const columnTickets = ticketsByStatus[targetStatus as TicketStatus] ?? [];
+      const targetIndex = columnTickets.findIndex((t) => t.id === overId);
+
+      // Calculate new position between tickets
+      if (targetIndex === 0) {
+        targetPosition = (targetTicket.position ?? 1) / 2;
+      } else {
+        const prevTicket = columnTickets[targetIndex - 1];
+        targetPosition = ((prevTicket?.position ?? 0) + (targetTicket.position ?? 0)) / 2;
+      }
+    }
+
+    try {
+      // Optimistic update for status
+      if (activeTicket.status !== targetStatus) {
+        await updateTicketStatus({
+          data: {
+            id: activeTicket.id,
+            status: targetStatus as TicketStatus,
+          },
+        });
+      }
+
+      // Update position
+      await updateTicketPosition({ data: { id: activeTicket.id, position: targetPosition } });
+    } catch (error) {
+      console.error("Failed to update ticket during drag:", error);
+      // Revert optimistic update by refetching
+      handleRefresh();
+    }
+  };
 
   // Loading skeleton
   if (loading) {
@@ -123,10 +241,8 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
       <div style={boardContainerStyles} role="region" aria-label="Kanban board loading">
         <div style={columnsContainerStyles}>
           {COLUMNS.map((status) => (
-            <div key={status} style={columnStyles} data-testid={`column-skeleton-${status}`}>
-              <div style={columnHeaderStyles}>
-                <div style={skeletonHeaderStyles} />
-              </div>
+            <div key={status} style={skeletonColumnStyles}>
+              <div style={skeletonHeaderStyles} />
               <div style={skeletonColumnContentStyles}>
                 {[1, 2, 3].map((i) => (
                   <div key={i} style={skeletonCardStyles} />
@@ -149,40 +265,70 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
   }
 
   return (
-    <div
-      style={boardContainerStyles}
-      role="region"
-      aria-label="Kanban board"
-      data-testid="kanban-board"
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
     >
-      <div style={columnsContainerStyles}>
-        {COLUMNS.map((status) => {
-          const columnTickets = ticketsByStatus[status];
-          const count = columnTickets.length;
-          const accentColor = COLUMN_COLORS[status];
+      <div
+        style={boardContainerStyles}
+        role="region"
+        aria-label="Kanban board"
+        data-testid="kanban-board"
+      >
+        <div style={columnsContainerStyles}>
+          {COLUMNS.map((status) => {
+            const columnTickets = ticketsByStatus[status];
+            const count = columnTickets.length;
+            const accentColor = COLUMN_COLORS[status];
 
-          return (
-            <KanbanColumn
-              key={status}
-              status={status}
-              label={COLUMN_LABELS[status]}
-              count={count}
-              accentColor={accentColor}
-            >
-              {columnTickets.map((ticket) => (
-                <div key={ticket.id} role="listitem">
-                  <TicketCard
-                    ticket={ticket}
-                    {...(onTicketClick ? { onClick: onTicketClick } : {})}
-                    isAiActive={aiActiveSessions[ticket.id] ?? false}
-                  />
-                </div>
-              ))}
-            </KanbanColumn>
-          );
-        })}
+            return (
+              <KanbanColumn
+                key={status}
+                status={status}
+                label={COLUMN_LABELS[status]}
+                count={count}
+                accentColor={accentColor}
+              >
+                <SortableContext
+                  items={columnTickets.map((t) => t.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {columnTickets.map((ticket) => (
+                    <SortableTicketCard
+                      key={ticket.id}
+                      ticket={ticket}
+                      onClick={onTicketClick ? () => onTicketClick(ticket) : () => {}}
+                      ralphSession={
+                        getRalphSession
+                          ? getRalphSession(ticket.id)
+                          : aiActiveSessions[ticket.id]
+                            ? ({ status: "analyzing" } as unknown as ActiveRalphSession) // Fallback mock for legacy prop
+                            : null
+                      }
+                    />
+                  ))}
+                </SortableContext>
+              </KanbanColumn>
+            );
+          })}
+        </div>
+        <DragOverlay>
+          {activeTicket ? (
+            <TicketCard
+              ticket={activeTicket}
+              isOverlay
+              isAiActive={
+                getRalphSession
+                  ? !!getRalphSession(activeTicket.id)
+                  : !!aiActiveSessions[activeTicket.id]
+              }
+            />
+          ) : null}
+        </DragOverlay>
       </div>
-    </div>
+    </DndContext>
   );
 };
 
@@ -205,13 +351,12 @@ const columnsContainerStyles: React.CSSProperties = {
   overflowX: "auto",
   overflowY: "hidden",
   padding: "var(--spacing-4)",
-  // Smooth scrolling for better UX
   scrollBehavior: "smooth",
-  // Custom scrollbar styling (webkit)
   WebkitOverflowScrolling: "touch",
 };
 
-const columnStyles: React.CSSProperties = {
+// Skeleton styles
+const skeletonColumnStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   minWidth: "280px",
@@ -221,26 +366,17 @@ const columnStyles: React.CSSProperties = {
   background: "var(--bg-secondary)",
   borderRadius: "var(--radius-lg)",
   border: "1px solid var(--border-primary)",
+  padding: "var(--spacing-3)",
 };
 
-const columnHeaderStyles: React.CSSProperties = {
-  padding: "var(--spacing-3) var(--spacing-4)",
-  borderBottom: "1px solid var(--border-primary)",
-  flexShrink: 0,
-};
-
-// Skeleton column content (for loading state only)
 const skeletonColumnContentStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: "var(--spacing-2)",
-  padding: "var(--spacing-3)",
+  marginTop: "var(--spacing-3)",
   flex: 1,
-  overflowY: "auto",
-  minHeight: 0,
 };
 
-// Loading skeleton styles
 const skeletonHeaderStyles: React.CSSProperties = {
   width: "100px",
   height: "20px",
@@ -256,7 +392,6 @@ const skeletonCardStyles: React.CSSProperties = {
   animation: "pulse 1.5s ease-in-out infinite",
 };
 
-// Error state styles
 const errorContainerStyles: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
