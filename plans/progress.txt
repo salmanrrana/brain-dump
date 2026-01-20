@@ -114,3 +114,159 @@ All 20 tickets in "UI v2 Sprint 1: Foundation & Design System" are now DONE.
   - Sprint 2 Dashboard (31-40): StatusPill, NewTicketDropdown, ProjectsPanel, ProjectItem, useProjectsPanel, search filtering, Dashboard route, StatsGrid, CurrentFocusCard, UpNextQueue
 - **Action:** Need to regenerate PRD for remaining Sprint 2 Dashboard tickets
 
+
+---
+
+### 2026-01-20 - Ticket 32 Complete (NewTicketDropdown)
+- **Ticket ID:** f3c3461b-a3f3-49cb-b259-bf37b8a71cf5
+- **Task:** Create NewTicketDropdown component
+- **Success:** true
+- **Commit:** 463f74a
+- **Files:**
+  - src/components/navigation/NewTicketDropdown.tsx (NEW)
+  - src/components/navigation/NewTicketDropdown.test.tsx (NEW)
+  - src/components/navigation/index.ts (updated exports)
+- **Notes:**
+  - Primary gradient button with chevron indicator
+  - Dropdown menu: "New Ticket" and "Start from Scratch" options
+  - Full keyboard accessibility (Tab, Enter/Space, ArrowUp/Down, Escape)
+  - Click-outside-to-close via useClickOutside hook
+  - 14 comprehensive tests pass
+  - All acceptance criteria met
+
+---
+
+### 2026-01-20 - Ticket 31 Complete (StatusPill)
+- **Ticket ID:** 7d945ec4-93a3-43ae-909a-2489ee2d4bf2
+- **Task:** Create StatusPill component
+- **Success:** true
+- **Commit:** dc6913c
+- **Files:**
+  - src/components/navigation/StatusPill.tsx (NEW)
+  - src/components/navigation/StatusPill.test.tsx (NEW)
+  - src/components/navigation/index.ts (updated exports)
+- **Features:**
+  - Compact dot + label pattern for status display
+  - 7 ticket status values (backlog, ready, in_progress, review, ai_review, human_review, done)
+  - Two sizes: sm (6px dot) and md (8px dot)
+  - Theme-aware via CSS custom properties (--status-*)
+  - Full accessibility with role="status" and aria-label
+  - 18 comprehensive tests pass
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (999 total)
+
+
+---
+
+### 2026-01-20 - Ticket 37 Complete (Dashboard Route)
+- **Ticket ID:** 37ab31cc-d937-44e9-a5d0-6281cc101e99
+- **Task:** Create Dashboard route
+- **Success:** true
+- **Commit:** 91c39e6
+- **Files:**
+  - src/routes/dashboard.tsx (NEW)
+  - src/routeTree.gen.ts (auto-generated)
+- **Features:**
+  - Route at /dashboard using createFileRoute
+  - StatsGrid with 4 metrics (Total, In Progress, AI Active, Done)
+  - CurrentFocusCard showing ticket with active Ralph session
+  - UpNextQueue showing next 5 priority-ordered tickets
+  - Inline placeholder components (to be extracted in tickets 38-40)
+- **Note:** Ticket 36 (search filtering) was already implemented in ticket 33
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1013 total)
+
+---
+
+### 2026-01-20 - Ticket 38 Complete (StatsGrid Component)
+- **Ticket ID:** 0ae86982-3c09-43f0-893c-5c8ad8de45d7
+- **Task:** Create StatsGrid component
+- **Success:** true
+- **Commit:** 542a9ce
+- **Files:**
+  - src/components/dashboard/StatsGrid.tsx (NEW)
+  - src/components/dashboard/StatsGrid.test.tsx (NEW - 22 tests)
+  - src/components/dashboard/index.ts (NEW)
+  - src/routes/dashboard.tsx (updated to use extracted component)
+- **Features:**
+  - 4 stat cards: Total, In Progress, AI Active, Done
+  - Click handlers with typed StatFilter for board navigation
+  - Keyboard accessibility (Enter/Space, tabIndex)
+  - Test IDs for easy testing
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1035 total, 22 new)
+
+---
+
+### 2026-01-20 - Ticket 39 Complete (CurrentFocusCard Component)
+- **Ticket ID:** 91841fb8-51a3-4d2b-b66d-d494ca730a7b
+- **Task:** Create CurrentFocusCard component
+- **Success:** true
+- **Commit:** dbe939f
+- **Files:**
+  - src/components/dashboard/CurrentFocusCard.tsx (NEW)
+  - src/components/dashboard/CurrentFocusCard.test.tsx (NEW - 28 tests)
+  - src/components/dashboard/index.ts (updated exports)
+  - src/routes/dashboard.tsx (uses extracted component)
+- **Features:**
+  - Displays currently active/focused ticket with AI session integration
+  - Ticket title and truncated description preview (100 chars)
+  - AI activity indicator with glow animation when Ralph session active
+  - Subtask progress bar with completion count (e.g., "3/5 subtasks")
+  - Time since work started (e.g., "Started 2h ago", "Just started")
+  - Click handler with keyboard support for navigation to ticket detail
+  - Empty state with icon and helpful message
+  - Full accessibility support (ARIA roles, labels, keyboard navigation)
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1063 total, 28 new)
+
+---
+
+### Remaining Sprint 2 Dashboard Tickets
+- **34 - ProjectItem component** (medium) - Enhanced project item for ProjectsPanel
+- **40 - UpNextQueue component** (medium) - Extract from dashboard.tsx with Start button
+
+---
+
+### 2026-01-20 - Ticket 40 Complete (UpNextQueue Component)
+- **Ticket ID:** 14d8bb8e-e0b0-4f2d-85af-441311e95561
+- **Task:** Create UpNextQueue component
+- **Success:** true
+- **Commit:** 96e6bd1
+- **Files:**
+  - src/components/dashboard/UpNextQueue.tsx (NEW)
+  - src/components/dashboard/UpNextQueue.test.tsx (NEW - 35 tests)
+  - src/components/dashboard/index.ts (updated exports)
+  - src/routes/dashboard.tsx (uses extracted component)
+- **Features:**
+  - Shows next 5 tickets in priority order (high → medium → low)
+  - Priority badges with accessible color dots and labels
+  - Project name display for additional context
+  - Click handler for viewing ticket details
+  - "Start" button to begin work on tickets
+  - Empty state when queue is empty
+  - Full keyboard accessibility (Tab, Enter/Space)
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1098 total, 35 new)
+
+---
+
+### Dashboard Components Complete
+All 3 dashboard components from Sprint 2 are now extracted:
+- StatsGrid (ticket 38) ✅
+- CurrentFocusCard (ticket 39) ✅  
+- UpNextQueue (ticket 40) ✅
+
+### 2026-01-20 - PRD Sync
+Updated PRD to reflect completed tickets from previous sessions:
+- 26 - IconSidebar component ✅ (commit 9a8a2bf)
+- 27 - NavItem component ✅ (commit d49fb62)
+- 28 - Router integration ✅ (commit 30cab69)
+- 29 - Header component ✅ (commit 992d690)
+- 30 - SearchBar ✅ (commit bb0381c)
+- 31 - StatusPill ✅ (commit dc6913c)
+- 32 - NewTicketDropdown ✅ (commit 463f74a)
+- 33 - ProjectsPanel ✅ (commit 51dc10d)
+- 35 - useProjectsPanel hook ✅ (commit 509e066)
+- 37 - Dashboard route ✅ (commit 91c39e6)
+- 38 - StatsGrid ✅ (commit 542a9ce)
+- 39 - CurrentFocusCard ✅ (already marked)
+- 40 - UpNextQueue ✅ (already marked)
+
+### REMAINING - Only 1 ticket left!
+- **34 - ProjectItem component** (medium) - Individual project item for panel

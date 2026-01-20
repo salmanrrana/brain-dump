@@ -9,501 +9,285 @@
   ],
   "userStories": [
     {
-      "id": "9a4bc7a1-89bf-4a7f-b22b-6500738d7496",
-      "title": "06 - Create CSS variables with theme data attributes",
-      "passes": false,
+      "id": "dbf5d869-2678-406f-aacd-08ecdf27c71d",
+      "title": "26 - Create IconSidebar component",
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "All 3 themes defined: Ember (orange), Mint (emerald), Solar (gold)",
-        "Base colors: `--bg-primary` (#0a0a0a), `--bg-secondary` (#111111)",
-        "Accent colors vary by theme",
-        "Typography scale variables",
-        "Spacing scale variables",
-        "Border radius variables",
-        "Shadow variables"
+        "64px fixed width",
+        "Full viewport height",
+        "4 nav items: Dashboard, Board, Projects, Settings",
+        "Icons from lucide-react",
+        "Active item has gradient background + glow",
+        "Background uses `--bg-secondary`",
+        "All 4 items render",
+        "Active item highlighted",
+        "Navigation works"
       ],
       "references": [
-        "src/styles/variables.css"
+        "src/components/navigation/IconSidebar.tsx",
+        "src/components/navigation/IconSidebar.test.tsx"
       ],
-      "description": "Create CSS custom properties for the Neon Productivity design system with `:root` defaults and `[data-theme]` overrides.\n\n**Files to Create:**\n- `src/styles/variables.css`\n\n**Acceptance Criteria:**\n- [ ] All 3 themes defined: Ember (orange), Mint (emerald), Solar (gold)\n- [ ] Base colors: `--bg-primary` (#0a0a0a), `--bg-secondary` (#111111)\n- [ ] Accent colors vary by theme\n- [ ] Typography scale variables\n- [ ] Spacing scale variables\n- [ ] Border radius variables\n- [ ] Shadow variables\n\n**Theme Colors:**\n```css\n/* Ember Theme */\n--accent-primary: #f97316;\n--accent-secondary: #ea580c;\n\n/* Mint Theme */\n--accent-primary: #10b981;\n--accent-secondary: #059669;\n\n/* Solar Theme */\n--accent-primary: #eab308;\n--accent-secondary: #ca8a04;\n```\n\n**Tests:** Visual inspection of all 3 themes",
+      "description": "Create the 64px icon-based sidebar for main navigation.\n\n**Files to Create:**\n- `src/components/navigation/IconSidebar.tsx`\n- `src/components/navigation/IconSidebar.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] 64px fixed width\n- [ ] Full viewport height\n- [ ] 4 nav items: Dashboard, Board, Projects, Settings\n- [ ] Icons from lucide-react\n- [ ] Active item has gradient background + glow\n- [ ] Background uses `--bg-secondary`\n\n**Nav Items:**\n```tsx\nconst navItems = [\n  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },\n  { icon: Kanban, label: 'Board', path: '/' },\n  { icon: Folder, label: 'Projects', action: 'openProjectsPanel' },\n  { icon: Settings, label: 'Settings', action: 'openSettings' },\n];\n```\n\n**Tests:**\n- [ ] All 4 items render\n- [ ] Active item highlighted\n- [ ] Navigation works",
       "priority": "high",
       "tags": [
-        "theme",
-        "css"
-      ]
-    },
-    {
-      "id": "d8b3c109-acc6-4025-9def-f4f96f7330b6",
-      "title": "07 - Create ThemeContext with localStorage persistence",
-      "passes": false,
-      "overview": "",
-      "types": [
-        {
-          "name": "ThemeContextValue",
-          "code": "interface ThemeContextValue {\n  theme: Theme;\n  setTheme: (theme: Theme) => void;\n}"
-        },
-        {
-          "name": "Theme",
-          "code": "type Theme = 'ember' | 'mint' | 'solar';"
-        }
-      ],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`useTheme()` hook returns `{theme, setTheme}`",
-        "Persists to `brain-dump-theme` localStorage key",
-        "Defaults to 'ember' if no preference stored",
-        "SSR safe (no hydration mismatch)",
-        "`useTheme()` returns correct initial theme",
-        "`setTheme()` updates theme",
-        "Theme persists after refresh"
-      ],
-      "references": [
-        "src/lib/theme.ts",
-        "src/lib/theme.test.ts"
-      ],
-      "description": "Create React context for theme management with localStorage persistence.\n\n**Files to Create:**\n- `src/lib/theme.ts`\n- `src/lib/theme.test.ts`\n\n**Acceptance Criteria:**\n- [ ] `useTheme()` hook returns `{theme, setTheme}`\n- [ ] Persists to `brain-dump-theme` localStorage key\n- [ ] Defaults to 'ember' if no preference stored\n- [ ] SSR safe (no hydration mismatch)\n\n**Interface:**\n```typescript\ntype Theme = 'ember' | 'mint' | 'solar';\n\ninterface ThemeContextValue {\n  theme: Theme;\n  setTheme: (theme: Theme) => void;\n}\n\nexport function useTheme(): ThemeContextValue;\n```\n\n**Tests:**\n- [ ] `useTheme()` returns correct initial theme\n- [ ] `setTheme()` updates theme\n- [ ] Theme persists after refresh",
-      "priority": "high",
-      "tags": [
-        "theme",
-        "react",
-        "state"
-      ]
-    },
-    {
-      "id": "7eac68ca-74a0-4453-bafd-4a84bd3ae9e6",
-      "title": "08 - Create ThemeProvider component",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Wraps children with ThemeContext.Provider",
-        "Sets `data-theme` attribute on `document.documentElement`",
-        "Updates attribute when theme changes",
-        "Handles SSR gracefully",
-        "`data-theme` attribute set on mount",
-        "`data-theme` updates when theme changes"
-      ],
-      "references": [
-        "src/components/ui/ThemeProvider.tsx",
-        "src/components/ui/ThemeProvider.test.tsx"
-      ],
-      "description": "Create the ThemeProvider component that wraps the app and sets the `data-theme` attribute on the document.\n\n**Files to Create:**\n- `src/components/ui/ThemeProvider.tsx`\n- `src/components/ui/ThemeProvider.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Wraps children with ThemeContext.Provider\n- [ ] Sets `data-theme` attribute on `document.documentElement`\n- [ ] Updates attribute when theme changes\n- [ ] Handles SSR gracefully\n\n**Usage:**\n```tsx\n<ThemeProvider>\n  <App />\n</ThemeProvider>\n```\n\n**Tests:**\n- [ ] `data-theme` attribute set on mount\n- [ ] `data-theme` updates when theme changes",
-      "priority": "high",
-      "tags": [
-        "theme",
-        "react",
+        "navigation",
         "component"
       ]
     },
     {
-      "id": "7f363772-d191-4aa2-bb35-15dc866cb096",
-      "title": "09 - Create ThemeSwitcher component",
-      "passes": false,
+      "id": "47b6b6f0-dbd7-47ab-8db3-6161b0f2f911",
+      "title": "27 - Create NavItem component",
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "3 color dot buttons (Ember=orange, Mint=emerald, Solar=gold)",
-        "Click changes theme via `setTheme()`",
-        "Current theme has ring/glow indicator",
-        "Hover shows theme name tooltip",
-        "Accessible (keyboard nav, aria-labels)",
-        "Click changes theme",
-        "Active theme is visually indicated",
-        "Keyboard navigation works"
+        "Icon centered in square button",
+        "Tooltip shows label on hover (appears to right)",
+        "Active state: gradient background + glow effect",
+        "Hover state: subtle background change",
+        "Keyboard accessible (Tab, Enter)",
+        "aria-current for active state"
       ],
       "references": [
-        "src/components/ui/ThemeSwitcher.tsx",
-        "src/components/ui/ThemeSwitcher.test.tsx"
+        "src/components/navigation/NavItem.tsx"
       ],
-      "description": "Create the theme switcher UI with 3 color dot buttons.\n\n**Files to Create:**\n- `src/components/ui/ThemeSwitcher.tsx`\n- `src/components/ui/ThemeSwitcher.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] 3 color dot buttons (Ember=orange, Mint=emerald, Solar=gold)\n- [ ] Click changes theme via `setTheme()`\n- [ ] Current theme has ring/glow indicator\n- [ ] Hover shows theme name tooltip\n- [ ] Accessible (keyboard nav, aria-labels)\n\n**Design:**\n```\n[🟠] [🟢] [🟡]  <- Color dots\n ^-- Active indicator (ring)\n```\n\n**Tests:**\n- [ ] Click changes theme\n- [ ] Active theme is visually indicated\n- [ ] Keyboard navigation works",
+      "description": "Create individual navigation item component with tooltip.\n\n**Files to Create:**\n- `src/components/navigation/NavItem.tsx`\n\n**Acceptance Criteria:**\n- [ ] Icon centered in square button\n- [ ] Tooltip shows label on hover (appears to right)\n- [ ] Active state: gradient background + glow effect\n- [ ] Hover state: subtle background change\n- [ ] Keyboard accessible (Tab, Enter)\n- [ ] aria-current for active state\n\n**Visual States:**\n```\nDefault:  [🏠]  <- gray icon, transparent bg\nHover:    [🏠]  <- gray icon, hover bg\nActive:   [🏠]  <- white icon, gradient bg, glow\n```\n\n**Tests:** Visual inspection + keyboard nav",
       "priority": "medium",
       "tags": [
-        "theme",
-        "component",
-        "ui"
+        "navigation",
+        "component"
       ]
     },
     {
-      "id": "53ccdd44-ece5-4a33-ac56-0694a08b76db",
-      "title": "10 - Integrate theme CSS into styles.css",
-      "passes": false,
+      "id": "aaff7427-23e9-4745-be5d-ae6ea3dfe198",
+      "title": "28 - Integrate sidebar with TanStack Router",
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Tailwind CSS imported",
-        "`variables.css` imported",
-        "Body uses CSS variables for background/text",
-        "Smooth theme transition (150ms)",
-        "Dark theme as base (no light mode)"
+        "Clicks navigate to correct routes",
+        "Active state syncs with current route",
+        "Uses `<Link>` from TanStack Router",
+        "Projects item opens panel (not route)",
+        "Settings item opens modal (not route)",
+        "Click Dashboard → /dashboard route",
+        "Click Board → / route"
       ],
       "references": [
-        "src/styles.css"
+        "src/components/navigation/IconSidebar.tsx"
       ],
-      "description": "Create the main styles.css file that imports Tailwind and theme variables.\n\n**Files to Create/Modify:**\n- `src/styles.css` (new, replaces old)\n\n**Acceptance Criteria:**\n- [ ] Tailwind CSS imported\n- [ ] `variables.css` imported\n- [ ] Body uses CSS variables for background/text\n- [ ] Smooth theme transition (150ms)\n- [ ] Dark theme as base (no light mode)\n\n**Structure:**\n```css\n@import 'tailwindcss';\n@import './styles/variables.css';\n\nbody {\n  background-color: var(--bg-primary);\n  color: var(--text-primary);\n  transition: background-color 150ms, color 150ms;\n}\n```\n\n**Tests:** Visual - verify body colors change with theme",
+      "description": "Wire up sidebar navigation to TanStack Router for route changes.\n\n**Files to Modify:**\n- `src/components/navigation/IconSidebar.tsx`\n\n**Acceptance Criteria:**\n- [ ] Clicks navigate to correct routes\n- [ ] Active state syncs with current route\n- [ ] Uses `<Link>` from TanStack Router\n- [ ] Projects item opens panel (not route)\n- [ ] Settings item opens modal (not route)\n\n**Implementation:**\n```tsx\nimport { Link, useLocation } from '@tanstack/react-router';\n\n// For route items\n<Link to={item.path}>\n  <NavItem active={location.pathname === item.path} />\n</Link>\n\n// For action items (Projects, Settings)\n<button onClick={item.action}>\n  <NavItem />\n</button>\n```\n\n**Tests (E2E):**\n- [ ] Click Dashboard → /dashboard route\n- [ ] Click Board → / route",
       "priority": "high",
       "tags": [
-        "theme",
-        "css",
-        "tailwind"
+        "navigation",
+        "routing"
       ]
     },
     {
-      "id": "48e27909-545e-4d29-80e0-ed334639d9b2",
-      "title": "11 - Create Button component with 4 variants",
-      "passes": false,
+      "id": "17787d6d-fb92-4ddf-bcda-83257fa053e0",
+      "title": "29 - Create Header component",
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "4 variants: primary (gradient), secondary (border), ghost (transparent), danger (red)",
-        "3 sizes: sm, md, lg",
-        "Disabled state (opacity + cursor)",
-        "Loading state with spinner",
-        "Icon support (left/right)",
-        "Uses CSS variables for colors",
-        "All variants render correctly",
-        "Disabled state works",
-        "Click handler fires",
-        "Loading state shows spinner"
+        "Full width header at top of content area",
+        "Logo/brand area on left",
+        "Search bar in center",
+        "Status pills on right (Docker, AI)",
+        "\"New\" button on far right",
+        "Height: 64px",
+        "Background: `--bg-secondary`"
       ],
       "references": [
-        "src/components/ui/Button.tsx",
-        "src/components/ui/Button.test.tsx"
+        "src/components/navigation/Header.tsx"
       ],
-      "description": "Create the core Button component with primary, secondary, ghost, and danger variants.\n\n**Files to Create:**\n- `src/components/ui/Button.tsx`\n- `src/components/ui/Button.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] 4 variants: primary (gradient), secondary (border), ghost (transparent), danger (red)\n- [ ] 3 sizes: sm, md, lg\n- [ ] Disabled state (opacity + cursor)\n- [ ] Loading state with spinner\n- [ ] Icon support (left/right)\n- [ ] Uses CSS variables for colors\n\n**Variants:**\n```tsx\n<Button variant=\"primary\">Save</Button>      // Gradient bg\n<Button variant=\"secondary\">Cancel</Button>  // Border only\n<Button variant=\"ghost\">More</Button>        // No border\n<Button variant=\"danger\">Delete</Button>     // Red bg\n```\n\n**Tests:**\n- [ ] All variants render correctly\n- [ ] Disabled state works\n- [ ] Click handler fires\n- [ ] Loading state shows spinner",
+      "description": "Create the main header bar with logo, search, and status indicators.\n\n**Files to Create:**\n- `src/components/navigation/Header.tsx`\n\n**Acceptance Criteria:**\n- [ ] Full width header at top of content area\n- [ ] Logo/brand area on left\n- [ ] Search bar in center\n- [ ] Status pills on right (Docker, AI)\n- [ ] \"New\" button on far right\n- [ ] Height: 64px\n- [ ] Background: `--bg-secondary`\n\n**Layout:**\n```\n┌─────────────────────────────────────────────────────────────┐\n│ Brain Dump    [🔍 Search...     ]    🐳 Running  ⚡ AI   [+]│\n└─────────────────────────────────────────────────────────────┘\n```\n\n**Tests:** Visual inspection",
       "priority": "high",
       "tags": [
-        "component",
-        "ui"
+        "navigation",
+        "component"
       ]
     },
     {
-      "id": "05813c65-eb27-45ba-be06-2e588f8e472c",
-      "title": "12 - Create Input component",
-      "passes": false,
+      "id": "a00e72ab-95d5-4a53-ba88-e7a6ecb097ef",
+      "title": "30 - Create SearchBar with FTS5 integration",
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Text input variant",
-        "Search input variant (with icon)",
-        "Textarea variant (multiline)",
-        "Focus ring uses `--accent-primary`",
-        "Error state with red border",
-        "Disabled state",
-        "Placeholder styling",
-        "Value changes on input",
-        "Error state displays",
-        "Focus ring visible"
-      ],
-      "references": [
-        "src/components/ui/Input.tsx",
-        "src/components/ui/Input.test.tsx"
-      ],
-      "description": "Create the Input component for text, search, and textarea variants.\n\n**Files to Create:**\n- `src/components/ui/Input.tsx`\n- `src/components/ui/Input.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Text input variant\n- [ ] Search input variant (with icon)\n- [ ] Textarea variant (multiline)\n- [ ] Focus ring uses `--accent-primary`\n- [ ] Error state with red border\n- [ ] Disabled state\n- [ ] Placeholder styling\n\n**Interface:**\n```tsx\ninterface InputProps {\n  variant?: 'text' | 'search' | 'textarea';\n  error?: string;\n  label?: string;\n  // ...standard input props\n}\n```\n\n**Tests:**\n- [ ] Value changes on input\n- [ ] Error state displays\n- [ ] Focus ring visible",
-      "priority": "high",
-      "tags": [
-        "component",
-        "ui",
-        "form"
-      ]
-    },
-    {
-      "id": "507444f8-fd77-48c2-bb8d-ba12c75030ba",
-      "title": "13 - Create Select component",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Custom styled dropdown (not native select)",
-        "Chevron icon on right",
-        "Keyboard navigation (arrow keys, Enter, Escape)",
-        "Search/filter within options (optional)",
-        "Uses CSS variables for colors",
-        "Click outside closes dropdown",
-        "Opens on click",
-        "Selection changes value",
+        "Search input with icon",
+        "Debounced search (300ms)",
+        "Dropdown shows results as user types",
+        "Results show ticket title, project, status",
+        "Keyboard navigation (↑↓ arrows, Enter)",
+        "Click result navigates to ticket",
+        "Empty state: \"No results\"",
+        "Uses existing `searchTickets` API",
+        "Search returns results",
         "Keyboard navigation works",
-        "Escape closes dropdown"
+        "Click opens ticket"
       ],
       "references": [
-        "src/components/ui/Select.tsx",
-        "src/components/ui/Select.test.tsx"
+        "src/components/navigation/SearchBar.tsx",
+        "src/components/navigation/SearchBar.test.tsx"
       ],
-      "description": "Create custom styled Select dropdown component with keyboard navigation.\n\n**Files to Create:**\n- `src/components/ui/Select.tsx`\n- `src/components/ui/Select.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Custom styled dropdown (not native select)\n- [ ] Chevron icon on right\n- [ ] Keyboard navigation (arrow keys, Enter, Escape)\n- [ ] Search/filter within options (optional)\n- [ ] Uses CSS variables for colors\n- [ ] Click outside closes dropdown\n\n**Interface:**\n```tsx\ninterface SelectProps<T> {\n  options: { value: T; label: string }[];\n  value: T;\n  onChange: (value: T) => void;\n  placeholder?: string;\n}\n```\n\n**Tests:**\n- [ ] Opens on click\n- [ ] Selection changes value\n- [ ] Keyboard navigation works\n- [ ] Escape closes dropdown",
-      "priority": "medium",
+      "description": "Create search bar component with dropdown results using existing FTS5 search API.\n\n**Files to Create:**\n- `src/components/navigation/SearchBar.tsx`\n- `src/components/navigation/SearchBar.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Search input with icon\n- [ ] Debounced search (300ms)\n- [ ] Dropdown shows results as user types\n- [ ] Results show ticket title, project, status\n- [ ] Keyboard navigation (↑↓ arrows, Enter)\n- [ ] Click result navigates to ticket\n- [ ] Empty state: \"No results\"\n- [ ] Uses existing `searchTickets` API\n\n**Interface:**\n```tsx\n// Uses existing API\nconst results = await searchTickets({ query: searchTerm });\n```\n\n**Tests:**\n- [ ] Search returns results\n- [ ] Keyboard navigation works\n- [ ] Click opens ticket",
+      "priority": "high",
       "tags": [
-        "component",
-        "ui",
-        "form"
+        "search",
+        "component"
       ]
     },
     {
-      "id": "f8dd3c76-f233-4aeb-9826-1a0ccbfb2ad8",
-      "title": "14 - Create Card component",
-      "passes": false,
+      "id": "7d945ec4-93a3-43ae-909a-2489ee2d4bf2",
+      "title": "31 - Create StatusPill component",
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Background uses `--bg-card`",
-        "Border uses `--border-primary`",
-        "Optional `glow` prop for AI-active state",
-        "Glow uses accent color with pulse animation",
-        "Padding and border radius from design system",
-        "Hover state (optional)"
+        "Pill shape with icon + text",
+        "Docker status: Running (green), Stopped (gray), Error (red)",
+        "AI status: Active (pulse animation), Idle (gray)",
+        "Hover shows tooltip with details",
+        "Polls for status updates (or uses query)"
       ],
       "references": [
-        "src/components/ui/Card.tsx"
+        "src/components/navigation/StatusPill.tsx"
       ],
-      "description": "Create base Card component with optional glow effect for AI-active states.\n\n**Files to Create:**\n- `src/components/ui/Card.tsx`\n\n**Acceptance Criteria:**\n- [ ] Background uses `--bg-card`\n- [ ] Border uses `--border-primary`\n- [ ] Optional `glow` prop for AI-active state\n- [ ] Glow uses accent color with pulse animation\n- [ ] Padding and border radius from design system\n- [ ] Hover state (optional)\n\n**Usage:**\n```tsx\n<Card>Basic card content</Card>\n<Card glow>AI is working on this</Card>\n<Card hoverable onClick={handleClick}>Clickable card</Card>\n```\n\n**Tests:** Visual inspection",
-      "priority": "medium",
-      "tags": [
-        "component",
-        "ui"
-      ]
-    },
-    {
-      "id": "72c37bdb-db7b-458e-adf8-866ca6bc19e7",
-      "title": "15 - Create Badge component",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Status variant (backlog=gray, in_progress=blue, review=purple, done=green)",
-        "Priority variant (high=red, medium=orange, low=gray)",
-        "PR status variant (open=green, draft=gray, merged=purple, closed=red)",
-        "Pill shape with rounded corners",
-        "Size options: sm, md",
-        "Correct colors for each status",
-        "All variants render"
-      ],
-      "references": [
-        "src/components/ui/Badge.tsx",
-        "src/components/ui/Badge.test.tsx"
-      ],
-      "description": "Create Badge component for status, priority, and PR status indicators.\n\n**Files to Create:**\n- `src/components/ui/Badge.tsx`\n- `src/components/ui/Badge.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Status variant (backlog=gray, in_progress=blue, review=purple, done=green)\n- [ ] Priority variant (high=red, medium=orange, low=gray)\n- [ ] PR status variant (open=green, draft=gray, merged=purple, closed=red)\n- [ ] Pill shape with rounded corners\n- [ ] Size options: sm, md\n\n**Usage:**\n```tsx\n<Badge variant=\"status\" value=\"in_progress\" />\n<Badge variant=\"priority\" value=\"high\" />\n<Badge variant=\"pr-status\" value=\"merged\" />\n```\n\n**Tests:**\n- [ ] Correct colors for each status\n- [ ] All variants render",
-      "priority": "medium",
-      "tags": [
-        "component",
-        "ui"
-      ]
-    },
-    {
-      "id": "ac253418-7a86-478b-9b9b-a8692e88346f",
-      "title": "16 - Create IconButton component",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Square shape (1:1 aspect ratio)",
-        "3 sizes: sm (24px), md (32px), lg (40px)",
-        "Ghost and filled variants",
-        "Hover state with background",
-        "Accepts Lucide React icons",
-        "Tooltip on hover (optional)"
-      ],
-      "references": [
-        "src/components/ui/IconButton.tsx"
-      ],
-      "description": "Create square IconButton component for icon-only actions.\n\n**Files to Create:**\n- `src/components/ui/IconButton.tsx`\n\n**Acceptance Criteria:**\n- [ ] Square shape (1:1 aspect ratio)\n- [ ] 3 sizes: sm (24px), md (32px), lg (40px)\n- [ ] Ghost and filled variants\n- [ ] Hover state with background\n- [ ] Accepts Lucide React icons\n- [ ] Tooltip on hover (optional)\n\n**Usage:**\n```tsx\n<IconButton icon={X} onClick={handleClose} aria-label=\"Close\" />\n<IconButton icon={Edit} variant=\"filled\" size=\"sm\" />\n```\n\n**Tests:** Visual inspection",
-      "priority": "medium",
-      "tags": [
-        "component",
-        "ui"
-      ]
-    },
-    {
-      "id": "ded5f05f-6ed9-4056-b896-5ef84a3e8c61",
-      "title": "17 - Create Toggle component",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Switch/toggle style (not checkbox)",
-        "Gradient fill when ON using accent colors",
-        "Gray fill when OFF",
-        "Smooth slide animation",
-        "Accessible (role=\"switch\", aria-checked)",
-        "Disabled state",
-        "Click toggles state",
-        "Visual indicator matches state",
-        "Disabled prevents toggle"
-      ],
-      "references": [
-        "src/components/ui/Toggle.tsx",
-        "src/components/ui/Toggle.test.tsx"
-      ],
-      "description": "Create switch-style Toggle component for boolean settings.\n\n**Files to Create:**\n- `src/components/ui/Toggle.tsx`\n- `src/components/ui/Toggle.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Switch/toggle style (not checkbox)\n- [ ] Gradient fill when ON using accent colors\n- [ ] Gray fill when OFF\n- [ ] Smooth slide animation\n- [ ] Accessible (role=\"switch\", aria-checked)\n- [ ] Disabled state\n\n**Usage:**\n```tsx\n<Toggle checked={enabled} onChange={setEnabled} />\n<Toggle checked={true} disabled />\n```\n\n**Tests:**\n- [ ] Click toggles state\n- [ ] Visual indicator matches state\n- [ ] Disabled prevents toggle",
-      "priority": "medium",
-      "tags": [
-        "component",
-        "ui",
-        "form"
-      ]
-    },
-    {
-      "id": "3641a40d-436b-4f96-9b27-4ea89d36bd8c",
-      "title": "18 - Create Checkbox component",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Custom styled (not native checkbox)",
-        "Checkmark uses accent color",
-        "Indeterminate state support",
-        "Label support (inline text)",
-        "Disabled state",
-        "Accessible (proper input underneath)"
-      ],
-      "references": [
-        "src/components/ui/Checkbox.tsx"
-      ],
-      "description": "Create styled Checkbox component for multi-select forms and subtasks.\n\n**Files to Create:**\n- `src/components/ui/Checkbox.tsx`\n\n**Acceptance Criteria:**\n- [ ] Custom styled (not native checkbox)\n- [ ] Checkmark uses accent color\n- [ ] Indeterminate state support\n- [ ] Label support (inline text)\n- [ ] Disabled state\n- [ ] Accessible (proper input underneath)\n\n**Usage:**\n```tsx\n<Checkbox checked={done} onChange={setDone} label=\"Task completed\" />\n<Checkbox indeterminate label=\"Some items selected\" />\n```\n\n**Tests:** Visual inspection",
+      "description": "Create status indicator pills for Docker and AI activity status.\n\n**Files to Create:**\n- `src/components/navigation/StatusPill.tsx`\n\n**Acceptance Criteria:**\n- [ ] Pill shape with icon + text\n- [ ] Docker status: Running (green), Stopped (gray), Error (red)\n- [ ] AI status: Active (pulse animation), Idle (gray)\n- [ ] Hover shows tooltip with details\n- [ ] Polls for status updates (or uses query)\n\n**Variants:**\n```tsx\n<StatusPill variant=\"docker\" status=\"running\" />  // 🐳 Running\n<StatusPill variant=\"ai\" status=\"active\" />       // ⚡ Active (pulse)\n```\n\n**Tests:** Visual inspection",
       "priority": "low",
       "tags": [
-        "component",
-        "ui",
-        "form"
+        "status",
+        "component"
       ]
     },
     {
-      "id": "1101db9a-e4bf-42ac-9a2a-4b2c5109bce2",
-      "title": "19 - Create Modal base component",
-      "passes": false,
+      "id": "f3c3461b-a3f3-49cb-b259-bf37b8a71cf5",
+      "title": "32 - Create NewTicketDropdown component",
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Overlay with backdrop blur",
-        "Focus trap (tab stays within modal)",
-        "Escape key closes modal",
-        "Click outside closes modal (optional prop)",
-        "Enter/exit animations (fade + scale)",
-        "Portal renders to body",
-        "Scrollable content area",
-        "Sizes: sm (400px), md (500px), lg (600px), xl (800px)",
-        "Modal renders when open",
-        "Escape closes modal",
-        "Focus trapped within modal"
+        "Primary \"+\" button opens dropdown",
+        "Two options: \"New Ticket\", \"Start from Scratch\"",
+        "\"New Ticket\" opens CreateTicketModal",
+        "\"Start from Scratch\" opens InceptionModal",
+        "Keyboard accessible",
+        "Click outside closes dropdown"
       ],
       "references": [
-        "src/components/ui/Modal.tsx",
-        "src/components/ui/Modal.test.tsx"
+        "src/components/navigation/NewTicketDropdown.tsx"
       ],
-      "description": "Create the base Modal component with overlay, focus trap, and animations.\n\n**Files to Create:**\n- `src/components/ui/Modal.tsx`\n- `src/components/ui/Modal.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Overlay with backdrop blur\n- [ ] Focus trap (tab stays within modal)\n- [ ] Escape key closes modal\n- [ ] Click outside closes modal (optional prop)\n- [ ] Enter/exit animations (fade + scale)\n- [ ] Portal renders to body\n- [ ] Scrollable content area\n- [ ] Sizes: sm (400px), md (500px), lg (600px), xl (800px)\n\n**Interface:**\n```tsx\ninterface ModalProps {\n  isOpen: boolean;\n  onClose: () => void;\n  size?: 'sm' | 'md' | 'lg' | 'xl';\n  closeOnOverlayClick?: boolean;\n  children: React.ReactNode;\n}\n```\n\n**Tests:**\n- [ ] Modal renders when open\n- [ ] Escape closes modal\n- [ ] Focus trapped within modal",
+      "description": "Create the \"New\" button with dropdown for ticket creation options.\n\n**Files to Create:**\n- `src/components/navigation/NewTicketDropdown.tsx`\n\n**Acceptance Criteria:**\n- [ ] Primary \"+\" button opens dropdown\n- [ ] Two options: \"New Ticket\", \"Start from Scratch\"\n- [ ] \"New Ticket\" opens CreateTicketModal\n- [ ] \"Start from Scratch\" opens InceptionModal\n- [ ] Keyboard accessible\n- [ ] Click outside closes dropdown\n\n**Design:**\n```\n[+ New ▾]\n  ┌────────────────────┐\n  │ 📝 New Ticket      │\n  │ 🚀 Start from Scratch │\n  └────────────────────┘\n```\n\n**Tests:** Visual + click handlers",
+      "priority": "medium",
+      "tags": [
+        "navigation",
+        "dropdown"
+      ]
+    },
+    {
+      "id": "9b12159a-ebbe-4ebf-bd50-f98e6d85bd3a",
+      "title": "33 - Create ProjectsPanel component",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "320px width panel",
+        "Slides out from left, covering sidebar",
+        "z-index above sidebar (z-100)",
+        "Header with \"Projects\" title and close button",
+        "Search input to filter projects",
+        "List of ProjectItem components",
+        "\"Add Project\" button at bottom",
+        "Backdrop overlay (optional)",
+        "Panel opens/closes",
+        "Projects list renders",
+        "Search filters projects"
+      ],
+      "references": [
+        "src/components/navigation/ProjectsPanel.tsx",
+        "src/components/navigation/ProjectsPanel.test.tsx"
+      ],
+      "description": "Create the slide-out projects panel that overlays the sidebar.\n\n**Files to Create:**\n- `src/components/navigation/ProjectsPanel.tsx`\n- `src/components/navigation/ProjectsPanel.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] 320px width panel\n- [ ] Slides out from left, covering sidebar\n- [ ] z-index above sidebar (z-100)\n- [ ] Header with \"Projects\" title and close button\n- [ ] Search input to filter projects\n- [ ] List of ProjectItem components\n- [ ] \"Add Project\" button at bottom\n- [ ] Backdrop overlay (optional)\n\n**Animation:**\n- Slide in from left (transform: translateX)\n- 200ms duration, ease-out\n\n**Tests:**\n- [ ] Panel opens/closes\n- [ ] Projects list renders\n- [ ] Search filters projects",
       "priority": "high",
       "tags": [
-        "component",
-        "ui",
-        "modal"
+        "navigation",
+        "panel"
       ]
     },
     {
-      "id": "6cca5ce1-7bdb-4a4e-b871-bc7c726d610b",
-      "title": "20 - Create ModalHeader subcomponent",
+      "id": "0dd854b1-e9c0-4438-a750-56fb308246ff",
+      "title": "34 - Create ProjectItem component",
       "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Gradient icon area on left (uses accent colors)",
-        "Title text",
-        "Close button (X) on right",
-        "Sticky at top during scroll",
-        "Border bottom separator"
+        "Color indicator circle (project.color)",
+        "Project name",
+        "Path (truncated, tooltip for full)",
+        "Ticket stats: total, in progress, done",
+        "AI active indicator (glow if Ralph running)",
+        "Click selects project (sets filter)",
+        "Double-click opens edit modal",
+        "Hover shows actions (edit, delete)"
       ],
       "references": [
-        "src/components/ui/Modal.tsx"
+        "src/components/navigation/ProjectItem.tsx"
       ],
-      "description": "Create the ModalHeader subcomponent with gradient icon area per mockup design.\n\n**Files to Modify:**\n- `src/components/ui/Modal.tsx` (add Modal.Header)\n\n**Acceptance Criteria:**\n- [ ] Gradient icon area on left (uses accent colors)\n- [ ] Title text\n- [ ] Close button (X) on right\n- [ ] Sticky at top during scroll\n- [ ] Border bottom separator\n\n**Design per mockup:**\n```\n┌─────────────────────────────────────┐\n│ [🎯] Create New Ticket          [×] │\n│  ^-- gradient bg                    │\n└─────────────────────────────────────┘\n```\n\n**Usage:**\n```tsx\n<Modal.Header icon={Plus} title=\"Create New Ticket\" onClose={onClose} />\n```\n\n**Tests:** Visual inspection",
+      "description": "Create individual project item for the projects panel list.\n\n**Files to Create:**\n- `src/components/navigation/ProjectItem.tsx`\n\n**Acceptance Criteria:**\n- [ ] Color indicator circle (project.color)\n- [ ] Project name\n- [ ] Path (truncated, tooltip for full)\n- [ ] Ticket stats: total, in progress, done\n- [ ] AI active indicator (glow if Ralph running)\n- [ ] Click selects project (sets filter)\n- [ ] Double-click opens edit modal\n- [ ] Hover shows actions (edit, delete)\n\n**Layout:**\n```\n┌────────────────────────────────────┐\n│ 🟣 Brain Dump              ⚡      │\n│    ~/code/brain-dump              │\n│    12 tickets · 3 in progress     │\n└────────────────────────────────────┘\n```\n\n**Tests:** Visual inspection",
       "priority": "medium",
       "tags": [
-        "component",
-        "ui",
-        "modal"
+        "navigation",
+        "component"
       ]
     },
     {
-      "id": "df71f7dc-8fc0-4e97-9004-e5bec49a2e8a",
-      "title": "21 - Create ModalBody and ModalFooter subcomponents",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Modal.Body scrolls when content overflows",
-        "Modal.Body has consistent padding",
-        "Modal.Footer sticky at bottom",
-        "Modal.Footer has border top separator",
-        "Footer aligns buttons right by default"
-      ],
-      "references": [
-        "src/components/ui/Modal.tsx"
-      ],
-      "description": "Create ModalBody (scrollable content area) and ModalFooter (sticky action buttons).\n\n**Files to Modify:**\n- `src/components/ui/Modal.tsx` (add Modal.Body, Modal.Footer)\n\n**Acceptance Criteria:**\n- [ ] Modal.Body scrolls when content overflows\n- [ ] Modal.Body has consistent padding\n- [ ] Modal.Footer sticky at bottom\n- [ ] Modal.Footer has border top separator\n- [ ] Footer aligns buttons right by default\n\n**Usage:**\n```tsx\n<Modal>\n  <Modal.Header ... />\n  <Modal.Body>\n    {/* Form fields */}\n  </Modal.Body>\n  <Modal.Footer>\n    <Button variant=\"secondary\">Cancel</Button>\n    <Button variant=\"primary\">Save</Button>\n  </Modal.Footer>\n</Modal>\n```\n\n**Tests:** Visual inspection - scroll behavior",
-      "priority": "medium",
-      "tags": [
-        "component",
-        "ui",
-        "modal"
-      ]
-    },
-    {
-      "id": "0d1a0001-a3ba-41e9-87b2-3d77c6819fff",
-      "title": "22 - Create useModal hook",
-      "passes": false,
+      "id": "891b7952-dc33-432e-8662-19d1514ddfeb",
+      "title": "35 - Create useProjectsPanel hook",
+      "passes": true,
       "overview": "",
       "types": [
         {
-          "name": "UseModalReturn",
-          "code": "interface UseModalReturn {\n  isOpen: boolean;\n  open: () => void;\n  close: () => void;\n  toggle: () => void;\n}"
+          "name": "UseProjectsPanelReturn",
+          "code": "interface UseProjectsPanelReturn {\n  isOpen: boolean;\n  open: () => void;\n  close: () => void;\n  toggle: () => void;\n}"
         }
       ],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Returns `{isOpen, open, close, toggle}`",
-        "`open()` sets isOpen to true",
-        "`close()` sets isOpen to false",
-        "`toggle()` flips isOpen state",
-        "Memoized functions (stable references)",
-        "Initial state correct",
-        "`open()` works",
-        "`close()` works",
-        "`toggle()` works"
+        "`useProjectsPanel()` returns `{isOpen, open, close, toggle}`",
+        "Click outside panel triggers close",
+        "Escape key triggers close",
+        "State shared across components (context)",
+        "Open/close state works",
+        "Click outside closes",
+        "Escape closes"
       ],
       "references": [
-        "src/lib/modal-hooks.ts",
-        "src/lib/modal-hooks.test.ts"
+        "src/lib/navigation-hooks.ts",
+        "src/lib/navigation-hooks.test.ts"
       ],
-      "description": "Create useModal hook for modal open/close state management.\n\n**Files to Create:**\n- `src/lib/modal-hooks.ts`\n- `src/lib/modal-hooks.test.ts`\n\n**Acceptance Criteria:**\n- [ ] Returns `{isOpen, open, close, toggle}` \n- [ ] `open()` sets isOpen to true\n- [ ] `close()` sets isOpen to false\n- [ ] `toggle()` flips isOpen state\n- [ ] Memoized functions (stable references)\n\n**Interface:**\n```typescript\ninterface UseModalReturn {\n  isOpen: boolean;\n  open: () => void;\n  close: () => void;\n  toggle: () => void;\n}\n\nexport function useModal(initialState?: boolean): UseModalReturn;\n```\n\n**Tests:**\n- [ ] Initial state correct\n- [ ] `open()` works\n- [ ] `close()` works\n- [ ] `toggle()` works",
+      "description": "Create hook for managing projects panel open/close state.\n\n**Files to Create:**\n- `src/lib/navigation-hooks.ts`\n- `src/lib/navigation-hooks.test.ts`\n\n**Acceptance Criteria:**\n- [ ] `useProjectsPanel()` returns `{isOpen, open, close, toggle}`\n- [ ] Click outside panel triggers close\n- [ ] Escape key triggers close\n- [ ] State shared across components (context)\n\n**Interface:**\n```typescript\ninterface UseProjectsPanelReturn {\n  isOpen: boolean;\n  open: () => void;\n  close: () => void;\n  toggle: () => void;\n}\n\nexport function useProjectsPanel(): UseProjectsPanelReturn;\n```\n\n**Tests:**\n- [ ] Open/close state works\n- [ ] Click outside closes\n- [ ] Escape closes",
       "priority": "medium",
       "tags": [
         "hook",
@@ -511,98 +295,112 @@
       ]
     },
     {
-      "id": "96a142a0-5427-448e-9e9d-c95e6f43e265",
-      "title": "23 - Create root layout with app shell",
-      "passes": false,
+      "id": "37ab31cc-d937-44e9-a5d0-6281cc101e99",
+      "title": "37 - Create Dashboard route",
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "CSS Grid layout: 64px sidebar + 1fr content",
-        "ThemeProvider wraps entire app",
-        "QueryClientProvider for TanStack Query",
-        "ToastProvider for notifications",
-        "Outlet for nested routes",
-        "Full viewport height"
+        "Route at `/dashboard`",
+        "Page title \"Dashboard\"",
+        "Grid layout with stat cards",
+        "Current Focus section",
+        "Up Next queue section",
+        "Uses TanStack Query for data"
       ],
       "references": [
-        "src/routes/__root.tsx"
+        "src/routes/dashboard.tsx"
       ],
-      "description": "Create the root layout component that establishes the app shell grid structure.\n\n**Files to Create:**\n- `src/routes/__root.tsx`\n\n**Acceptance Criteria:**\n- [ ] CSS Grid layout: 64px sidebar + 1fr content\n- [ ] ThemeProvider wraps entire app\n- [ ] QueryClientProvider for TanStack Query\n- [ ] ToastProvider for notifications\n- [ ] Outlet for nested routes\n- [ ] Full viewport height\n\n**Layout:**\n```\n┌──────┬───────────────────────────────┐\n│      │                               │\n│ Side │        Content Area           │\n│  bar │         (Outlet)              │\n│      │                               │\n│ 64px │           1fr                 │\n└──────┴───────────────────────────────┘\n```\n\n**Tests:** Visual - verify grid structure",
+      "description": "Create the Dashboard page with stats overview and quick access.\n\n**Files to Create:**\n- `src/routes/dashboard.tsx`\n\n**Acceptance Criteria:**\n- [ ] Route at `/dashboard`\n- [ ] Page title \"Dashboard\"\n- [ ] Grid layout with stat cards\n- [ ] Current Focus section\n- [ ] Up Next queue section\n- [ ] Uses TanStack Query for data\n\n**Layout:**\n```\n┌─────────────────────────────────────────────────────────────┐\n│ Dashboard                                                    │\n├─────────────────────────────────────────────────────────────┤\n│ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐                │\n│ │ Total  │ │In Prog │ │AI Active│ │ Done   │                │\n│ │  24    │ │   3    │ │   1    │ │  15    │                │\n│ └────────┘ └────────┘ └────────┘ └────────┘                │\n├─────────────────────────────────────────────────────────────┤\n│ Current Focus              │ Up Next                        │\n│ ┌──────────────────────┐   │ 1. Ticket A                   │\n│ │ Active Ticket        │   │ 2. Ticket B                   │\n│ └──────────────────────┘   │ 3. Ticket C                   │\n└─────────────────────────────────────────────────────────────┘\n```\n\n**Tests:** Visual inspection",
       "priority": "high",
       "tags": [
-        "layout",
-        "routing"
+        "route",
+        "dashboard"
       ]
     },
     {
-      "id": "25e0acb2-69f4-433d-8c8f-aa3b43270a33",
-      "title": "24 - Create Toast component",
-      "passes": false,
+      "id": "0ae86982-3c09-43f0-893c-5c8ad8de45d7",
+      "title": "38 - Create StatsGrid component",
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "3 variants: success (green), error (red), info (blue)",
-        "Icon per variant (check, x, info)",
-        "Auto-dismiss after configurable duration",
-        "Manual dismiss button",
-        "Slide-in animation from top-right",
-        "Stack multiple toasts",
-        "Uses CSS variables for colors"
+        "4 stat cards in a row",
+        "Total tickets count",
+        "In Progress count",
+        "AI Active count (tickets with Ralph session)",
+        "Done count",
+        "Each card has icon, label, value",
+        "Click navigates to filtered board view",
+        "Correct counts displayed",
+        "Click filters work"
       ],
       "references": [
-        "src/components/ui/Toast.tsx"
+        "src/components/dashboard/StatsGrid.tsx",
+        "src/components/dashboard/StatsGrid.test.tsx"
       ],
-      "description": "Create Toast notification component for success/error/info messages.\n\n**Files to Create:**\n- `src/components/ui/Toast.tsx`\n\n**Acceptance Criteria:**\n- [ ] 3 variants: success (green), error (red), info (blue)\n- [ ] Icon per variant (check, x, info)\n- [ ] Auto-dismiss after configurable duration\n- [ ] Manual dismiss button\n- [ ] Slide-in animation from top-right\n- [ ] Stack multiple toasts\n- [ ] Uses CSS variables for colors\n\n**Design:**\n```\n┌────────────────────────────┐\n│ ✓ Ticket created!      [×] │\n└────────────────────────────┘\n```\n\n**Tests:** Visual inspection",
+      "description": "Create the stats grid showing ticket counts across statuses.\n\n**Files to Create:**\n- `src/components/dashboard/StatsGrid.tsx`\n- `src/components/dashboard/StatsGrid.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] 4 stat cards in a row\n- [ ] Total tickets count\n- [ ] In Progress count\n- [ ] AI Active count (tickets with Ralph session)\n- [ ] Done count\n- [ ] Each card has icon, label, value\n- [ ] Click navigates to filtered board view\n\n**Stat Cards:**\n```tsx\nconst stats = [\n  { icon: Ticket, label: 'Total', value: 24, filter: null },\n  { icon: Clock, label: 'In Progress', value: 3, filter: 'in_progress' },\n  { icon: Zap, label: 'AI Active', value: 1, filter: 'ai_active' },\n  { icon: Check, label: 'Done', value: 15, filter: 'done' },\n];\n```\n\n**Tests:**\n- [ ] Correct counts displayed\n- [ ] Click filters work",
       "priority": "medium",
       "tags": [
-        "component",
-        "ui",
-        "notification"
+        "dashboard",
+        "component"
       ]
     },
     {
-      "id": "2c2f43bc-afea-412d-ad97-61f70650a3fe",
-      "title": "25 - Create ToastProvider and useToast hook",
-      "passes": false,
+      "id": "91841fb8-51a3-4d2b-b66d-d494ca730a7b",
+      "title": "39 - Create CurrentFocusCard component",
+      "passes": true,
       "overview": "",
-      "types": [
-        {
-          "name": "ToastOptions",
-          "code": "interface ToastOptions {\n  message: string;\n  variant?: 'success' | 'error' | 'info';\n  duration?: number;\n}"
-        },
-        {
-          "name": "UseToastReturn",
-          "code": "interface UseToastReturn {\n  toast: (options: ToastOptions) => void;\n  success: (message: string) => void;\n  error: (message: string) => void;\n  info: (message: string) => void;\n}"
-        }
-      ],
+      "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "ToastProvider wraps app (in root layout)",
-        "`useToast()` returns `{toast, success, error, info}`",
-        "`toast({message, variant, duration})` for custom",
-        "`success(message)` shorthand",
-        "`error(message)` shorthand",
-        "`info(message)` shorthand",
-        "Default duration: 3000ms",
-        "`success()` shows green toast",
-        "`error()` shows red toast",
-        "Toast auto-dismisses"
+        "Shows ticket currently being worked on (in_progress + AI active)",
+        "Displays title, description preview, progress",
+        "AI activity indicator (glow if Ralph active)",
+        "Click navigates to ticket detail",
+        "Empty state: \"No active focus\"",
+        "Shows time since started"
       ],
       "references": [
-        "src/lib/toast.tsx",
-        "src/lib/toast.test.tsx"
+        "src/components/dashboard/CurrentFocusCard.tsx"
       ],
-      "description": "Create ToastProvider context and useToast hook for showing toasts from anywhere.\n\n**Files to Create:**\n- `src/lib/toast.tsx`\n- `src/lib/toast.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] ToastProvider wraps app (in root layout)\n- [ ] `useToast()` returns `{toast, success, error, info}`\n- [ ] `toast({message, variant, duration})` for custom\n- [ ] `success(message)` shorthand\n- [ ] `error(message)` shorthand\n- [ ] `info(message)` shorthand\n- [ ] Default duration: 3000ms\n\n**Interface:**\n```typescript\ninterface ToastOptions {\n  message: string;\n  variant?: 'success' | 'error' | 'info';\n  duration?: number;\n}\n\ninterface UseToastReturn {\n  toast: (options: ToastOptions) => void;\n  success: (message: string) => void;\n  error: (message: string) => void;\n  info: (message: string) => void;\n}\n```\n\n**Tests:**\n- [ ] `success()` shows green toast\n- [ ] `error()` shows red toast\n- [ ] Toast auto-dismisses",
+      "description": "Create card showing the currently active/focused ticket.\n\n**Files to Create:**\n- `src/components/dashboard/CurrentFocusCard.tsx`\n\n**Acceptance Criteria:**\n- [ ] Shows ticket currently being worked on (in_progress + AI active)\n- [ ] Displays title, description preview, progress\n- [ ] AI activity indicator (glow if Ralph active)\n- [ ] Click navigates to ticket detail\n- [ ] Empty state: \"No active focus\"\n- [ ] Shows time since started\n\n**Layout:**\n```\n┌────────────────────────────────────┐\n│ 🎯 Current Focus                   │\n├────────────────────────────────────┤\n│ Implement dark mode toggle    ⚡   │\n│ Adding theme switching...          │\n│ ████████░░░░ 3/5 subtasks         │\n│ Started 2h ago                     │\n└────────────────────────────────────┘\n```\n\n**Tests:** Visual inspection",
       "priority": "medium",
       "tags": [
-        "hook",
-        "context",
-        "notification"
+        "dashboard",
+        "component"
+      ]
+    },
+    {
+      "id": "14d8bb8e-e0b0-4f2d-85af-441311e95561",
+      "title": "40 - Create UpNextQueue component",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Shows next 5 tickets in priority order",
+        "Priority: high → medium → low, then by position",
+        "Excludes done/blocked tickets",
+        "Shows title, priority badge, project",
+        "Click opens ticket",
+        "\"Start\" button to begin work",
+        "Empty state: \"Queue empty\""
+      ],
+      "references": [
+        "src/components/dashboard/UpNextQueue.tsx"
+      ],
+      "description": "Create queue showing next tickets to work on in priority order.\n\n**Files to Create:**\n- `src/components/dashboard/UpNextQueue.tsx`\n\n**Acceptance Criteria:**\n- [ ] Shows next 5 tickets in priority order\n- [ ] Priority: high → medium → low, then by position\n- [ ] Excludes done/blocked tickets\n- [ ] Shows title, priority badge, project\n- [ ] Click opens ticket\n- [ ] \"Start\" button to begin work\n- [ ] Empty state: \"Queue empty\"\n\n**Layout:**\n```\n┌────────────────────────────────────┐\n│ 📋 Up Next                         │\n├────────────────────────────────────┤\n│ 1. 🔴 Add login validation  [Start]│\n│ 2. 🟠 Update API docs              │\n│ 3. 🟠 Fix navbar styling           │\n│ 4. ⚪ Refactor utils               │\n│ 5. ⚪ Add unit tests               │\n└────────────────────────────────────┘\n```\n\n**Tests:** Visual + verify priority order",
+      "priority": "medium",
+      "tags": [
+        "dashboard",
+        "component"
       ]
     }
   ],
@@ -732,7 +530,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-20T00:02:15.644Z",
-  "epicTitle": "UI v2 Sprint 1: Foundation & Design System",
-  "epicDescription": "Implement the Neon Productivity design system with three themes (Ember, Mint, Solar), CSS custom properties, typography scale, and core UI primitives."
+  "generatedAt": "2026-01-20T12:13:39.466Z",
+  "epicTitle": "UI v2 Sprint 2: Navigation & Layout",
+  "epicDescription": "Build the app shell with collapsible sidebar, project switcher, quick actions bar, keyboard navigation system, and responsive layout breakpoints."
 }
