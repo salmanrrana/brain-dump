@@ -39,7 +39,7 @@
     {
       "id": "98330174-2394-4d71-aade-d700c2ae1bf5",
       "title": "56 - Add form fields to CreateTicketModal",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -132,7 +132,7 @@
     {
       "id": "5b653a12-4fe8-4365-8e5a-1500d2d62bc7",
       "title": "59 - Add form validation to CreateTicketModal",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -163,7 +163,7 @@
     {
       "id": "8e1bc6a7-75b5-45c6-9866-8dcf68d88deb",
       "title": "60 - Implement submit with TanStack Query mutation",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],

@@ -380,3 +380,23 @@ PRD_COMPLETE
 - **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1187 total, 21 new)
 
 ---
+
+### 2026-01-20 - Ticket 59 Complete (Form Validation)
+- **Ticket ID:** 5b653a12-4fe8-4365-8e5a-1500d2d62bc7
+- **Task:** Add form validation to CreateTicketModal
+- **Success:** true
+- **Commit:** f26a7ec
+- **Files:**
+  - src/components/tickets/CreateTicketModal.tsx (MODIFIED)
+  - src/components/tickets/CreateTicketModal.test.tsx (MODIFIED - 5 new tests)
+- **Features:**
+  - Touched state pattern for tracking user interaction
+  - Error messages displayed below title and project fields when invalid and touched
+  - Red border on invalid fields (1px solid #ef4444)
+  - Focus first invalid field on submit attempt
+  - Submit button enabled always (validation feedback on click)
+  - Computed errors derived from current values (not stored in state)
+  - Full accessibility: aria-invalid, aria-describedby, role="alert"
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1192 total, 5 new)
+
+---
