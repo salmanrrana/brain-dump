@@ -236,7 +236,7 @@
     {
       "id": "0dd854b1-e9c0-4438-a750-56fb308246ff",
       "title": "34 - Create ProjectItem component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],

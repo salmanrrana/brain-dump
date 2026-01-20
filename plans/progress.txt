@@ -268,5 +268,44 @@ Updated PRD to reflect completed tickets from previous sessions:
 - 39 - CurrentFocusCard ✅ (already marked)
 - 40 - UpNextQueue ✅ (already marked)
 
-### REMAINING - Only 1 ticket left!
-- **34 - ProjectItem component** (medium) - Individual project item for panel
+### 2026-01-20 - Ticket 34 Complete (ProjectItem Component)
+- **Ticket ID:** 0dd854b1-e9c0-4438-a750-56fb308246ff
+- **Task:** Create ProjectItem component
+- **Success:** true
+- **Commit:** e44d495
+- **Files:**
+  - src/components/navigation/ProjectItem.tsx (NEW)
+  - src/components/navigation/ProjectItem.test.tsx (NEW - 28 tests)
+  - src/components/navigation/index.ts (updated exports)
+- **Features:**
+  - Color indicator circle (project.color)
+  - Project name and truncated path with tooltip
+  - Ticket stats: total, in progress counts
+  - AI active indicator with glow effect when Ralph running
+  - Hover actions: edit and delete buttons
+  - Click to select, double-click to edit
+  - Full keyboard accessibility (Enter/Space, Tab)
+  - Proper ARIA (role=option, aria-selected)
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1126 total, 28 new)
+
+---
+
+## 🎉 UI v2 Sprint 2 COMPLETE!
+
+All 15 tickets in "UI v2 Sprint 2: Navigation & Layout" are now DONE:
+- 26 - IconSidebar component ✅
+- 27 - NavItem component ✅
+- 28 - Router integration ✅
+- 29 - Header component ✅
+- 30 - SearchBar with FTS5 ✅
+- 31 - StatusPill component ✅
+- 32 - NewTicketDropdown ✅
+- 33 - ProjectsPanel ✅
+- 34 - ProjectItem component ✅
+- 35 - useProjectsPanel hook ✅
+- 37 - Dashboard route ✅
+- 38 - StatsGrid component ✅
+- 39 - CurrentFocusCard component ✅
+- 40 - UpNextQueue component ✅
+
+PRD_COMPLETE
