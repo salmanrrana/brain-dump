@@ -1,13 +1,17 @@
 import type { FC } from "react";
 import { useMemo, useState } from "react";
-import { useTickets } from "../../lib/hooks";
+import {
+  useTickets,
+  useUpdateTicketStatus,
+  useUpdateTicketPosition,
+  type ActiveRalphSession,
+} from "../../lib/hooks";
 import { TicketCard } from "./TicketCard";
 import { KanbanColumn } from "./KanbanColumn";
 import { SortableTicketCard } from "./SortableTicketCard";
 import type { TicketStatus } from "../../api/tickets";
-import { updateTicketStatus, updateTicketPosition } from "../../api/tickets";
 import type { Ticket } from "../../lib/schema";
-import type { ActiveRalphSession } from "../../lib/hooks";
+import { useToast } from "../Toast";
 import {
   DndContext,
   DragOverlay,
@@ -122,6 +126,11 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
   const error = providedError ?? internalError;
   const handleRefresh = onRefresh ?? refetch;
 
+  // Mutation hooks - these handle query invalidation automatically
+  const updateStatusMutation = useUpdateTicketStatus();
+  const updatePositionMutation = useUpdateTicketPosition();
+  const { showToast } = useToast();
+
   // DnD State
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
 
@@ -179,8 +188,8 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
 
     if (!over) return;
 
-    const activeTicket = tickets.find((t) => t.id === active.id);
-    if (!activeTicket) return;
+    const draggedTicket = tickets.find((t) => t.id === active.id);
+    if (!draggedTicket) return;
 
     // Determine the target column
     const overId = over.id as string;
@@ -215,22 +224,36 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
       }
     }
 
+    // Track if status changed for toast message
+    const statusChanged = draggedTicket.status !== targetStatus;
+
     try {
-      // Optimistic update for status
-      if (activeTicket.status !== targetStatus) {
-        await updateTicketStatus({
-          data: {
-            id: activeTicket.id,
-            status: targetStatus as TicketStatus,
-          },
+      // Update status if it changed
+      if (statusChanged) {
+        await updateStatusMutation.mutateAsync({
+          id: draggedTicket.id,
+          status: targetStatus as TicketStatus,
         });
       }
 
       // Update position
-      await updateTicketPosition({ data: { id: activeTicket.id, position: targetPosition } });
+      await updatePositionMutation.mutateAsync({
+        id: draggedTicket.id,
+        position: targetPosition,
+      });
+
+      // Show success toast only for status changes (position-only changes are silent)
+      if (statusChanged) {
+        const toLabel = COLUMN_LABELS[targetStatus as TicketStatus] ?? targetStatus;
+        showToast("success", `Moved "${truncateTitle(draggedTicket.title)}" to ${toLabel}`);
+      }
     } catch (error) {
       console.error("Failed to update ticket during drag:", error);
-      // Revert optimistic update by refetching
+      showToast(
+        "error",
+        `Failed to move ticket: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+      // Query invalidation from mutations will handle rollback, but also trigger manual refresh
       handleRefresh();
     }
   };
@@ -331,6 +354,18 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
     </DndContext>
   );
 };
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * Truncate title for toast messages to prevent overly long notifications.
+ */
+function truncateTitle(title: string, maxLength = 30): string {
+  if (title.length <= maxLength) return title;
+  return `${title.slice(0, maxLength - 3)}...`;
+}
 
 // ============================================================================
 // Styles

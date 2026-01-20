@@ -4,9 +4,24 @@ import { KanbanBoard } from "./KanbanBoard";
 import * as hooks from "../../lib/hooks";
 import type { Ticket } from "../../lib/schema";
 
-// Mock the useTickets hook
+// Mock the useTickets hook and mutation hooks
 vi.mock("../../lib/hooks", () => ({
   useTickets: vi.fn(),
+  useUpdateTicketStatus: vi.fn(() => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  })),
+  useUpdateTicketPosition: vi.fn(() => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  })),
+}));
+
+// Mock the Toast context
+vi.mock("../Toast", () => ({
+  useToast: vi.fn(() => ({
+    showToast: vi.fn(),
+  })),
 }));
 
 // Mock the TicketCard component to simplify testing
