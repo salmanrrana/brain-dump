@@ -524,7 +524,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-20T19:19:58.561Z",
+  "generatedAt": "2026-01-20T19:41:54.980Z",
   "epicTitle": "UI v2 Sprint 3: Kanban Board",
   "epicDescription": "Implement the core kanban board with drag-and-drop columns, ticket cards with visual hierarchy, column headers with counts, and smooth animations."
 }
