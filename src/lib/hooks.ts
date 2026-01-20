@@ -540,7 +540,7 @@ export interface Ticket {
   epicId: string | null;
   tags: string | null;
   subtasks: string | null;
-  isBlocked: boolean;
+  isBlocked: boolean | null;
   blockedReason: string | null;
   linkedFiles: string | null;
   attachments: string | null;
@@ -792,11 +792,15 @@ export interface StatusChange {
 // Polling disabled by default (pollingInterval = 0) for performance
 export function useTickets(
   filters: TicketFilters = {},
-  options: { pollingInterval?: number; onStatusChange?: (change: StatusChange) => void } = {}
+  options: {
+    pollingInterval?: number;
+    onStatusChange?: (change: StatusChange) => void;
+    enabled?: boolean;
+  } = {}
 ) {
   const prevTicketsRef = useRef<Map<string, string>>(new Map());
   const isInitialLoad = useRef(true);
-  const { pollingInterval = 0, onStatusChange } = options;
+  const { pollingInterval = 0, onStatusChange, enabled = true } = options;
 
   const query = useQuery({
     queryKey: queryKeys.tickets(filters),
@@ -804,6 +808,7 @@ export function useTickets(
       const ticketList = await getTickets({ data: filters });
       return ticketList as Ticket[];
     },
+    enabled,
     // Always stale - tickets can be created/updated via MCP externally
     staleTime: 0,
     refetchInterval: pollingInterval > 0 ? pollingInterval : false,
