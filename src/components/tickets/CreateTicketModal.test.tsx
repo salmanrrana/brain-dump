@@ -186,30 +186,7 @@ describe("CreateTicketModal", () => {
   });
 
   describe("User interactions: Form submission", () => {
-    it("disables Create button when title is empty", () => {
-      render(<CreateTicketModal isOpen={true} onClose={vi.fn()} />, {
-        wrapper: createTestWrapper(),
-      });
-
-      const submitButton = screen.getByRole("button", { name: /create ticket/i });
-      expect(submitButton).toBeDisabled();
-    });
-
-    it("disables Create button when project is not selected", async () => {
-      const user = userEvent.setup();
-
-      render(<CreateTicketModal isOpen={true} onClose={vi.fn()} />, {
-        wrapper: createTestWrapper(),
-      });
-
-      // Type a title but don't select a project
-      await user.type(screen.getByLabelText(/title/i), "My new ticket");
-
-      const submitButton = screen.getByRole("button", { name: /create ticket/i });
-      expect(submitButton).toBeDisabled();
-    });
-
-    it("enables Create button when title and project are provided", async () => {
+    it("does not submit when title is empty", async () => {
       const user = userEvent.setup();
 
       render(<CreateTicketModal isOpen={true} onClose={vi.fn()} />, {
@@ -221,12 +198,39 @@ describe("CreateTicketModal", () => {
         expect(screen.getByRole("option", { name: /brain dump/i })).toBeInTheDocument();
       });
 
-      // Type a title
-      await user.type(screen.getByLabelText(/title/i), "My new ticket");
-
-      // Select a project
+      // Select project but leave title empty
       await user.selectOptions(screen.getByLabelText(/project/i), "project-1");
 
+      // Click submit - should show validation error, not submit
+      await user.click(screen.getByRole("button", { name: /create ticket/i }));
+
+      // API should NOT have been called
+      expect(createTicket).not.toHaveBeenCalled();
+    });
+
+    it("does not submit when project is not selected", async () => {
+      const user = userEvent.setup();
+
+      render(<CreateTicketModal isOpen={true} onClose={vi.fn()} />, {
+        wrapper: createTestWrapper(),
+      });
+
+      // Type a title but don't select a project
+      await user.type(screen.getByLabelText(/title/i), "My new ticket");
+
+      // Click submit - should show validation error, not submit
+      await user.click(screen.getByRole("button", { name: /create ticket/i }));
+
+      // API should NOT have been called
+      expect(createTicket).not.toHaveBeenCalled();
+    });
+
+    it("disables button only during submission", () => {
+      render(<CreateTicketModal isOpen={true} onClose={vi.fn()} />, {
+        wrapper: createTestWrapper(),
+      });
+
+      // Button should be enabled even when form is empty (validation on submit)
       const submitButton = screen.getByRole("button", { name: /create ticket/i });
       expect(submitButton).not.toBeDisabled();
     });
@@ -311,6 +315,114 @@ describe("CreateTicketModal", () => {
       await waitFor(() => {
         expect(screen.getByLabelText(/epic/i)).not.toBeDisabled();
       });
+    });
+  });
+
+  describe("User interactions: Form validation", () => {
+    it("shows error message after user leaves title field empty", async () => {
+      const user = userEvent.setup();
+
+      render(<CreateTicketModal isOpen={true} onClose={vi.fn()} />, {
+        wrapper: createTestWrapper(),
+      });
+
+      // Focus title field then blur without typing
+      const titleInput = screen.getByLabelText(/title/i);
+      await user.click(titleInput);
+      await user.tab(); // Blur the field
+
+      // Error message should appear
+      expect(screen.getByText("Title is required")).toBeInTheDocument();
+      expect(screen.getByRole("alert")).toHaveTextContent("Title is required");
+    });
+
+    it("shows error message after user leaves project unselected", async () => {
+      const user = userEvent.setup();
+
+      render(<CreateTicketModal isOpen={true} onClose={vi.fn()} />, {
+        wrapper: createTestWrapper(),
+      });
+
+      // Wait for projects to load
+      await waitFor(() => {
+        expect(screen.getByRole("option", { name: /brain dump/i })).toBeInTheDocument();
+      });
+
+      // Focus project dropdown then blur without selecting
+      const projectSelect = screen.getByLabelText(/^project/i);
+      await user.click(projectSelect);
+      await user.tab(); // Blur the field
+
+      // Error message should appear
+      expect(screen.getByText("Please select a project")).toBeInTheDocument();
+    });
+
+    it("focuses first invalid field when user tries to submit invalid form", async () => {
+      const user = userEvent.setup();
+
+      render(<CreateTicketModal isOpen={true} onClose={vi.fn()} />, {
+        wrapper: createTestWrapper(),
+      });
+
+      // Wait for projects to load
+      await waitFor(() => {
+        expect(screen.getByRole("option", { name: /brain dump/i })).toBeInTheDocument();
+      });
+
+      // Select project but leave title empty
+      await user.selectOptions(screen.getByLabelText(/^project/i), "project-1");
+
+      // Click submit button
+      await user.click(screen.getByRole("button", { name: /create ticket/i }));
+
+      // Title field should be focused (first invalid field)
+      expect(screen.getByLabelText(/title/i)).toHaveFocus();
+
+      // Error message should appear
+      expect(screen.getByText("Title is required")).toBeInTheDocument();
+    });
+
+    it("shows project error when title is valid but project not selected", async () => {
+      const user = userEvent.setup();
+
+      render(<CreateTicketModal isOpen={true} onClose={vi.fn()} />, {
+        wrapper: createTestWrapper(),
+      });
+
+      // Type title but don't select project
+      await user.type(screen.getByLabelText(/title/i), "My ticket");
+
+      // Click submit button
+      await user.click(screen.getByRole("button", { name: /create ticket/i }));
+
+      // Error message should appear for project field
+      expect(screen.getByText("Please select a project")).toBeInTheDocument();
+
+      // API should NOT have been called
+      expect(createTicket).not.toHaveBeenCalled();
+    });
+
+    it("clears error when user provides valid input", async () => {
+      const user = userEvent.setup();
+
+      render(<CreateTicketModal isOpen={true} onClose={vi.fn()} />, {
+        wrapper: createTestWrapper(),
+      });
+
+      // Blur title without input to trigger error
+      const titleInput = screen.getByLabelText(/title/i);
+      await user.click(titleInput);
+      await user.tab();
+
+      // Error should be visible
+      expect(screen.getByText("Title is required")).toBeInTheDocument();
+
+      // Type a valid title
+      await user.click(titleInput);
+      await user.type(titleInput, "Valid title");
+
+      // Error should disappear
+      expect(screen.queryByText("Title is required")).not.toBeInTheDocument();
     });
   });
 
