@@ -159,13 +159,8 @@ function getBackgroundColor(variant: BadgeVariant, value: BadgeValue): string {
   }
 }
 
-/**
- * Get the text color for a badge.
- * All badges use white text for contrast against colored backgrounds.
- */
-function getTextColor(): string {
-  return "#ffffff";
-}
+/** Text color for all badges - white for contrast against colored backgrounds */
+const BADGE_TEXT_COLOR = "#ffffff";
 
 // =============================================================================
 // COMPONENT
@@ -187,7 +182,6 @@ export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(function Badge(
 ) {
   const sizeStyles = SIZE_STYLES[size];
   const backgroundColor = getBackgroundColor(variant, value);
-  const textColor = getTextColor();
   const displayLabel = DISPLAY_LABELS[value] ?? value;
 
   // Base styles for all badges
@@ -201,7 +195,7 @@ export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(function Badge(
     lineHeight: "var(--line-height-tight)",
     borderRadius: "var(--radius-full)", // Pill shape
     backgroundColor,
-    color: textColor,
+    color: BADGE_TEXT_COLOR,
     whiteSpace: "nowrap",
     textTransform: "capitalize",
     ...style,

@@ -123,10 +123,14 @@ let keyframesInjected = false;
 function injectKeyframes(): void {
   if (typeof document === "undefined" || keyframesInjected) return;
 
-  const style = document.createElement("style");
-  style.textContent = TOOLTIP_KEYFRAMES;
-  document.head.appendChild(style);
-  keyframesInjected = true;
+  try {
+    const style = document.createElement("style");
+    style.textContent = TOOLTIP_KEYFRAMES;
+    document.head.appendChild(style);
+    keyframesInjected = true;
+  } catch {
+    // Tooltip animation will not be available, but component remains functional
+  }
 }
 
 // =============================================================================
@@ -159,6 +163,16 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
   const [showTooltip, setShowTooltip] = useState(false);
   const sizeStyles = SIZE_STYLES[size];
   const variantStyles = VARIANT_STYLES[variant];
+
+  // Use tooltip as fallback for aria-label if not provided
+  const effectiveAriaLabel = props["aria-label"] ?? tooltip;
+
+  // Warn in development if no accessible label is provided
+  if (process.env.NODE_ENV === "development" && !effectiveAriaLabel) {
+    console.warn(
+      "[IconButton] Missing accessible label. Provide either aria-label or tooltip prop for screen reader support."
+    );
+  }
 
   // Inject keyframes if tooltip is used
   if (tooltip) {
@@ -237,6 +251,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
         props.onMouseLeave?.(e);
       }}
       {...props}
+      aria-label={effectiveAriaLabel}
     >
       <Icon size={sizeStyles.iconSize} aria-hidden="true" />
 

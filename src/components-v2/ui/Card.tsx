@@ -81,10 +81,14 @@ let keyframesInjected = false;
 function injectKeyframes(): void {
   if (typeof document === "undefined" || keyframesInjected) return;
 
-  const style = document.createElement("style");
-  style.textContent = GLOW_KEYFRAMES;
-  document.head.appendChild(style);
-  keyframesInjected = true;
+  try {
+    const style = document.createElement("style");
+    style.textContent = GLOW_KEYFRAMES;
+    document.head.appendChild(style);
+    keyframesInjected = true;
+  } catch {
+    // Glow animation will not be available, but component remains functional
+  }
 }
 
 // =============================================================================
@@ -129,10 +133,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
   return (
     <div
       ref={ref}
-      className={`
-        ${hoverable ? "hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] hover:shadow-lg" : ""}
-        ${className}
-      `.trim()}
+      className={className}
       style={baseStyles}
       data-glow={glow ? "true" : undefined}
       data-hoverable={hoverable ? "true" : undefined}

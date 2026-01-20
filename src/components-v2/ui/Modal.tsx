@@ -560,7 +560,6 @@ export function Modal({
       onClick={handleOverlayClick}
       onKeyDown={handleKeyDown}
       data-testid="modal-overlay"
-      aria-hidden={!isOpen}
     >
       <div
         ref={modalRef}
