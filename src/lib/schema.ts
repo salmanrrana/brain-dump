@@ -62,7 +62,7 @@ export const tickets = sqliteTable(
     branchName: text("branch_name"), // e.g., "feature/abc123-add-login"
     prNumber: integer("pr_number"), // GitHub PR number
     prUrl: text("pr_url"), // Full PR URL
-    prStatus: text("pr_status"), // 'draft' | 'open' | 'merged' | 'closed'
+    prStatus: text("pr_status").$type<"draft" | "open" | "merged" | "closed" | null>(), // 'draft' | 'open' | 'merged' | 'closed'
   },
   (table) => [
     index("idx_tickets_project").on(table.projectId),

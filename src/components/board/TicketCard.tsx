@@ -5,6 +5,7 @@ export interface TicketCardProps {
   onClick?: ((ticket: Ticket) => void) | undefined;
   isAiActive?: boolean;
   isOverlay?: boolean;
+  isDragging?: boolean;
 }
 
 export function TicketCard({
@@ -12,6 +13,7 @@ export function TicketCard({
   onClick,
   isAiActive = false,
   isOverlay = false,
+  isDragging = false,
 }: TicketCardProps) {
   // Parse JSON fields
   const tags = ticket.tags ? (JSON.parse(ticket.tags) as string[]) : [];
@@ -62,7 +64,7 @@ export function TicketCard({
         bg-card p-3 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5
         border-l-4 ${getPriorityColor(ticket.priority)}
         ${isAiActive ? "ring-2 ring-primary/50 shadow-[0_0_12px_rgba(139,92,246,0.3)] animate-pulse-slow" : ""}
-        ${isOverlay ? "rotate-2 scale-105 shadow-xl cursor-grabbing" : "cursor-pointer"}
+        ${isOverlay ? "rotate-2 scale-105 shadow-xl cursor-grabbing" : isDragging ? "opacity-50" : "cursor-pointer"}
       `}
     >
       {/* Title */}
