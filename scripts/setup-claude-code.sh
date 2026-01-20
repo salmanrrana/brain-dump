@@ -181,7 +181,18 @@ if [ -f "$CLAUDE_SETTINGS" ]; then
 
     if grep -q '"hooks"' "$CLAUDE_SETTINGS"; then
         echo -e "${GREEN}Hooks section already exists in settings.json${NC}"
-        echo -e "${YELLOW}Please verify hooks paths point to ~/.claude/hooks/${NC}"
+
+        # Check if hooks use old $CLAUDE_PROJECT_DIR paths and update them
+        if grep -q 'CLAUDE_PROJECT_DIR' "$CLAUDE_SETTINGS"; then
+            echo -e "${YELLOW}Updating hook paths from \$CLAUDE_PROJECT_DIR to \$HOME/.claude/hooks/...${NC}"
+            # Use sed to replace the old paths with new global paths
+            sed -i.bak 's|"\$CLAUDE_PROJECT_DIR"/.claude/hooks/|\$HOME/.claude/hooks/|g' "$CLAUDE_SETTINGS"
+            sed -i.bak 's|"\\$CLAUDE_PROJECT_DIR"/.claude/hooks/|$HOME/.claude/hooks/|g' "$CLAUDE_SETTINGS"
+            rm -f "$CLAUDE_SETTINGS.bak"
+            echo -e "${GREEN}Hook paths updated to use global ~/.claude/hooks/${NC}"
+        else
+            echo -e "${GREEN}Hook paths already use global paths${NC}"
+        fi
     else
         echo -e "${YELLOW}No hooks section found. Please add hooks manually or backup and recreate.${NC}"
     fi
@@ -197,7 +208,7 @@ else
         "hooks": [
           {
             "type": "command",
-            "command": "$HOOKS_DIR/enforce-state-before-write.sh"
+            "command": "\$HOME/.claude/hooks/enforce-state-before-write.sh"
           }
         ]
       },
@@ -206,7 +217,7 @@ else
         "hooks": [
           {
             "type": "command",
-            "command": "$HOOKS_DIR/enforce-state-before-write.sh"
+            "command": "\$HOME/.claude/hooks/enforce-state-before-write.sh"
           }
         ]
       }
@@ -217,7 +228,7 @@ else
         "hooks": [
           {
             "type": "command",
-            "command": "$HOOKS_DIR/create-pr-on-ticket-start.sh"
+            "command": "\$HOME/.claude/hooks/create-pr-on-ticket-start.sh"
           }
         ]
       },
@@ -226,7 +237,7 @@ else
         "hooks": [
           {
             "type": "command",
-            "command": "$HOOKS_DIR/link-commit-to-ticket.sh"
+            "command": "\$HOME/.claude/hooks/link-commit-to-ticket.sh"
           }
         ]
       },
@@ -235,7 +246,7 @@ else
         "hooks": [
           {
             "type": "command",
-            "command": "$HOOKS_DIR/record-state-change.sh"
+            "command": "\$HOME/.claude/hooks/record-state-change.sh"
           }
         ]
       },
@@ -244,7 +255,7 @@ else
         "hooks": [
           {
             "type": "command",
-            "command": "$HOOKS_DIR/record-state-change.sh"
+            "command": "\$HOME/.claude/hooks/record-state-change.sh"
           }
         ]
       },
@@ -253,7 +264,7 @@ else
         "hooks": [
           {
             "type": "command",
-            "command": "$HOOKS_DIR/record-state-change.sh"
+            "command": "\$HOME/.claude/hooks/record-state-change.sh"
           }
         ]
       },
@@ -262,7 +273,7 @@ else
         "hooks": [
           {
             "type": "command",
-            "command": "$HOOKS_DIR/spawn-next-ticket.sh"
+            "command": "\$HOME/.claude/hooks/spawn-next-ticket.sh"
           }
         ]
       }
@@ -272,7 +283,7 @@ else
         "hooks": [
           {
             "type": "command",
-            "command": "$HOOKS_DIR/check-for-code-changes.sh"
+            "command": "\$HOME/.claude/hooks/check-for-code-changes.sh"
           }
         ]
       }
