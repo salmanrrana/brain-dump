@@ -1,11 +1,12 @@
 #!/bin/bash
 # Brain Dump Claude Code Setup Script
-# Configures Claude Code to use Brain Dump's MCP server and auto-review hooks
+# Configures Claude Code to use Brain Dump's MCP server, agents, hooks, and commands
 #
 # This script:
 # 1. Configures the Brain Dump MCP server in ~/.claude.json
-# 2. Installs required plugins (pr-review-toolkit, code-simplifier)
-# 3. Copies hooks and agents to .claude directory
+# 2. Installs required plugins (pr-review-toolkit, code-simplifier, context7)
+# 3. Copies agents, commands, hooks, and skills to ~/.claude/
+# 4. Configures hooks in ~/.claude/settings.json
 #
 # After running, Brain Dump tools and auto-review will be available in all Claude Code sessions.
 
@@ -30,9 +31,16 @@ BRAIN_DUMP_DIR="$(dirname "$SCRIPT_DIR")"
 
 echo -e "${YELLOW}Brain Dump location:${NC} $BRAIN_DUMP_DIR"
 
-# Claude Code config file
+# Claude Code config files
 CLAUDE_CONFIG="$HOME/.claude.json"
-PROJECT_CLAUDE_DIR="$BRAIN_DUMP_DIR/.claude"
+CLAUDE_SETTINGS="$HOME/.claude/settings.json"
+GLOBAL_CLAUDE_DIR="$HOME/.claude"
+
+# Source directories in brain-dump
+SOURCE_AGENTS="$BRAIN_DUMP_DIR/.claude/agents"
+SOURCE_COMMANDS="$BRAIN_DUMP_DIR/.claude/commands"
+SOURCE_HOOKS="$BRAIN_DUMP_DIR/.claude/hooks"
+SOURCE_SKILLS="$BRAIN_DUMP_DIR/.claude/skills"
 
 echo ""
 echo -e "${BLUE}Step 1: Configure MCP Server${NC}"
@@ -82,70 +90,197 @@ echo "────────────────────────�
 # Check if claude CLI is available
 if command -v claude &> /dev/null; then
     echo "Installing pr-review-toolkit plugin..."
-    claude plugin install pr-review-toolkit 2>/dev/null || echo -e "${YELLOW}pr-review-toolkit already installed or install failed${NC}"
+    claude plugins install pr-review-toolkit 2>/dev/null || echo -e "${YELLOW}pr-review-toolkit already installed or install failed${NC}"
 
     echo "Installing code-simplifier plugin..."
-    claude plugin install code-simplifier 2>/dev/null || echo -e "${YELLOW}code-simplifier already installed or install failed${NC}"
+    claude plugins install code-simplifier 2>/dev/null || echo -e "${YELLOW}code-simplifier already installed or install failed${NC}"
+
+    echo "Installing context7 plugin..."
+    claude plugins install context7 2>/dev/null || echo -e "${YELLOW}context7 already installed or install failed${NC}"
 
     echo -e "${GREEN}Plugins configured.${NC}"
 else
     echo -e "${YELLOW}Claude CLI not found. Please install plugins manually:${NC}"
-    echo "  claude plugin install pr-review-toolkit"
-    echo "  claude plugin install code-simplifier"
+    echo "  claude plugins install pr-review-toolkit"
+    echo "  claude plugins install code-simplifier"
+    echo "  claude plugins install context7"
 fi
 
 echo ""
-echo -e "${BLUE}Step 3: Configure Hooks${NC}"
-echo "────────────────────────"
+echo -e "${BLUE}Step 3: Copy Agents to Global Location${NC}"
+echo "────────────────────────────────────────"
 
-# Create .claude directory if it doesn't exist
-mkdir -p "$PROJECT_CLAUDE_DIR/hooks"
+mkdir -p "$GLOBAL_CLAUDE_DIR/agents"
 
-# Copy hooks if they exist in the source
-HOOKS_SOURCE="$BRAIN_DUMP_DIR/.claude/hooks"
-if [ -d "$HOOKS_SOURCE" ]; then
-    echo "Hooks directory already exists in project."
-    echo -e "${GREEN}Hooks configured:${NC}"
-    ls -la "$HOOKS_SOURCE"/*.md 2>/dev/null | awk '{print "  • " $NF}' | xargs -I {} basename {}
+if [ -d "$SOURCE_AGENTS" ]; then
+    echo "Copying agents from brain-dump to ~/.claude/agents/..."
+    cp -v "$SOURCE_AGENTS"/*.md "$GLOBAL_CLAUDE_DIR/agents/" 2>/dev/null || true
+    echo -e "${GREEN}Agents installed:${NC}"
+    ls "$GLOBAL_CLAUDE_DIR/agents"/*.md 2>/dev/null | xargs -I {} basename {} | sed 's/^/  • /'
 else
-    echo -e "${YELLOW}Creating hooks directory...${NC}"
-    mkdir -p "$HOOKS_SOURCE"
-fi
-
-# Update settings.local.json with hooks if not already present
-SETTINGS_FILE="$PROJECT_CLAUDE_DIR/settings.local.json"
-if [ -f "$SETTINGS_FILE" ]; then
-    if grep -q '"hooks"' "$SETTINGS_FILE"; then
-        echo -e "${GREEN}Hooks already configured in settings.local.json${NC}"
-    else
-        echo -e "${YELLOW}Hooks not found in settings.local.json${NC}"
-        echo "Please add the hooks section from .claude/hooks/hooks.json to your settings.local.json"
-    fi
-else
-    echo -e "${YELLOW}settings.local.json not found.${NC}"
-    echo "Run 'claude' in the project directory to generate it, then re-run this script."
+    echo -e "${YELLOW}No agents directory found in brain-dump.${NC}"
 fi
 
 echo ""
-echo -e "${BLUE}Step 4: Configure Agents and Commands${NC}"
+echo -e "${BLUE}Step 4: Copy Commands to Global Location${NC}"
+echo "──────────────────────────────────────────"
+
+mkdir -p "$GLOBAL_CLAUDE_DIR/commands"
+
+if [ -d "$SOURCE_COMMANDS" ]; then
+    echo "Copying commands from brain-dump to ~/.claude/commands/..."
+    cp -v "$SOURCE_COMMANDS"/*.md "$GLOBAL_CLAUDE_DIR/commands/" 2>/dev/null || true
+    echo -e "${GREEN}Commands installed:${NC}"
+    ls "$GLOBAL_CLAUDE_DIR/commands"/*.md 2>/dev/null | xargs -I {} basename {} | sed 's/^/  • /'
+else
+    echo -e "${YELLOW}No commands directory found in brain-dump.${NC}"
+fi
+
+echo ""
+echo -e "${BLUE}Step 5: Copy Hooks to Global Location${NC}"
 echo "───────────────────────────────────────"
 
-# Check for agents directory
-AGENTS_DIR="$PROJECT_CLAUDE_DIR/agents"
-if [ -d "$AGENTS_DIR" ]; then
-    echo -e "${GREEN}Agents configured:${NC}"
-    ls "$AGENTS_DIR"/*.md 2>/dev/null | xargs -I {} basename {} | sed 's/^/  • /'
+mkdir -p "$GLOBAL_CLAUDE_DIR/hooks"
+
+if [ -d "$SOURCE_HOOKS" ]; then
+    echo "Copying hook scripts from brain-dump to ~/.claude/hooks/..."
+    cp -v "$SOURCE_HOOKS"/*.sh "$GLOBAL_CLAUDE_DIR/hooks/" 2>/dev/null || true
+    cp -v "$SOURCE_HOOKS"/*.md "$GLOBAL_CLAUDE_DIR/hooks/" 2>/dev/null || true
+    cp -v "$SOURCE_HOOKS"/*.json "$GLOBAL_CLAUDE_DIR/hooks/" 2>/dev/null || true
+    chmod +x "$GLOBAL_CLAUDE_DIR/hooks"/*.sh 2>/dev/null || true
+    echo -e "${GREEN}Hook scripts installed:${NC}"
+    ls "$GLOBAL_CLAUDE_DIR/hooks"/*.sh 2>/dev/null | xargs -I {} basename {} | sed 's/^/  • /'
 else
-    echo -e "${YELLOW}No agents directory found.${NC}"
+    echo -e "${YELLOW}No hooks directory found in brain-dump.${NC}"
 fi
 
-# Check for commands directory
-COMMANDS_DIR="$PROJECT_CLAUDE_DIR/commands"
-if [ -d "$COMMANDS_DIR" ]; then
-    echo -e "${GREEN}Commands configured:${NC}"
-    ls "$COMMANDS_DIR"/*.md 2>/dev/null | xargs -I {} basename {} | sed 's/^/  • /'
+echo ""
+echo -e "${BLUE}Step 6: Copy Skills to Global Location${NC}"
+echo "────────────────────────────────────────"
+
+mkdir -p "$GLOBAL_CLAUDE_DIR/skills"
+
+if [ -d "$SOURCE_SKILLS" ]; then
+    echo "Copying skills from brain-dump to ~/.claude/skills/..."
+    cp -rv "$SOURCE_SKILLS"/* "$GLOBAL_CLAUDE_DIR/skills/" 2>/dev/null || true
+    echo -e "${GREEN}Skills installed:${NC}"
+    ls -d "$GLOBAL_CLAUDE_DIR/skills"/*/ 2>/dev/null | xargs -I {} basename {} | sed 's/^/  • /'
 else
-    echo -e "${YELLOW}No commands directory found.${NC}"
+    echo -e "${YELLOW}No skills directory found in brain-dump.${NC}"
+fi
+
+echo ""
+echo -e "${BLUE}Step 7: Configure Hooks in Settings${NC}"
+echo "──────────────────────────────────────"
+
+# Create or update ~/.claude/settings.json with hooks configuration
+HOOKS_DIR="$GLOBAL_CLAUDE_DIR/hooks"
+
+if [ -f "$CLAUDE_SETTINGS" ]; then
+    echo -e "${YELLOW}Existing ~/.claude/settings.json found.${NC}"
+
+    if grep -q '"hooks"' "$CLAUDE_SETTINGS"; then
+        echo -e "${GREEN}Hooks section already exists in settings.json${NC}"
+        echo -e "${YELLOW}Please verify hooks paths point to ~/.claude/hooks/${NC}"
+    else
+        echo -e "${YELLOW}No hooks section found. Please add hooks manually or backup and recreate.${NC}"
+    fi
+else
+    echo "Creating ~/.claude/settings.json with hooks configuration..."
+    cat > "$CLAUDE_SETTINGS" << EOF
+{
+  "\$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOOKS_DIR/enforce-state-before-write.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOOKS_DIR/enforce-state-before-write.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__brain-dump__start_ticket_work",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOOKS_DIR/create-pr-on-ticket-start.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash(git commit:*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOOKS_DIR/link-commit-to-ticket.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__brain-dump__update_session_state",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOOKS_DIR/record-state-change.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__brain-dump__create_ralph_session",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOOKS_DIR/record-state-change.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__brain-dump__complete_ralph_session",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOOKS_DIR/record-state-change.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__brain-dump__complete_ticket_work",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOOKS_DIR/spawn-next-ticket.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOOKS_DIR/check-for-code-changes.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+EOF
+    echo -e "${GREEN}Created $CLAUDE_SETTINGS${NC}"
 fi
 
 echo ""
@@ -154,22 +289,42 @@ echo -e "${GREEN}║                    Setup Complete!                         
 echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${BLUE}What's been configured:${NC}"
-echo "  • MCP Server: brain-dump (ticket management tools)"
-echo "  • Plugins: pr-review-toolkit, code-simplifier"
-echo "  • Hooks: Auto-review (triggers after code changes)"
-echo "  • Agents: breakdown, inception"
-echo "  • Commands: /breakdown, /inception, /review"
-echo "  • Plugin Skills: /simplify (from code-simplifier)"
 echo ""
-echo -e "${BLUE}Auto-Review Hook:${NC}"
-echo "  The Stop hook automatically triggers code review after completing"
-echo "  a coding task. It runs these agents in sequence:"
-echo "    1. pr-review-toolkit:code-reviewer"
-echo "    2. pr-review-toolkit:silent-failure-hunter"
-echo "    3. code-simplifier:code-simplifier"
+echo "  ${GREEN}MCP Server:${NC}"
+echo "    • brain-dump (ticket management tools)"
 echo ""
-echo -e "${BLUE}To disable auto-review:${NC}"
-echo "  Remove or empty the 'hooks.Stop' array in .claude/settings.local.json"
+echo "  ${GREEN}Plugins:${NC}"
+echo "    • pr-review-toolkit (code review agents)"
+echo "    • code-simplifier (code refinement)"
+echo "    • context7 (library documentation)"
+echo ""
+echo "  ${GREEN}Agents (~/.claude/agents/):${NC}"
+echo "    • inception - Start new projects"
+echo "    • breakdown - Break features into tickets"
+echo "    • context7-library-compliance - Verify library usage"
+echo "    • react-best-practices - React/Next.js patterns"
+echo "    • cruft-detector - Find unnecessary code"
+echo "    • senior-engineer - Synthesize review findings"
+echo ""
+echo "  ${GREEN}Commands (~/.claude/commands/):${NC}"
+echo "    • /review - Run initial code review (3 agents)"
+echo "    • /extended-review - Run extended review (4 agents)"
+echo "    • /inception - Start new project"
+echo "    • /breakdown - Break down features"
+echo ""
+echo "  ${GREEN}Hooks (~/.claude/hooks/):${NC}"
+echo "    • Auto-review after code changes"
+echo "    • State enforcement for Ralph workflow"
+echo "    • Commit linking to tickets"
+echo "    • Auto-PR creation on ticket start"
+echo ""
+echo "  ${GREEN}Skills (~/.claude/skills/):${NC}"
+echo "    • review-aggregation - Combine review findings"
+echo "    • tanstack-* - TanStack library patterns"
+echo ""
+echo -e "${BLUE}Review Pipeline:${NC}"
+echo "  /review runs: code-reviewer → silent-failure-hunter → code-simplifier"
+echo "  /extended-review runs: context7 → react-best-practices → cruft-detector → senior-engineer"
 echo ""
 echo -e "${BLUE}Next steps:${NC}"
 echo "  1. Restart any running Claude Code sessions"
