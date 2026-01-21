@@ -23,8 +23,8 @@ const THEME_CONFIG: Record<
   mint: {
     name: "Mint",
     primaryColor: "#10b981", // emerald-500
-    secondaryColor: "#ec4899", // pink-500
-    description: "Emerald and pink accent theme",
+    secondaryColor: "#f43f5e", // rose-500
+    description: "Emerald and rose accent theme",
   },
   solar: {
     name: "Solar",
@@ -39,6 +39,7 @@ const THEME_CONFIG: Record<
  *
  * Displays two color dots representing the theme's palette
  * with the theme name below. Selected state shows a highlighted border.
+ * Matches the design from plans/mockups/settings-neon-productivity.html
  */
 function ThemeCard({
   theme,
@@ -59,24 +60,24 @@ function ThemeCard({
       aria-label={`${config.name} theme${isActive ? " (active)" : ""}`}
       onClick={onSelect}
       className={`
-        flex flex-col items-center gap-2 p-3
-        rounded-xl border-2 transition-all duration-150
+        flex-1 flex flex-col items-center justify-center gap-2 p-4
+        rounded-xl transition-all duration-200 bg-[var(--bg-tertiary)]
         ${
           isActive
-            ? "border-[var(--accent-primary)] bg-[var(--accent-muted)]"
-            : "border-[var(--border-primary)] bg-[var(--bg-secondary)] hover:border-[var(--border-secondary)] hover:bg-[var(--bg-hover)]"
+            ? "border-2 border-[var(--accent-primary)]"
+            : "border border-[var(--border-primary)] hover:border-[var(--border-secondary)]"
         }
       `}
     >
       {/* Dual color dots */}
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center justify-center gap-1.5">
         <span
-          className="w-4 h-4 rounded-full"
+          className="w-5 h-5 rounded-full"
           style={{ backgroundColor: config.primaryColor }}
           aria-hidden="true"
         />
         <span
-          className="w-4 h-4 rounded-full"
+          className="w-5 h-5 rounded-full"
           style={{ backgroundColor: config.secondaryColor }}
           aria-hidden="true"
         />
@@ -84,7 +85,7 @@ function ThemeCard({
 
       {/* Theme name */}
       <span
-        className={`text-xs font-medium ${
+        className={`text-[11px] font-semibold ${
           isActive ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
         }`}
       >
@@ -105,11 +106,7 @@ export function ThemeSwitcher({ className = "" }: ThemeSwitcherProps) {
   const { theme: currentTheme, setTheme } = useTheme();
 
   return (
-    <div
-      className={`flex items-center gap-3 ${className}`}
-      role="radiogroup"
-      aria-label="Theme selector"
-    >
+    <div className={`flex gap-2.5 mt-2 ${className}`} role="radiogroup" aria-label="Theme selector">
       {THEMES.map((theme) => (
         <ThemeCard
           key={theme}

@@ -56,21 +56,21 @@ export const statusCardStyles = {
 // TOGGLE STYLES
 // =============================================================================
 
-/** Toggle switch styles */
+/** Toggle switch styles - matches mockup: 48px x 26px switch, 18px knob */
 export const toggleStyles = {
   row: "flex items-start justify-between gap-4 py-3",
   info: "flex-1",
   label: "text-sm font-semibold text-[var(--text-primary)] mb-1",
   desc: "text-xs text-[var(--text-tertiary)] leading-relaxed",
   switch: (isOn: boolean) =>
-    `relative inline-flex h-6 w-11 items-center rounded-full transition-all flex-shrink-0 ${
+    `relative inline-flex h-[26px] w-12 items-center rounded-full transition-all flex-shrink-0 ${
       isOn
         ? "bg-gradient-to-r from-[var(--accent-primary)] to-[var(--accent-ai)] shadow-[0_0_12px_var(--accent-glow)]"
         : "bg-[var(--bg-tertiary)] border border-[var(--border-primary)]"
     }`,
   knob: (isOn: boolean) =>
-    `inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-      isOn ? "translate-x-6" : "translate-x-1"
+    `inline-block w-[18px] h-[18px] transform rounded-full bg-white shadow transition-transform ${
+      isOn ? "translate-x-[22px]" : "translate-x-[3px]"
     }`,
 };
 

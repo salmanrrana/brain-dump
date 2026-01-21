@@ -275,12 +275,24 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[var(--border-primary)]">
-          <h2
-            id="settings-modal-title"
-            className="text-lg font-semibold text-[var(--text-primary)]"
-          >
-            Settings
-          </h2>
+          <div className="flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{
+                background:
+                  "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary), var(--accent-ai))",
+                boxShadow: "0 4px 12px var(--accent-glow)",
+              }}
+            >
+              <Settings size={20} className="text-white" aria-hidden="true" />
+            </div>
+            <h2
+              id="settings-modal-title"
+              className="text-lg font-semibold text-[var(--text-primary)]"
+            >
+              Settings
+            </h2>
+          </div>
           <button
             onClick={onClose}
             className="p-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -352,7 +364,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end p-4 border-t border-[var(--border-primary)]">
+        <div className="flex items-center justify-between p-4 border-t border-[var(--border-primary)]">
+          <span className="text-xs text-[var(--text-tertiary)]">Changes will be saved locally</span>
           <div className="flex gap-3">
             <button
               onClick={onClose}
@@ -363,7 +376,14 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
             <button
               onClick={handleSave}
               disabled={isSaving || !hasChanges}
-              className="px-4 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] rounded-lg font-medium transition-colors"
+              className="px-4 py-2 rounded-lg font-medium transition-all disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] disabled:shadow-none"
+              style={{
+                background:
+                  isSaving || !hasChanges
+                    ? undefined
+                    : "linear-gradient(135deg, var(--accent-primary), var(--accent-ai))",
+                boxShadow: isSaving || !hasChanges ? undefined : "0 4px 12px var(--accent-glow)",
+              }}
             >
               {isSaving ? "Saving..." : "Save Changes"}
             </button>
