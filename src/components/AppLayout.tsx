@@ -15,7 +15,7 @@ import ContainerLogsModal from "./ContainerLogsModal";
 import NewTicketModal from "./NewTicketModal";
 import ProjectModal from "./ProjectModal";
 import EpicModal from "./EpicModal";
-import SettingsModal from "./SettingsModal";
+import { SettingsModal } from "./settings";
 import DeleteConfirmationModal, { type DeletePreview } from "./DeleteConfirmationModal";
 import { NewTicketDropdown } from "./navigation/NewTicketDropdown";
 import { InceptionModal } from "./inception/InceptionModal";

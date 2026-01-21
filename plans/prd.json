@@ -9,432 +9,480 @@
   ],
   "userStories": [
     {
-      "id": "b3faf222-ba21-4df1-a322-d2baba258bc7",
-      "title": "75 - Create ticket detail route",
+      "id": "6cd0fd59-89fa-4e21-89e4-7482b38766f7",
+      "title": "91 - Create SettingsModal with tabbed navigation",
       "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Route at `/ticket/:id`",
-        "Loads ticket by ID from URL param",
-        "Full page layout (not modal)",
-        "Includes header, description, subtasks, activity",
-        "Error state for invalid ticket ID",
-        "Loading skeleton while fetching",
-        "Navigate to /ticket/123",
-        "Ticket data loads"
+        "Modal opens from Settings nav item",
+        "4 tabs visible: General, Ralph, Git, Enterprise",
+        "Tab switching preserves form state",
+        "Uses Modal base component from Sprint 1",
+        "Form data saves on submit",
+        "Cancel discards changes"
       ],
       "references": [
-        "src/routes/ticket.$id.tsx"
+        "src/components/settings/SettingsModal.tsx"
       ],
-      "description": "Create the dedicated ticket detail page route.\n\n**Files to Create:**\n- `src/routes/ticket.$id.tsx`\n\n**Acceptance Criteria:**\n- [ ] Route at `/ticket/:id`\n- [ ] Loads ticket by ID from URL param\n- [ ] Full page layout (not modal)\n- [ ] Includes header, description, subtasks, activity\n- [ ] Error state for invalid ticket ID\n- [ ] Loading skeleton while fetching\n\n**Layout:**\n```\n┌─────────────────────────────────────────────────────────────┐\n│ ← Back to Board                                             │\n├─────────────────────────────────────────────────────────────┤\n│ Implement user authentication              [Edit] [Start]   │\n│ Status: In Progress  Priority: High  Epic: Auth            │\n├─────────────────────────────────────────────────────────────┤\n│ Description                     │ Subtasks (2/4)           │\n│ Add login/logout...             │ ☑ Database schema        │\n│                                 │ ☑ API endpoints          │\n│                                 │ ☐ UI components          │\n├─────────────────────────────────┼──────────────────────────┤\n│ Activity                        │ Related Tickets          │\n│ [Full timeline...]              │ [Same epic tickets...]   │\n└─────────────────────────────────┴──────────────────────────┘\n```\n\n**E2E Tests:**\n- [ ] Navigate to /ticket/123\n- [ ] Ticket data loads",
-      "priority": "high",
+      "description": "## Summary\nBuild the main SettingsModal component with 4 tabs: General, Ralph, Git, Enterprise.\n\n## Files to Create\n- `src/components/settings/SettingsModal.tsx`\n\n## Acceptance Criteria\n- [ ] Modal opens from Settings nav item\n- [ ] 4 tabs visible: General, Ralph, Git, Enterprise\n- [ ] Tab switching preserves form state\n- [ ] Uses Modal base component from Sprint 1\n- [ ] Form data saves on submit\n- [ ] Cancel discards changes\n\n## Implementation Hints\n- Use Modal.tsx as base\n- Tab state managed with useState\n- Each tab is a separate component\n- Save button at modal footer\n\n## Tests\n- Visual: Modal renders with all tabs\n- E2E: Tab switching works",
+      "priority": "medium",
       "tags": [
-        "route",
-        "detail"
+        "sprint-6",
+        "settings",
+        "modal",
+        "ui-v2"
       ]
     },
     {
-      "id": "4278b95b-fb61-49a0-a93c-ed7e4b7c8e6d",
-      "title": "76 - Create BackNavigation component",
+      "id": "d5dd56f8-e9a3-4bd7-b672-40fffbacde47",
+      "title": "92 - Create TabNav component for settings",
       "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "\"← Back to Board\" link",
-        "Navigates to previous board view",
-        "Preserves board filters in URL",
-        "Arrow icon + text",
-        "Hover state",
-        "Keyboard accessible"
+        "Tab buttons with icons for each section",
+        "Active tab has gradient background",
+        "Inactive tabs have ghost styling",
+        "Icons: Settings, Robot, Git, Building",
+        "Click switches active tab",
+        "Keyboard nav between tabs (arrow keys)"
       ],
       "references": [
-        "src/components/navigation/BackNavigation.tsx"
+        "src/components/settings/TabNav.tsx",
+        "src/components/settings/TabNav.test.tsx"
       ],
-      "description": "Create back navigation link for detail views.\n\n**Files to Create:**\n- `src/components/navigation/BackNavigation.tsx`\n\n**Acceptance Criteria:**\n- [ ] \"← Back to Board\" link\n- [ ] Navigates to previous board view\n- [ ] Preserves board filters in URL\n- [ ] Arrow icon + text\n- [ ] Hover state\n- [ ] Keyboard accessible\n\n**Usage:**\n```tsx\n<BackNavigation label=\"Back to Board\" fallback=\"/\" />\n```\n\n**Tests:** Visual + navigation",
+      "description": "## Summary\nBuild the TabNav component for settings modal tab navigation.\n\n## Files to Create\n- `src/components/settings/TabNav.tsx`\n- `src/components/settings/TabNav.test.tsx`\n\n## Acceptance Criteria\n- [ ] Tab buttons with icons for each section\n- [ ] Active tab has gradient background\n- [ ] Inactive tabs have ghost styling\n- [ ] Icons: Settings, Robot, Git, Building\n- [ ] Click switches active tab\n- [ ] Keyboard nav between tabs (arrow keys)\n\n## Implementation Hints\n- lucide-react icons: Settings, Bot, GitBranch, Building2\n- Props: tabs array, activeTab, onTabChange\n- Use accent gradient for active state\n\n## Tests\n- Unit test: Tab click calls onTabChange\n- Visual: Active/inactive states render correctly",
+      "priority": "medium",
+      "tags": [
+        "sprint-6",
+        "settings",
+        "component",
+        "ui-v2"
+      ]
+    },
+    {
+      "id": "cdf9add3-545b-4381-8ca4-d753c2a7249c",
+      "title": "93 - Create GeneralTab settings component",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Projects directory input with browse button",
+        "Terminal emulator dropdown (Ghostty, iTerm2, Terminal, etc.)",
+        "Default working method dropdown",
+        "Current values loaded from settings API",
+        "Changes propagate to parent form state",
+        "Validation: directory must exist"
+      ],
+      "references": [
+        "src/components/settings/GeneralTab.tsx"
+      ],
+      "description": "## Summary\nBuild the General settings tab with projects directory, terminal emulator, and working method options.\n\n## Files to Create\n- `src/components/settings/GeneralTab.tsx`\n\n## Acceptance Criteria\n- [ ] Projects directory input with browse button\n- [ ] Terminal emulator dropdown (Ghostty, iTerm2, Terminal, etc.)\n- [ ] Default working method dropdown\n- [ ] Current values loaded from settings API\n- [ ] Changes propagate to parent form state\n- [ ] Validation: directory must exist\n\n## Implementation Hints\n- Use existing getSettings/updateSettings API\n- Directory browser: input + button that opens file picker\n- Terminal options based on detected OS\n\n## Tests\n- E2E: Change terminal, verify saved",
+      "priority": "medium",
+      "tags": [
+        "sprint-6",
+        "settings",
+        "general",
+        "ui-v2"
+      ]
+    },
+    {
+      "id": "82d40cff-30a0-44a1-b020-d1d016554290",
+      "title": "94 - Create RalphTab settings component",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Docker status indicator (connected/disconnected)",
+        "Sandbox mode toggle",
+        "Session timeout dropdown (30min, 1hr, 2hr, unlimited)",
+        "Runtime environment dropdown (Native, Docker)",
+        "Verify Docker connection button",
+        "Shows current Ralph session if active"
+      ],
+      "references": [
+        "src/components/settings/RalphTab.tsx"
+      ],
+      "description": "## Summary\nBuild the Ralph settings tab with Docker status, sandbox toggle, timeout, and runtime options.\n\n## Files to Create\n- `src/components/settings/RalphTab.tsx`\n\n## Acceptance Criteria\n- [ ] Docker status indicator (connected/disconnected)\n- [ ] Sandbox mode toggle\n- [ ] Session timeout dropdown (30min, 1hr, 2hr, unlimited)\n- [ ] Runtime environment dropdown (Native, Docker)\n- [ ] Verify Docker connection button\n- [ ] Shows current Ralph session if active\n\n## Implementation Hints\n- Docker status from services API\n- Sandbox toggle uses Toggle component\n- Show warning when sandbox disabled\n\n## Tests\n- E2E: Toggle sandbox, verify saved",
+      "priority": "medium",
+      "tags": [
+        "sprint-6",
+        "settings",
+        "ralph",
+        "ui-v2"
+      ]
+    },
+    {
+      "id": "898b1b12-60f2-4287-8d96-cf1c6333beee",
+      "title": "95 - Create GitTab settings component",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Auto-create draft PR toggle",
+        "Default target branch input (default: main)",
+        "Branch naming pattern dropdown (feature/, fix/, custom)",
+        "Custom pattern input (if custom selected)",
+        "Preview of generated branch name"
+      ],
+      "references": [
+        "src/components/settings/GitTab.tsx"
+      ],
+      "description": "## Summary\nBuild the Git settings tab with auto-create PR, target branch, and branch naming options.\n\n## Files to Create\n- `src/components/settings/GitTab.tsx`\n\n## Acceptance Criteria\n- [ ] Auto-create draft PR toggle\n- [ ] Default target branch input (default: main)\n- [ ] Branch naming pattern dropdown (feature/, fix/, custom)\n- [ ] Custom pattern input (if custom selected)\n- [ ] Preview of generated branch name\n\n## Implementation Hints\n- Branch naming patterns: \"feature/{ticket-id}-{slug}\", \"fix/{ticket-id}\", custom\n- Show preview: \"feature/abc123-add-dark-mode\"\n\n## Tests\n- E2E: Change branch pattern, verify saved",
+      "priority": "medium",
+      "tags": [
+        "sprint-6",
+        "settings",
+        "git",
+        "ui-v2"
+      ]
+    },
+    {
+      "id": "21dbe03e-d9a7-40a2-8678-ae1e9fe7b434",
+      "title": "96 - Create EnterpriseTab settings component",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Enable conversation logging toggle",
+        "Retention period slider (7-365 days)",
+        "Theme picker with 3 options (Ember, Mint, Solar)",
+        "Theme preview swatches",
+        "Current theme highlighted",
+        "Uses ThemeSwitcher component"
+      ],
+      "references": [
+        "src/components/settings/EnterpriseTab.tsx"
+      ],
+      "description": "## Summary\nBuild the Enterprise settings tab with conversation logging toggle, retention period, and theme picker.\n\n## Files to Create\n- `src/components/settings/EnterpriseTab.tsx`\n\n## Acceptance Criteria\n- [ ] Enable conversation logging toggle\n- [ ] Retention period slider (7-365 days)\n- [ ] Theme picker with 3 options (Ember, Mint, Solar)\n- [ ] Theme preview swatches\n- [ ] Current theme highlighted\n- [ ] Uses ThemeSwitcher component\n\n## Implementation Hints\n- Reuse ThemeSwitcher from Sprint 1\n- Retention: slider or number input with validation\n- Show logging status indicator\n\n## Tests\n- E2E: Change theme, verify persists\n- E2E: Toggle logging, verify saved",
+      "priority": "medium",
+      "tags": [
+        "sprint-6",
+        "settings",
+        "enterprise",
+        "ui-v2"
+      ]
+    },
+    {
+      "id": "9de9a2a6-ce9e-4ca2-ae4a-08d86fb6e236",
+      "title": "97 - Create global keyboard shortcuts hook",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`n` - Opens new ticket modal",
+        "`/` - Focus search input",
+        "`?` - Opens shortcuts help modal",
+        "`Escape` - Close any open modal",
+        "Shortcuts disabled when typing in input/textarea",
+        "Hook returns current shortcuts for help display"
+      ],
+      "references": [
+        "src/lib/keyboard-shortcuts.ts",
+        "src/lib/keyboard-shortcuts.test.ts"
+      ],
+      "description": "## Summary\nBuild the useKeyboardShortcuts hook for global keyboard navigation.\n\n## Files to Create\n- `src/lib/keyboard-shortcuts.ts`\n- `src/lib/keyboard-shortcuts.test.ts`\n\n## Acceptance Criteria\n- [ ] `n` - Opens new ticket modal\n- [ ] `/` - Focus search input\n- [ ] `?` - Opens shortcuts help modal\n- [ ] `Escape` - Close any open modal\n- [ ] Shortcuts disabled when typing in input/textarea\n- [ ] Hook returns current shortcuts for help display\n\n## Implementation Hints\n- Use useEffect with window keydown listener\n- Check document.activeElement.tagName for input detection\n- Return cleanup function\n\n## Tests\n- Unit test: Shortcuts trigger callbacks\n- Unit test: Disabled in input fields",
+      "priority": "medium",
+      "tags": [
+        "sprint-6",
+        "keyboard",
+        "accessibility",
+        "ui-v2"
+      ]
+    },
+    {
+      "id": "e45db2cd-006e-4412-9be3-3b35971bce51",
+      "title": "98 - Add keyboard navigation to IconSidebar",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`1` - Navigate to Dashboard",
+        "`2` - Navigate to Board",
+        "`3` - Toggle Projects panel",
+        "`4` - Open Settings modal",
+        "Number keys work globally (not just when sidebar focused)",
+        "Visual indicator shows number shortcuts on hover"
+      ],
+      "references": [
+        "src/components/navigation/IconSidebar.tsx"
+      ],
+      "description": "## Summary\nAdd keyboard shortcuts 1-4 to navigate between sidebar views.\n\n## Files to Modify\n- `src/components/navigation/IconSidebar.tsx`\n\n## Acceptance Criteria\n- [ ] `1` - Navigate to Dashboard\n- [ ] `2` - Navigate to Board\n- [ ] `3` - Toggle Projects panel\n- [ ] `4` - Open Settings modal\n- [ ] Number keys work globally (not just when sidebar focused)\n- [ ] Visual indicator shows number shortcuts on hover\n\n## Implementation Hints\n- Integrate with keyboard-shortcuts.ts\n- Use TanStack Router navigate\n- Add tooltip with shortcut key\n\n## Tests\n- Manual: Press 1-4, verify navigation",
       "priority": "low",
       "tags": [
+        "sprint-6",
+        "keyboard",
         "navigation",
-        "component"
+        "ui-v2"
       ]
     },
     {
-      "id": "558a73b6-665a-4644-ad09-8cd6c79abbfb",
-      "title": "77 - Create TicketDetailHeader component",
-      "passes": true,
+      "id": "76e1c65a-c8e3-429b-93e0-624eed12c822",
+      "title": "99 - Add keyboard navigation to KanbanBoard",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Ticket title (large text)",
-        "Status badge",
-        "Priority badge",
-        "Epic badge (if assigned)",
-        "Edit button (opens EditTicketModal)",
-        "Start Work button (opens LaunchActions)",
-        "Git info (branch, PR)"
+        "Arrow keys move focus between tickets",
+        "Left/Right moves between columns",
+        "Up/Down moves within column",
+        "Enter opens focused ticket detail",
+        "Focus ring visible on focused card",
+        "Tab moves to next card"
       ],
       "references": [
-        "src/components/tickets/TicketDetailHeader.tsx"
+        "src/components/board/KanbanBoard.tsx",
+        "src/components/board/TicketCard.tsx"
       ],
-      "description": "Create header section for ticket detail page.\n\n**Files to Create:**\n- `src/components/tickets/TicketDetailHeader.tsx`\n\n**Acceptance Criteria:**\n- [ ] Ticket title (large text)\n- [ ] Status badge\n- [ ] Priority badge\n- [ ] Epic badge (if assigned)\n- [ ] Edit button (opens EditTicketModal)\n- [ ] Start Work button (opens LaunchActions)\n- [ ] Git info (branch, PR)\n\n**Layout:**\n```\n┌─────────────────────────────────────────────────────────────┐\n│ Implement user authentication              [Edit] [▶ Start] │\n│ 🔵 In Progress  🔴 High  📁 Auth Epic                       │\n│ 🌿 feature/auth  🔗 PR #42                                  │\n└─────────────────────────────────────────────────────────────┘\n```\n\n**Tests:** Visual inspection",
+      "description": "## Summary\nAdd arrow key navigation and Enter to open ticket on the Kanban board.\n\n## Files to Modify\n- `src/components/board/KanbanBoard.tsx`\n- `src/components/board/TicketCard.tsx`\n\n## Acceptance Criteria\n- [ ] Arrow keys move focus between tickets\n- [ ] Left/Right moves between columns\n- [ ] Up/Down moves within column\n- [ ] Enter opens focused ticket detail\n- [ ] Focus ring visible on focused card\n- [ ] Tab moves to next card\n\n## Implementation Hints\n- Use roving tabindex pattern\n- Track focused card ID in state\n- Use refs array for card elements\n\n## Tests\n- Manual: Navigate board with arrows",
+      "priority": "low",
+      "tags": [
+        "sprint-6",
+        "keyboard",
+        "kanban",
+        "ui-v2"
+      ]
+    },
+    {
+      "id": "24cbb8fe-563d-4fe0-82b1-3d0992591b55",
+      "title": "100 - Create ShortcutsModal component",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Opens with `?` key",
+        "Lists all shortcuts in organized sections",
+        "Sections: Global, Navigation, Board, Modals",
+        "Key displayed in styled kbd element",
+        "Description for each shortcut",
+        "Close with Escape or click outside"
+      ],
+      "references": [
+        "src/components/ui/ShortcutsModal.tsx"
+      ],
+      "description": "## Summary\nBuild the keyboard shortcuts help modal showing all available shortcuts.\n\n## Files to Create\n- `src/components/ui/ShortcutsModal.tsx`\n\n## Acceptance Criteria\n- [ ] Opens with `?` key\n- [ ] Lists all shortcuts in organized sections\n- [ ] Sections: Global, Navigation, Board, Modals\n- [ ] Key displayed in styled kbd element\n- [ ] Description for each shortcut\n- [ ] Close with Escape or click outside\n\n## Implementation Hints\n- Use Modal base component\n- Get shortcuts from keyboard-shortcuts.ts\n- Style kbd with monospace and border\n\n## Tests\n- Visual: All shortcuts displayed correctly",
+      "priority": "low",
+      "tags": [
+        "sprint-6",
+        "keyboard",
+        "modal",
+        "ui-v2"
+      ]
+    },
+    {
+      "id": "80b25268-15dc-44d8-a9b6-6d1610c7ef9e",
+      "title": "101 - Add mobile sidebar with hamburger menu",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Sidebar collapses to hamburger on < 768px",
+        "Hamburger button in top-left corner",
+        "Click opens slide-out menu",
+        "Menu overlays content (z-index 100)",
+        "Backdrop click closes menu",
+        "Swipe gesture closes menu (optional)",
+        "Icons + labels visible in mobile menu"
+      ],
+      "references": [
+        "src/components/navigation/IconSidebar.tsx"
+      ],
+      "description": "## Summary\nMake the IconSidebar responsive with collapsible hamburger menu on mobile.\n\n## Files to Modify\n- `src/components/navigation/IconSidebar.tsx`\n\n## Acceptance Criteria\n- [ ] Sidebar collapses to hamburger on < 768px\n- [ ] Hamburger button in top-left corner\n- [ ] Click opens slide-out menu\n- [ ] Menu overlays content (z-index 100)\n- [ ] Backdrop click closes menu\n- [ ] Swipe gesture closes menu (optional)\n- [ ] Icons + labels visible in mobile menu\n\n## Implementation Hints\n- Use @media (max-width: 768px) or Tailwind md: breakpoint\n- useState for mobile menu open state\n- AnimatePresence for slide animation\n\n## Tests\n- Visual: Test at 375px width",
+      "priority": "medium",
+      "tags": [
+        "sprint-6",
+        "responsive",
+        "mobile",
+        "ui-v2"
+      ]
+    },
+    {
+      "id": "062325ad-7287-4d48-a2ae-d9ac17760d07",
+      "title": "102 - Add responsive board with horizontal scroll",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Horizontal scroll works on mobile",
+        "Columns have minimum width (280px)",
+        "Touch scrolling smooth (momentum)",
+        "Drag handles larger on touch devices",
+        "Column headers sticky during scroll",
+        "Scroll snap to columns (optional)"
+      ],
+      "references": [
+        "src/components/board/KanbanBoard.tsx",
+        "src/components/board/KanbanColumn.tsx"
+      ],
+      "description": "## Summary\nMake the Kanban board responsive with horizontal scroll and touch-friendly interactions.\n\n## Files to Modify\n- `src/components/board/KanbanBoard.tsx`\n- `src/components/board/KanbanColumn.tsx`\n\n## Acceptance Criteria\n- [ ] Horizontal scroll works on mobile\n- [ ] Columns have minimum width (280px)\n- [ ] Touch scrolling smooth (momentum)\n- [ ] Drag handles larger on touch devices\n- [ ] Column headers sticky during scroll\n- [ ] Scroll snap to columns (optional)\n\n## Implementation Hints\n- overflow-x: auto with -webkit-overflow-scrolling: touch\n- Use @media (hover: none) for touch detection\n- scroll-snap-type: x mandatory for snap\n\n## Tests\n- Visual: Test on mobile viewport\n- Manual: Touch scroll and drag",
+      "priority": "medium",
+      "tags": [
+        "sprint-6",
+        "responsive",
+        "kanban",
+        "ui-v2"
+      ]
+    },
+    {
+      "id": "42b951fe-b4b0-472b-8427-6ca421f01a09",
+      "title": "103 - Add responsive full-screen modals on mobile",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Modals full-screen on < 640px",
+        "Header becomes sticky top bar",
+        "Close button in header (X icon)",
+        "Form scrollable within modal",
+        "Footer sticky at bottom",
+        "Keyboard avoidance on iOS"
+      ],
+      "references": [
+        "src/components/ui/Modal.tsx"
+      ],
+      "description": "## Summary\nMake modals full-screen on mobile devices for better usability.\n\n## Files to Modify\n- `src/components/ui/Modal.tsx`\n\n## Acceptance Criteria\n- [ ] Modals full-screen on < 640px\n- [ ] Header becomes sticky top bar\n- [ ] Close button in header (X icon)\n- [ ] Form scrollable within modal\n- [ ] Footer sticky at bottom\n- [ ] Keyboard avoidance on iOS\n\n## Implementation Hints\n- Use @media (max-width: 640px) for mobile\n- height: 100dvh for dynamic viewport height\n- position: fixed, inset: 0 for full-screen\n\n## Tests\n- Visual: Test modals at 375px width",
+      "priority": "medium",
+      "tags": [
+        "sprint-6",
+        "responsive",
+        "modal",
+        "ui-v2"
+      ]
+    },
+    {
+      "id": "4f20d75f-7826-41a9-a4ad-bbf10e5b4012",
+      "title": "104 - Add ARIA labels to all interactive elements",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "All buttons have aria-label or visible text",
+        "Icon-only buttons have aria-label",
+        "Form inputs have associated labels",
+        "Modal roles: dialog, aria-modal, aria-labelledby",
+        "Live regions for dynamic content (aria-live)",
+        "Navigation landmarks (nav, main, aside)"
+      ],
+      "references": [],
+      "description": "## Summary\nAudit and add ARIA labels to all interactive elements for screen reader accessibility.\n\n## Files to Modify\n- All component files (throughout)\n\n## Acceptance Criteria\n- [ ] All buttons have aria-label or visible text\n- [ ] Icon-only buttons have aria-label\n- [ ] Form inputs have associated labels\n- [ ] Modal roles: dialog, aria-modal, aria-labelledby\n- [ ] Live regions for dynamic content (aria-live)\n- [ ] Navigation landmarks (nav, main, aside)\n\n## Implementation Hints\n- Run axe-core audit to find issues\n- aria-label for icon buttons\n- role=\"dialog\" aria-modal=\"true\" for modals\n- aria-live=\"polite\" for toasts\n\n## Tests\n- Axe audit: No critical/serious issues",
       "priority": "high",
       "tags": [
-        "detail",
-        "component"
+        "sprint-6",
+        "accessibility",
+        "a11y",
+        "ui-v2"
       ]
     },
     {
-      "id": "6a505a56-0c0a-4ef5-b019-2d41a42c5fd4",
-      "title": "78 - Create TicketDescription component",
-      "passes": true,
+      "id": "0051e530-bfc3-4bac-b011-cf50c6031a98",
+      "title": "105 - Add visible focus indicators with WCAG AA contrast",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Renders markdown content",
-        "Code blocks with syntax highlighting",
-        "Links clickable",
-        "Headers, lists, bold, italic",
-        "Empty state: \"No description\"",
-        "Edit inline button (optional)"
+        "Focus ring visible on all interactive elements",
+        "Focus ring uses accent color with offset",
+        "Contrast ratio ≥ 3:1 against adjacent colors",
+        "Focus visible on keyboard nav (not mouse click)",
+        "Custom focus styles match theme",
+        ":focus-visible used (not :focus)"
       ],
       "references": [
-        "src/components/tickets/TicketDescription.tsx"
+        "src/styles/variables.css"
       ],
-      "description": "Create formatted description section with markdown rendering.\n\n**Files to Create:**\n- `src/components/tickets/TicketDescription.tsx`\n\n**Acceptance Criteria:**\n- [ ] Renders markdown content\n- [ ] Code blocks with syntax highlighting\n- [ ] Links clickable\n- [ ] Headers, lists, bold, italic\n- [ ] Empty state: \"No description\"\n- [ ] Edit inline button (optional)\n\n**Markdown Features:**\n- Headers (h1-h6)\n- Bold, italic, strikethrough\n- Code blocks with language\n- Links (external open in new tab)\n- Bullet and numbered lists\n- Blockquotes\n\n**Tests:** Visual - paste markdown content",
-      "priority": "medium",
-      "tags": [
-        "detail",
-        "markdown"
-      ]
-    },
-    {
-      "id": "be1a09de-2c98-4730-bafb-a1bc6444569a",
-      "title": "79 - Create SubtasksProgress component",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Progress bar showing completion percentage",
-        "\"X of Y complete\" text",
-        "Checklist of subtasks",
-        "Click to toggle completion",
-        "Add subtask inline",
-        "Empty state: \"No subtasks\"",
-        "Progress bar accurate",
-        "Toggle updates database"
-      ],
-      "references": [
-        "src/components/tickets/SubtasksProgress.tsx",
-        "src/components/tickets/SubtasksProgress.test.tsx"
-      ],
-      "description": "Create subtasks section with progress bar and checklist.\n\n**Files to Create:**\n- `src/components/tickets/SubtasksProgress.tsx`\n- `src/components/tickets/SubtasksProgress.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Progress bar showing completion percentage\n- [ ] \"X of Y complete\" text\n- [ ] Checklist of subtasks\n- [ ] Click to toggle completion\n- [ ] Add subtask inline\n- [ ] Empty state: \"No subtasks\"\n\n**Layout:**\n```\nSubtasks\n████████░░░░░░ 2/4 complete (50%)\n\n☑ Set up database schema\n☑ Create API endpoints  \n☐ Build UI components\n☐ Write tests\n\n[+ Add subtask]\n```\n\n**Tests:**\n- [ ] Progress bar accurate\n- [ ] Toggle updates database",
-      "priority": "medium",
-      "tags": [
-        "detail",
-        "component"
-      ]
-    },
-    {
-      "id": "446fa3d4-4141-4104-91d3-35be7f7e558a",
-      "title": "80 - Create RelatedTickets panel",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Shows tickets from same epic",
-        "Excludes current ticket",
-        "Mini ticket cards (title, status)",
-        "Click navigates to that ticket",
-        "Empty state if no epic or no other tickets",
-        "Max 5 shown, \"View all\" link"
-      ],
-      "references": [
-        "src/components/tickets/RelatedTickets.tsx"
-      ],
-      "description": "Create panel showing other tickets in the same epic.\n\n**Files to Create:**\n- `src/components/tickets/RelatedTickets.tsx`\n\n**Acceptance Criteria:**\n- [ ] Shows tickets from same epic\n- [ ] Excludes current ticket\n- [ ] Mini ticket cards (title, status)\n- [ ] Click navigates to that ticket\n- [ ] Empty state if no epic or no other tickets\n- [ ] Max 5 shown, \"View all\" link\n\n**Layout:**\n```\nRelated Tickets (in Auth Epic)\n┌────────────────────────────┐\n│ 🔵 Set up OAuth providers  │\n│ 🟢 Add password reset     │\n│ ⚪ Implement 2FA          │\n└────────────────────────────┘\nView all 8 tickets in epic →\n```\n\n**Tests:** Visual inspection",
-      "priority": "low",
-      "tags": [
-        "detail",
-        "component"
-      ]
-    },
-    {
-      "id": "69c5407c-4c57-48f2-9182-ba25ed872765",
-      "title": "81 - Integrate full activity timeline in detail view",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Reuse ActivitySection component",
-        "No max-height (full timeline visible)",
-        "Scrollable within page layout",
-        "All comments visible",
-        "Comment input at bottom"
-      ],
-      "references": [
-        "src/routes/ticket.$id.tsx"
-      ],
-      "description": "Reuse ActivitySection in detail view without height limit.\n\n**Files to Modify:**\n- `src/routes/ticket.$id.tsx`\n\n**Acceptance Criteria:**\n- [ ] Reuse ActivitySection component\n- [ ] No max-height (full timeline visible)\n- [ ] Scrollable within page layout\n- [ ] All comments visible\n- [ ] Comment input at bottom\n\n**Implementation:**\n```tsx\n// In ticket detail page\n<ActivitySection \n  ticketId={ticket.id} \n  maxHeight=\"none\"  // Full height in detail view\n/>\n```\n\n**Tests:** Visual - scroll full timeline",
-      "priority": "medium",
-      "tags": [
-        "detail",
-        "activity"
-      ]
-    },
-    {
-      "id": "b2e2ab03-8078-4956-80bc-014c42808363",
-      "title": "82 - Create CreateProjectModal",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Name input (required)",
-        "Path input with browse button",
-        "Color picker",
-        "Validates path exists",
-        "Creates project via mutation",
-        "Shows in projects panel after create",
-        "Create project",
-        "Appears in panel"
-      ],
-      "references": [
-        "src/components/projects/CreateProjectModal.tsx"
-      ],
-      "description": "Create modal for adding new projects.\n\n**Files to Create:**\n- `src/components/projects/CreateProjectModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Name input (required)\n- [ ] Path input with browse button\n- [ ] Color picker\n- [ ] Validates path exists\n- [ ] Creates project via mutation\n- [ ] Shows in projects panel after create\n\n**Layout:**\n```\n┌─────────────────────────────────────────────────────────────┐\n│ [📁] Add New Project                                     [×] │\n├─────────────────────────────────────────────────────────────┤\n│ Project Name *                                               │\n│ [_________________________________________________]          │\n│                                                              │\n│ Path *                                                       │\n│ [/Users/me/code/my-project___________] [Browse]              │\n│                                                              │\n│ Color                                                        │\n│ [🟣] [🔵] [🟢] [🟡] [🟠] [🔴]                                │\n├─────────────────────────────────────────────────────────────┤\n│                               [Cancel]  [Create Project]     │\n└─────────────────────────────────────────────────────────────┘\n```\n\n**E2E Tests:**\n- [ ] Create project\n- [ ] Appears in panel",
+      "description": "## Summary\nAdd visible focus rings to all interactive elements meeting WCAG AA contrast requirements.\n\n## Files to Modify\n- `src/styles/variables.css`\n- Various component files\n\n## Acceptance Criteria\n- [ ] Focus ring visible on all interactive elements\n- [ ] Focus ring uses accent color with offset\n- [ ] Contrast ratio ≥ 3:1 against adjacent colors\n- [ ] Focus visible on keyboard nav (not mouse click)\n- [ ] Custom focus styles match theme\n- [ ] :focus-visible used (not :focus)\n\n## Implementation Hints\n- Use :focus-visible for keyboard-only focus\n- outline: 2px solid var(--accent-primary)\n- outline-offset: 2px for spacing\n- Remove default outline, add custom\n\n## Tests\n- Visual: Tab through app, verify focus visible\n- Manual: Contrast check with browser tools",
       "priority": "high",
       "tags": [
-        "modal",
-        "project"
+        "sprint-6",
+        "accessibility",
+        "focus",
+        "ui-v2"
       ]
     },
     {
-      "id": "dac4013c-44ae-4b15-8d4a-905f0e46e207",
-      "title": "83 - Create EditProjectModal",
-      "passes": true,
+      "id": "bfb69644-0c7b-4a12-831c-7a45e25a4644",
+      "title": "106 - Add skip-to-content link for keyboard users",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Extends CreateProjectModal",
-        "Loads existing project data",
-        "Working method selector",
-        "Delete button with confirmation",
-        "Preview section (ticket stats)",
-        "Opens on double-click from ProjectItem",
-        "Edit project name",
-        "Delete project"
+        "Hidden link at top of page",
+        "Visible only when focused (Tab key)",
+        "Links to main content area (#main-content)",
+        "Styled to be clearly visible when focused",
+        "Main content has id=\"main-content\" and tabindex=\"-1\""
       ],
       "references": [
-        "src/components/projects/EditProjectModal.tsx"
+        "src/routes/__root.tsx"
       ],
-      "description": "Create modal for editing existing projects.\n\n**Files to Create:**\n- `src/components/projects/EditProjectModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Extends CreateProjectModal\n- [ ] Loads existing project data\n- [ ] Working method selector\n- [ ] Delete button with confirmation\n- [ ] Preview section (ticket stats)\n- [ ] Opens on double-click from ProjectItem\n\n**Additional Fields:**\n- Working method (Claude/OpenCode/VS Code/Cursor)\n- Preview: ticket count, active tickets\n- Delete with confirmation\n\n**E2E Tests:**\n- [ ] Edit project name\n- [ ] Delete project",
+      "description": "## Summary\nAdd a skip-to-content link that appears on focus for keyboard navigation.\n\n## Files to Modify\n- `src/routes/__root.tsx`\n\n## Acceptance Criteria\n- [ ] Hidden link at top of page\n- [ ] Visible only when focused (Tab key)\n- [ ] Links to main content area (#main-content)\n- [ ] Styled to be clearly visible when focused\n- [ ] Main content has id=\"main-content\" and tabindex=\"-1\"\n\n## Implementation Hints\n- Position: absolute, top: -100px when not focused\n- top: 0 when :focus\n- High z-index to appear above header\n\n## Tests\n- Manual: Press Tab on page load, see skip link",
       "priority": "medium",
       "tags": [
-        "modal",
-        "project"
+        "sprint-6",
+        "accessibility",
+        "navigation",
+        "ui-v2"
       ]
     },
     {
-      "id": "2faf1fbf-1352-4106-8712-11d19ba7ff80",
-      "title": "84 - Create ColorPicker component",
-      "passes": true,
+      "id": "1505fbc2-f78a-41db-91ec-8b5e5c2ceb2b",
+      "title": "107 - Add reduced motion support for animations",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Preset color swatches (8-10 colors)",
-        "Selected color shown in button",
-        "Click opens dropdown",
-        "Click swatch selects color",
-        "Keyboard accessible",
-        "Returns hex color value"
+        "Check prefers-reduced-motion media query",
+        "Disable transition animations when reduced motion",
+        "Keep essential state changes (instant instead of animated)",
+        "AI glow pulse disabled in reduced motion",
+        "Drag feedback simplified (opacity only)",
+        "Modal transitions instant"
       ],
       "references": [
-        "src/components/ui/ColorPicker.tsx"
+        "src/styles/variables.css"
       ],
-      "description": "Create color picker dropdown for projects and epics.\n\n**Files to Create:**\n- `src/components/ui/ColorPicker.tsx`\n\n**Acceptance Criteria:**\n- [ ] Preset color swatches (8-10 colors)\n- [ ] Selected color shown in button\n- [ ] Click opens dropdown\n- [ ] Click swatch selects color\n- [ ] Keyboard accessible\n- [ ] Returns hex color value\n\n**Colors:**\n```tsx\nconst presetColors = [\n  '#8b5cf6', // Purple\n  '#3b82f6', // Blue\n  '#10b981', // Green\n  '#eab308', // Yellow\n  '#f97316', // Orange\n  '#ef4444', // Red\n  '#ec4899', // Pink\n  '#6366f1', // Indigo\n  '#14b8a6', // Teal\n  '#6b7280', // Gray\n];\n```\n\n**Tests:** Visual inspection",
-      "priority": "low",
-      "tags": [
-        "component",
-        "ui"
-      ]
-    },
-    {
-      "id": "30407746-2a81-4aff-84c8-3113bedf56e8",
-      "title": "85 - Create WorkingMethodSelect component",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Dropdown with 4 options",
-        "Icon + name per option",
-        "Description text",
-        "Saves to project settings",
-        "Used in EditProjectModal"
-      ],
-      "references": [
-        "src/components/projects/WorkingMethodSelect.tsx"
-      ],
-      "description": "Create selector for project working method preference.\n\n**Files to Create:**\n- `src/components/projects/WorkingMethodSelect.tsx`\n\n**Acceptance Criteria:**\n- [ ] Dropdown with 4 options\n- [ ] Icon + name per option\n- [ ] Description text\n- [ ] Saves to project settings\n- [ ] Used in EditProjectModal\n\n**Options:**\n```tsx\nconst workingMethods = [\n  { value: 'auto', label: 'Auto-detect', icon: Wand, desc: 'Detect from environment' },\n  { value: 'claude-code', label: 'Claude Code', icon: Sparkles, desc: 'Anthropic CLI' },\n  { value: 'vscode', label: 'VS Code', icon: Code, desc: 'VS Code + MCP' },\n  { value: 'cursor', label: 'Cursor', icon: MousePointer, desc: 'Cursor IDE' },\n];\n```\n\n**Tests:** Visual inspection",
-      "priority": "low",
-      "tags": [
-        "component",
-        "project"
-      ]
-    },
-    {
-      "id": "bc59e180-9a55-400d-8c65-1332b70a284f",
-      "title": "86 - Create CreateEpicModal",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Title input (required)",
-        "Description textarea (optional)",
-        "Color picker",
-        "Project context (from where opened)",
-        "Creates epic via mutation",
-        "Available from EpicSelect dropdown",
-        "Create epic",
-        "Available in EpicSelect"
-      ],
-      "references": [
-        "src/components/epics/CreateEpicModal.tsx"
-      ],
-      "description": "Create modal for creating new epics within a project.\n\n**Files to Create:**\n- `src/components/epics/CreateEpicModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Title input (required)\n- [ ] Description textarea (optional)\n- [ ] Color picker\n- [ ] Project context (from where opened)\n- [ ] Creates epic via mutation\n- [ ] Available from EpicSelect dropdown\n\n**Layout:**\n```\n┌─────────────────────────────────────────────────────────────┐\n│ [📋] Create New Epic                                     [×] │\n├─────────────────────────────────────────────────────────────┤\n│ Epic Title *                                                 │\n│ [_________________________________________________]          │\n│                                                              │\n│ Description                                                  │\n│ [_________________________________________________]          │\n│ [_________________________________________________]          │\n│                                                              │\n│ Color                                                        │\n│ [🟣] [🔵] [🟢] [🟡] [🟠] [🔴]                                │\n├─────────────────────────────────────────────────────────────┤\n│                               [Cancel]  [Create Epic]        │\n└─────────────────────────────────────────────────────────────┘\n```\n\n**E2E Tests:**\n- [ ] Create epic\n- [ ] Available in EpicSelect",
+      "description": "## Summary\nRespect user's prefers-reduced-motion setting by disabling/reducing animations.\n\n## Files to Modify\n- `src/styles/variables.css`\n- Various component files with animations\n\n## Acceptance Criteria\n- [ ] Check prefers-reduced-motion media query\n- [ ] Disable transition animations when reduced motion\n- [ ] Keep essential state changes (instant instead of animated)\n- [ ] AI glow pulse disabled in reduced motion\n- [ ] Drag feedback simplified (opacity only)\n- [ ] Modal transitions instant\n\n## Implementation Hints\n```css\n@media (prefers-reduced-motion: reduce) {\n  *, *::before, *::after {\n    animation-duration: 0.01ms !important;\n    transition-duration: 0.01ms !important;\n  }\n}\n```\n\n## Tests\n- Manual: Enable reduced motion in OS, verify animations disabled",
       "priority": "medium",
       "tags": [
-        "modal",
-        "epic"
-      ]
-    },
-    {
-      "id": "2d316dd7-b383-416e-bf01-dd80c987d441",
-      "title": "87 - Add \"Create New Epic\" option to EpicSelect dropdown",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "\"Create New Epic\" option at bottom of dropdown",
-        "Separated by divider",
-        "Plus icon",
-        "Click opens CreateEpicModal",
-        "After create, new epic auto-selected",
-        "Click Create → modal opens",
-        "Create epic → auto-selected"
-      ],
-      "references": [
-        "src/components/tickets/EpicSelect.tsx"
-      ],
-      "description": "Add inline create option in the epic dropdown.\n\n**Files to Modify:**\n- `src/components/tickets/EpicSelect.tsx`\n\n**Acceptance Criteria:**\n- [ ] \"Create New Epic\" option at bottom of dropdown\n- [ ] Separated by divider\n- [ ] Plus icon\n- [ ] Click opens CreateEpicModal\n- [ ] After create, new epic auto-selected\n\n**Dropdown Layout:**\n```\n┌─────────────────────────┐\n│ ⚪ No Epic              │\n├─────────────────────────┤\n│ 🟣 Authentication       │\n│ 🔵 UI Overhaul         │\n│ 🟢 Performance         │\n├─────────────────────────┤\n│ + Create New Epic       │  <- New option\n└─────────────────────────┘\n```\n\n**Manual Tests:**\n- [ ] Click Create → modal opens\n- [ ] Create epic → auto-selected",
-      "priority": "low",
-      "tags": [
-        "component",
-        "epic"
-      ]
-    },
-    {
-      "id": "1b3acd88-e4b2-4b19-a17f-ffc79e2c73c0",
-      "title": "88 - Create InceptionModal",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Hero section with rocket icon",
-        "AI explanation text",
-        "\"Start with AI\" primary action",
-        "\"Skip AI\" secondary link",
-        "Launches Claude with inception prompt",
-        "Accessible from NewTicketDropdown"
-      ],
-      "references": [
-        "src/components/inception/InceptionModal.tsx"
-      ],
-      "description": "Create the \"Start from Scratch\" inception modal for AI-guided project creation.\n\n**Files to Create:**\n- `src/components/inception/InceptionModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Hero section with rocket icon\n- [ ] AI explanation text\n- [ ] \"Start with AI\" primary action\n- [ ] \"Skip AI\" secondary link\n- [ ] Launches Claude with inception prompt\n- [ ] Accessible from NewTicketDropdown\n\n**Layout:**\n```\n┌─────────────────────────────────────────────────────────────┐\n│ [🚀] Start from Scratch                                  [×] │\n├─────────────────────────────────────────────────────────────┤\n│                                                              │\n│           🚀                                                 │\n│     Start Something New                                      │\n│                                                              │\n│  Let AI help you brainstorm and plan your next project.     │\n│  Claude will interview you about your idea and create       │\n│  a structured spec with epics and tickets.                   │\n│                                                              │\n│            [ 🤖 Start with Claude ]                          │\n│                                                              │\n│        or skip AI and create manually                       │\n│                                                              │\n└─────────────────────────────────────────────────────────────┘\n```\n\n**Tests:** Visual + launch test",
-      "priority": "medium",
-      "tags": [
-        "modal",
-        "inception"
-      ]
-    },
-    {
-      "id": "ed94c61c-2e75-4da2-b9ea-3fda38b608e2",
-      "title": "89 - Add Skip AI link to InceptionModal",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "\"skip AI and create manually\" link below main CTA",
-        "Subtle styling (gray, smaller text)",
-        "Click closes InceptionModal",
-        "Opens CreateProjectModal instead",
-        "Keyboard accessible",
-        "Click link",
-        "CreateProjectModal opens"
-      ],
-      "references": [
-        "src/components/inception/InceptionModal.tsx"
-      ],
-      "description": "Add link to skip AI and go directly to manual project creation.\n\n**Files to Modify:**\n- `src/components/inception/InceptionModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] \"skip AI and create manually\" link below main CTA\n- [ ] Subtle styling (gray, smaller text)\n- [ ] Click closes InceptionModal\n- [ ] Opens CreateProjectModal instead\n- [ ] Keyboard accessible\n\n**Implementation:**\n```tsx\n<button\n  onClick={() => {\n    closeInceptionModal();\n    openCreateProjectModal();\n  }}\n  className=\"text-sm text-text-secondary hover:text-text-primary\"\n>\n  or skip AI and create manually\n</button>\n```\n\n**Manual Tests:**\n- [ ] Click link\n- [ ] CreateProjectModal opens",
-      "priority": "low",
-      "tags": [
-        "modal",
-        "inception"
-      ]
-    },
-    {
-      "id": "551b1146-1140-47fc-adeb-2b607c4ddb52",
-      "title": "90 - Wire InceptionModal to NewTicketDropdown",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "\"Start from Scratch\" option opens InceptionModal",
-        "\"New Ticket\" option opens CreateTicketModal",
-        "Modals managed via useModal hooks",
-        "Dropdown closes when modal opens",
-        "Click \"Start from Scratch\"",
-        "InceptionModal opens",
-        "Can proceed to Claude"
-      ],
-      "references": [
-        "src/components/navigation/NewTicketDropdown.tsx"
-      ],
-      "description": "Connect the \"Start from Scratch\" option to open InceptionModal.\n\n**Files to Modify:**\n- `src/components/navigation/NewTicketDropdown.tsx`\n\n**Acceptance Criteria:**\n- [ ] \"Start from Scratch\" option opens InceptionModal\n- [ ] \"New Ticket\" option opens CreateTicketModal\n- [ ] Modals managed via useModal hooks\n- [ ] Dropdown closes when modal opens\n\n**Implementation:**\n```tsx\nconst { isOpen: isInceptionOpen, open: openInception } = useModal();\nconst { isOpen: isCreateTicketOpen, open: openCreateTicket } = useModal();\n\n// In dropdown options\n{ label: 'New Ticket', onClick: openCreateTicket },\n{ label: 'Start from Scratch', onClick: openInception },\n```\n\n**E2E Tests:**\n- [ ] Click \"Start from Scratch\"\n- [ ] InceptionModal opens\n- [ ] Can proceed to Claude",
-      "priority": "medium",
-      "tags": [
-        "integration",
-        "inception"
+        "sprint-6",
+        "accessibility",
+        "animation",
+        "ui-v2"
       ]
     }
   ],
@@ -564,7 +612,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-21T06:48:03.103Z",
-  "epicTitle": "UI v2 Sprint 5: Detail Views & Project Flows",
-  "epicDescription": "Implement ticket detail panel, project creation/settings, epic management, and search/filter functionality with full-text search integration."
+  "generatedAt": "2026-01-21T15:15:13.986Z",
+  "epicTitle": "UI v2 Sprint 6: Settings & Polish",
+  "epicDescription": "Build settings pages, Ralph configuration UI, keyboard shortcuts help, theme persistence, animations polish, and accessibility improvements."
 }
