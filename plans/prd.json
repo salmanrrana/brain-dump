@@ -416,7 +416,7 @@
     {
       "id": "47defbde-163e-4cd3-a67e-65c06c5a7794",
       "title": "69 - Integrate LaunchActions with terminal API",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],

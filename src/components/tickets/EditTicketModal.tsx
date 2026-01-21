@@ -7,6 +7,8 @@ import {
   useUpdateTicket,
   useDeleteTicket,
   useTicketDeletePreview,
+  useSettings,
+  useLaunchRalphForTicket,
   type Ticket as TicketType,
 } from "../../lib/hooks";
 import DeleteConfirmationModal from "../DeleteConfirmationModal";
@@ -14,6 +16,9 @@ import { useToast } from "../Toast";
 import { TagInput } from "./TagInput";
 import { EpicSelect } from "./EpicSelect";
 import { SubtaskList } from "./SubtaskList";
+import { LaunchActions, type LaunchType } from "./LaunchActions";
+import { getTicketContext } from "../../api/context";
+import { launchClaudeInTerminal, launchOpenCodeInTerminal } from "../../api/terminal";
 import type { TicketStatus, Subtask } from "../../api/tickets";
 
 /** Priority options for ticket editing */
@@ -92,6 +97,10 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  // Launch state
+  const [isLaunching, setIsLaunching] = useState(false);
+  const [launchingType, setLaunchingType] = useState<LaunchType | null>(null);
+
   // Refs
   const modalRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -103,6 +112,8 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
   const deleteMutation = useDeleteTicket();
   const { projects } = useProjects();
   const { tags: availableTags } = useTags();
+  const { settings } = useSettings();
+  const launchRalphMutation = useLaunchRalphForTicket();
 
   // Fetch delete preview when confirmation modal opens (dry-run)
   const { data: deletePreview } = useTicketDeletePreview(ticket.id, showDeleteConfirm);
@@ -305,6 +316,106 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
     setShowDeleteConfirm(false);
     setDeleteError(null);
   }, []);
+
+  // Handle launch action - launches Claude, OpenCode, or Ralph
+  const handleLaunch = useCallback(
+    async (type: LaunchType) => {
+      setIsLaunching(true);
+      setLaunchingType(type);
+
+      try {
+        // Get ticket context for all launch types
+        const contextResult = await getTicketContext({ data: ticket.id });
+
+        if (type === "claude") {
+          // Launch Claude in terminal
+          const launchResult = await launchClaudeInTerminal({
+            data: {
+              ticketId: ticket.id,
+              context: contextResult.context,
+              projectPath: contextResult.projectPath,
+              preferredTerminal: settings?.terminalEmulator ?? null,
+              projectName: contextResult.projectName,
+              epicName: contextResult.epicName,
+              ticketTitle: contextResult.ticketTitle,
+            },
+          });
+
+          // Show warnings if any
+          if (launchResult.warnings) {
+            launchResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          if (launchResult.success) {
+            showToast("success", `Claude launched in ${launchResult.terminalUsed}`);
+            setStatus("in_progress");
+            onSuccess?.();
+            onClose();
+          } else {
+            showToast("error", launchResult.message);
+          }
+        } else if (type === "opencode") {
+          // Launch OpenCode in terminal
+          const launchResult = await launchOpenCodeInTerminal({
+            data: {
+              ticketId: ticket.id,
+              context: contextResult.context,
+              projectPath: contextResult.projectPath,
+              preferredTerminal: settings?.terminalEmulator ?? null,
+              projectName: contextResult.projectName,
+              epicName: contextResult.epicName,
+              ticketTitle: contextResult.ticketTitle,
+            },
+          });
+
+          // Show warnings if any
+          if (launchResult.warnings) {
+            launchResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          if (launchResult.success) {
+            showToast("success", `OpenCode launched in ${launchResult.terminalUsed}`);
+            setStatus("in_progress");
+            onSuccess?.();
+            onClose();
+          } else {
+            showToast("error", launchResult.message);
+          }
+        } else if (type === "ralph-native") {
+          // Launch Ralph in native mode
+          const result = await launchRalphMutation.mutateAsync({
+            ticketId: ticket.id,
+            preferredTerminal: settings?.terminalEmulator ?? null,
+            useSandbox: false,
+            aiBackend: "claude",
+          });
+
+          // Show warnings if any
+          if ("warnings" in result && result.warnings) {
+            (result.warnings as string[]).forEach((warning) => showToast("info", warning));
+          }
+
+          if (result.success) {
+            showToast("success", result.message);
+            setStatus("in_progress");
+            onSuccess?.();
+            onClose();
+          } else {
+            showToast("error", result.message);
+          }
+        }
+        // ralph-docker is disabled in LaunchActions, so no handler needed
+      } catch (error) {
+        console.error("Failed to launch:", error);
+        const message = error instanceof Error ? error.message : "An unexpected error occurred";
+        showToast("error", `Failed to launch: ${message}`);
+      } finally {
+        setIsLaunching(false);
+        setLaunchingType(null);
+      }
+    },
+    [ticket.id, settings?.terminalEmulator, showToast, launchRalphMutation, onSuccess, onClose]
+  );
 
   if (!isOpen) return null;
 
@@ -762,6 +873,17 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
           {/* Subtasks Section */}
           <div>
             <SubtaskList value={subtasks} onChange={setSubtasks} />
+          </div>
+
+          {/* Launch Actions Section */}
+          <div>
+            <LaunchActions
+              ticketStatus={status}
+              onLaunch={handleLaunch}
+              isLaunching={isLaunching}
+              launchingType={launchingType}
+              disabled={isSaving || isDeleting}
+            />
           </div>
         </div>
 
