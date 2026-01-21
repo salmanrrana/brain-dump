@@ -123,16 +123,16 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="relative bg-slate-900 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col"
+        className="relative bg-[var(--bg-secondary)] rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col"
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-800">
-          <h2 id="modal-title" className="text-lg font-semibold text-gray-100">
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border-primary)]">
+          <h2 id="modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
             {isEditing ? "Edit Project" : "New Project"}
           </h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-gray-100"
+            className="p-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             aria-label="Close modal"
           >
             <X size={20} />
@@ -146,8 +146,8 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
 
           {/* Name */}
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">
-              Name <span className="text-red-400">*</span>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              Name <span className="text-[var(--accent-danger)]">*</span>
             </label>
             <input
               ref={nameInputRef}
@@ -155,14 +155,14 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="My Project"
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 "
+              className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] "
             />
           </div>
 
           {/* Path */}
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">
-              Path <span className="text-red-400">*</span>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              Path <span className="text-[var(--accent-danger)]">*</span>
             </label>
             <div className="flex gap-2">
               <input
@@ -170,28 +170,32 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
                 value={path}
                 onChange={(e) => setPath(e.target.value)}
                 placeholder="/home/user/projects/my-project"
-                className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 "
+                className="flex-1 px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] "
               />
               <button
                 type="button"
                 onClick={() => setIsDirectoryPickerOpen(true)}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-slate-300 transition-colors"
+                className="px-3 py-2 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] border border-[var(--border-primary)] rounded-lg text-[var(--text-secondary)] transition-colors"
                 title="Browse directories"
               >
                 <FolderOpen size={18} />
               </button>
             </div>
-            <p className="mt-1 text-xs text-slate-500">Directory must exist on your filesystem</p>
+            <p className="mt-1 text-xs text-[var(--text-tertiary)]">
+              Directory must exist on your filesystem
+            </p>
           </div>
 
           {/* Color */}
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">Color</label>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              Color
+            </label>
             <div className="relative">
               <select
                 value={color}
                 onChange={(e) => setColor(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
+                className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none "
               >
                 {COLOR_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -201,13 +205,13 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
               </select>
               <ChevronDown
                 size={16}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
               />
             </div>
             {color && (
               <div className="mt-2 flex items-center gap-2">
                 <span className="w-4 h-4 rounded" style={{ backgroundColor: color }} />
-                <span className="text-xs text-slate-400">Preview</span>
+                <span className="text-xs text-[var(--text-secondary)]">Preview</span>
               </div>
             )}
           </div>
@@ -215,14 +219,14 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
           {/* Working Method (only show for editing) */}
           {isEditing && (
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
                 Working Method
               </label>
               <div className="relative">
                 <select
                   value={workingMethod}
                   onChange={(e) => setWorkingMethod(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
+                  className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none "
                 >
                   {WORKING_METHOD_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -232,10 +236,10 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
                 </select>
                 <ChevronDown
                   size={16}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
                 />
               </div>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-[var(--text-tertiary)]">
                 Controls environment detection for AI assistants
               </p>
             </div>
@@ -243,13 +247,13 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-4 border-t border-slate-800">
+        <div className="flex items-center justify-between p-4 border-t border-[var(--border-primary)]">
           <div>
             {isEditing && (
               <button
                 onClick={() => setShowDeleteModal(true)}
                 disabled={showDeleteModal}
-                className="px-3 py-2 text-red-400 hover:text-red-300 hover:bg-slate-800 rounded-lg transition-colors text-sm"
+                className="px-3 py-2 text-[var(--accent-danger)] hover:text-[var(--accent-danger)]/80 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-sm"
               >
                 Delete Project
               </button>
@@ -258,14 +262,14 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
           <div className="flex gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-slate-400 hover:text-gray-100 hover:bg-slate-800 rounded-lg transition-colors"
+              className="px-4 py-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={isSaving || !name.trim() || !path.trim()}
-              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-lg font-medium transition-colors"
+              className="px-4 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] rounded-lg font-medium transition-colors"
             >
               {isSaving ? "Saving..." : isEditing ? "Save Changes" : "Create Project"}
             </button>

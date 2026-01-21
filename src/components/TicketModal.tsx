@@ -791,16 +791,16 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="relative bg-slate-900 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+        className="relative bg-[var(--bg-secondary)] rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-800">
-          <h2 id="modal-title" className="text-lg font-semibold text-gray-100">
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border-primary)]">
+          <h2 id="modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
             Edit Ticket
           </h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-gray-100"
+            className="p-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             aria-label="Close modal"
           >
             <X size={20} />
@@ -811,21 +811,23 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* Title */}
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">Title</label>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              Title
+            </label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 "
+              className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] "
             />
           </div>
 
           {/* Ralph Status - show when Ralph is working on this ticket */}
           {ralphSession && (
-            <div className="flex items-center gap-2 p-3 bg-slate-800/50 border border-slate-700 rounded-lg">
-              <span className="text-sm text-slate-400">Ralph Status:</span>
+            <div className="flex items-center gap-2 p-3 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg">
+              <span className="text-sm text-[var(--text-secondary)]">Ralph Status:</span>
               <RalphStatusBadge session={ralphSession} size="md" />
-              <span className="text-xs text-slate-500 ml-auto">
+              <span className="text-xs text-[var(--text-tertiary)] ml-auto">
                 Started {new Date(ralphSession.startedAt).toLocaleTimeString()}
               </span>
             </div>
@@ -833,24 +835,28 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">Description</label>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              Description
+            </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={8}
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100  resize-y min-h-[120px]"
+              className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)]  resize-y min-h-[120px]"
             />
           </div>
 
           {/* Status, Priority, Epic */}
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">Status</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                Status
+              </label>
               <div className="relative">
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as TicketStatus)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
+                  className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none "
                 >
                   {STATUS_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -860,18 +866,20 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 </select>
                 <ChevronDown
                   size={16}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">Priority</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                Priority
+              </label>
               <div className="relative">
                 <select
                   value={priority}
                   onChange={(e) => setPriority(e.target.value as TicketPriority | "")}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
+                  className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none "
                 >
                   {PRIORITY_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -881,18 +889,20 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 </select>
                 <ChevronDown
                   size={16}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">Epic</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                Epic
+              </label>
               <div className="relative">
                 <select
                   value={epicId}
                   onChange={(e) => setEpicId(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
+                  className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none "
                 >
                   <option value="">None</option>
                   {epics.map((epic) => (
@@ -903,7 +913,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 </select>
                 <ChevronDown
                   size={16}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
                 />
               </div>
             </div>
@@ -911,16 +921,16 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
 
           {/* Git/PR Info (read-only, populated by MCP tools) */}
           {(ticket.branchName || ticket.prNumber) && (
-            <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 space-y-2">
-              <div className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+            <div className="bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg p-3 space-y-2">
+              <div className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider">
                 Git / PR
               </div>
 
               {/* Branch name */}
               {ticket.branchName && (
                 <div className="flex items-center gap-2">
-                  <GitBranch size={14} className="text-cyan-400 flex-shrink-0" />
-                  <code className="text-sm text-slate-200 bg-slate-700/50 px-2 py-0.5 rounded font-mono truncate flex-1">
+                  <GitBranch size={14} className="text-[var(--accent-primary)] flex-shrink-0" />
+                  <code className="text-sm text-[var(--text-primary)] bg-[var(--bg-hover)] px-2 py-0.5 rounded font-mono truncate flex-1">
                     {ticket.branchName}
                   </code>
                   <button
@@ -929,7 +939,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                       navigator.clipboard.writeText(ticket.branchName ?? "");
                       showToast("success", "Branch copied!");
                     }}
-                    className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-slate-200 transition-colors"
+                    className="p-1 hover:bg-[var(--bg-hover)] rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
                     title="Copy branch name"
                   >
                     <Copy size={14} />
@@ -949,14 +959,16 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                       href={ticket.prUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1"
+                      className="text-sm text-[var(--accent-primary)] hover:text-[var(--accent-secondary)] hover:underline flex items-center gap-1"
                       onClick={(e) => e.stopPropagation()}
                     >
                       PR #{ticket.prNumber}
                       <ExternalLink size={12} />
                     </a>
                   ) : (
-                    <span className="text-sm text-slate-200">PR #{ticket.prNumber}</span>
+                    <span className="text-sm text-[var(--text-primary)]">
+                      PR #{ticket.prNumber}
+                    </span>
                   )}
                   <span
                     className={`text-xs px-2 py-0.5 rounded ${getPrStatusBadgeStyle(ticket.prStatus)}`}
@@ -975,10 +987,10 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 type="checkbox"
                 checked={isBlocked}
                 onChange={(e) => setIsBlocked(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-600 text-red-500 focus:ring-red-500 bg-slate-800"
+                className="w-4 h-4 rounded border-[var(--border-primary)] text-[var(--accent-danger)] focus:ring-[var(--accent-danger)] bg-[var(--bg-tertiary)]"
               />
-              <span className="text-sm text-slate-300 flex items-center gap-1">
-                <AlertCircle size={14} className="text-red-500" />
+              <span className="text-sm text-[var(--text-secondary)] flex items-center gap-1">
+                <AlertCircle size={14} className="text-[var(--accent-danger)]" />
                 Blocked
               </span>
             </label>
@@ -988,23 +1000,28 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 value={blockedReason}
                 onChange={(e) => setBlockedReason(e.target.value)}
                 placeholder="Reason for blocking..."
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 "
+                className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] "
               />
             )}
           </div>
 
           {/* Tags */}
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">Tags</label>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              Tags
+            </label>
             {tags.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-2">
                 {tags.map((tag) => (
                   <span
                     key={tag}
-                    className="flex items-center gap-1 px-2 py-1 bg-slate-700 text-slate-300 rounded text-sm"
+                    className="flex items-center gap-1 px-2 py-1 bg-[var(--bg-tertiary)] text-[var(--text-secondary)] rounded text-sm"
                   >
                     {tag}
-                    <button onClick={() => removeTag(tag)} className="hover:text-red-400">
+                    <button
+                      onClick={() => removeTag(tag)}
+                      className="hover:text-[var(--accent-danger)]"
+                    >
                       <X size={12} />
                     </button>
                   </span>
@@ -1023,13 +1040,13 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                     if (newTag.trim()) setIsTagDropdownOpen(true);
                   }}
                   placeholder="Add tag..."
-                  className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 text-sm "
+                  className="flex-1 px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] text-sm "
                   autoComplete="off"
                 />
                 <button
                   type="button"
                   onClick={() => addTag()}
-                  className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300"
+                  className="px-3 py-2 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] rounded-lg text-[var(--text-secondary)]"
                 >
                   <Plus size={16} />
                 </button>
@@ -1039,10 +1056,10 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
               {isTagDropdownOpen && (tagsLoading || tagSuggestions.length > 0) && (
                 <div
                   ref={tagDropdownRef}
-                  className="absolute z-10 left-0 right-12 mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-lg max-h-40 overflow-y-auto"
+                  className="absolute z-10 left-0 right-12 mt-1 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg shadow-lg max-h-40 overflow-y-auto"
                 >
                   {tagsLoading ? (
-                    <div className="flex items-center justify-center gap-2 px-3 py-2 text-slate-400 text-sm">
+                    <div className="flex items-center justify-center gap-2 px-3 py-2 text-[var(--text-secondary)] text-sm">
                       <Loader2 size={14} className="animate-spin" />
                       <span>Loading tags...</span>
                     </div>
@@ -1052,10 +1069,10 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                         key={tag}
                         type="button"
                         onClick={() => addTag(tag)}
-                        className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-700 ${
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-hover)] ${
                           index === selectedSuggestionIndex
-                            ? "bg-slate-700 text-cyan-400"
-                            : "text-gray-100"
+                            ? "bg-[var(--bg-hover)] text-[var(--accent-primary)]"
+                            : "text-[var(--text-primary)]"
                         }`}
                       >
                         {tag}
@@ -1067,13 +1084,18 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
 
               {/* Tag loading error */}
               {tagsError && (
-                <p className="mt-1 text-xs text-red-400">Failed to load tags: {tagsError}</p>
+                <p className="mt-1 text-xs text-[var(--accent-danger)]">
+                  Failed to load tags: {tagsError}
+                </p>
               )}
 
               {/* Helper text for creating new tags */}
               {showCreateHelper && (
-                <p className="mt-1 text-xs text-slate-500">
-                  Press <kbd className="px-1 py-0.5 bg-slate-700 rounded text-slate-400">Enter</kbd>{" "}
+                <p className="mt-1 text-xs text-[var(--text-tertiary)]">
+                  Press{" "}
+                  <kbd className="px-1 py-0.5 bg-[var(--bg-tertiary)] rounded text-[var(--text-secondary)]">
+                    Enter
+                  </kbd>{" "}
                   to create &quot;{newTag.trim()}&quot; as a new tag
                 </p>
               )}
@@ -1082,10 +1104,10 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
 
           {/* Subtasks */}
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
               Subtasks
               {subtasks.length > 0 && (
-                <span className="ml-2 text-slate-500">
+                <span className="ml-2 text-[var(--text-tertiary)]">
                   ({completedSubtasks}/{subtasks.length})
                 </span>
               )}
@@ -1094,21 +1116,23 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
               {subtasks.map((subtask, index) => (
                 <div
                   key={subtask.id}
-                  className="flex items-center gap-2 p-2 bg-slate-800 rounded-lg group"
+                  className="flex items-center gap-2 p-2 bg-[var(--bg-tertiary)] rounded-lg group"
                 >
                   <button
                     onClick={() => toggleSubtask(subtask.id)}
                     className={`w-5 h-5 rounded border flex items-center justify-center ${
                       subtask.completed
-                        ? "bg-cyan-600 border-cyan-600"
-                        : "border-slate-600 hover:border-slate-500"
+                        ? "bg-[var(--accent-primary)] border-[var(--accent-primary)]"
+                        : "border-[var(--border-primary)] hover:border-[var(--border-secondary)]"
                     }`}
                   >
                     {subtask.completed && <Check size={12} />}
                   </button>
                   <span
                     className={`flex-1 text-sm ${
-                      subtask.completed ? "text-slate-500 line-through" : "text-gray-100"
+                      subtask.completed
+                        ? "text-[var(--text-tertiary)] line-through"
+                        : "text-[var(--text-primary)]"
                     }`}
                   >
                     {subtask.text}
@@ -1117,7 +1141,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                     <button
                       onClick={() => moveSubtaskUp(index)}
                       disabled={index === 0}
-                      className="p-1 text-slate-500 hover:text-slate-300 disabled:text-slate-700 disabled:cursor-not-allowed"
+                      className="p-1 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] disabled:text-[var(--text-tertiary)]/50 disabled:cursor-not-allowed"
                       title="Move up"
                     >
                       <ChevronUp size={14} />
@@ -1125,14 +1149,14 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                     <button
                       onClick={() => moveSubtaskDown(index)}
                       disabled={index === subtasks.length - 1}
-                      className="p-1 text-slate-500 hover:text-slate-300 disabled:text-slate-700 disabled:cursor-not-allowed"
+                      className="p-1 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] disabled:text-[var(--text-tertiary)]/50 disabled:cursor-not-allowed"
                       title="Move down"
                     >
                       <ChevronDown size={14} />
                     </button>
                     <button
                       onClick={() => removeSubtask(subtask.id)}
-                      className="p-1 text-slate-500 hover:text-red-400"
+                      className="p-1 text-[var(--text-tertiary)] hover:text-[var(--accent-danger)]"
                       title="Delete"
                     >
                       <Trash2 size={14} />
@@ -1148,11 +1172,11 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 onChange={(e) => setNewSubtask(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && addSubtask()}
                 placeholder="Add subtask..."
-                className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 text-sm "
+                className="flex-1 px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] text-sm "
               />
               <button
                 onClick={addSubtask}
-                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300"
+                className="px-3 py-2 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] rounded-lg text-[var(--text-secondary)]"
               >
                 <Plus size={16} />
               </button>
@@ -1161,10 +1185,10 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
 
           {/* Attachments */}
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-2">
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
               Attachments
               {attachments.length > 0 && (
-                <span className="ml-2 text-slate-500">({attachments.length})</span>
+                <span className="ml-2 text-[var(--text-tertiary)]">({attachments.length})</span>
               )}
             </label>
 
@@ -1175,8 +1199,8 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
               onDrop={handleDrop}
               className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
                 isDraggingOver
-                  ? "border-cyan-500 bg-cyan-500/10"
-                  : "border-slate-700 hover:border-slate-600"
+                  ? "border-[var(--accent-primary)] bg-[var(--accent-primary)]/10"
+                  : "border-[var(--border-primary)] hover:border-[var(--border-secondary)]"
               }`}
             >
               <input
@@ -1187,24 +1211,24 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 className="hidden"
               />
               {isUploadingAttachment ? (
-                <div className="flex items-center justify-center gap-2 text-slate-400">
+                <div className="flex items-center justify-center gap-2 text-[var(--text-secondary)]">
                   <Loader2 size={20} className="animate-spin" />
                   <span>Uploading...</span>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <Upload size={24} className="mx-auto text-slate-500" />
-                  <p className="text-sm text-slate-400">
+                  <Upload size={24} className="mx-auto text-[var(--text-tertiary)]" />
+                  <p className="text-sm text-[var(--text-secondary)]">
                     Drag and drop files here, or{" "}
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="text-cyan-400 hover:text-cyan-300 underline"
+                      className="text-[var(--accent-primary)] hover:text-[var(--accent-secondary)] underline"
                     >
                       browse
                     </button>
                   </p>
-                  <p className="text-xs text-slate-500">Max file size: 10MB</p>
+                  <p className="text-xs text-[var(--text-tertiary)]">Max file size: 10MB</p>
                 </div>
               )}
             </div>
@@ -1215,7 +1239,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 {attachments.map((attachment) => (
                   <div
                     key={attachment.id}
-                    className="flex items-center gap-3 p-2 bg-slate-800 rounded-lg group"
+                    className="flex items-center gap-3 p-2 bg-[var(--bg-tertiary)] rounded-lg group"
                   >
                     {attachment.isImage ? (
                       <a
@@ -1231,8 +1255,8 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                         />
                       </a>
                     ) : (
-                      <div className="w-12 h-12 bg-slate-700 rounded flex items-center justify-center">
-                        <FileIcon size={20} className="text-slate-400" />
+                      <div className="w-12 h-12 bg-[var(--bg-hover)] rounded flex items-center justify-center">
+                        <FileIcon size={20} className="text-[var(--text-secondary)]" />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
@@ -1240,17 +1264,17 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                         href={attachment.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-gray-100 hover:text-cyan-400 truncate block"
+                        className="text-sm text-[var(--text-primary)] hover:text-[var(--accent-primary)] truncate block"
                       >
                         {attachment.filename}
                       </a>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-[var(--text-tertiary)]">
                         {(attachment.size / 1024).toFixed(1)} KB
                       </p>
                     </div>
                     <button
                       onClick={() => void handleDeleteAttachment(attachment)}
-                      className="p-1 text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="p-1 text-[var(--text-tertiary)] hover:text-[var(--accent-danger)] opacity-0 group-hover:opacity-100 transition-opacity"
                       title="Delete"
                     >
                       <Trash2 size={14} />
@@ -1304,11 +1328,13 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
           <div>
             <button
               onClick={() => setShowComments(!showComments)}
-              className="flex items-center gap-2 text-sm font-medium text-slate-400 mb-2 hover:text-gray-100 transition-colors"
+              className="flex items-center gap-2 text-sm font-medium text-[var(--text-secondary)] mb-2 hover:text-[var(--text-primary)] transition-colors"
             >
               <MessageSquare size={16} />
               <span>Activity</span>
-              {comments.length > 0 && <span className="text-slate-500">({comments.length})</span>}
+              {comments.length > 0 && (
+                <span className="text-[var(--text-tertiary)]">({comments.length})</span>
+              )}
               <ChevronDown
                 size={14}
                 className={`transition-transform ${showComments ? "rotate-180" : ""}`}
@@ -1325,12 +1351,12 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                     onChange={(e) => setNewComment(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
                     placeholder="Add a comment..."
-                    className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 text-sm "
+                    className="flex-1 px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] text-sm "
                   />
                   <button
                     onClick={handleAddComment}
                     disabled={!newComment.trim() || createCommentMutation.isPending}
-                    className="px-3 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-lg transition-colors"
+                    className="px-3 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] rounded-lg transition-colors"
                   >
                     {createCommentMutation.isPending ? (
                       <Loader2 size={16} className="animate-spin" />
@@ -1342,7 +1368,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
 
                 {/* Comments list */}
                 {commentsLoading ? (
-                  <div className="flex items-center justify-center py-4 text-slate-500">
+                  <div className="flex items-center justify-center py-4 text-[var(--text-tertiary)]">
                     <Loader2 size={20} className="animate-spin" />
                   </div>
                 ) : comments.length > 0 ? (
@@ -1370,7 +1396,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                             )}
                             {comment.author.charAt(0).toUpperCase() + comment.author.slice(1)}
                           </span>
-                          <span className="text-slate-500 text-xs">
+                          <span className="text-[var(--text-tertiary)] text-xs">
                             {new Date(comment.createdAt).toLocaleString()}
                           </span>
                           {comment.type !== "comment" && COMMENT_BADGE_STYLES[comment.type] && (
@@ -1382,7 +1408,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                           )}
                         </div>
                         <p
-                          className={`whitespace-pre-wrap ${comment.type === "progress" ? "text-blue-100 text-xs" : "text-gray-100"}`}
+                          className={`whitespace-pre-wrap ${comment.type === "progress" ? "text-blue-100 text-xs" : "text-[var(--text-primary)]"}`}
                         >
                           {comment.content}
                         </p>
@@ -1390,7 +1416,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-500 py-2">
+                  <p className="text-sm text-[var(--text-tertiary)] py-2">
                     No activity yet. Comments from Claude and Ralph will appear here.
                   </p>
                 )}
@@ -1399,7 +1425,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
           </div>
 
           {/* Metadata */}
-          <div className="text-xs text-slate-500 border-t border-slate-800 pt-4">
+          <div className="text-xs text-[var(--text-tertiary)] border-t border-[var(--border-primary)] pt-4">
             <p>Created: {new Date(ticket.createdAt).toLocaleString()}</p>
             <p>Updated: {new Date(ticket.updatedAt).toLocaleString()}</p>
             {ticket.completedAt && (
@@ -1433,7 +1459,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
         )}
 
         {/* Footer */}
-        <div className="flex justify-between gap-3 p-4 border-t border-slate-800">
+        <div className="flex justify-between gap-3 p-4 border-t border-[var(--border-primary)]">
           {/* Start Work Split Button */}
           <div className="relative" ref={startWorkMenuRef}>
             <div className="flex">
@@ -1565,21 +1591,21 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
             {/* Delete button */}
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              className="flex items-center gap-2 px-4 py-2 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-lg transition-colors"
+              className="flex items-center gap-2 px-4 py-2 text-[var(--accent-danger)] hover:text-[var(--accent-danger)]/80 hover:bg-[var(--accent-danger)]/20 rounded-lg transition-colors"
             >
               <Trash2 size={16} />
               <span>Delete</span>
             </button>
             <button
               onClick={onClose}
-              className="px-4 py-2 text-slate-400 hover:text-gray-100 hover:bg-slate-800 rounded-lg transition-colors"
+              className="px-4 py-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={updateTicketMutation.isPending || !title.trim()}
-              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-lg font-medium transition-colors"
+              className="px-4 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] rounded-lg font-medium transition-colors"
             >
               {updateTicketMutation.isPending ? "Saving..." : "Save Changes"}
             </button>

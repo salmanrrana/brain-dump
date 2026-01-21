@@ -105,32 +105,32 @@ export default function ContainerLogsModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="logs-modal-title"
-        className="relative bg-slate-900 rounded-lg shadow-xl w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col"
+        className="relative bg-[var(--bg-secondary)] rounded-lg shadow-xl w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col"
       >
         {/* Header */}
-        <div className="flex items-center gap-3 p-4 border-b border-slate-800 shrink-0">
-          <div className="flex items-center justify-center w-10 h-10 bg-cyan-900/50 rounded-full">
-            <Terminal size={20} className="text-cyan-400" />
+        <div className="flex items-center gap-3 p-4 border-b border-[var(--border-primary)] shrink-0">
+          <div className="flex items-center justify-center w-10 h-10 bg-[var(--accent-primary)]/20 rounded-full">
+            <Terminal size={20} className="text-[var(--accent-primary)]" />
           </div>
           <div className="flex-1">
-            <h2 id="logs-modal-title" className="text-lg font-semibold text-gray-100">
+            <h2 id="logs-modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
               Container Logs
             </h2>
             <div className="flex items-center gap-3 text-sm">
-              <span className="text-slate-400 font-mono">{containerName}</span>
+              <span className="text-[var(--text-secondary)] font-mono">{containerName}</span>
               {containerRunning ? (
-                <span className="flex items-center gap-1 text-green-400">
-                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                <span className="flex items-center gap-1 text-[var(--accent-success)]">
+                  <span className="w-2 h-2 rounded-full bg-[var(--accent-success)] animate-pulse" />
                   Running
                 </span>
               ) : (
-                <span className="flex items-center gap-1 text-slate-500">
-                  <span className="w-2 h-2 rounded-full bg-slate-600" />
+                <span className="flex items-center gap-1 text-[var(--text-tertiary)]">
+                  <span className="w-2 h-2 rounded-full bg-[var(--text-tertiary)]" />
                   Stopped
                 </span>
               )}
               {iterationInfo && (
-                <span className="text-purple-400">
+                <span className="text-[var(--accent-ai)]">
                   Iteration {iterationInfo.current}/{iterationInfo.total}
                 </span>
               )}
@@ -144,8 +144,8 @@ export default function ContainerLogsModal({
               onClick={autoScroll ? () => setAutoScroll(false) : handleResumeAutoScroll}
               className={`p-2 rounded-lg transition-colors ${
                 autoScroll
-                  ? "bg-cyan-900/50 text-cyan-400 hover:bg-cyan-900/70"
-                  : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-gray-100"
+                  ? "bg-[var(--accent-primary)]/20 text-[var(--accent-primary)] hover:bg-[var(--accent-primary)]/30"
+                  : "bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
               }`}
               title={autoScroll ? "Pause auto-scroll" : "Resume auto-scroll"}
               aria-label={autoScroll ? "Pause auto-scroll" : "Resume auto-scroll"}
@@ -157,14 +157,14 @@ export default function ContainerLogsModal({
             <button
               onClick={handleCopy}
               disabled={!logs}
-              className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-gray-100 disabled:opacity-50"
+              className="p-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-50"
               title={copyError ? "Copy failed!" : copied ? "Copied!" : "Copy logs"}
               aria-label={copyError ? "Copy failed" : copied ? "Copied" : "Copy logs to clipboard"}
             >
               {copyError ? (
-                <X size={16} className="text-red-400" />
+                <X size={16} className="text-[var(--accent-danger)]" />
               ) : copied ? (
-                <Check size={16} className="text-green-400" />
+                <Check size={16} className="text-[var(--accent-success)]" />
               ) : (
                 <Copy size={16} />
               )}
@@ -173,7 +173,7 @@ export default function ContainerLogsModal({
             {/* Close button */}
             <button
               onClick={onClose}
-              className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-gray-100"
+              className="p-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               aria-label="Close modal"
             >
               <X size={20} />
@@ -185,23 +185,23 @@ export default function ContainerLogsModal({
         <div
           ref={logsContainerRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-auto bg-slate-950 p-4"
+          className="flex-1 overflow-auto bg-[var(--bg-primary)] p-4"
         >
           {loading && !logs ? (
-            <div className="flex items-center justify-center h-full text-slate-400">
+            <div className="flex items-center justify-center h-full text-[var(--text-secondary)]">
               <Loader2 size={24} className="animate-spin mr-2" />
               <span>Loading logs...</span>
             </div>
           ) : error ? (
-            <div className="flex items-center justify-center h-full text-red-400">
+            <div className="flex items-center justify-center h-full text-[var(--accent-danger)]">
               <span>Error: {error}</span>
             </div>
           ) : !logs ? (
-            <div className="flex items-center justify-center h-full text-slate-500">
+            <div className="flex items-center justify-center h-full text-[var(--text-tertiary)]">
               <span>No logs available</span>
             </div>
           ) : (
-            <pre className="text-sm font-mono text-slate-300 whitespace-pre-wrap break-words leading-relaxed">
+            <pre className="text-sm font-mono text-[var(--text-secondary)] whitespace-pre-wrap break-words leading-relaxed">
               {cleanLogs}
               <div ref={logsEndRef} />
             </pre>
@@ -210,10 +210,10 @@ export default function ContainerLogsModal({
 
         {/* Footer with auto-scroll indicator (rendering-conditional-render: use ternary) */}
         {!autoScroll && logs ? (
-          <div className="shrink-0 px-4 py-2 bg-slate-800/50 border-t border-slate-800 flex items-center justify-center">
+          <div className="shrink-0 px-4 py-2 bg-[var(--bg-tertiary)] border-t border-[var(--border-primary)] flex items-center justify-center">
             <button
               onClick={handleResumeAutoScroll}
-              className="text-sm text-cyan-400 hover:text-cyan-300 flex items-center gap-2"
+              className="text-sm text-[var(--accent-primary)] hover:text-[var(--accent-secondary)] flex items-center gap-2"
             >
               <Play size={14} />
               Resume auto-scroll
