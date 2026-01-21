@@ -389,7 +389,7 @@
     {
       "id": "b2f2902c-8c3d-4e5a-b195-11a67e63d89a",
       "title": "68 - Create LaunchOption item components",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
