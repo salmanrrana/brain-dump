@@ -280,7 +280,7 @@
     {
       "id": "30407746-2a81-4aff-84c8-3113bedf56e8",
       "title": "85 - Create WorkingMethodSelect component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
