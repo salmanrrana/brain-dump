@@ -39,7 +39,7 @@ function TicketDetailError({ error }: { error: Error }) {
   return (
     <div style={errorContainerStyles}>
       <div style={errorCardStyles}>
-        <AlertCircle size={48} style={{ color: "var(--color-red-400)" }} />
+        <AlertCircle size={48} style={{ color: "var(--accent-danger)" }} />
         <h2 style={errorTitleStyles}>Ticket Not Found</h2>
         <p style={errorMessageStyles}>{error.message}</p>
         <Link to="/" style={backLinkStyles}>
@@ -378,7 +378,7 @@ function TicketDetailPage() {
     return (
       <div style={errorContainerStyles}>
         <div style={errorCardStyles}>
-          <AlertCircle size={48} style={{ color: "var(--color-red-400)" }} />
+          <AlertCircle size={48} style={{ color: "var(--accent-danger)" }} />
           <h2 style={errorTitleStyles}>Ticket Not Found</h2>
           <p style={errorMessageStyles}>
             {error instanceof Error ? error.message : `Could not find ticket with ID: ${id}`}
