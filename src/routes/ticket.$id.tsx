@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { useState, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, useCallback, useRef } from "react";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import { getTicket } from "../api/tickets";
 import { getTicketContext } from "../api/context";
@@ -8,6 +8,8 @@ import { launchClaudeInTerminal, launchOpenCodeInTerminal } from "../api/termina
 import { ActivitySection } from "../components/tickets/ActivitySection";
 import { TicketDetailHeader } from "../components/tickets/TicketDetailHeader";
 import { EditTicketModal } from "../components/tickets/EditTicketModal";
+import { SubtasksProgress } from "../components/tickets";
+import type { Subtask } from "../components/tickets/SubtasksProgress";
 import { type LaunchType } from "../components/tickets/LaunchActions";
 import { POLLING_INTERVALS } from "../lib/constants";
 import {
@@ -196,6 +198,7 @@ function TicketDetailPage() {
   const { projects } = useProjects();
   const { settings } = useSettings();
   const launchRalphMutation = useLaunchRalphForTicket();
+  const queryClient = useQueryClient();
 
   // Modal and launch state
   const [showEditModal, setShowEditModal] = useState(false);
@@ -214,6 +217,31 @@ function TicketDetailPage() {
     // Ticket could be updated externally via MCP
     staleTime: 0,
   });
+
+  // Subtask state - parse from ticket when available
+  const [localSubtasks, setLocalSubtasks] = useState<Subtask[]>([]);
+
+  // Sync localSubtasks with ticket data when it changes
+  // Using useEffect to avoid stale closure issues
+  const ticketSubtasks = ticket?.subtasks;
+  const prevTicketSubtasks = useRef(ticketSubtasks);
+  if (ticketSubtasks !== prevTicketSubtasks.current) {
+    prevTicketSubtasks.current = ticketSubtasks;
+    const parsed = ticketSubtasks ? (JSON.parse(ticketSubtasks) as Subtask[]) : [];
+    if (JSON.stringify(parsed) !== JSON.stringify(localSubtasks)) {
+      setLocalSubtasks(parsed);
+    }
+  }
+
+  // Handle subtask updates - optimistic update + invalidate query
+  const handleSubtaskUpdate = useCallback(
+    (updatedSubtasks: Subtask[]) => {
+      setLocalSubtasks(updatedSubtasks);
+      // Invalidate the ticket query to refresh data after mutation completes
+      queryClient.invalidateQueries({ queryKey: ["ticket", id] });
+    },
+    [queryClient, id]
+  );
 
   // Find the epic for this ticket
   const epic: Epic | null = ticket
@@ -356,12 +384,6 @@ function TicketDetailPage() {
     );
   }
 
-  // Parse subtasks if present
-  const subtasks = ticket.subtasks
-    ? (JSON.parse(ticket.subtasks) as { id: string; text: string; completed: boolean }[])
-    : [];
-  const completedCount = subtasks.filter((s) => s.completed).length;
-
   return (
     <div style={containerStyles}>
       {/* Back Navigation */}
@@ -392,42 +414,15 @@ function TicketDetailPage() {
           )}
         </section>
 
-        {/* Subtasks Section */}
+        {/* Subtasks Section - using SubtasksProgress component */}
         <section style={sectionStyles}>
-          <h2 style={sectionTitleStyles}>
-            Subtasks
-            {subtasks.length > 0 && (
-              <span style={subtaskCountStyles}>
-                ({completedCount}/{subtasks.length})
-              </span>
-            )}
-          </h2>
-          {subtasks.length > 0 ? (
-            <div style={subtaskListStyles}>
-              {/* Progress bar */}
-              <div style={progressBarContainerStyles}>
-                <div
-                  style={{
-                    ...progressBarFillStyles,
-                    width: `${subtasks.length > 0 ? (completedCount / subtasks.length) * 100 : 0}%`,
-                  }}
-                />
-              </div>
-              {/* Subtask items */}
-              {subtasks.map((subtask) => (
-                <div key={subtask.id} style={subtaskItemStyles}>
-                  <span style={subtask.completed ? checkboxCheckedStyles : checkboxStyles}>
-                    {subtask.completed ? "☑" : "☐"}
-                  </span>
-                  <span style={subtask.completed ? subtaskTextCompletedStyles : subtaskTextStyles}>
-                    {subtask.text}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p style={emptyStateStyles}>No subtasks</p>
-          )}
+          <SubtasksProgress
+            ticketId={ticket.id}
+            subtasks={localSubtasks}
+            onUpdate={handleSubtaskUpdate}
+            disabled={ticket.status === "done"}
+            testId="ticket-detail-subtasks"
+          />
         </section>
       </div>
 
@@ -526,13 +521,6 @@ const sectionTitleStyles: React.CSSProperties = {
   gap: "var(--spacing-2)",
 };
 
-const subtaskCountStyles: React.CSSProperties = {
-  fontWeight: "var(--font-weight-normal)" as React.CSSProperties["fontWeight"],
-  color: "var(--text-muted)",
-  textTransform: "none",
-  letterSpacing: "normal",
-};
-
 const descriptionStyles: React.CSSProperties = {
   color: "var(--text-primary)",
   lineHeight: 1.6,
@@ -551,57 +539,6 @@ const emptyStateStyles: React.CSSProperties = {
   borderRadius: "var(--radius-md)",
   border: "1px solid var(--border-primary)",
   textAlign: "center",
-};
-
-const subtaskListStyles: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "var(--spacing-2)",
-};
-
-const progressBarContainerStyles: React.CSSProperties = {
-  height: "8px",
-  background: "var(--bg-tertiary)",
-  borderRadius: "var(--radius-full)",
-  overflow: "hidden",
-  marginBottom: "var(--spacing-2)",
-};
-
-const progressBarFillStyles: React.CSSProperties = {
-  height: "100%",
-  background: "var(--accent-primary)",
-  borderRadius: "var(--radius-full)",
-  transition: "width 0.3s ease",
-};
-
-const subtaskItemStyles: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--spacing-2)",
-  padding: "var(--spacing-2)",
-  background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-md)",
-};
-
-const checkboxStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-base)",
-  color: "var(--text-muted)",
-};
-
-const checkboxCheckedStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-base)",
-  color: "var(--accent-primary)",
-};
-
-const subtaskTextStyles: React.CSSProperties = {
-  color: "var(--text-primary)",
-  fontSize: "var(--font-size-sm)",
-};
-
-const subtaskTextCompletedStyles: React.CSSProperties = {
-  color: "var(--text-muted)",
-  fontSize: "var(--font-size-sm)",
-  textDecoration: "line-through",
 };
 
 const activitySectionStyles: React.CSSProperties = {

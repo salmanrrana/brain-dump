@@ -4,6 +4,11 @@ export { TagInput, type TagInputProps } from "./TagInput";
 export { EpicSelect, type EpicSelectProps } from "./EpicSelect";
 export { SubtaskList, type SubtaskListProps, type Subtask } from "./SubtaskList";
 export {
+  SubtasksProgress,
+  type SubtasksProgressProps,
+  type Subtask as SubtasksProgressSubtask,
+} from "./SubtasksProgress";
+export {
   LaunchActions,
   type LaunchActionsProps,
   type LaunchType,
