@@ -16,8 +16,8 @@ export interface CreateEpicModalProps {
   projectName?: string;
   /** Handler called when the modal should close */
   onClose: () => void;
-  /** Handler called after successful creation */
-  onSuccess?: () => void;
+  /** Handler called after successful creation, receives the new epic's ID */
+  onSuccess?: (newEpicId: string) => void;
 }
 
 // =============================================================================
@@ -109,9 +109,12 @@ export const CreateEpicModal: FC<CreateEpicModalProps> = ({
           ...(color && { color }),
         },
         {
-          onSuccess: () => {
+          onSuccess: (newEpic) => {
             resetForm();
-            onSuccess?.();
+            // Pass the new epic's ID to the callback for auto-selection
+            if (newEpic?.id) {
+              onSuccess?.(newEpic.id);
+            }
             onClose();
           },
         }

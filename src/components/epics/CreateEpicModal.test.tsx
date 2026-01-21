@@ -236,10 +236,11 @@ describe("CreateEpicModal", () => {
   });
 
   describe("Success callback", () => {
-    it("calls onSuccess and onClose after successful submission", async () => {
+    it("calls onSuccess with new epic ID and onClose after successful submission", async () => {
       const user = userEvent.setup();
+      const mockNewEpic = { id: "new-epic-123", title: "Success Epic" };
       mockMutate.mockImplementation((_, options) => {
-        options.onSuccess?.();
+        options.onSuccess?.(mockNewEpic);
       });
 
       renderWithQueryClient(<CreateEpicModal {...defaultProps} />);
@@ -251,14 +252,15 @@ describe("CreateEpicModal", () => {
       await user.click(submitButton);
 
       expect(mockOnSuccess).toHaveBeenCalledTimes(1);
+      expect(mockOnSuccess).toHaveBeenCalledWith("new-epic-123");
       expect(mockOnClose).toHaveBeenCalledTimes(1);
     });
 
     it("clears form after successful submission", async () => {
       const user = userEvent.setup();
-      // Track calls to onSuccess without simulating it
+      const mockNewEpic = { id: "cleared-epic-456", title: "Epic to Clear" };
       mockMutate.mockImplementation((_, options) => {
-        options.onSuccess?.();
+        options.onSuccess?.(mockNewEpic);
       });
 
       const { rerender } = renderWithQueryClient(<CreateEpicModal {...defaultProps} />);
@@ -284,7 +286,7 @@ describe("CreateEpicModal", () => {
 
       // Note: The form is reset on successful submission
       // This verifies the reset was called (via the onSuccess flow)
-      expect(mockOnSuccess).toHaveBeenCalled();
+      expect(mockOnSuccess).toHaveBeenCalledWith("cleared-epic-456");
     });
   });
 

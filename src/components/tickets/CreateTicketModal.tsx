@@ -4,6 +4,7 @@ import { useCreateTicket, useClickOutside, useProjects, useTags } from "../../li
 import { useToast } from "../Toast";
 import { TagInput } from "./TagInput";
 import { EpicSelect } from "./EpicSelect";
+import { CreateEpicModal } from "../epics/CreateEpicModal";
 
 /** Priority options for ticket creation */
 const PRIORITY_OPTIONS = [
@@ -56,6 +57,9 @@ export const CreateTicketModal: FC<CreateTicketModalProps> = ({
     title: false,
     projectId: false,
   });
+
+  // Create Epic modal state
+  const [isCreateEpicOpen, setIsCreateEpicOpen] = useState(false);
 
   // Refs
   const modalRef = useRef<HTMLDivElement>(null);
@@ -118,6 +122,16 @@ export const CreateTicketModal: FC<CreateTicketModalProps> = ({
     },
     [epicId, projects]
   );
+
+  // Handle opening the Create Epic modal
+  const handleOpenCreateEpic = useCallback(() => {
+    setIsCreateEpicOpen(true);
+  }, []);
+
+  // Handle successful epic creation - auto-select the new epic
+  const handleEpicCreated = useCallback((newEpicId: string) => {
+    setEpicId(newEpicId);
+  }, []);
 
   // Handle click outside to close
   useClickOutside(modalRef, handleClose, isOpen);
@@ -545,6 +559,7 @@ export const CreateTicketModal: FC<CreateTicketModalProps> = ({
                 value={epicId || null}
                 onChange={(newEpicId) => setEpicId(newEpicId ?? "")}
                 epics={projectEpics}
+                onCreateEpic={handleOpenCreateEpic}
               />
             </div>
 
@@ -586,6 +601,17 @@ export const CreateTicketModal: FC<CreateTicketModalProps> = ({
           </button>
         </footer>
       </div>
+
+      {/* Create Epic Modal - opens when "Create New Epic" is clicked in EpicSelect */}
+      {projectId && selectedProject && (
+        <CreateEpicModal
+          isOpen={isCreateEpicOpen}
+          projectId={projectId}
+          projectName={selectedProject.name}
+          onClose={() => setIsCreateEpicOpen(false)}
+          onSuccess={handleEpicCreated}
+        />
+      )}
     </div>
   );
 };
