@@ -1,7 +1,8 @@
 import { type FC, useState, useRef, useCallback, useEffect, type KeyboardEvent } from "react";
 import { MessageCircle, Send, Loader2 } from "lucide-react";
 import { useComments, useCreateComment } from "../../lib/hooks";
-import type { Comment, CommentAuthor, CommentType } from "../../api/comments";
+import type { CommentAuthor, CommentType } from "../../api/comments";
+import { Comment as CommentComponent } from "./Comment";
 
 // =============================================================================
 // Types
@@ -17,141 +18,6 @@ export interface ActivitySectionProps {
   /** Test ID prefix for testing */
   testId?: string;
 }
-
-// =============================================================================
-// CommentItem Component
-// =============================================================================
-
-interface CommentItemProps {
-  comment: Comment;
-  testId: string;
-}
-
-const CommentItem: FC<CommentItemProps> = ({ comment, testId }) => {
-  const getAuthorColor = (author: string): string => {
-    switch (author) {
-      case "claude":
-        return "#a855f7"; // purple
-      case "ralph":
-        return "#06b6d4"; // cyan
-      case "opencode":
-        return "#3b82f6"; // blue
-      case "user":
-      default:
-        return "#10b981"; // green
-    }
-  };
-
-  const getTypeLabel = (type: string): string | null => {
-    switch (type) {
-      case "work_summary":
-        return "Work Summary";
-      case "test_report":
-        return "Test Report";
-      case "progress":
-        return "Progress";
-      default:
-        return null;
-    }
-  };
-
-  const formatTimestamp = (dateStr: string): string => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return "just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
-  };
-
-  const authorColor = getAuthorColor(comment.author);
-  const typeLabel = getTypeLabel(comment.type);
-
-  const containerStyles: React.CSSProperties = {
-    display: "flex",
-    gap: "var(--spacing-3)",
-    padding: "var(--spacing-3)",
-    borderRadius: "var(--radius-md)",
-    background: "var(--bg-primary)",
-  };
-
-  const avatarStyles: React.CSSProperties = {
-    width: "32px",
-    height: "32px",
-    borderRadius: "50%",
-    background: `${authorColor}20`,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-    color: authorColor,
-    fontSize: "var(--font-size-xs)",
-    fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-    textTransform: "uppercase",
-  };
-
-  const contentContainerStyles: React.CSSProperties = {
-    flex: 1,
-    minWidth: 0,
-  };
-
-  const headerStyles: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: "var(--spacing-2)",
-    marginBottom: "var(--spacing-1)",
-  };
-
-  const authorStyles: React.CSSProperties = {
-    fontSize: "var(--font-size-sm)",
-    fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-    color: authorColor,
-    textTransform: "capitalize",
-  };
-
-  const timestampStyles: React.CSSProperties = {
-    fontSize: "var(--font-size-xs)",
-    color: "var(--text-muted)",
-  };
-
-  const typeBadgeStyles: React.CSSProperties = {
-    fontSize: "var(--font-size-xs)",
-    padding: "2px 6px",
-    borderRadius: "var(--radius-sm)",
-    background: `${authorColor}15`,
-    color: authorColor,
-  };
-
-  const contentStyles: React.CSSProperties = {
-    fontSize: "var(--font-size-sm)",
-    color: "var(--text-primary)",
-    lineHeight: 1.5,
-    whiteSpace: "pre-wrap",
-    wordBreak: "break-word",
-  };
-
-  return (
-    <div style={containerStyles} data-testid={`${testId}-item`}>
-      <div style={avatarStyles} aria-hidden="true">
-        {comment.author.charAt(0)}
-      </div>
-      <div style={contentContainerStyles}>
-        <div style={headerStyles}>
-          <span style={authorStyles}>{comment.author}</span>
-          {typeLabel && <span style={typeBadgeStyles}>{typeLabel}</span>}
-          <span style={timestampStyles}>{formatTimestamp(comment.createdAt)}</span>
-        </div>
-        <div style={contentStyles}>{comment.content}</div>
-      </div>
-    </div>
-  );
-};
 
 // =============================================================================
 // CommentInput Component
@@ -422,7 +288,7 @@ export const ActivitySection: FC<ActivitySectionProps> = ({
           </div>
         ) : (
           sortedComments.map((comment) => (
-            <CommentItem key={comment.id} comment={comment} testId={testId} />
+            <CommentComponent key={comment.id} comment={comment} testId={`${testId}-item`} />
           ))
         )}
       </div>

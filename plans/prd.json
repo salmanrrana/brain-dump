@@ -471,7 +471,7 @@
     {
       "id": "fded1cd5-0fb0-4caf-9bc7-bc4660bf937d",
       "title": "71 - Create Comment component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
