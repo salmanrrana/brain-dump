@@ -5,8 +5,11 @@ import {
   useProjects,
   useTags,
   useUpdateTicket,
+  useDeleteTicket,
+  useTicketDeletePreview,
   type Ticket as TicketType,
 } from "../../lib/hooks";
+import DeleteConfirmationModal from "../DeleteConfirmationModal";
 import { useToast } from "../Toast";
 import { TagInput } from "./TagInput";
 import { EpicSelect } from "./EpicSelect";
@@ -39,10 +42,8 @@ export interface EditTicketModalProps {
   onClose: () => void;
   /** The ticket being edited */
   ticket: TicketType;
-  /** Handler called after successful ticket update */
+  /** Handler called after successful ticket update or deletion */
   onSuccess?: () => void;
-  /** Handler called when delete button is clicked (ticket 65 will implement confirmation) */
-  onDelete?: () => void;
 }
 
 /**
@@ -52,7 +53,7 @@ export interface EditTicketModalProps {
  * - Status dropdown for changing ticket status
  * - Blocked toggle with reason
  * - Subtasks list with add/edit/delete/toggle
- * - Delete button (placeholder for ticket 65)
+ * - Delete button with confirmation modal
  *
  * Features:
  * - **Pre-fills all fields**: Loads existing ticket data
@@ -65,7 +66,6 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
   onClose,
   ticket,
   onSuccess,
-  onDelete,
 }) => {
   // Parse JSON fields from ticket
   const initialTags = ticket.tags ? (JSON.parse(ticket.tags) as string[]) : [];
@@ -88,6 +88,10 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
     title: false,
   });
 
+  // Delete confirmation state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   // Refs
   const modalRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -96,10 +100,15 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
   // Hooks
   const { showToast } = useToast();
   const updateMutation = useUpdateTicket();
+  const deleteMutation = useDeleteTicket();
   const { projects } = useProjects();
   const { tags: availableTags } = useTags();
 
+  // Fetch delete preview when confirmation modal opens (dry-run)
+  const { data: deletePreview } = useTicketDeletePreview(ticket.id, showDeleteConfirm);
+
   const isSaving = updateMutation.isPending;
+  const isDeleting = deleteMutation.isPending;
   const error = updateMutation.error;
 
   // Get epics for selected project
@@ -267,10 +276,35 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
     [title, projectId, isSaving, handleSubmit]
   );
 
-  // Handle delete button click
+  // Handle delete button click - opens confirmation modal
   const handleDeleteClick = useCallback(() => {
-    onDelete?.();
-  }, [onDelete]);
+    setShowDeleteConfirm(true);
+  }, []);
+
+  // Handle delete confirmation
+  const handleDeleteConfirm = useCallback(() => {
+    setDeleteError(null);
+    deleteMutation.mutate(
+      { ticketId: ticket.id, confirm: true },
+      {
+        onSuccess: () => {
+          setShowDeleteConfirm(false);
+          showToast("success", `Ticket "${ticket.title}" deleted`);
+          onClose();
+          onSuccess?.();
+        },
+        onError: (err: Error) => {
+          setDeleteError(err.message);
+        },
+      }
+    );
+  }, [ticket.id, ticket.title, deleteMutation, showToast, onClose, onSuccess]);
+
+  // Handle delete modal close
+  const handleDeleteModalClose = useCallback(() => {
+    setShowDeleteConfirm(false);
+    setDeleteError(null);
+  }, []);
 
   if (!isOpen) return null;
 
@@ -768,6 +802,20 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
           </div>
         </footer>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={showDeleteConfirm}
+        onClose={handleDeleteModalClose}
+        onConfirm={handleDeleteConfirm}
+        isLoading={isDeleting}
+        entityType="ticket"
+        entityName={ticket.title}
+        preview={{
+          commentCount: deletePreview?.commentCount ?? 0,
+        }}
+        error={deleteError}
+      />
     </div>
   );
 };
