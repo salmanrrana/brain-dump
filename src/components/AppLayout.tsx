@@ -613,11 +613,11 @@ function AppHeader() {
   };
 
   return (
-    <header className="h-14 bg-slate-900 border-b border-slate-800 flex items-center px-4 gap-4">
+    <header className="h-14 bg-[var(--bg-secondary)] border-b border-[var(--border-primary)] flex items-center px-4 gap-4">
       {/* Mobile hamburger menu button - only visible on mobile */}
       <button
         onClick={openMobileMenu}
-        className="md:hidden p-2 text-slate-400 hover:text-gray-100 hover:bg-slate-800 rounded-lg transition-colors"
+        className="md:hidden p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
         aria-label="Open navigation menu"
       >
         <Menu size={20} aria-hidden="true" />
@@ -626,7 +626,10 @@ function AppHeader() {
       {/* Search */}
       <div className="flex-1 max-w-md" ref={searchRef}>
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]"
+            size={18}
+          />
           <input
             ref={inputRef}
             type="text"
@@ -634,18 +637,18 @@ function AppHeader() {
             onChange={handleSearchChange}
             onFocus={() => query && setShowResults(true)}
             placeholder="Search tickets..."
-            className="w-full pl-10 pr-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-gray-100 placeholder-slate-400"
+            className="w-full pl-10 pr-10 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)]"
           />
           {loading && (
             <Loader2
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 animate-spin"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] animate-spin"
               size={16}
             />
           )}
           {!loading && query && (
             <button
               onClick={handleClear}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-gray-100"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               aria-label="Clear search"
             >
               <X size={16} aria-hidden="true" />
@@ -657,10 +660,13 @@ function AppHeader() {
             <div
               role="listbox"
               aria-label="Search results"
-              className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl max-h-80 overflow-y-auto z-50"
+              className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-secondary)] border border-[var(--border-secondary)] rounded-lg shadow-xl max-h-80 overflow-y-auto z-50"
             >
               {results.length === 0 && !loading && (
-                <div className="px-4 py-3 text-sm text-slate-500 text-center" role="status">
+                <div
+                  className="px-4 py-3 text-sm text-[var(--text-tertiary)] text-center"
+                  role="status"
+                >
                   No results found
                 </div>
               )}
@@ -670,7 +676,7 @@ function AppHeader() {
                   role="option"
                   aria-selected="false"
                   onClick={() => handleSelectResult(result)}
-                  className="w-full px-4 py-3 text-left hover:bg-slate-800 border-b border-slate-800 last:border-b-0"
+                  className="w-full px-4 py-3 text-left hover:bg-[var(--bg-hover)] border-b border-[var(--border-primary)] last:border-b-0"
                 >
                   <div className="flex items-center gap-2">
                     <span className={`text-xs ${getStatusColor(result.status)}`}>
@@ -684,10 +690,10 @@ function AppHeader() {
                       </span>
                     )}
                   </div>
-                  <div className="text-sm text-gray-100 mt-1">{result.title}</div>
+                  <div className="text-sm text-[var(--text-primary)] mt-1">{result.title}</div>
                   {result.snippet && result.snippet !== result.title && (
                     <div
-                      className="text-xs text-slate-400 mt-1 line-clamp-2"
+                      className="text-xs text-[var(--text-secondary)] mt-1 line-clamp-2"
                       dangerouslySetInnerHTML={{ __html: sanitizeSnippet(result.snippet) }}
                     />
                   )}
@@ -700,7 +706,7 @@ function AppHeader() {
 
       {/* View toggle */}
       <div
-        className="flex items-center gap-1 bg-slate-800 rounded-lg p-1"
+        className="flex items-center gap-1 bg-[var(--bg-tertiary)] rounded-lg p-1"
         role="group"
         aria-label="View mode"
       >
@@ -708,8 +714,8 @@ function AppHeader() {
           onClick={() => setViewMode("kanban")}
           className={`p-2 rounded-md transition-colors ${
             viewMode === "kanban"
-              ? "bg-slate-700 text-cyan-400"
-              : "text-slate-400 hover:text-gray-100 hover:bg-slate-700"
+              ? "bg-[var(--bg-hover)] text-[var(--accent-primary)]"
+              : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
           }`}
           aria-label="Kanban view"
           aria-pressed={viewMode === "kanban"}
@@ -720,8 +726,8 @@ function AppHeader() {
           onClick={() => setViewMode("list")}
           className={`p-2 rounded-md transition-colors ${
             viewMode === "list"
-              ? "bg-slate-700 text-cyan-400"
-              : "text-slate-400 hover:text-gray-100 hover:bg-slate-700"
+              ? "bg-[var(--bg-hover)] text-[var(--accent-primary)]"
+              : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
           }`}
           aria-label="List view"
           aria-pressed={viewMode === "list"}
@@ -734,7 +740,7 @@ function AppHeader() {
       <button
         onClick={() => void refreshAllData()}
         disabled={isRefreshing}
-        className="p-2 text-slate-400 hover:text-gray-100 hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
+        className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors disabled:opacity-50"
         aria-label="Refresh data (r)"
       >
         <RefreshCw size={18} className={isRefreshing ? "animate-spin" : ""} aria-hidden="true" />
@@ -743,7 +749,7 @@ function AppHeader() {
       {/* Settings button */}
       <button
         onClick={openSettingsModal}
-        className="p-2 text-slate-400 hover:text-gray-100 hover:bg-slate-800 rounded-lg transition-colors"
+        className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
         aria-label="Settings"
       >
         <Settings size={18} aria-hidden="true" />
