@@ -39,7 +39,7 @@
     {
       "id": "4278b95b-fb61-49a0-a93c-ed7e4b7c8e6d",
       "title": "76 - Create BackNavigation component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -386,7 +386,7 @@
     {
       "id": "ed94c61c-2e75-4da2-b9ea-3fda38b608e2",
       "title": "89 - Add Skip AI link to InceptionModal",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
