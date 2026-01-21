@@ -6,11 +6,163 @@
  * @module tools/workflow
  */
 import { z } from "zod";
-import { existsSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, statSync } from "fs";
 import { randomUUID } from "crypto";
 import { join } from "path";
+import { homedir } from "os";
 import { log } from "../lib/logging.js";
 import { runGitCommand, shortId, generateBranchName } from "../lib/git-utils.js";
+
+/**
+ * Maximum file size for attachments to include in MCP response (5MB).
+ * Files larger than this will be skipped with a warning.
+ */
+const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
+
+/**
+ * File type configuration for attachments.
+ * Each entry defines how to handle a file extension: mime type and content type.
+ * - "image": Loaded as base64 MCP image content block
+ * - "text": Read as UTF-8 and included inline with code fence
+ * - "reference": Not loaded, just referenced by path
+ */
+const FILE_TYPES = {
+  jpg: { mime: "image/jpeg", type: "image" },
+  jpeg: { mime: "image/jpeg", type: "image" },
+  png: { mime: "image/png", type: "image" },
+  gif: { mime: "image/gif", type: "image" },
+  webp: { mime: "image/webp", type: "image" },
+  svg: { mime: "image/svg+xml", type: "image" },  // Treat as image for consistency with src/api/attachments.ts
+  pdf: { mime: "application/pdf", type: "reference" },
+  txt: { mime: "text/plain", type: "text", fence: "" },
+  md: { mime: "text/markdown", type: "text", fence: "markdown" },
+  json: { mime: "application/json", type: "text", fence: "json" },
+};
+
+/**
+ * Format file size for display.
+ * @param {number} bytes - File size in bytes
+ * @returns {string} Formatted size (e.g., "1.5MB" or "256KB")
+ */
+function formatFileSize(bytes) {
+  if (bytes >= 1024 * 1024) {
+    return `${Math.round(bytes / 1024 / 1024)}MB`;
+  }
+  return `${Math.round(bytes / 1024)}KB`;
+}
+
+/**
+ * Get the attachments directory path.
+ * Uses legacy path (~/.brain-dump) to match src/api/attachments.ts for consistency.
+ * TODO: Migrate both to XDG-compliant paths (see docs/data-locations.md)
+ * @returns {string}
+ */
+function getAttachmentsDir() {
+  return join(homedir(), ".brain-dump", "attachments");
+}
+
+/**
+ * Load a single attachment and return its content block.
+ * @param {string} filePath - Full path to the file
+ * @param {string} filename - Original filename for display
+ * @param {number} size - File size in bytes
+ * @returns {{ type: string, text?: string, data?: string, mimeType?: string }}
+ */
+function loadSingleAttachment(filePath, filename, size) {
+  const ext = filename.split(".").pop()?.toLowerCase() || "";
+  const fileConfig = FILE_TYPES[ext];
+  const mimeType = fileConfig?.mime || "application/octet-stream";
+  const contentType = fileConfig?.type || "reference";
+  const sizeStr = formatFileSize(size);
+
+  switch (contentType) {
+    case "image": {
+      const base64Data = readFileSync(filePath).toString("base64");
+      log.info(`Loaded image attachment: ${filename} (${sizeStr})`);
+      return { type: "image", data: base64Data, mimeType };
+    }
+    case "text": {
+      const textContent = readFileSync(filePath, "utf-8");
+      const fence = fileConfig.fence || "";
+      log.info(`Loaded text attachment: ${filename} (${sizeStr})`);
+      return {
+        type: "text",
+        text: `### Attachment: ${filename}\n\n\`\`\`${fence}\n${textContent}\n\`\`\``,
+      };
+    }
+    default: {
+      log.info(`Referenced attachment: ${filename} (${mimeType})`);
+      return {
+        type: "text",
+        text: `### Attachment: ${filename}\n\n*File attached (${sizeStr}, type: ${mimeType}). Located at: ${filePath}*`,
+      };
+    }
+  }
+}
+
+/**
+ * Load and format ticket attachments as MCP content blocks.
+ * Images are returned as image content blocks with base64 data.
+ * Text files (txt, md, json) are returned as text content blocks.
+ * PDFs and other files are referenced but not included inline.
+ *
+ * @param {string} ticketId - The ticket ID to load attachments for
+ * @param {string[] | null} attachmentsList - JSON-parsed list of attachment filenames
+ * @returns {{ contentBlocks: Array<{type: string, text?: string, data?: string, mimeType?: string}>, warnings: string[] }}
+ */
+function loadTicketAttachments(ticketId, attachmentsList) {
+  const contentBlocks = [];
+  const warnings = [];
+
+  if (!attachmentsList || !Array.isArray(attachmentsList) || attachmentsList.length === 0) {
+    return { contentBlocks, warnings };
+  }
+
+  const ticketDir = join(getAttachmentsDir(), ticketId);
+
+  if (!existsSync(ticketDir)) {
+    warnings.push(`Attachments directory not found: ${ticketDir}`);
+    return { contentBlocks, warnings };
+  }
+
+  for (const filename of attachmentsList) {
+    // Sanitize filename to prevent path traversal attacks (matches src/api/attachments.ts:171)
+    const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+    if (safeFilename !== filename) {
+      warnings.push(`Skipped unsafe filename: ${filename}`);
+      log.warn(`Blocked path traversal attempt in attachment: ${filename}`);
+      continue;
+    }
+    const filePath = join(ticketDir, safeFilename);
+
+    if (!existsSync(filePath)) {
+      warnings.push(`Attachment file not found: ${filename}`);
+      continue;
+    }
+
+    let stats;
+    try {
+      stats = statSync(filePath);
+    } catch (err) {
+      warnings.push(`Failed to stat file ${filename}: ${err.message}`);
+      continue;
+    }
+
+    if (stats.size > MAX_ATTACHMENT_SIZE) {
+      warnings.push(`Skipping ${filename}: File size (${formatFileSize(stats.size)}) exceeds 5MB limit`);
+      continue;
+    }
+
+    try {
+      contentBlocks.push(loadSingleAttachment(filePath, filename, stats.size));
+    } catch (err) {
+      warnings.push(`Failed to read ${filename}: ${err.message}`);
+      log.error(`Failed to read attachment ${filename}:`, err);
+    }
+  }
+
+  return { contentBlocks, warnings };
+}
 
 /**
  * Create a conversation session for compliance logging.
@@ -292,7 +444,7 @@ Returns:
       const sessionResult = createConversationSession(db, ticketId, ticket.project_id, environment);
       const sessionInfo = sessionResult.success
         ? `**Conversation Session:** \`${sessionResult.sessionId}\` (auto-created for compliance logging)`
-        : "";
+        : `**Warning:** Compliance logging failed: ${sessionResult.error}. Work may not be logged for audit.`;
 
       const updatedTicket = db.prepare(`
         SELECT t.*, p.name as project_name, p.path as project_path
@@ -303,6 +455,7 @@ Returns:
 
       // Parse acceptance criteria from subtasks JSON
       let acceptanceCriteria = ["Complete the implementation as described"];
+      const parseWarnings = [];
       if (updatedTicket.subtasks) {
         try {
           const subtasks = JSON.parse(updatedTicket.subtasks);
@@ -311,17 +464,45 @@ Returns:
           }
         } catch (parseErr) {
           log.warn(`Failed to parse subtasks for ticket ${ticketId}:`, parseErr);
-          // Keep default criteria if parsing fails
+          parseWarnings.push(`Failed to parse acceptance criteria: ${parseErr.message}. Using defaults.`);
         }
       }
 
       const description = updatedTicket.description || "No description provided";
       const priority = updatedTicket.priority || "medium";
 
-      return {
-        content: [{
-          type: "text",
-          text: `## Started Work on Ticket
+      // Load ticket attachments for LLM context
+      let attachmentsList = null;
+      if (updatedTicket.attachments) {
+        try {
+          attachmentsList = JSON.parse(updatedTicket.attachments);
+        } catch (parseErr) {
+          log.warn(`Failed to parse attachments for ticket ${ticketId}:`, parseErr);
+          parseWarnings.push(`Failed to parse attachments list: ${parseErr.message}. Attachments will not be loaded.`);
+        }
+      }
+
+      const { contentBlocks: attachmentBlocks, warnings: attachmentWarnings } = loadTicketAttachments(ticketId, attachmentsList);
+
+      // Build attachments section for the text block
+      let attachmentsSection = "";
+      if (attachmentBlocks.length > 0) {
+        const imageCount = attachmentBlocks.filter(b => b.type === "image").length;
+        const textCount = attachmentBlocks.filter(b => b.type === "text").length;
+        attachmentsSection = `\n### Attachments\n${imageCount > 0 ? `- ${imageCount} image(s) included below\n` : ""}${textCount > 0 ? `- ${textCount} text/reference file(s) included below\n` : ""}`;
+      }
+
+      // Add warnings section if any (combine parse warnings and attachment warnings)
+      const allWarnings = [...parseWarnings, ...attachmentWarnings];
+      let warningsSection = "";
+      if (allWarnings.length > 0) {
+        warningsSection = `\n### Warnings\n${allWarnings.map(w => `- ${w}`).join("\n")}\n`;
+      }
+
+      // Build the main text content block
+      const mainTextBlock = {
+        type: "text",
+        text: `## Started Work on Ticket
 
 **Branch:** \`${branchName}\` ${branchCreated ? "(created)" : "(checked out)"}
 **Project:** ${updatedTicket.project_name}
@@ -339,12 +520,16 @@ ${description}
 
 ### Acceptance Criteria
 ${acceptanceCriteria.map(c => `- ${c}`).join("\n")}
-
+${attachmentsSection}${warningsSection}
 ---
 
 Focus on implementation. When done, call \`complete_ticket_work\` with your summary.`,
-        }],
       };
+
+      // Build the content array: main text first, then attachments
+      const content = [mainTextBlock, ...attachmentBlocks];
+
+      return { content };
     }
   );
 
@@ -449,9 +634,12 @@ Returns:
 
       // End any active conversation sessions for this ticket
       const sessionEndResult = endConversationSessions(db, ticketId);
-      const sessionEndInfo = sessionEndResult.sessionsEnded > 0
-        ? `### Conversation Sessions\n${sessionEndResult.sessionsEnded} session(s) ended (${sessionEndResult.messageCount || 0} messages logged)`
-        : "";
+      let sessionEndInfo = "";
+      if (!sessionEndResult.success) {
+        sessionEndInfo = `### Conversation Sessions\n**Warning:** Failed to end sessions: ${sessionEndResult.error}`;
+      } else if (sessionEndResult.sessionsEnded > 0) {
+        sessionEndInfo = `### Conversation Sessions\n${sessionEndResult.sessionsEnded} session(s) ended (${sessionEndResult.messageCount || 0} messages logged)`;
+      }
 
       // Suggest next ticket
       const nextTicketSuggestion = suggestNextTicket(ticket.project_path, ticketId);
