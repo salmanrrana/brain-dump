@@ -39,7 +39,7 @@
     {
       "id": "98330174-2394-4d71-aade-d700c2ae1bf5",
       "title": "56 - Add form fields to CreateTicketModal",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
