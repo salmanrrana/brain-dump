@@ -185,7 +185,7 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
     borderBottom: "1px solid var(--border-primary)",
     position: "sticky",
     top: 0,
-    background: "var(--bg-secondary)",
+    background: "var(--bg-tertiary)",
     zIndex: 1,
   };
 
@@ -391,7 +391,7 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
               placeholder="Search projects..."
               style={searchInputStyles}
               aria-label="Search projects"
-              className="focus:border-[var(--accent-primary)]"
+              className="focus:border-[var(--accent-primary)] focus:shadow-[0_0_0_3px_var(--accent-muted)]"
             />
             {search && (
               <button
