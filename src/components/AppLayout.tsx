@@ -8,18 +8,7 @@ import {
   useEffect,
   useCallback,
 } from "react";
-import {
-  Search,
-  LayoutGrid,
-  List,
-  Plus,
-  X,
-  Loader2,
-  Settings,
-  ChevronDown,
-  Rocket,
-  RefreshCw,
-} from "lucide-react";
+import { Search, LayoutGrid, List, X, Loader2, Settings, RefreshCw } from "lucide-react";
 import ProjectTree from "./ProjectTree";
 import ContainerStatusSection from "./ContainerStatusSection";
 import ContainerLogsModal from "./ContainerLogsModal";
@@ -28,6 +17,8 @@ import ProjectModal from "./ProjectModal";
 import EpicModal from "./EpicModal";
 import SettingsModal from "./SettingsModal";
 import DeleteConfirmationModal, { type DeletePreview } from "./DeleteConfirmationModal";
+import { NewTicketDropdown } from "./navigation/NewTicketDropdown";
+import { InceptionModal } from "./inception/InceptionModal";
 import { useToast } from "./Toast";
 import { getStatusColor, getPriorityStyle } from "../lib/constants";
 import {
@@ -38,8 +29,6 @@ import {
   useFilters,
   useSampleData,
   useClickOutside,
-  useLaunchProjectInception,
-  useSettings,
   useDeleteEpic,
   useInvalidateQueries,
   useRalphContainers,
@@ -528,36 +517,9 @@ function AppHeader() {
   const [showResults, setShowResults] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { showToast } = useToast();
 
-  // New ticket dropdown state
-  const [showNewMenu, setShowNewMenu] = useState(false);
-  const newMenuRef = useRef<HTMLDivElement>(null);
-  const launchInceptionMutation = useLaunchProjectInception();
-  const { settings } = useSettings();
-
-  // Close new menu when clicking outside
-  useClickOutside(newMenuRef, () => setShowNewMenu(false), showNewMenu);
-
-  const handleStartFromScratch = async () => {
-    setShowNewMenu(false);
-    try {
-      const result = await launchInceptionMutation.mutateAsync({
-        preferredTerminal: settings?.terminalEmulator ?? null,
-      });
-      if (!result.success) {
-        showToast("error", result.message);
-      } else {
-        // Show any warnings (e.g., preferred terminal unavailable)
-        if (result.warnings) {
-          result.warnings.forEach((warning) => showToast("info", warning));
-        }
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "An unexpected error occurred";
-      showToast("error", `Failed to start project: ${message}`);
-    }
-  };
+  // Inception modal state
+  const [isInceptionModalOpen, setIsInceptionModalOpen] = useState(false);
 
   // Close search dropdown when clicking outside - uses the existing useClickOutside hook
   const closeSearchResults = useCallback(() => setShowResults(false), []);
@@ -694,59 +656,17 @@ function AppHeader() {
       </button>
 
       {/* New ticket dropdown */}
-      <div className="relative" ref={newMenuRef}>
-        <div className="flex">
-          {/* Main button */}
-          <button
-            onClick={openNewTicketModal}
-            className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-l-lg font-medium text-sm transition-colors"
-          >
-            <Plus size={18} />
-            <span>New Ticket</span>
-          </button>
+      <NewTicketDropdown
+        onNewTicket={openNewTicketModal}
+        onStartFromScratch={() => setIsInceptionModalOpen(true)}
+      />
 
-          {/* Dropdown toggle */}
-          <button
-            onClick={() => setShowNewMenu(!showNewMenu)}
-            className="flex items-center px-2 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-r-lg border-l border-cyan-700 transition-colors"
-            aria-label="More options"
-          >
-            <ChevronDown size={16} />
-          </button>
-        </div>
-
-        {/* Dropdown Menu */}
-        {showNewMenu && (
-          <div className="absolute right-0 top-full mt-2 w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden">
-            <button
-              onClick={() => {
-                setShowNewMenu(false);
-                openNewTicketModal();
-              }}
-              className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left"
-            >
-              <Plus size={18} className="text-cyan-400 mt-0.5 flex-shrink-0" />
-              <div>
-                <div className="font-medium text-gray-100">New Ticket</div>
-                <div className="text-xs text-slate-400">Add a ticket to an existing project</div>
-              </div>
-            </button>
-            <button
-              onClick={handleStartFromScratch}
-              disabled={launchInceptionMutation.isPending}
-              className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left border-t border-slate-700 disabled:opacity-50"
-            >
-              <Rocket size={18} className="text-amber-400 mt-0.5 flex-shrink-0" />
-              <div>
-                <div className="font-medium text-gray-100">Start from Scratch</div>
-                <div className="text-xs text-slate-400">
-                  Create a new project with AI assistance
-                </div>
-              </div>
-            </button>
-          </div>
-        )}
-      </div>
+      {/* Inception Modal */}
+      <InceptionModal
+        isOpen={isInceptionModalOpen}
+        onClose={() => setIsInceptionModalOpen(false)}
+        onSkipAI={openNewTicketModal}
+      />
     </header>
   );
 }
