@@ -18,6 +18,7 @@ import { SettingsModal } from "./settings";
 import DeleteConfirmationModal, { type DeletePreview } from "./DeleteConfirmationModal";
 import { NewTicketDropdown } from "./navigation/NewTicketDropdown";
 import { InceptionModal } from "./inception/InceptionModal";
+import { ShortcutsModal } from "./ui/ShortcutsModal";
 import { useToast } from "./Toast";
 import { getStatusColor, getPriorityStyle } from "../lib/constants";
 import {
@@ -39,11 +40,7 @@ import {
   type Filters,
 } from "../lib/hooks";
 import { deleteEpic as deleteEpicFn } from "../api/epics";
-import {
-  useKeyboardShortcuts,
-  KEYBOARD_SHORTCUTS,
-  SHORTCUT_CATEGORY_LABELS,
-} from "../lib/keyboard-shortcuts";
+import { useKeyboardShortcuts } from "../lib/keyboard-shortcuts";
 
 // App context for managing global state
 interface AppState {
@@ -398,61 +395,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         {modal.type === "settings" && <SettingsModal onClose={closeModal} />}
 
         {/* Keyboard Shortcuts Help Modal */}
-        {modal.type === "shortcuts" && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/60" onClick={closeModal} aria-hidden="true" />
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="shortcuts-title"
-              className="relative bg-slate-900 rounded-lg shadow-xl w-full max-w-md p-6"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h2 id="shortcuts-title" className="text-lg font-semibold text-gray-100">
-                  Keyboard Shortcuts
-                </h2>
-                <button
-                  onClick={closeModal}
-                  className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-gray-100"
-                  aria-label="Close"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              {/* Render shortcuts from the centralized constant */}
-              {Object.entries(
-                KEYBOARD_SHORTCUTS.reduce(
-                  (acc, shortcut) => {
-                    const category = shortcut.category;
-                    if (!acc[category]) acc[category] = [];
-                    acc[category].push(shortcut);
-                    return acc;
-                  },
-                  {} as Record<string, typeof KEYBOARD_SHORTCUTS>
-                )
-              ).map(([category, shortcuts]) => (
-                <div key={category} className="mb-4">
-                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                    {SHORTCUT_CATEGORY_LABELS[category] ?? category}
-                  </h3>
-                  <div className="space-y-2">
-                    {shortcuts.map((shortcut) => (
-                      <div key={shortcut.key} className="flex items-center justify-between">
-                        <span className="text-slate-300">{shortcut.description}</span>
-                        <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">
-                          {shortcut.key === "Escape" ? "Esc" : shortcut.key}
-                        </kbd>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-              <p className="mt-2 text-xs text-slate-500">
-                Shortcuts are disabled when typing in text fields.
-              </p>
-            </div>
-          </div>
-        )}
+        {modal.type === "shortcuts" && <ShortcutsModal isOpen={true} onClose={closeModal} />}
 
         {/* Delete Epic Confirmation Modal */}
         {epicToDelete && (
