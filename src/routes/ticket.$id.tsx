@@ -227,7 +227,15 @@ function TicketDetailPage() {
   const prevTicketSubtasks = useRef(ticketSubtasks);
   if (ticketSubtasks !== prevTicketSubtasks.current) {
     prevTicketSubtasks.current = ticketSubtasks;
-    const parsed = ticketSubtasks ? (JSON.parse(ticketSubtasks) as Subtask[]) : [];
+    let parsed: Subtask[] = [];
+    if (ticketSubtasks) {
+      try {
+        parsed = JSON.parse(ticketSubtasks) as Subtask[];
+      } catch {
+        // Invalid JSON in subtasks field - use empty array
+        parsed = [];
+      }
+    }
     if (JSON.stringify(parsed) !== JSON.stringify(localSubtasks)) {
       setLocalSubtasks(parsed);
     }

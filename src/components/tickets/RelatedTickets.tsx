@@ -1,9 +1,42 @@
-import { type FC, useMemo } from "react";
+import { type FC, useMemo, memo } from "react";
 import { Link } from "@tanstack/react-router";
 import { Layers, ChevronRight } from "lucide-react";
 import type { Ticket } from "../../lib/hooks";
-import { StatusPill } from "../navigation/StatusPill";
-import type { TicketStatus } from "../navigation/StatusPill";
+import { StatusPill, type TicketStatus } from "../navigation/StatusPill";
+
+// =============================================================================
+// Constants
+// =============================================================================
+
+/** Sort order for ticket statuses - lower numbers appear first */
+const STATUS_SORT_ORDER: Record<string, number> = {
+  in_progress: 0,
+  ready: 1,
+  review: 2,
+  ai_review: 3,
+  human_review: 4,
+  backlog: 5,
+  done: 6,
+};
+
+/** Sort order for ticket priorities - lower numbers appear first */
+const PRIORITY_SORT_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+
+/** Valid ticket status values for type checking */
+const VALID_STATUSES: readonly TicketStatus[] = [
+  "backlog",
+  "ready",
+  "in_progress",
+  "review",
+  "ai_review",
+  "human_review",
+  "done",
+];
+
+/** Type guard to check if a string is a valid TicketStatus */
+function isValidTicketStatus(status: string): status is TicketStatus {
+  return VALID_STATUSES.includes(status as TicketStatus);
+}
 
 // =============================================================================
 // Types
@@ -23,6 +56,40 @@ export interface RelatedTicketsProps {
   /** Optional test ID prefix */
   testId?: string;
 }
+
+interface RelatedTicketItemProps {
+  ticket: Ticket;
+  testId: string;
+}
+
+// =============================================================================
+// Memoized List Item Component
+// =============================================================================
+
+/**
+ * Memoized list item for related tickets to prevent unnecessary re-renders.
+ */
+const RelatedTicketItem = memo<RelatedTicketItemProps>(({ ticket, testId }) => {
+  // Safely get the status - default to "backlog" if invalid
+  const status: TicketStatus = isValidTicketStatus(ticket.status) ? ticket.status : "backlog";
+
+  return (
+    <li>
+      <Link
+        to="/ticket/$id"
+        params={{ id: ticket.id }}
+        style={ticketLinkStyles}
+        data-testid={`${testId}-item-${ticket.id}`}
+        className="hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-primary)]"
+      >
+        <StatusPill status={status} size="sm" />
+        <span style={ticketTitleStyles}>{ticket.title}</span>
+      </Link>
+    </li>
+  );
+});
+
+RelatedTicketItem.displayName = "RelatedTicketItem";
 
 // =============================================================================
 // RelatedTickets Component
@@ -66,23 +133,13 @@ export const RelatedTickets: FC<RelatedTicketsProps> = ({
       .filter((t) => t.epicId === epicId && t.id !== currentTicketId)
       .sort((a, b) => {
         // Sort by status priority: in_progress first, then ready, then backlog, then done
-        const statusOrder: Record<string, number> = {
-          in_progress: 0,
-          ready: 1,
-          review: 2,
-          ai_review: 3,
-          human_review: 4,
-          backlog: 5,
-          done: 6,
-        };
-        const aOrder = statusOrder[a.status] ?? 99;
-        const bOrder = statusOrder[b.status] ?? 99;
+        const aOrder = STATUS_SORT_ORDER[a.status] ?? 99;
+        const bOrder = STATUS_SORT_ORDER[b.status] ?? 99;
         if (aOrder !== bOrder) return aOrder - bOrder;
 
         // Then by priority
-        const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
-        const aPriority = priorityOrder[a.priority ?? "medium"] ?? 1;
-        const bPriority = priorityOrder[b.priority ?? "medium"] ?? 1;
+        const aPriority = PRIORITY_SORT_ORDER[a.priority ?? "medium"] ?? 1;
+        const bPriority = PRIORITY_SORT_ORDER[b.priority ?? "medium"] ?? 1;
         return aPriority - bPriority;
       });
   }, [epicId, tickets, currentTicketId]);
@@ -137,32 +194,22 @@ export const RelatedTickets: FC<RelatedTicketsProps> = ({
       {/* Ticket List */}
       <ul style={listStyles} data-testid={`${testId}-list`}>
         {displayedTickets.map((ticket) => (
-          <li key={ticket.id}>
-            <Link
-              to="/ticket/$id"
-              params={{ id: ticket.id }}
-              style={ticketLinkStyles}
-              data-testid={`${testId}-item-${ticket.id}`}
-              className="hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-primary)]"
-            >
-              <StatusPill status={ticket.status as TicketStatus} size="sm" />
-              <span style={ticketTitleStyles}>{ticket.title}</span>
-            </Link>
-          </li>
+          <RelatedTicketItem key={ticket.id} ticket={ticket} testId={testId} />
         ))}
       </ul>
 
       {/* View All Link */}
       {hasMore && (
-        <a
-          href={`/?epicId=${epicId}`}
+        <Link
+          to="/"
+          search={{ epicId }}
           style={viewAllStyles}
           data-testid={`${testId}-view-all`}
           className="hover:text-[var(--accent-primary)] focus:outline-none focus-visible:underline"
         >
           <span>View all {totalCount} tickets in epic</span>
           <ChevronRight size={14} aria-hidden="true" />
-        </a>
+        </Link>
       )}
     </section>
   );

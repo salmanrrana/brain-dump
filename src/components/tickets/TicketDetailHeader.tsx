@@ -94,8 +94,14 @@ export const TicketDetailHeader: FC<TicketDetailHeaderProps> = ({
   // Copy branch name to clipboard
   const handleCopyBranch = useCallback(() => {
     if (ticket.branchName) {
-      navigator.clipboard.writeText(ticket.branchName);
-      showToast("success", "Branch name copied!");
+      navigator.clipboard.writeText(ticket.branchName).then(
+        () => {
+          showToast("success", "Branch name copied!");
+        },
+        () => {
+          showToast("error", "Failed to copy branch name");
+        }
+      );
     }
   }, [ticket.branchName, showToast]);
 
@@ -108,7 +114,15 @@ export const TicketDetailHeader: FC<TicketDetailHeaderProps> = ({
   const priorityConfig = ticket.priority ? PRIORITY_BADGE_CONFIG[ticket.priority] : null;
 
   // Parse tags if present
-  const tags = ticket.tags ? (JSON.parse(ticket.tags) as string[]) : [];
+  let tags: string[] = [];
+  if (ticket.tags) {
+    try {
+      tags = JSON.parse(ticket.tags) as string[];
+    } catch {
+      // Invalid JSON in tags field - use empty array
+      tags = [];
+    }
+  }
 
   return (
     <header style={containerStyles}>
