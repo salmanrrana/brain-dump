@@ -303,7 +303,7 @@
     {
       "id": "aec1e0fd-9cc5-438c-9043-d8076ba7d873",
       "title": "65 - Add delete ticket with confirmation",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -333,7 +333,7 @@
     {
       "id": "ab504b33-c8c4-4163-bb48-f18051a44212",
       "title": "66 - Create LaunchActions section",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
