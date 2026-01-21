@@ -62,6 +62,7 @@ export const TicketCard = memo(function TicketCard({
     <div
       role="button"
       tabIndex={tabIndex}
+      aria-label={`Open ticket: ${ticket.title}`}
       onClick={() => onClick?.(ticket)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {

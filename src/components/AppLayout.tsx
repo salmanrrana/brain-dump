@@ -362,7 +362,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
           <AppHeader />
 
           {/* Content */}
-          <main className="flex-1 overflow-auto p-6">{children}</main>
+          <main id="main-content" className="flex-1 overflow-auto p-6">
+            {children}
+          </main>
         </div>
 
         {/* New Ticket Modal */}
@@ -480,20 +482,29 @@ function AppHeader() {
             <button
               onClick={handleClear}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-gray-100"
+              aria-label="Clear search"
             >
-              <X size={16} />
+              <X size={16} aria-hidden="true" />
             </button>
           )}
 
           {/* Search Results Dropdown */}
           {showResults && query && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl max-h-80 overflow-y-auto z-50">
+            <div
+              role="listbox"
+              aria-label="Search results"
+              className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl max-h-80 overflow-y-auto z-50"
+            >
               {results.length === 0 && !loading && (
-                <div className="px-4 py-3 text-sm text-slate-500 text-center">No results found</div>
+                <div className="px-4 py-3 text-sm text-slate-500 text-center" role="status">
+                  No results found
+                </div>
               )}
               {results.map((result) => (
                 <button
                   key={result.id}
+                  role="option"
+                  aria-selected="false"
                   onClick={() => handleSelectResult(result)}
                   className="w-full px-4 py-3 text-left hover:bg-slate-800 border-b border-slate-800 last:border-b-0"
                 >
@@ -524,7 +535,11 @@ function AppHeader() {
       </div>
 
       {/* View toggle */}
-      <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1">
+      <div
+        className="flex items-center gap-1 bg-slate-800 rounded-lg p-1"
+        role="group"
+        aria-label="View mode"
+      >
         <button
           onClick={() => setViewMode("kanban")}
           className={`p-2 rounded-md transition-colors ${
@@ -532,9 +547,10 @@ function AppHeader() {
               ? "bg-slate-700 text-cyan-400"
               : "text-slate-400 hover:text-gray-100 hover:bg-slate-700"
           }`}
-          title="Kanban view"
+          aria-label="Kanban view"
+          aria-pressed={viewMode === "kanban"}
         >
-          <LayoutGrid size={18} />
+          <LayoutGrid size={18} aria-hidden="true" />
         </button>
         <button
           onClick={() => setViewMode("list")}
@@ -543,9 +559,10 @@ function AppHeader() {
               ? "bg-slate-700 text-cyan-400"
               : "text-slate-400 hover:text-gray-100 hover:bg-slate-700"
           }`}
-          title="List view"
+          aria-label="List view"
+          aria-pressed={viewMode === "list"}
         >
-          <List size={18} />
+          <List size={18} aria-hidden="true" />
         </button>
       </div>
 
@@ -554,18 +571,18 @@ function AppHeader() {
         onClick={() => void refreshAllData()}
         disabled={isRefreshing}
         className="p-2 text-slate-400 hover:text-gray-100 hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
-        title="Refresh data (r)"
+        aria-label="Refresh data (r)"
       >
-        <RefreshCw size={18} className={isRefreshing ? "animate-spin" : ""} />
+        <RefreshCw size={18} className={isRefreshing ? "animate-spin" : ""} aria-hidden="true" />
       </button>
 
       {/* Settings button */}
       <button
         onClick={openSettingsModal}
         className="p-2 text-slate-400 hover:text-gray-100 hover:bg-slate-800 rounded-lg transition-colors"
-        title="Settings"
+        aria-label="Settings"
       >
-        <Settings size={18} />
+        <Settings size={18} aria-hidden="true" />
       </button>
 
       {/* New ticket dropdown */}

@@ -81,9 +81,9 @@ export default function ProjectTree({
         <button
           onClick={onAddProject}
           className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-gray-100 transition-colors"
-          title="Add project"
+          aria-label="Add project"
         >
-          <Plus size={14} />
+          <Plus size={14} aria-hidden="true" />
         </button>
       </div>
 
@@ -113,11 +113,13 @@ export default function ProjectTree({
                   toggleProject(project.id);
                 }}
                 className="p-0.5 hover:bg-slate-700 rounded"
+                aria-label={isExpanded ? `Collapse ${project.name}` : `Expand ${project.name}`}
+                aria-expanded={isExpanded}
               >
                 {isExpanded ? (
-                  <ChevronDown size={14} className="text-slate-400" />
+                  <ChevronDown size={14} className="text-slate-400" aria-hidden="true" />
                 ) : (
-                  <ChevronRight size={14} className="text-slate-400" />
+                  <ChevronRight size={14} className="text-slate-400" aria-hidden="true" />
                 )}
               </button>
 
@@ -171,9 +173,9 @@ export default function ProjectTree({
                     });
                   }}
                   className="p-0.5 hover:bg-slate-700 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Edit project"
+                  aria-label={`Edit project ${project.name}`}
                 >
-                  <Pencil size={12} className="text-slate-400" />
+                  <Pencil size={12} className="text-slate-400" aria-hidden="true" />
                 </button>
               )}
 
@@ -184,9 +186,9 @@ export default function ProjectTree({
                   onAddEpic(project.id);
                 }}
                 className="p-0.5 hover:bg-slate-700 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                title="Add epic"
+                aria-label={`Add epic to ${project.name}`}
               >
-                <Plus size={12} className="text-slate-400" />
+                <Plus size={12} className="text-slate-400" aria-hidden="true" />
               </button>
             </div>
 
@@ -219,9 +221,9 @@ export default function ProjectTree({
                             onEditEpic(project.id, epic);
                           }}
                           className="p-0.5 hover:bg-slate-700 rounded opacity-0 group-hover/epic:opacity-100 transition-opacity"
-                          title="Edit epic"
+                          aria-label={`Edit epic ${epic.title}`}
                         >
-                          <Pencil size={10} className="text-slate-400" />
+                          <Pencil size={10} className="text-slate-400" aria-hidden="true" />
                         </button>
                       )}
                       {onDeleteEpic && (
@@ -231,9 +233,9 @@ export default function ProjectTree({
                             onDeleteEpic(epic);
                           }}
                           className="p-0.5 hover:bg-red-900/50 rounded opacity-0 group-hover/epic:opacity-100 transition-opacity"
-                          title="Delete epic"
+                          aria-label={`Delete epic ${epic.title}`}
                         >
-                          <Trash2 size={10} className="text-red-400" />
+                          <Trash2 size={10} className="text-red-400" aria-hidden="true" />
                         </button>
                       )}
                     </div>
