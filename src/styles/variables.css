@@ -137,6 +137,12 @@
   --transition-normal: 150ms ease;
   --transition-slow: 300ms ease;
 
+  /* Animation durations (for reduced motion support) */
+  --animation-duration-fast: 150ms;
+  --animation-duration-normal: 300ms;
+  --animation-duration-slow: 500ms;
+  --animation-duration-pulse: 2s;
+
   /* Z-Index Scale */
   --z-dropdown: 10;
   --z-sticky: 20;

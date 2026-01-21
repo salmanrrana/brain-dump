@@ -125,3 +125,79 @@ select:focus-visible {
   outline: var(--focus-ring-width) solid white;
   outline-offset: var(--focus-ring-offset);
 }
+
+/* ============================================
+   REDUCED MOTION SUPPORT
+   ============================================
+   Respects user's prefers-reduced-motion setting for accessibility.
+   When reduced motion is preferred:
+   - Decorative animations are disabled (glow pulses, slide-ins)
+   - Transitions become instant (visual state still changes)
+   - Loading spinners remain functional but speed up
+   - Essential state changes are preserved (instant instead of animated)
+
+   This ensures users with vestibular disorders or motion sensitivity
+   can use the app comfortably while maintaining full functionality.
+*/
+
+@media (prefers-reduced-motion: reduce) {
+  /* Global animation and transition reduction */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Disable decorative glow pulses completely */
+  .animate-pulse-slow {
+    animation: none !important;
+    /* Keep the static glow effect for AI-active indication */
+    box-shadow: 0 0 12px var(--accent-primary, rgba(139, 92, 246, 0.5)) !important;
+  }
+
+  /* Disable toast slide-in, make it instant */
+  .animate-slide-in {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* Disable generic Tailwind pulse animation */
+  .animate-pulse {
+    animation: none !important;
+  }
+
+  /* Disable card glow pulse but keep static glow for AI-active indication */
+  [data-glow="true"] {
+    animation: none !important;
+    box-shadow:
+      0 0 20px var(--accent-glow),
+      0 0 40px var(--accent-glow) !important;
+  }
+
+  /* Disable ping animation (live indicators) */
+  .animate-ping {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+
+  /* Keep loading spinners functional but much faster
+     Users need visual feedback that something is loading */
+  .animate-spin {
+    animation-duration: 0.5s !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  /* Skip link transition - make instant */
+  .skip-to-content {
+    transition: none !important;
+  }
+
+  /* Body theme transition - make instant */
+  body {
+    transition: none !important;
+  }
+}
