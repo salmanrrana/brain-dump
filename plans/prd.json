@@ -226,7 +226,7 @@
     {
       "id": "dac4013c-44ae-4b15-8d4a-905f0e46e207",
       "title": "83 - Create EditProjectModal",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
