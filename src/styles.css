@@ -35,18 +35,27 @@ code {
   animation: slide-in 0.3s ease-out;
 }
 
-/* AI-active glow animation for ticket cards */
+/* AI-active glow animation for ticket cards and status indicators
+   Uses --accent-ai-glow (teal) for AI/Ralph-related elements.
+   Animation is subtle (2s duration) to avoid being distracting. */
 @keyframes ai-pulse {
   0%,
   100% {
-    box-shadow: 0 0 8px var(--accent-primary, rgba(139, 92, 246, 0.5));
+    box-shadow: 0 0 8px var(--accent-ai-glow, rgba(20, 184, 166, 0.4));
   }
   50% {
-    box-shadow: 0 0 16px var(--accent-primary, rgba(139, 92, 246, 0.7));
+    box-shadow: 0 0 20px 5px var(--accent-ai-glow, rgba(20, 184, 166, 0.6));
   }
 }
 
-.animate-pulse-slow {
+/* Apply to AI-active tickets and Ralph status indicators */
+.animate-pulse-slow,
+.ai-active-glow {
+  animation: ai-pulse 2s ease-in-out infinite;
+}
+
+/* Data attribute version for declarative styling */
+[data-ai-active="true"] {
   animation: ai-pulse 2s ease-in-out infinite;
 }
 
@@ -194,11 +203,13 @@ a.nav-item,
     scroll-behavior: auto !important;
   }
 
-  /* Disable decorative glow pulses completely */
-  .animate-pulse-slow {
+  /* Disable decorative glow pulses but keep static glow for AI-active indication */
+  .animate-pulse-slow,
+  .ai-active-glow,
+  [data-ai-active="true"] {
     animation: none !important;
-    /* Keep the static glow effect for AI-active indication */
-    box-shadow: 0 0 12px var(--accent-primary, rgba(139, 92, 246, 0.5)) !important;
+    /* Keep the static glow effect for AI-active indication using AI color */
+    box-shadow: 0 0 12px var(--accent-ai-glow, rgba(20, 184, 166, 0.4)) !important;
   }
 
   /* Disable toast slide-in, make it instant */
