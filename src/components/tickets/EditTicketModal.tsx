@@ -821,7 +821,7 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
             </div>
           </div>
 
-          {/* Blocked Section - Placeholder for ticket 63 */}
+          {/* Blocked Section */}
           <div>
             <h3 style={sectionHeaderStyles}>Blocked</h3>
             <div style={{ display: "flex", alignItems: "flex-start", gap: "var(--spacing-3)" }}>
