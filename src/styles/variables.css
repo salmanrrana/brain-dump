@@ -70,6 +70,12 @@
   --info: #3b82f6;
   --info-muted: rgba(59, 130, 246, 0.15);
 
+  /* Accent semantic aliases (for component consistency) */
+  --accent-danger: var(--error);
+  --accent-warning: var(--warning);
+  --border-hover: var(--border-secondary);
+  --text-on-accent: #ffffff;
+
   /* Status aliases (for semantic consistency) */
   --status-success: var(--success);
   --status-warning: var(--warning);

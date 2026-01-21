@@ -466,7 +466,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                   }
                   className="w-full flex items-start gap-3 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left border-t border-[var(--border-primary)]"
                 >
-                  <Code2 size={18} className="text-blue-400 mt-0.5 flex-shrink-0" />
+                  <Code2 size={18} className="text-[var(--accent-ai)] mt-0.5 flex-shrink-0" />
                   <div>
                     <div className="font-medium text-[var(--text-primary)]">
                       Start Ralph (OpenCode)

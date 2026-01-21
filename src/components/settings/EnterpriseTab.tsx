@@ -1,5 +1,4 @@
-import { Building2, FileText, Palette } from "lucide-react";
-import { ThemeSwitcher } from "../../components-v2/ui/ThemeSwitcher";
+import { Building2, FileText } from "lucide-react";
 import { sectionHeaderStyles, fieldStyles, inputStyles, toggleStyles } from "./settingsStyles";
 
 // =============================================================================
@@ -29,10 +28,9 @@ export interface EnterpriseTabProps {
  * Features:
  * - **Conversation logging toggle**: Enable/disable compliance audit logging
  * - **Retention period input**: Configure 7-365 day retention for logs
- * - **Theme picker**: ThemeSwitcher component with Ember/Mint/Solar options
  * - **Enterprise info box**: SOC2, GDPR, ISO 27001 compliance note
  *
- * Note: Theme is stored via the useTheme hook (localStorage-based).
+ * Note: Theme picker was moved to GeneralTab for better UX organization.
  * Logging settings are persisted via the settings API.
  */
 export function EnterpriseTab({
@@ -116,22 +114,6 @@ export function EnterpriseTab({
               </div>
             </div>
           )}
-        </div>
-
-        {/* Appearance Section */}
-        <div>
-          <div className={sectionHeaderStyles.container}>
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[color-mix(in_srgb,var(--accent-ai)_15%,transparent)]">
-              <Palette size={16} className="text-[var(--accent-ai)]" />
-            </div>
-            <h3 className={sectionHeaderStyles.title}>Appearance</h3>
-          </div>
-
-          <div>
-            <label className={fieldStyles.label}>Color Theme</label>
-            <ThemeSwitcher />
-            <p className={fieldStyles.hint}>Choose your preferred accent color theme</p>
-          </div>
         </div>
       </div>
     </div>
