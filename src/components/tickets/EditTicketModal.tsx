@@ -10,6 +10,7 @@ import {
 import { useToast } from "../Toast";
 import { TagInput } from "./TagInput";
 import { EpicSelect } from "./EpicSelect";
+import { SubtaskList } from "./SubtaskList";
 import type { TicketStatus, Subtask } from "../../api/tickets";
 
 /** Priority options for ticket editing */
@@ -49,8 +50,8 @@ export interface EditTicketModalProps {
  *
  * Extends the CreateTicketModal pattern with additional sections:
  * - Status dropdown for changing ticket status
- * - Blocked toggle with reason (placeholder for ticket 63)
- * - Subtasks list (placeholder for ticket 64)
+ * - Blocked toggle with reason
+ * - Subtasks list with add/edit/delete/toggle
  * - Delete button (placeholder for ticket 65)
  *
  * Features:
@@ -724,61 +725,9 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
             </div>
           </div>
 
-          {/* Subtasks Section - Placeholder for ticket 64 */}
+          {/* Subtasks Section */}
           <div>
-            <h3 style={sectionHeaderStyles}>
-              Subtasks ({subtasks.filter((s) => s.completed).length}/{subtasks.length} complete)
-            </h3>
-            {subtasks.length === 0 ? (
-              <p
-                style={{
-                  color: "var(--text-muted)",
-                  fontSize: "var(--font-size-sm)",
-                  fontStyle: "italic",
-                }}
-              >
-                No subtasks yet. Subtask management coming in a future update.
-              </p>
-            ) : (
-              <ul
-                style={{
-                  listStyle: "none",
-                  padding: 0,
-                  margin: 0,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "var(--spacing-2)",
-                }}
-              >
-                {subtasks.map((subtask) => (
-                  <li
-                    key={subtask.id}
-                    style={{ display: "flex", alignItems: "center", gap: "var(--spacing-2)" }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={subtask.completed}
-                      onChange={() => {
-                        setSubtasks((prev) =>
-                          prev.map((s) =>
-                            s.id === subtask.id ? { ...s, completed: !s.completed } : s
-                          )
-                        );
-                      }}
-                      style={{ width: "16px", height: "16px", cursor: "pointer" }}
-                    />
-                    <span
-                      style={{
-                        color: subtask.completed ? "var(--text-muted)" : "var(--text-primary)",
-                        textDecoration: subtask.completed ? "line-through" : "none",
-                      }}
-                    >
-                      {subtask.text}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <SubtaskList value={subtasks} onChange={setSubtasks} />
           </div>
         </div>
 
