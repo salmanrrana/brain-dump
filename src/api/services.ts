@@ -415,6 +415,25 @@ export const stopAllServices = createServerFn({ method: "POST" })
   );
 
 // =============================================================================
+// DOCKER AVAILABILITY
+// =============================================================================
+
+/**
+ * Check if Docker daemon is available.
+ *
+ * Uses a cached check (60 second TTL) to avoid repeatedly hitting Docker daemon.
+ * This is called at app startup and periodically to enable/disable Docker features.
+ *
+ * @returns Object with available boolean, cached flag, and optional error
+ */
+export const checkDockerAvailable = createServerFn({ method: "GET" })
+  .inputValidator((data: { forceRefresh?: boolean }) => data)
+  .handler(async ({ data }) => {
+    const { checkDockerAvailability } = await import("./docker-utils");
+    return checkDockerAvailability(data.forceRefresh ?? false);
+  });
+
+// =============================================================================
 // DOCKER CONTAINER LOGS
 // =============================================================================
 
@@ -430,8 +449,8 @@ export const listRalphContainers = createServerFn({ method: "GET" }).handler(asy
 
   const result = await listContainers("ralph-");
 
-  // Log any Docker errors for debugging
-  if (result.error) {
+  // Only log unexpected errors (Docker daemon not running is handled silently in docker-utils)
+  if (result.error && result.error !== "Docker daemon not running") {
     console.warn(`[services] Docker container list error: ${result.error}`);
   }
 
@@ -458,8 +477,8 @@ export const getRalphContainerStats = createServerFn({ method: "GET" })
 
     const result = await getContainerStats(containerNames);
 
-    // Log any Docker errors for debugging
-    if (result.error) {
+    // Only log unexpected errors (Docker daemon not running is handled silently)
+    if (result.error && result.error !== "Docker daemon not running") {
       console.warn(`[services] Docker container stats error: ${result.error}`);
     }
 

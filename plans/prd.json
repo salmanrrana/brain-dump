@@ -9,567 +9,432 @@
   ],
   "userStories": [
     {
-      "id": "251af0d1-2805-4d7e-9e48-056c53ba7e37",
-      "title": "55 - Create CreateTicketModal shell",
-      "passes": false,
+      "id": "b3faf222-ba21-4df1-a322-d2baba258bc7",
+      "title": "75 - Create ticket detail route",
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Uses Modal base component",
-        "2-column layout for form fields",
-        "Modal.Header with \"Create New Ticket\" title",
-        "Modal.Body with form",
-        "Modal.Footer with Cancel/Create buttons",
-        "Opens from NewTicketDropdown",
-        "Escape closes modal"
+        "Route at `/ticket/:id`",
+        "Loads ticket by ID from URL param",
+        "Full page layout (not modal)",
+        "Includes header, description, subtasks, activity",
+        "Error state for invalid ticket ID",
+        "Loading skeleton while fetching",
+        "Navigate to /ticket/123",
+        "Ticket data loads"
       ],
       "references": [
-        "src/components/tickets/CreateTicketModal.tsx"
+        "src/routes/ticket.$id.tsx"
       ],
-      "description": "Create the Create Ticket modal with 2-column form layout.\n\n**Files to Create:**\n- `src/components/tickets/CreateTicketModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Uses Modal base component\n- [ ] 2-column layout for form fields\n- [ ] Modal.Header with \"Create New Ticket\" title\n- [ ] Modal.Body with form\n- [ ] Modal.Footer with Cancel/Create buttons\n- [ ] Opens from NewTicketDropdown\n- [ ] Escape closes modal\n\n**Layout:**\n```\n┌─────────────────────────────────────────────────────────────┐\n│ [📝] Create New Ticket                                   [×] │\n├─────────────────────────────────────────────────────────────┤\n│ Title *                                                      │\n│ [_________________________________________________]          │\n│                                                              │\n│ Description                                                  │\n│ [_________________________________________________]          │\n│ [_________________________________________________]          │\n│                                                              │\n│ Project *              │ Priority                           │\n│ [Project ▾]            │ [Priority ▾]                       │\n│                                                              │\n│ Epic                   │ Tags                               │\n│ [Epic ▾]               │ [+tag] [+tag]                      │\n├─────────────────────────────────────────────────────────────┤\n│                               [Cancel]  [Create Ticket]      │\n└─────────────────────────────────────────────────────────────┘\n```\n\n**Tests:** Visual inspection",
+      "description": "Create the dedicated ticket detail page route.\n\n**Files to Create:**\n- `src/routes/ticket.$id.tsx`\n\n**Acceptance Criteria:**\n- [ ] Route at `/ticket/:id`\n- [ ] Loads ticket by ID from URL param\n- [ ] Full page layout (not modal)\n- [ ] Includes header, description, subtasks, activity\n- [ ] Error state for invalid ticket ID\n- [ ] Loading skeleton while fetching\n\n**Layout:**\n```\n┌─────────────────────────────────────────────────────────────┐\n│ ← Back to Board                                             │\n├─────────────────────────────────────────────────────────────┤\n│ Implement user authentication              [Edit] [Start]   │\n│ Status: In Progress  Priority: High  Epic: Auth            │\n├─────────────────────────────────────────────────────────────┤\n│ Description                     │ Subtasks (2/4)           │\n│ Add login/logout...             │ ☑ Database schema        │\n│                                 │ ☑ API endpoints          │\n│                                 │ ☐ UI components          │\n├─────────────────────────────────┼──────────────────────────┤\n│ Activity                        │ Related Tickets          │\n│ [Full timeline...]              │ [Same epic tickets...]   │\n└─────────────────────────────────┴──────────────────────────┘\n```\n\n**E2E Tests:**\n- [ ] Navigate to /ticket/123\n- [ ] Ticket data loads",
       "priority": "high",
       "tags": [
-        "modal",
-        "ticket",
-        "form"
+        "route",
+        "detail"
       ]
     },
     {
-      "id": "98330174-2394-4d71-aade-d700c2ae1bf5",
-      "title": "56 - Add form fields to CreateTicketModal",
-      "passes": false,
+      "id": "4278b95b-fb61-49a0-a93c-ed7e4b7c8e6d",
+      "title": "76 - Create BackNavigation component",
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Title input (required, text)",
-        "Description textarea (optional, multiline)",
-        "Project select (required, dropdown)",
-        "Priority select (optional, dropdown: low/medium/high)",
-        "Epic select (optional, filtered by project)",
-        "Tags input (optional, multi-select)",
-        "Form state management (controlled)",
-        "All fields accept input",
-        "Project select populates"
+        "\"← Back to Board\" link",
+        "Navigates to previous board view",
+        "Preserves board filters in URL",
+        "Arrow icon + text",
+        "Hover state",
+        "Keyboard accessible"
       ],
       "references": [
-        "src/components/tickets/CreateTicketModal.tsx"
+        "src/components/navigation/BackNavigation.tsx"
       ],
-      "description": "Implement all form fields for ticket creation.\n\n**Files to Modify:**\n- `src/components/tickets/CreateTicketModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Title input (required, text)\n- [ ] Description textarea (optional, multiline)\n- [ ] Project select (required, dropdown)\n- [ ] Priority select (optional, dropdown: low/medium/high)\n- [ ] Epic select (optional, filtered by project)\n- [ ] Tags input (optional, multi-select)\n- [ ] Form state management (controlled)\n\n**Form Fields:**\n```tsx\ninterface CreateTicketForm {\n  title: string;        // required\n  description: string;  // optional\n  projectId: string;    // required\n  priority: 'low' | 'medium' | 'high';  // default: medium\n  epicId: string | null;  // optional\n  tags: string[];       // optional\n}\n```\n\n**E2E Tests:**\n- [ ] All fields accept input\n- [ ] Project select populates",
-      "priority": "high",
-      "tags": [
-        "modal",
-        "ticket",
-        "form"
-      ]
-    },
-    {
-      "id": "cc14ddf1-d01f-4ea3-82d1-8b3105ec8caa",
-      "title": "57 - Create EpicSelect component with project filtering",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Dropdown of epics filtered by projectId",
-        "Disabled when no project selected",
-        "\"No epic\" option to clear selection",
-        "\"Create New Epic\" option at bottom",
-        "Updates when project changes",
-        "Shows epic color indicator",
-        "Disabled when no project",
-        "Filters correctly by project",
-        "Create epic opens modal"
-      ],
-      "references": [
-        "src/components/tickets/EpicSelect.tsx",
-        "src/components/tickets/EpicSelect.test.tsx"
-      ],
-      "description": "Create epic selector that filters epics by selected project.\n\n**Files to Create:**\n- `src/components/tickets/EpicSelect.tsx`\n- `src/components/tickets/EpicSelect.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Dropdown of epics filtered by projectId\n- [ ] Disabled when no project selected\n- [ ] \"No epic\" option to clear selection\n- [ ] \"Create New Epic\" option at bottom\n- [ ] Updates when project changes\n- [ ] Shows epic color indicator\n\n**Interface:**\n```tsx\ninterface EpicSelectProps {\n  projectId: string | null;\n  value: string | null;\n  onChange: (epicId: string | null) => void;\n}\n```\n\n**Tests:**\n- [ ] Disabled when no project\n- [ ] Filters correctly by project\n- [ ] Create epic opens modal",
-      "priority": "medium",
-      "tags": [
-        "component",
-        "form"
-      ]
-    },
-    {
-      "id": "26f13880-179b-4957-b6d9-0da12613f037",
-      "title": "58 - Create TagInput component",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Pills for each selected tag",
-        "X button to remove tag",
-        "Input field to add new tag",
-        "Autocomplete from existing tags",
-        "Enter adds tag",
-        "Comma separates multiple tags",
-        "Prevents duplicates",
-        "Case-insensitive matching",
-        "Add tag works",
-        "Remove tag works",
-        "Autocomplete shows",
-        "No duplicates"
-      ],
-      "references": [
-        "src/components/tickets/TagInput.tsx",
-        "src/components/tickets/TagInput.test.tsx"
-      ],
-      "description": "Create tag input with add/remove pills and autocomplete.\n\n**Files to Create:**\n- `src/components/tickets/TagInput.tsx`\n- `src/components/tickets/TagInput.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Pills for each selected tag\n- [ ] X button to remove tag\n- [ ] Input field to add new tag\n- [ ] Autocomplete from existing tags\n- [ ] Enter adds tag\n- [ ] Comma separates multiple tags\n- [ ] Prevents duplicates\n- [ ] Case-insensitive matching\n\n**Layout:**\n```\n┌────────────────────────────────────────────┐\n│ [auth ×] [backend ×] [_add tag...______] │\n└────────────────────────────────────────────┘\n  ┌─────────────────┐\n  │ api             │  <- Autocomplete dropdown\n  │ api-gateway     │\n  └─────────────────┘\n```\n\n**Tests:**\n- [ ] Add tag works\n- [ ] Remove tag works\n- [ ] Autocomplete shows\n- [ ] No duplicates",
-      "priority": "medium",
-      "tags": [
-        "component",
-        "form"
-      ]
-    },
-    {
-      "id": "5b653a12-4fe8-4365-8e5a-1500d2d62bc7",
-      "title": "59 - Add form validation to CreateTicketModal",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Title required validation",
-        "Project required validation",
-        "Error messages below fields",
-        "Red border on invalid fields",
-        "Validate on blur",
-        "Validate on submit",
-        "Disable submit when invalid",
-        "Focus first invalid field on submit",
-        "Submit blocked without title",
-        "Error message shows",
-        "Valid form submits"
-      ],
-      "references": [
-        "src/components/tickets/CreateTicketModal.tsx"
-      ],
-      "description": "Implement validation for required fields and error display.\n\n**Files to Modify:**\n- `src/components/tickets/CreateTicketModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Title required validation\n- [ ] Project required validation\n- [ ] Error messages below fields\n- [ ] Red border on invalid fields\n- [ ] Validate on blur\n- [ ] Validate on submit\n- [ ] Disable submit when invalid\n- [ ] Focus first invalid field on submit\n\n**Validation Rules:**\n```tsx\nconst rules = {\n  title: { required: 'Title is required', maxLength: 200 },\n  projectId: { required: 'Please select a project' },\n};\n```\n\n**Tests:**\n- [ ] Submit blocked without title\n- [ ] Error message shows\n- [ ] Valid form submits",
-      "priority": "medium",
-      "tags": [
-        "validation",
-        "form"
-      ]
-    },
-    {
-      "id": "8e1bc6a7-75b5-45c6-9866-8dcf68d88deb",
-      "title": "60 - Implement submit with TanStack Query mutation",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Uses existing `createTicket` server function",
-        "Shows loading state during submit",
-        "Closes modal on success",
-        "Shows success toast",
-        "Invalidates tickets query (board updates)",
-        "Shows error toast on failure",
-        "Reset form on close",
-        "Create ticket",
-        "Appears on board",
-        "Toast shows"
-      ],
-      "references": [
-        "src/components/tickets/CreateTicketModal.tsx"
-      ],
-      "description": "Wire up form submission to create ticket via mutation.\n\n**Files to Modify:**\n- `src/components/tickets/CreateTicketModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Uses existing `createTicket` server function\n- [ ] Shows loading state during submit\n- [ ] Closes modal on success\n- [ ] Shows success toast\n- [ ] Invalidates tickets query (board updates)\n- [ ] Shows error toast on failure\n- [ ] Reset form on close\n\n**Implementation:**\n```tsx\nconst createMutation = useMutation({\n  mutationFn: createTicket,\n  onSuccess: () => {\n    queryClient.invalidateQueries({ queryKey: ['tickets'] });\n    toast.success('Ticket created!');\n    onClose();\n  },\n  onError: (err) => {\n    toast.error('Failed to create ticket');\n  },\n});\n```\n\n**E2E Tests:**\n- [ ] Create ticket\n- [ ] Appears on board\n- [ ] Toast shows",
-      "priority": "high",
-      "tags": [
-        "mutation",
-        "form"
-      ]
-    },
-    {
-      "id": "f7995df6-f90f-4e55-a4cf-e4df237f0820",
-      "title": "61 - Create EditTicketModal shell",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Extends create modal layout",
-        "Loads existing ticket data",
-        "Prefills all form fields",
-        "Modal.Header with \"Edit Ticket\" title",
-        "Additional sections: Status, Blocked, Subtasks",
-        "Delete button in footer (danger variant)",
-        "Save Changes button"
-      ],
-      "references": [
-        "src/components/tickets/EditTicketModal.tsx"
-      ],
-      "description": "Create the Edit Ticket modal extending the create modal pattern.\n\n**Files to Create:**\n- `src/components/tickets/EditTicketModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Extends create modal layout\n- [ ] Loads existing ticket data\n- [ ] Prefills all form fields\n- [ ] Modal.Header with \"Edit Ticket\" title\n- [ ] Additional sections: Status, Blocked, Subtasks\n- [ ] Delete button in footer (danger variant)\n- [ ] Save Changes button\n\n**Additional Sections vs Create:**\n- Status dropdown\n- Blocked toggle with reason\n- Subtasks list\n- Delete button\n\n**Tests:** Visual inspection",
-      "priority": "high",
-      "tags": [
-        "modal",
-        "ticket",
-        "form"
-      ]
-    },
-    {
-      "id": "83fbabce-8989-4b42-baf6-05abda7e7673",
-      "title": "62 - Add status dropdown to EditTicketModal",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Dropdown with all 7 statuses",
-        "Current status pre-selected",
-        "Status color indicator",
-        "Updates ticket status on save",
-        "Follows status flow (any → any allowed)"
-      ],
-      "references": [
-        "src/components/tickets/EditTicketModal.tsx"
-      ],
-      "description": "Add status selection dropdown with all 7 status options.\n\n**Files to Modify:**\n- `src/components/tickets/EditTicketModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Dropdown with all 7 statuses\n- [ ] Current status pre-selected\n- [ ] Status color indicator\n- [ ] Updates ticket status on save\n- [ ] Follows status flow (any → any allowed)\n\n**Status Options:**\n```tsx\nconst statuses = [\n  { value: 'backlog', label: 'Backlog', color: 'gray' },\n  { value: 'ready', label: 'Ready', color: 'blue' },\n  { value: 'in_progress', label: 'In Progress', color: 'yellow' },\n  { value: 'review', label: 'Review', color: 'purple' },\n  { value: 'ai_review', label: 'AI Review', color: 'cyan' },\n  { value: 'human_review', label: 'Human Review', color: 'pink' },\n  { value: 'done', label: 'Done', color: 'green' },\n];\n```\n\n**Tests:** Visual inspection",
-      "priority": "medium",
-      "tags": [
-        "modal",
-        "form"
-      ]
-    },
-    {
-      "id": "394b9cdd-0615-409a-93f2-3d944d9471c6",
-      "title": "63 - Create BlockedToggle component",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Checkbox/toggle to mark as blocked",
-        "Reason input appears when checked",
-        "Reason required when blocked",
-        "Visual indicator (red/warning)",
-        "Saves is_blocked and blocked_reason"
-      ],
-      "references": [
-        "src/components/tickets/BlockedToggle.tsx"
-      ],
-      "description": "Create toggle for marking ticket as blocked with reason input.\n\n**Files to Create:**\n- `src/components/tickets/BlockedToggle.tsx`\n\n**Acceptance Criteria:**\n- [ ] Checkbox/toggle to mark as blocked\n- [ ] Reason input appears when checked\n- [ ] Reason required when blocked\n- [ ] Visual indicator (red/warning)\n- [ ] Saves is_blocked and blocked_reason\n\n**Layout:**\n```\n☐ Mark as Blocked\n\n[When checked:]\n☑ Mark as Blocked\n  Reason: [_________________________]\n           Waiting on API team\n```\n\n**Tests:** Visual + reason validation",
+      "description": "Create back navigation link for detail views.\n\n**Files to Create:**\n- `src/components/navigation/BackNavigation.tsx`\n\n**Acceptance Criteria:**\n- [ ] \"← Back to Board\" link\n- [ ] Navigates to previous board view\n- [ ] Preserves board filters in URL\n- [ ] Arrow icon + text\n- [ ] Hover state\n- [ ] Keyboard accessible\n\n**Usage:**\n```tsx\n<BackNavigation label=\"Back to Board\" fallback=\"/\" />\n```\n\n**Tests:** Visual + navigation",
       "priority": "low",
       "tags": [
-        "component",
-        "form"
+        "navigation",
+        "component"
       ]
     },
     {
-      "id": "f994d35f-40c5-47d7-880b-66820512ca76",
-      "title": "64 - Create SubtaskList component",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "List of subtask items",
-        "Checkbox to mark complete",
-        "Text input for subtask title",
-        "Delete button per subtask",
-        "\"Add subtask\" button",
-        "Inline editing",
-        "Progress indicator (X of Y complete)",
-        "Add subtask",
-        "Check/uncheck subtask",
-        "Delete subtask",
-        "Progress updates"
-      ],
-      "references": [
-        "src/components/tickets/SubtaskList.tsx",
-        "src/components/tickets/SubtaskList.test.tsx"
-      ],
-      "description": "Create subtask list with add/remove/check functionality.\n\n**Files to Create:**\n- `src/components/tickets/SubtaskList.tsx`\n- `src/components/tickets/SubtaskList.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] List of subtask items\n- [ ] Checkbox to mark complete\n- [ ] Text input for subtask title\n- [ ] Delete button per subtask\n- [ ] \"Add subtask\" button\n- [ ] Inline editing\n- [ ] Progress indicator (X of Y complete)\n\n**Layout:**\n```\nSubtasks (2/4 complete)\n☑ Set up database schema\n☑ Create API endpoints  \n☐ Build UI components\n☐ Write tests\n[+ Add subtask]\n```\n\n**Tests:**\n- [ ] Add subtask\n- [ ] Check/uncheck subtask\n- [ ] Delete subtask\n- [ ] Progress updates",
-      "priority": "medium",
-      "tags": [
-        "component",
-        "form"
-      ]
-    },
-    {
-      "id": "aec1e0fd-9cc5-438c-9043-d8076ba7d873",
-      "title": "65 - Add delete ticket with confirmation",
+      "id": "558a73b6-665a-4644-ad09-8cd6c79abbfb",
+      "title": "77 - Create TicketDetailHeader component",
       "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Delete button (danger variant) in footer",
-        "Confirmation modal before delete",
-        "\"Are you sure?\" message with ticket title",
-        "Cancel/Delete buttons",
-        "Deletes ticket on confirm",
-        "Closes both modals on success",
-        "Shows success toast",
-        "Invalidates queries",
-        "Delete ticket",
-        "Removed from board"
+        "Ticket title (large text)",
+        "Status badge",
+        "Priority badge",
+        "Epic badge (if assigned)",
+        "Edit button (opens EditTicketModal)",
+        "Start Work button (opens LaunchActions)",
+        "Git info (branch, PR)"
       ],
       "references": [
-        "src/components/tickets/EditTicketModal.tsx"
+        "src/components/tickets/TicketDetailHeader.tsx"
       ],
-      "description": "Add delete functionality with confirmation dialog.\n\n**Files to Modify:**\n- `src/components/tickets/EditTicketModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Delete button (danger variant) in footer\n- [ ] Confirmation modal before delete\n- [ ] \"Are you sure?\" message with ticket title\n- [ ] Cancel/Delete buttons\n- [ ] Deletes ticket on confirm\n- [ ] Closes both modals on success\n- [ ] Shows success toast\n- [ ] Invalidates queries\n\n**Confirmation Dialog:**\n```\n┌─────────────────────────────────────┐\n│ ⚠️ Delete Ticket?                   │\n├─────────────────────────────────────┤\n│ Are you sure you want to delete     │\n│ \"Implement user auth\"?              │\n│                                     │\n│ This action cannot be undone.       │\n├─────────────────────────────────────┤\n│           [Cancel]  [Delete]        │\n└─────────────────────────────────────┘\n```\n\n**E2E Tests:**\n- [ ] Delete ticket\n- [ ] Removed from board",
+      "description": "Create header section for ticket detail page.\n\n**Files to Create:**\n- `src/components/tickets/TicketDetailHeader.tsx`\n\n**Acceptance Criteria:**\n- [ ] Ticket title (large text)\n- [ ] Status badge\n- [ ] Priority badge\n- [ ] Epic badge (if assigned)\n- [ ] Edit button (opens EditTicketModal)\n- [ ] Start Work button (opens LaunchActions)\n- [ ] Git info (branch, PR)\n\n**Layout:**\n```\n┌─────────────────────────────────────────────────────────────┐\n│ Implement user authentication              [Edit] [▶ Start] │\n│ 🔵 In Progress  🔴 High  📁 Auth Epic                       │\n│ 🌿 feature/auth  🔗 PR #42                                  │\n└─────────────────────────────────────────────────────────────┘\n```\n\n**Tests:** Visual inspection",
+      "priority": "high",
+      "tags": [
+        "detail",
+        "component"
+      ]
+    },
+    {
+      "id": "6a505a56-0c0a-4ef5-b019-2d41a42c5fd4",
+      "title": "78 - Create TicketDescription component",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Renders markdown content",
+        "Code blocks with syntax highlighting",
+        "Links clickable",
+        "Headers, lists, bold, italic",
+        "Empty state: \"No description\"",
+        "Edit inline button (optional)"
+      ],
+      "references": [
+        "src/components/tickets/TicketDescription.tsx"
+      ],
+      "description": "Create formatted description section with markdown rendering.\n\n**Files to Create:**\n- `src/components/tickets/TicketDescription.tsx`\n\n**Acceptance Criteria:**\n- [ ] Renders markdown content\n- [ ] Code blocks with syntax highlighting\n- [ ] Links clickable\n- [ ] Headers, lists, bold, italic\n- [ ] Empty state: \"No description\"\n- [ ] Edit inline button (optional)\n\n**Markdown Features:**\n- Headers (h1-h6)\n- Bold, italic, strikethrough\n- Code blocks with language\n- Links (external open in new tab)\n- Bullet and numbered lists\n- Blockquotes\n\n**Tests:** Visual - paste markdown content",
+      "priority": "medium",
+      "tags": [
+        "detail",
+        "markdown"
+      ]
+    },
+    {
+      "id": "be1a09de-2c98-4730-bafb-a1bc6444569a",
+      "title": "79 - Create SubtasksProgress component",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Progress bar showing completion percentage",
+        "\"X of Y complete\" text",
+        "Checklist of subtasks",
+        "Click to toggle completion",
+        "Add subtask inline",
+        "Empty state: \"No subtasks\"",
+        "Progress bar accurate",
+        "Toggle updates database"
+      ],
+      "references": [
+        "src/components/tickets/SubtasksProgress.tsx",
+        "src/components/tickets/SubtasksProgress.test.tsx"
+      ],
+      "description": "Create subtasks section with progress bar and checklist.\n\n**Files to Create:**\n- `src/components/tickets/SubtasksProgress.tsx`\n- `src/components/tickets/SubtasksProgress.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Progress bar showing completion percentage\n- [ ] \"X of Y complete\" text\n- [ ] Checklist of subtasks\n- [ ] Click to toggle completion\n- [ ] Add subtask inline\n- [ ] Empty state: \"No subtasks\"\n\n**Layout:**\n```\nSubtasks\n████████░░░░░░ 2/4 complete (50%)\n\n☑ Set up database schema\n☑ Create API endpoints  \n☐ Build UI components\n☐ Write tests\n\n[+ Add subtask]\n```\n\n**Tests:**\n- [ ] Progress bar accurate\n- [ ] Toggle updates database",
+      "priority": "medium",
+      "tags": [
+        "detail",
+        "component"
+      ]
+    },
+    {
+      "id": "446fa3d4-4141-4104-91d3-35be7f7e558a",
+      "title": "80 - Create RelatedTickets panel",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Shows tickets from same epic",
+        "Excludes current ticket",
+        "Mini ticket cards (title, status)",
+        "Click navigates to that ticket",
+        "Empty state if no epic or no other tickets",
+        "Max 5 shown, \"View all\" link"
+      ],
+      "references": [
+        "src/components/tickets/RelatedTickets.tsx"
+      ],
+      "description": "Create panel showing other tickets in the same epic.\n\n**Files to Create:**\n- `src/components/tickets/RelatedTickets.tsx`\n\n**Acceptance Criteria:**\n- [ ] Shows tickets from same epic\n- [ ] Excludes current ticket\n- [ ] Mini ticket cards (title, status)\n- [ ] Click navigates to that ticket\n- [ ] Empty state if no epic or no other tickets\n- [ ] Max 5 shown, \"View all\" link\n\n**Layout:**\n```\nRelated Tickets (in Auth Epic)\n┌────────────────────────────┐\n│ 🔵 Set up OAuth providers  │\n│ 🟢 Add password reset     │\n│ ⚪ Implement 2FA          │\n└────────────────────────────┘\nView all 8 tickets in epic →\n```\n\n**Tests:** Visual inspection",
+      "priority": "low",
+      "tags": [
+        "detail",
+        "component"
+      ]
+    },
+    {
+      "id": "69c5407c-4c57-48f2-9182-ba25ed872765",
+      "title": "81 - Integrate full activity timeline in detail view",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Reuse ActivitySection component",
+        "No max-height (full timeline visible)",
+        "Scrollable within page layout",
+        "All comments visible",
+        "Comment input at bottom"
+      ],
+      "references": [
+        "src/routes/ticket.$id.tsx"
+      ],
+      "description": "Reuse ActivitySection in detail view without height limit.\n\n**Files to Modify:**\n- `src/routes/ticket.$id.tsx`\n\n**Acceptance Criteria:**\n- [ ] Reuse ActivitySection component\n- [ ] No max-height (full timeline visible)\n- [ ] Scrollable within page layout\n- [ ] All comments visible\n- [ ] Comment input at bottom\n\n**Implementation:**\n```tsx\n// In ticket detail page\n<ActivitySection \n  ticketId={ticket.id} \n  maxHeight=\"none\"  // Full height in detail view\n/>\n```\n\n**Tests:** Visual - scroll full timeline",
+      "priority": "medium",
+      "tags": [
+        "detail",
+        "activity"
+      ]
+    },
+    {
+      "id": "b2e2ab03-8078-4956-80bc-014c42808363",
+      "title": "82 - Create CreateProjectModal",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Name input (required)",
+        "Path input with browse button",
+        "Color picker",
+        "Validates path exists",
+        "Creates project via mutation",
+        "Shows in projects panel after create",
+        "Create project",
+        "Appears in panel"
+      ],
+      "references": [
+        "src/components/projects/CreateProjectModal.tsx"
+      ],
+      "description": "Create modal for adding new projects.\n\n**Files to Create:**\n- `src/components/projects/CreateProjectModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Name input (required)\n- [ ] Path input with browse button\n- [ ] Color picker\n- [ ] Validates path exists\n- [ ] Creates project via mutation\n- [ ] Shows in projects panel after create\n\n**Layout:**\n```\n┌─────────────────────────────────────────────────────────────┐\n│ [📁] Add New Project                                     [×] │\n├─────────────────────────────────────────────────────────────┤\n│ Project Name *                                               │\n│ [_________________________________________________]          │\n│                                                              │\n│ Path *                                                       │\n│ [/Users/me/code/my-project___________] [Browse]              │\n│                                                              │\n│ Color                                                        │\n│ [🟣] [🔵] [🟢] [🟡] [🟠] [🔴]                                │\n├─────────────────────────────────────────────────────────────┤\n│                               [Cancel]  [Create Project]     │\n└─────────────────────────────────────────────────────────────┘\n```\n\n**E2E Tests:**\n- [ ] Create project\n- [ ] Appears in panel",
+      "priority": "high",
+      "tags": [
+        "modal",
+        "project"
+      ]
+    },
+    {
+      "id": "dac4013c-44ae-4b15-8d4a-905f0e46e207",
+      "title": "83 - Create EditProjectModal",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Extends CreateProjectModal",
+        "Loads existing project data",
+        "Working method selector",
+        "Delete button with confirmation",
+        "Preview section (ticket stats)",
+        "Opens on double-click from ProjectItem",
+        "Edit project name",
+        "Delete project"
+      ],
+      "references": [
+        "src/components/projects/EditProjectModal.tsx"
+      ],
+      "description": "Create modal for editing existing projects.\n\n**Files to Create:**\n- `src/components/projects/EditProjectModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Extends CreateProjectModal\n- [ ] Loads existing project data\n- [ ] Working method selector\n- [ ] Delete button with confirmation\n- [ ] Preview section (ticket stats)\n- [ ] Opens on double-click from ProjectItem\n\n**Additional Fields:**\n- Working method (Claude/OpenCode/VS Code/Cursor)\n- Preview: ticket count, active tickets\n- Delete with confirmation\n\n**E2E Tests:**\n- [ ] Edit project name\n- [ ] Delete project",
       "priority": "medium",
       "tags": [
         "modal",
-        "mutation"
+        "project"
       ]
     },
     {
-      "id": "ab504b33-c8c4-4163-bb48-f18051a44212",
-      "title": "66 - Create LaunchActions section",
+      "id": "2faf1fbf-1352-4106-8712-11d19ba7ff80",
+      "title": "84 - Create ColorPicker component",
       "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Section header: \"Start Work With\"",
-        "Grid of option cards",
-        "Each card has icon, name, description",
-        "Recommended option highlighted",
-        "Click launches terminal with selected tool",
-        "Only shown when ticket is in workable state"
-      ],
-      "references": [
-        "src/components/tickets/LaunchActions.tsx"
-      ],
-      "description": "Create the \"Start Work With\" section showing AI launch options.\n\n**Files to Create:**\n- `src/components/tickets/LaunchActions.tsx`\n\n**Acceptance Criteria:**\n- [ ] Section header: \"Start Work With\"\n- [ ] Grid of option cards\n- [ ] Each card has icon, name, description\n- [ ] Recommended option highlighted\n- [ ] Click launches terminal with selected tool\n- [ ] Only shown when ticket is in workable state\n\n**Layout:**\n```\nStart Work With\n┌─────────────────┐ ┌─────────────────┐\n│ ⭐ Claude       │ │ 🤖 Ralph        │\n│ Recommended     │ │ Native Mode     │\n│ Interactive AI  │ │ Autonomous      │\n└─────────────────┘ └─────────────────┘\n┌─────────────────┐ ┌─────────────────┐\n│ 🐳 Ralph Docker │ │ 💻 OpenCode     │\n│ Sandboxed       │ │ Alternative     │\n└─────────────────┘ └─────────────────┘\n```\n\n**Tests:** Visual inspection",
-      "priority": "high",
-      "tags": [
-        "component",
-        "launch"
-      ]
-    },
-    {
-      "id": "284dbb24-db03-4de6-9966-6be6ab56b539",
-      "title": "67 - Create SplitButton component",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Main button on left (primary action)",
-        "Dropdown chevron on right",
-        "Click main = execute primary action",
-        "Click chevron = show dropdown",
-        "Dropdown with alternative actions",
+        "Preset color swatches (8-10 colors)",
+        "Selected color shown in button",
+        "Click opens dropdown",
+        "Click swatch selects color",
         "Keyboard accessible",
-        "Main click fires primary",
-        "Dropdown opens",
-        "Option click fires handler"
+        "Returns hex color value"
       ],
       "references": [
-        "src/components/ui/SplitButton.tsx",
-        "src/components/ui/SplitButton.test.tsx"
+        "src/components/ui/ColorPicker.tsx"
       ],
-      "description": "Create split button with main action and dropdown for alternatives.\n\n**Files to Create:**\n- `src/components/ui/SplitButton.tsx`\n- `src/components/ui/SplitButton.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Main button on left (primary action)\n- [ ] Dropdown chevron on right\n- [ ] Click main = execute primary action\n- [ ] Click chevron = show dropdown\n- [ ] Dropdown with alternative actions\n- [ ] Keyboard accessible\n\n**Layout:**\n```\n┌─────────────────────┬───┐\n│ Start with Claude   │ ▾ │\n└─────────────────────┴───┘\n                      ┌─────────────────┐\n                      │ Ralph Native    │\n                      │ Ralph Docker    │\n                      │ OpenCode        │\n                      └─────────────────┘\n```\n\n**Tests:**\n- [ ] Main click fires primary\n- [ ] Dropdown opens\n- [ ] Option click fires handler",
-      "priority": "medium",
+      "description": "Create color picker dropdown for projects and epics.\n\n**Files to Create:**\n- `src/components/ui/ColorPicker.tsx`\n\n**Acceptance Criteria:**\n- [ ] Preset color swatches (8-10 colors)\n- [ ] Selected color shown in button\n- [ ] Click opens dropdown\n- [ ] Click swatch selects color\n- [ ] Keyboard accessible\n- [ ] Returns hex color value\n\n**Colors:**\n```tsx\nconst presetColors = [\n  '#8b5cf6', // Purple\n  '#3b82f6', // Blue\n  '#10b981', // Green\n  '#eab308', // Yellow\n  '#f97316', // Orange\n  '#ef4444', // Red\n  '#ec4899', // Pink\n  '#6366f1', // Indigo\n  '#14b8a6', // Teal\n  '#6b7280', // Gray\n];\n```\n\n**Tests:** Visual inspection",
+      "priority": "low",
       "tags": [
         "component",
         "ui"
       ]
     },
     {
-      "id": "b2f2902c-8c3d-4e5a-b195-11a67e63d89a",
-      "title": "68 - Create LaunchOption item components",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Claude option (recommended, interactive)",
-        "Ralph Native option (autonomous, native)",
-        "Ralph Docker option (autonomous, sandboxed)",
-        "OpenCode option (alternative)",
-        "Hover state with glow",
-        "Selected state",
-        "Disabled state when unavailable"
-      ],
-      "references": [
-        "src/components/tickets/LaunchActions.tsx"
-      ],
-      "description": "Create individual launch option cards for each AI tool.\n\n**Files to Modify:**\n- `src/components/tickets/LaunchActions.tsx`\n\n**Acceptance Criteria:**\n- [ ] Claude option (recommended, interactive)\n- [ ] Ralph Native option (autonomous, native)\n- [ ] Ralph Docker option (autonomous, sandboxed)\n- [ ] OpenCode option (alternative)\n- [ ] Hover state with glow\n- [ ] Selected state\n- [ ] Disabled state when unavailable\n\n**Options Config:**\n```tsx\nconst launchOptions = [\n  { id: 'claude', icon: Sparkles, name: 'Claude', desc: 'Interactive AI assistance', recommended: true },\n  { id: 'ralph-native', icon: Bot, name: 'Ralph Native', desc: 'Autonomous agent' },\n  { id: 'ralph-docker', icon: Container, name: 'Ralph Docker', desc: 'Sandboxed agent' },\n  { id: 'opencode', icon: Terminal, name: 'OpenCode', desc: 'Alternative client' },\n];\n```\n\n**Tests:** Visual inspection",
-      "priority": "medium",
-      "tags": [
-        "component",
-        "launch"
-      ]
-    },
-    {
-      "id": "47defbde-163e-4cd3-a67e-65c06c5a7794",
-      "title": "69 - Integrate LaunchActions with terminal API",
+      "id": "30407746-2a81-4aff-84c8-3113bedf56e8",
+      "title": "85 - Create WorkingMethodSelect component",
       "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Uses existing `launchTerminal` server function",
-        "Passes ticket ID and launch type",
-        "Shows loading state during launch",
-        "Error handling with toast",
-        "Updates ticket status after launch",
-        "Closes modal after successful launch",
-        "Click Claude → terminal opens",
-        "Click Ralph → Ralph starts"
+        "Dropdown with 4 options",
+        "Icon + name per option",
+        "Description text",
+        "Saves to project settings",
+        "Used in EditProjectModal"
       ],
       "references": [
-        "src/components/tickets/LaunchActions.tsx"
+        "src/components/projects/WorkingMethodSelect.tsx"
       ],
-      "description": "Wire up launch options to existing terminal API server functions.\n\n**Files to Modify:**\n- `src/components/tickets/LaunchActions.tsx`\n\n**Acceptance Criteria:**\n- [ ] Uses existing `launchTerminal` server function\n- [ ] Passes ticket ID and launch type\n- [ ] Shows loading state during launch\n- [ ] Error handling with toast\n- [ ] Updates ticket status after launch\n- [ ] Closes modal after successful launch\n\n**Implementation:**\n```tsx\nconst handleLaunch = async (type: LaunchType) => {\n  try {\n    await launchTerminal({ ticketId: ticket.id, type });\n    toast.success(`Started ${type}`);\n    onClose();\n  } catch (err) {\n    toast.error('Failed to launch terminal');\n  }\n};\n```\n\n**Manual Tests:**\n- [ ] Click Claude → terminal opens\n- [ ] Click Ralph → Ralph starts",
-      "priority": "high",
+      "description": "Create selector for project working method preference.\n\n**Files to Create:**\n- `src/components/projects/WorkingMethodSelect.tsx`\n\n**Acceptance Criteria:**\n- [ ] Dropdown with 4 options\n- [ ] Icon + name per option\n- [ ] Description text\n- [ ] Saves to project settings\n- [ ] Used in EditProjectModal\n\n**Options:**\n```tsx\nconst workingMethods = [\n  { value: 'auto', label: 'Auto-detect', icon: Wand, desc: 'Detect from environment' },\n  { value: 'claude-code', label: 'Claude Code', icon: Sparkles, desc: 'Anthropic CLI' },\n  { value: 'vscode', label: 'VS Code', icon: Code, desc: 'VS Code + MCP' },\n  { value: 'cursor', label: 'Cursor', icon: MousePointer, desc: 'Cursor IDE' },\n];\n```\n\n**Tests:** Visual inspection",
+      "priority": "low",
+      "tags": [
+        "component",
+        "project"
+      ]
+    },
+    {
+      "id": "bc59e180-9a55-400d-8c65-1332b70a284f",
+      "title": "86 - Create CreateEpicModal",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Title input (required)",
+        "Description textarea (optional)",
+        "Color picker",
+        "Project context (from where opened)",
+        "Creates epic via mutation",
+        "Available from EpicSelect dropdown",
+        "Create epic",
+        "Available in EpicSelect"
+      ],
+      "references": [
+        "src/components/epics/CreateEpicModal.tsx"
+      ],
+      "description": "Create modal for creating new epics within a project.\n\n**Files to Create:**\n- `src/components/epics/CreateEpicModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Title input (required)\n- [ ] Description textarea (optional)\n- [ ] Color picker\n- [ ] Project context (from where opened)\n- [ ] Creates epic via mutation\n- [ ] Available from EpicSelect dropdown\n\n**Layout:**\n```\n┌─────────────────────────────────────────────────────────────┐\n│ [📋] Create New Epic                                     [×] │\n├─────────────────────────────────────────────────────────────┤\n│ Epic Title *                                                 │\n│ [_________________________________________________]          │\n│                                                              │\n│ Description                                                  │\n│ [_________________________________________________]          │\n│ [_________________________________________________]          │\n│                                                              │\n│ Color                                                        │\n│ [🟣] [🔵] [🟢] [🟡] [🟠] [🔴]                                │\n├─────────────────────────────────────────────────────────────┤\n│                               [Cancel]  [Create Epic]        │\n└─────────────────────────────────────────────────────────────┘\n```\n\n**E2E Tests:**\n- [ ] Create epic\n- [ ] Available in EpicSelect",
+      "priority": "medium",
+      "tags": [
+        "modal",
+        "epic"
+      ]
+    },
+    {
+      "id": "2d316dd7-b383-416e-bf01-dd80c987d441",
+      "title": "87 - Add \"Create New Epic\" option to EpicSelect dropdown",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "\"Create New Epic\" option at bottom of dropdown",
+        "Separated by divider",
+        "Plus icon",
+        "Click opens CreateEpicModal",
+        "After create, new epic auto-selected",
+        "Click Create → modal opens",
+        "Create epic → auto-selected"
+      ],
+      "references": [
+        "src/components/tickets/EpicSelect.tsx"
+      ],
+      "description": "Add inline create option in the epic dropdown.\n\n**Files to Modify:**\n- `src/components/tickets/EpicSelect.tsx`\n\n**Acceptance Criteria:**\n- [ ] \"Create New Epic\" option at bottom of dropdown\n- [ ] Separated by divider\n- [ ] Plus icon\n- [ ] Click opens CreateEpicModal\n- [ ] After create, new epic auto-selected\n\n**Dropdown Layout:**\n```\n┌─────────────────────────┐\n│ ⚪ No Epic              │\n├─────────────────────────┤\n│ 🟣 Authentication       │\n│ 🔵 UI Overhaul         │\n│ 🟢 Performance         │\n├─────────────────────────┤\n│ + Create New Epic       │  <- New option\n└─────────────────────────┘\n```\n\n**Manual Tests:**\n- [ ] Click Create → modal opens\n- [ ] Create epic → auto-selected",
+      "priority": "low",
+      "tags": [
+        "component",
+        "epic"
+      ]
+    },
+    {
+      "id": "1b3acd88-e4b2-4b19-a17f-ffc79e2c73c0",
+      "title": "88 - Create InceptionModal",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Hero section with rocket icon",
+        "AI explanation text",
+        "\"Start with AI\" primary action",
+        "\"Skip AI\" secondary link",
+        "Launches Claude with inception prompt",
+        "Accessible from NewTicketDropdown"
+      ],
+      "references": [
+        "src/components/inception/InceptionModal.tsx"
+      ],
+      "description": "Create the \"Start from Scratch\" inception modal for AI-guided project creation.\n\n**Files to Create:**\n- `src/components/inception/InceptionModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] Hero section with rocket icon\n- [ ] AI explanation text\n- [ ] \"Start with AI\" primary action\n- [ ] \"Skip AI\" secondary link\n- [ ] Launches Claude with inception prompt\n- [ ] Accessible from NewTicketDropdown\n\n**Layout:**\n```\n┌─────────────────────────────────────────────────────────────┐\n│ [🚀] Start from Scratch                                  [×] │\n├─────────────────────────────────────────────────────────────┤\n│                                                              │\n│           🚀                                                 │\n│     Start Something New                                      │\n│                                                              │\n│  Let AI help you brainstorm and plan your next project.     │\n│  Claude will interview you about your idea and create       │\n│  a structured spec with epics and tickets.                   │\n│                                                              │\n│            [ 🤖 Start with Claude ]                          │\n│                                                              │\n│        or skip AI and create manually                       │\n│                                                              │\n└─────────────────────────────────────────────────────────────┘\n```\n\n**Tests:** Visual + launch test",
+      "priority": "medium",
+      "tags": [
+        "modal",
+        "inception"
+      ]
+    },
+    {
+      "id": "ed94c61c-2e75-4da2-b9ea-3fda38b608e2",
+      "title": "89 - Add Skip AI link to InceptionModal",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "\"skip AI and create manually\" link below main CTA",
+        "Subtle styling (gray, smaller text)",
+        "Click closes InceptionModal",
+        "Opens CreateProjectModal instead",
+        "Keyboard accessible",
+        "Click link",
+        "CreateProjectModal opens"
+      ],
+      "references": [
+        "src/components/inception/InceptionModal.tsx"
+      ],
+      "description": "Add link to skip AI and go directly to manual project creation.\n\n**Files to Modify:**\n- `src/components/inception/InceptionModal.tsx`\n\n**Acceptance Criteria:**\n- [ ] \"skip AI and create manually\" link below main CTA\n- [ ] Subtle styling (gray, smaller text)\n- [ ] Click closes InceptionModal\n- [ ] Opens CreateProjectModal instead\n- [ ] Keyboard accessible\n\n**Implementation:**\n```tsx\n<button\n  onClick={() => {\n    closeInceptionModal();\n    openCreateProjectModal();\n  }}\n  className=\"text-sm text-text-secondary hover:text-text-primary\"\n>\n  or skip AI and create manually\n</button>\n```\n\n**Manual Tests:**\n- [ ] Click link\n- [ ] CreateProjectModal opens",
+      "priority": "low",
+      "tags": [
+        "modal",
+        "inception"
+      ]
+    },
+    {
+      "id": "551b1146-1140-47fc-adeb-2b607c4ddb52",
+      "title": "90 - Wire InceptionModal to NewTicketDropdown",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "\"Start from Scratch\" option opens InceptionModal",
+        "\"New Ticket\" option opens CreateTicketModal",
+        "Modals managed via useModal hooks",
+        "Dropdown closes when modal opens",
+        "Click \"Start from Scratch\"",
+        "InceptionModal opens",
+        "Can proceed to Claude"
+      ],
+      "references": [
+        "src/components/navigation/NewTicketDropdown.tsx"
+      ],
+      "description": "Connect the \"Start from Scratch\" option to open InceptionModal.\n\n**Files to Modify:**\n- `src/components/navigation/NewTicketDropdown.tsx`\n\n**Acceptance Criteria:**\n- [ ] \"Start from Scratch\" option opens InceptionModal\n- [ ] \"New Ticket\" option opens CreateTicketModal\n- [ ] Modals managed via useModal hooks\n- [ ] Dropdown closes when modal opens\n\n**Implementation:**\n```tsx\nconst { isOpen: isInceptionOpen, open: openInception } = useModal();\nconst { isOpen: isCreateTicketOpen, open: openCreateTicket } = useModal();\n\n// In dropdown options\n{ label: 'New Ticket', onClick: openCreateTicket },\n{ label: 'Start from Scratch', onClick: openInception },\n```\n\n**E2E Tests:**\n- [ ] Click \"Start from Scratch\"\n- [ ] InceptionModal opens\n- [ ] Can proceed to Claude",
+      "priority": "medium",
       "tags": [
         "integration",
-        "api"
-      ]
-    },
-    {
-      "id": "66f4c4da-0924-4111-bf7a-a0b78783f452",
-      "title": "70 - Create ActivitySection container",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Section header: \"Activity\"",
-        "Scrollable comment list",
-        "Newest comments at bottom",
-        "Comment input at bottom",
-        "Empty state: \"No activity yet\"",
-        "Uses TanStack Query for comments",
-        "Auto-scroll to bottom on new comment"
-      ],
-      "references": [
-        "src/components/tickets/ActivitySection.tsx"
-      ],
-      "description": "Create the activity/comments section container for tickets.\n\n**Files to Create:**\n- `src/components/tickets/ActivitySection.tsx`\n\n**Acceptance Criteria:**\n- [ ] Section header: \"Activity\"\n- [ ] Scrollable comment list\n- [ ] Newest comments at bottom\n- [ ] Comment input at bottom\n- [ ] Empty state: \"No activity yet\"\n- [ ] Uses TanStack Query for comments\n- [ ] Auto-scroll to bottom on new comment\n\n**Layout:**\n```\nActivity\n┌────────────────────────────────────┐\n│ [Comment 1]                        │\n│ [Comment 2]                        │\n│ [Comment 3]                        │  <- Scrollable\n├────────────────────────────────────┤\n│ [Add a comment...          ] [Send]│  <- Fixed at bottom\n└────────────────────────────────────┘\n```\n\n**Tests:** Visual inspection",
-      "priority": "medium",
-      "tags": [
-        "component",
-        "activity"
-      ]
-    },
-    {
-      "id": "fded1cd5-0fb0-4caf-9bc7-bc4660bf937d",
-      "title": "71 - Create Comment component",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "4 comment types with distinct colors:",
-        "Avatar on left",
-        "Author name and timestamp",
-        "Markdown-rendered content",
-        "Expandable for long content"
-      ],
-      "references": [
-        "src/components/tickets/Comment.tsx"
-      ],
-      "description": "Create individual comment component with type-specific styling.\n\n**Files to Create:**\n- `src/components/tickets/Comment.tsx`\n\n**Acceptance Criteria:**\n- [ ] 4 comment types with distinct colors:\n  - progress: teal left border\n  - work_summary: purple left border\n  - test_report: green left border\n  - comment: default gray border\n- [ ] Avatar on left\n- [ ] Author name and timestamp\n- [ ] Markdown-rendered content\n- [ ] Expandable for long content\n\n**Layout:**\n```\n┌────────────────────────────────────┐\n│ [👤] Claude · 2 hours ago          │\n│ │ Work Summary                     │  <- Purple border\n│ │ - Implemented auth endpoints     │\n│ │ - Added validation               │\n│ │ - Updated tests                  │\n└────────────────────────────────────┘\n```\n\n**Tests:** Visual - all 4 types",
-      "priority": "medium",
-      "tags": [
-        "component",
-        "activity"
-      ]
-    },
-    {
-      "id": "e905a17b-df1e-4c97-a78a-bd693f7635e2",
-      "title": "72 - Create CommentAvatar component",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Gradient backgrounds by author type:",
-        "First letter or icon",
-        "Consistent size (32px)",
-        "Rounded full"
-      ],
-      "references": [
-        "src/components/tickets/CommentAvatar.tsx"
-      ],
-      "description": "Create avatar component with author-specific gradients.\n\n**Files to Create:**\n- `src/components/tickets/CommentAvatar.tsx`\n\n**Acceptance Criteria:**\n- [ ] Gradient backgrounds by author type:\n  - claude: purple gradient\n  - ralph: cyan gradient\n  - user: orange gradient (from theme)\n  - opencode: green gradient\n- [ ] First letter or icon\n- [ ] Consistent size (32px)\n- [ ] Rounded full\n\n**Author Styles:**\n```tsx\nconst authorStyles = {\n  claude: { gradient: 'from-purple-500 to-violet-500', icon: '✨' },\n  ralph: { gradient: 'from-cyan-500 to-blue-500', icon: '🤖' },\n  user: { gradient: 'from-orange-500 to-amber-500', letter: true },\n  opencode: { gradient: 'from-green-500 to-emerald-500', icon: '💻' },\n};\n```\n\n**Tests:** Visual inspection",
-      "priority": "low",
-      "tags": [
-        "component",
-        "activity"
-      ]
-    },
-    {
-      "id": "bdf7c541-e594-4692-800d-49b7d1736890",
-      "title": "73 - Create CommentInput component",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Textarea for comment content",
-        "Send button (icon or text)",
-        "Ctrl+Enter to submit",
-        "Disabled state while submitting",
-        "Clear after successful submit",
-        "Uses existing `addTicketComment` API",
-        "Type and submit",
-        "Comment appears in list"
-      ],
-      "references": [
-        "src/components/tickets/CommentInput.tsx",
-        "src/components/tickets/CommentInput.test.tsx"
-      ],
-      "description": "Create comment input with submit functionality.\n\n**Files to Create:**\n- `src/components/tickets/CommentInput.tsx`\n- `src/components/tickets/CommentInput.test.tsx`\n\n**Acceptance Criteria:**\n- [ ] Textarea for comment content\n- [ ] Send button (icon or text)\n- [ ] Ctrl+Enter to submit\n- [ ] Disabled state while submitting\n- [ ] Clear after successful submit\n- [ ] Uses existing `addTicketComment` API\n\n**Implementation:**\n```tsx\nconst addCommentMutation = useMutation({\n  mutationFn: addTicketComment,\n  onSuccess: () => {\n    queryClient.invalidateQueries({ queryKey: ['comments', ticketId] });\n    setContent('');\n  },\n});\n```\n\n**Tests:**\n- [ ] Type and submit\n- [ ] Comment appears in list",
-      "priority": "medium",
-      "tags": [
-        "component",
-        "form"
-      ]
-    },
-    {
-      "id": "36d66de5-42db-4822-8b5b-62d26f29c5ad",
-      "title": "74 - Add code block rendering to comments",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Detect markdown code blocks in content",
-        "Apply syntax highlighting (basic)",
-        "Dark theme code blocks",
-        "Copy button on code blocks",
-        "Language indicator",
-        "Horizontal scroll for long lines"
-      ],
-      "references": [
-        "src/components/tickets/Comment.tsx"
-      ],
-      "description": "Add syntax highlighting for code blocks in work summaries.\n\n**Files to Modify:**\n- `src/components/tickets/Comment.tsx`\n\n**Acceptance Criteria:**\n- [ ] Detect markdown code blocks in content\n- [ ] Apply syntax highlighting (basic)\n- [ ] Dark theme code blocks\n- [ ] Copy button on code blocks\n- [ ] Language indicator\n- [ ] Horizontal scroll for long lines\n\n**Implementation:**\n```tsx\n// Use a lightweight highlighter\nimport { highlight } from 'prismjs';\n\n// Or simpler: just style code blocks without full highlighting\n<pre className=\"bg-bg-secondary rounded p-3 overflow-x-auto\">\n  <code>{codeContent}</code>\n</pre>\n```\n\n**Tests:** Visual - paste comment with code block",
-      "priority": "low",
-      "tags": [
-        "component",
-        "markdown"
+        "inception"
       ]
     }
   ],
@@ -699,7 +564,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-20T22:16:02.014Z",
-  "epicTitle": "UI v2 Sprint 4: Ticket Flows",
-  "epicDescription": "Build ticket creation, editing, and management flows including quick-add inline creation, full ticket modal, subtasks, comments, and file attachments UI."
+  "generatedAt": "2026-01-21T06:48:03.103Z",
+  "epicTitle": "UI v2 Sprint 5: Detail Views & Project Flows",
+  "epicDescription": "Implement ticket detail panel, project creation/settings, epic management, and search/filter functionality with full-text search integration."
 }

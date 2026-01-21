@@ -17,6 +17,7 @@ import { TagInput } from "./TagInput";
 import { EpicSelect } from "./EpicSelect";
 import { SubtaskList } from "./SubtaskList";
 import { LaunchActions, type LaunchType } from "./LaunchActions";
+import { CreateEpicModal } from "../epics/CreateEpicModal";
 import { getTicketContext } from "../../api/context";
 import { launchClaudeInTerminal, launchOpenCodeInTerminal } from "../../api/terminal";
 import type { TicketStatus, Subtask } from "../../api/tickets";
@@ -100,6 +101,9 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
   // Launch state
   const [isLaunching, setIsLaunching] = useState(false);
   const [launchingType, setLaunchingType] = useState<LaunchType | null>(null);
+
+  // Create Epic modal state
+  const [isCreateEpicOpen, setIsCreateEpicOpen] = useState(false);
 
   // Refs
   const modalRef = useRef<HTMLDivElement>(null);
@@ -315,6 +319,16 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
   const handleDeleteModalClose = useCallback(() => {
     setShowDeleteConfirm(false);
     setDeleteError(null);
+  }, []);
+
+  // Handle opening the Create Epic modal
+  const handleOpenCreateEpic = useCallback(() => {
+    setIsCreateEpicOpen(true);
+  }, []);
+
+  // Handle successful epic creation - auto-select the new epic
+  const handleEpicCreated = useCallback((newEpicId: string) => {
+    setEpicId(newEpicId);
   }, []);
 
   // Handle launch action - launches Claude, OpenCode, or Ralph
@@ -763,6 +777,7 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
                 value={epicId || null}
                 onChange={(newEpicId) => setEpicId(newEpicId ?? "")}
                 epics={projectEpics}
+                onCreateEpic={handleOpenCreateEpic}
               />
             </div>
 
@@ -938,6 +953,17 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
         }}
         error={deleteError}
       />
+
+      {/* Create Epic Modal - opens when "Create New Epic" is clicked in EpicSelect */}
+      {selectedProject && (
+        <CreateEpicModal
+          isOpen={isCreateEpicOpen}
+          projectId={projectId}
+          projectName={selectedProject.name}
+          onClose={() => setIsCreateEpicOpen(false)}
+          onSuccess={handleEpicCreated}
+        />
+      )}
     </div>
   );
 };

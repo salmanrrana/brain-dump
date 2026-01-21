@@ -1,3 +1,6 @@
+export { BackNavigation } from "./BackNavigation";
+export type { BackNavigationProps } from "./BackNavigation";
+
 export { NavItem } from "./NavItem";
 export type { NavItemProps } from "./NavItem";
 

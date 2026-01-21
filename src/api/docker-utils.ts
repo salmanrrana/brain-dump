@@ -18,6 +18,9 @@ import { promisify } from "util";
 
 const execAsync = promisify(exec);
 
+// Track Docker unavailability to avoid spamming logs
+let dockerUnavailableLogged = false;
+
 /**
  * Get the effective Docker socket path from settings or auto-detection.
  *
@@ -171,9 +174,85 @@ export async function isDockerAccessible(): Promise<DockerAccessResult> {
     return { accessible: true };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.warn(`[docker-utils] Docker not accessible: ${message}`);
+    // Only log if we haven't already logged the unavailable message
+    if (!dockerUnavailableLogged) {
+      console.warn(`[docker-utils] Docker not accessible: ${message}`);
+    }
     return { accessible: false, error: message };
   }
+}
+
+// =============================================================================
+// CACHED DOCKER AVAILABILITY CHECK
+// =============================================================================
+
+/** Cache for Docker availability status */
+let dockerAvailabilityCache: {
+  available: boolean;
+  checkedAt: number;
+  error?: string;
+} | null = null;
+
+/** How long to cache Docker availability status (ms) */
+const DOCKER_AVAILABILITY_CACHE_TTL = 60000; // 60 seconds
+
+/**
+ * Check if Docker is available with caching.
+ *
+ * This function caches the result to avoid repeated Docker daemon checks.
+ * The cache expires after 60 seconds, allowing detection of Docker starting/stopping.
+ *
+ * @param forceRefresh - If true, bypass the cache and check again
+ * @returns Object with available boolean, cached flag, and optional error
+ */
+export async function checkDockerAvailability(forceRefresh = false): Promise<{
+  available: boolean;
+  cached: boolean;
+  error?: string;
+}> {
+  const now = Date.now();
+
+  // Return cached result if valid and not forcing refresh
+  if (
+    !forceRefresh &&
+    dockerAvailabilityCache &&
+    now - dockerAvailabilityCache.checkedAt < DOCKER_AVAILABILITY_CACHE_TTL
+  ) {
+    const cachedResult: { available: boolean; cached: boolean; error?: string } = {
+      available: dockerAvailabilityCache.available,
+      cached: true,
+    };
+    if (dockerAvailabilityCache.error) {
+      cachedResult.error = dockerAvailabilityCache.error;
+    }
+    return cachedResult;
+  }
+
+  // Perform fresh check
+  const result = await isDockerAccessible();
+
+  // Update cache
+  dockerAvailabilityCache = {
+    available: result.accessible,
+    checkedAt: now,
+  };
+  if (result.error) {
+    dockerAvailabilityCache.error = result.error;
+  }
+
+  // Reset the log suppression flag if Docker became available
+  if (result.accessible) {
+    dockerUnavailableLogged = false;
+  }
+
+  const freshResult: { available: boolean; cached: boolean; error?: string } = {
+    available: result.accessible,
+    cached: false,
+  };
+  if (result.error) {
+    freshResult.error = result.error;
+  }
+  return freshResult;
 }
 
 /**
@@ -296,9 +375,27 @@ export async function listContainers(namePattern?: string): Promise<ListContaine
       }
     }
 
+    // Docker is working - reset the unavailable flag
+    dockerUnavailableLogged = false;
     return { containers };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const isDockerUnavailable =
+      message.includes("Cannot connect to the Docker daemon") ||
+      message.includes("Is the docker daemon running");
+
+    // Only log Docker unavailable error once to avoid spam
+    if (isDockerUnavailable) {
+      if (!dockerUnavailableLogged) {
+        console.warn(
+          `[docker-utils] Docker daemon not running - container features disabled. This message will not repeat.`
+        );
+        dockerUnavailableLogged = true;
+      }
+      return { containers: [], error: "Docker daemon not running" };
+    }
+
+    // Log other errors normally
     console.error(`[docker-utils] Failed to list containers: ${message}`);
     return { containers: [], error: `Failed to list containers: ${message}` };
   }
@@ -457,9 +554,20 @@ export async function getContainerStats(containerNames?: string[]): Promise<Cont
       }
     }
 
+    // Docker is working - reset the unavailable flag
+    dockerUnavailableLogged = false;
     return { stats };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const isDockerUnavailable =
+      message.includes("Cannot connect to the Docker daemon") ||
+      message.includes("Is the docker daemon running");
+
+    // Silently return empty stats if Docker is unavailable (already logged in listContainers)
+    if (isDockerUnavailable) {
+      return { stats: [], error: "Docker daemon not running" };
+    }
+
     console.error(`[docker-utils] Failed to get container stats: ${message}`);
     return { stats: [], error: `Failed to get container stats: ${message}` };
   }
