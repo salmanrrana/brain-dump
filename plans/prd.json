@@ -333,7 +333,7 @@
     {
       "id": "2d316dd7-b383-416e-bf01-dd80c987d441",
       "title": "87 - Add \"Create New Epic\" option to EpicSelect dropdown",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -360,7 +360,7 @@
     {
       "id": "1b3acd88-e4b2-4b19-a17f-ffc79e2c73c0",
       "title": "88 - Create InceptionModal",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
