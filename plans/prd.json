@@ -163,7 +163,7 @@
     {
       "id": "8e1bc6a7-75b5-45c6-9866-8dcf68d88deb",
       "title": "60 - Implement submit with TanStack Query mutation",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
