@@ -115,7 +115,7 @@ export function GitTab({
             value={prTargetBranch}
             onChange={(e) => onPrTargetBranchChange(e.target.value)}
             placeholder="main"
-            className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 "
           />
           <p className="mt-1 text-xs text-slate-500">
             Feature branches will target this branch for PRs (typically "dev" or "main")
@@ -135,7 +135,7 @@ export function GitTab({
               id="branch-pattern-select"
               value={branchPattern}
               onChange={(e) => setBranchPattern(e.target.value as BranchNamingPattern)}
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
             >
               {BRANCH_PATTERN_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -165,7 +165,7 @@ export function GitTab({
               value={customPattern}
               onChange={(e) => setCustomPattern(e.target.value)}
               placeholder="feature/{ticket-id}-{slug}"
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500 font-mono text-sm"
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100  font-mono text-sm"
             />
             <p className="mt-1 text-xs text-slate-500">
               Use <code className="bg-slate-700 px-1 rounded">{"{ticket-id}"}</code> for ticket ID

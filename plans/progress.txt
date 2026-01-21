@@ -450,3 +450,66 @@ PRD_COMPLETE
 - **Note:** Branch naming pattern stored locally (UI-only for now)
 - **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1303 passed)
 
+
+
+### 2026-01-21 - Ticket 97 Complete (Global Keyboard Shortcuts Hook)
+- **Ticket ID:** 9de9a2a6-ce9e-4ca2-ae4a-08d86fb6e236
+- **Task:** Create global keyboard shortcuts hook
+- **Success:** true
+- **Commit:** a50d572
+- **Files:**
+  - src/lib/keyboard-shortcuts.ts (NEW)
+  - src/lib/keyboard-shortcuts.test.ts (NEW - 26 tests)
+  - src/components/AppLayout.tsx (modified to use new hook)
+- **Features:**
+  - useKeyboardShortcuts hook with configurable callbacks
+  - Automatic input field detection (INPUT, TEXTAREA, contentEditable)
+  - Escape always works even when disabled (for modal closing)
+  - KEYBOARD_SHORTCUTS and SHORTCUT_CATEGORY_LABELS exports for help display
+  - Shortcuts grouped by category for organized help modal
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1329 passed)
+
+
+### 2026-01-21 - Ticket 99 Complete (KanbanBoard Keyboard Navigation)
+- **Ticket ID:** 76e1c65a-c8e3-429b-93e0-624eed12c822
+- **Task:** Add keyboard navigation to KanbanBoard
+- **Success:** true
+- **Commit:** 5629e67
+- **Files:**
+  - src/lib/use-board-keyboard-navigation.ts (NEW)
+  - src/components/board/KanbanBoard.tsx (modified)
+  - src/components/board/SortableTicketCard.tsx (modified)
+  - src/components/board/TicketCard.tsx (modified)
+  - src/lib/keyboard-shortcuts.ts (modified)
+- **Features:**
+  - Arrow keys move focus between tickets (Up/Down within column, Left/Right between columns)
+  - Enter/Space opens focused ticket detail
+  - Focus ring visible on focused card (focus-visible:ring-2)
+  - Tab moves to next card using roving tabindex pattern
+  - Home/End navigate to first/last ticket
+  - Board shortcuts added to KEYBOARD_SHORTCUTS array for help display
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1339 passed)
+
+
+### 2026-01-21 - Ticket 104 Complete (ARIA Labels Accessibility)
+- **Ticket ID:** 4f20d75f-7826-41a9-a4ad-bbf10e5b4012
+- **Task:** Add ARIA labels to all interactive elements
+- **Success:** true
+- **Commit:** 44e0296
+- **Files:**
+  - src/components/AppLayout.tsx (modified)
+  - src/components/NewTicketModal.tsx (modified)
+  - src/components/ProjectTree.tsx (modified)
+  - src/components/board/TicketCard.tsx (modified)
+- **Features:**
+  - aria-label on all icon-only buttons (search clear, view toggle, refresh, settings)
+  - aria-pressed on toggle buttons (kanban/list view mode)
+  - role="listbox" and role="option" on search results dropdown
+  - aria-label, aria-expanded, aria-controls on tag input autocomplete
+  - aria-label on TicketCard for screen reader announcement
+  - aria-hidden on all decorative icons
+  - aria-label and aria-expanded on project tree expand/collapse
+  - id="main-content" on main element for skip link target
+  - role="group" with aria-label on view toggle button group
+- **Note:** Many components already had good ARIA support (Toast, Modal, TabNav, etc.)
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1339 passed)

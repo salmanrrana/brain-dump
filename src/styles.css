@@ -49,3 +49,50 @@ code {
 .animate-pulse-slow {
   animation: ai-pulse 2s ease-in-out infinite;
 }
+
+/* ============================================
+   GLOBAL FOCUS STYLES - WCAG AA Compliant
+   ============================================
+   Uses :focus-visible to show focus ring only for keyboard navigation,
+   not mouse clicks. All interactive elements get consistent focus styling.
+   Contrast ratio ≥ 3:1 against dark backgrounds (#0a0a0a).
+*/
+
+/* Base focus styles for all interactive elements */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Buttons, links, and clickable elements */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:not([tabindex="-1"]):focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Form inputs - use ring inset for better appearance */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 0;
+}
+
+/* Custom focus class for components that need explicit focus styling */
+.focus-ring:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Focus ring with inset offset (for cards/containers) */
+.focus-ring-inset:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(-1 * var(--focus-ring-width));
+}

@@ -155,7 +155,7 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="My Project"
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 "
             />
           </div>
 
@@ -170,7 +170,7 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
                 value={path}
                 onChange={(e) => setPath(e.target.value)}
                 placeholder="/home/user/projects/my-project"
-                className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 "
               />
               <button
                 type="button"
@@ -191,7 +191,7 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
               <select
                 value={color}
                 onChange={(e) => setColor(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
               >
                 {COLOR_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -222,7 +222,7 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
                 <select
                   value={workingMethod}
                   onChange={(e) => setWorkingMethod(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
                 >
                   {WORKING_METHOD_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>

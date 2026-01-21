@@ -272,7 +272,7 @@ export function RalphTab({
                 id="docker-runtime-select"
                 value={dockerRuntime}
                 onChange={(e) => onDockerRuntimeChange(e.target.value as DockerRuntimeSetting)}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
               >
                 {DOCKER_RUNTIME_TYPES.map((runtime) => (
                   <option key={runtime} value={runtime}>

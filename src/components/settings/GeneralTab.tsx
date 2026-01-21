@@ -76,7 +76,7 @@ export function GeneralTab({
             </label>
             <button
               onClick={onBrowseDirectory}
-              className="w-full flex items-center gap-3 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-left hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors"
+              className="w-full flex items-center gap-3 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-left hover:border-slate-600  transition-colors"
             >
               <Folder size={18} className="text-amber-400 flex-shrink-0" />
               {defaultProjectsDirectory ? (
@@ -118,7 +118,7 @@ export function GeneralTab({
                     e.target.value as "auto" | "claude-code" | "vscode" | "opencode"
                   )
                 }
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none focus:outline-none focus:ring-2 focus:ring-amber-500"
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
               >
                 <option value="auto">Auto-detect</option>
                 <option value="claude-code">Claude Code</option>
@@ -158,7 +158,7 @@ export function GeneralTab({
                 id="terminal-emulator-select"
                 value={terminalEmulator}
                 onChange={(e) => onTerminalChange(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
               >
                 {SUPPORTED_TERMINALS.map((terminal) => (
                   <option key={terminal.value} value={terminal.value}>

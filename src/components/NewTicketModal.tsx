@@ -401,7 +401,7 @@ export default function NewTicketModal({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="What needs to be done?"
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100"
             />
           </div>
 
@@ -412,7 +412,7 @@ export default function NewTicketModal({
               onChange={(e) => setDescription(e.target.value)}
               rows={6}
               placeholder="Additional details..."
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-y min-h-[100px]"
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 resize-y min-h-[100px]"
             />
           </div>
 
@@ -424,7 +424,7 @@ export default function NewTicketModal({
               <select
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
               >
                 <option value="">Select a project...</option>
                 {projects.map((project) => (
@@ -450,7 +450,7 @@ export default function NewTicketModal({
                 <select
                   value={priority}
                   onChange={(e) => setPriority(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
                 >
                   {PRIORITY_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -472,7 +472,7 @@ export default function NewTicketModal({
                   value={epicId}
                   onChange={(e) => setEpicId(e.target.value)}
                   disabled={!projectId}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none  disabled:opacity-50"
                 >
                   <option value="">{projectId ? "None" : "Select project first"}</option>
                   {filteredEpics.map((epic) => (
@@ -520,7 +520,7 @@ export default function NewTicketModal({
                   onKeyDown={handleTagInputKeyDown}
                   onFocus={() => newTag.trim() && setIsTagDropdownOpen(true)}
                   placeholder="Add tag..."
-                  className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 text-sm "
                   autoComplete="off"
                   aria-label="Add tag"
                   aria-expanded={isTagDropdownOpen && (tagsLoading || tagSuggestions.length > 0)}

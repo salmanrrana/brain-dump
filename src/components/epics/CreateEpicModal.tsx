@@ -217,7 +217,7 @@ export const CreateEpicModal: FC<CreateEpicModalProps> = ({
               autoFocus
               required
               data-testid="create-epic-title-input"
-              className="focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[var(--accent-primary)]"
+              className=""
             />
           </div>
 
@@ -234,7 +234,7 @@ export const CreateEpicModal: FC<CreateEpicModalProps> = ({
               rows={3}
               style={textareaStyles}
               data-testid="create-epic-description-input"
-              className="focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[var(--accent-primary)]"
+              className=""
             />
           </div>
 

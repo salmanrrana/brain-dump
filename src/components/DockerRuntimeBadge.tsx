@@ -53,9 +53,7 @@ export default function DockerRuntimeBadge({ projectPath, onClick }: DockerRunti
 
   // Common classes for both button and span
   const baseClasses = `flex items-center gap-1 px-2 py-1 rounded ${color} transition-colors`;
-  const interactiveClasses = isClickable
-    ? "hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-    : "";
+  const interactiveClasses = isClickable ? "hover:bg-slate-700 " : "";
 
   // Use button if clickable, span if not (for accessibility)
   if (isClickable) {

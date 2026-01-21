@@ -121,6 +121,12 @@
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.5);
   --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
 
+  /* Focus Ring - WCAG AA compliant (3:1 contrast ratio) */
+  --focus-ring-color: var(--accent-primary);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --focus-ring-offset-color: var(--bg-primary);
+
   /* Glow shadows use accent color */
   --shadow-glow: 0 0 20px var(--accent-glow);
   --shadow-glow-sm: 0 0 10px var(--accent-glow);

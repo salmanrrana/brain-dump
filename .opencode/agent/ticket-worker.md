@@ -1,7 +1,6 @@
 ---
 description: Implements a specific Brain Dump ticket with full context
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
 temperature: 0.2
 tools:
   write: true

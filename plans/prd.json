@@ -151,7 +151,7 @@
     {
       "id": "21dbe03e-d9a7-40a2-8678-ae1e9fe7b434",
       "title": "96 - Create EnterpriseTab settings component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -179,7 +179,7 @@
     {
       "id": "9de9a2a6-ce9e-4ca2-ae4a-08d86fb6e236",
       "title": "97 - Create global keyboard shortcuts hook",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -208,7 +208,7 @@
     {
       "id": "e45db2cd-006e-4412-9be3-3b35971bce51",
       "title": "98 - Add keyboard navigation to IconSidebar",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -236,7 +236,7 @@
     {
       "id": "76e1c65a-c8e3-429b-93e0-624eed12c822",
       "title": "99 - Add keyboard navigation to KanbanBoard",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -265,7 +265,7 @@
     {
       "id": "24cbb8fe-563d-4fe0-82b1-3d0992591b55",
       "title": "100 - Create ShortcutsModal component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -379,7 +379,7 @@
     {
       "id": "4f20d75f-7826-41a9-a4ad-bbf10e5b4012",
       "title": "104 - Add ARIA labels to all interactive elements",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],

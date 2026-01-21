@@ -14,8 +14,7 @@
     "brain-dump_*": true
   },
   "permission": {
-    "skill": {
-      "*": "allow"
-    }
-  }
+    "*": "allow"
+  },
+  "model": "opencode/grok-code"
 }

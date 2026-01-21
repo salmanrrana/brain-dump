@@ -102,7 +102,7 @@ export function EnterpriseTab({
                 onRetentionDaysChange(Math.max(7, Math.min(365, value)));
               }
             }}
-            className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 "
             disabled={!conversationLoggingEnabled}
           />
           <p className="mt-1 text-xs text-slate-500">

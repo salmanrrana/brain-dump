@@ -1,18 +1,6 @@
 import { useState, useEffect } from "react";
-import {
-  Folder,
-  FolderOpen,
-  ChevronUp,
-  Plus,
-  X,
-  Loader2,
-  Home,
-} from "lucide-react";
-import {
-  listDirectory,
-  createDirectory,
-  getHomeDirectory,
-} from "../api/filesystem";
+import { Folder, FolderOpen, ChevronUp, Plus, X, Loader2, Home } from "lucide-react";
+import { listDirectory, createDirectory, getHomeDirectory } from "../api/filesystem";
 
 interface DirectoryPickerProps {
   isOpen: boolean;
@@ -125,11 +113,7 @@ export default function DirectoryPicker({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden="true" />
 
       {/* Modal */}
       <div
@@ -139,9 +123,7 @@ export default function DirectoryPicker({
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-slate-800">
-          <h2 className="text-lg font-semibold text-gray-100">
-            Select Directory
-          </h2>
+          <h2 className="text-lg font-semibold text-gray-100">Select Directory</h2>
           <button
             onClick={onClose}
             className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-gray-100"
@@ -155,9 +137,7 @@ export default function DirectoryPicker({
         <div className="px-4 py-2 bg-slate-800/50 border-b border-slate-800">
           <div className="flex items-center gap-2">
             <FolderOpen size={16} className="text-cyan-400 flex-shrink-0" />
-            <span className="text-sm text-slate-300 truncate font-mono">
-              {currentPath}
-            </span>
+            <span className="text-sm text-slate-300 truncate font-mono">{currentPath}</span>
           </div>
         </div>
 
@@ -208,7 +188,7 @@ export default function DirectoryPicker({
                 }}
                 placeholder="Folder name..."
                 autoFocus
-                className="flex-1 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                className="flex-1 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded text-sm text-gray-100 "
               />
               <button
                 onClick={handleCreateFolder}
@@ -228,9 +208,7 @@ export default function DirectoryPicker({
                 <X size={16} />
               </button>
             </div>
-            {createError && (
-              <p className="mt-2 text-xs text-red-400">{createError}</p>
-            )}
+            {createError && <p className="mt-2 text-xs text-red-400">{createError}</p>}
           </div>
         )}
 
@@ -243,17 +221,12 @@ export default function DirectoryPicker({
           ) : error ? (
             <div className="p-4 text-center">
               <p className="text-red-400 text-sm">{error}</p>
-              <button
-                onClick={goHome}
-                className="mt-3 text-sm text-cyan-400 hover:underline"
-              >
+              <button onClick={goHome} className="mt-3 text-sm text-cyan-400 hover:underline">
                 Go to home directory
               </button>
             </div>
           ) : entries.length === 0 ? (
-            <div className="p-8 text-center text-slate-500 text-sm">
-              No subdirectories
-            </div>
+            <div className="p-8 text-center text-slate-500 text-sm">No subdirectories</div>
           ) : (
             <div className="p-2">
               {entries.map((entry) => (
