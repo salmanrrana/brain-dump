@@ -31,6 +31,7 @@ import {
   useClickOutside,
   useDeleteEpic,
   useInvalidateQueries,
+  useDockerAvailable,
   useRalphContainers,
   type Epic,
   type ProjectBase,
@@ -687,9 +688,12 @@ function Sidebar() {
     onDeleteEpic,
   } = useAppState();
 
-  // Fetch running Ralph containers for Docker indicators
+  // Check Docker availability first (cached, re-checks every 60s)
+  const { available: dockerAvailable } = useDockerAvailable();
+
+  // Only poll for Ralph containers if Docker is available
   const { containers: ralphContainers } = useRalphContainers({
-    enabled: true,
+    enabled: dockerAvailable,
     pollingInterval: 5000,
   });
 

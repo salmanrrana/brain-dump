@@ -421,6 +421,7 @@ export const queryKeys = {
   // Ralph container monitoring (hierarchical for easy invalidation)
   ralph: {
     all: ["ralph"] as const,
+    dockerAvailable: () => ["ralph", "dockerAvailable"] as const,
     containers: () => ["ralph", "containers"] as const,
     containerLogs: (containerName: string, tail: number) =>
       ["ralph", "containerLogs", containerName, tail] as const,
@@ -1291,6 +1292,7 @@ import {
   startService,
   stopService,
   stopAllServices,
+  checkDockerAvailable,
   listRalphContainers,
   getRalphContainerLogs,
 } from "../api/services";
@@ -1542,6 +1544,56 @@ export function useRalphEvents(
 }
 
 // =============================================================================
+// DOCKER AVAILABILITY
+// =============================================================================
+
+/**
+ * Hook for checking Docker daemon availability.
+ *
+ * Uses a cached check (60 second server-side TTL) to avoid repeatedly hitting Docker.
+ * The hook also does client-side polling to detect when Docker starts/stops.
+ *
+ * @param options - Configuration options
+ * @returns Docker availability status and query state
+ */
+export function useDockerAvailable(
+  options: {
+    /** Whether to enable the query (default: true) */
+    enabled?: boolean;
+    /** How often to re-check availability in ms (default: 60000ms = 60s) */
+    recheckInterval?: number;
+  } = {}
+) {
+  const { enabled = true, recheckInterval = 60000 } = options;
+
+  const query = useQuery({
+    queryKey: queryKeys.ralph.dockerAvailable(),
+    queryFn: () => checkDockerAvailable({ data: {} }),
+    enabled,
+    // Re-check periodically to detect Docker starting/stopping
+    refetchInterval: recheckInterval,
+    // Don't refetch on window focus - we have periodic checking
+    refetchOnWindowFocus: false,
+    // Keep stale data while refetching
+    staleTime: recheckInterval,
+  });
+
+  return {
+    /** Whether Docker daemon is available */
+    available: query.data?.available ?? false,
+    /** Whether the result was from cache */
+    cached: query.data?.cached ?? false,
+    /** Error message if Docker is not available */
+    error: query.data?.error,
+    /** Whether the query is loading */
+    loading: query.isLoading,
+    /** Force a fresh check */
+    refetch: () =>
+      checkDockerAvailable({ data: { forceRefresh: true } }).then(() => query.refetch()),
+  };
+}
+
+// =============================================================================
 // RALPH CONTAINER LOGS
 // =============================================================================
 
@@ -1552,6 +1604,9 @@ const ITERATION_NUMBERS_REGEX = /(\d+) of (\d+)/;
 /**
  * Hook for listing running Ralph containers.
  * Polls at configurable intervals to detect when Ralph starts/stops.
+ *
+ * NOTE: This hook should only be enabled when Docker is available.
+ * Use `useDockerAvailable()` to check first, then pass `enabled: dockerAvailable`.
  *
  * @param options - Configuration options
  * @returns List of Ralph containers and query state
@@ -1570,7 +1625,7 @@ export function useRalphContainers(
     queryKey: queryKeys.ralph.containers(),
     queryFn: listRalphContainers, // Let type be inferred from API function
     enabled,
-    refetchInterval: pollingInterval,
+    refetchInterval: enabled ? pollingInterval : false,
     // Prevent refetch on window focus since we're polling (TanStack Query best practice)
     staleTime: pollingInterval,
     refetchOnWindowFocus: false,

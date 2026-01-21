@@ -31,6 +31,7 @@ import {
   useStartService,
   useStopService,
   useStopAllServices,
+  useDockerAvailable,
   useRalphContainers,
   useContainerStats,
   useAutoClearState,
@@ -216,10 +217,13 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
     pollingInterval: 5000, // 5 seconds
   });
 
-  // Fetch Ralph containers (Docker sandbox mode)
+  // Check Docker availability (cached, re-checks every 60s)
+  const { available: dockerAvailable } = useDockerAvailable();
+
+  // Fetch Ralph containers (Docker sandbox mode) - only if Docker is available
   const { runningContainer: ralphContainer, hasRunningContainer: hasRalphContainer } =
     useRalphContainers({
-      enabled: Boolean(projectPath),
+      enabled: Boolean(projectPath) && dockerAvailable,
       pollingInterval: 3000,
     });
 
