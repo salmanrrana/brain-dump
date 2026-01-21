@@ -127,6 +127,49 @@ select:focus-visible {
 }
 
 /* ============================================
+   HOVER AND FOCUS TRANSITIONS
+   ============================================
+   Global hover/focus states for interactive elements.
+   Uses CSS variables for consistent timing across themes.
+   Applied via Tailwind-style utility classes.
+*/
+
+/* Button-like elements - smooth background/border transitions */
+button,
+[role="button"],
+a.nav-item,
+.interactive {
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+/* Hover lift effect for cards (subtle scale + shadow) */
+.hover-lift {
+  transition:
+    transform var(--transition-normal),
+    box-shadow var(--transition-normal);
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Hover glow effect (accent-colored shadow) */
+.hover-glow:hover {
+  box-shadow: var(--shadow-glow-sm);
+}
+
+/* Subtle hover background change */
+.hover-bg:hover {
+  background-color: var(--bg-hover);
+}
+
+/* ============================================
    REDUCED MOTION SUPPORT
    ============================================
    Respects user's prefers-reduced-motion setting for accessibility.
