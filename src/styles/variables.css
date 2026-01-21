@@ -181,6 +181,23 @@
 }
 
 /* ============================================
+   TOUCH DEVICE STYLES
+   ============================================ */
+
+/* Larger touch targets on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  /* Ticket cards have larger padding for easier touch */
+  [role="button"] {
+    min-height: 48px; /* Minimum touch target size */
+  }
+
+  /* Scrollable areas have momentum scrolling indicator */
+  [data-testid="kanban-board"] {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ============================================
    MINT THEME (Emerald)
    ============================================ */
 [data-theme="mint"] {

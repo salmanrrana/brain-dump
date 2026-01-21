@@ -430,6 +430,8 @@ const columnsContainerStyles: React.CSSProperties = {
   padding: "var(--spacing-4)",
   scrollBehavior: "smooth",
   WebkitOverflowScrolling: "touch",
+  // Scroll snap for touch devices - snaps to column edges
+  scrollSnapType: "x proximity",
 };
 
 // Skeleton styles

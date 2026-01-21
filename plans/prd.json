@@ -293,7 +293,7 @@
     {
       "id": "80b25268-15dc-44d8-a9b6-6d1610c7ef9e",
       "title": "101 - Add mobile sidebar with hamburger menu",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
