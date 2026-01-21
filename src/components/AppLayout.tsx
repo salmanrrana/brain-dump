@@ -5,7 +5,6 @@ import {
   useContext,
   useMemo,
   useRef,
-  useEffect,
   useCallback,
 } from "react";
 import { Search, LayoutGrid, List, X, Loader2, Settings, RefreshCw } from "lucide-react";
@@ -40,6 +39,11 @@ import {
   type Filters,
 } from "../lib/hooks";
 import { deleteEpic as deleteEpicFn } from "../api/epics";
+import {
+  useKeyboardShortcuts,
+  KEYBOARD_SHORTCUTS,
+  SHORTCUT_CATEGORY_LABELS,
+} from "../lib/keyboard-shortcuts";
 
 // App context for managing global state
 interface AppState {
@@ -290,55 +294,24 @@ export default function AppLayout({ children }: AppLayoutProps) {
     setSelectedTicketIdFromSearch(null);
   }, []);
 
-  // Global keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing in input/textarea
-      const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
-        return;
-      }
+  // Focus search input callback for keyboard shortcut
+  const handleFocusSearch = useCallback(() => {
+    const searchInput = document.querySelector(
+      'input[placeholder="Search tickets..."]'
+    ) as HTMLInputElement;
+    searchInput?.focus();
+  }, []);
 
-      switch (e.key) {
-        case "n":
-          if (!isAnyModalOpen) {
-            e.preventDefault();
-            openNewTicket();
-          }
-          break;
-        case "r":
-          if (!isAnyModalOpen && !isRefreshing) {
-            e.preventDefault();
-            void refreshAllData();
-          }
-          break;
-        case "/":
-          if (!isAnyModalOpen) {
-            e.preventDefault();
-            // Focus search input
-            const searchInput = document.querySelector(
-              'input[placeholder="Search tickets..."]'
-            ) as HTMLInputElement;
-            searchInput?.focus();
-          }
-          break;
-        case "?":
-          if (!isAnyModalOpen) {
-            e.preventDefault();
-            openShortcuts();
-          }
-          break;
-        case "Escape":
-          if (isAnyModalOpen) {
-            closeModal();
-          }
-          break;
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isAnyModalOpen, isRefreshing, openNewTicket, openShortcuts, closeModal, refreshAllData]);
+  // Global keyboard shortcuts using the extracted hook
+  useKeyboardShortcuts({
+    onNewTicket: openNewTicket,
+    onRefresh: refreshAllData,
+    onFocusSearch: handleFocusSearch,
+    onShowShortcuts: openShortcuts,
+    onCloseModal: closeModal,
+    disabled: isAnyModalOpen,
+    isRefreshing,
+  });
 
   const appState: AppState = {
     // Filters
@@ -446,39 +419,35 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   <X size={20} />
                 </button>
               </div>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-300">New ticket</span>
-                  <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">
-                    n
-                  </kbd>
+              {/* Render shortcuts from the centralized constant */}
+              {Object.entries(
+                KEYBOARD_SHORTCUTS.reduce(
+                  (acc, shortcut) => {
+                    const category = shortcut.category;
+                    if (!acc[category]) acc[category] = [];
+                    acc[category].push(shortcut);
+                    return acc;
+                  },
+                  {} as Record<string, typeof KEYBOARD_SHORTCUTS>
+                )
+              ).map(([category, shortcuts]) => (
+                <div key={category} className="mb-4">
+                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                    {SHORTCUT_CATEGORY_LABELS[category] ?? category}
+                  </h3>
+                  <div className="space-y-2">
+                    {shortcuts.map((shortcut) => (
+                      <div key={shortcut.key} className="flex items-center justify-between">
+                        <span className="text-slate-300">{shortcut.description}</span>
+                        <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">
+                          {shortcut.key === "Escape" ? "Esc" : shortcut.key}
+                        </kbd>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-300">Refresh data</span>
-                  <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">
-                    r
-                  </kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-300">Focus search</span>
-                  <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">
-                    /
-                  </kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-300">Show shortcuts</span>
-                  <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">
-                    ?
-                  </kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-300">Close modal</span>
-                  <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">
-                    Esc
-                  </kbd>
-                </div>
-              </div>
-              <p className="mt-4 text-xs text-slate-500">
+              ))}
+              <p className="mt-2 text-xs text-slate-500">
                 Shortcuts are disabled when typing in text fields.
               </p>
             </div>
