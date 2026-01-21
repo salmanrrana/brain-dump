@@ -20,58 +20,84 @@ import { runGitCommand, shortId, generateBranchName } from "../lib/git-utils.js"
 const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
 
 /**
- * MIME type mapping for common file extensions.
- * Used to set the correct mimeType in MCP image content blocks.
+ * File type configuration for attachments.
+ * Each entry defines how to handle a file extension: mime type and content type.
+ * - "image": Loaded as base64 MCP image content block
+ * - "text": Read as UTF-8 and included inline with code fence
+ * - "reference": Not loaded, just referenced by path
  */
-const MIME_TYPES = {
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  png: "image/png",
-  gif: "image/gif",
-  webp: "image/webp",
-  svg: "image/svg+xml",
-  pdf: "application/pdf",
-  txt: "text/plain",
-  md: "text/markdown",
-  json: "application/json",
+const FILE_TYPES = {
+  jpg: { mime: "image/jpeg", type: "image" },
+  jpeg: { mime: "image/jpeg", type: "image" },
+  png: { mime: "image/png", type: "image" },
+  gif: { mime: "image/gif", type: "image" },
+  webp: { mime: "image/webp", type: "image" },
+  svg: { mime: "image/svg+xml", type: "image" },  // Treat as image for consistency with src/api/attachments.ts
+  pdf: { mime: "application/pdf", type: "reference" },
+  txt: { mime: "text/plain", type: "text", fence: "" },
+  md: { mime: "text/markdown", type: "text", fence: "markdown" },
+  json: { mime: "application/json", type: "text", fence: "json" },
 };
 
 /**
- * Image file extensions that can be sent as MCP image content blocks.
+ * Format file size for display.
+ * @param {number} bytes - File size in bytes
+ * @returns {string} Formatted size (e.g., "1.5MB" or "256KB")
  */
-const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "gif", "webp"];
+function formatFileSize(bytes) {
+  if (bytes >= 1024 * 1024) {
+    return `${Math.round(bytes / 1024 / 1024)}MB`;
+  }
+  return `${Math.round(bytes / 1024)}KB`;
+}
 
 /**
- * Text file extensions that can be read and included as text content.
- */
-const TEXT_EXTENSIONS = ["txt", "md", "json"];
-
-/**
- * Get the attachments directory path (XDG-compliant on Linux, legacy on macOS for now).
- * Uses the same path as src/api/attachments.ts for consistency.
- * @returns {string} The attachments directory path
+ * Get the attachments directory path.
+ * Uses legacy path (~/.brain-dump) to match src/api/attachments.ts for consistency.
+ * TODO: Migrate both to XDG-compliant paths (see docs/data-locations.md)
+ * @returns {string}
  */
 function getAttachmentsDir() {
-  // Match the path used in src/api/attachments.ts
   return join(homedir(), ".brain-dump", "attachments");
 }
 
 /**
- * Check if a file extension is a supported image type.
- * @param {string} ext - File extension (without dot)
- * @returns {boolean}
+ * Load a single attachment and return its content block.
+ * @param {string} filePath - Full path to the file
+ * @param {string} filename - Original filename for display
+ * @param {number} size - File size in bytes
+ * @returns {{ type: string, text?: string, data?: string, mimeType?: string }}
  */
-function isImageExtension(ext) {
-  return IMAGE_EXTENSIONS.includes(ext.toLowerCase());
-}
+function loadSingleAttachment(filePath, filename, size) {
+  const ext = filename.split(".").pop()?.toLowerCase() || "";
+  const fileConfig = FILE_TYPES[ext];
+  const mimeType = fileConfig?.mime || "application/octet-stream";
+  const contentType = fileConfig?.type || "reference";
+  const sizeStr = formatFileSize(size);
 
-/**
- * Check if a file extension is a supported text type.
- * @param {string} ext - File extension (without dot)
- * @returns {boolean}
- */
-function isTextExtension(ext) {
-  return TEXT_EXTENSIONS.includes(ext.toLowerCase());
+  switch (contentType) {
+    case "image": {
+      const base64Data = readFileSync(filePath).toString("base64");
+      log.info(`Loaded image attachment: ${filename} (${sizeStr})`);
+      return { type: "image", data: base64Data, mimeType };
+    }
+    case "text": {
+      const textContent = readFileSync(filePath, "utf-8");
+      const fence = fileConfig.fence || "";
+      log.info(`Loaded text attachment: ${filename} (${sizeStr})`);
+      return {
+        type: "text",
+        text: `### Attachment: ${filename}\n\n\`\`\`${fence}\n${textContent}\n\`\`\``,
+      };
+    }
+    default: {
+      log.info(`Referenced attachment: ${filename} (${mimeType})`);
+      return {
+        type: "text",
+        text: `### Attachment: ${filename}\n\n*File attached (${sizeStr}, type: ${mimeType}). Located at: ${filePath}*`,
+      };
+    }
+  }
 }
 
 /**
@@ -92,8 +118,7 @@ function loadTicketAttachments(ticketId, attachmentsList) {
     return { contentBlocks, warnings };
   }
 
-  const attachmentsDir = getAttachmentsDir();
-  const ticketDir = join(attachmentsDir, ticketId);
+  const ticketDir = join(getAttachmentsDir(), ticketId);
 
   if (!existsSync(ticketDir)) {
     warnings.push(`Attachments directory not found: ${ticketDir}`);
@@ -101,15 +126,20 @@ function loadTicketAttachments(ticketId, attachmentsList) {
   }
 
   for (const filename of attachmentsList) {
-    const filePath = join(ticketDir, filename);
+    // Sanitize filename to prevent path traversal attacks (matches src/api/attachments.ts:171)
+    const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+    if (safeFilename !== filename) {
+      warnings.push(`Skipped unsafe filename: ${filename}`);
+      log.warn(`Blocked path traversal attempt in attachment: ${filename}`);
+      continue;
+    }
+    const filePath = join(ticketDir, safeFilename);
 
-    // Check if file exists
     if (!existsSync(filePath)) {
       warnings.push(`Attachment file not found: ${filename}`);
       continue;
     }
 
-    // Get file stats for size check
     let stats;
     try {
       stats = statSync(filePath);
@@ -118,56 +148,13 @@ function loadTicketAttachments(ticketId, attachmentsList) {
       continue;
     }
 
-    // Check file size
     if (stats.size > MAX_ATTACHMENT_SIZE) {
-      warnings.push(`Skipping ${filename}: File size (${Math.round(stats.size / 1024 / 1024)}MB) exceeds 5MB limit`);
+      warnings.push(`Skipping ${filename}: File size (${formatFileSize(stats.size)}) exceeds 5MB limit`);
       continue;
     }
 
-    // Get file extension
-    const ext = filename.split(".").pop()?.toLowerCase() || "";
-    const mimeType = MIME_TYPES[ext] || "application/octet-stream";
-
     try {
-      if (isImageExtension(ext)) {
-        // Load image as base64 and create MCP image content block
-        const fileData = readFileSync(filePath);
-        const base64Data = fileData.toString("base64");
-
-        contentBlocks.push({
-          type: "image",
-          data: base64Data,
-          mimeType: mimeType,
-        });
-
-        log.info(`Loaded image attachment: ${filename} (${Math.round(stats.size / 1024)}KB)`);
-      } else if (isTextExtension(ext)) {
-        // Load text file and create text content block
-        const textContent = readFileSync(filePath, "utf-8");
-
-        contentBlocks.push({
-          type: "text",
-          text: `### Attachment: ${filename}\n\n\`\`\`${ext === "json" ? "json" : ext === "md" ? "markdown" : ""}\n${textContent}\n\`\`\``,
-        });
-
-        log.info(`Loaded text attachment: ${filename} (${Math.round(stats.size / 1024)}KB)`);
-      } else if (ext === "pdf") {
-        // PDFs can't be displayed inline, just reference them
-        contentBlocks.push({
-          type: "text",
-          text: `### Attachment: ${filename}\n\n*PDF file attached (${Math.round(stats.size / 1024)}KB). Located at: ${filePath}*`,
-        });
-
-        log.info(`Referenced PDF attachment: ${filename}`);
-      } else {
-        // Unknown file type, just reference it
-        contentBlocks.push({
-          type: "text",
-          text: `### Attachment: ${filename}\n\n*File attached (${Math.round(stats.size / 1024)}KB, type: ${mimeType}). Located at: ${filePath}*`,
-        });
-
-        log.info(`Referenced attachment: ${filename} (${mimeType})`);
-      }
+      contentBlocks.push(loadSingleAttachment(filePath, filename, stats.size));
     } catch (err) {
       warnings.push(`Failed to read ${filename}: ${err.message}`);
       log.error(`Failed to read attachment ${filename}:`, err);
@@ -457,7 +444,7 @@ Returns:
       const sessionResult = createConversationSession(db, ticketId, ticket.project_id, environment);
       const sessionInfo = sessionResult.success
         ? `**Conversation Session:** \`${sessionResult.sessionId}\` (auto-created for compliance logging)`
-        : "";
+        : `**Warning:** Compliance logging failed: ${sessionResult.error}. Work may not be logged for audit.`;
 
       const updatedTicket = db.prepare(`
         SELECT t.*, p.name as project_name, p.path as project_path
@@ -468,6 +455,7 @@ Returns:
 
       // Parse acceptance criteria from subtasks JSON
       let acceptanceCriteria = ["Complete the implementation as described"];
+      const parseWarnings = [];
       if (updatedTicket.subtasks) {
         try {
           const subtasks = JSON.parse(updatedTicket.subtasks);
@@ -476,7 +464,7 @@ Returns:
           }
         } catch (parseErr) {
           log.warn(`Failed to parse subtasks for ticket ${ticketId}:`, parseErr);
-          // Keep default criteria if parsing fails
+          parseWarnings.push(`Failed to parse acceptance criteria: ${parseErr.message}. Using defaults.`);
         }
       }
 
@@ -490,6 +478,7 @@ Returns:
           attachmentsList = JSON.parse(updatedTicket.attachments);
         } catch (parseErr) {
           log.warn(`Failed to parse attachments for ticket ${ticketId}:`, parseErr);
+          parseWarnings.push(`Failed to parse attachments list: ${parseErr.message}. Attachments will not be loaded.`);
         }
       }
 
@@ -503,10 +492,11 @@ Returns:
         attachmentsSection = `\n### Attachments\n${imageCount > 0 ? `- ${imageCount} image(s) included below\n` : ""}${textCount > 0 ? `- ${textCount} text/reference file(s) included below\n` : ""}`;
       }
 
-      // Add warnings section if any
+      // Add warnings section if any (combine parse warnings and attachment warnings)
+      const allWarnings = [...parseWarnings, ...attachmentWarnings];
       let warningsSection = "";
-      if (attachmentWarnings.length > 0) {
-        warningsSection = `\n### Attachment Warnings\n${attachmentWarnings.map(w => `- ${w}`).join("\n")}\n`;
+      if (allWarnings.length > 0) {
+        warningsSection = `\n### Warnings\n${allWarnings.map(w => `- ${w}`).join("\n")}\n`;
       }
 
       // Build the main text content block
@@ -644,9 +634,12 @@ Returns:
 
       // End any active conversation sessions for this ticket
       const sessionEndResult = endConversationSessions(db, ticketId);
-      const sessionEndInfo = sessionEndResult.sessionsEnded > 0
-        ? `### Conversation Sessions\n${sessionEndResult.sessionsEnded} session(s) ended (${sessionEndResult.messageCount || 0} messages logged)`
-        : "";
+      let sessionEndInfo = "";
+      if (!sessionEndResult.success) {
+        sessionEndInfo = `### Conversation Sessions\n**Warning:** Failed to end sessions: ${sessionEndResult.error}`;
+      } else if (sessionEndResult.sessionsEnded > 0) {
+        sessionEndInfo = `### Conversation Sessions\n${sessionEndResult.sessionsEnded} session(s) ended (${sessionEndResult.messageCount || 0} messages logged)`;
+      }
 
       // Suggest next ticket
       const nextTicketSuggestion = suggestNextTicket(ticket.project_path, ticketId);
