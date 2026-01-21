@@ -513,3 +513,47 @@ PRD_COMPLETE
   - role="group" with aria-label on view toggle button group
 - **Note:** Many components already had good ARIA support (Toast, Modal, TabNav, etc.)
 - **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1339 passed)
+
+
+### 2026-01-21 - Ticket 105 Complete (Focus Indicators)
+- **Ticket ID:** 0051e530-bfc3-4bac-b011-cf50c6031a98
+- **Task:** Add visible focus indicators with WCAG AA contrast
+- **Success:** true
+- **Commit:** 172e4be
+- **Files:**
+  - src/styles/variables.css (NEW: focus ring CSS variables)
+  - src/styles.css (NEW: global :focus-visible rules)
+  - 12 component files (removed old inconsistent Tailwind focus classes)
+- **Features:**
+  - CSS custom properties for focus styling (--focus-ring-color, --focus-ring-width, --focus-ring-offset)
+  - Global :focus-visible styles for all interactive elements (buttons, links, inputs)
+  - :focus-visible instead of :focus (shows only for keyboard navigation)
+  - Theme-aware focus colors (adapts to Ember/Mint/Solar accent colors)
+  - Contrast ratio meets WCAG AA 3:1 requirement against dark backgrounds
+  - Removed inconsistent focus:ring-cyan-500 Tailwind classes from 12 components
+- **Components Updated:**
+  - AppLayout, NewTicketModal, TicketModal, EpicModal, ProjectModal
+  - GeneralTab, RalphTab, GitTab, EnterpriseTab
+  - CreateEpicModal, DirectoryPicker, DockerRuntimeBadge
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1359 passed)
+
+
+### 2026-01-21 - Ticket 107 Complete (Reduced Motion Support)
+- **Ticket ID:** 1505fbc2-f78a-41db-91ec-8b5e5c2ceb2b
+- **Task:** Add reduced motion support for animations
+- **Success:** true
+- **Commit:** ef781bc
+- **Files:**
+  - src/styles.css (NEW: @media prefers-reduced-motion rules)
+  - src/styles/variables.css (NEW: animation duration custom properties)
+- **Features:**
+  - Global animation/transition duration reduction to 0.01ms with !important
+  - Disabled decorative animations (pulse, glow, slide-in, ping)
+  - Kept loading spinners functional but faster (0.5s)
+  - Preserved static glow for AI-active indication
+  - Disabled smooth scrolling in reduced motion mode
+  - Specific handling for [data-glow="true"] cards
+- **WCAG 2.1 AA Compliance:**
+  - Success Criterion 2.3.3 (Animation from Interactions)
+  - Users with vestibular disorders can use app comfortably
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1359 passed)

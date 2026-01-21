@@ -405,7 +405,7 @@
     {
       "id": "0051e530-bfc3-4bac-b011-cf50c6031a98",
       "title": "105 - Add visible focus indicators with WCAG AA contrast",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -433,7 +433,7 @@
     {
       "id": "bfb69644-0c7b-4a12-831c-7a45e25a4644",
       "title": "106 - Add skip-to-content link for keyboard users",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -460,7 +460,7 @@
     {
       "id": "1505fbc2-f78a-41db-91ec-8b5e5c2ceb2b",
       "title": "107 - Add reduced motion support for animations",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
