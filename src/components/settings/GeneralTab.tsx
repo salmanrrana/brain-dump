@@ -1,5 +1,6 @@
-import { ChevronDown, Check, Terminal, FolderPlus, Folder } from "lucide-react";
+import { ChevronDown, Check, Terminal, FolderPlus, Folder, Palette } from "lucide-react";
 import { SUPPORTED_TERMINALS } from "../../api/settings";
+import { ThemeSwitcher } from "../../components-v2/ui/ThemeSwitcher";
 
 // =============================================================================
 // TYPES
@@ -62,6 +63,28 @@ export function GeneralTab({
       style={{ display: isActive ? "block" : "none" }}
     >
       <div className="space-y-6">
+        {/* Appearance Section */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Palette size={18} className="text-[var(--accent-primary)]" />
+            <h3 className="text-sm font-semibold text-gray-100 uppercase tracking-wide">
+              Appearance
+            </h3>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-400 mb-2">Theme</label>
+            <div className="flex items-center gap-4">
+              <ThemeSwitcher />
+              <span className="text-xs text-slate-500">Click a color to switch themes</span>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              Choose between Ember (orange), Mint (green), or Solar (gold) accent colors. Your
+              preference is saved automatically.
+            </p>
+          </div>
+        </div>
+
         {/* Projects Section */}
         <div>
           <div className="flex items-center gap-2 mb-3">
