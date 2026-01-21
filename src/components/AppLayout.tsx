@@ -7,7 +7,7 @@ import {
   useRef,
   useCallback,
 } from "react";
-import { Search, LayoutGrid, List, X, Loader2, Settings, RefreshCw } from "lucide-react";
+import { Search, LayoutGrid, List, X, Loader2, Settings, RefreshCw, Menu } from "lucide-react";
 import ProjectTree from "./ProjectTree";
 import ContainerStatusSection from "./ContainerStatusSection";
 import ContainerLogsModal from "./ContainerLogsModal";
@@ -81,6 +81,11 @@ interface AppState {
 
   // Epic deletion
   onDeleteEpic: (epic: Epic) => void;
+
+  // Mobile menu
+  isMobileMenuOpen: boolean;
+  openMobileMenu: () => void;
+  closeMobileMenu: () => void;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -171,6 +176,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [ticketRefreshKey, setTicketRefreshKey] = useState(0);
   const [selectedTicketIdFromSearch, setSelectedTicketIdFromSearch] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Get invalidate queries helper
   const { invalidateAll } = useInvalidateQueries();
@@ -291,6 +297,15 @@ export default function AppLayout({ children }: AppLayoutProps) {
     setSelectedTicketIdFromSearch(null);
   }, []);
 
+  // Mobile menu handlers
+  const openMobileMenu = useCallback(() => {
+    setIsMobileMenuOpen(true);
+  }, []);
+
+  const closeMobileMenu = useCallback(() => {
+    setIsMobileMenuOpen(false);
+  }, []);
+
   // Focus search input callback for keyboard shortcut
   const handleFocusSearch = useCallback(() => {
     const searchInput = document.querySelector(
@@ -348,13 +363,42 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
     // Epic deletion
     onDeleteEpic: handleDeleteEpicClick,
+
+    // Mobile menu
+    isMobileMenuOpen,
+    openMobileMenu,
+    closeMobileMenu,
   };
 
   return (
     <AppContext.Provider value={appState}>
-      <div className="h-screen grid grid-cols-[256px_1fr] text-gray-100">
-        {/* Sidebar - 256px (w-64 equivalent) */}
-        <Sidebar />
+      {/* Desktop: grid with sidebar | Mobile: single column */}
+      <div className="h-screen grid grid-cols-1 md:grid-cols-[256px_1fr] text-gray-100">
+        {/* Desktop sidebar - hidden on mobile */}
+        <div className="hidden md:block">
+          <Sidebar />
+        </div>
+
+        {/* Mobile sidebar overlay */}
+        {isMobileMenuOpen && (
+          <div className="fixed inset-0 z-50 md:hidden">
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/60"
+              onClick={closeMobileMenu}
+              aria-hidden="true"
+            />
+            {/* Slide-out menu */}
+            <div
+              className="absolute top-0 left-0 bottom-0 w-[280px] bg-slate-900 shadow-xl transform transition-transform duration-200 ease-out animate-slide-in-left"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Mobile navigation menu"
+            >
+              <Sidebar onItemClick={closeMobileMenu} />
+            </div>
+          </div>
+        )}
 
         {/* Main content area - takes remaining space */}
         <div className="flex flex-col min-w-0 overflow-hidden">
@@ -427,6 +471,7 @@ function AppHeader() {
     onSelectTicketFromSearch,
     refreshAllData,
     isRefreshing,
+    openMobileMenu,
   } = useAppState();
   const { query, results, loading, search, clearSearch } = useSearch(filters.projectId);
   const [showResults, setShowResults] = useState(false);
@@ -459,6 +504,15 @@ function AppHeader() {
 
   return (
     <header className="h-14 bg-slate-900 border-b border-slate-800 flex items-center px-4 gap-4">
+      {/* Mobile hamburger menu button - only visible on mobile */}
+      <button
+        onClick={openMobileMenu}
+        className="md:hidden p-2 text-slate-400 hover:text-gray-100 hover:bg-slate-800 rounded-lg transition-colors"
+        aria-label="Open navigation menu"
+      >
+        <Menu size={20} aria-hidden="true" />
+      </button>
+
       {/* Search */}
       <div className="flex-1 max-w-md" ref={searchRef}>
         <div className="relative">
@@ -601,7 +655,12 @@ function AppHeader() {
   );
 }
 
-function Sidebar() {
+interface SidebarProps {
+  /** Optional callback when a navigation item is clicked (for mobile menu close) */
+  onItemClick?: () => void;
+}
+
+function Sidebar({ onItemClick }: SidebarProps = {}) {
   const { projects, loading, error } = useProjects();
   const {
     filters,
@@ -668,11 +727,13 @@ function Sidebar() {
 
   const handleSelectProject = (projectId: string | null) => {
     setProjectId(projectId);
+    onItemClick?.();
   };
 
   const handleSelectEpic = (epicId: string | null, projectId: string) => {
     // When selecting an epic, also set the project context
     setEpicId(epicId, projectId);
+    onItemClick?.();
   };
 
   const handleAddProject = () => {
@@ -693,7 +754,7 @@ function Sidebar() {
 
   return (
     <aside
-      className="flex flex-col"
+      className="flex flex-col h-full"
       style={{
         backgroundColor: "var(--bg-secondary)",
         borderRight: "1px solid var(--border-primary)",

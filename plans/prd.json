@@ -208,7 +208,7 @@
     {
       "id": "e45db2cd-006e-4412-9be3-3b35971bce51",
       "title": "98 - Add keyboard navigation to IconSidebar",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],

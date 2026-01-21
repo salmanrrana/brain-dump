@@ -155,6 +155,32 @@
 }
 
 /* ============================================
+   ANIMATIONS
+   ============================================ */
+
+/* Slide in from left - for mobile sidebar */
+@keyframes slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left var(--animation-duration-normal) ease-out;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .animate-slide-in-left {
+    animation: none;
+    transform: translateX(0);
+  }
+}
+
+/* ============================================
    MINT THEME (Emerald)
    ============================================ */
 [data-theme="mint"] {
