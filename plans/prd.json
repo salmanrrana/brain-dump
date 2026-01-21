@@ -11,7 +11,7 @@
     {
       "id": "b89273d6-b4c6-4ea4-a5ce-e1d7a014b93f",
       "title": "Integrate IconSidebar into AppLayout",
-      "passes": false,
+      "passes": true,
       "overview": "Replace the current ProjectTree left sidebar with IconSidebar (64px) and move ProjectTree into an expandable ProjectsPanel.",
       "types": [],
       "designDecisions": [],
@@ -38,7 +38,7 @@
     {
       "id": "fccfc84f-29be-4fba-9ffc-0295801c55fc",
       "title": "Update Header to use theme CSS variables",
-      "passes": false,
+      "passes": true,
       "overview": "Replace all hardcoded colors in the header section with theme CSS variables.",
       "types": [],
       "designDecisions": [],
@@ -64,7 +64,7 @@
     {
       "id": "c9962d74-99d5-4f12-b2a9-fbcffc1e0dc5",
       "title": "Add ThemeSwitcher to Settings or Header",
-      "passes": false,
+      "passes": true,
       "overview": "Add the ThemeSwitcher component to the UI so users can switch between themes.",
       "types": [],
       "designDecisions": [],
@@ -93,7 +93,7 @@
     {
       "id": "156d67a1-26e4-4d56-89fe-13cfbcfb7dab",
       "title": "Update ProjectsPanel to match mockup design",
-      "passes": false,
+      "passes": true,
       "overview": "Style the slide-out projects panel to match the `combined-navigation-demo.html` mockup design.",
       "types": [],
       "designDecisions": [],
@@ -120,7 +120,7 @@
     {
       "id": "e44a4152-9fca-47af-adfb-863c42e11c60",
       "title": "Update KanbanBoard and KanbanColumn colors",
-      "passes": false,
+      "passes": true,
       "overview": "Replace hardcoded colors in KanbanBoard and KanbanColumn with CSS variables.",
       "types": [],
       "designDecisions": [],
@@ -147,7 +147,7 @@
     {
       "id": "5930b651-0e7a-496e-806d-f5f3c5ef00fe",
       "title": "Update TicketCard with theme styling",
-      "passes": false,
+      "passes": true,
       "overview": "Apply gradient borders, glow effects, and theme colors to ticket cards.",
       "types": [],
       "designDecisions": [],
@@ -174,7 +174,7 @@
     {
       "id": "f63134b4-4313-45a6-8bc4-ca7d4c931b6e",
       "title": "Update all Modal components with theme styling",
-      "passes": false,
+      "passes": true,
       "overview": "Apply consistent theme colors to all modal components.",
       "types": [],
       "designDecisions": [],
