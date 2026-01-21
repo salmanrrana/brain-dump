@@ -1,6 +1,6 @@
-import { ChevronDown, Check, Terminal, FolderPlus, Folder } from "lucide-react";
+import { ChevronDown, Terminal, FolderPlus, Folder } from "lucide-react";
 import { SUPPORTED_TERMINALS } from "../../api/settings";
-import { sectionHeaderStyles, fieldStyles, inputStyles, statusCardStyles } from "./settingsStyles";
+import { sectionHeaderStyles, fieldStyles, inputStyles } from "./settingsStyles";
 
 // =============================================================================
 // TYPES
@@ -124,7 +124,7 @@ export function GeneralTab({
                 className={inputStyles.select}
               >
                 <option value="auto">Auto-detect</option>
-                <option value="claude-code">Claude Code</option>
+                <option value="claude-code">Claude Code (Recommended)</option>
                 <option value="vscode">VS Code</option>
                 <option value="opencode">OpenCode</option>
               </select>
@@ -175,26 +175,6 @@ export function GeneralTab({
               fall back to other installed terminals.
             </p>
           </div>
-
-          {/* Available Terminals Info */}
-          {availableTerminals.length > 0 && (
-            <div className={statusCardStyles.container}>
-              <p className="text-xs font-semibold text-[var(--text-secondary)] mb-3">
-                Detected terminals on your system:
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {availableTerminals.map((terminal) => (
-                  <span
-                    key={terminal}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-primary)] border border-[var(--border-primary)] rounded-lg text-xs text-[var(--text-secondary)]"
-                  >
-                    <Check size={12} className="text-[var(--status-success)]" />
-                    {terminal}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
