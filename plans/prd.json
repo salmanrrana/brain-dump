@@ -92,7 +92,7 @@
     {
       "id": "6a505a56-0c0a-4ef5-b019-2d41a42c5fd4",
       "title": "78 - Create TicketDescription component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -226,7 +226,7 @@
     {
       "id": "dac4013c-44ae-4b15-8d4a-905f0e46e207",
       "title": "83 - Create EditProjectModal",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -254,7 +254,7 @@
     {
       "id": "2faf1fbf-1352-4106-8712-11d19ba7ff80",
       "title": "84 - Create ColorPicker component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
