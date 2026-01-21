@@ -11,7 +11,7 @@
     {
       "id": "6cd0fd59-89fa-4e21-89e4-7482b38766f7",
       "title": "91 - Create SettingsModal with tabbed navigation",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -39,7 +39,7 @@
     {
       "id": "d5dd56f8-e9a3-4bd7-b672-40fffbacde47",
       "title": "92 - Create TabNav component for settings",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -68,7 +68,7 @@
     {
       "id": "cdf9add3-545b-4381-8ca4-d753c2a7249c",
       "title": "93 - Create GeneralTab settings component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -96,7 +96,7 @@
     {
       "id": "82d40cff-30a0-44a1-b020-d1d016554290",
       "title": "94 - Create RalphTab settings component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -124,7 +124,7 @@
     {
       "id": "898b1b12-60f2-4287-8d96-cf1c6333beee",
       "title": "95 - Create GitTab settings component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -151,7 +151,7 @@
     {
       "id": "21dbe03e-d9a7-40a2-8678-ae1e9fe7b434",
       "title": "96 - Create EnterpriseTab settings component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -179,7 +179,7 @@
     {
       "id": "9de9a2a6-ce9e-4ca2-ae4a-08d86fb6e236",
       "title": "97 - Create global keyboard shortcuts hook",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -236,7 +236,7 @@
     {
       "id": "76e1c65a-c8e3-429b-93e0-624eed12c822",
       "title": "99 - Add keyboard navigation to KanbanBoard",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -265,7 +265,7 @@
     {
       "id": "24cbb8fe-563d-4fe0-82b1-3d0992591b55",
       "title": "100 - Create ShortcutsModal component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -293,7 +293,7 @@
     {
       "id": "80b25268-15dc-44d8-a9b6-6d1610c7ef9e",
       "title": "101 - Add mobile sidebar with hamburger menu",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -322,7 +322,7 @@
     {
       "id": "062325ad-7287-4d48-a2ae-d9ac17760d07",
       "title": "102 - Add responsive board with horizontal scroll",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -351,7 +351,7 @@
     {
       "id": "42b951fe-b4b0-472b-8427-6ca421f01a09",
       "title": "103 - Add responsive full-screen modals on mobile",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -379,7 +379,7 @@
     {
       "id": "4f20d75f-7826-41a9-a4ad-bbf10e5b4012",
       "title": "104 - Add ARIA labels to all interactive elements",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -405,7 +405,7 @@
     {
       "id": "0051e530-bfc3-4bac-b011-cf50c6031a98",
       "title": "105 - Add visible focus indicators with WCAG AA contrast",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -433,7 +433,7 @@
     {
       "id": "bfb69644-0c7b-4a12-831c-7a45e25a4644",
       "title": "106 - Add skip-to-content link for keyboard users",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -460,7 +460,7 @@
     {
       "id": "1505fbc2-f78a-41db-91ec-8b5e5c2ceb2b",
       "title": "107 - Add reduced motion support for animations",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -612,7 +612,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-21T17:22:10.905Z",
+  "generatedAt": "2026-01-21T17:50:32.468Z",
   "epicTitle": "UI v2 Sprint 6: Settings & Polish",
   "epicDescription": "Build settings pages, Ralph configuration UI, keyboard shortcuts help, theme persistence, animations polish, and accessibility improvements."
 }
