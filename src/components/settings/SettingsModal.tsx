@@ -12,6 +12,7 @@ import DirectoryPicker from "../DirectoryPicker";
 import { TabNav, type Tab } from "./TabNav";
 import { GeneralTab } from "./GeneralTab";
 import { RalphTab } from "./RalphTab";
+import { GitTab } from "./GitTab";
 
 // =============================================================================
 // TYPES
@@ -264,55 +265,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     error: buildImageMutation.error instanceof Error ? buildImageMutation.error : null,
   };
 
-  const renderGitTab = () => (
-    <div
-      id="tabpanel-git"
-      role="tabpanel"
-      aria-labelledby="tab-git"
-      style={{ display: activeTab === "git" ? "block" : "none" }}
-    >
-      <div className="space-y-6">
-        {/* Auto-create PR Toggle */}
-        <div className="flex items-center justify-between py-2">
-          <div>
-            <label className="block text-sm font-medium text-slate-300">
-              Auto-create Pull Request
-            </label>
-            <p className="text-xs text-slate-500">Create a PR when Claude/Ralph completes work</p>
-          </div>
-          <button
-            onClick={() => setAutoCreatePr(!autoCreatePr)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              autoCreatePr ? "bg-green-600" : "bg-slate-700"
-            }`}
-            role="switch"
-            aria-checked={autoCreatePr}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                autoCreatePr ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
-          </button>
-        </div>
-
-        {/* PR Target Branch */}
-        <div>
-          <label className="block text-sm font-medium text-slate-400 mb-1">PR Target Branch</label>
-          <input
-            type="text"
-            value={prTargetBranch}
-            onChange={(e) => setPrTargetBranch(e.target.value)}
-            placeholder="dev"
-            className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
-          />
-          <p className="mt-1 text-xs text-slate-500">
-            Feature branches will target this branch for PRs (typically "dev" or "main")
-          </p>
-        </div>
-      </div>
-    </div>
-  );
+  // GitTab is now a separate component
 
   const renderEnterpriseTab = () => (
     <div
@@ -460,7 +413,13 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                 buildImageState={buildImageState}
                 onBuildImage={handleBuildImage}
               />
-              {renderGitTab()}
+              <GitTab
+                isActive={activeTab === "git"}
+                autoCreatePr={autoCreatePr}
+                onAutoCreatePrChange={setAutoCreatePr}
+                prTargetBranch={prTargetBranch}
+                onPrTargetBranchChange={setPrTargetBranch}
+              />
               {renderEnterpriseTab()}
             </>
           )}
