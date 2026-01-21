@@ -58,6 +58,7 @@ export function GeneralTab({
       id="tabpanel-general"
       role="tabpanel"
       aria-labelledby="tab-general"
+      hidden={!isActive}
       style={{ display: isActive ? "block" : "none" }}
     >
       <div className="space-y-6">
@@ -76,6 +77,7 @@ export function GeneralTab({
             </label>
             <button
               onClick={onBrowseDirectory}
+              aria-label="Select default projects directory"
               className="w-full flex items-center gap-3 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-left hover:border-slate-600  transition-colors"
             >
               <Folder size={18} className="text-amber-400 flex-shrink-0" />

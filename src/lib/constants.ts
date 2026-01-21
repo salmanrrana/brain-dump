@@ -22,6 +22,20 @@ export const STATUS_OPTIONS = [
   { value: "done", label: "Done" },
 ] as const;
 
+/**
+ * Status columns in display order for the Kanban board.
+ * Shared between KanbanBoard and keyboard navigation hook.
+ */
+export const COLUMN_STATUSES = [
+  "backlog",
+  "ready",
+  "in_progress",
+  "review",
+  "ai_review",
+  "human_review",
+  "done",
+] as const;
+
 // Priority options for ticket forms
 export const PRIORITY_OPTIONS = [
   { value: "", label: "None" },

@@ -233,8 +233,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const handleDeleteEpicClick = useCallback(async (epic: Epic) => {
     setDeleteEpicError(null);
     setEpicToDelete(epic);
+    setDeleteEpicPreview({});
 
-    // Fetch dry-run preview
+    // Fetch dry-run preview - don't allow deletion without preview
     try {
       const preview = await deleteEpicFn({ data: { epicId: epic.id, confirm: false } });
       if ("ticketsToUnlink" in preview) {
@@ -245,7 +246,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
       }
     } catch (error) {
       console.error("Failed to fetch delete preview:", error);
-      setDeleteEpicPreview({});
+      setDeleteEpicError(
+        error instanceof Error
+          ? `Could not load preview: ${error.message}`
+          : "Failed to load deletion preview. Please try again."
+      );
+      // Don't show modal without preview - close it
+      setEpicToDelete(null);
     }
   }, []);
 

@@ -13,6 +13,7 @@ import type { TicketStatus } from "../../api/tickets";
 import type { Ticket } from "../../lib/schema";
 import { useToast } from "../Toast";
 import { useBoardKeyboardNavigation } from "../../lib/use-board-keyboard-navigation";
+import { COLUMN_STATUSES } from "../../lib/constants";
 import {
   DndContext,
   DragOverlay,
@@ -52,18 +53,8 @@ export interface KanbanBoardProps {
   error?: string | null;
 }
 
-/**
- * Status columns in display order.
- */
-const COLUMNS: TicketStatus[] = [
-  "backlog",
-  "ready",
-  "in_progress",
-  "review",
-  "ai_review",
-  "human_review",
-  "done",
-];
+// Use shared constant from constants.ts
+const COLUMNS = COLUMN_STATUSES as unknown as TicketStatus[];
 
 /**
  * Human-readable labels for each status.

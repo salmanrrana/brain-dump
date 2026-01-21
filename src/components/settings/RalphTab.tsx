@@ -106,6 +106,7 @@ export function RalphTab({
       id="tabpanel-ralph"
       role="tabpanel"
       aria-labelledby="tab-ralph"
+      hidden={!isActive}
       style={{ display: isActive ? "block" : "none" }}
     >
       <div className="space-y-6">

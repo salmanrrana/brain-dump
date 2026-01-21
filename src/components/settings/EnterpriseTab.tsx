@@ -45,6 +45,7 @@ export function EnterpriseTab({
       id="tabpanel-enterprise"
       role="tabpanel"
       aria-labelledby="tab-enterprise"
+      hidden={!isActive}
       style={{ display: isActive ? "block" : "none" }}
     >
       <div className="space-y-6">

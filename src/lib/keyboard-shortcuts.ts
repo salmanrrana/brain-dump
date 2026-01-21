@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useMemo } from "react";
+import { isInputFocused } from "./keyboard-utils";
 
 /**
  * Definition of a keyboard shortcut for display in help modal
@@ -79,26 +80,7 @@ export const KEYBOARD_SHORTCUTS: ShortcutDefinition[] = [
   { key: "Escape", description: "Close modal", category: "modals" },
 ];
 
-/**
- * Check if the current focus is in an input-like element
- * where we should not trigger shortcuts
- */
-function isInputFocused(): boolean {
-  const target = document.activeElement;
-  if (!target) return false;
-
-  const tagName = (target as HTMLElement).tagName;
-  if (tagName === "INPUT" || tagName === "TEXTAREA") {
-    return true;
-  }
-
-  // Also check for contenteditable elements
-  if ((target as HTMLElement).isContentEditable) {
-    return true;
-  }
-
-  return false;
-}
+// isInputFocused imported from keyboard-utils.ts
 
 /**
  * Hook for global keyboard shortcuts.

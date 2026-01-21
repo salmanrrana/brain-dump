@@ -1,19 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Ticket } from "./schema";
 import type { TicketStatus } from "../api/tickets";
+import { COLUMN_STATUSES } from "./constants";
+import { isInputFocused } from "./keyboard-utils";
 
-/**
- * Status columns in display order - must match KanbanBoard COLUMNS
- */
-const COLUMNS: TicketStatus[] = [
-  "backlog",
-  "ready",
-  "in_progress",
-  "review",
-  "ai_review",
-  "human_review",
-  "done",
-];
+// Use shared constant from constants.ts
+const COLUMNS = COLUMN_STATUSES as unknown as TicketStatus[];
 
 interface UseBoardKeyboardNavigationConfig {
   /** Tickets grouped by status column */
@@ -39,24 +31,7 @@ interface UseBoardKeyboardNavigationReturn {
   handleCardFocus: (ticketId: string) => void;
 }
 
-/**
- * Check if the current focus is in an input-like element
- */
-function isInputFocused(): boolean {
-  const target = document.activeElement;
-  if (!target) return false;
-
-  const tagName = (target as HTMLElement).tagName;
-  if (tagName === "INPUT" || tagName === "TEXTAREA") {
-    return true;
-  }
-
-  if ((target as HTMLElement).isContentEditable) {
-    return true;
-  }
-
-  return false;
-}
+// isInputFocused imported from keyboard-utils.ts
 
 /**
  * Hook for roving tabindex keyboard navigation on the Kanban board.
@@ -95,8 +70,8 @@ export function useBoardKeyboardNavigation(
   const [focusedTicketId, setFocusedTicketId] = useState<string | null>(null);
   const cardRefs = useRef<Map<string, HTMLElement>>(new Map());
 
-  // Build a flat list of all tickets for navigation
-  const allTickets = useCallback(() => {
+  // Build a flat list of all tickets for navigation (useMemo caches the computed array)
+  const allTickets = useMemo(() => {
     const tickets: { ticket: Ticket; column: TicketStatus; index: number }[] = [];
     for (const column of COLUMNS) {
       const columnTickets = ticketsByStatus[column] ?? [];
@@ -140,7 +115,7 @@ export function useBoardKeyboardNavigation(
   const navigateUp = useCallback(() => {
     if (!focusedTicketId) {
       // Focus first ticket if nothing focused
-      const tickets = allTickets();
+      const tickets = allTickets;
       if (tickets.length > 0) {
         focusTicket(tickets[0]!.ticket.id);
       }
@@ -160,7 +135,7 @@ export function useBoardKeyboardNavigation(
   // Navigate down within the same column
   const navigateDown = useCallback(() => {
     if (!focusedTicketId) {
-      const tickets = allTickets();
+      const tickets = allTickets;
       if (tickets.length > 0) {
         focusTicket(tickets[0]!.ticket.id);
       }
@@ -181,7 +156,7 @@ export function useBoardKeyboardNavigation(
   const navigateToColumn = useCallback(
     (direction: "left" | "right") => {
       if (!focusedTicketId) {
-        const tickets = allTickets();
+        const tickets = allTickets;
         if (tickets.length > 0) {
           focusTicket(tickets[0]!.ticket.id);
         }
@@ -247,7 +222,7 @@ export function useBoardKeyboardNavigation(
         case "Home":
           e.preventDefault();
           {
-            const tickets = allTickets();
+            const tickets = allTickets;
             if (tickets.length > 0) {
               focusTicket(tickets[0]!.ticket.id);
             }
@@ -257,7 +232,7 @@ export function useBoardKeyboardNavigation(
         case "End":
           e.preventDefault();
           {
-            const tickets = allTickets();
+            const tickets = allTickets;
             if (tickets.length > 0) {
               focusTicket(tickets[tickets.length - 1]!.ticket.id);
             }
@@ -291,7 +266,7 @@ export function useBoardKeyboardNavigation(
 
   // Memoize the set of valid ticket IDs
   const validTicketIds = useMemo(() => {
-    return new Set(allTickets().map((t) => t.ticket.id));
+    return new Set(allTickets.map((t) => t.ticket.id));
   }, [allTickets]);
 
   // Compute effective focused ticket ID - if current focused doesn't exist, use null
@@ -308,7 +283,7 @@ export function useBoardKeyboardNavigation(
     (ticketId: string): 0 | -1 => {
       // If no ticket is focused, the first ticket should be focusable
       if (!effectiveFocusedTicketId) {
-        const tickets = allTickets();
+        const tickets = allTickets;
         if (tickets.length > 0 && tickets[0]!.ticket.id === ticketId) {
           return 0;
         }

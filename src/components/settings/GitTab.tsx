@@ -73,6 +73,7 @@ export function GitTab({
       id="tabpanel-git"
       role="tabpanel"
       aria-labelledby="tab-git"
+      hidden={!isActive}
       style={{ display: isActive ? "block" : "none" }}
     >
       <div className="space-y-6">

@@ -1,10 +1,6 @@
 import { useEffect, useRef, useCallback, type ReactNode, type CSSProperties } from "react";
 import { X } from "lucide-react";
 
-// =============================================================================
-// TYPES
-// =============================================================================
-
 export interface ModalProps {
   /** Whether the modal is open */
   isOpen: boolean;
@@ -22,10 +18,6 @@ export interface ModalProps {
   testId?: string;
 }
 
-// =============================================================================
-// CONSTANTS
-// =============================================================================
-
 const MAX_WIDTH_MAP: Record<NonNullable<ModalProps["maxWidth"]>, string> = {
   sm: "384px",
   md: "448px",
@@ -33,10 +25,6 @@ const MAX_WIDTH_MAP: Record<NonNullable<ModalProps["maxWidth"]>, string> = {
   xl: "576px",
   "2xl": "672px",
 };
-
-// =============================================================================
-// MODAL COMPONENT
-// =============================================================================
 
 /**
  * Modal - Reusable modal component with responsive full-screen mobile support.
@@ -231,10 +219,6 @@ export function Modal({
     </div>
   );
 }
-
-// =============================================================================
-// STYLES
-// =============================================================================
 
 const overlayStyles: CSSProperties = {
   position: "fixed",
