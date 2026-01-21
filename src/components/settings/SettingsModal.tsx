@@ -13,6 +13,7 @@ import { TabNav, type Tab } from "./TabNav";
 import { GeneralTab } from "./GeneralTab";
 import { RalphTab } from "./RalphTab";
 import { GitTab } from "./GitTab";
+import { EnterpriseTab } from "./EnterpriseTab";
 
 // =============================================================================
 // TYPES
@@ -265,78 +266,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     error: buildImageMutation.error instanceof Error ? buildImageMutation.error : null,
   };
 
-  // GitTab is now a separate component
-
-  const renderEnterpriseTab = () => (
-    <div
-      id="tabpanel-enterprise"
-      role="tabpanel"
-      aria-labelledby="tab-enterprise"
-      style={{ display: activeTab === "enterprise" ? "block" : "none" }}
-    >
-      <div className="space-y-6">
-        {/* Enable Logging Toggle */}
-        <div className="flex items-center justify-between py-2">
-          <div>
-            <label className="block text-sm font-medium text-slate-300">
-              Enable Conversation Logging
-            </label>
-            <p className="text-xs text-slate-500">
-              Record AI conversations for compliance auditing
-            </p>
-          </div>
-          <button
-            onClick={() => setConversationLoggingEnabled(!conversationLoggingEnabled)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              conversationLoggingEnabled ? "bg-amber-600" : "bg-slate-700"
-            }`}
-            role="switch"
-            aria-checked={conversationLoggingEnabled}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                conversationLoggingEnabled ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
-          </button>
-        </div>
-
-        {/* Retention Period */}
-        <div>
-          <label className="block text-sm font-medium text-slate-400 mb-1">
-            Retention Period (days)
-          </label>
-          <input
-            type="number"
-            min={7}
-            max={365}
-            value={conversationRetentionDays}
-            onChange={(e) => {
-              const value = parseInt(e.target.value, 10);
-              if (!isNaN(value)) {
-                setConversationRetentionDays(Math.max(7, Math.min(365, value)));
-              }
-            }}
-            className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
-            disabled={!conversationLoggingEnabled}
-          />
-          <p className="mt-1 text-xs text-slate-500">
-            Conversation logs older than this will be archived (7-365 days)
-          </p>
-        </div>
-
-        {conversationLoggingEnabled && (
-          <div className="p-3 bg-slate-800/50 rounded-lg">
-            <p className="text-xs text-slate-400">
-              <span className="text-amber-400 font-medium">Enterprise feature:</span> Conversation
-              logging creates an audit trail of all AI interactions for SOC2, GDPR, and ISO 27001
-              compliance.
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  // All tabs are now separate components
 
   // =============================================================================
   // MAIN RENDER
@@ -420,7 +350,13 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                 prTargetBranch={prTargetBranch}
                 onPrTargetBranchChange={setPrTargetBranch}
               />
-              {renderEnterpriseTab()}
+              <EnterpriseTab
+                isActive={activeTab === "enterprise"}
+                conversationLoggingEnabled={conversationLoggingEnabled}
+                onLoggingEnabledChange={setConversationLoggingEnabled}
+                conversationRetentionDays={conversationRetentionDays}
+                onRetentionDaysChange={setConversationRetentionDays}
+              />
             </>
           )}
         </div>
