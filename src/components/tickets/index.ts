@@ -15,4 +15,5 @@ export {
   type LaunchOption,
 } from "./LaunchActions";
 export { TicketDescription, type TicketDescriptionProps } from "./TicketDescription";
+export { TicketDetailHeader, type TicketDetailHeaderProps } from "./TicketDetailHeader";
 export { default } from "./CreateTicketModal";
