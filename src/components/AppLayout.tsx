@@ -362,7 +362,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           <AppHeader />
 
           {/* Content */}
-          <main id="main-content" className="flex-1 overflow-auto p-6">
+          <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto p-6">
             {children}
           </main>
         </div>

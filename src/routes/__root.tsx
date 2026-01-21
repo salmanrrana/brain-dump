@@ -69,6 +69,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="h-screen overflow-hidden">
+        {/* Skip to content link - appears first in DOM for keyboard users */}
+        <a href="#main-content" className="skip-to-content">
+          Skip to content
+        </a>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
             <ToastProvider>
