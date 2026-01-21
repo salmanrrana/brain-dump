@@ -208,7 +208,7 @@
     {
       "id": "e45db2cd-006e-4412-9be3-3b35971bce51",
       "title": "98 - Add keyboard navigation to IconSidebar",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -612,7 +612,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-21T15:15:13.986Z",
+  "generatedAt": "2026-01-21T17:22:10.905Z",
   "epicTitle": "UI v2 Sprint 6: Settings & Polish",
   "epicDescription": "Build settings pages, Ralph configuration UI, keyboard shortcuts help, theme persistence, animations polish, and accessibility improvements."
 }
