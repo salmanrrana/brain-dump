@@ -13,8 +13,8 @@ export interface ActivitySectionProps {
   ticketId: string;
   /** Whether to enable polling for new comments (default: 0 = disabled) */
   pollingInterval?: number;
-  /** Maximum height of the comments list in pixels (default: 300) */
-  maxHeight?: number;
+  /** Maximum height of the comments list in pixels (default: 300). Set to "none" for no limit. */
+  maxHeight?: number | "none";
   /** Test ID prefix for testing */
   testId?: string;
 }
@@ -109,8 +109,7 @@ export const ActivitySection: FC<ActivitySectionProps> = ({
     flexDirection: "column",
     gap: "var(--spacing-2)",
     padding: "var(--spacing-3)",
-    maxHeight: `${maxHeight}px`,
-    overflowY: "auto",
+    ...(maxHeight !== "none" && { maxHeight: `${maxHeight}px`, overflowY: "auto" as const }),
   };
 
   const emptyStyles: React.CSSProperties = {

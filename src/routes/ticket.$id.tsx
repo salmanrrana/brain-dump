@@ -431,7 +431,7 @@ function TicketDetailPage() {
         <ActivitySection
           ticketId={ticket.id}
           pollingInterval={ticket.status === "in_progress" ? POLLING_INTERVALS.COMMENTS_ACTIVE : 0}
-          maxHeight={600}
+          maxHeight="none"
           testId="ticket-detail-activity"
         />
       </section>
