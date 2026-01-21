@@ -101,7 +101,7 @@ function Dashboard() {
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <p className="text-slate-500">Loading dashboard...</p>
+        <p className="text-[var(--text-secondary)]">Loading dashboard...</p>
       </div>
     );
   }
@@ -109,7 +109,7 @@ function Dashboard() {
   if (error) {
     return (
       <div className="h-full flex items-center justify-center">
-        <p className="text-red-400">{error}</p>
+        <p className="text-[var(--accent-danger)]">{error}</p>
       </div>
     );
   }
