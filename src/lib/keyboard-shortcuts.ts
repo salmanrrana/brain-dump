@@ -66,6 +66,15 @@ export const KEYBOARD_SHORTCUTS: ShortcutDefinition[] = [
   { key: "3", description: "Toggle Projects", category: "navigation" },
   { key: "4", description: "Settings", category: "navigation" },
 
+  // Board navigation shortcuts
+  { key: "↑", description: "Move up in column", category: "board" },
+  { key: "↓", description: "Move down in column", category: "board" },
+  { key: "←", description: "Move to left column", category: "board" },
+  { key: "→", description: "Move to right column", category: "board" },
+  { key: "Enter", description: "Open ticket", category: "board" },
+  { key: "Home", description: "First ticket", category: "board" },
+  { key: "End", description: "Last ticket", category: "board" },
+
   // Modal shortcuts
   { key: "Escape", description: "Close modal", category: "modals" },
 ];

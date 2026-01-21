@@ -12,6 +12,7 @@ import { SortableTicketCard } from "./SortableTicketCard";
 import type { TicketStatus } from "../../api/tickets";
 import type { Ticket } from "../../lib/schema";
 import { useToast } from "../Toast";
+import { useBoardKeyboardNavigation } from "../../lib/use-board-keyboard-navigation";
 import {
   DndContext,
   DragOverlay,
@@ -203,6 +204,19 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
     return grouped;
   }, [tickets]);
 
+  // Keyboard navigation hook (after ticketsByStatus is defined)
+  const {
+    focusedTicketId,
+    handleKeyDown: handleBoardKeyDown,
+    getTabIndex,
+    registerCardRef,
+    handleCardFocus,
+  } = useBoardKeyboardNavigation({
+    ticketsByStatus,
+    onTicketSelect: onTicketClick,
+    disabled: !!activeTicket, // Disable keyboard nav while dragging
+  });
+
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
       const ticket = tickets.find((t) => t.id === event.active.id);
@@ -343,6 +357,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
         role="region"
         aria-label="Kanban board"
         data-testid="kanban-board"
+        onKeyDown={handleBoardKeyDown}
       >
         <div style={columnsContainerStyles}>
           {COLUMNS.map((status) => {
@@ -368,6 +383,10 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
                       ticket={ticket}
                       onClick={onTicketClick && (() => onTicketClick(ticket))}
                       ralphSession={getRalphSession?.(ticket.id) ?? null}
+                      tabIndex={getTabIndex(ticket.id)}
+                      isFocused={focusedTicketId === ticket.id}
+                      registerRef={registerCardRef(ticket.id)}
+                      onFocus={() => handleCardFocus(ticket.id)}
                     />
                   ))}
                 </SortableContext>
