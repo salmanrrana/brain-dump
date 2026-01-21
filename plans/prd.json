@@ -147,7 +147,7 @@
     {
       "id": "446fa3d4-4141-4104-91d3-35be7f7e558a",
       "title": "80 - Create RelatedTickets panel",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],

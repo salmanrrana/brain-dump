@@ -16,4 +16,5 @@ export {
 } from "./LaunchActions";
 export { TicketDescription, type TicketDescriptionProps } from "./TicketDescription";
 export { TicketDetailHeader, type TicketDetailHeaderProps } from "./TicketDetailHeader";
+export { RelatedTickets, type RelatedTicketsProps } from "./RelatedTickets";
 export { default } from "./CreateTicketModal";
