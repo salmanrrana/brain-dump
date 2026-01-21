@@ -1,9 +1,23 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useState, useCallback } from "react";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import { getTicket } from "../api/tickets";
+import { getTicketContext } from "../api/context";
+import { launchClaudeInTerminal, launchOpenCodeInTerminal } from "../api/terminal";
 import { ActivitySection } from "../components/tickets/ActivitySection";
+import { TicketDetailHeader } from "../components/tickets/TicketDetailHeader";
+import { EditTicketModal } from "../components/tickets/EditTicketModal";
+import { type LaunchType } from "../components/tickets/LaunchActions";
 import { POLLING_INTERVALS } from "../lib/constants";
+import {
+  useProjects,
+  useSettings,
+  useLaunchRalphForTicket,
+  type Ticket,
+  type Epic,
+} from "../lib/hooks";
+import { useToast } from "../components/Toast";
 
 export const Route = createFileRoute("/ticket/$id")({
   component: TicketDetailPage,
@@ -178,18 +192,145 @@ function TicketDetailSkeleton() {
  */
 function TicketDetailPage() {
   const { id } = useParams({ from: "/ticket/$id" });
+  const { showToast } = useToast();
+  const { projects } = useProjects();
+  const { settings } = useSettings();
+  const launchRalphMutation = useLaunchRalphForTicket();
+
+  // Modal and launch state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [isLaunching, setIsLaunching] = useState(false);
+  const [launchingType, setLaunchingType] = useState<LaunchType | null>(null);
 
   // Fetch ticket data
   const {
     data: ticket,
     isLoading,
     error,
+    refetch,
   } = useQuery({
     queryKey: ["ticket", id],
     queryFn: () => getTicket({ data: id }),
     // Ticket could be updated externally via MCP
     staleTime: 0,
   });
+
+  // Find the epic for this ticket
+  const epic: Epic | null = ticket
+    ? (projects.flatMap((p) => p.epics).find((e) => e.id === ticket.epicId) ?? null)
+    : null;
+
+  // Handle edit button click
+  const handleEdit = useCallback(() => {
+    setShowEditModal(true);
+  }, []);
+
+  // Handle edit modal close
+  const handleEditClose = useCallback(() => {
+    setShowEditModal(false);
+  }, []);
+
+  // Handle edit success - refetch ticket data
+  const handleEditSuccess = useCallback(() => {
+    void refetch();
+    setShowEditModal(false);
+  }, [refetch]);
+
+  // Handle launch action - launches Claude, OpenCode, or Ralph
+  const handleLaunch = useCallback(
+    async (type: LaunchType) => {
+      if (!ticket) return;
+
+      setIsLaunching(true);
+      setLaunchingType(type);
+
+      try {
+        // Get ticket context for all launch types
+        const contextResult = await getTicketContext({ data: ticket.id });
+
+        if (type === "claude") {
+          // Launch Claude in terminal
+          const launchResult = await launchClaudeInTerminal({
+            data: {
+              ticketId: ticket.id,
+              context: contextResult.context,
+              projectPath: contextResult.projectPath,
+              preferredTerminal: settings?.terminalEmulator ?? null,
+              projectName: contextResult.projectName,
+              epicName: contextResult.epicName,
+              ticketTitle: contextResult.ticketTitle,
+            },
+          });
+
+          // Show warnings if any
+          if (launchResult.warnings) {
+            launchResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          if (launchResult.success) {
+            showToast("success", `Claude launched in ${launchResult.terminalUsed}`);
+            void refetch(); // Refetch to show updated status
+          } else {
+            showToast("error", launchResult.message);
+          }
+        } else if (type === "opencode") {
+          // Launch OpenCode in terminal
+          const launchResult = await launchOpenCodeInTerminal({
+            data: {
+              ticketId: ticket.id,
+              context: contextResult.context,
+              projectPath: contextResult.projectPath,
+              preferredTerminal: settings?.terminalEmulator ?? null,
+              projectName: contextResult.projectName,
+              epicName: contextResult.epicName,
+              ticketTitle: contextResult.ticketTitle,
+            },
+          });
+
+          // Show warnings if any
+          if (launchResult.warnings) {
+            launchResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          if (launchResult.success) {
+            showToast("success", `OpenCode launched in ${launchResult.terminalUsed}`);
+            void refetch();
+          } else {
+            showToast("error", launchResult.message);
+          }
+        } else if (type === "ralph-native") {
+          // Launch Ralph in native mode
+          const result = await launchRalphMutation.mutateAsync({
+            ticketId: ticket.id,
+            preferredTerminal: settings?.terminalEmulator ?? null,
+            useSandbox: false,
+            aiBackend: "claude",
+          });
+
+          // Show warnings if any
+          if ("warnings" in result && result.warnings) {
+            (result.warnings as string[]).forEach((warning) => showToast("info", warning));
+          }
+
+          if (result.success) {
+            showToast("success", result.message);
+            void refetch();
+          } else {
+            showToast("error", result.message);
+          }
+        }
+        // ralph-docker is disabled in LaunchActions, so no handler needed
+      } catch (err) {
+        console.error("Failed to launch:", err);
+        const message = err instanceof Error ? err.message : "An unexpected error occurred";
+        showToast("error", `Failed to launch: ${message}`);
+      } finally {
+        setIsLaunching(false);
+        setLaunchingType(null);
+      }
+    },
+    [ticket, settings?.terminalEmulator, showToast, launchRalphMutation, refetch]
+  );
 
   // Show loading skeleton
   if (isLoading) {
@@ -221,9 +362,6 @@ function TicketDetailPage() {
     : [];
   const completedCount = subtasks.filter((s) => s.completed).length;
 
-  // Parse tags if present
-  const tags = ticket.tags ? (JSON.parse(ticket.tags) as string[]) : [];
-
   return (
     <div style={containerStyles}>
       {/* Back Navigation */}
@@ -232,37 +370,15 @@ function TicketDetailPage() {
         Back to Board
       </Link>
 
-      {/* Header Section */}
-      <header style={headerSectionStyles}>
-        <h1 style={titleStyles}>{ticket.title}</h1>
-        <div style={badgesContainerStyles}>
-          {/* Status Badge */}
-          <span style={{ ...badgeStyles, ...getStatusBadgeStyle(ticket.status) }}>
-            {formatStatus(ticket.status)}
-          </span>
-
-          {/* Priority Badge */}
-          {ticket.priority && (
-            <span style={{ ...badgeStyles, ...getPriorityBadgeStyle(ticket.priority) }}>
-              {ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1)}
-            </span>
-          )}
-
-          {/* Tags */}
-          {tags.map((tag) => (
-            <span key={tag} style={tagBadgeStyles}>
-              {tag}
-            </span>
-          ))}
-        </div>
-
-        {/* Action buttons placeholder - will be implemented by TicketDetailHeader component */}
-        <div style={actionsContainerStyles}>
-          <Link to="/" style={actionButtonStyles} search={{ ticketId: id }}>
-            Edit
-          </Link>
-        </div>
-      </header>
+      {/* Header Section - using TicketDetailHeader component */}
+      <TicketDetailHeader
+        ticket={ticket as Ticket}
+        epic={epic}
+        onEdit={handleEdit}
+        onLaunch={handleLaunch}
+        isLaunching={isLaunching}
+        launchingType={launchingType}
+      />
 
       {/* Content Grid */}
       <div style={contentGridStyles}>
@@ -333,50 +449,16 @@ function TicketDetailPage() {
           <span>Completed: {new Date(ticket.completedAt).toLocaleString()}</span>
         )}
       </footer>
+
+      {/* Edit Modal */}
+      <EditTicketModal
+        key={ticket.id}
+        isOpen={showEditModal}
+        onClose={handleEditClose}
+        ticket={ticket as Ticket}
+        onSuccess={handleEditSuccess}
+      />
     </div>
-  );
-}
-
-// =============================================================================
-// Helper Functions
-// =============================================================================
-
-function formatStatus(status: string): string {
-  const statusLabels: Record<string, string> = {
-    backlog: "Backlog",
-    ready: "Ready",
-    in_progress: "In Progress",
-    review: "Review",
-    ai_review: "AI Review",
-    human_review: "Human Review",
-    done: "Done",
-  };
-  return statusLabels[status] ?? status;
-}
-
-function getStatusBadgeStyle(status: string): React.CSSProperties {
-  const styles: Record<string, React.CSSProperties> = {
-    backlog: { background: "var(--color-slate-700)", color: "var(--color-slate-200)" },
-    ready: { background: "var(--color-blue-900)", color: "var(--color-blue-200)" },
-    in_progress: { background: "var(--color-yellow-900)", color: "var(--color-yellow-200)" },
-    review: { background: "var(--color-purple-900)", color: "var(--color-purple-200)" },
-    ai_review: { background: "var(--color-cyan-900)", color: "var(--color-cyan-200)" },
-    human_review: { background: "var(--color-orange-900)", color: "var(--color-orange-200)" },
-    done: { background: "var(--color-green-900)", color: "var(--color-green-200)" },
-  };
-  return (
-    styles[status] ?? { background: "var(--color-slate-700)", color: "var(--color-slate-200)" }
-  );
-}
-
-function getPriorityBadgeStyle(priority: string): React.CSSProperties {
-  const styles: Record<string, React.CSSProperties> = {
-    high: { background: "var(--color-red-900)", color: "var(--color-red-200)" },
-    medium: { background: "var(--color-yellow-900)", color: "var(--color-yellow-200)" },
-    low: { background: "var(--color-green-900)", color: "var(--color-green-200)" },
-  };
-  return (
-    styles[priority] ?? { background: "var(--color-slate-700)", color: "var(--color-slate-200)" }
   );
 }
 
@@ -418,58 +500,6 @@ const headerSectionStyles: React.CSSProperties = {
   gap: "var(--spacing-3)",
   paddingBottom: "var(--spacing-4)",
   borderBottom: "1px solid var(--border-primary)",
-};
-
-const titleStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-2xl)",
-  fontWeight: "var(--font-weight-bold)" as React.CSSProperties["fontWeight"],
-  color: "var(--text-primary)",
-  margin: 0,
-  lineHeight: 1.3,
-};
-
-const badgesContainerStyles: React.CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: "var(--spacing-2)",
-  alignItems: "center",
-};
-
-const badgeStyles: React.CSSProperties = {
-  padding: "var(--spacing-1) var(--spacing-3)",
-  borderRadius: "var(--radius-full)",
-  fontSize: "var(--font-size-xs)",
-  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-};
-
-const tagBadgeStyles: React.CSSProperties = {
-  padding: "var(--spacing-1) var(--spacing-2)",
-  borderRadius: "var(--radius-sm)",
-  fontSize: "var(--font-size-xs)",
-  background: "var(--bg-tertiary)",
-  color: "var(--text-secondary)",
-};
-
-const actionsContainerStyles: React.CSSProperties = {
-  display: "flex",
-  gap: "var(--spacing-2)",
-  marginTop: "var(--spacing-2)",
-};
-
-const actionButtonStyles: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "var(--spacing-2)",
-  padding: "var(--spacing-2) var(--spacing-4)",
-  borderRadius: "var(--radius-md)",
-  fontSize: "var(--font-size-sm)",
-  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-  color: "var(--text-primary)",
-  background: "var(--bg-tertiary)",
-  border: "1px solid var(--border-primary)",
-  textDecoration: "none",
-  cursor: "pointer",
-  transition: "background-color 0.15s",
 };
 
 const contentGridStyles: React.CSSProperties = {
