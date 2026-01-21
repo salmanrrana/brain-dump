@@ -10,19 +10,19 @@ const STATE_CONFIG: Record<
 > = {
   idle: {
     label: "Idle",
-    bgClass: "bg-slate-600",
-    textClass: "text-slate-200",
+    bgClass: "bg-[var(--bg-tertiary)]",
+    textClass: "text-[var(--text-secondary)]",
   },
   analyzing: {
     label: "Analyzing",
-    bgClass: "bg-purple-600",
-    textClass: "text-purple-100",
+    bgClass: "bg-[var(--status-review)]",
+    textClass: "text-[var(--text-primary)]",
     pulseClass: "animate-pulse",
   },
   implementing: {
     label: "Coding",
-    bgClass: "bg-cyan-600",
-    textClass: "text-cyan-100",
+    bgClass: "bg-[var(--accent-ai)]",
+    textClass: "text-[var(--text-primary)]",
     pulseClass: "animate-pulse",
   },
   testing: {

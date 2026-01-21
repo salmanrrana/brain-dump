@@ -1,5 +1,12 @@
 import { useState, useMemo } from "react";
-import { ChevronDown, GitBranch } from "lucide-react";
+import { ChevronDown, GitBranch, GitPullRequest } from "lucide-react";
+import {
+  sectionHeaderStyles,
+  fieldStyles,
+  inputStyles,
+  statusCardStyles,
+  toggleStyles,
+} from "./settingsStyles";
 
 // =============================================================================
 // TYPES
@@ -77,37 +84,34 @@ export function GitTab({
       style={{ display: isActive ? "block" : "none" }}
     >
       <div className="space-y-6">
+        {/* Section Header */}
+        <div className={sectionHeaderStyles.container}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[color-mix(in_srgb,var(--status-success)_15%,transparent)]">
+            <GitPullRequest size={16} className="text-[var(--status-success)]" />
+          </div>
+          <h3 className={sectionHeaderStyles.title}>Git & Pull Requests</h3>
+        </div>
+
         {/* Auto-create PR Toggle */}
-        <div className="flex items-center justify-between py-2">
-          <div>
-            <label className="block text-sm font-medium text-slate-300">
-              Auto-create Pull Request
-            </label>
-            <p className="text-xs text-slate-500">Create a PR when Claude/Ralph completes work</p>
+        <div className={toggleStyles.row}>
+          <div className={toggleStyles.info}>
+            <div className={toggleStyles.label}>Auto-create Pull Request</div>
+            <div className={toggleStyles.desc}>Create a PR when Claude/Ralph completes work</div>
           </div>
           <button
             onClick={() => onAutoCreatePrChange(!autoCreatePr)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              autoCreatePr ? "bg-green-600" : "bg-slate-700"
-            }`}
+            className={toggleStyles.switch(autoCreatePr)}
             role="switch"
             aria-checked={autoCreatePr}
             aria-label="Auto-create Pull Request"
           >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                autoCreatePr ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
+            <span className={toggleStyles.knob(autoCreatePr)} />
           </button>
         </div>
 
         {/* PR Target Branch */}
         <div>
-          <label
-            htmlFor="pr-target-branch"
-            className="block text-sm font-medium text-slate-400 mb-1"
-          >
+          <label htmlFor="pr-target-branch" className={fieldStyles.label}>
             Default Target Branch
           </label>
           <input
@@ -116,19 +120,16 @@ export function GitTab({
             value={prTargetBranch}
             onChange={(e) => onPrTargetBranchChange(e.target.value)}
             placeholder="main"
-            className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 "
+            className={inputStyles.base}
           />
-          <p className="mt-1 text-xs text-slate-500">
+          <p className={fieldStyles.hint}>
             Feature branches will target this branch for PRs (typically "dev" or "main")
           </p>
         </div>
 
         {/* Branch Naming Pattern */}
         <div>
-          <label
-            htmlFor="branch-pattern-select"
-            className="block text-sm font-medium text-slate-400 mb-1"
-          >
+          <label htmlFor="branch-pattern-select" className={fieldStyles.label}>
             Branch Naming Pattern
           </label>
           <div className="relative">
@@ -136,7 +137,7 @@ export function GitTab({
               id="branch-pattern-select"
               value={branchPattern}
               onChange={(e) => setBranchPattern(e.target.value as BranchNamingPattern)}
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
+              className={inputStyles.select}
             >
               {BRANCH_PATTERN_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -144,20 +145,14 @@ export function GitTab({
                 </option>
               ))}
             </select>
-            <ChevronDown
-              size={16}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-            />
+            <ChevronDown size={16} className={inputStyles.selectArrow} />
           </div>
         </div>
 
         {/* Custom Pattern Input */}
         {branchPattern === "custom" && (
           <div>
-            <label
-              htmlFor="custom-pattern-input"
-              className="block text-sm font-medium text-slate-400 mb-1"
-            >
+            <label htmlFor="custom-pattern-input" className={fieldStyles.label}>
               Custom Pattern
             </label>
             <input
@@ -166,22 +161,22 @@ export function GitTab({
               value={customPattern}
               onChange={(e) => setCustomPattern(e.target.value)}
               placeholder="feature/{ticket-id}-{slug}"
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100  font-mono text-sm"
+              className={inputStyles.base + " font-mono text-sm"}
             />
-            <p className="mt-1 text-xs text-slate-500">
-              Use <code className="bg-slate-700 px-1 rounded">{"{ticket-id}"}</code> for ticket ID
-              and <code className="bg-slate-700 px-1 rounded">{"{slug}"}</code> for slugified title
+            <p className={fieldStyles.hint}>
+              Use <code className={statusCardStyles.code}>{"{ticket-id}"}</code> for ticket ID and{" "}
+              <code className={statusCardStyles.code}>{"{slug}"}</code> for slugified title
             </p>
           </div>
         )}
 
         {/* Branch Preview */}
-        <div className="p-3 bg-slate-800/50 rounded-lg">
-          <div className="flex items-center gap-2 mb-2">
-            <GitBranch size={14} className="text-green-400" />
-            <p className="text-xs font-medium text-slate-400">Preview</p>
+        <div className={statusCardStyles.container}>
+          <div className="flex items-center gap-2.5 mb-2">
+            <GitBranch size={14} className="text-[var(--status-success)]" />
+            <p className="text-xs font-semibold text-[var(--text-secondary)]">Preview</p>
           </div>
-          <p className="font-mono text-sm text-green-400 truncate">{branchPreview}</p>
+          <p className="font-mono text-sm text-[var(--status-success)] truncate">{branchPreview}</p>
         </div>
       </div>
     </div>

@@ -18,9 +18,9 @@ export interface TicketCardProps {
 }
 
 const PRIORITY_BORDER_COLORS: Record<string, string> = {
-  high: "border-l-red-500",
-  medium: "border-l-orange-500",
-  low: "border-l-gray-400",
+  high: "border-l-[var(--accent-danger)]",
+  medium: "border-l-[var(--accent-warning)]",
+  low: "border-l-[var(--text-tertiary)]",
 };
 
 /**
@@ -75,7 +75,7 @@ export const TicketCard = memo(function TicketCard({
         group relative flex flex-col gap-2 rounded-lg border border-border/50
         bg-card p-3 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5
         border-l-4 ${priorityBorderClass}
-        ${isAiActive ? "ring-2 ring-primary/50 shadow-[0_0_12px_rgba(139,92,246,0.3)] animate-pulse-slow" : ""}
+        ${isAiActive ? "ring-2 ring-[var(--accent-ai)] ring-opacity-50 shadow-[0_0_12px_var(--accent-ai-glow)] animate-pulse-slow" : ""}
         ${isOverlay ? "rotate-2 scale-105 shadow-xl cursor-grabbing" : isDragging ? "opacity-50" : "cursor-pointer"}
         ${isFocused ? "ring-2 ring-offset-2 ring-accent-primary" : ""}
         focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent-primary focus-visible:outline-none

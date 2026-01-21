@@ -1,5 +1,13 @@
-import { ChevronDown, Loader2, AlertTriangle, CheckCircle, Clock, Repeat } from "lucide-react";
+import { ChevronDown, Loader2, AlertTriangle, CheckCircle, Clock, Repeat, Bot } from "lucide-react";
 import { DOCKER_RUNTIME_TYPES, type DockerRuntimeSetting } from "../../api/settings";
+import {
+  sectionHeaderStyles,
+  fieldStyles,
+  inputStyles,
+  statusCardStyles,
+  toggleStyles,
+  buttonGroupStyles,
+} from "./settingsStyles";
 
 // =============================================================================
 // TYPES
@@ -110,58 +118,64 @@ export function RalphTab({
       style={{ display: isActive ? "block" : "none" }}
     >
       <div className="space-y-6">
+        {/* Section Header */}
+        <div className={sectionHeaderStyles.container}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[color-mix(in_srgb,#a855f7_15%,transparent)]">
+            <Bot size={16} className="text-purple-400" />
+          </div>
+          <h3 className={sectionHeaderStyles.title}>Ralph (Autonomous Mode)</h3>
+        </div>
+
         {/* Docker Sandbox Toggle */}
-        <div className="flex items-center justify-between py-2">
-          <div>
-            <label className="block text-sm font-medium text-slate-300">
-              Prefer Docker Sandbox by Default
-            </label>
-            <p className="text-xs text-slate-500">
+        <div className={toggleStyles.row}>
+          <div className={toggleStyles.info}>
+            <div className={toggleStyles.label}>Prefer Docker Sandbox by Default</div>
+            <div className={toggleStyles.desc}>
               When enabled, Docker mode will be pre-selected when starting Ralph. You can always
               choose either mode.
-            </p>
+            </div>
           </div>
           <button
             onClick={() => onSandboxChange(!ralphSandbox)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              ralphSandbox ? "bg-purple-600" : "bg-slate-700"
-            }`}
+            className={toggleStyles.switch(ralphSandbox)}
             role="switch"
             aria-checked={ralphSandbox}
             aria-label="Prefer Docker Sandbox by Default"
           >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                ralphSandbox ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
+            <span className={toggleStyles.knob(ralphSandbox)} />
           </button>
         </div>
 
         {/* Docker Status */}
         {dockerStatus && (
-          <div className="p-3 bg-slate-800/50 rounded-lg space-y-2">
-            <div className="flex items-center gap-2 text-xs">
+          <div className={statusCardStyles.container + " space-y-2"}>
+            <div className={statusCardStyles.row}>
               {dockerStatus.dockerAvailable ? (
-                <CheckCircle size={14} className="text-green-400" />
+                <CheckCircle size={14} className="text-[var(--status-success)]" />
               ) : (
-                <AlertTriangle size={14} className="text-yellow-400" />
+                <AlertTriangle size={14} className="text-[var(--status-warning)]" />
               )}
-              <span className={dockerStatus.dockerAvailable ? "text-green-400" : "text-yellow-400"}>
+              <span
+                className={
+                  dockerStatus.dockerAvailable
+                    ? "text-[var(--status-success)]"
+                    : "text-[var(--status-warning)]"
+                }
+              >
                 Docker: {dockerStatus.dockerAvailable ? "Installed" : "Not found"}
               </span>
             </div>
 
             {!dockerStatus.dockerAvailable && (
-              <div className="mt-2 p-2 bg-slate-900 rounded text-xs text-slate-400">
-                <p className="font-medium text-slate-300 mb-1">Install Docker:</p>
-                <p>
+              <div className={statusCardStyles.hintBox}>
+                <p className={statusCardStyles.hintTitle}>Install Docker:</p>
+                <p className={statusCardStyles.hintList}>
                   Visit{" "}
                   <a
                     href="https://docs.docker.com/get-docker/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-cyan-400 hover:underline"
+                    className="text-[var(--accent-ai)] hover:underline"
                   >
                     docs.docker.com/get-docker
                   </a>
@@ -171,45 +185,52 @@ export function RalphTab({
 
             {dockerStatus.dockerAvailable && (
               <>
-                <div className="flex items-center gap-2 text-xs">
+                <div className={statusCardStyles.row}>
                   {dockerStatus.dockerRunning ? (
-                    <CheckCircle size={14} className="text-green-400" />
+                    <CheckCircle size={14} className="text-[var(--status-success)]" />
                   ) : (
-                    <AlertTriangle size={14} className="text-yellow-400" />
+                    <AlertTriangle size={14} className="text-[var(--status-warning)]" />
                   )}
                   <span
-                    className={dockerStatus.dockerRunning ? "text-green-400" : "text-yellow-400"}
+                    className={
+                      dockerStatus.dockerRunning
+                        ? "text-[var(--status-success)]"
+                        : "text-[var(--status-warning)]"
+                    }
                   >
                     Docker Daemon: {dockerStatus.dockerRunning ? "Running" : "Not running"}
                   </span>
                 </div>
 
                 {!dockerStatus.dockerRunning && (
-                  <div className="mt-2 p-2 bg-slate-900 rounded text-xs text-slate-400">
-                    <p className="font-medium text-slate-300 mb-1">Start Docker:</p>
-                    <ul className="space-y-1 ml-2">
-                      <li>
-                        • <span className="text-slate-300">Mac/Windows:</span> Open Docker Desktop
-                      </li>
-                      <li>
-                        • <span className="text-slate-300">Linux:</span>{" "}
-                        <code className="bg-slate-800 px-1 rounded">
-                          sudo systemctl start docker
-                        </code>
-                      </li>
-                    </ul>
+                  <div className={statusCardStyles.hintBox}>
+                    <p className={statusCardStyles.hintTitle}>Start Docker:</p>
+                    <div className={statusCardStyles.hintList}>
+                      <p>
+                        • <strong className="text-[var(--text-secondary)]">Mac/Windows:</strong>{" "}
+                        Open Docker Desktop
+                      </p>
+                      <p>
+                        • <strong className="text-[var(--text-secondary)]">Linux:</strong>{" "}
+                        <code className={statusCardStyles.code}>sudo systemctl start docker</code>
+                      </p>
+                    </div>
                   </div>
                 )}
 
                 {dockerStatus.dockerRunning && (
-                  <div className="flex items-center gap-2 text-xs">
+                  <div className={statusCardStyles.row}>
                     {dockerStatus.imageBuilt ? (
-                      <CheckCircle size={14} className="text-green-400" />
+                      <CheckCircle size={14} className="text-[var(--status-success)]" />
                     ) : (
-                      <AlertTriangle size={14} className="text-yellow-400" />
+                      <AlertTriangle size={14} className="text-[var(--status-warning)]" />
                     )}
                     <span
-                      className={dockerStatus.imageBuilt ? "text-green-400" : "text-yellow-400"}
+                      className={
+                        dockerStatus.imageBuilt
+                          ? "text-[var(--status-success)]"
+                          : "text-[var(--status-warning)]"
+                      }
                     >
                       Sandbox Image: {dockerStatus.imageBuilt ? "Ready" : "Not built"}
                     </span>
@@ -220,14 +241,14 @@ export function RalphTab({
 
             {dockerStatus.dockerRunning && !dockerStatus.imageBuilt && (
               <>
-                <p className="text-xs text-slate-400 mt-2">
+                <p className="text-xs text-[var(--text-tertiary)] mt-2">
                   The sandbox image will be built automatically when you first launch Ralph with
                   sandbox enabled. Or you can build it now:
                 </p>
                 <button
                   onClick={onBuildImage}
                   disabled={buildImageState.isPending}
-                  className="mt-2 w-full px-3 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-700 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                  className="mt-2 w-full px-4 py-2.5 bg-gradient-to-r from-[var(--accent-primary)] to-[var(--accent-ai)] hover:opacity-90 disabled:bg-[var(--bg-tertiary)] disabled:from-transparent disabled:to-transparent disabled:text-[var(--text-tertiary)] rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2 shadow-[0_4px_12px_var(--accent-glow)]"
                 >
                   {buildImageState.isPending ? (
                     <>
@@ -241,20 +262,22 @@ export function RalphTab({
               </>
             )}
             {buildImageState.isError && (
-              <p className="text-xs text-red-400 mt-1">
+              <p className="text-xs text-[var(--status-error)] mt-1">
                 {buildImageState.error instanceof Error
                   ? buildImageState.error.message
                   : "Build failed"}
               </p>
             )}
             {buildImageState.isSuccess && (
-              <p className="text-xs text-green-400 mt-1">Sandbox image built successfully!</p>
+              <p className="text-xs text-[var(--status-success)] mt-1">
+                Sandbox image built successfully!
+              </p>
             )}
           </div>
         )}
 
         {!dockerStatus?.dockerAvailable && ralphSandbox && (
-          <p className="text-xs text-yellow-400">
+          <p className="text-xs text-[var(--status-warning)]">
             Docker is required for sandbox mode. Install Docker to use this feature.
           </p>
         )}
@@ -262,10 +285,7 @@ export function RalphTab({
         {/* Docker Runtime Selection */}
         {dockerStatus?.dockerAvailable && (
           <div>
-            <label
-              htmlFor="docker-runtime-select"
-              className="block text-sm font-medium text-slate-400 mb-1"
-            >
+            <label htmlFor="docker-runtime-select" className={fieldStyles.label}>
               Docker Runtime
             </label>
             <div className="relative">
@@ -273,7 +293,7 @@ export function RalphTab({
                 id="docker-runtime-select"
                 value={dockerRuntime}
                 onChange={(e) => onDockerRuntimeChange(e.target.value as DockerRuntimeSetting)}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
+                className={inputStyles.select}
               >
                 {DOCKER_RUNTIME_TYPES.map((runtime) => (
                   <option key={runtime} value={runtime}>
@@ -285,10 +305,7 @@ export function RalphTab({
                   </option>
                 ))}
               </select>
-              <ChevronDown
-                size={16}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-              />
+              <ChevronDown size={16} className={inputStyles.selectArrow} />
             </div>
 
             {/* Show detected runtime status */}
@@ -296,20 +313,20 @@ export function RalphTab({
               <div className="mt-2 flex items-center gap-2 text-xs" aria-live="polite">
                 {dockerRuntime === "auto" ? (
                   <>
-                    <CheckCircle size={14} className="text-green-400" />
-                    <span className="text-green-400">
+                    <CheckCircle size={14} className="text-[var(--status-success)]" />
+                    <span className="text-[var(--status-success)]">
                       Detected: {dockerStatus.runtimeType || "Docker"}
                     </span>
                   </>
                 ) : dockerStatus.runtimeType === dockerRuntime ? (
                   <>
-                    <CheckCircle size={14} className="text-green-400" />
-                    <span className="text-green-400">Connected</span>
+                    <CheckCircle size={14} className="text-[var(--status-success)]" />
+                    <span className="text-[var(--status-success)]">Connected</span>
                   </>
                 ) : (
                   <>
-                    <AlertTriangle size={14} className="text-yellow-400" />
-                    <span className="text-yellow-400" role="alert">
+                    <AlertTriangle size={14} className="text-[var(--status-warning)]" />
+                    <span className="text-[var(--status-warning)]" role="alert">
                       {dockerRuntime} not detected (using {dockerStatus.runtimeType || "default"})
                     </span>
                   </>
@@ -319,12 +336,12 @@ export function RalphTab({
 
             {/* Show socket path */}
             {dockerStatus.dockerRunning && dockerStatus.socketPath && (
-              <p className="mt-1 text-xs text-slate-500 font-mono truncate">
+              <p className="mt-1 text-xs text-[var(--text-tertiary)] font-mono truncate">
                 Socket: {dockerStatus.socketPath}
               </p>
             )}
 
-            <p className="mt-2 text-xs text-slate-500">
+            <p className={fieldStyles.hint}>
               Select which Docker runtime to use. Auto-detect works for most setups.
               {dockerStatus.runtimeType === "lima" && (
                 <span className="block mt-1 text-purple-400">
@@ -337,27 +354,27 @@ export function RalphTab({
 
         {/* Session Timeout */}
         <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Clock size={14} className="text-slate-400" />
-            <label className="block text-sm font-medium text-slate-300">Session Timeout</label>
+          <div className="flex items-center gap-2.5 mb-3">
+            <Clock size={14} className="text-[var(--text-tertiary)]" />
+            <label className={fieldStyles.label + " !mb-0"}>Session Timeout</label>
           </div>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Session timeout options">
+          <div
+            className={buttonGroupStyles.container}
+            role="group"
+            aria-label="Session timeout options"
+          >
             {TIMEOUT_OPTIONS.map((option) => (
               <button
                 key={option.value}
                 onClick={() => onTimeoutChange(option.value)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  ralphTimeout === option.value
-                    ? "bg-purple-600 text-white"
-                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                }`}
+                className={buttonGroupStyles.button(ralphTimeout === option.value)}
                 aria-pressed={ralphTimeout === option.value}
               >
                 {option.label}
               </button>
             ))}
           </div>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className={fieldStyles.hint}>
             Ralph session will stop after this duration to prevent runaway processes. Progress is
             saved before timeout.
           </p>
@@ -365,27 +382,27 @@ export function RalphTab({
 
         {/* Max Iterations */}
         <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Repeat size={14} className="text-slate-400" />
-            <label className="block text-sm font-medium text-slate-300">Max Iterations</label>
+          <div className="flex items-center gap-2.5 mb-3">
+            <Repeat size={14} className="text-[var(--text-tertiary)]" />
+            <label className={fieldStyles.label + " !mb-0"}>Max Iterations</label>
           </div>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Max iterations options">
+          <div
+            className={buttonGroupStyles.container}
+            role="group"
+            aria-label="Max iterations options"
+          >
             {ITERATION_OPTIONS.map((option) => (
               <button
                 key={option.value}
                 onClick={() => onMaxIterationsChange(option.value)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  ralphMaxIterations === option.value
-                    ? "bg-purple-600 text-white"
-                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                }`}
+                className={buttonGroupStyles.button(ralphMaxIterations === option.value)}
                 aria-pressed={ralphMaxIterations === option.value}
               >
                 {option.label}
               </button>
             ))}
           </div>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className={fieldStyles.hint}>
             Maximum number of autonomous iterations before Ralph stops. Higher values allow more
             work but increase token usage.
           </p>

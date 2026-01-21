@@ -271,16 +271,19 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-modal-title"
-        className="relative bg-slate-900 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
+        className="relative bg-[var(--bg-secondary)] rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-800">
-          <h2 id="settings-modal-title" className="text-lg font-semibold text-gray-100">
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border-primary)]">
+          <h2
+            id="settings-modal-title"
+            className="text-lg font-semibold text-[var(--text-primary)]"
+          >
             Settings
           </h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-gray-100"
+            className="p-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             aria-label="Close settings modal"
           >
             <X size={20} />
@@ -301,7 +304,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
           )}
 
           {loading ? (
-            <div className="text-center text-slate-400 py-8">Loading settings...</div>
+            <div className="text-center text-[var(--text-secondary)] py-8">Loading settings...</div>
           ) : (
             <>
               {/* Tab Panels - all rendered but only one visible at a time for state preservation */}
@@ -349,18 +352,18 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end p-4 border-t border-slate-800">
+        <div className="flex items-center justify-end p-4 border-t border-[var(--border-primary)]">
           <div className="flex gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-slate-400 hover:text-gray-100 hover:bg-slate-800 rounded-lg transition-colors"
+              className="px-4 py-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={isSaving || !hasChanges}
-              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-lg font-medium transition-colors"
+              className="px-4 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] rounded-lg font-medium transition-colors"
             >
               {isSaving ? "Saving..." : "Save Changes"}
             </button>

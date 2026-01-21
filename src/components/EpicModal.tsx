@@ -216,16 +216,16 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="relative bg-slate-900 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col"
+        className="relative bg-[var(--bg-secondary)] rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col"
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-800">
-          <h2 id="modal-title" className="text-lg font-semibold text-gray-100">
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border-primary)]">
+          <h2 id="modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
             {isEditing ? "Edit Epic" : "New Epic"}
           </h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-gray-100"
+            className="p-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             aria-label="Close modal"
           >
             <X size={20} />
@@ -239,8 +239,8 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
 
           {/* Delete Confirmation */}
           {showDeleteConfirm && (
-            <div className="p-4 bg-red-900/30 border border-red-700 rounded-lg">
-              <p className="text-red-300 text-sm mb-3">
+            <div className="p-4 bg-[var(--accent-danger)]/20 border border-[var(--accent-danger)]/50 rounded-lg">
+              <p className="text-[var(--accent-danger)] text-sm mb-3">
                 Are you sure you want to delete this epic? Tickets in this epic will become orphaned
                 (not deleted).
               </p>
@@ -248,13 +248,13 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                 <button
                   onClick={handleDelete}
                   disabled={isDeleting}
-                  className="px-3 py-1.5 bg-red-600 hover:bg-red-500 disabled:bg-slate-700 rounded text-sm font-medium"
+                  className="px-3 py-1.5 bg-[var(--accent-danger)] hover:bg-[var(--accent-danger)]/80 disabled:bg-[var(--bg-tertiary)] rounded text-sm font-medium"
                 >
                   {isDeleting ? "Deleting..." : "Yes, Delete"}
                 </button>
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm"
+                  className="px-3 py-1.5 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] rounded text-sm"
                 >
                   Cancel
                 </button>
@@ -264,8 +264,8 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
 
           {/* Title */}
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">
-              Title <span className="text-red-400">*</span>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              Title <span className="text-[var(--accent-danger)]">*</span>
             </label>
             <input
               ref={titleInputRef}
@@ -273,30 +273,34 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Epic name"
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 "
+              className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] "
             />
           </div>
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">Description</label>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              Description
+            </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
               placeholder="Optional description..."
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100  resize-none"
+              className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)]  resize-none"
             />
           </div>
 
           {/* Color */}
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">Color</label>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              Color
+            </label>
             <div className="relative">
               <select
                 value={color}
                 onChange={(e) => setColor(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
+                className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none "
               >
                 {COLOR_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -306,13 +310,13 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
               </select>
               <ChevronDown
                 size={16}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
               />
             </div>
             {color && (
               <div className="mt-2 flex items-center gap-2">
                 <span className="w-4 h-4 rounded" style={{ backgroundColor: color }} />
-                <span className="text-xs text-slate-400">Preview</span>
+                <span className="text-xs text-[var(--text-secondary)]">Preview</span>
               </div>
             )}
           </div>
@@ -357,13 +361,13 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-4 border-t border-slate-800">
+        <div className="flex items-center justify-between p-4 border-t border-[var(--border-primary)]">
           <div>
             {isEditing && (
               <button
                 onClick={() => setShowDeleteConfirm(true)}
                 disabled={showDeleteConfirm}
-                className="px-3 py-2 text-red-400 hover:text-red-300 hover:bg-slate-800 rounded-lg transition-colors text-sm"
+                className="px-3 py-2 text-[var(--accent-danger)] hover:text-[var(--accent-danger)]/80 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-sm"
               >
                 Delete Epic
               </button>
@@ -376,7 +380,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
               <button
                 onClick={handleSave}
                 disabled={isSaving || !title.trim()}
-                className={`flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:text-slate-500 font-medium transition-colors ${isEditing ? "rounded-l-lg" : "rounded-lg"}`}
+                className={`flex items-center gap-2 px-4 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] font-medium transition-colors ${isEditing ? "rounded-l-lg" : "rounded-lg"}`}
               >
                 {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                 <span>{isEditing ? "Save Changes" : "Create Epic"}</span>
@@ -385,7 +389,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                 <button
                   onClick={() => setShowActionMenu(!showActionMenu)}
                   disabled={isSaving || isStartingRalph}
-                  className="flex items-center px-2 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-r-lg border-l border-cyan-700 transition-colors"
+                  className="flex items-center px-2 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] rounded-r-lg border-l border-[var(--accent-secondary)] transition-colors"
                   aria-label="More actions"
                 >
                   <ChevronDown size={16} />
@@ -395,25 +399,25 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
 
             {/* Dropdown Menu */}
             {showActionMenu && isEditing && (
-              <div className="absolute right-0 bottom-full mb-2 w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-10 overflow-hidden">
+              <div className="absolute right-0 bottom-full mb-2 w-64 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg shadow-xl z-10 overflow-hidden">
                 <button
                   onClick={() => {
                     setShowActionMenu(false);
                     handleSave();
                   }}
                   disabled={isSaving || !title.trim()}
-                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left disabled:opacity-50"
+                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left disabled:opacity-50"
                 >
-                  <Save size={18} className="text-cyan-400 mt-0.5 flex-shrink-0" />
+                  <Save size={18} className="text-[var(--accent-primary)] mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="font-medium text-gray-100">Save Changes</div>
-                    <div className="text-xs text-slate-400">Save epic details</div>
+                    <div className="font-medium text-[var(--text-primary)]">Save Changes</div>
+                    <div className="text-xs text-[var(--text-secondary)]">Save epic details</div>
                   </div>
                 </button>
 
                 {/* Ralph Section Divider */}
-                <div className="px-4 py-2 bg-slate-900/50 border-t border-slate-700">
-                  <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <div className="px-4 py-2 bg-[var(--bg-primary)] border-t border-[var(--border-primary)]">
+                  <div className="text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider">
                     Autonomous (Ralph)
                   </div>
                 </div>
@@ -421,26 +425,35 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                 {/* Ralph with Claude - Native */}
                 <button
                   onClick={() => void handleStartRalph({ useSandbox: false, aiBackend: "claude" })}
-                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left"
+                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left"
                 >
-                  <Bot size={18} className="text-purple-400 mt-0.5 flex-shrink-0" />
+                  <Bot size={18} className="text-[var(--accent-ai)] mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="font-medium text-gray-100">Start Ralph (Claude)</div>
-                    <div className="text-xs text-slate-400">Runs on your machine directly</div>
+                    <div className="font-medium text-[var(--text-primary)]">
+                      Start Ralph (Claude)
+                    </div>
+                    <div className="text-xs text-[var(--text-secondary)]">
+                      Runs on your machine directly
+                    </div>
                   </div>
                 </button>
 
                 {/* Ralph with Claude - Docker (Disabled for now) */}
                 <button
                   disabled
-                  className="w-full flex items-start gap-3 px-4 py-3 transition-colors text-left border-t border-slate-700 opacity-50 cursor-not-allowed"
+                  className="w-full flex items-start gap-3 px-4 py-3 transition-colors text-left border-t border-[var(--border-primary)] opacity-50 cursor-not-allowed"
                   aria-disabled="true"
                   aria-label="Start Ralph (Claude) in Docker - Coming soon"
                 >
-                  <Container size={18} className="text-slate-500 mt-0.5 flex-shrink-0" />
+                  <Container
+                    size={18}
+                    className="text-[var(--text-tertiary)] mt-0.5 flex-shrink-0"
+                  />
                   <div>
-                    <div className="font-medium text-slate-400">Start Ralph (Claude) in Docker</div>
-                    <div className="text-xs text-slate-500">
+                    <div className="font-medium text-[var(--text-secondary)]">
+                      Start Ralph (Claude) in Docker
+                    </div>
+                    <div className="text-xs text-[var(--text-tertiary)]">
                       Coming soon - sandbox mode in progress
                     </div>
                   </div>
@@ -451,28 +464,35 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                   onClick={() =>
                     void handleStartRalph({ useSandbox: false, aiBackend: "opencode" })
                   }
-                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left border-t border-slate-700"
+                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left border-t border-[var(--border-primary)]"
                 >
-                  <Code2 size={18} className="text-blue-400 mt-0.5 flex-shrink-0" />
+                  <Code2 size={18} className="text-[var(--accent-ai)] mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="font-medium text-gray-100">Start Ralph (OpenCode)</div>
-                    <div className="text-xs text-slate-400">Runs on your machine directly</div>
+                    <div className="font-medium text-[var(--text-primary)]">
+                      Start Ralph (OpenCode)
+                    </div>
+                    <div className="text-xs text-[var(--text-secondary)]">
+                      Runs on your machine directly
+                    </div>
                   </div>
                 </button>
 
                 {/* Ralph with OpenCode - Docker (Disabled for now) */}
                 <button
                   disabled
-                  className="w-full flex items-start gap-3 px-4 py-3 transition-colors text-left border-t border-slate-700 opacity-50 cursor-not-allowed"
+                  className="w-full flex items-start gap-3 px-4 py-3 transition-colors text-left border-t border-[var(--border-primary)] opacity-50 cursor-not-allowed"
                   aria-disabled="true"
                   aria-label="Start Ralph (OpenCode) in Docker - Coming soon"
                 >
-                  <Container size={18} className="text-slate-500 mt-0.5 flex-shrink-0" />
+                  <Container
+                    size={18}
+                    className="text-[var(--text-tertiary)] mt-0.5 flex-shrink-0"
+                  />
                   <div>
-                    <div className="font-medium text-slate-400">
+                    <div className="font-medium text-[var(--text-secondary)]">
                       Start Ralph (OpenCode) in Docker
                     </div>
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-[var(--text-tertiary)]">
                       Coming soon - needs OpenCode Docker image
                     </div>
                   </div>

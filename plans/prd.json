@@ -9,31 +9,415 @@
   ],
   "userStories": [
     {
-      "id": "0051e530-bfc3-4bac-b011-cf50c6031a98",
-      "title": "105 - Add visible focus indicators with WCAG AA contrast",
+      "id": "b89273d6-b4c6-4ea4-a5ce-e1d7a014b93f",
+      "title": "Integrate IconSidebar into AppLayout",
       "passes": true,
-      "overview": "",
+      "overview": "Replace the current ProjectTree left sidebar with IconSidebar (64px) and move ProjectTree into an expandable ProjectsPanel.",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Focus ring visible on all interactive elements",
-        "Focus ring uses accent color with offset",
-        "Contrast ratio ≥ 3:1 against adjacent colors",
-        "Focus visible on keyboard nav (not mouse click)",
-        "Custom focus styles match theme",
-        ":focus-visible used (not :focus)"
+        "IconSidebar (64px) replaces current left sidebar",
+        "ProjectTree moved to slide-out or modal ProjectsPanel",
+        "Grid layout updated: `grid-template-columns: 64px 1fr`",
+        "Navigation between dashboard, board, and settings works"
       ],
       "references": [
-        "src/styles/variables.css"
+        "src/components/AppLayout.tsx",
+        "src/components/navigation/IconSidebar.tsx"
       ],
-      "description": "## Summary\nAdd visible focus rings to all interactive elements meeting WCAG AA contrast requirements.\n\n## Files to Modify\n- `src/styles/variables.css`\n- Various component files\n\n## Acceptance Criteria\n- [ ] Focus ring visible on all interactive elements\n- [ ] Focus ring uses accent color with offset\n- [ ] Contrast ratio ≥ 3:1 against adjacent colors\n- [ ] Focus visible on keyboard nav (not mouse click)\n- [ ] Custom focus styles match theme\n- [ ] :focus-visible used (not :focus)\n\n## Implementation Hints\n- Use :focus-visible for keyboard-only focus\n- outline: 2px solid var(--accent-primary)\n- outline-offset: 2px for spacing\n- Remove default outline, add custom\n\n## Tests\n- Visual: Tab through app, verify focus visible\n- Manual: Contrast check with browser tools",
-      "priority": "high",
+      "description": "## Overview\nReplace the current ProjectTree left sidebar with IconSidebar (64px) and move ProjectTree into an expandable ProjectsPanel.\n\n## Acceptance Criteria\n- [ ] IconSidebar (64px) replaces current left sidebar\n- [ ] ProjectTree moved to slide-out or modal ProjectsPanel\n- [ ] Grid layout updated: `grid-template-columns: 64px 1fr`\n- [ ] Navigation between dashboard, board, and settings works\n\n## Files to Modify\n- `src/components/AppLayout.tsx`\n\n## Implementation Notes\n- IconSidebar component already exists in `src/components/navigation/IconSidebar.tsx`\n- ProjectsPanel may need to be created or extracted from existing code\n- Ensure keyboard navigation still works with new layout",
+      "priority": "medium",
       "tags": [
-        "sprint-6",
-        "accessibility",
-        "focus",
-        "ui-v2"
+        "ui",
+        "visual-integration",
+        "sprint-8",
+        "layout"
+      ]
+    },
+    {
+      "id": "fccfc84f-29be-4fba-9ffc-0295801c55fc",
+      "title": "Update Header to use theme CSS variables",
+      "passes": true,
+      "overview": "Replace all hardcoded colors in the header section with theme CSS variables.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Header background uses `--bg-secondary`",
+        "Header border uses `--border-primary`",
+        "Accent colors use `--accent-primary`",
+        "Theme switching changes header colors correctly"
+      ],
+      "references": [
+        "src/components/AppLayout.tsx"
+      ],
+      "description": "## Overview\nReplace all hardcoded colors in the header section with theme CSS variables.\n\n## Color Replacements\n- `bg-slate-900` → `bg-[var(--bg-secondary)]`\n- `border-slate-800` → `border-[var(--border-primary)]`\n- `text-cyan-400` → `text-[var(--accent-primary)]`\n- `ring-cyan-500` → `ring-[var(--accent-primary)]`\n\n## Acceptance Criteria\n- [ ] Header background uses `--bg-secondary`\n- [ ] Header border uses `--border-primary`\n- [ ] Accent colors use `--accent-primary`\n- [ ] Theme switching changes header colors correctly\n\n## Files to Modify\n- `src/components/AppLayout.tsx` (lines 460-600 approximately)",
+      "priority": "medium",
+      "tags": [
+        "ui",
+        "visual-integration",
+        "sprint-8",
+        "theme"
+      ]
+    },
+    {
+      "id": "c9962d74-99d5-4f12-b2a9-fbcffc1e0dc5",
+      "title": "Add ThemeSwitcher to Settings or Header",
+      "passes": true,
+      "overview": "Add the ThemeSwitcher component to the UI so users can switch between themes.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "ThemeSwitcher added to SettingsModal General tab",
+        "Optional: Quick theme toggle in header",
+        "Theme persists across sessions",
+        "All three themes (Ember, Mint, Solar) are selectable"
+      ],
+      "references": [
+        "src/components/settings/GeneralTab.tsx",
+        "src/components/AppLayout.tsx",
+        "src/components/theme/ThemeSwitcher.tsx",
+        "src/lib/theme-context.tsx"
+      ],
+      "description": "## Overview\nAdd the ThemeSwitcher component to the UI so users can switch between themes.\n\n## Acceptance Criteria\n- [ ] ThemeSwitcher added to SettingsModal General tab\n- [ ] Optional: Quick theme toggle in header\n- [ ] Theme persists across sessions\n- [ ] All three themes (Ember, Mint, Solar) are selectable\n\n## Files to Modify\n- `src/components/settings/GeneralTab.tsx`\n- `src/components/AppLayout.tsx` (optional header toggle)\n\n## Implementation Notes\n- ThemeSwitcher component already exists in `src/components/theme/ThemeSwitcher.tsx`\n- useTheme hook exists in `src/lib/theme-context.tsx`",
+      "priority": "medium",
+      "tags": [
+        "ui",
+        "visual-integration",
+        "sprint-8",
+        "theme"
+      ]
+    },
+    {
+      "id": "156d67a1-26e4-4d56-89fe-13cfbcfb7dab",
+      "title": "Update ProjectsPanel to match mockup design",
+      "passes": true,
+      "overview": "Style the slide-out projects panel to match the `combined-navigation-demo.html` mockup design.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Panel uses theme CSS variables for colors",
+        "Search input styled with theme colors",
+        "Project list items have proper hover/active states",
+        "Panel matches the visual design from mockups"
+      ],
+      "references": [
+        "See `combined-navigation-demo.html` for visual design",
+        "src/components/navigation/ProjectsPanel.tsx"
+      ],
+      "description": "## Overview\nStyle the slide-out projects panel to match the `combined-navigation-demo.html` mockup design.\n\n## Acceptance Criteria\n- [ ] Panel uses theme CSS variables for colors\n- [ ] Search input styled with theme colors\n- [ ] Project list items have proper hover/active states\n- [ ] Panel matches the visual design from mockups\n\n## Files to Modify\n- `src/components/navigation/ProjectsPanel.tsx`\n\n## Reference\n- See `combined-navigation-demo.html` for visual design",
+      "priority": "medium",
+      "tags": [
+        "ui",
+        "visual-integration",
+        "sprint-8",
+        "navigation"
+      ]
+    },
+    {
+      "id": "e44a4152-9fca-47af-adfb-863c42e11c60",
+      "title": "Update KanbanBoard and KanbanColumn colors",
+      "passes": true,
+      "overview": "Replace hardcoded colors in KanbanBoard and KanbanColumn with CSS variables.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Board background uses theme variables",
+        "Column headers have gradient accent",
+        "Status colors are theme-aware",
+        "Drop zones styled with theme colors"
+      ],
+      "references": [
+        "src/components/board/KanbanBoard.tsx",
+        "src/components/board/KanbanColumn.tsx"
+      ],
+      "description": "## Overview\nReplace hardcoded colors in KanbanBoard and KanbanColumn with CSS variables.\n\n## Acceptance Criteria\n- [ ] Board background uses theme variables\n- [ ] Column headers have gradient accent\n- [ ] Status colors are theme-aware\n- [ ] Drop zones styled with theme colors\n\n## Files to Modify\n- `src/components/board/KanbanBoard.tsx`\n- `src/components/board/KanbanColumn.tsx`\n\n## Implementation Notes\n- Use `--bg-primary`, `--bg-secondary` for backgrounds\n- Use `--accent-primary` gradient for column headers\n- Status colors should vary by theme",
+      "priority": "medium",
+      "tags": [
+        "ui",
+        "visual-integration",
+        "sprint-8",
+        "board"
+      ]
+    },
+    {
+      "id": "5930b651-0e7a-496e-806d-f5f3c5ef00fe",
+      "title": "Update TicketCard with theme styling",
+      "passes": true,
+      "overview": "Apply gradient borders, glow effects, and theme colors to ticket cards.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Priority indicators use gradient borders",
+        "AI-active tickets have glow effect (`--accent-ai-glow`)",
+        "Tag colors use theme variables",
+        "Hover states use theme transitions"
+      ],
+      "references": [
+        "src/components/board/TicketCard.tsx",
+        "src/components/board/SortableTicketCard.tsx"
+      ],
+      "description": "## Overview\nApply gradient borders, glow effects, and theme colors to ticket cards.\n\n## Acceptance Criteria\n- [ ] Priority indicators use gradient borders\n- [ ] AI-active tickets have glow effect (`--accent-ai-glow`)\n- [ ] Tag colors use theme variables\n- [ ] Hover states use theme transitions\n\n## Files to Modify\n- `src/components/board/TicketCard.tsx`\n- `src/components/board/SortableTicketCard.tsx`\n\n## Implementation Notes\n- High priority: use `--accent-danger` gradient\n- Medium priority: use `--accent-warning` gradient\n- AI-active: pulsing glow animation",
+      "priority": "medium",
+      "tags": [
+        "ui",
+        "visual-integration",
+        "sprint-8",
+        "board"
+      ]
+    },
+    {
+      "id": "f63134b4-4313-45a6-8bc4-ca7d4c931b6e",
+      "title": "Update all Modal components with theme styling",
+      "passes": true,
+      "overview": "Apply consistent theme colors to all modal components.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Modal backgrounds use `--bg-secondary`",
+        "Modal borders use `--border-primary`",
+        "Gradient header bar from mockups applied",
+        "Button styling uses gradients",
+        "Close buttons use theme colors"
+      ],
+      "references": [
+        "src/components/CreateTicketModal.tsx",
+        "src/components/TicketDetailModal.tsx",
+        "src/components/SettingsModal.tsx"
+      ],
+      "description": "## Overview\nApply consistent theme colors to all modal components.\n\n## Acceptance Criteria\n- [ ] Modal backgrounds use `--bg-secondary`\n- [ ] Modal borders use `--border-primary`\n- [ ] Gradient header bar from mockups applied\n- [ ] Button styling uses gradients\n- [ ] Close buttons use theme colors\n\n## Files to Modify\n- `src/components/CreateTicketModal.tsx`\n- `src/components/TicketDetailModal.tsx`\n- `src/components/SettingsModal.tsx`\n- Any other modal files\n\n## Implementation Notes\n- Use consistent modal styling across all modals\n- Add gradient accent bar at top of modals",
+      "priority": "medium",
+      "tags": [
+        "ui",
+        "visual-integration",
+        "sprint-8",
+        "modals"
+      ]
+    },
+    {
+      "id": "57044638-9524-4313-a360-c35d4b0dae29",
+      "title": "Update Settings tabs with theme styling",
+      "passes": true,
+      "overview": "Apply theme CSS variables to all settings tabs to match the visual design.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Tab navigation uses theme colors",
+        "Form inputs use theme styling",
+        "Section headers have icons and proper styling",
+        "Toggle switches use accent colors",
+        "Matches `settings-neon-productivity.html` design"
+      ],
+      "references": [
+        "src/components/settings/GeneralTab.tsx",
+        "src/components/settings/RalphTab.tsx",
+        "src/components/settings/BackupTab.tsx",
+        "src/components/settings/AboutTab.tsx"
+      ],
+      "description": "## Overview\nApply theme CSS variables to all settings tabs to match the visual design.\n\n## Acceptance Criteria\n- [ ] Tab navigation uses theme colors\n- [ ] Form inputs use theme styling\n- [ ] Section headers have icons and proper styling\n- [ ] Toggle switches use accent colors\n- [ ] Matches `settings-neon-productivity.html` design\n\n## Files to Modify\n- `src/components/settings/GeneralTab.tsx`\n- `src/components/settings/RalphTab.tsx`\n- `src/components/settings/BackupTab.tsx`\n- `src/components/settings/AboutTab.tsx`\n- Any other settings tab files",
+      "priority": "medium",
+      "tags": [
+        "ui",
+        "visual-integration",
+        "sprint-8",
+        "settings"
+      ]
+    },
+    {
+      "id": "3b0562f8-4134-4464-8a4e-dc27b003ab87",
+      "title": "Update Dashboard components with theme styling",
+      "passes": true,
+      "overview": "Apply gradient accents and glow effects to dashboard components.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Stat cards have gradient accents",
+        "AI-related stats have glow effects",
+        "CurrentFocusCard uses theme colors",
+        "UpNextQueue styled with theme variables",
+        "Progress indicators use accent colors"
+      ],
+      "references": [
+        "src/components/dashboard/CurrentFocusCard.tsx",
+        "src/components/dashboard/StatsGrid.tsx",
+        "src/components/dashboard/UpNextQueue.tsx"
+      ],
+      "description": "## Overview\nApply gradient accents and glow effects to dashboard components.\n\n## Acceptance Criteria\n- [ ] Stat cards have gradient accents\n- [ ] AI-related stats have glow effects\n- [ ] CurrentFocusCard uses theme colors\n- [ ] UpNextQueue styled with theme variables\n- [ ] Progress indicators use accent colors\n\n## Files to Modify\n- `src/components/dashboard/CurrentFocusCard.tsx`\n- `src/components/dashboard/StatsGrid.tsx`\n- `src/components/dashboard/UpNextQueue.tsx`\n- Any other dashboard component files",
+      "priority": "medium",
+      "tags": [
+        "ui",
+        "visual-integration",
+        "sprint-8",
+        "dashboard"
+      ]
+    },
+    {
+      "id": "65501ce4-aa5d-47b0-adfb-810f54f35bb4",
+      "title": "Wire up dashboard route with new layout",
+      "passes": false,
+      "overview": "Ensure the `/dashboard` route uses the new IconSidebar layout and renders correctly.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Dashboard route uses IconSidebar layout",
+        "StatsGrid renders with theme styling",
+        "CurrentFocusCard renders correctly",
+        "Navigation from sidebar to dashboard works",
+        "Dashboard icon is highlighted when active"
+      ],
+      "references": [
+        "src/routes/dashboard.tsx",
+        "src/routes/__root.tsx"
+      ],
+      "description": "## Overview\nEnsure the `/dashboard` route uses the new IconSidebar layout and renders correctly.\n\n## Acceptance Criteria\n- [ ] Dashboard route uses IconSidebar layout\n- [ ] StatsGrid renders with theme styling\n- [ ] CurrentFocusCard renders correctly\n- [ ] Navigation from sidebar to dashboard works\n- [ ] Dashboard icon is highlighted when active\n\n## Files to Modify\n- `src/routes/dashboard.tsx`\n- `src/routes/__root.tsx`\n\n## Testing\n- Navigate to `/dashboard` via URL\n- Click Dashboard icon in sidebar\n- Verify all dashboard components render",
+      "priority": "medium",
+      "tags": [
+        "ui",
+        "visual-integration",
+        "sprint-8",
+        "routing"
+      ]
+    },
+    {
+      "id": "baad9cbd-7b28-4431-89ff-136f12c94c07",
+      "title": "Wire up board (index) route with new layout",
+      "passes": false,
+      "overview": "Ensure the main board view (index route) uses IconSidebar and renders with the new theme.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Board route uses IconSidebar layout",
+        "KanbanBoard renders with new theme",
+        "Project/epic filtering works with new UI",
+        "Board icon is highlighted when active",
+        "Drag and drop still works"
+      ],
+      "references": [
+        "src/routes/index.tsx"
+      ],
+      "description": "## Overview\nEnsure the main board view (index route) uses IconSidebar and renders with the new theme.\n\n## Acceptance Criteria\n- [ ] Board route uses IconSidebar layout\n- [ ] KanbanBoard renders with new theme\n- [ ] Project/epic filtering works with new UI\n- [ ] Board icon is highlighted when active\n- [ ] Drag and drop still works\n\n## Files to Modify\n- `src/routes/index.tsx`\n\n## Testing\n- Navigate to `/` (board view)\n- Click Board icon in sidebar\n- Test project and epic filtering\n- Test drag and drop functionality",
+      "priority": "medium",
+      "tags": [
+        "ui",
+        "visual-integration",
+        "sprint-8",
+        "routing"
+      ]
+    },
+    {
+      "id": "2619936b-5e20-4f99-8155-a8c768ca7e8e",
+      "title": "Wire up ticket detail route with new layout",
+      "passes": false,
+      "overview": "Ensure the `/ticket/:id` route uses IconSidebar and has proper styling.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Ticket detail route uses IconSidebar layout",
+        "Back navigation to board works",
+        "Comments/activity section has theme styling",
+        "Ticket metadata styled with theme colors",
+        "Edit actions use theme button styles"
+      ],
+      "references": [
+        "src/routes/ticket.$id.tsx"
+      ],
+      "description": "## Overview\nEnsure the `/ticket/:id` route uses IconSidebar and has proper styling.\n\n## Acceptance Criteria\n- [ ] Ticket detail route uses IconSidebar layout\n- [ ] Back navigation to board works\n- [ ] Comments/activity section has theme styling\n- [ ] Ticket metadata styled with theme colors\n- [ ] Edit actions use theme button styles\n\n## Files to Modify\n- `src/routes/ticket.$id.tsx`\n\n## Testing\n- Click on a ticket to open detail view\n- Verify layout matches other routes\n- Test back navigation\n- Verify comments section styling",
+      "priority": "medium",
+      "tags": [
+        "ui",
+        "visual-integration",
+        "sprint-8",
+        "routing"
+      ]
+    },
+    {
+      "id": "1b3d11d0-fbb8-41d1-8a4f-ac0016d2497c",
+      "title": "Add hover and focus state animations",
+      "passes": false,
+      "overview": "Apply consistent hover transitions and focus states across all components.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Buttons have smooth hover transitions",
+        "Focus rings use `--accent-primary` color",
+        "Interactive elements have consistent timing",
+        "Animations match mockup specifications",
+        "No jarring or inconsistent transitions"
+      ],
+      "references": [
+        "src/styles.css"
+      ],
+      "description": "## Overview\nApply consistent hover transitions and focus states across all components.\n\n## Acceptance Criteria\n- [ ] Buttons have smooth hover transitions\n- [ ] Focus rings use `--accent-primary` color\n- [ ] Interactive elements have consistent timing\n- [ ] Animations match mockup specifications\n- [ ] No jarring or inconsistent transitions\n\n## Files to Modify\n- Multiple component files (buttons, cards, nav items)\n- `src/styles.css` for global transition utilities\n\n## Implementation Notes\n- Use `transition-all duration-200` as baseline\n- Focus: `ring-2 ring-[var(--accent-primary)] ring-offset-2`\n- Hover: subtle background/border color changes",
+      "priority": "medium",
+      "tags": [
+        "ui",
+        "visual-integration",
+        "sprint-8",
+        "animations"
+      ]
+    },
+    {
+      "id": "152ad8e9-2f17-4e3d-a118-6589cc36a9cc",
+      "title": "Add AI-active glow animations",
+      "passes": false,
+      "overview": "Apply pulsing glow effects to AI-active tickets and Ralph status indicators.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "AI-active tickets have pulsing glow",
+        "Ralph status indicators glow when active",
+        "Glow uses `--accent-ai-glow` variable",
+        "Animation is subtle, not distracting",
+        "Glow disabled when AI is not active"
+      ],
+      "references": [
+        "src/styles.css"
+      ],
+      "description": "## Overview\nApply pulsing glow effects to AI-active tickets and Ralph status indicators.\n\n## Acceptance Criteria\n- [ ] AI-active tickets have pulsing glow\n- [ ] Ralph status indicators glow when active\n- [ ] Glow uses `--accent-ai-glow` variable\n- [ ] Animation is subtle, not distracting\n- [ ] Glow disabled when AI is not active\n\n## Files to Modify\n- `src/styles.css` (keyframe animations)\n- Ticket and status indicator components\n\n## Implementation Notes\n```css\n@keyframes ai-pulse {\n  0%, 100% { box-shadow: 0 0 0 0 var(--accent-ai-glow); }\n  50% { box-shadow: 0 0 20px 5px var(--accent-ai-glow); }\n}\n```",
+      "priority": "medium",
+      "tags": [
+        "ui",
+        "visual-integration",
+        "sprint-8",
+        "animations"
+      ]
+    },
+    {
+      "id": "709456f6-196a-449d-bf23-552588411b8d",
+      "title": "Cleanup hardcoded colors audit",
+      "passes": false,
+      "overview": "Search the codebase for remaining hardcoded colors and replace with CSS variables.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "No remaining `slate-*` hardcoded colors",
+        "No remaining `cyan-*` hardcoded colors",
+        "No remaining `gray-*` hardcoded colors (except where intentional)",
+        "Full theme switching works across all components",
+        "Document any intentional exceptions"
+      ],
+      "references": [],
+      "description": "## Overview\nSearch the codebase for remaining hardcoded colors and replace with CSS variables.\n\n## Acceptance Criteria\n- [ ] No remaining `slate-*` hardcoded colors\n- [ ] No remaining `cyan-*` hardcoded colors\n- [ ] No remaining `gray-*` hardcoded colors (except where intentional)\n- [ ] Full theme switching works across all components\n- [ ] Document any intentional exceptions\n\n## Search Patterns\n```bash\ngrep -r \"slate-\" src/\ngrep -r \"cyan-\" src/\ngrep -r \"gray-\" src/\ngrep -r \"bg-\\[#\" src/\n```\n\n## Files to Modify\n- All component files with hardcoded colors\n\n## Testing\n- Switch between all three themes\n- Verify all UI elements change color appropriately\n- Check for any \"stuck\" colors that don't change",
+      "priority": "medium",
+      "tags": [
+        "ui",
+        "visual-integration",
+        "sprint-8",
+        "cleanup"
       ]
     }
   ],
@@ -163,5 +547,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-21T17:59:54.139Z"
+  "generatedAt": "2026-01-21T18:47:07.782Z",
+  "epicTitle": "UI v2 Sprint 8: Visual Integration & Routing",
+  "epicDescription": "Apply the Neon Productivity design system to the actual app UI. Replace hardcoded Tailwind colors with CSS variables, integrate the IconSidebar navigation, add the ThemeSwitcher, and ensure all routes render with the mockup layout."
 }

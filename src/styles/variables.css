@@ -70,6 +70,22 @@
   --info: #3b82f6;
   --info-muted: rgba(59, 130, 246, 0.15);
 
+  /* Accent semantic aliases (for component consistency) */
+  --accent-danger: var(--error);
+  --accent-warning: var(--warning);
+  --border-hover: var(--border-secondary);
+  --text-on-accent: #ffffff;
+
+  /* Status aliases (for semantic consistency) */
+  --status-success: var(--success);
+  --status-warning: var(--warning);
+  --status-error: var(--error);
+  --status-info: var(--info);
+
+  /* AI accent color (teal for all themes) */
+  --accent-ai: #14b8a6;
+  --accent-ai-glow: rgba(20, 184, 166, 0.4);
+
   /* Typography Scale */
   --font-size-xs: 0.75rem; /* 12px */
   --font-size-sm: 0.875rem; /* 14px */

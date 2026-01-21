@@ -74,18 +74,15 @@ export default function DeleteConfirmationModal({
 
   // Epic deletion is less severe - tickets are preserved
   const isDestructive = entityType !== "epic";
-  const warningText = entityType === "epic"
-    ? "The tickets will remain in the project."
-    : "This action cannot be undone.";
+  const warningText =
+    entityType === "epic"
+      ? "The tickets will remain in the project."
+      : "This action cannot be undone.";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden="true" />
 
       {/* Modal */}
       <div
@@ -94,20 +91,20 @@ export default function DeleteConfirmationModal({
         aria-modal="true"
         aria-labelledby="delete-modal-title"
         aria-describedby="delete-modal-description"
-        className="relative bg-slate-900 rounded-lg shadow-xl w-full max-w-md overflow-hidden"
+        className="relative bg-[var(--bg-secondary)] rounded-lg shadow-xl w-full max-w-md overflow-hidden"
       >
         {/* Header */}
-        <div className="flex items-center gap-3 p-4 border-b border-slate-800">
-          <div className="flex items-center justify-center w-10 h-10 bg-red-900/50 rounded-full">
-            <AlertTriangle size={20} className="text-red-400" />
+        <div className="flex items-center gap-3 p-4 border-b border-[var(--border-primary)]">
+          <div className="flex items-center justify-center w-10 h-10 bg-[var(--accent-danger)]/20 rounded-full">
+            <AlertTriangle size={20} className="text-[var(--accent-danger)]" />
           </div>
-          <h2 id="delete-modal-title" className="text-lg font-semibold text-gray-100">
+          <h2 id="delete-modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
             Delete {entityTypeLabel}?
           </h2>
           <button
             onClick={onClose}
             disabled={isLoading}
-            className="ml-auto p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-gray-100 disabled:opacity-50"
+            className="ml-auto p-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-50"
             aria-label="Close modal"
           >
             <X size={20} />
@@ -116,21 +113,27 @@ export default function DeleteConfirmationModal({
 
         {/* Content */}
         <div id="delete-modal-description" className="p-4 space-y-4">
-          <p className="text-gray-100">
+          <p className="text-[var(--text-primary)]">
             Are you sure you want to delete{" "}
-            <span className="font-semibold text-white">&quot;{entityName}&quot;</span>?
+            <span className="font-semibold text-[var(--text-primary)]">
+              &quot;{entityName}&quot;
+            </span>
+            ?
           </p>
 
           {/* Deletion preview */}
           {deletionItems.length > 0 && (
-            <div className="bg-slate-800/50 rounded-lg p-3">
-              <p className="text-sm text-slate-300 mb-2">
+            <div className="bg-[var(--bg-tertiary)] rounded-lg p-3">
+              <p className="text-sm text-[var(--text-secondary)] mb-2">
                 {isDestructive ? "This will permanently delete:" : "This will affect:"}
               </p>
               <ul className="space-y-1">
                 {deletionItems.map((item, index) => (
-                  <li key={index} className="flex items-center gap-2 text-sm text-slate-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                  <li
+                    key={index}
+                    className="flex items-center gap-2 text-sm text-[var(--text-tertiary)]"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--text-tertiary)]" />
                     {item}
                   </li>
                 ))}
@@ -148,18 +151,18 @@ export default function DeleteConfirmationModal({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 p-4 border-t border-slate-800">
+        <div className="flex justify-end gap-3 p-4 border-t border-[var(--border-primary)]">
           <button
             onClick={onClose}
             disabled={isLoading}
-            className="px-4 py-2 text-slate-400 hover:text-gray-100 hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
             disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 disabled:bg-red-800 disabled:text-red-400 rounded-lg font-medium transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-[var(--accent-danger)] hover:bg-[var(--accent-danger)]/80 disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] rounded-lg font-medium transition-colors"
           >
             {isLoading ? (
               <>

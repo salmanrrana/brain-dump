@@ -41,8 +41,8 @@ describe("TicketCard", () => {
   it("renders priority indicator correctly", () => {
     const ticket = createTicket({ priority: "high" });
     const { container } = render(<TicketCard ticket={ticket} />);
-    // High priority should have red border
-    expect(container.firstChild).toHaveClass("border-l-red-500");
+    // High priority should have danger accent border (uses CSS variable)
+    expect(container.firstChild).toHaveClass("border-l-[var(--accent-danger)]");
   });
 
   it("renders tags correctly", () => {

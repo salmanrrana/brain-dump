@@ -367,15 +367,15 @@ export default function NewTicketModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="relative bg-slate-900 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
+        className="relative bg-[var(--bg-secondary)] rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
       >
-        <div className="flex items-center justify-between p-4 border-b border-slate-800">
-          <h2 id="modal-title" className="text-lg font-semibold text-gray-100">
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border-primary)]">
+          <h2 id="modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
             New Ticket
           </h2>
           <button
             onClick={() => void handleClose()}
-            className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-gray-100"
+            className="p-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             aria-label="Close modal"
           >
             <X size={20} />
@@ -392,8 +392,8 @@ export default function NewTicketModal({
           )}
 
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">
-              Title <span className="text-red-400">*</span>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              Title <span className="text-[var(--accent-danger)]">*</span>
             </label>
             <input
               ref={titleInputRef}
@@ -401,30 +401,32 @@ export default function NewTicketModal({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="What needs to be done?"
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100"
+              className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)]"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">Description</label>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              Description
+            </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={6}
               placeholder="Additional details..."
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 resize-y min-h-[100px]"
+              className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] resize-y min-h-[100px]"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">
-              Project <span className="text-red-400">*</span>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              Project <span className="text-[var(--accent-danger)]">*</span>
             </label>
             <div className="relative">
               <select
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
+                className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none "
               >
                 <option value="">Select a project...</option>
                 {projects.map((project) => (
@@ -435,22 +437,26 @@ export default function NewTicketModal({
               </select>
               <ChevronDown
                 size={16}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
               />
             </div>
             {selectedProject && (
-              <p className="mt-1 text-xs text-slate-500 truncate">{selectedProject.path}</p>
+              <p className="mt-1 text-xs text-[var(--text-tertiary)] truncate">
+                {selectedProject.path}
+              </p>
             )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">Priority</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                Priority
+              </label>
               <div className="relative">
                 <select
                   value={priority}
                   onChange={(e) => setPriority(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
+                  className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none "
                 >
                   {PRIORITY_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -460,19 +466,21 @@ export default function NewTicketModal({
                 </select>
                 <ChevronDown
                   size={16}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">Epic</label>
+              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                Epic
+              </label>
               <div className="relative">
                 <select
                   value={epicId}
                   onChange={(e) => setEpicId(e.target.value)}
                   disabled={!projectId}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none  disabled:opacity-50"
+                  className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none  disabled:opacity-50"
                 >
                   <option value="">{projectId ? "None" : "Select project first"}</option>
                   {filteredEpics.map((epic) => (
@@ -483,25 +491,27 @@ export default function NewTicketModal({
                 </select>
                 <ChevronDown
                   size={16}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
                 />
               </div>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">Tags</label>
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+              Tags
+            </label>
             {tags.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-2">
                 {tags.map((tag) => (
                   <span
                     key={tag}
-                    className="flex items-center gap-1 px-2 py-1 bg-slate-700 text-slate-300 rounded text-sm"
+                    className="flex items-center gap-1 px-2 py-1 bg-[var(--bg-tertiary)] text-[var(--text-secondary)] rounded text-sm"
                   >
                     {tag}
                     <button
                       onClick={() => removeTag(tag)}
-                      className="hover:text-red-400"
+                      className="hover:text-[var(--accent-danger)]"
                       aria-label={`Remove tag ${tag}`}
                     >
                       <X size={12} aria-hidden="true" />
@@ -520,7 +530,7 @@ export default function NewTicketModal({
                   onKeyDown={handleTagInputKeyDown}
                   onFocus={() => newTag.trim() && setIsTagDropdownOpen(true)}
                   placeholder="Add tag..."
-                  className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 text-sm "
+                  className="flex-1 px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] text-sm "
                   autoComplete="off"
                   aria-label="Add tag"
                   aria-expanded={isTagDropdownOpen && (tagsLoading || tagSuggestions.length > 0)}
@@ -530,7 +540,7 @@ export default function NewTicketModal({
                 <button
                   type="button"
                   onClick={() => addTag()}
-                  className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300"
+                  className="px-3 py-2 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] rounded-lg text-[var(--text-secondary)]"
                   aria-label="Add tag"
                 >
                   <Plus size={16} aria-hidden="true" />
@@ -544,11 +554,11 @@ export default function NewTicketModal({
                   id="tag-suggestions"
                   role="listbox"
                   aria-label="Tag suggestions"
-                  className="absolute z-10 left-0 right-12 mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-lg max-h-40 overflow-y-auto"
+                  className="absolute z-10 left-0 right-12 mt-1 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg shadow-lg max-h-40 overflow-y-auto"
                 >
                   {tagsLoading ? (
                     <div
-                      className="flex items-center justify-center gap-2 px-3 py-2 text-slate-400 text-sm"
+                      className="flex items-center justify-center gap-2 px-3 py-2 text-[var(--text-secondary)] text-sm"
                       role="status"
                     >
                       <Loader2 size={14} className="animate-spin" aria-hidden="true" />
@@ -562,10 +572,10 @@ export default function NewTicketModal({
                         role="option"
                         aria-selected={index === selectedSuggestionIndex}
                         onClick={() => addTag(tag)}
-                        className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-700 ${
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-hover)] ${
                           index === selectedSuggestionIndex
-                            ? "bg-slate-700 text-cyan-400"
-                            : "text-gray-100"
+                            ? "bg-[var(--bg-hover)] text-[var(--accent-primary)]"
+                            : "text-[var(--text-primary)]"
                         }`}
                       >
                         {tag}
@@ -577,13 +587,18 @@ export default function NewTicketModal({
 
               {/* Tag loading error */}
               {tagsError && (
-                <p className="mt-1 text-xs text-red-400">Failed to load tags: {tagsError}</p>
+                <p className="mt-1 text-xs text-[var(--accent-danger)]">
+                  Failed to load tags: {tagsError}
+                </p>
               )}
 
               {/* Helper text for creating new tags */}
               {showCreateHelper && (
-                <p className="mt-1 text-xs text-slate-500">
-                  Press <kbd className="px-1 py-0.5 bg-slate-700 rounded text-slate-400">Enter</kbd>{" "}
+                <p className="mt-1 text-xs text-[var(--text-tertiary)]">
+                  Press{" "}
+                  <kbd className="px-1 py-0.5 bg-[var(--bg-tertiary)] rounded text-[var(--text-secondary)]">
+                    Enter
+                  </kbd>{" "}
                   to create &quot;{newTag.trim()}&quot; as a new tag
                 </p>
               )}
@@ -591,10 +606,10 @@ export default function NewTicketModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-2">
+            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
               Attachments
               {attachments.length > 0 && (
-                <span className="ml-2 text-slate-500">({attachments.length})</span>
+                <span className="ml-2 text-[var(--text-tertiary)]">({attachments.length})</span>
               )}
             </label>
 
@@ -604,8 +619,8 @@ export default function NewTicketModal({
               onDrop={handleDrop}
               className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
                 isDraggingOver
-                  ? "border-cyan-500 bg-cyan-500/10"
-                  : "border-slate-700 hover:border-slate-600"
+                  ? "border-[var(--accent-primary)] bg-[var(--accent-primary)]/10"
+                  : "border-[var(--border-primary)] hover:border-[var(--border-secondary)]"
               }`}
             >
               <input
@@ -616,24 +631,24 @@ export default function NewTicketModal({
                 className="hidden"
               />
               {isUploadingAttachment ? (
-                <div className="flex items-center justify-center gap-2 text-slate-400">
+                <div className="flex items-center justify-center gap-2 text-[var(--text-secondary)]">
                   <Loader2 size={20} className="animate-spin" />
                   <span>Uploading...</span>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <Upload size={24} className="mx-auto text-slate-500" />
-                  <p className="text-sm text-slate-400">
+                  <Upload size={24} className="mx-auto text-[var(--text-tertiary)]" />
+                  <p className="text-sm text-[var(--text-secondary)]">
                     Drag and drop files here, or{" "}
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="text-cyan-400 hover:text-cyan-300 underline"
+                      className="text-[var(--accent-primary)] hover:text-[var(--accent-secondary)] underline"
                     >
                       browse
                     </button>
                   </p>
-                  <p className="text-xs text-slate-500">Max file size: 10MB</p>
+                  <p className="text-xs text-[var(--text-tertiary)]">Max file size: 10MB</p>
                 </div>
               )}
             </div>
@@ -643,7 +658,7 @@ export default function NewTicketModal({
                 {attachments.map((attachment) => (
                   <div
                     key={attachment.id}
-                    className="flex items-center gap-3 p-2 bg-slate-800 rounded-lg group"
+                    className="flex items-center gap-3 p-2 bg-[var(--bg-tertiary)] rounded-lg group"
                   >
                     {attachment.isImage ? (
                       <a
@@ -659,8 +674,8 @@ export default function NewTicketModal({
                         />
                       </a>
                     ) : (
-                      <div className="w-12 h-12 bg-slate-700 rounded flex items-center justify-center">
-                        <FileIcon size={20} className="text-slate-400" />
+                      <div className="w-12 h-12 bg-[var(--bg-hover)] rounded flex items-center justify-center">
+                        <FileIcon size={20} className="text-[var(--text-secondary)]" />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
@@ -668,17 +683,17 @@ export default function NewTicketModal({
                         href={attachment.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-gray-100 hover:text-cyan-400 truncate block"
+                        className="text-sm text-[var(--text-primary)] hover:text-[var(--accent-primary)] truncate block"
                       >
                         {attachment.filename}
                       </a>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-[var(--text-tertiary)]">
                         {(attachment.size / 1024).toFixed(1)} KB
                       </p>
                     </div>
                     <button
                       onClick={() => void handleDeleteAttachment(attachment)}
-                      className="p-1 text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="p-1 text-[var(--text-tertiary)] hover:text-[var(--accent-danger)] opacity-0 group-hover:opacity-100 transition-opacity"
                       aria-label={`Delete attachment ${attachment.filename}`}
                     >
                       <Trash2 size={14} aria-hidden="true" />
@@ -689,22 +704,22 @@ export default function NewTicketModal({
             )}
           </div>
 
-          <div className="text-xs text-slate-500">
+          <div className="text-xs text-[var(--text-tertiary)]">
             Ticket will be created in <strong>Backlog</strong> status.
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 p-4 border-t border-slate-800">
+        <div className="flex justify-end gap-3 p-4 border-t border-[var(--border-primary)]">
           <button
             onClick={() => void handleClose()}
-            className="px-4 py-2 text-slate-400 hover:text-gray-100 hover:bg-slate-800 rounded-lg transition-colors"
+            className="px-4 py-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleCreate}
             disabled={createTicketMutation.isPending || !title.trim() || !projectId}
-            className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-lg font-medium transition-colors"
+            className="px-4 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] rounded-lg font-medium transition-colors"
           >
             {createTicketMutation.isPending ? "Creating..." : "Create Ticket"}
           </button>
