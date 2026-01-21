@@ -1,6 +1,7 @@
 import { type FC, useState, useCallback, useMemo } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import type { Comment as CommentData, CommentType } from "../../api/comments";
+import type { Comment as CommentData, CommentType, CommentAuthor } from "../../api/comments";
+import { CommentAvatar } from "./CommentAvatar";
 
 // =============================================================================
 // Types
@@ -27,12 +28,12 @@ const TYPE_BORDER_COLORS: Record<CommentType, string> = {
   test_report: "#22c55e", // green
 };
 
-/** Author colors for avatars */
-const AUTHOR_COLORS: Record<string, string> = {
+/** Author colors for header text */
+const AUTHOR_COLORS: Record<CommentAuthor, string> = {
   claude: "#a855f7", // purple
   ralph: "#06b6d4", // cyan
-  opencode: "#3b82f6", // blue
-  user: "#10b981", // green
+  opencode: "#22c55e", // green
+  user: "#f97316", // orange
 };
 
 /** Type labels for display */
@@ -259,7 +260,7 @@ export const Comment: FC<CommentProps> = ({ comment, maxLines = 8, testId = "com
 
   // Get colors
   const borderColor = TYPE_BORDER_COLORS[comment.type as CommentType] ?? TYPE_BORDER_COLORS.comment;
-  const authorColor = AUTHOR_COLORS[comment.author] ?? AUTHOR_COLORS.user;
+  const authorColor = AUTHOR_COLORS[comment.author as CommentAuthor] ?? AUTHOR_COLORS.user;
   const typeLabel = TYPE_LABELS[comment.type as CommentType];
 
   // Toggle expansion
@@ -284,21 +285,6 @@ export const Comment: FC<CommentProps> = ({ comment, maxLines = 8, testId = "com
     borderRadius: "var(--radius-md)",
     background: "var(--bg-primary)",
     borderLeft: `3px solid ${borderColor}`,
-  };
-
-  const avatarStyles: React.CSSProperties = {
-    width: "32px",
-    height: "32px",
-    borderRadius: "50%",
-    background: `${authorColor}20`,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-    color: authorColor,
-    fontSize: "var(--font-size-xs)",
-    fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-    textTransform: "uppercase",
   };
 
   const contentContainerStyles: React.CSSProperties = {
@@ -357,9 +343,7 @@ export const Comment: FC<CommentProps> = ({ comment, maxLines = 8, testId = "com
   return (
     <div style={containerStyles} data-testid={testId}>
       {/* Avatar */}
-      <div style={avatarStyles} aria-hidden="true">
-        {comment.author.charAt(0)}
-      </div>
+      <CommentAvatar author={comment.author as CommentAuthor} testId={`${testId}-avatar`} />
 
       {/* Content */}
       <div style={contentContainerStyles}>

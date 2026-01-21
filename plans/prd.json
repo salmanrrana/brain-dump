@@ -496,7 +496,7 @@
     {
       "id": "e905a17b-df1e-4c97-a78a-bd693f7635e2",
       "title": "72 - Create CommentAvatar component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
