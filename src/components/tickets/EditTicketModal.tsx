@@ -456,7 +456,7 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
     maxHeight: "90vh",
     background: "var(--bg-secondary)",
     borderRadius: "var(--radius-lg)",
-    boxShadow: "var(--shadow-xl)",
+    boxShadow: "0 0 60px var(--accent-glow), 0 25px 50px rgba(0, 0, 0, 0.5)",
     overflow: "hidden",
     display: "flex",
     flexDirection: "column",
