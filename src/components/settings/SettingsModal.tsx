@@ -63,7 +63,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   // Form state - Ralph tab
   const [ralphSandbox, setRalphSandbox] = useState(false);
   const [ralphTimeout, setRalphTimeout] = useState(3600);
-  const [ralphMaxIterations, setRalphMaxIterations] = useState(10);
   const [dockerRuntime, setDockerRuntime] = useState<DockerRuntimeSetting>("auto");
 
   // Form state - Git tab
@@ -84,7 +83,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       setTerminalEmulator(settings.terminalEmulator ?? "");
       setRalphSandbox(settings.ralphSandbox ?? false);
       setRalphTimeout(settings.ralphTimeout ?? 3600);
-      setRalphMaxIterations(settings.ralphMaxIterations ?? 10);
       setAutoCreatePr(settings.autoCreatePr ?? true);
       setPrTargetBranch(settings.prTargetBranch ?? "dev");
       setDefaultProjectsDirectory(settings.defaultProjectsDirectory ?? "");
@@ -105,7 +103,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       const terminalChanged = terminalEmulator !== (settings.terminalEmulator ?? "");
       const sandboxChanged = ralphSandbox !== (settings.ralphSandbox ?? false);
       const timeoutChanged = ralphTimeout !== (settings.ralphTimeout ?? 3600);
-      const iterationsChanged = ralphMaxIterations !== (settings.ralphMaxIterations ?? 10);
       const prChanged = autoCreatePr !== (settings.autoCreatePr ?? true);
       const branchChanged = prTargetBranch !== (settings.prTargetBranch ?? "dev");
       const dirChanged = defaultProjectsDirectory !== (settings.defaultProjectsDirectory ?? "");
@@ -121,7 +118,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         terminalChanged ||
           sandboxChanged ||
           timeoutChanged ||
-          iterationsChanged ||
           prChanged ||
           branchChanged ||
           dirChanged ||
@@ -135,7 +131,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     terminalEmulator,
     ralphSandbox,
     ralphTimeout,
-    ralphMaxIterations,
     autoCreatePr,
     prTargetBranch,
     defaultProjectsDirectory,
@@ -200,7 +195,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         terminalEmulator: terminalEmulator || null,
         ralphSandbox,
         ralphTimeout,
-        ralphMaxIterations,
         autoCreatePr,
         prTargetBranch: prTargetBranch || "dev",
         defaultProjectsDirectory: defaultProjectsDirectory || null,
@@ -216,7 +210,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     terminalEmulator,
     ralphSandbox,
     ralphTimeout,
-    ralphMaxIterations,
     autoCreatePr,
     prTargetBranch,
     defaultProjectsDirectory,
@@ -337,8 +330,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                 onSandboxChange={setRalphSandbox}
                 ralphTimeout={ralphTimeout}
                 onTimeoutChange={setRalphTimeout}
-                ralphMaxIterations={ralphMaxIterations}
-                onMaxIterationsChange={setRalphMaxIterations}
                 dockerRuntime={dockerRuntime}
                 onDockerRuntimeChange={setDockerRuntime}
                 dockerStatus={dockerStatus}

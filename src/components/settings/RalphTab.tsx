@@ -1,4 +1,4 @@
-import { ChevronDown, Loader2, AlertTriangle, CheckCircle, Clock, Repeat, Bot } from "lucide-react";
+import { ChevronDown, Loader2, AlertTriangle, CheckCircle, Bot } from "lucide-react";
 import { DOCKER_RUNTIME_TYPES, type DockerRuntimeSetting } from "../../api/settings";
 import {
   sectionHeaderStyles,
@@ -42,10 +42,6 @@ export interface RalphTabProps {
   ralphTimeout: number;
   /** Callback when timeout changes */
   onTimeoutChange: (value: number) => void;
-  /** Current max iterations setting */
-  ralphMaxIterations: number;
-  /** Callback when max iterations changes */
-  onMaxIterationsChange: (value: number) => void;
   /** Current Docker runtime setting */
   dockerRuntime: DockerRuntimeSetting;
   /** Callback when Docker runtime changes */
@@ -70,14 +66,6 @@ const TIMEOUT_OPTIONS = [
   { label: "8h", value: 28800 },
 ];
 
-const ITERATION_OPTIONS = [
-  { label: "5", value: 5 },
-  { label: "10", value: 10 },
-  { label: "20", value: 20 },
-  { label: "50", value: 50 },
-  { label: "100", value: 100 },
-];
-
 // =============================================================================
 // RALPH TAB COMPONENT
 // =============================================================================
@@ -90,7 +78,6 @@ const ITERATION_OPTIONS = [
  * - **Docker status**: Shows installation, daemon, and image status
  * - **Docker runtime selection**: Choose between detected runtimes
  * - **Session timeout**: Button group for timeout duration
- * - **Max iterations**: Button group for iteration limit
  * - **Build image button**: Trigger sandbox image build
  *
  * All values are controlled via props with change callbacks to parent.
@@ -101,8 +88,6 @@ export function RalphTab({
   onSandboxChange,
   ralphTimeout,
   onTimeoutChange,
-  ralphMaxIterations,
-  onMaxIterationsChange,
   dockerRuntime,
   onDockerRuntimeChange,
   dockerStatus,
@@ -354,10 +339,7 @@ export function RalphTab({
 
         {/* Session Timeout */}
         <div>
-          <div className="flex items-center gap-2.5 mb-3">
-            <Clock size={14} className="text-[var(--text-tertiary)]" />
-            <label className={fieldStyles.label + " !mb-0"}>Session Timeout</label>
-          </div>
+          <label className={fieldStyles.label}>Session Timeout</label>
           <div
             className={buttonGroupStyles.container}
             role="group"
@@ -377,34 +359,6 @@ export function RalphTab({
           <p className={fieldStyles.hint}>
             Ralph session will stop after this duration to prevent runaway processes. Progress is
             saved before timeout.
-          </p>
-        </div>
-
-        {/* Max Iterations */}
-        <div>
-          <div className="flex items-center gap-2.5 mb-3">
-            <Repeat size={14} className="text-[var(--text-tertiary)]" />
-            <label className={fieldStyles.label + " !mb-0"}>Max Iterations</label>
-          </div>
-          <div
-            className={buttonGroupStyles.container}
-            role="group"
-            aria-label="Max iterations options"
-          >
-            {ITERATION_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                onClick={() => onMaxIterationsChange(option.value)}
-                className={buttonGroupStyles.button(ralphMaxIterations === option.value)}
-                aria-pressed={ralphMaxIterations === option.value}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-          <p className={fieldStyles.hint}>
-            Maximum number of autonomous iterations before Ralph stops. Higher values allow more
-            work but increase token usage.
           </p>
         </div>
       </div>
