@@ -1,6 +1,7 @@
 import { ChevronDown, Check, Terminal, FolderPlus, Folder, Palette } from "lucide-react";
 import { SUPPORTED_TERMINALS } from "../../api/settings";
 import { ThemeSwitcher } from "../../components-v2/ui/ThemeSwitcher";
+import { sectionHeaderStyles, fieldStyles, inputStyles, statusCardStyles } from "./settingsStyles";
 
 // =============================================================================
 // TYPES
@@ -65,20 +66,22 @@ export function GeneralTab({
       <div className="space-y-6">
         {/* Appearance Section */}
         <div>
-          <div className="flex items-center gap-2 mb-3">
-            <Palette size={18} className="text-[var(--accent-primary)]" />
-            <h3 className="text-sm font-semibold text-gray-100 uppercase tracking-wide">
-              Appearance
-            </h3>
+          <div className={sectionHeaderStyles.container}>
+            <div className={sectionHeaderStyles.iconBox("var(--accent-ai)")}>
+              <Palette size={16} className="text-[var(--accent-ai)]" />
+            </div>
+            <h3 className={sectionHeaderStyles.title}>Appearance</h3>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-2">Theme</label>
+            <label className={fieldStyles.label}>Theme</label>
             <div className="flex items-center gap-4">
               <ThemeSwitcher />
-              <span className="text-xs text-slate-500">Click a color to switch themes</span>
+              <span className="text-xs text-[var(--text-tertiary)]">
+                Click a color to switch themes
+              </span>
             </div>
-            <p className="mt-2 text-xs text-slate-500">
+            <p className={fieldStyles.hint}>
               Choose between Ember (orange), Mint (green), or Solar (gold) accent colors. Your
               preference is saved automatically.
             </p>
@@ -87,40 +90,42 @@ export function GeneralTab({
 
         {/* Projects Section */}
         <div>
-          <div className="flex items-center gap-2 mb-3">
-            <FolderPlus size={18} className="text-amber-400" />
-            <h3 className="text-sm font-semibold text-gray-100 uppercase tracking-wide">
-              Projects
-            </h3>
+          <div className={sectionHeaderStyles.container}>
+            <div className={sectionHeaderStyles.iconBox("var(--accent-primary)")}>
+              <FolderPlus size={16} className="text-[var(--accent-primary)]" />
+            </div>
+            <h3 className={sectionHeaderStyles.title}>Projects</h3>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">
-              Default Projects Directory
-            </label>
+            <label className={fieldStyles.label}>Default Projects Directory</label>
             <button
               onClick={onBrowseDirectory}
               aria-label="Select default projects directory"
-              className="w-full flex items-center gap-3 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-left hover:border-slate-600  transition-colors"
+              className="w-full flex items-center gap-3 px-3 py-2.5 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-left hover:border-[var(--accent-primary)] transition-colors"
             >
-              <Folder size={18} className="text-amber-400 flex-shrink-0" />
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[color-mix(in_srgb,var(--accent-primary)_15%,transparent)] flex-shrink-0">
+                <Folder size={16} className="text-[var(--accent-primary)]" />
+              </div>
               {defaultProjectsDirectory ? (
-                <span className="text-gray-100 truncate font-mono text-sm">
+                <span className="text-[var(--text-primary)] truncate font-mono text-sm">
                   {defaultProjectsDirectory}
                 </span>
               ) : (
-                <span className="text-slate-500 text-sm">Click to select a directory...</span>
+                <span className="text-[var(--text-tertiary)] text-sm">
+                  Click to select a directory...
+                </span>
               )}
             </button>
             {defaultProjectsDirectory && (
               <button
                 onClick={() => onDirectoryChange("")}
-                className="mt-2 text-xs text-slate-400 hover:text-slate-300"
+                className="mt-2 text-xs text-[var(--text-tertiary)] hover:text-[var(--accent-primary)] transition-colors"
               >
                 Clear selection
               </button>
             )}
-            <p className="mt-2 text-xs text-slate-500">
+            <p className={fieldStyles.hint}>
               New projects created via "Start from Scratch" will be placed in this directory. Leave
               empty to choose each time.
             </p>
@@ -128,10 +133,7 @@ export function GeneralTab({
 
           {/* Default Working Method */}
           <div className="mt-4">
-            <label
-              htmlFor="working-method-select"
-              className="block text-sm font-medium text-slate-400 mb-1"
-            >
+            <label htmlFor="working-method-select" className={fieldStyles.label}>
               Default Environment
             </label>
             <div className="relative">
@@ -143,19 +145,16 @@ export function GeneralTab({
                     e.target.value as "auto" | "claude-code" | "vscode" | "opencode"
                   )
                 }
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
+                className={inputStyles.select}
               >
                 <option value="auto">Auto-detect</option>
                 <option value="claude-code">Claude Code</option>
                 <option value="vscode">VS Code</option>
                 <option value="opencode">OpenCode</option>
               </select>
-              <ChevronDown
-                size={16}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-              />
+              <ChevronDown size={16} className={inputStyles.selectArrow} />
             </div>
-            <p className="mt-2 text-xs text-slate-500">
+            <p className={fieldStyles.hint}>
               Default working environment for new projects. Can be overridden per-project.
             </p>
           </div>
@@ -163,19 +162,16 @@ export function GeneralTab({
 
         {/* Terminal Section */}
         <div>
-          <div className="flex items-center gap-2 mb-3">
-            <Terminal size={18} className="text-cyan-400" />
-            <h3 className="text-sm font-semibold text-gray-100 uppercase tracking-wide">
-              Terminal
-            </h3>
+          <div className={sectionHeaderStyles.container}>
+            <div className={sectionHeaderStyles.iconBox("var(--accent-ai)")}>
+              <Terminal size={16} className="text-[var(--accent-ai)]" />
+            </div>
+            <h3 className={sectionHeaderStyles.title}>Terminal</h3>
           </div>
 
           {/* Terminal Emulator Selection */}
           <div>
-            <label
-              htmlFor="terminal-emulator-select"
-              className="block text-sm font-medium text-slate-400 mb-1"
-            >
+            <label htmlFor="terminal-emulator-select" className={fieldStyles.label}>
               Preferred Terminal Emulator
             </label>
             <div className="relative">
@@ -183,7 +179,7 @@ export function GeneralTab({
                 id="terminal-emulator-select"
                 value={terminalEmulator}
                 onChange={(e) => onTerminalChange(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
+                className={inputStyles.select}
               >
                 {SUPPORTED_TERMINALS.map((terminal) => (
                   <option key={terminal.value} value={terminal.value}>
@@ -196,12 +192,9 @@ export function GeneralTab({
                   </option>
                 ))}
               </select>
-              <ChevronDown
-                size={16}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-              />
+              <ChevronDown size={16} className={inputStyles.selectArrow} />
             </div>
-            <p className="mt-2 text-xs text-slate-500">
+            <p className={fieldStyles.hint}>
               Used when clicking "Start Work" on a ticket. Auto-detect will try Ghostty first, then
               fall back to other installed terminals.
             </p>
@@ -209,17 +202,17 @@ export function GeneralTab({
 
           {/* Available Terminals Info */}
           {availableTerminals.length > 0 && (
-            <div className="mt-4 p-3 bg-slate-800/50 rounded-lg">
-              <p className="text-xs font-medium text-slate-400 mb-2">
+            <div className={statusCardStyles.container}>
+              <p className="text-xs font-semibold text-[var(--text-secondary)] mb-3">
                 Detected terminals on your system:
               </p>
               <div className="flex flex-wrap gap-2">
                 {availableTerminals.map((terminal) => (
                   <span
                     key={terminal}
-                    className="inline-flex items-center gap-1 px-2 py-1 bg-slate-700 rounded text-xs text-slate-300"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-primary)] border border-[var(--border-primary)] rounded-lg text-xs text-[var(--text-secondary)]"
                   >
-                    <Check size={12} className="text-green-400" />
+                    <Check size={12} className="text-[var(--status-success)]" />
                     {terminal}
                   </span>
                 ))}

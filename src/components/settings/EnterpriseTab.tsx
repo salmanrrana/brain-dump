@@ -1,4 +1,6 @@
+import { Building2, FileText, Palette } from "lucide-react";
 import { ThemeSwitcher } from "../../components-v2/ui/ThemeSwitcher";
+import { sectionHeaderStyles, fieldStyles, inputStyles, toggleStyles } from "./settingsStyles";
 
 // =============================================================================
 // TYPES
@@ -49,78 +51,88 @@ export function EnterpriseTab({
       style={{ display: isActive ? "block" : "none" }}
     >
       <div className="space-y-6">
-        {/* Theme Picker */}
+        {/* Conversation Logging Section */}
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">Color Theme</label>
-          <ThemeSwitcher />
-          <p className="mt-2 text-xs text-slate-500">Choose your preferred accent color theme</p>
-        </div>
+          <div className={sectionHeaderStyles.container}>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[color-mix(in_srgb,var(--status-warning)_15%,transparent)]">
+              <FileText size={16} className="text-[var(--status-warning)]" />
+            </div>
+            <h3 className={sectionHeaderStyles.title}>Conversation Logging</h3>
+          </div>
 
-        {/* Enable Logging Toggle */}
-        <div className="flex items-center justify-between py-2">
-          <div>
-            <label className="block text-sm font-medium text-slate-300">
-              Enable Conversation Logging
+          {/* Enable Logging Toggle */}
+          <div className={toggleStyles.row}>
+            <div className={toggleStyles.info}>
+              <div className={toggleStyles.label}>Enable Conversation Logging</div>
+              <div className={toggleStyles.desc}>
+                Record AI conversations for compliance auditing (SOC2, GDPR, ISO 27001)
+              </div>
+            </div>
+            <button
+              onClick={() => onLoggingEnabledChange(!conversationLoggingEnabled)}
+              className={toggleStyles.switch(conversationLoggingEnabled)}
+              role="switch"
+              aria-checked={conversationLoggingEnabled}
+              aria-label="Enable Conversation Logging"
+            >
+              <span className={toggleStyles.knob(conversationLoggingEnabled)} />
+            </button>
+          </div>
+
+          {/* Retention Period */}
+          <div className="mt-4">
+            <label htmlFor="retention-days-input" className={fieldStyles.label}>
+              Retention Period (days)
             </label>
-            <p className="text-xs text-slate-500">
-              Record AI conversations for compliance auditing
-            </p>
-          </div>
-          <button
-            onClick={() => onLoggingEnabledChange(!conversationLoggingEnabled)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              conversationLoggingEnabled ? "bg-amber-600" : "bg-slate-700"
-            }`}
-            role="switch"
-            aria-checked={conversationLoggingEnabled}
-            aria-label="Enable Conversation Logging"
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                conversationLoggingEnabled ? "translate-x-6" : "translate-x-1"
-              }`}
+            <input
+              id="retention-days-input"
+              type="number"
+              min={7}
+              max={365}
+              value={conversationRetentionDays}
+              onChange={(e) => {
+                const value = parseInt(e.target.value, 10);
+                if (!isNaN(value)) {
+                  onRetentionDaysChange(Math.max(7, Math.min(365, value)));
+                }
+              }}
+              className={inputStyles.base + " disabled:opacity-50 disabled:cursor-not-allowed"}
+              disabled={!conversationLoggingEnabled}
             />
-          </button>
-        </div>
-
-        {/* Retention Period */}
-        <div>
-          <label
-            htmlFor="retention-days-input"
-            className="block text-sm font-medium text-slate-400 mb-1"
-          >
-            Retention Period (days)
-          </label>
-          <input
-            id="retention-days-input"
-            type="number"
-            min={7}
-            max={365}
-            value={conversationRetentionDays}
-            onChange={(e) => {
-              const value = parseInt(e.target.value, 10);
-              if (!isNaN(value)) {
-                onRetentionDaysChange(Math.max(7, Math.min(365, value)));
-              }
-            }}
-            className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 "
-            disabled={!conversationLoggingEnabled}
-          />
-          <p className="mt-1 text-xs text-slate-500">
-            Conversation logs older than this will be archived (7-365 days)
-          </p>
-        </div>
-
-        {/* Enterprise Info Box */}
-        {conversationLoggingEnabled && (
-          <div className="p-3 bg-slate-800/50 rounded-lg">
-            <p className="text-xs text-slate-400">
-              <span className="text-amber-400 font-medium">Enterprise feature:</span> Conversation
-              logging creates an audit trail of all AI interactions for SOC2, GDPR, and ISO 27001
-              compliance.
+            <p className={fieldStyles.hint}>
+              Conversation logs older than this will be archived (7-365 days)
             </p>
           </div>
-        )}
+
+          {/* Enterprise Info Box */}
+          {conversationLoggingEnabled && (
+            <div className="mt-4 p-3.5 bg-[color-mix(in_srgb,var(--status-warning)_10%,transparent)] border border-[color-mix(in_srgb,var(--status-warning)_30%,transparent)] rounded-xl">
+              <div className="flex items-center gap-2.5">
+                <Building2 size={14} className="text-[var(--status-warning)]" />
+                <p className="text-xs text-[var(--status-warning)]">
+                  <strong>Enterprise feature:</strong> Creates an audit trail of all AI interactions
+                  for compliance requirements.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Appearance Section */}
+        <div>
+          <div className={sectionHeaderStyles.container}>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[color-mix(in_srgb,var(--accent-ai)_15%,transparent)]">
+              <Palette size={16} className="text-[var(--accent-ai)]" />
+            </div>
+            <h3 className={sectionHeaderStyles.title}>Appearance</h3>
+          </div>
+
+          <div>
+            <label className={fieldStyles.label}>Color Theme</label>
+            <ThemeSwitcher />
+            <p className={fieldStyles.hint}>Choose your preferred accent color theme</p>
+          </div>
+        </div>
       </div>
     </div>
   );
