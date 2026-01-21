@@ -18,6 +18,9 @@ import { promisify } from "util";
 
 const execAsync = promisify(exec);
 
+// Track Docker unavailability to avoid spamming logs
+let dockerUnavailableLogged = false;
+
 /**
  * Get the effective Docker socket path from settings or auto-detection.
  *
@@ -296,9 +299,27 @@ export async function listContainers(namePattern?: string): Promise<ListContaine
       }
     }
 
+    // Docker is working - reset the unavailable flag
+    dockerUnavailableLogged = false;
     return { containers };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const isDockerUnavailable =
+      message.includes("Cannot connect to the Docker daemon") ||
+      message.includes("Is the docker daemon running");
+
+    // Only log Docker unavailable error once to avoid spam
+    if (isDockerUnavailable) {
+      if (!dockerUnavailableLogged) {
+        console.warn(
+          `[docker-utils] Docker daemon not running - container features disabled. This message will not repeat.`
+        );
+        dockerUnavailableLogged = true;
+      }
+      return { containers: [], error: "Docker daemon not running" };
+    }
+
+    // Log other errors normally
     console.error(`[docker-utils] Failed to list containers: ${message}`);
     return { containers: [], error: `Failed to list containers: ${message}` };
   }
@@ -457,9 +478,20 @@ export async function getContainerStats(containerNames?: string[]): Promise<Cont
       }
     }
 
+    // Docker is working - reset the unavailable flag
+    dockerUnavailableLogged = false;
     return { stats };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const isDockerUnavailable =
+      message.includes("Cannot connect to the Docker daemon") ||
+      message.includes("Is the docker daemon running");
+
+    // Silently return empty stats if Docker is unavailable (already logged in listContainers)
+    if (isDockerUnavailable) {
+      return { stats: [], error: "Docker daemon not running" };
+    }
+
     console.error(`[docker-utils] Failed to get container stats: ${message}`);
     return { stats: [], error: `Failed to get container stats: ${message}` };
   }

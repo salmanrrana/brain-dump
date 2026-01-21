@@ -430,8 +430,8 @@ export const listRalphContainers = createServerFn({ method: "GET" }).handler(asy
 
   const result = await listContainers("ralph-");
 
-  // Log any Docker errors for debugging
-  if (result.error) {
+  // Only log unexpected errors (Docker daemon not running is handled silently in docker-utils)
+  if (result.error && result.error !== "Docker daemon not running") {
     console.warn(`[services] Docker container list error: ${result.error}`);
   }
 
@@ -458,8 +458,8 @@ export const getRalphContainerStats = createServerFn({ method: "GET" })
 
     const result = await getContainerStats(containerNames);
 
-    // Log any Docker errors for debugging
-    if (result.error) {
+    // Only log unexpected errors (Docker daemon not running is handled silently)
+    if (result.error && result.error !== "Docker daemon not running") {
       console.warn(`[services] Docker container stats error: ${result.error}`);
     }
 
