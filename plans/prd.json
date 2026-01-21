@@ -68,7 +68,7 @@
     {
       "id": "cdf9add3-545b-4381-8ca4-d753c2a7249c",
       "title": "93 - Create GeneralTab settings component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -96,7 +96,7 @@
     {
       "id": "82d40cff-30a0-44a1-b020-d1d016554290",
       "title": "94 - Create RalphTab settings component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -124,7 +124,7 @@
     {
       "id": "898b1b12-60f2-4287-8d96-cf1c6333beee",
       "title": "95 - Create GitTab settings component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],

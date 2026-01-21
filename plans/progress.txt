@@ -371,3 +371,82 @@ PRD_COMPLETE
 - **Reason:** Timeout reached (2h limit)
 - **Status:** Session terminated, work may be incomplete
 - **Action:** Review progress and restart if needed
+
+---
+
+### 2026-01-21 - Ticket 91 Complete (SettingsModal with Tabbed Navigation)
+- **Ticket ID:** 6cd0fd59-89fa-4e21-89e4-7482b38766f7
+- **Task:** Create SettingsModal with 4 tabs using TabNav component
+- **Success:** true
+- **Commit:** 4a38e60
+- **Files:**
+  - src/components/settings/SettingsModal.tsx (NEW - refactored from monolithic)
+  - src/components/settings/index.ts (updated exports)
+  - src/components/AppLayout.tsx (updated import)
+  - src/components/SettingsModal.tsx (DELETED - moved to settings/)
+- **Features:**
+  - 4 tabs: General, Ralph, Git, Enterprise
+  - TabNav component with keyboard navigation
+  - Tab switching preserves form state (CSS display toggling)
+  - Proper ARIA tabpanel pattern
+  - Save/Cancel footer buttons
+  - All existing settings functionality preserved
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1303 passed)
+
+
+### 2026-01-21 - Ticket 93 Complete (GeneralTab Settings Component)
+- **Ticket ID:** cdf9add3-545b-4381-8ca4-d753c2a7249c
+- **Task:** Create GeneralTab settings component
+- **Success:** true
+- **Commit:** d242f38
+- **Files:**
+  - src/components/settings/GeneralTab.tsx (NEW)
+  - src/components/settings/SettingsModal.tsx (refactored to use GeneralTab)
+  - src/components/settings/index.ts (updated exports)
+- **Features:**
+  - Projects directory input with browse button
+  - Terminal emulator dropdown (detected terminals marked)
+  - Default working method dropdown
+  - Controlled component pattern (props down, callbacks up)
+  - Tab visibility via CSS display for state preservation
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1303 passed)
+
+
+### 2026-01-21 - Ticket 94 Complete (RalphTab Settings Component)
+- **Ticket ID:** 82d40cff-30a0-44a1-b020-d1d016554290
+- **Task:** Create RalphTab settings component
+- **Success:** true
+- **Commit:** b22fa93
+- **Files:**
+  - src/components/settings/RalphTab.tsx (NEW)
+  - src/components/settings/SettingsModal.tsx (refactored to use RalphTab)
+  - src/components/settings/index.ts (updated exports)
+- **Features:**
+  - Docker sandbox toggle with preference setting
+  - Docker status indicator (available/running/image built)
+  - Docker runtime dropdown with auto-detection
+  - Session timeout button group (30m, 1h, 2h, 4h, 8h)
+  - Max iterations button group (5, 10, 20, 50, 100)
+  - Build sandbox image button with loading/success/error states
+  - Proper ARIA attributes (aria-pressed, aria-label, role=group)
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1303 passed)
+
+
+### 2026-01-21 - Ticket 95 Complete (GitTab Settings Component)
+- **Ticket ID:** 898b1b12-60f2-4287-8d96-cf1c6333beee
+- **Task:** Create GitTab settings component
+- **Success:** true
+- **Commit:** 056f4a1
+- **Files:**
+  - src/components/settings/GitTab.tsx (NEW)
+  - src/components/settings/SettingsModal.tsx (refactored to use GitTab)
+  - src/components/settings/index.ts (updated exports)
+- **Features:**
+  - Auto-create draft PR toggle
+  - Default target branch input (main/dev)
+  - Branch naming pattern dropdown (feature/, fix/, custom)
+  - Custom pattern input with {ticket-id} and {slug} placeholders
+  - Live preview of generated branch name
+- **Note:** Branch naming pattern stored locally (UI-only for now)
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1303 passed)
+
