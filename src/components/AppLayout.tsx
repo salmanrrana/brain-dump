@@ -325,11 +325,15 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   // Navigation callbacks for keyboard shortcuts (1-4)
   const handleNavigateDashboard = useCallback(() => {
-    void navigate({ to: "/dashboard" });
+    navigate({ to: "/dashboard" }).catch((err) => {
+      console.error("Navigation to dashboard failed:", err);
+    });
   }, [navigate]);
 
   const handleNavigateBoard = useCallback(() => {
-    void navigate({ to: "/" });
+    navigate({ to: "/" }).catch((err) => {
+      console.error("Navigation to board failed:", err);
+    });
   }, [navigate]);
 
   const handleToggleProjects = useCallback(() => {

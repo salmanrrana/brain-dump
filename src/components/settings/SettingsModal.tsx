@@ -15,10 +15,6 @@ import { RalphTab } from "./RalphTab";
 import { GitTab } from "./GitTab";
 import { EnterpriseTab } from "./EnterpriseTab";
 
-// =============================================================================
-// TYPES
-// =============================================================================
-
 interface SettingsModalProps {
   /** Handler to close the modal */
   onClose: () => void;
@@ -27,20 +23,12 @@ interface SettingsModalProps {
 /** Settings tab identifiers */
 type SettingsTabId = "general" | "ralph" | "git" | "enterprise";
 
-// =============================================================================
-// TAB CONFIGURATION
-// =============================================================================
-
 const SETTINGS_TABS: Tab[] = [
   { id: "general", label: "General", icon: Settings },
   { id: "ralph", label: "Ralph", icon: Bot },
   { id: "git", label: "Git", icon: GitBranch },
   { id: "enterprise", label: "Enterprise", icon: Building2 },
 ];
-
-// =============================================================================
-// SETTINGS MODAL COMPONENT
-// =============================================================================
 
 /**
  * SettingsModal - Modal for configuring application settings.
@@ -306,9 +294,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4">
-          {/* Error */}
           {error && (
-            <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-300 text-sm">
+            <div className="mb-4 p-3 bg-[var(--status-error)]/20 border border-[var(--status-error)]/50 rounded-lg text-[var(--status-error)] text-sm">
               {error instanceof Error ? error.message : "An error occurred"}
             </div>
           )}
