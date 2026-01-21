@@ -198,7 +198,7 @@
     {
       "id": "b2e2ab03-8078-4956-80bc-014c42808363",
       "title": "82 - Create CreateProjectModal",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
