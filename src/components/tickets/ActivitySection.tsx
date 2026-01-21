@@ -1,8 +1,8 @@
-import { type FC, useState, useRef, useCallback, useEffect, type KeyboardEvent } from "react";
-import { MessageCircle, Send, Loader2 } from "lucide-react";
-import { useComments, useCreateComment } from "../../lib/hooks";
-import type { CommentAuthor, CommentType } from "../../api/comments";
+import { type FC, useRef, useCallback, useEffect } from "react";
+import { MessageCircle, Loader2 } from "lucide-react";
+import { useComments } from "../../lib/hooks";
 import { Comment as CommentComponent } from "./Comment";
+import { CommentInput } from "./CommentInput";
 
 // =============================================================================
 // Types
@@ -18,127 +18,6 @@ export interface ActivitySectionProps {
   /** Test ID prefix for testing */
   testId?: string;
 }
-
-// =============================================================================
-// CommentInput Component
-// =============================================================================
-
-interface CommentInputProps {
-  ticketId: string;
-  onCommentAdded: () => void;
-  disabled: boolean;
-  testId: string;
-}
-
-const CommentInput: FC<CommentInputProps> = ({ ticketId, onCommentAdded, disabled, testId }) => {
-  const [content, setContent] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const createComment = useCreateComment();
-
-  const isSubmitting = createComment.isPending;
-  const canSubmit = content.trim().length > 0 && !isSubmitting && !disabled;
-
-  const handleSubmit = useCallback(() => {
-    if (!canSubmit) return;
-
-    createComment.mutate(
-      {
-        ticketId,
-        content: content.trim(),
-        author: "user" as CommentAuthor,
-        type: "comment" as CommentType,
-      },
-      {
-        onSuccess: () => {
-          setContent("");
-          onCommentAdded();
-          textareaRef.current?.focus();
-        },
-      }
-    );
-  }, [canSubmit, content, ticketId, createComment, onCommentAdded]);
-
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLTextAreaElement>) => {
-      // Submit on Ctrl/Cmd + Enter
-      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-        e.preventDefault();
-        handleSubmit();
-      }
-    },
-    [handleSubmit]
-  );
-
-  const containerStyles: React.CSSProperties = {
-    display: "flex",
-    gap: "var(--spacing-2)",
-    alignItems: "flex-end",
-    padding: "var(--spacing-3)",
-    borderTop: "1px solid var(--border-primary)",
-    background: "var(--bg-secondary)",
-  };
-
-  const textareaStyles: React.CSSProperties = {
-    flex: 1,
-    padding: "var(--spacing-2) var(--spacing-3)",
-    background: "var(--bg-primary)",
-    border: "1px solid var(--border-primary)",
-    borderRadius: "var(--radius-md)",
-    color: "var(--text-primary)",
-    fontSize: "var(--font-size-sm)",
-    fontFamily: "inherit",
-    resize: "none",
-    minHeight: "38px",
-    maxHeight: "100px",
-    outline: "none",
-  };
-
-  const buttonStyles: React.CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: "38px",
-    height: "38px",
-    background: canSubmit ? "var(--accent-primary)" : "var(--bg-tertiary)",
-    border: "none",
-    borderRadius: "var(--radius-md)",
-    color: canSubmit ? "var(--text-on-accent)" : "var(--text-muted)",
-    cursor: canSubmit ? "pointer" : "not-allowed",
-    transition: "all var(--transition-fast)",
-  };
-
-  return (
-    <div style={containerStyles} data-testid={`${testId}-input`}>
-      <textarea
-        ref={textareaRef}
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Add a comment... (Ctrl+Enter to send)"
-        style={textareaStyles}
-        className="focus:border-[var(--accent-primary)]"
-        disabled={disabled || isSubmitting}
-        rows={1}
-        data-testid={`${testId}-input-textarea`}
-      />
-      <button
-        type="button"
-        onClick={handleSubmit}
-        disabled={!canSubmit}
-        style={buttonStyles}
-        className={canSubmit ? "hover:opacity-90" : ""}
-        aria-label="Send comment"
-        data-testid={`${testId}-input-submit`}
-      >
-        {isSubmitting ? (
-          <Loader2 size={16} className="animate-spin" aria-hidden="true" />
-        ) : (
-          <Send size={16} aria-hidden="true" />
-        )}
-      </button>
-    </div>
-  );
-};
 
 // =============================================================================
 // ActivitySection Component
@@ -298,7 +177,7 @@ export const ActivitySection: FC<ActivitySectionProps> = ({
         ticketId={ticketId}
         onCommentAdded={scrollToBottom}
         disabled={loading && comments.length === 0}
-        testId={testId}
+        testId={`${testId}-input`}
       />
     </div>
   );
