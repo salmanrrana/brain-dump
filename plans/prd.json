@@ -549,7 +549,7 @@
     {
       "id": "36d66de5-42db-4822-8b5b-62d26f29c5ad",
       "title": "74 - Add code block rendering to comments",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],

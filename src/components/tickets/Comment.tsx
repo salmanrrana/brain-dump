@@ -2,6 +2,7 @@ import { type FC, useState, useCallback, useMemo } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { Comment as CommentData, CommentType, CommentAuthor } from "../../api/comments";
 import { CommentAvatar } from "./CommentAvatar";
+import { CodeBlock } from "./CodeBlock";
 
 // =============================================================================
 // Types
@@ -151,33 +152,29 @@ function renderMarkdown(content: string): React.ReactNode {
   const elements: React.ReactNode[] = [];
   let inCodeBlock = false;
   let codeBlockLines: string[] = [];
+  let codeBlockLanguage: string | undefined;
 
   lines.forEach((line, lineIndex) => {
     // Handle code block start/end
     if (line.startsWith("```")) {
       if (!inCodeBlock) {
+        // Start of code block - extract language from fence
         inCodeBlock = true;
         codeBlockLines = [];
+        codeBlockLanguage = line.slice(3).trim() || undefined;
       } else {
-        // End of code block
+        // End of code block - render with CodeBlock component
         elements.push(
-          <pre
+          <CodeBlock
             key={`code-${lineIndex}`}
-            style={{
-              background: "var(--bg-tertiary)",
-              borderRadius: "var(--radius-md)",
-              padding: "var(--spacing-3)",
-              overflowX: "auto",
-              fontSize: "var(--font-size-sm)",
-              fontFamily: "monospace",
-              margin: "var(--spacing-2) 0",
-            }}
-          >
-            <code>{codeBlockLines.join("\n")}</code>
-          </pre>
+            code={codeBlockLines.join("\n")}
+            language={codeBlockLanguage}
+            testId={`code-block-${lineIndex}`}
+          />
         );
         inCodeBlock = false;
         codeBlockLines = [];
+        codeBlockLanguage = undefined;
       }
       return;
     }
@@ -217,20 +214,12 @@ function renderMarkdown(content: string): React.ReactNode {
   // Handle unclosed code block
   if (inCodeBlock && codeBlockLines.length > 0) {
     elements.push(
-      <pre
+      <CodeBlock
         key="code-unclosed"
-        style={{
-          background: "var(--bg-tertiary)",
-          borderRadius: "var(--radius-md)",
-          padding: "var(--spacing-3)",
-          overflowX: "auto",
-          fontSize: "var(--font-size-sm)",
-          fontFamily: "monospace",
-          margin: "var(--spacing-2) 0",
-        }}
-      >
-        <code>{codeBlockLines.join("\n")}</code>
-      </pre>
+        code={codeBlockLines.join("\n")}
+        language={codeBlockLanguage}
+        testId="code-block-unclosed"
+      />
     );
   }
 
