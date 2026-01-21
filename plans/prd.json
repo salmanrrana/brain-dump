@@ -92,7 +92,7 @@
     {
       "id": "6a505a56-0c0a-4ef5-b019-2d41a42c5fd4",
       "title": "78 - Create TicketDescription component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -198,7 +198,7 @@
     {
       "id": "b2e2ab03-8078-4956-80bc-014c42808363",
       "title": "82 - Create CreateProjectModal",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -226,7 +226,7 @@
     {
       "id": "dac4013c-44ae-4b15-8d4a-905f0e46e207",
       "title": "83 - Create EditProjectModal",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -254,7 +254,7 @@
     {
       "id": "2faf1fbf-1352-4106-8712-11d19ba7ff80",
       "title": "84 - Create ColorPicker component",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -413,7 +413,7 @@
     {
       "id": "551b1146-1140-47fc-adeb-2b607c4ddb52",
       "title": "90 - Wire InceptionModal to NewTicketDropdown",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -564,7 +564,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-21T04:45:19.990Z",
+  "generatedAt": "2026-01-21T06:48:03.103Z",
   "epicTitle": "UI v2 Sprint 5: Detail Views & Project Flows",
   "epicDescription": "Implement ticket detail panel, project creation/settings, epic management, and search/filter functionality with full-text search integration."
 }
