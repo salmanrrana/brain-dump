@@ -301,7 +301,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="max-h-[520px] overflow-y-auto py-5 px-6">
           {error && (
             <div className="mb-4 p-3 bg-[var(--status-error)]/20 border border-[var(--status-error)]/50 rounded-lg text-[var(--status-error)] text-sm">
               {error instanceof Error ? error.message : "An error occurred"}
