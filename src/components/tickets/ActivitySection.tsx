@@ -1,4 +1,4 @@
-import { type FC, useRef, useCallback, useEffect } from "react";
+import { type FC, useRef, useCallback, useEffect, useMemo } from "react";
 import { MessageCircle, Loader2 } from "lucide-react";
 import { useComments } from "../../lib/hooks";
 import { Comment as CommentComponent } from "./Comment";
@@ -53,7 +53,8 @@ export const ActivitySection: FC<ActivitySectionProps> = ({
   const { comments, loading, error } = useComments(ticketId, { pollingInterval });
 
   // Sort comments oldest first (API returns newest first, so reverse)
-  const sortedComments = [...comments].reverse();
+  // Memoized to avoid re-creating array on every render
+  const sortedComments = useMemo(() => [...comments].reverse(), [comments]);
 
   // Scroll to bottom when comments change
   const scrollToBottom = useCallback(() => {
