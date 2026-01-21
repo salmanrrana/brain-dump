@@ -1,6 +1,5 @@
-import { ChevronDown, Check, Terminal, FolderPlus, Folder, Palette } from "lucide-react";
+import { ChevronDown, Check, Terminal, FolderPlus, Folder } from "lucide-react";
 import { SUPPORTED_TERMINALS } from "../../api/settings";
-import { ThemeSwitcher } from "../../components-v2/ui/ThemeSwitcher";
 import { sectionHeaderStyles, fieldStyles, inputStyles, statusCardStyles } from "./settingsStyles";
 
 // =============================================================================
@@ -40,6 +39,7 @@ export interface GeneralTabProps {
  * - **Terminal emulator**: Dropdown with detected terminals marked as installed
  * - **Working method**: Default environment for new projects (auto, claude-code, vscode, opencode)
  *
+ * Note: Theme/Appearance settings have been moved to EnterpriseTab.
  * All values are controlled via props with change callbacks to parent.
  */
 export function GeneralTab({
@@ -64,30 +64,6 @@ export function GeneralTab({
       style={{ display: isActive ? "block" : "none" }}
     >
       <div className="space-y-6">
-        {/* Appearance Section */}
-        <div>
-          <div className={sectionHeaderStyles.container}>
-            <div className={sectionHeaderStyles.iconBox("var(--accent-ai)")}>
-              <Palette size={16} className="text-[var(--accent-ai)]" />
-            </div>
-            <h3 className={sectionHeaderStyles.title}>Appearance</h3>
-          </div>
-
-          <div>
-            <label className={fieldStyles.label}>Theme</label>
-            <div className="flex items-center gap-4">
-              <ThemeSwitcher />
-              <span className="text-xs text-[var(--text-tertiary)]">
-                Click a color to switch themes
-              </span>
-            </div>
-            <p className={fieldStyles.hint}>
-              Choose between Ember (orange), Mint (green), or Solar (gold) accent colors. Your
-              preference is saved automatically.
-            </p>
-          </div>
-        </div>
-
         {/* Projects Section */}
         <div>
           <div className={sectionHeaderStyles.container}>
