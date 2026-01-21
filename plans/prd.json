@@ -305,7 +305,7 @@
     {
       "id": "bc59e180-9a55-400d-8c65-1332b70a284f",
       "title": "86 - Create CreateEpicModal",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
