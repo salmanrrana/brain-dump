@@ -233,7 +233,7 @@
     {
       "id": "3b0562f8-4134-4464-8a4e-dc27b003ab87",
       "title": "Update Dashboard components with theme styling",
-      "passes": false,
+      "passes": true,
       "overview": "Apply gradient accents and glow effects to dashboard components.",
       "types": [],
       "designDecisions": [],
