@@ -46,6 +46,7 @@ export const CommentInput: FC<CommentInputProps> = ({
   testId = "comment-input",
 }) => {
   const [content, setContent] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const createComment = useCreateComment();
 
@@ -55,6 +56,7 @@ export const CommentInput: FC<CommentInputProps> = ({
   const handleSubmit = useCallback(() => {
     if (!canSubmit) return;
 
+    setError(null);
     createComment.mutate(
       {
         ticketId,
@@ -66,6 +68,10 @@ export const CommentInput: FC<CommentInputProps> = ({
         onSuccess: () => {
           setContent("");
           onCommentAdded?.();
+          textareaRef.current?.focus();
+        },
+        onError: (err) => {
+          setError(err instanceof Error ? err.message : "Failed to add comment. Please try again.");
           textareaRef.current?.focus();
         },
       }
@@ -121,35 +127,52 @@ export const CommentInput: FC<CommentInputProps> = ({
     transition: "all var(--transition-fast)",
   };
 
+  const errorStyles: React.CSSProperties = {
+    padding: "var(--spacing-2) var(--spacing-3)",
+    background: "rgba(239, 68, 68, 0.1)",
+    borderTop: "1px solid rgba(239, 68, 68, 0.3)",
+    color: "#ef4444",
+    fontSize: "var(--font-size-xs)",
+  };
+
   return (
-    <div style={containerStyles} data-testid={testId}>
-      <textarea
-        ref={textareaRef}
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Add a comment... (Ctrl+Enter to send)"
-        style={textareaStyles}
-        className="focus:border-[var(--accent-primary)]"
-        disabled={disabled || isSubmitting}
-        rows={1}
-        data-testid={`${testId}-textarea`}
-      />
-      <button
-        type="button"
-        onClick={handleSubmit}
-        disabled={!canSubmit}
-        style={buttonStyles}
-        className={canSubmit ? "hover:opacity-90" : ""}
-        aria-label="Send comment"
-        data-testid={`${testId}-submit`}
-      >
-        {isSubmitting ? (
-          <Loader2 size={16} className="animate-spin" aria-hidden="true" />
-        ) : (
-          <Send size={16} aria-hidden="true" />
-        )}
-      </button>
+    <div data-testid={testId}>
+      {error && (
+        <div style={errorStyles} role="alert" data-testid={`${testId}-error`}>
+          {error}
+        </div>
+      )}
+      <div style={containerStyles}>
+        <textarea
+          ref={textareaRef}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Add a comment... (Ctrl+Enter to send)"
+          style={textareaStyles}
+          className="focus:border-[var(--accent-primary)]"
+          disabled={disabled || isSubmitting}
+          rows={1}
+          data-testid={`${testId}-textarea`}
+          aria-invalid={error ? "true" : undefined}
+          aria-describedby={error ? `${testId}-error` : undefined}
+        />
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={!canSubmit}
+          style={buttonStyles}
+          className={canSubmit ? "hover:opacity-90" : ""}
+          aria-label="Send comment"
+          data-testid={`${testId}-submit`}
+        >
+          {isSubmitting ? (
+            <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+          ) : (
+            <Send size={16} aria-hidden="true" />
+          )}
+        </button>
+      </div>
     </div>
   );
 };

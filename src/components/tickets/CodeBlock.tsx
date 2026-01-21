@@ -1,4 +1,4 @@
-import { type FC, useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect, memo } from "react";
 import { Copy, Check } from "lucide-react";
 
 // =============================================================================
@@ -87,32 +87,60 @@ const LANGUAGE_DISPLAY_NAMES: Record<string, string> = {
  * />
  * ```
  */
-export const CodeBlock: FC<CodeBlockProps> = ({ code, language, testId = "code-block" }) => {
+export const CodeBlock = memo(function CodeBlock({
+  code,
+  language,
+  testId = "code-block",
+}: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   // Get display name for language
   const languageDisplay = language
     ? LANGUAGE_DISPLAY_NAMES[language.toLowerCase()] || language
     : null;
 
-  // Handle copy to clipboard
+  // Handle copy to clipboard with proper error handling
   const handleCopy = useCallback(async () => {
+    // Clear any existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+
+    let success = false;
+
     try {
       await navigator.clipboard.writeText(code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      success = true;
     } catch {
       // Fallback for older browsers
-      const textarea = document.createElement("textarea");
-      textarea.value = code;
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
+      try {
+        const textarea = document.createElement("textarea");
+        textarea.value = code;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        success = document.execCommand("copy");
+        document.body.removeChild(textarea);
+      } catch (fallbackError) {
+        console.warn("Failed to copy to clipboard:", fallbackError);
+        success = false;
+      }
+    }
+
+    if (success) {
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      timeoutRef.current = setTimeout(() => setCopied(false), 2000);
     }
   }, [code]);
 
@@ -204,6 +232,6 @@ export const CodeBlock: FC<CodeBlockProps> = ({ code, language, testId = "code-b
       </pre>
     </div>
   );
-};
+});
 
 export default CodeBlock;

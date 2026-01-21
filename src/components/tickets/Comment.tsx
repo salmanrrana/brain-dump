@@ -1,4 +1,4 @@
-import { type FC, useState, useCallback, useMemo } from "react";
+import { useState, useMemo, memo } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { Comment as CommentData, CommentType, CommentAuthor } from "../../api/comments";
 import { CommentAvatar } from "./CommentAvatar";
@@ -239,8 +239,15 @@ function renderMarkdown(content: string): React.ReactNode {
  * - Markdown rendering: Supports bold, italic, code, lists, links (safely, no innerHTML)
  * - Expandable content: Truncates long content with "Show more" button
  * - Relative timestamps: "2h ago", "3d ago", etc.
+ *
+ * Wrapped with React.memo to prevent unnecessary re-renders when parent re-renders
+ * but comment data hasn't changed.
  */
-export const Comment: FC<CommentProps> = ({ comment, maxLines = 8, testId = "comment" }) => {
+export const Comment = memo(function Comment({
+  comment,
+  maxLines = 8,
+  testId = "comment",
+}: CommentProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Calculate if content is long enough to need expansion
@@ -253,9 +260,9 @@ export const Comment: FC<CommentProps> = ({ comment, maxLines = 8, testId = "com
   const typeLabel = TYPE_LABELS[comment.type as CommentType];
 
   // Toggle expansion
-  const toggleExpanded = useCallback(() => {
+  function toggleExpanded(): void {
     setIsExpanded((prev) => !prev);
-  }, []);
+  }
 
   // Truncate content if needed
   const displayContent = useMemo(() => {
@@ -371,6 +378,6 @@ export const Comment: FC<CommentProps> = ({ comment, maxLines = 8, testId = "com
       </div>
     </div>
   );
-};
+});
 
 export default Comment;

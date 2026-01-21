@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import { memo } from "react";
 import type { CommentAuthor } from "../../api/comments";
 
 // =============================================================================
@@ -76,11 +76,11 @@ const AUTHOR_STYLES: Record<CommentAuthor, AuthorStyle> = {
  * <CommentAvatar author="user" size={24} />
  * ```
  */
-export const CommentAvatar: FC<CommentAvatarProps> = ({
+export const CommentAvatar = memo(function CommentAvatar({
   author,
   size = 32,
   testId = "comment-avatar",
-}) => {
+}: CommentAvatarProps) {
   const style = AUTHOR_STYLES[author] ?? AUTHOR_STYLES.user;
   const [fromColor, toColor] = style.gradient;
 
@@ -108,6 +108,6 @@ export const CommentAvatar: FC<CommentAvatarProps> = ({
       {displayContent}
     </div>
   );
-};
+});
 
 export default CommentAvatar;
