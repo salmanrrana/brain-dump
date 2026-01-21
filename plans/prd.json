@@ -359,7 +359,7 @@
     {
       "id": "284dbb24-db03-4de6-9966-6be6ab56b539",
       "title": "67 - Create SplitButton component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
