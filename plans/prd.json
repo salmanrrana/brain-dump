@@ -444,7 +444,7 @@
     {
       "id": "66f4c4da-0924-4111-bf7a-a0b78783f452",
       "title": "70 - Create ActivitySection container",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
