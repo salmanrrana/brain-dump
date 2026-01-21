@@ -203,7 +203,7 @@
     {
       "id": "57044638-9524-4313-a360-c35d4b0dae29",
       "title": "Update Settings tabs with theme styling",
-      "passes": false,
+      "passes": true,
       "overview": "Apply theme CSS variables to all settings tabs to match the visual design.",
       "types": [],
       "designDecisions": [],
