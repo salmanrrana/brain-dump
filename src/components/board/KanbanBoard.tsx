@@ -12,6 +12,8 @@ import { SortableTicketCard } from "./SortableTicketCard";
 import type { TicketStatus } from "../../api/tickets";
 import type { Ticket } from "../../lib/schema";
 import { useToast } from "../Toast";
+import { useBoardKeyboardNavigation } from "../../lib/use-board-keyboard-navigation";
+import { COLUMN_STATUSES } from "../../lib/constants";
 import {
   DndContext,
   DragOverlay,
@@ -51,18 +53,8 @@ export interface KanbanBoardProps {
   error?: string | null;
 }
 
-/**
- * Status columns in display order.
- */
-const COLUMNS: TicketStatus[] = [
-  "backlog",
-  "ready",
-  "in_progress",
-  "review",
-  "ai_review",
-  "human_review",
-  "done",
-];
+// Use shared constant from constants.ts
+const COLUMNS = COLUMN_STATUSES as unknown as TicketStatus[];
 
 /**
  * Human-readable labels for each status.
@@ -202,6 +194,19 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
 
     return grouped;
   }, [tickets]);
+
+  // Keyboard navigation hook (after ticketsByStatus is defined)
+  const {
+    focusedTicketId,
+    handleKeyDown: handleBoardKeyDown,
+    getTabIndex,
+    registerCardRef,
+    handleCardFocus,
+  } = useBoardKeyboardNavigation({
+    ticketsByStatus,
+    onTicketSelect: onTicketClick,
+    disabled: !!activeTicket, // Disable keyboard nav while dragging
+  });
 
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
@@ -343,6 +348,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
         role="region"
         aria-label="Kanban board"
         data-testid="kanban-board"
+        onKeyDown={handleBoardKeyDown}
       >
         <div style={columnsContainerStyles}>
           {COLUMNS.map((status) => {
@@ -368,6 +374,10 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
                       ticket={ticket}
                       onClick={onTicketClick && (() => onTicketClick(ticket))}
                       ralphSession={getRalphSession?.(ticket.id) ?? null}
+                      tabIndex={getTabIndex(ticket.id)}
+                      isFocused={focusedTicketId === ticket.id}
+                      registerRef={registerCardRef(ticket.id)}
+                      onFocus={() => handleCardFocus(ticket.id)}
                     />
                   ))}
                 </SortableContext>
@@ -411,6 +421,8 @@ const columnsContainerStyles: React.CSSProperties = {
   padding: "var(--spacing-4)",
   scrollBehavior: "smooth",
   WebkitOverflowScrolling: "touch",
+  // Scroll snap for touch devices - snaps to column edges
+  scrollSnapType: "x proximity",
 };
 
 // Skeleton styles

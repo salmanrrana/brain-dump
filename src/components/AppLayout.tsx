@@ -5,20 +5,21 @@ import {
   useContext,
   useMemo,
   useRef,
-  useEffect,
   useCallback,
 } from "react";
-import { Search, LayoutGrid, List, X, Loader2, Settings, RefreshCw } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { Search, LayoutGrid, List, X, Loader2, Settings, RefreshCw, Menu } from "lucide-react";
 import ProjectTree from "./ProjectTree";
 import ContainerStatusSection from "./ContainerStatusSection";
 import ContainerLogsModal from "./ContainerLogsModal";
 import NewTicketModal from "./NewTicketModal";
 import ProjectModal from "./ProjectModal";
 import EpicModal from "./EpicModal";
-import SettingsModal from "./SettingsModal";
+import { SettingsModal } from "./settings";
 import DeleteConfirmationModal, { type DeletePreview } from "./DeleteConfirmationModal";
 import { NewTicketDropdown } from "./navigation/NewTicketDropdown";
 import { InceptionModal } from "./inception/InceptionModal";
+import { ShortcutsModal } from "./ui/ShortcutsModal";
 import { useToast } from "./Toast";
 import { getStatusColor, getPriorityStyle } from "../lib/constants";
 import {
@@ -40,6 +41,7 @@ import {
   type Filters,
 } from "../lib/hooks";
 import { deleteEpic as deleteEpicFn } from "../api/epics";
+import { useKeyboardShortcuts } from "../lib/keyboard-shortcuts";
 
 // App context for managing global state
 interface AppState {
@@ -80,6 +82,11 @@ interface AppState {
 
   // Epic deletion
   onDeleteEpic: (epic: Epic) => void;
+
+  // Mobile menu
+  isMobileMenuOpen: boolean;
+  openMobileMenu: () => void;
+  closeMobileMenu: () => void;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -137,6 +144,7 @@ function sanitizeSnippet(html: string): string {
 }
 
 export default function AppLayout({ children }: AppLayoutProps) {
+  const navigate = useNavigate();
   const { projects, refetch: refetchProjects } = useProjects();
 
   // Use consolidated hooks
@@ -170,6 +178,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [ticketRefreshKey, setTicketRefreshKey] = useState(0);
   const [selectedTicketIdFromSearch, setSelectedTicketIdFromSearch] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Get invalidate queries helper
   const { invalidateAll } = useInvalidateQueries();
@@ -224,8 +233,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const handleDeleteEpicClick = useCallback(async (epic: Epic) => {
     setDeleteEpicError(null);
     setEpicToDelete(epic);
+    setDeleteEpicPreview({});
 
-    // Fetch dry-run preview
+    // Fetch dry-run preview - don't allow deletion without preview
     try {
       const preview = await deleteEpicFn({ data: { epicId: epic.id, confirm: false } });
       if ("ticketsToUnlink" in preview) {
@@ -236,7 +246,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
       }
     } catch (error) {
       console.error("Failed to fetch delete preview:", error);
-      setDeleteEpicPreview({});
+      setDeleteEpicError(
+        error instanceof Error
+          ? `Could not load preview: ${error.message}`
+          : "Failed to load deletion preview. Please try again."
+      );
+      // Don't show modal without preview - close it
+      setEpicToDelete(null);
     }
   }, []);
 
@@ -290,55 +306,54 @@ export default function AppLayout({ children }: AppLayoutProps) {
     setSelectedTicketIdFromSearch(null);
   }, []);
 
-  // Global keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing in input/textarea
-      const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
-        return;
-      }
+  // Mobile menu handlers
+  const openMobileMenu = useCallback(() => {
+    setIsMobileMenuOpen(true);
+  }, []);
 
-      switch (e.key) {
-        case "n":
-          if (!isAnyModalOpen) {
-            e.preventDefault();
-            openNewTicket();
-          }
-          break;
-        case "r":
-          if (!isAnyModalOpen && !isRefreshing) {
-            e.preventDefault();
-            void refreshAllData();
-          }
-          break;
-        case "/":
-          if (!isAnyModalOpen) {
-            e.preventDefault();
-            // Focus search input
-            const searchInput = document.querySelector(
-              'input[placeholder="Search tickets..."]'
-            ) as HTMLInputElement;
-            searchInput?.focus();
-          }
-          break;
-        case "?":
-          if (!isAnyModalOpen) {
-            e.preventDefault();
-            openShortcuts();
-          }
-          break;
-        case "Escape":
-          if (isAnyModalOpen) {
-            closeModal();
-          }
-          break;
-      }
-    };
+  const closeMobileMenu = useCallback(() => {
+    setIsMobileMenuOpen(false);
+  }, []);
 
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isAnyModalOpen, isRefreshing, openNewTicket, openShortcuts, closeModal, refreshAllData]);
+  // Focus search input callback for keyboard shortcut
+  const handleFocusSearch = useCallback(() => {
+    const searchInput = document.querySelector(
+      'input[placeholder="Search tickets..."]'
+    ) as HTMLInputElement;
+    searchInput?.focus();
+  }, []);
+
+  // Navigation callbacks for keyboard shortcuts (1-4)
+  const handleNavigateDashboard = useCallback(() => {
+    void navigate({ to: "/dashboard" });
+  }, [navigate]);
+
+  const handleNavigateBoard = useCallback(() => {
+    void navigate({ to: "/" });
+  }, [navigate]);
+
+  const handleToggleProjects = useCallback(() => {
+    // On mobile, toggle the mobile menu (which shows projects)
+    // On desktop, the sidebar is always visible, so this is a no-op
+    if (window.innerWidth < 768) {
+      setIsMobileMenuOpen((prev) => !prev);
+    }
+  }, []);
+
+  // Global keyboard shortcuts using the extracted hook
+  useKeyboardShortcuts({
+    onNewTicket: openNewTicket,
+    onRefresh: refreshAllData,
+    onFocusSearch: handleFocusSearch,
+    onShowShortcuts: openShortcuts,
+    onCloseModal: closeModal,
+    onNavigateDashboard: handleNavigateDashboard,
+    onNavigateBoard: handleNavigateBoard,
+    onToggleProjects: handleToggleProjects,
+    onOpenSettings: openSettings,
+    disabled: isAnyModalOpen,
+    isRefreshing,
+  });
 
   const appState: AppState = {
     // Filters
@@ -378,13 +393,42 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
     // Epic deletion
     onDeleteEpic: handleDeleteEpicClick,
+
+    // Mobile menu
+    isMobileMenuOpen,
+    openMobileMenu,
+    closeMobileMenu,
   };
 
   return (
     <AppContext.Provider value={appState}>
-      <div className="h-screen grid grid-cols-[256px_1fr] text-gray-100">
-        {/* Sidebar - 256px (w-64 equivalent) */}
-        <Sidebar />
+      {/* Desktop: grid with sidebar | Mobile: single column */}
+      <div className="h-screen grid grid-cols-1 md:grid-cols-[256px_1fr] text-gray-100">
+        {/* Desktop sidebar - hidden on mobile */}
+        <div className="hidden md:block">
+          <Sidebar />
+        </div>
+
+        {/* Mobile sidebar overlay */}
+        {isMobileMenuOpen && (
+          <div className="fixed inset-0 z-50 md:hidden">
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/60"
+              onClick={closeMobileMenu}
+              aria-hidden="true"
+            />
+            {/* Slide-out menu */}
+            <div
+              className="absolute top-0 left-0 bottom-0 w-[280px] bg-slate-900 shadow-xl transform transition-transform duration-200 ease-out animate-slide-in-left"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Mobile navigation menu"
+            >
+              <Sidebar onItemClick={closeMobileMenu} />
+            </div>
+          </div>
+        )}
 
         {/* Main content area - takes remaining space */}
         <div className="flex flex-col min-w-0 overflow-hidden">
@@ -392,7 +436,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
           <AppHeader />
 
           {/* Content */}
-          <main className="flex-1 overflow-auto p-6">{children}</main>
+          <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto p-6">
+            {children}
+          </main>
         </div>
 
         {/* New Ticket Modal */}
@@ -425,65 +471,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         {modal.type === "settings" && <SettingsModal onClose={closeModal} />}
 
         {/* Keyboard Shortcuts Help Modal */}
-        {modal.type === "shortcuts" && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/60" onClick={closeModal} aria-hidden="true" />
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="shortcuts-title"
-              className="relative bg-slate-900 rounded-lg shadow-xl w-full max-w-md p-6"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h2 id="shortcuts-title" className="text-lg font-semibold text-gray-100">
-                  Keyboard Shortcuts
-                </h2>
-                <button
-                  onClick={closeModal}
-                  className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-gray-100"
-                  aria-label="Close"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-300">New ticket</span>
-                  <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">
-                    n
-                  </kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-300">Refresh data</span>
-                  <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">
-                    r
-                  </kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-300">Focus search</span>
-                  <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">
-                    /
-                  </kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-300">Show shortcuts</span>
-                  <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">
-                    ?
-                  </kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-300">Close modal</span>
-                  <kbd className="px-2 py-1 bg-slate-800 rounded text-sm font-mono text-slate-300">
-                    Esc
-                  </kbd>
-                </div>
-              </div>
-              <p className="mt-4 text-xs text-slate-500">
-                Shortcuts are disabled when typing in text fields.
-              </p>
-            </div>
-          </div>
-        )}
+        {modal.type === "shortcuts" && <ShortcutsModal isOpen={true} onClose={closeModal} />}
 
         {/* Delete Epic Confirmation Modal */}
         {epicToDelete && (
@@ -513,6 +501,7 @@ function AppHeader() {
     onSelectTicketFromSearch,
     refreshAllData,
     isRefreshing,
+    openMobileMenu,
   } = useAppState();
   const { query, results, loading, search, clearSearch } = useSearch(filters.projectId);
   const [showResults, setShowResults] = useState(false);
@@ -545,6 +534,15 @@ function AppHeader() {
 
   return (
     <header className="h-14 bg-slate-900 border-b border-slate-800 flex items-center px-4 gap-4">
+      {/* Mobile hamburger menu button - only visible on mobile */}
+      <button
+        onClick={openMobileMenu}
+        className="md:hidden p-2 text-slate-400 hover:text-gray-100 hover:bg-slate-800 rounded-lg transition-colors"
+        aria-label="Open navigation menu"
+      >
+        <Menu size={20} aria-hidden="true" />
+      </button>
+
       {/* Search */}
       <div className="flex-1 max-w-md" ref={searchRef}>
         <div className="relative">
@@ -556,7 +554,7 @@ function AppHeader() {
             onChange={handleSearchChange}
             onFocus={() => query && setShowResults(true)}
             placeholder="Search tickets..."
-            className="w-full pl-10 pr-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-gray-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+            className="w-full pl-10 pr-10 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-gray-100 placeholder-slate-400"
           />
           {loading && (
             <Loader2
@@ -568,20 +566,29 @@ function AppHeader() {
             <button
               onClick={handleClear}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-gray-100"
+              aria-label="Clear search"
             >
-              <X size={16} />
+              <X size={16} aria-hidden="true" />
             </button>
           )}
 
           {/* Search Results Dropdown */}
           {showResults && query && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl max-h-80 overflow-y-auto z-50">
+            <div
+              role="listbox"
+              aria-label="Search results"
+              className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl max-h-80 overflow-y-auto z-50"
+            >
               {results.length === 0 && !loading && (
-                <div className="px-4 py-3 text-sm text-slate-500 text-center">No results found</div>
+                <div className="px-4 py-3 text-sm text-slate-500 text-center" role="status">
+                  No results found
+                </div>
               )}
               {results.map((result) => (
                 <button
                   key={result.id}
+                  role="option"
+                  aria-selected="false"
                   onClick={() => handleSelectResult(result)}
                   className="w-full px-4 py-3 text-left hover:bg-slate-800 border-b border-slate-800 last:border-b-0"
                 >
@@ -612,7 +619,11 @@ function AppHeader() {
       </div>
 
       {/* View toggle */}
-      <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1">
+      <div
+        className="flex items-center gap-1 bg-slate-800 rounded-lg p-1"
+        role="group"
+        aria-label="View mode"
+      >
         <button
           onClick={() => setViewMode("kanban")}
           className={`p-2 rounded-md transition-colors ${
@@ -620,9 +631,10 @@ function AppHeader() {
               ? "bg-slate-700 text-cyan-400"
               : "text-slate-400 hover:text-gray-100 hover:bg-slate-700"
           }`}
-          title="Kanban view"
+          aria-label="Kanban view"
+          aria-pressed={viewMode === "kanban"}
         >
-          <LayoutGrid size={18} />
+          <LayoutGrid size={18} aria-hidden="true" />
         </button>
         <button
           onClick={() => setViewMode("list")}
@@ -631,9 +643,10 @@ function AppHeader() {
               ? "bg-slate-700 text-cyan-400"
               : "text-slate-400 hover:text-gray-100 hover:bg-slate-700"
           }`}
-          title="List view"
+          aria-label="List view"
+          aria-pressed={viewMode === "list"}
         >
-          <List size={18} />
+          <List size={18} aria-hidden="true" />
         </button>
       </div>
 
@@ -642,18 +655,18 @@ function AppHeader() {
         onClick={() => void refreshAllData()}
         disabled={isRefreshing}
         className="p-2 text-slate-400 hover:text-gray-100 hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
-        title="Refresh data (r)"
+        aria-label="Refresh data (r)"
       >
-        <RefreshCw size={18} className={isRefreshing ? "animate-spin" : ""} />
+        <RefreshCw size={18} className={isRefreshing ? "animate-spin" : ""} aria-hidden="true" />
       </button>
 
       {/* Settings button */}
       <button
         onClick={openSettingsModal}
         className="p-2 text-slate-400 hover:text-gray-100 hover:bg-slate-800 rounded-lg transition-colors"
-        title="Settings"
+        aria-label="Settings"
       >
-        <Settings size={18} />
+        <Settings size={18} aria-hidden="true" />
       </button>
 
       {/* New ticket dropdown */}
@@ -672,7 +685,12 @@ function AppHeader() {
   );
 }
 
-function Sidebar() {
+interface SidebarProps {
+  /** Optional callback when a navigation item is clicked (for mobile menu close) */
+  onItemClick?: () => void;
+}
+
+function Sidebar({ onItemClick }: SidebarProps = {}) {
   const { projects, loading, error } = useProjects();
   const {
     filters,
@@ -739,11 +757,13 @@ function Sidebar() {
 
   const handleSelectProject = (projectId: string | null) => {
     setProjectId(projectId);
+    onItemClick?.();
   };
 
   const handleSelectEpic = (epicId: string | null, projectId: string) => {
     // When selecting an epic, also set the project context
     setEpicId(epicId, projectId);
+    onItemClick?.();
   };
 
   const handleAddProject = () => {
@@ -764,7 +784,7 @@ function Sidebar() {
 
   return (
     <aside
-      className="flex flex-col"
+      className="flex flex-col h-full"
       style={{
         backgroundColor: "var(--bg-secondary)",
         borderRight: "1px solid var(--border-primary)",

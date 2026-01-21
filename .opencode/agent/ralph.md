@@ -1,7 +1,6 @@
 ---
 description: Autonomous coding agent that works through Brain Dump backlogs
 mode: primary
-model: anthropic/claude-sonnet-4-20250514
 temperature: 0.3
 tools:
   write: true

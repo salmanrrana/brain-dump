@@ -1,7 +1,6 @@
 ---
 description: Start a new project from scratch through fast-paced interview
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
 temperature: 0.4
 tools:
   write: true

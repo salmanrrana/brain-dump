@@ -1,7 +1,6 @@
 ---
 description: Fallback code reviewer when pr-review-toolkit is unavailable
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
 temperature: 0.1
 permission:
   bash: deny

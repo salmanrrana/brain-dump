@@ -1,7 +1,6 @@
 ---
 description: Creates implementation plans and Brain Dump tickets from requirements. Does not write code - only plans and creates tickets.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
 temperature: 0.1
 permission:
   bash: deny

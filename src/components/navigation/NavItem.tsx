@@ -15,6 +15,8 @@ export interface NavItemProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   active?: boolean;
   /** Custom size for the button (defaults to 44px square) */
   size?: number;
+  /** Keyboard shortcut key to display in tooltip (e.g., "1" shows "Dashboard (1)") */
+  shortcutKey?: string | undefined;
 }
 
 /**
@@ -64,7 +66,17 @@ function injectKeyframes(): void {
  * - **aria-current**: Set to "page" when active for screen readers
  */
 export const NavItem = forwardRef<HTMLButtonElement, NavItemProps>(function NavItem(
-  { icon: Icon, label, active = false, size = 44, disabled, className = "", style, ...props },
+  {
+    icon: Icon,
+    label,
+    active = false,
+    size = 44,
+    disabled,
+    className = "",
+    style,
+    shortcutKey,
+    ...props
+  },
   ref
 ) {
   const [showTooltip, setShowTooltip] = useState(false);
@@ -171,10 +183,25 @@ export const NavItem = forwardRef<HTMLButtonElement, NavItemProps>(function NavI
     >
       <Icon size={iconSize} aria-hidden="true" />
 
-      {/* Tooltip - appears to the right */}
+      {/* Tooltip - appears to the right, shows shortcut key if provided */}
       {showTooltip && (
         <span role="tooltip" style={tooltipStyles}>
           {label}
+          {shortcutKey && (
+            <kbd
+              style={{
+                marginLeft: "6px",
+                padding: "1px 5px",
+                background: "var(--bg-secondary)",
+                borderRadius: "var(--radius-sm)",
+                fontSize: "var(--font-size-xs)",
+                fontFamily: "monospace",
+                border: "1px solid var(--border-secondary)",
+              }}
+            >
+              {shortcutKey}
+            </kbd>
+          )}
         </span>
       )}
     </button>

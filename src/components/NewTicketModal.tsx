@@ -59,9 +59,7 @@ export default function NewTicketModal({
   const tagSuggestions = useMemo(() => {
     if (!newTag.trim()) return [];
     const input = newTag.toLowerCase().trim();
-    return existingTags.filter(
-      (tag) => tag.toLowerCase().includes(input) && !tags.includes(tag)
-    );
+    return existingTags.filter((tag) => tag.toLowerCase().includes(input) && !tags.includes(tag));
   }, [newTag, existingTags, tags]);
 
   // Check if current input exactly matches an existing tag (case-insensitive)
@@ -72,13 +70,9 @@ export default function NewTicketModal({
 
   // Determine if we should show "press Enter" helper
   const showCreateHelper =
-    newTag.trim().length > 0 &&
-    tagSuggestions.length === 0 &&
-    !inputMatchesExistingTag;
+    newTag.trim().length > 0 && tagSuggestions.length === 0 && !inputMatchesExistingTag;
 
-  const filteredEpics = projectId
-    ? epics.filter((e) => e.projectId === projectId)
-    : [];
+  const filteredEpics = projectId ? epics.filter((e) => e.projectId === projectId) : [];
 
   const selectedProject = projects.find((p) => p.id === projectId);
 
@@ -229,9 +223,7 @@ export default function NewTicketModal({
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
     const firstElement = focusableElements[0] as HTMLElement;
-    const lastElement = focusableElements[
-      focusableElements.length - 1
-    ] as HTMLElement;
+    const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
 
     const handleTabKey = (e: KeyboardEvent) => {
       if (e.key !== "Tab") return;
@@ -311,8 +303,7 @@ export default function NewTicketModal({
     if (e.key === "Enter") {
       e.preventDefault();
       const isValidIndex =
-        selectedSuggestionIndex >= 0 &&
-        selectedSuggestionIndex < tagSuggestions.length;
+        selectedSuggestionIndex >= 0 && selectedSuggestionIndex < tagSuggestions.length;
       if (isValidIndex) {
         addTag(tagSuggestions[selectedSuggestionIndex]);
       } else {
@@ -321,9 +312,7 @@ export default function NewTicketModal({
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
       setIsTagDropdownOpen(true);
-      setSelectedSuggestionIndex((prev) =>
-        prev < tagSuggestions.length - 1 ? prev + 1 : prev
-      );
+      setSelectedSuggestionIndex((prev) => (prev < tagSuggestions.length - 1 ? prev + 1 : prev));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setSelectedSuggestionIndex((prev) => (prev > 0 ? prev - 1 : -1));
@@ -412,20 +401,18 @@ export default function NewTicketModal({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="What needs to be done?"
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">
-              Description
-            </label>
+            <label className="block text-sm font-medium text-slate-400 mb-1">Description</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={6}
               placeholder="Additional details..."
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-y min-h-[100px]"
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 resize-y min-h-[100px]"
             />
           </div>
 
@@ -437,7 +424,7 @@ export default function NewTicketModal({
               <select
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
               >
                 <option value="">Select a project...</option>
                 {projects.map((project) => (
@@ -452,22 +439,18 @@ export default function NewTicketModal({
               />
             </div>
             {selectedProject && (
-              <p className="mt-1 text-xs text-slate-500 truncate">
-                {selectedProject.path}
-              </p>
+              <p className="mt-1 text-xs text-slate-500 truncate">{selectedProject.path}</p>
             )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">
-                Priority
-              </label>
+              <label className="block text-sm font-medium text-slate-400 mb-1">Priority</label>
               <div className="relative">
                 <select
                   value={priority}
                   onChange={(e) => setPriority(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
                 >
                   {PRIORITY_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -483,19 +466,15 @@ export default function NewTicketModal({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">
-                Epic
-              </label>
+              <label className="block text-sm font-medium text-slate-400 mb-1">Epic</label>
               <div className="relative">
                 <select
                   value={epicId}
                   onChange={(e) => setEpicId(e.target.value)}
                   disabled={!projectId}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none  disabled:opacity-50"
                 >
-                  <option value="">
-                    {projectId ? "None" : "Select project first"}
-                  </option>
+                  <option value="">{projectId ? "None" : "Select project first"}</option>
                   {filteredEpics.map((epic) => (
                     <option key={epic.id} value={epic.id}>
                       {epic.title}
@@ -511,9 +490,7 @@ export default function NewTicketModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">
-              Tags
-            </label>
+            <label className="block text-sm font-medium text-slate-400 mb-1">Tags</label>
             {tags.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-2">
                 {tags.map((tag) => (
@@ -525,8 +502,9 @@ export default function NewTicketModal({
                     <button
                       onClick={() => removeTag(tag)}
                       className="hover:text-red-400"
+                      aria-label={`Remove tag ${tag}`}
                     >
-                      <X size={12} />
+                      <X size={12} aria-hidden="true" />
                     </button>
                   </span>
                 ))}
@@ -542,15 +520,20 @@ export default function NewTicketModal({
                   onKeyDown={handleTagInputKeyDown}
                   onFocus={() => newTag.trim() && setIsTagDropdownOpen(true)}
                   placeholder="Add tag..."
-                  className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 text-sm "
                   autoComplete="off"
+                  aria-label="Add tag"
+                  aria-expanded={isTagDropdownOpen && (tagsLoading || tagSuggestions.length > 0)}
+                  aria-controls="tag-suggestions"
+                  aria-autocomplete="list"
                 />
                 <button
                   type="button"
                   onClick={() => addTag()}
                   className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300"
+                  aria-label="Add tag"
                 >
-                  <Plus size={16} />
+                  <Plus size={16} aria-hidden="true" />
                 </button>
               </div>
 
@@ -558,11 +541,17 @@ export default function NewTicketModal({
               {isTagDropdownOpen && (tagsLoading || tagSuggestions.length > 0) && (
                 <div
                   ref={tagDropdownRef}
+                  id="tag-suggestions"
+                  role="listbox"
+                  aria-label="Tag suggestions"
                   className="absolute z-10 left-0 right-12 mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-lg max-h-40 overflow-y-auto"
                 >
                   {tagsLoading ? (
-                    <div className="flex items-center justify-center gap-2 px-3 py-2 text-slate-400 text-sm">
-                      <Loader2 size={14} className="animate-spin" />
+                    <div
+                      className="flex items-center justify-center gap-2 px-3 py-2 text-slate-400 text-sm"
+                      role="status"
+                    >
+                      <Loader2 size={14} className="animate-spin" aria-hidden="true" />
                       <span>Loading tags...</span>
                     </div>
                   ) : (
@@ -570,6 +559,8 @@ export default function NewTicketModal({
                       <button
                         key={tag}
                         type="button"
+                        role="option"
+                        aria-selected={index === selectedSuggestionIndex}
                         onClick={() => addTag(tag)}
                         className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-700 ${
                           index === selectedSuggestionIndex
@@ -586,18 +577,13 @@ export default function NewTicketModal({
 
               {/* Tag loading error */}
               {tagsError && (
-                <p className="mt-1 text-xs text-red-400">
-                  Failed to load tags: {tagsError}
-                </p>
+                <p className="mt-1 text-xs text-red-400">Failed to load tags: {tagsError}</p>
               )}
 
               {/* Helper text for creating new tags */}
               {showCreateHelper && (
                 <p className="mt-1 text-xs text-slate-500">
-                  Press{" "}
-                  <kbd className="px-1 py-0.5 bg-slate-700 rounded text-slate-400">
-                    Enter
-                  </kbd>{" "}
+                  Press <kbd className="px-1 py-0.5 bg-slate-700 rounded text-slate-400">Enter</kbd>{" "}
                   to create &quot;{newTag.trim()}&quot; as a new tag
                 </p>
               )}
@@ -693,9 +679,9 @@ export default function NewTicketModal({
                     <button
                       onClick={() => void handleDeleteAttachment(attachment)}
                       className="p-1 text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Delete"
+                      aria-label={`Delete attachment ${attachment.filename}`}
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={14} aria-hidden="true" />
                     </button>
                   </div>
                 ))}

@@ -25,7 +25,11 @@ export function runGitCommand(command, cwd) {
  * @returns {string}
  */
 export function slugify(text) {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").substring(0, 50);
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .substring(0, 50);
 }
 
 /**
@@ -45,4 +49,14 @@ export function shortId(uuid) {
  */
 export function generateBranchName(ticketId, ticketTitle) {
   return `feature/${shortId(ticketId)}-${slugify(ticketTitle)}`;
+}
+
+/**
+ * Generate an epic feature branch name from epic info.
+ * @param {string} epicId - Epic UUID
+ * @param {string} epicTitle - Epic title
+ * @returns {string}
+ */
+export function generateEpicBranchName(epicId, epicTitle) {
+  return `feature/epic-${shortId(epicId)}-${slugify(epicTitle)}`;
 }

@@ -816,7 +816,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 "
             />
           </div>
 
@@ -838,7 +838,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={8}
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-y min-h-[120px]"
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100  resize-y min-h-[120px]"
             />
           </div>
 
@@ -850,7 +850,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as TicketStatus)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
                 >
                   {STATUS_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -871,7 +871,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 <select
                   value={priority}
                   onChange={(e) => setPriority(e.target.value as TicketPriority | "")}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
                 >
                   {PRIORITY_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -892,7 +892,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 <select
                   value={epicId}
                   onChange={(e) => setEpicId(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
                 >
                   <option value="">None</option>
                   {epics.map((epic) => (
@@ -988,7 +988,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 value={blockedReason}
                 onChange={(e) => setBlockedReason(e.target.value)}
                 placeholder="Reason for blocking..."
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 "
               />
             )}
           </div>
@@ -1023,7 +1023,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                     if (newTag.trim()) setIsTagDropdownOpen(true);
                   }}
                   placeholder="Add tag..."
-                  className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 text-sm "
                   autoComplete="off"
                 />
                 <button
@@ -1148,7 +1148,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 onChange={(e) => setNewSubtask(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && addSubtask()}
                 placeholder="Add subtask..."
-                className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 text-sm "
               />
               <button
                 onClick={addSubtask}
@@ -1325,7 +1325,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                     onChange={(e) => setNewComment(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
                     placeholder="Add a comment..."
-                    className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 text-sm "
                   />
                   <button
                     onClick={handleAddComment}

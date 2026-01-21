@@ -273,7 +273,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Epic name"
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 "
             />
           </div>
 
@@ -285,7 +285,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
               placeholder="Optional description..."
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-none"
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100  resize-none"
             />
           </div>
 
@@ -296,7 +296,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
               <select
                 value={color}
                 onChange={(e) => setColor(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-gray-100 appearance-none "
               >
                 {COLOR_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>

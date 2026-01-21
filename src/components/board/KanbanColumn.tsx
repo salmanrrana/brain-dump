@@ -109,6 +109,8 @@ const columnStyles: React.CSSProperties = {
   borderRadius: "var(--radius-lg)",
   border: "1px solid var(--border-primary)",
   overflow: "hidden", // Ensure children respect radius
+  // Scroll snap alignment for touch scrolling
+  scrollSnapAlign: "start",
 };
 
 const columnHeaderStyles: React.CSSProperties = {
@@ -116,6 +118,10 @@ const columnHeaderStyles: React.CSSProperties = {
   borderBottom: "1px solid var(--border-primary)",
   flexShrink: 0,
   background: "var(--bg-secondary)", // Ensure header sits on top
+  // Sticky header within column during vertical scroll
+  position: "sticky",
+  top: 0,
+  zIndex: 1,
 };
 
 const headerContentStyles: React.CSSProperties = {

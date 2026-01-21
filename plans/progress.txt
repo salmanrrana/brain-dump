@@ -1,373 +1,122 @@
 # Ralph Progress Log
-# Previous entries archived to: archives/progress-20260119-173640.txt
+# Previous entries archived to: archives/progress-20260121-112211.txt
 
----
-
-### 2026-01-21 - Sprint 5 PRD Sync
-
-Updated PRD to reflect already-completed tickets discovered during session:
-
-**Verified Complete:**
-- 75 - Create ticket detail route ✅ (src/routes/ticket.$id.tsx - full implementation)
-- 77 - Create TicketDetailHeader component ✅ (src/components/tickets/TicketDetailHeader.tsx)
-- 79 - Create SubtasksProgress component ✅ (src/components/tickets/SubtasksProgress.tsx)
-- 81 - Integrate full activity timeline in detail view ✅ (ActivitySection with maxHeight="none")
-- 86 - Create CreateEpicModal ✅ (commit ce0b06a)
-- 87 - Add "Create New Epic" option to EpicSelect dropdown ✅ (commit 818e33b)
-- 88 - Create InceptionModal ✅ (commit 56b876f)
-- 90 - Wire InceptionModal to NewTicketDropdown ✅ (commit 095e85f)
-
-**Remaining Tickets (passes: false):**
-- 76 - Create BackNavigation component (low priority)
-- 78 - Create TicketDescription component (medium)
-- 80 - Create RelatedTickets panel (low)
-- 82 - Create CreateProjectModal (high priority)
-- 83 - Create EditProjectModal (medium)
-- 84 - Create ColorPicker component (low)
-- 85 - Create WorkingMethodSelect component (low)
-- 89 - Add Skip AI link to InceptionModal (low)
-
-**Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1283 passing)
+  - Escape always works even when disabled (for modal closing)
+  - KEYBOARD_SHORTCUTS and SHORTCUT_CATEGORY_LABELS exports for help display
+  - Shortcuts grouped by category for organized help modal
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1329 passed)
 
 
-### Features Verified:
-- 3 themes defined: Ember (orange), Mint (emerald), Solar (gold)
-- Base colors: --bg-primary (#0a0a0a), --bg-secondary (#111111)
-- Accent colors vary by theme via [data-theme] selectors
-- Typography scale (8 sizes from xs to 4xl)
-- Spacing scale (14 values from 0 to 24)
-- Border radius scale (7 values from none to full)
-- Shadow variables including glow effects
-- Z-index scale for proper stacking
-
-### Next Suggested Ticket
-- **ID:** d8b3c109-acc6-4025-9def-f4f96f7330b6
-- **Title:** 07 - Create ThemeContext with localStorage persistence
-- **Priority:** high
-
----
-
-## Ralph Iteration Complete
-
-### Ticket: 23 - Create root layout with app shell
-- **Status:** ✅ COMPLETED
-- **Commit:** 760d550
-- **Files:** src/routes/__root.tsx, src/components/AppLayout.tsx
-- **Tests:** 995 passing
-- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅
-
-### Changes Made:
-- Added ThemeProvider to wrap entire app in __root.tsx
-- Converted AppLayout from flexbox to CSS Grid (grid-cols-[256px_1fr])
-- Set h-screen and overflow-hidden on body for full viewport height
-- Updated sidebar styling to use CSS variables (--bg-secondary, --border-primary)
-
-### Next Suggested Ticket
-- **ID:** 6cca5ce1-7bdb-4a4e-b871-bc7c726d610b
-- **Title:** 20 - Create ModalHeader subcomponent
-- **Priority:** medium
-
----
-
-## Ralph Iteration Complete
-
-### Ticket: 20 - Create ModalHeader subcomponent
-- **Status:** ✅ COMPLETED
-- **Commit:** 28b7ccd
-- **Files:** src/components-v2/ui/Modal.tsx, src/components-v2/ui/Modal.test.tsx
-- **Tests:** 1006 passing (50 in Modal.test.tsx, 11 new for Header)
-- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅
-
-### Features Implemented:
-- Modal.Header compound component attached to Modal
-- Gradient icon area on left using --gradient-accent
-- Title text as h2 heading for accessibility
-- Close button (X) on right with hover/focus states
-- Sticky positioning at top during scroll
-- Border bottom separator using CSS variables
-
-### Next Suggested Ticket
-- **ID:** df71f7dc-8fc0-4e97-9004-e5bec49a2e8a
-- **Title:** 21 - Create ModalBody and ModalFooter subcomponents
-- **Priority:** medium
-
----
-
-## Ralph Session Complete - UI v2 Sprint 1 FINISHED!
-
-### Session Summary (2026-01-19)
-All remaining Sprint 1 tickets completed in this session:
-
-| Ticket | Title | Commit | Tests Added |
-|--------|-------|--------|-------------|
-| 21 | Create ModalBody and ModalFooter subcomponents | 23c122e | 16 |
-| 22 | Create useModal hook | 6c6f262 | 18 |
-| 24 | Create Toast component | 9963886 | 28 |
-| 25 | Create ToastProvider and useToast hook | 9136346 | 18 |
-| 18 | Create Checkbox component | 6614097 | 33 |
-
-### Final Test Count
-- **Total Tests:** 1119 passing (up from 995)
-- **New Tests Added:** 113 tests in this session
-
-### Sprint 1 Complete! 🎉
-All 20 tickets in "UI v2 Sprint 1: Foundation & Design System" are now DONE.
-
-#### Components Created:
-- **Theme System:** CSS variables, ThemeContext, ThemeProvider, ThemeSwitcher
-- **Form Components:** Button, Input, Select, Checkbox, Toggle
-- **Display Components:** Card, Badge, IconButton
-- **Modal System:** Modal, Modal.Header, Modal.Body, Modal.Footer, useModal
-- **Notifications:** Toast, ToastContainer, ToastProvider, useToast
-- **Layout:** Root layout with app shell, CSS Grid sidebar
-
-#### Architecture Notes:
-- All components use CSS custom properties for theme adaptation
-- Inline styles used consistently (not Tailwind classes for v2 components)
-- Compound component pattern for Modal (Modal.Header, etc.)
-- Context + hook pattern for Toast (ToastProvider + useToast)
-- Full accessibility support (ARIA attributes, keyboard navigation, focus management)
-
----
-
----
-
-### 2026-01-20 - Ralph Session Analysis
-- **Task:** Start UI v2 Sprint 2 work
-- **Finding:** Sprint 1 (Foundation) and partial Sprint 2 (Navigation) already complete on feature/ui-v2
-- **Components Implemented:**
-  - Sprint 1: All 20 tickets (06-25) - Theme system, Button, Input, Select, Card, Badge, IconButton, Toggle, Checkbox, Modal, Toast
-  - Sprint 2 Navigation (26-30): IconSidebar, NavItem, Router integration, Header, SearchBar
-- **Components NOT Implemented:**
-  - Sprint 2 Dashboard (31-40): StatusPill, NewTicketDropdown, ProjectsPanel, ProjectItem, useProjectsPanel, search filtering, Dashboard route, StatsGrid, CurrentFocusCard, UpNextQueue
-- **Action:** Need to regenerate PRD for remaining Sprint 2 Dashboard tickets
-
-
----
-
-### 2026-01-20 - Ticket 32 Complete (NewTicketDropdown)
-- **Ticket ID:** f3c3461b-a3f3-49cb-b259-bf37b8a71cf5
-- **Task:** Create NewTicketDropdown component
+### 2026-01-21 - Ticket 99 Complete (KanbanBoard Keyboard Navigation)
+- **Ticket ID:** 76e1c65a-c8e3-429b-93e0-624eed12c822
+- **Task:** Add keyboard navigation to KanbanBoard
 - **Success:** true
-- **Commit:** 463f74a
+- **Commit:** 5629e67
 - **Files:**
-  - src/components/navigation/NewTicketDropdown.tsx (NEW)
-  - src/components/navigation/NewTicketDropdown.test.tsx (NEW)
-  - src/components/navigation/index.ts (updated exports)
-- **Notes:**
-  - Primary gradient button with chevron indicator
-  - Dropdown menu: "New Ticket" and "Start from Scratch" options
-  - Full keyboard accessibility (Tab, Enter/Space, ArrowUp/Down, Escape)
-  - Click-outside-to-close via useClickOutside hook
-  - 14 comprehensive tests pass
-  - All acceptance criteria met
-
----
-
-### 2026-01-20 - Ticket 31 Complete (StatusPill)
-- **Ticket ID:** 7d945ec4-93a3-43ae-909a-2489ee2d4bf2
-- **Task:** Create StatusPill component
-- **Success:** true
-- **Commit:** dc6913c
-- **Files:**
-  - src/components/navigation/StatusPill.tsx (NEW)
-  - src/components/navigation/StatusPill.test.tsx (NEW)
-  - src/components/navigation/index.ts (updated exports)
+  - src/lib/use-board-keyboard-navigation.ts (NEW)
+  - src/components/board/KanbanBoard.tsx (modified)
+  - src/components/board/SortableTicketCard.tsx (modified)
+  - src/components/board/TicketCard.tsx (modified)
+  - src/lib/keyboard-shortcuts.ts (modified)
 - **Features:**
-  - Compact dot + label pattern for status display
-  - 7 ticket status values (backlog, ready, in_progress, review, ai_review, human_review, done)
-  - Two sizes: sm (6px dot) and md (8px dot)
-  - Theme-aware via CSS custom properties (--status-*)
-  - Full accessibility with role="status" and aria-label
-  - 18 comprehensive tests pass
-- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (999 total)
+  - Arrow keys move focus between tickets (Up/Down within column, Left/Right between columns)
+  - Enter/Space opens focused ticket detail
+  - Focus ring visible on focused card (focus-visible:ring-2)
+  - Tab moves to next card using roving tabindex pattern
+  - Home/End navigate to first/last ticket
+  - Board shortcuts added to KEYBOARD_SHORTCUTS array for help display
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1339 passed)
 
 
----
-
-### 2026-01-20 - Ticket 37 Complete (Dashboard Route)
-- **Ticket ID:** 37ab31cc-d937-44e9-a5d0-6281cc101e99
-- **Task:** Create Dashboard route
+### 2026-01-21 - Ticket 104 Complete (ARIA Labels Accessibility)
+- **Ticket ID:** 4f20d75f-7826-41a9-a4ad-bbf10e5b4012
+- **Task:** Add ARIA labels to all interactive elements
 - **Success:** true
-- **Commit:** 91c39e6
+- **Commit:** 44e0296
 - **Files:**
-  - src/routes/dashboard.tsx (NEW)
-  - src/routeTree.gen.ts (auto-generated)
+  - src/components/AppLayout.tsx (modified)
+  - src/components/NewTicketModal.tsx (modified)
+  - src/components/ProjectTree.tsx (modified)
+  - src/components/board/TicketCard.tsx (modified)
 - **Features:**
-  - Route at /dashboard using createFileRoute
-  - StatsGrid with 4 metrics (Total, In Progress, AI Active, Done)
-  - CurrentFocusCard showing ticket with active Ralph session
-  - UpNextQueue showing next 5 priority-ordered tickets
-  - Inline placeholder components (to be extracted in tickets 38-40)
-- **Note:** Ticket 36 (search filtering) was already implemented in ticket 33
-- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1013 total)
+  - aria-label on all icon-only buttons (search clear, view toggle, refresh, settings)
+  - aria-pressed on toggle buttons (kanban/list view mode)
+  - role="listbox" and role="option" on search results dropdown
+  - aria-label, aria-expanded, aria-controls on tag input autocomplete
+  - aria-label on TicketCard for screen reader announcement
+  - aria-hidden on all decorative icons
+  - aria-label and aria-expanded on project tree expand/collapse
+  - id="main-content" on main element for skip link target
+  - role="group" with aria-label on view toggle button group
+- **Note:** Many components already had good ARIA support (Toast, Modal, TabNav, etc.)
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1339 passed)
 
----
 
-### 2026-01-20 - Ticket 38 Complete (StatsGrid Component)
-- **Ticket ID:** 0ae86982-3c09-43f0-893c-5c8ad8de45d7
-- **Task:** Create StatsGrid component
+### 2026-01-21 - Ticket 105 Complete (Focus Indicators)
+- **Ticket ID:** 0051e530-bfc3-4bac-b011-cf50c6031a98
+- **Task:** Add visible focus indicators with WCAG AA contrast
 - **Success:** true
-- **Commit:** 542a9ce
+- **Commit:** 172e4be
 - **Files:**
-  - src/components/dashboard/StatsGrid.tsx (NEW)
-  - src/components/dashboard/StatsGrid.test.tsx (NEW - 22 tests)
-  - src/components/dashboard/index.ts (NEW)
-  - src/routes/dashboard.tsx (updated to use extracted component)
+  - src/styles/variables.css (NEW: focus ring CSS variables)
+  - src/styles.css (NEW: global :focus-visible rules)
+  - 12 component files (removed old inconsistent Tailwind focus classes)
 - **Features:**
-  - 4 stat cards: Total, In Progress, AI Active, Done
-  - Click handlers with typed StatFilter for board navigation
-  - Keyboard accessibility (Enter/Space, tabIndex)
-  - Test IDs for easy testing
-- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1035 total, 22 new)
+  - CSS custom properties for focus styling (--focus-ring-color, --focus-ring-width, --focus-ring-offset)
+  - Global :focus-visible styles for all interactive elements (buttons, links, inputs)
+  - :focus-visible instead of :focus (shows only for keyboard navigation)
+  - Theme-aware focus colors (adapts to Ember/Mint/Solar accent colors)
+  - Contrast ratio meets WCAG AA 3:1 requirement against dark backgrounds
+  - Removed inconsistent focus:ring-cyan-500 Tailwind classes from 12 components
+- **Components Updated:**
+  - AppLayout, NewTicketModal, TicketModal, EpicModal, ProjectModal
+  - GeneralTab, RalphTab, GitTab, EnterpriseTab
+  - CreateEpicModal, DirectoryPicker, DockerRuntimeBadge
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1359 passed)
 
----
 
-### 2026-01-20 - Ticket 39 Complete (CurrentFocusCard Component)
-- **Ticket ID:** 91841fb8-51a3-4d2b-b66d-d494ca730a7b
-- **Task:** Create CurrentFocusCard component
+### 2026-01-21 - Ticket 107 Complete (Reduced Motion Support)
+- **Ticket ID:** 1505fbc2-f78a-41db-91ec-8b5e5c2ceb2b
+- **Task:** Add reduced motion support for animations
 - **Success:** true
-- **Commit:** dbe939f
+- **Commit:** ef781bc
 - **Files:**
-  - src/components/dashboard/CurrentFocusCard.tsx (NEW)
-  - src/components/dashboard/CurrentFocusCard.test.tsx (NEW - 28 tests)
-  - src/components/dashboard/index.ts (updated exports)
-  - src/routes/dashboard.tsx (uses extracted component)
+  - src/styles.css (NEW: @media prefers-reduced-motion rules)
+  - src/styles/variables.css (NEW: animation duration custom properties)
 - **Features:**
-  - Displays currently active/focused ticket with AI session integration
-  - Ticket title and truncated description preview (100 chars)
-  - AI activity indicator with glow animation when Ralph session active
-  - Subtask progress bar with completion count (e.g., "3/5 subtasks")
-  - Time since work started (e.g., "Started 2h ago", "Just started")
-  - Click handler with keyboard support for navigation to ticket detail
-  - Empty state with icon and helpful message
-  - Full accessibility support (ARIA roles, labels, keyboard navigation)
-- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1063 total, 28 new)
+  - Global animation/transition duration reduction to 0.01ms with !important
+  - Disabled decorative animations (pulse, glow, slide-in, ping)
+  - Kept loading spinners functional but faster (0.5s)
+  - Preserved static glow for AI-active indication
+  - Disabled smooth scrolling in reduced motion mode
+  - Specific handling for [data-glow="true"] cards
+- **WCAG 2.1 AA Compliance:**
+  - Success Criterion 2.3.3 (Animation from Interactions)
+  - Users with vestibular disorders can use app comfortably
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1359 passed)
 
 ---
 
-### Remaining Sprint 2 Dashboard Tickets
-- **34 - ProjectItem component** (medium) - Enhanced project item for ProjectsPanel
-- **40 - UpNextQueue component** (medium) - Extract from dashboard.tsx with Start button
-
----
-
-### 2026-01-20 - Ticket 40 Complete (UpNextQueue Component)
-- **Ticket ID:** 14d8bb8e-e0b0-4f2d-85af-441311e95561
-- **Task:** Create UpNextQueue component
-- **Success:** true
-- **Commit:** 96e6bd1
-- **Files:**
-  - src/components/dashboard/UpNextQueue.tsx (NEW)
-  - src/components/dashboard/UpNextQueue.test.tsx (NEW - 35 tests)
-  - src/components/dashboard/index.ts (updated exports)
-  - src/routes/dashboard.tsx (uses extracted component)
-- **Features:**
-  - Shows next 5 tickets in priority order (high → medium → low)
-  - Priority badges with accessible color dots and labels
-  - Project name display for additional context
-  - Click handler for viewing ticket details
-  - "Start" button to begin work on tickets
-  - Empty state when queue is empty
-  - Full keyboard accessibility (Tab, Enter/Space)
-- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1098 total, 35 new)
-
----
-
-### Dashboard Components Complete
-All 3 dashboard components from Sprint 2 are now extracted:
-- StatsGrid (ticket 38) ✅
-- CurrentFocusCard (ticket 39) ✅  
-- UpNextQueue (ticket 40) ✅
-
-### 2026-01-20 - PRD Sync
-Updated PRD to reflect completed tickets from previous sessions:
-- 26 - IconSidebar component ✅ (commit 9a8a2bf)
-- 27 - NavItem component ✅ (commit d49fb62)
-- 28 - Router integration ✅ (commit 30cab69)
-- 29 - Header component ✅ (commit 992d690)
-- 30 - SearchBar ✅ (commit bb0381c)
-- 31 - StatusPill ✅ (commit dc6913c)
-- 32 - NewTicketDropdown ✅ (commit 463f74a)
-- 33 - ProjectsPanel ✅ (commit 51dc10d)
-- 35 - useProjectsPanel hook ✅ (commit 509e066)
-- 37 - Dashboard route ✅ (commit 91c39e6)
-- 38 - StatsGrid ✅ (commit 542a9ce)
-- 39 - CurrentFocusCard ✅ (already marked)
-- 40 - UpNextQueue ✅ (already marked)
-
-### 2026-01-20 - Ticket 34 Complete (ProjectItem Component)
-- **Ticket ID:** 0dd854b1-e9c0-4438-a750-56fb308246ff
-- **Task:** Create ProjectItem component
-- **Success:** true
-- **Commit:** e44d495
-- **Files:**
-  - src/components/navigation/ProjectItem.tsx (NEW)
-  - src/components/navigation/ProjectItem.test.tsx (NEW - 28 tests)
-  - src/components/navigation/index.ts (updated exports)
-- **Features:**
-  - Color indicator circle (project.color)
-  - Project name and truncated path with tooltip
-  - Ticket stats: total, in progress counts
-  - AI active indicator with glow effect when Ralph running
-  - Hover actions: edit and delete buttons
-  - Click to select, double-click to edit
-  - Full keyboard accessibility (Enter/Space, Tab)
-  - Proper ARIA (role=option, aria-selected)
-- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1126 total, 28 new)
-
----
-
-## 🎉 UI v2 Sprint 2 COMPLETE!
-
-All 15 tickets in "UI v2 Sprint 2: Navigation & Layout" are now DONE:
-- 26 - IconSidebar component ✅
-- 27 - NavItem component ✅
-- 28 - Router integration ✅
-- 29 - Header component ✅
-- 30 - SearchBar with FTS5 ✅
-- 31 - StatusPill component ✅
-- 32 - NewTicketDropdown ✅
-- 33 - ProjectsPanel ✅
-- 34 - ProjectItem component ✅
-- 35 - useProjectsPanel hook ✅
-- 37 - Dashboard route ✅
-- 38 - StatsGrid component ✅
-- 39 - CurrentFocusCard component ✅
-- 40 - UpNextQueue component ✅
-
-PRD_COMPLETE
-
----
-
-### 2026-01-20 - Sprint 3 Kanban Board COMPLETE
-
-All 14 tickets in "UI v2 Sprint 3: Kanban Board" are now DONE:
-- 41 - Create KanbanBoard component ✅
-- 42 - Create KanbanColumn component ✅
-- 43 - Create Board route as default ✅
-- 44 - Create TicketCard component ✅
-- 45 - Add AI-active glow state to TicketCard ✅
-- 46 - Create GitInfo component ✅
-- 47 - Create TicketTags component ✅
-- 48 - Set up DndProvider with @dnd-kit ✅
-- 49 - Create SortableTicketCard wrapper ✅
-- 50 - Create DragOverlay for card preview ✅
-- 51 - Implement status update on drop ✅
-- 52 - Create BoardHeader with filter chips ✅
-- 53 - Create useFilters hook with URL sync ✅
-- 54 - Integrate filters with board query ✅
-
-**Key commits:**
-- d683f41 feat(52-53): BoardHeader with filter chips and URL-synced useFilters hook
-- a548a0f feat(46): Create GitInfo component for branch and PR display
-- 38cfd50 feat(47): Create TicketTags component with colored pills
-
-PRD_COMPLETE
-
----
-
-### 2026-01-21 00:46:07 - Session Timeout
+### 2026-01-21 11:21:32 - Session Timeout
 - **Reason:** Timeout reached (2h limit)
 - **Status:** Session terminated, work may be incomplete
 - **Action:** Review progress and restart if needed
+
+
+### 2026-01-21 - PRD Update (Tickets 91-96 Already Complete)
+- **Session Type:** PRD audit and reconciliation
+- **Action:** Marked tickets 91-96 as passes: true in PRD
+- **Reason:** These settings components were already fully implemented
+- **Components verified:**
+  - src/components/settings/SettingsModal.tsx ✅
+  - src/components/settings/TabNav.tsx ✅
+  - src/components/settings/GeneralTab.tsx ✅
+  - src/components/settings/RalphTab.tsx ✅
+  - src/components/settings/GitTab.tsx ✅
+  - src/components/settings/EnterpriseTab.tsx ✅
+- **Remaining tickets:**
+  - 98: IconSidebar keyboard navigation (pending)
+  - 101: Mobile sidebar with hamburger menu (pending)
+  - 102: Responsive board with horizontal scroll (pending)
+  - 103: Responsive full-screen modals on mobile (pending)
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1359 passed)
