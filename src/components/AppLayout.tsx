@@ -7,6 +7,7 @@ import {
   useRef,
   useCallback,
 } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { Search, LayoutGrid, List, X, Loader2, Settings, RefreshCw, Menu } from "lucide-react";
 import ProjectTree from "./ProjectTree";
 import ContainerStatusSection from "./ContainerStatusSection";
@@ -143,6 +144,7 @@ function sanitizeSnippet(html: string): string {
 }
 
 export default function AppLayout({ children }: AppLayoutProps) {
+  const navigate = useNavigate();
   const { projects, refetch: refetchProjects } = useProjects();
 
   // Use consolidated hooks
@@ -314,6 +316,23 @@ export default function AppLayout({ children }: AppLayoutProps) {
     searchInput?.focus();
   }, []);
 
+  // Navigation callbacks for keyboard shortcuts (1-4)
+  const handleNavigateDashboard = useCallback(() => {
+    void navigate({ to: "/dashboard" });
+  }, [navigate]);
+
+  const handleNavigateBoard = useCallback(() => {
+    void navigate({ to: "/" });
+  }, [navigate]);
+
+  const handleToggleProjects = useCallback(() => {
+    // On mobile, toggle the mobile menu (which shows projects)
+    // On desktop, the sidebar is always visible, so this is a no-op
+    if (window.innerWidth < 768) {
+      setIsMobileMenuOpen((prev) => !prev);
+    }
+  }, []);
+
   // Global keyboard shortcuts using the extracted hook
   useKeyboardShortcuts({
     onNewTicket: openNewTicket,
@@ -321,6 +340,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
     onFocusSearch: handleFocusSearch,
     onShowShortcuts: openShortcuts,
     onCloseModal: closeModal,
+    onNavigateDashboard: handleNavigateDashboard,
+    onNavigateBoard: handleNavigateBoard,
+    onToggleProjects: handleToggleProjects,
+    onOpenSettings: openSettings,
     disabled: isAnyModalOpen,
     isRefreshing,
   });
