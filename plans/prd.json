@@ -520,7 +520,7 @@
     {
       "id": "bdf7c541-e594-4692-800d-49b7d1736890",
       "title": "73 - Create CommentInput component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
