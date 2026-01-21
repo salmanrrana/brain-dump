@@ -271,7 +271,7 @@
     {
       "id": "f994d35f-40c5-47d7-880b-66820512ca76",
       "title": "64 - Create SubtaskList component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
