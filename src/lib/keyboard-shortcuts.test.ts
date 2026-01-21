@@ -133,6 +133,61 @@ describe("useKeyboardShortcuts", () => {
       expect(onRefresh).toHaveBeenCalledTimes(1);
     });
 
+    it("should call onNavigateDashboard when '1' is pressed", () => {
+      const onNavigateDashboard = vi.fn();
+      renderHook(() => useKeyboardShortcuts({ onNavigateDashboard }));
+
+      fireKeyDown("1");
+
+      expect(onNavigateDashboard).toHaveBeenCalledTimes(1);
+    });
+
+    it("should call onNavigateBoard when '2' is pressed", () => {
+      const onNavigateBoard = vi.fn();
+      renderHook(() => useKeyboardShortcuts({ onNavigateBoard }));
+
+      fireKeyDown("2");
+
+      expect(onNavigateBoard).toHaveBeenCalledTimes(1);
+    });
+
+    it("should call onToggleProjects when '3' is pressed", () => {
+      const onToggleProjects = vi.fn();
+      renderHook(() => useKeyboardShortcuts({ onToggleProjects }));
+
+      fireKeyDown("3");
+
+      expect(onToggleProjects).toHaveBeenCalledTimes(1);
+    });
+
+    it("should call onOpenSettings when '4' is pressed", () => {
+      const onOpenSettings = vi.fn();
+      renderHook(() => useKeyboardShortcuts({ onOpenSettings }));
+
+      fireKeyDown("4");
+
+      expect(onOpenSettings).toHaveBeenCalledTimes(1);
+    });
+
+    it("should NOT trigger navigation shortcuts when typing in input", () => {
+      const onNavigateDashboard = vi.fn();
+      const input = createInput();
+      renderHook(() => useKeyboardShortcuts({ onNavigateDashboard }));
+
+      fireKeyDown("1", { target: input });
+
+      expect(onNavigateDashboard).not.toHaveBeenCalled();
+    });
+
+    it("should NOT trigger navigation shortcuts when disabled", () => {
+      const onNavigateDashboard = vi.fn();
+      renderHook(() => useKeyboardShortcuts({ onNavigateDashboard, disabled: true }));
+
+      fireKeyDown("1");
+
+      expect(onNavigateDashboard).not.toHaveBeenCalled();
+    });
+
     it("should NOT trigger shortcuts when typing in input", () => {
       const onNewTicket = vi.fn();
       const input = createInput();
@@ -320,6 +375,34 @@ describe("KEYBOARD_SHORTCUTS constant", () => {
     expect(shortcut?.description.toLowerCase()).toContain("close");
   });
 
+  it("should include '1' shortcut for Dashboard navigation", () => {
+    const shortcut = KEYBOARD_SHORTCUTS.find((s) => s.key === "1");
+    expect(shortcut).toBeDefined();
+    expect(shortcut?.category).toBe("navigation");
+    expect(shortcut?.description.toLowerCase()).toContain("dashboard");
+  });
+
+  it("should include '2' shortcut for Board navigation", () => {
+    const shortcut = KEYBOARD_SHORTCUTS.find((s) => s.key === "2");
+    expect(shortcut).toBeDefined();
+    expect(shortcut?.category).toBe("navigation");
+    expect(shortcut?.description.toLowerCase()).toContain("board");
+  });
+
+  it("should include '3' shortcut for Projects toggle", () => {
+    const shortcut = KEYBOARD_SHORTCUTS.find((s) => s.key === "3");
+    expect(shortcut).toBeDefined();
+    expect(shortcut?.category).toBe("navigation");
+    expect(shortcut?.description.toLowerCase()).toContain("project");
+  });
+
+  it("should include '4' shortcut for Settings", () => {
+    const shortcut = KEYBOARD_SHORTCUTS.find((s) => s.key === "4");
+    expect(shortcut).toBeDefined();
+    expect(shortcut?.category).toBe("navigation");
+    expect(shortcut?.description.toLowerCase()).toContain("setting");
+  });
+
   it("should have valid categories for all shortcuts", () => {
     const validCategories = ["global", "navigation", "board", "modals"];
     for (const shortcut of KEYBOARD_SHORTCUTS) {
@@ -338,6 +421,7 @@ describe("SHORTCUT_CATEGORY_LABELS constant", () => {
 
   it("should have human-readable labels", () => {
     expect(SHORTCUT_CATEGORY_LABELS.global).toBe("Global");
+    expect(SHORTCUT_CATEGORY_LABELS.navigation).toBe("Navigation");
     expect(SHORTCUT_CATEGORY_LABELS.modals).toBe("Modals");
   });
 });

@@ -26,6 +26,14 @@ export interface KeyboardShortcutConfig {
   onShowShortcuts?: () => void;
   /** Called when Escape is pressed - closes any open modal */
   onCloseModal?: () => void;
+  /** Called when '1' is pressed - navigate to dashboard */
+  onNavigateDashboard?: () => void;
+  /** Called when '2' is pressed - navigate to board */
+  onNavigateBoard?: () => void;
+  /** Called when '3' is pressed - toggle projects panel */
+  onToggleProjects?: () => void;
+  /** Called when '4' is pressed - open settings */
+  onOpenSettings?: () => void;
   /** Whether shortcuts should be disabled (e.g., when a modal is open for most shortcuts) */
   disabled?: boolean;
   /** Whether the refresh action is currently in progress */
@@ -51,6 +59,12 @@ export const KEYBOARD_SHORTCUTS: ShortcutDefinition[] = [
   { key: "r", description: "Refresh data", category: "global" },
   { key: "/", description: "Focus search", category: "global" },
   { key: "?", description: "Show shortcuts", category: "global" },
+
+  // Navigation shortcuts
+  { key: "1", description: "Dashboard", category: "navigation" },
+  { key: "2", description: "Board", category: "navigation" },
+  { key: "3", description: "Toggle Projects", category: "navigation" },
+  { key: "4", description: "Settings", category: "navigation" },
 
   // Modal shortcuts
   { key: "Escape", description: "Close modal", category: "modals" },
@@ -107,6 +121,10 @@ export function useKeyboardShortcuts(
     onFocusSearch,
     onShowShortcuts,
     onCloseModal,
+    onNavigateDashboard,
+    onNavigateBoard,
+    onToggleProjects,
+    onOpenSettings,
     disabled = false,
     isRefreshing = false,
   } = config;
@@ -158,9 +176,50 @@ export function useKeyboardShortcuts(
             onCloseModal();
           }
           break;
+
+        // Navigation shortcuts (1-4)
+        case "1":
+          if (!disabled && onNavigateDashboard) {
+            e.preventDefault();
+            onNavigateDashboard();
+          }
+          break;
+
+        case "2":
+          if (!disabled && onNavigateBoard) {
+            e.preventDefault();
+            onNavigateBoard();
+          }
+          break;
+
+        case "3":
+          if (!disabled && onToggleProjects) {
+            e.preventDefault();
+            onToggleProjects();
+          }
+          break;
+
+        case "4":
+          if (!disabled && onOpenSettings) {
+            e.preventDefault();
+            onOpenSettings();
+          }
+          break;
       }
     },
-    [disabled, isRefreshing, onNewTicket, onRefresh, onFocusSearch, onShowShortcuts, onCloseModal]
+    [
+      disabled,
+      isRefreshing,
+      onNewTicket,
+      onRefresh,
+      onFocusSearch,
+      onShowShortcuts,
+      onCloseModal,
+      onNavigateDashboard,
+      onNavigateBoard,
+      onToggleProjects,
+      onOpenSettings,
+    ]
   );
 
   // Register the global keydown listener

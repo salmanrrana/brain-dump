@@ -12,6 +12,8 @@ export interface NavItemConfig {
   path?: string;
   /** Action name for items that open panels/modals instead of navigating */
   action?: "openProjectsPanel" | "openSettings";
+  /** Keyboard shortcut key (shown in tooltip, e.g., "1" for "Dashboard (1)") */
+  shortcutKey?: string;
 }
 
 export interface IconSidebarProps {
@@ -41,12 +43,13 @@ export interface IconSidebarProps {
 
 /**
  * Default navigation items for the sidebar.
+ * Each item has an optional shortcutKey for keyboard navigation (1-4).
  */
 const defaultNavItems: NavItemConfig[] = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
-  { icon: Kanban, label: "Board", path: "/" },
-  { icon: Folder, label: "Projects", action: "openProjectsPanel" },
-  { icon: Settings, label: "Settings", action: "openSettings" },
+  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard", shortcutKey: "1" },
+  { icon: Kanban, label: "Board", path: "/", shortcutKey: "2" },
+  { icon: Folder, label: "Projects", action: "openProjectsPanel", shortcutKey: "3" },
+  { icon: Settings, label: "Settings", action: "openSettings", shortcutKey: "4" },
 ];
 
 /**
@@ -143,6 +146,7 @@ export const IconSidebar: FC<IconSidebarProps> = ({
         label={item.label}
         active={isActive(item)}
         onClick={item.action ? () => handleActionClick(item) : undefined}
+        shortcutKey={item.shortcutKey}
       />
     );
 
@@ -165,6 +169,7 @@ export const IconSidebar: FC<IconSidebarProps> = ({
           label={item.label}
           active={isActive(item)}
           onClick={() => handleLegacyNavigate(item)}
+          shortcutKey={item.shortcutKey}
         />
       );
     }
