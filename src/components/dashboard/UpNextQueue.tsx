@@ -88,48 +88,54 @@ export const UpNextQueue: FC<UpNextQueueProps> = ({ tickets, onClick, onStart })
       <div style={sectionContentStyles}>
         {tickets.length > 0 ? (
           <ol style={queueListStyles} data-testid="queue-list">
-            {tickets.map((ticket, index) => (
-              <li key={ticket.id} style={queueItemWrapperStyles}>
-                <div
-                  style={queueItemStyles}
-                  onClick={() => handleTicketClick(ticket.id)}
-                  onKeyDown={(e) => handleTicketKeyDown(ticket.id, e)}
-                  role={onClick ? "button" : undefined}
-                  tabIndex={onClick ? 0 : undefined}
-                  aria-label={onClick ? `View ticket: ${ticket.title}` : undefined}
-                  data-testid={`queue-item-${index}`}
-                >
-                  <span style={queueIndexStyles} aria-hidden="true">
-                    {index + 1}.
-                  </span>
+            {tickets.map((ticket, index) => {
+              const isNextUp = index === 0;
+              return (
+                <li key={ticket.id} style={queueItemWrapperStyles}>
+                  <div
+                    style={{
+                      ...queueItemStyles,
+                      ...(isNextUp && nextUpItemStyles),
+                    }}
+                    onClick={() => handleTicketClick(ticket.id)}
+                    onKeyDown={(e) => handleTicketKeyDown(ticket.id, e)}
+                    role={onClick ? "button" : undefined}
+                    tabIndex={onClick ? 0 : undefined}
+                    aria-label={onClick ? `View ticket: ${ticket.title}` : undefined}
+                    data-testid={`queue-item-${index}`}
+                  >
+                    <span style={queueIndexStyles} aria-hidden="true">
+                      {index + 1}.
+                    </span>
 
-                  <PriorityBadge priority={ticket.priority} />
+                    <PriorityBadge priority={ticket.priority} />
 
-                  <div style={ticketInfoStyles}>
-                    <span style={queueTitleStyles}>{ticket.title}</span>
-                    {ticket.projectName && (
-                      <span style={projectNameStyles} data-testid={`project-name-${index}`}>
-                        {ticket.projectName}
-                      </span>
+                    <div style={ticketInfoStyles}>
+                      <span style={queueTitleStyles}>{ticket.title}</span>
+                      {ticket.projectName && (
+                        <span style={projectNameStyles} data-testid={`project-name-${index}`}>
+                          {ticket.projectName}
+                        </span>
+                      )}
+                    </div>
+
+                    {onStart && (
+                      <button
+                        type="button"
+                        style={startButtonStyles}
+                        onClick={(e) => handleStartClick(ticket.id, e)}
+                        onKeyDown={(e) => handleStartKeyDown(ticket.id, e)}
+                        aria-label={`Start working on: ${ticket.title}`}
+                        data-testid={`start-button-${index}`}
+                      >
+                        <Play size={12} style={{ marginRight: "4px" }} aria-hidden="true" />
+                        Start
+                      </button>
                     )}
                   </div>
-
-                  {onStart && (
-                    <button
-                      type="button"
-                      style={startButtonStyles}
-                      onClick={(e) => handleStartClick(ticket.id, e)}
-                      onKeyDown={(e) => handleStartKeyDown(ticket.id, e)}
-                      aria-label={`Start working on: ${ticket.title}`}
-                      data-testid={`start-button-${index}`}
-                    >
-                      <Play size={12} style={{ marginRight: "4px" }} aria-hidden="true" />
-                      Start
-                    </button>
-                  )}
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ol>
         ) : (
           <div style={emptyStateStyles} data-testid="empty-state">
@@ -198,6 +204,12 @@ const queueItemStyles: React.CSSProperties = {
   transition: "background var(--transition-fast)",
 };
 
+/** Styles for the first/next-up item with gradient accent */
+const nextUpItemStyles: React.CSSProperties = {
+  background: "linear-gradient(135deg, var(--accent-muted), var(--bg-tertiary))",
+  borderLeft: "3px solid var(--accent-primary)",
+};
+
 const queueIndexStyles: React.CSSProperties = {
   fontSize: "var(--font-size-sm)",
   color: "var(--text-tertiary)",
@@ -241,15 +253,16 @@ const startButtonStyles: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   padding: "var(--spacing-1) var(--spacing-2)",
-  background: "var(--accent-primary)",
-  color: "var(--text-on-accent)",
+  background: "var(--gradient-accent)",
+  color: "white",
   border: "none",
   borderRadius: "var(--radius-sm)",
   fontSize: "var(--font-size-xs)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
   cursor: "pointer",
-  transition: "background var(--transition-fast)",
+  transition: "all var(--transition-fast)",
   flexShrink: 0,
+  boxShadow: "0 2px 8px var(--accent-glow)",
 };
 
 export default UpNextQueue;

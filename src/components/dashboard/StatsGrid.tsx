@@ -23,6 +23,10 @@ interface StatConfig {
   value: number;
   color: string;
   filter: StatFilter;
+  /** Whether this stat should have AI glow effect */
+  hasGlow?: boolean;
+  /** Whether this stat should have gradient accent */
+  hasGradient?: boolean;
 }
 
 /**
@@ -61,13 +65,16 @@ export const StatsGrid: FC<StatsGridProps> = ({
       value: inProgress,
       color: "var(--status-in-progress)",
       filter: "in_progress",
+      hasGradient: true,
     },
     {
       icon: Zap,
       label: "AI Active",
       value: aiActive,
-      color: "var(--accent-warning)",
+      color: "var(--accent-ai)",
       filter: "ai_active",
+      hasGlow: true,
+      hasGradient: true,
     },
     {
       icon: Check,
@@ -94,6 +101,7 @@ export const StatsGrid: FC<StatsGridProps> = ({
       {stats.map((stat) => {
         const Icon = stat.icon;
         const isClickable = !!onStatClick;
+        const showGlow = stat.hasGlow && stat.value > 0;
 
         return (
           <div
@@ -101,6 +109,11 @@ export const StatsGrid: FC<StatsGridProps> = ({
             style={{
               ...cardStyles,
               cursor: isClickable ? "pointer" : "default",
+              ...(stat.hasGradient && {
+                borderTop: "2px solid transparent",
+                borderImage: "var(--gradient-accent) 1",
+              }),
+              ...(showGlow && { boxShadow: "0 0 20px var(--accent-ai-glow)" }),
             }}
             onClick={() => handleClick(stat.filter)}
             onKeyDown={(e) => handleKeyDown(e, stat.filter)}
@@ -112,12 +125,30 @@ export const StatsGrid: FC<StatsGridProps> = ({
                 ? "hover:border-[var(--border-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
                 : ""
             }
+            data-glow={showGlow ? "true" : undefined}
           >
-            <div style={iconWrapperStyles}>
+            <div
+              style={{
+                ...iconWrapperStyles,
+                ...(showGlow && { background: "var(--accent-muted)" }),
+              }}
+            >
               <Icon size={20} style={{ color: stat.color }} aria-hidden="true" />
             </div>
             <div style={contentStyles}>
-              <span style={valueStyles} data-testid={`stat-value-${stat.filter}`}>
+              <span
+                style={{
+                  ...valueStyles,
+                  ...(stat.hasGradient &&
+                    stat.value > 0 && {
+                      background: "var(--gradient-accent)",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                      backgroundClip: "text",
+                    }),
+                }}
+                data-testid={`stat-value-${stat.filter}`}
+              >
                 {stat.value}
               </span>
               <span style={labelStyles}>{stat.label}</span>

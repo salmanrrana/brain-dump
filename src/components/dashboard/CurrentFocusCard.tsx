@@ -112,13 +112,17 @@ export const CurrentFocusCard: FC<CurrentFocusCardProps> = ({ ticket, session, o
       <div style={sectionContentStyles}>
         {ticket ? (
           <div
-            style={focusTicketStyles}
+            style={{
+              ...focusTicketStyles,
+              ...(isAiActive && aiActiveTicketStyles),
+            }}
             onClick={handleClick}
             onKeyDown={handleKeyDown}
             role={onClick ? "button" : undefined}
             tabIndex={onClick ? 0 : undefined}
             aria-label={onClick ? `View ticket: ${ticket.title}` : undefined}
             data-testid="focus-ticket"
+            data-glow={isAiActive ? "true" : undefined}
           >
             <div style={focusTicketHeaderStyles}>
               <span style={focusTicketTitleStyles}>{ticket.title}</span>
@@ -187,6 +191,13 @@ const focusTicketStyles: React.CSSProperties = {
   transition: "all var(--transition-fast)",
 };
 
+/** Styles applied when AI (Ralph) is actively working on the ticket */
+const aiActiveTicketStyles: React.CSSProperties = {
+  boxShadow: "0 0 20px var(--accent-ai-glow)",
+  borderColor: "var(--accent-ai)",
+  background: "linear-gradient(135deg, rgba(20, 184, 166, 0.05), var(--bg-tertiary))",
+};
+
 const focusTicketHeaderStyles: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
@@ -204,7 +215,7 @@ const aiIndicatorStyles: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  color: "var(--accent-warning)",
+  color: "var(--accent-ai)",
   animation: "pulse 2s infinite",
 };
 
@@ -232,9 +243,10 @@ const progressBarContainerStyles: React.CSSProperties = {
 
 const progressBarFillStyles: React.CSSProperties = {
   height: "100%",
-  background: "var(--accent-primary)",
+  background: "var(--gradient-accent)",
   borderRadius: "var(--radius-full)",
   transition: "width var(--transition-fast)",
+  boxShadow: "0 0 10px var(--accent-glow)",
 };
 
 const progressTextStyles: React.CSSProperties = {
