@@ -9,6 +9,8 @@ import {
 } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Search, LayoutGrid, List, X, Loader2, Settings, RefreshCw, Menu } from "lucide-react";
+import { IconSidebar } from "./navigation/IconSidebar";
+import { ProjectsPanel } from "./navigation/ProjectsPanel";
 import ProjectTree from "./ProjectTree";
 import ContainerStatusSection from "./ContainerStatusSection";
 import ContainerLogsModal from "./ContainerLogsModal";
@@ -87,6 +89,11 @@ interface AppState {
   isMobileMenuOpen: boolean;
   openMobileMenu: () => void;
   closeMobileMenu: () => void;
+
+  // Projects panel
+  isProjectsPanelOpen: boolean;
+  openProjectsPanel: () => void;
+  closeProjectsPanel: () => void;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -179,6 +186,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [selectedTicketIdFromSearch, setSelectedTicketIdFromSearch] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isProjectsPanelOpen, setIsProjectsPanelOpen] = useState(false);
 
   // Get invalidate queries helper
   const { invalidateAll } = useInvalidateQueries();
@@ -315,6 +323,15 @@ export default function AppLayout({ children }: AppLayoutProps) {
     setIsMobileMenuOpen(false);
   }, []);
 
+  // Projects panel handlers
+  const openProjectsPanel = useCallback(() => {
+    setIsProjectsPanelOpen(true);
+  }, []);
+
+  const closeProjectsPanel = useCallback(() => {
+    setIsProjectsPanelOpen(false);
+  }, []);
+
   // Focus search input callback for keyboard shortcut
   const handleFocusSearch = useCallback(() => {
     const searchInput = document.querySelector(
@@ -334,9 +351,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   const handleToggleProjects = useCallback(() => {
     // On mobile, toggle the mobile menu (which shows projects)
-    // On desktop, the sidebar is always visible, so this is a no-op
+    // On desktop, toggle the projects panel
     if (window.innerWidth < 768) {
       setIsMobileMenuOpen((prev) => !prev);
+    } else {
+      setIsProjectsPanelOpen((prev) => !prev);
     }
   }, []);
 
@@ -398,16 +417,77 @@ export default function AppLayout({ children }: AppLayoutProps) {
     isMobileMenuOpen,
     openMobileMenu,
     closeMobileMenu,
+
+    // Projects panel
+    isProjectsPanelOpen,
+    openProjectsPanel,
+    closeProjectsPanel,
   };
+
+  // Handler for IconSidebar actions
+  const handleSidebarAction = useCallback(
+    (action: "openProjectsPanel" | "openSettings") => {
+      if (action === "openProjectsPanel") {
+        openProjectsPanel();
+      } else if (action === "openSettings") {
+        openSettings();
+      }
+    },
+    [openProjectsPanel, openSettings]
+  );
+
+  // Handler for project selection from ProjectsPanel
+  const handleProjectSelect = useCallback(
+    (projectId: string | null) => {
+      setProjectId(projectId);
+      // Don't close panel - let user close manually or click outside
+    },
+    [setProjectId]
+  );
+
+  // Handler for project edit from ProjectsPanel
+  const handleProjectEdit = useCallback(
+    (project: { id: string; name: string; path: string; color: string | null }) => {
+      // Find the full project from our projects list to get all fields
+      const fullProject = projects.find((p) => p.id === project.id);
+      if (fullProject) {
+        openProject(fullProject);
+      }
+      closeProjectsPanel();
+    },
+    [projects, openProject, closeProjectsPanel]
+  );
+
+  // Handler for add project from ProjectsPanel
+  const handleAddProjectFromPanel = useCallback(() => {
+    openProject();
+    closeProjectsPanel();
+  }, [openProject, closeProjectsPanel]);
 
   return (
     <AppContext.Provider value={appState}>
-      {/* Desktop: grid with sidebar | Mobile: single column */}
-      <div className="h-screen grid grid-cols-1 md:grid-cols-[256px_1fr] text-gray-100">
-        {/* Desktop sidebar - hidden on mobile */}
+      {/* Desktop: grid with IconSidebar (64px) | Mobile: single column */}
+      <div className="h-screen grid grid-cols-1 md:grid-cols-[64px_1fr] text-gray-100">
+        {/* Desktop IconSidebar - hidden on mobile */}
         <div className="hidden md:block">
-          <Sidebar />
+          <IconSidebar onAction={handleSidebarAction} />
         </div>
+
+        {/* Projects Panel - slide-out panel (desktop only) */}
+        <ProjectsPanel
+          isOpen={isProjectsPanelOpen}
+          onClose={closeProjectsPanel}
+          projects={projects.map((p) => ({
+            id: p.id,
+            name: p.name,
+            path: p.path,
+            color: p.color,
+          }))}
+          selectedProjectId={filters.projectId}
+          onSelectProject={handleProjectSelect}
+          onAddProject={handleAddProjectFromPanel}
+          onEditProject={handleProjectEdit}
+        />
 
         {/* Mobile sidebar overlay */}
         {isMobileMenuOpen && (
