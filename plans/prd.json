@@ -322,7 +322,7 @@
     {
       "id": "062325ad-7287-4d48-a2ae-d9ac17760d07",
       "title": "102 - Add responsive board with horizontal scroll",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -351,7 +351,7 @@
     {
       "id": "42b951fe-b4b0-472b-8427-6ca421f01a09",
       "title": "103 - Add responsive full-screen modals on mobile",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
