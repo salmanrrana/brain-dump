@@ -464,13 +464,13 @@ export const EditProjectModal: FC<EditProjectModalProps> = ({
                 <span style={statLabelStyles}>Total</span>
               </div>
               <div style={statItemStyles}>
-                <span style={{ ...statValueStyles, color: "var(--color-blue-400)" }}>
+                <span style={{ ...statValueStyles, color: "var(--info)" }}>
                   {projectStats.inProgress}
                 </span>
                 <span style={statLabelStyles}>Active</span>
               </div>
               <div style={statItemStyles}>
-                <span style={{ ...statValueStyles, color: "var(--color-green-400)" }}>
+                <span style={{ ...statValueStyles, color: "var(--success)" }}>
                   {projectStats.done}
                 </span>
                 <span style={statLabelStyles}>Done</span>

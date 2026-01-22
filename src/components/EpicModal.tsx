@@ -388,8 +388,8 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
           <div
             className={`mx-4 mb-0 p-3 rounded-lg text-sm ${
               ralphNotification.type === "success"
-                ? "bg-green-900/50 text-green-300 border border-green-800"
-                : "bg-red-900/50 text-red-300 border border-red-800"
+                ? "bg-[var(--success-muted)] text-[var(--success-text)] border border-[var(--success)]/50"
+                : "bg-[var(--accent-danger)]/20 text-[var(--accent-danger)] border border-[var(--accent-danger)]/50"
             }`}
           >
             <div className="flex items-start gap-2">
@@ -398,14 +398,14 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                 <span>{ralphNotification.message}</span>
                 {/* Editor-specific instructions (VS Code, OpenCode, etc.) */}
                 {ralphNotification.launchMethod === "vscode" && ralphNotification.contextFile && (
-                  <div className="mt-2 text-xs text-green-400/80">
+                  <div className="mt-2 text-xs text-[var(--success)]/80">
                     <p className="font-medium">Next steps:</p>
                     <ol className="list-decimal list-inside mt-1 space-y-0.5">
                       <li>Open the Ralph context file in your editor</li>
                       <li>Start a new chat with your AI assistant</li>
                       <li>Ask the AI to read and follow the instructions</li>
                     </ol>
-                    <p className="mt-1.5 text-green-300/60 font-mono truncate">
+                    <p className="mt-1.5 text-[var(--success-text)]/60 font-mono truncate">
                       {ralphNotification.contextFile.replace(/^.*\/\.claude\//, ".claude/")}
                     </p>
                   </div>
@@ -413,7 +413,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
               </div>
               <button
                 onClick={() => setRalphNotification(null)}
-                className="text-slate-400 hover:text-gray-100 flex-shrink-0"
+                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex-shrink-0"
               >
                 <X size={14} />
               </button>

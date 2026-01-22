@@ -84,10 +84,12 @@ export default function ProjectTree({
     <div className="space-y-1">
       {/* Header with add button */}
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Projects</h2>
+        <h2 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+          Projects
+        </h2>
         <button
           onClick={onAddProject}
-          className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-gray-100 transition-colors"
+          className="p-1 hover:bg-[var(--bg-hover)] rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
           aria-label="Add project"
         >
           <Plus size={14} aria-hidden="true" />
@@ -96,7 +98,7 @@ export default function ProjectTree({
 
       {/* Empty state */}
       {projects.length === 0 && (
-        <div className="text-sm text-slate-500 py-4 text-center">No projects yet</div>
+        <div className="text-sm text-[var(--text-muted)] py-4 text-center">No projects yet</div>
       )}
 
       {/* Project list */}
@@ -111,7 +113,9 @@ export default function ProjectTree({
             {/* Project row */}
             <div
               className={`flex items-center gap-1 px-2 py-1.5 rounded-lg cursor-pointer group transition-all ${
-                isSelected ? "bg-cyan-600/20 text-cyan-400" : "hover:bg-slate-800 text-slate-300"
+                isSelected
+                  ? "bg-[var(--accent-primary)]/20 text-[var(--accent-primary)]"
+                  : "hover:bg-[var(--bg-hover)] text-[var(--text-primary)]"
               } ${hasActiveAI ? "shadow-[0_0_8px_var(--accent-ai)] ring-1 ring-[var(--accent-ai)]/30" : ""}`}
             >
               {/* Expand/collapse button */}
@@ -120,14 +124,22 @@ export default function ProjectTree({
                   e.stopPropagation();
                   toggleProject(project.id);
                 }}
-                className="p-0.5 hover:bg-slate-700 rounded"
+                className="p-0.5 hover:bg-[var(--bg-hover)] rounded"
                 aria-label={isExpanded ? `Collapse ${project.name}` : `Expand ${project.name}`}
                 aria-expanded={isExpanded}
               >
                 {isExpanded ? (
-                  <ChevronDown size={14} className="text-slate-400" aria-hidden="true" />
+                  <ChevronDown
+                    size={14}
+                    className="text-[var(--text-secondary)]"
+                    aria-hidden="true"
+                  />
                 ) : (
-                  <ChevronRight size={14} className="text-slate-400" aria-hidden="true" />
+                  <ChevronRight
+                    size={14}
+                    className="text-[var(--text-secondary)]"
+                    aria-hidden="true"
+                  />
                 )}
               </button>
 
@@ -140,13 +152,13 @@ export default function ProjectTree({
                   <FolderOpen
                     size={16}
                     style={{ color: project.color ?? undefined }}
-                    className={project.color ? "" : "text-slate-400"}
+                    className={project.color ? "" : "text-[var(--text-secondary)]"}
                   />
                 ) : (
                   <Folder
                     size={16}
                     style={{ color: project.color ?? undefined }}
-                    className={project.color ? "" : "text-slate-400"}
+                    className={project.color ? "" : "text-[var(--text-secondary)]"}
                   />
                 )}
                 <span className="text-sm truncate">{project.name}</span>
@@ -170,11 +182,11 @@ export default function ProjectTree({
                     e.stopPropagation();
                     onDockerIndicatorClick?.(project.id);
                   }}
-                  className="p-0.5 hover:bg-cyan-900/50 rounded transition-colors"
+                  className="p-0.5 hover:bg-[var(--accent-ai)]/10 rounded transition-colors"
                   title="Ralph running in Docker - click to view logs"
                   aria-label="Docker container running"
                 >
-                  <Container size={14} className="text-cyan-400 animate-pulse" />
+                  <Container size={14} className="text-[var(--accent-ai)] animate-pulse" />
                 </button>
               )}
 
@@ -191,10 +203,10 @@ export default function ProjectTree({
                       workingMethod: project.workingMethod,
                     });
                   }}
-                  className="p-0.5 hover:bg-slate-700 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="p-0.5 hover:bg-[var(--bg-hover)] rounded opacity-0 group-hover:opacity-100 transition-opacity"
                   aria-label={`Edit project ${project.name}`}
                 >
-                  <Pencil size={12} className="text-slate-400" aria-hidden="true" />
+                  <Pencil size={12} className="text-[var(--text-secondary)]" aria-hidden="true" />
                 </button>
               )}
 
@@ -204,10 +216,10 @@ export default function ProjectTree({
                   e.stopPropagation();
                   onAddEpic(project.id);
                 }}
-                className="p-0.5 hover:bg-slate-700 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                className="p-0.5 hover:bg-[var(--bg-hover)] rounded opacity-0 group-hover:opacity-100 transition-opacity"
                 aria-label={`Add epic to ${project.name}`}
               >
-                <Plus size={12} className="text-slate-400" aria-hidden="true" />
+                <Plus size={12} className="text-[var(--text-secondary)]" aria-hidden="true" />
               </button>
             </div>
 
@@ -223,14 +235,14 @@ export default function ProjectTree({
                       onClick={() => handleEpicClick(epic.id, project.id)}
                       className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer group/epic ${
                         isEpicSelected
-                          ? "bg-cyan-600/20 text-cyan-400"
-                          : "hover:bg-slate-800 text-slate-300"
+                          ? "bg-[var(--accent-primary)]/20 text-[var(--accent-primary)]"
+                          : "hover:bg-[var(--bg-hover)] text-[var(--text-primary)]"
                       }`}
                     >
                       <Layers
                         size={14}
                         style={{ color: epic.color ?? undefined }}
-                        className={epic.color ? "" : "text-slate-400"}
+                        className={epic.color ? "" : "text-[var(--text-secondary)]"}
                       />
                       <span className="flex-1 text-sm truncate">{epic.title}</span>
                       {onLaunchRalphForEpic && (
@@ -252,10 +264,14 @@ export default function ProjectTree({
                             e.stopPropagation();
                             onEditEpic(project.id, epic);
                           }}
-                          className="p-0.5 hover:bg-slate-700 rounded opacity-0 group-hover/epic:opacity-100 transition-opacity"
+                          className="p-0.5 hover:bg-[var(--bg-hover)] rounded opacity-0 group-hover/epic:opacity-100 transition-opacity"
                           aria-label={`Edit epic ${epic.title}`}
                         >
-                          <Pencil size={10} className="text-slate-400" aria-hidden="true" />
+                          <Pencil
+                            size={10}
+                            className="text-[var(--text-secondary)]"
+                            aria-hidden="true"
+                          />
                         </button>
                       )}
                       {onDeleteEpic && (
@@ -278,7 +294,7 @@ export default function ProjectTree({
 
             {/* Empty epics state */}
             {isExpanded && project.epics.length === 0 && (
-              <div className="ml-6 py-2 text-xs text-slate-500">No epics yet</div>
+              <div className="ml-6 py-2 text-xs text-[var(--text-muted)]">No epics yet</div>
             )}
           </div>
         );

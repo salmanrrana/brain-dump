@@ -43,13 +43,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function ToastContainer({
-  toasts,
-  onRemove,
-}: {
-  toasts: Toast[];
-  onRemove: (id: string) => void;
-}) {
+function ToastContainer({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: string) => void }) {
   return (
     <div
       className="fixed bottom-4 right-4 z-50 flex flex-col gap-2"
@@ -63,13 +57,7 @@ function ToastContainer({
   );
 }
 
-function ToastItem({
-  toast,
-  onRemove,
-}: {
-  toast: Toast;
-  onRemove: (id: string) => void;
-}) {
+function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) => void }) {
   useEffect(() => {
     const timer = setTimeout(() => {
       onRemove(toast.id);
@@ -80,18 +68,19 @@ function ToastItem({
   const config = {
     success: {
       icon: CheckCircle,
-      bgClass: "bg-green-900/90 border-green-700",
-      iconClass: "text-green-400",
+      bgClass:
+        "bg-[color-mix(in_srgb,var(--success)_15%,var(--bg-secondary))] border-[var(--success)]",
+      iconClass: "text-[var(--success)]",
     },
     error: {
       icon: AlertCircle,
-      bgClass: "bg-red-900/90 border-red-700",
-      iconClass: "text-red-400",
+      bgClass: "bg-[color-mix(in_srgb,var(--error)_15%,var(--bg-secondary))] border-[var(--error)]",
+      iconClass: "text-[var(--error)]",
     },
     info: {
       icon: Info,
-      bgClass: "bg-cyan-900/90 border-cyan-700",
-      iconClass: "text-cyan-400",
+      bgClass: "bg-[color-mix(in_srgb,var(--info)_15%,var(--bg-secondary))] border-[var(--info)]",
+      iconClass: "text-[var(--info)]",
     },
   }[toast.type];
 
@@ -107,10 +96,10 @@ function ToastItem({
       className={`flex items-center gap-3 px-4 py-3 rounded-lg border ${config.bgClass} shadow-lg animate-slide-in`}
     >
       <Icon size={18} className={config.iconClass} aria-hidden="true" />
-      <span className="text-sm text-gray-100">{toast.message}</span>
+      <span className="text-sm text-[var(--text-primary)]">{toast.message}</span>
       <button
         onClick={() => onRemove(toast.id)}
-        className="ml-2 text-slate-400 hover:text-gray-100"
+        className="ml-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
         aria-label="Dismiss notification"
       >
         <X size={16} />

@@ -177,9 +177,9 @@ const SubtaskItem: FC<SubtaskItemProps> = ({ subtask, onToggle, onDelete, onEdit
           <button
             type="button"
             onClick={handleSaveEdit}
-            style={{ ...buttonStyles, color: "#22c55e" }}
+            style={{ ...buttonStyles, color: "var(--success)" }}
             aria-label="Save edit"
-            className="hover:bg-green-500/10"
+            className="hover:bg-[var(--success)]/10"
           >
             <Check size={14} />
           </button>

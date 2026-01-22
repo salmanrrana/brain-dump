@@ -262,7 +262,7 @@
     {
       "id": "65501ce4-aa5d-47b0-adfb-810f54f35bb4",
       "title": "Wire up dashboard route with new layout",
-      "passes": false,
+      "passes": true,
       "overview": "Ensure the `/dashboard` route uses the new IconSidebar layout and renders correctly.",
       "types": [],
       "designDecisions": [],
@@ -290,7 +290,7 @@
     {
       "id": "baad9cbd-7b28-4431-89ff-136f12c94c07",
       "title": "Wire up board (index) route with new layout",
-      "passes": false,
+      "passes": true,
       "overview": "Ensure the main board view (index route) uses IconSidebar and renders with the new theme.",
       "types": [],
       "designDecisions": [],
@@ -317,7 +317,7 @@
     {
       "id": "2619936b-5e20-4f99-8155-a8c768ca7e8e",
       "title": "Wire up ticket detail route with new layout",
-      "passes": false,
+      "passes": true,
       "overview": "Ensure the `/ticket/:id` route uses IconSidebar and has proper styling.",
       "types": [],
       "designDecisions": [],
@@ -344,7 +344,7 @@
     {
       "id": "1b3d11d0-fbb8-41d1-8a4f-ac0016d2497c",
       "title": "Add hover and focus state animations",
-      "passes": false,
+      "passes": true,
       "overview": "Apply consistent hover transitions and focus states across all components.",
       "types": [],
       "designDecisions": [],
@@ -371,7 +371,7 @@
     {
       "id": "152ad8e9-2f17-4e3d-a118-6589cc36a9cc",
       "title": "Add AI-active glow animations",
-      "passes": false,
+      "passes": true,
       "overview": "Apply pulsing glow effects to AI-active tickets and Ralph status indicators.",
       "types": [],
       "designDecisions": [],

@@ -77,22 +77,22 @@ interface TicketModalProps {
 
 // Comment type styling lookup objects to avoid nested ternaries
 const COMMENT_CONTAINER_STYLES: Record<string, string> = {
-  progress: "p-2 bg-blue-900/20 border border-blue-800/50",
-  work_summary: "p-3 bg-purple-900/30 border border-purple-800",
-  test_report: "p-3 bg-green-900/30 border border-green-800",
-  comment: "p-3 bg-slate-800",
+  progress: "p-2 bg-[var(--info-muted)] border border-[var(--info)]/50",
+  work_summary: "p-3 bg-[var(--status-review)]/20 border border-[var(--status-review)]/50",
+  test_report: "p-3 bg-[var(--success-muted)] border border-[var(--success)]/50",
+  comment: "p-3 bg-[var(--bg-tertiary)]",
 };
 
 const COMMENT_AUTHOR_STYLES: Record<string, string> = {
-  ralph: "text-purple-400",
-  claude: "text-cyan-400",
-  user: "text-slate-300",
+  ralph: "text-[var(--status-review)]",
+  claude: "text-[var(--accent-ai)]",
+  user: "text-[var(--text-primary)]",
 };
 
 const COMMENT_BADGE_STYLES: Record<string, string> = {
-  progress: "bg-blue-800 text-blue-200",
-  work_summary: "bg-purple-800 text-purple-200",
-  test_report: "bg-green-800 text-green-200",
+  progress: "bg-[var(--info)] text-white",
+  work_summary: "bg-[var(--status-review)] text-white",
+  test_report: "bg-[var(--success)] text-white",
 };
 
 const COMMENT_BADGE_LABELS: Record<string, string> = {
@@ -112,12 +112,12 @@ const SERVICE_TYPE_ICONS: Record<ServiceType, typeof Globe> = {
 };
 
 const SERVICE_TYPE_COLORS: Record<ServiceType, string> = {
-  frontend: "text-cyan-400",
-  backend: "text-purple-400",
-  storybook: "text-pink-400",
-  docs: "text-green-400",
-  database: "text-yellow-400",
-  other: "text-slate-400",
+  frontend: "text-[var(--accent-ai)]",
+  backend: "text-[var(--status-review)]",
+  storybook: "text-[var(--accent-primary)]",
+  docs: "text-[var(--success)]",
+  database: "text-[var(--warning)]",
+  other: "text-[var(--text-secondary)]",
 };
 
 // Stable empty state for tag suggestions to prevent recreation on every render
@@ -1301,9 +1301,9 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
             </div>
           )}
           {status === "in_progress" && runningServices.length > 0 && (
-            <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-              <h4 className="text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
-                <Globe size={14} className="text-cyan-400" />
+            <div className="bg-[var(--bg-tertiary)]/50 border border-[var(--border-secondary)] rounded-lg p-3">
+              <h4 className="text-sm font-medium text-[var(--text-primary)] mb-2 flex items-center gap-2">
+                <Globe size={14} className="text-[var(--accent-ai)]" />
                 Running Services
               </h4>
               <div className="space-y-1">
@@ -1317,14 +1317,18 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                       href={`http://localhost:${service.port}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 px-2 py-1.5 bg-slate-900/50 rounded hover:bg-slate-700/50 transition-colors group"
+                      className="flex items-center gap-2 px-2 py-1.5 bg-[var(--bg-primary)]/50 rounded hover:bg-[var(--bg-hover)]/50 transition-colors group"
                     >
                       <IconComponent size={14} className={colorClass} />
-                      <span className="text-sm text-gray-100 flex-1">{service.name}</span>
-                      <span className="text-xs text-slate-500">localhost:{service.port}</span>
+                      <span className="text-sm text-[var(--text-primary)] flex-1">
+                        {service.name}
+                      </span>
+                      <span className="text-xs text-[var(--text-muted)]">
+                        localhost:{service.port}
+                      </span>
                       <ExternalLink
                         size={12}
-                        className="text-slate-500 group-hover:text-cyan-400 transition-colors"
+                        className="text-[var(--text-muted)] group-hover:text-[var(--accent-ai)] transition-colors"
                       />
                     </a>
                   );
@@ -1390,8 +1394,8 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                         <div className="flex items-center gap-2 mb-1">
                           {comment.type === "progress" && (
                             <span className="relative flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--info)] opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--info)]"></span>
                             </span>
                           )}
                           <span
@@ -1417,7 +1421,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                           )}
                         </div>
                         <p
-                          className={`whitespace-pre-wrap ${comment.type === "progress" ? "text-blue-100 text-xs" : "text-[var(--text-primary)]"}`}
+                          className={`whitespace-pre-wrap ${comment.type === "progress" ? "text-[var(--info-text)] text-xs" : "text-[var(--text-primary)]"}`}
                         >
                           {comment.content}
                         </p>
@@ -1448,8 +1452,8 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
           <div
             className={`mx-4 mb-0 p-3 rounded-lg text-sm flex items-center gap-2 ${
               startWorkNotification.type === "success"
-                ? "bg-green-900/50 text-green-300 border border-green-800"
-                : "bg-red-900/50 text-red-300 border border-red-800"
+                ? "bg-[var(--success-muted)] text-[var(--success-text)] border border-[var(--success)]/50"
+                : "bg-[var(--accent-danger)]/20 text-[var(--accent-danger)] border border-[var(--accent-danger)]/50"
             }`}
           >
             {startWorkNotification.type === "success" ? (
@@ -1460,7 +1464,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
             <span className="flex-1">{startWorkNotification.message}</span>
             <button
               onClick={() => setStartWorkNotification(null)}
-              className="text-slate-400 hover:text-gray-100"
+              className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             >
               <X size={14} />
             </button>
@@ -1475,7 +1479,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
               <button
                 onClick={() => void handleStartWork()}
                 disabled={isStartingWork}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-l-lg font-medium transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-[var(--success)] hover:bg-[var(--success)]/80 disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-muted)] rounded-l-lg font-medium transition-colors"
               >
                 {isStartingWork ? (
                   <Loader2 size={16} className="animate-spin" />
@@ -1487,7 +1491,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
               <button
                 onClick={() => setShowStartWorkMenu(!showStartWorkMenu)}
                 disabled={isStartingWork}
-                className="flex items-center px-2 py-2 bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-r-lg border-l border-green-700 transition-colors"
+                className="flex items-center px-2 py-2 bg-[var(--success)] hover:bg-[var(--success)]/80 disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-muted)] rounded-r-lg border-l border-[var(--success)]/50 transition-colors"
                 aria-label="More start options"
               >
                 <ChevronDown size={16} />
@@ -1496,39 +1500,41 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
 
             {/* Dropdown Menu */}
             {showStartWorkMenu && (
-              <div className="absolute left-0 bottom-full mb-2 w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-10 overflow-hidden">
+              <div className="absolute left-0 bottom-full mb-2 w-64 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg shadow-xl z-10 overflow-hidden">
                 {/* Interactive Sessions */}
                 <button
                   onClick={() => {
                     setShowStartWorkMenu(false);
                     void handleStartWork();
                   }}
-                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left"
+                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left"
                 >
-                  <Terminal size={18} className="text-green-400 mt-0.5 flex-shrink-0" />
+                  <Terminal size={18} className="text-[var(--success)] mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="font-medium text-gray-100">Start with Claude</div>
-                    <div className="text-xs text-slate-400">
+                    <div className="font-medium text-[var(--text-primary)]">Start with Claude</div>
+                    <div className="text-xs text-[var(--text-secondary)]">
                       Interactive session - you guide Claude
                     </div>
                   </div>
                 </button>
                 <button
                   onClick={() => void handleStartOpenCode()}
-                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left border-t border-slate-700"
+                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left border-t border-[var(--border-primary)]"
                 >
-                  <Code2 size={18} className="text-blue-400 mt-0.5 flex-shrink-0" />
+                  <Code2 size={18} className="text-[var(--info)] mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="font-medium text-gray-100">Start with OpenCode</div>
-                    <div className="text-xs text-slate-400">
+                    <div className="font-medium text-[var(--text-primary)]">
+                      Start with OpenCode
+                    </div>
+                    <div className="text-xs text-[var(--text-secondary)]">
                       Interactive session - you guide OpenCode
                     </div>
                   </div>
                 </button>
 
                 {/* Ralph Section Divider */}
-                <div className="px-4 py-2 bg-slate-900/50 border-t border-slate-700">
-                  <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <div className="px-4 py-2 bg-[var(--bg-secondary)]/50 border-t border-[var(--border-primary)]">
+                  <div className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
                     Autonomous (Ralph)
                   </div>
                 </div>
@@ -1536,26 +1542,32 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 {/* Ralph with Claude - Native */}
                 <button
                   onClick={() => void handleStartRalph({ useSandbox: false, aiBackend: "claude" })}
-                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left"
+                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left"
                 >
-                  <Bot size={18} className="text-purple-400 mt-0.5 flex-shrink-0" />
+                  <Bot size={18} className="text-[var(--accent-ai)] mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="font-medium text-gray-100">Start Ralph (Claude)</div>
-                    <div className="text-xs text-slate-400">Runs on your machine directly</div>
+                    <div className="font-medium text-[var(--text-primary)]">
+                      Start Ralph (Claude)
+                    </div>
+                    <div className="text-xs text-[var(--text-secondary)]">
+                      Runs on your machine directly
+                    </div>
                   </div>
                 </button>
 
                 {/* Ralph with Claude - Docker (Disabled for now) */}
                 <button
                   disabled
-                  className="w-full flex items-start gap-3 px-4 py-3 transition-colors text-left border-t border-slate-700 opacity-50 cursor-not-allowed"
+                  className="w-full flex items-start gap-3 px-4 py-3 transition-colors text-left border-t border-[var(--border-primary)] opacity-50 cursor-not-allowed"
                   aria-disabled="true"
                   aria-label="Start Ralph (Claude) in Docker - Coming soon"
                 >
-                  <Container size={18} className="text-slate-500 mt-0.5 flex-shrink-0" />
+                  <Container size={18} className="text-[var(--text-muted)] mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="font-medium text-slate-400">Start Ralph (Claude) in Docker</div>
-                    <div className="text-xs text-slate-500">
+                    <div className="font-medium text-[var(--text-secondary)]">
+                      Start Ralph (Claude) in Docker
+                    </div>
+                    <div className="text-xs text-[var(--text-muted)]">
                       Coming soon - sandbox mode in progress
                     </div>
                   </div>
@@ -1566,28 +1578,32 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                   onClick={() =>
                     void handleStartRalph({ useSandbox: false, aiBackend: "opencode" })
                   }
-                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left border-t border-slate-700"
+                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left border-t border-[var(--border-primary)]"
                 >
-                  <Code2 size={18} className="text-blue-400 mt-0.5 flex-shrink-0" />
+                  <Code2 size={18} className="text-[var(--info)] mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="font-medium text-gray-100">Start Ralph (OpenCode)</div>
-                    <div className="text-xs text-slate-400">Runs on your machine directly</div>
+                    <div className="font-medium text-[var(--text-primary)]">
+                      Start Ralph (OpenCode)
+                    </div>
+                    <div className="text-xs text-[var(--text-secondary)]">
+                      Runs on your machine directly
+                    </div>
                   </div>
                 </button>
 
                 {/* Ralph with OpenCode - Docker (Disabled for now) */}
                 <button
                   disabled
-                  className="w-full flex items-start gap-3 px-4 py-3 transition-colors text-left border-t border-slate-700 opacity-50 cursor-not-allowed"
+                  className="w-full flex items-start gap-3 px-4 py-3 transition-colors text-left border-t border-[var(--border-primary)] opacity-50 cursor-not-allowed"
                   aria-disabled="true"
                   aria-label="Start Ralph (OpenCode) in Docker - Coming soon"
                 >
-                  <Container size={18} className="text-slate-500 mt-0.5 flex-shrink-0" />
+                  <Container size={18} className="text-[var(--text-muted)] mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="font-medium text-slate-400">
+                    <div className="font-medium text-[var(--text-secondary)]">
                       Start Ralph (OpenCode) in Docker
                     </div>
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-[var(--text-muted)]">
                       Coming soon - needs OpenCode Docker image
                     </div>
                   </div>

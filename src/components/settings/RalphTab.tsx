@@ -99,8 +99,8 @@ export function RalphTab({
       <div className="space-y-6">
         {/* Section Header */}
         <div className={sectionHeaderStyles.container}>
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[color-mix(in_srgb,#a855f7_15%,transparent)]">
-            <Bot size={16} className="text-purple-400" />
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[color-mix(in_srgb,var(--accent-ai)_15%,transparent)]">
+            <Bot size={16} className="text-[var(--accent-ai)]" />
           </div>
           <h3 className={sectionHeaderStyles.title}>Ralph (Autonomous Mode)</h3>
         </div>
@@ -343,7 +343,7 @@ export function RalphTab({
                 <p className={fieldStyles.hint}>
                   Select which Docker runtime to use. Auto-detect works for most setups.
                   {dockerStatus.runtimeType === "lima" && (
-                    <span className="block mt-1 text-purple-400">
+                    <span className="block mt-1 text-[var(--accent-ai)]">
                       Lima detected - perfect for Docker Desktop alternatives!
                     </span>
                   )}

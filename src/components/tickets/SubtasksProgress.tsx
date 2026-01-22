@@ -180,9 +180,9 @@ const AddSubtaskInline: FC<AddSubtaskInlineProps> = ({ onAdd, disabled }) => {
         disabled={!text.trim()}
         style={{
           ...iconButtonStyles,
-          color: text.trim() ? "#22c55e" : "var(--text-muted)",
+          color: text.trim() ? "var(--success)" : "var(--text-muted)",
         }}
-        className="hover:bg-green-500/10"
+        className="hover:bg-[var(--success)]/10"
         aria-label="Confirm add"
       >
         <Check size={14} />

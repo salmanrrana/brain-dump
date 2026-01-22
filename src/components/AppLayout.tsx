@@ -551,7 +551,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   return (
     <AppContext.Provider value={appState}>
       {/* Desktop: grid with IconSidebar (64px) | Mobile: single column */}
-      <div className="h-screen grid grid-cols-1 md:grid-cols-[64px_1fr] text-gray-100">
+      <div className="h-screen grid grid-cols-1 md:grid-cols-[64px_1fr] text-[var(--text-primary)]">
         {/* Desktop IconSidebar - hidden on mobile */}
         <div className="hidden md:block">
           <IconSidebar onAction={handleSidebarAction} />
@@ -586,7 +586,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             />
             {/* Slide-out menu */}
             <div
-              className="absolute top-0 left-0 bottom-0 w-[280px] bg-slate-900 shadow-xl transform transition-transform duration-200 ease-out animate-slide-in-left"
+              className="absolute top-0 left-0 bottom-0 w-[280px] bg-[var(--bg-secondary)] shadow-xl transform transition-transform duration-200 ease-out animate-slide-in-left"
               role="dialog"
               aria-modal="true"
               aria-label="Mobile navigation menu"
@@ -991,14 +991,14 @@ function Sidebar({ onItemClick }: SidebarProps = {}) {
       }}
     >
       {/* Logo/Title */}
-      <div className="h-14 flex items-center px-4 border-b border-slate-800">
+      <div className="h-14 flex items-center px-4 border-b border-[var(--border-primary)]">
         <h1 className="text-3xl">🧠 💩</h1>
       </div>
 
       {/* Project tree */}
       <nav className="flex-1 p-4 overflow-y-auto">
         {loading ? (
-          <div className="text-sm text-slate-500 py-4 text-center">Loading...</div>
+          <div className="text-sm text-[var(--text-muted)] py-4 text-center">Loading...</div>
         ) : error ? (
           <div className="text-sm text-red-400 py-4 text-center">{error}</div>
         ) : (
@@ -1024,13 +1024,13 @@ function Sidebar({ onItemClick }: SidebarProps = {}) {
         {availableTags.length > 0 && (
           <div className="mt-6">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              <h2 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
                 Tags
               </h2>
               {filters.tags.length > 0 && (
                 <button
                   onClick={clearTagFilters}
-                  className="text-xs text-cyan-400 hover:text-cyan-300"
+                  className="text-xs text-[var(--accent-ai)] hover:text-[var(--accent-primary)]"
                 >
                   Clear
                 </button>
@@ -1046,8 +1046,8 @@ function Sidebar({ onItemClick }: SidebarProps = {}) {
                     onClick={() => toggleTag(tag)}
                     className={`text-xs px-2 py-1 rounded-full transition-colors ${
                       isSelected
-                        ? "bg-cyan-600 text-white"
-                        : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                        ? "bg-[var(--accent-primary)] text-white"
+                        : "bg-[var(--bg-tertiary)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
                     }`}
                   >
                     {tag}
@@ -1064,14 +1064,14 @@ function Sidebar({ onItemClick }: SidebarProps = {}) {
 
       {/* Sample data banner */}
       {hasSampleData && (
-        <div className="px-4 py-3 border-t border-slate-800 bg-amber-900/20">
-          <p className="text-xs text-amber-400 mb-2">
+        <div className="px-4 py-3 border-t border-[var(--border-primary)] bg-[color-mix(in_srgb,var(--warning)_10%,transparent)]">
+          <p className="text-xs text-[var(--warning)] mb-2">
             Sample data is loaded. Delete it to start fresh.
           </p>
           <button
             onClick={() => void deleteSampleData()}
             disabled={isDeletingSampleData}
-            className="w-full text-xs px-3 py-1.5 bg-red-900/50 hover:bg-red-900/70 disabled:bg-slate-700 text-red-300 rounded transition-colors"
+            className="w-full text-xs px-3 py-1.5 bg-[color-mix(in_srgb,var(--error)_20%,transparent)] hover:bg-[color-mix(in_srgb,var(--error)_30%,transparent)] disabled:bg-[var(--bg-hover)] text-[var(--error)] rounded transition-colors"
           >
             {isDeletingSampleData ? "Deleting..." : "Delete Sample Data"}
           </button>
@@ -1079,8 +1079,8 @@ function Sidebar({ onItemClick }: SidebarProps = {}) {
       )}
 
       {/* Footer */}
-      <div className="p-4 border-t border-slate-800">
-        <p className="text-xs text-slate-500 text-center">Brain Dump v0.1.0</p>
+      <div className="p-4 border-t border-[var(--border-primary)]">
+        <p className="text-xs text-[var(--text-muted)] text-center">Brain Dump v0.1.0</p>
       </div>
 
       {/* Container Logs Modal for Docker indicator click */}
