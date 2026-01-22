@@ -148,6 +148,9 @@
   --shadow-glow-sm: 0 0 10px var(--accent-glow);
   --shadow-glow-lg: 0 0 30px var(--accent-glow);
 
+  /* Modal shadow - theme-colored glow with depth */
+  --shadow-modal: 0 0 60px var(--accent-glow), 0 25px 50px rgba(0, 0, 0, 0.5);
+
   /* Transitions */
   --transition-fast: 100ms ease;
   --transition-normal: 150ms ease;

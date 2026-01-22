@@ -148,7 +148,7 @@ export const CreateProjectModal: FC<CreateProjectModalProps> = ({ isOpen, onClos
     maxHeight: "90vh",
     background: "var(--bg-secondary)",
     borderRadius: "var(--radius-lg)",
-    boxShadow: "0 0 60px var(--accent-glow), 0 25px 50px rgba(0, 0, 0, 0.5)",
+    boxShadow: "var(--shadow-modal)",
     overflow: "hidden",
     display: "flex",
     flexDirection: "column",

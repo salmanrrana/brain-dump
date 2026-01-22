@@ -369,7 +369,7 @@ export default function NewTicketModal({
         aria-labelledby="modal-title"
         className="relative bg-[var(--bg-secondary)] rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
         style={{
-          boxShadow: "0 0 60px var(--accent-glow), 0 25px 50px rgba(0, 0, 0, 0.5)",
+          boxShadow: "var(--shadow-modal)",
         }}
       >
         <div className="flex items-center justify-between p-4 border-b border-[var(--border-primary)]">
