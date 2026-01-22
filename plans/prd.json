@@ -398,7 +398,7 @@
     {
       "id": "709456f6-196a-449d-bf23-552588411b8d",
       "title": "Cleanup hardcoded colors audit",
-      "passes": false,
+      "passes": true,
       "overview": "Search the codebase for remaining hardcoded colors and replace with CSS variables.",
       "types": [],
       "designDecisions": [],
