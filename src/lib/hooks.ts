@@ -506,13 +506,71 @@ export function useInvalidateQueries() {
 // MUTATION HOOKS - Use these for all data modifications!
 // =============================================================================
 
-// Ticket mutations
+// Ticket mutations with optimistic updates
 export function useCreateTicket() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (data: CreateTicketInput) => createTicket({ data }),
-    onSuccess: () => {
+    onMutate: async (newTicketData) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.allTickets });
+
+      // Snapshot all ticket queries for rollback
+      const previousTicketQueries = queryClient.getQueriesData<Ticket[]>({
+        queryKey: queryKeys.allTickets,
+      });
+
+      // Create optimistic ticket with temporary ID
+      // Note: CreateTicketInput only has title, description, projectId, epicId, priority, tags, attachments
+      const optimisticTicket: Ticket = {
+        id: `temp-${Date.now()}`,
+        title: newTicketData.title,
+        description: newTicketData.description ?? null,
+        status: "backlog", // New tickets always start in backlog
+        priority: newTicketData.priority ?? null,
+        position: 0, // Will be updated by server
+        projectId: newTicketData.projectId,
+        epicId: newTicketData.epicId ?? null,
+        tags: newTicketData.tags ? JSON.stringify(newTicketData.tags) : null,
+        subtasks: null, // Not in CreateTicketInput
+        isBlocked: null,
+        blockedReason: null,
+        linkedFiles: null,
+        attachments: newTicketData.attachments ? JSON.stringify(newTicketData.attachments) : null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        completedAt: null,
+        branchName: null,
+        prNumber: null,
+        prUrl: null,
+        prStatus: null,
+      };
+
+      // Add optimistic ticket to all matching queries
+      for (const [queryKey, tickets] of previousTicketQueries) {
+        if (tickets) {
+          queryClient.setQueryData<Ticket[]>(queryKey, [...tickets, optimisticTicket]);
+        }
+      }
+
+      return { previousTicketQueries };
+    },
+    onError: (err, newTicket, context) => {
+      // Log error with context for debugging
+      console.error("Failed to create ticket:", {
+        error: err,
+        ticketData: { title: newTicket.title, projectId: newTicket.projectId },
+      });
+
+      // Rollback all ticket queries
+      if (context?.previousTicketQueries) {
+        for (const [queryKey, tickets] of context.previousTicketQueries) {
+          queryClient.setQueryData(queryKey, tickets);
+        }
+      }
+    },
+    onSettled: () => {
       // Invalidate tickets and tags (new ticket might have new tags)
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTags });
@@ -525,7 +583,83 @@ export function useUpdateTicket() {
 
   return useMutation({
     mutationFn: (data: { id: string; updates: UpdateTicketInput }) => updateTicket({ data }),
-    onSuccess: () => {
+    onMutate: async ({ id, updates }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.allTickets });
+
+      // Snapshot all ticket queries for rollback
+      const previousTicketQueries = queryClient.getQueriesData<Ticket[]>({
+        queryKey: queryKeys.allTickets,
+      });
+
+      // Optimistically update the ticket in all matching queries
+      for (const [queryKey, tickets] of previousTicketQueries) {
+        if (tickets) {
+          queryClient.setQueryData<Ticket[]>(
+            queryKey,
+            tickets.map((ticket) => {
+              if (ticket.id !== id) return ticket;
+
+              // Build optimistic update, transforming array fields to JSON strings
+              const optimisticUpdate: Ticket = {
+                ...ticket,
+                updatedAt: new Date().toISOString(),
+              };
+
+              // Apply simple field updates
+              if (updates.title !== undefined) optimisticUpdate.title = updates.title;
+              if (updates.description !== undefined)
+                optimisticUpdate.description = updates.description;
+              if (updates.status !== undefined) optimisticUpdate.status = updates.status;
+              if (updates.priority !== undefined) optimisticUpdate.priority = updates.priority;
+              if (updates.epicId !== undefined) optimisticUpdate.epicId = updates.epicId;
+              if (updates.isBlocked !== undefined) optimisticUpdate.isBlocked = updates.isBlocked;
+              if (updates.blockedReason !== undefined)
+                optimisticUpdate.blockedReason = updates.blockedReason;
+
+              // Transform array fields to JSON strings (Ticket stores these as strings)
+              if (updates.tags !== undefined)
+                optimisticUpdate.tags = updates.tags ? JSON.stringify(updates.tags) : null;
+              if (updates.subtasks !== undefined)
+                optimisticUpdate.subtasks = updates.subtasks
+                  ? JSON.stringify(updates.subtasks)
+                  : null;
+              if (updates.linkedFiles !== undefined)
+                optimisticUpdate.linkedFiles = updates.linkedFiles
+                  ? JSON.stringify(updates.linkedFiles)
+                  : null;
+
+              // Handle completedAt based on status change
+              if (updates.status === "done") {
+                optimisticUpdate.completedAt = new Date().toISOString();
+              } else if (updates.status && ticket.status === "done") {
+                optimisticUpdate.completedAt = null;
+              }
+
+              return optimisticUpdate;
+            })
+          );
+        }
+      }
+
+      return { previousTicketQueries };
+    },
+    onError: (err, variables, context) => {
+      // Log error with context for debugging
+      console.error("Failed to update ticket:", {
+        error: err,
+        ticketId: variables.id,
+        updates: variables.updates,
+      });
+
+      // Rollback all ticket queries
+      if (context?.previousTicketQueries) {
+        for (const [queryKey, tickets] of context.previousTicketQueries) {
+          queryClient.setQueryData(queryKey, tickets);
+        }
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTags });
     },
@@ -611,7 +745,7 @@ export function useDeleteProject() {
   });
 }
 
-// Epic mutations
+// Epic mutations with optimistic updates
 export function useCreateEpic() {
   const queryClient = useQueryClient();
 
@@ -622,7 +756,51 @@ export function useCreateEpic() {
       description?: string;
       color?: string;
     }) => createEpic({ data }),
-    onSuccess: () => {
+    onMutate: async (newEpicData) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.projectsWithEpics });
+
+      // Snapshot previous projects data
+      const previousProjects = queryClient.getQueryData<ProjectWithEpics[]>(
+        queryKeys.projectsWithEpics
+      );
+
+      // Optimistically add epic to the target project
+      if (previousProjects) {
+        const optimisticEpic: Epic = {
+          id: `temp-${Date.now()}`,
+          title: newEpicData.title,
+          description: newEpicData.description ?? null,
+          projectId: newEpicData.projectId,
+          color: newEpicData.color ?? null,
+          createdAt: new Date().toISOString(),
+        };
+
+        queryClient.setQueryData<ProjectWithEpics[]>(
+          queryKeys.projectsWithEpics,
+          previousProjects.map((project) =>
+            project.id === newEpicData.projectId
+              ? { ...project, epics: [...project.epics, optimisticEpic] }
+              : project
+          )
+        );
+      }
+
+      return { previousProjects };
+    },
+    onError: (err, newEpic, context) => {
+      // Log error with context for debugging
+      console.error("Failed to create epic:", {
+        error: err,
+        epicData: { title: newEpic.title, projectId: newEpic.projectId },
+      });
+
+      // Rollback on error
+      if (context?.previousProjects) {
+        queryClient.setQueryData(queryKeys.projectsWithEpics, context.previousProjects);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
     },
   });
@@ -636,7 +814,52 @@ export function useUpdateEpic() {
       id: string;
       updates: { title?: string; description?: string; color?: string };
     }) => updateEpic({ data }),
-    onSuccess: () => {
+    onMutate: async ({ id, updates }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.projectsWithEpics });
+
+      // Snapshot previous projects data
+      const previousProjects = queryClient.getQueryData<ProjectWithEpics[]>(
+        queryKeys.projectsWithEpics
+      );
+
+      // Optimistically update the epic in its project
+      if (previousProjects) {
+        queryClient.setQueryData<ProjectWithEpics[]>(
+          queryKeys.projectsWithEpics,
+          previousProjects.map((project) => ({
+            ...project,
+            epics: project.epics.map((epic) =>
+              epic.id === id
+                ? {
+                    ...epic,
+                    title: updates.title ?? epic.title,
+                    description:
+                      updates.description !== undefined ? updates.description : epic.description,
+                    color: updates.color !== undefined ? updates.color : epic.color,
+                  }
+                : epic
+            ),
+          }))
+        );
+      }
+
+      return { previousProjects };
+    },
+    onError: (err, variables, context) => {
+      // Log error with context for debugging
+      console.error("Failed to update epic:", {
+        error: err,
+        epicId: variables.id,
+        updates: variables.updates,
+      });
+
+      // Rollback on error
+      if (context?.previousProjects) {
+        queryClient.setQueryData(queryKeys.projectsWithEpics, context.previousProjects);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
     },
   });
@@ -647,7 +870,44 @@ export function useDeleteEpic() {
 
   return useMutation({
     mutationFn: (params: { epicId: string; confirm?: boolean }) => deleteEpic({ data: params }),
-    onSuccess: () => {
+    onMutate: async ({ epicId, confirm }) => {
+      // Only optimistically update on confirmed deletes, not dry-runs
+      if (!confirm) return {};
+
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.projectsWithEpics });
+
+      // Snapshot previous projects data
+      const previousProjects = queryClient.getQueryData<ProjectWithEpics[]>(
+        queryKeys.projectsWithEpics
+      );
+
+      // Optimistically remove the epic from its project
+      if (previousProjects) {
+        queryClient.setQueryData<ProjectWithEpics[]>(
+          queryKeys.projectsWithEpics,
+          previousProjects.map((project) => ({
+            ...project,
+            epics: project.epics.filter((epic) => epic.id !== epicId),
+          }))
+        );
+      }
+
+      return { previousProjects };
+    },
+    onError: (err, variables, context) => {
+      // Log error with context for debugging
+      console.error("Failed to delete epic:", {
+        error: err,
+        epicId: variables.epicId,
+      });
+
+      // Rollback on error
+      if (context?.previousProjects) {
+        queryClient.setQueryData(queryKeys.projectsWithEpics, context.previousProjects);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
     },
@@ -859,17 +1119,7 @@ export function useSearch(projectId?: string | null) {
 export function useTags(filters: TagFilters = {}) {
   const query = useQuery({
     queryKey: queryKeys.tags(filters),
-    queryFn: async () => {
-      const tagData: TagFilters = {};
-      if (filters.projectId) {
-        tagData.projectId = filters.projectId;
-      }
-      if (filters.epicId) {
-        tagData.epicId = filters.epicId;
-      }
-
-      return await getTags({ data: tagData });
-    },
+    queryFn: () => getTags({ data: filters }),
     // Always stale - tags derived from tickets which can change via MCP
     staleTime: 0,
   });
@@ -938,13 +1188,45 @@ export function useSettings() {
   };
 }
 
-// Hook for updating settings
+// Hook for updating settings with optimistic updates
 export function useUpdateSettings() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (data: UpdateSettingsInput) => updateSettings({ data }),
-    onSuccess: () => {
+    onMutate: async (newSettings) => {
+      // Cancel any outgoing refetches to avoid overwriting optimistic update
+      await queryClient.cancelQueries({ queryKey: queryKeys.settings });
+
+      // Snapshot the previous value for rollback
+      const previousSettings = queryClient.getQueryData<Settings>(queryKeys.settings);
+
+      // Optimistically update the cache with merged settings
+      if (previousSettings) {
+        queryClient.setQueryData<Settings>(queryKeys.settings, {
+          ...previousSettings,
+          ...newSettings,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      // Return context with previous value for rollback
+      return { previousSettings };
+    },
+    onError: (err, newSettings, context) => {
+      // Log error with context for debugging
+      console.error("Failed to update settings:", {
+        error: err,
+        attemptedUpdate: newSettings,
+      });
+
+      // Rollback to previous settings on error
+      if (context?.previousSettings) {
+        queryClient.setQueryData(queryKeys.settings, context.previousSettings);
+      }
+    },
+    onSettled: () => {
+      // Always invalidate to ensure server state is reflected
       queryClient.invalidateQueries({ queryKey: queryKeys.settings });
     },
   });
