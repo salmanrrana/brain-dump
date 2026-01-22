@@ -42,6 +42,10 @@ export interface RalphTabProps {
   ralphTimeout: number;
   /** Callback when timeout changes */
   onTimeoutChange: (value: number) => void;
+  /** Current max iterations setting */
+  ralphMaxIterations: number;
+  /** Callback when max iterations changes */
+  onMaxIterationsChange: (value: number) => void;
   /** Current Docker runtime setting */
   dockerRuntime: DockerRuntimeSetting;
   /** Callback when Docker runtime changes */
@@ -66,6 +70,14 @@ const TIMEOUT_OPTIONS = [
   { label: "8h", value: 28800 },
 ];
 
+const MAX_ITERATIONS_OPTIONS = [
+  { label: "5", value: 5 },
+  { label: "10", value: 10 },
+  { label: "20", value: 20 },
+  { label: "50", value: 50 },
+  { label: "100", value: 100 },
+];
+
 // =============================================================================
 // RALPH TAB COMPONENT
 // =============================================================================
@@ -88,6 +100,8 @@ export function RalphTab({
   onSandboxChange,
   ralphTimeout,
   onTimeoutChange,
+  ralphMaxIterations,
+  onMaxIterationsChange,
   dockerRuntime,
   onDockerRuntimeChange,
   dockerStatus,
@@ -359,6 +373,31 @@ export function RalphTab({
           <p className={fieldStyles.hint}>
             Ralph session will stop after this duration to prevent runaway processes. Progress is
             saved before timeout.
+          </p>
+        </div>
+
+        {/* Max Iterations */}
+        <div>
+          <label className={fieldStyles.label}>Max Iterations</label>
+          <div
+            className={buttonGroupStyles.container}
+            role="group"
+            aria-label="Maximum iterations options"
+          >
+            {MAX_ITERATIONS_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => onMaxIterationsChange(option.value)}
+                className={buttonGroupStyles.button(ralphMaxIterations === option.value)}
+                aria-pressed={ralphMaxIterations === option.value}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <p className={fieldStyles.hint}>
+            Maximum number of autonomous iterations before Ralph stops. Higher values allow more
+            work but increase token usage.
           </p>
         </div>
       </div>
