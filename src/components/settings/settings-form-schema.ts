@@ -7,8 +7,16 @@ export const workingMethodSchema = z.enum(["auto", "claude-code", "vscode", "ope
 
 /**
  * Docker runtime options.
+ * Must match DOCKER_RUNTIME_TYPES from src/api/settings.ts
  */
-export const dockerRuntimeSchema = z.enum(["auto", "docker", "podman"]);
+export const dockerRuntimeSchema = z.enum([
+  "auto",
+  "lima",
+  "colima",
+  "rancher",
+  "docker-desktop",
+  "podman",
+]);
 
 /**
  * Zod schema for Settings form validation.

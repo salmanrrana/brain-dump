@@ -2,6 +2,19 @@ import { formOptions } from "@tanstack/react-form-start";
 import type { SettingsFormData } from "./settings-form-schema";
 
 /**
+ * Type alias for the settings form instance.
+ *
+ * TanStack Form's types are extremely complex with 12+ generic parameters.
+ * Using `any` here is pragmatic - the form shape is well-documented and
+ * type errors at usage sites will still be caught. The alternative would
+ * require matching all 12 generic parameters exactly, which is brittle.
+ *
+ * @see https://tanstack.com/form/latest/docs/framework/react/reference/useForm
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type SettingsForm = any;
+
+/**
  * Default values for settings form.
  *
  * These match the application defaults:

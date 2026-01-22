@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { X, Bot, GitBranch, Settings, Building2 } from "lucide-react";
+import { useForm } from "@tanstack/react-form-start";
 import {
   useSettings,
   useUpdateSettings,
@@ -7,13 +8,14 @@ import {
   useDockerStatus,
   useBuildSandboxImage,
 } from "../../lib/hooks";
-import type { DockerRuntimeSetting } from "../../api/settings";
 import DirectoryPicker from "../DirectoryPicker";
 import { TabNav, type Tab } from "./TabNav";
 import { GeneralTab } from "./GeneralTab";
 import { RalphTab } from "./RalphTab";
 import { GitTab } from "./GitTab";
 import { EnterpriseTab } from "./EnterpriseTab";
+import { settingsFormOpts } from "./settings-form-opts";
+import { settingsFormSchema, type SettingsFormData } from "./settings-form-schema";
 
 interface SettingsModalProps {
   /** Handler to close the modal */
@@ -39,93 +41,64 @@ const SETTINGS_TABS: Tab[] = [
  * - **Keyboard accessible**: Escape to close, Tab/Arrow key navigation
  * - **Save/Cancel**: Footer buttons to save changes or cancel
  *
+ * Uses TanStack Form for form state management with Zod schema validation.
  * Tab contents are rendered inline with CSS display toggling for state preservation.
  */
 export default function SettingsModal({ onClose }: SettingsModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<SettingsTabId>("general");
 
-  // Fetch current settings
+  // Fetch current settings and external data
   const { settings, loading: settingsLoading } = useSettings();
   const { availableTerminals, loading: terminalsLoading } = useAvailableTerminals();
   const { dockerStatus, loading: dockerLoading } = useDockerStatus();
   const updateMutation = useUpdateSettings();
   const buildImageMutation = useBuildSandboxImage();
 
-  // Form state - General tab
-  const [terminalEmulator, setTerminalEmulator] = useState<string>("");
-  const [defaultProjectsDirectory, setDefaultProjectsDirectory] = useState("");
-  const [defaultWorkingMethod, setDefaultWorkingMethod] = useState<
-    "auto" | "claude-code" | "vscode" | "opencode"
-  >("auto");
+  // Directory picker state (UI-only, not form data)
   const [showDirectoryPicker, setShowDirectoryPicker] = useState(false);
 
-  // Form state - Ralph tab
-  const [ralphSandbox, setRalphSandbox] = useState(false);
-  const [ralphTimeout, setRalphTimeout] = useState(3600);
-  const [ralphMaxIterations, setRalphMaxIterations] = useState(20);
-  const [dockerRuntime, setDockerRuntime] = useState<DockerRuntimeSetting>("auto");
+  // TanStack Form - replaces 11 useState hooks + useEffect sync + hasChanges useMemo
+  const form = useForm({
+    ...settingsFormOpts,
+    defaultValues: {
+      terminalEmulator: settings?.terminalEmulator ?? "",
+      defaultProjectsDirectory: settings?.defaultProjectsDirectory ?? "",
+      defaultWorkingMethod:
+        (settings?.defaultWorkingMethod as SettingsFormData["defaultWorkingMethod"]) ?? "auto",
+      ralphSandbox: settings?.ralphSandbox ?? false,
+      ralphTimeout: settings?.ralphTimeout ?? 3600,
+      ralphMaxIterations: settings?.ralphMaxIterations ?? 20,
+      dockerRuntime: (settings?.dockerRuntime as SettingsFormData["dockerRuntime"]) ?? "auto",
+      autoCreatePr: settings?.autoCreatePr ?? true,
+      prTargetBranch: settings?.prTargetBranch ?? "dev",
+      conversationLoggingEnabled: settings?.conversationLoggingEnabled ?? true,
+      conversationRetentionDays: settings?.conversationRetentionDays ?? 90,
+    },
+    validators: {
+      onChange: settingsFormSchema,
+    },
+  });
 
-  // Form state - Git tab
-  const [autoCreatePr, setAutoCreatePr] = useState(true);
-  const [prTargetBranch, setPrTargetBranch] = useState("dev");
-
-  // Form state - Enterprise tab
-  const [conversationLoggingEnabled, setConversationLoggingEnabled] = useState(true);
-  const [conversationRetentionDays, setConversationRetentionDays] = useState(90);
-
-  // Initialize state when settings load
-  /* eslint-disable react-hooks/set-state-in-effect -- syncing external data to state */
+  // Reset form when settings change (e.g., after query refetch)
   useEffect(() => {
     if (settings) {
-      setTerminalEmulator(settings.terminalEmulator ?? "");
-      setRalphSandbox(settings.ralphSandbox ?? false);
-      setRalphTimeout(settings.ralphTimeout ?? 3600);
-      setRalphMaxIterations(settings.ralphMaxIterations ?? 20);
-      setAutoCreatePr(settings.autoCreatePr ?? true);
-      setPrTargetBranch(settings.prTargetBranch ?? "dev");
-      setDefaultProjectsDirectory(settings.defaultProjectsDirectory ?? "");
-      setDefaultWorkingMethod(
-        (settings.defaultWorkingMethod as "auto" | "claude-code" | "vscode" | "opencode") ?? "auto"
-      );
-      setConversationLoggingEnabled(settings.conversationLoggingEnabled ?? true);
-      setConversationRetentionDays(settings.conversationRetentionDays ?? 90);
-      setDockerRuntime((settings.dockerRuntime as DockerRuntimeSetting) ?? "auto");
+      form.reset({
+        terminalEmulator: settings.terminalEmulator ?? "",
+        defaultProjectsDirectory: settings.defaultProjectsDirectory ?? "",
+        defaultWorkingMethod:
+          (settings.defaultWorkingMethod as SettingsFormData["defaultWorkingMethod"]) ?? "auto",
+        ralphSandbox: settings.ralphSandbox ?? false,
+        ralphTimeout: settings.ralphTimeout ?? 3600,
+        ralphMaxIterations: settings.ralphMaxIterations ?? 20,
+        dockerRuntime: (settings.dockerRuntime as SettingsFormData["dockerRuntime"]) ?? "auto",
+        autoCreatePr: settings.autoCreatePr ?? true,
+        prTargetBranch: settings.prTargetBranch ?? "dev",
+        conversationLoggingEnabled: settings.conversationLoggingEnabled ?? true,
+        conversationRetentionDays: settings.conversationRetentionDays ?? 90,
+      });
     }
-  }, [settings]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  // Compute change tracking with useMemo (avoids extra re-render from useEffect+setState)
-  const hasChanges = useMemo(() => {
-    if (!settings) return false;
-
-    return (
-      terminalEmulator !== (settings.terminalEmulator ?? "") ||
-      ralphSandbox !== (settings.ralphSandbox ?? false) ||
-      ralphTimeout !== (settings.ralphTimeout ?? 3600) ||
-      ralphMaxIterations !== (settings.ralphMaxIterations ?? 20) ||
-      autoCreatePr !== (settings.autoCreatePr ?? true) ||
-      prTargetBranch !== (settings.prTargetBranch ?? "dev") ||
-      defaultProjectsDirectory !== (settings.defaultProjectsDirectory ?? "") ||
-      defaultWorkingMethod !== (settings.defaultWorkingMethod ?? "auto") ||
-      conversationLoggingEnabled !== (settings.conversationLoggingEnabled ?? true) ||
-      conversationRetentionDays !== (settings.conversationRetentionDays ?? 90) ||
-      dockerRuntime !== (settings.dockerRuntime ?? "auto")
-    );
-  }, [
-    terminalEmulator,
-    ralphSandbox,
-    ralphTimeout,
-    ralphMaxIterations,
-    autoCreatePr,
-    prTargetBranch,
-    defaultProjectsDirectory,
-    defaultWorkingMethod,
-    conversationLoggingEnabled,
-    conversationRetentionDays,
-    dockerRuntime,
-    settings,
-  ]);
+  }, [settings, form]);
 
   const isSaving = updateMutation.isPending;
   const error = updateMutation.error;
@@ -175,37 +148,24 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   }, []);
 
   const handleSave = useCallback(() => {
+    const values = form.state.values;
     updateMutation.mutate(
       {
-        terminalEmulator: terminalEmulator || null,
-        ralphSandbox,
-        ralphTimeout,
-        ralphMaxIterations,
-        autoCreatePr,
-        prTargetBranch: prTargetBranch || "dev",
-        defaultProjectsDirectory: defaultProjectsDirectory || null,
-        defaultWorkingMethod,
-        conversationLoggingEnabled,
-        conversationRetentionDays,
-        dockerRuntime: dockerRuntime === "auto" ? null : dockerRuntime,
+        terminalEmulator: values.terminalEmulator || null,
+        ralphSandbox: values.ralphSandbox,
+        ralphTimeout: values.ralphTimeout,
+        ralphMaxIterations: values.ralphMaxIterations,
+        autoCreatePr: values.autoCreatePr,
+        prTargetBranch: values.prTargetBranch || "dev",
+        defaultProjectsDirectory: values.defaultProjectsDirectory || null,
+        defaultWorkingMethod: values.defaultWorkingMethod,
+        conversationLoggingEnabled: values.conversationLoggingEnabled,
+        conversationRetentionDays: values.conversationRetentionDays,
+        dockerRuntime: values.dockerRuntime === "auto" ? null : values.dockerRuntime,
       },
       { onSuccess: onClose }
     );
-  }, [
-    updateMutation,
-    terminalEmulator,
-    ralphSandbox,
-    ralphTimeout,
-    ralphMaxIterations,
-    autoCreatePr,
-    prTargetBranch,
-    defaultProjectsDirectory,
-    defaultWorkingMethod,
-    conversationLoggingEnabled,
-    conversationRetentionDays,
-    dockerRuntime,
-    onClose,
-  ]);
+  }, [updateMutation, form.state.values, onClose]);
 
   const handleBuildImage = useCallback(() => {
     buildImageMutation.mutate();
@@ -217,14 +177,17 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
 
   const loading = settingsLoading || terminalsLoading || dockerLoading;
 
-  // =============================================================================
-  // RENDER HELPERS - TAB PANELS
-  // =============================================================================
-
-  // GeneralTab is now a separate component - handlers for it:
+  // Directory picker handlers
   const handleBrowseDirectory = useCallback(() => {
     setShowDirectoryPicker(true);
   }, []);
+
+  const handleDirectorySelect = useCallback(
+    (path: string) => {
+      form.setFieldValue("defaultProjectsDirectory", path);
+    },
+    [form]
+  );
 
   // RalphTab build image state for the component
   const buildImageState = {
@@ -233,12 +196,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     isSuccess: buildImageMutation.isSuccess,
     error: buildImageMutation.error instanceof Error ? buildImageMutation.error : null,
   };
-
-  // All tabs are now separate components
-
-  // =============================================================================
-  // MAIN RENDER
-  // =============================================================================
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -305,43 +262,19 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
               {/* Tab Panels - all rendered but only one visible at a time for state preservation */}
               <GeneralTab
                 isActive={activeTab === "general"}
-                terminalEmulator={terminalEmulator}
-                onTerminalChange={setTerminalEmulator}
-                defaultProjectsDirectory={defaultProjectsDirectory}
-                onDirectoryChange={setDefaultProjectsDirectory}
-                defaultWorkingMethod={defaultWorkingMethod}
-                onWorkingMethodChange={setDefaultWorkingMethod}
+                form={form}
                 availableTerminals={availableTerminals}
                 onBrowseDirectory={handleBrowseDirectory}
               />
               <RalphTab
                 isActive={activeTab === "ralph"}
-                ralphSandbox={ralphSandbox}
-                onSandboxChange={setRalphSandbox}
-                ralphTimeout={ralphTimeout}
-                onTimeoutChange={setRalphTimeout}
-                ralphMaxIterations={ralphMaxIterations}
-                onMaxIterationsChange={setRalphMaxIterations}
-                dockerRuntime={dockerRuntime}
-                onDockerRuntimeChange={setDockerRuntime}
+                form={form}
                 dockerStatus={dockerStatus}
                 buildImageState={buildImageState}
                 onBuildImage={handleBuildImage}
               />
-              <GitTab
-                isActive={activeTab === "git"}
-                autoCreatePr={autoCreatePr}
-                onAutoCreatePrChange={setAutoCreatePr}
-                prTargetBranch={prTargetBranch}
-                onPrTargetBranchChange={setPrTargetBranch}
-              />
-              <EnterpriseTab
-                isActive={activeTab === "enterprise"}
-                conversationLoggingEnabled={conversationLoggingEnabled}
-                onLoggingEnabledChange={setConversationLoggingEnabled}
-                conversationRetentionDays={conversationRetentionDays}
-                onRetentionDaysChange={setConversationRetentionDays}
-              />
+              <GitTab isActive={activeTab === "git"} form={form} />
+              <EnterpriseTab isActive={activeTab === "enterprise"} form={form} />
             </>
           )}
         </div>
@@ -356,20 +289,25 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
             >
               Cancel
             </button>
-            <button
-              onClick={handleSave}
-              disabled={isSaving || !hasChanges}
-              className="px-4 py-2 rounded-lg font-medium transition-all disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] disabled:shadow-none"
-              style={{
-                background:
-                  isSaving || !hasChanges
-                    ? undefined
-                    : "linear-gradient(135deg, var(--accent-primary), var(--accent-ai))",
-                boxShadow: isSaving || !hasChanges ? undefined : "0 4px 12px var(--accent-glow)",
-              }}
-            >
-              {isSaving ? "Saving..." : "Save Changes"}
-            </button>
+            <form.Subscribe
+              selector={(state) => state.isDirty && state.canSubmit}
+              children={(canSave) => (
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving || !canSave}
+                  className="px-4 py-2 rounded-lg font-medium transition-all disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] disabled:shadow-none"
+                  style={{
+                    background:
+                      isSaving || !canSave
+                        ? undefined
+                        : "linear-gradient(135deg, var(--accent-primary), var(--accent-ai))",
+                    boxShadow: isSaving || !canSave ? undefined : "0 4px 12px var(--accent-glow)",
+                  }}
+                >
+                  {isSaving ? "Saving..." : "Save Changes"}
+                </button>
+              )}
+            />
           </div>
         </div>
       </div>
@@ -377,8 +315,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       {/* Directory Picker Modal */}
       <DirectoryPicker
         isOpen={showDirectoryPicker}
-        initialPath={defaultProjectsDirectory || undefined}
-        onSelect={(path) => setDefaultProjectsDirectory(path)}
+        initialPath={form.state.values.defaultProjectsDirectory || undefined}
+        onSelect={handleDirectorySelect}
         onClose={() => setShowDirectoryPicker(false)}
       />
     </div>

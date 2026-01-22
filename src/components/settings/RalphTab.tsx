@@ -8,6 +8,7 @@ import {
   toggleStyles,
   buttonGroupStyles,
 } from "./settingsStyles";
+import type { SettingsForm } from "./settings-form-opts";
 
 // =============================================================================
 // TYPES
@@ -34,22 +35,8 @@ export interface BuildImageState {
 export interface RalphTabProps {
   /** Whether this tab is currently visible */
   isActive: boolean;
-  /** Current sandbox mode setting */
-  ralphSandbox: boolean;
-  /** Callback when sandbox setting changes */
-  onSandboxChange: (value: boolean) => void;
-  /** Current session timeout in seconds */
-  ralphTimeout: number;
-  /** Callback when timeout changes */
-  onTimeoutChange: (value: number) => void;
-  /** Current max iterations setting */
-  ralphMaxIterations: number;
-  /** Callback when max iterations changes */
-  onMaxIterationsChange: (value: number) => void;
-  /** Current Docker runtime setting */
-  dockerRuntime: DockerRuntimeSetting;
-  /** Callback when Docker runtime changes */
-  onDockerRuntimeChange: (value: DockerRuntimeSetting) => void;
+  /** TanStack Form instance for settings */
+  form: SettingsForm;
   /** Docker status information */
   dockerStatus: DockerStatus | null;
   /** Build image mutation state */
@@ -92,18 +79,11 @@ const MAX_ITERATIONS_OPTIONS = [
  * - **Session timeout**: Button group for timeout duration
  * - **Build image button**: Trigger sandbox image build
  *
- * All values are controlled via props with change callbacks to parent.
+ * Uses TanStack Form field render props for form state management.
  */
 export function RalphTab({
   isActive,
-  ralphSandbox,
-  onSandboxChange,
-  ralphTimeout,
-  onTimeoutChange,
-  ralphMaxIterations,
-  onMaxIterationsChange,
-  dockerRuntime,
-  onDockerRuntimeChange,
+  form,
   dockerStatus,
   buildImageState,
   onBuildImage,
@@ -126,24 +106,29 @@ export function RalphTab({
         </div>
 
         {/* Docker Sandbox Toggle */}
-        <div className={toggleStyles.row}>
-          <div className={toggleStyles.info}>
-            <div className={toggleStyles.label}>Prefer Docker Sandbox by Default</div>
-            <div className={toggleStyles.desc}>
-              When enabled, Docker mode will be pre-selected when starting Ralph. You can always
-              choose either mode.
+        <form.Field
+          name="ralphSandbox"
+          children={(field: { state: { value: boolean }; handleChange: (v: boolean) => void }) => (
+            <div className={toggleStyles.row}>
+              <div className={toggleStyles.info}>
+                <div className={toggleStyles.label}>Prefer Docker Sandbox by Default</div>
+                <div className={toggleStyles.desc}>
+                  When enabled, Docker mode will be pre-selected when starting Ralph. You can always
+                  choose either mode.
+                </div>
+              </div>
+              <button
+                onClick={() => field.handleChange(!field.state.value)}
+                className={toggleStyles.switch(field.state.value)}
+                role="switch"
+                aria-checked={field.state.value}
+                aria-label="Prefer Docker Sandbox by Default"
+              >
+                <span className={toggleStyles.knob(field.state.value)} />
+              </button>
             </div>
-          </div>
-          <button
-            onClick={() => onSandboxChange(!ralphSandbox)}
-            className={toggleStyles.switch(ralphSandbox)}
-            role="switch"
-            aria-checked={ralphSandbox}
-            aria-label="Prefer Docker Sandbox by Default"
-          >
-            <span className={toggleStyles.knob(ralphSandbox)} />
-          </button>
-        </div>
+          )}
+        />
 
         {/* Docker Status */}
         {dockerStatus && (
@@ -275,131 +260,158 @@ export function RalphTab({
           </div>
         )}
 
-        {!dockerStatus?.dockerAvailable && ralphSandbox && (
-          <p className="text-xs text-[var(--status-warning)]">
-            Docker is required for sandbox mode. Install Docker to use this feature.
-          </p>
-        )}
+        {/* Warning when sandbox enabled but Docker unavailable */}
+        <form.Subscribe
+          selector={(state: { values: { ralphSandbox: boolean } }) => state.values.ralphSandbox}
+          children={(ralphSandbox: boolean) =>
+            !dockerStatus?.dockerAvailable && ralphSandbox ? (
+              <p className="text-xs text-[var(--status-warning)]">
+                Docker is required for sandbox mode. Install Docker to use this feature.
+              </p>
+            ) : null
+          }
+        />
 
         {/* Docker Runtime Selection */}
         {dockerStatus?.dockerAvailable && (
-          <div>
-            <label htmlFor="docker-runtime-select" className={fieldStyles.label}>
-              Docker Runtime
-            </label>
-            <div className="relative">
-              <select
-                id="docker-runtime-select"
-                value={dockerRuntime}
-                onChange={(e) => onDockerRuntimeChange(e.target.value as DockerRuntimeSetting)}
-                className={inputStyles.select}
-              >
-                {DOCKER_RUNTIME_TYPES.map((runtime) => (
-                  <option key={runtime} value={runtime}>
-                    {runtime === "auto"
-                      ? "Auto-detect (recommended)"
-                      : runtime === "docker-desktop"
-                        ? "Docker Desktop"
-                        : runtime.charAt(0).toUpperCase() + runtime.slice(1)}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={16} className={inputStyles.selectArrow} />
-            </div>
+          <form.Field
+            name="dockerRuntime"
+            children={(field: {
+              state: { value: string };
+              handleChange: (v: string) => void;
+              handleBlur: () => void;
+            }) => (
+              <div>
+                <label htmlFor="docker-runtime-select" className={fieldStyles.label}>
+                  Docker Runtime
+                </label>
+                <div className="relative">
+                  <select
+                    id="docker-runtime-select"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value as DockerRuntimeSetting)}
+                    onBlur={field.handleBlur}
+                    className={inputStyles.select}
+                  >
+                    {DOCKER_RUNTIME_TYPES.map((runtime) => (
+                      <option key={runtime} value={runtime}>
+                        {runtime === "auto"
+                          ? "Auto-detect (recommended)"
+                          : runtime === "docker-desktop"
+                            ? "Docker Desktop"
+                            : runtime.charAt(0).toUpperCase() + runtime.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={16} className={inputStyles.selectArrow} />
+                </div>
 
-            {/* Show detected runtime status */}
-            {dockerStatus.dockerRunning && (
-              <div className="mt-2 flex items-center gap-2 text-xs" aria-live="polite">
-                {dockerRuntime === "auto" ? (
-                  <>
-                    <CheckCircle size={14} className="text-[var(--status-success)]" />
-                    <span className="text-[var(--status-success)]">
-                      Detected: {dockerStatus.runtimeType || "Docker"}
-                    </span>
-                  </>
-                ) : dockerStatus.runtimeType === dockerRuntime ? (
-                  <>
-                    <CheckCircle size={14} className="text-[var(--status-success)]" />
-                    <span className="text-[var(--status-success)]">Connected</span>
-                  </>
-                ) : (
-                  <>
-                    <AlertTriangle size={14} className="text-[var(--status-warning)]" />
-                    <span className="text-[var(--status-warning)]" role="alert">
-                      {dockerRuntime} not detected (using {dockerStatus.runtimeType || "default"})
-                    </span>
-                  </>
+                {/* Show detected runtime status */}
+                {dockerStatus.dockerRunning && (
+                  <div className="mt-2 flex items-center gap-2 text-xs" aria-live="polite">
+                    {field.state.value === "auto" ? (
+                      <>
+                        <CheckCircle size={14} className="text-[var(--status-success)]" />
+                        <span className="text-[var(--status-success)]">
+                          Detected: {dockerStatus.runtimeType || "Docker"}
+                        </span>
+                      </>
+                    ) : dockerStatus.runtimeType === field.state.value ? (
+                      <>
+                        <CheckCircle size={14} className="text-[var(--status-success)]" />
+                        <span className="text-[var(--status-success)]">Connected</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle size={14} className="text-[var(--status-warning)]" />
+                        <span className="text-[var(--status-warning)]" role="alert">
+                          {field.state.value} not detected (using{" "}
+                          {dockerStatus.runtimeType || "default"})
+                        </span>
+                      </>
+                    )}
+                  </div>
                 )}
+
+                {/* Show socket path */}
+                {dockerStatus.dockerRunning && dockerStatus.socketPath && (
+                  <p className="mt-1 text-xs text-[var(--text-tertiary)] font-mono truncate">
+                    Socket: {dockerStatus.socketPath}
+                  </p>
+                )}
+
+                <p className={fieldStyles.hint}>
+                  Select which Docker runtime to use. Auto-detect works for most setups.
+                  {dockerStatus.runtimeType === "lima" && (
+                    <span className="block mt-1 text-purple-400">
+                      Lima detected - perfect for Docker Desktop alternatives!
+                    </span>
+                  )}
+                </p>
               </div>
             )}
-
-            {/* Show socket path */}
-            {dockerStatus.dockerRunning && dockerStatus.socketPath && (
-              <p className="mt-1 text-xs text-[var(--text-tertiary)] font-mono truncate">
-                Socket: {dockerStatus.socketPath}
-              </p>
-            )}
-
-            <p className={fieldStyles.hint}>
-              Select which Docker runtime to use. Auto-detect works for most setups.
-              {dockerStatus.runtimeType === "lima" && (
-                <span className="block mt-1 text-purple-400">
-                  Lima detected - perfect for Docker Desktop alternatives!
-                </span>
-              )}
-            </p>
-          </div>
+          />
         )}
 
         {/* Session Timeout */}
-        <div>
-          <label className={fieldStyles.label}>Session Timeout</label>
-          <div
-            className={buttonGroupStyles.container}
-            role="group"
-            aria-label="Session timeout options"
-          >
-            {TIMEOUT_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                onClick={() => onTimeoutChange(option.value)}
-                className={buttonGroupStyles.button(ralphTimeout === option.value)}
-                aria-pressed={ralphTimeout === option.value}
+        <form.Field
+          name="ralphTimeout"
+          children={(field: { state: { value: number }; handleChange: (v: number) => void }) => (
+            <div>
+              <label className={fieldStyles.label}>Session Timeout</label>
+              <div
+                className={buttonGroupStyles.container}
+                role="group"
+                aria-label="Session timeout options"
               >
-                {option.label}
-              </button>
-            ))}
-          </div>
-          <p className={fieldStyles.hint}>
-            Ralph session will stop after this duration to prevent runaway processes. Progress is
-            saved before timeout.
-          </p>
-        </div>
+                {TIMEOUT_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => field.handleChange(option.value)}
+                    className={buttonGroupStyles.button(field.state.value === option.value)}
+                    aria-pressed={field.state.value === option.value}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <p className={fieldStyles.hint}>
+                Ralph session will stop after this duration to prevent runaway processes. Progress
+                is saved before timeout.
+              </p>
+            </div>
+          )}
+        />
 
         {/* Max Iterations */}
-        <div>
-          <label className={fieldStyles.label}>Max Iterations</label>
-          <div
-            className={buttonGroupStyles.container}
-            role="group"
-            aria-label="Maximum iterations options"
-          >
-            {MAX_ITERATIONS_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                onClick={() => onMaxIterationsChange(option.value)}
-                className={buttonGroupStyles.button(ralphMaxIterations === option.value)}
-                aria-pressed={ralphMaxIterations === option.value}
+        <form.Field
+          name="ralphMaxIterations"
+          children={(field: { state: { value: number }; handleChange: (v: number) => void }) => (
+            <div>
+              <label className={fieldStyles.label}>Max Iterations</label>
+              <div
+                className={buttonGroupStyles.container}
+                role="group"
+                aria-label="Maximum iterations options"
               >
-                {option.label}
-              </button>
-            ))}
-          </div>
-          <p className={fieldStyles.hint}>
-            Maximum number of autonomous iterations before Ralph stops. Higher values allow more
-            work but increase token usage.
-          </p>
-        </div>
+                {MAX_ITERATIONS_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => field.handleChange(option.value)}
+                    className={buttonGroupStyles.button(field.state.value === option.value)}
+                    aria-pressed={field.state.value === option.value}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <p className={fieldStyles.hint}>
+                Maximum number of autonomous iterations before Ralph stops. Higher values allow more
+                work but increase token usage.
+              </p>
+            </div>
+          )}
+        />
       </div>
     </div>
   );
