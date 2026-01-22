@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { X, ChevronDown, Bot, Loader2, Save, Container, Code2 } from "lucide-react";
+import { useForm } from "@tanstack/react-form-start";
 import {
   useCreateEpic,
   useUpdateEpic,
@@ -14,6 +15,8 @@ import {
 import { useToast } from "./Toast";
 import ErrorAlert from "./ErrorAlert";
 import { COLOR_OPTIONS } from "../lib/constants";
+import { epicFormOpts } from "./epics/epic-form-opts";
+import { epicFormSchema } from "./epics/epic-form-schema";
 
 interface Epic {
   id: string;
@@ -35,9 +38,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   const titleInputRef = useRef<HTMLInputElement>(null);
   const isEditing = Boolean(epic);
 
-  const [title, setTitle] = useState(epic?.title ?? "");
-  const [description, setDescription] = useState(epic?.description ?? "");
-  const [color, setColor] = useState(epic?.color ?? "");
+  // UI state (not form data)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isStartingRalph, setIsStartingRalph] = useState(false);
   // Auto-clears to null after 5 seconds for notification clearing
@@ -65,6 +66,19 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   // but keeping the hook call for future re-enablement
   useDockerAvailability();
 
+  // TanStack Form for epic data
+  const form = useForm({
+    ...epicFormOpts,
+    defaultValues: {
+      title: epic?.title ?? "",
+      description: epic?.description ?? "",
+      color: epic?.color ?? "",
+    },
+    validators: {
+      onChange: epicFormSchema,
+    },
+  });
+
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const isDeleting = deleteMutation.isPending;
   const error = createMutation.error || updateMutation.error || deleteMutation.error;
@@ -90,8 +104,12 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   );
 
   const handleSave = () => {
-    const trimmedTitle = title.trim();
+    const formValues = form.state.values;
+    const trimmedTitle = formValues.title.trim();
     if (!trimmedTitle) return;
+
+    const trimmedDescription = formValues.description.trim();
+    const colorValue = formValues.color;
 
     if (isEditing && epic) {
       updateMutation.mutate(
@@ -99,8 +117,8 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
           id: epic.id,
           updates: {
             title: trimmedTitle,
-            ...(description.trim() ? { description: description.trim() } : {}),
-            ...(color ? { color } : {}),
+            ...(trimmedDescription ? { description: trimmedDescription } : {}),
+            ...(colorValue ? { color: colorValue } : {}),
           },
         },
         { onSuccess: onSave }
@@ -110,8 +128,8 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
         {
           title: trimmedTitle,
           projectId,
-          ...(description.trim() ? { description: description.trim() } : {}),
-          ...(color ? { color } : {}),
+          ...(trimmedDescription ? { description: trimmedDescription } : {}),
+          ...(colorValue ? { color: colorValue } : {}),
         },
         { onSuccess: onSave }
       );
@@ -268,63 +286,101 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
           )}
 
           {/* Title */}
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              Title <span className="text-[var(--accent-danger)]">*</span>
-            </label>
-            <input
-              ref={titleInputRef}
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Epic name"
-              className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] "
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              Description
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={5}
-              placeholder="Optional description..."
-              className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] resize-vertical min-h-[100px]"
-            />
-          </div>
-
-          {/* Color */}
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              Color
-            </label>
-            <div className="relative">
-              <select
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
-                className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none "
-              >
-                {COLOR_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={16}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
-              />
-            </div>
-            {color && (
-              <div className="mt-2 flex items-center gap-2">
-                <span className="w-4 h-4 rounded" style={{ backgroundColor: color }} />
-                <span className="text-xs text-[var(--text-secondary)]">Preview</span>
+          <form.Field
+            name="title"
+            children={(field) => (
+              <div>
+                <label
+                  htmlFor={field.name}
+                  className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+                >
+                  Title <span className="text-[var(--accent-danger)]">*</span>
+                </label>
+                <input
+                  ref={titleInputRef}
+                  id={field.name}
+                  type="text"
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                  placeholder="Epic name"
+                  className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)]"
+                />
+                {field.state.meta.isTouched && field.state.meta.errors.length > 0 && (
+                  <p className="mt-1 text-sm text-[var(--accent-danger)]" role="alert">
+                    {field.state.meta.errors.join(", ")}
+                  </p>
+                )}
               </div>
             )}
-          </div>
+          />
+
+          {/* Description */}
+          <form.Field
+            name="description"
+            children={(field) => (
+              <div>
+                <label
+                  htmlFor={field.name}
+                  className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+                >
+                  Description
+                </label>
+                <textarea
+                  id={field.name}
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                  rows={5}
+                  placeholder="Optional description..."
+                  className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] resize-vertical min-h-[100px]"
+                />
+              </div>
+            )}
+          />
+
+          {/* Color */}
+          <form.Field
+            name="color"
+            children={(field) => (
+              <div>
+                <label
+                  htmlFor={field.name}
+                  className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+                >
+                  Color
+                </label>
+                <div className="relative">
+                  <select
+                    id={field.name}
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    onBlur={field.handleBlur}
+                    className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none"
+                  >
+                    {COLOR_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={16}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
+                  />
+                </div>
+                {field.state.value && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span
+                      className="w-4 h-4 rounded"
+                      style={{ backgroundColor: field.state.value }}
+                    />
+                    <span className="text-xs text-[var(--text-secondary)]">Preview</span>
+                  </div>
+                )}
+              </div>
+            )}
+          />
         </div>
 
         {/* Ralph Notification */}
@@ -382,14 +438,22 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
           {/* Action Split Button */}
           <div className="relative" ref={actionMenuRef}>
             <div className="flex">
-              <button
-                onClick={handleSave}
-                disabled={isSaving || !title.trim()}
-                className={`flex items-center gap-2 px-4 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] font-medium transition-colors ${isEditing ? "rounded-l-lg" : "rounded-lg"}`}
-              >
-                {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                <span>{isEditing ? "Save Changes" : "Create Epic"}</span>
-              </button>
+              <form.Subscribe
+                selector={(state) => ({
+                  canSubmit: state.canSubmit,
+                  title: state.values.title,
+                })}
+                children={({ canSubmit, title }) => (
+                  <button
+                    onClick={handleSave}
+                    disabled={isSaving || !title.trim() || !canSubmit}
+                    className={`flex items-center gap-2 px-4 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] font-medium transition-colors ${isEditing ? "rounded-l-lg" : "rounded-lg"}`}
+                  >
+                    {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                    <span>{isEditing ? "Save Changes" : "Create Epic"}</span>
+                  </button>
+                )}
+              />
               {isEditing && (
                 <button
                   onClick={() => setShowActionMenu(!showActionMenu)}
