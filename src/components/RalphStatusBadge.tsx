@@ -33,20 +33,20 @@ const STATE_CONFIG: Record<
   },
   committing: {
     label: "Committing",
-    bgClass: "bg-green-600",
-    textClass: "text-green-100",
+    bgClass: "bg-[var(--success)]",
+    textClass: "text-[var(--success-text)]",
     pulseClass: "animate-pulse",
   },
   reviewing: {
     label: "Reviewing",
-    bgClass: "bg-blue-600",
-    textClass: "text-blue-100",
+    bgClass: "bg-[var(--info)]",
+    textClass: "text-[var(--info-text)]",
     pulseClass: "animate-pulse",
   },
   done: {
     label: "Done",
-    bgClass: "bg-green-700",
-    textClass: "text-green-100",
+    bgClass: "bg-[var(--success)]/80",
+    textClass: "text-[var(--success-text)]",
   },
 };
 

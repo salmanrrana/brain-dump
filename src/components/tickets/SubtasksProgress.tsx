@@ -1,16 +1,10 @@
 import { type FC, useState, useRef, useCallback, useEffect, type KeyboardEvent } from "react";
 import { Plus, Check, X } from "lucide-react";
 import { useUpdateTicket } from "../../lib/hooks";
+import type { Subtask } from "../../api/tickets";
 
-// =============================================================================
-// Types
-// =============================================================================
-
-export interface Subtask {
-  id: string;
-  text: string;
-  completed: boolean;
-}
+// Re-export for consumers that import from this file
+export type { Subtask } from "../../api/tickets";
 
 export interface SubtasksProgressProps {
   /** Ticket ID for persisting changes */
@@ -180,9 +174,9 @@ const AddSubtaskInline: FC<AddSubtaskInlineProps> = ({ onAdd, disabled }) => {
         disabled={!text.trim()}
         style={{
           ...iconButtonStyles,
-          color: text.trim() ? "#22c55e" : "var(--text-muted)",
+          color: text.trim() ? "var(--success)" : "var(--text-muted)",
         }}
-        className="hover:bg-green-500/10"
+        className="hover:bg-[var(--success)]/10"
         aria-label="Confirm add"
       >
         <Check size={14} />

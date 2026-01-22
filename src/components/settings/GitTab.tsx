@@ -7,6 +7,11 @@ import {
   statusCardStyles,
   toggleStyles,
 } from "./settingsStyles";
+import type {
+  SettingsForm,
+  BooleanFieldRenderProps,
+  StringFieldRenderProps,
+} from "./settings-form-opts";
 
 // =============================================================================
 // TYPES
@@ -15,14 +20,8 @@ import {
 export interface GitTabProps {
   /** Whether this tab is currently visible */
   isActive: boolean;
-  /** Current auto-create PR setting */
-  autoCreatePr: boolean;
-  /** Callback when auto-create PR setting changes */
-  onAutoCreatePrChange: (value: boolean) => void;
-  /** Current PR target branch */
-  prTargetBranch: string;
-  /** Callback when PR target branch changes */
-  onPrTargetBranchChange: (value: string) => void;
+  /** TanStack Form instance for settings */
+  form: SettingsForm;
 }
 
 // =============================================================================
@@ -38,16 +37,11 @@ export interface GitTabProps {
  * - **Branch naming pattern**: Text input for custom branch patterns
  * - **Git status card**: Shows GitHub CLI auth and remote status
  *
+ * Uses TanStack Form field render props for form state management.
  * Note: Branch naming pattern is stored locally (UI-only for now).
  * Future versions may persist this to settings.
  */
-export function GitTab({
-  isActive,
-  autoCreatePr,
-  onAutoCreatePrChange,
-  prTargetBranch,
-  onPrTargetBranchChange,
-}: GitTabProps) {
+export function GitTab({ isActive, form }: GitTabProps) {
   // Local state for branch naming pattern (not yet in schema)
   const [branchPattern, setBranchPattern] = useState("feature/{ticket-id}-{slug}");
 
@@ -69,41 +63,53 @@ export function GitTab({
         </div>
 
         {/* Auto-create PR Toggle */}
-        <div className={toggleStyles.row}>
-          <div className={toggleStyles.info}>
-            <div className={toggleStyles.label}>Auto-create Pull Request</div>
-            <div className={toggleStyles.desc}>
-              Create a PR when Claude/Ralph completes work on a ticket.
+        <form.Field
+          name="autoCreatePr"
+          children={(field: BooleanFieldRenderProps) => (
+            <div className={toggleStyles.row}>
+              <div className={toggleStyles.info}>
+                <div className={toggleStyles.label}>Auto-create Pull Request</div>
+                <div className={toggleStyles.desc}>
+                  Create a PR when Claude/Ralph completes work on a ticket.
+                </div>
+              </div>
+              <button
+                onClick={() => field.handleChange(!field.state.value)}
+                onBlur={field.handleBlur}
+                className={toggleStyles.switch(field.state.value)}
+                role="switch"
+                aria-checked={field.state.value}
+                aria-label="Auto-create Pull Request"
+              >
+                <span className={toggleStyles.knob(field.state.value)} />
+              </button>
             </div>
-          </div>
-          <button
-            onClick={() => onAutoCreatePrChange(!autoCreatePr)}
-            className={toggleStyles.switch(autoCreatePr)}
-            role="switch"
-            aria-checked={autoCreatePr}
-            aria-label="Auto-create Pull Request"
-          >
-            <span className={toggleStyles.knob(autoCreatePr)} />
-          </button>
-        </div>
+          )}
+        />
 
         {/* PR Target Branch */}
-        <div>
-          <label htmlFor="pr-target-branch" className={fieldStyles.label}>
-            PR Target Branch
-          </label>
-          <input
-            id="pr-target-branch"
-            type="text"
-            value={prTargetBranch}
-            onChange={(e) => onPrTargetBranchChange(e.target.value)}
-            placeholder="main"
-            className={inputStyles.base}
-          />
-          <p className={fieldStyles.hint}>
-            Feature branches will target this branch for PRs (typically "dev" or "main")
-          </p>
-        </div>
+        <form.Field
+          name="prTargetBranch"
+          children={(field: StringFieldRenderProps) => (
+            <div>
+              <label htmlFor="pr-target-branch" className={fieldStyles.label}>
+                PR Target Branch
+              </label>
+              <input
+                id="pr-target-branch"
+                type="text"
+                value={field.state.value}
+                onChange={(e) => field.handleChange(e.target.value)}
+                onBlur={field.handleBlur}
+                placeholder="main"
+                className={inputStyles.base}
+              />
+              <p className={fieldStyles.hint}>
+                Feature branches will target this branch for PRs (typically "dev" or "main")
+              </p>
+            </div>
+          )}
+        />
 
         {/* Branch Naming Pattern - Text Input */}
         <div>

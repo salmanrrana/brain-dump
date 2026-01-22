@@ -119,14 +119,14 @@ export default function DirectoryPicker({
       <div
         role="dialog"
         aria-modal="true"
-        className="relative bg-slate-900 rounded-lg shadow-xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col"
+        className="relative bg-[var(--bg-secondary)] rounded-lg shadow-xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col"
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-800">
-          <h2 className="text-lg font-semibold text-gray-100">Select Directory</h2>
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border-primary)]">
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">Select Directory</h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-gray-100"
+            className="p-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             aria-label="Close"
           >
             <X size={20} />
@@ -134,19 +134,21 @@ export default function DirectoryPicker({
         </div>
 
         {/* Current Path */}
-        <div className="px-4 py-2 bg-slate-800/50 border-b border-slate-800">
+        <div className="px-4 py-2 bg-[var(--bg-tertiary)]/50 border-b border-[var(--border-primary)]">
           <div className="flex items-center gap-2">
-            <FolderOpen size={16} className="text-cyan-400 flex-shrink-0" />
-            <span className="text-sm text-slate-300 truncate font-mono">{currentPath}</span>
+            <FolderOpen size={16} className="text-[var(--accent-ai)] flex-shrink-0" />
+            <span className="text-sm text-[var(--text-primary)] truncate font-mono">
+              {currentPath}
+            </span>
           </div>
         </div>
 
         {/* Navigation */}
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-800">
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--border-primary)]">
           <button
             onClick={goUp}
             disabled={!parentPath || loading}
-            className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="p-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
             title="Go up"
           >
             <ChevronUp size={18} />
@@ -154,7 +156,7 @@ export default function DirectoryPicker({
           <button
             onClick={goHome}
             disabled={loading}
-            className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-gray-100 disabled:opacity-50"
+            className="p-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-50"
             title="Go to home"
           >
             <Home size={18} />
@@ -163,7 +165,7 @@ export default function DirectoryPicker({
           <button
             onClick={() => setIsCreatingFolder(true)}
             disabled={loading}
-            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors text-slate-300"
+            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-primary)]"
           >
             <Plus size={14} />
             New Folder
@@ -172,7 +174,7 @@ export default function DirectoryPicker({
 
         {/* New Folder Input */}
         {isCreatingFolder && (
-          <div className="px-4 py-3 border-b border-slate-800 bg-slate-800/30">
+          <div className="px-4 py-3 border-b border-[var(--border-primary)] bg-[var(--bg-tertiary)]/30">
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -188,12 +190,12 @@ export default function DirectoryPicker({
                 }}
                 placeholder="Folder name..."
                 autoFocus
-                className="flex-1 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded text-sm text-gray-100 "
+                className="flex-1 px-3 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-secondary)] rounded text-sm text-[var(--text-primary)]"
               />
               <button
                 onClick={handleCreateFolder}
                 disabled={!newFolderName.trim()}
-                className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 rounded text-sm font-medium transition-colors"
+                className="px-3 py-1.5 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-hover)] rounded text-sm font-medium transition-colors"
               >
                 Create
               </button>
@@ -203,12 +205,12 @@ export default function DirectoryPicker({
                   setNewFolderName("");
                   setCreateError(null);
                 }}
-                className="p-1.5 text-slate-400 hover:text-gray-100"
+                className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               >
                 <X size={16} />
               </button>
             </div>
-            {createError && <p className="mt-2 text-xs text-red-400">{createError}</p>}
+            {createError && <p className="mt-2 text-xs text-[var(--error)]">{createError}</p>}
           </div>
         )}
 
@@ -216,30 +218,35 @@ export default function DirectoryPicker({
         <div className="flex-1 overflow-y-auto min-h-[200px] max-h-[400px]">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="animate-spin text-cyan-400" size={24} />
+              <Loader2 className="animate-spin text-[var(--accent-ai)]" size={24} />
             </div>
           ) : error ? (
             <div className="p-4 text-center">
-              <p className="text-red-400 text-sm">{error}</p>
-              <button onClick={goHome} className="mt-3 text-sm text-cyan-400 hover:underline">
+              <p className="text-[var(--error)] text-sm">{error}</p>
+              <button
+                onClick={goHome}
+                className="mt-3 text-sm text-[var(--accent-ai)] hover:underline"
+              >
                 Go to home directory
               </button>
             </div>
           ) : entries.length === 0 ? (
-            <div className="p-8 text-center text-slate-500 text-sm">No subdirectories</div>
+            <div className="p-8 text-center text-[var(--text-muted)] text-sm">
+              No subdirectories
+            </div>
           ) : (
             <div className="p-2">
               {entries.map((entry) => (
                 <button
                   key={entry.path}
                   onClick={() => navigateTo(entry.path)}
-                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-slate-800 rounded-lg transition-colors text-left group"
+                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-left group"
                 >
                   <Folder
                     size={18}
-                    className="text-slate-400 group-hover:text-cyan-400 transition-colors"
+                    className="text-[var(--text-secondary)] group-hover:text-[var(--accent-ai)] transition-colors"
                   />
-                  <span className="text-sm text-slate-300 group-hover:text-gray-100 truncate">
+                  <span className="text-sm text-[var(--text-primary)] group-hover:text-[var(--text-primary)] truncate">
                     {entry.name}
                   </span>
                 </button>
@@ -249,17 +256,17 @@ export default function DirectoryPicker({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 p-4 border-t border-slate-800">
+        <div className="flex justify-end gap-3 p-4 border-t border-[var(--border-primary)]">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-slate-400 hover:text-gray-100 hover:bg-slate-800 rounded-lg transition-colors"
+            className="px-4 py-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSelect}
             disabled={loading}
-            className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 rounded-lg font-medium transition-colors"
+            className="px-4 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-hover)] rounded-lg font-medium transition-colors"
           >
             Select This Directory
           </button>

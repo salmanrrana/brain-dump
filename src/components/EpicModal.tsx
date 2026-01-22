@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { X, ChevronDown, Bot, Loader2, Save, Container, Code2 } from "lucide-react";
+import { useForm } from "@tanstack/react-form-start";
 import {
   useCreateEpic,
   useUpdateEpic,
@@ -9,11 +10,12 @@ import {
   useModalKeyboard,
   useClickOutside,
   useAutoClearState,
-  useDockerAvailability,
 } from "../lib/hooks";
 import { useToast } from "./Toast";
 import ErrorAlert from "./ErrorAlert";
 import { COLOR_OPTIONS } from "../lib/constants";
+import { epicFormOpts } from "./epics/epic-form-opts";
+import { epicFormSchema } from "./epics/epic-form-schema";
 
 interface Epic {
   id: string;
@@ -35,9 +37,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   const titleInputRef = useRef<HTMLInputElement>(null);
   const isEditing = Boolean(epic);
 
-  const [title, setTitle] = useState(epic?.title ?? "");
-  const [description, setDescription] = useState(epic?.description ?? "");
-  const [color, setColor] = useState(epic?.color ?? "");
+  // UI state (not form data)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isStartingRalph, setIsStartingRalph] = useState(false);
   // Auto-clears to null after 5 seconds for notification clearing
@@ -61,9 +61,19 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   // Settings and Ralph hooks
   const { settings } = useSettings();
   const launchRalphMutation = useLaunchRalphForEpic();
-  // Docker availability check - not currently used since Docker options are disabled
-  // but keeping the hook call for future re-enablement
-  useDockerAvailability();
+
+  // TanStack Form for epic data
+  const form = useForm({
+    ...epicFormOpts,
+    defaultValues: {
+      title: epic?.title ?? "",
+      description: epic?.description ?? "",
+      color: epic?.color ?? "",
+    },
+    validators: {
+      onChange: epicFormSchema,
+    },
+  });
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const isDeleting = deleteMutation.isPending;
@@ -90,8 +100,16 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   );
 
   const handleSave = () => {
-    const trimmedTitle = title.trim();
-    if (!trimmedTitle) return;
+    const formValues = form.state.values;
+    const trimmedTitle = formValues.title.trim();
+    if (!trimmedTitle) {
+      // Show feedback for empty title instead of silent return
+      showToast("error", "Epic title is required");
+      return;
+    }
+
+    const trimmedDescription = formValues.description.trim();
+    const colorValue = formValues.color;
 
     if (isEditing && epic) {
       updateMutation.mutate(
@@ -99,21 +117,37 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
           id: epic.id,
           updates: {
             title: trimmedTitle,
-            ...(description.trim() ? { description: description.trim() } : {}),
-            ...(color ? { color } : {}),
+            ...(trimmedDescription ? { description: trimmedDescription } : {}),
+            ...(colorValue ? { color: colorValue } : {}),
           },
         },
-        { onSuccess: onSave }
+        {
+          onSuccess: onSave,
+          onError: (err) => {
+            showToast(
+              "error",
+              `Failed to update epic: ${err instanceof Error ? err.message : "Unknown error"}`
+            );
+          },
+        }
       );
     } else {
       createMutation.mutate(
         {
           title: trimmedTitle,
           projectId,
-          ...(description.trim() ? { description: description.trim() } : {}),
-          ...(color ? { color } : {}),
+          ...(trimmedDescription ? { description: trimmedDescription } : {}),
+          ...(colorValue ? { color: colorValue } : {}),
         },
-        { onSuccess: onSave }
+        {
+          onSuccess: onSave,
+          onError: (err) => {
+            showToast(
+              "error",
+              `Failed to create epic: ${err instanceof Error ? err.message : "Unknown error"}`
+            );
+          },
+        }
       );
     }
   };
@@ -192,7 +226,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
         }
         // Auto-hide is handled by useAutoClearState hook
       } catch (error) {
-        console.error("Failed to start Ralph:", error);
+        // Error is displayed to user via notification - no console.error needed
         const errorMessage = error instanceof Error ? error.message : "Failed to launch Ralph";
         setRalphNotification({
           type: "error",
@@ -268,63 +302,101 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
           )}
 
           {/* Title */}
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              Title <span className="text-[var(--accent-danger)]">*</span>
-            </label>
-            <input
-              ref={titleInputRef}
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Epic name"
-              className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] "
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              Description
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={5}
-              placeholder="Optional description..."
-              className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] resize-vertical min-h-[100px]"
-            />
-          </div>
-
-          {/* Color */}
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              Color
-            </label>
-            <div className="relative">
-              <select
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
-                className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none "
-              >
-                {COLOR_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={16}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
-              />
-            </div>
-            {color && (
-              <div className="mt-2 flex items-center gap-2">
-                <span className="w-4 h-4 rounded" style={{ backgroundColor: color }} />
-                <span className="text-xs text-[var(--text-secondary)]">Preview</span>
+          <form.Field
+            name="title"
+            children={(field) => (
+              <div>
+                <label
+                  htmlFor={field.name}
+                  className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+                >
+                  Title <span className="text-[var(--accent-danger)]">*</span>
+                </label>
+                <input
+                  ref={titleInputRef}
+                  id={field.name}
+                  type="text"
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                  placeholder="Epic name"
+                  className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)]"
+                />
+                {field.state.meta.isTouched && field.state.meta.errors.length > 0 && (
+                  <p className="mt-1 text-sm text-[var(--accent-danger)]" role="alert">
+                    {field.state.meta.errors.join(", ")}
+                  </p>
+                )}
               </div>
             )}
-          </div>
+          />
+
+          {/* Description */}
+          <form.Field
+            name="description"
+            children={(field) => (
+              <div>
+                <label
+                  htmlFor={field.name}
+                  className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+                >
+                  Description
+                </label>
+                <textarea
+                  id={field.name}
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                  rows={5}
+                  placeholder="Optional description..."
+                  className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] resize-vertical min-h-[100px]"
+                />
+              </div>
+            )}
+          />
+
+          {/* Color */}
+          <form.Field
+            name="color"
+            children={(field) => (
+              <div>
+                <label
+                  htmlFor={field.name}
+                  className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+                >
+                  Color
+                </label>
+                <div className="relative">
+                  <select
+                    id={field.name}
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    onBlur={field.handleBlur}
+                    className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none"
+                  >
+                    {COLOR_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={16}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
+                  />
+                </div>
+                {field.state.value && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span
+                      className="w-4 h-4 rounded"
+                      style={{ backgroundColor: field.state.value }}
+                    />
+                    <span className="text-xs text-[var(--text-secondary)]">Preview</span>
+                  </div>
+                )}
+              </div>
+            )}
+          />
         </div>
 
         {/* Ralph Notification */}
@@ -332,8 +404,8 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
           <div
             className={`mx-4 mb-0 p-3 rounded-lg text-sm ${
               ralphNotification.type === "success"
-                ? "bg-green-900/50 text-green-300 border border-green-800"
-                : "bg-red-900/50 text-red-300 border border-red-800"
+                ? "bg-[var(--success-muted)] text-[var(--success-text)] border border-[var(--success)]/50"
+                : "bg-[var(--accent-danger)]/20 text-[var(--accent-danger)] border border-[var(--accent-danger)]/50"
             }`}
           >
             <div className="flex items-start gap-2">
@@ -342,14 +414,14 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                 <span>{ralphNotification.message}</span>
                 {/* Editor-specific instructions (VS Code, OpenCode, etc.) */}
                 {ralphNotification.launchMethod === "vscode" && ralphNotification.contextFile && (
-                  <div className="mt-2 text-xs text-green-400/80">
+                  <div className="mt-2 text-xs text-[var(--success)]/80">
                     <p className="font-medium">Next steps:</p>
                     <ol className="list-decimal list-inside mt-1 space-y-0.5">
                       <li>Open the Ralph context file in your editor</li>
                       <li>Start a new chat with your AI assistant</li>
                       <li>Ask the AI to read and follow the instructions</li>
                     </ol>
-                    <p className="mt-1.5 text-green-300/60 font-mono truncate">
+                    <p className="mt-1.5 text-[var(--success-text)]/60 font-mono truncate">
                       {ralphNotification.contextFile.replace(/^.*\/\.claude\//, ".claude/")}
                     </p>
                   </div>
@@ -357,7 +429,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
               </div>
               <button
                 onClick={() => setRalphNotification(null)}
-                className="text-slate-400 hover:text-gray-100 flex-shrink-0"
+                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex-shrink-0"
               >
                 <X size={14} />
               </button>
@@ -382,14 +454,22 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
           {/* Action Split Button */}
           <div className="relative" ref={actionMenuRef}>
             <div className="flex">
-              <button
-                onClick={handleSave}
-                disabled={isSaving || !title.trim()}
-                className={`flex items-center gap-2 px-4 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] font-medium transition-colors ${isEditing ? "rounded-l-lg" : "rounded-lg"}`}
-              >
-                {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                <span>{isEditing ? "Save Changes" : "Create Epic"}</span>
-              </button>
+              <form.Subscribe
+                selector={(state) => ({
+                  canSubmit: state.canSubmit,
+                  title: state.values.title,
+                })}
+                children={({ canSubmit, title }) => (
+                  <button
+                    onClick={handleSave}
+                    disabled={isSaving || !title.trim() || !canSubmit}
+                    className={`flex items-center gap-2 px-4 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] font-medium transition-colors ${isEditing ? "rounded-l-lg" : "rounded-lg"}`}
+                  >
+                    {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                    <span>{isEditing ? "Save Changes" : "Create Epic"}</span>
+                  </button>
+                )}
+              />
               {isEditing && (
                 <button
                   onClick={() => setShowActionMenu(!showActionMenu)}

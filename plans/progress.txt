@@ -120,3 +120,42 @@
   - 102: Responsive board with horizontal scroll (pending)
   - 103: Responsive full-screen modals on mobile (pending)
 - **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1359 passed)
+
+---
+
+### 2026-01-22 08:46:44 - Session Timeout
+- **Reason:** Timeout reached (2h limit)
+- **Status:** Session terminated, work may be incomplete
+- **Action:** Review progress and restart if needed
+
+### 2026-01-22 - Ticket Complete (FormField Wrapper Component)
+- **Ticket ID:** 02f076f0-3813-4fe3-bd8d-733e510601a6
+- **Task:** Create reusable FormField wrapper component
+- **Success:** true
+- **Commit:** c142427
+- **Files:**
+  - src/components/FormField.tsx (NEW)
+- **Features:**
+  - Label with proper htmlFor association for accessibility
+  - Optional description text displayed below labels
+  - Error message display with role="alert" for screen reader announcement
+  - Uses CSS variable design system for theme support
+  - Minimal FieldState interface for practical compatibility with any TanStack Form field type
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1359 passed)
+
+### 2026-01-22 - PRD Reconciliation (Attachment Feature)
+- **Ticket ID:** 0fdb4a12-212a-48ba-8325-f7c1f6bf317a
+- **Task:** Send ticket attachments to LLM in start_ticket_work
+- **Status:** PRD reconciliation - work was already completed
+- **PR:** #69 (merged)
+- **Commits:** 270da27, d9221f4, 5941228
+- **Implementation:** Already complete in mcp-server/tools/workflow.js
+  - loadTicketAttachments() function loads images/text/references
+  - Images (PNG, JPEG, GIF, WebP, SVG) are base64-encoded as MCP image blocks
+  - Text files (TXT, MD, JSON) are included with code fences
+  - PDFs and other files are referenced by path
+  - 5MB size limit enforced
+  - Path traversal protection via filename sanitization
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1359 passed)
+- **Action:** Marked PRD ticket as passes: true
+

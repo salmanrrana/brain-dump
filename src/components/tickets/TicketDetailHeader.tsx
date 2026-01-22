@@ -108,7 +108,7 @@ export const TicketDetailHeader: FC<TicketDetailHeaderProps> = ({
   // Get badge configurations
   const statusConfig = STATUS_BADGE_CONFIG[ticket.status] ?? {
     label: ticket.status,
-    className: "bg-slate-700 text-slate-300",
+    className: "bg-[var(--bg-tertiary)] text-[var(--text-secondary)]",
   };
 
   const priorityConfig = ticket.priority ? PRIORITY_BADGE_CONFIG[ticket.priority] : null;

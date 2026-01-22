@@ -56,7 +56,7 @@ function getStatusIndicator(status: ServiceStatus): {
   switch (status) {
     case "running":
       return {
-        color: "bg-green-500",
+        color: "bg-[var(--success)]",
         pulseClass: "animate-pulse",
         label: "Running",
       };
@@ -68,7 +68,7 @@ function getStatusIndicator(status: ServiceStatus): {
       };
     case "stopped":
       return {
-        color: "bg-slate-500",
+        color: "bg-[var(--text-muted)]",
         pulseClass: "",
         label: "Stopped",
       };
@@ -135,7 +135,7 @@ function ContainerRow({
   const isStopped = service.status === "stopped";
 
   return (
-    <div className="py-2 px-2 hover:bg-slate-800/50 rounded transition-colors">
+    <div className="py-2 px-2 hover:bg-[var(--bg-hover)]/50 rounded transition-colors">
       {/* Top row: status + name + action buttons */}
       <div className="flex items-center gap-2">
         {/* Status indicator */}
@@ -146,18 +146,18 @@ function ContainerRow({
         />
 
         {/* Service name */}
-        <span className="text-sm text-gray-100 flex-1 truncate" title={service.name}>
+        <span className="text-sm text-[var(--text-primary)] flex-1 truncate" title={service.name}>
           {service.name}
         </span>
 
         {/* Port (for running services) */}
-        {isRunning && <span className="text-xs text-slate-400">:{service.port}</span>}
+        {isRunning && <span className="text-xs text-[var(--text-secondary)]">:{service.port}</span>}
 
         {/* Action buttons */}
         {isLoading ? (
           <Loader2
             size={14}
-            className="animate-spin text-slate-400"
+            className="animate-spin text-[var(--text-secondary)]"
             aria-label="Loading"
             aria-busy="true"
           />
@@ -173,7 +173,7 @@ function ContainerRow({
         ) : isStopped ? (
           <button
             onClick={onStart}
-            className="p-1 hover:bg-green-900/50 rounded transition-colors text-green-400 hover:text-green-300"
+            className="p-1 hover:bg-[var(--success)]/20 rounded transition-colors text-[var(--success)] hover:text-[var(--success)]/80"
             title={`Start ${service.name}`}
             aria-label={`Start ${service.name}`}
           >
@@ -185,16 +185,19 @@ function ContainerRow({
       {/* Bottom row: connection string + copy button (only for running services) */}
       {isRunning && connectionString && (
         <div className="flex items-center gap-2 mt-1 ml-4">
-          <span className="text-xs text-slate-500 truncate flex-1" title={connectionString}>
+          <span
+            className="text-xs text-[var(--text-muted)] truncate flex-1"
+            title={connectionString}
+          >
             {connectionString}
           </span>
           <button
             onClick={() => onCopy(connectionString)}
-            className="p-1 hover:bg-slate-700 rounded transition-colors text-slate-400 hover:text-gray-100"
+            className="p-1 hover:bg-[var(--bg-hover)] rounded transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             title={isCopied ? "Copied!" : "Copy connection string"}
             aria-label={isCopied ? "Copied" : "Copy connection string"}
           >
-            {isCopied ? <Check size={12} className="text-green-400" /> : <Copy size={12} />}
+            {isCopied ? <Check size={12} className="text-[var(--success)]" /> : <Copy size={12} />}
           </button>
         </div>
       )}
@@ -358,11 +361,11 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
           aria-expanded={isExpanded}
           aria-controls="container-status-list"
         >
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+          <h2 className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
             Containers
           </h2>
           {/* Expand/collapse icon */}
-          <span className="text-slate-400 group-hover:text-gray-100 transition-colors">
+          <span className="text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
             {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </span>
         </button>
@@ -379,23 +382,23 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
                   aria-label="Confirmation required"
                 >
                   {stopAllLoading ? (
-                    <span className="text-slate-400 flex items-center gap-1">
+                    <span className="text-[var(--text-secondary)] flex items-center gap-1">
                       <Loader2 size={12} className="animate-spin" />
                       Stopping...
                     </span>
                   ) : (
                     <>
-                      <span className="text-slate-300">Stop all?</span>
+                      <span className="text-[var(--text-primary)]">Stop all?</span>
                       <button
                         onClick={handleStopAll}
-                        className="px-1.5 py-0.5 bg-red-900/50 hover:bg-red-900/70 text-red-300 rounded transition-colors"
+                        className="px-1.5 py-0.5 bg-[color-mix(in_srgb,var(--error)_20%,transparent)] hover:bg-[color-mix(in_srgb,var(--error)_30%,transparent)] text-[var(--error)] rounded transition-colors"
                         aria-label="Confirm stop all containers"
                       >
                         Yes
                       </button>
                       <button
                         onClick={() => setStopAllConfirming(false)}
-                        className="px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded transition-colors"
+                        className="px-1.5 py-0.5 bg-[var(--bg-hover)] hover:bg-[var(--bg-active)] text-[var(--text-primary)] rounded transition-colors"
                         aria-label="Cancel"
                       >
                         No
@@ -417,7 +420,7 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
 
           {/* Running count badge */}
           {runningCount > 0 && (
-            <span className="text-xs bg-green-900/50 text-green-400 px-1.5 py-0.5 rounded">
+            <span className="text-xs bg-[var(--success)]/20 text-[var(--success)] px-1.5 py-0.5 rounded">
               {runningCount}
             </span>
           )}
@@ -435,7 +438,7 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
       >
         {/* Loading state */}
         {loading && !hasServices && (
-          <div className="flex items-center gap-2 py-2 text-slate-400">
+          <div className="flex items-center gap-2 py-2 text-[var(--text-secondary)]">
             <Loader2 size={14} className="animate-spin" />
             <span className="text-xs">Loading services...</span>
           </div>
@@ -451,7 +454,7 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
 
         {/* Empty state (project has no services) */}
         {!loading && !error && services.length === 0 && !hasRalphContainer && (
-          <div className="text-xs text-slate-500 py-2">No containers configured</div>
+          <div className="text-xs text-[var(--text-muted)] py-2">No containers configured</div>
         )}
 
         {/* Service/container list */}
@@ -461,50 +464,62 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
             {hasRalphContainer && ralphContainer && (
               <button
                 onClick={() => setLogsModalOpen(true)}
-                className="w-full py-2 px-2 hover:bg-slate-800/50 rounded transition-colors text-left"
+                className="w-full py-2 px-2 hover:bg-[var(--bg-hover)]/50 rounded transition-colors text-left"
                 title="Click to view logs"
               >
                 <div className="flex items-center gap-2">
                   {/* Status indicator */}
                   <span
-                    className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"
+                    className="w-2 h-2 rounded-full bg-[var(--accent-ai)] animate-pulse"
                     title="Running"
                     aria-label="Running"
                   />
 
                   {/* Container name with Docker container icon */}
-                  <Container size={14} className="text-cyan-400" />
-                  <span className="text-sm text-gray-100 flex-1 truncate">Ralph (Docker)</span>
+                  <Container size={14} className="text-[var(--accent-ai)]" />
+                  <span className="text-sm text-[var(--text-primary)] flex-1 truncate">
+                    Ralph (Docker)
+                  </span>
 
                   {/* View logs hint */}
-                  <span className="text-xs text-slate-500">View logs</span>
+                  <span className="text-xs text-[var(--text-muted)]">View logs</span>
                 </div>
 
                 {/* Resource stats (CPU/Memory) - only shown when available */}
                 {ralphStats && (
-                  <div className="ml-6 mt-1 text-xs text-slate-400 flex gap-3">
+                  <div className="ml-6 mt-1 text-xs text-[var(--text-secondary)] flex gap-3">
                     <span title={`CPU: ${ralphStats.cpuPercent}`}>
-                      CPU: <span className="text-cyan-400">{ralphStats.cpuPercent}</span>
+                      CPU: <span className="text-[var(--accent-ai)]">{ralphStats.cpuPercent}</span>
                     </span>
                     <span title={ralphStats.memUsage}>
                       RAM:{" "}
-                      <span className="text-cyan-400">{formatBytes(ralphStats.memUsedBytes)}</span>
+                      <span className="text-[var(--accent-ai)]">
+                        {formatBytes(ralphStats.memUsedBytes)}
+                      </span>
                     </span>
                   </div>
                 )}
 
                 {/* Project origin info - show which project/epic started this container */}
                 {ralphContainer.projectName && (
-                  <div className="ml-6 mt-1 text-xs text-slate-500 truncate">
-                    Started by: <span className="text-slate-400">{ralphContainer.projectName}</span>
+                  <div className="ml-6 mt-1 text-xs text-[var(--text-muted)] truncate">
+                    Started by:{" "}
+                    <span className="text-[var(--text-secondary)]">
+                      {ralphContainer.projectName}
+                    </span>
                     {ralphContainer.epicTitle && (
-                      <span className="text-slate-500"> ({ralphContainer.epicTitle})</span>
+                      <span className="text-[var(--text-muted)]">
+                        {" "}
+                        ({ralphContainer.epicTitle})
+                      </span>
                     )}
                   </div>
                 )}
                 {/* Containers without labels show "Unknown" origin */}
                 {!ralphContainer.projectName && (
-                  <div className="ml-6 mt-1 text-xs text-slate-500">Started by: Unknown</div>
+                  <div className="ml-6 mt-1 text-xs text-[var(--text-muted)]">
+                    Started by: Unknown
+                  </div>
                 )}
               </button>
             )}

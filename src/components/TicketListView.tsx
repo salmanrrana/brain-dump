@@ -93,37 +93,45 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
   };
 
   return (
-    <div className="bg-slate-900 rounded-lg overflow-hidden">
+    <div className="bg-[var(--bg-secondary)] rounded-lg overflow-hidden">
       <table className="w-full">
         <thead>
-          <tr className="border-b border-slate-800">
+          <tr className="border-b border-[var(--border-primary)]">
             <th
-              className="text-left px-4 py-3 text-sm font-medium text-slate-400 cursor-pointer hover:text-gray-100"
+              className="text-left px-4 py-3 text-sm font-medium text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)]"
               onClick={() => handleSort("title")}
             >
               Title
               <SortIcon field="title" sortField={sortField} sortDirection={sortDirection} />
             </th>
             <th
-              className="text-left px-4 py-3 text-sm font-medium text-slate-400 cursor-pointer hover:text-gray-100"
+              className="text-left px-4 py-3 text-sm font-medium text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)]"
               onClick={() => handleSort("status")}
             >
               Status
               <SortIcon field="status" sortField={sortField} sortDirection={sortDirection} />
             </th>
             <th
-              className="text-left px-4 py-3 text-sm font-medium text-slate-400 cursor-pointer hover:text-gray-100"
+              className="text-left px-4 py-3 text-sm font-medium text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)]"
               onClick={() => handleSort("priority")}
             >
               Priority
               <SortIcon field="priority" sortField={sortField} sortDirection={sortDirection} />
             </th>
-            <th className="text-left px-4 py-3 text-sm font-medium text-slate-400">Epic</th>
-            <th className="text-left px-4 py-3 text-sm font-medium text-slate-400">Tags</th>
-            <th className="text-left px-4 py-3 text-sm font-medium text-slate-400">Branch / PR</th>
-            <th className="text-left px-4 py-3 text-sm font-medium text-slate-400">Subtasks</th>
+            <th className="text-left px-4 py-3 text-sm font-medium text-[var(--text-secondary)]">
+              Epic
+            </th>
+            <th className="text-left px-4 py-3 text-sm font-medium text-[var(--text-secondary)]">
+              Tags
+            </th>
+            <th className="text-left px-4 py-3 text-sm font-medium text-[var(--text-secondary)]">
+              Branch / PR
+            </th>
+            <th className="text-left px-4 py-3 text-sm font-medium text-[var(--text-secondary)]">
+              Subtasks
+            </th>
             <th
-              className="text-left px-4 py-3 text-sm font-medium text-slate-400 cursor-pointer hover:text-gray-100"
+              className="text-left px-4 py-3 text-sm font-medium text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)]"
               onClick={() => handleSort("createdAt")}
             >
               Created
@@ -134,7 +142,7 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
         <tbody>
           {sortedTickets.length === 0 ? (
             <tr>
-              <td colSpan={8} className="px-4 py-8 text-center text-slate-500 text-sm">
+              <td colSpan={8} className="px-4 py-8 text-center text-[var(--text-muted)] text-sm">
                 No tickets found
               </td>
             </tr>
@@ -152,17 +160,17 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
                 <tr
                   key={ticket.id}
                   onClick={() => onTicketClick(ticket)}
-                  className="border-b border-slate-800 hover:bg-slate-800/50 cursor-pointer"
+                  className="border-b border-[var(--border-primary)] hover:bg-[var(--bg-hover)]/50 cursor-pointer"
                 >
                   {/* Title with blocked indicator */}
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       {ticket.isBlocked && (
                         <span title={ticket.blockedReason ?? "Blocked"}>
-                          <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
+                          <AlertCircle size={14} className="text-[var(--error)] flex-shrink-0" />
                         </span>
                       )}
-                      <span className="text-sm text-gray-100 truncate max-w-xs">
+                      <span className="text-sm text-[var(--text-primary)] truncate max-w-xs">
                         {ticket.title}
                       </span>
                     </div>
@@ -181,7 +189,9 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
                   {/* Epic */}
                   <td className="px-4 py-3">
                     {epic && (
-                      <span className="text-sm text-slate-300 truncate max-w-xs">{epic.title}</span>
+                      <span className="text-sm text-[var(--text-primary)] truncate max-w-xs">
+                        {epic.title}
+                      </span>
                     )}
                   </td>
 
@@ -191,13 +201,13 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
                       {tags.slice(0, 3).map((tag) => (
                         <span
                           key={tag}
-                          className="text-xs px-2 py-0.5 bg-slate-700 text-slate-300 rounded"
+                          className="text-xs px-2 py-0.5 bg-[var(--bg-hover)] text-[var(--text-primary)] rounded"
                         >
                           {tag}
                         </span>
                       ))}
                       {tags.length > 3 && (
-                        <span className="text-xs text-slate-500">+{tags.length - 3}</span>
+                        <span className="text-xs text-[var(--text-muted)]">+{tags.length - 3}</span>
                       )}
                     </div>
                   </td>
@@ -207,10 +217,10 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
                     <div className="flex items-center gap-2">
                       {ticket.branchName && (
                         <span
-                          className="flex items-center gap-1 text-xs text-slate-400"
+                          className="flex items-center gap-1 text-xs text-[var(--text-secondary)]"
                           title={ticket.branchName}
                         >
-                          <GitBranch size={12} className="text-cyan-400" />
+                          <GitBranch size={12} className="text-[var(--accent-ai)]" />
                           <span className="truncate max-w-[120px]">
                             {ticket.branchName.replace(/^feature\//, "")}
                           </span>
@@ -230,14 +240,14 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
                   {/* Subtasks */}
                   <td className="px-4 py-3">
                     {subtasks.length > 0 && (
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-[var(--text-secondary)]">
                         {completedSubtasks}/{subtasks.length}
                       </span>
                     )}
                   </td>
 
                   {/* Created date */}
-                  <td className="px-4 py-3 text-sm text-slate-400">
+                  <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">
                     {formatDate(ticket.createdAt)}
                   </td>
                 </tr>
@@ -253,7 +263,7 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
 function StatusBadge({ status }: { status: string }) {
   const config = STATUS_BADGE_CONFIG[status] ?? {
     label: status,
-    className: "bg-slate-700 text-slate-300",
+    className: "bg-[var(--bg-hover)] text-[var(--text-primary)]",
   };
 
   return <span className={`text-xs px-2 py-1 rounded ${config.className}`}>{config.label}</span>;
@@ -262,7 +272,7 @@ function StatusBadge({ status }: { status: string }) {
 function PriorityBadge({ priority }: { priority: string }) {
   const config = PRIORITY_BADGE_CONFIG[priority] ?? {
     label: priority,
-    className: "bg-slate-700 text-slate-300",
+    className: "bg-[var(--bg-hover)] text-[var(--text-primary)]",
   };
 
   return <span className={`text-xs px-2 py-1 rounded ${config.className}`}>{config.label}</span>;

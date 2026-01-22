@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useForm } from "@tanstack/react-form-start";
 import {
   useModalKeyboard,
   useClickOutside,
   useDeleteTicket,
   useTicketDeletePreview,
-  useDockerAvailability,
 } from "../lib/hooks";
 import DeleteConfirmationModal from "./DeleteConfirmationModal";
 import {
@@ -50,7 +50,7 @@ import {
 import { RalphStatusBadge } from "./RalphStatusBadge";
 import type { ServiceType } from "../lib/service-discovery";
 import { useToast } from "./Toast";
-import type { Subtask, TicketStatus, TicketPriority } from "../api/tickets";
+import type { TicketStatus, TicketPriority } from "../api/tickets";
 import {
   getAttachments,
   uploadAttachment,
@@ -67,6 +67,8 @@ import {
 import { getTicketContext } from "../api/context";
 import { launchClaudeInTerminal, launchOpenCodeInTerminal } from "../api/terminal";
 import { safeJsonParse } from "../lib/utils";
+import { ticketFormOpts } from "./tickets/ticket-form-opts";
+import { ticketFormSchema, type TicketFormData, type Subtask } from "./tickets/ticket-form-schema";
 
 interface TicketModalProps {
   ticket: Ticket;
@@ -77,22 +79,22 @@ interface TicketModalProps {
 
 // Comment type styling lookup objects to avoid nested ternaries
 const COMMENT_CONTAINER_STYLES: Record<string, string> = {
-  progress: "p-2 bg-blue-900/20 border border-blue-800/50",
-  work_summary: "p-3 bg-purple-900/30 border border-purple-800",
-  test_report: "p-3 bg-green-900/30 border border-green-800",
-  comment: "p-3 bg-slate-800",
+  progress: "p-2 bg-[var(--info-muted)] border border-[var(--info)]/50",
+  work_summary: "p-3 bg-[var(--status-review)]/20 border border-[var(--status-review)]/50",
+  test_report: "p-3 bg-[var(--success-muted)] border border-[var(--success)]/50",
+  comment: "p-3 bg-[var(--bg-tertiary)]",
 };
 
 const COMMENT_AUTHOR_STYLES: Record<string, string> = {
-  ralph: "text-purple-400",
-  claude: "text-cyan-400",
-  user: "text-slate-300",
+  ralph: "text-[var(--status-review)]",
+  claude: "text-[var(--accent-ai)]",
+  user: "text-[var(--text-primary)]",
 };
 
 const COMMENT_BADGE_STYLES: Record<string, string> = {
-  progress: "bg-blue-800 text-blue-200",
-  work_summary: "bg-purple-800 text-purple-200",
-  test_report: "bg-green-800 text-green-200",
+  progress: "bg-[var(--info)] text-white",
+  work_summary: "bg-[var(--status-review)] text-white",
+  test_report: "bg-[var(--success)] text-white",
 };
 
 const COMMENT_BADGE_LABELS: Record<string, string> = {
@@ -112,12 +114,12 @@ const SERVICE_TYPE_ICONS: Record<ServiceType, typeof Globe> = {
 };
 
 const SERVICE_TYPE_COLORS: Record<ServiceType, string> = {
-  frontend: "text-cyan-400",
-  backend: "text-purple-400",
-  storybook: "text-pink-400",
-  docs: "text-green-400",
-  database: "text-yellow-400",
-  other: "text-slate-400",
+  frontend: "text-[var(--accent-ai)]",
+  backend: "text-[var(--status-review)]",
+  storybook: "text-[var(--accent-primary)]",
+  docs: "text-[var(--success)]",
+  database: "text-[var(--warning)]",
+  other: "text-[var(--text-secondary)]",
 };
 
 // Stable empty state for tag suggestions to prevent recreation on every render
@@ -125,37 +127,58 @@ const EMPTY_TAG_STATE = { tagSuggestions: [] as string[], showCreateHelper: fals
 
 export default function TicketModal({ ticket, epics, onClose, onUpdate }: TicketModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
-  const [title, setTitle] = useState(ticket.title);
-  const [description, setDescription] = useState(ticket.description ?? "");
-  const [status, setStatus] = useState<TicketStatus>(ticket.status as TicketStatus);
-  const [priority, setPriority] = useState<TicketPriority | "">(
-    (ticket.priority as TicketPriority) ?? ""
-  );
-  const [epicId, setEpicId] = useState(ticket.epicId ?? "");
-  const [tags, setTags] = useState<string[]>(() => safeJsonParse(ticket.tags, []));
-  const [subtasks, setSubtasks] = useState<Subtask[]>(() => safeJsonParse(ticket.subtasks, []));
-  const [isBlocked, setIsBlocked] = useState(ticket.isBlocked ?? false);
-  const [blockedReason, setBlockedReason] = useState(ticket.blockedReason ?? "");
+
+  // TanStack Form - replaces 10 form-related useState hooks
+  const form = useForm({
+    ...ticketFormOpts,
+    defaultValues: {
+      title: ticket.title,
+      description: ticket.description ?? "",
+      status: ticket.status as TicketFormData["status"],
+      priority: (ticket.priority as TicketFormData["priority"]) ?? undefined,
+      epicId: ticket.epicId ?? undefined,
+      tags: safeJsonParse<string[]>(ticket.tags, []),
+      subtasks: safeJsonParse<Subtask[]>(ticket.subtasks, []),
+      isBlocked: ticket.isBlocked ?? false,
+      blockedReason: ticket.blockedReason ?? "",
+    },
+    validators: {
+      onChange: ticketFormSchema,
+    },
+  });
+
+  // UI state for tag input (not form data - intermediate input state)
   const [newTag, setNewTag] = useState("");
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
   const tagInputRef = useRef<HTMLInputElement>(null);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
+
+  // UI state for subtask input (not form data - intermediate input state)
   const [newSubtask, setNewSubtask] = useState("");
+
+  // Attachments - kept as separate state per acceptance criteria (file uploads don't fit form model)
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Start work UI state
   const [isStartingWork, setIsStartingWork] = useState(false);
-  // Auto-clears to null after 5 seconds for notification clearing
   const [startWorkNotification, setStartWorkNotification] = useAutoClearState<{
     type: "success" | "error";
     message: string;
   }>();
   const [showStartWorkMenu, setShowStartWorkMenu] = useState(false);
   const startWorkMenuRef = useRef<HTMLDivElement>(null);
+
+  // Delete confirmation state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Comments state
+  const [newComment, setNewComment] = useState("");
+  const [showComments, setShowComments] = useState(true);
 
   // Use mutation hook for type-safe updates with cache invalidation
   const updateTicketMutation = useUpdateTicket();
@@ -168,10 +191,6 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
 
   // Ralph mutation hook
   const launchRalphMutation = useLaunchRalphForTicket();
-
-  // Docker availability for Ralph sandbox mode - not currently used since Docker options are disabled
-  // but keeping the hook call for future re-enablement
-  useDockerAvailability();
 
   // Delete mutation hook
   const deleteTicketMutation = useDeleteTicket();
@@ -186,25 +205,30 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     return project?.path ?? null;
   }, [projects, ticket.projectId]);
 
+  // Get current status from form for conditional rendering
+  const currentStatus = form.state.values.status;
+
   // Service discovery - poll when ticket is in progress
   const { runningServices, error: servicesError } = useProjectServices(projectPath, {
-    enabled: status === "in_progress",
+    enabled: currentStatus === "in_progress",
     pollingInterval: POLLING_INTERVALS.SERVICES,
   });
 
   // Comments - poll when ticket is in progress (Ralph might be working)
   const { comments, loading: commentsLoading } = useComments(ticket.id, {
     pollingInterval:
-      status === "in_progress" ? POLLING_INTERVALS.COMMENTS_ACTIVE : POLLING_INTERVALS.DISABLED,
+      currentStatus === "in_progress"
+        ? POLLING_INTERVALS.COMMENTS_ACTIVE
+        : POLLING_INTERVALS.DISABLED,
   });
   const createCommentMutation = useCreateComment();
-  const [newComment, setNewComment] = useState("");
-  const [showComments, setShowComments] = useState(true);
 
   // Ralph session status - poll when ticket is in progress
   const { getSession: getRalphSession } = useActiveRalphSessions({
     pollingInterval:
-      status === "in_progress" ? POLLING_INTERVALS.COMMENTS_ACTIVE : POLLING_INTERVALS.DISABLED,
+      currentStatus === "in_progress"
+        ? POLLING_INTERVALS.COMMENTS_ACTIVE
+        : POLLING_INTERVALS.DISABLED,
   });
   const ralphSession = getRalphSession(ticket.id);
 
@@ -223,8 +247,9 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     }
 
     const inputLower = trimmedInput.toLowerCase();
+    const currentTags = form.state.values.tags;
     const suggestions = existingTags.filter(
-      (tag) => tag.toLowerCase().includes(inputLower) && !tags.includes(tag)
+      (tag) => tag.toLowerCase().includes(inputLower) && !currentTags.includes(tag)
     );
     const exactMatch = existingTags.some((tag) => tag.toLowerCase() === inputLower);
 
@@ -232,7 +257,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
       tagSuggestions: suggestions,
       showCreateHelper: suggestions.length === 0 && !exactMatch,
     };
-  }, [newTag, existingTags, tags]);
+  }, [newTag, existingTags, form.state.values.tags]);
 
   // Modal keyboard handling (Escape, focus trap)
   useModalKeyboard(modalRef, onClose, {
@@ -419,8 +444,8 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
       }
 
       if (launchResult.success && launchResult.method === "terminal") {
-        // Update local status to in_progress
-        setStatus("in_progress");
+        // Update form status to in_progress
+        form.setFieldValue("status", "in_progress");
 
         setStartWorkNotification({
           type: "success",
@@ -475,7 +500,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     } finally {
       setIsStartingWork(false);
     }
-  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification]);
+  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification, form]);
 
   // Handle Start Ralph - autonomous mode
   // useSandbox param allows explicit choice at launch time, overriding settings default
@@ -507,7 +532,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
         }
 
         if (result.success) {
-          setStatus("in_progress");
+          form.setFieldValue("status", "in_progress");
           setStartWorkNotification({
             type: "success",
             message: result.message,
@@ -540,6 +565,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
       launchRalphMutation,
       showToast,
       setStartWorkNotification,
+      form,
     ]
   );
 
@@ -572,7 +598,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
       }
 
       if (launchResult.success && launchResult.method === "terminal") {
-        setStatus("in_progress");
+        form.setFieldValue("status", "in_progress");
         setStartWorkNotification({
           type: "success",
           message: `OpenCode launched in ${launchResult.terminalUsed}! Ticket moved to In Progress.`,
@@ -619,7 +645,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     } finally {
       setIsStartingWork(false);
     }
-  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification]);
+  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification, form]);
 
   // Handle adding a comment
   const handleAddComment = useCallback(() => {
@@ -667,124 +693,159 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
   }, [ticket.id, ticket.title, deleteTicketMutation, showToast, onClose, onUpdate]);
 
   const handleSave = useCallback(() => {
+    const values = form.state.values;
+
     // Build updates object conditionally to satisfy exactOptionalPropertyTypes
     const updates: Parameters<typeof updateTicketMutation.mutate>[0]["updates"] = {
-      title: title.trim(),
-      description: description.trim() || null,
-      status,
-      epicId: epicId || null,
-      isBlocked,
-      blockedReason: isBlocked ? blockedReason : null,
+      title: values.title.trim(),
+      description: values.description.trim() || null,
+      status: values.status,
+      epicId: values.epicId || null,
+      isBlocked: values.isBlocked,
+      blockedReason: values.isBlocked ? values.blockedReason : null,
     };
 
     // Only include optional fields if they have values
-    if (priority) {
-      updates.priority = priority;
+    if (values.priority) {
+      updates.priority = values.priority;
     }
-    if (tags.length > 0) {
-      updates.tags = tags;
+    if (values.tags.length > 0) {
+      updates.tags = values.tags;
     }
-    if (subtasks.length > 0) {
-      updates.subtasks = subtasks;
+    if (values.subtasks.length > 0) {
+      updates.subtasks = values.subtasks;
     }
 
     updateTicketMutation.mutate({ id: ticket.id, updates }, { onSuccess: onUpdate });
-  }, [
-    ticket.id,
-    title,
-    description,
-    status,
-    priority,
-    epicId,
-    tags,
-    subtasks,
-    isBlocked,
-    blockedReason,
-    onUpdate,
-    updateTicketMutation,
-  ]);
+  }, [ticket.id, form.state.values, onUpdate, updateTicketMutation]);
 
-  const addTag = (tagToAdd?: string) => {
-    const tag = (tagToAdd ?? newTag).trim();
-    if (tag && !tags.includes(tag)) {
-      setTags([...tags, tag]);
-      setNewTag("");
-      closeTagDropdown();
-    }
-  };
-
-  const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    switch (e.key) {
-      case "Enter": {
-        e.preventDefault();
-        const selectedTag = tagSuggestions[selectedSuggestionIndex];
-        addTag(selectedTag);
-        break;
-      }
-      case "ArrowDown":
-        e.preventDefault();
-        setIsTagDropdownOpen(true);
-        setSelectedSuggestionIndex((prev) => (prev < tagSuggestions.length - 1 ? prev + 1 : prev));
-        break;
-      case "ArrowUp":
-        e.preventDefault();
-        setSelectedSuggestionIndex((prev) => (prev > 0 ? prev - 1 : -1));
-        break;
-      case "Escape":
+  // Tag management functions
+  const addTag = useCallback(
+    (tagToAdd?: string) => {
+      const tag = (tagToAdd ?? newTag).trim();
+      const currentTags = form.state.values.tags;
+      if (tag && !currentTags.includes(tag)) {
+        form.setFieldValue("tags", [...currentTags, tag]);
+        setNewTag("");
         closeTagDropdown();
-        break;
-    }
-  };
+      }
+    },
+    [newTag, form, closeTagDropdown]
+  );
 
-  const handleTagInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const removeTag = useCallback(
+    (tagToRemove: string) => {
+      const currentTags = form.state.values.tags;
+      form.setFieldValue(
+        "tags",
+        currentTags.filter((t) => t !== tagToRemove)
+      );
+    },
+    [form]
+  );
+
+  const handleTagInputKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      switch (e.key) {
+        case "Enter": {
+          e.preventDefault();
+          const selectedTag = tagSuggestions[selectedSuggestionIndex];
+          addTag(selectedTag);
+          break;
+        }
+        case "ArrowDown":
+          e.preventDefault();
+          setIsTagDropdownOpen(true);
+          setSelectedSuggestionIndex((prev) =>
+            prev < tagSuggestions.length - 1 ? prev + 1 : prev
+          );
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          setSelectedSuggestionIndex((prev) => (prev > 0 ? prev - 1 : -1));
+          break;
+        case "Escape":
+          closeTagDropdown();
+          break;
+      }
+    },
+    [tagSuggestions, selectedSuggestionIndex, addTag, closeTagDropdown]
+  );
+
+  const handleTagInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setNewTag(e.target.value);
     setSelectedSuggestionIndex(-1);
     setIsTagDropdownOpen(!!e.target.value.trim());
-  };
+  }, []);
 
-  const removeTag = (tagToRemove: string) => {
-    setTags(tags.filter((t) => t !== tagToRemove));
-  };
-
-  const addSubtask = () => {
+  // Subtask management functions
+  const addSubtask = useCallback(() => {
     const text = newSubtask.trim();
     if (text) {
-      setSubtasks([...subtasks, { id: crypto.randomUUID(), text, completed: false }]);
+      const currentSubtasks = form.state.values.subtasks;
+      form.setFieldValue("subtasks", [
+        ...currentSubtasks,
+        { id: crypto.randomUUID(), text, completed: false },
+      ]);
       setNewSubtask("");
     }
-  };
+  }, [newSubtask, form]);
 
-  const toggleSubtask = (id: string) => {
-    setSubtasks(subtasks.map((s) => (s.id === id ? { ...s, completed: !s.completed } : s)));
-  };
+  const toggleSubtask = useCallback(
+    (id: string) => {
+      const currentSubtasks = form.state.values.subtasks;
+      form.setFieldValue(
+        "subtasks",
+        currentSubtasks.map((s) => (s.id === id ? { ...s, completed: !s.completed } : s))
+      );
+    },
+    [form]
+  );
 
-  const removeSubtask = (id: string) => {
-    setSubtasks(subtasks.filter((s) => s.id !== id));
-  };
+  const removeSubtask = useCallback(
+    (id: string) => {
+      const currentSubtasks = form.state.values.subtasks;
+      form.setFieldValue(
+        "subtasks",
+        currentSubtasks.filter((s) => s.id !== id)
+      );
+    },
+    [form]
+  );
 
-  const moveSubtaskUp = (index: number) => {
-    if (index <= 0) return;
-    const newSubtasks = [...subtasks];
-    const current = newSubtasks[index];
-    const prev = newSubtasks[index - 1];
-    if (!current || !prev) return;
-    newSubtasks[index - 1] = current;
-    newSubtasks[index] = prev;
-    setSubtasks(newSubtasks);
-  };
+  const moveSubtaskUp = useCallback(
+    (index: number) => {
+      if (index <= 0) return;
+      const currentSubtasks = [...form.state.values.subtasks];
+      const current = currentSubtasks[index];
+      const prev = currentSubtasks[index - 1];
+      if (!current || !prev) return;
+      currentSubtasks[index - 1] = current;
+      currentSubtasks[index] = prev;
+      form.setFieldValue("subtasks", currentSubtasks);
+    },
+    [form]
+  );
 
-  const moveSubtaskDown = (index: number) => {
-    if (index >= subtasks.length - 1) return;
-    const newSubtasks = [...subtasks];
-    const current = newSubtasks[index];
-    const next = newSubtasks[index + 1];
-    if (!current || !next) return;
-    newSubtasks[index + 1] = current;
-    newSubtasks[index] = next;
-    setSubtasks(newSubtasks);
-  };
+  const moveSubtaskDown = useCallback(
+    (index: number) => {
+      const currentSubtasks = form.state.values.subtasks;
+      if (index >= currentSubtasks.length - 1) return;
+      const newSubtasks = [...currentSubtasks];
+      const current = newSubtasks[index];
+      const next = newSubtasks[index + 1];
+      if (!current || !next) return;
+      newSubtasks[index + 1] = current;
+      newSubtasks[index] = next;
+      form.setFieldValue("subtasks", newSubtasks);
+    },
+    [form]
+  );
 
-  const completedSubtasks = subtasks.filter((s) => s.completed).length;
+  // Computed values from form state
+  const formTags = form.state.values.tags;
+  const formSubtasks = form.state.values.subtasks;
+  const completedSubtasks = formSubtasks.filter((s) => s.completed).length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -818,18 +879,33 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* Title */}
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              Title
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] "
-            />
-          </div>
+          {/* Title Field with Validation */}
+          <form.Field
+            name="title"
+            children={(field) => (
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                  Title
+                </label>
+                <input
+                  type="text"
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                  className={`w-full px-3 py-2 bg-[var(--bg-tertiary)] border rounded-lg text-[var(--text-primary)] ${
+                    field.state.meta.errors.length > 0
+                      ? "border-[var(--accent-danger)]"
+                      : "border-[var(--border-primary)]"
+                  }`}
+                />
+                {field.state.meta.errors.length > 0 && (
+                  <p className="mt-1 text-xs text-[var(--accent-danger)]" role="alert">
+                    {field.state.meta.errors.join(", ")}
+                  </p>
+                )}
+              </div>
+            )}
+          />
 
           {/* Ralph Status - show when Ralph is working on this ticket */}
           {ralphSession && (
@@ -842,90 +918,115 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
             </div>
           )}
 
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              Description
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={8}
-              className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)]  resize-y min-h-[120px]"
-            />
-          </div>
+          {/* Description Field */}
+          <form.Field
+            name="description"
+            children={(field) => (
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                  rows={8}
+                  className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] resize-y min-h-[120px]"
+                />
+              </div>
+            )}
+          />
 
           {/* Status, Priority, Epic */}
           <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-                Status
-              </label>
-              <div className="relative">
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as TicketStatus)}
-                  className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none "
-                >
-                  {STATUS_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  size={16}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
-                />
-              </div>
-            </div>
+            <form.Field
+              name="status"
+              children={(field) => (
+                <div>
+                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                    Status
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value as TicketStatus)}
+                      className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none"
+                    >
+                      {STATUS_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      size={16}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
+                    />
+                  </div>
+                </div>
+              )}
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-                Priority
-              </label>
-              <div className="relative">
-                <select
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value as TicketPriority | "")}
-                  className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none "
-                >
-                  {PRIORITY_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  size={16}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
-                />
-              </div>
-            </div>
+            <form.Field
+              name="priority"
+              children={(field) => (
+                <div>
+                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                    Priority
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={field.state.value ?? ""}
+                      onChange={(e) =>
+                        field.handleChange(
+                          e.target.value ? (e.target.value as TicketPriority) : undefined
+                        )
+                      }
+                      className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none"
+                    >
+                      {PRIORITY_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      size={16}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
+                    />
+                  </div>
+                </div>
+              )}
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-                Epic
-              </label>
-              <div className="relative">
-                <select
-                  value={epicId}
-                  onChange={(e) => setEpicId(e.target.value)}
-                  className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none "
-                >
-                  <option value="">None</option>
-                  {epics.map((epic) => (
-                    <option key={epic.id} value={epic.id}>
-                      {epic.title}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  size={16}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
-                />
-              </div>
-            </div>
+            <form.Field
+              name="epicId"
+              children={(field) => (
+                <div>
+                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+                    Epic
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={field.state.value ?? ""}
+                      onChange={(e) => field.handleChange(e.target.value || undefined)}
+                      className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none"
+                    >
+                      <option value="">None</option>
+                      {epics.map((epic) => (
+                        <option key={epic.id} value={epic.id}>
+                          {epic.title}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      size={16}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
+                    />
+                  </div>
+                </div>
+              )}
+            />
           </div>
 
           {/* Git/PR Info (read-only, populated by MCP tools) */}
@@ -990,38 +1091,48 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
           )}
 
           {/* Blocked */}
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isBlocked}
-                onChange={(e) => setIsBlocked(e.target.checked)}
-                className="w-4 h-4 rounded border-[var(--border-primary)] text-[var(--accent-danger)] focus:ring-[var(--accent-danger)] bg-[var(--bg-tertiary)]"
-              />
-              <span className="text-sm text-[var(--text-secondary)] flex items-center gap-1">
-                <AlertCircle size={14} className="text-[var(--accent-danger)]" />
-                Blocked
-              </span>
-            </label>
-            {isBlocked && (
-              <input
-                type="text"
-                value={blockedReason}
-                onChange={(e) => setBlockedReason(e.target.value)}
-                placeholder="Reason for blocking..."
-                className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] "
-              />
+          <form.Field
+            name="isBlocked"
+            children={(blockedField) => (
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={blockedField.state.value}
+                    onChange={(e) => blockedField.handleChange(e.target.checked)}
+                    className="w-4 h-4 rounded border-[var(--border-primary)] text-[var(--accent-danger)] focus:ring-[var(--accent-danger)] bg-[var(--bg-tertiary)]"
+                  />
+                  <span className="text-sm text-[var(--text-secondary)] flex items-center gap-1">
+                    <AlertCircle size={14} className="text-[var(--accent-danger)]" />
+                    Blocked
+                  </span>
+                </label>
+                {blockedField.state.value && (
+                  <form.Field
+                    name="blockedReason"
+                    children={(reasonField) => (
+                      <input
+                        type="text"
+                        value={reasonField.state.value}
+                        onChange={(e) => reasonField.handleChange(e.target.value)}
+                        placeholder="Reason for blocking..."
+                        className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)]"
+                      />
+                    )}
+                  />
+                )}
+              </div>
             )}
-          </div>
+          />
 
           {/* Tags */}
           <div>
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
               Tags
             </label>
-            {tags.length > 0 && (
+            {formTags.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-2">
-                {tags.map((tag) => (
+                {formTags.map((tag) => (
                   <span
                     key={tag}
                     className="flex items-center gap-1 px-2 py-1 bg-[var(--bg-tertiary)] text-[var(--text-secondary)] rounded text-sm"
@@ -1049,7 +1160,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                     if (newTag.trim()) setIsTagDropdownOpen(true);
                   }}
                   placeholder="Add tag..."
-                  className="flex-1 px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] text-sm "
+                  className="flex-1 px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] text-sm"
                   autoComplete="off"
                 />
                 <button
@@ -1115,14 +1226,14 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
           <div>
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
               Subtasks
-              {subtasks.length > 0 && (
+              {formSubtasks.length > 0 && (
                 <span className="ml-2 text-[var(--text-tertiary)]">
-                  ({completedSubtasks}/{subtasks.length})
+                  ({completedSubtasks}/{formSubtasks.length})
                 </span>
               )}
             </label>
             <div className="space-y-2 mb-2">
-              {subtasks.map((subtask, index) => (
+              {formSubtasks.map((subtask, index) => (
                 <div
                   key={subtask.id}
                   className="flex items-center gap-2 p-2 bg-[var(--bg-tertiary)] rounded-lg group"
@@ -1157,7 +1268,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                     </button>
                     <button
                       onClick={() => moveSubtaskDown(index)}
-                      disabled={index === subtasks.length - 1}
+                      disabled={index === formSubtasks.length - 1}
                       className="p-1 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] disabled:text-[var(--text-tertiary)]/50 disabled:cursor-not-allowed"
                       title="Move down"
                     >
@@ -1181,7 +1292,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 onChange={(e) => setNewSubtask(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && addSubtask()}
                 placeholder="Add subtask..."
-                className="flex-1 px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] text-sm "
+                className="flex-1 px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] text-sm"
               />
               <button
                 onClick={addSubtask}
@@ -1295,15 +1406,15 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
           </div>
 
           {/* Running Services - Only show when ticket is in progress */}
-          {status === "in_progress" && servicesError && (
+          {currentStatus === "in_progress" && servicesError && (
             <div className="bg-red-900/30 border border-red-800 rounded-lg p-3 text-sm text-red-300">
               <span className="font-medium">Service discovery error:</span> {servicesError}
             </div>
           )}
-          {status === "in_progress" && runningServices.length > 0 && (
-            <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-              <h4 className="text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
-                <Globe size={14} className="text-cyan-400" />
+          {currentStatus === "in_progress" && runningServices.length > 0 && (
+            <div className="bg-[var(--bg-tertiary)]/50 border border-[var(--border-secondary)] rounded-lg p-3">
+              <h4 className="text-sm font-medium text-[var(--text-primary)] mb-2 flex items-center gap-2">
+                <Globe size={14} className="text-[var(--accent-ai)]" />
                 Running Services
               </h4>
               <div className="space-y-1">
@@ -1317,14 +1428,18 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                       href={`http://localhost:${service.port}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 px-2 py-1.5 bg-slate-900/50 rounded hover:bg-slate-700/50 transition-colors group"
+                      className="flex items-center gap-2 px-2 py-1.5 bg-[var(--bg-primary)]/50 rounded hover:bg-[var(--bg-hover)]/50 transition-colors group"
                     >
                       <IconComponent size={14} className={colorClass} />
-                      <span className="text-sm text-gray-100 flex-1">{service.name}</span>
-                      <span className="text-xs text-slate-500">localhost:{service.port}</span>
+                      <span className="text-sm text-[var(--text-primary)] flex-1">
+                        {service.name}
+                      </span>
+                      <span className="text-xs text-[var(--text-muted)]">
+                        localhost:{service.port}
+                      </span>
                       <ExternalLink
                         size={12}
-                        className="text-slate-500 group-hover:text-cyan-400 transition-colors"
+                        className="text-[var(--text-muted)] group-hover:text-[var(--accent-ai)] transition-colors"
                       />
                     </a>
                   );
@@ -1360,7 +1475,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                     onChange={(e) => setNewComment(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
                     placeholder="Add a comment..."
-                    className="flex-1 px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] text-sm "
+                    className="flex-1 px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] text-sm"
                   />
                   <button
                     onClick={handleAddComment}
@@ -1390,8 +1505,8 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                         <div className="flex items-center gap-2 mb-1">
                           {comment.type === "progress" && (
                             <span className="relative flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--info)] opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--info)]"></span>
                             </span>
                           )}
                           <span
@@ -1417,7 +1532,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                           )}
                         </div>
                         <p
-                          className={`whitespace-pre-wrap ${comment.type === "progress" ? "text-blue-100 text-xs" : "text-[var(--text-primary)]"}`}
+                          className={`whitespace-pre-wrap ${comment.type === "progress" ? "text-[var(--info-text)] text-xs" : "text-[var(--text-primary)]"}`}
                         >
                           {comment.content}
                         </p>
@@ -1448,8 +1563,8 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
           <div
             className={`mx-4 mb-0 p-3 rounded-lg text-sm flex items-center gap-2 ${
               startWorkNotification.type === "success"
-                ? "bg-green-900/50 text-green-300 border border-green-800"
-                : "bg-red-900/50 text-red-300 border border-red-800"
+                ? "bg-[var(--success-muted)] text-[var(--success-text)] border border-[var(--success)]/50"
+                : "bg-[var(--accent-danger)]/20 text-[var(--accent-danger)] border border-[var(--accent-danger)]/50"
             }`}
           >
             {startWorkNotification.type === "success" ? (
@@ -1460,7 +1575,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
             <span className="flex-1">{startWorkNotification.message}</span>
             <button
               onClick={() => setStartWorkNotification(null)}
-              className="text-slate-400 hover:text-gray-100"
+              className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             >
               <X size={14} />
             </button>
@@ -1475,7 +1590,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
               <button
                 onClick={() => void handleStartWork()}
                 disabled={isStartingWork}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-l-lg font-medium transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-[var(--success)] hover:bg-[var(--success)]/80 disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-muted)] rounded-l-lg font-medium transition-colors"
               >
                 {isStartingWork ? (
                   <Loader2 size={16} className="animate-spin" />
@@ -1487,7 +1602,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
               <button
                 onClick={() => setShowStartWorkMenu(!showStartWorkMenu)}
                 disabled={isStartingWork}
-                className="flex items-center px-2 py-2 bg-green-600 hover:bg-green-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-r-lg border-l border-green-700 transition-colors"
+                className="flex items-center px-2 py-2 bg-[var(--success)] hover:bg-[var(--success)]/80 disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-muted)] rounded-r-lg border-l border-[var(--success)]/50 transition-colors"
                 aria-label="More start options"
               >
                 <ChevronDown size={16} />
@@ -1496,39 +1611,41 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
 
             {/* Dropdown Menu */}
             {showStartWorkMenu && (
-              <div className="absolute left-0 bottom-full mb-2 w-64 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-10 overflow-hidden">
+              <div className="absolute left-0 bottom-full mb-2 w-64 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg shadow-xl z-10 overflow-hidden">
                 {/* Interactive Sessions */}
                 <button
                   onClick={() => {
                     setShowStartWorkMenu(false);
                     void handleStartWork();
                   }}
-                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left"
+                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left"
                 >
-                  <Terminal size={18} className="text-green-400 mt-0.5 flex-shrink-0" />
+                  <Terminal size={18} className="text-[var(--success)] mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="font-medium text-gray-100">Start with Claude</div>
-                    <div className="text-xs text-slate-400">
+                    <div className="font-medium text-[var(--text-primary)]">Start with Claude</div>
+                    <div className="text-xs text-[var(--text-secondary)]">
                       Interactive session - you guide Claude
                     </div>
                   </div>
                 </button>
                 <button
                   onClick={() => void handleStartOpenCode()}
-                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left border-t border-slate-700"
+                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left border-t border-[var(--border-primary)]"
                 >
-                  <Code2 size={18} className="text-blue-400 mt-0.5 flex-shrink-0" />
+                  <Code2 size={18} className="text-[var(--info)] mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="font-medium text-gray-100">Start with OpenCode</div>
-                    <div className="text-xs text-slate-400">
+                    <div className="font-medium text-[var(--text-primary)]">
+                      Start with OpenCode
+                    </div>
+                    <div className="text-xs text-[var(--text-secondary)]">
                       Interactive session - you guide OpenCode
                     </div>
                   </div>
                 </button>
 
                 {/* Ralph Section Divider */}
-                <div className="px-4 py-2 bg-slate-900/50 border-t border-slate-700">
-                  <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <div className="px-4 py-2 bg-[var(--bg-secondary)]/50 border-t border-[var(--border-primary)]">
+                  <div className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
                     Autonomous (Ralph)
                   </div>
                 </div>
@@ -1536,26 +1653,32 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 {/* Ralph with Claude - Native */}
                 <button
                   onClick={() => void handleStartRalph({ useSandbox: false, aiBackend: "claude" })}
-                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left"
+                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left"
                 >
-                  <Bot size={18} className="text-purple-400 mt-0.5 flex-shrink-0" />
+                  <Bot size={18} className="text-[var(--accent-ai)] mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="font-medium text-gray-100">Start Ralph (Claude)</div>
-                    <div className="text-xs text-slate-400">Runs on your machine directly</div>
+                    <div className="font-medium text-[var(--text-primary)]">
+                      Start Ralph (Claude)
+                    </div>
+                    <div className="text-xs text-[var(--text-secondary)]">
+                      Runs on your machine directly
+                    </div>
                   </div>
                 </button>
 
                 {/* Ralph with Claude - Docker (Disabled for now) */}
                 <button
                   disabled
-                  className="w-full flex items-start gap-3 px-4 py-3 transition-colors text-left border-t border-slate-700 opacity-50 cursor-not-allowed"
+                  className="w-full flex items-start gap-3 px-4 py-3 transition-colors text-left border-t border-[var(--border-primary)] opacity-50 cursor-not-allowed"
                   aria-disabled="true"
                   aria-label="Start Ralph (Claude) in Docker - Coming soon"
                 >
-                  <Container size={18} className="text-slate-500 mt-0.5 flex-shrink-0" />
+                  <Container size={18} className="text-[var(--text-muted)] mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="font-medium text-slate-400">Start Ralph (Claude) in Docker</div>
-                    <div className="text-xs text-slate-500">
+                    <div className="font-medium text-[var(--text-secondary)]">
+                      Start Ralph (Claude) in Docker
+                    </div>
+                    <div className="text-xs text-[var(--text-muted)]">
                       Coming soon - sandbox mode in progress
                     </div>
                   </div>
@@ -1566,28 +1689,32 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                   onClick={() =>
                     void handleStartRalph({ useSandbox: false, aiBackend: "opencode" })
                   }
-                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-slate-700 transition-colors text-left border-t border-slate-700"
+                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left border-t border-[var(--border-primary)]"
                 >
-                  <Code2 size={18} className="text-blue-400 mt-0.5 flex-shrink-0" />
+                  <Code2 size={18} className="text-[var(--info)] mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="font-medium text-gray-100">Start Ralph (OpenCode)</div>
-                    <div className="text-xs text-slate-400">Runs on your machine directly</div>
+                    <div className="font-medium text-[var(--text-primary)]">
+                      Start Ralph (OpenCode)
+                    </div>
+                    <div className="text-xs text-[var(--text-secondary)]">
+                      Runs on your machine directly
+                    </div>
                   </div>
                 </button>
 
                 {/* Ralph with OpenCode - Docker (Disabled for now) */}
                 <button
                   disabled
-                  className="w-full flex items-start gap-3 px-4 py-3 transition-colors text-left border-t border-slate-700 opacity-50 cursor-not-allowed"
+                  className="w-full flex items-start gap-3 px-4 py-3 transition-colors text-left border-t border-[var(--border-primary)] opacity-50 cursor-not-allowed"
                   aria-disabled="true"
                   aria-label="Start Ralph (OpenCode) in Docker - Coming soon"
                 >
-                  <Container size={18} className="text-slate-500 mt-0.5 flex-shrink-0" />
+                  <Container size={18} className="text-[var(--text-muted)] mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="font-medium text-slate-400">
+                    <div className="font-medium text-[var(--text-secondary)]">
                       Start Ralph (OpenCode) in Docker
                     </div>
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-[var(--text-muted)]">
                       Coming soon - needs OpenCode Docker image
                     </div>
                   </div>
@@ -1611,13 +1738,18 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
             >
               Cancel
             </button>
-            <button
-              onClick={handleSave}
-              disabled={updateTicketMutation.isPending || !title.trim()}
-              className="px-4 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] rounded-lg font-medium transition-colors"
-            >
-              {updateTicketMutation.isPending ? "Saving..." : "Save Changes"}
-            </button>
+            <form.Subscribe
+              selector={(state) => [state.canSubmit, state.values.title.trim()]}
+              children={([canSubmit, title]) => (
+                <button
+                  onClick={handleSave}
+                  disabled={updateTicketMutation.isPending || !canSubmit || !title}
+                  className="px-4 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] rounded-lg font-medium transition-colors"
+                >
+                  {updateTicketMutation.isPending ? "Saving..." : "Save Changes"}
+                </button>
+              )}
+            />
           </div>
         </div>
 

@@ -38,12 +38,12 @@ export default function DockerRuntimeBadge({ projectPath, onClick }: DockerRunti
 
   // Determine color based on state
   const color = loading
-    ? "text-slate-400"
+    ? "text-[var(--text-secondary)]"
     : isAvailable && isImageBuilt
-      ? "text-cyan-400"
+      ? "text-[var(--accent-ai)]"
       : isAvailable
-        ? "text-slate-400" // Image not built - neutral, will build on first use
-        : "text-yellow-400"; // Docker not available - warning
+        ? "text-[var(--text-secondary)]" // Image not built - neutral, will build on first use
+        : "text-[var(--warning)]"; // Docker not available - warning
 
   // Generate accessible tooltip text
   const tooltipText = loading ? "Checking Docker status..." : message || "Docker runtime available";
@@ -53,7 +53,7 @@ export default function DockerRuntimeBadge({ projectPath, onClick }: DockerRunti
 
   // Common classes for both button and span
   const baseClasses = `flex items-center gap-1 px-2 py-1 rounded ${color} transition-colors`;
-  const interactiveClasses = isClickable ? "hover:bg-slate-700 " : "";
+  const interactiveClasses = isClickable ? "hover:bg-[var(--bg-hover)] " : "";
 
   // Use button if clickable, span if not (for accessibility)
   if (isClickable) {
