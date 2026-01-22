@@ -1,7 +1,15 @@
-import { createServerValidate, ServerValidateError } from "@tanstack/react-form-start";
-import { epicFormOpts } from "./epic-form-opts";
-import type { EpicFormData } from "./epic-form-schema";
-import { epicFormSchema } from "./epic-form-schema";
+import { createServerValidate } from "@tanstack/react-form-start";
+import {
+  runValidationAction,
+  ServerValidateError,
+  validateWithZodSchema,
+  type ValidationResult,
+} from "../../lib/server-validation.js";
+import { epicFormOpts } from "./epic-form-opts.js";
+import type { EpicFormData } from "./epic-form-schema.js";
+import { epicFormSchema } from "./epic-form-schema.js";
+
+const HEX_COLOR_REGEX = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
 
 /**
  * Server-side validation for epic form.
@@ -17,23 +25,10 @@ import { epicFormSchema } from "./epic-form-schema";
 export const serverValidateEpic = createServerValidate({
   ...epicFormOpts,
   onServerValidate: async ({ value }: { value: EpicFormData }) => {
-    // First run Zod schema validation for type safety
-    const result = epicFormSchema.safeParse(value);
-    if (!result.success) {
-      // Extract first error for each field
-      const fieldErrors: Record<string, string> = {};
-      for (const issue of result.error.issues) {
-        const field = issue.path[0] as string;
-        if (!fieldErrors[field]) {
-          fieldErrors[field] = issue.message;
-        }
-      }
-      // Return the first error found
-      const firstField = Object.keys(fieldErrors)[0];
-      if (firstField) {
-        return { [firstField]: fieldErrors[firstField] };
-      }
-      return { form: "Validation failed" };
+    // Run Zod schema validation for type safety
+    const schemaError = validateWithZodSchema(epicFormSchema, value);
+    if (schemaError) {
+      return schemaError;
     }
 
     // Business logic validation
@@ -54,49 +49,19 @@ export const serverValidateEpic = createServerValidate({
     }
 
     // Color validation (if provided, must be valid hex)
-    if (value.color && value.color.length > 0) {
-      const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
-      if (!hexColorRegex.test(value.color)) {
-        return { color: "Color must be a valid hex color (e.g., #FF5733)" };
-      }
+    if (value.color && value.color.length > 0 && !HEX_COLOR_REGEX.test(value.color)) {
+      return { color: "Color must be a valid hex color (e.g., #FF5733)" };
     }
 
-    // All validations passed
     return undefined;
   },
 });
 
 /**
  * Server action for creating/updating epics with validation.
- *
- * Usage in a server function or route handler:
- * ```typescript
- * import { validateEpicAction } from "./epic-server-validate";
- *
- * export const createEpic = createServerFn({ method: "POST" })
- *   .handler(async ({ request }) => {
- *     const formData = await request.formData();
- *     const result = await validateEpicAction(formData);
- *     if (!result.success) {
- *       return result;
- *     }
- *     // Proceed with database insert using result.data
- *   });
- * ```
  */
-export async function validateEpicAction(
-  formData: FormData
-): Promise<{ success: true; data: EpicFormData } | { success: false; formState: unknown }> {
-  try {
-    const validatedData = await serverValidateEpic(formData);
-    return { success: true, data: validatedData as EpicFormData };
-  } catch (e) {
-    if (e instanceof ServerValidateError) {
-      return { success: false, formState: e.formState };
-    }
-    throw e;
-  }
+export function validateEpicAction(formData: FormData): Promise<ValidationResult<EpicFormData>> {
+  return runValidationAction<EpicFormData>(serverValidateEpic, formData);
 }
 
-// Re-export for convenience
 export { ServerValidateError };

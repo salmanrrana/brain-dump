@@ -1,7 +1,13 @@
-import { createServerValidate, ServerValidateError } from "@tanstack/react-form-start";
-import { ticketFormOpts } from "./ticket-form-opts";
-import type { TicketFormData } from "./ticket-form-schema";
-import { ticketFormSchema } from "./ticket-form-schema";
+import { createServerValidate } from "@tanstack/react-form-start";
+import {
+  runValidationAction,
+  ServerValidateError,
+  validateWithZodSchema,
+  type ValidationResult,
+} from "../../lib/server-validation.js";
+import { ticketFormOpts } from "./ticket-form-opts.js";
+import type { TicketFormData } from "./ticket-form-schema.js";
+import { ticketFormSchema } from "./ticket-form-schema.js";
 
 /**
  * Server-side validation for ticket form.
@@ -17,23 +23,10 @@ import { ticketFormSchema } from "./ticket-form-schema";
 export const serverValidateTicket = createServerValidate({
   ...ticketFormOpts,
   onServerValidate: async ({ value }: { value: TicketFormData }) => {
-    // First run Zod schema validation for type safety
-    const result = ticketFormSchema.safeParse(value);
-    if (!result.success) {
-      // Extract first error for each field
-      const fieldErrors: Record<string, string> = {};
-      for (const issue of result.error.issues) {
-        const field = issue.path[0] as string;
-        if (!fieldErrors[field]) {
-          fieldErrors[field] = issue.message;
-        }
-      }
-      // Return the first error found
-      const firstField = Object.keys(fieldErrors)[0];
-      if (firstField) {
-        return { [firstField]: fieldErrors[firstField] };
-      }
-      return { form: "Validation failed" };
+    // Run Zod schema validation for type safety
+    const schemaError = validateWithZodSchema(ticketFormSchema, value);
+    if (schemaError) {
+      return schemaError;
     }
 
     // Business logic validation
@@ -53,13 +46,11 @@ export const serverValidateTicket = createServerValidate({
       return { description: "Description cannot exceed 50,000 characters" };
     }
 
-    // Tags count check (prevent abuse)
-    if (value.tags && value.tags.length > 20) {
-      return { tags: "Cannot have more than 20 tags" };
-    }
-
-    // Individual tag length check
+    // Tags validation
     if (value.tags) {
+      if (value.tags.length > 20) {
+        return { tags: "Cannot have more than 20 tags" };
+      }
       for (const tag of value.tags) {
         if (tag.length > 50) {
           return { tags: "Each tag cannot exceed 50 characters" };
@@ -67,13 +58,11 @@ export const serverValidateTicket = createServerValidate({
       }
     }
 
-    // Subtasks count check (prevent abuse)
-    if (value.subtasks && value.subtasks.length > 100) {
-      return { subtasks: "Cannot have more than 100 subtasks" };
-    }
-
-    // Subtask text length check
+    // Subtasks validation
     if (value.subtasks) {
+      if (value.subtasks.length > 100) {
+        return { subtasks: "Cannot have more than 100 subtasks" };
+      }
       for (const subtask of value.subtasks) {
         if (subtask.text.length > 500) {
           return { subtasks: "Each subtask text cannot exceed 500 characters" };
@@ -86,42 +75,17 @@ export const serverValidateTicket = createServerValidate({
       return { blockedReason: "Blocked reason cannot exceed 1,000 characters" };
     }
 
-    // All validations passed
     return undefined;
   },
 });
 
 /**
  * Server action for creating/updating tickets with validation.
- *
- * Usage in a server function or route handler:
- * ```typescript
- * import { validateTicketAction } from "./ticket-server-validate";
- *
- * export const createTicket = createServerFn({ method: "POST" })
- *   .handler(async ({ request }) => {
- *     const formData = await request.formData();
- *     const result = await validateTicketAction(formData);
- *     if (!result.success) {
- *       return result;
- *     }
- *     // Proceed with database insert using result.data
- *   });
- * ```
  */
-export async function validateTicketAction(
+export function validateTicketAction(
   formData: FormData
-): Promise<{ success: true; data: TicketFormData } | { success: false; formState: unknown }> {
-  try {
-    const validatedData = await serverValidateTicket(formData);
-    return { success: true, data: validatedData as TicketFormData };
-  } catch (e) {
-    if (e instanceof ServerValidateError) {
-      return { success: false, formState: e.formState };
-    }
-    throw e;
-  }
+): Promise<ValidationResult<TicketFormData>> {
+  return runValidationAction<TicketFormData>(serverValidateTicket, formData);
 }
 
-// Re-export for convenience
 export { ServerValidateError };

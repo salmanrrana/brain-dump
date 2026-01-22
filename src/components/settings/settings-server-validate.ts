@@ -1,7 +1,13 @@
-import { createServerValidate, ServerValidateError } from "@tanstack/react-form-start";
-import { settingsFormOpts } from "./settings-form-opts";
-import type { SettingsFormData } from "./settings-form-schema";
-import { settingsFormSchema } from "./settings-form-schema";
+import { createServerValidate } from "@tanstack/react-form-start";
+import {
+  runValidationAction,
+  ServerValidateError,
+  validateWithZodSchema,
+  type ValidationResult,
+} from "../../lib/server-validation.js";
+import { settingsFormOpts } from "./settings-form-opts.js";
+import type { SettingsFormData } from "./settings-form-schema.js";
+import { settingsFormSchema } from "./settings-form-schema.js";
 
 /**
  * Server-side validation for settings form.
@@ -17,23 +23,10 @@ import { settingsFormSchema } from "./settings-form-schema";
 export const serverValidateSettings = createServerValidate({
   ...settingsFormOpts,
   onServerValidate: async ({ value }: { value: SettingsFormData }) => {
-    // First run Zod schema validation for type safety
-    const result = settingsFormSchema.safeParse(value);
-    if (!result.success) {
-      // Extract first error for each field
-      const fieldErrors: Record<string, string> = {};
-      for (const issue of result.error.issues) {
-        const field = issue.path[0] as string;
-        if (!fieldErrors[field]) {
-          fieldErrors[field] = issue.message;
-        }
-      }
-      // Return the first error found
-      const firstField = Object.keys(fieldErrors)[0];
-      if (firstField) {
-        return { [firstField]: fieldErrors[firstField] };
-      }
-      return { form: "Validation failed" };
+    // Run Zod schema validation for type safety
+    const schemaError = validateWithZodSchema(settingsFormSchema, value);
+    if (schemaError) {
+      return schemaError;
     }
 
     // Business logic validation (beyond schema constraints)
@@ -49,38 +42,17 @@ export const serverValidateSettings = createServerValidate({
       return { conversationRetentionDays: "Retention cannot exceed 10 years" };
     }
 
-    // All validations passed
     return undefined;
   },
 });
 
 /**
  * Server action for updating settings with validation.
- *
- * Usage in a server function or route handler:
- * ```typescript
- * import { updateSettingsAction } from "./settings-server-validate";
- *
- * export const updateSettings = createServerFn({ method: "POST" })
- *   .handler(async ({ request }) => {
- *     const formData = await request.formData();
- *     return updateSettingsAction(formData);
- *   });
- * ```
  */
-export async function updateSettingsAction(
+export function updateSettingsAction(
   formData: FormData
-): Promise<{ success: true; data: SettingsFormData } | { success: false; formState: unknown }> {
-  try {
-    const validatedData = await serverValidateSettings(formData);
-    return { success: true, data: validatedData as SettingsFormData };
-  } catch (e) {
-    if (e instanceof ServerValidateError) {
-      return { success: false, formState: e.formState };
-    }
-    throw e;
-  }
+): Promise<ValidationResult<SettingsFormData>> {
+  return runValidationAction<SettingsFormData>(serverValidateSettings, formData);
 }
 
-// Re-export for convenience
 export { ServerValidateError };

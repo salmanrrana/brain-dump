@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { memo, useMemo, type ReactNode } from "react";
 
 // =============================================================================
 // TYPES
@@ -67,9 +67,17 @@ interface FormFieldProps {
  * />
  * ```
  */
-export function FormField({ field, label, children, description }: FormFieldProps) {
-  // Filter out undefined errors and check if any valid errors exist
-  const errors = field.state.meta.errors.filter((e): e is string => e !== undefined);
+export const FormField = memo(function FormField({
+  field,
+  label,
+  children,
+  description,
+}: FormFieldProps) {
+  // Memoize error filtering to prevent array recreation on every render
+  const errors = useMemo(
+    () => field.state.meta.errors.filter((e): e is string => e !== undefined),
+    [field.state.meta.errors]
+  );
   const hasErrors = errors.length > 0;
 
   return (
@@ -86,6 +94,6 @@ export function FormField({ field, label, children, description }: FormFieldProp
       )}
     </div>
   );
-}
+});
 
 export default FormField;
