@@ -15,3 +15,10 @@ export {
   type DockerRuntime,
 } from "./settings-form-schema";
 export { settingsFormOpts } from "./settings-form-opts";
+
+// Server-side validation (TanStack Start pattern)
+export {
+  serverValidateSettings,
+  updateSettingsAction,
+  ServerValidateError,
+} from "./settings-server-validate";

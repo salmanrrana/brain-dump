@@ -31,3 +31,10 @@ export {
   type Subtask as TicketSubtask,
 } from "./ticket-form-schema";
 export { ticketFormOpts } from "./ticket-form-opts";
+
+// Server-side validation (TanStack Start pattern)
+export {
+  serverValidateTicket,
+  validateTicketAction,
+  ServerValidateError,
+} from "./ticket-server-validate";
