@@ -75,16 +75,39 @@ echo "[$(date -Iseconds)] Linking commit $COMMIT_HASH to ticket $TICKET_ID" >> "
 # Get commit message for display
 COMMIT_MSG=$(cd "$PROJECT_DIR" && git log -1 --format=%s "$COMMIT_HASH" 2>/dev/null || echo "")
 
-# Output feedback for Claude to see and act on
+# Write to pending links file so SessionStart hook can remind Claude
+PENDING_FILE="$PROJECT_DIR/.claude/pending-links.json"
+mkdir -p "$(dirname "$PENDING_FILE")"
+
+# Initialize file if doesn't exist
+if [[ ! -f "$PENDING_FILE" ]]; then
+  echo '{"pendingLinks":[]}' > "$PENDING_FILE"
+fi
+
+# Add this commit to pending links (using jq if available, otherwise append manually)
+if command -v jq &> /dev/null; then
+  TEMP_FILE=$(mktemp)
+  jq --arg type "commit" \
+     --arg ticketId "$TICKET_ID" \
+     --arg commitHash "$COMMIT_HASH" \
+     --arg message "$COMMIT_MSG" \
+     --arg timestamp "$(date -Iseconds)" \
+     '.pendingLinks += [{"type": $type, "ticketId": $ticketId, "commitHash": $commitHash, "message": $message, "timestamp": $timestamp}]' \
+     "$PENDING_FILE" > "$TEMP_FILE" && mv "$TEMP_FILE" "$PENDING_FILE"
+fi
+
+# Output prominent feedback for Claude to see and act on
 echo ""
-echo "COMMIT TRACKED"
-echo "=============="
-echo "Commit: $COMMIT_HASH"
-echo "Message: $COMMIT_MSG"
-echo "Ticket: $TICKET_ID"
-echo ""
-echo "To link this commit, run:"
-echo "  link_commit_to_ticket({ ticketId: \"$TICKET_ID\", commitHash: \"$COMMIT_HASH\" })"
+echo "╔══════════════════════════════════════════════════════════════╗"
+echo "║  🔗 COMMIT READY TO LINK                                     ║"
+echo "╠══════════════════════════════════════════════════════════════╣"
+echo "║  Commit: $COMMIT_HASH"
+echo "║  Message: $COMMIT_MSG"
+echo "║  Ticket: $TICKET_ID"
+echo "╠══════════════════════════════════════════════════════════════╣"
+echo "║  ⚠️  ACTION REQUIRED: Run sync_ticket_links() to link this   ║"
+echo "║      commit to the ticket automatically.                     ║"
+echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
 
 # Also check if there's a PR for this branch that should be linked
@@ -92,9 +115,10 @@ BRANCH=$(cd "$PROJECT_DIR" && git branch --show-current 2>/dev/null || echo "")
 if [[ -n "$BRANCH" ]]; then
   PR_NUMBER=$(cd "$PROJECT_DIR" && gh pr view "$BRANCH" --json number 2>/dev/null | jq -r '.number // ""' || echo "")
   if [[ -n "$PR_NUMBER" ]]; then
-    echo "PR #$PR_NUMBER exists for this branch."
-    echo "To link PR, run:"
-    echo "  link_pr_to_ticket({ ticketId: \"$TICKET_ID\", prNumber: $PR_NUMBER })"
+    echo "╔══════════════════════════════════════════════════════════════╗"
+    echo "║  📋 PR #$PR_NUMBER exists for this branch"
+    echo "║  ⚠️  Run sync_ticket_links() to link PR automatically        ║"
+    echo "╚══════════════════════════════════════════════════════════════╝"
     echo ""
   fi
 fi

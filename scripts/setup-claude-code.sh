@@ -276,6 +276,25 @@ else
             "command": "\$HOME/.claude/hooks/spawn-next-ticket.sh"
           }
         ]
+      },
+      {
+        "matcher": "mcp__brain-dump__sync_ticket_links",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/clear-pending-links.sh"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/check-pending-links.sh"
+          }
+        ]
       }
     ],
     "Stop": [

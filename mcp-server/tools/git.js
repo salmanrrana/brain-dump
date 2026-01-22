@@ -3,7 +3,7 @@
  * @module tools/git
  */
 import { z } from "zod";
-import { existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { log } from "../lib/logging.js";
 import { runGitCommand, shortId } from "../lib/git-utils.js";
 
@@ -90,6 +90,101 @@ async function syncProjectPRStatuses(db, projectId, projectPath) {
   }
 
   return { synced, errors };
+}
+
+/**
+ * Find the active ticket ID from Ralph state or branch name.
+ * @param {import("better-sqlite3").Database} db
+ * @param {string} projectPath
+ * @returns {{ ticketId: string | null, source: string }}
+ */
+function findActiveTicket(db, projectPath) {
+  // First try Ralph state file
+  const ralphStatePath = `${projectPath}/.claude/ralph-state.json`;
+  if (existsSync(ralphStatePath)) {
+    try {
+      const stateContent = readFileSync(ralphStatePath, "utf8");
+      const state = JSON.parse(stateContent);
+      if (state.ticketId) {
+        return { ticketId: state.ticketId, source: "ralph-state" };
+      }
+    } catch {
+      // Fall through to branch detection
+    }
+  }
+
+  // Try to extract ticket ID from branch name
+  const branchResult = runGitCommand("git branch --show-current", projectPath);
+  if (!branchResult.success || !branchResult.output) {
+    return { ticketId: null, source: "none" };
+  }
+
+  const branch = branchResult.output.trim();
+  // Branch format: feature/{short-id}-{slug}
+  const match = branch.match(/^feature\/([a-f0-9]{8})-/);
+  if (!match) {
+    return { ticketId: null, source: "none" };
+  }
+
+  const shortTicketId = match[1];
+  // Look up the full ticket ID from the database
+  const ticket = db
+    .prepare(`SELECT id FROM tickets WHERE id LIKE ? LIMIT 1`)
+    .get(`${shortTicketId}%`);
+
+  if (ticket) {
+    return { ticketId: ticket.id, source: "branch" };
+  }
+
+  return { ticketId: null, source: "none" };
+}
+
+/**
+ * Get commits on the current branch since it diverged from main/master.
+ * @param {string} projectPath
+ * @returns {{ hash: string, message: string }[]}
+ */
+function getRecentCommits(projectPath) {
+  // Find the base branch (main or master)
+  let baseBranch = "main";
+  const checkMain = runGitCommand("git rev-parse --verify main 2>/dev/null", projectPath);
+  if (!checkMain.success) {
+    const checkMaster = runGitCommand("git rev-parse --verify master 2>/dev/null", projectPath);
+    if (checkMaster.success) {
+      baseBranch = "master";
+    } else {
+      // No main or master, just get recent commits
+      const result = runGitCommand(`git log --oneline -20 --format="%H|%s"`, projectPath);
+      if (!result.success || !result.output) return [];
+      return result.output
+        .trim()
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => {
+          const [hash, ...msgParts] = line.split("|");
+          return { hash, message: msgParts.join("|") };
+        });
+    }
+  }
+
+  // Get commits since diverging from base branch
+  const mergeBaseResult = runGitCommand(`git merge-base ${baseBranch} HEAD`, projectPath);
+  if (!mergeBaseResult.success || !mergeBaseResult.output) {
+    return [];
+  }
+
+  const mergeBase = mergeBaseResult.output.trim();
+  const result = runGitCommand(`git log --oneline ${mergeBase}..HEAD --format="%H|%s"`, projectPath);
+  if (!result.success || !result.output) return [];
+
+  return result.output
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [hash, ...msgParts] = line.split("|");
+      return { hash, message: msgParts.join("|") };
+    });
 }
 
 /**
@@ -262,6 +357,213 @@ ${finalPrUrl ? `**URL:** ${finalPrUrl}` : "(URL not available)"}
 
 The PR status will be displayed on the ticket in the Brain Dump UI.${syncSummary}`,
         }],
+      };
+    }
+  );
+
+  // Sync ticket links - auto-discover and link commits/PRs
+  server.tool(
+    "sync_ticket_links",
+    `Automatically discover and link commits and PRs to the active ticket.
+
+This tool finds the active ticket from Ralph state or branch name, then:
+1. Queries git log for commits on the current branch
+2. Links any commits that aren't already linked to the ticket
+3. Queries GitHub for PRs on the current branch
+4. Links any PR that isn't already linked to the ticket
+
+Use this tool:
+- After making commits to ensure they're tracked
+- At the start of a session to catch up on any missed links
+- Before completing work to ensure all commits/PRs are recorded
+
+Args:
+  projectPath: The project path (defaults to current working directory from env)
+
+Returns:
+  Summary of newly linked commits and PRs.`,
+    {
+      projectPath: z.string().optional().describe("Project path (auto-detected if not provided)"),
+    },
+    async ({ projectPath: inputPath }) => {
+      // Determine project path - try input, then env, then cwd
+      const projectPath = inputPath || process.env.CLAUDE_PROJECT_DIR || process.cwd();
+
+      if (!existsSync(projectPath)) {
+        return {
+          content: [{ type: "text", text: `Project path not found: ${projectPath}` }],
+          isError: true,
+        };
+      }
+
+      // Find the active ticket
+      const { ticketId, source } = findActiveTicket(db, projectPath);
+      if (!ticketId) {
+        return {
+          content: [{
+            type: "text",
+            text: `No active ticket found.
+
+To link commits/PRs, either:
+1. Start ticket work: start_ticket_work({ ticketId: "..." })
+2. Or be on a feature branch: feature/{short-id}-{slug}
+
+Current detection methods tried:
+- Ralph state file (.claude/ralph-state.json): not found
+- Branch name pattern (feature/{id}-...): no match`,
+          }],
+          isError: true,
+        };
+      }
+
+      // Get ticket info
+      const ticket = db
+        .prepare(
+          `SELECT t.*, p.name as project_name, p.path as project_path
+           FROM tickets t JOIN projects p ON t.project_id = p.id WHERE t.id = ?`
+        )
+        .get(ticketId);
+
+      if (!ticket) {
+        return {
+          content: [{ type: "text", text: `Ticket not found in database: ${ticketId}` }],
+          isError: true,
+        };
+      }
+
+      const results = {
+        ticketId,
+        ticketTitle: ticket.title,
+        source,
+        commitsLinked: [],
+        commitsSkipped: [],
+        prLinked: null,
+        prSkipped: null,
+      };
+
+      // Get existing linked commits for comparison
+      let existingCommits = [];
+      if (ticket.linked_commits) {
+        try {
+          existingCommits = JSON.parse(ticket.linked_commits);
+        } catch {
+          existingCommits = [];
+        }
+      }
+
+      // Get recent commits on this branch
+      const commits = getRecentCommits(projectPath);
+      const now = new Date().toISOString();
+
+      for (const commit of commits) {
+        // Check if already linked (match by hash prefix)
+        const alreadyLinked = existingCommits.some(
+          (c) =>
+            c.hash === commit.hash ||
+            c.hash.startsWith(commit.hash) ||
+            commit.hash.startsWith(c.hash)
+        );
+
+        if (alreadyLinked) {
+          results.commitsSkipped.push({ hash: shortId(commit.hash), message: commit.message });
+        } else {
+          existingCommits.push({
+            hash: commit.hash,
+            message: commit.message,
+            linkedAt: now,
+          });
+          results.commitsLinked.push({ hash: shortId(commit.hash), message: commit.message });
+        }
+      }
+
+      // Update ticket with new commits if any were linked
+      if (results.commitsLinked.length > 0) {
+        db.prepare("UPDATE tickets SET linked_commits = ?, updated_at = ? WHERE id = ?").run(
+          JSON.stringify(existingCommits),
+          now,
+          ticketId
+        );
+        log.info(`Linked ${results.commitsLinked.length} commits to ticket ${ticketId}`);
+      }
+
+      // Check for PR on current branch
+      const branchResult = runGitCommand("git branch --show-current", projectPath);
+      if (branchResult.success && branchResult.output) {
+        const branch = branchResult.output.trim();
+        const prResult = runGitCommand(
+          `gh pr view "${branch}" --json number,url,state 2>/dev/null`,
+          projectPath
+        );
+
+        if (prResult.success && prResult.output) {
+          try {
+            const prData = JSON.parse(prResult.output);
+            if (prData.number) {
+              // Check if PR is already linked
+              if (ticket.pr_number === prData.number) {
+                results.prSkipped = { number: prData.number, reason: "already linked" };
+              } else {
+                // Map GitHub state to our status
+                let prStatus = "open";
+                if (prData.state === "MERGED") prStatus = "merged";
+                else if (prData.state === "CLOSED") prStatus = "closed";
+
+                // Link the PR
+                db.prepare(
+                  "UPDATE tickets SET pr_number = ?, pr_url = ?, pr_status = ?, updated_at = ? WHERE id = ?"
+                ).run(prData.number, prData.url || null, prStatus, now, ticketId);
+
+                results.prLinked = {
+                  number: prData.number,
+                  url: prData.url,
+                  status: prStatus,
+                };
+                log.info(`Linked PR #${prData.number} to ticket ${ticketId}`);
+              }
+            }
+          } catch {
+            // PR query failed, that's OK
+          }
+        }
+      }
+
+      // Build summary
+      let summary = `## Sync Complete for "${ticket.title}"\n\n`;
+      summary += `**Ticket:** ${shortId(ticketId)}\n`;
+      summary += `**Detection:** ${source}\n\n`;
+
+      if (results.commitsLinked.length > 0) {
+        summary += `### Commits Linked (${results.commitsLinked.length})\n`;
+        for (const c of results.commitsLinked) {
+          summary += `- \`${c.hash}\`: ${c.message}\n`;
+        }
+        summary += "\n";
+      } else {
+        summary += `### Commits\nNo new commits to link.\n\n`;
+      }
+
+      if (results.commitsSkipped.length > 0) {
+        summary += `### Already Linked (${results.commitsSkipped.length})\n`;
+        for (const c of results.commitsSkipped) {
+          summary += `- \`${c.hash}\`: ${c.message}\n`;
+        }
+        summary += "\n";
+      }
+
+      if (results.prLinked) {
+        summary += `### PR Linked\n`;
+        summary += `- PR #${results.prLinked.number} (${results.prLinked.status})\n`;
+        if (results.prLinked.url) {
+          summary += `- URL: ${results.prLinked.url}\n`;
+        }
+      } else if (results.prSkipped) {
+        summary += `### PR\nPR #${results.prSkipped.number} already linked.\n`;
+      } else {
+        summary += `### PR\nNo PR found for current branch.\n`;
+      }
+
+      return {
+        content: [{ type: "text", text: summary }],
       };
     }
   );
