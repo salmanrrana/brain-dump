@@ -10,7 +10,6 @@ import {
   useModalKeyboard,
   useClickOutside,
   useAutoClearState,
-  useDockerAvailability,
 } from "../lib/hooks";
 import { useToast } from "./Toast";
 import ErrorAlert from "./ErrorAlert";
@@ -62,9 +61,6 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   // Settings and Ralph hooks
   const { settings } = useSettings();
   const launchRalphMutation = useLaunchRalphForEpic();
-  // Docker availability check - not currently used since Docker options are disabled
-  // but keeping the hook call for future re-enablement
-  useDockerAvailability();
 
   // TanStack Form for epic data
   const form = useForm({
@@ -106,7 +102,11 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   const handleSave = () => {
     const formValues = form.state.values;
     const trimmedTitle = formValues.title.trim();
-    if (!trimmedTitle) return;
+    if (!trimmedTitle) {
+      // Show feedback for empty title instead of silent return
+      showToast("error", "Epic title is required");
+      return;
+    }
 
     const trimmedDescription = formValues.description.trim();
     const colorValue = formValues.color;
@@ -121,7 +121,15 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
             ...(colorValue ? { color: colorValue } : {}),
           },
         },
-        { onSuccess: onSave }
+        {
+          onSuccess: onSave,
+          onError: (err) => {
+            showToast(
+              "error",
+              `Failed to update epic: ${err instanceof Error ? err.message : "Unknown error"}`
+            );
+          },
+        }
       );
     } else {
       createMutation.mutate(
@@ -131,7 +139,15 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
           ...(trimmedDescription ? { description: trimmedDescription } : {}),
           ...(colorValue ? { color: colorValue } : {}),
         },
-        { onSuccess: onSave }
+        {
+          onSuccess: onSave,
+          onError: (err) => {
+            showToast(
+              "error",
+              `Failed to create epic: ${err instanceof Error ? err.message : "Unknown error"}`
+            );
+          },
+        }
       );
     }
   };
@@ -210,7 +226,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
         }
         // Auto-hide is handled by useAutoClearState hook
       } catch (error) {
-        console.error("Failed to start Ralph:", error);
+        // Error is displayed to user via notification - no console.error needed
         const errorMessage = error instanceof Error ? error.message : "Failed to launch Ralph";
         setRalphNotification({
           type: "error",

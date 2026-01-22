@@ -1,16 +1,10 @@
 import { type FC, useState, useRef, useCallback, useEffect, type KeyboardEvent } from "react";
 import { Plus, Check, X } from "lucide-react";
 import { useUpdateTicket } from "../../lib/hooks";
+import type { Subtask } from "../../api/tickets";
 
-// =============================================================================
-// Types
-// =============================================================================
-
-export interface Subtask {
-  id: string;
-  text: string;
-  completed: boolean;
-}
+// Re-export for consumers that import from this file
+export type { Subtask } from "../../api/tickets";
 
 export interface SubtasksProgressProps {
   /** Ticket ID for persisting changes */

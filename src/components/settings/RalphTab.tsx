@@ -8,7 +8,12 @@ import {
   toggleStyles,
   buttonGroupStyles,
 } from "./settingsStyles";
-import type { SettingsForm } from "./settings-form-opts";
+import type {
+  SettingsForm,
+  BooleanFieldRenderProps,
+  StringFieldRenderProps,
+  NumberFieldRenderProps,
+} from "./settings-form-opts";
 
 // =============================================================================
 // TYPES
@@ -108,7 +113,7 @@ export function RalphTab({
         {/* Docker Sandbox Toggle */}
         <form.Field
           name="ralphSandbox"
-          children={(field: { state: { value: boolean }; handleChange: (v: boolean) => void }) => (
+          children={(field: BooleanFieldRenderProps) => (
             <div className={toggleStyles.row}>
               <div className={toggleStyles.info}>
                 <div className={toggleStyles.label}>Prefer Docker Sandbox by Default</div>
@@ -119,6 +124,7 @@ export function RalphTab({
               </div>
               <button
                 onClick={() => field.handleChange(!field.state.value)}
+                onBlur={field.handleBlur}
                 className={toggleStyles.switch(field.state.value)}
                 role="switch"
                 aria-checked={field.state.value}
@@ -276,11 +282,7 @@ export function RalphTab({
         {dockerStatus?.dockerAvailable && (
           <form.Field
             name="dockerRuntime"
-            children={(field: {
-              state: { value: string };
-              handleChange: (v: string) => void;
-              handleBlur: () => void;
-            }) => (
+            children={(field: StringFieldRenderProps) => (
               <div>
                 <label htmlFor="docker-runtime-select" className={fieldStyles.label}>
                   Docker Runtime
@@ -356,7 +358,7 @@ export function RalphTab({
         {/* Session Timeout */}
         <form.Field
           name="ralphTimeout"
-          children={(field: { state: { value: number }; handleChange: (v: number) => void }) => (
+          children={(field: NumberFieldRenderProps) => (
             <div>
               <label className={fieldStyles.label}>Session Timeout</label>
               <div
@@ -386,7 +388,7 @@ export function RalphTab({
         {/* Max Iterations */}
         <form.Field
           name="ralphMaxIterations"
-          children={(field: { state: { value: number }; handleChange: (v: number) => void }) => (
+          children={(field: NumberFieldRenderProps) => (
             <div>
               <label className={fieldStyles.label}>Max Iterations</label>
               <div

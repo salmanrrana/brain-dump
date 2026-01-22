@@ -1,7 +1,11 @@
 import { Building2, FileText, Palette } from "lucide-react";
 import { ThemeSwitcher } from "../../components-v2/ui/ThemeSwitcher";
 import { sectionHeaderStyles, fieldStyles, inputStyles, toggleStyles } from "./settingsStyles";
-import type { SettingsForm } from "./settings-form-opts";
+import type {
+  SettingsForm,
+  BooleanFieldRenderProps,
+  NumberFieldRenderProps,
+} from "./settings-form-opts";
 
 // =============================================================================
 // TYPES
@@ -52,10 +56,7 @@ export function EnterpriseTab({ isActive, form }: EnterpriseTabProps) {
           {/* Enable Logging Toggle */}
           <form.Field
             name="conversationLoggingEnabled"
-            children={(field: {
-              state: { value: boolean };
-              handleChange: (v: boolean) => void;
-            }) => (
+            children={(field: BooleanFieldRenderProps) => (
               <div className={toggleStyles.row}>
                 <div className={toggleStyles.info}>
                   <div className={toggleStyles.label}>Enable Conversation Logging</div>
@@ -65,6 +66,7 @@ export function EnterpriseTab({ isActive, form }: EnterpriseTabProps) {
                 </div>
                 <button
                   onClick={() => field.handleChange(!field.state.value)}
+                  onBlur={field.handleBlur}
                   className={toggleStyles.switch(field.state.value)}
                   role="switch"
                   aria-checked={field.state.value}
@@ -84,11 +86,7 @@ export function EnterpriseTab({ isActive, form }: EnterpriseTabProps) {
             children={(loggingEnabled: boolean) => (
               <form.Field
                 name="conversationRetentionDays"
-                children={(field: {
-                  state: { value: number };
-                  handleChange: (v: number) => void;
-                  handleBlur: () => void;
-                }) => (
+                children={(field: NumberFieldRenderProps) => (
                   <div className="mt-4">
                     <label htmlFor="retention-days-input" className={fieldStyles.label}>
                       Retention Period (days)

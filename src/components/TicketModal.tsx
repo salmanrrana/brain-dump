@@ -4,7 +4,6 @@ import {
   useClickOutside,
   useDeleteTicket,
   useTicketDeletePreview,
-  useDockerAvailability,
 } from "../lib/hooks";
 import DeleteConfirmationModal from "./DeleteConfirmationModal";
 import {
@@ -168,10 +167,6 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
 
   // Ralph mutation hook
   const launchRalphMutation = useLaunchRalphForTicket();
-
-  // Docker availability for Ralph sandbox mode - not currently used since Docker options are disabled
-  // but keeping the hook call for future re-enablement
-  useDockerAvailability();
 
   // Delete mutation hook
   const deleteTicketMutation = useDeleteTicket();

@@ -110,23 +110,15 @@ export function TabNav({ tabs, activeTab, onTabChange }: TabNavProps) {
               transition-all duration-150 ease-out
               focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
               focus-visible:ring-[var(--accent-primary)] focus-visible:ring-offset-[var(--bg-secondary)]
+              ${
+                isActive
+                  ? "text-[var(--text-primary)]"
+                  : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              }
             `}
             style={{
               background: isActive ? "var(--gradient-accent)" : "transparent",
-              color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
               boxShadow: isActive ? "var(--shadow-glow-sm)" : "none",
-            }}
-            onMouseEnter={(e) => {
-              if (!isActive) {
-                e.currentTarget.style.background = "var(--bg-hover)";
-                e.currentTarget.style.color = "var(--text-primary)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!isActive) {
-                e.currentTarget.style.background = "transparent";
-                e.currentTarget.style.color = "var(--text-secondary)";
-              }
             }}
           >
             <Icon size={18} aria-hidden="true" />

@@ -7,7 +7,11 @@ import {
   statusCardStyles,
   toggleStyles,
 } from "./settingsStyles";
-import type { SettingsForm } from "./settings-form-opts";
+import type {
+  SettingsForm,
+  BooleanFieldRenderProps,
+  StringFieldRenderProps,
+} from "./settings-form-opts";
 
 // =============================================================================
 // TYPES
@@ -61,7 +65,7 @@ export function GitTab({ isActive, form }: GitTabProps) {
         {/* Auto-create PR Toggle */}
         <form.Field
           name="autoCreatePr"
-          children={(field: { state: { value: boolean }; handleChange: (v: boolean) => void }) => (
+          children={(field: BooleanFieldRenderProps) => (
             <div className={toggleStyles.row}>
               <div className={toggleStyles.info}>
                 <div className={toggleStyles.label}>Auto-create Pull Request</div>
@@ -71,6 +75,7 @@ export function GitTab({ isActive, form }: GitTabProps) {
               </div>
               <button
                 onClick={() => field.handleChange(!field.state.value)}
+                onBlur={field.handleBlur}
                 className={toggleStyles.switch(field.state.value)}
                 role="switch"
                 aria-checked={field.state.value}
@@ -85,11 +90,7 @@ export function GitTab({ isActive, form }: GitTabProps) {
         {/* PR Target Branch */}
         <form.Field
           name="prTargetBranch"
-          children={(field: {
-            state: { value: string };
-            handleChange: (v: string) => void;
-            handleBlur: () => void;
-          }) => (
+          children={(field: StringFieldRenderProps) => (
             <div>
               <label htmlFor="pr-target-branch" className={fieldStyles.label}>
                 PR Target Branch

@@ -88,11 +88,12 @@ describe("TabNav", () => {
       expect(inactiveTab).toHaveStyle({ background: "transparent" });
     });
 
-    it("applies secondary text color to inactive tabs", () => {
+    it("applies secondary text color class to inactive tabs", () => {
       render(<TabNav tabs={mockTabs} activeTab="general" onTabChange={() => {}} />);
 
       const inactiveTab = screen.getByRole("tab", { name: "Git" });
-      expect(inactiveTab).toHaveStyle({ color: "var(--text-secondary)" });
+      // Color is applied via CSS class, not inline style
+      expect(inactiveTab.className).toContain("text-[var(--text-secondary)]");
     });
   });
 

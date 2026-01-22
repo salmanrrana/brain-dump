@@ -1,7 +1,7 @@
 import { ChevronDown, Terminal, FolderPlus, Folder } from "lucide-react";
 import { SUPPORTED_TERMINALS } from "../../api/settings";
 import { sectionHeaderStyles, fieldStyles, inputStyles } from "./settingsStyles";
-import type { SettingsForm } from "./settings-form-opts";
+import type { SettingsForm, StringFieldRenderProps } from "./settings-form-opts";
 
 // =============================================================================
 // TYPES
@@ -61,7 +61,7 @@ export function GeneralTab({
 
           <form.Field
             name="defaultProjectsDirectory"
-            children={(field: { state: { value: string }; handleChange: (v: string) => void }) => (
+            children={(field: StringFieldRenderProps) => (
               <div>
                 <label className={fieldStyles.label}>Default Projects Directory</label>
                 <button
@@ -101,11 +101,7 @@ export function GeneralTab({
           {/* Default Working Method */}
           <form.Field
             name="defaultWorkingMethod"
-            children={(field: {
-              state: { value: string };
-              handleChange: (v: string) => void;
-              handleBlur: () => void;
-            }) => (
+            children={(field: StringFieldRenderProps) => (
               <div className="mt-4">
                 <label htmlFor="working-method-select" className={fieldStyles.label}>
                   Default Environment
@@ -149,11 +145,7 @@ export function GeneralTab({
           {/* Terminal Emulator Selection */}
           <form.Field
             name="terminalEmulator"
-            children={(field: {
-              state: { value: string };
-              handleChange: (v: string) => void;
-              handleBlur: () => void;
-            }) => (
+            children={(field: StringFieldRenderProps) => (
               <div>
                 <label htmlFor="terminal-emulator-select" className={fieldStyles.label}>
                   Preferred Terminal Emulator

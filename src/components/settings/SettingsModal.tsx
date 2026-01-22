@@ -81,6 +81,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   });
 
   // Reset form when settings change (e.g., after query refetch)
+  // Note: form instance from useForm is stable - only settings changes trigger reset
   useEffect(() => {
     if (settings) {
       form.reset({
@@ -98,7 +99,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         conversationRetentionDays: settings.conversationRetentionDays ?? 90,
       });
     }
-  }, [settings, form]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- form instance is stable from useForm
+  }, [settings]);
 
   const isSaving = updateMutation.isPending;
   const error = updateMutation.error;
@@ -163,12 +165,24 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         conversationRetentionDays: values.conversationRetentionDays,
         dockerRuntime: values.dockerRuntime === "auto" ? null : values.dockerRuntime,
       },
-      { onSuccess: onClose }
+      {
+        onSuccess: onClose,
+        onError: (err) => {
+          // Error is automatically captured in updateMutation.error for display
+          // Log for debugging but don't throw - let UI show the error
+          console.error("[SettingsModal] Failed to save settings:", err);
+        },
+      }
     );
   }, [updateMutation, form.state.values, onClose]);
 
   const handleBuildImage = useCallback(() => {
-    buildImageMutation.mutate();
+    buildImageMutation.mutate(undefined, {
+      onError: (err) => {
+        // Error is automatically captured in buildImageMutation.error for display
+        console.error("[SettingsModal] Failed to build sandbox image:", err);
+      },
+    });
   }, [buildImageMutation]);
 
   const handleTabChange = useCallback((tabId: string) => {
