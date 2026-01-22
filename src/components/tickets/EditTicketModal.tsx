@@ -21,6 +21,7 @@ import { CreateEpicModal } from "../epics/CreateEpicModal";
 import { getTicketContext } from "../../api/context";
 import { launchClaudeInTerminal, launchOpenCodeInTerminal } from "../../api/terminal";
 import type { TicketStatus, Subtask } from "../../api/tickets";
+import { safeJsonParse } from "../../lib/utils";
 
 /** Priority options for ticket editing */
 const PRIORITY_OPTIONS = [
@@ -73,9 +74,9 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
   ticket,
   onSuccess,
 }) => {
-  // Parse JSON fields from ticket
-  const initialTags = ticket.tags ? (JSON.parse(ticket.tags) as string[]) : [];
-  const initialSubtasks = ticket.subtasks ? (JSON.parse(ticket.subtasks) as Subtask[]) : [];
+  // Parse JSON fields from ticket - use safeJsonParse to handle corrupted data gracefully
+  const initialTags = safeJsonParse<string[]>(ticket.tags, []);
+  const initialSubtasks = safeJsonParse<Subtask[]>(ticket.subtasks, []);
 
   // Form state - initialized from ticket data
   const [title, setTitle] = useState(ticket.title);
@@ -134,8 +135,8 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
   // Note: When opening the modal for a different ticket, parent should pass
   // key={ticket.id} to force a clean remount and avoid stale state
   const resetForm = useCallback(() => {
-    const ticketTags = ticket.tags ? (JSON.parse(ticket.tags) as string[]) : [];
-    const ticketSubtasks = ticket.subtasks ? (JSON.parse(ticket.subtasks) as Subtask[]) : [];
+    const ticketTags = safeJsonParse<string[]>(ticket.tags, []);
+    const ticketSubtasks = safeJsonParse<Subtask[]>(ticket.subtasks, []);
 
     setTitle(ticket.title);
     setDescription(ticket.description ?? "");
@@ -456,7 +457,7 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
     maxHeight: "90vh",
     background: "var(--bg-secondary)",
     borderRadius: "var(--radius-lg)",
-    boxShadow: "var(--shadow-xl)",
+    boxShadow: "var(--shadow-modal)",
     overflow: "hidden",
     display: "flex",
     flexDirection: "column",

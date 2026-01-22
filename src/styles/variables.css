@@ -148,6 +148,9 @@
   --shadow-glow-sm: 0 0 10px var(--accent-glow);
   --shadow-glow-lg: 0 0 30px var(--accent-glow);
 
+  /* Modal shadow - theme-colored glow with depth */
+  --shadow-modal: 0 0 60px var(--accent-glow), 0 25px 50px rgba(0, 0, 0, 0.5);
+
   /* Transitions */
   --transition-fast: 100ms ease;
   --transition-normal: 150ms ease;
@@ -214,7 +217,7 @@
 }
 
 /* ============================================
-   MINT THEME (Emerald)
+   MINT THEME (Emerald + Rose)
    ============================================ */
 [data-theme="mint"] {
   /* Accent Colors - Mint Theme (Emerald) */
@@ -224,12 +227,16 @@
   --accent-muted: rgba(16, 185, 129, 0.15);
   --accent-glow: rgba(16, 185, 129, 0.4);
 
+  /* AI/Secondary accent - Rose for Mint theme */
+  --accent-ai: #f43f5e;
+  --accent-ai-glow: rgba(244, 63, 94, 0.4);
+
   /* Update gradient */
   --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
 }
 
 /* ============================================
-   SOLAR THEME (Gold)
+   SOLAR THEME (Gold + Blue)
    ============================================ */
 [data-theme="solar"] {
   /* Accent Colors - Solar Theme (Gold) */
@@ -238,6 +245,10 @@
   --accent-tertiary: #a16207;
   --accent-muted: rgba(234, 179, 8, 0.15);
   --accent-glow: rgba(234, 179, 8, 0.4);
+
+  /* AI/Secondary accent - Blue for Solar theme */
+  --accent-ai: #3b82f6;
+  --accent-ai-glow: rgba(59, 130, 246, 0.4);
 
   /* Update gradient */
   --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));

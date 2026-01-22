@@ -108,12 +108,20 @@ export default function NewTicketModal({
         const uploadPromises = validFiles.map(async (file) => {
           const reader = new FileReader();
           const base64 = await new Promise<string>((resolve, reject) => {
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = () => {
+            const handleLoad = () => {
+              reader.removeEventListener("load", handleLoad);
+              reader.removeEventListener("error", handleError);
+              resolve(reader.result as string);
+            };
+            const handleError = () => {
+              reader.removeEventListener("load", handleLoad);
+              reader.removeEventListener("error", handleError);
               const errorName = reader.error?.name ?? "UnknownError";
               const errorMessage = reader.error?.message ?? "Unknown file read error";
               reject(new Error(`Failed to read "${file.name}": ${errorName} - ${errorMessage}`));
             };
+            reader.addEventListener("load", handleLoad);
+            reader.addEventListener("error", handleError);
             reader.readAsDataURL(file);
           });
 
@@ -367,7 +375,10 @@ export default function NewTicketModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="relative bg-[var(--bg-secondary)] rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
+        className="relative bg-[var(--bg-secondary)] rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
+        style={{
+          boxShadow: "var(--shadow-modal)",
+        }}
       >
         <div className="flex items-center justify-between p-4 border-b border-[var(--border-primary)]">
           <h2 id="modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
@@ -536,6 +547,11 @@ export default function NewTicketModal({
                   aria-expanded={isTagDropdownOpen && (tagsLoading || tagSuggestions.length > 0)}
                   aria-controls="tag-suggestions"
                   aria-autocomplete="list"
+                  aria-activedescendant={
+                    selectedSuggestionIndex >= 0
+                      ? `tag-suggestion-${selectedSuggestionIndex}`
+                      : undefined
+                  }
                 />
                 <button
                   type="button"
@@ -568,6 +584,7 @@ export default function NewTicketModal({
                     tagSuggestions.map((tag, index) => (
                       <button
                         key={tag}
+                        id={`tag-suggestion-${index}`}
                         type="button"
                         role="option"
                         aria-selected={index === selectedSuggestionIndex}

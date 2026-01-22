@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { X, Bot, GitBranch, Settings, Building2 } from "lucide-react";
 import {
   useSettings,
@@ -63,7 +63,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   // Form state - Ralph tab
   const [ralphSandbox, setRalphSandbox] = useState(false);
   const [ralphTimeout, setRalphTimeout] = useState(3600);
-  const [ralphMaxIterations, setRalphMaxIterations] = useState(10);
   const [dockerRuntime, setDockerRuntime] = useState<DockerRuntimeSetting>("auto");
 
   // Form state - Git tab
@@ -74,9 +73,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   const [conversationLoggingEnabled, setConversationLoggingEnabled] = useState(true);
   const [conversationRetentionDays, setConversationRetentionDays] = useState(90);
 
-  // Change tracking
-  const [hasChanges, setHasChanges] = useState(false);
-
   // Initialize state when settings load
   /* eslint-disable react-hooks/set-state-in-effect -- syncing external data to state */
   useEffect(() => {
@@ -84,7 +80,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       setTerminalEmulator(settings.terminalEmulator ?? "");
       setRalphSandbox(settings.ralphSandbox ?? false);
       setRalphTimeout(settings.ralphTimeout ?? 3600);
-      setRalphMaxIterations(settings.ralphMaxIterations ?? 10);
       setAutoCreatePr(settings.autoCreatePr ?? true);
       setPrTargetBranch(settings.prTargetBranch ?? "dev");
       setDefaultProjectsDirectory(settings.defaultProjectsDirectory ?? "");
@@ -98,44 +93,26 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   }, [settings]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Track changes
-  /* eslint-disable react-hooks/set-state-in-effect -- derived state from form values */
-  useEffect(() => {
-    if (settings) {
-      const terminalChanged = terminalEmulator !== (settings.terminalEmulator ?? "");
-      const sandboxChanged = ralphSandbox !== (settings.ralphSandbox ?? false);
-      const timeoutChanged = ralphTimeout !== (settings.ralphTimeout ?? 3600);
-      const iterationsChanged = ralphMaxIterations !== (settings.ralphMaxIterations ?? 10);
-      const prChanged = autoCreatePr !== (settings.autoCreatePr ?? true);
-      const branchChanged = prTargetBranch !== (settings.prTargetBranch ?? "dev");
-      const dirChanged = defaultProjectsDirectory !== (settings.defaultProjectsDirectory ?? "");
-      const workingMethodChanged =
-        defaultWorkingMethod !== (settings.defaultWorkingMethod ?? "auto");
-      const loggingEnabledChanged =
-        conversationLoggingEnabled !== (settings.conversationLoggingEnabled ?? true);
-      const retentionChanged =
-        conversationRetentionDays !== (settings.conversationRetentionDays ?? 90);
-      const currentDbRuntime = settings.dockerRuntime ?? "auto";
-      const dockerRuntimeChanged = dockerRuntime !== currentDbRuntime;
-      setHasChanges(
-        terminalChanged ||
-          sandboxChanged ||
-          timeoutChanged ||
-          iterationsChanged ||
-          prChanged ||
-          branchChanged ||
-          dirChanged ||
-          workingMethodChanged ||
-          loggingEnabledChanged ||
-          retentionChanged ||
-          dockerRuntimeChanged
-      );
-    }
+  // Compute change tracking with useMemo (avoids extra re-render from useEffect+setState)
+  const hasChanges = useMemo(() => {
+    if (!settings) return false;
+
+    return (
+      terminalEmulator !== (settings.terminalEmulator ?? "") ||
+      ralphSandbox !== (settings.ralphSandbox ?? false) ||
+      ralphTimeout !== (settings.ralphTimeout ?? 3600) ||
+      autoCreatePr !== (settings.autoCreatePr ?? true) ||
+      prTargetBranch !== (settings.prTargetBranch ?? "dev") ||
+      defaultProjectsDirectory !== (settings.defaultProjectsDirectory ?? "") ||
+      defaultWorkingMethod !== (settings.defaultWorkingMethod ?? "auto") ||
+      conversationLoggingEnabled !== (settings.conversationLoggingEnabled ?? true) ||
+      conversationRetentionDays !== (settings.conversationRetentionDays ?? 90) ||
+      dockerRuntime !== (settings.dockerRuntime ?? "auto")
+    );
   }, [
     terminalEmulator,
     ralphSandbox,
     ralphTimeout,
-    ralphMaxIterations,
     autoCreatePr,
     prTargetBranch,
     defaultProjectsDirectory,
@@ -145,7 +122,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     dockerRuntime,
     settings,
   ]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const isSaving = updateMutation.isPending;
   const error = updateMutation.error;
@@ -200,7 +176,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         terminalEmulator: terminalEmulator || null,
         ralphSandbox,
         ralphTimeout,
-        ralphMaxIterations,
         autoCreatePr,
         prTargetBranch: prTargetBranch || "dev",
         defaultProjectsDirectory: defaultProjectsDirectory || null,
@@ -216,7 +191,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     terminalEmulator,
     ralphSandbox,
     ralphTimeout,
-    ralphMaxIterations,
     autoCreatePr,
     prTargetBranch,
     defaultProjectsDirectory,
@@ -265,22 +239,37 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden="true" />
 
-      {/* Modal */}
+      {/* Modal - with theme-colored glow effect around the modal */}
       <div
         ref={modalRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-modal-title"
-        className="relative bg-[var(--bg-secondary)] rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
+        className="relative bg-[var(--bg-secondary)] rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
+        style={{
+          boxShadow: "var(--shadow-modal)",
+        }}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[var(--border-primary)]">
-          <h2
-            id="settings-modal-title"
-            className="text-lg font-semibold text-[var(--text-primary)]"
-          >
-            Settings
-          </h2>
+          <div className="flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{
+                background:
+                  "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary), var(--accent-ai))",
+                boxShadow: "0 4px 12px var(--accent-glow)",
+              }}
+            >
+              <Settings size={20} className="text-white" aria-hidden="true" />
+            </div>
+            <h2
+              id="settings-modal-title"
+              className="text-lg font-semibold text-[var(--text-primary)]"
+            >
+              Settings
+            </h2>
+          </div>
           <button
             onClick={onClose}
             className="p-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -296,7 +285,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="max-h-[520px] overflow-y-auto py-5 px-6">
           {error && (
             <div className="mb-4 p-3 bg-[var(--status-error)]/20 border border-[var(--status-error)]/50 rounded-lg text-[var(--status-error)] text-sm">
               {error instanceof Error ? error.message : "An error occurred"}
@@ -325,8 +314,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                 onSandboxChange={setRalphSandbox}
                 ralphTimeout={ralphTimeout}
                 onTimeoutChange={setRalphTimeout}
-                ralphMaxIterations={ralphMaxIterations}
-                onMaxIterationsChange={setRalphMaxIterations}
                 dockerRuntime={dockerRuntime}
                 onDockerRuntimeChange={setDockerRuntime}
                 dockerStatus={dockerStatus}
@@ -352,7 +339,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end p-4 border-t border-[var(--border-primary)]">
+        <div className="flex items-center justify-between p-4 border-t border-[var(--border-primary)]">
+          <span className="text-xs text-[var(--text-tertiary)]">Changes will be saved locally</span>
           <div className="flex gap-3">
             <button
               onClick={onClose}
@@ -363,7 +351,14 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
             <button
               onClick={handleSave}
               disabled={isSaving || !hasChanges}
-              className="px-4 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] rounded-lg font-medium transition-colors"
+              className="px-4 py-2 rounded-lg font-medium transition-all disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] disabled:shadow-none"
+              style={{
+                background:
+                  isSaving || !hasChanges
+                    ? undefined
+                    : "linear-gradient(135deg, var(--accent-primary), var(--accent-ai))",
+                boxShadow: isSaving || !hasChanges ? undefined : "0 4px 12px var(--accent-glow)",
+              }}
             >
               {isSaving ? "Saving..." : "Save Changes"}
             </button>

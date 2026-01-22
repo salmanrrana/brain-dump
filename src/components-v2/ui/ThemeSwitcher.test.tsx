@@ -152,12 +152,13 @@ describe("ThemeSwitcher", () => {
       expect(screen.getByRole("radiogroup", { name: /theme selector/i })).toBeInTheDocument();
     });
 
-    it("shows theme name in tooltip", () => {
+    it("shows theme name as visible text in each card", () => {
       renderWithTheme();
 
-      expect(screen.getByRole("radio", { name: /ember theme/i })).toHaveAttribute("title", "Ember");
-      expect(screen.getByRole("radio", { name: /mint theme/i })).toHaveAttribute("title", "Mint");
-      expect(screen.getByRole("radio", { name: /solar theme/i })).toHaveAttribute("title", "Solar");
+      // Theme names are displayed as visible text in the card design
+      expect(screen.getByText("Ember")).toBeInTheDocument();
+      expect(screen.getByText("Mint")).toBeInTheDocument();
+      expect(screen.getByText("Solar")).toBeInTheDocument();
     });
   });
 });

@@ -120,6 +120,9 @@ const SERVICE_TYPE_COLORS: Record<ServiceType, string> = {
   other: "text-slate-400",
 };
 
+// Stable empty state for tag suggestions to prevent recreation on every render
+const EMPTY_TAG_STATE = { tagSuggestions: [] as string[], showCreateHelper: false };
+
 export default function TicketModal({ ticket, epics, onClose, onUpdate }: TicketModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useState(ticket.title);
@@ -216,7 +219,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
   const { tagSuggestions, showCreateHelper } = useMemo(() => {
     const trimmedInput = newTag.trim();
     if (!trimmedInput) {
-      return { tagSuggestions: [], showCreateHelper: false };
+      return EMPTY_TAG_STATE;
     }
 
     const inputLower = trimmedInput.toLowerCase();
@@ -460,10 +463,13 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
           type: "success",
           message: `Context copied! Run: cd "${contextResult.projectPath}" && claude`,
         });
-      } catch {
+      } catch (fallbackError) {
+        console.error("Failed to copy context to clipboard:", fallbackError);
+        const errorMessage =
+          fallbackError instanceof Error ? fallbackError.message : "Could not copy context";
         setStartWorkNotification({
           type: "error",
-          message: "Failed to start work",
+          message: `Failed to start work: ${errorMessage}`,
         });
       }
     } finally {
@@ -791,7 +797,10 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="relative bg-[var(--bg-secondary)] rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+        className="relative bg-[var(--bg-secondary)] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+        style={{
+          boxShadow: "var(--shadow-modal)",
+        }}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[var(--border-primary)]">

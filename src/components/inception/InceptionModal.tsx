@@ -4,53 +4,17 @@ import { useClickOutside, useSettings } from "../../lib/hooks";
 import { launchProjectInception } from "../../api/inception";
 import { useToast } from "../Toast";
 
-// =============================================================================
-// Component Types
-// =============================================================================
-
 export interface InceptionModalProps {
-  /** Whether the modal is open */
   isOpen: boolean;
-  /** Handler called when the modal should close */
   onClose: () => void;
-  /** Handler called when user chooses to skip AI and create manually */
   onSkipAI?: () => void;
 }
 
-// =============================================================================
-// Main InceptionModal Component
-// =============================================================================
-
 /**
- * InceptionModal - "Start from Scratch" modal for AI-guided project creation.
+ * Modal for launching Claude-guided project inception.
  *
- * Features:
- * - **Hero section**: Large rocket icon with engaging copy
- * - **AI explanation**: Describes what Claude will do
- * - **Primary CTA**: "Start with Claude" button that launches terminal
- * - **Secondary link**: "Skip AI" option for manual creation
- * - **Loading state**: Shows spinner while launching terminal
- * - **Keyboard accessible**: Escape to close, Tab navigation
- *
- * Layout:
- * ```
- * ┌─────────────────────────────────────────────────────────────┐
- * │ [🚀] Start from Scratch                                 [×] │
- * ├─────────────────────────────────────────────────────────────┤
- * │                                                              │
- * │           🚀                                                 │
- * │     Start Something New                                      │
- * │                                                              │
- * │  Let AI help you brainstorm and plan your next project.     │
- * │  Claude will interview you about your idea and create       │
- * │  a structured spec with epics and tickets.                   │
- * │                                                              │
- * │            [ 🤖 Start with Claude ]                          │
- * │                                                              │
- * │        or skip AI and create manually                       │
- * │                                                              │
- * └─────────────────────────────────────────────────────────────┘
- * ```
+ * Uses launchProjectInception API which handles terminal fallback
+ * if preferred terminal is unavailable (see settings.terminalEmulator).
  */
 export const InceptionModal: FC<InceptionModalProps> = ({ isOpen, onClose, onSkipAI }) => {
   // State
@@ -233,7 +197,7 @@ const modalStyles: React.CSSProperties = {
   background: "var(--bg-secondary)",
   border: "1px solid var(--border-primary)",
   borderRadius: "var(--radius-lg)",
-  boxShadow: "var(--shadow-xl)",
+  boxShadow: "var(--shadow-modal)",
   display: "flex",
   flexDirection: "column",
   overflow: "hidden",

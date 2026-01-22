@@ -1,4 +1,5 @@
-import { Building2, FileText } from "lucide-react";
+import { Building2, FileText, Palette } from "lucide-react";
+import { ThemeSwitcher } from "../../components-v2/ui/ThemeSwitcher";
 import { sectionHeaderStyles, fieldStyles, inputStyles, toggleStyles } from "./settingsStyles";
 
 // =============================================================================
@@ -23,14 +24,14 @@ export interface EnterpriseTabProps {
 // =============================================================================
 
 /**
- * EnterpriseTab - Settings tab for enterprise compliance features.
+ * EnterpriseTab - Settings tab for enterprise compliance features and appearance.
  *
  * Features:
  * - **Conversation logging toggle**: Enable/disable compliance audit logging
  * - **Retention period input**: Configure 7-365 day retention for logs
  * - **Enterprise info box**: SOC2, GDPR, ISO 27001 compliance note
+ * - **Appearance/Theme**: Theme color selection (Ember, Mint, Solar)
  *
- * Note: Theme picker was moved to GeneralTab for better UX organization.
  * Logging settings are persisted via the settings API.
  */
 export function EnterpriseTab({
@@ -114,6 +115,21 @@ export function EnterpriseTab({
               </div>
             </div>
           )}
+        </div>
+
+        {/* Appearance Section */}
+        <div>
+          <div className={sectionHeaderStyles.container}>
+            <div className={sectionHeaderStyles.iconBox("var(--accent-ai)")}>
+              <Palette size={16} className="text-[var(--accent-ai)]" />
+            </div>
+            <h3 className={sectionHeaderStyles.title}>Appearance</h3>
+          </div>
+
+          <div>
+            <label className={fieldStyles.label}>Color Theme</label>
+            <ThemeSwitcher />
+          </div>
         </div>
       </div>
     </div>
