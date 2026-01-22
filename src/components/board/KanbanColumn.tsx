@@ -167,7 +167,6 @@ const columnContentStyles: React.CSSProperties = {
   flex: 1,
   overflowY: "auto",
   minHeight: 0,
-  scrollbarWidth: "thin",
 };
 
 const emptyStateStyles: React.CSSProperties = {

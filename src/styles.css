@@ -352,3 +352,26 @@ a.nav-item,
   fill: var(--accent-primary) !important;
   stroke: var(--bg-secondary) !important;
 }
+
+/* ============================================
+   HIDE SCROLLBARS WHILE MAINTAINING SCROLLABILITY
+   ============================================
+   Hide scrollbars for all scrollable elements while keeping scroll functionality.
+   This provides a cleaner, modern UI while maintaining full scrollability via
+   mouse wheel, touch gestures, and keyboard navigation.
+*/
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+*::-webkit-scrollbar {
+  display: none;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: none;
+}
+
+/* IE and Edge (legacy) */
+* {
+  -ms-overflow-style: none;
+}

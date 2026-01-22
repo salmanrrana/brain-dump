@@ -8,6 +8,21 @@
 
 ![Kanban board](docs/screenshots/kanban-board.png)
 
+### Real Results, Real Metrics
+
+![Dashboard](public/dashboard.png)
+
+<table>
+<tr>
+<td align="center"><h3>94%</h3><sub>Work done by Ralph</sub></td>
+<td align="center"><h3>97.3%</h3><sub>PR merge rate</sub></td>
+<td align="center"><h3>6 min</h3><sub>Avg session time</sub></td>
+<td align="center"><h3>157</h3><sub>Tickets shipped</sub></td>
+</tr>
+</table>
+
+> _"Set up your backlog. Let Ralph work it."_
+
 ## Quick Start
 
 ```bash
