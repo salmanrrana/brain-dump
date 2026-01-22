@@ -60,3 +60,6 @@ test-results/
 
 Thumbs.db
 ehthumbs.db
+
+# pnpm store (created by devcontainer)
+.pnpm-store/
