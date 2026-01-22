@@ -16,9 +16,6 @@ export {
 } from "./settings-form-schema";
 export { settingsFormOpts } from "./settings-form-opts";
 
-// Server-side validation (TanStack Start pattern)
-export {
-  serverValidateSettings,
-  updateSettingsAction,
-  ServerValidateError,
-} from "./settings-server-validate";
+// NOTE: Server-side validation (settings-server-validate.ts) is NOT exported here
+// because it imports Node.js-only modules (logger). Import it directly where needed
+// on the server side: import { serverValidateSettings } from "./settings-server-validate"

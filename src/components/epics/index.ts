@@ -5,9 +5,6 @@ export { CreateEpicModal, type CreateEpicModalProps } from "./CreateEpicModal";
 export { epicFormSchema, type EpicFormData } from "./epic-form-schema";
 export { epicFormOpts } from "./epic-form-opts";
 
-// Server-side validation (TanStack Start pattern)
-export {
-  serverValidateEpic,
-  validateEpicAction,
-  ServerValidateError,
-} from "./epic-server-validate";
+// NOTE: Server-side validation (epic-server-validate.ts) is NOT exported here
+// because it imports Node.js-only modules (logger). Import it directly where needed
+// on the server side: import { serverValidateEpic } from "./epic-server-validate"
