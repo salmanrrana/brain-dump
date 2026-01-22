@@ -1,6 +1,28 @@
 @import "tailwindcss";
 @import "./styles/variables.css";
 
+/* ============================================
+   TAILWIND CSS v4 THEME MAPPING
+   Maps Tailwind's semantic color classes to our CSS variables
+   so they adapt properly to light/dark themes.
+   ============================================ */
+@theme {
+  /* Background colors */
+  --color-background: var(--bg-primary);
+  --color-card: var(--bg-card);
+
+  /* Foreground/text colors */
+  --color-foreground: var(--text-primary);
+  --color-muted-foreground: var(--text-secondary);
+
+  /* Border colors */
+  --color-border: var(--border-primary);
+
+  /* Accent colors */
+  --color-accent-primary: var(--accent-primary);
+  --color-accent-secondary: var(--accent-secondary);
+}
+
 body {
   @apply m-0;
   font-family:

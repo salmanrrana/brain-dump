@@ -269,3 +269,280 @@
   /* Update gradient */
   --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
 }
+
+/* ============================================
+   ARCTIC THEME (Ice Blue + Violet)
+   Cool, professional - great for late-night coding
+   ============================================ */
+[data-theme="arctic"] {
+  /* Accent Colors - Arctic Theme (Sky Blue) */
+  --accent-primary: #0ea5e9;
+  --accent-secondary: #0284c7;
+  --accent-tertiary: #0369a1;
+  --accent-muted: rgba(14, 165, 233, 0.15);
+  --accent-glow: rgba(14, 165, 233, 0.4);
+
+  /* AI/Secondary accent - Violet for Arctic theme */
+  --accent-ai: #a855f7;
+  --accent-ai-glow: rgba(168, 85, 247, 0.4);
+
+  /* Update gradient */
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+}
+
+/* ============================================
+   NEON THEME (Violet + Cyan)
+   Cyberpunk/synthwave vibe - high energy
+   ============================================ */
+[data-theme="neon"] {
+  /* Accent Colors - Neon Theme (Violet) */
+  --accent-primary: #8b5cf6;
+  --accent-secondary: #7c3aed;
+  --accent-tertiary: #6d28d9;
+  --accent-muted: rgba(139, 92, 246, 0.15);
+  --accent-glow: rgba(139, 92, 246, 0.4);
+
+  /* AI/Secondary accent - Cyan for Neon theme */
+  --accent-ai: #06b6d4;
+  --accent-ai-glow: rgba(6, 182, 212, 0.4);
+
+  /* Update gradient */
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+}
+
+/* ============================================
+   BLUSH THEME (Pink + Teal)
+   Modern, softer aesthetic
+   ============================================ */
+[data-theme="blush"] {
+  /* Accent Colors - Blush Theme (Pink) */
+  --accent-primary: #ec4899;
+  --accent-secondary: #db2777;
+  --accent-tertiary: #be185d;
+  --accent-muted: rgba(236, 72, 153, 0.15);
+  --accent-glow: rgba(236, 72, 153, 0.4);
+
+  /* AI/Secondary accent - Teal for Blush theme */
+  --accent-ai: #14b8a6;
+  --accent-ai-glow: rgba(20, 184, 166, 0.4);
+
+  /* Update gradient */
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+}
+
+/* ============================================
+   LIGHT THEMES
+   ============================================ */
+
+/* ============================================
+   DAYLIGHT THEME (Warm Light + Orange)
+   Warm off-white base, reduces eye strain
+   ============================================ */
+[data-theme="daylight"] {
+  /* Background Colors - Warm light base */
+  --bg-primary: #fafaf9;
+  --bg-secondary: #f5f5f4;
+  --bg-tertiary: #e7e5e4;
+  --bg-card: #ffffff;
+  --bg-hover: #d6d3d1;
+  --bg-active: #a8a29e;
+
+  /* Text Colors - Dark for light bg */
+  --text-primary: #1c1917;
+  --text-secondary: #57534e;
+  --text-tertiary: #78716c;
+  --text-muted: #a8a29e;
+
+  /* Border Colors */
+  --border-primary: #d6d3d1;
+  --border-secondary: #a8a29e;
+  --border-focus: #78716c;
+
+  /* Accent Colors - Orange (like Ember) */
+  --accent-primary: #ea580c;
+  --accent-secondary: #c2410c;
+  --accent-tertiary: #9a3412;
+  --accent-muted: rgba(234, 88, 12, 0.12);
+  --accent-glow: rgba(234, 88, 12, 0.25);
+
+  /* AI accent - Teal */
+  --accent-ai: #0d9488;
+  --accent-ai-glow: rgba(13, 148, 136, 0.25);
+
+  /* Semantic Colors - Slightly darker for light bg */
+  --success: #16a34a;
+  --success-muted: rgba(22, 163, 74, 0.12);
+  --warning: #ca8a04;
+  --warning-muted: rgba(202, 138, 4, 0.12);
+  --error: #dc2626;
+  --error-muted: rgba(220, 38, 38, 0.12);
+  --info: #2563eb;
+  --info-muted: rgba(37, 99, 235, 0.12);
+
+  /* Status Colors - Adjusted for light bg */
+  --status-backlog: #78716c;
+  --status-ready: #2563eb;
+  --status-in-progress: #7c3aed;
+  --status-review: #9333ea;
+  --status-done: #16a34a;
+
+  /* Priority Colors */
+  --priority-high: #dc2626;
+  --priority-medium: #ea580c;
+  --priority-low: #78716c;
+
+  /* Shadows - Lighter for light theme */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 20px var(--accent-glow);
+  --shadow-glow-sm: 0 0 10px var(--accent-glow);
+  --shadow-glow-lg: 0 0 30px var(--accent-glow);
+  --shadow-modal: 0 0 40px var(--accent-glow), 0 25px 50px rgba(0, 0, 0, 0.15);
+
+  /* Update gradient */
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+}
+
+/* ============================================
+   FROST THEME (Cool Light + Blue)
+   Clean, cool white with blue accents
+   ============================================ */
+[data-theme="frost"] {
+  /* Background Colors - Cool light base */
+  --bg-primary: #f8fafc;
+  --bg-secondary: #f1f5f9;
+  --bg-tertiary: #e2e8f0;
+  --bg-card: #ffffff;
+  --bg-hover: #cbd5e1;
+  --bg-active: #94a3b8;
+
+  /* Text Colors */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #64748b;
+  --text-muted: #94a3b8;
+
+  /* Border Colors */
+  --border-primary: #cbd5e1;
+  --border-secondary: #94a3b8;
+  --border-focus: #64748b;
+
+  /* Accent Colors - Blue (like Arctic) */
+  --accent-primary: #0284c7;
+  --accent-secondary: #0369a1;
+  --accent-tertiary: #075985;
+  --accent-muted: rgba(2, 132, 199, 0.12);
+  --accent-glow: rgba(2, 132, 199, 0.25);
+
+  /* AI accent - Violet */
+  --accent-ai: #7c3aed;
+  --accent-ai-glow: rgba(124, 58, 237, 0.25);
+
+  /* Semantic Colors */
+  --success: #16a34a;
+  --success-muted: rgba(22, 163, 74, 0.12);
+  --warning: #ca8a04;
+  --warning-muted: rgba(202, 138, 4, 0.12);
+  --error: #dc2626;
+  --error-muted: rgba(220, 38, 38, 0.12);
+  --info: #2563eb;
+  --info-muted: rgba(37, 99, 235, 0.12);
+
+  /* Status Colors */
+  --status-backlog: #64748b;
+  --status-ready: #2563eb;
+  --status-in-progress: #7c3aed;
+  --status-review: #9333ea;
+  --status-done: #16a34a;
+
+  /* Priority Colors */
+  --priority-high: #dc2626;
+  --priority-medium: #ea580c;
+  --priority-low: #64748b;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 20px var(--accent-glow);
+  --shadow-glow-sm: 0 0 10px var(--accent-glow);
+  --shadow-glow-lg: 0 0 30px var(--accent-glow);
+  --shadow-modal: 0 0 40px var(--accent-glow), 0 25px 50px rgba(0, 0, 0, 0.15);
+
+  /* Update gradient */
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+}
+
+/* ============================================
+   PAPER THEME (Neutral Light + Violet)
+   Classic, paper-like with violet accents
+   ============================================ */
+[data-theme="paper"] {
+  /* Background Colors - Neutral white base */
+  --bg-primary: #fafafa;
+  --bg-secondary: #f4f4f5;
+  --bg-tertiary: #e4e4e7;
+  --bg-card: #ffffff;
+  --bg-hover: #d4d4d8;
+  --bg-active: #a1a1aa;
+
+  /* Text Colors */
+  --text-primary: #18181b;
+  --text-secondary: #52525b;
+  --text-tertiary: #71717a;
+  --text-muted: #a1a1aa;
+
+  /* Border Colors */
+  --border-primary: #d4d4d8;
+  --border-secondary: #a1a1aa;
+  --border-focus: #71717a;
+
+  /* Accent Colors - Violet (like Neon) */
+  --accent-primary: #7c3aed;
+  --accent-secondary: #6d28d9;
+  --accent-tertiary: #5b21b6;
+  --accent-muted: rgba(124, 58, 237, 0.12);
+  --accent-glow: rgba(124, 58, 237, 0.25);
+
+  /* AI accent - Cyan */
+  --accent-ai: #0891b2;
+  --accent-ai-glow: rgba(8, 145, 178, 0.25);
+
+  /* Semantic Colors */
+  --success: #16a34a;
+  --success-muted: rgba(22, 163, 74, 0.12);
+  --warning: #ca8a04;
+  --warning-muted: rgba(202, 138, 4, 0.12);
+  --error: #dc2626;
+  --error-muted: rgba(220, 38, 38, 0.12);
+  --info: #2563eb;
+  --info-muted: rgba(37, 99, 235, 0.12);
+
+  /* Status Colors */
+  --status-backlog: #71717a;
+  --status-ready: #2563eb;
+  --status-in-progress: #7c3aed;
+  --status-review: #9333ea;
+  --status-done: #16a34a;
+
+  /* Priority Colors */
+  --priority-high: #dc2626;
+  --priority-medium: #ea580c;
+  --priority-low: #71717a;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 20px var(--accent-glow);
+  --shadow-glow-sm: 0 0 10px var(--accent-glow);
+  --shadow-glow-lg: 0 0 30px var(--accent-glow);
+  --shadow-modal: 0 0 40px var(--accent-glow), 0 25px 50px rgba(0, 0, 0, 0.15);
+
+  /* Update gradient */
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+}

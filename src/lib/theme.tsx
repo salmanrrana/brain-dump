@@ -10,11 +10,30 @@ import {
 
 /**
  * Available theme options.
+ *
+ * Dark themes:
  * - ember: Orange accent (default)
  * - mint: Emerald/green accent
  * - solar: Gold/yellow accent
+ * - arctic: Ice blue accent
+ * - neon: Violet accent (cyberpunk)
+ * - blush: Pink accent
+ *
+ * Light themes:
+ * - daylight: Warm white + orange (like Solarized)
+ * - frost: Cool white + blue (like Nord)
+ * - paper: Neutral white + violet (like One Light)
  */
-export type Theme = "ember" | "mint" | "solar";
+export type Theme =
+  | "ember"
+  | "mint"
+  | "solar"
+  | "arctic"
+  | "neon"
+  | "blush"
+  | "daylight"
+  | "frost"
+  | "paper";
 
 /**
  * Theme context value returned by useTheme hook.
@@ -33,7 +52,37 @@ export const THEME_STORAGE_KEY = "brain-dump-theme";
 export const DEFAULT_THEME: Theme = "ember";
 
 /** All valid theme values for validation */
-export const THEMES: readonly Theme[] = ["ember", "mint", "solar"] as const;
+export const THEMES: readonly Theme[] = [
+  // Dark themes
+  "ember",
+  "mint",
+  "solar",
+  "arctic",
+  "neon",
+  "blush",
+  // Light themes
+  "daylight",
+  "frost",
+  "paper",
+] as const;
+
+/** Dark themes */
+export const DARK_THEMES: readonly Theme[] = [
+  "ember",
+  "mint",
+  "solar",
+  "arctic",
+  "neon",
+  "blush",
+] as const;
+
+/** Light themes */
+export const LIGHT_THEMES: readonly Theme[] = ["daylight", "frost", "paper"] as const;
+
+/** Check if a theme is a light theme */
+export function isLightTheme(theme: Theme): boolean {
+  return LIGHT_THEMES.includes(theme);
+}
 
 /**
  * Validates that a value is a valid Theme.

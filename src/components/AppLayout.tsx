@@ -521,18 +521,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
     [launchRalphMutation, settings, closeProjectsPanel]
   );
 
-  // Compute epic ticket counts from projects data
-  const epicTicketCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const project of projects) {
-      for (const epic of project.epics) {
-        // Count tickets in this epic (would need ticket data)
-        // For now, just initialize to 0 - can be enhanced later
-        counts.set(epic.id, 0);
-      }
-    }
-    return counts;
-  }, [projects]);
+  // Epic ticket counts - currently not computed to avoid showing misleading "0"
+  // badges. The badge only shows when count is defined, so an empty Map
+  // effectively hides the badge until we implement proper counting.
+  // Future: Add a lightweight endpoint to get epic ticket counts without
+  // fetching full ticket data.
+  const epicTicketCounts = useMemo(() => new Map<string, number>(), []);
 
   // Compute which epics have active AI sessions
   // Note: This currently checks by epic ID in sessions - in a real implementation

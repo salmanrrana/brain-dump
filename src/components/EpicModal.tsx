@@ -211,14 +211,16 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
       <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden="true" />
 
       {/* Modal - with theme-colored glow effect */}
+      {/* Note: overflow-visible allows the dropdown menu to render outside modal bounds */}
       <div
         ref={modalRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="relative bg-[var(--bg-secondary)] rounded-lg w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col"
+        className="relative bg-[var(--bg-secondary)] rounded-lg w-full max-w-md max-h-[90vh] flex flex-col"
         style={{
           boxShadow: "var(--shadow-modal)",
+          overflow: "visible",
         }}
       >
         {/* Header */}
@@ -288,9 +290,9 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={3}
+              rows={5}
               placeholder="Optional description..."
-              className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)]  resize-none"
+              className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] resize-vertical min-h-[100px]"
             />
           </div>
 
@@ -400,105 +402,53 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
               )}
             </div>
 
-            {/* Dropdown Menu */}
+            {/* Dropdown Menu - compact version */}
             {showActionMenu && isEditing && (
-              <div className="absolute right-0 bottom-full mb-2 w-64 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg shadow-xl z-10 overflow-hidden">
-                <button
-                  onClick={() => {
-                    setShowActionMenu(false);
-                    handleSave();
-                  }}
-                  disabled={isSaving || !title.trim()}
-                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left disabled:opacity-50"
-                >
-                  <Save size={18} className="text-[var(--accent-primary)] mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="font-medium text-[var(--text-primary)]">Save Changes</div>
-                    <div className="text-xs text-[var(--text-secondary)]">Save epic details</div>
-                  </div>
-                </button>
-
-                {/* Ralph Section Divider */}
-                <div className="px-4 py-2 bg-[var(--bg-primary)] border-t border-[var(--border-primary)]">
-                  <div className="text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider">
-                    Autonomous (Ralph)
-                  </div>
+              <div className="absolute right-0 top-full mt-1 w-52 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg shadow-xl z-[60] overflow-hidden">
+                {/* Ralph Section Header */}
+                <div className="flex items-center gap-2 px-3 py-2 bg-[var(--bg-primary)] border-b border-[var(--border-primary)]">
+                  <Bot size={14} className="text-[var(--accent-ai)]" />
+                  <span className="text-xs font-semibold text-[var(--accent-ai)]">Start Ralph</span>
                 </div>
 
-                {/* Ralph with Claude - Native */}
+                {/* Ralph with Claude */}
                 <button
                   onClick={() => void handleStartRalph({ useSandbox: false, aiBackend: "claude" })}
-                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left"
+                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[var(--bg-hover)] transition-colors text-left"
                 >
-                  <Bot size={18} className="text-[var(--accent-ai)] mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="font-medium text-[var(--text-primary)]">
-                      Start Ralph (Claude)
-                    </div>
-                    <div className="text-xs text-[var(--text-secondary)]">
-                      Runs on your machine directly
-                    </div>
-                  </div>
+                  <Bot size={14} className="text-[var(--accent-ai)] flex-shrink-0" />
+                  <span className="text-sm text-[var(--text-primary)]">Claude</span>
                 </button>
 
-                {/* Ralph with Claude - Docker (Disabled for now) */}
+                {/* Ralph with Claude - Docker */}
                 <button
                   disabled
-                  className="w-full flex items-start gap-3 px-4 py-3 transition-colors text-left border-t border-[var(--border-primary)] opacity-50 cursor-not-allowed"
-                  aria-disabled="true"
-                  aria-label="Start Ralph (Claude) in Docker - Coming soon"
+                  className="w-full flex items-center gap-2 px-3 py-2 transition-colors text-left border-t border-[var(--border-primary)] opacity-40 cursor-not-allowed"
                 >
-                  <Container
-                    size={18}
-                    className="text-[var(--text-tertiary)] mt-0.5 flex-shrink-0"
-                  />
-                  <div>
-                    <div className="font-medium text-[var(--text-secondary)]">
-                      Start Ralph (Claude) in Docker
-                    </div>
-                    <div className="text-xs text-[var(--text-tertiary)]">
-                      Coming soon - sandbox mode in progress
-                    </div>
-                  </div>
+                  <Container size={14} className="text-[var(--text-tertiary)] flex-shrink-0" />
+                  <span className="text-sm text-[var(--text-secondary)]">Claude (Docker)</span>
+                  <span className="text-[10px] text-[var(--text-tertiary)] ml-auto">WIP</span>
                 </button>
 
-                {/* Ralph with OpenCode - Native */}
+                {/* Ralph with OpenCode */}
                 <button
                   onClick={() =>
                     void handleStartRalph({ useSandbox: false, aiBackend: "opencode" })
                   }
-                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors text-left border-t border-[var(--border-primary)]"
+                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[var(--bg-hover)] transition-colors text-left border-t border-[var(--border-primary)]"
                 >
-                  <Code2 size={18} className="text-[var(--accent-ai)] mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="font-medium text-[var(--text-primary)]">
-                      Start Ralph (OpenCode)
-                    </div>
-                    <div className="text-xs text-[var(--text-secondary)]">
-                      Runs on your machine directly
-                    </div>
-                  </div>
+                  <Code2 size={14} className="text-[var(--accent-ai)] flex-shrink-0" />
+                  <span className="text-sm text-[var(--text-primary)]">OpenCode</span>
                 </button>
 
-                {/* Ralph with OpenCode - Docker (Disabled for now) */}
+                {/* Ralph with OpenCode - Docker */}
                 <button
                   disabled
-                  className="w-full flex items-start gap-3 px-4 py-3 transition-colors text-left border-t border-[var(--border-primary)] opacity-50 cursor-not-allowed"
-                  aria-disabled="true"
-                  aria-label="Start Ralph (OpenCode) in Docker - Coming soon"
+                  className="w-full flex items-center gap-2 px-3 py-2 transition-colors text-left border-t border-[var(--border-primary)] opacity-40 cursor-not-allowed"
                 >
-                  <Container
-                    size={18}
-                    className="text-[var(--text-tertiary)] mt-0.5 flex-shrink-0"
-                  />
-                  <div>
-                    <div className="font-medium text-[var(--text-secondary)]">
-                      Start Ralph (OpenCode) in Docker
-                    </div>
-                    <div className="text-xs text-[var(--text-tertiary)]">
-                      Coming soon - needs OpenCode Docker image
-                    </div>
-                  </div>
+                  <Container size={14} className="text-[var(--text-tertiary)] flex-shrink-0" />
+                  <span className="text-sm text-[var(--text-secondary)]">OpenCode (Docker)</span>
+                  <span className="text-[10px] text-[var(--text-tertiary)] ml-auto">WIP</span>
                 </button>
               </div>
             )}
