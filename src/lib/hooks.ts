@@ -1247,6 +1247,62 @@ export function useActiveRalphSessions(options: { pollingInterval?: number } = {
 export type { ActiveRalphSession };
 
 // =============================================================================
+// PROJECT AI ACTIVITY HOOKS
+// =============================================================================
+
+/**
+ * Project type with AI activity indicator.
+ * Used by ProjectsPanel and navigation components to show glow effects.
+ */
+export interface ProjectWithAIActivity extends ProjectWithEpics {
+  /** Whether this project has any active Ralph sessions */
+  hasActiveAI: boolean;
+  /** Number of active sessions in this project */
+  activeSessionCount: number;
+}
+
+/**
+ * Hook for fetching projects with AI activity indicators.
+ * Combines projects data with active Ralph session data to determine
+ * which projects have active AI work for glow effects.
+ *
+ * This enables the sidebar to show a pulsing glow indicator on projects
+ * where Ralph is currently working on tickets.
+ *
+ * @returns Projects enhanced with hasActiveAI and activeSessionCount
+ */
+export function useProjectsWithAIActivity() {
+  const { projects, loading, error, refetch } = useProjects();
+  const { sessions } = useActiveRalphSessions();
+
+  // Compute which projects have active AI sessions
+  const projectsWithActivity = useMemo<ProjectWithAIActivity[]>(() => {
+    // Count sessions per project
+    const sessionCountByProject = new Map<string, number>();
+    for (const session of Object.values(sessions)) {
+      const count = sessionCountByProject.get(session.projectId) ?? 0;
+      sessionCountByProject.set(session.projectId, count + 1);
+    }
+
+    return projects.map((project) => {
+      const activeSessionCount = sessionCountByProject.get(project.id) ?? 0;
+      return {
+        ...project,
+        hasActiveAI: activeSessionCount > 0,
+        activeSessionCount,
+      };
+    });
+  }, [projects, sessions]);
+
+  return {
+    projects: projectsWithActivity,
+    loading,
+    error,
+    refetch,
+  };
+}
+
+// =============================================================================
 // PROJECT INCEPTION HOOKS - Start from scratch workflow
 // =============================================================================
 

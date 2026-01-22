@@ -9,6 +9,7 @@ import {
   Pencil,
   Trash2,
   Container,
+  Bot,
 } from "lucide-react";
 import { type Epic, type ProjectBase, type ProjectWithEpics } from "../lib/hooks";
 
@@ -18,6 +19,8 @@ interface ProjectTreeProps {
   selectedEpicId: string | null;
   /** Set of project IDs that have running Docker containers */
   projectsWithDockerContainers?: Set<string>;
+  /** Set of project IDs with active Ralph (AI) sessions */
+  projectsWithActiveAI?: Set<string>;
   /** Callback when Docker indicator is clicked */
   onDockerIndicatorClick?: (projectId: string) => void;
   onSelectProject: (projectId: string | null) => void;
@@ -27,6 +30,8 @@ interface ProjectTreeProps {
   onEditProject?: (project: ProjectBase) => void;
   onEditEpic?: (projectId: string, epic: Epic) => void;
   onDeleteEpic?: (epic: Epic) => void;
+  /** Handler to launch Ralph for an epic */
+  onLaunchRalphForEpic?: (epicId: string) => void;
 }
 
 export default function ProjectTree({
@@ -34,6 +39,7 @@ export default function ProjectTree({
   selectedProjectId,
   selectedEpicId,
   projectsWithDockerContainers,
+  projectsWithActiveAI,
   onDockerIndicatorClick,
   onSelectProject,
   onSelectEpic,
@@ -42,6 +48,7 @@ export default function ProjectTree({
   onEditProject,
   onEditEpic,
   onDeleteEpic,
+  onLaunchRalphForEpic,
 }: ProjectTreeProps) {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
 
@@ -97,14 +104,15 @@ export default function ProjectTree({
         const isExpanded = expandedProjects.has(project.id);
         const isSelected = selectedProjectId === project.id && !selectedEpicId;
         const hasDockerContainer = projectsWithDockerContainers?.has(project.id);
+        const hasActiveAI = projectsWithActiveAI?.has(project.id);
 
         return (
           <div key={project.id}>
             {/* Project row */}
             <div
-              className={`flex items-center gap-1 px-2 py-1.5 rounded-lg cursor-pointer group ${
+              className={`flex items-center gap-1 px-2 py-1.5 rounded-lg cursor-pointer group transition-all ${
                 isSelected ? "bg-cyan-600/20 text-cyan-400" : "hover:bg-slate-800 text-slate-300"
-              }`}
+              } ${hasActiveAI ? "shadow-[0_0_8px_var(--accent-ai)] ring-1 ring-[var(--accent-ai)]/30" : ""}`}
             >
               {/* Expand/collapse button */}
               <button
@@ -143,6 +151,17 @@ export default function ProjectTree({
                 )}
                 <span className="text-sm truncate">{project.name}</span>
               </div>
+
+              {/* AI activity indicator (always visible when active) */}
+              {hasActiveAI && !hasDockerContainer && (
+                <span
+                  className="p-0.5 text-[var(--accent-ai)]"
+                  title="Ralph is active on this project"
+                  aria-label="AI is active"
+                >
+                  <Bot size={14} className="animate-pulse" aria-hidden="true" />
+                </span>
+              )}
 
               {/* Docker container indicator (always visible when running) */}
               {hasDockerContainer && (
@@ -214,6 +233,19 @@ export default function ProjectTree({
                         className={epic.color ? "" : "text-slate-400"}
                       />
                       <span className="flex-1 text-sm truncate">{epic.title}</span>
+                      {onLaunchRalphForEpic && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onLaunchRalphForEpic(epic.id);
+                          }}
+                          className="p-0.5 hover:bg-[var(--accent-ai)]/10 rounded opacity-0 group-hover/epic:opacity-100 transition-opacity"
+                          aria-label={`Launch Ralph for ${epic.title}`}
+                          title="Launch Ralph"
+                        >
+                          <Bot size={10} className="text-[var(--accent-ai)]" aria-hidden="true" />
+                        </button>
+                      )}
                       {onEditEpic && (
                         <button
                           onClick={(e) => {

@@ -210,13 +210,16 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden="true" />
 
-      {/* Modal */}
+      {/* Modal - with theme-colored glow effect */}
       <div
         ref={modalRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="relative bg-[var(--bg-secondary)] rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col"
+        className="relative bg-[var(--bg-secondary)] rounded-lg w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col"
+        style={{
+          boxShadow: "var(--shadow-modal)",
+        }}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[var(--border-primary)]">

@@ -41,6 +41,7 @@ const mockTicket: Ticket = {
 const mockSession: ActiveRalphSession = {
   id: "session-456",
   ticketId: "ticket-123",
+  projectId: "project-789",
   currentState: "implementing",
   startedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
   stateHistory: [

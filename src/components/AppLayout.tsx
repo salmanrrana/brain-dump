@@ -26,6 +26,7 @@ import { useToast } from "./Toast";
 import { getStatusColor, getPriorityStyle } from "../lib/constants";
 import {
   useProjects,
+  useProjectsWithAIActivity,
   useSearch,
   useTags,
   useModal,
@@ -36,6 +37,9 @@ import {
   useInvalidateQueries,
   useDockerAvailable,
   useRalphContainers,
+  useActiveRalphSessions,
+  useLaunchRalphForEpic,
+  useSettings,
   type Epic,
   type ProjectBase,
   type SearchResult,
@@ -153,6 +157,14 @@ function sanitizeSnippet(html: string): string {
 export default function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const { projects, refetch: refetchProjects } = useProjects();
+  // Enhanced projects with AI activity for ProjectsPanel
+  const { projects: projectsWithAI } = useProjectsWithAIActivity();
+  // Active Ralph sessions for computing epics with AI
+  const { sessions: activeSessions } = useActiveRalphSessions();
+  // Settings for Ralph launch
+  const { settings } = useSettings();
+  // Ralph launch mutation
+  const launchRalphMutation = useLaunchRalphForEpic();
 
   // Use consolidated hooks
   const {
@@ -468,6 +480,80 @@ export default function AppLayout({ children }: AppLayoutProps) {
     closeProjectsPanel();
   }, [openProject, closeProjectsPanel]);
 
+  // Handler for epic selection from ProjectsPanel
+  const handleEpicSelectFromPanel = useCallback(
+    (epicId: string | null, projectId: string) => {
+      setEpicId(epicId, projectId);
+      closeProjectsPanel();
+    },
+    [setEpicId, closeProjectsPanel]
+  );
+
+  // Handler for add epic from ProjectsPanel
+  const handleAddEpicFromPanel = useCallback(
+    (projectId: string) => {
+      openEpic(projectId);
+      closeProjectsPanel();
+    },
+    [openEpic, closeProjectsPanel]
+  );
+
+  // Handler for edit epic from ProjectsPanel
+  const handleEditEpicFromPanel = useCallback(
+    (projectId: string, epic: Epic) => {
+      openEpic(projectId, epic);
+      closeProjectsPanel();
+    },
+    [openEpic, closeProjectsPanel]
+  );
+
+  // Handler for launching Ralph for an epic from ProjectsPanel
+  const handleLaunchRalphForEpic = useCallback(
+    (epicId: string) => {
+      launchRalphMutation.mutate({
+        epicId,
+        preferredTerminal: settings?.terminalEmulator ?? null,
+        useSandbox: settings?.ralphSandbox ?? false,
+        aiBackend: "claude",
+      });
+      closeProjectsPanel();
+    },
+    [launchRalphMutation, settings, closeProjectsPanel]
+  );
+
+  // Compute epic ticket counts from projects data
+  const epicTicketCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const project of projects) {
+      for (const epic of project.epics) {
+        // Count tickets in this epic (would need ticket data)
+        // For now, just initialize to 0 - can be enhanced later
+        counts.set(epic.id, 0);
+      }
+    }
+    return counts;
+  }, [projects]);
+
+  // Compute which epics have active AI sessions
+  // Note: This currently checks by epic ID in sessions - in a real implementation
+  // we'd need to check if any tickets within the epic have active sessions
+  const epicsWithActiveAI = useMemo(() => {
+    const epicIds = new Set<string>();
+    // For each project, check if any of its epics' tickets have active sessions
+    // Currently a simplified implementation that checks if the epic ID matches
+    for (const project of projects) {
+      for (const epic of project.epics) {
+        // Check if any session's ticketId belongs to this epic
+        // For now, this is a placeholder - proper implementation would
+        // need a ticket-to-epic lookup
+        if (activeSessions[epic.id]) {
+          epicIds.add(epic.id);
+        }
+      }
+    }
+    return epicIds;
+  }, [projects, activeSessions]);
+
   return (
     <AppContext.Provider value={appState}>
       {/* Desktop: grid with IconSidebar (64px) | Mobile: single column */}
@@ -481,16 +567,18 @@ export default function AppLayout({ children }: AppLayoutProps) {
         <ProjectsPanel
           isOpen={isProjectsPanelOpen}
           onClose={closeProjectsPanel}
-          projects={projects.map((p) => ({
-            id: p.id,
-            name: p.name,
-            path: p.path,
-            color: p.color,
-          }))}
+          projects={projectsWithAI}
           selectedProjectId={filters.projectId}
+          selectedEpicId={filters.epicId}
           onSelectProject={handleProjectSelect}
+          onSelectEpic={handleEpicSelectFromPanel}
           onAddProject={handleAddProjectFromPanel}
           onEditProject={handleProjectEdit}
+          onAddEpic={handleAddEpicFromPanel}
+          onEditEpic={handleEditEpicFromPanel}
+          onLaunchRalphForEpic={handleLaunchRalphForEpic}
+          epicTicketCounts={epicTicketCounts}
+          epicsWithActiveAI={epicsWithActiveAI}
         />
 
         {/* Mobile sidebar overlay */}
@@ -796,6 +884,11 @@ function Sidebar({ onItemClick }: SidebarProps = {}) {
     onDeleteEpic,
   } = useAppState();
 
+  // Get active Ralph sessions for AI indicators
+  const { sessions: activeSessions } = useActiveRalphSessions();
+  const { settings } = useSettings();
+  const launchRalphMutation = useLaunchRalphForEpic();
+
   // Check Docker availability first (cached, re-checks every 60s)
   const { available: dockerAvailable } = useDockerAvailable();
 
@@ -815,6 +908,15 @@ function Sidebar({ onItemClick }: SidebarProps = {}) {
     }
     return projectIds;
   }, [ralphContainers]);
+
+  // Build set of project IDs with active Ralph (AI) sessions
+  const projectsWithActiveAI = useMemo(() => {
+    const projectIds = new Set<string>();
+    for (const session of Object.values(activeSessions)) {
+      projectIds.add(session.projectId);
+    }
+    return projectIds;
+  }, [activeSessions]);
 
   // State for container logs modal from Docker indicator click
   const [dockerLogsProjectId, setDockerLogsProjectId] = useState<string | null>(null);
@@ -872,6 +974,20 @@ function Sidebar({ onItemClick }: SidebarProps = {}) {
     openEpicModal(projectId, epic);
   };
 
+  // Handler for launching Ralph for an epic from sidebar
+  const handleLaunchRalphForEpic = useCallback(
+    (epicId: string) => {
+      launchRalphMutation.mutate({
+        epicId,
+        preferredTerminal: settings?.terminalEmulator ?? null,
+        useSandbox: settings?.ralphSandbox ?? false,
+        aiBackend: "claude",
+      });
+      onItemClick?.();
+    },
+    [launchRalphMutation, settings, onItemClick]
+  );
+
   return (
     <aside
       className="flex flex-col h-full"
@@ -897,6 +1013,7 @@ function Sidebar({ onItemClick }: SidebarProps = {}) {
             selectedProjectId={filters.projectId}
             selectedEpicId={filters.epicId}
             projectsWithDockerContainers={projectsWithDockerContainers}
+            projectsWithActiveAI={projectsWithActiveAI}
             onDockerIndicatorClick={setDockerLogsProjectId}
             onSelectProject={handleSelectProject}
             onSelectEpic={handleSelectEpic}
@@ -905,6 +1022,7 @@ function Sidebar({ onItemClick }: SidebarProps = {}) {
             onEditProject={handleEditProject}
             onEditEpic={handleEditEpic}
             onDeleteEpic={onDeleteEpic}
+            onLaunchRalphForEpic={handleLaunchRalphForEpic}
           />
         )}
 

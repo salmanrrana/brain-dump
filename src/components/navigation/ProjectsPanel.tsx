@@ -7,8 +7,10 @@ import {
   useMemo,
   type KeyboardEvent,
 } from "react";
-import { X, Search, Plus, Folder } from "lucide-react";
-import { useClickOutside } from "../../lib/hooks";
+import { X, Search, Plus, Folder, ChevronRight, ChevronDown, Bot } from "lucide-react";
+import { useClickOutside, type Epic } from "../../lib/hooks";
+import { EpicListItem } from "./EpicListItem";
+import { EpicDrillInView } from "./EpicDrillInView";
 
 export interface Project {
   id: string;
@@ -17,26 +19,51 @@ export interface Project {
   color: string | null;
 }
 
+export interface ProjectWithEpics extends Project {
+  epics: Epic[];
+}
+
+export interface ProjectWithAIActivity extends ProjectWithEpics {
+  /** Whether this project has any active Ralph sessions */
+  hasActiveAI: boolean;
+  /** Number of active sessions in this project */
+  activeSessionCount: number;
+}
+
 export interface ProjectsPanelProps {
   /** Whether the panel is open */
   isOpen: boolean;
   /** Handler to close the panel */
   onClose: () => void;
-  /** List of projects to display */
-  projects: Project[];
+  /** List of projects to display (with epics and AI activity) */
+  projects: ProjectWithAIActivity[];
   /** Currently selected project ID */
   selectedProjectId?: string | null;
+  /** Currently selected epic ID */
+  selectedEpicId?: string | null;
   /** Handler when a project is selected */
   onSelectProject?: (projectId: string | null) => void;
+  /** Handler when an epic is selected */
+  onSelectEpic?: (epicId: string | null, projectId: string) => void;
   /** Handler when "Add Project" is clicked */
   onAddProject?: () => void;
   /** Handler when a project is double-clicked (for editing) */
   onEditProject?: (project: Project) => void;
+  /** Handler when "Add Epic" is clicked for a project */
+  onAddEpic?: (projectId: string) => void;
+  /** Handler when an epic is edited */
+  onEditEpic?: (projectId: string, epic: Epic) => void;
+  /** Handler when Ralph is launched for an epic */
+  onLaunchRalphForEpic?: (epicId: string) => void;
+  /** Map of epicId -> ticket count */
+  epicTicketCounts?: Map<string, number>;
+  /** Set of epic IDs with active AI */
+  epicsWithActiveAI?: Set<string>;
   /** Loading state */
   loading?: boolean;
 }
 
-// CSS keyframes for slide animation
+// CSS keyframes for slide animation and glow
 const PANEL_KEYFRAMES = `
 @keyframes projectspanel-slide-in {
   from { transform: translateX(-100%); }
@@ -45,6 +72,10 @@ const PANEL_KEYFRAMES = `
 @keyframes projectspanel-slide-out {
   from { transform: translateX(0); }
   to { transform: translateX(-100%); }
+}
+@keyframes projectspanel-glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px var(--accent-ai), inset 0 0 1px var(--accent-ai); }
+  50% { box-shadow: 0 0 16px var(--accent-ai), inset 0 0 2px var(--accent-ai); }
 }
 `;
 
@@ -64,6 +95,11 @@ function injectKeyframes(): void {
   }
 }
 
+/** Maximum number of epics to show in expanded inline view */
+const MAX_INLINE_EPICS = 5;
+
+type PanelView = "projects" | "epics";
+
 /**
  * ProjectsPanel - Slide-out panel for project selection and management.
  *
@@ -72,7 +108,9 @@ function injectKeyframes(): void {
  * - **z-index 100**: Positioned above sidebar (z-sticky: 20)
  * - **Header**: "Projects" title with close button
  * - **Search input**: Filters projects by name
- * - **Project list**: Shows all projects, click to select
+ * - **Expandable projects**: Click chevron to show recent epics inline
+ * - **Drill-in view**: "View all epics" navigates to full epic list
+ * - **AI glow indicator**: Projects with active Ralph show pulsing glow
  * - **Add Project button**: At the bottom of the panel
  * - **Keyboard accessible**: Escape to close, Tab navigation
  */
@@ -81,12 +119,22 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
   onClose,
   projects,
   selectedProjectId,
+  selectedEpicId,
   onSelectProject,
+  onSelectEpic,
   onAddProject,
   onEditProject,
+  onAddEpic,
+  onEditEpic,
+  onLaunchRalphForEpic,
+  epicTicketCounts,
+  epicsWithActiveAI,
   loading = false,
 }) => {
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<PanelView>("projects");
+  const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
+  const [drillInProject, setDrillInProject] = useState<ProjectWithAIActivity | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -95,28 +143,41 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
     injectKeyframes();
   }, []);
 
-  // Focus search input when panel opens
+  // Handler for closing the panel - resets all internal state
+  const handleClose = useCallback(() => {
+    setSearch("");
+    setView("projects");
+    setExpandedProjectId(null);
+    setDrillInProject(null);
+    onClose();
+  }, [onClose]);
+
+  // Focus search input when panel opens (only in projects view)
   useEffect(() => {
-    if (!isOpen) return;
-    // Small delay to allow animation to start
+    if (!isOpen || view !== "projects") return;
     const timer = setTimeout(() => {
       searchInputRef.current?.focus();
     }, 50);
     return () => clearTimeout(timer);
-  }, [isOpen]);
+  }, [isOpen, view]);
 
   // Handle click outside to close
-  useClickOutside(panelRef, onClose, isOpen);
+  useClickOutside(panelRef, handleClose, isOpen);
 
-  // Handle escape key to close
+  // Handle escape key to close or go back
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        onClose();
+        if (view === "epics") {
+          setView("projects");
+          setDrillInProject(null);
+        } else {
+          handleClose();
+        }
       }
     },
-    [onClose]
+    [handleClose, view]
   );
 
   // Filter projects based on search (memoized to avoid recalculation on every render)
@@ -144,6 +205,49 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
       onEditProject?.(project);
     },
     [onEditProject]
+  );
+
+  // Handle expand/collapse toggle
+  const handleToggleExpand = useCallback((e: React.MouseEvent, projectId: string) => {
+    e.stopPropagation();
+    setExpandedProjectId((prev) => (prev === projectId ? null : projectId));
+  }, []);
+
+  // Handle drill-in to full epic view
+  const handleDrillIn = useCallback((e: React.MouseEvent, project: ProjectWithAIActivity) => {
+    e.stopPropagation();
+    setDrillInProject(project);
+    setView("epics");
+  }, []);
+
+  // Handle back from drill-in view
+  const handleBackFromDrillIn = useCallback(() => {
+    setView("projects");
+    setDrillInProject(null);
+  }, []);
+
+  // Handle epic selection from panel
+  const handleEpicSelect = useCallback(
+    (epicId: string | null, projectId: string) => {
+      onSelectEpic?.(epicId, projectId);
+    },
+    [onSelectEpic]
+  );
+
+  // Handle epic edit
+  const handleEditEpic = useCallback(
+    (projectId: string, epic: Epic) => {
+      onEditEpic?.(projectId, epic);
+    },
+    [onEditEpic]
+  );
+
+  // Handle Ralph launch for epic
+  const handleLaunchRalph = useCallback(
+    (epicId: string) => {
+      onLaunchRalphForEpic?.(epicId);
+    },
+    [onLaunchRalphForEpic]
   );
 
   // Clear search
@@ -277,19 +381,46 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
     textAlign: "center",
   };
 
-  const projectItemStyles = (isSelected: boolean): React.CSSProperties => ({
+  const projectItemStyles = (isSelected: boolean, hasActiveAI: boolean): React.CSSProperties => ({
+    display: "flex",
+    flexDirection: "column",
+    width: "100%",
+    background: isSelected ? "var(--accent-muted)" : "transparent",
+    borderRadius: "var(--radius-md)",
+    transition: "all var(--transition-fast)",
+    // AI glow animation
+    ...(hasActiveAI && {
+      animation: "projectspanel-glow-pulse 2s ease-in-out infinite",
+    }),
+  });
+
+  const projectRowStyles: React.CSSProperties = {
     display: "flex",
     alignItems: "center",
-    gap: "var(--spacing-3)",
+    gap: "var(--spacing-2)",
     width: "100%",
     padding: "var(--spacing-3)",
-    background: isSelected ? "var(--accent-muted)" : "transparent",
+    background: "transparent",
     border: "none",
     borderRadius: "var(--radius-md)",
     cursor: "pointer",
-    transition: "background var(--transition-fast)",
     textAlign: "left",
-  });
+  };
+
+  const chevronButtonStyles: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "20px",
+    height: "20px",
+    background: "transparent",
+    border: "none",
+    borderRadius: "var(--radius-sm)",
+    color: "var(--text-tertiary)",
+    cursor: "pointer",
+    transition: "all var(--transition-fast)",
+    flexShrink: 0,
+  };
 
   const colorDotStyles = (color: string | null): React.CSSProperties => ({
     width: "12px",
@@ -323,6 +454,30 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
     margin: 0,
   };
 
+  const aiIndicatorStyles: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    color: "var(--accent-ai)",
+    flexShrink: 0,
+  };
+
+  const expandedEpicsStyles: React.CSSProperties = {
+    paddingBottom: "var(--spacing-2)",
+  };
+
+  const viewAllLinkStyles: React.CSSProperties = {
+    display: "block",
+    padding: "var(--spacing-2) var(--spacing-3)",
+    paddingLeft: "var(--spacing-6)",
+    background: "transparent",
+    border: "none",
+    color: "var(--accent-primary)",
+    fontSize: "var(--font-size-xs)",
+    cursor: "pointer",
+    textAlign: "left",
+    transition: "color var(--transition-fast)",
+  };
+
   const footerStyles: React.CSSProperties = {
     padding: "var(--spacing-3) var(--spacing-4)",
     borderTop: "1px solid var(--border-primary)",
@@ -348,6 +503,36 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
     transition: "all var(--transition-fast)",
   };
 
+  // Render drill-in view if active
+  if (view === "epics" && drillInProject) {
+    return (
+      <>
+        <div style={overlayStyles} aria-hidden="true" />
+        <div
+          ref={panelRef}
+          style={panelStyles}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Epics for ${drillInProject.name}`}
+          onKeyDown={handleKeyDown}
+        >
+          <EpicDrillInView
+            project={drillInProject}
+            selectedEpicId={selectedEpicId ?? null}
+            epicTicketCounts={epicTicketCounts}
+            epicsWithActiveAI={epicsWithActiveAI}
+            onBack={handleBackFromDrillIn}
+            onSelectEpic={(epicId) => handleEpicSelect(epicId, drillInProject.id)}
+            onEditEpic={(epic) => handleEditEpic(drillInProject.id, epic)}
+            onAddEpic={() => onAddEpic?.(drillInProject.id)}
+            onLaunchRalphForEpic={handleLaunchRalph}
+          />
+        </div>
+      </>
+    );
+  }
+
+  // Render main projects view
   return (
     <>
       {/* Backdrop overlay */}
@@ -371,7 +556,7 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
           <button
             type="button"
             style={closeButtonStyles}
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="Close projects panel"
             className="hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
           >
@@ -428,24 +613,123 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
           ) : (
             filteredProjects.map((project) => {
               const isSelected = project.id === selectedProjectId;
+              const isExpanded = expandedProjectId === project.id;
+              const hasEpics = project.epics.length > 0;
+              // Get the 5 most recent epics (sorted by createdAt desc)
+              const recentEpics = [...project.epics]
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                .slice(0, MAX_INLINE_EPICS);
+              const hasMoreEpics = project.epics.length > MAX_INLINE_EPICS;
+
               return (
-                <button
+                <div
                   key={project.id}
-                  type="button"
-                  style={projectItemStyles(isSelected)}
-                  onClick={() => handleSelectProject(project.id)}
-                  onDoubleClick={() => handleDoubleClick(project)}
-                  role="option"
-                  aria-selected={isSelected}
-                  title={project.path}
-                  className="hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-primary)]"
+                  style={projectItemStyles(isSelected, project.hasActiveAI)}
+                  data-testid={`project-panel-item-${project.id}`}
                 >
-                  <span style={colorDotStyles(project.color)} aria-hidden="true" />
-                  <div style={projectInfoStyles}>
-                    <p style={projectNameStyles}>{project.name}</p>
-                    <p style={projectPathStyles}>{project.path}</p>
+                  {/* Project row */}
+                  <div
+                    style={projectRowStyles}
+                    onClick={() => handleSelectProject(project.id)}
+                    onDoubleClick={() => handleDoubleClick(project)}
+                    role="option"
+                    aria-selected={isSelected}
+                    aria-expanded={hasEpics ? isExpanded : undefined}
+                    title={project.path}
+                    className="hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-primary)]"
+                    tabIndex={0}
+                  >
+                    {/* Expand/collapse chevron */}
+                    {hasEpics ? (
+                      <button
+                        type="button"
+                        style={chevronButtonStyles}
+                        onClick={(e) => handleToggleExpand(e, project.id)}
+                        aria-label={isExpanded ? "Collapse epics" : "Expand epics"}
+                        className="hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                      >
+                        {isExpanded ? (
+                          <ChevronDown size={14} aria-hidden="true" />
+                        ) : (
+                          <ChevronRight size={14} aria-hidden="true" />
+                        )}
+                      </button>
+                    ) : (
+                      <span style={{ width: "20px" }} aria-hidden="true" />
+                    )}
+
+                    {/* Color dot */}
+                    <span style={colorDotStyles(project.color)} aria-hidden="true" />
+
+                    {/* Project info */}
+                    <div style={projectInfoStyles}>
+                      <p style={projectNameStyles}>{project.name}</p>
+                      <p style={projectPathStyles}>{project.path}</p>
+                    </div>
+
+                    {/* AI indicator */}
+                    {project.hasActiveAI && (
+                      <span
+                        style={aiIndicatorStyles}
+                        role="status"
+                        aria-label={`AI active (${project.activeSessionCount} session${project.activeSessionCount !== 1 ? "s" : ""})`}
+                        title={`${project.activeSessionCount} active Ralph session${project.activeSessionCount !== 1 ? "s" : ""}`}
+                      >
+                        <Bot size={16} aria-hidden="true" />
+                      </span>
+                    )}
                   </div>
-                </button>
+
+                  {/* Expanded epics list */}
+                  {isExpanded && hasEpics && (
+                    <div style={expandedEpicsStyles}>
+                      {recentEpics.map((epic) => {
+                        const ticketCount = epicTicketCounts?.get(epic.id);
+                        const hasAI = epicsWithActiveAI?.has(epic.id) ?? false;
+                        return (
+                          <EpicListItem
+                            key={epic.id}
+                            epic={epic}
+                            isSelected={epic.id === selectedEpicId}
+                            hasActiveAI={hasAI}
+                            onSelect={() => handleEpicSelect(epic.id, project.id)}
+                            onEdit={() => handleEditEpic(project.id, epic)}
+                            onLaunchRalph={() => handleLaunchRalph(epic.id)}
+                            {...(ticketCount !== undefined && { ticketCount })}
+                          />
+                        );
+                      })}
+
+                      {/* "View all epics" link */}
+                      {hasMoreEpics && (
+                        <button
+                          type="button"
+                          style={viewAllLinkStyles}
+                          onClick={(e) => handleDrillIn(e, project)}
+                          className="hover:text-[var(--accent-secondary)]"
+                        >
+                          View all {project.epics.length} epics →
+                        </button>
+                      )}
+
+                      {/* Add epic shortcut */}
+                      <button
+                        type="button"
+                        style={{
+                          ...viewAllLinkStyles,
+                          color: "var(--text-tertiary)",
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAddEpic?.(project.id);
+                        }}
+                        className="hover:text-[var(--text-secondary)]"
+                      >
+                        + Add Epic
+                      </button>
+                    </div>
+                  )}
+                </div>
               );
             })
           )}

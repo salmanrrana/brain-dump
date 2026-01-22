@@ -1,13 +1,37 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ProjectsPanel, type Project } from "./ProjectsPanel";
+import { ProjectsPanel, type ProjectWithAIActivity } from "./ProjectsPanel";
 
-// Sample test data
-const mockProjects: Project[] = [
-  { id: "1", name: "Brain Dump", path: "/Users/dev/brain-dump", color: "#8b5cf6" },
-  { id: "2", name: "My App", path: "/Users/dev/my-app", color: "#10b981" },
-  { id: "3", name: "API Server", path: "/Users/dev/api-server", color: "#f97316" },
+// Sample test data with AI activity fields
+const mockProjects: ProjectWithAIActivity[] = [
+  {
+    id: "1",
+    name: "Brain Dump",
+    path: "/Users/dev/brain-dump",
+    color: "#8b5cf6",
+    hasActiveAI: false,
+    activeSessionCount: 0,
+    epics: [],
+  },
+  {
+    id: "2",
+    name: "My App",
+    path: "/Users/dev/my-app",
+    color: "#10b981",
+    hasActiveAI: false,
+    activeSessionCount: 0,
+    epics: [],
+  },
+  {
+    id: "3",
+    name: "API Server",
+    path: "/Users/dev/api-server",
+    color: "#f97316",
+    hasActiveAI: false,
+    activeSessionCount: 0,
+    epics: [],
+  },
 ];
 
 describe("ProjectsPanel", () => {
