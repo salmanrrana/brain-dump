@@ -20,12 +20,14 @@ export const subtaskSchema = z.object({
 });
 
 // Note: projectId and attachments are NOT form fields - handled separately
+// Use union with undefined instead of .optional() to ensure fields are always present
+// This aligns with TanStack Form's expectation that all defaultValues fields exist
 export const ticketFormSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string(),
   status: ticketStatusSchema,
-  priority: ticketPrioritySchema.optional(),
-  epicId: z.string().optional(),
+  priority: ticketPrioritySchema.or(z.undefined()),
+  epicId: z.string().or(z.undefined()),
   tags: z.array(z.string()),
   subtasks: z.array(subtaskSchema),
   isBlocked: z.boolean(),
