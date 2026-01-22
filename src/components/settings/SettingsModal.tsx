@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { X, Bot, GitBranch, Settings, Building2 } from "lucide-react";
 import {
   useSettings,
@@ -73,9 +73,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   const [conversationLoggingEnabled, setConversationLoggingEnabled] = useState(true);
   const [conversationRetentionDays, setConversationRetentionDays] = useState(90);
 
-  // Change tracking
-  const [hasChanges, setHasChanges] = useState(false);
-
   // Initialize state when settings load
   /* eslint-disable react-hooks/set-state-in-effect -- syncing external data to state */
   useEffect(() => {
@@ -96,37 +93,22 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   }, [settings]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Track changes
-  /* eslint-disable react-hooks/set-state-in-effect -- derived state from form values */
-  useEffect(() => {
-    if (settings) {
-      const terminalChanged = terminalEmulator !== (settings.terminalEmulator ?? "");
-      const sandboxChanged = ralphSandbox !== (settings.ralphSandbox ?? false);
-      const timeoutChanged = ralphTimeout !== (settings.ralphTimeout ?? 3600);
-      const prChanged = autoCreatePr !== (settings.autoCreatePr ?? true);
-      const branchChanged = prTargetBranch !== (settings.prTargetBranch ?? "dev");
-      const dirChanged = defaultProjectsDirectory !== (settings.defaultProjectsDirectory ?? "");
-      const workingMethodChanged =
-        defaultWorkingMethod !== (settings.defaultWorkingMethod ?? "auto");
-      const loggingEnabledChanged =
-        conversationLoggingEnabled !== (settings.conversationLoggingEnabled ?? true);
-      const retentionChanged =
-        conversationRetentionDays !== (settings.conversationRetentionDays ?? 90);
-      const currentDbRuntime = settings.dockerRuntime ?? "auto";
-      const dockerRuntimeChanged = dockerRuntime !== currentDbRuntime;
-      setHasChanges(
-        terminalChanged ||
-          sandboxChanged ||
-          timeoutChanged ||
-          prChanged ||
-          branchChanged ||
-          dirChanged ||
-          workingMethodChanged ||
-          loggingEnabledChanged ||
-          retentionChanged ||
-          dockerRuntimeChanged
-      );
-    }
+  // Compute change tracking with useMemo (avoids extra re-render from useEffect+setState)
+  const hasChanges = useMemo(() => {
+    if (!settings) return false;
+
+    return (
+      terminalEmulator !== (settings.terminalEmulator ?? "") ||
+      ralphSandbox !== (settings.ralphSandbox ?? false) ||
+      ralphTimeout !== (settings.ralphTimeout ?? 3600) ||
+      autoCreatePr !== (settings.autoCreatePr ?? true) ||
+      prTargetBranch !== (settings.prTargetBranch ?? "dev") ||
+      defaultProjectsDirectory !== (settings.defaultProjectsDirectory ?? "") ||
+      defaultWorkingMethod !== (settings.defaultWorkingMethod ?? "auto") ||
+      conversationLoggingEnabled !== (settings.conversationLoggingEnabled ?? true) ||
+      conversationRetentionDays !== (settings.conversationRetentionDays ?? 90) ||
+      dockerRuntime !== (settings.dockerRuntime ?? "auto")
+    );
   }, [
     terminalEmulator,
     ralphSandbox,
@@ -140,7 +122,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     dockerRuntime,
     settings,
   ]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const isSaving = updateMutation.isPending;
   const error = updateMutation.error;

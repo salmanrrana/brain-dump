@@ -350,6 +350,16 @@ These are called from React components via TanStack Query.
 | Use centralized `queryKeys` object from `src/lib/hooks.ts`                                           | Hardcoded query key strings throughout components       |
 | Create custom hooks in `src/lib/hooks.ts` for reusable query logic                                   | Duplicate query setup in multiple components            |
 
+### Styling Patterns
+
+| ✅ DO                                                                                 | ❌ DON'T                                             |
+| ------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Use Tailwind classes for static styles: `className="p-4 bg-slate-800"`                | Inline style objects for single-use styles           |
+| Use CSS variables for theming: `var(--bg-primary)`, `var(--shadow-modal)`             | Hardcoded colors that don't adapt to themes          |
+| Reserve inline styles for dynamic/computed values: `style={{ width: `${percent}%` }}` | Mix Tailwind and inline styles inconsistently        |
+| Define shared style constants at module level for referential stability               | Create new objects inside components that are reused |
+| Use `React.CSSProperties` type for inline style objects when needed                   | Untyped style objects that miss IDE autocomplete     |
+
 ### Server Functions
 
 | ✅ DO                                                                         | ❌ DON'T                                       |

@@ -120,6 +120,9 @@ const SERVICE_TYPE_COLORS: Record<ServiceType, string> = {
   other: "text-slate-400",
 };
 
+// Stable empty state for tag suggestions to prevent recreation on every render
+const EMPTY_TAG_STATE = { tagSuggestions: [] as string[], showCreateHelper: false };
+
 export default function TicketModal({ ticket, epics, onClose, onUpdate }: TicketModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useState(ticket.title);
@@ -216,7 +219,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
   const { tagSuggestions, showCreateHelper } = useMemo(() => {
     const trimmedInput = newTag.trim();
     if (!trimmedInput) {
-      return { tagSuggestions: [], showCreateHelper: false };
+      return EMPTY_TAG_STATE;
     }
 
     const inputLower = trimmedInput.toLowerCase();
