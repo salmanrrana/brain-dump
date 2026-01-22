@@ -18,7 +18,7 @@ export const sectionHeaderStyles: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: "var(--spacing-2)",
-  padding: "var(--spacing-4)",
+  padding: "var(--spacing-3)",
   borderBottom: "1px solid var(--border-primary)",
 };
 
@@ -33,7 +33,7 @@ export const sectionTitleStyles: React.CSSProperties = {
 /** Content area with padding and scrollable overflow */
 export const sectionContentStyles: React.CSSProperties = {
   flex: 1,
-  padding: "var(--spacing-4)",
+  padding: "var(--spacing-3)",
   overflowY: "auto",
 };
 

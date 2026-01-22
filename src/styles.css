@@ -277,3 +277,78 @@ a.nav-item,
     transition: none !important;
   }
 }
+
+/* ============================================
+   ANALYTICS GRID RESPONSIVE LAYOUT
+   ============================================
+   Responsive grid for analytics cards:
+   - Mobile: 1 column
+   - Tablet (768px+): 2 columns
+   - Desktop (1200px+): 3 columns (larger cards)
+   - Large Desktop (1600px+): 4 columns (more cards visible)
+*/
+.analytics-grid {
+  display: grid;
+  gap: var(--spacing-4);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+  .analytics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1200px) {
+  .analytics-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-5);
+  }
+}
+
+@media (min-width: 1600px) {
+  .analytics-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--spacing-6);
+  }
+}
+
+/* Remove white backgrounds from recharts in dark mode */
+.recharts-wrapper,
+.recharts-surface {
+  background: transparent !important;
+}
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: var(--border-primary);
+  opacity: 0.2;
+}
+
+/* Remove tooltip outlines/borders - clean tooltip appearance */
+.recharts-tooltip-wrapper {
+  background: transparent !important;
+  outline: none !important;
+  border: none !important;
+}
+
+.recharts-default-tooltip {
+  background: var(--bg-secondary) !important;
+  border: none !important;
+  outline: none !important;
+  border-radius: var(--radius-md) !important;
+  padding: var(--spacing-2) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+/* Remove any border/outline from tooltip content */
+.recharts-tooltip-wrapper * {
+  outline: none !important;
+  border: none !important;
+}
+
+/* Make sure active dots don't have white backgrounds */
+.recharts-active-dot {
+  fill: var(--accent-primary) !important;
+  stroke: var(--bg-secondary) !important;
+}

@@ -431,6 +431,10 @@ export const queryKeys = {
   },
   // Project services
   projectServices: (projectPath: string) => ["projectServices", projectPath] as const,
+  // Analytics
+  analytics: {
+    dashboard: () => ["analytics", "dashboard"] as const,
+  },
 };
 
 // Types
@@ -2069,6 +2073,7 @@ export function useRalphContainerLogs(
 
 import { getRalphContainerStats } from "../api/services";
 import type { ContainerStats, ContainerStatsResult } from "../api/docker-utils";
+import { getDashboardAnalytics } from "../api/analytics";
 
 // Re-export types for components
 export type { ContainerStats, ContainerStatsResult };
@@ -2135,4 +2140,20 @@ export function useContainerStats(
     /** Force refetch stats */
     refetch: query.refetch,
   };
+}
+
+/**
+ * Hook for fetching dashboard analytics including completion trends,
+ * AI usage, velocity metrics, Ralph session stats, PR metrics, cycle time,
+ * and top projects.
+ */
+export function useDashboardAnalytics() {
+  return useQuery({
+    queryKey: queryKeys.analytics.dashboard(),
+    queryFn: async () => {
+      return getDashboardAnalytics();
+    },
+    staleTime: 60_000, // 1 minute - analytics don't need real-time
+    refetchInterval: 300_000, // Refetch every 5 minutes
+  });
 }

@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 
 // Mock the hooks module
 vi.mock("../lib/hooks", () => ({
   useTickets: vi.fn(),
   useActiveRalphSessions: vi.fn(),
+  useDashboardAnalytics: vi.fn(),
 }));
 
 // Mock dashboard components - we're testing the route's data transformation logic
@@ -17,30 +18,14 @@ vi.mock("../components/dashboard", () => ({
       <span data-testid="stat-done">{done}</span>
     </div>
   )),
-  CurrentFocusCard: vi.fn(({ ticket }) => (
-    <div data-testid="current-focus-card">
-      {ticket ? (
-        <span data-testid="focus-ticket-title">{ticket.title}</span>
-      ) : (
-        <span data-testid="focus-empty">No active focus</span>
-      )}
-    </div>
-  )),
-  UpNextQueue: vi.fn(({ tickets }) => (
-    <ol data-testid="up-next-queue">
-      {tickets.map((t: { id: string; title: string }, i: number) => (
-        <li key={t.id} data-testid={`queue-item-${i}`}>
-          {t.title}
-        </li>
-      ))}
-    </ol>
-  )),
+  AnalyticsSection: vi.fn(() => <div data-testid="analytics-section">Analytics</div>),
 }));
 
-import { useTickets, useActiveRalphSessions } from "../lib/hooks";
+import { useTickets, useActiveRalphSessions, useDashboardAnalytics } from "../lib/hooks";
 
 const mockUseTickets = useTickets as ReturnType<typeof vi.fn>;
 const mockUseActiveRalphSessions = useActiveRalphSessions as ReturnType<typeof vi.fn>;
+const mockUseDashboardAnalytics = useDashboardAnalytics as ReturnType<typeof vi.fn>;
 
 function createTicket(
   overrides: Partial<{
@@ -76,6 +61,11 @@ beforeEach(async () => {
   vi.clearAllMocks();
   mockUseTickets.mockReturnValue({ tickets: [], loading: false, error: null });
   mockUseActiveRalphSessions.mockReturnValue({ sessions: {}, error: null });
+  mockUseDashboardAnalytics.mockReturnValue({
+    data: null,
+    isLoading: false,
+    error: null,
+  });
   const module = await import("./dashboard");
   Dashboard = module.Route.options.component;
 });
@@ -128,89 +118,29 @@ describe("Dashboard", () => {
     expect(screen.getByTestId("stat-done")).toHaveTextContent("3");
   });
 
-  it("shows the in-progress ticket with active AI session as current focus", () => {
+  it("renders analytics section when analytics data is available", () => {
     mockUseTickets.mockReturnValue({
-      tickets: [
-        createTicket({ id: "t1", title: "Background task", status: "in_progress" }),
-        createTicket({ id: "t2", title: "AI is working on this", status: "in_progress" }),
-      ],
+      tickets: [],
       loading: false,
       error: null,
     });
-    mockUseActiveRalphSessions.mockReturnValue({
-      sessions: { t2: { ticketId: "t2", state: "implementing" } },
+    mockUseDashboardAnalytics.mockReturnValue({
+      data: {
+        completionTrend: [],
+        velocity: { thisWeek: 0, lastWeek: 0, thisMonth: 0, trend: "stable" },
+        aiUsage: { claude: 0, ralph: 0, opencode: 0, user: 0 },
+        ralphMetrics: { totalSessions: 0, successRate: 0, avgDuration: 0, avgTimeByState: {} },
+        prMetrics: { total: 0, merged: 0, open: 0, draft: 0, mergeRate: 0 },
+        cycleTime: { avg: 0, median: 0, p95: 0, distribution: [] },
+        topProjects: [],
+        commitsPerDay: [],
+      },
+      isLoading: false,
       error: null,
     });
 
     render(<Dashboard />);
 
-    expect(screen.getByTestId("focus-ticket-title")).toHaveTextContent("AI is working on this");
-  });
-
-  it("shows empty focus when no ticket has active AI session", () => {
-    mockUseTickets.mockReturnValue({
-      tickets: [createTicket({ status: "in_progress" })],
-      loading: false,
-      error: null,
-    });
-
-    render(<Dashboard />);
-
-    expect(screen.getByTestId("focus-empty")).toBeInTheDocument();
-  });
-
-  it("shows up next queue sorted by priority then position", () => {
-    mockUseTickets.mockReturnValue({
-      tickets: [
-        createTicket({ title: "Low priority", priority: "low", position: 1 }),
-        createTicket({ title: "High priority", priority: "high", position: 2 }),
-        createTicket({ title: "Medium priority", priority: "medium", position: 3 }),
-        createTicket({ title: "Also high but later", priority: "high", position: 4 }),
-      ],
-      loading: false,
-      error: null,
-    });
-
-    render(<Dashboard />);
-
-    const items = within(screen.getByTestId("up-next-queue")).getAllByRole("listitem");
-    expect(items[0]).toHaveTextContent("High priority");
-    expect(items[1]).toHaveTextContent("Also high but later");
-    expect(items[2]).toHaveTextContent("Medium priority");
-    expect(items[3]).toHaveTextContent("Low priority");
-  });
-
-  it("excludes done, in-progress, and blocked tickets from up next queue", () => {
-    mockUseTickets.mockReturnValue({
-      tickets: [
-        createTicket({ title: "Done task", status: "done" }),
-        createTicket({ title: "In progress task", status: "in_progress" }),
-        createTicket({ title: "Blocked task", status: "backlog", isBlocked: true }),
-        createTicket({ title: "Ready to work on", status: "ready" }),
-      ],
-      loading: false,
-      error: null,
-    });
-
-    render(<Dashboard />);
-
-    const items = within(screen.getByTestId("up-next-queue")).getAllByRole("listitem");
-    expect(items).toHaveLength(1);
-    expect(items[0]).toHaveTextContent("Ready to work on");
-  });
-
-  it("limits up next queue to 5 tickets", () => {
-    mockUseTickets.mockReturnValue({
-      tickets: Array.from({ length: 10 }, (_, i) =>
-        createTicket({ title: `Task ${i + 1}`, position: i })
-      ),
-      loading: false,
-      error: null,
-    });
-
-    render(<Dashboard />);
-
-    const items = within(screen.getByTestId("up-next-queue")).getAllByRole("listitem");
-    expect(items).toHaveLength(5);
+    expect(screen.getByTestId("analytics-section")).toBeInTheDocument();
   });
 });

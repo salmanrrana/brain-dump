@@ -197,7 +197,7 @@ const queueItemStyles: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: "var(--spacing-2)",
-  padding: "var(--spacing-3)",
+  padding: "var(--spacing-2)",
   background: "var(--bg-tertiary)",
   borderRadius: "var(--radius-md)",
   cursor: "pointer",

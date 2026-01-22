@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo } from "react";
-import { useTickets, useActiveRalphSessions } from "../lib/hooks";
-import { StatsGrid, CurrentFocusCard, UpNextQueue } from "../components/dashboard";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useTickets, useActiveRalphSessions, useDashboardAnalytics } from "../lib/hooks";
+import { StatsGrid, AnalyticsSection } from "../components/dashboard";
+import type { StatFilter } from "../components/dashboard";
 
 export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
@@ -57,7 +57,7 @@ const errorButtonStyles: React.CSSProperties = {
 };
 
 /**
- * Dashboard route - Overview page with stats, current focus, and up next queue.
+ * Dashboard route - Overview page with stats and analytics.
  *
  * Layout:
  * ┌─────────────────────────────────────────────────────────────┐
@@ -67,36 +67,24 @@ const errorButtonStyles: React.CSSProperties = {
  * │ │ Total  │ │In Prog │ │AI Active│ │ Done   │                │
  * │ └────────┘ └────────┘ └────────┘ └────────┘                │
  * ├─────────────────────────────────────────────────────────────┤
- * │ Current Focus              │ Up Next                        │
- * │ ┌──────────────────────┐   │ 1. Ticket A                   │
- * │ │ Active Ticket        │   │ 2. Ticket B                   │
- * │ └──────────────────────┘   │ 3. Ticket C                   │
+ * │ Analytics Section (8 cards in responsive grid)              │
+ * │ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐                        │
+ * │ │Chart │ │Chart │ │Chart │ │Chart │                        │
+ * │ └──────┘ └──────┘ └──────┘ └──────┘                        │
+ * │ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐                        │
+ * │ │Chart │ │Chart │ │Chart │ │Chart │                        │
+ * │ └──────┘ └──────┘ └──────┘ └──────┘                        │
  * └─────────────────────────────────────────────────────────────┘
  */
 function Dashboard() {
+  const navigate = useNavigate();
   const { tickets, loading, error } = useTickets();
-  const { sessions, error: sessionsError } = useActiveRalphSessions();
-
-  // Up next = highest priority first, excludes done/in_progress/blocked
-  // Memoized to avoid expensive filter/sort on every render
-  // NOTE: Must be called before early returns to satisfy React Hooks rules
-  const upNextTickets = useMemo(() => {
-    const priorityOrder = { high: 0, medium: 1, low: 2 };
-    return tickets
-      .filter((t) => !["done", "in_progress"].includes(t.status) && !t.isBlocked)
-      .sort((a, b) => {
-        const aPriority = priorityOrder[a.priority as keyof typeof priorityOrder] ?? 3;
-        const bPriority = priorityOrder[b.priority as keyof typeof priorityOrder] ?? 3;
-        if (aPriority !== bPriority) return aPriority - bPriority;
-        return a.position - b.position;
-      })
-      .slice(0, 5);
-  }, [tickets]);
-
-  // Sessions error is non-critical - log and continue without AI indicators
-  if (sessionsError) {
-    console.error("Failed to load Ralph sessions:", sessionsError);
-  }
+  const { sessions } = useActiveRalphSessions();
+  const {
+    data: analytics,
+    isLoading: analyticsLoading,
+    error: analyticsError,
+  } = useDashboardAnalytics();
 
   if (loading) {
     return (
@@ -119,10 +107,33 @@ function Dashboard() {
   const aiActiveCount = Object.keys(sessions).length;
   const doneCount = tickets.filter((t) => t.status === "done").length;
 
-  // Current focus = in_progress ticket with active Ralph session
-  const currentFocusTicket = tickets.find(
-    (t) => t.status === "in_progress" && sessions[t.id] !== undefined
-  );
+  // Handle stat card clicks - navigate to board and scroll to relevant column
+  const handleStatClick = (filter: StatFilter) => {
+    navigate({ to: "/" });
+    // Scroll to the relevant column after navigation
+    // Use setTimeout to ensure navigation completes first
+    setTimeout(() => {
+      let columnSelector: string;
+      switch (filter) {
+        case "in_progress":
+          columnSelector = '[data-status="in_progress"]';
+          break;
+        case "done":
+          columnSelector = '[data-status="done"]';
+          break;
+        case "ai_active":
+          // For AI active, scroll to in_progress column (where AI sessions are)
+          columnSelector = '[data-status="in_progress"]';
+          break;
+        default:
+          return; // "all" - no scroll needed
+      }
+      const column = document.querySelector(columnSelector);
+      if (column) {
+        column.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+      }
+    }, 100);
+  };
 
   return (
     <div style={containerStyles}>
@@ -133,15 +144,12 @@ function Dashboard() {
         inProgress={inProgressCount}
         aiActive={aiActiveCount}
         done={doneCount}
+        onStatClick={handleStatClick}
       />
 
-      <div style={mainGridStyles}>
-        <CurrentFocusCard
-          ticket={currentFocusTicket ?? null}
-          session={currentFocusTicket ? sessions[currentFocusTicket.id] : null}
-        />
-        <UpNextQueue tickets={upNextTickets} />
-      </div>
+      {analytics && (
+        <AnalyticsSection analytics={analytics} loading={analyticsLoading} error={analyticsError} />
+      )}
     </div>
   );
 }
@@ -160,10 +168,4 @@ const titleStyles: React.CSSProperties = {
   margin: 0,
 };
 
-const mainGridStyles: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: "var(--spacing-6)",
-  flex: 1,
-  minHeight: 0,
-};
+// Removed mainGridStyles - Current Focus and Up Next sections removed

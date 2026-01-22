@@ -140,8 +140,8 @@ export const CurrentFocusCard: FC<CurrentFocusCardProps> = ({ ticket, session, o
 
             {ticket.description && (
               <p style={focusTicketDescStyles} data-testid="ticket-description">
-                {ticket.description.slice(0, 100)}
-                {ticket.description.length > 100 ? "..." : ""}
+                {ticket.description.slice(0, 50)}
+                {ticket.description.length > 50 ? "..." : ""}
               </p>
             )}
 
@@ -183,7 +183,7 @@ export const CurrentFocusCard: FC<CurrentFocusCardProps> = ({ ticket, session, o
 };
 
 const focusTicketStyles: React.CSSProperties = {
-  padding: "var(--spacing-4)",
+  padding: "var(--spacing-3)",
   background: "var(--bg-tertiary)",
   borderRadius: "var(--radius-md)",
   border: "1px solid var(--border-secondary)",
@@ -206,7 +206,7 @@ const focusTicketHeaderStyles: React.CSSProperties = {
 };
 
 const focusTicketTitleStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-base)",
+  fontSize: "var(--font-size-sm)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
   color: "var(--text-primary)",
 };

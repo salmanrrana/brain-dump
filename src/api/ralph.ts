@@ -700,6 +700,7 @@ fi
       ? `  # Run OpenCode directly with prompt
   opencode "$PROJECT_PATH" --prompt "$(cat "$PROMPT_FILE")"`
       : `  # Run Claude directly - no output capture so it streams naturally
+  export AUTO_SPAWN_NEXT_TICKET=1
   claude --dangerously-skip-permissions "$PROMPT_FILE"`;
 
   const iterationLabel = useSandbox ? "(Docker)" : "";
