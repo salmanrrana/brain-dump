@@ -318,7 +318,7 @@ const modalStyles: React.CSSProperties = {
   background: "var(--bg-secondary)",
   border: "1px solid var(--border-primary)",
   borderRadius: "var(--radius-lg)",
-  boxShadow: "var(--shadow-xl)",
+  boxShadow: "var(--shadow-modal)", // Theme-colored glow effect
   display: "flex",
   flexDirection: "column",
   overflow: "hidden",

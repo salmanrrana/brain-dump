@@ -4,7 +4,7 @@
 >
 > Brain Dump is under active development and continuously evolving. Features may change, break, or be removed without notice. Not all configurations are fully supported. Use at your own risk and [report issues](https://github.com/salmanrrana/brain-dump/issues) to help us improve!
 
-**Your backlog, worked by AI.** A kanban board where clicking a ticket launches Claude, Copilot, or OpenCode with full context — or let Ralph, the autonomous agent, implement tickets while you're away.
+**Your backlog, worked by AI.** A kanban board where clicking a ticket launches Claude, OpenCode, Copilot, or Cursor with full context — or let Ralph, the autonomous agent, implement tickets while you're away.
 
 ![Kanban board](docs/screenshots/kanban-board.png)
 
@@ -98,6 +98,7 @@ All environments get the same MCP tools, agents, and workflows.
 | **Claude Code** | `./install.sh --claude`   | Terminal-native AI development |
 | **VS Code**     | `./install.sh --vscode`   | Copilot Chat + extensions      |
 | **OpenCode**    | `./install.sh --opencode` | Open-source AI coding          |
+| **Cursor**      | `./install.sh --cursor`   | Modern AI-first IDE experience |
 | **All**         | `./install.sh --all`      | Try everything                 |
 
 <details>
@@ -123,6 +124,12 @@ All environments get the same MCP tools, agents, and workflows.
 - Uses `.opencode/` directory for config
 - [Full setup guide →](docs/opencode-setup.md)
 
+### Cursor
+
+- Subagents available in Agent chat: `@ralph`, `@ticket-worker`, `@planner`, `@code-reviewer`
+- Skills and commands available globally across all projects
+- Uses `~/.cursor/mcp.json` for MCP config
+- [Full setup guide →](docs/cursor-setup.md)
 </details>
 
 ---
@@ -250,6 +257,7 @@ git checkout feature/ui-v2 && pnpm dev:v2   # http://localhost:4243
 | --------------------- | ------------------------------------------------------------ |
 | Claude Code setup     | [docs/claude-code-setup.md](docs/claude-code-setup.md)       |
 | VS Code setup         | [docs/vscode-setup.md](docs/vscode-setup.md)                 |
+| Cursor setup          | [docs/cursor-setup.md](docs/cursor-setup.md)                 |
 | OpenCode setup        | [docs/opencode-setup.md](docs/opencode-setup.md)             |
 | MCP Tools reference   | [docs/mcp-tools.md](docs/mcp-tools.md)                       |
 | CLI reference         | [docs/cli.md](docs/cli.md)                                   |

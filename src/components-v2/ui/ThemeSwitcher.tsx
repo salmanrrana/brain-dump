@@ -1,4 +1,4 @@
-import { useTheme, THEMES, type Theme } from "../../lib/theme";
+import { useTheme, DARK_THEMES, LIGHT_THEMES, type Theme } from "../../lib/theme";
 
 export interface ThemeSwitcherProps {
   /** Additional CSS class names */
@@ -7,39 +7,89 @@ export interface ThemeSwitcherProps {
 
 /**
  * Theme metadata for rendering the theme cards.
- * Each theme has a display name, two preview colors, and aria description.
- * The dual colors represent the theme's visual palette.
+ * Each theme has a display name, two preview colors, background color, and aria description.
  */
 const THEME_CONFIG: Record<
   Theme,
-  { name: string; primaryColor: string; secondaryColor: string; description: string }
+  {
+    name: string;
+    primaryColor: string;
+    secondaryColor: string;
+    bgColor: string;
+    description: string;
+  }
 > = {
+  // Dark themes
   ember: {
     name: "Ember",
-    primaryColor: "#f97316", // orange-500
-    secondaryColor: "#14b8a6", // teal-500 (AI accent)
-    description: "Orange and teal accent theme",
+    primaryColor: "#f97316",
+    secondaryColor: "#14b8a6",
+    bgColor: "#0a0a0a",
+    description: "Orange and teal on dark",
   },
   mint: {
     name: "Mint",
-    primaryColor: "#10b981", // emerald-500
-    secondaryColor: "#f43f5e", // rose-500
-    description: "Emerald and rose accent theme",
+    primaryColor: "#10b981",
+    secondaryColor: "#f43f5e",
+    bgColor: "#0a0a0a",
+    description: "Emerald and rose on dark",
   },
   solar: {
     name: "Solar",
-    primaryColor: "#eab308", // yellow-500
-    secondaryColor: "#3b82f6", // blue-500
-    description: "Gold and blue accent theme",
+    primaryColor: "#eab308",
+    secondaryColor: "#3b82f6",
+    bgColor: "#0a0a0a",
+    description: "Gold and blue on dark",
+  },
+  arctic: {
+    name: "Arctic",
+    primaryColor: "#0ea5e9",
+    secondaryColor: "#a855f7",
+    bgColor: "#0a0a0a",
+    description: "Ice blue and violet on dark",
+  },
+  neon: {
+    name: "Neon",
+    primaryColor: "#8b5cf6",
+    secondaryColor: "#06b6d4",
+    bgColor: "#0a0a0a",
+    description: "Violet and cyan on dark",
+  },
+  blush: {
+    name: "Blush",
+    primaryColor: "#ec4899",
+    secondaryColor: "#14b8a6",
+    bgColor: "#0a0a0a",
+    description: "Pink and teal on dark",
+  },
+  // Light themes
+  daylight: {
+    name: "Daylight",
+    primaryColor: "#ea580c",
+    secondaryColor: "#0d9488",
+    bgColor: "#fafaf9",
+    description: "Orange on warm white",
+  },
+  frost: {
+    name: "Frost",
+    primaryColor: "#0284c7",
+    secondaryColor: "#7c3aed",
+    bgColor: "#f8fafc",
+    description: "Blue on cool white",
+  },
+  paper: {
+    name: "Paper",
+    primaryColor: "#7c3aed",
+    secondaryColor: "#0891b2",
+    bgColor: "#fafafa",
+    description: "Violet on neutral white",
   },
 };
 
 /**
- * ThemeCard - Individual theme selection card with dual-color preview.
+ * ThemeCard - Individual theme selection card with preview.
  *
- * Displays two color dots representing the theme's palette
- * with the theme name below. Selected state shows a highlighted border.
- * Matches the design from plans/mockups/settings-neon-productivity.html
+ * Shows background color preview with accent color dots.
  */
 function ThemeCard({
   theme,
@@ -60,24 +110,27 @@ function ThemeCard({
       aria-label={`${config.name} theme${isActive ? " (active)" : ""}`}
       onClick={onSelect}
       className={`
-        flex-1 flex flex-col items-center justify-center gap-2 p-4
-        rounded-xl transition-all duration-200 bg-[var(--bg-tertiary)]
+        flex flex-col items-center gap-1.5 p-2 min-w-[60px]
+        rounded-lg transition-all duration-200
         ${
           isActive
-            ? "border-2 border-[var(--accent-primary)]"
-            : "border border-[var(--border-primary)] hover:border-[var(--border-secondary)]"
+            ? "ring-2 ring-[var(--accent-primary)] ring-offset-1 ring-offset-[var(--bg-secondary)]"
+            : "hover:bg-[var(--bg-hover)]"
         }
       `}
     >
-      {/* Dual color dots */}
-      <div className="flex items-center justify-center gap-1.5">
+      {/* Preview box with bg color and accent dots */}
+      <div
+        className="w-12 h-8 rounded-md flex items-center justify-center gap-1 border border-[var(--border-primary)]"
+        style={{ backgroundColor: config.bgColor }}
+      >
         <span
-          className="w-5 h-5 rounded-full"
+          className="w-3 h-3 rounded-full"
           style={{ backgroundColor: config.primaryColor }}
           aria-hidden="true"
         />
         <span
-          className="w-5 h-5 rounded-full"
+          className="w-3 h-3 rounded-full"
           style={{ backgroundColor: config.secondaryColor }}
           aria-hidden="true"
         />
@@ -85,7 +138,7 @@ function ThemeCard({
 
       {/* Theme name */}
       <span
-        className={`text-[11px] font-semibold ${
+        className={`text-[10px] font-medium ${
           isActive ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
         }`}
       >
@@ -98,23 +151,46 @@ function ThemeCard({
 /**
  * Theme switcher component with visual theme cards.
  *
- * Displays three theme options (Ember, Mint, Solar) as cards,
- * each showing a dual-color preview and theme name.
- * The selected theme has a highlighted border.
+ * Displays themes organized by dark and light categories.
  */
 export function ThemeSwitcher({ className = "" }: ThemeSwitcherProps) {
   const { theme: currentTheme, setTheme } = useTheme();
 
   return (
-    <div className={`flex gap-2.5 mt-2 ${className}`} role="radiogroup" aria-label="Theme selector">
-      {THEMES.map((theme) => (
-        <ThemeCard
-          key={theme}
-          theme={theme}
-          isActive={theme === currentTheme}
-          onSelect={() => setTheme(theme)}
-        />
-      ))}
+    <div className={`space-y-3 ${className}`}>
+      {/* Dark themes */}
+      <div>
+        <div className="text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider mb-1.5">
+          Dark
+        </div>
+        <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Dark themes">
+          {DARK_THEMES.map((theme) => (
+            <ThemeCard
+              key={theme}
+              theme={theme}
+              isActive={theme === currentTheme}
+              onSelect={() => setTheme(theme)}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Light themes */}
+      <div>
+        <div className="text-[10px] font-medium text-[var(--text-tertiary)] uppercase tracking-wider mb-1.5">
+          Light
+        </div>
+        <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Light themes">
+          {LIGHT_THEMES.map((theme) => (
+            <ThemeCard
+              key={theme}
+              theme={theme}
+              isActive={theme === currentTheme}
+              onSelect={() => setTheme(theme)}
+            />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

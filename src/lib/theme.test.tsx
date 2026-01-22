@@ -104,7 +104,19 @@ describe("Theme System", () => {
     });
 
     it("should export THEMES array with all valid themes", () => {
-      expect(THEMES).toEqual(["ember", "mint", "solar"]);
+      expect(THEMES).toEqual([
+        // Dark themes
+        "ember",
+        "mint",
+        "solar",
+        "arctic",
+        "neon",
+        "blush",
+        // Light themes
+        "daylight",
+        "frost",
+        "paper",
+      ]);
     });
   });
 
@@ -113,16 +125,19 @@ describe("Theme System", () => {
   // ===========================================================================
 
   describe("isValidTheme", () => {
-    it("should return true for 'ember'", () => {
+    it("should return true for all dark themes", () => {
       expect(isValidTheme("ember")).toBe(true);
-    });
-
-    it("should return true for 'mint'", () => {
       expect(isValidTheme("mint")).toBe(true);
+      expect(isValidTheme("solar")).toBe(true);
+      expect(isValidTheme("arctic")).toBe(true);
+      expect(isValidTheme("neon")).toBe(true);
+      expect(isValidTheme("blush")).toBe(true);
     });
 
-    it("should return true for 'solar'", () => {
-      expect(isValidTheme("solar")).toBe(true);
+    it("should return true for all light themes", () => {
+      expect(isValidTheme("daylight")).toBe(true);
+      expect(isValidTheme("frost")).toBe(true);
+      expect(isValidTheme("paper")).toBe(true);
     });
 
     it("should return false for invalid string", () => {

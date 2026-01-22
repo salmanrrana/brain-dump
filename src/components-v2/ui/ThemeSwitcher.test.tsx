@@ -52,12 +52,23 @@ describe("ThemeSwitcher", () => {
   });
 
   describe("Rendering", () => {
-    it("renders 3 theme buttons (Ember, Mint, Solar)", () => {
+    it("renders all dark theme buttons", () => {
       renderWithTheme();
 
       expect(screen.getByRole("radio", { name: /ember theme/i })).toBeInTheDocument();
       expect(screen.getByRole("radio", { name: /mint theme/i })).toBeInTheDocument();
       expect(screen.getByRole("radio", { name: /solar theme/i })).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: /arctic theme/i })).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: /neon theme/i })).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: /blush theme/i })).toBeInTheDocument();
+    });
+
+    it("renders all light theme buttons", () => {
+      renderWithTheme();
+
+      expect(screen.getByRole("radio", { name: /daylight theme/i })).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: /frost theme/i })).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: /paper theme/i })).toBeInTheDocument();
     });
 
     it("indicates current theme with aria-checked", async () => {
@@ -147,18 +158,27 @@ describe("ThemeSwitcher", () => {
   });
 
   describe("Accessibility", () => {
-    it("has radiogroup role with proper label", () => {
+    it("has separate radiogroup roles for dark and light themes", () => {
       renderWithTheme();
-      expect(screen.getByRole("radiogroup", { name: /theme selector/i })).toBeInTheDocument();
+      expect(screen.getByRole("radiogroup", { name: /dark themes/i })).toBeInTheDocument();
+      expect(screen.getByRole("radiogroup", { name: /light themes/i })).toBeInTheDocument();
     });
 
-    it("shows theme name as visible text in each card", () => {
+    it("shows all theme names as visible text", () => {
       renderWithTheme();
 
-      // Theme names are displayed as visible text in the card design
+      // Dark themes
       expect(screen.getByText("Ember")).toBeInTheDocument();
       expect(screen.getByText("Mint")).toBeInTheDocument();
       expect(screen.getByText("Solar")).toBeInTheDocument();
+      expect(screen.getByText("Arctic")).toBeInTheDocument();
+      expect(screen.getByText("Neon")).toBeInTheDocument();
+      expect(screen.getByText("Blush")).toBeInTheDocument();
+
+      // Light themes
+      expect(screen.getByText("Daylight")).toBeInTheDocument();
+      expect(screen.getByText("Frost")).toBeInTheDocument();
+      expect(screen.getByText("Paper")).toBeInTheDocument();
     });
   });
 });

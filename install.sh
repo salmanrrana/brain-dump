@@ -6,6 +6,7 @@
 #   ./install.sh                  # Install with prompts for IDE choice
 #   ./install.sh --claude         # Install with Claude Code integration
 #   ./install.sh --vscode         # Install with VS Code integration
+#   ./install.sh --cursor         # Install with Cursor integration
 #   ./install.sh --claude --sandbox # Install with Claude Code + sandbox
 #   ./install.sh --all            # Install all IDEs + sandbox
 #   ./install.sh --help           # Show help
@@ -1553,6 +1554,35 @@ setup_vscode_prompts() {
     fi
 }
 
+# Setup Cursor integration using the setup script
+setup_cursor() {
+    print_step "Setting up Cursor integration"
+
+    local setup_script="scripts/setup-cursor.sh"
+    
+    if [ ! -f "$setup_script" ]; then
+        print_warning "Cursor setup script not found: $setup_script"
+        SKIPPED+=("Cursor setup (script not found)")
+        return 1
+    fi
+
+    if [ ! -x "$setup_script" ]; then
+        print_info "Making setup script executable..."
+        chmod +x "$setup_script"
+    fi
+
+    print_info "Running Cursor setup script..."
+    if bash "$setup_script"; then
+        print_success "Cursor integration configured"
+        INSTALLED+=("Cursor integration")
+        return 0
+    else
+        print_error "Cursor setup script failed"
+        FAILED+=("Cursor integration")
+        return 1
+    fi
+}
+
 # Prompt user to select IDE(s)
 prompt_ide_selection() {
     echo ""
@@ -1560,42 +1590,55 @@ prompt_ide_selection() {
     echo ""
     echo "  1) Claude Code (CLI)"
     echo "  2) VS Code"
-    echo "  3) OpenCode"
-    echo "  4) All IDEs (Claude Code + VS Code + OpenCode)"
-    echo "  5) Skip IDE setup (just install Brain Dump)"
+    echo "  3) Cursor"
+    echo "  4) OpenCode"
+    echo "  5) All IDEs (Claude Code + VS Code + Cursor + OpenCode)"
+    echo "  6) Skip IDE setup (just install Brain Dump)"
     echo ""
-    read -r -p "Enter choice [1-5]: " choice
+    read -r -p "Enter choice [1-6]: " choice
 
     case $choice in
         1)
             SETUP_CLAUDE=true
             SETUP_VSCODE=false
+            SETUP_CURSOR=false
             SETUP_OPENCODE=false
             ;;
         2)
             SETUP_CLAUDE=false
             SETUP_VSCODE=true
+            SETUP_CURSOR=false
             SETUP_OPENCODE=false
             ;;
         3)
             SETUP_CLAUDE=false
             SETUP_VSCODE=false
-            SETUP_OPENCODE=true
+            SETUP_CURSOR=true
+            SETUP_OPENCODE=false
             ;;
         4)
-            SETUP_CLAUDE=true
-            SETUP_VSCODE=true
+            SETUP_CLAUDE=false
+            SETUP_VSCODE=false
+            SETUP_CURSOR=false
             SETUP_OPENCODE=true
             ;;
         5)
+            SETUP_CLAUDE=true
+            SETUP_VSCODE=true
+            SETUP_CURSOR=true
+            SETUP_OPENCODE=true
+            ;;
+        6)
             SETUP_CLAUDE=false
             SETUP_VSCODE=false
+            SETUP_CURSOR=false
             SETUP_OPENCODE=false
             ;;
         *)
             print_warning "Invalid choice, defaulting to Claude Code"
             SETUP_CLAUDE=true
             SETUP_VSCODE=false
+            SETUP_CURSOR=false
             SETUP_OPENCODE=false
             ;;
     esac
@@ -1665,6 +1708,11 @@ print_summary() {
         echo "  5. Use @ralph or /start-ticket in Copilot Chat"
     fi
 
+    if [ "$SETUP_CURSOR" = true ]; then
+        echo "  4. Restart Cursor to load MCP server and configurations"
+        echo "  5. Use @ralph, @ticket-worker, or /review in Agent chat"
+    fi
+
     if [ "$SETUP_OPENCODE" = true ]; then
         echo "  4. Start OpenCode in this directory: ${CYAN}opencode${NC}"
         echo "  5. Use Tab to switch between Ralph and Build agents"
@@ -1683,23 +1731,14 @@ print_summary() {
     echo ""
 
     # Show how to add other IDE later
-    if [ "$SETUP_CLAUDE" = true ] && [ "$SETUP_VSCODE" = false ] && [ "$SETUP_OPENCODE" = false ]; then
-        echo -e "${BLUE}Want more IDEs?${NC} Run: ${CYAN}./install.sh --all${NC}"
-        echo ""
-    elif [ "$SETUP_VSCODE" = true ] && [ "$SETUP_CLAUDE" = false ] && [ "$SETUP_OPENCODE" = false ]; then
-        echo -e "${BLUE}Want more IDEs?${NC} Run: ${CYAN}./install.sh --all${NC}"
-        echo ""
-    elif [ "$SETUP_OPENCODE" = true ] && [ "$SETUP_CLAUDE" = false ] && [ "$SETUP_VSCODE" = false ]; then
-        echo -e "${BLUE}Want more IDEs?${NC} Run: ${CYAN}./install.sh --all${NC}"
-        echo ""
-    elif [ "$SETUP_CLAUDE" = true ] && [ "$SETUP_VSCODE" = true ] && [ "$SETUP_OPENCODE" = false ]; then
-        echo -e "${BLUE}Want OpenCode too?${NC} Run: ${CYAN}./install.sh --opencode${NC} or ${CYAN}./install.sh --all${NC}"
-        echo ""
-    elif [ "$SETUP_CLAUDE" = true ] && [ "$SETUP_OPENCODE" = true ] && [ "$SETUP_VSCODE" = false ]; then
-        echo -e "${BLUE}Want VS Code too?${NC} Run: ${CYAN}./install.sh --vscode${NC} or ${CYAN}./install.sh --all${NC}"
-        echo ""
-    elif [ "$SETUP_VSCODE" = true ] && [ "$SETUP_OPENCODE" = true ] && [ "$SETUP_CLAUDE" = false ]; then
-        echo -e "${BLUE}Want Claude Code too?${NC} Run: ${CYAN}./install.sh --claude${NC} or ${CYAN}./install.sh --all${NC}"
+    local ide_count=0
+    [ "$SETUP_CLAUDE" = true ] && ide_count=$((ide_count + 1))
+    [ "$SETUP_VSCODE" = true ] && ide_count=$((ide_count + 1))
+    [ "$SETUP_CURSOR" = true ] && ide_count=$((ide_count + 1))
+    [ "$SETUP_OPENCODE" = true ] && ide_count=$((ide_count + 1))
+
+    if [ $ide_count -lt 4 ]; then
+        echo -e "${BLUE}Want more IDEs?${NC} Run: ${CYAN}./install.sh --all${NC} for all integrations"
         echo ""
     fi
 }
@@ -1713,6 +1752,7 @@ show_help() {
     echo "IDE Options:"
     echo "  --claude    Set up Claude Code integration (MCP server + plugins)"
     echo "  --vscode    Set up VS Code integration (MCP server + agents + skills + prompts)"
+    echo "  --cursor    Set up Cursor integration (MCP server + subagents + skills + commands)"
     echo "  --opencode  Set up OpenCode integration (MCP server + agents + skills)"
     echo "  --all       Set up all IDE integrations + sandbox"
     echo ""
@@ -1733,6 +1773,7 @@ show_help() {
     echo "  ./install.sh --claude --sandbox  # Claude Code with sandbox enabled"
     echo "  ./install.sh --devcontainer      # Set up devcontainer environment"
     echo "  ./install.sh --vscode            # VS Code only"
+    echo "  ./install.sh --cursor            # Cursor only"
     echo "  ./install.sh --opencode          # OpenCode only"
     echo "  ./install.sh --all               # All IDEs + sandbox"
     echo "  ./install.sh                     # Interactive prompt"
@@ -1754,6 +1795,7 @@ main() {
     SKIP_NODE=false
     SETUP_CLAUDE=false
     SETUP_VSCODE=false
+    SETUP_CURSOR=false
     SETUP_OPENCODE=false
     SETUP_DOCKER=false
     SETUP_SANDBOX=false
@@ -1778,6 +1820,10 @@ main() {
                 SETUP_VSCODE=true
                 IDE_FLAG_PROVIDED=true
                 ;;
+            --cursor)
+                SETUP_CURSOR=true
+                IDE_FLAG_PROVIDED=true
+                ;;
             --opencode)
                 SETUP_OPENCODE=true
                 IDE_FLAG_PROVIDED=true
@@ -1785,6 +1831,7 @@ main() {
             --all)
                 SETUP_CLAUDE=true
                 SETUP_VSCODE=true
+                SETUP_CURSOR=true
                 SETUP_OPENCODE=true
                 SETUP_SANDBOX=true
                 IDE_FLAG_PROVIDED=true
@@ -1889,6 +1936,11 @@ main() {
         setup_vscode_prompts || true
     fi
 
+    # Cursor setup
+    if [ "$SETUP_CURSOR" = true ]; then
+        setup_cursor || true
+    fi
+
     # OpenCode setup
     if [ "$SETUP_OPENCODE" = true ]; then
         install_opencode || true
@@ -1896,9 +1948,9 @@ main() {
     fi
 
     # If no IDE selected, just note it
-    if [ "$SETUP_CLAUDE" = false ] && [ "$SETUP_VSCODE" = false ] && [ "$SETUP_OPENCODE" = false ]; then
+    if [ "$SETUP_CLAUDE" = false ] && [ "$SETUP_VSCODE" = false ] && [ "$SETUP_CURSOR" = false ] && [ "$SETUP_OPENCODE" = false ]; then
         print_step "Skipping IDE integration"
-        print_info "Run again with --claude, --vscode, or --opencode to set up IDE integration"
+        print_info "Run again with --claude, --vscode, --cursor, or --opencode to set up IDE integration"
         SKIPPED+=("IDE integration (not selected)")
     fi
 

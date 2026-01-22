@@ -6,6 +6,7 @@
 #   ./uninstall.sh              # Interactive uninstall
 #   ./uninstall.sh --vscode     # Remove VS Code integration only
 #   ./uninstall.sh --claude     # Remove Claude Code integration only
+#   ./uninstall.sh --cursor     # Remove Cursor integration only
 #   ./uninstall.sh --sandbox    # Remove Claude Code sandbox configuration
 #   ./uninstall.sh --devcontainer # Remove devcontainer Docker volumes
 #   ./uninstall.sh --all        # Remove everything (including data)
@@ -210,6 +211,105 @@ try {
         fi
     else
         print_info "brain-dump not in Claude config"
+    fi
+}
+
+# Remove Cursor integration
+remove_cursor() {
+    print_step "Removing Cursor integration"
+
+    CURSOR_CONFIG_DIR="$HOME/.cursor"
+    MCP_CONFIG="$CURSOR_CONFIG_DIR/mcp.json"
+    AGENTS_DIR="$CURSOR_CONFIG_DIR/agents"
+    SKILLS_DIR="$CURSOR_CONFIG_DIR/skills"
+    COMMANDS_DIR="$CURSOR_CONFIG_DIR/commands"
+
+    # Remove brain-dump from Cursor MCP config
+    if [ -f "$MCP_CONFIG" ] && grep -q '"brain-dump"' "$MCP_CONFIG"; then
+        if command -v node >/dev/null 2>&1; then
+            node -e "
+const fs = require('fs');
+try {
+    const config = JSON.parse(fs.readFileSync('$MCP_CONFIG', 'utf8'));
+    if (config.mcpServers && config.mcpServers['brain-dump']) {
+        delete config.mcpServers['brain-dump'];
+        fs.writeFileSync('$MCP_CONFIG', JSON.stringify(config, null, 2));
+        console.log('removed');
+    }
+} catch (e) {
+    console.error(e.message);
+}
+" 2>/dev/null && print_success "Removed brain-dump from MCP config" && REMOVED+=("Cursor MCP server")
+        else
+            print_warning "Could not remove brain-dump from mcp.json (node not found)"
+            print_info "Manually edit: $MCP_CONFIG"
+            SKIPPED+=("Cursor MCP config (manual removal needed)")
+        fi
+    else
+        print_info "brain-dump not in Cursor MCP config"
+    fi
+
+    # Remove subagents
+    local agents_removed=0
+    if [ -d "$AGENTS_DIR" ]; then
+        for agent in ralph ticket-worker planner code-reviewer silent-failure-hunter code-simplifier inception context7-library-compliance react-best-practices cruft-detector senior-engineer; do
+            if [ -f "$AGENTS_DIR/${agent}.md" ]; then
+                rm -f "$AGENTS_DIR/${agent}.md"
+                agents_removed=$((agents_removed + 1))
+            fi
+        done
+        if [ $agents_removed -gt 0 ]; then
+            print_success "Removed $agents_removed subagents"
+            REMOVED+=("Cursor subagents ($agents_removed)")
+        else
+            print_info "No subagents to remove"
+        fi
+    else
+        print_info "Cursor agents directory not found"
+    fi
+
+    # Remove skills
+    local skills_removed=0
+    if [ -d "$SKILLS_DIR" ]; then
+        for skill in brain-dump-tickets ralph-workflow review review-aggregation tanstack-errors tanstack-forms tanstack-mutations tanstack-query tanstack-types; do
+            if [ -d "$SKILLS_DIR/$skill" ]; then
+                rm -rf "$SKILLS_DIR/$skill"
+                skills_removed=$((skills_removed + 1))
+            fi
+        done
+        if [ $skills_removed -gt 0 ]; then
+            print_success "Removed $skills_removed skills"
+            REMOVED+=("Cursor skills ($skills_removed)")
+        else                                                                                                                   
+            print_info "No skills to remove"
+        fi
+    else
+        print_info "Cursor skills directory not found"
+    fi
+
+    # Remove commands
+    local commands_removed=0
+    if [ -d "$COMMANDS_DIR" ]; then
+        for command in review extended-review inception breakdown; do
+            if [ -f "$COMMANDS_DIR/${command}.md" ]; then
+                rm -f "$COMMANDS_DIR/${command}.md"
+                commands_removed=$((commands_removed + 1))
+            fi
+        done
+        if [ $commands_removed -gt 0 ]; then
+            print_success "Removed $commands_removed commands"
+            REMOVED+=("Cursor commands ($commands_removed)")
+        else
+            print_info "No commands to remove"
+        fi
+    else
+        print_info "Cursor commands directory not found"
+    fi
+
+    # Clean up empty .cursor directory if it exists
+    if [ -d "$CURSOR_CONFIG_DIR" ] && [ -z "$(ls -A "$CURSOR_CONFIG_DIR" 2>/dev/null)" ]; then
+        rmdir "$CURSOR_CONFIG_DIR"
+        print_success "Removed empty ~/.cursor directory"
     fi
 }
 
@@ -500,6 +600,7 @@ show_help() {
     echo "Options:"
     echo "  --vscode       Remove VS Code integration only"
     echo "  --claude       Remove Claude Code integration only"
+    echo "  --cursor       Remove Cursor integration only"
     echo "  --sandbox      Remove Claude Code sandbox configuration"
     echo "  --devcontainer Remove devcontainer Docker volumes (not user data)"
     echo "  --docker       Remove Docker sandbox artifacts only"
@@ -511,6 +612,7 @@ show_help() {
     echo "What gets removed:"
     echo "  VS Code:       MCP config, agents, skills, prompts"
     echo "  Claude Code:   MCP config in ~/.claude.json"
+    echo "  Cursor:        MCP config, subagents, skills, commands in ~/.cursor/"
     echo "  Sandbox:       Sandbox config in ~/.claude/settings.json"
     echo "  Devcontainer:  Docker volumes (pnpm store, bash history, claude config)"
     echo "                 Does NOT remove your Brain Dump data (bind-mounted)"
@@ -522,6 +624,7 @@ show_help() {
 main() {
     REMOVE_VSCODE=false
     REMOVE_CLAUDE=false
+    REMOVE_CURSOR=false
     REMOVE_SANDBOX=false
     REMOVE_DEVCONTAINER=false
     REMOVE_DOCKER=false
@@ -529,9 +632,10 @@ main() {
 
     # Parse arguments
     if [ $# -eq 0 ]; then
-        # Default: remove both IDE integrations
+        # Default: remove all IDE integrations
         REMOVE_VSCODE=true
         REMOVE_CLAUDE=true
+        REMOVE_CURSOR=true
     else
         for arg in "$@"; do
             case $arg in
@@ -545,6 +649,9 @@ main() {
                 --claude)
                     REMOVE_CLAUDE=true
                     ;;
+                --cursor)
+                    REMOVE_CURSOR=true
+                    ;;
                 --sandbox)
                     REMOVE_SANDBOX=true
                     ;;
@@ -557,6 +664,7 @@ main() {
                 --all)
                     REMOVE_VSCODE=true
                     REMOVE_CLAUDE=true
+                    REMOVE_CURSOR=true
                     REMOVE_SANDBOX=true
                     REMOVE_DEVCONTAINER=true
                     REMOVE_DOCKER=true
@@ -573,6 +681,7 @@ main() {
 
     [ "$REMOVE_VSCODE" = true ] && remove_vscode
     [ "$REMOVE_CLAUDE" = true ] && remove_claude
+    [ "$REMOVE_CURSOR" = true ] && remove_cursor
     [ "$REMOVE_SANDBOX" = true ] && remove_sandbox
     [ "$REMOVE_DEVCONTAINER" = true ] && remove_devcontainer
     [ "$REMOVE_DOCKER" = true ] && remove_docker

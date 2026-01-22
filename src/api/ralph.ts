@@ -1514,6 +1514,8 @@ type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string
 export interface ActiveRalphSession {
   id: string;
   ticketId: string;
+  /** Project ID the ticket belongs to - used for determining projects with active AI */
+  projectId: string;
   currentState: RalphSessionState;
   startedAt: string;
   stateHistory: Array<{
@@ -1530,15 +1532,18 @@ export interface ActiveRalphSession {
 export const getActiveRalphSession = createServerFn({ method: "GET" })
   .inputValidator((ticketId: string) => ticketId)
   .handler(async ({ data: ticketId }): Promise<ActiveRalphSession | null> => {
+    // Join with tickets to get projectId for the session
     const session = db
       .select({
         id: ralphSessions.id,
         ticketId: ralphSessions.ticketId,
+        projectId: tickets.projectId,
         currentState: ralphSessions.currentState,
         startedAt: ralphSessions.startedAt,
         stateHistory: ralphSessions.stateHistory,
       })
       .from(ralphSessions)
+      .innerJoin(tickets, eq(ralphSessions.ticketId, tickets.id))
       .where(and(eq(ralphSessions.ticketId, ticketId), isNull(ralphSessions.completedAt)))
       .orderBy(desc(ralphSessions.startedAt))
       .limit(1)
@@ -1551,6 +1556,7 @@ export const getActiveRalphSession = createServerFn({ method: "GET" })
     return {
       id: session.id,
       ticketId: session.ticketId,
+      projectId: session.projectId,
       currentState: session.currentState as RalphSessionState,
       startedAt: session.startedAt,
       stateHistory: safeJsonParse(session.stateHistory, null),
@@ -1560,18 +1566,22 @@ export const getActiveRalphSession = createServerFn({ method: "GET" })
 /**
  * Get all active Ralph sessions (for batch fetching on kanban board).
  * Returns a map of ticketId -> session for efficient lookup.
+ * Includes projectId for each session to determine which projects have active AI.
  */
 export const getActiveRalphSessions = createServerFn({ method: "GET" }).handler(
   async (): Promise<Record<string, ActiveRalphSession>> => {
+    // Join with tickets to get projectId for each session
     const sessions = db
       .select({
         id: ralphSessions.id,
         ticketId: ralphSessions.ticketId,
+        projectId: tickets.projectId,
         currentState: ralphSessions.currentState,
         startedAt: ralphSessions.startedAt,
         stateHistory: ralphSessions.stateHistory,
       })
       .from(ralphSessions)
+      .innerJoin(tickets, eq(ralphSessions.ticketId, tickets.id))
       .where(isNull(ralphSessions.completedAt))
       .orderBy(desc(ralphSessions.startedAt))
       .all();
@@ -1583,6 +1593,7 @@ export const getActiveRalphSessions = createServerFn({ method: "GET" }).handler(
         result[session.ticketId] = {
           id: session.id,
           ticketId: session.ticketId,
+          projectId: session.projectId,
           currentState: session.currentState as RalphSessionState,
           startedAt: session.startedAt,
           stateHistory: safeJsonParse(session.stateHistory, null),
