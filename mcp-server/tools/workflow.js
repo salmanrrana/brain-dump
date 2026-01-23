@@ -20,6 +20,12 @@ import { runGitCommand, shortId, generateBranchName } from "../lib/git-utils.js"
 const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
 
 /**
+ * MCP spec recommends content under 1MB for reliable processing.
+ * Files above this threshold will trigger a warning but still be included if under MAX_ATTACHMENT_SIZE.
+ */
+const RECOMMENDED_ATTACHMENT_SIZE = 1 * 1024 * 1024;
+
+/**
  * File type configuration for attachments.
  * Each entry defines how to handle a file extension: mime type and content type.
  * - "image": Loaded as base64 MCP image content block
@@ -108,21 +114,33 @@ function loadSingleAttachment(filePath, filename, size) {
  *
  * @param {string} ticketId - The ticket ID to load attachments for
  * @param {string[] | null} attachmentsList - JSON-parsed list of attachment filenames
- * @returns {{ contentBlocks: Array<{type: string, text?: string, data?: string, mimeType?: string}>, warnings: string[] }}
+ * @returns {{ contentBlocks: Array<{type: string, text?: string, data?: string, mimeType?: string}>, warnings: string[], telemetry: { totalCount: number, loadedCount: number, failedCount: number, imageCount: number, totalSizeBytes: number, filenames: string[], failedFiles: string[] } }}
  */
 function loadTicketAttachments(ticketId, attachmentsList) {
   const contentBlocks = [];
   const warnings = [];
+  const telemetry = {
+    totalCount: 0,
+    loadedCount: 0,
+    failedCount: 0,
+    imageCount: 0,
+    totalSizeBytes: 0,
+    filenames: [],
+    failedFiles: [],
+  };
 
   if (!attachmentsList || !Array.isArray(attachmentsList) || attachmentsList.length === 0) {
-    return { contentBlocks, warnings };
+    return { contentBlocks, warnings, telemetry };
   }
 
+  telemetry.totalCount = attachmentsList.length;
   const ticketDir = join(getAttachmentsDir(), ticketId);
 
   if (!existsSync(ticketDir)) {
     warnings.push(`Attachments directory not found: ${ticketDir}`);
-    return { contentBlocks, warnings };
+    telemetry.failedCount = attachmentsList.length;
+    telemetry.failedFiles = attachmentsList;
+    return { contentBlocks, warnings, telemetry };
   }
 
   for (const filename of attachmentsList) {
@@ -131,12 +149,16 @@ function loadTicketAttachments(ticketId, attachmentsList) {
     if (safeFilename !== filename) {
       warnings.push(`Skipped unsafe filename: ${filename}`);
       log.warn(`Blocked path traversal attempt in attachment: ${filename}`);
+      telemetry.failedCount++;
+      telemetry.failedFiles.push(filename);
       continue;
     }
     const filePath = join(ticketDir, safeFilename);
 
     if (!existsSync(filePath)) {
       warnings.push(`Attachment file not found: ${filename}`);
+      telemetry.failedCount++;
+      telemetry.failedFiles.push(filename);
       continue;
     }
 
@@ -145,23 +167,41 @@ function loadTicketAttachments(ticketId, attachmentsList) {
       stats = statSync(filePath);
     } catch (err) {
       warnings.push(`Failed to stat file ${filename}: ${err.message}`);
+      telemetry.failedCount++;
+      telemetry.failedFiles.push(filename);
       continue;
     }
 
     if (stats.size > MAX_ATTACHMENT_SIZE) {
       warnings.push(`Skipping ${filename}: File size (${formatFileSize(stats.size)}) exceeds 5MB limit`);
+      telemetry.failedCount++;
+      telemetry.failedFiles.push(filename);
       continue;
     }
 
+    // Warn about large files that may not be reliably processed
+    if (stats.size > RECOMMENDED_ATTACHMENT_SIZE) {
+      warnings.push(`${filename} is ${formatFileSize(stats.size)} - files over 1MB may not be processed reliably by all AI clients`);
+    }
+
     try {
-      contentBlocks.push(loadSingleAttachment(filePath, filename, stats.size));
+      const block = loadSingleAttachment(filePath, filename, stats.size);
+      contentBlocks.push(block);
+      telemetry.loadedCount++;
+      telemetry.totalSizeBytes += stats.size;
+      telemetry.filenames.push(filename);
+      if (block.type === "image") {
+        telemetry.imageCount++;
+      }
     } catch (err) {
       warnings.push(`Failed to read ${filename}: ${err.message}`);
       log.error(`Failed to read attachment ${filename}:`, err);
+      telemetry.failedCount++;
+      telemetry.failedFiles.push(filename);
     }
   }
 
-  return { contentBlocks, warnings };
+  return { contentBlocks, warnings, telemetry };
 }
 
 /**
@@ -318,6 +358,57 @@ function buildCommentsSection(comments, totalCount, truncated) {
   const formattedComments = comments.map(formatComment).join("\n\n---\n\n");
 
   return `${header}${formattedComments}\n`;
+}
+
+/**
+ * Build a prominent warning section when design mockups are attached.
+ * This ensures AI reviews the attached images BEFORE implementing UI.
+ *
+ * @param {{ imageCount: number, filenames: string[], totalSizeBytes: number, failedCount: number, failedFiles: string[] }} telemetry
+ * @returns {string} Markdown warning section or empty string if no images
+ */
+function buildDesignMockupWarning(telemetry) {
+  if (telemetry.imageCount === 0) {
+    return "";
+  }
+
+  const imageFilenames = telemetry.filenames.filter(f => {
+    const ext = f.split(".").pop()?.toLowerCase() || "";
+    return ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext);
+  });
+
+  let warning = `## DESIGN MOCKUPS ATTACHED
+
+**STOP! Before implementing, review the attached images.**
+
+These mockups show the expected UI design. Your implementation MUST match:
+- Layout and component structure
+- Spacing and alignment
+- Visual styling
+- All visible elements
+
+### Attached Images (${telemetry.imageCount})
+${imageFilenames.map(f => `- ${f}`).join("\n")}
+
+The images are included below. Reference them throughout implementation.
+`;
+
+  // Add fallback text if any images failed to load
+  if (telemetry.failedCount > 0) {
+    const failedImages = telemetry.failedFiles.filter(f => {
+      const ext = f.split(".").pop()?.toLowerCase() || "";
+      return ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext);
+    });
+    if (failedImages.length > 0) {
+      warning += `
+### Failed to Load (${failedImages.length})
+The following image files could not be loaded. Check the ticket UI for these images:
+${failedImages.map(f => `- ${f}`).join("\n")}
+`;
+    }
+  }
+
+  return warning;
 }
 
 /**
@@ -572,14 +663,32 @@ Returns:
         }
       }
 
-      const { contentBlocks: attachmentBlocks, warnings: attachmentWarnings } = loadTicketAttachments(ticketId, attachmentsList);
+      const { contentBlocks: attachmentBlocks, warnings: attachmentWarnings, telemetry: attachmentTelemetry } = loadTicketAttachments(ticketId, attachmentsList);
 
-      // Build attachments section for the text block
+      // Log attachment telemetry for observability
+      if (attachmentTelemetry.totalCount > 0) {
+        log.info(`Attachment telemetry for ticket ${ticketId}:`, {
+          total: attachmentTelemetry.totalCount,
+          loaded: attachmentTelemetry.loadedCount,
+          failed: attachmentTelemetry.failedCount,
+          images: attachmentTelemetry.imageCount,
+          totalSizeKB: Math.round(attachmentTelemetry.totalSizeBytes / 1024),
+          filenames: attachmentTelemetry.filenames,
+          failedFiles: attachmentTelemetry.failedFiles,
+        });
+      }
+
+      // Build design mockup warning if images are present
+      const designMockupWarning = buildDesignMockupWarning(attachmentTelemetry);
+
+      // Build attachments section for non-image files (images are covered by the warning)
       let attachmentsSection = "";
       if (attachmentBlocks.length > 0) {
-        const imageCount = attachmentBlocks.filter(b => b.type === "image").length;
         const textCount = attachmentBlocks.filter(b => b.type === "text").length;
-        attachmentsSection = `\n### Attachments\n${imageCount > 0 ? `- ${imageCount} image(s) included below\n` : ""}${textCount > 0 ? `- ${textCount} text/reference file(s) included below\n` : ""}`;
+        // Only show generic attachments section for non-image files
+        if (textCount > 0) {
+          attachmentsSection = `\n### Other Attachments\n- ${textCount} text/reference file(s) included below\n`;
+        }
       }
 
       // Add warnings section if any (combine parse warnings and attachment warnings)
@@ -590,6 +699,7 @@ Returns:
       }
 
       // Build the main text content block
+      // Design mockup warning appears prominently at the top if images are present
       const mainTextBlock = {
         type: "text",
         text: `## Started Work on Ticket
@@ -598,7 +708,7 @@ Returns:
 **Project:** ${updatedTicket.project_name}
 **Path:** ${updatedTicket.project_path}
 ${sessionInfo ? `\n${sessionInfo}` : ""}
-
+${designMockupWarning ? `\n---\n\n${designMockupWarning}` : ""}
 ---
 
 ## Ticket: ${updatedTicket.title}
