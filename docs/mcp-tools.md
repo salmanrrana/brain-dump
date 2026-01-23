@@ -1,19 +1,20 @@
 # MCP Tools Reference
 
-Brain Dump's MCP server provides 24 tools for managing projects, tickets, epics, and workflows. All tools are available in Claude Code, VS Code (Copilot), and OpenCode.
+Brain Dump's MCP server provides tools for managing projects, tickets, epics, workflows, and AI telemetry. All tools are available in Claude Code, VS Code (Copilot), and OpenCode.
 
 ## Quick Reference
 
-| Category                    | Tools                                                                                             |
-| --------------------------- | ------------------------------------------------------------------------------------------------- |
-| [Projects](#project-tools)  | `list_projects`, `find_project_by_path`, `create_project`, `delete_project`                       |
-| [Tickets](#ticket-tools)    | `create_ticket`, `list_tickets`, `update_ticket_status`, `update_ticket_subtask`, `delete_ticket` |
-| [Epics](#epic-tools)        | `list_epics`, `create_epic`, `update_epic`, `delete_epic`                                         |
-| [Comments](#comment-tools)  | `add_ticket_comment`, `get_ticket_comments`                                                       |
-| [Workflow](#workflow-tools) | `start_ticket_work`, `complete_ticket_work`                                                       |
-| [Git](#git-tools)           | `link_commit_to_ticket`                                                                           |
-| [Files](#file-tools)        | `link_files_to_ticket`, `get_tickets_for_file`                                                    |
-| [Health](#health-tools)     | `get_database_health`, `get_environment`, `get_project_settings`, `update_project_settings`       |
+| Category                      | Tools                                                                                                   |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------- |
+| [Projects](#project-tools)    | `list_projects`, `find_project_by_path`, `create_project`, `delete_project`                             |
+| [Tickets](#ticket-tools)      | `create_ticket`, `list_tickets`, `update_ticket_status`, `update_acceptance_criterion`, `delete_ticket` |
+| [Epics](#epic-tools)          | `list_epics`, `create_epic`, `update_epic`, `delete_epic`                                               |
+| [Comments](#comment-tools)    | `add_ticket_comment`, `get_ticket_comments`                                                             |
+| [Workflow](#workflow-tools)   | `start_ticket_work`, `complete_ticket_work`                                                             |
+| [Git](#git-tools)             | `link_commit_to_ticket`, `link_pr_to_ticket`, `sync_ticket_links`                                       |
+| [Files](#file-tools)          | `link_files_to_ticket`, `get_tickets_for_file`                                                          |
+| [Health](#health-tools)       | `get_database_health`, `get_environment`, `get_project_settings`, `update_project_settings`             |
+| [Telemetry](#telemetry-tools) | `start_telemetry_session`, `log_prompt_event`, `log_tool_event`, `end_telemetry_session`                |
 
 ---
 
@@ -451,3 +452,130 @@ Common errors:
 - `Project not found` - Use `list_projects` to find valid IDs
 - `Ticket not found` - Use `list_tickets` to find valid IDs
 - `Database is busy` - Wait a moment and retry
+
+---
+
+## Telemetry Tools
+
+AI telemetry tools capture full interaction data when Claude works on tickets - prompts, tool calls, timing, and more. This is essential for audit trails, debugging, cost tracking, and understanding AI work patterns.
+
+### start_telemetry_session
+
+Start a telemetry session for AI work on a ticket.
+
+```
+start_telemetry_session(ticketId?: string, projectPath?: string, environment?: string)
+```
+
+| Param         | Type    | Description                                           |
+| ------------- | ------- | ----------------------------------------------------- |
+| `ticketId`    | string? | Ticket ID (auto-detected from Ralph state if omitted) |
+| `projectPath` | string? | Project path (auto-detected if omitted)               |
+| `environment` | string? | Environment name (auto-detected if omitted)           |
+
+**Returns:** Session ID for use in subsequent telemetry calls.
+
+### log_prompt_event
+
+Log a user prompt to the telemetry session.
+
+```
+log_prompt_event(sessionId: string, prompt: string, redact?: boolean, tokenCount?: number)
+```
+
+| Param        | Type     | Description                         |
+| ------------ | -------- | ----------------------------------- |
+| `sessionId`  | string   | The telemetry session ID            |
+| `prompt`     | string   | The full prompt text                |
+| `redact`     | boolean? | Hash the prompt for privacy         |
+| `tokenCount` | number?  | Optional token count for the prompt |
+
+### log_tool_event
+
+Log a tool call to the telemetry session.
+
+```
+log_tool_event(sessionId: string, event: string, toolName: string, correlationId?: string, params?: object, result?: string, success?: boolean, durationMs?: number, error?: string)
+```
+
+| Param           | Type     | Description                                 |
+| --------------- | -------- | ------------------------------------------- |
+| `sessionId`     | string   | The telemetry session ID                    |
+| `event`         | string   | `start` or `end`                            |
+| `toolName`      | string   | Name of the tool (e.g., `Edit`, `Bash`)     |
+| `correlationId` | string?  | ID to pair start/end events                 |
+| `params`        | object?  | Parameter summary (sanitized)               |
+| `result`        | string?  | Result summary (for `end` events)           |
+| `success`       | boolean? | Whether the tool call succeeded             |
+| `durationMs`    | number?  | Duration in milliseconds (for `end` events) |
+| `error`         | string?  | Error message if failed                     |
+
+### log_context_event
+
+Log what context was loaded when starting ticket work.
+
+```
+log_context_event(sessionId: string, hasDescription: boolean, hasAcceptanceCriteria: boolean, criteriaCount: number, commentCount: number, attachmentCount: number, imageCount: number)
+```
+
+Creates an audit trail of what information the AI received when starting work.
+
+### end_telemetry_session
+
+End a telemetry session and compute final statistics.
+
+```
+end_telemetry_session(sessionId: string, outcome?: string, totalTokens?: number)
+```
+
+| Param         | Type    | Description                                     |
+| ------------- | ------- | ----------------------------------------------- |
+| `sessionId`   | string  | The telemetry session ID                        |
+| `outcome`     | string? | `success`, `failure`, `timeout`, or `cancelled` |
+| `totalTokens` | number? | Total token count for the session               |
+
+### get_telemetry_session
+
+Get telemetry data for a session.
+
+```
+get_telemetry_session(sessionId?: string, ticketId?: string, includeEvents?: boolean, eventLimit?: number)
+```
+
+| Param           | Type     | Description                           |
+| --------------- | -------- | ------------------------------------- |
+| `sessionId`     | string?  | The telemetry session ID              |
+| `ticketId`      | string?  | Get recent session for a ticket       |
+| `includeEvents` | boolean? | Include event details (default: true) |
+| `eventLimit`    | number?  | Max events to return (default: 100)   |
+
+### list_telemetry_sessions
+
+List telemetry sessions with optional filters.
+
+```
+list_telemetry_sessions(ticketId?: string, projectId?: string, since?: string, limit?: number)
+```
+
+---
+
+## Telemetry Hooks
+
+Brain Dump includes optional Claude Code hooks that automatically capture telemetry:
+
+| Hook             | File                         | Action                                            |
+| ---------------- | ---------------------------- | ------------------------------------------------- |
+| SessionStart     | `start-telemetry-session.sh` | Detects active ticket, prompts to start telemetry |
+| UserPromptSubmit | `log-prompt-telemetry.sh`    | Logs user prompts                                 |
+| PreToolUse       | `log-tool-telemetry.sh`      | Logs tool_start events                            |
+| PostToolUse      | `log-tool-telemetry.sh`      | Logs tool_end events with duration                |
+| Stop             | `end-telemetry-session.sh`   | Prompts to end telemetry session                  |
+
+To enable telemetry hooks, run `scripts/setup-claude-code.sh` after updating.
+
+### Privacy Considerations
+
+- Prompts may contain sensitive data - enable `redact: true` to hash prompts
+- Tool parameters are sanitized to avoid storing full file contents
+- Telemetry respects existing retention settings
+- Use `get_telemetry_session` to audit what data was captured
