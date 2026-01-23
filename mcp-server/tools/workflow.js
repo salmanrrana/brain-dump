@@ -236,6 +236,91 @@ function endConversationSessions(db, ticketId) {
 }
 
 /**
+ * Maximum number of comments to include in start_ticket_work context.
+ * If there are more comments, only the most recent ones are included.
+ */
+const MAX_COMMENTS_IN_CONTEXT = 10;
+
+/**
+ * Fetch and format comments for a ticket.
+ * Returns the most recent comments (up to MAX_COMMENTS_IN_CONTEXT).
+ *
+ * @param {import("better-sqlite3").Database} db
+ * @param {string} ticketId
+ * @returns {{ comments: Array<{content: string, author: string, type: string, created_at: string}>, totalCount: number, truncated: boolean }}
+ */
+function fetchTicketComments(db, ticketId) {
+  // Get total count first
+  const countResult = db.prepare(`
+    SELECT COUNT(*) as count FROM ticket_comments WHERE ticket_id = ?
+  `).get(ticketId);
+  const totalCount = countResult?.count || 0;
+
+  if (totalCount === 0) {
+    return { comments: [], totalCount: 0, truncated: false };
+  }
+
+  // Fetch most recent comments (ordered by created_at DESC, then reverse for chronological display)
+  const comments = db.prepare(`
+    SELECT content, author, type, created_at
+    FROM ticket_comments
+    WHERE ticket_id = ?
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(ticketId, MAX_COMMENTS_IN_CONTEXT);
+
+  // Reverse to get chronological order (oldest first among the selected)
+  comments.reverse();
+
+  return {
+    comments,
+    totalCount,
+    truncated: totalCount > MAX_COMMENTS_IN_CONTEXT,
+  };
+}
+
+/**
+ * Format a single comment for display.
+ * @param {{ content: string, author: string, type: string, created_at: string }} comment
+ * @returns {string}
+ */
+function formatComment(comment) {
+  const date = new Date(comment.created_at);
+  const dateStr = date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+  const typeLabel = comment.type === "work_summary" ? "📋 Work Summary" :
+                    comment.type === "test_report" ? "🧪 Test Report" :
+                    comment.type === "progress" ? "📈 Progress" :
+                    "💬 Comment";
+
+  return `**${comment.author}** (${typeLabel}) - ${dateStr}:\n${comment.content}`;
+}
+
+/**
+ * Build the comments section for ticket context.
+ * @param {Array<{content: string, author: string, type: string, created_at: string}>} comments
+ * @param {number} totalCount
+ * @param {boolean} truncated
+ * @returns {string}
+ */
+function buildCommentsSection(comments, totalCount, truncated) {
+  if (comments.length === 0) {
+    return "";
+  }
+
+  const header = truncated
+    ? `### Previous Comments (${comments.length} of ${totalCount} shown)\n\n*Note: ${totalCount - comments.length} older comment(s) not shown. Check the ticket UI for full history.*\n\n`
+    : `### Previous Comments (${totalCount})\n\n`;
+
+  const formattedComments = comments.map(formatComment).join("\n\n---\n\n");
+
+  return `${header}${formattedComments}\n`;
+}
+
+/**
  * Add a comment to a ticket (internal helper).
  * @param {import("better-sqlite3").Database} db
  * @param {string} ticketId
@@ -471,6 +556,11 @@ Returns:
       const description = updatedTicket.description || "No description provided";
       const priority = updatedTicket.priority || "medium";
 
+      // Fetch previous comments for context
+      const { comments, totalCount, truncated } = fetchTicketComments(db, ticketId);
+      const commentsSection = buildCommentsSection(comments, totalCount, truncated);
+      log.info(`Loaded ${comments.length} of ${totalCount} comments for ticket ${ticketId}`);
+
       // Load ticket attachments for LLM context
       let attachmentsList = null;
       if (updatedTicket.attachments) {
@@ -517,7 +607,7 @@ ${sessionInfo ? `\n${sessionInfo}` : ""}
 
 ### Description
 ${description}
-
+${commentsSection ? `\n${commentsSection}` : ""}
 ### Acceptance Criteria
 ${acceptanceCriteria.map(c => `- ${c}`).join("\n")}
 ${attachmentsSection}${warningsSection}
