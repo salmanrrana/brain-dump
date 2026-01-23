@@ -47,6 +47,7 @@ import {
   useActiveRalphSessions,
 } from "../lib/hooks";
 import { RalphStatusBadge } from "./RalphStatusBadge";
+import { TelemetryPanel } from "./TelemetryPanel";
 import type { ServiceType } from "../lib/service-discovery";
 import { useToast } from "./Toast";
 import type { TicketStatus, TicketPriority } from "../api/tickets";
@@ -1528,6 +1529,9 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
               </div>
             </div>
           )}
+
+          {/* AI Telemetry */}
+          <TelemetryPanel ticketId={ticket.id} />
 
           {/* Activity / Comments */}
           <div>
