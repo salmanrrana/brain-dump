@@ -268,6 +268,40 @@ install_dependencies() {
     fi
 }
 
+# Install CLI globally
+install_cli() {
+    print_step "Installing brain-dump CLI globally"
+
+    # Check if PNPM_HOME is set up
+    if [ -z "$PNPM_HOME" ]; then
+        print_info "Setting up pnpm global bin directory..."
+        pnpm setup 2>/dev/null || true
+
+        # Source the updated PATH for this session
+        if [ -f "$HOME/.zshrc" ]; then
+            export PNPM_HOME="$HOME/Library/pnpm"
+            export PATH="$PNPM_HOME:$PATH"
+        elif [ -f "$HOME/.bashrc" ]; then
+            export PNPM_HOME="$HOME/.local/share/pnpm"
+            export PATH="$PNPM_HOME:$PATH"
+        fi
+    fi
+
+    if pnpm link --global 2>/dev/null; then
+        print_success "brain-dump CLI installed globally"
+        print_info "You can now run: brain-dump help"
+        print_info "Note: You may need to restart your terminal or run 'source ~/.zshrc'"
+        INSTALLED+=("brain-dump CLI")
+        return 0
+    else
+        print_warning "Could not install CLI globally"
+        print_info "Use 'pnpm brain-dump' from the project directory instead"
+        print_info "Or run manually: pnpm setup && pnpm link --global"
+        SKIPPED+=("brain-dump CLI (manual install needed)")
+        return 0
+    fi
+}
+
 # Install MCP server dependencies (separate package.json)
 install_mcp_dependencies() {
     print_step "Installing MCP server dependencies"
@@ -1903,6 +1937,7 @@ main() {
     install_pnpm || true
     install_dependencies || true
     install_mcp_dependencies || true
+    install_cli || true
     run_migrations || true
 
     # Docker sandbox setup (optional)

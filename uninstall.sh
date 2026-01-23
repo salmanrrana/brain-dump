@@ -183,6 +183,33 @@ try {
     fi
 }
 
+# Remove CLI global link
+remove_cli() {
+    print_step "Removing brain-dump CLI"
+
+    # Check if pnpm is available
+    if ! command -v pnpm >/dev/null 2>&1; then
+        print_warning "pnpm not found, skipping CLI removal"
+        SKIPPED+=("CLI (pnpm not installed)")
+        return 0
+    fi
+
+    # Try to unlink the CLI
+    if pnpm unlink --global brain-dump 2>/dev/null; then
+        print_success "Removed brain-dump CLI from global path"
+        REMOVED+=("brain-dump CLI")
+    else
+        # Check if it was even installed
+        if command -v brain-dump >/dev/null 2>&1; then
+            print_warning "Could not remove brain-dump CLI"
+            print_info "Try manually: pnpm unlink --global brain-dump"
+            SKIPPED+=("CLI (manual removal needed)")
+        else
+            print_info "brain-dump CLI was not globally installed"
+        fi
+    fi
+}
+
 # Remove Claude Code integration
 remove_claude() {
     print_step "Removing Claude Code integration"
@@ -604,10 +631,11 @@ show_help() {
     echo "  --sandbox      Remove Claude Code sandbox configuration"
     echo "  --devcontainer Remove devcontainer Docker volumes (not user data)"
     echo "  --docker       Remove Docker sandbox artifacts only"
-    echo "  --all          Remove everything (including database, data, and Docker)"
+    echo "  --cli          Remove brain-dump CLI from global path"
+    echo "  --all          Remove everything (including database, data, CLI, and Docker)"
     echo "  --help         Show this help message"
     echo ""
-    echo "Without options, removes IDE integrations but keeps data and Docker."
+    echo "Without options, removes IDE integrations and CLI but keeps data and Docker."
     echo ""
     echo "What gets removed:"
     echo "  VS Code:       MCP config, agents, skills, prompts"
@@ -617,6 +645,7 @@ show_help() {
     echo "  Devcontainer:  Docker volumes (pnpm store, bash history, claude config)"
     echo "                 Does NOT remove your Brain Dump data (bind-mounted)"
     echo "  Docker:        ralph-net network, sandbox image, running containers"
+    echo "  CLI:           Global 'brain-dump' command (pnpm unlink)"
     echo "  Data (--all):  Database, attachments, backups, ~/.brain-dump/scripts"
 }
 
@@ -628,14 +657,16 @@ main() {
     REMOVE_SANDBOX=false
     REMOVE_DEVCONTAINER=false
     REMOVE_DOCKER=false
+    REMOVE_CLI=false
     REMOVE_DATA=false
 
     # Parse arguments
     if [ $# -eq 0 ]; then
-        # Default: remove all IDE integrations
+        # Default: remove all IDE integrations and CLI
         REMOVE_VSCODE=true
         REMOVE_CLAUDE=true
         REMOVE_CURSOR=true
+        REMOVE_CLI=true
     else
         for arg in "$@"; do
             case $arg in
@@ -661,6 +692,9 @@ main() {
                 --docker)
                     REMOVE_DOCKER=true
                     ;;
+                --cli)
+                    REMOVE_CLI=true
+                    ;;
                 --all)
                     REMOVE_VSCODE=true
                     REMOVE_CLAUDE=true
@@ -668,6 +702,7 @@ main() {
                     REMOVE_SANDBOX=true
                     REMOVE_DEVCONTAINER=true
                     REMOVE_DOCKER=true
+                    REMOVE_CLI=true
                     REMOVE_DATA=true
                     ;;
             esac
@@ -685,6 +720,7 @@ main() {
     [ "$REMOVE_SANDBOX" = true ] && remove_sandbox
     [ "$REMOVE_DEVCONTAINER" = true ] && remove_devcontainer
     [ "$REMOVE_DOCKER" = true ] && remove_docker
+    [ "$REMOVE_CLI" = true ] && remove_cli
     [ "$REMOVE_DATA" = true ] && remove_data
 
     print_summary
