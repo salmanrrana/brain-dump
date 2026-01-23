@@ -30,6 +30,7 @@ import { registerHealthTools } from "./tools/health.js";
 import { registerEventTools } from "./tools/events.js";
 import { registerSessionTools } from "./tools/sessions.js";
 import { registerConversationTools } from "./tools/conversations.js";
+import { registerTelemetryTools } from "./tools/telemetry.js";
 
 import { unlinkSync } from "fs";
 
@@ -103,6 +104,7 @@ registerHealthTools(server, db, detectEnvironment, getEnvironmentInfo);
 registerEventTools(server, db);
 registerSessionTools(server, db);
 registerConversationTools(server, db, detectEnvironment);
+registerTelemetryTools(server, db, detectEnvironment);
 
 // =============================================================================
 // CONNECT AND START
