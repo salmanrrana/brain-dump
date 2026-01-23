@@ -1,4 +1,4 @@
-// UI primitives (buttons, inputs, cards, etc.)
+// UI v2 Components
 // Export components as they are added
 
 // Theme system
