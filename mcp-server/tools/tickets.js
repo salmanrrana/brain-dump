@@ -164,6 +164,85 @@ Returns the updated ticket.`,
     }
   );
 
+  // Update ticket subtask
+  server.tool(
+    "update_ticket_subtask",
+    `Update a subtask's completion status within a ticket.
+
+Use this to mark subtasks as completed or not completed.
+
+Args:
+  ticketId: The ticket ID containing the subtask
+  subtaskId: The subtask ID to update
+  completed: Whether the subtask is completed (true/false)
+
+Returns the updated ticket with all subtasks.`,
+    {
+      ticketId: z.string().describe("Ticket ID containing the subtask"),
+      subtaskId: z.string().describe("Subtask ID to update"),
+      completed: z.boolean().describe("Whether the subtask is completed"),
+    },
+    async ({ ticketId, subtaskId, completed }) => {
+      const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId);
+      if (!ticket) {
+        return {
+          content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
+          isError: true,
+        };
+      }
+
+      // Parse existing subtasks
+      let subtasks = [];
+      try {
+        subtasks = ticket.subtasks ? JSON.parse(ticket.subtasks) : [];
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Failed to parse subtasks: ${e.message}` }],
+          isError: true,
+        };
+      }
+
+      // Find the subtask by ID
+      const subtaskIndex = subtasks.findIndex((s) => s.id === subtaskId);
+      if (subtaskIndex === -1) {
+        const availableIds = subtasks.map((s) => `  - ${s.id}: "${s.text}"`).join("\n");
+        return {
+          content: [{
+            type: "text",
+            text: `Subtask not found: ${subtaskId}\n\nAvailable subtasks:\n${availableIds || "(none)"}`,
+          }],
+          isError: true,
+        };
+      }
+
+      // Update the subtask
+      const previousStatus = subtasks[subtaskIndex].completed;
+      subtasks[subtaskIndex].completed = completed;
+
+      // Save back to database
+      const now = new Date().toISOString();
+      db.prepare("UPDATE tickets SET subtasks = ?, updated_at = ? WHERE id = ?").run(
+        JSON.stringify(subtasks),
+        now,
+        ticketId
+      );
+
+      const updated = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId);
+      const statusChange = previousStatus === completed
+        ? `(no change - already ${completed ? "completed" : "not completed"})`
+        : `${previousStatus ? "completed" : "not completed"} -> ${completed ? "completed" : "not completed"}`;
+
+      log.info(`Updated subtask ${subtaskId} in ticket ${ticketId}: ${statusChange}`);
+
+      return {
+        content: [{
+          type: "text",
+          text: `Subtask updated: "${subtasks[subtaskIndex].text}"\nStatus: ${statusChange}\n\n${JSON.stringify(updated, null, 2)}`,
+        }],
+      };
+    }
+  );
+
   // Delete ticket
   server.tool(
     "delete_ticket",
