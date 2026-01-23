@@ -184,25 +184,28 @@ Returns the updated ticket.`,
     }
   );
 
-  // Update ticket subtask
+  // Update acceptance criterion status
   server.tool(
-    "update_ticket_subtask",
-    `Update a subtask's completion status within a ticket.
+    "update_acceptance_criterion",
+    `Update an acceptance criterion's status within a ticket.
 
-Use this to mark subtasks as completed or not completed.
+Use this to mark criteria as passed, failed, pending, or skipped.
+AI agents should call this to verify acceptance criteria during implementation.
 
 Args:
-  ticketId: The ticket ID containing the subtask
-  subtaskId: The subtask ID to update
-  completed: Whether the subtask is completed (true/false)
+  ticketId: The ticket ID containing the criterion
+  criterionId: The criterion ID to update
+  status: New status (pending, passed, failed, skipped)
+  verificationNote: Optional note explaining how the criterion was verified
 
-Returns the updated ticket with all subtasks.`,
+Returns the updated ticket with all acceptance criteria.`,
     {
-      ticketId: z.string().describe("Ticket ID containing the subtask"),
-      subtaskId: z.string().describe("Subtask ID to update"),
-      completed: z.boolean().describe("Whether the subtask is completed"),
+      ticketId: z.string().describe("Ticket ID containing the criterion"),
+      criterionId: z.string().describe("Criterion ID to update"),
+      status: z.enum(["pending", "passed", "failed", "skipped"]).describe("New status"),
+      verificationNote: z.string().optional().describe("How the criterion was verified"),
     },
-    async ({ ticketId, subtaskId, completed }) => {
+    async ({ ticketId, criterionId, status, verificationNote }) => {
       const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId);
       if (!ticket) {
         return {
@@ -211,10 +214,96 @@ Returns the updated ticket with all subtasks.`,
         };
       }
 
-      // Parse existing subtasks
-      let subtasks = [];
+      // Parse existing acceptance criteria (stored in subtasks column for backward compatibility)
+      let criteria = [];
       try {
-        subtasks = ticket.subtasks ? JSON.parse(ticket.subtasks) : [];
+        criteria = ticket.subtasks ? JSON.parse(ticket.subtasks) : [];
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Failed to parse acceptance criteria: ${e.message}` }],
+          isError: true,
+        };
+      }
+
+      // Find the criterion by ID
+      const criterionIndex = criteria.findIndex((c) => c.id === criterionId);
+      if (criterionIndex === -1) {
+        const availableIds = criteria.map((c) => `  - ${c.id}: "${c.criterion || c.text}"`).join("\n");
+        return {
+          content: [{
+            type: "text",
+            text: `Criterion not found: ${criterionId}\n\nAvailable criteria:\n${availableIds || "(none)"}`,
+          }],
+          isError: true,
+        };
+      }
+
+      // Update the criterion
+      const criterion = criteria[criterionIndex];
+      const previousStatus = criterion.status || (criterion.completed ? "passed" : "pending");
+
+      // Update to new format if it was legacy format
+      criterion.criterion = criterion.criterion || criterion.text;
+      delete criterion.text;
+      delete criterion.completed;
+
+      criterion.status = status;
+      criterion.verifiedBy = "claude"; // MCP calls are from Claude
+      criterion.verifiedAt = new Date().toISOString();
+      if (verificationNote) {
+        criterion.verificationNote = verificationNote;
+      }
+
+      // Save back to database
+      const now = new Date().toISOString();
+      db.prepare("UPDATE tickets SET subtasks = ?, updated_at = ? WHERE id = ?").run(
+        JSON.stringify(criteria),
+        now,
+        ticketId
+      );
+
+      const updated = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId);
+      const statusChange = previousStatus === status
+        ? `(no change - already ${status})`
+        : `${previousStatus} → ${status}`;
+
+      log.info(`Updated criterion ${criterionId} in ticket ${ticketId}: ${statusChange}`);
+
+      return {
+        content: [{
+          type: "text",
+          text: `✅ Criterion updated: "${criterion.criterion}"\nStatus: ${statusChange}${verificationNote ? `\nNote: ${verificationNote}` : ""}\n\n${JSON.stringify(updated, null, 2)}`,
+        }],
+      };
+    }
+  );
+
+  // Legacy support: update_ticket_subtask (deprecated)
+  server.tool(
+    "update_ticket_subtask",
+    `[DEPRECATED] Use update_acceptance_criterion instead.
+
+Update a subtask's completion status within a ticket.
+This tool is deprecated and will be removed in a future version.`,
+    {
+      ticketId: z.string().describe("Ticket ID containing the subtask"),
+      subtaskId: z.string().describe("Subtask ID to update"),
+      completed: z.boolean().describe("Whether the subtask is completed"),
+    },
+    async ({ ticketId, subtaskId, completed }) => {
+      // Redirect to new tool
+      const status = completed ? "passed" : "pending";
+      const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId);
+      if (!ticket) {
+        return {
+          content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
+          isError: true,
+        };
+      }
+
+      let criteria = [];
+      try {
+        criteria = ticket.subtasks ? JSON.parse(ticket.subtasks) : [];
       } catch (e) {
         return {
           content: [{ type: "text", text: `Failed to parse subtasks: ${e.message}` }],
@@ -222,42 +311,40 @@ Returns the updated ticket with all subtasks.`,
         };
       }
 
-      // Find the subtask by ID
-      const subtaskIndex = subtasks.findIndex((s) => s.id === subtaskId);
-      if (subtaskIndex === -1) {
-        const availableIds = subtasks.map((s) => `  - ${s.id}: "${s.text}"`).join("\n");
+      const criterionIndex = criteria.findIndex((c) => c.id === subtaskId);
+      if (criterionIndex === -1) {
+        const availableIds = criteria.map((c) => `  - ${c.id}: "${c.criterion || c.text}"`).join("\n");
         return {
           content: [{
             type: "text",
-            text: `Subtask not found: ${subtaskId}\n\nAvailable subtasks:\n${availableIds || "(none)"}`,
+            text: `Subtask not found: ${subtaskId}\n\nAvailable:\n${availableIds || "(none)"}`,
           }],
           isError: true,
         };
       }
 
-      // Update the subtask
-      const previousStatus = subtasks[subtaskIndex].completed;
-      subtasks[subtaskIndex].completed = completed;
+      const criterion = criteria[criterionIndex];
+      criterion.criterion = criterion.criterion || criterion.text;
+      delete criterion.text;
+      delete criterion.completed;
+      criterion.status = status;
+      criterion.verifiedBy = "claude";
+      criterion.verifiedAt = new Date().toISOString();
 
-      // Save back to database
       const now = new Date().toISOString();
       db.prepare("UPDATE tickets SET subtasks = ?, updated_at = ? WHERE id = ?").run(
-        JSON.stringify(subtasks),
+        JSON.stringify(criteria),
         now,
         ticketId
       );
 
       const updated = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId);
-      const statusChange = previousStatus === completed
-        ? `(no change - already ${completed ? "completed" : "not completed"})`
-        : `${previousStatus ? "completed" : "not completed"} -> ${completed ? "completed" : "not completed"}`;
-
-      log.info(`Updated subtask ${subtaskId} in ticket ${ticketId}: ${statusChange}`);
+      log.info(`[DEPRECATED] Updated subtask ${subtaskId} via legacy API`);
 
       return {
         content: [{
           type: "text",
-          text: `Subtask updated: "${subtasks[subtaskIndex].text}"\nStatus: ${statusChange}\n\n${JSON.stringify(updated, null, 2)}`,
+          text: `⚠️ DEPRECATED: Use update_acceptance_criterion instead.\n\nSubtask updated.\n\n${JSON.stringify(updated, null, 2)}`,
         }],
       };
     }
