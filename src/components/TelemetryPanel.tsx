@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -143,6 +145,44 @@ function StatsCard({
   );
 }
 
+function EventTimeline({
+  isLoading,
+  error,
+  session,
+}: {
+  isLoading: boolean;
+  error: Error | null;
+  session: TelemetrySessionWithEvents | null;
+}) {
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-[var(--text-secondary)] p-2">
+        <Loader2 className="w-3 h-3 animate-spin" />
+        <span className="text-xs">Loading events...</span>
+      </div>
+    );
+  }
+
+  if (error || !session) {
+    return <p className="text-xs text-[var(--text-muted)] p-2">Failed to load events</p>;
+  }
+
+  if (session.events.length === 0) {
+    return <p className="text-xs text-[var(--text-muted)] p-2">No events recorded</p>;
+  }
+
+  return (
+    <div>
+      <p className="text-xs text-[var(--text-muted)] mb-2">
+        Latest session - {session.eventCount} events
+      </p>
+      {session.events.map((event: ParsedTelemetryEvent) => (
+        <EventItem key={event.id} event={event} />
+      ))}
+    </div>
+  );
+}
+
 export function TelemetryPanel({ ticketId }: TelemetryPanelProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
@@ -282,28 +322,11 @@ export function TelemetryPanel({ ticketId }: TelemetryPanelProps) {
             {/* Event Timeline */}
             {showTimeline && (
               <div className="mt-2 max-h-64 overflow-y-auto border border-[var(--border-subtle)] rounded p-2">
-                {sessionLoading ? (
-                  <div className="flex items-center gap-2 text-[var(--text-secondary)] p-2">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    <span className="text-xs">Loading events...</span>
-                  </div>
-                ) : sessionError || !latestSession ? (
-                  <p className="text-xs text-[var(--text-muted)] p-2">Failed to load events</p>
-                ) : (latestSession as TelemetrySessionWithEvents).events.length === 0 ? (
-                  <p className="text-xs text-[var(--text-muted)] p-2">No events recorded</p>
-                ) : (
-                  <div>
-                    <p className="text-xs text-[var(--text-muted)] mb-2">
-                      Latest session • {(latestSession as TelemetrySessionWithEvents).eventCount}{" "}
-                      events
-                    </p>
-                    {(latestSession as TelemetrySessionWithEvents).events.map(
-                      (event: ParsedTelemetryEvent) => (
-                        <EventItem key={event.id} event={event} />
-                      )
-                    )}
-                  </div>
-                )}
+                <EventTimeline
+                  isLoading={sessionLoading}
+                  error={sessionError}
+                  session={latestSession ?? null}
+                />
               </div>
             )}
           </div>

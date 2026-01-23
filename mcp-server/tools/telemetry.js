@@ -33,9 +33,14 @@ function detectActiveTicket(projectPath) {
     // First, try Ralph state file
     const ralphStatePath = join(projectPath, ".claude", "ralph-state.json");
     if (existsSync(ralphStatePath)) {
-      const state = JSON.parse(readFileSync(ralphStatePath, "utf-8"));
-      if (state.ticketId) {
-        return { ticketId: state.ticketId, source: "ralph-state" };
+      try {
+        const state = JSON.parse(readFileSync(ralphStatePath, "utf-8"));
+        if (state.ticketId) {
+          return { ticketId: state.ticketId, source: "ralph-state" };
+        }
+      } catch (parseErr) {
+        log.warn(`Failed to parse ralph-state.json: ${parseErr.message}`);
+        // Continue to try other detection methods
       }
     }
 
@@ -44,6 +49,7 @@ function detectActiveTicket(projectPath) {
       const branch = execFileSync("git", ["branch", "--show-current"], {
         cwd: projectPath,
         encoding: "utf-8",
+        timeout: 5000,
       }).trim();
 
       // Branch format: feature/{short-id}-{slug}
@@ -53,8 +59,12 @@ function detectActiveTicket(projectPath) {
         // This is a limitation - we'd need DB access to resolve it
         return { ticketId: null, source: "branch-partial", shortId: match[1] };
       }
-    } catch {
-      // Git not available or not in a repo
+    } catch (gitErr) {
+      // Only log if it's not an expected "not a git repo" error
+      const isExpected = gitErr.code === "ENOENT" || gitErr.message?.includes("not a git repository");
+      if (!isExpected) {
+        log.warn(`Git detection failed: ${gitErr.message}`);
+      }
     }
 
     return { ticketId: null, source: "none" };
@@ -711,11 +721,19 @@ Returns:
           )
           .all(session.id, eventLimit);
 
-        // Parse event data
-        events = events.map((e) => ({
-          ...e,
-          eventData: e.event_data ? JSON.parse(e.event_data) : null,
-        }));
+        // Parse event data with error handling for corrupted JSON
+        events = events.map((e) => {
+          let eventData = null;
+          if (e.event_data) {
+            try {
+              eventData = JSON.parse(e.event_data);
+            } catch (parseErr) {
+              log.warn(`Failed to parse event data for event ${e.id}: ${parseErr.message}`);
+              eventData = { _parseError: true };
+            }
+          }
+          return { ...e, eventData };
+        });
       }
 
       // Get ticket title if linked
