@@ -123,6 +123,28 @@ update_ticket_status(ticketId: string, status: string)
 
 **Status flow:** `backlog` → `ready` → `in_progress` → `review` → `done`
 
+### update_ticket_subtask
+
+Update a subtask's completion status within a ticket.
+
+```
+update_ticket_subtask(ticketId: string, subtaskId: string, completed: boolean)
+```
+
+| Param       | Type    | Description                      |
+| ----------- | ------- | -------------------------------- |
+| `ticketId`  | string  | Ticket ID containing the subtask |
+| `subtaskId` | string  | Subtask ID to update             |
+| `completed` | boolean | Whether the subtask is completed |
+
+**Example:**
+
+```
+update_ticket_subtask("abc-123", "subtask-456", true)
+```
+
+**Returns:** Updated ticket with all subtasks showing the new completion status.
+
 ### delete_ticket
 
 Delete a ticket and all its comments.
