@@ -94,7 +94,6 @@ export const CommentInput: FC<CommentInputProps> = ({
     gap: "var(--spacing-2)",
     alignItems: "flex-end",
     padding: "var(--spacing-3)",
-    borderTop: "1px solid var(--border-primary)",
     background: "var(--bg-secondary)",
   };
 
@@ -130,7 +129,6 @@ export const CommentInput: FC<CommentInputProps> = ({
   const errorStyles: React.CSSProperties = {
     padding: "var(--spacing-2) var(--spacing-3)",
     background: "rgba(239, 68, 68, 0.1)",
-    borderTop: "1px solid rgba(239, 68, 68, 0.3)",
     color: "#ef4444",
     fontSize: "var(--font-size-xs)",
   };

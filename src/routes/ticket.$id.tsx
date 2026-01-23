@@ -8,6 +8,7 @@ import { launchClaudeInTerminal, launchOpenCodeInTerminal } from "../api/termina
 import { ActivitySection } from "../components/tickets/ActivitySection";
 import { TicketDetailHeader } from "../components/tickets/TicketDetailHeader";
 import { EditTicketModal } from "../components/tickets/EditTicketModal";
+import { TicketDescription } from "../components/tickets";
 import { SubtasksProgress } from "../components/tickets";
 import type { Subtask } from "../components/tickets/SubtasksProgress";
 import { type LaunchType } from "../components/tickets/LaunchActions";
@@ -413,14 +414,7 @@ function TicketDetailPage() {
       {/* Content Grid */}
       <div style={contentGridStyles}>
         {/* Description Section */}
-        <section style={sectionStyles}>
-          <h2 style={sectionTitleStyles}>Description</h2>
-          {ticket.description ? (
-            <div style={descriptionStyles}>{ticket.description}</div>
-          ) : (
-            <p style={emptyStateStyles}>No description</p>
-          )}
-        </section>
+        <TicketDescription description={ticket.description} testId="ticket-detail-description" />
 
         {/* Subtasks Section - using SubtasksProgress component */}
         <section style={sectionStyles}>
@@ -515,38 +509,6 @@ const sectionStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: "var(--spacing-3)",
-};
-
-const sectionTitleStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-sm)",
-  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-  color: "var(--text-secondary)",
-  textTransform: "uppercase",
-  letterSpacing: "0.05em",
-  margin: 0,
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--spacing-2)",
-};
-
-const descriptionStyles: React.CSSProperties = {
-  color: "var(--text-primary)",
-  lineHeight: 1.6,
-  whiteSpace: "pre-wrap",
-  padding: "var(--spacing-4)",
-  background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-md)",
-  border: "1px solid var(--border-primary)",
-};
-
-const emptyStateStyles: React.CSSProperties = {
-  color: "var(--text-muted)",
-  fontStyle: "italic",
-  padding: "var(--spacing-4)",
-  background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-md)",
-  border: "1px solid var(--border-primary)",
-  textAlign: "center",
 };
 
 const activitySectionStyles: React.CSSProperties = {
