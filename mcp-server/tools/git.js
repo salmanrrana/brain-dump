@@ -174,7 +174,10 @@ function getRecentCommits(projectPath) {
   }
 
   const mergeBase = mergeBaseResult.output.trim();
-  const result = runGitCommand(`git log --oneline ${mergeBase}..HEAD --format="%H|%s"`, projectPath);
+  const result = runGitCommand(
+    `git log --oneline ${mergeBase}..HEAD --format="%H|%s"`,
+    projectPath
+  );
   if (!result.success || !result.output) return [];
 
   return result.output
@@ -214,23 +217,36 @@ Returns:
     {
       ticketId: z.string().describe("Ticket ID to link the commit to"),
       commitHash: z.string().describe("Git commit hash (full or abbreviated)"),
-      message: z.string().optional().describe("Optional commit message (auto-fetched if in git repo)"),
+      message: z
+        .string()
+        .optional()
+        .describe("Optional commit message (auto-fetched if in git repo)"),
     },
     async ({ ticketId, commitHash, message }) => {
-      const ticket = db.prepare(`
+      const ticket = db
+        .prepare(
+          `
         SELECT t.*, p.name as project_name, p.path as project_path
         FROM tickets t JOIN projects p ON t.project_id = p.id WHERE t.id = ?
-      `).get(ticketId);
+      `
+        )
+        .get(ticketId);
 
       if (!ticket) {
-        return { content: [{ type: "text", text: `Ticket not found: ${ticketId}` }], isError: true };
+        return {
+          content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
+          isError: true,
+        };
       }
 
       let commitMessage = message || "";
       if (!commitMessage && existsSync(ticket.project_path)) {
         const gitCheck = runGitCommand("git rev-parse --git-dir", ticket.project_path);
         if (gitCheck.success) {
-          const msgResult = runGitCommand(`git log -1 --format=%s ${commitHash} 2>/dev/null`, ticket.project_path);
+          const msgResult = runGitCommand(
+            `git log -1 --format=%s ${commitHash} 2>/dev/null`,
+            ticket.project_path
+          );
           if (msgResult.success && msgResult.output) commitMessage = msgResult.output;
         }
       }
@@ -245,25 +261,43 @@ Returns:
         }
       }
 
-      const alreadyLinked = linkedCommits.some(c => c.hash === commitHash || c.hash.startsWith(commitHash) || commitHash.startsWith(c.hash));
+      const alreadyLinked = linkedCommits.some(
+        (c) =>
+          c.hash === commitHash || c.hash.startsWith(commitHash) || commitHash.startsWith(c.hash)
+      );
       if (alreadyLinked) {
         return {
-          content: [{ type: "text", text: `Commit ${commitHash} is already linked to this ticket.\n\nLinked commits:\n${JSON.stringify(linkedCommits, null, 2)}` }],
+          content: [
+            {
+              type: "text",
+              text: `Commit ${commitHash} is already linked to this ticket.\n\nLinked commits:\n${JSON.stringify(linkedCommits, null, 2)}`,
+            },
+          ],
         };
       }
 
-      linkedCommits.push({ hash: commitHash, message: commitMessage, linkedAt: new Date().toISOString() });
+      linkedCommits.push({
+        hash: commitHash,
+        message: commitMessage,
+        linkedAt: new Date().toISOString(),
+      });
 
       const now = new Date().toISOString();
-      db.prepare("UPDATE tickets SET linked_commits = ?, updated_at = ? WHERE id = ?").run(JSON.stringify(linkedCommits), now, ticketId);
+      db.prepare("UPDATE tickets SET linked_commits = ?, updated_at = ? WHERE id = ?").run(
+        JSON.stringify(linkedCommits),
+        now,
+        ticketId
+      );
 
       log.info(`Linked commit ${commitHash} to ticket ${ticketId}`);
 
       return {
-        content: [{
-          type: "text",
-          text: `Commit linked to ticket "${ticket.title}"!\n\nCommit: ${commitHash}\nMessage: ${commitMessage || "(no message)"}\n\nAll linked commits (${linkedCommits.length}):\n${linkedCommits.map(c => `- ${shortId(c.hash)}: ${c.message || "(no message)"}`).join("\n")}`,
-        }],
+        content: [
+          {
+            type: "text",
+            text: `Commit linked to ticket "${ticket.title}"!\n\nCommit: ${commitHash}\nMessage: ${commitMessage || "(no message)"}\n\nAll linked commits (${linkedCommits.length}):\n${linkedCommits.map((c) => `- ${shortId(c.hash)}: ${c.message || "(no message)"}`).join("\n")}`,
+          },
+        ],
       };
     }
   );
@@ -287,23 +321,39 @@ Returns:
     {
       ticketId: z.string().describe("Ticket ID to link the PR to"),
       prNumber: z.number().int().describe("GitHub PR number"),
-      prUrl: z.string().optional().describe("Full PR URL (optional, will be auto-generated if in git repo)"),
-      prStatus: z.enum(["draft", "open", "merged", "closed"]).optional().describe("PR status (default: 'open')"),
+      prUrl: z
+        .string()
+        .optional()
+        .describe("Full PR URL (optional, will be auto-generated if in git repo)"),
+      prStatus: z
+        .enum(["draft", "open", "merged", "closed"])
+        .optional()
+        .describe("PR status (default: 'open')"),
     },
     async ({ ticketId, prNumber, prUrl, prStatus }) => {
-      const ticket = db.prepare(`
+      const ticket = db
+        .prepare(
+          `
         SELECT t.*, p.name as project_name, p.path as project_path
         FROM tickets t JOIN projects p ON t.project_id = p.id WHERE t.id = ?
-      `).get(ticketId);
+      `
+        )
+        .get(ticketId);
 
       if (!ticket) {
-        return { content: [{ type: "text", text: `Ticket not found: ${ticketId}` }], isError: true };
+        return {
+          content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
+          isError: true,
+        };
       }
 
       // Try to auto-detect PR URL if not provided
       let finalPrUrl = prUrl;
       if (!finalPrUrl && existsSync(ticket.project_path)) {
-        const remoteResult = runGitCommand("git remote get-url origin 2>/dev/null", ticket.project_path);
+        const remoteResult = runGitCommand(
+          "git remote get-url origin 2>/dev/null",
+          ticket.project_path
+        );
         if (remoteResult.success && remoteResult.output) {
           const remote = remoteResult.output.trim();
           // Parse GitHub URL (supports both SSH and HTTPS formats)
@@ -324,7 +374,10 @@ Returns:
         ).run(prNumber, finalPrUrl || null, finalStatus, now, ticketId);
       } catch (dbErr) {
         log.error(`Failed to update ticket with PR info: ${dbErr.message}`, { ticketId });
-        return { content: [{ type: "text", text: `Failed to link PR: ${dbErr.message}` }], isError: true };
+        return {
+          content: [{ type: "text", text: `Failed to link PR: ${dbErr.message}` }],
+          isError: true,
+        };
       }
 
       log.info(`Linked PR #${prNumber} (${finalStatus}) to ticket ${ticketId}`);
@@ -333,7 +386,11 @@ Returns:
       let syncSummary = "";
       if (existsSync(ticket.project_path)) {
         try {
-          const syncResult = await syncProjectPRStatuses(db, ticket.project_id, ticket.project_path);
+          const syncResult = await syncProjectPRStatuses(
+            db,
+            ticket.project_id,
+            ticket.project_path
+          );
           if (syncResult.synced.length > 0) {
             syncSummary = `\n\n**PR Status Sync:**\nUpdated ${syncResult.synced.length} PR status(es):\n${syncResult.synced
               .map((s) => `- PR #${s.prNumber}: ${s.oldStatus} → ${s.newStatus} ("${s.title}")`)
@@ -348,15 +405,17 @@ Returns:
       }
 
       return {
-        content: [{
-          type: "text",
-          text: `PR linked to ticket "${ticket.title}"!
+        content: [
+          {
+            type: "text",
+            text: `PR linked to ticket "${ticket.title}"!
 
 **PR #${prNumber}** - ${finalStatus}
 ${finalPrUrl ? `**URL:** ${finalPrUrl}` : "(URL not available)"}
 
 The PR status will be displayed on the ticket in the Brain Dump UI.${syncSummary}`,
-        }],
+          },
+        ],
       };
     }
   );
@@ -400,9 +459,10 @@ Returns:
       const { ticketId, source } = findActiveTicket(db, projectPath);
       if (!ticketId) {
         return {
-          content: [{
-            type: "text",
-            text: `No active ticket found.
+          content: [
+            {
+              type: "text",
+              text: `No active ticket found.
 
 To link commits/PRs, either:
 1. Start ticket work: start_ticket_work({ ticketId: "..." })
@@ -411,7 +471,8 @@ To link commits/PRs, either:
 Current detection methods tried:
 - Ralph state file (.claude/ralph-state.json): not found
 - Branch name pattern (feature/{id}-...): no match`,
-          }],
+            },
+          ],
           isError: true,
         };
       }
@@ -561,6 +622,257 @@ Current detection methods tried:
       } else {
         summary += `### PR\nNo PR found for current branch.\n`;
       }
+
+      return {
+        content: [{ type: "text", text: summary }],
+      };
+    }
+  );
+
+  // Auto-link commits to tickets at PRD completion
+  server.tool(
+    "auto_link_commits_to_tickets",
+    `Automatically link commits to tickets based on commit message patterns.
+
+This tool scans recent git commits and automatically links them to tickets by parsing
+commit messages for ticket IDs in the format: "feat(ticket-id): message".
+
+Use this at PRD completion to automatically establish commit-ticket relationships
+without manual linking.
+
+Args:
+  projectId: The project ID to link commits for
+  since: Optional git reference (commit hash, branch, date) to start scanning from
+         Defaults to scanning recent commits (last 100 by default)
+
+Returns:
+  Summary of linking results including successfully linked commits,
+  unlinked commits, and tickets without commits.`,
+    {
+      projectId: z.string().describe("Project ID to link commits for"),
+      since: z
+        .string()
+        .optional()
+        .describe("Git reference to start scanning from (commit hash, branch, or date)"),
+    },
+    async ({ projectId, since }) => {
+      // Get project info
+      const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId);
+      if (!project) {
+        return {
+          content: [{ type: "text", text: `Project not found: ${projectId}` }],
+          isError: true,
+        };
+      }
+
+      if (!existsSync(project.path)) {
+        return {
+          content: [{ type: "text", text: `Project path not found: ${project.path}` }],
+          isError: true,
+        };
+      }
+
+      // Check if it's a git repo
+      const gitCheck = runGitCommand("git rev-parse --git-dir", project.path);
+      if (!gitCheck.success) {
+        return {
+          content: [{ type: "text", text: `Not a git repository: ${project.path}` }],
+          isError: true,
+        };
+      }
+
+      // Get completed tickets for this project
+      const tickets = db
+        .prepare(
+          `
+        SELECT id, title, status, linked_commits
+        FROM tickets
+        WHERE project_id = ? AND status IN ('done', 'review')
+        ORDER BY updated_at DESC
+      `
+        )
+        .all(projectId);
+
+      if (tickets.length === 0) {
+        return {
+          content: [
+            { type: "text", text: `No completed tickets found for project "${project.name}"` },
+          ],
+        };
+      }
+
+      // Build git log command
+      let gitCommand = "git log --oneline --no-merges";
+      if (since) {
+        gitCommand += ` ${since}..HEAD`;
+      } else {
+        // Default to last 100 commits if no 'since' specified
+        gitCommand += " -100";
+      }
+
+      const gitResult = runGitCommand(gitCommand, project.path);
+      if (!gitResult.success) {
+        return {
+          content: [{ type: "text", text: `Failed to get git log: ${gitResult.error}` }],
+          isError: true,
+        };
+      }
+
+      const commits = gitResult.output.split("\n").filter((line) => line.trim());
+
+      // Parse commit messages for ticket IDs
+      const commitMatches = [];
+      const commitRegex =
+        /^(?<hash>\w+)\s+(?<type>\w+)\((?<ticketId>[a-f0-9-]+)\):\s*(?<message>.+)$/;
+
+      for (const commitLine of commits) {
+        const match = commitLine.match(commitRegex);
+        if (match && match.groups) {
+          commitMatches.push({
+            hash: match.groups.hash,
+            ticketId: match.groups.ticketId,
+            type: match.groups.type,
+            message: match.groups.message,
+            fullLine: commitLine,
+          });
+        }
+      }
+
+      // Group commits by ticket ID
+      const commitsByTicket = {};
+      for (const commit of commitMatches) {
+        if (!commitsByTicket[commit.ticketId]) {
+          commitsByTicket[commit.ticketId] = [];
+        }
+        commitsByTicket[commit.ticketId].push(commit);
+      }
+
+      // Link commits to tickets
+      const results = {
+        linkedCommits: [],
+        unlinkedCommits: [],
+        ticketsWithoutCommits: [],
+        errors: [],
+      };
+
+      // Process tickets with matched commits
+      for (const ticket of tickets) {
+        const ticketCommits = commitsByTicket[ticket.id];
+        if (ticketCommits && ticketCommits.length > 0) {
+          for (const commit of ticketCommits) {
+            try {
+              // Use the existing link_commit_to_ticket logic
+              let linkedCommits = [];
+              if (ticket.linked_commits) {
+                try {
+                  linkedCommits = JSON.parse(ticket.linked_commits);
+                } catch (parseErr) {
+                  log.warn(`Failed to parse linked_commits for ticket ${ticket.id}:`, parseErr);
+                  linkedCommits = [];
+                }
+              }
+
+              const alreadyLinked = linkedCommits.some(
+                (c) =>
+                  c.hash === commit.hash ||
+                  c.hash.startsWith(commit.hash) ||
+                  commit.hash.startsWith(c.hash)
+              );
+
+              if (!alreadyLinked) {
+                linkedCommits.push({
+                  hash: commit.hash,
+                  message: `${commit.type}(${commit.ticketId}): ${commit.message}`,
+                  linkedAt: new Date().toISOString(),
+                });
+
+                const now = new Date().toISOString();
+                db.prepare(
+                  "UPDATE tickets SET linked_commits = ?, updated_at = ? WHERE id = ?"
+                ).run(JSON.stringify(linkedCommits), now, ticket.id);
+
+                results.linkedCommits.push({
+                  commitHash: commit.hash,
+                  ticketId: ticket.id,
+                  message: `${commit.type}(${commit.ticketId}): ${commit.message}`,
+                });
+
+                log.info(`Auto-linked commit ${commit.hash} to ticket ${ticket.id}`);
+              }
+            } catch (error) {
+              results.errors.push(
+                `Failed to link commit ${commit.hash} to ticket ${ticket.id}: ${error.message}`
+              );
+            }
+          }
+        } else {
+          results.ticketsWithoutCommits.push({
+            ticketId: ticket.id,
+            title: ticket.title,
+          });
+        }
+      }
+
+      // Collect unlinked commits (those that matched the pattern but didn't correspond to any ticket)
+      const linkedTicketIds = new Set(tickets.map((t) => t.id));
+      for (const commit of commitMatches) {
+        if (!linkedTicketIds.has(commit.ticketId)) {
+          results.unlinkedCommits.push({
+            commitHash: commit.hash,
+            message: `${commit.type}(${commit.ticketId}): ${commit.message}`,
+          });
+        }
+      }
+
+      // Build summary
+      let summary = `## Auto-Link Complete for "${project.name}"\n\n`;
+      summary += `**Tickets Processed:** ${tickets.length}\n`;
+      summary += `**Commits Scanned:** ${commits.length}\n`;
+      summary += `**Commits Matched Pattern:** ${commitMatches.length}\n\n`;
+
+      if (results.linkedCommits.length > 0) {
+        summary += `### ✅ Successfully Linked (${results.linkedCommits.length})\n`;
+        for (const link of results.linkedCommits) {
+          summary += `- \`${link.commitHash}\`: ${link.message}\n`;
+          summary += `  → Ticket: ${link.ticketId}\n`;
+        }
+        summary += "\n";
+      }
+
+      if (results.ticketsWithoutCommits.length > 0) {
+        summary += `### ⚠️ Tickets Without Commits (${results.ticketsWithoutCommits.length})\n`;
+        for (const ticket of results.ticketsWithoutCommits) {
+          summary += `- **${ticket.title}**\n`;
+          summary += `  ID: ${ticket.ticketId}\n`;
+        }
+        summary += "\n";
+      }
+
+      if (results.unlinkedCommits.length > 0) {
+        summary += `### ❓ Unlinked Commits (${results.unlinkedCommits.length})\n`;
+        summary += `Commits that matched the pattern but referenced non-existent or incomplete tickets:\n`;
+        for (const commit of results.unlinkedCommits) {
+          summary += `- \`${commit.commitHash}\`: ${commit.message}\n`;
+        }
+        summary += "\n";
+      }
+
+      if (results.errors.length > 0) {
+        summary += `### ❌ Errors (${results.errors.length})\n`;
+        for (const error of results.errors) {
+          summary += `- ${error}\n`;
+        }
+        summary += "\n";
+      }
+
+      summary += `### Next Steps\n`;
+      if (results.ticketsWithoutCommits.length > 0) {
+        summary += `- Review tickets without commits - they may need manual commit linking\n`;
+      }
+      if (results.unlinkedCommits.length > 0) {
+        summary += `- Check if unlinked commits reference tickets from other projects\n`;
+      }
+      summary += `- Ready to create PR with linked commits\n`;
 
       return {
         content: [{ type: "text", text: summary }],
