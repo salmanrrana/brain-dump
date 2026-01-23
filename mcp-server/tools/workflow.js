@@ -38,7 +38,7 @@ const FILE_TYPES = {
   png: { mime: "image/png", type: "image" },
   gif: { mime: "image/gif", type: "image" },
   webp: { mime: "image/webp", type: "image" },
-  svg: { mime: "image/svg+xml", type: "image" },  // Treat as image for consistency with src/api/attachments.ts
+  svg: { mime: "image/svg+xml", type: "image" }, // Treat as image for consistency with src/api/attachments.ts
   pdf: { mime: "application/pdf", type: "reference" },
   txt: { mime: "text/plain", type: "text", fence: "" },
   md: { mime: "text/markdown", type: "text", fence: "markdown" },
@@ -219,8 +219,8 @@ function loadTicketAttachments(ticketId, attachmentsList) {
     totalSizeBytes: 0,
     filenames: [],
     failedFiles: [],
-    attachments: [],  // Normalized attachment objects
-    byType: {},       // Count by attachment type
+    attachments: [], // Normalized attachment objects
+    byType: {}, // Count by attachment type
   };
 
   if (!attachmentsList || !Array.isArray(attachmentsList) || attachmentsList.length === 0) {
@@ -235,7 +235,7 @@ function loadTicketAttachments(ticketId, attachmentsList) {
   if (!existsSync(ticketDir)) {
     warnings.push(`Attachments directory not found: ${ticketDir}`);
     telemetry.failedCount = normalizedAttachments.length;
-    telemetry.failedFiles = normalizedAttachments.map(a => a.filename);
+    telemetry.failedFiles = normalizedAttachments.map((a) => a.filename);
     return { contentBlocks, warnings, telemetry };
   }
 
@@ -271,7 +271,9 @@ function loadTicketAttachments(ticketId, attachmentsList) {
     }
 
     if (stats.size > MAX_ATTACHMENT_SIZE) {
-      warnings.push(`Skipping ${filename}: File size (${formatFileSize(stats.size)}) exceeds 5MB limit`);
+      warnings.push(
+        `Skipping ${filename}: File size (${formatFileSize(stats.size)}) exceeds 5MB limit`
+      );
       telemetry.failedCount++;
       telemetry.failedFiles.push(filename);
       continue;
@@ -279,7 +281,9 @@ function loadTicketAttachments(ticketId, attachmentsList) {
 
     // Warn about large files that may not be reliably processed
     if (stats.size > RECOMMENDED_ATTACHMENT_SIZE) {
-      warnings.push(`${filename} is ${formatFileSize(stats.size)} - files over 1MB may not be processed reliably by all AI clients`);
+      warnings.push(
+        `${filename} is ${formatFileSize(stats.size)} - files over 1MB may not be processed reliably by all AI clients`
+      );
     }
 
     try {
@@ -328,11 +332,13 @@ function createConversationSession(db, ticketId, projectId, environment) {
   const now = new Date().toISOString();
 
   try {
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO conversation_sessions
       (id, project_id, ticket_id, environment, data_classification, started_at, created_at)
       VALUES (?, ?, ?, ?, 'internal', ?, ?)
-    `).run(id, projectId, ticketId, environment, now, now);
+    `
+    ).run(id, projectId, ticketId, environment, now, now);
 
     log.info(`Auto-created conversation session ${id} for ticket ${ticketId}`);
     return { success: true, sessionId: id };
@@ -354,30 +360,43 @@ function endConversationSessions(db, ticketId) {
 
   try {
     // Find active sessions for this ticket
-    const activeSessions = db.prepare(`
+    const activeSessions = db
+      .prepare(
+        `
       SELECT id FROM conversation_sessions
       WHERE ticket_id = ? AND ended_at IS NULL
-    `).all(ticketId);
+    `
+      )
+      .all(ticketId);
 
     if (activeSessions.length === 0) {
       return { success: true, sessionsEnded: 0 };
     }
 
     // Count total messages across sessions
-    const sessionIds = activeSessions.map(s => s.id);
-    const messageCount = db.prepare(`
+    const sessionIds = activeSessions.map((s) => s.id);
+    const messageCount =
+      db
+        .prepare(
+          `
       SELECT COUNT(*) as count FROM conversation_messages
       WHERE session_id IN (${sessionIds.map(() => "?").join(",")})
-    `).get(...sessionIds)?.count || 0;
+    `
+        )
+        .get(...sessionIds)?.count || 0;
 
     // End all active sessions
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE conversation_sessions
       SET ended_at = ?
       WHERE ticket_id = ? AND ended_at IS NULL
-    `).run(now, ticketId);
+    `
+    ).run(now, ticketId);
 
-    log.info(`Auto-ended ${activeSessions.length} conversation session(s) for ticket ${ticketId} (${messageCount} messages)`);
+    log.info(
+      `Auto-ended ${activeSessions.length} conversation session(s) for ticket ${ticketId} (${messageCount} messages)`
+    );
     return { success: true, sessionsEnded: activeSessions.length, messageCount };
   } catch (err) {
     log.error(`Failed to end conversation sessions for ticket ${ticketId}: ${err.message}`);
@@ -401,9 +420,13 @@ const MAX_COMMENTS_IN_CONTEXT = 10;
  */
 function fetchTicketComments(db, ticketId) {
   // Get total count first
-  const countResult = db.prepare(`
+  const countResult = db
+    .prepare(
+      `
     SELECT COUNT(*) as count FROM ticket_comments WHERE ticket_id = ?
-  `).get(ticketId);
+  `
+    )
+    .get(ticketId);
   const totalCount = countResult?.count || 0;
 
   if (totalCount === 0) {
@@ -411,13 +434,17 @@ function fetchTicketComments(db, ticketId) {
   }
 
   // Fetch most recent comments (ordered by created_at DESC, then reverse for chronological display)
-  const comments = db.prepare(`
+  const comments = db
+    .prepare(
+      `
     SELECT content, author, type, created_at
     FROM ticket_comments
     WHERE ticket_id = ?
     ORDER BY created_at DESC
     LIMIT ?
-  `).all(ticketId, MAX_COMMENTS_IN_CONTEXT);
+  `
+    )
+    .all(ticketId, MAX_COMMENTS_IN_CONTEXT);
 
   // Reverse to get chronological order (oldest first among the selected)
   comments.reverse();
@@ -501,7 +528,8 @@ function buildAttachmentContextSection(telemetry) {
 
   // Check for high-priority design types
   const hasDesignTypes = byType.mockup || byType.wireframe;
-  const hasBugTypes = byType["bug-screenshot"] || byType["actual-behavior"] || byType["expected-behavior"];
+  const hasBugTypes =
+    byType["bug-screenshot"] || byType["actual-behavior"] || byType["expected-behavior"];
 
   if (hasDesignTypes) {
     context += `**IMPORTANT: Review attached design images BEFORE implementing.**\n\n`;
@@ -578,7 +606,7 @@ function buildDesignMockupWarning(telemetry) {
     return "";
   }
 
-  const imageFilenames = telemetry.filenames.filter(f => {
+  const imageFilenames = telemetry.filenames.filter((f) => {
     const ext = f.split(".").pop()?.toLowerCase() || "";
     return ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext);
   });
@@ -594,14 +622,14 @@ These mockups show the expected UI design. Your implementation MUST match:
 - All visible elements
 
 ### Attached Images (${telemetry.imageCount})
-${imageFilenames.map(f => `- ${f}`).join("\n")}
+${imageFilenames.map((f) => `- ${f}`).join("\n")}
 
 The images are included below. Reference them throughout implementation.
 `;
 
   // Add fallback text if any images failed to load
   if (telemetry.failedCount > 0) {
-    const failedImages = telemetry.failedFiles.filter(f => {
+    const failedImages = telemetry.failedFiles.filter((f) => {
       const ext = f.split(".").pop()?.toLowerCase() || "";
       return ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext);
     });
@@ -609,7 +637,7 @@ The images are included below. Reference them throughout implementation.
       warning += `
 ### Failed to Load (${failedImages.length})
 The following image files could not be loaded. Check the ticket UI for these images:
-${failedImages.map(f => `- ${f}`).join("\n")}
+${failedImages.map((f) => `- ${f}`).join("\n")}
 `;
     }
   }
@@ -662,7 +690,7 @@ function updatePrdForTicket(projectPath, ticketId) {
       return { success: false, message: "PRD has no userStories array" };
     }
 
-    const story = prd.userStories.find(s => s.id === ticketId);
+    const story = prd.userStories.find((s) => s.id === ticketId);
     if (!story) {
       return { success: false, message: `Ticket ${ticketId} not found in PRD` };
     }
@@ -703,17 +731,36 @@ function readPrd(projectPath) {
  * Get the next strategic ticket to work on from the PRD.
  * @param {string} projectPath
  * @param {string} completedTicketId - The ticket that was just completed
- * @returns {{ nextTicket: object | null, reason: string }}
+ * @returns {Promise<{ nextTicket: object | null, reason: string }>}
  */
-function suggestNextTicket(projectPath, completedTicketId) {
+async function suggestNextTicket(projectPath, completedTicketId) {
   const { prd, error } = readPrd(projectPath);
   if (!prd) {
     return { nextTicket: null, reason: error };
   }
 
-  const incompleteStories = prd.userStories.filter(s => !s.passes && s.id !== completedTicketId);
+  const incompleteStories = prd.userStories.filter((s) => !s.passes && s.id !== completedTicketId);
 
   if (incompleteStories.length === 0) {
+    // PRD is complete! Automatically link all commits to tickets
+    const project = db.prepare("SELECT id FROM projects WHERE path = ?").get(projectPath);
+    if (project) {
+      try {
+        // Import the auto-linking function dynamically to avoid circular imports
+        const { autoLinkCommitsToTickets } = await import("./git.js");
+
+        // Call auto-linking with the project ID
+        const linkResult = await autoLinkCommitsToTickets({ projectId: project.id });
+
+        log.info(`Auto-linked commits for completed PRD in project ${project.id}`);
+        log.info(`Link result: ${JSON.stringify(linkResult.content[0].text, null, 2)}`);
+      } catch (error) {
+        log.error(`Failed to auto-link commits for completed PRD: ${error.message}`);
+      }
+    } else {
+      log.warn(`Could not find project for path ${projectPath} during PRD completion`);
+    }
+
     return { nextTicket: null, reason: "All tickets complete! Sprint finished." };
   }
 
@@ -766,57 +813,117 @@ Returns:
   Branch name, ticket details with description/acceptance criteria, and project path.`,
     { ticketId: z.string().describe("Ticket ID to start working on") },
     async ({ ticketId }) => {
-      const ticket = db.prepare(`
+      const ticket = db
+        .prepare(
+          `
         SELECT t.*, p.name as project_name, p.path as project_path
         FROM tickets t JOIN projects p ON t.project_id = p.id WHERE t.id = ?
-      `).get(ticketId);
+      `
+        )
+        .get(ticketId);
 
       if (!ticket) {
-        return { content: [{ type: "text", text: `Ticket not found: ${ticketId}` }], isError: true };
+        return {
+          content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
+          isError: true,
+        };
       }
 
       if (ticket.status === "in_progress") {
-        return { content: [{ type: "text", text: `Ticket is already in progress.\n\n${JSON.stringify(ticket, null, 2)}` }] };
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Ticket is already in progress.\n\n${JSON.stringify(ticket, null, 2)}`,
+            },
+          ],
+        };
       }
 
       if (!existsSync(ticket.project_path)) {
-        return { content: [{ type: "text", text: `Project path does not exist: ${ticket.project_path}` }], isError: true };
+        return {
+          content: [{ type: "text", text: `Project path does not exist: ${ticket.project_path}` }],
+          isError: true,
+        };
       }
 
       const gitCheck = runGitCommand("git rev-parse --git-dir", ticket.project_path);
       if (!gitCheck.success) {
-        return { content: [{ type: "text", text: `Not a git repository: ${ticket.project_path}\n\nInitialize git first: git init` }], isError: true };
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Not a git repository: ${ticket.project_path}\n\nInitialize git first: git init`,
+            },
+          ],
+          isError: true,
+        };
       }
 
       const branchName = generateBranchName(ticketId, ticket.title);
-      const branchExists = runGitCommand(`git show-ref --verify --quiet refs/heads/${branchName}`, ticket.project_path);
+      const branchExists = runGitCommand(
+        `git show-ref --verify --quiet refs/heads/${branchName}`,
+        ticket.project_path
+      );
 
       let branchCreated = false;
       if (!branchExists.success) {
         const createBranch = runGitCommand(`git checkout -b ${branchName}`, ticket.project_path);
         if (!createBranch.success) {
-          return { content: [{ type: "text", text: `Failed to create branch ${branchName}: ${createBranch.error}` }], isError: true };
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Failed to create branch ${branchName}: ${createBranch.error}`,
+              },
+            ],
+            isError: true,
+          };
         }
         branchCreated = true;
       } else {
         const checkoutBranch = runGitCommand(`git checkout ${branchName}`, ticket.project_path);
         if (!checkoutBranch.success) {
-          return { content: [{ type: "text", text: `Failed to checkout branch ${branchName}: ${checkoutBranch.error}` }], isError: true };
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Failed to checkout branch ${branchName}: ${checkoutBranch.error}`,
+              },
+            ],
+            isError: true,
+          };
         }
       }
 
       const now = new Date().toISOString();
       try {
-        db.prepare("UPDATE tickets SET status = 'in_progress', branch_name = ?, updated_at = ? WHERE id = ?").run(branchName, now, ticketId);
+        db.prepare(
+          "UPDATE tickets SET status = 'in_progress', branch_name = ?, updated_at = ? WHERE id = ?"
+        ).run(branchName, now, ticketId);
       } catch (dbErr) {
         log.error(`Failed to update ticket status: ${dbErr.message}`, { ticketId });
         // Attempt to clean up the branch we just created
         runGitCommand(`git checkout - && git branch -d ${branchName}`, ticket.project_path);
-        return { content: [{ type: "text", text: `Failed to update ticket status: ${dbErr.message}\n\nThe git branch was cleaned up. Please try again.` }], isError: true };
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Failed to update ticket status: ${dbErr.message}\n\nThe git branch was cleaned up. Please try again.`,
+            },
+          ],
+          isError: true,
+        };
       }
 
       // Auto-post "Starting work" comment
-      const commentResult = addComment(db, ticketId, `Starting work on: ${ticket.title}`, "ralph", "comment");
+      const commentResult = addComment(
+        db,
+        ticketId,
+        `Starting work on: ${ticket.title}`,
+        "ralph",
+        "comment"
+      );
       if (!commentResult.success) {
         log.warn(`Comment not saved for ticket ${ticketId}: ${commentResult.error}`);
       }
@@ -828,10 +935,14 @@ Returns:
         ? `**Conversation Session:** \`${sessionResult.sessionId}\` (auto-created for compliance logging)`
         : `**Warning:** Compliance logging failed: ${sessionResult.error}. Work may not be logged for audit.`;
 
-      const updatedTicket = db.prepare(`
+      const updatedTicket = db
+        .prepare(
+          `
         SELECT t.*, p.name as project_name, p.path as project_path
         FROM tickets t JOIN projects p ON t.project_id = p.id WHERE t.id = ?
-      `).get(ticketId);
+      `
+        )
+        .get(ticketId);
 
       log.info(`Started work on ticket ${ticketId}: branch ${branchName}`);
 
@@ -842,11 +953,13 @@ Returns:
         try {
           const subtasks = JSON.parse(updatedTicket.subtasks);
           if (subtasks.length > 0) {
-            acceptanceCriteria = subtasks.map(s => s.title || s);
+            acceptanceCriteria = subtasks.map((s) => s.title || s);
           }
         } catch (parseErr) {
           log.warn(`Failed to parse subtasks for ticket ${ticketId}:`, parseErr);
-          parseWarnings.push(`Failed to parse acceptance criteria: ${parseErr.message}. Using defaults.`);
+          parseWarnings.push(
+            `Failed to parse acceptance criteria: ${parseErr.message}. Using defaults.`
+          );
         }
       }
 
@@ -865,11 +978,17 @@ Returns:
           attachmentsList = JSON.parse(updatedTicket.attachments);
         } catch (parseErr) {
           log.warn(`Failed to parse attachments for ticket ${ticketId}:`, parseErr);
-          parseWarnings.push(`Failed to parse attachments list: ${parseErr.message}. Attachments will not be loaded.`);
+          parseWarnings.push(
+            `Failed to parse attachments list: ${parseErr.message}. Attachments will not be loaded.`
+          );
         }
       }
 
-      const { contentBlocks: attachmentBlocks, warnings: attachmentWarnings, telemetry: attachmentTelemetry } = loadTicketAttachments(ticketId, attachmentsList);
+      const {
+        contentBlocks: attachmentBlocks,
+        warnings: attachmentWarnings,
+        telemetry: attachmentTelemetry,
+      } = loadTicketAttachments(ticketId, attachmentsList);
 
       // Log attachment telemetry for observability
       if (attachmentTelemetry.totalCount > 0) {
@@ -890,7 +1009,7 @@ Returns:
       // Build attachments section for non-image files (images are covered by the warning)
       let attachmentsSection = "";
       if (attachmentBlocks.length > 0) {
-        const textCount = attachmentBlocks.filter(b => b.type === "text").length;
+        const textCount = attachmentBlocks.filter((b) => b.type === "text").length;
         // Only show generic attachments section for non-image files
         if (textCount > 0) {
           attachmentsSection = `\n### Other Attachments\n- ${textCount} text/reference file(s) included below\n`;
@@ -901,7 +1020,7 @@ Returns:
       const allWarnings = [...parseWarnings, ...attachmentWarnings];
       let warningsSection = "";
       if (allWarnings.length > 0) {
-        warningsSection = `\n### Warnings\n${allWarnings.map(w => `- ${w}`).join("\n")}\n`;
+        warningsSection = `\n### Warnings\n${allWarnings.map((w) => `- ${w}`).join("\n")}\n`;
       }
 
       // Build the main text content block
@@ -925,7 +1044,7 @@ ${designMockupWarning ? `\n---\n\n${designMockupWarning}` : ""}
 ${description}
 ${commentsSection ? `\n${commentsSection}` : ""}
 ### Acceptance Criteria
-${acceptanceCriteria.map(c => `- ${c}`).join("\n")}
+${acceptanceCriteria.map((c) => `- ${c}`).join("\n")}
 ${attachmentsSection}${warningsSection}
 ---
 
@@ -962,36 +1081,64 @@ Returns:
   Updated ticket, PR description, next ticket suggestion, and context reset guidance.`,
     {
       ticketId: z.string().describe("Ticket ID to complete"),
-      summary: z.string().optional().describe("Work summary describing what was done - will be auto-posted as a comment"),
+      summary: z
+        .string()
+        .optional()
+        .describe("Work summary describing what was done - will be auto-posted as a comment"),
     },
     async ({ ticketId, summary }) => {
-      const ticket = db.prepare(`
+      const ticket = db
+        .prepare(
+          `
         SELECT t.*, p.name as project_name, p.path as project_path
         FROM tickets t JOIN projects p ON t.project_id = p.id WHERE t.id = ?
-      `).get(ticketId);
+      `
+        )
+        .get(ticketId);
 
       if (!ticket) {
-        return { content: [{ type: "text", text: `Ticket not found: ${ticketId}` }], isError: true };
+        return {
+          content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
+          isError: true,
+        };
       }
 
       if (ticket.status === "done") {
-        return { content: [{ type: "text", text: `Ticket is already done.\n\n${JSON.stringify(ticket, null, 2)}` }] };
+        return {
+          content: [
+            { type: "text", text: `Ticket is already done.\n\n${JSON.stringify(ticket, null, 2)}` },
+          ],
+        };
       }
 
       if (ticket.status === "review") {
-        return { content: [{ type: "text", text: `Ticket is already in review.\n\n${JSON.stringify(ticket, null, 2)}` }] };
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Ticket is already in review.\n\n${JSON.stringify(ticket, null, 2)}`,
+            },
+          ],
+        };
       }
 
-      let commitsInfo = "", prDescription = "";
+      let commitsInfo = "",
+        prDescription = "";
       let changedFiles = [];
 
       if (existsSync(ticket.project_path)) {
         const gitCheck = runGitCommand("git rev-parse --git-dir", ticket.project_path);
         if (gitCheck.success) {
           let baseBranch = "main";
-          const mainExists = runGitCommand("git show-ref --verify --quiet refs/heads/main", ticket.project_path);
+          const mainExists = runGitCommand(
+            "git show-ref --verify --quiet refs/heads/main",
+            ticket.project_path
+          );
           if (!mainExists.success) {
-            const masterExists = runGitCommand("git show-ref --verify --quiet refs/heads/master", ticket.project_path);
+            const masterExists = runGitCommand(
+              "git show-ref --verify --quiet refs/heads/master",
+              ticket.project_path
+            );
             if (masterExists.success) baseBranch = "master";
           }
 
@@ -1002,8 +1149,8 @@ Returns:
 
           if (commitsResult.success && commitsResult.output) {
             commitsInfo = commitsResult.output;
-            const commitLines = commitsInfo.split("\n").filter(l => l.trim());
-            prDescription = `## Summary\n${summary || ticket.title}\n\n## Changes\n${commitLines.map(c => `- ${c.substring(c.indexOf(" ") + 1)}`).join("\n")}\n\n## Ticket\n- ID: ${shortId(ticketId)}\n- Title: ${ticket.title}\n`;
+            const commitLines = commitsInfo.split("\n").filter((l) => l.trim());
+            prDescription = `## Summary\n${summary || ticket.title}\n\n## Changes\n${commitLines.map((c) => `- ${c.substring(c.indexOf(" ") + 1)}`).join("\n")}\n\n## Ticket\n- ID: ${shortId(ticketId)}\n- Title: ${ticket.title}\n`;
           }
 
           // Get list of changed files for code review guidance
@@ -1012,17 +1159,23 @@ Returns:
             ticket.project_path
           );
           if (filesResult.success && filesResult.output) {
-            changedFiles = filesResult.output.split("\n").filter(f => f.trim());
+            changedFiles = filesResult.output.split("\n").filter((f) => f.trim());
           }
         }
       }
 
       const now = new Date().toISOString();
       try {
-        db.prepare("UPDATE tickets SET status = 'review', updated_at = ? WHERE id = ?").run(now, ticketId);
+        db.prepare("UPDATE tickets SET status = 'review', updated_at = ? WHERE id = ?").run(
+          now,
+          ticketId
+        );
       } catch (dbErr) {
         log.error(`Failed to update ticket status to review: ${dbErr.message}`, { ticketId });
-        return { content: [{ type: "text", text: `Failed to update ticket status: ${dbErr.message}` }], isError: true };
+        return {
+          content: [{ type: "text", text: `Failed to update ticket status: ${dbErr.message}` }],
+          isError: true,
+        };
       }
 
       // Auto-post work summary comment
@@ -1030,7 +1183,9 @@ Returns:
         ? `## Work Summary\n\n${summary}\n\n${commitsInfo ? `### Commits\n\`\`\`\n${commitsInfo}\`\`\`` : ""}`
         : `Completed work on: ${ticket.title}${commitsInfo ? `\n\nCommits:\n${commitsInfo}` : ""}`;
       const summaryResult = addComment(db, ticketId, workSummaryContent, "ralph", "work_summary");
-      const summaryWarning = summaryResult.success ? "" : `\n\n**Warning:** Work summary comment was not saved: ${summaryResult.error}`;
+      const summaryWarning = summaryResult.success
+        ? ""
+        : `\n\n**Warning:** Work summary comment was not saved: ${summaryResult.error}`;
 
       // Update PRD file
       const prdResult = updatePrdForTicket(ticket.project_path, ticketId);
@@ -1048,12 +1203,16 @@ Returns:
       }
 
       // Suggest next ticket
-      const nextTicketSuggestion = suggestNextTicket(ticket.project_path, ticketId);
+      const nextTicketSuggestion = await suggestNextTicket(ticket.project_path, ticketId);
 
-      const updatedTicket = db.prepare(`
+      const updatedTicket = db
+        .prepare(
+          `
         SELECT t.*, p.name as project_name, p.path as project_path
         FROM tickets t JOIN projects p ON t.project_id = p.id WHERE t.id = ?
-      `).get(ticketId);
+      `
+        )
+        .get(ticketId);
 
       log.info(`Completed work on ticket ${ticketId}, moved to review`);
 
@@ -1073,9 +1232,11 @@ Returns:
 ${summary || "Auto-generated summary from commits"}${summaryWarning}`,
 
         `### PRD Update
-${prdResult.success
-  ? prdResult.message
-  : `**FAILED:** ${prdResult.message}\n\nThe PRD was not updated. This may cause issues with automated workflows.`}`,
+${
+  prdResult.success
+    ? prdResult.message
+    : `**FAILED:** ${prdResult.message}\n\nThe PRD was not updated. This may cause issues with automated workflows.`
+}`,
       ];
 
       // Add conversation session summary if sessions were ended
@@ -1114,10 +1275,12 @@ To start: \`start_ticket_work("${nextTicket.id}")\``);
       const responseText = sections.join("\n\n---\n\n");
 
       return {
-        content: [{
-          type: "text",
-          text: responseText,
-        }],
+        content: [
+          {
+            type: "text",
+            text: responseText,
+          },
+        ],
       };
     }
   );
@@ -1125,10 +1288,11 @@ To start: \`start_ticket_work("${nextTicket.id}")\``);
 
 function getContextResetGuidance(environment) {
   const resetInstructions = {
-    "claude-code": 'Run `/clear` to reset context for the next task.',
-    "vscode": 'Click "New Chat" or press Cmd/Ctrl+L for the next task.',
+    "claude-code": "Run `/clear` to reset context for the next task.",
+    vscode: 'Click "New Chat" or press Cmd/Ctrl+L for the next task.',
   };
-  const instruction = resetInstructions[environment] || "Start a new conversation for the next task.";
+  const instruction =
+    resetInstructions[environment] || "Start a new conversation for the next task.";
   return `\n## Context Reset Required\n\nThis ticket has been completed. ${instruction}`;
 }
 
@@ -1141,10 +1305,11 @@ function getContextResetGuidance(environment) {
  * @returns {string} Markdown instructions for running code review
  */
 function getCodeReviewGuidance(environment, changedFiles = []) {
-  const hasCodeChanges = changedFiles.some(file =>
-    /\.(ts|tsx|js|jsx|py|go|rs)$/.test(file) &&
-    !/\.(test|spec)\.(ts|tsx|js|jsx)$/.test(file) &&
-    !/node_modules|dist|build/.test(file)
+  const hasCodeChanges = changedFiles.some(
+    (file) =>
+      /\.(ts|tsx|js|jsx|py|go|rs)$/.test(file) &&
+      !/\.(test|spec)\.(ts|tsx|js|jsx)$/.test(file) &&
+      !/node_modules|dist|build/.test(file)
   );
 
   if (!hasCodeChanges && changedFiles.length > 0) {
@@ -1166,20 +1331,29 @@ No source code changes detected. Review may be skipped.`;
 **Automatic Review Enabled:** The Stop hook will prompt for \`/review\` before conversation ends.
 
 When prompted, run \`/review\` to launch all three review agents in parallel:
-${reviewAgents.map(a => `- ${a}`).join("\n")}
+${reviewAgents.map((a) => `- ${a}`).join("\n")}
 
-${changedFiles.length > 0 ? `### Files Changed:\n${changedFiles.slice(0, 10).map(f => `- ${f}`).join("\n")}${changedFiles.length > 10 ? `\n- ... and ${changedFiles.length - 10} more` : ""}` : ""}`;
+${
+  changedFiles.length > 0
+    ? `### Files Changed:\n${changedFiles
+        .slice(0, 10)
+        .map((f) => `- ${f}`)
+        .join(
+          "\n"
+        )}${changedFiles.length > 10 ? `\n- ... and ${changedFiles.length - 10} more` : ""}`
+    : ""
+}`;
   }
 
   // Other environments need manual review
   const environmentInstructions = {
-    "vscode": `Use MCP tools to run these review agents:
+    vscode: `Use MCP tools to run these review agents:
 1. code-reviewer - Reviews against CLAUDE.md guidelines
 2. silent-failure-hunter - Checks error handling
 3. code-simplifier - Simplifies complex code
 
 These can be run via the MCP panel or by asking your AI assistant.`,
-    "opencode": `Run the review pipeline by asking your assistant to launch:
+    opencode: `Run the review pipeline by asking your assistant to launch:
 - code-reviewer
 - silent-failure-hunter
 - code-simplifier`,
@@ -1192,10 +1366,19 @@ These can be run via the MCP panel or by asking your AI assistant.`,
 Before creating a PR, run the code review pipeline to catch issues early.
 
 ### Review Agents:
-${reviewAgents.map(a => `- ${a}`).join("\n")}
+${reviewAgents.map((a) => `- ${a}`).join("\n")}
 
 ### How to Run:
 ${instructions}
 
-${changedFiles.length > 0 ? `### Files to Review:\n${changedFiles.slice(0, 10).map(f => `- ${f}`).join("\n")}${changedFiles.length > 10 ? `\n- ... and ${changedFiles.length - 10} more` : ""}` : ""}`;
+${
+  changedFiles.length > 0
+    ? `### Files to Review:\n${changedFiles
+        .slice(0, 10)
+        .map((f) => `- ${f}`)
+        .join(
+          "\n"
+        )}${changedFiles.length > 10 ? `\n- ... and ${changedFiles.length - 10} more` : ""}`
+    : ""
+}`;
 }
