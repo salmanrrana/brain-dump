@@ -449,7 +449,7 @@ function formatComment(comment) {
     month: "short",
     day: "numeric",
   });
-  const typeLabel = COMMENT_TYPE_LABELS[comment.type] || "Comment";
+  const typeLabel = COMMENT_TYPE_LABELS[comment.type] || "💬 Comment";
 
   return `**${comment.author}** (${typeLabel}) - ${dateStr}:\n${comment.content}`;
 }
