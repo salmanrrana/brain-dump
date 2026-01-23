@@ -9,38 +9,179 @@
   ],
   "userStories": [
     {
-      "id": "0fdb4a12-212a-48ba-8325-f7c1f6bf317a",
-      "title": "Send ticket attachments to LLM in start_ticket_work",
+      "id": "42272adc-f48d-4491-80c9-7bf74c8de00b",
+      "title": "Implement AI telemetry capture for ticket work sessions",
       "passes": true,
-      "overview": "When `start_ticket_work` is called, include any ticket attachments (screenshots, mockups, diagrams) in the MCP response so the LLM can see visual context.\nCurrently, attachments are stored but never sent to the LLM:\n- **Database:** `tickets.attachments` contains filenames like `[\"mockup.png\", \"design.jpg\"]`\n- **Filesystem:** Files stored at `~/.brain-dump/attachments/{ticketId}/`\n- **MCP Response:** Only returns text content, images are ignored",
+      "overview": "Capture full AI interaction telemetry when Claude works on Brain Dump tickets. This gives businesses complete visibility into how AI agents interact with their projects - essential for audit trails, debugging, cost tracking, and understanding AI work patterns.\nCurrently, Brain Dump tracks:\n- ✅ Work summaries (manual, after the fact)\n- ✅ Linked commits and PRs\n- ✅ Conversation logs (if enabled)\nBut we're missing:\n- ❌ What prompts were given to the AI\n- ❌ What tools the AI used (and how often)\n- ❌ Which MCP calls were made\n- ❌ How AI broke down work internally (Claude Tasks)\n- ❌ Timing data (where time was spent)\n- ❌ Token/cost metrics",
       "types": [],
-      "designDecisions": [
-        {
-          "decision": "This Matters",
-          "alternatives": [],
-          "rationale": []
-        }
-      ],
+      "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Read `ticket.attachments` JSON array when starting work",
-        "Load image files from `~/.brain-dump/attachments/{ticketId}/`",
-        "Convert images to base64 and include as MCP `image` content blocks",
-        "Support common image formats: PNG, JPEG, GIF, WebP",
-        "For non-image attachments (PDF, MD, TXT), include as text or reference",
-        "Handle missing files gracefully (log warning, don't fail)",
-        "Respect reasonable size limits (skip files > 5MB with warning)"
+        "Database schema created with migrations",
+        "MCP tools implemented for all telemetry events",
+        "Claude Code hooks created and documented",
+        "SessionStart hook detects active ticket (from branch name or Ralph state)",
+        "Tool events capture name, timing, success/failure",
+        "Prompt events capture full text (with optional redaction)",
+        "UI shows telemetry timeline on ticket detail",
+        "Telemetry respects retention settings",
+        "Documentation updated"
+      ],
+      "references": [],
+      "description": "## Overview\n\nCapture full AI interaction telemetry when Claude works on Brain Dump tickets. This gives businesses complete visibility into how AI agents interact with their projects - essential for audit trails, debugging, cost tracking, and understanding AI work patterns.\n\n## Problem\n\nCurrently, Brain Dump tracks:\n- ✅ Work summaries (manual, after the fact)\n- ✅ Linked commits and PRs\n- ✅ Conversation logs (if enabled)\n\nBut we're missing:\n- ❌ What prompts were given to the AI\n- ❌ What tools the AI used (and how often)\n- ❌ Which MCP calls were made\n- ❌ How AI broke down work internally (Claude Tasks)\n- ❌ Timing data (where time was spent)\n- ❌ Token/cost metrics\n\n## Solution\n\n### 1. New Database Table\n\n```sql\nCREATE TABLE ticket_telemetry (\n  id TEXT PRIMARY KEY,\n  ticket_id TEXT REFERENCES tickets(id),\n  session_id TEXT,           -- Claude session ID\n  event_type TEXT NOT NULL,  -- 'prompt', 'tool_start', 'tool_end', 'task_created', 'task_completed', etc.\n  tool_name TEXT,            -- For tool events: 'Edit', 'Bash', 'mcp__brain-dump__*', etc.\n  event_data JSON,           -- Full payload (params, result summary, etc.)\n  duration_ms INTEGER,       -- For tool_end events\n  token_count INTEGER,       -- If available\n  created_at TEXT NOT NULL\n);\n\nCREATE INDEX idx_telemetry_ticket ON ticket_telemetry(ticket_id);\nCREATE INDEX idx_telemetry_session ON ticket_telemetry(session_id);\nCREATE INDEX idx_telemetry_type ON ticket_telemetry(event_type);\n```\n\n### 2. New MCP Tools\n\n```javascript\n// Start telemetry session (called from SessionStart hook)\nstart_telemetry_session(ticketId: string) -> sessionId\n\n// Log a prompt (called from UserPromptSubmit hook)\nlog_prompt_event(sessionId: string, prompt: string, timestamp: string)\n\n// Log tool usage (called from PreToolUse/PostToolUse hooks)\nlog_tool_event(sessionId: string, event: 'start' | 'end', toolName: string, params?: object, result?: string, durationMs?: number)\n\n// Log Claude Task lifecycle (called from Task hooks or polling ~/.claude/tasks/)\nlog_task_event(sessionId: string, event: 'created' | 'started' | 'completed' | 'blocked', taskData: object)\n\n// End telemetry session with summary (called from Stop hook)\nend_telemetry_session(sessionId: string, summary?: object)\n```\n\n### 3. Claude Code Hooks\n\nCreate hooks that call the MCP tools:\n\n| Hook | Action |\n|------|--------|\n| SessionStart | `start_telemetry_session` if working on a ticket |\n| UserPromptSubmit | `log_prompt_event` |\n| PreToolUse | `log_tool_event('start', ...)` |\n| PostToolUse | `log_tool_event('end', ...)` |\n| Stop | `end_telemetry_session` |\n\n### 4. UI Dashboard\n\nAdd a \"Telemetry\" tab to ticket detail view showing:\n- Timeline of all events\n- Tool usage breakdown (pie chart)\n- Prompt history\n- Task breakdown\n- Duration metrics\n- Token/cost estimates\n\n## Data Captured\n\n| Event Type | Data Captured |\n|------------|---------------|\n| `session_start` | ticketId, timestamp, environment |\n| `prompt` | Full prompt text, timestamp |\n| `tool_start` | toolName, parameters (sanitized) |\n| `tool_end` | toolName, success/error, duration, result summary |\n| `task_created` | taskId, subject, description |\n| `task_started` | taskId, timestamp |\n| `task_completed` | taskId, timestamp |\n| `session_end` | Total duration, tool counts, token usage |\n\n## Privacy & Security Considerations\n\n- Prompts may contain sensitive data - add option to hash/redact\n- Tool parameters may contain file contents - store summaries, not full content\n- Respect existing conversation logging settings\n- Add retention policy (same as conversation logs)\n\n## Acceptance Criteria\n\n- [ ] Database schema created with migrations\n- [ ] MCP tools implemented for all telemetry events\n- [ ] Claude Code hooks created and documented\n- [ ] SessionStart hook detects active ticket (from branch name or Ralph state)\n- [ ] Tool events capture name, timing, success/failure\n- [ ] Prompt events capture full text (with optional redaction)\n- [ ] UI shows telemetry timeline on ticket detail\n- [ ] Telemetry respects retention settings\n- [ ] Documentation updated\n\n## Future Enhancements\n\n- Cost estimation based on token usage\n- AI behavior analytics (which tools are used most, avg session duration)\n- Anomaly detection (unusually long sessions, high error rates)\n- Export telemetry for external analysis",
+      "priority": "high",
+      "tags": [
+        "telemetry",
+        "observability",
+        "enterprise",
+        "hooks",
+        "mcp"
+      ]
+    },
+    {
+      "id": "dd95cf5d-afa7-4058-ac08-f4a07c66a36d",
+      "title": "Replace subtasks with Acceptance Criteria (AI-verifiable)",
+      "passes": true,
+      "overview": "Replace the current \"subtasks\" concept with \"Acceptance Criteria\" - a contract between humans and AI about what constitutes ticket completion. AI verifies and marks criteria as passed during implementation.",
+      "types": [
+        {
+          "name": "Subtask",
+          "code": "interface Subtask {\n  id: string;\n  text: string;\n  completed: boolean;  // Binary, no context\n}"
+        },
+        {
+          "name": "AcceptanceCriterion",
+          "code": "interface AcceptanceCriterion {\n  id: string;\n  criterion: string;           // What needs to be true\n  status: 'pending' | 'passed' | 'failed' | 'skipped';\n  verifiedBy?: 'human' | 'claude' | 'ralph' | 'test';\n  verifiedAt?: string;\n  verificationNote?: string;   // How it was verified\n}"
+        }
+      ],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Users can log in with email/password",
+        "JWT tokens expire after 24 hours",
+        "Failed logins are rate-limited",
+        "Database schema updated with new field structure",
+        "Migration script converts existing subtasks",
+        "MCP tool `update_acceptance_criterion` implemented",
+        "MCP tool `parse_acceptance_criteria` implemented",
+        "UI shows criteria with status badges",
+        "AI can mark criteria as passed with verification notes",
+        "Humans can override AI verification",
+        "Telemetry captures criterion verification events",
+        "Documentation updated"
+      ],
+      "references": [],
+      "description": "## Overview\n\nReplace the current \"subtasks\" concept with \"Acceptance Criteria\" - a contract between humans and AI about what constitutes ticket completion. AI verifies and marks criteria as passed during implementation.\n\n## Current Problem\n\n**Subtasks are ambiguous:**\n- Are they work breakdown? (Claude Tasks does this better)\n- Are they acceptance criteria? (buried in description)\n- Are they a todo list? (redundant with tickets)\n\n**Result:** Subtasks duplicate functionality and don't serve a clear purpose.\n\n## New Model: Acceptance Criteria\n\n```\n┌─────────────────────────────────────────────────────────────┐\n│  TICKET: Implement user authentication                      │\n├─────────────────────────────────────────────────────────────┤\n│  Description: Add login/logout with JWT tokens...           │\n├─────────────────────────────────────────────────────────────┤\n│  ACCEPTANCE CRITERIA                                        │\n│  ┌─────────────────────────────────────────────────────┐   │\n│  │ ✅ PASSED  │ Users can log in with email/password   │   │\n│  │            │ Verified: tests pass, manual check     │   │\n│  ├────────────┼────────────────────────────────────────┤   │\n│  │ ✅ PASSED  │ JWT tokens expire after 24 hours       │   │\n│  │            │ Verified: unit test confirms expiry    │   │\n│  ├────────────┼────────────────────────────────────────┤   │\n│  │ ⏳ PENDING │ Failed logins are rate-limited         │   │\n│  │            │ Not yet implemented                    │   │\n│  └────────────┴────────────────────────────────────────┘   │\n└─────────────────────────────────────────────────────────────┘\n```\n\n## Data Model Change\n\n### Before (Subtasks)\n```typescript\ninterface Subtask {\n  id: string;\n  text: string;\n  completed: boolean;  // Binary, no context\n}\n```\n\n### After (Acceptance Criteria)\n```typescript\ninterface AcceptanceCriterion {\n  id: string;\n  criterion: string;           // What needs to be true\n  status: 'pending' | 'passed' | 'failed' | 'skipped';\n  verifiedBy?: 'human' | 'claude' | 'ralph' | 'test';\n  verifiedAt?: string;\n  verificationNote?: string;   // How it was verified\n}\n```\n\n## Database Migration\n\n```sql\n-- Rename column for clarity (data format changes)\n-- Old: subtasks JSON array of {id, text, completed}\n-- New: acceptance_criteria JSON array of {id, criterion, status, verifiedBy, verifiedAt, verificationNote}\n\n-- Migration script transforms existing data:\n-- { text: \"X\", completed: true }  → { criterion: \"X\", status: \"passed\", verifiedBy: \"human\" }\n-- { text: \"X\", completed: false } → { criterion: \"X\", status: \"pending\" }\n```\n\n## Workflow\n\n### Human Creates Ticket\n```markdown\n**Acceptance Criteria:**\n- [ ] Users can log in with email/password\n- [ ] JWT tokens expire after 24 hours\n- [ ] Failed logins are rate-limited\n```\n\nAI (or UI) parses these into structured criteria.\n\n### AI Works on Ticket\nAs AI implements, it verifies criteria:\n\n```\nClaude: \"I've implemented login. Let me verify the acceptance criteria...\"\nClaude: *runs tests*\nClaude: *calls update_acceptance_criterion(ticketId, criterionId, { \n  status: 'passed', \n  verifiedBy: 'claude',\n  verificationNote: 'auth.test.ts passes, manual login works'\n})*\n```\n\n### Completion\nWhen all criteria are `passed`, ticket can move to review. The verification trail shows exactly how each criterion was validated.\n\n## MCP Tool Changes\n\n### Remove\n- `update_ticket_subtask` → Replace with `update_acceptance_criterion`\n\n### Add\n```typescript\n// Update a single criterion\nupdate_acceptance_criterion(\n  ticketId: string,\n  criterionId: string,\n  update: {\n    status: 'pending' | 'passed' | 'failed' | 'skipped';\n    verificationNote?: string;\n  }\n)\n\n// Parse criteria from description (on ticket create/update)\nparse_acceptance_criteria(ticketId: string)\n// Extracts `- [ ]` items from description into structured criteria\n```\n\n## UI Changes\n\n### Ticket Modal\n- Show acceptance criteria with status badges\n- Color coding: green (passed), red (failed), gray (pending)\n- Show who verified and how\n- Human can override AI verification\n\n### Ticket Card (Kanban)\n```\n┌─────────────────────────┐\n│ Implement auth          │\n│ ██████░░░░ 2/4 criteria │\n└─────────────────────────┘\n```\n\n### Analytics Dashboard\n- \"X% of criteria verified by AI\"\n- \"Average criteria per ticket\"\n- \"Most common failure reasons\"\n\n## Acceptance Criteria (Meta!)\n\n- [ ] Database schema updated with new field structure\n- [ ] Migration script converts existing subtasks\n- [ ] MCP tool `update_acceptance_criterion` implemented\n- [ ] MCP tool `parse_acceptance_criteria` implemented\n- [ ] UI shows criteria with status badges\n- [ ] AI can mark criteria as passed with verification notes\n- [ ] Humans can override AI verification\n- [ ] Telemetry captures criterion verification events\n- [ ] Documentation updated\n\n## Benefits\n\n1. **Clear contract** - Human defines \"done\", AI verifies\n2. **Audit trail** - Know who verified what and how\n3. **No duplication** - Claude Tasks for work breakdown, Criteria for verification\n4. **Better AI workflow** - AI has clear success criteria to check against\n5. **Telemetry-friendly** - Verification events feed into observability",
+      "priority": "high",
+      "tags": [
+        "architecture",
+        "ai-workflow",
+        "tickets",
+        "ux"
+      ]
+    },
+    {
+      "id": "911b1e29-cd0f-443b-9409-725f74d06edb",
+      "title": "Include ticket comments in start_ticket_work context",
+      "passes": true,
+      "overview": "When AI calls `start_ticket_work`, it receives:\n- ✅ Ticket description\n- ✅ Acceptance criteria (from subtasks)\n- ✅ Attachments and images (loaded as base64)\n- ❌ **Comments - NOT included!**\nThis means valuable context added via comments is invisible to the AI when starting work.\nAdd telemetry event when AI starts work to confirm what context was loaded:\n```javascript\n// Log what context AI received\nlog_tool_event(sessionId, 'context_loaded', {\n  hasDescription: !!description,\n  hasAcceptanceCriteria: acceptanceCriteria.length > 0,\n  commentCount: comments.length,\n  attachmentCount: attachmentBlocks.length,\n  imageCount: attachmentBlocks.filter(b => b.type === 'image').length\n});\n```\nThis creates audit trail: \"AI received 3 comments, 2 images, 5 acceptance criteria\"",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`start_ticket_work` fetches and includes comments",
+        "Comments formatted clearly with author, type, date",
+        "Comments appear after description, before acceptance criteria",
+        "Long comment threads are summarized (e.g., last 10 comments)",
+        "Telemetry logs what context was provided",
+        "`verifiedBy` field supports all AI providers"
       ],
       "references": [
         "mcp-server/tools/workflow.js"
       ],
-      "description": "## Overview\nWhen `start_ticket_work` is called, include any ticket attachments (screenshots, mockups, diagrams) in the MCP response so the LLM can see visual context.\n\n## Problem\nCurrently, attachments are stored but never sent to the LLM:\n- **Database:** `tickets.attachments` contains filenames like `[\"mockup.png\", \"design.jpg\"]`\n- **Filesystem:** Files stored at `~/.brain-dump/attachments/{ticketId}/`\n- **MCP Response:** Only returns text content, images are ignored\n\n## Acceptance Criteria\n- [ ] Read `ticket.attachments` JSON array when starting work\n- [ ] Load image files from `~/.brain-dump/attachments/{ticketId}/`\n- [ ] Convert images to base64 and include as MCP `image` content blocks\n- [ ] Support common image formats: PNG, JPEG, GIF, WebP\n- [ ] For non-image attachments (PDF, MD, TXT), include as text or reference\n- [ ] Handle missing files gracefully (log warning, don't fail)\n- [ ] Respect reasonable size limits (skip files > 5MB with warning)\n\n## Implementation Notes\n\n### MCP Image Content Block Format\n```javascript\n{\n  type: \"image\",\n  data: \"base64-encoded-image-data\",\n  mimeType: \"image/png\"\n}\n```\n\n### Files to Modify\n- `mcp-server/tools/workflow.js` - `start_ticket_work` handler (~line 234-348)\n\n### Pseudocode\n```javascript\n// In start_ticket_work handler, after getting ticket:\nconst contentBlocks = [];\n\n// Add main text content\ncontentBlocks.push({ type: \"text\", text: ticketDescription });\n\n// Add image attachments\nif (ticket.attachments) {\n  const attachments = JSON.parse(ticket.attachments);\n  for (const filename of attachments) {\n    const filePath = path.join(attachmentsDir, ticket.id, filename);\n    if (fs.existsSync(filePath) && isImage(filename)) {\n      const data = fs.readFileSync(filePath).toString('base64');\n      const mimeType = getMimeType(filename);\n      contentBlocks.push({ type: \"image\", data, mimeType });\n    }\n  }\n}\n\nreturn { content: contentBlocks };\n```\n\n## Testing\n- Create ticket with PNG attachment, start work, verify image appears in context\n- Create ticket with multiple attachments, verify all are included\n- Create ticket with missing attachment file, verify graceful handling\n- Create ticket with large file (>5MB), verify it's skipped with warning\n\n## Why This Matters\nFor UI tickets like Sprint 8 visual integration, the LLM needs to SEE the mockups to implement them accurately. Without this, we're describing visual designs in words when a picture would be worth 1000 tokens.\n\n\n## INSTRUCTIONs\nmake sure to createa a new branch that this will live in and a new github PR for this work",
+      "description": "## Problem\n\nWhen AI calls `start_ticket_work`, it receives:\n- ✅ Ticket description\n- ✅ Acceptance criteria (from subtasks)\n- ✅ Attachments and images (loaded as base64)\n- ❌ **Comments - NOT included!**\n\nThis means valuable context added via comments is invisible to the AI when starting work.\n\n## Example\n\nA ticket has:\n1. Original description with basic requirements\n2. Comment added later: \"Also need to handle edge case X\"\n3. Comment from previous session: \"Tried approach Y, didn't work because Z\"\n\nAI starts work → Only sees #1, misses #2 and #3.\n\n## Solution\n\nUpdate `start_ticket_work` in `mcp-server/tools/workflow.js` to fetch and include comments.\n\n### Code Change\n\n```javascript\n// After fetching the ticket, also fetch comments\nconst comments = db.prepare(`\n  SELECT content, author, type, created_at \n  FROM ticket_comments \n  WHERE ticket_id = ? \n  ORDER BY created_at ASC\n`).all(ticketId);\n\n// Add comments section to the response\nlet commentsSection = \"\";\nif (comments.length > 0) {\n  commentsSection = `\\n### Previous Comments\\n\\n${comments.map(c => \n    `**${c.author}** (${c.type}) - ${new Date(c.created_at).toLocaleDateString()}:\\n${c.content}`\n  ).join(\"\\n\\n---\\n\\n\")}\\n`;\n}\n\n// Include in main text block\nconst mainTextBlock = {\n  type: \"text\",\n  text: `## Started Work on Ticket\n  ...\n  ### Description\n  ${description}\n  ${commentsSection}  // ADD THIS\n  ### Acceptance Criteria\n  ...\n  `\n};\n```\n\n## Providers to Track\n\nUpdate `verifiedBy` in acceptance criteria to include all AI providers:\n\n```typescript\nverifiedBy?: \n  | 'human'\n  | 'claude'\n  | 'ralph'\n  | 'opencode'\n  | 'cursor'\n  | 'windsurf'\n  | 'copilot'\n  | 'test'\n  | 'ci';\n```\n\n## Context Verification\n\nAdd telemetry event when AI starts work to confirm what context was loaded:\n\n```javascript\n// Log what context AI received\nlog_tool_event(sessionId, 'context_loaded', {\n  hasDescription: !!description,\n  hasAcceptanceCriteria: acceptanceCriteria.length > 0,\n  commentCount: comments.length,\n  attachmentCount: attachmentBlocks.length,\n  imageCount: attachmentBlocks.filter(b => b.type === 'image').length\n});\n```\n\nThis creates audit trail: \"AI received 3 comments, 2 images, 5 acceptance criteria\"\n\n## Acceptance Criteria\n\n- [ ] `start_ticket_work` fetches and includes comments\n- [ ] Comments formatted clearly with author, type, date\n- [ ] Comments appear after description, before acceptance criteria\n- [ ] Long comment threads are summarized (e.g., last 10 comments)\n- [ ] Telemetry logs what context was provided\n- [ ] `verifiedBy` field supports all AI providers",
       "priority": "high",
       "tags": [
         "mcp",
-        "attachments",
+        "context",
         "workflow",
-        "llm-context"
+        "ai-workflow"
+      ]
+    },
+    {
+      "id": "9155ae99-8d69-46a8-8b53-36dce40cbe0c",
+      "title": "Ensure AI reviews attached images before implementing UI tickets",
+      "passes": true,
+      "overview": "When tickets have attached mockup images, Claude appears to ignore them and implements based on text description only. This results in UI implementations that don't match the design.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Login button styled per mockup (see attached image)",
+        "Form layout matches design (see attached image)",
+        "`start_ticket_work` adds prominent warning when images attached",
+        "Warning explicitly tells AI to review images first",
+        "Telemetry logs image loading success/failure",
+        "Images over 1MB show warning",
+        "Fallback text description for failed images",
+        "Test with actual UI ticket to verify behavior change"
+      ],
+      "references": [
+        "[MCP Spec - Tool Results](https://modelcontextprotocol.io/specification/2025-11-25)",
+        "[Cline MCP Image Issue](https://github.com/cline/cline/issues/1865)",
+        "[Gemini CLI Image Issue](https://github.com/google-gemini/gemini-cli/issues/2136)"
+      ],
+      "description": "## Problem\n\nWhen tickets have attached mockup images, Claude appears to ignore them and implements based on text description only. This results in UI implementations that don't match the design.\n\n## Current Behavior\n\n1. User uploads mockup image to ticket\n2. `start_ticket_work` loads image as base64 MCP content block\n3. Response structure:\n   ```\n   [Text block with description]\n   [Image block(s)]\n   ```\n4. Claude implements based on text, ignores images\n\n## Root Causes\n\n### 1. No Explicit Instruction\nCurrent response says:\n```\n### Attachments\n- 2 image(s) included below\n```\n\nShould say:\n```\n### ⚠️ DESIGN MOCKUPS ATTACHED\nIMPORTANT: Review the attached mockup images BEFORE implementing. \nThe images show the expected UI design. Your implementation must match these visuals.\n- 2 mockup image(s) included below\n```\n\n### 2. Images After Text\nClaude may prioritize text that comes first. Consider:\n- Moving images before acceptance criteria\n- Adding explicit \\\"see image above\\\" references in criteria\n\n### 3. MCP Image Support Varies\nPer MCP spec: \\\"Non-text content types may not be processed by all clients\\\"\n- Claude Code: Should work but needs verification\n- Other clients: May not support images at all\n\n### 4. Size Limits\nMCP spec: \\\"Content must be under 1MB\\\"\n- Need to check if images are being truncated\n- Add warning if image exceeds limit\n\n## Solution\n\n### 1. Update `start_ticket_work` Response\n\n```javascript\n// Detect if ticket has UI-related images\nconst hasDesignMockups = attachmentBlocks.some(b => b.type === 'image');\n\n// Add prominent warning if mockups exist\nconst designWarning = hasDesignMockups ? `\n## ⚠️ DESIGN MOCKUPS ATTACHED\n\n**STOP! Before implementing, review the attached images.**\nThese mockups show the expected UI design. Your implementation MUST match:\n- Layout and component structure\n- Spacing and alignment\n- Visual styling\n- All visible elements\n\nThe images are included below. Reference them throughout implementation.\n` : '';\n\n// Build response with images prominently placed\nconst mainTextBlock = {\n  type: \\\"text\\\",\n  text: `## Started Work on Ticket\n${designWarning}\n**Branch:** ...\n...\n`\n};\n```\n\n### 2. Add Image Verification Telemetry\n\nLog whether images were actually loaded and their sizes:\n\n```javascript\nif (hasDesignMockups) {\n  log_tool_event(sessionId, 'design_mockups_loaded', {\n    count: imageBlocks.length,\n    totalSizeKB: totalImageSize / 1024,\n    filenames: imageFilenames\n  });\n}\n```\n\n### 3. Acceptance Criteria Image References\n\nWhen parsing acceptance criteria, detect UI-related items and add image references:\n\n```\n- [ ] Login button styled per mockup (see attached image)\n- [ ] Form layout matches design (see attached image)\n```\n\n### 4. Add Size Warnings\n\n```javascript\nif (imageSize > 1024 * 1024) {\n  warnings.push(`Image ${filename} exceeds 1MB limit and may not be visible to AI`);\n}\n```\n\n### 5. Fallback: Image Description\n\nIf image processing fails, at least describe what the image shows:\n\n```javascript\n// Store image descriptions in ticket metadata\n{\n  \\\"image_descriptions\\\": [\n    { \\\"filename\\\": \\\"mockup.png\\\", \\\"description\\\": \\\"Login form with email/password fields, blue submit button\\\" }\n  ]\n}\n```\n\n## Testing\n\n1. Create ticket with UI mockup attached\n2. Call `start_ticket_work`\n3. Verify Claude references the image in implementation\n4. Compare result to mockup\n\n## Acceptance Criteria\n\n- [ ] `start_ticket_work` adds prominent warning when images attached\n- [ ] Warning explicitly tells AI to review images first\n- [ ] Telemetry logs image loading success/failure\n- [ ] Images over 1MB show warning\n- [ ] Fallback text description for failed images\n- [ ] Test with actual UI ticket to verify behavior change\n\n## References\n\n- [MCP Spec - Tool Results](https://modelcontextprotocol.io/specification/2025-11-25)\n- [Cline MCP Image Issue](https://github.com/cline/cline/issues/1865)\n- [Gemini CLI Image Issue](https://github.com/google-gemini/gemini-cli/issues/2136)",
+      "priority": "high",
+      "tags": [
+        "mcp",
+        "images",
+        "ui",
+        "ai-workflow",
+        "multimodal"
+      ]
+    },
+    {
+      "id": "dd16c123-5db2-4453-85be-146d74866e7a",
+      "title": "Add image type tags and metadata for AI context",
+      "passes": true,
+      "overview": "Add metadata and type tags to ticket attachments so AI understands the **intent** behind each image, not just the raw pixels. This helps AI behave appropriately - implement a mockup vs debug a bug screenshot.\nCurrently, attachments are just filenames:\n```json\n{ \\\"attachments\\\": [\\\"image1.png\\\", \\\"image2.png\\\"] }\n```\nAI doesn't know:\n- Is this a design to implement or a bug to fix?\n- Which image is the primary reference?\n- What does the human want me to do with this?",
+      "types": [
+        {
+          "name": "TicketAttachment",
+          "code": "interface TicketAttachment {\n  id: string;\n  filename: string;\n  \n  // Image type - tells AI how to interpret\n  type: \n    | 'mockup'           // UI design to implement\n    | 'wireframe'        // Low-fidelity layout reference\n    | 'bug-screenshot'   // Shows the broken behavior\n    | 'expected-behavior'// What it should look like\n    | 'actual-behavior'  // Current broken state (for bugs)\n    | 'diagram'          // Architecture, flow, technical diagram\n    | 'error-message'    // Screenshot of error/exception\n    | 'console-log'      // Dev tools output\n    | 'reference'        // General inspiration/reference\n    | 'asset';           // Logo, icon, image to use directly\n  \n  // Human-provided context\n  description?: string;\n  \n  // Importance\n  priority: 'primary' | 'supplementary';\n  \n  // Link to specific acceptance criteria\n  linkedCriteria?: string[];\n  \n  // Audit trail\n  uploadedBy: 'human' | 'claude' | 'ralph' | 'opencode' | 'cursor' | 'windsurf';\n  uploadedAt: string;\n}"
+        }
+      ],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Login form matches design (linked: mockup-v2.png)",
+        "Error state displays correctly (linked: error-state.png)",
+        "Login form matches design",
+        "Attachments have type, description, priority fields",
+        "Upload UI prompts for image type",
+        "Migration preserves existing attachments",
+        "`start_ticket_work` generates type-aware context",
+        "Mockups prominently say \\\"IMPLEMENT TO MATCH\\\"",
+        "Bug screenshots say \\\"THIS IS BROKEN\\\"",
+        "Images can link to acceptance criteria",
+        "MCP tool to update attachment metadata",
+        "Telemetry logs attachment types loaded"
+      ],
+      "references": [
+        "src/lib/schema.ts",
+        "src/api/attachments.ts",
+        "src/components/TicketModal.tsx",
+        "mcp-server/tools/workflow.js",
+        "mcp-server/tools/tickets.js"
+      ],
+      "description": "## Overview\n\nAdd metadata and type tags to ticket attachments so AI understands the **intent** behind each image, not just the raw pixels. This helps AI behave appropriately - implement a mockup vs debug a bug screenshot.\n\n## Problem\n\nCurrently, attachments are just filenames:\n```json\n{ \\\"attachments\\\": [\\\"image1.png\\\", \\\"image2.png\\\"] }\n```\n\nAI doesn't know:\n- Is this a design to implement or a bug to fix?\n- Which image is the primary reference?\n- What does the human want me to do with this?\n\n## Solution\n\n### New Data Model\n\n```typescript\ninterface TicketAttachment {\n  id: string;\n  filename: string;\n  \n  // Image type - tells AI how to interpret\n  type: \n    | 'mockup'           // UI design to implement\n    | 'wireframe'        // Low-fidelity layout reference\n    | 'bug-screenshot'   // Shows the broken behavior\n    | 'expected-behavior'// What it should look like\n    | 'actual-behavior'  // Current broken state (for bugs)\n    | 'diagram'          // Architecture, flow, technical diagram\n    | 'error-message'    // Screenshot of error/exception\n    | 'console-log'      // Dev tools output\n    | 'reference'        // General inspiration/reference\n    | 'asset';           // Logo, icon, image to use directly\n  \n  // Human-provided context\n  description?: string;\n  \n  // Importance\n  priority: 'primary' | 'supplementary';\n  \n  // Link to specific acceptance criteria\n  linkedCriteria?: string[];\n  \n  // Audit trail\n  uploadedBy: 'human' | 'claude' | 'ralph' | 'opencode' | 'cursor' | 'windsurf';\n  uploadedAt: string;\n}\n```\n\n### Database Migration\n\n```sql\n-- Current: attachments is JSON array of filenames\n-- New: attachments is JSON array of attachment objects\n\n-- Migration transforms:\n-- [\\\"mockup.png\\\"] \n-- → [{ \\\"id\\\": \\\"...\\\", \\\"filename\\\": \\\"mockup.png\\\", \\\"type\\\": \\\"reference\\\", \\\"priority\\\": \\\"primary\\\" }]\n```\n\n### UI: Upload Flow\n\nWhen uploading an image, prompt for metadata:\n\n```\n┌─────────────────────────────────────────┐\n│ 📎 Upload Attachment                    │\n├─────────────────────────────────────────┤\n│ [mockup-v2.png]                         │\n│                                         │\n│ What is this image?                     │\n│ ● 🎨 Mockup/Design                      │\n│ ○ 📐 Wireframe                          │\n│ ○ 🐛 Bug Screenshot                     │\n│ ○ ✅ Expected Behavior                  │\n│ ○ ❌ Actual Behavior                    │\n│ ○ 📊 Diagram                            │\n│ ○ ⚠️ Error Message                      │\n│ ○ 📝 Reference                          │\n│ ○ 🖼️ Asset                              │\n│                                         │\n│ Description (optional):                 │\n│ [New login page with dark mode support] │\n│                                         │\n│ Priority: ● Primary  ○ Supplementary    │\n│                                         │\n│            [Cancel]  [Upload]           │\n└─────────────────────────────────────────┘\n```\n\n### AI Context Generation\n\nUpdate `start_ticket_work` to generate context-aware instructions based on image types:\n\n```javascript\nfunction generateAttachmentContext(attachments) {\n  const byType = groupBy(attachments, 'type');\n  let context = '## Attachments\\\\n\\\\n';\n  \n  // Mockups first - most important for implementation\n  if (byType.mockup?.length) {\n    context += '### 🎨 Design Mockups (IMPLEMENT TO MATCH)\\\\n';\n    for (const img of byType.mockup) {\n      context += `**${img.filename}**`;\n      if (img.description) context += ` - \\\"${img.description}\\\"`;\n      if (img.priority === 'primary') context += ' ⭐ PRIMARY';\n      context += '\\\\n→ Your implementation MUST match this design\\\\n\\\\n';\n    }\n  }\n  \n  // Bug screenshots\n  if (byType['bug-screenshot']?.length) {\n    context += '### 🐛 Bug Screenshots (THIS IS BROKEN)\\\\n';\n    for (const img of byType['bug-screenshot']) {\n      context += `**${img.filename}**`;\n      if (img.description) context += ` - \\\"${img.description}\\\"`;\n      context += '\\\\n→ This shows what\\\\'s wrong - fix this behavior\\\\n\\\\n';\n    }\n  }\n  \n  // Expected vs actual for bugs\n  if (byType['expected-behavior']?.length || byType['actual-behavior']?.length) {\n    context += '### 🔄 Expected vs Actual\\\\n';\n    if (byType['expected-behavior']) {\n      context += `✅ Expected: ${byType['expected-behavior'].map(i => i.filename).join(', ')}\\\\n`;\n    }\n    if (byType['actual-behavior']) {\n      context += `❌ Actual: ${byType['actual-behavior'].map(i => i.filename).join(', ')}\\\\n`;\n    }\n    context += '→ Transform actual to match expected\\\\n\\\\n';\n  }\n  \n  // Diagrams for reference\n  if (byType.diagram?.length) {\n    context += '### 📊 Diagrams (REFERENCE)\\\\n';\n    for (const img of byType.diagram) {\n      context += `**${img.filename}**`;\n      if (img.description) context += ` - \\\"${img.description}\\\"`;\n      context += '\\\\n→ Use for understanding architecture/flow\\\\n\\\\n';\n    }\n  }\n  \n  // ... other types\n  \n  return context;\n}\n```\n\n### MCP Tool Update\n\nAdd tool to update attachment metadata:\n\n```typescript\nupdate_attachment_metadata(\n  ticketId: string,\n  attachmentId: string,\n  metadata: {\n    type?: AttachmentType;\n    description?: string;\n    priority?: 'primary' | 'supplementary';\n    linkedCriteria?: string[];\n  }\n)\n```\n\n### Link to Acceptance Criteria\n\nAllow linking images to specific criteria:\n\n```\nAcceptance Criteria:\n- [ ] Login form matches design (linked: mockup-v2.png)\n- [ ] Error state displays correctly (linked: error-state.png)\n```\n\nAI sees:\n```\n- [ ] Login form matches design\n  → See attached: mockup-v2.png (mockup, primary)\n```\n\n## Files to Modify\n\n- `src/lib/schema.ts` - Update attachments type\n- `src/api/attachments.ts` - Handle new metadata\n- `src/components/TicketModal.tsx` - Upload UI with type picker\n- `mcp-server/tools/workflow.js` - Generate context-aware instructions\n- `mcp-server/tools/tickets.js` - Add update_attachment_metadata tool\n\n## Acceptance Criteria\n\n- [ ] Attachments have type, description, priority fields\n- [ ] Upload UI prompts for image type\n- [ ] Migration preserves existing attachments\n- [ ] `start_ticket_work` generates type-aware context\n- [ ] Mockups prominently say \\\"IMPLEMENT TO MATCH\\\"\n- [ ] Bug screenshots say \\\"THIS IS BROKEN\\\"\n- [ ] Images can link to acceptance criteria\n- [ ] MCP tool to update attachment metadata\n- [ ] Telemetry logs attachment types loaded\n\n## Future Enhancements\n\n- Auto-detect image type using vision AI\n- Inline images in description: `![](attachment:mockup.png)`\n- Version history for attachments\n- Diff view for expected vs actual",
+      "priority": "high",
+      "tags": [
+        "attachments",
+        "images",
+        "metadata",
+        "ai-workflow",
+        "ux"
       ]
     }
   ],
@@ -187,5 +328,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-22T16:19:31.254Z"
+  "generatedAt": "2026-01-23T05:46:33.349Z",
+  "epicTitle": "AI Telemetry & Observability",
+  "epicDescription": "Capture full AI interaction telemetry when Claude works on Brain Dump tickets. Gives businesses complete visibility into: prompts received, tools used, MCP calls made, internal task breakdown, timing data, and token usage. Essential for enterprise audit trails, debugging, cost tracking, and understanding AI work patterns."
 }
