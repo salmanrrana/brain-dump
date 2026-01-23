@@ -18,7 +18,7 @@ import { ticketFormSchema } from "./ticket-form-schema.js";
  * Business logic validation rules:
  * - title: Required, non-empty
  * - tags: Array of strings (sanitized)
- * - subtasks: Array with valid structure
+ * - acceptanceCriteria: Array with valid structure
  */
 export const serverValidateTicket = createServerValidate({
   ...ticketFormOpts,
@@ -58,14 +58,14 @@ export const serverValidateTicket = createServerValidate({
       }
     }
 
-    // Subtasks validation
-    if (value.subtasks) {
-      if (value.subtasks.length > 100) {
-        return { subtasks: "Cannot have more than 100 subtasks" };
+    // Acceptance criteria validation
+    if (value.acceptanceCriteria) {
+      if (value.acceptanceCriteria.length > 100) {
+        return { acceptanceCriteria: "Cannot have more than 100 acceptance criteria" };
       }
-      for (const subtask of value.subtasks) {
-        if (subtask.text.length > 500) {
-          return { subtasks: "Each subtask text cannot exceed 500 characters" };
+      for (const criterion of value.acceptanceCriteria) {
+        if (criterion.criterion.length > 500) {
+          return { acceptanceCriteria: "Each criterion text cannot exceed 500 characters" };
         }
       }
     }

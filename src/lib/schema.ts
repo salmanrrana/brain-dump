@@ -334,3 +334,124 @@ export type AuditAction = "read" | "export" | "delete" | "legal_hold";
 
 // Audit result types
 export type AuditResult = "success" | "denied" | "error";
+
+// ============================================
+// AI Telemetry Tables
+// ============================================
+
+// Telemetry sessions track a full AI work session on a ticket
+export const telemetrySessions = sqliteTable(
+  "telemetry_sessions",
+  {
+    id: text("id").primaryKey(),
+    ticketId: text("ticket_id").references(() => tickets.id, {
+      onDelete: "cascade",
+    }),
+    projectId: text("project_id").references(() => projects.id, {
+      onDelete: "cascade",
+    }),
+    environment: text("environment").notNull().default("unknown"), // 'claude-code', 'vscode', 'cursor', etc.
+    branchName: text("branch_name"), // Git branch being worked on
+    claudeSessionId: text("claude_session_id"), // Claude's internal session ID if available
+    startedAt: text("started_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    endedAt: text("ended_at"),
+    // Summary stats computed at session end
+    totalPrompts: integer("total_prompts").default(0),
+    totalToolCalls: integer("total_tool_calls").default(0),
+    totalDurationMs: integer("total_duration_ms"),
+    totalTokens: integer("total_tokens"),
+    outcome: text("outcome"), // 'success', 'failure', 'timeout', 'cancelled'
+  },
+  (table) => [
+    index("idx_telemetry_sessions_ticket").on(table.ticketId),
+    index("idx_telemetry_sessions_project").on(table.projectId),
+    index("idx_telemetry_sessions_started").on(table.startedAt),
+  ]
+);
+
+export type TelemetrySession = typeof telemetrySessions.$inferSelect;
+export type NewTelemetrySession = typeof telemetrySessions.$inferInsert;
+
+// Telemetry events capture individual interactions during a session
+export const telemetryEvents = sqliteTable(
+  "telemetry_events",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => telemetrySessions.id, { onDelete: "cascade" }),
+    ticketId: text("ticket_id").references(() => tickets.id, {
+      onDelete: "cascade",
+    }),
+    eventType: text("event_type").notNull(), // 'prompt', 'tool_start', 'tool_end', 'mcp_call', 'task_created', 'task_completed', 'error'
+    toolName: text("tool_name"), // For tool events: 'Edit', 'Bash', 'mcp__brain-dump__*', etc.
+    eventData: text("event_data"), // JSON: params, result summary, error details
+    durationMs: integer("duration_ms"), // For tool_end events
+    tokenCount: integer("token_count"), // For prompt events if available
+    isError: integer("is_error", { mode: "boolean" }).default(false),
+    // For pairing tool_start/tool_end events
+    correlationId: text("correlation_id"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    index("idx_telemetry_events_session").on(table.sessionId),
+    index("idx_telemetry_events_ticket").on(table.ticketId),
+    index("idx_telemetry_events_type").on(table.eventType),
+    index("idx_telemetry_events_created").on(table.createdAt),
+    index("idx_telemetry_events_correlation").on(table.correlationId),
+  ]
+);
+
+export type TelemetryEvent = typeof telemetryEvents.$inferSelect;
+export type NewTelemetryEvent = typeof telemetryEvents.$inferInsert;
+
+// Telemetry event types
+export type TelemetryEventType =
+  | "session_start" // Session began
+  | "session_end" // Session ended
+  | "prompt" // User prompt submitted
+  | "tool_start" // Tool call started
+  | "tool_end" // Tool call completed
+  | "mcp_call" // MCP tool invocation
+  | "task_created" // Claude Task created
+  | "task_started" // Claude Task started
+  | "task_completed" // Claude Task completed
+  | "context_loaded" // Context loaded (files, comments, images)
+  | "error"; // Error occurred
+
+// Event data interfaces for type safety
+export interface PromptEventData {
+  prompt: string;
+  promptLength: number;
+  redacted?: boolean;
+}
+
+export interface ToolEventData {
+  toolName: string;
+  params?: Record<string, unknown>;
+  paramsSummary?: string;
+  result?: string;
+  resultSummary?: string;
+  success?: boolean;
+  error?: string;
+}
+
+export interface TaskEventData {
+  taskId: string;
+  subject?: string;
+  description?: string;
+  outcome?: string;
+}
+
+export interface ContextLoadedEventData {
+  hasDescription: boolean;
+  hasAcceptanceCriteria: boolean;
+  criteriaCount: number;
+  commentCount: number;
+  attachmentCount: number;
+  imageCount: number;
+}

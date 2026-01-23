@@ -8,7 +8,7 @@ const defaultTicket: TicketFormData = {
   priority: undefined,
   epicId: undefined,
   tags: [],
-  subtasks: [],
+  acceptanceCriteria: [],
   isBlocked: false,
   blockedReason: "",
 };
