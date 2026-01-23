@@ -429,6 +429,14 @@ function fetchTicketComments(db, ticketId) {
   };
 }
 
+/** Comment type to display label mapping */
+const COMMENT_TYPE_LABELS = {
+  work_summary: "📋 Work Summary",
+  test_report: "🧪 Test Report",
+  progress: "📈 Progress",
+  comment: "💬 Comment",
+};
+
 /**
  * Format a single comment for display.
  * @param {{ content: string, author: string, type: string, created_at: string }} comment
@@ -441,10 +449,7 @@ function formatComment(comment) {
     month: "short",
     day: "numeric",
   });
-  const typeLabel = comment.type === "work_summary" ? "📋 Work Summary" :
-                    comment.type === "test_report" ? "🧪 Test Report" :
-                    comment.type === "progress" ? "📈 Progress" :
-                    "💬 Comment";
+  const typeLabel = COMMENT_TYPE_LABELS[comment.type] || "💬 Comment";
 
   return `**${comment.author}** (${typeLabel}) - ${dateStr}:\n${comment.content}`;
 }

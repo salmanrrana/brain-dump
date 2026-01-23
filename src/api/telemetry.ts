@@ -81,6 +81,19 @@ export const getTelemetrySessions = createServerFn({ method: "GET" })
     return sessions;
   });
 
+/**
+ * Safely parse JSON event data, returning a parse error marker on failure.
+ */
+function parseEventData(eventData: string | null, eventId: string): Record<string, unknown> | null {
+  if (!eventData) return null;
+  try {
+    return JSON.parse(eventData);
+  } catch {
+    console.error(`Failed to parse telemetry event ${eventId}: invalid JSON`);
+    return { _parseError: true };
+  }
+}
+
 // Get a single telemetry session with its events
 export const getTelemetrySession = createServerFn({ method: "GET" })
   .inputValidator((data: { sessionId: string; includeEvents?: boolean; eventLimit?: number }) => {
@@ -116,7 +129,7 @@ export const getTelemetrySession = createServerFn({ method: "GET" })
 
       events = rawEvents.map((e) => ({
         ...e,
-        eventData: e.eventData ? JSON.parse(e.eventData) : null,
+        eventData: parseEventData(e.eventData, e.id),
       }));
       eventCount = rawEvents.length;
     }
@@ -159,7 +172,7 @@ export const getLatestTelemetrySession = createServerFn({ method: "GET" })
 
     const events = rawEvents.map((e) => ({
       ...e,
-      eventData: e.eventData ? JSON.parse(e.eventData) : null,
+      eventData: parseEventData(e.eventData, e.id),
     }));
 
     return {

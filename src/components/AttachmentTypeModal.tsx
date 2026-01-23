@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Modal for selecting attachment metadata during upload.
  * Prompts users to specify attachment type, description, and priority.
@@ -74,6 +76,19 @@ const TYPE_CATEGORIES = [
   },
 ];
 
+/** Pattern-to-type mapping for auto-detection */
+const FILENAME_PATTERNS: Array<{ patterns: string[]; type: AttachmentType }> = [
+  { patterns: ["mockup", "design"], type: "mockup" },
+  { patterns: ["wireframe"], type: "wireframe" },
+  { patterns: ["bug", "broken"], type: "bug-screenshot" },
+  { patterns: ["expected"], type: "expected-behavior" },
+  { patterns: ["actual", "current"], type: "actual-behavior" },
+  { patterns: ["error", "exception"], type: "error-message" },
+  { patterns: ["console", "log"], type: "console-log" },
+  { patterns: ["diagram", "flow", "architecture"], type: "diagram" },
+  { patterns: ["logo", "icon", "asset"], type: "asset" },
+];
+
 /**
  * Auto-detect attachment type based on filename patterns.
  * Used to provide sensible defaults for common naming conventions.
@@ -81,32 +96,10 @@ const TYPE_CATEGORIES = [
 function detectTypeFromFilename(filename: string): AttachmentType {
   const lowerFilename = filename.toLowerCase();
 
-  if (lowerFilename.includes("mockup") || lowerFilename.includes("design")) {
-    return "mockup";
-  } else if (lowerFilename.includes("wireframe")) {
-    return "wireframe";
-  } else if (lowerFilename.includes("bug") || lowerFilename.includes("broken")) {
-    return "bug-screenshot";
-  } else if (lowerFilename.includes("expected")) {
-    return "expected-behavior";
-  } else if (lowerFilename.includes("actual") || lowerFilename.includes("current")) {
-    return "actual-behavior";
-  } else if (lowerFilename.includes("error") || lowerFilename.includes("exception")) {
-    return "error-message";
-  } else if (lowerFilename.includes("console") || lowerFilename.includes("log")) {
-    return "console-log";
-  } else if (
-    lowerFilename.includes("diagram") ||
-    lowerFilename.includes("flow") ||
-    lowerFilename.includes("architecture")
-  ) {
-    return "diagram";
-  } else if (
-    lowerFilename.includes("logo") ||
-    lowerFilename.includes("icon") ||
-    lowerFilename.includes("asset")
-  ) {
-    return "asset";
+  for (const { patterns, type } of FILENAME_PATTERNS) {
+    if (patterns.some((p) => lowerFilename.includes(p))) {
+      return type;
+    }
   }
 
   return "reference";
