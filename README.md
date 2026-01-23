@@ -57,16 +57,17 @@ Open [localhost:4242](http://localhost:4242). Done.
 | `pnpm build`     | Build for production                |
 | `pnpm db:studio` | Browse database with Drizzle Studio |
 
-### CLI
+### CLI (Database Utilities)
 
-| Command                   | Description                   |
-| ------------------------- | ----------------------------- |
-| `brain-dump current`      | Show current ticket           |
-| `brain-dump done`         | Move current ticket to review |
-| `brain-dump complete`     | Move current ticket to done   |
-| `brain-dump backup`       | Create database backup        |
-| `brain-dump check`        | Quick integrity check         |
-| `brain-dump check --full` | Full database health check    |
+| Command                    | Description                |
+| -------------------------- | -------------------------- |
+| `brain-dump backup`        | Create database backup     |
+| `brain-dump backup --list` | List available backups     |
+| `brain-dump restore`       | Restore from backup        |
+| `brain-dump check`         | Quick integrity check      |
+| `brain-dump check --full`  | Full database health check |
+
+> **Note:** For ticket management, use MCP tools (`start_ticket_work`, `complete_ticket_work`, etc.)
 
 [Full CLI reference →](docs/cli.md)
 

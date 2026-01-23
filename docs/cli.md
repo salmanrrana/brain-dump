@@ -1,96 +1,25 @@
 # CLI Reference
 
-Brain Dump includes a command-line tool for managing tickets from the terminal. This is especially useful for Claude Code hooks and automation.
+Brain Dump includes a command-line tool for database utilities like backup, restore, and health checks.
+
+> **Note:** For ticket management, use Brain Dump's MCP tools instead:
+>
+> - `start_ticket_work` - Create branch + set status to in_progress
+> - `complete_ticket_work` - Move to review + suggest next ticket
+> - `update_ticket_status` - Change ticket status directly
+> - `add_ticket_comment` - Add work summaries or notes
 
 ## Quick Reference
 
-| Command                           | Description                   |
-| --------------------------------- | ----------------------------- |
-| `brain-dump current`              | Show current ticket           |
-| `brain-dump done`                 | Move current ticket to review |
-| `brain-dump complete`             | Move current ticket to done   |
-| `brain-dump status <id> <status>` | Set specific ticket status    |
-| `brain-dump clear`                | Clear current ticket state    |
-| `brain-dump backup`               | Create database backup        |
-| `brain-dump backup --list`        | List available backups        |
-| `brain-dump restore <file>`       | Restore from backup           |
-| `brain-dump restore --latest`     | Restore most recent backup    |
-| `brain-dump check`                | Quick integrity check         |
-| `brain-dump check --full`         | Full database health check    |
-| `brain-dump help`                 | Show help message             |
-
----
-
-## Commands
-
-### brain-dump current
-
-Show information about the ticket you're currently working on.
-
-```bash
-$ brain-dump current
-Current Ticket:
-  ID: abc-1234-5678
-  Title: Add user authentication
-  Status: in_progress
-  Priority: high
-  Project: /home/user/my-app
-  Started: 1/16/2024, 10:30:00 AM
-```
-
-If no ticket is active:
-
-```bash
-$ brain-dump current
-No ticket is currently being worked on.
-Use 'Start Work' in Brain Dump to begin working on a ticket.
-```
-
-### brain-dump done
-
-Move the current ticket to the **Review** column and clear the current ticket state.
-
-```bash
-$ brain-dump done
-✓ Ticket "Add user authentication" moved to REVIEW
-✓ Current ticket cleared. Ready for your review!
-```
-
-### brain-dump complete
-
-Move the current ticket directly to **Done** (skipping review).
-
-```bash
-$ brain-dump complete
-✓ Ticket "Add user authentication" moved to DONE
-✓ Ticket marked as Done!
-```
-
-### brain-dump status
-
-Set the status of a specific ticket by ID.
-
-```bash
-brain-dump status <ticket-id> <status>
-```
-
-**Valid statuses:** `backlog`, `ready`, `in_progress`, `review`, `ai_review`, `human_review`, `done`
-
-**Example:**
-
-```bash
-$ brain-dump status abc-1234-5678 review
-✓ Ticket "Add user authentication" moved to REVIEW
-```
-
-### brain-dump clear
-
-Clear the current ticket state without changing ticket status.
-
-```bash
-$ brain-dump clear
-✓ Current ticket state cleared.
-```
+| Command                       | Description                |
+| ----------------------------- | -------------------------- |
+| `brain-dump backup`           | Create database backup     |
+| `brain-dump backup --list`    | List available backups     |
+| `brain-dump restore <file>`   | Restore from backup        |
+| `brain-dump restore --latest` | Restore most recent backup |
+| `brain-dump check`            | Quick integrity check      |
+| `brain-dump check --full`     | Full database health check |
+| `brain-dump help`             | Show help message          |
 
 ---
 
@@ -209,33 +138,12 @@ Duration: 23ms
 
 ---
 
-## Claude Code Integration
-
-The CLI is designed to work with Claude Code hooks. Add to your `~/.claude.json`:
-
-```json
-{
-  "hooks": {
-    "PostToolUse": [
-      {
-        "command": "brain-dump done",
-        "trigger": "when the task is complete"
-      }
-    ]
-  }
-}
-```
-
-This automatically moves tickets to review when Claude finishes work.
-
----
-
 ## Exit Codes
 
 | Code | Meaning                                        |
 | ---- | ---------------------------------------------- |
 | 0    | Success                                        |
-| 1    | Error (ticket not found, database error, etc.) |
+| 1    | Error (database error, backup not found, etc.) |
 
 ---
 
@@ -249,3 +157,15 @@ The CLI uses XDG-compliant paths:
 | macOS | `~/Library/Application Support/brain-dump/` | Same                         |
 
 The CLI shares the database with the Brain Dump web UI and MCP server.
+
+---
+
+## Why MCP Tools Instead of CLI?
+
+The CLI originally included ticket management commands (`done`, `current`, `status`, etc.), but these have been removed in favor of MCP tools because:
+
+1. **Richer functionality** - MCP tools add work summaries, suggest next tickets, and link commits automatically
+2. **Better integration** - MCP tools work directly with Claude/Ralph sessions
+3. **Less maintenance** - One source of truth for ticket management logic
+
+The CLI now focuses on what MCP can't do: database backup, restore, and health checks.

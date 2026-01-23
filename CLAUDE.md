@@ -27,11 +27,11 @@ pnpm db:migrate             # Run Drizzle migrations
 pnpm db:generate            # Generate migration files from schema changes
 pnpm db:studio              # Open Drizzle Studio for database inspection
 
-# CLI tool
-pnpm brain-dump current     # Show current ticket
-pnpm brain-dump done        # Move current ticket to review
-pnpm brain-dump backup      # Create database backup
-pnpm brain-dump check       # Quick integrity check
+# CLI tool (database utilities)
+pnpm brain-dump backup        # Create database backup
+pnpm brain-dump backup --list # List available backups
+pnpm brain-dump restore       # Restore from backup
+pnpm brain-dump check         # Quick integrity check
 pnpm brain-dump check --full  # Full health check
 ```
 
