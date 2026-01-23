@@ -46,7 +46,15 @@ const STATE_FILE = `${getStateDir()}/current-ticket.json`;
 // Track active database connection for cleanup
 let activeDb: Database.Database | null = null;
 
-const VALID_STATUSES = ["backlog", "ready", "in_progress", "review", "ai_review", "human_review", "done"] as const;
+const VALID_STATUSES = [
+  "backlog",
+  "ready",
+  "in_progress",
+  "review",
+  "ai_review",
+  "human_review",
+  "done",
+] as const;
 type Status = (typeof VALID_STATUSES)[number];
 
 /**
@@ -118,9 +126,9 @@ function updateTicketStatus(ticketId: string, status: Status): boolean {
 
   try {
     // Update status
-    const result = db.prepare(
-      "UPDATE tickets SET status = ?, updated_at = datetime('now') WHERE id = ?"
-    ).run(status, ticketId);
+    const result = db
+      .prepare("UPDATE tickets SET status = ?, updated_at = datetime('now') WHERE id = ?")
+      .run(status, ticketId);
 
     if (result.changes === 0) {
       console.error("Error: Ticket not found:", ticketId);
@@ -129,14 +137,19 @@ function updateTicketStatus(ticketId: string, status: Status): boolean {
     }
 
     // Get ticket title for confirmation
-    const ticket = db.prepare("SELECT title FROM tickets WHERE id = ?").get(ticketId) as { title: string } | undefined;
+    const ticket = db.prepare("SELECT title FROM tickets WHERE id = ?").get(ticketId) as
+      | { title: string }
+      | undefined;
 
     console.log(`✓ Ticket "${ticket?.title}" moved to ${status.toUpperCase()}`);
     logger.info(`Ticket status updated: ${ticketId} -> ${status}`);
     return true;
   } catch (error) {
     console.error("Error updating ticket:", error);
-    logger.error("Failed to update ticket status", error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      "Failed to update ticket status",
+      error instanceof Error ? error : new Error(String(error))
+    );
     return false;
   } finally {
     db.close();
@@ -155,9 +168,11 @@ function showCurrentTicket(): void {
 
   const db = getDb();
   try {
-    const ticket = db.prepare(
-      "SELECT title, status, priority FROM tickets WHERE id = ?"
-    ).get(current.ticketId) as { title: string; status: string; priority: string | null } | undefined;
+    const ticket = db
+      .prepare("SELECT title, status, priority FROM tickets WHERE id = ?")
+      .get(current.ticketId) as
+      | { title: string; status: string; priority: string | null }
+      | undefined;
 
     if (!ticket) {
       console.log("Current ticket not found in database. It may have been deleted.");
@@ -345,7 +360,12 @@ function handleCheck(args: string[]): void {
 
     // Overall summary
     console.log("-".repeat(50));
-    const statusSymbol = result.overallStatus === "ok" ? "\u2713" : result.overallStatus === "warning" ? "!" : "\u2717";
+    const statusSymbol =
+      result.overallStatus === "ok"
+        ? "\u2713"
+        : result.overallStatus === "warning"
+          ? "!"
+          : "\u2717";
     console.log(`Overall Status: ${statusSymbol} ${result.overallStatus.toUpperCase()}`);
     console.log(`Duration: ${result.durationMs}ms`);
 
@@ -436,13 +456,17 @@ async function handleRestore(args: string[]): Promise<void> {
   console.log("  " + "-".repeat(40));
 
   if (currentStats) {
-    console.log(`  Current DB: ${currentStats.projects} projects, ${currentStats.epics} epics, ${currentStats.tickets} tickets`);
+    console.log(
+      `  Current DB: ${currentStats.projects} projects, ${currentStats.epics} epics, ${currentStats.tickets} tickets`
+    );
   } else {
     console.log("  Current DB: (empty or not found)");
   }
 
   if (backupStats) {
-    console.log(`  Backup:     ${backupStats.projects} projects, ${backupStats.epics} epics, ${backupStats.tickets} tickets`);
+    console.log(
+      `  Backup:     ${backupStats.projects} projects, ${backupStats.epics} epics, ${backupStats.tickets} tickets`
+    );
   } else {
     console.log("  Backup:     (unable to read stats)");
   }
