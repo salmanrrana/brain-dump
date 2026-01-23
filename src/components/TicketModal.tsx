@@ -28,6 +28,7 @@ import {
   BookOpen,
   Database,
   ExternalLink,
+  Maximize2,
   Code2,
   GitBranch,
   GitPullRequest,
@@ -920,15 +921,15 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 onClose();
                 navigate({ to: `/ticket/${ticket.id}` });
               }}
-              className="p-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              className="px-3 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] text-white rounded-lg transition-all duration-200 hover:shadow-lg hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)] focus:ring-offset-2 focus:ring-offset-[var(--bg-primary)]"
               aria-label="View full ticket details"
               title="View full ticket details"
             >
-              <ExternalLink size={20} />
+              <Maximize2 size={18} />
             </button>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              className="p-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--text-secondary)] focus:ring-offset-2 focus:ring-offset-[var(--bg-primary)]"
               aria-label="Close modal"
             >
               <X size={20} />
@@ -1404,7 +1405,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
           <div>
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
               Attachments
-              {attachments.length > 0 && (
+              {attachments && attachments.length > 0 && (
                 <span className="ml-2 text-[var(--text-tertiary)]">({attachments.length})</span>
               )}
             </label>
@@ -1451,7 +1452,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
             </div>
 
             {/* Attachment list */}
-            {attachments.length > 0 && (
+            {attachments && attachments.length > 0 && (
               <div className="mt-3 space-y-2">
                 {attachments.map((attachment) => (
                   <div
