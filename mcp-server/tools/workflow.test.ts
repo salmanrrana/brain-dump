@@ -8,6 +8,56 @@
 
 import { describe, it, expect } from "vitest";
 
+/**
+ * Test implementation of formatComment
+ * Mirrors the logic in workflow.js for testing purposes
+ */
+function formatComment(comment: {
+  content: string;
+  author: string;
+  type: string;
+  created_at: string;
+}): string {
+  const date = new Date(comment.created_at);
+  const dateStr = date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+  const typeLabel =
+    comment.type === "work_summary"
+      ? "📋 Work Summary"
+      : comment.type === "test_report"
+        ? "🧪 Test Report"
+        : comment.type === "progress"
+          ? "📈 Progress"
+          : "💬 Comment";
+
+  return `**${comment.author}** (${typeLabel}) - ${dateStr}:\n${comment.content}`;
+}
+
+/**
+ * Test implementation of buildCommentsSection
+ * Mirrors the logic in workflow.js for testing purposes
+ */
+function buildCommentsSection(
+  comments: Array<{ content: string; author: string; type: string; created_at: string }>,
+  totalCount: number,
+  truncated: boolean
+): string {
+  if (comments.length === 0) {
+    return "";
+  }
+
+  const header = truncated
+    ? `### Previous Comments (${comments.length} of ${totalCount} shown)\n\n*Note: ${totalCount - comments.length} older comment(s) not shown. Check the ticket UI for full history.*\n\n`
+    : `### Previous Comments (${totalCount})\n\n`;
+
+  const formattedComments = comments.map(formatComment).join("\n\n---\n\n");
+
+  return `${header}${formattedComments}\n`;
+}
+
 // Since workflow.js exports the functions via registerWorkflowTools,
 // we need to test the output indirectly. Here we test the helper functions
 // by re-implementing the pure logic for testing.
@@ -191,6 +241,115 @@ describe("Code Review Guidance", () => {
         const result = getCodeReviewGuidance("claude-code", [`src/file${ext}`]);
         expect(result).toContain("## Code Review Recommended");
       }
+    });
+  });
+});
+
+describe("Comments Formatting", () => {
+  describe("formatComment", () => {
+    it("should format a basic comment with author and date", () => {
+      const comment = {
+        content: "This is a test comment",
+        author: "claude",
+        type: "comment",
+        created_at: "2026-01-15T10:30:00.000Z",
+      };
+
+      const result = formatComment(comment);
+
+      expect(result).toContain("**claude**");
+      expect(result).toContain("💬 Comment");
+      expect(result).toContain("Jan 15, 2026");
+      expect(result).toContain("This is a test comment");
+    });
+
+    it("should use work summary icon for work_summary type", () => {
+      const comment = {
+        content: "Implemented the feature",
+        author: "ralph",
+        type: "work_summary",
+        created_at: "2026-01-15T10:30:00.000Z",
+      };
+
+      const result = formatComment(comment);
+
+      expect(result).toContain("📋 Work Summary");
+    });
+
+    it("should use test report icon for test_report type", () => {
+      const comment = {
+        content: "All tests passed",
+        author: "ralph",
+        type: "test_report",
+        created_at: "2026-01-15T10:30:00.000Z",
+      };
+
+      const result = formatComment(comment);
+
+      expect(result).toContain("🧪 Test Report");
+    });
+
+    it("should use progress icon for progress type", () => {
+      const comment = {
+        content: "50% complete",
+        author: "ralph",
+        type: "progress",
+        created_at: "2026-01-15T10:30:00.000Z",
+      };
+
+      const result = formatComment(comment);
+
+      expect(result).toContain("📈 Progress");
+    });
+  });
+
+  describe("buildCommentsSection", () => {
+    it("should return empty string when no comments", () => {
+      const result = buildCommentsSection([], 0, false);
+
+      expect(result).toBe("");
+    });
+
+    it("should build section with all comments when not truncated", () => {
+      const comments = [
+        {
+          content: "First comment",
+          author: "claude",
+          type: "comment",
+          created_at: "2026-01-15T10:00:00.000Z",
+        },
+        {
+          content: "Second comment",
+          author: "ralph",
+          type: "work_summary",
+          created_at: "2026-01-15T11:00:00.000Z",
+        },
+      ];
+
+      const result = buildCommentsSection(comments, 2, false);
+
+      expect(result).toContain("### Previous Comments (2)");
+      expect(result).toContain("First comment");
+      expect(result).toContain("Second comment");
+      expect(result).toContain("---"); // Separator between comments
+      expect(result).not.toContain("older comment(s) not shown");
+    });
+
+    it("should show truncation notice when comments are truncated", () => {
+      const comments = [
+        {
+          content: "Recent comment",
+          author: "claude",
+          type: "comment",
+          created_at: "2026-01-15T10:00:00.000Z",
+        },
+      ];
+
+      const result = buildCommentsSection(comments, 15, true);
+
+      expect(result).toContain("### Previous Comments (1 of 15 shown)");
+      expect(result).toContain("14 older comment(s) not shown");
+      expect(result).toContain("Check the ticket UI for full history");
     });
   });
 });
