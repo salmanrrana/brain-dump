@@ -12,11 +12,37 @@ export const ticketStatusSchema = z.enum([
 
 export const ticketPrioritySchema = z.enum(["low", "medium", "high"]);
 
-// Uses 'text' to match canonical Subtask type in api/tickets.ts
+/** @deprecated Use acceptanceCriterionSchema instead */
 export const subtaskSchema = z.object({
   id: z.string(),
   text: z.string(),
   completed: z.boolean(),
+});
+
+/** Status for acceptance criteria verification */
+export const acceptanceCriterionStatusSchema = z.enum(["pending", "passed", "failed", "skipped"]);
+
+/** Who verified the acceptance criterion */
+export const acceptanceCriterionVerifierSchema = z.enum([
+  "human",
+  "claude",
+  "ralph",
+  "opencode",
+  "cursor",
+  "windsurf",
+  "copilot",
+  "test",
+  "ci",
+]);
+
+/** Acceptance Criterion - a verifiable requirement for ticket completion */
+export const acceptanceCriterionSchema = z.object({
+  id: z.string(),
+  criterion: z.string(),
+  status: acceptanceCriterionStatusSchema,
+  verifiedBy: acceptanceCriterionVerifierSchema.optional(),
+  verifiedAt: z.string().optional(),
+  verificationNote: z.string().optional(),
 });
 
 // Note: projectId and attachments are NOT form fields - handled separately
@@ -29,7 +55,7 @@ export const ticketFormSchema = z.object({
   priority: ticketPrioritySchema.or(z.undefined()),
   epicId: z.string().or(z.undefined()),
   tags: z.array(z.string()),
-  subtasks: z.array(subtaskSchema),
+  acceptanceCriteria: z.array(acceptanceCriterionSchema),
   isBlocked: z.boolean(),
   blockedReason: z.string(),
 });
@@ -37,4 +63,8 @@ export const ticketFormSchema = z.object({
 export type TicketFormData = z.infer<typeof ticketFormSchema>;
 export type TicketStatus = z.infer<typeof ticketStatusSchema>;
 export type TicketPriority = z.infer<typeof ticketPrioritySchema>;
+/** @deprecated Use AcceptanceCriterion instead */
 export type Subtask = z.infer<typeof subtaskSchema>;
+export type AcceptanceCriterionStatus = z.infer<typeof acceptanceCriterionStatusSchema>;
+export type AcceptanceCriterionVerifier = z.infer<typeof acceptanceCriterionVerifierSchema>;
+export type AcceptanceCriterion = z.infer<typeof acceptanceCriterionSchema>;
