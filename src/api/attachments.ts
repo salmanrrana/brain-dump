@@ -2,7 +2,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { db } from "../lib/db";
 import { tickets } from "../lib/schema";
 import { eq } from "drizzle-orm";
-import { safeJsonParse } from "../lib/utils";
+import {
+  type TicketAttachment,
+  type AttachmentType,
+  type AttachmentPriority,
+  type AttachmentUploader,
+  normalizeAttachments,
+} from "../lib/attachment-types";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -78,12 +84,28 @@ async function getAttachmentsDir(): Promise<string> {
   return attachmentsDir;
 }
 
+/**
+ * Full attachment data returned to clients (includes file data).
+ * Extends TicketAttachment metadata with runtime file information.
+ */
 export interface Attachment {
   id: string;
   filename: string;
   size: number;
   isImage: boolean;
   url: string;
+  /** Attachment type (mockup, bug-screenshot, etc.) */
+  type: AttachmentType;
+  /** Human-provided description */
+  description?: string;
+  /** Priority level */
+  priority: AttachmentPriority;
+  /** Who uploaded the attachment */
+  uploadedBy: AttachmentUploader;
+  /** When the attachment was uploaded */
+  uploadedAt: string;
+  /** Linked acceptance criteria IDs */
+  linkedCriteria?: string[];
 }
 
 // Get attachments for a ticket
@@ -93,11 +115,23 @@ export const getAttachments = createServerFn({ method: "GET" })
     const { join } = await import("path");
     const { existsSync, readdirSync, statSync, readFileSync } = await import("fs");
 
+    // Get ticket to read attachment metadata from database
+    const ticket = db.select().from(tickets).where(eq(tickets.id, ticketId)).get();
+
     const baseDir = await getAttachmentsDir();
     const ticketDir = join(baseDir, ticketId);
 
     if (!existsSync(ticketDir)) {
       return [];
+    }
+
+    // Get metadata from database (normalized to handle legacy string format)
+    const storedAttachments = normalizeAttachments(ticket?.attachments);
+
+    // Create a map for quick lookup of metadata by filename
+    const metadataMap = new Map<string, TicketAttachment>();
+    for (const attachment of storedAttachments) {
+      metadataMap.set(attachment.filename, attachment);
     }
 
     const files = readdirSync(ticketDir);
@@ -112,21 +146,53 @@ export const getAttachments = createServerFn({ method: "GET" })
       const mimeType = MIME_TYPES[ext] ?? "application/octet-stream";
       const dataUrl = `data:${mimeType};base64,${content.toString("base64")}`;
 
-      return {
-        id: filename,
+      // Get stored metadata or use defaults
+      const metadata = metadataMap.get(filename);
+
+      const attachment: Attachment = {
+        id: metadata?.id ?? filename,
         filename,
         size: stats.size,
         isImage,
         url: dataUrl,
+        type: metadata?.type ?? "reference",
+        priority: metadata?.priority ?? "primary",
+        uploadedBy: metadata?.uploadedBy ?? "human",
+        uploadedAt: metadata?.uploadedAt ?? new Date().toISOString(),
       };
+
+      // Only add optional properties if they have values (for exactOptionalPropertyTypes)
+      if (metadata?.description) {
+        attachment.description = metadata.description;
+      }
+      if (metadata?.linkedCriteria && metadata.linkedCriteria.length > 0) {
+        attachment.linkedCriteria = metadata.linkedCriteria;
+      }
+
+      return attachment;
     });
 
     return attachments;
   });
 
+/** Input type for uploadAttachment including optional metadata */
+interface UploadAttachmentInput {
+  ticketId: string;
+  filename: string;
+  data: string;
+  /** Attachment type for AI context */
+  type?: AttachmentType;
+  /** Human-provided description */
+  description?: string;
+  /** Importance level */
+  priority?: AttachmentPriority;
+  /** Who is uploading */
+  uploadedBy?: AttachmentUploader;
+}
+
 // Upload attachment
 export const uploadAttachment = createServerFn({ method: "POST" })
-  .inputValidator((input: { ticketId: string; filename: string; data: string }) => {
+  .inputValidator((input: UploadAttachmentInput) => {
     if (!input.ticketId) {
       throw new Error("Ticket ID is required");
     }
@@ -138,131 +204,188 @@ export const uploadAttachment = createServerFn({ method: "POST" })
     }
     return input;
   })
-  .handler(async ({ data: { ticketId, filename, data } }) => {
-    const { join } = await import("path");
-    const { existsSync, mkdirSync, writeFileSync } = await import("fs");
+  .handler(
+    async ({ data: { ticketId, filename, data, type, description, priority, uploadedBy } }) => {
+      const { join } = await import("path");
+      const { existsSync, mkdirSync, writeFileSync } = await import("fs");
+      const { randomUUID } = await import("crypto");
 
-    // Verify ticket exists
-    const ticket = db.select().from(tickets).where(eq(tickets.id, ticketId)).get();
-    if (!ticket) {
-      throw new Error(`Ticket not found: ${ticketId}`);
-    }
-
-    // Validate MIME type matches file extension (security check)
-    validateMimeType(data, filename);
-
-    // Decode base64 data
-    const base64Data = data.replace(/^data:[^;]+;base64,/, "");
-    const buffer = Buffer.from(base64Data, "base64");
-
-    // Check file size
-    if (buffer.length > MAX_FILE_SIZE) {
-      throw new Error(`File size exceeds maximum allowed size of 10MB`);
-    }
-
-    // Ensure ticket directory exists
-    const baseDir = await getAttachmentsDir();
-    const ticketDir = join(baseDir, ticketId);
-    if (!existsSync(ticketDir)) {
-      mkdirSync(ticketDir, { recursive: true });
-    }
-
-    // Sanitize filename
-    const sanitizedFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
-
-    // Handle duplicate filenames
-    let finalFilename = sanitizedFilename;
-    let counter = 1;
-    while (existsSync(join(ticketDir, finalFilename))) {
-      const extIdx = sanitizedFilename.lastIndexOf(".");
-      if (extIdx > 0) {
-        finalFilename = `${sanitizedFilename.slice(0, extIdx)}_${counter}${sanitizedFilename.slice(extIdx)}`;
-      } else {
-        finalFilename = `${sanitizedFilename}_${counter}`;
+      // Verify ticket exists
+      const ticket = db.select().from(tickets).where(eq(tickets.id, ticketId)).get();
+      if (!ticket) {
+        throw new Error(`Ticket not found: ${ticketId}`);
       }
-      counter++;
+
+      // Validate MIME type matches file extension (security check)
+      validateMimeType(data, filename);
+
+      // Decode base64 data
+      const base64Data = data.replace(/^data:[^;]+;base64,/, "");
+      const buffer = Buffer.from(base64Data, "base64");
+
+      // Check file size
+      if (buffer.length > MAX_FILE_SIZE) {
+        throw new Error(`File size exceeds maximum allowed size of 10MB`);
+      }
+
+      // Ensure ticket directory exists
+      const baseDir = await getAttachmentsDir();
+      const ticketDir = join(baseDir, ticketId);
+      if (!existsSync(ticketDir)) {
+        mkdirSync(ticketDir, { recursive: true });
+      }
+
+      // Sanitize filename
+      const sanitizedFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+
+      // Handle duplicate filenames
+      let finalFilename = sanitizedFilename;
+      let counter = 1;
+      while (existsSync(join(ticketDir, finalFilename))) {
+        const extIdx = sanitizedFilename.lastIndexOf(".");
+        if (extIdx > 0) {
+          finalFilename = `${sanitizedFilename.slice(0, extIdx)}_${counter}${sanitizedFilename.slice(extIdx)}`;
+        } else {
+          finalFilename = `${sanitizedFilename}_${counter}`;
+        }
+        counter++;
+      }
+
+      // Write file
+      const filePath = join(ticketDir, finalFilename);
+      writeFileSync(filePath, buffer);
+
+      // Create attachment metadata object
+      const attachmentId = randomUUID();
+      const now = new Date().toISOString();
+      const attachmentMetadata = {
+        id: attachmentId,
+        filename: finalFilename,
+        type: type ?? "reference",
+        priority: priority ?? "primary",
+        uploadedBy: uploadedBy ?? "human",
+        uploadedAt: now,
+        ...(description ? { description } : {}),
+      };
+
+      // Update ticket's attachments JSON field with new metadata format
+      const currentAttachments = normalizeAttachments(ticket.attachments);
+      currentAttachments.push(attachmentMetadata);
+      db.update(tickets)
+        .set({ attachments: JSON.stringify(currentAttachments) })
+        .where(eq(tickets.id, ticketId))
+        .run();
+
+      const ext = finalFilename.split(".").pop()?.toLowerCase() ?? "";
+      const isImage = ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext);
+      const mimeType = MIME_TYPES[ext] ?? "application/octet-stream";
+
+      const result: Attachment = {
+        id: attachmentId,
+        filename: finalFilename,
+        size: buffer.length,
+        isImage,
+        url: `data:${mimeType};base64,${buffer.toString("base64")}`,
+        type: attachmentMetadata.type as AttachmentType,
+        priority: attachmentMetadata.priority as AttachmentPriority,
+        uploadedBy: attachmentMetadata.uploadedBy as AttachmentUploader,
+        uploadedAt: now,
+      };
+
+      if (description) {
+        result.description = description;
+      }
+
+      return result;
     }
+  );
 
-    // Write file
-    const filePath = join(ticketDir, finalFilename);
-    writeFileSync(filePath, buffer);
-
-    // Update ticket's attachments JSON field (using safeJsonParse for safety)
-    const currentAttachments = safeJsonParse<string[]>(ticket.attachments, []);
-    currentAttachments.push(finalFilename);
-    db.update(tickets)
-      .set({ attachments: JSON.stringify(currentAttachments) })
-      .where(eq(tickets.id, ticketId))
-      .run();
-
-    const ext = finalFilename.split(".").pop()?.toLowerCase() ?? "";
-    const isImage = ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext);
-    const mimeType = MIME_TYPES[ext] ?? "application/octet-stream";
-
-    return {
-      id: finalFilename,
-      filename: finalFilename,
-      size: buffer.length,
-      isImage,
-      url: `data:${mimeType};base64,${buffer.toString("base64")}`,
-    };
-  });
+/** Input type for uploadPendingAttachment including optional metadata */
+interface UploadPendingAttachmentInput {
+  ticketId: string;
+  filename: string;
+  data: string;
+  /** Attachment type for AI context */
+  type?: AttachmentType;
+  /** Human-provided description */
+  description?: string;
+  /** Importance level */
+  priority?: AttachmentPriority;
+  /** Who is uploading */
+  uploadedBy?: AttachmentUploader;
+}
 
 // Upload attachment for a pending (not-yet-created) ticket
 export const uploadPendingAttachment = createServerFn({ method: "POST" })
-  .inputValidator((input: { ticketId: string; filename: string; data: string }) => {
+  .inputValidator((input: UploadPendingAttachmentInput) => {
     if (!input.ticketId) throw new Error("Ticket ID is required");
     if (!input.filename) throw new Error("Filename is required");
     if (!input.data) throw new Error("File data is required");
     return input;
   })
-  .handler(async ({ data: { ticketId, filename, data } }) => {
-    const { join } = await import("path");
-    const { existsSync, mkdirSync, writeFileSync } = await import("fs");
+  .handler(
+    async ({ data: { ticketId, filename, data, type, description, priority, uploadedBy } }) => {
+      const { join } = await import("path");
+      const { existsSync, mkdirSync, writeFileSync } = await import("fs");
+      const { randomUUID } = await import("crypto");
 
-    validateMimeType(data, filename);
+      validateMimeType(data, filename);
 
-    const base64Data = data.replace(/^data:[^;]+;base64,/, "");
-    const buffer = Buffer.from(base64Data, "base64");
+      const base64Data = data.replace(/^data:[^;]+;base64,/, "");
+      const buffer = Buffer.from(base64Data, "base64");
 
-    if (buffer.length > MAX_FILE_SIZE) {
-      throw new Error(`File size exceeds maximum allowed size of 10MB`);
-    }
-
-    const baseDir = await getAttachmentsDir();
-    const ticketDir = join(baseDir, ticketId);
-    if (!existsSync(ticketDir)) {
-      mkdirSync(ticketDir, { recursive: true });
-    }
-
-    const sanitizedFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
-
-    let finalFilename = sanitizedFilename;
-    let counter = 1;
-    while (existsSync(join(ticketDir, finalFilename))) {
-      const extIdx = sanitizedFilename.lastIndexOf(".");
-      if (extIdx > 0) {
-        finalFilename = `${sanitizedFilename.slice(0, extIdx)}_${counter}${sanitizedFilename.slice(extIdx)}`;
-      } else {
-        finalFilename = `${sanitizedFilename}_${counter}`;
+      if (buffer.length > MAX_FILE_SIZE) {
+        throw new Error(`File size exceeds maximum allowed size of 10MB`);
       }
-      counter++;
+
+      const baseDir = await getAttachmentsDir();
+      const ticketDir = join(baseDir, ticketId);
+      if (!existsSync(ticketDir)) {
+        mkdirSync(ticketDir, { recursive: true });
+      }
+
+      const sanitizedFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+
+      let finalFilename = sanitizedFilename;
+      let counter = 1;
+      while (existsSync(join(ticketDir, finalFilename))) {
+        const extIdx = sanitizedFilename.lastIndexOf(".");
+        if (extIdx > 0) {
+          finalFilename = `${sanitizedFilename.slice(0, extIdx)}_${counter}${sanitizedFilename.slice(extIdx)}`;
+        } else {
+          finalFilename = `${sanitizedFilename}_${counter}`;
+        }
+        counter++;
+      }
+
+      writeFileSync(join(ticketDir, finalFilename), buffer);
+
+      const ext = finalFilename.split(".").pop()?.toLowerCase() ?? "";
+      const isImage = ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext);
+      const mimeType = MIME_TYPES[ext] ?? "application/octet-stream";
+
+      const attachmentId = randomUUID();
+      const now = new Date().toISOString();
+
+      const result: Attachment = {
+        id: attachmentId,
+        filename: finalFilename,
+        size: buffer.length,
+        isImage,
+        url: `data:${mimeType};base64,${buffer.toString("base64")}`,
+        type: type ?? "reference",
+        priority: priority ?? "primary",
+        uploadedBy: uploadedBy ?? "human",
+        uploadedAt: now,
+      };
+
+      if (description) {
+        result.description = description;
+      }
+
+      return result;
     }
-
-    writeFileSync(join(ticketDir, finalFilename), buffer);
-
-    const ext = finalFilename.split(".").pop()?.toLowerCase() ?? "";
-    const isImage = ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext);
-    const mimeType = MIME_TYPES[ext] ?? "application/octet-stream";
-
-    return {
-      id: finalFilename,
-      filename: finalFilename,
-      size: buffer.length,
-      isImage,
-      url: `data:${mimeType};base64,${buffer.toString("base64")}`,
-    };
-  });
+  );
 
 // Delete all pending attachments for a ticket that was never created
 export const deletePendingAttachments = createServerFn({ method: "POST" })
@@ -350,9 +473,9 @@ export const deleteAttachment = createServerFn({ method: "POST" })
     // Delete file
     unlinkSync(filePath);
 
-    // Update ticket's attachments JSON field (using safeJsonParse for safety)
-    const currentAttachments = safeJsonParse<string[]>(ticket.attachments, []);
-    const updatedAttachments = currentAttachments.filter((a) => a !== filename);
+    // Update ticket's attachments JSON field (using normalized format)
+    const currentAttachments = normalizeAttachments(ticket.attachments);
+    const updatedAttachments = currentAttachments.filter((a) => a.filename !== filename);
     db.update(tickets)
       .set({ attachments: JSON.stringify(updatedAttachments) })
       .where(eq(tickets.id, ticketId))
