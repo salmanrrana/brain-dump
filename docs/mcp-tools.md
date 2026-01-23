@@ -1,19 +1,19 @@
 # MCP Tools Reference
 
-Brain Dump's MCP server provides 23 tools for managing projects, tickets, epics, and workflows. All tools are available in Claude Code, VS Code (Copilot), and OpenCode.
+Brain Dump's MCP server provides 24 tools for managing projects, tickets, epics, and workflows. All tools are available in Claude Code, VS Code (Copilot), and OpenCode.
 
 ## Quick Reference
 
-| Category                    | Tools                                                                                       |
-| --------------------------- | ------------------------------------------------------------------------------------------- |
-| [Projects](#project-tools)  | `list_projects`, `find_project_by_path`, `create_project`, `delete_project`                 |
-| [Tickets](#ticket-tools)    | `create_ticket`, `list_tickets`, `update_ticket_status`, `delete_ticket`                    |
-| [Epics](#epic-tools)        | `list_epics`, `create_epic`, `update_epic`, `delete_epic`                                   |
-| [Comments](#comment-tools)  | `add_ticket_comment`, `get_ticket_comments`                                                 |
-| [Workflow](#workflow-tools) | `start_ticket_work`, `complete_ticket_work`                                                 |
-| [Git](#git-tools)           | `link_commit_to_ticket`                                                                     |
-| [Files](#file-tools)        | `link_files_to_ticket`, `get_tickets_for_file`                                              |
-| [Health](#health-tools)     | `get_database_health`, `get_environment`, `get_project_settings`, `update_project_settings` |
+| Category                    | Tools                                                                                             |
+| --------------------------- | ------------------------------------------------------------------------------------------------- |
+| [Projects](#project-tools)  | `list_projects`, `find_project_by_path`, `create_project`, `delete_project`                       |
+| [Tickets](#ticket-tools)    | `create_ticket`, `list_tickets`, `update_ticket_status`, `update_ticket_subtask`, `delete_ticket` |
+| [Epics](#epic-tools)        | `list_epics`, `create_epic`, `update_epic`, `delete_epic`                                         |
+| [Comments](#comment-tools)  | `add_ticket_comment`, `get_ticket_comments`                                                       |
+| [Workflow](#workflow-tools) | `start_ticket_work`, `complete_ticket_work`                                                       |
+| [Git](#git-tools)           | `link_commit_to_ticket`                                                                           |
+| [Files](#file-tools)        | `link_files_to_ticket`, `get_tickets_for_file`                                                    |
+| [Health](#health-tools)     | `get_database_health`, `get_environment`, `get_project_settings`, `update_project_settings`       |
 
 ---
 
@@ -121,6 +121,28 @@ update_ticket_status(ticketId: string, status: string)
 | `status`   | string | New status value    |
 
 **Status flow:** `backlog` → `ready` → `in_progress` → `review` → `done`
+
+### update_ticket_subtask
+
+Update a subtask's completion status within a ticket.
+
+```
+update_ticket_subtask(ticketId: string, subtaskId: string, completed: boolean)
+```
+
+| Param       | Type    | Description                      |
+| ----------- | ------- | -------------------------------- |
+| `ticketId`  | string  | Ticket ID containing the subtask |
+| `subtaskId` | string  | Subtask ID to update             |
+| `completed` | boolean | Whether the subtask is completed |
+
+**Example:**
+
+```
+update_ticket_subtask("abc-123", "subtask-456", true)
+```
+
+**Returns:** Updated ticket with all subtasks showing the new completion status.
 
 ### delete_ticket
 
