@@ -46,6 +46,98 @@ const FILE_TYPES = {
 };
 
 /**
+ * Attachment type configuration for AI context generation.
+ * Each type has an icon, context header, and AI instruction.
+ */
+const ATTACHMENT_TYPE_CONFIG = {
+  mockup: {
+    contextHeader: "Design Mockups (IMPLEMENT TO MATCH)",
+    aiInstruction: "Your implementation MUST match this design",
+  },
+  wireframe: {
+    contextHeader: "Wireframes (REFERENCE LAYOUT)",
+    aiInstruction: "Follow this layout structure",
+  },
+  "bug-screenshot": {
+    contextHeader: "Bug Screenshots (THIS IS BROKEN)",
+    aiInstruction: "This shows what's wrong - fix this behavior",
+  },
+  "expected-behavior": {
+    contextHeader: "Expected Behavior (TARGET STATE)",
+    aiInstruction: "Make the behavior match this",
+  },
+  "actual-behavior": {
+    contextHeader: "Actual Behavior (CURRENT BROKEN STATE)",
+    aiInstruction: "This is the current broken state to fix",
+  },
+  diagram: {
+    contextHeader: "Diagrams (REFERENCE)",
+    aiInstruction: "Use for understanding architecture/flow",
+  },
+  "error-message": {
+    contextHeader: "Error Messages (DEBUG THIS)",
+    aiInstruction: "Debug and fix this error",
+  },
+  "console-log": {
+    contextHeader: "Console Output (DEBUG INFO)",
+    aiInstruction: "Use this debugging information",
+  },
+  reference: {
+    contextHeader: "Reference Images",
+    aiInstruction: "Use for general reference",
+  },
+  asset: {
+    contextHeader: "Assets (USE DIRECTLY)",
+    aiInstruction: "Use this image asset directly in the implementation",
+  },
+};
+
+/**
+ * Normalize attachment data from the database.
+ * Handles both legacy string format and new object format.
+ * @param {unknown} item - Single attachment item (string or object)
+ * @param {number} index - Index in the array
+ * @returns {{ id: string, filename: string, type: string, description?: string, priority: string, linkedCriteria?: string[], uploadedBy: string, uploadedAt: string }}
+ */
+function normalizeAttachment(item, index) {
+  // Legacy format: just a filename string
+  if (typeof item === "string") {
+    return {
+      id: `legacy-${index}-${item}`,
+      filename: item,
+      type: "reference",
+      priority: "primary",
+      uploadedBy: "human",
+      uploadedAt: new Date().toISOString(),
+    };
+  }
+
+  // New format: object with metadata
+  if (item && typeof item === "object") {
+    return {
+      id: item.id ?? `generated-${index}`,
+      filename: item.filename ?? "unknown",
+      type: item.type ?? "reference",
+      description: item.description,
+      priority: item.priority ?? "primary",
+      linkedCriteria: item.linkedCriteria,
+      uploadedBy: item.uploadedBy ?? "human",
+      uploadedAt: item.uploadedAt ?? new Date().toISOString(),
+    };
+  }
+
+  // Fallback for unexpected data
+  return {
+    id: `unknown-${index}`,
+    filename: "unknown",
+    type: "reference",
+    priority: "primary",
+    uploadedBy: "human",
+    uploadedAt: new Date().toISOString(),
+  };
+}
+
+/**
  * Format file size for display.
  * @param {number} bytes - File size in bytes
  * @returns {string} Formatted size (e.g., "1.5MB" or "256KB")
@@ -113,8 +205,8 @@ function loadSingleAttachment(filePath, filename, size) {
  * PDFs and other files are referenced but not included inline.
  *
  * @param {string} ticketId - The ticket ID to load attachments for
- * @param {string[] | null} attachmentsList - JSON-parsed list of attachment filenames
- * @returns {{ contentBlocks: Array<{type: string, text?: string, data?: string, mimeType?: string}>, warnings: string[], telemetry: { totalCount: number, loadedCount: number, failedCount: number, imageCount: number, totalSizeBytes: number, filenames: string[], failedFiles: string[] } }}
+ * @param {unknown[] | null} attachmentsList - JSON-parsed list of attachments (strings or objects)
+ * @returns {{ contentBlocks: Array<{type: string, text?: string, data?: string, mimeType?: string}>, warnings: string[], telemetry: { totalCount: number, loadedCount: number, failedCount: number, imageCount: number, totalSizeBytes: number, filenames: string[], failedFiles: string[], attachments: Array<{filename: string, type: string, description?: string, priority: string}>, byType: Record<string, number> } }}
  */
 function loadTicketAttachments(ticketId, attachmentsList) {
   const contentBlocks = [];
@@ -127,23 +219,29 @@ function loadTicketAttachments(ticketId, attachmentsList) {
     totalSizeBytes: 0,
     filenames: [],
     failedFiles: [],
+    attachments: [],  // Normalized attachment objects
+    byType: {},       // Count by attachment type
   };
 
   if (!attachmentsList || !Array.isArray(attachmentsList) || attachmentsList.length === 0) {
     return { contentBlocks, warnings, telemetry };
   }
 
-  telemetry.totalCount = attachmentsList.length;
+  // Normalize all attachments first
+  const normalizedAttachments = attachmentsList.map(normalizeAttachment);
+  telemetry.totalCount = normalizedAttachments.length;
   const ticketDir = join(getAttachmentsDir(), ticketId);
 
   if (!existsSync(ticketDir)) {
     warnings.push(`Attachments directory not found: ${ticketDir}`);
-    telemetry.failedCount = attachmentsList.length;
-    telemetry.failedFiles = attachmentsList;
+    telemetry.failedCount = normalizedAttachments.length;
+    telemetry.failedFiles = normalizedAttachments.map(a => a.filename);
     return { contentBlocks, warnings, telemetry };
   }
 
-  for (const filename of attachmentsList) {
+  for (const attachment of normalizedAttachments) {
+    const { filename, type: attachmentType, description, priority } = attachment;
+
     // Sanitize filename to prevent path traversal attacks (matches src/api/attachments.ts:171)
     const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
     if (safeFilename !== filename) {
@@ -190,6 +288,18 @@ function loadTicketAttachments(ticketId, attachmentsList) {
       telemetry.loadedCount++;
       telemetry.totalSizeBytes += stats.size;
       telemetry.filenames.push(filename);
+
+      // Track attachment metadata for context generation
+      telemetry.attachments.push({
+        filename,
+        type: attachmentType,
+        description,
+        priority,
+      });
+
+      // Count by type
+      telemetry.byType[attachmentType] = (telemetry.byType[attachmentType] || 0) + 1;
+
       if (block.type === "image") {
         telemetry.imageCount++;
       }
@@ -361,13 +471,104 @@ function buildCommentsSection(comments, totalCount, truncated) {
 }
 
 /**
+ * Build type-aware context section for attachments.
+ * Generates different instructions based on attachment types.
+ *
+ * @param {{ imageCount: number, filenames: string[], totalSizeBytes: number, failedCount: number, failedFiles: string[], attachments: Array<{filename: string, type: string, description?: string, priority: string}>, byType: Record<string, number> }} telemetry
+ * @returns {string} Markdown section with type-aware instructions or empty string if no attachments
+ */
+function buildAttachmentContextSection(telemetry) {
+  if (!telemetry.attachments || telemetry.attachments.length === 0) {
+    return "";
+  }
+
+  // Group attachments by type
+  const byType = {};
+  for (const attachment of telemetry.attachments) {
+    const type = attachment.type || "reference";
+    if (!byType[type]) {
+      byType[type] = [];
+    }
+    byType[type].push(attachment);
+  }
+
+  let context = "## ATTACHMENTS\n\n";
+
+  // Check for high-priority design types
+  const hasDesignTypes = byType.mockup || byType.wireframe;
+  const hasBugTypes = byType["bug-screenshot"] || byType["actual-behavior"] || byType["expected-behavior"];
+
+  if (hasDesignTypes) {
+    context += `**IMPORTANT: Review attached design images BEFORE implementing.**\n\n`;
+  } else if (hasBugTypes) {
+    context += `**IMPORTANT: Review attached screenshots to understand the bug.**\n\n`;
+  }
+
+  // Build sections for each attachment type (in priority order)
+  const typeOrder = [
+    "mockup",
+    "wireframe",
+    "bug-screenshot",
+    "expected-behavior",
+    "actual-behavior",
+    "diagram",
+    "error-message",
+    "console-log",
+    "asset",
+    "reference",
+  ];
+
+  for (const type of typeOrder) {
+    if (!byType[type]) continue;
+
+    const config = ATTACHMENT_TYPE_CONFIG[type] || {
+      contextHeader: `${type.charAt(0).toUpperCase() + type.slice(1)} Images`,
+      aiInstruction: "Use for reference",
+    };
+
+    context += `### ${config.contextHeader}\n`;
+
+    for (const attachment of byType[type]) {
+      const primaryTag = attachment.priority === "primary" ? " **[PRIMARY]**" : "";
+      context += `- **${attachment.filename}**${primaryTag}\n`;
+      if (attachment.description) {
+        context += `  - "${attachment.description}"\n`;
+      }
+    }
+
+    context += `\n> ${config.aiInstruction}\n\n`;
+  }
+
+  // Add fallback text if any files failed to load
+  if (telemetry.failedCount > 0 && telemetry.failedFiles.length > 0) {
+    context += `### Failed to Load (${telemetry.failedCount})\n`;
+    context += `The following files could not be loaded. Check the ticket UI:\n`;
+    for (const filename of telemetry.failedFiles) {
+      context += `- ${filename}\n`;
+    }
+    context += "\n";
+  }
+
+  return context;
+}
+
+/**
  * Build a prominent warning section when design mockups are attached.
  * This ensures AI reviews the attached images BEFORE implementing UI.
  *
- * @param {{ imageCount: number, filenames: string[], totalSizeBytes: number, failedCount: number, failedFiles: string[] }} telemetry
+ * @deprecated Use buildAttachmentContextSection instead for type-aware context.
+ * Kept for backward compatibility.
+ *
+ * @param {{ imageCount: number, filenames: string[], totalSizeBytes: number, failedCount: number, failedFiles: string[], attachments?: Array<{filename: string, type: string, description?: string, priority: string}>, byType?: Record<string, number> }} telemetry
  * @returns {string} Markdown warning section or empty string if no images
  */
 function buildDesignMockupWarning(telemetry) {
+  // Use type-aware context if attachments metadata is available
+  if (telemetry.attachments && telemetry.attachments.length > 0) {
+    return buildAttachmentContextSection(telemetry);
+  }
+
+  // Legacy fallback: treat all images as design mockups
   if (telemetry.imageCount === 0) {
     return "";
   }
