@@ -9,6 +9,26 @@ import { log } from "../lib/logging.js";
 const STATUSES = ["backlog", "ready", "in_progress", "review", "ai_review", "human_review", "done"];
 const PRIORITIES = ["low", "medium", "high"];
 
+/** Valid attachment types for AI context */
+const ATTACHMENT_TYPES = [
+  "mockup",
+  "wireframe",
+  "bug-screenshot",
+  "expected-behavior",
+  "actual-behavior",
+  "diagram",
+  "error-message",
+  "console-log",
+  "reference",
+  "asset",
+];
+
+/** Valid attachment priorities */
+const ATTACHMENT_PRIORITIES = ["primary", "supplementary"];
+
+/** Valid attachment uploaders - exported for use in other modules if needed */
+const _ATTACHMENT_UPLOADERS = ["human", "claude", "ralph", "opencode", "cursor", "windsurf"];
+
 /**
  * Register ticket management tools with the MCP server.
  * @param {import("@modelcontextprotocol/sdk/server/mcp.js").McpServer} server
@@ -164,6 +184,172 @@ Returns the updated ticket.`,
     }
   );
 
+  // Update acceptance criterion status
+  server.tool(
+    "update_acceptance_criterion",
+    `Update an acceptance criterion's status within a ticket.
+
+Use this to mark criteria as passed, failed, pending, or skipped.
+AI agents should call this to verify acceptance criteria during implementation.
+
+Args:
+  ticketId: The ticket ID containing the criterion
+  criterionId: The criterion ID to update
+  status: New status (pending, passed, failed, skipped)
+  verificationNote: Optional note explaining how the criterion was verified
+
+Returns the updated ticket with all acceptance criteria.`,
+    {
+      ticketId: z.string().describe("Ticket ID containing the criterion"),
+      criterionId: z.string().describe("Criterion ID to update"),
+      status: z.enum(["pending", "passed", "failed", "skipped"]).describe("New status"),
+      verificationNote: z.string().optional().describe("How the criterion was verified"),
+    },
+    async ({ ticketId, criterionId, status, verificationNote }) => {
+      const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId);
+      if (!ticket) {
+        return {
+          content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
+          isError: true,
+        };
+      }
+
+      // Parse existing acceptance criteria (stored in subtasks column for backward compatibility)
+      let criteria = [];
+      try {
+        criteria = ticket.subtasks ? JSON.parse(ticket.subtasks) : [];
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Failed to parse acceptance criteria: ${e.message}` }],
+          isError: true,
+        };
+      }
+
+      // Find the criterion by ID
+      const criterionIndex = criteria.findIndex((c) => c.id === criterionId);
+      if (criterionIndex === -1) {
+        const availableIds = criteria.map((c) => `  - ${c.id}: "${c.criterion || c.text}"`).join("\n");
+        return {
+          content: [{
+            type: "text",
+            text: `Criterion not found: ${criterionId}\n\nAvailable criteria:\n${availableIds || "(none)"}`,
+          }],
+          isError: true,
+        };
+      }
+
+      // Update the criterion
+      const criterion = criteria[criterionIndex];
+      const previousStatus = criterion.status || (criterion.completed ? "passed" : "pending");
+
+      // Update to new format if it was legacy format
+      criterion.criterion = criterion.criterion || criterion.text;
+      delete criterion.text;
+      delete criterion.completed;
+
+      criterion.status = status;
+      criterion.verifiedBy = "claude"; // MCP calls are from Claude
+      criterion.verifiedAt = new Date().toISOString();
+      if (verificationNote) {
+        criterion.verificationNote = verificationNote;
+      }
+
+      // Save back to database
+      const now = new Date().toISOString();
+      db.prepare("UPDATE tickets SET subtasks = ?, updated_at = ? WHERE id = ?").run(
+        JSON.stringify(criteria),
+        now,
+        ticketId
+      );
+
+      const updated = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId);
+      const statusChange = previousStatus === status
+        ? `(no change - already ${status})`
+        : `${previousStatus} → ${status}`;
+
+      log.info(`Updated criterion ${criterionId} in ticket ${ticketId}: ${statusChange}`);
+
+      return {
+        content: [{
+          type: "text",
+          text: `✅ Criterion updated: "${criterion.criterion}"\nStatus: ${statusChange}${verificationNote ? `\nNote: ${verificationNote}` : ""}\n\n${JSON.stringify(updated, null, 2)}`,
+        }],
+      };
+    }
+  );
+
+  // Legacy support: update_ticket_subtask (deprecated)
+  server.tool(
+    "update_ticket_subtask",
+    `[DEPRECATED] Use update_acceptance_criterion instead.
+
+Update a subtask's completion status within a ticket.
+This tool is deprecated and will be removed in a future version.`,
+    {
+      ticketId: z.string().describe("Ticket ID containing the subtask"),
+      subtaskId: z.string().describe("Subtask ID to update"),
+      completed: z.boolean().describe("Whether the subtask is completed"),
+    },
+    async ({ ticketId, subtaskId, completed }) => {
+      // Redirect to new tool
+      const status = completed ? "passed" : "pending";
+      const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId);
+      if (!ticket) {
+        return {
+          content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
+          isError: true,
+        };
+      }
+
+      let criteria = [];
+      try {
+        criteria = ticket.subtasks ? JSON.parse(ticket.subtasks) : [];
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Failed to parse subtasks: ${e.message}` }],
+          isError: true,
+        };
+      }
+
+      const criterionIndex = criteria.findIndex((c) => c.id === subtaskId);
+      if (criterionIndex === -1) {
+        const availableIds = criteria.map((c) => `  - ${c.id}: "${c.criterion || c.text}"`).join("\n");
+        return {
+          content: [{
+            type: "text",
+            text: `Subtask not found: ${subtaskId}\n\nAvailable:\n${availableIds || "(none)"}`,
+          }],
+          isError: true,
+        };
+      }
+
+      const criterion = criteria[criterionIndex];
+      criterion.criterion = criterion.criterion || criterion.text;
+      delete criterion.text;
+      delete criterion.completed;
+      criterion.status = status;
+      criterion.verifiedBy = "claude";
+      criterion.verifiedAt = new Date().toISOString();
+
+      const now = new Date().toISOString();
+      db.prepare("UPDATE tickets SET subtasks = ?, updated_at = ? WHERE id = ?").run(
+        JSON.stringify(criteria),
+        now,
+        ticketId
+      );
+
+      const updated = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId);
+      log.info(`[DEPRECATED] Updated subtask ${subtaskId} via legacy API`);
+
+      return {
+        content: [{
+          type: "text",
+          text: `⚠️ DEPRECATED: Use update_acceptance_criterion instead.\n\nSubtask updated.\n\n${JSON.stringify(updated, null, 2)}`,
+        }],
+      };
+    }
+  );
+
   // Delete ticket
   server.tool(
     "delete_ticket",
@@ -265,6 +451,126 @@ Returns:
         content: [{
           type: "text",
           text: `✅ Ticket "${ticket.title}" deleted successfully.\n\nDeleted ${comments.length} comment(s).`,
+        }],
+      };
+    }
+  );
+
+  // Update attachment metadata
+  server.tool(
+    "update_attachment_metadata",
+    `Update metadata for a ticket attachment.
+
+Use this to add context about an attachment's purpose (mockup, bug screenshot, etc.).
+This helps AI understand how to interpret and act on the attachment.
+
+Args:
+  ticketId: The ticket ID containing the attachment
+  attachmentId: The attachment ID to update (or filename for legacy attachments)
+  metadata: Object with fields to update:
+    - type: Attachment type (mockup, wireframe, bug-screenshot, expected-behavior, actual-behavior, diagram, error-message, console-log, reference, asset)
+    - description: Human-provided context about the attachment
+    - priority: Importance level (primary, supplementary)
+    - linkedCriteria: Array of acceptance criteria IDs to link
+
+Returns the updated attachment.`,
+    {
+      ticketId: z.string().describe("Ticket ID containing the attachment"),
+      attachmentId: z.string().describe("Attachment ID or filename to update"),
+      metadata: z.object({
+        type: z.enum(ATTACHMENT_TYPES).optional().describe("Attachment type"),
+        description: z.string().optional().describe("Human-provided context"),
+        priority: z.enum(ATTACHMENT_PRIORITIES).optional().describe("Importance level"),
+        linkedCriteria: z.array(z.string()).optional().describe("Linked acceptance criteria IDs"),
+      }).describe("Metadata fields to update"),
+    },
+    async ({ ticketId, attachmentId, metadata }) => {
+      const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId);
+      if (!ticket) {
+        return {
+          content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
+          isError: true,
+        };
+      }
+
+      // Parse existing attachments
+      let attachments = [];
+      try {
+        attachments = ticket.attachments ? JSON.parse(ticket.attachments) : [];
+      } catch (e) {
+        return {
+          content: [{ type: "text", text: `Failed to parse attachments: ${e.message}` }],
+          isError: true,
+        };
+      }
+
+      // Normalize attachments (handle legacy string format)
+      const normalizedAttachments = attachments.map((item, index) => {
+        // Legacy format: just a filename string
+        if (typeof item === "string") {
+          return {
+            id: `legacy-${index}-${item}`,
+            filename: item,
+            type: "reference",
+            priority: "primary",
+            uploadedBy: "human",
+            uploadedAt: new Date().toISOString(),
+          };
+        }
+        // Already in object format
+        return item;
+      });
+
+      // Find the attachment by ID or filename
+      const attachmentIndex = normalizedAttachments.findIndex(
+        (a) => a.id === attachmentId || a.filename === attachmentId
+      );
+
+      if (attachmentIndex === -1) {
+        const availableAttachments = normalizedAttachments
+          .map((a) => `  - ${a.id}: "${a.filename}" (${a.type})`)
+          .join("\n");
+        return {
+          content: [{
+            type: "text",
+            text: `Attachment not found: ${attachmentId}\n\nAvailable attachments:\n${availableAttachments || "(none)"}`,
+          }],
+          isError: true,
+        };
+      }
+
+      // Update the attachment metadata
+      const attachment = normalizedAttachments[attachmentIndex];
+      if (metadata.type !== undefined) {
+        attachment.type = metadata.type;
+      }
+      if (metadata.description !== undefined) {
+        attachment.description = metadata.description;
+      }
+      if (metadata.priority !== undefined) {
+        attachment.priority = metadata.priority;
+      }
+      if (metadata.linkedCriteria !== undefined) {
+        attachment.linkedCriteria = metadata.linkedCriteria;
+      }
+
+      // Save back to database
+      const now = new Date().toISOString();
+      db.prepare("UPDATE tickets SET attachments = ?, updated_at = ? WHERE id = ?").run(
+        JSON.stringify(normalizedAttachments),
+        now,
+        ticketId
+      );
+
+      log.info(`Updated attachment metadata for ${attachmentId} in ticket ${ticketId}`, {
+        type: attachment.type,
+        priority: attachment.priority,
+      });
+
+      return {
+        content: [{
+          type: "text",
+          text: `Attachment metadata updated:\n\n${JSON.stringify(attachment, null, 2)}`,
         }],
       };
     }

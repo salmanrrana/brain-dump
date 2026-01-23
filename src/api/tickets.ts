@@ -6,13 +6,48 @@ import { randomUUID } from "crypto";
 import { ensureExists, safeJsonStringify } from "../lib/utils";
 
 // Types
-export type TicketStatus = "backlog" | "ready" | "in_progress" | "review" | "ai_review" | "human_review" | "done";
+export type TicketStatus =
+  | "backlog"
+  | "ready"
+  | "in_progress"
+  | "review"
+  | "ai_review"
+  | "human_review"
+  | "done";
 export type TicketPriority = "high" | "medium" | "low";
 
 export interface Subtask {
   id: string;
   text: string;
   completed: boolean;
+}
+
+/** Status for acceptance criteria verification */
+export type AcceptanceCriterionStatus = "pending" | "passed" | "failed" | "skipped";
+
+/** Who verified the acceptance criterion */
+export type AcceptanceCriterionVerifier =
+  | "human"
+  | "claude"
+  | "ralph"
+  | "opencode"
+  | "cursor"
+  | "windsurf"
+  | "copilot"
+  | "test"
+  | "ci";
+
+/**
+ * Acceptance Criterion - a verifiable requirement for ticket completion.
+ * AI agents can mark criteria as passed with verification notes.
+ */
+export interface AcceptanceCriterion {
+  id: string;
+  criterion: string;
+  status: AcceptanceCriterionStatus;
+  verifiedBy?: AcceptanceCriterionVerifier | undefined;
+  verifiedAt?: string | undefined;
+  verificationNote?: string | undefined;
 }
 
 export interface CreateTicketInput {
@@ -33,7 +68,10 @@ export interface UpdateTicketInput {
   priority?: TicketPriority;
   epicId?: string | null;
   tags?: string[];
+  /** @deprecated Use acceptanceCriteria instead */
   subtasks?: Subtask[];
+  /** Acceptance criteria with verification status */
+  acceptanceCriteria?: AcceptanceCriterion[];
   isBlocked?: boolean;
   blockedReason?: string | null;
   linkedFiles?: string[];
@@ -84,7 +122,7 @@ export const getTickets = createServerFn({ method: "GET" })
 
       // Use the already-imported sqlite instance for raw SQL queries
       const stmt = sqlite.prepare(sql);
-      return stmt.all(...params) as typeof tickets.$inferSelect[];
+      return stmt.all(...params) as (typeof tickets.$inferSelect)[];
     }
 
     // Standard ORM query when no tag filtering
@@ -130,22 +168,14 @@ export const createTicket = createServerFn({ method: "POST" })
   })
   .handler(async ({ data: input }) => {
     // Verify project exists
-    const project = db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, input.projectId))
-      .get();
+    const project = db.select().from(projects).where(eq(projects.id, input.projectId)).get();
     if (!project) {
       throw new Error(`Project not found: ${input.projectId}`);
     }
 
     // Verify epic exists if provided
     if (input.epicId) {
-      const epic = db
-        .select()
-        .from(epics)
-        .where(eq(epics.id, input.epicId))
-        .get();
+      const epic = db.select().from(epics).where(eq(epics.id, input.epicId)).get();
       if (!epic) {
         throw new Error(`Epic not found: ${input.epicId}`);
       }
@@ -159,12 +189,7 @@ export const createTicket = createServerFn({ method: "POST" })
     const maxPosition = db
       .select({ maxPos: sql<number>`MAX(position)` })
       .from(tickets)
-      .where(
-        and(
-          eq(tickets.projectId, input.projectId),
-          eq(tickets.status, "backlog")
-        )
-      )
+      .where(and(eq(tickets.projectId, input.projectId), eq(tickets.status, "backlog")))
       .get();
 
     const position = (maxPosition?.maxPos ?? 0) + 1;
@@ -206,11 +231,7 @@ export const updateTicket = createServerFn({ method: "POST" })
 
     // Verify epic exists if being updated
     if (updates.epicId !== undefined && updates.epicId !== null) {
-      const epic = db
-        .select()
-        .from(epics)
-        .where(eq(epics.id, updates.epicId))
-        .get();
+      const epic = db.select().from(epics).where(eq(epics.id, updates.epicId)).get();
       if (!epic) {
         throw new Error(`Epic not found: ${updates.epicId}`);
       }
@@ -235,13 +256,17 @@ export const updateTicket = createServerFn({ method: "POST" })
     }
     if (updates.priority !== undefined) updateData.priority = updates.priority;
     if (updates.epicId !== undefined) updateData.epicId = updates.epicId;
-    if (updates.tags !== undefined)
-      updateData.tags = safeJsonStringify(updates.tags);
-    if (updates.subtasks !== undefined)
+    if (updates.tags !== undefined) updateData.tags = safeJsonStringify(updates.tags);
+    // Support both legacy subtasks and new acceptanceCriteria
+    // Acceptance criteria takes precedence if both are provided
+    if (updates.acceptanceCriteria !== undefined) {
+      updateData.subtasks = safeJsonStringify(updates.acceptanceCriteria);
+    } else if (updates.subtasks !== undefined) {
+      // Legacy subtasks support - will be removed in future version
       updateData.subtasks = safeJsonStringify(updates.subtasks);
+    }
     if (updates.isBlocked !== undefined) updateData.isBlocked = updates.isBlocked;
-    if (updates.blockedReason !== undefined)
-      updateData.blockedReason = updates.blockedReason;
+    if (updates.blockedReason !== undefined) updateData.blockedReason = updates.blockedReason;
     if (updates.linkedFiles !== undefined)
       updateData.linkedFiles = safeJsonStringify(updates.linkedFiles);
 
@@ -353,57 +378,63 @@ export const deleteTicket = createServerFn({ method: "POST" })
     }
     return input;
   })
-  .handler(async ({ data: { ticketId, confirm = false } }): Promise<DeleteTicketPreview | DeleteTicketResult> => {
-    const ticketResult = db.select().from(tickets).where(eq(tickets.id, ticketId)).get();
-    const ticket = ensureExists(ticketResult, "Ticket", ticketId);
+  .handler(
+    async ({
+      data: { ticketId, confirm = false },
+    }): Promise<DeleteTicketPreview | DeleteTicketResult> => {
+      const ticketResult = db.select().from(tickets).where(eq(tickets.id, ticketId)).get();
+      const ticket = ensureExists(ticketResult, "Ticket", ticketId);
 
-    // Count comments that would be deleted
-    const commentCountResult = db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(ticketComments)
-      .where(eq(ticketComments.ticketId, ticketId))
-      .get();
-    const commentCount = commentCountResult?.count ?? 0;
+      // Count comments that would be deleted
+      const commentCountResult = db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(ticketComments)
+        .where(eq(ticketComments.ticketId, ticketId))
+        .get();
+      const commentCount = commentCountResult?.count ?? 0;
 
-    // Dry-run: return preview of what would be deleted
-    if (!confirm) {
+      // Dry-run: return preview of what would be deleted
+      if (!confirm) {
+        return {
+          preview: true,
+          ticket: {
+            id: ticket.id,
+            title: ticket.title,
+            status: ticket.status,
+            projectId: ticket.projectId,
+            epicId: ticket.epicId,
+            description: ticket.description,
+          },
+          commentCount,
+        };
+      }
+
+      // Actually delete (comments cascade automatically via FK constraint)
+      // Use transaction for atomicity
+      try {
+        sqlite.transaction(() => {
+          // Delete comments first (even though FK cascade would handle it)
+          db.delete(ticketComments).where(eq(ticketComments.ticketId, ticketId)).run();
+          // Delete the ticket
+          db.delete(tickets).where(eq(tickets.id, ticketId)).run();
+        })();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        if (message.includes("SQLITE_BUSY")) {
+          throw new Error(
+            "Failed to delete ticket: The database is busy. Please try again in a moment."
+          );
+        }
+        throw new Error(`Failed to delete ticket: ${message}`);
+      }
+
       return {
-        preview: true,
+        deleted: true,
         ticket: {
           id: ticket.id,
           title: ticket.title,
-          status: ticket.status,
-          projectId: ticket.projectId,
-          epicId: ticket.epicId,
-          description: ticket.description,
         },
         commentCount,
       };
     }
-
-    // Actually delete (comments cascade automatically via FK constraint)
-    // Use transaction for atomicity
-    try {
-      sqlite.transaction(() => {
-        // Delete comments first (even though FK cascade would handle it)
-        db.delete(ticketComments).where(eq(ticketComments.ticketId, ticketId)).run();
-        // Delete the ticket
-        db.delete(tickets).where(eq(tickets.id, ticketId)).run();
-      })();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      if (message.includes("SQLITE_BUSY")) {
-        throw new Error("Failed to delete ticket: The database is busy. Please try again in a moment.");
-      }
-      throw new Error(`Failed to delete ticket: ${message}`);
-    }
-
-    return {
-      deleted: true,
-      ticket: {
-        id: ticket.id,
-        title: ticket.title,
-      },
-      commentCount,
-    };
-  });
+  );

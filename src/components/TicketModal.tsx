@@ -9,7 +9,6 @@ import {
 import DeleteConfirmationModal from "./DeleteConfirmationModal";
 import {
   X,
-  Check,
   Plus,
   Trash2,
   AlertCircle,
@@ -48,6 +47,7 @@ import {
   useActiveRalphSessions,
 } from "../lib/hooks";
 import { RalphStatusBadge } from "./RalphStatusBadge";
+import { TelemetryPanel } from "./TelemetryPanel";
 import type { ServiceType } from "../lib/service-discovery";
 import { useToast } from "./Toast";
 import type { TicketStatus, TicketPriority } from "../api/tickets";
@@ -68,7 +68,12 @@ import { getTicketContext } from "../api/context";
 import { launchClaudeInTerminal, launchOpenCodeInTerminal } from "../api/terminal";
 import { safeJsonParse } from "../lib/utils";
 import { ticketFormOpts } from "./tickets/ticket-form-opts";
-import { ticketFormSchema, type TicketFormData, type Subtask } from "./tickets/ticket-form-schema";
+import {
+  ticketFormSchema,
+  type TicketFormData,
+  type AcceptanceCriterion,
+  type AcceptanceCriterionStatus,
+} from "./tickets/ticket-form-schema";
 
 interface TicketModalProps {
   ticket: Ticket;
@@ -125,6 +130,36 @@ const SERVICE_TYPE_COLORS: Record<ServiceType, string> = {
 // Stable empty state for tag suggestions to prevent recreation on every render
 const EMPTY_TAG_STATE = { tagSuggestions: [] as string[], showCreateHelper: false };
 
+/**
+ * Convert legacy subtasks to acceptance criteria format.
+ * Handles both old {id, text, completed} and new AcceptanceCriterion formats.
+ */
+function parseAcceptanceCriteria(subtasksJson: string | null): AcceptanceCriterion[] {
+  if (!subtasksJson) return [];
+
+  try {
+    const parsed = JSON.parse(subtasksJson);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.map((item) => {
+      // Check if it's already in AcceptanceCriterion format
+      if ("criterion" in item && "status" in item) {
+        return item as AcceptanceCriterion;
+      }
+      // Convert legacy subtask format
+      return {
+        id: item.id ?? crypto.randomUUID(),
+        criterion: item.text ?? item.criterion ?? "",
+        status: item.completed ? "passed" : "pending",
+        verifiedBy: item.completed ? "human" : undefined,
+        verifiedAt: item.completed ? new Date().toISOString() : undefined,
+      } as AcceptanceCriterion;
+    });
+  } catch {
+    return [];
+  }
+}
+
 export default function TicketModal({ ticket, epics, onClose, onUpdate }: TicketModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -138,7 +173,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
       priority: (ticket.priority as TicketFormData["priority"]) ?? undefined,
       epicId: ticket.epicId ?? undefined,
       tags: safeJsonParse<string[]>(ticket.tags, []),
-      subtasks: safeJsonParse<Subtask[]>(ticket.subtasks, []),
+      acceptanceCriteria: parseAcceptanceCriteria(ticket.subtasks),
       isBlocked: ticket.isBlocked ?? false,
       blockedReason: ticket.blockedReason ?? "",
     },
@@ -154,8 +189,8 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
   const tagInputRef = useRef<HTMLInputElement>(null);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
 
-  // UI state for subtask input (not form data - intermediate input state)
-  const [newSubtask, setNewSubtask] = useState("");
+  // UI state for acceptance criteria input (not form data - intermediate input state)
+  const [newCriterion, setNewCriterion] = useState("");
 
   // Attachments - kept as separate state per acceptance criteria (file uploads don't fit form model)
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -712,8 +747,8 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     if (values.tags.length > 0) {
       updates.tags = values.tags;
     }
-    if (values.subtasks.length > 0) {
-      updates.subtasks = values.subtasks;
+    if (values.acceptanceCriteria.length > 0) {
+      updates.acceptanceCriteria = values.acceptanceCriteria;
     }
 
     updateTicketMutation.mutate({ id: ticket.id, updates }, { onSuccess: onUpdate });
@@ -778,74 +813,83 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     setIsTagDropdownOpen(!!e.target.value.trim());
   }, []);
 
-  // Subtask management functions
-  const addSubtask = useCallback(() => {
-    const text = newSubtask.trim();
-    if (text) {
-      const currentSubtasks = form.state.values.subtasks;
-      form.setFieldValue("subtasks", [
-        ...currentSubtasks,
-        { id: crypto.randomUUID(), text, completed: false },
+  // Acceptance criteria management functions
+  const addCriterion = useCallback(() => {
+    const criterion = newCriterion.trim();
+    if (criterion) {
+      const currentCriteria = form.state.values.acceptanceCriteria;
+      form.setFieldValue("acceptanceCriteria", [
+        ...currentCriteria,
+        { id: crypto.randomUUID(), criterion, status: "pending" as const },
       ]);
-      setNewSubtask("");
+      setNewCriterion("");
     }
-  }, [newSubtask, form]);
+  }, [newCriterion, form]);
 
-  const toggleSubtask = useCallback(
-    (id: string) => {
-      const currentSubtasks = form.state.values.subtasks;
+  const updateCriterionStatus = useCallback(
+    (id: string, newStatus: AcceptanceCriterionStatus) => {
+      const currentCriteria = form.state.values.acceptanceCriteria;
       form.setFieldValue(
-        "subtasks",
-        currentSubtasks.map((s) => (s.id === id ? { ...s, completed: !s.completed } : s))
+        "acceptanceCriteria",
+        currentCriteria.map((c) =>
+          c.id === id
+            ? {
+                ...c,
+                status: newStatus,
+                verifiedBy: "human" as const,
+                verifiedAt: new Date().toISOString(),
+              }
+            : c
+        )
       );
     },
     [form]
   );
 
-  const removeSubtask = useCallback(
+  const removeCriterion = useCallback(
     (id: string) => {
-      const currentSubtasks = form.state.values.subtasks;
+      const currentCriteria = form.state.values.acceptanceCriteria;
       form.setFieldValue(
-        "subtasks",
-        currentSubtasks.filter((s) => s.id !== id)
+        "acceptanceCriteria",
+        currentCriteria.filter((c) => c.id !== id)
       );
     },
     [form]
   );
 
-  const moveSubtaskUp = useCallback(
+  const moveCriterionUp = useCallback(
     (index: number) => {
       if (index <= 0) return;
-      const currentSubtasks = [...form.state.values.subtasks];
-      const current = currentSubtasks[index];
-      const prev = currentSubtasks[index - 1];
+      const currentCriteria = [...form.state.values.acceptanceCriteria];
+      const current = currentCriteria[index];
+      const prev = currentCriteria[index - 1];
       if (!current || !prev) return;
-      currentSubtasks[index - 1] = current;
-      currentSubtasks[index] = prev;
-      form.setFieldValue("subtasks", currentSubtasks);
+      currentCriteria[index - 1] = current;
+      currentCriteria[index] = prev;
+      form.setFieldValue("acceptanceCriteria", currentCriteria);
     },
     [form]
   );
 
-  const moveSubtaskDown = useCallback(
+  const moveCriterionDown = useCallback(
     (index: number) => {
-      const currentSubtasks = form.state.values.subtasks;
-      if (index >= currentSubtasks.length - 1) return;
-      const newSubtasks = [...currentSubtasks];
-      const current = newSubtasks[index];
-      const next = newSubtasks[index + 1];
+      const currentCriteria = form.state.values.acceptanceCriteria;
+      if (index >= currentCriteria.length - 1) return;
+      const newCriteria = [...currentCriteria];
+      const current = newCriteria[index];
+      const next = newCriteria[index + 1];
       if (!current || !next) return;
-      newSubtasks[index + 1] = current;
-      newSubtasks[index] = next;
-      form.setFieldValue("subtasks", newSubtasks);
+      newCriteria[index + 1] = current;
+      newCriteria[index] = next;
+      form.setFieldValue("acceptanceCriteria", newCriteria);
     },
     [form]
   );
 
   // Computed values from form state
   const formTags = form.state.values.tags;
-  const formSubtasks = form.state.values.subtasks;
-  const completedSubtasks = formSubtasks.filter((s) => s.completed).length;
+  const formCriteria = form.state.values.acceptanceCriteria;
+  const passedCriteria = formCriteria.filter((c) => c.status === "passed").length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -1222,44 +1266,82 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
             </div>
           </div>
 
-          {/* Subtasks */}
+          {/* Acceptance Criteria */}
           <div>
             <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              Subtasks
-              {formSubtasks.length > 0 && (
+              Acceptance Criteria
+              {formCriteria.length > 0 && (
                 <span className="ml-2 text-[var(--text-tertiary)]">
-                  ({completedSubtasks}/{formSubtasks.length})
+                  ({passedCriteria}/{formCriteria.length} passed)
                 </span>
               )}
             </label>
             <div className="space-y-2 mb-2">
-              {formSubtasks.map((subtask, index) => (
+              {formCriteria.map((criterion, index) => (
                 <div
-                  key={subtask.id}
-                  className="flex items-center gap-2 p-2 bg-[var(--bg-tertiary)] rounded-lg group"
+                  key={criterion.id}
+                  className={`flex items-start gap-2 p-2 rounded-lg group ${
+                    criterion.status === "passed"
+                      ? "bg-[var(--success-muted)] border border-[var(--success)]/30"
+                      : criterion.status === "failed"
+                        ? "bg-[var(--accent-danger)]/10 border border-[var(--accent-danger)]/30"
+                        : criterion.status === "skipped"
+                          ? "bg-[var(--bg-hover)] border border-[var(--border-primary)]"
+                          : "bg-[var(--bg-tertiary)] border border-transparent"
+                  }`}
                 >
-                  <button
-                    onClick={() => toggleSubtask(subtask.id)}
-                    className={`w-5 h-5 rounded border flex items-center justify-center ${
-                      subtask.completed
-                        ? "bg-[var(--accent-primary)] border-[var(--accent-primary)]"
-                        : "border-[var(--border-primary)] hover:border-[var(--border-secondary)]"
+                  {/* Status dropdown */}
+                  <select
+                    value={criterion.status}
+                    onChange={(e) =>
+                      updateCriterionStatus(
+                        criterion.id,
+                        e.target.value as AcceptanceCriterionStatus
+                      )
+                    }
+                    className={`w-20 text-xs px-1 py-1 rounded border-none appearance-none cursor-pointer ${
+                      criterion.status === "passed"
+                        ? "bg-[var(--success)] text-white"
+                        : criterion.status === "failed"
+                          ? "bg-[var(--accent-danger)] text-white"
+                          : criterion.status === "skipped"
+                            ? "bg-[var(--text-tertiary)] text-white"
+                            : "bg-[var(--bg-hover)] text-[var(--text-secondary)]"
                     }`}
                   >
-                    {subtask.completed && <Check size={12} />}
-                  </button>
-                  <span
-                    className={`flex-1 text-sm ${
-                      subtask.completed
-                        ? "text-[var(--text-tertiary)] line-through"
-                        : "text-[var(--text-primary)]"
-                    }`}
-                  >
-                    {subtask.text}
-                  </span>
+                    <option value="pending">Pending</option>
+                    <option value="passed">Passed</option>
+                    <option value="failed">Failed</option>
+                    <option value="skipped">Skipped</option>
+                  </select>
+                  <div className="flex-1 min-w-0">
+                    <span
+                      className={`text-sm block ${
+                        criterion.status === "passed"
+                          ? "text-[var(--success-text)]"
+                          : criterion.status === "failed"
+                            ? "text-[var(--accent-danger)]"
+                            : criterion.status === "skipped"
+                              ? "text-[var(--text-tertiary)] line-through"
+                              : "text-[var(--text-primary)]"
+                      }`}
+                    >
+                      {criterion.criterion}
+                    </span>
+                    {/* Verification info */}
+                    {criterion.verifiedBy && (
+                      <span className="text-xs text-[var(--text-tertiary)] mt-1 block">
+                        Verified by {criterion.verifiedBy}
+                        {criterion.verifiedAt && (
+                          <> on {new Date(criterion.verifiedAt).toLocaleDateString()}</>
+                        )}
+                        {criterion.verificationNote && <>: {criterion.verificationNote}</>}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
                     <button
-                      onClick={() => moveSubtaskUp(index)}
+                      onClick={() => moveCriterionUp(index)}
                       disabled={index === 0}
                       className="p-1 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] disabled:text-[var(--text-tertiary)]/50 disabled:cursor-not-allowed"
                       title="Move up"
@@ -1267,15 +1349,15 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                       <ChevronUp size={14} />
                     </button>
                     <button
-                      onClick={() => moveSubtaskDown(index)}
-                      disabled={index === formSubtasks.length - 1}
+                      onClick={() => moveCriterionDown(index)}
+                      disabled={index === formCriteria.length - 1}
                       className="p-1 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] disabled:text-[var(--text-tertiary)]/50 disabled:cursor-not-allowed"
                       title="Move down"
                     >
                       <ChevronDown size={14} />
                     </button>
                     <button
-                      onClick={() => removeSubtask(subtask.id)}
+                      onClick={() => removeCriterion(criterion.id)}
                       className="p-1 text-[var(--text-tertiary)] hover:text-[var(--accent-danger)]"
                       title="Delete"
                     >
@@ -1288,14 +1370,14 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
             <div className="flex gap-2">
               <input
                 type="text"
-                value={newSubtask}
-                onChange={(e) => setNewSubtask(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addSubtask()}
-                placeholder="Add subtask..."
+                value={newCriterion}
+                onChange={(e) => setNewCriterion(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addCriterion()}
+                placeholder="Add acceptance criterion..."
                 className="flex-1 px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] text-sm"
               />
               <button
-                onClick={addSubtask}
+                onClick={addCriterion}
                 className="px-3 py-2 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] rounded-lg text-[var(--text-secondary)]"
               >
                 <Plus size={16} />
@@ -1447,6 +1529,9 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
               </div>
             </div>
           )}
+
+          {/* AI Telemetry */}
+          <TelemetryPanel ticketId={ticket.id} />
 
           {/* Activity / Comments */}
           <div>
