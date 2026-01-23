@@ -699,9 +699,9 @@ fi
     : aiBackend === "opencode"
       ? `  # Run OpenCode directly with prompt
   opencode "$PROJECT_PATH" --prompt "$(cat "$PROMPT_FILE")"`
-      : `  # Run Claude directly - no output capture so it streams naturally
-  export AUTO_SPAWN_NEXT_TICKET=1
-  claude --dangerously-skip-permissions "$PROMPT_FILE"`;
+      : `  # Run Claude in print mode (-p) so it exits after completion
+  # This allows the bash loop to continue to the next iteration
+  claude --dangerously-skip-permissions -p "$(cat "$PROMPT_FILE")"`;
 
   const iterationLabel = useSandbox ? "(Docker)" : "";
   const endMessage = useSandbox ? "" : `echo "Run again with: $0 <max_iterations>"`;

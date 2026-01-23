@@ -2,6 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { db } from "../lib/db";
 import { telemetrySessions, telemetryEvents } from "../lib/schema";
 import { eq, desc, and } from "drizzle-orm";
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("telemetry-api");
 
 // Telemetry types
 export type TelemetryEventType =
@@ -83,14 +86,19 @@ export const getTelemetrySessions = createServerFn({ method: "GET" })
 
 /**
  * Safely parse JSON event data, returning a parse error marker on failure.
+ * Returns { _parseError: true } with context for debugging corrupted events.
  */
 function parseEventData(eventData: string | null, eventId: string): Record<string, unknown> | null {
   if (!eventData) return null;
   try {
     return JSON.parse(eventData);
-  } catch {
-    console.error(`Failed to parse telemetry event ${eventId}: invalid JSON`);
-    return { _parseError: true };
+  } catch (error) {
+    logger.warn(`Failed to parse telemetry event ${eventId}: invalid JSON`, error as Error);
+    return {
+      _parseError: true,
+      _errorMessage: `Invalid JSON in event ${eventId}`,
+      _dataPreview: eventData.slice(0, 100),
+    };
   }
 }
 

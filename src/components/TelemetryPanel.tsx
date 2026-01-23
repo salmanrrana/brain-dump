@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
@@ -20,18 +20,13 @@ import {
   type ParsedTelemetryEvent,
   type TelemetrySessionWithEvents,
 } from "../api/telemetry";
+import { queryKeys } from "../lib/hooks";
 
 interface TelemetryPanelProps {
   ticketId: string;
 }
 
-// Query keys for telemetry data
-const telemetryQueryKeys = {
-  stats: (ticketId: string) => ["telemetry", "stats", ticketId] as const,
-  latestSession: (ticketId: string) => ["telemetry", "latestSession", ticketId] as const,
-};
-
-// Event type icons and colors
+/** Style mapping for event types - visual distinction helps users scan the timeline */
 const EVENT_TYPE_STYLES: Record<string, { icon: typeof Activity; color: string }> = {
   session_start: { icon: Activity, color: "text-[var(--success)]" },
   session_end: { icon: Activity, color: "text-[var(--text-secondary)]" },
@@ -42,6 +37,7 @@ const EVENT_TYPE_STYLES: Record<string, { icon: typeof Activity; color: string }
   error: { icon: AlertCircle, color: "text-[var(--error)]" },
 };
 
+/** Format milliseconds as human-readable duration (e.g., "2m 30s") */
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
@@ -50,6 +46,7 @@ function formatDuration(ms: number): string {
   return `${minutes}m ${seconds}s`;
 }
 
+/** Format ISO timestamp as localized time (e.g., "10:30:45 AM") */
 function formatTimestamp(isoString: string): string {
   const date = new Date(isoString);
   return date.toLocaleTimeString(undefined, {
@@ -61,18 +58,21 @@ function formatTimestamp(isoString: string): string {
 
 function OutcomeIcon({ outcome }: { outcome: string | null }) {
   if (outcome === "success") {
-    return <CheckCircle className="w-4 h-4 text-[var(--success)]" />;
+    return <CheckCircle className="w-4 h-4 text-[var(--success)]" aria-label="Success" />;
   }
   if (outcome === "failure") {
-    return <XCircle className="w-4 h-4 text-[var(--error)]" />;
+    return <XCircle className="w-4 h-4 text-[var(--error)]" aria-label="Failed" />;
   }
   if (outcome === "timeout" || outcome === "cancelled") {
-    return <AlertCircle className="w-4 h-4 text-[var(--warning)]" />;
+    return (
+      <AlertCircle className="w-4 h-4 text-[var(--warning)]" aria-label="Cancelled or timed out" />
+    );
   }
-  return <Clock className="w-4 h-4 text-[var(--text-secondary)]" />;
+  return <Clock className="w-4 h-4 text-[var(--text-secondary)]" aria-label="In progress" />;
 }
 
-function EventItem({ event }: { event: ParsedTelemetryEvent }) {
+/** Memoized event item - prevents re-renders when parent state changes but event data is stable */
+const EventItem = memo(function EventItem({ event }: { event: ParsedTelemetryEvent }) {
   const style = EVENT_TYPE_STYLES[event.eventType] || {
     icon: Activity,
     color: "text-[var(--text-secondary)]",
@@ -104,7 +104,10 @@ function EventItem({ event }: { event: ParsedTelemetryEvent }) {
             </span>
           )}
           {success !== undefined && (
-            <span className={success ? "text-[var(--success)]" : "text-[var(--error)]"}>
+            <span
+              className={success ? "text-[var(--success)]" : "text-[var(--error)]"}
+              aria-label={success ? "Succeeded" : "Failed"}
+            >
               {success ? "✓" : "✗"}
             </span>
           )}
@@ -123,9 +126,10 @@ function EventItem({ event }: { event: ParsedTelemetryEvent }) {
       </span>
     </div>
   );
-}
+});
 
-function StatsCard({
+/** Memoized stats card - prevents re-renders when parent expands/collapses */
+const StatsCard = memo(function StatsCard({
   label,
   value,
   icon: Icon,
@@ -136,14 +140,14 @@ function StatsCard({
 }) {
   return (
     <div className="flex items-center gap-2 p-2 bg-[var(--bg-tertiary)] rounded">
-      <Icon className="w-4 h-4 text-[var(--text-secondary)]" />
+      <Icon className="w-4 h-4 text-[var(--text-secondary)]" aria-hidden="true" />
       <div>
         <p className="text-xs text-[var(--text-muted)]">{label}</p>
         <p className="text-sm font-medium text-[var(--text-primary)]">{value}</p>
       </div>
     </div>
   );
-}
+});
 
 function EventTimeline({
   isLoading,
@@ -156,15 +160,27 @@ function EventTimeline({
 }) {
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 text-[var(--text-secondary)] p-2">
-        <Loader2 className="w-3 h-3 animate-spin" />
+      <div
+        className="flex items-center gap-2 text-[var(--text-secondary)] p-2"
+        role="status"
+        aria-live="polite"
+      >
+        <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
         <span className="text-xs">Loading events...</span>
       </div>
     );
   }
 
-  if (error || !session) {
-    return <p className="text-xs text-[var(--text-muted)] p-2">Failed to load events</p>;
+  if (error) {
+    return (
+      <p className="text-xs text-[var(--error)] p-2" role="alert">
+        Failed to load events: {error.message || "Unknown error"}
+      </p>
+    );
+  }
+
+  if (!session) {
+    return <p className="text-xs text-[var(--text-muted)] p-2">No session data available</p>;
   }
 
   if (session.events.length === 0) {
@@ -187,24 +203,22 @@ export function TelemetryPanel({ ticketId }: TelemetryPanelProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
 
-  // Fetch telemetry stats
   const {
     data: stats,
     isLoading: statsLoading,
     error: statsError,
   } = useQuery({
-    queryKey: telemetryQueryKeys.stats(ticketId),
+    queryKey: queryKeys.telemetry.stats(ticketId),
     queryFn: () => getTelemetryStats({ data: ticketId }),
-    staleTime: 30000, // 30 seconds
+    staleTime: 30000,
   });
 
-  // Fetch latest session with events (only when expanded)
   const {
     data: latestSession,
     isLoading: sessionLoading,
     error: sessionError,
   } = useQuery({
-    queryKey: telemetryQueryKeys.latestSession(ticketId),
+    queryKey: queryKeys.telemetry.latestSession(ticketId),
     queryFn: () => getLatestTelemetrySession({ data: ticketId }),
     enabled: isExpanded,
     staleTime: 30000,
@@ -213,23 +227,40 @@ export function TelemetryPanel({ ticketId }: TelemetryPanelProps) {
   if (statsLoading) {
     return (
       <div className="p-4 border border-[var(--border-subtle)] rounded-lg">
-        <div className="flex items-center gap-2 text-[var(--text-secondary)]">
-          <Loader2 className="w-4 h-4 animate-spin" />
+        <div
+          className="flex items-center gap-2 text-[var(--text-secondary)]"
+          role="status"
+          aria-live="polite"
+        >
+          <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
           <span className="text-sm">Loading telemetry...</span>
         </div>
       </div>
     );
   }
 
-  if (statsError || !stats) {
-    return null; // Silently fail if telemetry not available
+  // Show error state instead of silently failing
+  if (statsError) {
+    return (
+      <div className="p-4 border border-[var(--border-subtle)] rounded-lg">
+        <div className="flex items-center gap-2 text-[var(--error)]" role="alert">
+          <AlertCircle className="w-4 h-4" aria-hidden="true" />
+          <span className="text-sm">Failed to load telemetry data</span>
+        </div>
+      </div>
+    );
+  }
+
+  // No stats available (feature disabled or not initialized)
+  if (!stats) {
+    return null;
   }
 
   if (stats.totalSessions === 0) {
     return (
       <div className="p-4 border border-[var(--border-subtle)] rounded-lg">
         <div className="flex items-center gap-2 text-[var(--text-muted)]">
-          <Activity className="w-4 h-4" />
+          <Activity className="w-4 h-4" aria-hidden="true" />
           <span className="text-sm">No AI telemetry recorded for this ticket yet.</span>
         </div>
       </div>
@@ -238,15 +269,19 @@ export function TelemetryPanel({ ticketId }: TelemetryPanelProps) {
 
   return (
     <div className="border border-[var(--border-subtle)] rounded-lg overflow-hidden">
-      {/* Header */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full flex items-center justify-between p-3 bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+        aria-expanded={isExpanded}
+        aria-controls="telemetry-content"
       >
         <div className="flex items-center gap-2">
-          <Activity className="w-4 h-4 text-[var(--accent-ai)]" />
+          <Activity className="w-4 h-4 text-[var(--accent-ai)]" aria-hidden="true" />
           <span className="text-sm font-medium text-[var(--text-primary)]">AI Telemetry</span>
-          <span className="text-xs px-1.5 py-0.5 bg-[var(--bg-tertiary)] rounded text-[var(--text-secondary)]">
+          <span
+            className="text-xs px-1.5 py-0.5 bg-[var(--bg-tertiary)] rounded text-[var(--text-secondary)]"
+            aria-live="polite"
+          >
             {stats.totalSessions} session{stats.totalSessions !== 1 ? "s" : ""}
           </span>
         </div>
@@ -260,18 +295,16 @@ export function TelemetryPanel({ ticketId }: TelemetryPanelProps) {
             </div>
           )}
           {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-[var(--text-secondary)]" />
+            <ChevronDown className="w-4 h-4 text-[var(--text-secondary)]" aria-hidden="true" />
           ) : (
-            <ChevronRight className="w-4 h-4 text-[var(--text-secondary)]" />
+            <ChevronRight className="w-4 h-4 text-[var(--text-secondary)]" aria-hidden="true" />
           )}
         </div>
       </button>
 
-      {/* Expanded Content */}
       {isExpanded && (
-        <div className="p-3 space-y-4">
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 gap-2">
+        <div id="telemetry-content" className="p-3 space-y-4">
+          <div className="grid grid-cols-2 gap-2" role="group" aria-label="Telemetry statistics">
             <StatsCard label="Prompts" value={stats.totalPrompts} icon={MessageSquare} />
             <StatsCard label="Tool Calls" value={stats.totalToolCalls} icon={Wrench} />
             <StatsCard
@@ -286,16 +319,16 @@ export function TelemetryPanel({ ticketId }: TelemetryPanelProps) {
             />
           </div>
 
-          {/* Most Used Tools */}
           {stats.mostUsedTools.length > 0 && (
             <div>
               <h4 className="text-xs font-medium text-[var(--text-secondary)] mb-2">
                 Most Used Tools
               </h4>
-              <div className="flex flex-wrap gap-1">
+              <div className="flex flex-wrap gap-1" role="list" aria-label="Most used tools">
                 {stats.mostUsedTools.slice(0, 5).map(({ toolName, count }) => (
                   <span
                     key={toolName}
+                    role="listitem"
                     className="text-xs px-2 py-1 bg-[var(--bg-tertiary)] rounded text-[var(--text-secondary)]"
                   >
                     {toolName.replace("mcp__brain-dump__", "")} ({count})
@@ -305,23 +338,26 @@ export function TelemetryPanel({ ticketId }: TelemetryPanelProps) {
             </div>
           )}
 
-          {/* Timeline Toggle */}
           <div>
             <button
               onClick={() => setShowTimeline(!showTimeline)}
               className="flex items-center gap-1 text-xs text-[var(--accent-ai)] hover:underline"
+              aria-expanded={showTimeline}
+              aria-controls="event-timeline"
             >
               {showTimeline ? "Hide" : "Show"} Event Timeline
               {showTimeline ? (
-                <ChevronDown className="w-3 h-3" />
+                <ChevronDown className="w-3 h-3" aria-hidden="true" />
               ) : (
-                <ChevronRight className="w-3 h-3" />
+                <ChevronRight className="w-3 h-3" aria-hidden="true" />
               )}
             </button>
 
-            {/* Event Timeline */}
             {showTimeline && (
-              <div className="mt-2 max-h-64 overflow-y-auto border border-[var(--border-subtle)] rounded p-2">
+              <div
+                id="event-timeline"
+                className="mt-2 max-h-64 overflow-y-auto border border-[var(--border-subtle)] rounded p-2"
+              >
                 <EventTimeline
                   isLoading={sessionLoading}
                   error={sessionError}

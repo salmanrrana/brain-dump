@@ -435,6 +435,12 @@ export const queryKeys = {
   analytics: {
     dashboard: () => ["analytics", "dashboard"] as const,
   },
+  // Telemetry
+  telemetry: {
+    stats: (ticketId: string) => ["telemetry", "stats", ticketId] as const,
+    latestSession: (ticketId: string) => ["telemetry", "latestSession", ticketId] as const,
+    sessions: (ticketId: string) => ["telemetry", "sessions", ticketId] as const,
+  },
 };
 
 // Types
