@@ -59,7 +59,14 @@ try {
 }
 
 const db = new Database(dbPath);
-const tasks = JSON.parse(tasksJson);
+let tasks;
+try {
+  tasks = JSON.parse(tasksJson);
+} catch (err) {
+  console.error("Failed to parse tasks JSON:", err.message);
+  db.close();
+  process.exit(1);
+}
 const now = new Date().toISOString();
 
 // Read session ID from Ralph state
@@ -71,7 +78,12 @@ try {
     const state = JSON.parse(readFileSync(stateFile, "utf-8"));
     sessionId = state.sessionId || null;
   }
-} catch {}
+} catch (err) {
+  // Log non-ENOENT errors (file not found is expected)
+  if (err.code !== "ENOENT") {
+    console.warn("Failed to read Ralph state:", err.message);
+  }
+}
 
 // Verify ticket exists
 const ticket = db.prepare("SELECT id, title FROM tickets WHERE id = ?").get(ticketId);
@@ -107,7 +119,10 @@ for (let i = 0; i < tasks.length; i++) {
   if (existing?.status_history) {
     try {
       statusHistory = JSON.parse(existing.status_history);
-    } catch {}
+    } catch (err) {
+      console.warn(`Failed to parse status history for task ${taskId}:`, err.message);
+      statusHistory = [];
+    }
   }
 
   // Add status entry if changed

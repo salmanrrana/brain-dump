@@ -51,7 +51,8 @@ export function ClaudeTasks({ ticketId, ticketStatus, defaultExpanded = true }: 
   const statusCounts = useMemo(() => {
     return tasks.reduce(
       (acc, task) => {
-        acc[task.status] = (acc[task.status] || 0) + 1;
+        const status = task.status as ClaudeTaskStatus;
+        acc[status] = (acc[status] || 0) + 1;
         return acc;
       },
       { pending: 0, in_progress: 0, completed: 0 } as Record<ClaudeTaskStatus, number>
@@ -149,8 +150,9 @@ interface TaskItemProps {
  * Individual task item with status icon and text.
  */
 function TaskItem({ task }: TaskItemProps) {
-  const StatusIcon = STATUS_ICONS[task.status];
-  const colorClass = STATUS_COLORS[task.status];
+  const status = task.status as ClaudeTaskStatus;
+  const StatusIcon = STATUS_ICONS[status];
+  const colorClass = STATUS_COLORS[status];
 
   return (
     <li className="flex items-start gap-2 py-1">

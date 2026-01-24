@@ -80,10 +80,12 @@ if [[ ! -f "$HELPER_SCRIPT" ]]; then
 fi
 
 # Save tasks directly to the database via helper script
-# Run in background to not block Claude
-(
-  cd "$PROJECT_DIR"
-  PROJECT_DIR="$PROJECT_DIR" node "$HELPER_SCRIPT" "$TICKET_ID" "$TRANSFORMED_TASKS" >> "$LOG_FILE" 2>&1
-) &
+# Run synchronously to ensure tasks are saved before Claude continues
+cd "$PROJECT_DIR"
+if ! PROJECT_DIR="$PROJECT_DIR" node "$HELPER_SCRIPT" "$TICKET_ID" "$TRANSFORMED_TASKS" >> "$LOG_FILE" 2>&1; then
+  echo "[$(date -Iseconds)] ERROR: Failed to save $TASK_COUNT tasks for ticket $TICKET_ID" >> "$LOG_FILE"
+  exit 1
+fi
 
+echo "[$(date -Iseconds)] SUCCESS: Saved $TASK_COUNT tasks for ticket $TICKET_ID" >> "$LOG_FILE"
 exit 0

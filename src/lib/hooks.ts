@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, useRef, useMemo, type RefObject } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getClaudeTasks, type ClaudeTask, type ClaudeTaskStatus } from "../api/claude-tasks";
 
 // =============================================================================
 // STATE UTILITY HOOKS
@@ -441,6 +442,8 @@ export const queryKeys = {
     latestSession: (ticketId: string) => ["telemetry", "latestSession", ticketId] as const,
     sessions: (ticketId: string) => ["telemetry", "sessions", ticketId] as const,
   },
+  // Claude Tasks
+  claudeTasks: (ticketId: string) => ["claudeTasks", ticketId] as const,
 };
 
 // Types
@@ -1468,7 +1471,6 @@ export function useDeleteComment(ticketId: string) {
 // CLAUDE TASKS HOOKS
 // =============================================================================
 
-import { getClaudeTasks, type ClaudeTask, type ClaudeTaskStatus } from "../api/claude-tasks";
 export type { ClaudeTask, ClaudeTaskStatus };
 
 /**
@@ -1482,7 +1484,7 @@ export function useClaudeTasks(ticketId: string, options: { pollingInterval?: nu
   const { pollingInterval = 0 } = options;
 
   const query = useQuery({
-    queryKey: ["claudeTasks", ticketId],
+    queryKey: queryKeys.claudeTasks(ticketId),
     queryFn: async () => {
       const tasks = await getClaudeTasks({ data: ticketId });
       return tasks as ClaudeTask[];

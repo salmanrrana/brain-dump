@@ -10,7 +10,7 @@ import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { log } from "../lib/logging.js";
 
-const TASK_STATUSES = ["pending", "in_progress", "completed"];
+const TASK_STATUSES = /** @type {const} */ (["pending", "in_progress", "completed"]);
 
 /**
  * Task input schema for save_claude_tasks.
@@ -50,6 +50,32 @@ function readRalphState(projectPath) {
   }
 
   return { ticketId: null, sessionId: null };
+}
+
+/**
+ * Verify that a ticket exists in the database.
+ * @param {import("better-sqlite3").Database} db
+ * @param {string} ticketId
+ * @returns {object|null} The ticket object if found, null otherwise
+ */
+function ensureTicketExists(db, ticketId) {
+  return db.prepare("SELECT id, title FROM tickets WHERE id = ?").get(ticketId);
+}
+
+/**
+ * Get the emoji icon for a task status.
+ * @param {string} status - Task status ('pending', 'in_progress', or 'completed')
+ * @returns {string} Status icon emoji
+ */
+function getTaskStatusIcon(status) {
+  switch (status) {
+    case "completed":
+      return "✅";
+    case "in_progress":
+      return "🔄";
+    default:
+      return "○";
+  }
 }
 
 /**
@@ -99,7 +125,7 @@ Returns the saved tasks.`,
       }
 
       // Verify ticket exists
-      const ticket = db.prepare("SELECT id, title FROM tickets WHERE id = ?").get(resolvedTicketId);
+      const ticket = ensureTicketExists(db, resolvedTicketId);
       if (!ticket) {
         return {
           content: [{ type: "text", text: `Ticket not found: ${resolvedTicketId}. Use list_tickets to see available tickets.` }],
@@ -121,7 +147,7 @@ Returns the saved tasks.`,
       const transaction = db.transaction(() => {
         // Get existing tasks to preserve history
         const existingTasks = db.prepare(
-          "SELECT id, status, status_history FROM claude_tasks WHERE ticket_id = ?"
+          "SELECT id, status, status_history, created_at FROM claude_tasks WHERE ticket_id = ?"
         ).all(resolvedTicketId);
         const existingTaskMap = new Map(existingTasks.map(t => [t.id, t]));
 
@@ -214,10 +240,7 @@ Returns the saved tasks.`,
 **Tasks:** ${savedTasks.length} (${Object.entries(statusCounts).map(([s, c]) => `${c} ${s}`).join(", ")})
 ${createSnapshot ? "**Snapshot:** Created for audit trail" : ""}
 
-${savedTasks.map((t, i) => {
-  const icon = t.status === "completed" ? "✅" : t.status === "in_progress" ? "🔄" : "○";
-  return `${i + 1}. ${icon} ${t.subject}`;
-}).join("\n")}`,
+${savedTasks.map((t, i) => `${i + 1}. ${getTaskStatusIcon(t.status)} ${t.subject}`).join("\n")}`,
           }],
         };
       } catch (err) {
@@ -266,7 +289,7 @@ Returns array of tasks with full details.`,
       }
 
       // Verify ticket exists
-      const ticket = db.prepare("SELECT id, title FROM tickets WHERE id = ?").get(resolvedTicketId);
+      const ticket = ensureTicketExists(db, resolvedTicketId);
       if (!ticket) {
         return {
           content: [{ type: "text", text: `Ticket not found: ${resolvedTicketId}. Use list_tickets to see available tickets.` }],
@@ -331,8 +354,7 @@ Returns array of tasks with full details.`,
 **Total:** ${formattedTasks.length} (${Object.entries(statusCounts).map(([s, c]) => `${c} ${s}`).join(", ")})
 
 ${formattedTasks.map((t, i) => {
-  const icon = t.status === "completed" ? "✅" : t.status === "in_progress" ? "🔄" : "○";
-  let entry = `${i + 1}. ${icon} **${t.subject}**`;
+  let entry = `${i + 1}. ${getTaskStatusIcon(t.status)} **${t.subject}**`;
   if (t.description) entry += `\n   ${t.description}`;
   if (t.activeForm && t.status === "in_progress") entry += `\n   _${t.activeForm}_`;
   return entry;
@@ -381,7 +403,7 @@ Returns confirmation of cleared tasks.`,
       }
 
       // Verify ticket exists
-      const ticket = db.prepare("SELECT id, title FROM tickets WHERE id = ?").get(resolvedTicketId);
+      const ticket = ensureTicketExists(db, resolvedTicketId);
       if (!ticket) {
         return {
           content: [{ type: "text", text: `Ticket not found: ${resolvedTicketId}. Use list_tickets to see available tickets.` }],
@@ -476,14 +498,22 @@ Returns array of snapshots with task data.`,
       }
 
       // Parse tasks JSON
-      const formattedSnapshots = snapshots.map(s => ({
-        id: s.id,
-        sessionId: s.session_id,
-        reason: s.reason,
-        createdAt: s.created_at,
-        tasks: JSON.parse(s.tasks),
-        taskCount: JSON.parse(s.tasks).length,
-      }));
+      const formattedSnapshots = snapshots.map(s => {
+        let parsedTasks = [];
+        try {
+          parsedTasks = JSON.parse(s.tasks);
+        } catch (err) {
+          log.warn(`Failed to parse tasks snapshot ${s.id}: ${err.message}`);
+        }
+        return {
+          id: s.id,
+          sessionId: s.session_id,
+          reason: s.reason,
+          createdAt: s.created_at,
+          tasks: parsedTasks,
+          taskCount: parsedTasks.length,
+        };
+      });
 
       return {
         content: [{
@@ -494,7 +524,7 @@ ${formattedSnapshots.map((s, i) => {
   const date = new Date(s.createdAt).toLocaleString();
   return `### ${i + 1}. ${s.reason} - ${date}
 **Tasks:** ${s.taskCount}
-${s.tasks.map(t => `- ${t.status === "completed" ? "✅" : t.status === "in_progress" ? "🔄" : "○"} ${t.subject}`).join("\n")}`;
+${s.tasks.map(t => `- ${getTaskStatusIcon(t.status)} ${t.subject}`).join("\n")}`;
 }).join("\n\n")}`,
         }],
       };
