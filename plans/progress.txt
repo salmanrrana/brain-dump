@@ -159,3 +159,109 @@
 - **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1359 passed)
 - **Action:** Marked PRD ticket as passes: true
 
+
+---
+
+### 2026-01-24 12:13:05 - Session Timeout
+- **Reason:** Timeout reached (2h limit)
+- **Status:** Session terminated, work may be incomplete
+- **Action:** Review progress and restart if needed
+
+### 2026-01-24 - Ticket b81a2c29 Complete (Claude Tasks Data Model)
+- **Ticket ID:** b81a2c29-79c9-4587-b139-8ca52e85422b
+- **Task:** Design data model for Claude Tasks storage
+- **Success:** true
+- **Commit:** 4e95a73
+- **Files:**
+  - src/lib/schema.ts (claude_tasks and claude_task_snapshots tables)
+  - drizzle/0007_boring_sphinx.sql (migration)
+- **Features:**
+  - claude_tasks table stores tasks with: id, subject, description, status, activeForm, position
+  - statusHistory JSON column for tracking status transitions per task
+  - claude_task_snapshots table for complete task list audit trail
+  - Foreign key to tickets with cascade delete
+  - Indexes for efficient querying by ticket, session, status, position
+- **Design Decisions:**
+  - Separate tables (not JSON column) for proper indexing and referential integrity
+  - Position as real type allows inserting between existing tasks
+  - Optional sessionId links tasks to Ralph sessions
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1293 passed)
+
+
+### 2026-01-24 - Ticket 3ebe925e Complete (Claude Tasks MCP Tools)
+- **Ticket ID:** 3ebe925e-acaa-4718-b3df-47fdcca62e18
+- **Task:** Add MCP tools for Claude Tasks management
+- **Success:** true
+- **Commit:** 26fe0c5
+- **Files:**
+  - mcp-server/tools/claude-tasks.js (NEW)
+  - mcp-server/index.js (modified)
+- **Tools Implemented:**
+  - `save_claude_tasks` - Saves task list with atomic replacement
+  - `get_claude_tasks` - Retrieves tasks with optional history
+  - `clear_claude_tasks` - Clears tasks with snapshot creation
+  - `get_claude_task_snapshots` - Retrieves historical snapshots
+- **Features:**
+  - Auto-detect active ticket from Ralph state
+  - SQLite transactions for atomicity
+  - Status history tracking for audit trails
+  - Position-based ordering
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1293 passed)
+
+### 2026-01-24 - Ticket 14ac6bba Complete (Add Claude Tasks to ticket detail page)
+- **Ticket ID:** 14ac6bba-83e4-423c-ba09-0da3ec096c3d
+- **Task:** Add Claude Tasks to ticket detail page
+- **Success:** true
+- **Commit:** b00b95b
+- **Files:**
+  - src/routes/ticket.$id.tsx (modified)
+- **Changes:**
+  - Added import for ClaudeTasks component
+  - Placed Claude Tasks section between content grid and activity section
+  - Uses sectionStyles for consistent spacing
+  - Component auto-hides when no tasks exist (returns null)
+  - Polls for updates when ticket is in progress
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1293 passed)
+
+### 2026-01-24 - Ticket 76af8d06 Complete (Auto-capture Claude Tasks Hook)
+- **Ticket ID:** 76af8d06-2899-4713-bff4-07dc3067bdd4
+- **Task:** Add hooks to auto-capture Claude tasks
+- **Success:** true
+- **Commit:** 3a76fba
+- **Files:**
+  - .claude/hooks/capture-claude-tasks.sh (NEW - shell hook for TodoWrite)
+  - .claude/hooks/save-tasks-to-db.cjs (NEW - Node helper for database writes)
+  - eslint.config.js (added .claude to ignores)
+  - scripts/setup-claude-code.sh (installs new hook and .cjs files)
+- **Features:**
+  - PostToolUse hook triggers on TodoWrite when Ralph session is active
+  - Transforms TodoWrite format (content) to Brain Dump format (subject)
+  - Writes directly to database in background (fire-and-forget)
+  - Preserves status history for audit trails
+  - Checks for .claude/ralph-state.json before capturing
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1293 passed)
+
+### 2026-01-24 - Claude Tasks Epic Complete
+- All 5 tickets in the "Claude Tasks Integration" epic are now complete
+- Epic provides visibility into Claude's task breakdowns when working on tickets
+- Tasks captured automatically and displayed in Brain Dump UI
+
+### 2026-01-24 - Ticket 8e93eb7d Complete (Claude Tasks in Edit Modal)
+- **Ticket ID:** 8e93eb7d-7802-4815-bf0a-e3485a77c4f5
+- **Task:** Add Claude Tasks section to Edit Ticket Modal (Kanban board)
+- **Success:** true
+- **Commit:** a67fff6
+- **Files:**
+  - src/components/TicketModal.tsx (modified)
+- **Changes:**
+  - Added ClaudeTasks import from ./tickets/ClaudeTasks
+  - Placed Claude Tasks section between AI Telemetry and Activity sections
+  - Set defaultExpanded=false to save modal space
+  - Component auto-hides when no tasks exist
+  - Real-time updates when ticket is in_progress
+- **Acceptance Criteria:** All 5 criteria met
+- **Verification:** type-check ✅, lint ✅ (0 errors), tests ✅ (1293 passed)
+
+### 2026-01-24 - All Claude Tasks Epic Tickets Complete
+- All 6 tickets in the "Claude Tasks Integration" epic are now marked as complete in the PRD
+- Features: database schema, MCP tools, UI component, ticket detail integration, auto-capture hooks, edit modal integration
