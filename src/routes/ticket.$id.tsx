@@ -10,6 +10,7 @@ import { TicketDetailHeader } from "../components/tickets/TicketDetailHeader";
 import { EditTicketModal } from "../components/tickets/EditTicketModal";
 import { TicketDescription } from "../components/tickets";
 import { SubtasksProgress } from "../components/tickets";
+import { ClaudeTasks } from "../components/tickets/ClaudeTasks";
 import type { Subtask } from "../components/tickets/SubtasksProgress";
 import { type LaunchType } from "../components/tickets/LaunchActions";
 import { POLLING_INTERVALS } from "../lib/constants";
@@ -467,6 +468,11 @@ function TicketDetailPage() {
           />
         </section>
       </div>
+
+      {/* Claude Tasks Section - Shows tasks Claude created while working on this ticket */}
+      <section style={sectionStyles}>
+        <ClaudeTasks ticketId={ticket.id} ticketStatus={ticket.status} defaultExpanded={true} />
+      </section>
 
       {/* Activity Section - Full height, no max-height constraint */}
       <section style={activitySectionStyles}>
