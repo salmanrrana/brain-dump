@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useParams } from "@tanstack/react-router";
+import { createFileRoute, useParams, useRouter, useCanGoBack } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useCallback, useRef } from "react";
 import { ArrowLeft, AlertCircle } from "lucide-react";
@@ -33,9 +33,20 @@ export const Route = createFileRoute("/ticket/$id")({
 
 /**
  * Error component for ticket detail route - shows user-friendly error with navigation.
+ * Uses TanStack Router's useCanGoBack hook to determine if browser back is available.
  */
 function TicketDetailError({ error }: { error: Error }) {
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
   console.error("Ticket detail error:", error);
+
+  const handleBackNavigation = () => {
+    if (canGoBack) {
+      router.history.back();
+    } else {
+      void router.navigate({ to: "/" });
+    }
+  };
 
   return (
     <div style={errorContainerStyles}>
@@ -43,10 +54,15 @@ function TicketDetailError({ error }: { error: Error }) {
         <AlertCircle size={48} style={{ color: "var(--accent-danger)" }} />
         <h2 style={errorTitleStyles}>Ticket Not Found</h2>
         <p style={errorMessageStyles}>{error.message}</p>
-        <Link to="/" style={backLinkStyles}>
+        <button
+          type="button"
+          onClick={handleBackNavigation}
+          style={backLinkStyles}
+          className="hover:opacity-90"
+        >
           <ArrowLeft size={16} />
           Back to Board
-        </Link>
+        </button>
       </div>
     </div>
   );
@@ -195,6 +211,8 @@ function TicketDetailSkeleton() {
  */
 function TicketDetailPage() {
   const { id } = useParams({ from: "/ticket/$id" });
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
   const { showToast } = useToast();
   const { projects } = useProjects();
   const { settings } = useSettings();
@@ -272,6 +290,18 @@ function TicketDetailPage() {
     void refetch();
     setShowEditModal(false);
   }, [refetch]);
+
+  // Handle back navigation - preserves filter state by using browser history
+  // Uses TanStack Router's useCanGoBack hook to check if back navigation is possible
+  // If no history (direct URL navigation), falls back to home
+  const handleBackNavigation = useCallback(() => {
+    if (canGoBack) {
+      router.history.back();
+    } else {
+      // No history - navigate to board
+      void router.navigate({ to: "/" });
+    }
+  }, [canGoBack, router]);
 
   // Handle launch action - launches Claude, OpenCode, or Ralph
   const handleLaunch = useCallback(
@@ -384,10 +414,15 @@ function TicketDetailPage() {
           <p style={errorMessageStyles}>
             {error instanceof Error ? error.message : `Could not find ticket with ID: ${id}`}
           </p>
-          <Link to="/" style={backLinkStyles}>
+          <button
+            type="button"
+            onClick={handleBackNavigation}
+            style={backLinkStyles}
+            className="hover:opacity-90"
+          >
             <ArrowLeft size={16} />
             Back to Board
-          </Link>
+          </button>
         </div>
       </div>
     );
@@ -395,11 +430,16 @@ function TicketDetailPage() {
 
   return (
     <div style={containerStyles}>
-      {/* Back Navigation */}
-      <Link to="/" style={backNavLinkStyles}>
+      {/* Back Navigation - uses browser history to preserve filter state */}
+      <button
+        type="button"
+        onClick={handleBackNavigation}
+        style={backNavLinkStyles}
+        className="hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+      >
         <ArrowLeft size={16} />
         Back to Board
-      </Link>
+      </button>
 
       {/* Header Section - using TicketDetailHeader component */}
       <TicketDetailHeader
@@ -483,12 +523,14 @@ const backNavLinkStyles: React.CSSProperties = {
   alignItems: "center",
   gap: "var(--spacing-2)",
   color: "var(--text-secondary)",
-  textDecoration: "none",
   fontSize: "var(--font-size-sm)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
   padding: "var(--spacing-2) var(--spacing-3)",
   borderRadius: "var(--radius-md)",
   transition: "background-color 0.15s, color 0.15s",
+  cursor: "pointer",
+  background: "transparent",
+  border: "none",
 };
 
 const headerSectionStyles: React.CSSProperties = {
@@ -568,9 +610,10 @@ const backLinkStyles: React.CSSProperties = {
   background: "var(--accent-primary)",
   color: "white",
   borderRadius: "var(--radius-md)",
-  textDecoration: "none",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
   marginTop: "var(--spacing-2)",
+  cursor: "pointer",
+  border: "none",
 };
 
 // Skeleton styles
