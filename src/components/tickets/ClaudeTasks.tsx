@@ -70,6 +70,15 @@ export function ClaudeTasks({ ticketId, ticketStatus, defaultExpanded = true }: 
 
   return (
     <div className="border border-[var(--border-primary)] rounded-lg overflow-hidden">
+      {/* Live region for screen readers to announce task updates */}
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {hasInProgress
+          ? `Claude is currently working on ${statusCounts.in_progress} task${statusCounts.in_progress > 1 ? "s" : ""}`
+          : totalTasks > 0
+            ? `${completedTasks} of ${totalTasks} tasks completed`
+            : ""}
+      </div>
+
       {/* Header */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
@@ -108,7 +117,7 @@ export function ClaudeTasks({ ticketId, ticketStatus, defaultExpanded = true }: 
         <div id="claude-tasks-content" className="p-3">
           {/* Loading state */}
           {loading && (
-            <ul className="space-y-1.5" role="list">
+            <ul className="space-y-1.5" role="list" aria-label="Loading tasks">
               {[1, 2, 3].map((i) => (
                 <li key={i} className="flex items-start gap-2 py-1">
                   <div className="w-4 h-4 bg-[var(--bg-hover)] rounded-full animate-pulse mt-0.5 flex-shrink-0" />
@@ -152,42 +161,56 @@ interface TaskItemProps {
 
 /**
  * Individual task item with status icon and text.
+ * Memoized with custom comparison to prevent re-renders when only parent updates.
  */
-const TaskItem = memo(function TaskItem({ task }: TaskItemProps) {
-  const status = task.status as ClaudeTaskStatus;
-  const StatusIcon = STATUS_ICONS[status];
-  const colorClass = STATUS_COLORS[status];
+const TaskItem = memo(
+  function TaskItem({ task }: TaskItemProps) {
+    const status = task.status as ClaudeTaskStatus;
+    const StatusIcon = STATUS_ICONS[status];
+    const colorClass = STATUS_COLORS[status];
 
-  return (
-    <li className="flex items-start gap-2 py-1">
-      <StatusIcon size={16} className={`flex-shrink-0 mt-0.5 ${colorClass}`} />
-      <div className="flex-1 min-w-0">
-        <span
-          className={`text-sm block ${
-            task.status === "completed"
-              ? "text-[var(--text-tertiary)] line-through"
-              : "text-[var(--text-primary)]"
-          }`}
-        >
-          {task.subject}
-        </span>
-
-        {/* Show active form for in-progress tasks */}
-        {task.status === "in_progress" && task.activeForm && (
-          <span className="text-xs text-[var(--accent-ai)] italic block mt-0.5">
-            {task.activeForm}...
+    return (
+      <li className="flex items-start gap-2 py-1">
+        <StatusIcon size={16} className={`flex-shrink-0 mt-0.5 ${colorClass}`} />
+        <div className="flex-1 min-w-0">
+          <span
+            className={`text-sm block ${
+              task.status === "completed"
+                ? "text-[var(--text-tertiary)] line-through"
+                : "text-[var(--text-primary)]"
+            }`}
+          >
+            {task.subject}
           </span>
-        )}
 
-        {/* Show description if present and task is expanded (future enhancement) */}
-        {task.description && (
-          <span className="text-xs text-[var(--text-tertiary)] block mt-0.5">
-            {task.description}
-          </span>
-        )}
-      </div>
-    </li>
-  );
-});
+          {/* Show active form for in-progress tasks */}
+          {task.status === "in_progress" && task.activeForm && (
+            <span className="text-xs text-[var(--accent-ai)] italic block mt-0.5">
+              {task.activeForm}...
+            </span>
+          )}
+
+          {/* Show description if present and task is expanded (future enhancement) */}
+          {task.description && (
+            <span className="text-xs text-[var(--text-tertiary)] block mt-0.5">
+              {task.description}
+            </span>
+          )}
+        </div>
+      </li>
+    );
+  },
+  (prevProps, nextProps) => {
+    // Return true if props are equal (don't re-render)
+    return (
+      prevProps.task.id === nextProps.task.id &&
+      prevProps.task.subject === nextProps.task.subject &&
+      prevProps.task.status === nextProps.task.status &&
+      prevProps.task.activeForm === nextProps.task.activeForm &&
+      prevProps.task.description === nextProps.task.description &&
+      prevProps.task.completedAt === nextProps.task.completedAt
+    );
+  }
+);
 
 export default ClaudeTasks;
