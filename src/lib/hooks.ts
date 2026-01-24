@@ -1464,6 +1464,45 @@ export function useDeleteComment(ticketId: string) {
   });
 }
 
+// =============================================================================
+// CLAUDE TASKS HOOKS
+// =============================================================================
+
+import { getClaudeTasks, type ClaudeTask, type ClaudeTaskStatus } from "../api/claude-tasks";
+export type { ClaudeTask, ClaudeTaskStatus };
+
+/**
+ * Hook for fetching Claude tasks for a ticket with optional polling.
+ * Tasks are displayed in the ticket detail view to show AI work progress.
+ *
+ * @param ticketId - The ticket ID to fetch tasks for
+ * @param options - Optional configuration including polling interval
+ */
+export function useClaudeTasks(ticketId: string, options: { pollingInterval?: number } = {}) {
+  const { pollingInterval = 0 } = options;
+
+  const query = useQuery({
+    queryKey: ["claudeTasks", ticketId],
+    queryFn: async () => {
+      const tasks = await getClaudeTasks({ data: ticketId });
+      return tasks as ClaudeTask[];
+    },
+    enabled: Boolean(ticketId),
+    refetchInterval: pollingInterval > 0 ? pollingInterval : false,
+  });
+
+  return {
+    /** Array of Claude tasks for the ticket */
+    tasks: query.data ?? [],
+    /** Whether the initial load is in progress */
+    loading: query.isLoading,
+    /** Error message if the fetch failed */
+    error: query.error?.message ?? null,
+    /** Force refetch tasks */
+    refetch: query.refetch,
+  };
+}
+
 // Hook for launching Ralph on a single ticket
 export function useLaunchRalphForTicket() {
   const queryClient = useQueryClient();
