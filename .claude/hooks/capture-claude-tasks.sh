@@ -81,11 +81,21 @@ fi
 
 # Save tasks directly to the database via helper script
 # Run synchronously to ensure tasks are saved before Claude continues
+# and report success/failure to user
 cd "$PROJECT_DIR"
-if ! PROJECT_DIR="$PROJECT_DIR" node "$HELPER_SCRIPT" "$TICKET_ID" "$TRANSFORMED_TASKS" >> "$LOG_FILE" 2>&1; then
-  echo "[$(date -Iseconds)] ERROR: Failed to save $TASK_COUNT tasks for ticket $TICKET_ID" >> "$LOG_FILE"
+
+# Create temp file for status
+TEMP_STATUS=$(mktemp)
+trap "rm -f $TEMP_STATUS" EXIT
+
+# Run helper and capture exit code
+PROJECT_DIR="$PROJECT_DIR" node "$HELPER_SCRIPT" "$TICKET_ID" "$TRANSFORMED_TASKS" >> "$LOG_FILE" 2>&1
+SAVE_EXIT_CODE=$?
+
+if [ $SAVE_EXIT_CODE -eq 0 ]; then
+  echo "[$(date -Iseconds)] SUCCESS: Saved $TASK_COUNT tasks for ticket $TICKET_ID" >> "$LOG_FILE"
+  exit 0
+else
+  echo "[$(date -Iseconds)] ERROR: Failed to save $TASK_COUNT tasks for ticket $TICKET_ID (exit code: $SAVE_EXIT_CODE)" >> "$LOG_FILE"
   exit 1
 fi
-
-echo "[$(date -Iseconds)] SUCCESS: Saved $TASK_COUNT tasks for ticket $TICKET_ID" >> "$LOG_FILE"
-exit 0

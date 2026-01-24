@@ -1498,8 +1498,13 @@ export function useClaudeTasks(ticketId: string, options: { pollingInterval?: nu
     tasks: query.data ?? [],
     /** Whether the initial load is in progress */
     loading: query.isLoading,
-    /** Error message if the fetch failed */
-    error: query.error?.message ?? null,
+    /** Error details if the fetch failed */
+    error: query.error
+      ? {
+          message: query.error.message,
+          code: (query.error as Error & { code?: string }).code,
+        }
+      : null,
     /** Force refetch tasks */
     refetch: query.refetch,
   };

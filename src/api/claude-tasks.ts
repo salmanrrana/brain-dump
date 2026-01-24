@@ -3,12 +3,11 @@ import { db } from "../lib/db";
 import { claudeTasks, type ClaudeTask, type ClaudeTaskStatus } from "../lib/schema";
 import { eq, asc } from "drizzle-orm";
 
-// Re-export types from schema
 export type { ClaudeTask, ClaudeTaskStatus };
 
 /**
- * Get all Claude tasks for a specific ticket.
- * Tasks are returned ordered by position (ascending).
+ * Get Claude tasks for a ticket, ordered by position.
+ * Tasks are displayed in the UI to show AI work progress in real-time.
  */
 export const getClaudeTasks = createServerFn({ method: "GET" })
   .inputValidator((data: string) => {
@@ -21,10 +20,19 @@ export const getClaudeTasks = createServerFn({ method: "GET" })
     return data;
   })
   .handler(async ({ data: ticketId }): Promise<ClaudeTask[]> => {
-    return db
-      .select()
-      .from(claudeTasks)
-      .where(eq(claudeTasks.ticketId, ticketId))
-      .orderBy(asc(claudeTasks.position))
-      .all();
+    try {
+      return db
+        .select()
+        .from(claudeTasks)
+        .where(eq(claudeTasks.ticketId, ticketId))
+        .orderBy(asc(claudeTasks.position))
+        .all();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("Failed to fetch Claude tasks", {
+        ticketId,
+        error: message,
+      });
+      throw err;
+    }
   });

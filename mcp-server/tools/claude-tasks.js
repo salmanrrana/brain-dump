@@ -143,18 +143,15 @@ Returns the saved tasks.`,
 
       const now = new Date().toISOString();
 
-      // Use a transaction to replace all tasks atomically
       const transaction = db.transaction(() => {
-        // Get existing tasks to preserve history
+        // Get existing tasks to preserve status history for audit trail
         const existingTasks = db.prepare(
           "SELECT id, status, status_history, created_at FROM claude_tasks WHERE ticket_id = ?"
         ).all(resolvedTicketId);
         const existingTaskMap = new Map(existingTasks.map(t => [t.id, t]));
 
-        // Delete all existing tasks for this ticket
         db.prepare("DELETE FROM claude_tasks WHERE ticket_id = ?").run(resolvedTicketId);
 
-        // Insert new tasks
         const insertStmt = db.prepare(`
           INSERT INTO claude_tasks (id, ticket_id, subject, description, status, active_form, position, status_history, session_id, created_at, updated_at, completed_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -164,7 +161,7 @@ Returns the saved tasks.`,
         for (let i = 0; i < tasks.length; i++) {
           const task = tasks[i];
           const taskId = task.id || randomUUID();
-          const position = i + 1; // 1-based position
+          const position = i + 1;
 
           // Preserve or initialize status history
           let statusHistory = [];

@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { ChevronDown, Bot, Loader2, CheckCircle2, Circle, PlayCircle } from "lucide-react";
+import { useState, useMemo, memo } from "react";
+import { ChevronDown, Bot, CheckCircle2, Circle, PlayCircle } from "lucide-react";
 import { useClaudeTasks, type ClaudeTask, type ClaudeTaskStatus } from "../../lib/hooks";
 import { POLLING_INTERVALS } from "../../lib/constants";
 
@@ -108,16 +108,20 @@ export function ClaudeTasks({ ticketId, ticketStatus, defaultExpanded = true }: 
         <div id="claude-tasks-content" className="p-3">
           {/* Loading state */}
           {loading && (
-            <div className="flex items-center justify-center gap-2 py-4 text-[var(--text-tertiary)]">
-              <Loader2 size={16} className="animate-spin" />
-              <span className="text-sm">Loading tasks...</span>
-            </div>
+            <ul className="space-y-1.5" role="list">
+              {[1, 2, 3].map((i) => (
+                <li key={i} className="flex items-start gap-2 py-1">
+                  <div className="w-4 h-4 bg-[var(--bg-hover)] rounded-full animate-pulse mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 h-4 bg-[var(--bg-hover)] rounded animate-pulse" />
+                </li>
+              ))}
+            </ul>
           )}
 
           {/* Error state */}
           {error && (
             <div className="text-sm text-[var(--accent-danger)] py-2">
-              Failed to load tasks: {error}
+              Failed to load tasks: {typeof error === "string" ? error : error.message}
             </div>
           )}
 
@@ -149,7 +153,7 @@ interface TaskItemProps {
 /**
  * Individual task item with status icon and text.
  */
-function TaskItem({ task }: TaskItemProps) {
+const TaskItem = memo(function TaskItem({ task }: TaskItemProps) {
   const status = task.status as ClaudeTaskStatus;
   const StatusIcon = STATUS_ICONS[status];
   const colorClass = STATUS_COLORS[status];
@@ -184,6 +188,6 @@ function TaskItem({ task }: TaskItemProps) {
       </div>
     </li>
   );
-}
+});
 
 export default ClaudeTasks;
