@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useForm } from "@tanstack/react-form-start";
+import { useNavigate } from "@tanstack/react-router";
 import {
   useModalKeyboard,
   useClickOutside,
@@ -162,6 +163,7 @@ function parseAcceptanceCriteria(subtasksJson: string | null): AcceptanceCriteri
 
 export default function TicketModal({ ticket, epics, onClose, onUpdate }: TicketModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   // TanStack Form - replaces 10 form-related useState hooks
   const form = useForm({
@@ -912,13 +914,26 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
           <h2 id="modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
             Edit Ticket
           </h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-            aria-label="Close modal"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                onClose();
+                navigate({ to: `/ticket/${ticket.id}` });
+              }}
+              className="p-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              aria-label="View full ticket details"
+              title="View full ticket details"
+            >
+              <ExternalLink size={20} />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              aria-label="Close modal"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
