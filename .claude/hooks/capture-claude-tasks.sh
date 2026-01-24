@@ -76,7 +76,7 @@ fi
 
 if [[ ! -f "$HELPER_SCRIPT" ]]; then
   echo "[$(date -Iseconds)] ERROR: save-tasks-to-db.cjs not found" >> "$LOG_FILE"
-  exit 0
+  exit 1
 fi
 
 # Save tasks directly to the database via helper script

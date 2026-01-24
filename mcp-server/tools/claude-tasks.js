@@ -169,7 +169,8 @@ Returns the saved tasks.`,
           if (existing?.status_history) {
             try {
               statusHistory = JSON.parse(existing.status_history);
-            } catch {
+            } catch (err) {
+              log.error(`Failed to parse status_history for task ${taskId}: ${err.message}`);
               statusHistory = [];
             }
           }
@@ -328,7 +329,8 @@ Returns array of tasks with full details.`,
         if (includeHistory && t.status_history) {
           try {
             task.statusHistory = JSON.parse(t.status_history);
-          } catch {
+          } catch (err) {
+            log.warn(`Failed to parse status_history for task ${t.id}: ${err.message}`);
             task.statusHistory = [];
           }
         }

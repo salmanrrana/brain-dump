@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { db } from "../lib/db";
 import { claudeTasks, type ClaudeTask, type ClaudeTaskStatus } from "../lib/schema";
 import { eq, asc } from "drizzle-orm";
+import { getDefaultLogger } from "../lib/logger";
 
 export type { ClaudeTask, ClaudeTaskStatus };
 
@@ -28,11 +29,9 @@ export const getClaudeTasks = createServerFn({ method: "GET" })
         .orderBy(asc(claudeTasks.position))
         .all();
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error("Failed to fetch Claude tasks", {
-        ticketId,
-        error: message,
-      });
-      throw err;
+      const logger = getDefaultLogger();
+      const error = err instanceof Error ? err : new Error(String(err));
+      logger.error(`Failed to fetch Claude tasks for ticket ${ticketId}`, error);
+      throw error;
     }
   });
