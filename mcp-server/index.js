@@ -31,6 +31,7 @@ import { registerEventTools } from "./tools/events.js";
 import { registerSessionTools } from "./tools/sessions.js";
 import { registerConversationTools } from "./tools/conversations.js";
 import { registerTelemetryTools } from "./tools/telemetry.js";
+import { registerClaudeTasksTools } from "./tools/claude-tasks.js";
 
 import { unlinkSync } from "fs";
 
@@ -105,6 +106,7 @@ registerEventTools(server, db);
 registerSessionTools(server, db);
 registerConversationTools(server, db, detectEnvironment);
 registerTelemetryTools(server, db, detectEnvironment);
+registerClaudeTasksTools(server, db);
 
 // =============================================================================
 // CONNECT AND START

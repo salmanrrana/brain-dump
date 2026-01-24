@@ -455,3 +455,85 @@ export interface ContextLoadedEventData {
   attachmentCount: number;
   imageCount: number;
 }
+
+// ============================================
+// Claude Tasks Tables
+// ============================================
+
+// Claude tasks table - stores tasks created by Claude via TodoWrite tool when working on tickets
+export const claudeTasks = sqliteTable(
+  "claude_tasks",
+  {
+    id: text("id").primaryKey(),
+    ticketId: text("ticket_id")
+      .notNull()
+      .references(() => tickets.id, { onDelete: "cascade" }),
+    subject: text("subject").notNull(), // Task title/subject
+    description: text("description"), // Optional detailed description
+    status: text("status").notNull().default("pending"), // 'pending', 'in_progress', 'completed'
+    activeForm: text("active_form"), // Present continuous form shown during execution (e.g., "Running tests")
+    position: real("position").notNull(), // Order within the ticket's task list
+    statusHistory: text("status_history"), // JSON array of {status, timestamp} for tracking changes
+    sessionId: text("session_id"), // Optional link to Ralph session that created this task
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    completedAt: text("completed_at"), // When the task was marked completed
+  },
+  (table) => [
+    index("idx_claude_tasks_ticket").on(table.ticketId),
+    index("idx_claude_tasks_session").on(table.sessionId),
+    index("idx_claude_tasks_status").on(table.status),
+    index("idx_claude_tasks_position").on(table.ticketId, table.position),
+  ]
+);
+
+export type ClaudeTask = typeof claudeTasks.$inferSelect;
+export type NewClaudeTask = typeof claudeTasks.$inferInsert;
+
+// Claude task status types
+export type ClaudeTaskStatus = "pending" | "in_progress" | "completed";
+
+// Status history entry interface
+export interface TaskStatusHistoryEntry {
+  status: ClaudeTaskStatus;
+  timestamp: string;
+}
+
+// Claude task snapshots table - stores complete task list snapshots for history/audit
+export const claudeTaskSnapshots = sqliteTable(
+  "claude_task_snapshots",
+  {
+    id: text("id").primaryKey(),
+    ticketId: text("ticket_id")
+      .notNull()
+      .references(() => tickets.id, { onDelete: "cascade" }),
+    sessionId: text("session_id"), // Optional link to Ralph session
+    tasks: text("tasks").notNull(), // JSON array of full task objects at snapshot time
+    reason: text("reason"), // Why snapshot was taken: 'session_start', 'session_end', 'manual', etc.
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    index("idx_claude_task_snapshots_ticket").on(table.ticketId),
+    index("idx_claude_task_snapshots_session").on(table.sessionId),
+    index("idx_claude_task_snapshots_created").on(table.createdAt),
+  ]
+);
+
+export type ClaudeTaskSnapshot = typeof claudeTaskSnapshots.$inferSelect;
+export type NewClaudeTaskSnapshot = typeof claudeTaskSnapshots.$inferInsert;
+
+// Task snapshot data interface
+export interface TaskSnapshotData {
+  id: string;
+  subject: string;
+  description?: string;
+  status: ClaudeTaskStatus;
+  activeForm?: string;
+  position: number;
+}

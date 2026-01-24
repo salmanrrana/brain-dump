@@ -145,6 +145,7 @@ mkdir -p "$GLOBAL_CLAUDE_DIR/hooks"
 if [ -d "$SOURCE_HOOKS" ]; then
     echo "Copying hook scripts from brain-dump to ~/.claude/hooks/..."
     cp -v "$SOURCE_HOOKS"/*.sh "$GLOBAL_CLAUDE_DIR/hooks/" 2>/dev/null || true
+    cp -v "$SOURCE_HOOKS"/*.cjs "$GLOBAL_CLAUDE_DIR/hooks/" 2>/dev/null || true
     cp -v "$SOURCE_HOOKS"/*.md "$GLOBAL_CLAUDE_DIR/hooks/" 2>/dev/null || true
     cp -v "$SOURCE_HOOKS"/*.json "$GLOBAL_CLAUDE_DIR/hooks/" 2>/dev/null || true
     chmod +x "$GLOBAL_CLAUDE_DIR/hooks"/*.sh 2>/dev/null || true
@@ -285,6 +286,15 @@ else
             "command": "\$HOME/.claude/hooks/clear-pending-links.sh"
           }
         ]
+      },
+      {
+        "matcher": "TodoWrite",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/capture-claude-tasks.sh"
+          }
+        ]
       }
     ],
     "SessionStart": [
@@ -347,6 +357,7 @@ echo "    • Auto-review after code changes"
 echo "    • State enforcement for Ralph workflow"
 echo "    • Commit linking to tickets"
 echo "    • Auto-PR creation on ticket start"
+echo "    • Claude task capture (auto-sync TodoWrite to Brain Dump)"
 echo ""
 echo "  ${GREEN}Skills (~/.claude/skills/):${NC}"
 echo "    • review-aggregation - Combine review findings"

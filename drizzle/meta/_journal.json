@@ -50,6 +50,13 @@
       "when": 1768928216040,
       "tag": "0006_add_ralph_max_iterations",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1769278600231,
+      "tag": "0007_boring_sphinx",
+      "breakpoints": true
     }
   ]
 }
