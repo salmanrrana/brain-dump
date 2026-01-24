@@ -71,10 +71,7 @@ export const ActivitySection: FC<ActivitySectionProps> = ({
   const containerStyles: React.CSSProperties = {
     display: "flex",
     flexDirection: "column",
-    border: "1px solid var(--border-primary)",
-    borderRadius: "var(--radius-lg)",
     overflow: "hidden",
-    background: "var(--bg-secondary)",
   };
 
   const headerStyles: React.CSSProperties = {
@@ -82,8 +79,6 @@ export const ActivitySection: FC<ActivitySectionProps> = ({
     alignItems: "center",
     gap: "var(--spacing-2)",
     padding: "var(--spacing-3)",
-    borderBottom: "1px solid var(--border-primary)",
-    background: "var(--bg-tertiary)",
   };
 
   const titleStyles: React.CSSProperties = {
