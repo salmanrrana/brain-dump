@@ -138,16 +138,18 @@ install_opencode() {
   fi
 
   # Configure MCP server in opencode.json
+  local mcp_configured=0
   echo -e "${YELLOW}Configuring MCP server...${NC}"
   if [ -f "$OPENCODE_JSON" ]; then
     echo "Existing opencode.json found. Checking for brain-dump server..."
     if grep -q '"brain-dump"' "$OPENCODE_JSON"; then
       echo -e "${GREEN}✓ Brain Dump MCP server already configured${NC}"
+      mcp_configured=1
     else
       echo "Adding brain-dump server to existing config..."
       # Try to merge using node
       if command -v node >/dev/null 2>&1; then
-        node_error=$(OPENCODE_JSON="$OPENCODE_JSON" BRAIN_DUMP_DIR="$BRAIN_DUMP_DIR" node -e '
+        if OPENCODE_JSON="$OPENCODE_JSON" BRAIN_DUMP_DIR="$BRAIN_DUMP_DIR" node -e '
 const fs = require("fs");
 const configFile = process.env.OPENCODE_JSON;
 const brainDumpDir = process.env.BRAIN_DUMP_DIR;
@@ -161,14 +163,16 @@ try {
         enabled: true
     };
     fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
-    console.log("Config updated successfully");
 } catch (err) {
     console.error("Error: " + err.message);
     process.exit(1);
 }
-' 2>&1) && echo -e "${GREEN}✓ Added brain-dump to opencode.json${NC}" || {
-          echo -e "${YELLOW}JSON merge failed: $node_error${NC}"
-          echo -e "${RED}Please manually add the brain-dump server to your opencode.json:${NC}"
+' 2>/dev/null; then
+          echo -e "${GREEN}✓ Added brain-dump to opencode.json${NC}"
+          mcp_configured=1
+        else
+          echo -e "${RED}✗ Failed to update opencode.json${NC}"
+          echo -e "${YELLOW}Please manually add the brain-dump server to your opencode.json:${NC}"
           echo ""
           echo '  "mcp": {'
           echo '    "brain-dump": {'
@@ -177,9 +181,10 @@ try {
           echo '      "enabled": true'
           echo '    }'
           echo '  }'
-        }
+        fi
       else
-        echo -e "${RED}Please manually add the brain-dump server to your opencode.json:${NC}"
+        echo -e "${RED}✗ Node.js is required but not found${NC}"
+        echo -e "${YELLOW}Please manually add the brain-dump server to your opencode.json:${NC}"
         echo ""
         echo '  "mcp": {'
         echo '    "brain-dump": {'
@@ -192,7 +197,7 @@ try {
     fi
   else
     echo "Creating new opencode.json..."
-    cat > "$OPENCODE_JSON" << EOF
+    if cat > "$OPENCODE_JSON" << EOF
 {
   "\$schema": "https://opencode.ai/config.json",
   "mcp": {
@@ -204,7 +209,19 @@ try {
   }
 }
 EOF
-    echo -e "${GREEN}✓ Created opencode.json with MCP server${NC}"
+    then
+      echo -e "${GREEN}✓ Created opencode.json with MCP server${NC}"
+      mcp_configured=1
+    else
+      echo -e "${RED}✗ Failed to create opencode.json${NC}"
+    fi
+  fi
+
+  # Check if MCP was configured successfully
+  if [ $mcp_configured -eq 0 ]; then
+    echo -e "${RED}✗ MCP server configuration failed${NC}"
+    echo -e "${YELLOW}Brain Dump tools will not be available in OpenCode until MCP is configured.${NC}"
+    exit 1
   fi
 
   # Copy telemetry plugin

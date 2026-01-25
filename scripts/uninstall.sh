@@ -211,7 +211,14 @@ try {
             echo -e "${YELLOW}brain-dump not found in opencode.json${NC}"
             ;;
           error:*)
-            echo -e "${YELLOW}Note:${NC} Could not update opencode.json. Please manually remove brain-dump MCP entry."
+            echo -e "${RED}✗ Could not update opencode.json: ${node_result#error:}${NC}"
+            echo -e "${YELLOW}Please manually remove brain-dump MCP entry from $OPENCODE_JSON${NC}"
+            failed=1
+            ;;
+          *)
+            echo -e "${RED}✗ Unexpected response during config cleanup: $node_result${NC}"
+            echo -e "${YELLOW}Please verify brain-dump was removed from $OPENCODE_JSON${NC}"
+            failed=1
             ;;
         esac
       else
