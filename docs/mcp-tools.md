@@ -4,17 +4,17 @@ Brain Dump's MCP server provides tools for managing projects, tickets, epics, wo
 
 ## Quick Reference
 
-| Category                      | Tools                                                                                                   |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------- |
-| [Projects](#project-tools)    | `list_projects`, `find_project_by_path`, `create_project`, `delete_project`                             |
-| [Tickets](#ticket-tools)      | `create_ticket`, `list_tickets`, `update_ticket_status`, `update_acceptance_criterion`, `delete_ticket` |
-| [Epics](#epic-tools)          | `list_epics`, `create_epic`, `update_epic`, `delete_epic`                                               |
-| [Comments](#comment-tools)    | `add_ticket_comment`, `get_ticket_comments`                                                             |
-| [Workflow](#workflow-tools)   | `start_ticket_work`, `complete_ticket_work`                                                             |
-| [Git](#git-tools)             | `link_commit_to_ticket`, `link_pr_to_ticket`, `sync_ticket_links`                                       |
-| [Files](#file-tools)          | `link_files_to_ticket`, `get_tickets_for_file`                                                          |
-| [Health](#health-tools)       | `get_database_health`, `get_environment`, `get_project_settings`, `update_project_settings`             |
-| [Telemetry](#telemetry-tools) | `start_telemetry_session`, `log_prompt_event`, `log_tool_event`, `end_telemetry_session`                |
+| Category                      | Tools                                                                                                                           |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| [Projects](#project-tools)    | `list_projects`, `find_project_by_path`, `create_project`, `delete_project`                                                     |
+| [Tickets](#ticket-tools)      | `create_ticket`, `list_tickets`, `list_tickets_by_epic`, `update_ticket_status`, `update_acceptance_criterion`, `delete_ticket` |
+| [Epics](#epic-tools)          | `list_epics`, `create_epic`, `update_epic`, `delete_epic`                                                                       |
+| [Comments](#comment-tools)    | `add_ticket_comment`, `get_ticket_comments`                                                                                     |
+| [Workflow](#workflow-tools)   | `start_ticket_work`, `complete_ticket_work`                                                                                     |
+| [Git](#git-tools)             | `link_commit_to_ticket`, `link_pr_to_ticket`, `sync_ticket_links`                                                               |
+| [Files](#file-tools)          | `link_files_to_ticket`, `get_tickets_for_file`                                                                                  |
+| [Health](#health-tools)       | `get_database_health`, `get_environment`, `get_project_settings`, `update_project_settings`                                     |
+| [Telemetry](#telemetry-tools) | `start_telemetry_session`, `log_prompt_event`, `log_tool_event`, `end_telemetry_session`                                        |
 
 ---
 
@@ -107,6 +107,33 @@ list_tickets(projectId?: string, status?: string, limit?: number)
 | `limit`     | number? | Max tickets to return (default: 20) |
 
 **Valid statuses:** `backlog`, `ready`, `in_progress`, `review`, `ai_review`, `human_review`, `done`
+
+### list_tickets_by_epic
+
+List all tickets in a specific epic. Convenience tool for searching tickets within an epic without querying all tickets.
+
+```
+list_tickets_by_epic(epicId: string, projectId?: string, status?: string, limit?: number)
+```
+
+| Param       | Type    | Description                          |
+| ----------- | ------- | ------------------------------------ |
+| `epicId`    | string  | Epic ID to search                    |
+| `projectId` | string? | Filter by project                    |
+| `status`    | string? | Filter by status                     |
+| `limit`     | number? | Max tickets to return (default: 100) |
+
+**Valid statuses:** `backlog`, `ready`, `in_progress`, `review`, `ai_review`, `human_review`, `done`
+
+**Returns:** Array of tickets in the epic, sorted by position. Includes epic context.
+
+**Example:**
+
+```
+list_tickets_by_epic("abc-epic-123", null, "backlog", 50)
+```
+
+Returns all backlog tickets in the epic, limited to 50 results.
 
 ### update_ticket_status
 

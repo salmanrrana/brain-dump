@@ -89,6 +89,7 @@ Open [localhost:4242](http://localhost:4242). Done.
 | `complete_ticket_work`  | Move to review + suggest next ticket      |
 | `create_ticket`         | Create new ticket                         |
 | `list_tickets`          | List tickets (filter by status, project)  |
+| `list_tickets_by_epic`  | List all tickets in an epic               |
 | `add_ticket_comment`    | Add work summaries or notes               |
 | `link_commit_to_ticket` | Track git history                         |
 
