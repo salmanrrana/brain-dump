@@ -50,9 +50,10 @@ NOW_MS=$(date +%s%3N 2>/dev/null || echo "$(date +%s)000")
 # Generate correlation ID for pairing start/end events
 CORR_ID=$(uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "corr-$(date +%s)")
 
-# Store correlation ID for the end event
-CORR_FILE="$PROJECT_DIR/.claude/tool-correlation-${TOOL_NAME//[^a-zA-Z0-9]/_}.txt"
-echo "$CORR_ID:$NOW_MS" > "$CORR_FILE"
+# Store correlation ID for the end event using a queue file to handle parallel tool calls
+# Each tool has its own queue file with entries in LIFO order (stack)
+CORR_FILE="$PROJECT_DIR/.claude/tool-correlation-${TOOL_NAME//[^a-zA-Z0-9]/_}.queue"
+echo "$CORR_ID:$NOW_MS" >> "$CORR_FILE"
 
 # Summarize parameters (avoid storing full file contents)
 PARAMS_SUMMARY=$(echo "$TOOL_INPUT" | jq -c 'to_entries | map({key: .key, value: (if .value | type == "string" then (if (.value | length) > 100 then "[" + (.value | length | tostring) + " chars]" else .value end) else .value end)}) | from_entries' 2>/dev/null || echo "{}")

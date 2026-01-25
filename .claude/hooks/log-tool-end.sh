@@ -46,20 +46,29 @@ fi
 NOW=$(date -Iseconds)
 NOW_MS=$(date +%s%3N 2>/dev/null || echo "$(date +%s)000")
 
-# Retrieve correlation ID and start time
-CORR_FILE="$PROJECT_DIR/.claude/tool-correlation-${TOOL_NAME//[^a-zA-Z0-9]/_}.txt"
+# Retrieve correlation ID and start time from queue file (FIFO - first in, first out)
+CORR_FILE="$PROJECT_DIR/.claude/tool-correlation-${TOOL_NAME//[^a-zA-Z0-9]/_}.queue"
 CORR_ID=""
 START_MS="0"
 
-if [[ -f "$CORR_FILE" ]]; then
-  CORR_DATA=$(cat "$CORR_FILE")
+if [[ -f "$CORR_FILE" ]] && [[ -s "$CORR_FILE" ]]; then
+  # Read the first line (oldest entry) and remove it from the queue
+  CORR_DATA=$(head -1 "$CORR_FILE")
   CORR_ID=$(echo "$CORR_DATA" | cut -d: -f1)
   START_MS=$(echo "$CORR_DATA" | cut -d: -f2)
-  rm -f "$CORR_FILE"
+  # Remove the first line from the queue
+  tail -n +2 "$CORR_FILE" > "$CORR_FILE.tmp" 2>/dev/null && mv "$CORR_FILE.tmp" "$CORR_FILE" || rm -f "$CORR_FILE"
+  # Clean up empty queue file
+  [[ -f "$CORR_FILE" ]] && [[ ! -s "$CORR_FILE" ]] && rm -f "$CORR_FILE"
 fi
 
-# Calculate duration
-DURATION_MS=$((NOW_MS - START_MS))
+# Calculate duration with validation
+if [[ -z "$START_MS" || "$START_MS" == "0" || ! "$START_MS" =~ ^[0-9]+$ ]]; then
+  DURATION_MS=0
+else
+  DURATION_MS=$((NOW_MS - START_MS))
+  [[ $DURATION_MS -lt 0 ]] && DURATION_MS=0
+fi
 
 # Extract result summary
 RESULT=$(echo "$INPUT" | jq -r '.result // ""' 2>/dev/null || echo "")

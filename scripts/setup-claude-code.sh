@@ -194,6 +194,15 @@ if [ -f "$CLAUDE_SETTINGS" ]; then
         else
             echo -e "${GREEN}Hook paths already use global paths${NC}"
         fi
+
+        # Ensure telemetry hooks are configured (idempotent merge)
+        echo ""
+        echo -e "${YELLOW}Verifying telemetry hooks are configured...${NC}"
+        if [ -f "$SOURCE_HOOKS/merge-telemetry-hooks.sh" ]; then
+            bash "$SOURCE_HOOKS/merge-telemetry-hooks.sh"
+        else
+            echo -e "${YELLOW}Warning: merge-telemetry-hooks.sh not found. Telemetry hooks may not be configured.${NC}"
+        fi
     else
         echo -e "${YELLOW}No hooks section found. Please add hooks manually or backup and recreate.${NC}"
     fi
