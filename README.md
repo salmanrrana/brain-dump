@@ -28,12 +28,15 @@ Open [localhost:4242](http://localhost:4242). Done.
 
 ## Why Brain Dump?
 
-| Feature               | What It Does                                                                                 |
-| --------------------- | -------------------------------------------------------------------------------------------- |
-| **One-click context** | Click a ticket → AI opens with full context (description, acceptance criteria, linked files) |
-| **Ralph Mode**        | Autonomous agent works your backlog while you sleep                                          |
-| **MCP-powered**       | AI can update tickets, link commits, manage your board directly                              |
-| **Local-first**       | SQLite on your machine. Your data stays yours.                                               |
+| Feature                | What It Does                                                                                  |
+| ---------------------- | --------------------------------------------------------------------------------------------- |
+| **One-click context**  | Click a ticket → AI opens with full context (description, acceptance criteria, linked files)  |
+| **Quality Workflow**   | AI review → Fix loop → Human demo approval. Same quality in all environments.                 |
+| **Ralph Mode**         | Autonomous agent works your backlog while you sleep                                           |
+| **Multi-environment**  | Works in Claude Code, Cursor, VS Code, OpenCode with same tools and workflows                 |
+| **MCP-powered**        | AI can update tickets, link commits, manage your board directly                               |
+| **Telemetry & audits** | Tracks AI work sessions, tool usage, decisions made. View detailed telemetry in ticket detail |
+| **Local-first**        | SQLite on your machine. Your data stays yours.                                                |
 
 ---
 
@@ -179,6 +182,26 @@ brain-dump complete    # Move to done (skip review)
 ```
 
 Or use MCP: `complete_ticket_work` adds a work summary and suggests the next ticket.
+
+### Universal Quality Workflow
+
+Every ticket goes through a quality workflow:
+
+```
+ready → in_progress → ai_review → human_review → done
+                          ↑
+                    [fix loop]
+```
+
+1. **Start work** - AI writes code with automatic task tracking
+2. **AI review** - Three agents (code-reviewer, silent-failure-hunter, code-simplifier) find issues
+3. **Fix loop** - AI fixes findings, rinse and repeat until no critical/major issues
+4. **Demo** - AI generates step-by-step test instructions
+5. **Human approval** - You run the demo and approve or request changes
+
+All automatic via MCP tools. Same workflow in Claude Code, Cursor, VS Code, and OpenCode.
+
+[Detailed workflow guide →](docs/universal-workflow.md)
 
 ---
 
