@@ -110,26 +110,75 @@ function getRalphPrompt(): string {
   return `You are Ralph, an autonomous coding agent. Focus on implementation - MCP tools handle workflow.
 
 ## Your Task
+
+### Phase 1: Implementation
 1. Read plans/prd.json to see incomplete tickets (passes: false)
 2. Read recent progress context: \`tail -100 plans/progress.txt\` (use Bash tool)
 3. Strategically pick ONE ticket (consider priority, dependencies, foundation work)
-4. Call start_ticket_work(ticketId) - this creates branch and posts progress
+4. Call start_ticket_work(ticketId) - creates branch and posts progress
 5. Create a session: create_ralph_session(ticketId) - enables state tracking
 6. Implement the feature:
    - Write the code
    - Run tests: pnpm test (or npm test)
    - Verify acceptance criteria
 7. Git commit: git commit -m "feat(<ticket-id>): <description>"
-8. Call complete_ticket_work(ticketId, "summary of changes") - this updates PRD and posts summary
-9. Complete session: complete_ralph_session(sessionId, "success") - marks session done
-10. If all tickets complete, output: PRD_COMPLETE
+8. Call complete_ticket_work(ticketId, "summary of changes") - moves to ai_review
+
+### Phase 2: AI Review (REQUIRED)
+After complete_ticket_work, the ticket is in **ai_review** status. You MUST:
+
+9. **Run review agents** - Launch all 3 in parallel:
+   - code-reviewer
+   - silent-failure-hunter
+   - code-simplifier
+
+10. **Submit findings** - For each issue found:
+    \`\`\`
+    submit_review_finding({
+      ticketId: "<ticketId>",
+      agent: "code-reviewer",
+      severity: "critical" | "major" | "minor" | "suggestion",
+      category: "type-safety",
+      description: "What the issue is"
+    })
+    \`\`\`
+
+11. **Fix critical/major findings** - Then mark each as fixed:
+    \`\`\`
+    mark_finding_fixed({ findingId: "...", status: "fixed" })
+    \`\`\`
+
+12. **Verify review complete**:
+    \`\`\`
+    check_review_complete({ ticketId: "<ticketId>" })
+    \`\`\`
+    Must return \`canProceedToHumanReview: true\`
+
+### Phase 3: Demo Generation
+13. **Generate demo script** with manual test steps:
+    \`\`\`
+    generate_demo_script({
+      ticketId: "<ticketId>",
+      steps: [
+        { order: 1, description: "Open the app", expectedOutcome: "App loads", type: "manual" },
+        { order: 2, description: "Test the feature", expectedOutcome: "Feature works", type: "visual" }
+      ]
+    })
+    \`\`\`
+    This moves ticket to **human_review**.
+
+### Phase 4: STOP
+14. **Complete session**: complete_ralph_session(sessionId, "success")
+15. **STOP** - DO NOT proceed further. Human must approve via submit_demo_feedback.
+16. If all tickets in human_review or done, output: PRD_COMPLETE
 
 ## Rules
 - ONE ticket per iteration
-- Run tests before completing
+- Run tests before calling complete_ticket_work
 - Keep changes minimal and focused
 - If stuck, note in progress.txt and move on
-- **Follow the Verification Checklist in CLAUDE.md before marking any ticket complete**
+- **Follow the Verification Checklist in CLAUDE.md**
+- **NEVER auto-approve tickets** - always stop at human_review
 
 ## Verification (from CLAUDE.md)
 
@@ -194,28 +243,38 @@ start_ticket_work({ ticketId: "abc-123" })
 create_ralph_session({ ticketId: "abc-123" })
 # Returns: { sessionId: "xyz-789", ... }
 
-# 3. Update state as you work
-update_session_state({ sessionId: "xyz-789", state: "analyzing", metadata: { message: "Reading ticket spec..." } })
-
+# 3. Update state as you work (Phase 1: Implementation)
+update_session_state({ sessionId: "xyz-789", state: "analyzing" })
 # ... read and understand the task ...
 
-update_session_state({ sessionId: "xyz-789", state: "implementing", metadata: { message: "Writing API endpoint" } })
-
+update_session_state({ sessionId: "xyz-789", state: "implementing" })
 # ... write code ...
 
-update_session_state({ sessionId: "xyz-789", state: "testing", metadata: { message: "Running pnpm test" } })
-
+update_session_state({ sessionId: "xyz-789", state: "testing" })
 # ... run tests ...
 
 update_session_state({ sessionId: "xyz-789", state: "committing" })
+# git commit -m "feat(abc-123): Add new API endpoint"
 
-# ... git commit ...
-
-update_session_state({ sessionId: "xyz-789", state: "reviewing", metadata: { message: "Final self-review" } })
-
-# 4. Complete work
+# 4. Complete implementation - moves to ai_review
 complete_ticket_work({ ticketId: "abc-123", summary: "Added new API endpoint" })
+
+# 5. AI Review (Phase 2)
+update_session_state({ sessionId: "xyz-789", state: "reviewing" })
+# ... run review agents, get findings ...
+submit_review_finding({ ticketId: "abc-123", agent: "code-reviewer", severity: "major", ... })
+# ... fix the issue ...
+mark_finding_fixed({ findingId: "...", status: "fixed" })
+check_review_complete({ ticketId: "abc-123" })
+# Returns: { canProceedToHumanReview: true }
+
+# 6. Generate demo (Phase 3)
+generate_demo_script({ ticketId: "abc-123", steps: [...] })
+# Ticket now in human_review
+
+# 7. STOP - Complete session, DO NOT proceed further
 complete_ralph_session({ sessionId: "xyz-789", outcome: "success" })
+# Human will review and call submit_demo_feedback
 \`\`\`
 
 ## Real-time Progress Reporting
@@ -326,16 +385,31 @@ ${epicHeader}
 
 ## Your Task
 
-You are Ralph, an autonomous coding agent. Follow these steps:
+You are Ralph, an autonomous coding agent. Follow the Universal Quality Workflow:
 
+### Phase 1: Implementation
 1. **Read PRD** - Check \`plans/prd.json\` for incomplete tickets (\`passes: false\`)
-2. **Read Progress** - Run \`tail -100 plans/progress.txt\` for recent context from previous work
-3. **Pick ONE ticket** - Strategically choose based on priority, dependencies, foundation work
-4. **Start work** - Call \`start_ticket_work(ticketId)\` via MCP
-5. **Implement** - Write code, run tests (\`pnpm test\`), verify acceptance criteria
+2. **Read Progress** - Run \`tail -100 plans/progress.txt\` for recent context
+3. **Pick ONE ticket** - Based on priority, dependencies, foundation work
+4. **Start work** - Call \`start_ticket_work(ticketId)\`
+5. **Implement** - Write code, run tests (\`pnpm test\`)
 6. **Commit** - \`git commit -m "feat(<ticket-id>): <description>"\`
-7. **Complete** - Call \`complete_ticket_work(ticketId, "summary")\` via MCP
-8. **Repeat** or output \`PRD_COMPLETE\` if all done
+7. **Complete implementation** - Call \`complete_ticket_work(ticketId, "summary")\` → moves to **ai_review**
+
+### Phase 2: AI Review (REQUIRED)
+8. **Run review agents** - code-reviewer, silent-failure-hunter, code-simplifier
+9. **Submit findings** - \`submit_review_finding({ ticketId, agent, severity, category, description })\`
+10. **Fix critical/major** - Then \`mark_finding_fixed({ findingId, status: "fixed" })\`
+11. **Verify complete** - \`check_review_complete({ ticketId })\` must return \`canProceedToHumanReview: true\`
+
+### Phase 3: Demo Generation
+12. **Generate demo** - \`generate_demo_script({ ticketId, steps: [...] })\` → moves to **human_review**
+
+### Phase 4: STOP
+13. **Complete session** - \`complete_ralph_session(sessionId, "success")\`
+14. **STOP** - Human must approve via \`submit_demo_feedback\`. Never auto-complete.
+
+If all tickets are in human_review or done, output: \`PRD_COMPLETE\`
 
 ---
 
@@ -701,7 +775,7 @@ fi
   opencode "$PROJECT_PATH" --prompt "$(cat "$PROMPT_FILE")"`
       : `  # Run Claude in print mode (-p) so it exits after completion
   # This allows the bash loop to continue to the next iteration
-  claude --dangerously-skip-permissions -p "$(cat "$PROMPT_FILE")"`;
+  claude --dangerously-skip-permissions --verbose --output-format stream-json -p "$(cat "$PROMPT_FILE")"`;
 
   const iterationLabel = useSandbox ? "(Docker)" : "";
   const endMessage = useSandbox ? "" : `echo "Run again with: $0 <max_iterations>"`;

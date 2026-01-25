@@ -705,7 +705,7 @@ function readPrd(projectPath) {
  * @param {string} completedTicketId - The ticket that was just completed
  * @returns {{ nextTicket: object | null, reason: string }}
  */
-function suggestNextTicket(projectPath, completedTicketId) {
+function _suggestNextTicket(projectPath, completedTicketId) {
   const { prd, error } = readPrd(projectPath);
   if (!prd) {
     return { nextTicket: null, reason: error };
@@ -1258,24 +1258,31 @@ Use \`start_ticket_work\` to begin work on any ticket.`,
   // Complete ticket work
   server.tool(
     "complete_ticket_work",
-    `Complete work on a ticket and move it to review.
+    `Complete implementation work on a ticket and move it to AI review.
 
 This tool handles all completion workflow automatically:
-1. Sets the ticket status to review
-2. Auto-posts a formatted work summary comment
-3. Updates the PRD file (sets passes: true for this ticket)
-4. Suggests the next strategic ticket to work on
-5. Returns context reset guidance for fresh perspective
+1. Sets the ticket status to ai_review (NOT done - human approval required)
+2. Creates/updates ticket workflow state for review tracking
+3. Auto-posts a formatted work summary comment
+4. Updates the PRD file (sets passes: true for this ticket)
+5. Returns AI review instructions and code review guidance
 
-Use this when you've finished implementing a ticket.
-Call this before creating a pull request.
+IMPORTANT: After calling this tool, you MUST:
+1. Run all 3 review agents (code-reviewer, silent-failure-hunter, code-simplifier)
+2. Call submit_review_finding for each issue found
+3. Fix critical/major findings and call mark_finding_fixed
+4. Call check_review_complete to verify all critical/major findings resolved
+5. Call generate_demo_script to create manual test steps
+6. STOP - ticket moves to human_review for human approval
+
+The ticket cannot be marked 'done' until a human approves via submit_demo_feedback.
 
 Args:
   ticketId: The ticket ID to complete
   summary: Work summary describing what was done (recommended)
 
 Returns:
-  Updated ticket, PR description, next ticket suggestion, and context reset guidance.`,
+  Updated ticket in ai_review status with instructions for next steps.`,
     {
       ticketId: z.string().describe("Ticket ID to complete"),
       summary: z.string().optional().describe("Work summary describing what was done - will be auto-posted as a comment"),
@@ -1294,8 +1301,8 @@ Returns:
         return { content: [{ type: "text", text: `Ticket is already done.\n\n${JSON.stringify(ticket, null, 2)}` }] };
       }
 
-      if (ticket.status === "review") {
-        return { content: [{ type: "text", text: `Ticket is already in review.\n\n${JSON.stringify(ticket, null, 2)}` }] };
+      if (ticket.status === "ai_review" || ticket.status === "human_review") {
+        return { content: [{ type: "text", text: `Ticket is already in ${ticket.status}.\n\nTo proceed:\n- In ai_review: Run review agents, fix findings, then generate demo\n- In human_review: Wait for human feedback via submit_demo_feedback\n\n${JSON.stringify(ticket, null, 2)}` }] };
       }
 
       let commitsInfo = "", prDescription = "";
@@ -1335,10 +1342,26 @@ Returns:
 
       const now = new Date().toISOString();
       try {
-        db.prepare("UPDATE tickets SET status = 'review', updated_at = ? WHERE id = ?").run(now, ticketId);
+        // Per Universal Quality Workflow: complete_ticket_work moves to ai_review, not done
+        // The ai_review phase requires running review agents and fixing findings before human_review
+        db.prepare("UPDATE tickets SET status = 'ai_review', updated_at = ? WHERE id = ?").run(now, ticketId);
       } catch (dbErr) {
-        log.error(`Failed to update ticket status to review: ${dbErr.message}`, { ticketId });
+        log.error(`Failed to update ticket status to ai_review: ${dbErr.message}`, { ticketId });
         return { content: [{ type: "text", text: `Failed to update ticket status: ${dbErr.message}` }], isError: true };
+      }
+
+      // Create or update workflow state for this ticket
+      let workflowState = db.prepare("SELECT * FROM ticket_workflow_state WHERE ticket_id = ?").get(ticketId);
+      if (!workflowState) {
+        const stateId = randomUUID();
+        db.prepare(
+          `INSERT INTO ticket_workflow_state (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, created_at, updated_at)
+           VALUES (?, ?, 'ai_review', 1, 0, 0, 0, ?, ?)`
+        ).run(stateId, ticketId, now, now);
+      } else {
+        db.prepare(
+          "UPDATE ticket_workflow_state SET current_phase = 'ai_review', updated_at = ? WHERE ticket_id = ?"
+        ).run(now, ticketId);
       }
 
       // Auto-post work summary comment
@@ -1363,23 +1386,21 @@ Returns:
         sessionEndInfo = `### Conversation Sessions\n${sessionEndResult.sessionsEnded} session(s) ended (${sessionEndResult.messageCount || 0} messages logged)`;
       }
 
-      // Suggest next ticket
-      const nextTicketSuggestion = suggestNextTicket(ticket.project_path, ticketId);
+      // Note: We no longer suggest next ticket here since AI review is required first
+      // The next ticket will be suggested after human_review completes
 
       const updatedTicket = db.prepare(`
         SELECT t.*, p.name as project_name, p.path as project_path
         FROM tickets t JOIN projects p ON t.project_id = p.id WHERE t.id = ?
       `).get(ticketId);
 
-      log.info(`Completed work on ticket ${ticketId}, moved to review`);
+      log.info(`Completed implementation on ticket ${ticketId}, moved to ai_review`);
 
       const environment = detectEnvironment();
-      const contextResetGuidance = getContextResetGuidance(environment);
-      const codeReviewGuidance = getCodeReviewGuidance(environment, changedFiles);
 
-      // Build response sections
+      // Build response sections - focused on AI review workflow, not context reset
       const sections = [
-        `## Ticket Completed
+        `## Implementation Complete - Now in AI Review
 
 **Ticket:** ${updatedTicket.title}
 **Status:** ${updatedTicket.status}
@@ -1399,33 +1420,71 @@ ${prdResult.success
         sections.push(sessionEndInfo);
       }
 
+      // AI Review Instructions - this is the critical next step
+      sections.push(`## REQUIRED: AI Review Phase
+
+The ticket is now in **ai_review** status. You MUST complete the following before this ticket can be approved:
+
+### Step 1: Run Review Agents
+Run all 3 review agents in parallel to identify issues:
+- **code-reviewer** - Checks code quality and project guidelines
+- **silent-failure-hunter** - Identifies error handling issues
+- **code-simplifier** - Suggests simplifications
+
+### Step 2: Submit Findings
+For each issue found, call:
+\`\`\`
+submit_review_finding({
+  ticketId: "${ticketId}",
+  agent: "code-reviewer",
+  severity: "critical" | "major" | "minor" | "suggestion",
+  category: "type-safety" | "error-handling" | etc.,
+  description: "What the issue is",
+  filePath: "optional/file/path.ts",
+  suggestedFix: "optional suggested fix"
+})
+\`\`\`
+
+### Step 3: Fix and Mark Fixed
+Fix critical/major findings, then:
+\`\`\`
+mark_finding_fixed({ findingId: "...", status: "fixed", fixDescription: "How it was fixed" })
+\`\`\`
+
+### Step 4: Verify Review Complete
+\`\`\`
+check_review_complete({ ticketId: "${ticketId}" })
+\`\`\`
+Must return \`canProceedToHumanReview: true\` (all critical/major fixed)
+
+### Step 5: Generate Demo Script
+\`\`\`
+generate_demo_script({
+  ticketId: "${ticketId}",
+  steps: [
+    { order: 1, description: "What to test", expectedOutcome: "What should happen", type: "manual" }
+  ]
+})
+\`\`\`
+This moves ticket to **human_review**.
+
+### Step 6: STOP
+**DO NOT proceed further.** The ticket requires human approval via \`submit_demo_feedback\`.`);
+
+      // Changed files for reference
+      if (changedFiles.length > 0) {
+        sections.push(`### Files Changed
+${changedFiles.slice(0, 15).map(f => `- ${f}`).join("\n")}${changedFiles.length > 15 ? `\n- ... and ${changedFiles.length - 15} more` : ""}`);
+      }
+
       if (prDescription) {
-        sections.push(`### Suggested PR Description
+        sections.push(`### Suggested PR Description (for later)
 \`\`\`markdown
 ${prDescription}
 \`\`\``);
       }
 
-      // Code review guidance
-      sections.push(codeReviewGuidance);
-
-      // Next ticket suggestion
-      const { nextTicket } = nextTicketSuggestion;
-      if (nextTicket) {
-        sections.push(`## Next Ticket Suggestion
-
-**${nextTicket.title}** (${nextTicket.priority || "medium"})
-${nextTicketSuggestion.reason}
-
-${nextTicket.description || ""}
-
-To start: \`start_ticket_work("${nextTicket.id}")\``);
-      } else {
-        sections.push(`## ${nextTicketSuggestion.reason}`);
-      }
-
-      sections.push(contextResetGuidance);
-      sections.push(`---\nclearContext: true\nenvironment: ${environment}`);
+      sections.push(`---\nstatus: ai_review\nenvironment: ${environment}`);
 
       const responseText = sections.join("\n\n---\n\n");
 
@@ -1439,7 +1498,8 @@ To start: \`start_ticket_work("${nextTicket.id}")\``);
   );
 }
 
-function getContextResetGuidance(environment) {
+// Helper function kept for future use (e.g., after human_review completes)
+function _getContextResetGuidance(environment) {
   const resetInstructions = {
     "claude-code": 'Run `/clear` to reset context for the next task.',
     "vscode": 'Click "New Chat" or press Cmd/Ctrl+L for the next task.',
@@ -1456,7 +1516,7 @@ function getContextResetGuidance(environment) {
  * @param {string[]} changedFiles - List of files changed in the branch
  * @returns {string} Markdown instructions for running code review
  */
-function getCodeReviewGuidance(environment, changedFiles = []) {
+function _getCodeReviewGuidance(environment, changedFiles = []) {
   const hasCodeChanges = changedFiles.some(file =>
     /\.(ts|tsx|js|jsx|py|go|rs)$/.test(file) &&
     !/\.(test|spec)\.(ts|tsx|js|jsx)$/.test(file) &&
