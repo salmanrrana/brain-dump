@@ -122,7 +122,7 @@
     {
       "id": "35e86e41-7ce1-47f0-9efb-341d9808027f",
       "title": "Add MCP tool for learning reconciliation",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
