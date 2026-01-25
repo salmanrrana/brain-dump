@@ -18,6 +18,86 @@ import {
 // Import Docker utilities for socket-aware Docker commands
 import { execDockerCommand, getDockerHostEnvValue } from "./docker-utils";
 
+// ============================================================================
+// SHARED WORKFLOW CONSTANTS
+// Extracted to reduce duplication between getRalphPrompt() and generateVSCodeContext()
+// ============================================================================
+
+/**
+ * The 4-phase Universal Quality Workflow instructions.
+ * Used by both Claude Code (via getRalphPrompt) and VS Code (via generateVSCodeContext).
+ */
+const WORKFLOW_PHASES = `
+### Phase 1: Implementation
+1. **Read PRD** - Check \`plans/prd.json\` for incomplete tickets (\`passes: false\`)
+2. **Read Progress** - Run \`tail -100 plans/progress.txt\` for recent context
+3. **Pick ONE ticket** - Based on priority, dependencies, foundation work
+4. **Start work** - Call \`start_ticket_work(ticketId)\`
+5. **Create session** - Call \`create_ralph_session(ticketId)\`
+6. **Implement** - Write code, run tests (\`pnpm test\`)
+7. **Commit** - \`git commit -m "feat(<ticket-id>): <description>"\`
+8. **Complete implementation** - Call \`complete_ticket_work(ticketId, "summary")\` → moves to **ai_review**
+
+### Phase 2: AI Review (REQUIRED)
+9. **Run review agents** - Launch all 3 in parallel: code-reviewer, silent-failure-hunter, code-simplifier
+10. **Submit findings** - \`submit_review_finding({ ticketId, agent, severity, category, description })\`
+11. **Fix critical/major** - Then \`mark_finding_fixed({ findingId, status: "fixed" })\`
+12. **Verify complete** - \`check_review_complete({ ticketId })\` must return \`canProceedToHumanReview: true\`
+
+### Phase 3: Demo Generation
+13. **Generate demo** - \`generate_demo_script({ ticketId, steps: [...] })\` → moves to **human_review**
+
+### Phase 4: STOP
+14. **Complete session** - \`complete_ralph_session(sessionId, "success")\`
+15. **STOP** - Human must approve via \`submit_demo_feedback\`. Never auto-complete.
+
+If all tickets are in human_review or done, output: \`PRD_COMPLETE\`
+`;
+
+/**
+ * The verification checklist from CLAUDE.md.
+ * Used by both getRalphPrompt() and generateVSCodeContext().
+ */
+const VERIFICATION_CHECKLIST = `
+## Verification (from CLAUDE.md)
+
+Before completing ANY ticket, you MUST:
+
+### Code Quality (Always Required)
+- Run \`pnpm type-check\` - must pass with no errors
+- Run \`pnpm lint\` - must pass with no errors
+- Run \`pnpm test\` - all tests must pass
+
+### If You Added New Code
+- Added tests for new functionality
+- Used Drizzle ORM (not raw SQL)
+- Followed patterns in CLAUDE.md DO/DON'T tables
+
+### If You Modified Existing Code
+- Existing tests still pass
+- Updated tests if behavior changed
+
+### Before Marking Complete
+- All acceptance criteria from ticket met
+- Work summary added via \`add_ticket_comment\`
+- Committed with format: \`feat(<ticket-id>): <description>\`
+`;
+
+/**
+ * Rules for Ralph workflow.
+ */
+const WORKFLOW_RULES = `
+## Rules
+- ONE ticket per iteration
+- Run tests before completing
+- Keep changes minimal and focused
+- If stuck, note in \`plans/progress.txt\` and move on
+- **Follow the Verification Checklist in CLAUDE.md before marking any ticket complete**
+- **NEVER auto-approve tickets** - always stop at human_review
+`;
+
+// ============================================================================
+
 /**
  * Generate enhanced PRD with Loom-style structure.
  * Extracts structured content from ticket descriptions including:
@@ -110,99 +190,9 @@ function getRalphPrompt(): string {
   return `You are Ralph, an autonomous coding agent. Focus on implementation - MCP tools handle workflow.
 
 ## Your Task
-
-### Phase 1: Implementation
-1. Read plans/prd.json to see incomplete tickets (passes: false)
-2. Read recent progress context: \`tail -100 plans/progress.txt\` (use Bash tool)
-3. Strategically pick ONE ticket (consider priority, dependencies, foundation work)
-4. Call start_ticket_work(ticketId) - creates branch and posts progress
-5. Create a session: create_ralph_session(ticketId) - enables state tracking
-6. Implement the feature:
-   - Write the code
-   - Run tests: pnpm test (or npm test)
-   - Verify acceptance criteria
-7. Git commit: git commit -m "feat(<ticket-id>): <description>"
-8. Call complete_ticket_work(ticketId, "summary of changes") - moves to ai_review
-
-### Phase 2: AI Review (REQUIRED)
-After complete_ticket_work, the ticket is in **ai_review** status. You MUST:
-
-9. **Run review agents** - Launch all 3 in parallel:
-   - code-reviewer
-   - silent-failure-hunter
-   - code-simplifier
-
-10. **Submit findings** - For each issue found:
-    \`\`\`
-    submit_review_finding({
-      ticketId: "<ticketId>",
-      agent: "code-reviewer",
-      severity: "critical" | "major" | "minor" | "suggestion",
-      category: "type-safety",
-      description: "What the issue is"
-    })
-    \`\`\`
-
-11. **Fix critical/major findings** - Then mark each as fixed:
-    \`\`\`
-    mark_finding_fixed({ findingId: "...", status: "fixed" })
-    \`\`\`
-
-12. **Verify review complete**:
-    \`\`\`
-    check_review_complete({ ticketId: "<ticketId>" })
-    \`\`\`
-    Must return \`canProceedToHumanReview: true\`
-
-### Phase 3: Demo Generation
-13. **Generate demo script** with manual test steps:
-    \`\`\`
-    generate_demo_script({
-      ticketId: "<ticketId>",
-      steps: [
-        { order: 1, description: "Open the app", expectedOutcome: "App loads", type: "manual" },
-        { order: 2, description: "Test the feature", expectedOutcome: "Feature works", type: "visual" }
-      ]
-    })
-    \`\`\`
-    This moves ticket to **human_review**.
-
-### Phase 4: STOP
-14. **Complete session**: complete_ralph_session(sessionId, "success")
-15. **STOP** - DO NOT proceed further. Human must approve via submit_demo_feedback.
-16. If all tickets in human_review or done, output: PRD_COMPLETE
-
-## Rules
-- ONE ticket per iteration
-- Run tests before calling complete_ticket_work
-- Keep changes minimal and focused
-- If stuck, note in progress.txt and move on
-- **Follow the Verification Checklist in CLAUDE.md**
-- **NEVER auto-approve tickets** - always stop at human_review
-
-## Verification (from CLAUDE.md)
-
-Before completing ANY ticket, you MUST:
-
-### Code Quality (Always Required)
-- Run \`pnpm type-check\` - must pass with no errors
-- Run \`pnpm lint\` - must pass with no errors
-- Run \`pnpm test\` - all tests must pass
-
-### If You Added New Code
-- Added tests for new functionality
-- Used Drizzle ORM (not raw SQL)
-- Followed patterns in CLAUDE.md DO/DON'T tables
-
-### If You Modified Existing Code
-- Existing tests still pass
-- Updated tests if behavior changed
-
-### Before Marking Complete
-- All acceptance criteria from ticket met
-- Work summary added via \`add_ticket_comment\`
-- Committed with format: \`feat(<ticket-id>): <description>\`
-
+${WORKFLOW_PHASES}
+${WORKFLOW_RULES}
+${VERIFICATION_CHECKLIST}
 ## Session State Tracking
 
 Use session tools to track your progress through work phases. The UI displays your current state.
@@ -386,31 +376,7 @@ ${epicHeader}
 ## Your Task
 
 You are Ralph, an autonomous coding agent. Follow the Universal Quality Workflow:
-
-### Phase 1: Implementation
-1. **Read PRD** - Check \`plans/prd.json\` for incomplete tickets (\`passes: false\`)
-2. **Read Progress** - Run \`tail -100 plans/progress.txt\` for recent context
-3. **Pick ONE ticket** - Based on priority, dependencies, foundation work
-4. **Start work** - Call \`start_ticket_work(ticketId)\`
-5. **Implement** - Write code, run tests (\`pnpm test\`)
-6. **Commit** - \`git commit -m "feat(<ticket-id>): <description>"\`
-7. **Complete implementation** - Call \`complete_ticket_work(ticketId, "summary")\` → moves to **ai_review**
-
-### Phase 2: AI Review (REQUIRED)
-8. **Run review agents** - code-reviewer, silent-failure-hunter, code-simplifier
-9. **Submit findings** - \`submit_review_finding({ ticketId, agent, severity, category, description })\`
-10. **Fix critical/major** - Then \`mark_finding_fixed({ findingId, status: "fixed" })\`
-11. **Verify complete** - \`check_review_complete({ ticketId })\` must return \`canProceedToHumanReview: true\`
-
-### Phase 3: Demo Generation
-12. **Generate demo** - \`generate_demo_script({ ticketId, steps: [...] })\` → moves to **human_review**
-
-### Phase 4: STOP
-13. **Complete session** - \`complete_ralph_session(sessionId, "success")\`
-14. **STOP** - Human must approve via \`submit_demo_feedback\`. Never auto-complete.
-
-If all tickets are in human_review or done, output: \`PRD_COMPLETE\`
-
+${WORKFLOW_PHASES}
 ---
 
 ## Current Tickets
@@ -421,40 +387,9 @@ ${ticketList || "_No incomplete tickets_"}
 **Completed (${completedTickets.length}):** ${completedTickets.map((t) => t.title).join(", ") || "_None_"}
 
 ---
-
-## Rules
-
-- ONE ticket per iteration
-- Run tests before completing
-- Keep changes minimal and focused
-- If stuck, note in \`plans/progress.txt\` and move on
-- **Follow the Verification Checklist in CLAUDE.md before marking any ticket complete**
-
+${WORKFLOW_RULES}
 ---
-
-## Verification (from CLAUDE.md)
-
-Before completing ANY ticket, you MUST:
-
-### Code Quality (Always Required)
-- Run \`pnpm type-check\` - must pass with no errors
-- Run \`pnpm lint\` - must pass with no errors
-- Run \`pnpm test\` - all tests must pass
-
-### If You Added New Code
-- Added tests for new functionality
-- Used Drizzle ORM (not raw SQL)
-- Followed patterns in CLAUDE.md DO/DON'T tables
-
-### If You Modified Existing Code
-- Existing tests still pass
-- Updated tests if behavior changed
-
-### Before Marking Complete
-- All acceptance criteria from ticket met
-- Work summary added via \`add_ticket_comment\`
-- Committed with format: \`feat(<ticket-id>): <description>\`
-
+${VERIFICATION_CHECKLIST}
 ---
 
 ## MCP Tools Available

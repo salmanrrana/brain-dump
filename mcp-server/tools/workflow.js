@@ -1389,6 +1389,8 @@ Returns:
           );
           if (filesResult.success && filesResult.output) {
             changedFiles = filesResult.output.split("\n").filter(f => f.trim());
+          } else if (!filesResult.success) {
+            log.warn(`Failed to get changed files for ticket ${ticketId}: ${filesResult.error || 'unknown error'}`);
           }
         }
       }
@@ -1464,8 +1466,28 @@ Returns:
       const environment = detectEnvironment();
 
       // Build response sections - focused on AI review workflow, not context reset
+      // If PRD update failed, put warning at TOP so it's not missed
+      const prdWarning = !prdResult.success
+        ? `## ⚠️ CRITICAL WARNING: PRD Update Failed
+
+**The PRD file was NOT updated.** This will cause Ralph's iteration loop to malfunction.
+
+**Problem:** \`${prdResult.message}\`
+
+**Action Required:** Manually update \`plans/prd.json\`:
+1. Find the ticket with ID containing \`${ticketId.substring(0, 8)}\`
+2. Set \`"passes": true\` for that ticket
+3. Save the file
+
+Without this fix, Ralph will repeatedly pick this ticket in subsequent iterations.
+
+---
+
+`
+        : "";
+
       const sections = [
-        `## Implementation Complete - Now in AI Review
+        prdWarning + `## Implementation Complete - Now in AI Review
 
 **Ticket:** ${updatedTicket.title}
 **Status:** ${updatedTicket.status}
@@ -1474,11 +1496,10 @@ Returns:
         `### Work Summary ${summaryResult.success ? "Posted" : "NOT SAVED"}
 ${summary || "Auto-generated summary from commits"}${summaryWarning}`,
 
-        `### PRD Update
-${prdResult.success
-  ? prdResult.message
-  : `**FAILED:** ${prdResult.message}\n\nThe PRD was not updated. This may cause issues with automated workflows.`}`,
-      ];
+        prdResult.success
+          ? `### PRD Update\n${prdResult.message}`
+          : "", // Already shown at top
+      ].filter(Boolean);
 
       // Add workflow state warning if there was an error
       if (workflowStateWarning) {
@@ -1568,80 +1589,6 @@ ${prDescription}
   );
 }
 
-// Helper function kept for future use (e.g., after human_review completes)
-function _getContextResetGuidance(environment) {
-  const resetInstructions = {
-    "claude-code": 'Run `/clear` to reset context for the next task.',
-    "vscode": 'Click "New Chat" or press Cmd/Ctrl+L for the next task.',
-  };
-  const instruction = resetInstructions[environment] || "Start a new conversation for the next task.";
-  return `\n## Context Reset Required\n\nThis ticket has been completed. ${instruction}`;
-}
-
-/**
- * Generate code review instructions based on the environment.
- * In Claude Code, review is enforced by a Stop hook before conversation ends.
- * In other environments, clear instructions are provided.
- * @param {string} environment - The detected environment
- * @param {string[]} changedFiles - List of files changed in the branch
- * @returns {string} Markdown instructions for running code review
- */
-function _getCodeReviewGuidance(environment, changedFiles = []) {
-  const hasCodeChanges = changedFiles.some(file =>
-    /\.(ts|tsx|js|jsx|py|go|rs)$/.test(file) &&
-    !/\.(test|spec)\.(ts|tsx|js|jsx)$/.test(file) &&
-    !/node_modules|dist|build/.test(file)
-  );
-
-  if (!hasCodeChanges && changedFiles.length > 0) {
-    return `## Code Review
-
-No source code changes detected. Review may be skipped.`;
-  }
-
-  const reviewAgents = [
-    "**code-reviewer** - Checks code against project guidelines",
-    "**silent-failure-hunter** - Identifies error handling issues",
-    "**code-simplifier** - Simplifies and refines code",
-  ];
-
-  // Claude Code has automatic review enforcement via Stop hook
-  if (environment === "claude-code") {
-    return `## Code Review
-
-**Automatic Review Enabled:** The Stop hook will prompt for \`/review\` before conversation ends.
-
-When prompted, run \`/review\` to launch all three review agents in parallel:
-${reviewAgents.map(a => `- ${a}`).join("\n")}
-
-${changedFiles.length > 0 ? `### Files Changed:\n${changedFiles.slice(0, 10).map(f => `- ${f}`).join("\n")}${changedFiles.length > 10 ? `\n- ... and ${changedFiles.length - 10} more` : ""}` : ""}`;
-  }
-
-  // Other environments need manual review
-  const environmentInstructions = {
-    "vscode": `Use MCP tools to run these review agents:
-1. code-reviewer - Reviews against CLAUDE.md guidelines
-2. silent-failure-hunter - Checks error handling
-3. code-simplifier - Simplifies complex code
-
-These can be run via the MCP panel or by asking your AI assistant.`,
-    "opencode": `Run the review pipeline by asking your assistant to launch:
-- code-reviewer
-- silent-failure-hunter
-- code-simplifier`,
-  };
-
-  const instructions = environmentInstructions[environment] || environmentInstructions["vscode"];
-
-  return `## Code Review Required
-
-Before creating a PR, run the code review pipeline to catch issues early.
-
-### Review Agents:
-${reviewAgents.map(a => `- ${a}`).join("\n")}
-
-### How to Run:
-${instructions}
-
-${changedFiles.length > 0 ? `### Files to Review:\n${changedFiles.slice(0, 10).map(f => `- ${f}`).join("\n")}${changedFiles.length > 10 ? `\n- ... and ${changedFiles.length - 10} more` : ""}` : ""}`;
-}
+// Note: _getContextResetGuidance and _getCodeReviewGuidance were removed in bc92b026 review
+// The AI review instructions are now embedded directly in complete_ticket_work response (lines 1494-1542)
+// Context reset guidance will be added to submit_demo_feedback when that's implemented
