@@ -2265,7 +2265,7 @@ export function useDemoScript(
   });
 
   return {
-    demoScript: query.data as DemoScript | null,
+    demoScript: query.data ?? null,
     loading: query.isLoading,
     error: query.error?.message ?? null,
     refetch: query.refetch,

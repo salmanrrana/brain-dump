@@ -117,9 +117,25 @@ export const DemoPanel: React.FC<DemoPanelProps> = ({ ticketId, onComplete }) =>
           | "failed"
           | "skipped",
       };
-      updateStepMutation.mutate(notes ? { ...input, notes } : input);
+      updateStepMutation.mutate(notes ? { ...input, notes } : input, {
+        onError: (err) => {
+          showToast("error", `Failed to save notes: ${err.message}`);
+        },
+      });
     },
-    [demoScript, localStepNotes, stepStatuses, updateStepMutation]
+    [demoScript, localStepNotes, stepStatuses, updateStepMutation, showToast]
+  );
+
+  // Handle toggle expand - separates side effect from state update
+  const handleToggleExpand = useCallback(
+    (stepOrder: number) => {
+      // Save notes when collapsing (before state update)
+      if (expandedStep === stepOrder) {
+        handleNotesSave(stepOrder);
+      }
+      setExpandedStep((prev) => (prev === stepOrder ? null : stepOrder));
+    },
+    [expandedStep, handleNotesSave]
   );
 
   // Get step results for submission
@@ -304,15 +320,7 @@ export const DemoPanel: React.FC<DemoPanelProps> = ({ ticketId, onComplete }) =>
             onStatusChange={(status) => handleStatusChange(step.order, status)}
             onNotesChange={(notes) => handleNotesChange(step.order, notes)}
             isExpanded={expandedStep === step.order}
-            onToggleExpand={() =>
-              setExpandedStep((prev) => {
-                // Save notes when collapsing
-                if (prev === step.order) {
-                  handleNotesSave(step.order);
-                }
-                return prev === step.order ? null : step.order;
-              })
-            }
+            onToggleExpand={() => handleToggleExpand(step.order)}
           />
         ))}
       </div>

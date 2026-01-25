@@ -3,6 +3,23 @@ import { z } from "zod";
 import { db } from "../lib/db";
 import { demoScripts, tickets } from "../lib/schema";
 import { eq } from "drizzle-orm";
+import type { DemoStep } from "../lib/schema";
+
+/**
+ * Safely parse JSON steps with descriptive error messages.
+ * Falls back to empty array if steps is null/undefined.
+ */
+function parseSteps(stepsJson: string | null, context: string): DemoStep[] {
+  if (!stepsJson) return [];
+  try {
+    return JSON.parse(stepsJson) as DemoStep[];
+  } catch (err) {
+    throw new Error(
+      `Demo script steps are corrupted (${context}). ` +
+        `Parse error: ${err instanceof Error ? err.message : "unknown"}`
+    );
+  }
+}
 
 /**
  * Get demo script for a ticket
@@ -20,7 +37,7 @@ export const getDemoScript = createServerFn({ method: "GET" })
     return {
       id: script.id,
       ticketId: script.ticketId,
-      steps: script.steps ? JSON.parse(script.steps) : [],
+      steps: parseSteps(script.steps, `ticket ${ticketId}`),
       generatedAt: script.generatedAt,
       completedAt: script.completedAt,
       passed: script.passed,
@@ -49,27 +66,41 @@ export const updateDemoStep = createServerFn({ method: "POST" })
       throw new Error("Demo script not found");
     }
 
-    const steps = script.steps ? JSON.parse(script.steps) : [];
-    const stepIndex = steps.findIndex((s: Record<string, unknown>) => s.order === stepOrder);
+    const steps = parseSteps(script.steps, `script ${demoScriptId}`);
+    const stepIndex = steps.findIndex((s) => s.order === stepOrder);
 
     if (stepIndex === -1) {
       throw new Error("Step not found");
     }
 
     // Update step status in the steps array
+    const existingStep = steps[stepIndex];
+    if (!existingStep) {
+      throw new Error("Step not found at index");
+    }
     steps[stepIndex] = {
-      ...steps[stepIndex],
+      order: existingStep.order,
+      description: existingStep.description,
+      expectedOutcome: existingStep.expectedOutcome,
+      type: existingStep.type,
       status,
       notes,
     };
 
-    // Update script
-    db.update(demoScripts)
+    // Update script and verify rows were modified
+    const result = db
+      .update(demoScripts)
       .set({
         steps: JSON.stringify(steps),
       })
       .where(eq(demoScripts.id, demoScriptId))
       .run();
+
+    if (result.changes === 0) {
+      throw new Error(
+        "Failed to update demo step - the script may have been deleted. Please refresh and try again."
+      );
+    }
 
     return steps[stepIndex];
   });
@@ -105,8 +136,9 @@ export const submitDemoFeedback = createServerFn({ method: "POST" })
       throw new Error("No demo script found for this ticket");
     }
 
-    // Update demo script with feedback and completion
-    db.update(demoScripts)
+    // Update demo script with feedback and completion, verify rows modified
+    const scriptResult = db
+      .update(demoScripts)
       .set({
         passed,
         feedback,
@@ -116,14 +148,27 @@ export const submitDemoFeedback = createServerFn({ method: "POST" })
       .where(eq(demoScripts.id, script.id))
       .run();
 
-    // Update ticket status based on result
+    if (scriptResult.changes === 0) {
+      throw new Error(
+        "Failed to update demo script - it may have been deleted. Please refresh and try again."
+      );
+    }
+
+    // Update ticket status based on result, verify rows modified
     const newStatus = passed ? "done" : "human_review";
-    db.update(tickets)
+    const ticketResult = db
+      .update(tickets)
       .set({
         status: newStatus,
       })
       .where(eq(tickets.id, ticketId))
       .run();
+
+    if (ticketResult.changes === 0) {
+      throw new Error(
+        "Failed to update ticket status - the ticket may have been deleted. Please refresh and try again."
+      );
+    }
 
     return {
       success: true,
