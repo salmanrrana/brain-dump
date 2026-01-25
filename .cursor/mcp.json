@@ -1,0 +1,7 @@
+{
+  "brain-dump": {
+    "command": "node",
+    "args": ["${userHome}/code/brain-dump/mcp-server/index.js"],
+    "env": {}
+  }
+}

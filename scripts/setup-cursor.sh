@@ -240,7 +240,7 @@ echo -e "${BLUE}Step 5: Configure Telemetry Hooks${NC}"
 echo "────────────────────────────────"
 echo -e "${YELLOW}Location:${NC} ~/.cursor/hooks/"
 
-HOOKS_SOURCE="$BRAIN_DUMP_DIR/hooks/cursor"
+HOOKS_SOURCE="$BRAIN_DUMP_DIR/.cursor/hooks"
 HOOKS_TARGET="$HOME/.cursor/hooks"
 HOOKS_CONFIG="$CURSOR_CONFIG_DIR/hooks.json"
 
@@ -291,7 +291,38 @@ if [ -d "$HOOKS_SOURCE" ]; then
     echo -e "${GREEN}Telemetry hooks installed:${NC}"
     ls "$HOOKS_TARGET"/*.sh 2>/dev/null | xargs -I {} basename {} | sed 's/^/  • /' || echo "  (none)"
 else
-    echo -e "${YELLOW}Telemetry hooks not found in Brain Dump (hooks/cursor/)${NC}"
+    echo -e "${YELLOW}Telemetry hooks not found in Brain Dump (.cursor/hooks/)${NC}"
+fi
+
+echo ""
+echo -e "${BLUE}Step 6: Configure Project Rules${NC}"
+echo "────────────────────────────────"
+echo -e "${YELLOW}Location:${NC} .cursor/rules/"
+
+PROJECT_RULES="$BRAIN_DUMP_DIR/.cursor/rules"
+if [ -d "$PROJECT_RULES" ] && [ "$(ls -A "$PROJECT_RULES" 2>/dev/null)" ]; then
+    echo -e "${GREEN}Workflow rules present at $PROJECT_RULES:${NC}"
+    ls "$PROJECT_RULES"/*.md 2>/dev/null | xargs -I {} basename {} | sed 's/^/  • /' || echo "  (none)"
+else
+    echo -e "${YELLOW}No project rules found in .cursor/rules/${NC}"
+fi
+
+echo ""
+echo -e "${BLUE}Step 7: Configure Project Skills${NC}"
+echo "────────────────────────────────"
+echo -e "${YELLOW}Location:${NC} .cursor/skills/"
+
+PROJECT_SKILLS="$BRAIN_DUMP_DIR/.cursor/skills"
+if [ -d "$PROJECT_SKILLS" ] && [ "$(ls -A "$PROJECT_SKILLS" 2>/dev/null)" ]; then
+    echo -e "${GREEN}Workflow skills present at $PROJECT_SKILLS:${NC}"
+    for skill_dir in "$PROJECT_SKILLS"/*/; do
+        if [ -d "$skill_dir" ]; then
+            skill_name=$(basename "$skill_dir")
+            echo "  • $skill_name"
+        fi
+    done
+else
+    echo -e "${YELLOW}No project skills found in .cursor/skills/${NC}"
 fi
 
 echo ""
