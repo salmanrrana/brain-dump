@@ -128,23 +128,29 @@ if [ -f "$MCP_CONFIG_FILE" ]; then
         echo -e "${GREEN}Brain Dump MCP server already configured.${NC}"
     else
         echo "Adding brain-dump server to existing config..."
-        # Try to merge using node
+        # Try to merge using node (using env vars to prevent command injection)
         if command -v node >/dev/null 2>&1; then
-            node_error=$(node -e "
-const fs = require('fs');
-const config = JSON.parse(fs.readFileSync('$MCP_CONFIG_FILE', 'utf8'));
-config.servers = config.servers || {};
-config.servers['brain-dump'] = {
-    type: 'stdio',
-    command: 'node',
-    args: ['$BRAIN_DUMP_DIR/mcp-server/index.js']
-};
-fs.writeFileSync('$MCP_CONFIG_FILE', JSON.stringify(config, null, 2));
-console.log('Config updated successfully');
-" 2>&1) && echo -e "${GREEN}Added brain-dump to mcp.json${NC}" || {
-                if [ -n "$node_error" ]; then
-                    echo -e "${YELLOW}JSON merge failed: $node_error${NC}"
-                fi
+            node_error=$(MCP_CONFIG_FILE="$MCP_CONFIG_FILE" BRAIN_DUMP_DIR="$BRAIN_DUMP_DIR" node -e '
+const fs = require("fs");
+const configFile = process.env.MCP_CONFIG_FILE;
+const brainDumpDir = process.env.BRAIN_DUMP_DIR;
+
+try {
+    const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
+    config.servers = config.servers || {};
+    config.servers["brain-dump"] = {
+        type: "stdio",
+        command: "node",
+        args: [brainDumpDir + "/mcp-server/index.js"]
+    };
+    fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
+    console.log("Config updated successfully");
+} catch (err) {
+    console.error("Error: " + err.message);
+    process.exit(1);
+}
+' 2>&1) && echo -e "${GREEN}Added brain-dump to mcp.json${NC}" || {
+                echo -e "${YELLOW}JSON merge failed: $node_error${NC}"
                 echo -e "${RED}Please manually add the brain-dump server to your mcp.json:${NC}"
                 echo ""
                 echo '  "brain-dump": {'

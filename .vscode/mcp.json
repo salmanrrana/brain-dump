@@ -1,9 +1,9 @@
 {
-  "mcpServers": {
+  "servers": {
     "brain-dump": {
+      "type": "stdio",
       "command": "node",
-      "args": ["${workspaceFolder}/mcp-server/index.js"],
-      "env": {}
+      "args": ["${workspaceFolder}/mcp-server/index.js"]
     }
   }
 }

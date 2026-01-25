@@ -178,8 +178,18 @@ install_opencode() {
 }
 
 install_vscode() {
-  echo -e "${BLUE}Installing VS Code templates...${NC}"
-  echo -e "${YELLOW}Note:${NC} VS Code requires manual configuration. See .vscode/ for templates."
+  echo -e "${BLUE}Installing VS Code configuration...${NC}"
+
+  if [ -f "$BRAIN_DUMP_DIR/scripts/setup-vscode.sh" ]; then
+    if ! bash "$BRAIN_DUMP_DIR/scripts/setup-vscode.sh"; then
+      echo -e "${RED}✗ VS Code installation failed${NC}"
+      exit 1
+    fi
+    echo -e "${GREEN}✓ VS Code installation complete${NC}"
+  else
+    echo -e "${RED}✗ setup-vscode.sh not found${NC}"
+    exit 1
+  fi
   echo ""
 }
 

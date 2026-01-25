@@ -209,10 +209,83 @@ uninstall_opencode() {
 # ─────────────────────────────────────────────────────────────────
 
 uninstall_vscode() {
-  echo -e "${BLUE}VS Code configuration (manual removal)${NC}"
-  echo "  • Remove .vscode/mcp.json if present"
-  echo "  • Remove .github/copilot-instructions.md if present"
-  echo -e "${GREEN}✓ VS Code files handled manually${NC}"
+  echo -e "${BLUE}Uninstalling VS Code configuration...${NC}"
+
+  local failed=0
+
+  # Detect OS and set VS Code paths
+  case "$(uname -s)" in
+    Linux*)
+      VSCODE_USER_DIR="$HOME/.config/Code/User"
+      COPILOT_SKILLS_DIR="$HOME/.copilot/skills"
+      ;;
+    Darwin*)
+      VSCODE_USER_DIR="$HOME/Library/Application Support/Code/User"
+      COPILOT_SKILLS_DIR="$HOME/.copilot/skills"
+      ;;
+    MINGW*|MSYS*|CYGWIN*)
+      VSCODE_USER_DIR="$APPDATA/Code/User"
+      COPILOT_SKILLS_DIR="$USERPROFILE/.copilot/skills"
+      ;;
+    *)
+      echo -e "${YELLOW}⚠ Unknown OS, skipping VS Code uninstall${NC}"
+      return 0
+      ;;
+  esac
+
+  # Remove MCP config entry (or file if only brain-dump)
+  MCP_CONFIG_FILE="$VSCODE_USER_DIR/mcp.json"
+  if [ -f "$MCP_CONFIG_FILE" ]; then
+    if grep -q '"brain-dump"' "$MCP_CONFIG_FILE"; then
+      # Check if brain-dump is the only server
+      server_count=$(grep -c '"[a-zA-Z-]*":' "$MCP_CONFIG_FILE" 2>/dev/null || echo "0")
+      if [ "$server_count" -le 1 ]; then
+        if rm "$MCP_CONFIG_FILE" 2>/dev/null; then
+          echo -e "${GREEN}✓ Removed mcp.json${NC}"
+        else
+          echo -e "${YELLOW}⚠ Could not remove mcp.json${NC}"
+          failed=1
+        fi
+      else
+        echo -e "${YELLOW}Note:${NC} mcp.json contains other servers. Please manually remove the 'brain-dump' entry."
+      fi
+    fi
+  fi
+
+  # Remove Brain Dump agents from prompts folder
+  PROMPTS_DIR="$VSCODE_USER_DIR/prompts"
+  if [ -d "$PROMPTS_DIR" ]; then
+    for agent in ralph.agent.md ticket-worker.agent.md planner.agent.md inception.agent.md \
+                 code-reviewer.agent.md silent-failure-hunter.agent.md code-simplifier.agent.md \
+                 context7-library-compliance.agent.md react-best-practices.agent.md \
+                 cruft-detector.agent.md senior-engineer.agent.md; do
+      if [ -f "$PROMPTS_DIR/$agent" ]; then
+        rm "$PROMPTS_DIR/$agent" 2>/dev/null && echo -e "${GREEN}✓ Removed $agent${NC}" || failed=1
+      fi
+    done
+
+    for prompt in start-ticket.prompt.md complete-ticket.prompt.md create-tickets.prompt.md auto-review.prompt.md; do
+      if [ -f "$PROMPTS_DIR/$prompt" ]; then
+        rm "$PROMPTS_DIR/$prompt" 2>/dev/null && echo -e "${GREEN}✓ Removed $prompt${NC}" || failed=1
+      fi
+    done
+  fi
+
+  # Remove Brain Dump skills from Copilot skills folder
+  if [ -d "$COPILOT_SKILLS_DIR" ]; then
+    for skill in brain-dump-tickets ralph-workflow auto-review; do
+      if [ -d "$COPILOT_SKILLS_DIR/$skill" ]; then
+        rm -rf "$COPILOT_SKILLS_DIR/$skill" 2>/dev/null && echo -e "${GREEN}✓ Removed $skill skill${NC}" || failed=1
+      fi
+    done
+  fi
+
+  if [ $failed -eq 0 ]; then
+    echo -e "${GREEN}✓ VS Code uninstallation complete${NC}"
+  else
+    echo -e "${YELLOW}⚠ Some VS Code files could not be removed. Check permissions.${NC}"
+  fi
+
   echo ""
 }
 
