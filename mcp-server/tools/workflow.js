@@ -11,7 +11,7 @@ import { randomUUID } from "crypto";
 import { join } from "path";
 import { homedir } from "os";
 import { log } from "../lib/logging.js";
-import { runGitCommand, shortId, generateBranchName } from "../lib/git-utils.js";
+import { runGitCommand, shortId, generateBranchName, generateEpicBranchName } from "../lib/git-utils.js";
 
 /**
  * Maximum file size for attachments to include in MCP response (5MB).
@@ -788,20 +788,127 @@ Returns:
         return { content: [{ type: "text", text: `Not a git repository: ${ticket.project_path}\n\nInitialize git first: git init` }], isError: true };
       }
 
-      const branchName = generateBranchName(ticketId, ticket.title);
-      const branchExists = runGitCommand(`git show-ref --verify --quiet refs/heads/${branchName}`, ticket.project_path);
-
+      // Check if ticket belongs to an epic with an existing branch
+      let branchName;
       let branchCreated = false;
-      if (!branchExists.success) {
-        const createBranch = runGitCommand(`git checkout -b ${branchName}`, ticket.project_path);
-        if (!createBranch.success) {
-          return { content: [{ type: "text", text: `Failed to create branch ${branchName}: ${createBranch.error}` }], isError: true };
+      let usingEpicBranch = false;
+      let epicInfo = null;
+
+      if (ticket.epic_id) {
+        // Check for existing epic branch
+        const epicState = db.prepare(`SELECT * FROM epic_workflow_state WHERE epic_id = ?`).get(ticket.epic_id);
+
+        if (epicState?.epic_branch_name) {
+          // Epic has a branch - use it
+          const epicBranchExists = runGitCommand(`git show-ref --verify --quiet refs/heads/${epicState.epic_branch_name}`, ticket.project_path);
+          if (epicBranchExists.success) {
+            branchName = epicState.epic_branch_name;
+            usingEpicBranch = true;
+
+            // Get epic info for context
+            const epic = db.prepare(`SELECT title FROM epics WHERE id = ?`).get(ticket.epic_id);
+            epicInfo = {
+              title: epic?.title || "Unknown Epic",
+              branchName: branchName,
+              prUrl: epicState.pr_url,
+            };
+
+            // Checkout the epic branch
+            const checkoutBranch = runGitCommand(`git checkout ${branchName}`, ticket.project_path);
+            if (!checkoutBranch.success) {
+              return { content: [{ type: "text", text: `Failed to checkout epic branch ${branchName}: ${checkoutBranch.error}` }], isError: true };
+            }
+
+            // Update epic workflow state to track current ticket
+            const now = new Date().toISOString();
+            db.prepare(`UPDATE epic_workflow_state SET current_ticket_id = ?, updated_at = ? WHERE epic_id = ?`).run(ticketId, now, ticket.epic_id);
+
+            log.info(`Ticket ${ticketId} using epic branch ${branchName}`);
+          } else {
+            // Epic branch was deleted - suggest recreating it
+            log.warn(`Epic branch ${epicState.epic_branch_name} no longer exists for ticket ${ticketId}`);
+            return {
+              content: [{
+                type: "text",
+                text: `Epic branch \`${epicState.epic_branch_name}\` no longer exists.
+
+This ticket belongs to an epic that previously had a branch, but it was deleted.
+
+**To fix:** Run \`start_epic_work("${ticket.epic_id}")\` to recreate the epic branch, then try again.`,
+              }],
+              isError: true,
+            };
+          }
+        } else {
+          // Ticket belongs to epic but no branch exists yet
+          // Get epic info to generate branch name
+          const epic = db.prepare(`SELECT id, title FROM epics WHERE id = ?`).get(ticket.epic_id);
+          if (epic) {
+            // Auto-create the epic branch for convenience
+            branchName = generateEpicBranchName(epic.id, epic.title);
+            usingEpicBranch = true;
+            epicInfo = { title: epic.title, branchName: branchName };
+
+            const epicBranchExists = runGitCommand(`git show-ref --verify --quiet refs/heads/${branchName}`, ticket.project_path);
+            if (!epicBranchExists.success) {
+              // Create the epic branch
+              let baseBranch = "main";
+              const mainExists = runGitCommand("git show-ref --verify --quiet refs/heads/main", ticket.project_path);
+              if (!mainExists.success) {
+                const masterExists = runGitCommand("git show-ref --verify --quiet refs/heads/master", ticket.project_path);
+                if (masterExists.success) baseBranch = "master";
+              }
+
+              runGitCommand(`git checkout ${baseBranch}`, ticket.project_path);
+              const createBranch = runGitCommand(`git checkout -b ${branchName}`, ticket.project_path);
+              if (!createBranch.success) {
+                return { content: [{ type: "text", text: `Failed to create epic branch ${branchName}: ${createBranch.error}` }], isError: true };
+              }
+              branchCreated = true;
+            } else {
+              const checkoutBranch = runGitCommand(`git checkout ${branchName}`, ticket.project_path);
+              if (!checkoutBranch.success) {
+                return { content: [{ type: "text", text: `Failed to checkout epic branch ${branchName}: ${checkoutBranch.error}` }], isError: true };
+              }
+            }
+
+            // Create/update epic workflow state with the branch
+            const now = new Date().toISOString();
+            const existingState = db.prepare(`SELECT id FROM epic_workflow_state WHERE epic_id = ?`).get(epic.id);
+            if (existingState) {
+              db.prepare(`
+                UPDATE epic_workflow_state SET epic_branch_name = ?, epic_branch_created_at = ?, current_ticket_id = ?, updated_at = ?
+                WHERE epic_id = ?
+              `).run(branchName, now, ticketId, now, epic.id);
+            } else {
+              const stateId = randomUUID();
+              db.prepare(`
+                INSERT INTO epic_workflow_state (id, epic_id, epic_branch_name, epic_branch_created_at, current_ticket_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+              `).run(stateId, epic.id, branchName, now, ticketId, now, now);
+            }
+
+            log.info(`Auto-created epic branch ${branchName} for ticket ${ticketId}`);
+          }
         }
-        branchCreated = true;
-      } else {
-        const checkoutBranch = runGitCommand(`git checkout ${branchName}`, ticket.project_path);
-        if (!checkoutBranch.success) {
-          return { content: [{ type: "text", text: `Failed to checkout branch ${branchName}: ${checkoutBranch.error}` }], isError: true };
+      }
+
+      // If not using epic branch, create ticket-specific branch (original behavior)
+      if (!usingEpicBranch) {
+        branchName = generateBranchName(ticketId, ticket.title);
+        const branchExists = runGitCommand(`git show-ref --verify --quiet refs/heads/${branchName}`, ticket.project_path);
+
+        if (!branchExists.success) {
+          const createBranch = runGitCommand(`git checkout -b ${branchName}`, ticket.project_path);
+          if (!createBranch.success) {
+            return { content: [{ type: "text", text: `Failed to create branch ${branchName}: ${createBranch.error}` }], isError: true };
+          }
+          branchCreated = true;
+        } else {
+          const checkoutBranch = runGitCommand(`git checkout ${branchName}`, ticket.project_path);
+          if (!checkoutBranch.success) {
+            return { content: [{ type: "text", text: `Failed to checkout branch ${branchName}: ${checkoutBranch.error}` }], isError: true };
+          }
         }
       }
 
@@ -904,6 +1011,14 @@ Returns:
         warningsSection = `\n### Warnings\n${allWarnings.map(w => `- ${w}`).join("\n")}\n`;
       }
 
+      // Build epic info section if using epic branch
+      let epicSection = "";
+      if (usingEpicBranch && epicInfo) {
+        epicSection = `**Epic:** ${epicInfo.title}
+**Using Epic Branch:** All commits will go to the shared epic branch${epicInfo.prUrl ? `\n**Epic PR:** ${epicInfo.prUrl}` : ""}
+`;
+      }
+
       // Build the main text content block
       // Design mockup warning appears prominently at the top if images are present
       const mainTextBlock = {
@@ -913,7 +1028,7 @@ Returns:
 **Branch:** \`${branchName}\` ${branchCreated ? "(created)" : "(checked out)"}
 **Project:** ${updatedTicket.project_name}
 **Path:** ${updatedTicket.project_path}
-${sessionInfo ? `\n${sessionInfo}` : ""}
+${epicSection}${sessionInfo ? `\n${sessionInfo}` : ""}
 ${designMockupWarning ? `\n---\n\n${designMockupWarning}` : ""}
 ---
 
@@ -936,6 +1051,204 @@ Focus on implementation. When done, call \`complete_ticket_work\` with your summ
       const content = [mainTextBlock, ...attachmentBlocks];
 
       return { content };
+    }
+  );
+
+  // Start epic work
+  server.tool(
+    "start_epic_work",
+    `Start working on an epic. Creates an epic-level git branch that all tickets in the epic will share.
+
+This tool handles epic-level workflow:
+1. Creates an epic branch: feature/epic-{epic-short-id}-{slug}
+2. Stores the branch name in epic_workflow_state for ticket reuse
+3. Optionally creates a draft PR for the epic
+4. Returns epic context including all tickets
+
+Use this BEFORE starting work on any ticket in the epic.
+All subsequent ticket work will use this epic branch instead of creating per-ticket branches.
+
+Args:
+  epicId: The epic ID to start working on
+  createPr: Whether to create a draft PR immediately (default: false)
+
+Returns:
+  Branch name, epic details, and list of tickets in the epic.`,
+    {
+      epicId: z.string().describe("Epic ID to start working on"),
+      createPr: z.boolean().optional().default(false).describe("Create a draft PR immediately"),
+    },
+    async ({ epicId, createPr }) => {
+      // Get epic with project info
+      const epic = db.prepare(`
+        SELECT e.*, p.name as project_name, p.path as project_path
+        FROM epics e JOIN projects p ON e.project_id = p.id WHERE e.id = ?
+      `).get(epicId);
+
+      if (!epic) {
+        return { content: [{ type: "text", text: `Epic not found: ${epicId}` }], isError: true };
+      }
+
+      if (!existsSync(epic.project_path)) {
+        return { content: [{ type: "text", text: `Project path does not exist: ${epic.project_path}` }], isError: true };
+      }
+
+      const gitCheck = runGitCommand("git rev-parse --git-dir", epic.project_path);
+      if (!gitCheck.success) {
+        return { content: [{ type: "text", text: `Not a git repository: ${epic.project_path}\n\nInitialize git first: git init` }], isError: true };
+      }
+
+      // Check if epic workflow state already exists with a branch
+      let epicState = db.prepare(`SELECT * FROM epic_workflow_state WHERE epic_id = ?`).get(epicId);
+
+      if (epicState?.epic_branch_name) {
+        // Epic branch already exists - check it out and return info
+        const branchExists = runGitCommand(`git show-ref --verify --quiet refs/heads/${epicState.epic_branch_name}`, epic.project_path);
+        if (branchExists.success) {
+          const checkoutBranch = runGitCommand(`git checkout ${epicState.epic_branch_name}`, epic.project_path);
+          if (!checkoutBranch.success) {
+            return { content: [{ type: "text", text: `Failed to checkout existing epic branch ${epicState.epic_branch_name}: ${checkoutBranch.error}` }], isError: true };
+          }
+
+          // Get tickets in epic
+          const epicTickets = db.prepare(`
+            SELECT id, title, status, priority FROM tickets WHERE epic_id = ? ORDER BY position
+          `).all(epicId);
+
+          return {
+            content: [{
+              type: "text",
+              text: `## Epic Already Started
+
+**Branch:** \`${epicState.epic_branch_name}\` (checked out)
+**Epic:** ${epic.title}
+**Project:** ${epic.project_name}
+${epicState.pr_url ? `**PR:** ${epicState.pr_url}` : ""}
+
+### Tickets in Epic (${epicTickets.length})
+${epicTickets.map(t => `- [${t.status}] ${t.title} (${t.priority || "medium"})`).join("\n")}
+
+Use \`start_ticket_work\` to begin work on any ticket. All tickets will use this branch.`,
+            }],
+          };
+        }
+        // Branch was deleted externally - we'll recreate it below
+        log.warn(`Epic branch ${epicState.epic_branch_name} no longer exists, will recreate`);
+      }
+
+      // Generate epic branch name
+      const branchName = generateEpicBranchName(epicId, epic.title);
+
+      // Check if branch already exists in git (might have been created outside our tracking)
+      const branchExists = runGitCommand(`git show-ref --verify --quiet refs/heads/${branchName}`, epic.project_path);
+
+      let branchCreated = false;
+      if (!branchExists.success) {
+        // Create the branch from main/dev
+        let baseBranch = "main";
+        const mainExists = runGitCommand("git show-ref --verify --quiet refs/heads/main", epic.project_path);
+        if (!mainExists.success) {
+          const masterExists = runGitCommand("git show-ref --verify --quiet refs/heads/master", epic.project_path);
+          if (masterExists.success) baseBranch = "master";
+        }
+
+        // Make sure we're on the base branch first, then create new branch
+        runGitCommand(`git checkout ${baseBranch}`, epic.project_path);
+        const createBranch = runGitCommand(`git checkout -b ${branchName}`, epic.project_path);
+        if (!createBranch.success) {
+          return { content: [{ type: "text", text: `Failed to create branch ${branchName}: ${createBranch.error}` }], isError: true };
+        }
+        branchCreated = true;
+      } else {
+        const checkoutBranch = runGitCommand(`git checkout ${branchName}`, epic.project_path);
+        if (!checkoutBranch.success) {
+          return { content: [{ type: "text", text: `Failed to checkout branch ${branchName}: ${checkoutBranch.error}` }], isError: true };
+        }
+      }
+
+      const now = new Date().toISOString();
+
+      // Create or update epic workflow state
+      if (!epicState) {
+        // Create new epic workflow state
+        const stateId = randomUUID();
+        db.prepare(`
+          INSERT INTO epic_workflow_state (id, epic_id, epic_branch_name, epic_branch_created_at, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(stateId, epicId, branchName, now, now, now);
+        epicState = { id: stateId, epic_branch_name: branchName };
+      } else {
+        // Update existing state with branch info
+        db.prepare(`
+          UPDATE epic_workflow_state SET epic_branch_name = ?, epic_branch_created_at = ?, updated_at = ? WHERE epic_id = ?
+        `).run(branchName, now, now, epicId);
+      }
+
+      // Get tickets in epic
+      const epicTickets = db.prepare(`
+        SELECT id, title, status, priority FROM tickets WHERE epic_id = ? ORDER BY position
+      `).all(epicId);
+
+      // Update ticket counts
+      const ticketsTotal = epicTickets.length;
+      const ticketsDone = epicTickets.filter(t => t.status === "done").length;
+      db.prepare(`
+        UPDATE epic_workflow_state SET tickets_total = ?, tickets_done = ?, updated_at = ? WHERE epic_id = ?
+      `).run(ticketsTotal, ticketsDone, now, epicId);
+
+      log.info(`Started epic work on ${epicId}: branch ${branchName}`);
+
+      // Optionally create draft PR
+      let prInfo = "";
+      if (createPr) {
+        // Push branch to remote first
+        const pushResult = runGitCommand(`git push -u origin ${branchName}`, epic.project_path);
+        if (!pushResult.success) {
+          prInfo = `\n\n**Warning:** Could not push branch to remote: ${pushResult.error}\nCreate PR manually when ready.`;
+        } else {
+          // Create draft PR using gh CLI
+          const prResult = runGitCommand(
+            `gh pr create --draft --title "[Epic] ${epic.title}" --body "Epic work for: ${epic.title}\n\nThis PR contains all tickets from the epic."`,
+            epic.project_path
+          );
+          if (prResult.success && prResult.output) {
+            // Extract PR URL from output
+            const prUrl = prResult.output.trim();
+            // Extract PR number from URL (last segment)
+            const prNumber = parseInt(prUrl.split("/").pop() || "0", 10);
+
+            // Update epic workflow state with PR info
+            db.prepare(`
+              UPDATE epic_workflow_state SET pr_number = ?, pr_url = ?, pr_status = 'draft', updated_at = ? WHERE epic_id = ?
+            `).run(prNumber, prUrl, now, epicId);
+
+            prInfo = `\n\n**Draft PR Created:** ${prUrl}`;
+            log.info(`Created draft PR for epic ${epicId}: ${prUrl}`);
+          } else {
+            prInfo = `\n\n**Warning:** Could not create PR: ${prResult.error}\nCreate PR manually when ready.`;
+          }
+        }
+      }
+
+      return {
+        content: [{
+          type: "text",
+          text: `## Started Epic Work
+
+**Branch:** \`${branchName}\` ${branchCreated ? "(created)" : "(checked out)"}
+**Epic:** ${epic.title}
+**Project:** ${epic.project_name}
+**Path:** ${epic.project_path}${prInfo}
+
+### Tickets in Epic (${epicTickets.length})
+${epicTickets.map(t => `- [${t.status}] ${t.title} (${t.priority || "medium"})`).join("\n")}
+
+---
+
+All tickets in this epic will now use the epic branch \`${branchName}\`.
+Use \`start_ticket_work\` to begin work on any ticket.`,
+        }],
+      };
     }
   );
 

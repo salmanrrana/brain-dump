@@ -64,6 +64,13 @@
       "when": 1769302184067,
       "tag": "0008_slim_silver_centurion",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1769310397852,
+      "tag": "0009_open_skreet",
+      "breakpoints": true
     }
   ]
 }

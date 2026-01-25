@@ -587,6 +587,12 @@ export const epicWorkflowState = sqliteTable(
       onDelete: "set null",
     }), // Currently being worked on
     learnings: text("learnings"), // JSON array of learning objects
+    // Epic-level git branch tracking (for single PR per epic)
+    epicBranchName: text("epic_branch_name"), // e.g., "feature/epic-abc123-my-epic"
+    epicBranchCreatedAt: text("epic_branch_created_at"), // When branch was created
+    prNumber: integer("pr_number"), // GitHub PR number for the epic
+    prUrl: text("pr_url"), // Full PR URL
+    prStatus: text("pr_status").$type<"draft" | "open" | "merged" | "closed" | null>(), // PR status
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),
