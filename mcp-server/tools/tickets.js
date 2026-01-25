@@ -575,4 +575,82 @@ Returns the updated attachment.`,
       };
     }
   );
+
+  // List tickets by epic
+  server.tool(
+    "list_tickets_by_epic",
+    `List all tickets in a specific epic.
+
+This is a convenience tool for searching tickets within an epic without having to query all tickets and filter.
+
+Args:
+  epicId: ID of the epic to search
+  projectId: Optional - filter by project (if epic tickets span multiple projects)
+  status: Optional - filter by status (backlog, ready, in_progress, review, ai_review, human_review, done)
+  limit: Optional - max tickets to return (default: 100)
+
+Returns array of tickets in the epic, sorted by position.`,
+    {
+      epicId: z.string().describe("Epic ID to search"),
+      projectId: z.string().optional().describe("Filter by project ID"),
+      status: z.enum(STATUSES).optional().describe("Filter by status"),
+      limit: z.number().optional().describe("Max tickets to return (default: 100)"),
+    },
+    async ({ epicId, projectId, status, limit = 100 }) => {
+      // Verify epic exists
+      const epic = db.prepare("SELECT * FROM epics WHERE id = ?").get(epicId);
+      if (!epic) {
+        return {
+          content: [{
+            type: "text",
+            text: `Epic not found: ${epicId}\n\nUse list_epics to see available epics.`,
+          }],
+          isError: true,
+        };
+      }
+
+      let query = `
+        SELECT t.*, p.name as project_name, e.title as epic_title
+        FROM tickets t
+        JOIN projects p ON t.project_id = p.id
+        LEFT JOIN epics e ON t.epic_id = e.id
+        WHERE t.epic_id = ?
+      `;
+      const params = [epicId];
+
+      if (projectId) {
+        query += " AND t.project_id = ?";
+        params.push(projectId);
+      }
+      if (status) {
+        query += " AND t.status = ?";
+        params.push(status);
+      }
+
+      query += " ORDER BY t.position ASC LIMIT ?";
+      params.push(Math.min(limit, 500));
+
+      const tickets = db.prepare(query).all(...params);
+
+      if (tickets.length === 0) {
+        return {
+          content: [{
+            type: "text",
+            text: `No tickets found in epic "${epic.title}"${projectId ? ` for project` : ""}${status ? ` with status "${status}"` : ""}.`,
+          }],
+        };
+      }
+
+      // Format response with summary
+      const summary = `Found ${tickets.length} ticket(s) in epic "${epic.title}"`;
+      const ticketList = tickets.map((t, i) => `${i + 1}. [${t.status}] ${t.title} (ID: ${t.id})`).join("\n");
+
+      return {
+        content: [{
+          type: "text",
+          text: `${summary}\n\n${ticketList}\n\n${JSON.stringify(tickets, null, 2)}`,
+        }],
+      };
+    }
+  );
 }
