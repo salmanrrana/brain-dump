@@ -203,7 +203,17 @@ Returns demo script with steps and feedback if available.`,
         };
       }
 
-      const steps = JSON.parse(demo.steps || "[]");
+      let steps;
+      try {
+        steps = JSON.parse(demo.steps || "[]");
+      } catch (parseErr) {
+        log.error(`Failed to parse demo steps for ticket ${ticketId}: ${parseErr.message}`);
+        return {
+          content: [{ type: "text", text: `Demo script data is corrupted. The steps JSON could not be parsed.\n\nError: ${parseErr.message}\n\nYou may need to regenerate the demo script using generate_demo_script.` }],
+          isError: true,
+        };
+      }
+
       const result = {
         id: demo.id,
         ticketId: demo.ticket_id,
@@ -251,7 +261,17 @@ Returns updated demo script.`,
       }
 
       // Update steps JSON
-      const steps = JSON.parse(demo.steps || "[]");
+      let steps;
+      try {
+        steps = JSON.parse(demo.steps || "[]");
+      } catch (parseErr) {
+        log.error(`Failed to parse demo steps for demo ${demoScriptId}: ${parseErr.message}`);
+        return {
+          content: [{ type: "text", text: `Demo script data is corrupted. The steps JSON could not be parsed.\n\nError: ${parseErr.message}\n\nYou may need to regenerate the demo script.` }],
+          isError: true,
+        };
+      }
+
       const step = steps.find(s => s.order === stepOrder);
       if (!step) {
         return {
