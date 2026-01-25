@@ -95,7 +95,7 @@
     {
       "id": "dd0fae07-5fa0-4930-ab66-7ffa2dd4279f",
       "title": "Add MCP tools for demo script generation and feedback",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],

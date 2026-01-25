@@ -34,6 +34,7 @@ import { registerTelemetryTools } from "./tools/telemetry.js";
 import { registerClaudeTasksTools } from "./tools/claude-tasks.js";
 import { registerReviewFindingsTools } from "./tools/review-findings.js";
 import { registerDemoTools } from "./tools/demo.js";
+import { registerLearningsTools } from "./tools/learnings.js";
 
 import { unlinkSync } from "fs";
 
@@ -111,6 +112,7 @@ registerTelemetryTools(server, db, detectEnvironment);
 registerClaudeTasksTools(server, db);
 registerReviewFindingsTools(server, db);
 registerDemoTools(server, db);
+registerLearningsTools(server, db);
 
 // =============================================================================
 // CONNECT AND START
