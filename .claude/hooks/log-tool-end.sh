@@ -48,18 +48,35 @@ NOW_MS=$(date +%s%3N 2>/dev/null || echo "$(date +%s)000")
 
 # Retrieve correlation ID and start time from queue file (FIFO - first in, first out)
 CORR_FILE="$PROJECT_DIR/.claude/tool-correlation-${TOOL_NAME//[^a-zA-Z0-9]/_}.queue"
+CORR_LOCK="$PROJECT_DIR/.claude/tool-correlation-${TOOL_NAME//[^a-zA-Z0-9]/_}.lock"
 CORR_ID=""
 START_MS="0"
 
 if [[ -f "$CORR_FILE" ]] && [[ -s "$CORR_FILE" ]]; then
-  # Read the first line (oldest entry) and remove it from the queue
-  CORR_DATA=$(head -1 "$CORR_FILE")
-  CORR_ID=$(echo "$CORR_DATA" | cut -d: -f1)
-  START_MS=$(echo "$CORR_DATA" | cut -d: -f2)
-  # Remove the first line from the queue
-  tail -n +2 "$CORR_FILE" > "$CORR_FILE.tmp" 2>/dev/null && mv "$CORR_FILE.tmp" "$CORR_FILE" || rm -f "$CORR_FILE"
-  # Clean up empty queue file
-  [[ -f "$CORR_FILE" ]] && [[ ! -s "$CORR_FILE" ]] && rm -f "$CORR_FILE"
+  # Use flock for atomic read-and-remove to handle concurrent tool calls
+  (
+    flock -x 200 2>/dev/null || true  # Fallback if flock not available
+    if [[ -s "$CORR_FILE" ]]; then
+      # Read the first line (oldest entry) and remove it from the queue
+      CORR_DATA=$(head -1 "$CORR_FILE" 2>/dev/null || echo "")
+      if [[ -n "$CORR_DATA" ]]; then
+        echo "$CORR_DATA" > "$CORR_FILE.data"
+        # Remove the first line from the queue
+        tail -n +2 "$CORR_FILE" > "$CORR_FILE.tmp" 2>/dev/null && mv "$CORR_FILE.tmp" "$CORR_FILE" || rm -f "$CORR_FILE"
+        # Clean up empty queue file
+        [[ -f "$CORR_FILE" ]] && [[ ! -s "$CORR_FILE" ]] && rm -f "$CORR_FILE"
+      fi
+    fi
+  ) 200>"$CORR_LOCK"
+
+  # Read correlation data from temp file (outside lock)
+  if [[ -f "$CORR_FILE.data" ]]; then
+    CORR_DATA=$(cat "$CORR_FILE.data")
+    rm -f "$CORR_FILE.data"
+    CORR_ID=$(echo "$CORR_DATA" | cut -d: -f1)
+    START_MS=$(echo "$CORR_DATA" | cut -d: -f2)
+  fi
+  rm -f "$CORR_LOCK"
 fi
 
 # Calculate duration with validation

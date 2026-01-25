@@ -13,13 +13,29 @@ CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 HOOKS_DIR="$HOME/.claude/hooks"
 
 # Colors for output
+RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Cleanup handler for temp files
+TEMP_SETTINGS=""
+cleanup() {
+  [[ -n "$TEMP_SETTINGS" && -f "$TEMP_SETTINGS" ]] && rm -f "$TEMP_SETTINGS"
+  [[ -n "$TEMP_SETTINGS" && -f "${TEMP_SETTINGS}.new" ]] && rm -f "${TEMP_SETTINGS}.new"
+}
+trap cleanup EXIT
+
 echo -e "${BLUE}Merging telemetry hooks into Claude Code settings...${NC}"
 echo ""
+
+# Check if jq is installed
+if ! command -v jq >/dev/null 2>&1; then
+  echo -e "${RED}Error: jq is required but not installed.${NC}" >&2
+  echo -e "Install with: brew install jq (macOS) or apt install jq (Linux)" >&2
+  exit 1
+fi
 
 # Check if settings file exists
 if [[ ! -f "$CLAUDE_SETTINGS" ]]; then
