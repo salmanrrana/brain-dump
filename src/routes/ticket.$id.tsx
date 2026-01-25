@@ -244,7 +244,11 @@ function TicketDetailPage() {
   });
 
   // Fetch workflow state for this ticket
-  const { workflowState, loading: workflowLoading } = useWorkflowState(id, {
+  const {
+    workflowState,
+    loading: workflowLoading,
+    error: workflowError,
+  } = useWorkflowState(id, {
     // Poll for updates when ticket is actively being worked on
     pollingInterval:
       ticket?.status === "in_progress" || ticket?.status === "ai_review"
@@ -472,7 +476,11 @@ function TicketDetailPage() {
         ticket.status === "human_review" ||
         ticket.status === "done") && (
         <section style={workflowSectionStyles}>
-          <WorkflowProgress workflowState={workflowState} loading={workflowLoading} />
+          <WorkflowProgress
+            workflowState={workflowState}
+            loading={workflowLoading}
+            error={workflowError}
+          />
         </section>
       )}
 
@@ -496,7 +504,11 @@ function TicketDetailPage() {
           {(ticket.status === "ai_review" ||
             ticket.status === "human_review" ||
             ticket.status === "done") && (
-            <ReviewFindingsPanel workflowState={workflowState} loading={workflowLoading} />
+            <ReviewFindingsPanel
+              workflowState={workflowState}
+              loading={workflowLoading}
+              error={workflowError}
+            />
           )}
         </div>
       </div>

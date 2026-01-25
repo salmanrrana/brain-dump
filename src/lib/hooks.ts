@@ -2338,11 +2338,38 @@ export function useSubmitDemoFeedback() {
 // WORKFLOW STATE HOOKS
 // =============================================================================
 
-import { getWorkflowDisplayState, type WorkflowDisplayState } from "../api/workflow";
+import {
+  getWorkflowDisplayState,
+  type WorkflowDisplayState,
+  type WorkflowDisplayResult,
+} from "../api/workflow";
+import { createLogger } from "../lib/logger";
+
+const workflowLogger = createLogger("workflow-hooks");
+
+/** Workflow state hook result - includes explicit error and notFound states */
+export interface UseWorkflowStateResult {
+  /** The workflow state data (null if not found, error, or loading) */
+  workflowState: WorkflowDisplayState | null;
+  /** Whether the query is currently loading */
+  loading: boolean;
+  /** Error message if the query failed */
+  error: string | null;
+  /** Whether the ticket was not found (distinct from null workflowState) */
+  notFound: boolean;
+  /** Function to manually refetch the data */
+  refetch: () => void;
+}
 
 /**
  * Hook for fetching workflow display state for a ticket.
  * Returns aggregated workflow progress, review findings summary, and demo status.
+ *
+ * Distinguishes between:
+ * - loading: Data is being fetched
+ * - success: Data was fetched successfully
+ * - notFound: Ticket doesn't exist
+ * - error: Database or network error occurred
  *
  * @param ticketId - The ticket ID to fetch workflow state for
  * @param options - Configuration options
@@ -2355,12 +2382,12 @@ export function useWorkflowState(
     /** Polling interval in ms for real-time updates (default: 0 = disabled) */
     pollingInterval?: number;
   } = {}
-) {
+): UseWorkflowStateResult {
   const { enabled = Boolean(ticketId), pollingInterval = 0 } = options;
 
   const query = useQuery({
     queryKey: queryKeys.workflowState(ticketId),
-    queryFn: async () => {
+    queryFn: async (): Promise<WorkflowDisplayResult> => {
       return getWorkflowDisplayState({ data: ticketId });
     },
     enabled,
@@ -2368,13 +2395,31 @@ export function useWorkflowState(
     staleTime: 0, // Workflow state can change externally (MCP tools)
   });
 
+  // Process the discriminated union result
+  const result = query.data;
+  let workflowState: WorkflowDisplayState | null = null;
+  let error: string | null = query.error?.message ?? null;
+  let notFound = false;
+
+  if (result) {
+    if (result.status === "success") {
+      workflowState = result.data;
+    } else if (result.status === "not_found") {
+      notFound = true;
+    } else if (result.status === "error") {
+      error = result.message;
+      workflowLogger.error(`Workflow state fetch failed for ticket ${ticketId}: ${result.message}`);
+    }
+  }
+
   return {
-    workflowState: query.data ?? null,
+    workflowState,
     loading: query.isLoading,
-    error: query.error?.message ?? null,
+    error,
+    notFound,
     refetch: query.refetch,
   };
 }
 
-// Re-export WorkflowDisplayState type for consumers
-export type { WorkflowDisplayState };
+// Re-export types for consumers
+export type { WorkflowDisplayState, WorkflowDisplayResult };

@@ -1,10 +1,12 @@
 import React from "react";
-import { CheckCircle2, Circle, Loader2 } from "lucide-react";
+import { CheckCircle2, Circle, Loader2, AlertCircle } from "lucide-react";
 import type { WorkflowDisplayState } from "../../api/workflow";
 
 export interface WorkflowProgressProps {
   workflowState: WorkflowDisplayState | null;
   loading?: boolean;
+  /** Error message if workflow state failed to load */
+  error?: string | null;
 }
 
 /** Workflow phases in order */
@@ -28,6 +30,7 @@ const PHASE_LABELS: Record<(typeof PHASES)[number], string> = {
 export const WorkflowProgress: React.FC<WorkflowProgressProps> = ({
   workflowState,
   loading = false,
+  error = null,
 }) => {
   if (loading) {
     return (
@@ -38,8 +41,21 @@ export const WorkflowProgress: React.FC<WorkflowProgressProps> = ({
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex items-center gap-2 text-[var(--accent-danger)]">
+        <AlertCircle size={16} />
+        <span className="text-sm">Failed to load workflow: {error}</span>
+      </div>
+    );
+  }
+
   if (!workflowState) {
-    return <div className="text-sm text-[var(--text-tertiary)]">No workflow state available</div>;
+    return (
+      <div className="text-sm text-[var(--text-tertiary)]">
+        Workflow tracking will begin when work starts on this ticket.
+      </div>
+    );
   }
 
   const currentPhaseIndex = PHASES.indexOf(workflowState.currentPhase);

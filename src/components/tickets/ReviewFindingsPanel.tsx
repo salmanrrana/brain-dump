@@ -5,6 +5,8 @@ import type { WorkflowDisplayState } from "../../api/workflow";
 export interface ReviewFindingsPanelProps {
   workflowState: WorkflowDisplayState | null;
   loading?: boolean;
+  /** Error message if workflow state failed to load */
+  error?: string | null;
 }
 
 /**
@@ -21,12 +23,24 @@ export interface ReviewFindingsPanelProps {
 export const ReviewFindingsPanel: React.FC<ReviewFindingsPanelProps> = ({
   workflowState,
   loading = false,
+  error = null,
 }) => {
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
         <Loader2 size={16} className="animate-spin" />
         <span className="text-sm">Loading findings...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-[var(--accent-danger)]/10 border border-[var(--accent-danger)]/30 rounded-lg p-4">
+        <div className="flex items-center gap-2 text-[var(--accent-danger)]">
+          <AlertCircle size={16} />
+          <span className="text-sm">Failed to load findings</span>
+        </div>
       </div>
     );
   }
@@ -70,7 +84,6 @@ export const ReviewFindingsPanel: React.FC<ReviewFindingsPanelProps> = ({
             icon={<AlertTriangle size={14} className="text-[var(--accent-danger)]" />}
             label="P0 (Critical)"
             count={findingsSummary.critical}
-            variant="critical"
           />
         )}
 
@@ -80,7 +93,6 @@ export const ReviewFindingsPanel: React.FC<ReviewFindingsPanelProps> = ({
             icon={<AlertCircle size={14} className="text-[var(--warning)]" />}
             label="P1 (Major)"
             count={findingsSummary.major}
-            variant="major"
           />
         )}
 
@@ -90,7 +102,6 @@ export const ReviewFindingsPanel: React.FC<ReviewFindingsPanelProps> = ({
             icon={<Info size={14} className="text-[var(--info)]" />}
             label="P2 (Minor)"
             count={findingsSummary.minor}
-            variant="minor"
           />
         )}
 
@@ -100,7 +111,6 @@ export const ReviewFindingsPanel: React.FC<ReviewFindingsPanelProps> = ({
             icon={<Lightbulb size={14} className="text-[var(--text-tertiary)]" />}
             label="Suggestions"
             count={findingsSummary.suggestion}
-            variant="suggestion"
           />
         )}
 
@@ -132,10 +142,9 @@ interface FindingRowProps {
   icon: React.ReactNode;
   label: string;
   count: number;
-  variant: "critical" | "major" | "minor" | "suggestion";
 }
 
-const FindingRow: React.FC<FindingRowProps> = ({ icon, label, count }) => {
+function FindingRow({ icon, label, count }: FindingRowProps) {
   return (
     <div className="flex items-center gap-2">
       {icon}
@@ -143,6 +152,6 @@ const FindingRow: React.FC<FindingRowProps> = ({ icon, label, count }) => {
       <span className="text-xs font-medium text-[var(--text-primary)]">{count}</span>
     </div>
   );
-};
+}
 
 export default ReviewFindingsPanel;
