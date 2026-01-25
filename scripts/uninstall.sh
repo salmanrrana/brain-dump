@@ -163,22 +163,42 @@ uninstall_opencode() {
   PLUGINS_DIR="$CONFIG_DIR/plugins"
   SKILLS_DIR="$CONFIG_DIR/skills"
 
+  local failed=0
+
   # Remove plugin
-  if [ -d "$PLUGINS_DIR" ]; then
-    rm -f "$PLUGINS_DIR/brain-dump-telemetry.ts"
-    echo -e "${GREEN}✓ OpenCode plugin removed${NC}"
+  if [ -f "$PLUGINS_DIR/brain-dump-telemetry.ts" ]; then
+    if ! rm "$PLUGINS_DIR/brain-dump-telemetry.ts"; then
+      echo -e "${RED}✗ Failed to remove telemetry plugin (permission denied or file locked)${NC}"
+      failed=1
+    else
+      echo -e "${GREEN}✓ OpenCode plugin removed${NC}"
+    fi
   fi
 
   # Remove AGENTS.md documentation
   if [ -f "$CONFIG_DIR/AGENTS.md" ]; then
-    rm -f "$CONFIG_DIR/AGENTS.md"
-    echo -e "${GREEN}✓ OpenCode documentation removed${NC}"
+    if ! rm "$CONFIG_DIR/AGENTS.md"; then
+      echo -e "${RED}✗ Failed to remove AGENTS.md (permission denied)${NC}"
+      failed=1
+    else
+      echo -e "${GREEN}✓ OpenCode documentation removed${NC}"
+    fi
   fi
 
   # Remove skill
   if [ -d "$SKILLS_DIR/brain-dump-workflow" ]; then
-    rm -rf "$SKILLS_DIR/brain-dump-workflow"
-    echo -e "${GREEN}✓ OpenCode skill removed${NC}"
+    if ! rm -rf "$SKILLS_DIR/brain-dump-workflow"; then
+      echo -e "${RED}✗ Failed to remove skill (permission denied or directory locked)${NC}"
+      failed=1
+    else
+      echo -e "${GREEN}✓ OpenCode skill removed${NC}"
+    fi
+  fi
+
+  if [ $failed -eq 0 ]; then
+    echo -e "${GREEN}✓ OpenCode uninstallation complete${NC}"
+  else
+    echo -e "${YELLOW}⚠ Some OpenCode files could not be removed. Check permissions.${NC}"
   fi
 
   echo ""
