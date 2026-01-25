@@ -60,9 +60,9 @@ You are starting work on the next available task from the Brain Dump kanban boar
 ## Status Flow
 
 ```
-ready → in_progress → ai_review → human_review → done
-                      ↑
-                   You are here after complete_ticket_work
+backlog → ready → in_progress → ai_review → human_review → done
+                                ↑
+                             You are here after complete_ticket_work
 ```
 
 ## When Blocked

@@ -14,13 +14,21 @@ You are running the AI review workflow for a ticket in `ai_review` status. This 
 
 ## Steps
 
-### Step 1: Get Current Ticket Context
+### Step 1: Verify Ticket Status
+
+First, confirm the ticket is in `ai_review` status:
+
+```
+list_tickets({ projectId: "<project-id>", status: "ai_review" })
+```
+
+Or get the active Ralph session which includes ticket state:
 
 ```
 get_session_state({ ticketId: "<ticket-id>" })
 ```
 
-Verify the ticket is in `ai_review` status.
+If the ticket is not in `ai_review`, call `complete_ticket_work` first.
 
 ### Step 2: Run Review Agents in Parallel
 

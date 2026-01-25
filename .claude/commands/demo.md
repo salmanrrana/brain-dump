@@ -153,7 +153,31 @@ After generating the demo:
 
 The ticket is now in `human_review`. Possible outcomes:
 
-1. **Approved**: Human calls `submit_demo_feedback({ passed: true })` → ticket moves to `done`
-2. **Rejected**: Human calls `submit_demo_feedback({ passed: false, feedback: "..." })` → ticket stays in `human_review` with feedback for you to address
+1. **Approved**: Human calls:
+
+   ```
+   submit_demo_feedback({
+     ticketId: "<ticket-id>",
+     passed: true,
+     feedback: "All steps verified successfully"
+   })
+   ```
+
+   → ticket moves to `done`
+
+2. **Rejected**: Human calls:
+   ```
+   submit_demo_feedback({
+     ticketId: "<ticket-id>",
+     passed: false,
+     feedback: "Step 3 failed - modal did not open",
+     stepResults: [
+       { order: 1, passed: true },
+       { order: 2, passed: true },
+       { order: 3, passed: false, notes: "Button unresponsive" }
+     ]
+   })
+   ```
+   → ticket stays in `human_review` with feedback for you to address
 
 If rejected, read the feedback and iterate on the fix.
