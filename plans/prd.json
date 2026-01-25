@@ -11,7 +11,7 @@
     {
       "id": "23825bf6-bda0-45df-9bd0-b1952864dd72",
       "title": "Add database schema for workflow state and review findings",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
