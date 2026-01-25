@@ -428,38 +428,20 @@ function handleDoctor(): void {
     });
   }
 
-  // Check settings.json hook configurations
+  // Parse settings.json once and reuse for hook and MCP checks
+  let claudeSettings: Record<string, unknown> | null = null;
   if (existsSync(claudeSettingsPath)) {
     try {
-      const settings = JSON.parse(readFileSync(claudeSettingsPath, "utf-8"));
-      const hooks = settings.hooks || {};
-
-      const requiredHookTypes = [
-        "SessionStart",
-        "PreToolUse",
-        "PostToolUse",
-        "PostToolUseFailure",
-        "UserPromptSubmit",
-        "Stop",
-      ];
-      const configuredHookTypes = Object.keys(hooks);
-      const missingHookTypes = requiredHookTypes.filter((h) => !configuredHookTypes.includes(h));
-
-      if (missingHookTypes.length === 0) {
-        console.log(
-          `  ✓ settings.json has all hook types configured (${requiredHookTypes.length}/${requiredHookTypes.length})`
-        );
-      } else {
-        console.log(`  ✗ settings.json missing hook types: ${missingHookTypes.join(", ")}`);
-        issues.push({
-          environment: "Claude Code",
-          component: "settings.json",
-          message: `Missing hook types: ${missingHookTypes.join(", ")}`,
-          fix: "./scripts/setup-claude-code.sh",
-        });
-      }
-    } catch {
-      console.log("  ⚠ settings.json exists but could not be parsed");
+      claudeSettings = JSON.parse(readFileSync(claudeSettingsPath, "utf-8"));
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.log(`  ⚠ settings.json exists but could not be parsed: ${errorMsg}`);
+      issues.push({
+        environment: "Claude Code",
+        component: "settings.json",
+        message: `Parse error: ${errorMsg}`,
+        fix: "Fix JSON syntax in ~/.claude/settings.json",
+      });
     }
   } else {
     console.log("  ✗ settings.json NOT found");
@@ -469,6 +451,36 @@ function handleDoctor(): void {
       message: "~/.claude/settings.json does not exist",
       fix: "./scripts/setup-claude-code.sh",
     });
+  }
+
+  // Check settings.json hook configurations
+  if (claudeSettings) {
+    const hooks = (claudeSettings.hooks as Record<string, unknown>) || {};
+
+    const requiredHookTypes = [
+      "SessionStart",
+      "PreToolUse",
+      "PostToolUse",
+      "PostToolUseFailure",
+      "UserPromptSubmit",
+      "Stop",
+    ];
+    const configuredHookTypes = Object.keys(hooks);
+    const missingHookTypes = requiredHookTypes.filter((h) => !configuredHookTypes.includes(h));
+
+    if (missingHookTypes.length === 0) {
+      console.log(
+        `  ✓ settings.json has all hook types configured (${requiredHookTypes.length}/${requiredHookTypes.length})`
+      );
+    } else {
+      console.log(`  ✗ settings.json missing hook types: ${missingHookTypes.join(", ")}`);
+      issues.push({
+        environment: "Claude Code",
+        component: "settings.json",
+        message: `Missing hook types: ${missingHookTypes.join(", ")}`,
+        fix: "./scripts/setup-claude-code.sh",
+      });
+    }
   }
 
   // Check skills (commands)
@@ -491,24 +503,23 @@ function handleDoctor(): void {
     console.log("  ○ Skills directory not found (optional)");
   }
 
-  // Check MCP server
-  if (existsSync(claudeSettingsPath)) {
-    try {
-      const settings = JSON.parse(readFileSync(claudeSettingsPath, "utf-8"));
-      if (settings.mcpServers && settings.mcpServers["brain-dump"]) {
-        console.log("  ✓ MCP server configured");
+  // Check MCP server (reusing claudeSettings parsed above)
+  if (claudeSettings) {
+    const mcpServers = claudeSettings.mcpServers as Record<string, unknown> | undefined;
+    if (mcpServers && mcpServers["brain-dump"]) {
+      console.log("  ✓ MCP server configured");
+    } else {
+      // Check for mcp.json
+      const mcpJsonPath = join(claudeDir, "mcp.json");
+      if (existsSync(mcpJsonPath)) {
+        console.log("  ✓ MCP server configured (via mcp.json)");
       } else {
-        // Check for mcp.json
-        const mcpJsonPath = join(claudeDir, "mcp.json");
-        if (existsSync(mcpJsonPath)) {
-          console.log("  ✓ MCP server configured (via mcp.json)");
-        } else {
-          console.log("  ○ MCP server: Check mcp.json or mcpServers in settings");
-        }
+        console.log("  ○ MCP server: Check mcp.json or mcpServers in settings");
       }
-    } catch {
-      console.log("  ○ MCP server: Could not verify");
     }
+  } else if (existsSync(claudeSettingsPath)) {
+    // Settings file exists but couldn't be parsed - already reported above
+    console.log("  ○ MCP server: Could not verify (settings.json parse error)");
   }
 
   console.log();
@@ -620,8 +631,9 @@ function handleDoctor(): void {
         } else {
           console.log("  ○ MCP server: Not configured in opencode.json");
         }
-      } catch {
-        console.log("  ○ MCP server: Could not parse opencode.json");
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.log(`  ⚠ MCP server: Could not parse opencode.json: ${errorMsg}`);
       }
     } else {
       console.log("  ○ opencode.json: Not found");
@@ -679,15 +691,26 @@ function handleDoctor(): void {
   const dbPath = getDatabasePath();
   if (existsSync(dbPath)) {
     console.log(`  ✓ Database found at ${dbPath}`);
-    const result = quickIntegrityCheck();
-    if (result.success) {
-      console.log(`  ✓ Integrity check: PASSED (${result.durationMs}ms)`);
-    } else {
-      console.log(`  ✗ Integrity check: FAILED - ${result.message}`);
+    try {
+      const result = quickIntegrityCheck();
+      if (result.success) {
+        console.log(`  ✓ Integrity check: PASSED (${result.durationMs}ms)`);
+      } else {
+        console.log(`  ✗ Integrity check: FAILED - ${result.message}`);
+        issues.push({
+          environment: "Database",
+          component: "Integrity",
+          message: result.message,
+          fix: "brain-dump check --full",
+        });
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.log(`  ✗ Integrity check: ERROR - ${errorMsg}`);
       issues.push({
         environment: "Database",
         component: "Integrity",
-        message: result.message,
+        message: `Check threw an error: ${errorMsg}`,
         fix: "brain-dump check --full",
       });
     }
