@@ -23,24 +23,39 @@ if [[ ! -f "$TELEMETRY_FILE" ]]; then
   exit 0
 fi
 
-SESSION_ID=$(jq -r '.sessionId // ""' "$TELEMETRY_FILE" 2>/dev/null || echo "")
+# Log file for debugging (create early so we can log errors)
+LOG_FILE="$PROJECT_DIR/.cursor/telemetry.log"
+mkdir -p "$(dirname "$LOG_FILE")"
+
+# Parse session ID with error logging
+SESSION_ID=$(jq -r '.sessionId // ""' "$TELEMETRY_FILE" 2>/dev/null)
+if [[ $? -ne 0 ]]; then
+  echo "[$(date -Iseconds)] ERROR: Failed to parse $TELEMETRY_FILE" >> "$LOG_FILE"
+fi
+SESSION_ID="${SESSION_ID:-}"
 if [[ -z "$SESSION_ID" ]]; then
   exit 0
 fi
-
-# Log file for debugging
-LOG_FILE="$PROJECT_DIR/.cursor/telemetry.log"
 
 # Queue file for batch processing
 QUEUE_FILE="$PROJECT_DIR/.cursor/telemetry-queue.jsonl"
 mkdir -p "$(dirname "$QUEUE_FILE")"
 
 # Read hook input from stdin
-INPUT=$(cat 2>/dev/null || echo "{}")
+INPUT=$(cat 2>/dev/null) || INPUT=""
+if [[ -z "$INPUT" || "$INPUT" == "{}" ]]; then
+  echo "[$(date -Iseconds)] WARNING: No hook input received from stdin" >> "$LOG_FILE"
+  INPUT="{}"
+fi
 
-# Extract tool info from hook input
-TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // .tool // .name // ""' 2>/dev/null || echo "unknown")
-ERROR=$(echo "$INPUT" | jq -r '.error // .message // ""' 2>/dev/null || echo "Unknown error")
+# Extract tool info from hook input with error logging
+TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // .tool // .name // ""' 2>/dev/null)
+[[ $? -ne 0 ]] && echo "[$(date -Iseconds)] WARNING: Failed to parse tool_name from input" >> "$LOG_FILE"
+TOOL_NAME="${TOOL_NAME:-unknown}"
+
+ERROR=$(echo "$INPUT" | jq -r '.error // .message // ""' 2>/dev/null)
+[[ $? -ne 0 ]] && echo "[$(date -Iseconds)] WARNING: Failed to parse error from input" >> "$LOG_FILE"
+ERROR="${ERROR:-Unknown error}"
 
 # Skip logging for telemetry-related tools to avoid recursion
 if [[ "$TOOL_NAME" == *"telemetry"* ]]; then
@@ -59,7 +74,9 @@ START_MS="0"
 
 if [[ -f "$CORR_FILE" ]] && [[ -s "$CORR_FILE" ]]; then
   (
-    flock -x 200 2>/dev/null || true
+    if ! flock -x 200 2>/dev/null; then
+      echo "[$(date -Iseconds)] WARNING: flock unavailable, proceeding without lock" >> "$LOG_FILE"
+    fi
     if [[ -s "$CORR_FILE" ]]; then
       CORR_DATA=$(head -1 "$CORR_FILE" 2>/dev/null || echo "")
       if [[ -n "$CORR_DATA" ]]; then
@@ -76,8 +93,9 @@ if [[ -f "$CORR_FILE" ]] && [[ -s "$CORR_FILE" ]]; then
     CORR_ID=$(echo "$CORR_DATA" | cut -d: -f1)
     START_MS=$(echo "$CORR_DATA" | cut -d: -f2)
   fi
-  rm -f "$CORR_LOCK"
 fi
+# Always clean up lock file
+rm -f "$CORR_LOCK" 2>/dev/null
 
 # Calculate duration with validation
 if [[ -z "$START_MS" || "$START_MS" == "0" || ! "$START_MS" =~ ^[0-9]+$ ]]; then
@@ -102,7 +120,9 @@ EVENT=$(jq -n \
   --arg timestamp "$NOW" \
   '{sessionId: $sessionId, event: $event, toolName: $toolName, correlationId: $correlationId, durationMs: $durationMs, success: $success, error: $error, timestamp: $timestamp}')
 
-echo "$EVENT" >> "$QUEUE_FILE"
+if ! echo "$EVENT" >> "$QUEUE_FILE" 2>>"$LOG_FILE"; then
+  echo "[$(date -Iseconds)] ERROR: Failed to write failure event to queue" >> "$LOG_FILE"
+fi
 echo "[$(date -Iseconds)] Queued tool_failure: $TOOL_NAME (${DURATION_MS}ms, error: $ERROR_SUMMARY)" >> "$LOG_FILE"
 
 exit 0

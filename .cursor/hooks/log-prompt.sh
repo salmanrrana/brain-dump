@@ -21,23 +21,35 @@ if [[ ! -f "$TELEMETRY_FILE" ]]; then
   exit 0
 fi
 
-SESSION_ID=$(jq -r '.sessionId // ""' "$TELEMETRY_FILE" 2>/dev/null || echo "")
+# Log file for debugging (create early so we can log errors)
+LOG_FILE="$PROJECT_DIR/.cursor/telemetry.log"
+mkdir -p "$(dirname "$LOG_FILE")"
+
+# Parse session ID with error logging
+SESSION_ID=$(jq -r '.sessionId // ""' "$TELEMETRY_FILE" 2>/dev/null)
+if [[ $? -ne 0 ]]; then
+  echo "[$(date -Iseconds)] ERROR: Failed to parse $TELEMETRY_FILE" >> "$LOG_FILE"
+fi
+SESSION_ID="${SESSION_ID:-}"
 if [[ -z "$SESSION_ID" ]]; then
   exit 0
 fi
-
-# Log file for debugging
-LOG_FILE="$PROJECT_DIR/.cursor/telemetry.log"
 
 # Queue file for batch processing
 QUEUE_FILE="$PROJECT_DIR/.cursor/telemetry-queue.jsonl"
 mkdir -p "$(dirname "$QUEUE_FILE")"
 
 # Read hook input from stdin
-INPUT=$(cat 2>/dev/null || echo "{}")
+INPUT=$(cat 2>/dev/null) || INPUT=""
+if [[ -z "$INPUT" || "$INPUT" == "{}" ]]; then
+  echo "[$(date -Iseconds)] WARNING: No hook input received from stdin" >> "$LOG_FILE"
+  INPUT="{}"
+fi
 
-# Extract prompt from hook input
-PROMPT=$(echo "$INPUT" | jq -r '.prompt // .message // .content // ""' 2>/dev/null || echo "")
+# Extract prompt from hook input with error logging
+PROMPT=$(echo "$INPUT" | jq -r '.prompt // .message // .content // ""' 2>/dev/null)
+[[ $? -ne 0 ]] && echo "[$(date -Iseconds)] WARNING: Failed to parse prompt from input" >> "$LOG_FILE"
+PROMPT="${PROMPT:-}"
 
 # Generate timestamp
 NOW=$(date -Iseconds)
@@ -55,7 +67,9 @@ EVENT=$(jq -n \
   --arg timestamp "$NOW" \
   '{sessionId: $sessionId, event: $event, prompt: $prompt, promptLength: $promptLength, timestamp: $timestamp}')
 
-echo "$EVENT" >> "$QUEUE_FILE"
+if ! echo "$EVENT" >> "$QUEUE_FILE" 2>>"$LOG_FILE"; then
+  echo "[$(date -Iseconds)] ERROR: Failed to write prompt event to queue" >> "$LOG_FILE"
+fi
 echo "[$(date -Iseconds)] Queued prompt event (${PROMPT_LENGTH} chars)" >> "$LOG_FILE"
 
 exit 0
