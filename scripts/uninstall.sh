@@ -159,17 +159,26 @@ uninstall_cursor() {
 uninstall_opencode() {
   echo -e "${BLUE}Uninstalling OpenCode configuration...${NC}"
 
-  PLUGINS_DIR="$HOME/.config/opencode/plugins"
+  CONFIG_DIR="$HOME/.config/opencode"
+  PLUGINS_DIR="$CONFIG_DIR/plugins"
+  SKILLS_DIR="$CONFIG_DIR/skills"
 
+  # Remove plugin
   if [ -d "$PLUGINS_DIR" ]; then
     rm -f "$PLUGINS_DIR/brain-dump-telemetry.ts"
     echo -e "${GREEN}✓ OpenCode plugin removed${NC}"
   fi
 
-  CONFIG_DIR="$HOME/.config/opencode"
-  if [ -d "$CONFIG_DIR" ]; then
+  # Remove AGENTS.md documentation
+  if [ -f "$CONFIG_DIR/AGENTS.md" ]; then
     rm -f "$CONFIG_DIR/AGENTS.md"
     echo -e "${GREEN}✓ OpenCode documentation removed${NC}"
+  fi
+
+  # Remove skill
+  if [ -d "$SKILLS_DIR/brain-dump-workflow" ]; then
+    rm -rf "$SKILLS_DIR/brain-dump-workflow"
+    echo -e "${GREEN}✓ OpenCode skill removed${NC}"
   fi
 
   echo ""

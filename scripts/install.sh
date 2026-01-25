@@ -121,9 +121,18 @@ install_cursor() {
 install_opencode() {
   echo -e "${BLUE}Installing OpenCode configuration...${NC}"
 
-  OPENCODE_PLUGINS="$HOME/.config/opencode/plugins"
+  OPENCODE_CONFIG="$HOME/.config/opencode"
+  OPENCODE_PLUGINS="$OPENCODE_CONFIG/plugins"
+  OPENCODE_SKILLS="$OPENCODE_CONFIG/skills"
+
+  # Create directories
   if ! mkdir -p "$OPENCODE_PLUGINS"; then
     echo -e "${RED}✗ Failed to create OpenCode plugins directory: $OPENCODE_PLUGINS${NC}"
+    exit 1
+  fi
+
+  if ! mkdir -p "$OPENCODE_SKILLS"; then
+    echo -e "${RED}✗ Failed to create OpenCode skills directory: $OPENCODE_SKILLS${NC}"
     exit 1
   fi
 
@@ -137,16 +146,31 @@ install_opencode() {
       echo -e "${RED}✗ Failed to set execute permissions on telemetry plugin${NC}"
       exit 1
     fi
-    echo -e "${GREEN}✓ Telemetry plugin installed${NC}"
+    echo -e "${GREEN}✓ Telemetry plugin installed to $OPENCODE_PLUGINS${NC}"
+  else
+    echo -e "${YELLOW}⚠ Telemetry plugin not found at $BRAIN_DUMP_DIR/.opencode/plugins/brain-dump-telemetry.ts${NC}"
   fi
 
-  # Copy documentation
+  # Copy AGENTS.md workflow documentation
   if [ -f "$BRAIN_DUMP_DIR/.opencode/AGENTS.md" ]; then
-    if ! cp "$BRAIN_DUMP_DIR/.opencode/AGENTS.md" "$OPENCODE_PLUGINS/../"; then
+    if ! cp "$BRAIN_DUMP_DIR/.opencode/AGENTS.md" "$OPENCODE_CONFIG/"; then
       echo -e "${RED}✗ Failed to copy workflow documentation${NC}"
       exit 1
     fi
-    echo -e "${GREEN}✓ Workflow documentation installed${NC}"
+    echo -e "${GREEN}✓ Workflow documentation (AGENTS.md) installed to $OPENCODE_CONFIG${NC}"
+  else
+    echo -e "${YELLOW}⚠ AGENTS.md not found at $BRAIN_DUMP_DIR/.opencode/AGENTS.md${NC}"
+  fi
+
+  # Copy skill
+  if [ -d "$BRAIN_DUMP_DIR/.opencode/skills/brain-dump-workflow" ]; then
+    if ! cp -r "$BRAIN_DUMP_DIR/.opencode/skills/brain-dump-workflow" "$OPENCODE_SKILLS/"; then
+      echo -e "${RED}✗ Failed to copy skill to $OPENCODE_SKILLS${NC}"
+      exit 1
+    fi
+    echo -e "${GREEN}✓ Brain Dump workflow skill installed to $OPENCODE_SKILLS${NC}"
+  else
+    echo -e "${YELLOW}⚠ Skill not found at $BRAIN_DUMP_DIR/.opencode/skills/brain-dump-workflow${NC}"
   fi
 
   echo -e "${GREEN}✓ OpenCode installation complete${NC}"

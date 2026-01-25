@@ -41,7 +41,26 @@ Documentation for AI agents working with Brain Dump tickets.
 
 **Usage:** OpenCode agents will reference this automatically when working on tickets.
 
-### 3. Configuration Example (`opencode.json.example`)
+### 3. Workflow Skill (`skills/brain-dump-workflow/SKILL.md`)
+
+Auto-activated skill providing context-aware guidance for Brain Dump workflows.
+
+**Features:**
+
+- Automatic activation when working on tickets
+- Complete workflow guidance (states, transitions, tools)
+- Code quality standards
+- Common patterns and troubleshooting
+
+**Installation:**
+
+```bash
+# Global installation
+mkdir -p ~/.config/opencode/skills
+cp -r skills/brain-dump-workflow ~/.config/opencode/skills/
+```
+
+### 4. Configuration Example (`opencode.json.example`)
 
 Template for `opencode.json` configuration.
 
