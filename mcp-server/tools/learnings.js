@@ -9,6 +9,7 @@ import { randomUUID } from "crypto";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
 import { log } from "../lib/logging.js";
+import { addComment } from "../lib/comment-utils.js";
 
 /**
  * Register learning reconciliation tools with the MCP server.
@@ -190,25 +191,22 @@ Returns summary of learnings stored and any documentation updates applied.`,
       log.info(`Reconciled learnings for ticket ${ticketId} (epic tickets done: ${ticketsDone})`);
 
       // Create progress comment (per spec: mandatory audit trail)
-      const commentId = randomUUID();
-      const commentContent = `Learnings reconciled from ticket.\n\nLearnings recorded:\n${learnings
+      const learningsLines = learnings
         .map(l => `- [${l.type}] ${l.description}`)
-        .join("\n")}${docsUpdated.length > 0
-        ? `\n\nDocumentation updated:\n${docsUpdated
-          .filter(u => u.status === "success")
-          .map(u => `- ${u.file} (${u.section})`)
-          .join("\n")}`
-        : ""}`;
+        .join("\n");
+      const successfulUpdates = docsUpdated.filter(u => u.status === "success");
+      const docsSection = successfulUpdates.length > 0
+        ? `\n\nDocumentation updated:\n${successfulUpdates.map(u => `- ${u.file} (${u.section})`).join("\n")}`
+        : "";
+      const commentContent = `Learnings reconciled from ticket.\n\nLearnings recorded:\n${learningsLines}${docsSection}`;
 
-      db.prepare(
-        `INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at)
-         VALUES (?, ?, ?, 'claude', 'progress', ?)`
-      ).run(commentId, ticketId, commentContent, now);
+      const commentResult = addComment(db, ticketId, commentContent, "claude", "progress");
+      const commentWarning = commentResult.success ? "" : `\n\n**Warning:** Audit trail comment was not saved: ${commentResult.error}`;
 
       return {
         content: [{
           type: "text",
-          text: `Learnings reconciled successfully.\n\nLearnings stored: ${learnings.length}\nDocumentation updates: ${docsUpdated.filter(u => u.status === "success").length}`,
+          text: `Learnings reconciled successfully.\n\nLearnings stored: ${learnings.length}\nDocumentation updates: ${successfulUpdates.length}${commentWarning}`,
         }],
       };
     }
