@@ -316,12 +316,16 @@ function completeTicketWork(
     return { success: false, error: `Ticket not found: ${ticketId}` };
   }
 
-  if (ticket.status === "done" || ticket.status === "review") {
+  if (
+    ticket.status === "done" ||
+    ticket.status === "ai_review" ||
+    ticket.status === "human_review"
+  ) {
     return { success: true, ticket };
   }
 
   const now = new Date().toISOString();
-  db.prepare("UPDATE tickets SET status = 'review', updated_at = ? WHERE id = ?").run(
+  db.prepare("UPDATE tickets SET status = 'ai_review', updated_at = ? WHERE id = ?").run(
     now,
     ticketId
   );
@@ -698,7 +702,7 @@ function test() {
         "Implemented the feature successfully"
       );
       expect(completeResult.success).toBe(true);
-      expect(completeResult.ticket?.status).toBe("review");
+      expect(completeResult.ticket?.status).toBe("ai_review");
       expect(completeResult.summaryPosted).toBe(true);
       expect(completeResult.prdUpdated).toBe(true);
 
@@ -1130,7 +1134,7 @@ function test() {
       expect(finalTicket.description).toBe(initialTicket.description);
       expect(finalTicket.project_id).toBe(initialTicket.project_id);
       expect(finalTicket.priority).toBe(initialTicket.priority);
-      expect(finalTicket.status).toBe("review");
+      expect(finalTicket.status).toBe("ai_review");
     });
   });
 });

@@ -775,7 +775,7 @@ fi
   opencode "$PROJECT_PATH" --prompt "$(cat "$PROMPT_FILE")"`
       : `  # Run Claude in print mode (-p) so it exits after completion
   # This allows the bash loop to continue to the next iteration
-  claude --dangerously-skip-permissions --verbose --output-format stream-json -p "$(cat "$PROMPT_FILE")"`;
+  claude --dangerously-skip-permissions --output-format text -p "$(cat "$PROMPT_FILE")"`;
 
   const iterationLabel = useSandbox ? "(Docker)" : "";
   const endMessage = useSandbox ? "" : `echo "Run again with: $0 <max_iterations>"`;
@@ -1456,7 +1456,7 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       .where(
         and(
           eq(tickets.epicId, epicId),
-          inArray(tickets.status, ["backlog", "ready", "in_progress", "review"])
+          inArray(tickets.status, ["backlog", "ready", "in_progress", "ai_review", "human_review"])
         )
       )
       .all();

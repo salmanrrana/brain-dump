@@ -6,7 +6,7 @@ import { z } from "zod";
 import { randomUUID } from "crypto";
 import { log } from "../lib/logging.js";
 
-const STATUSES = ["backlog", "ready", "in_progress", "review", "ai_review", "human_review", "done"];
+const STATUSES = ["backlog", "ready", "in_progress", "ai_review", "human_review", "done"];
 const PRIORITIES = ["low", "medium", "high"];
 
 /** Valid attachment types for AI context */

@@ -296,12 +296,16 @@ function completeTicketWork(
     return { success: false, error: `Ticket not found: ${ticketId}` };
   }
 
-  if (ticket.status === "done" || ticket.status === "review") {
+  if (
+    ticket.status === "done" ||
+    ticket.status === "ai_review" ||
+    ticket.status === "human_review"
+  ) {
     return { success: true, ticket };
   }
 
   const now = new Date().toISOString();
-  db.prepare("UPDATE tickets SET status = 'review', updated_at = ? WHERE id = ?").run(
+  db.prepare("UPDATE tickets SET status = 'ai_review', updated_at = ? WHERE id = ?").run(
     now,
     ticketId
   );
@@ -345,7 +349,7 @@ function suggestNextTicket(
     .prepare(
       `
     SELECT id, title, priority FROM tickets
-    WHERE project_id = ? AND id != ? AND status NOT IN ('done', 'review')
+    WHERE project_id = ? AND id != ? AND status NOT IN ('done', 'ai_review', 'human_review')
     ORDER BY
       CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 1 END,
       position
@@ -546,11 +550,11 @@ describe("Ralph E2E Integration Tests", () => {
       expect(completeResult.prdUpdated).toBe(true);
       expect(completeResult.summaryPosted).toBe(true);
 
-      // Verify ticket status updated to review
+      // Verify ticket status updated to ai_review
       const ticketAfterComplete = db
         .prepare("SELECT status FROM tickets WHERE id = ?")
         .get(ticketId) as { status: string };
-      expect(ticketAfterComplete.status).toBe("review");
+      expect(ticketAfterComplete.status).toBe("ai_review");
 
       // Verify work summary comment was posted
       const summaryComment = db
@@ -740,7 +744,7 @@ describe("Ralph E2E Integration Tests", () => {
       expect(finalTicket.title).toBe(initialTicket.title);
       expect(finalTicket.description).toBe(initialTicket.description);
       expect(finalTicket.project_id).toBe(initialTicket.project_id);
-      expect(finalTicket.status).toBe("review"); // Only status should change
+      expect(finalTicket.status).toBe("ai_review"); // Only status should change
     });
 
     it("should not create orphaned comments on workflow failure", () => {
@@ -814,7 +818,7 @@ describe("Ralph E2E Integration Tests", () => {
       // Should still succeed but PRD update should fail
       expect(result.success).toBe(true);
       expect(result.prdUpdated).toBe(false);
-      expect(result.ticket?.status).toBe("review");
+      expect(result.ticket?.status).toBe("ai_review");
     });
 
     it("should handle completing already-completed ticket", () => {

@@ -4,7 +4,6 @@ export const ticketStatusSchema = z.enum([
   "backlog",
   "ready",
   "in_progress",
-  "review",
   "ai_review",
   "human_review",
   "done",

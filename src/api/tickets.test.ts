@@ -397,12 +397,12 @@ describe("Tickets API Logic", () => {
         .run();
 
       db.update(schema.tickets)
-        .set({ status: "review" })
+        .set({ status: "ai_review" })
         .where(eq(schema.tickets.id, ticketId))
         .run();
 
       const result = db.select().from(schema.tickets).where(eq(schema.tickets.id, ticketId)).get();
-      expect(result?.status).toBe("review");
+      expect(result?.status).toBe("ai_review");
       expect(result?.title).toBe("Ticket");
       expect(result?.description).toBe("Description");
     });

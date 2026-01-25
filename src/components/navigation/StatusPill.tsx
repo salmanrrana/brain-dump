@@ -4,7 +4,6 @@ export type TicketStatus =
   | "backlog"
   | "ready"
   | "in_progress"
-  | "review"
   | "ai_review"
   | "human_review"
   | "done";
@@ -21,7 +20,6 @@ const STATUS_COLORS: Record<TicketStatus, string> = {
   backlog: "var(--status-backlog)",
   ready: "var(--status-ready)",
   in_progress: "var(--status-in-progress)",
-  review: "var(--status-review)",
   ai_review: "var(--status-review)",
   human_review: "var(--status-review)",
   done: "var(--status-done)",
@@ -32,7 +30,6 @@ const STATUS_LABELS: Record<TicketStatus, string> = {
   backlog: "Backlog",
   ready: "Ready",
   in_progress: "In Progress",
-  review: "Review",
   ai_review: "AI Review",
   human_review: "Human Review",
   done: "Done",
