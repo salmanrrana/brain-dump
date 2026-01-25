@@ -11,6 +11,7 @@ import { EditTicketModal } from "../components/tickets/EditTicketModal";
 import { TicketDescription } from "../components/tickets";
 import { SubtasksProgress } from "../components/tickets";
 import { ClaudeTasks } from "../components/tickets/ClaudeTasks";
+import { DemoPanel } from "../components/tickets/DemoPanel";
 import { TelemetryPanel } from "../components/TelemetryPanel";
 import type { Subtask } from "../components/tickets/SubtasksProgress";
 import { type LaunchType } from "../components/tickets/LaunchActions";
@@ -469,6 +470,13 @@ function TicketDetailPage() {
           />
         </section>
       </div>
+
+      {/* Demo Review Panel - Shows prominently when ticket is in human_review status */}
+      {ticket.status === "human_review" && (
+        <section style={sectionStyles}>
+          <DemoPanel ticketId={ticket.id} />
+        </section>
+      )}
 
       {/* Claude Tasks Section - Shows tasks Claude created while working on this ticket */}
       <section style={sectionStyles}>

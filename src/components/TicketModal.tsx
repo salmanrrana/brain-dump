@@ -48,6 +48,7 @@ import {
   useActiveRalphSessions,
 } from "../lib/hooks";
 import { RalphStatusBadge } from "./RalphStatusBadge";
+import { DemoPanel } from "./tickets/DemoPanel";
 import { TelemetryPanel } from "./TelemetryPanel";
 import { ClaudeTasks } from "./tickets/ClaudeTasks";
 import type { ServiceType } from "../lib/service-discovery";
@@ -1545,6 +1546,9 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
               </div>
             </div>
           )}
+
+          {/* Demo Review Panel - Shows prominently when ticket is in human_review status */}
+          {currentStatus === "human_review" && <DemoPanel ticketId={ticket.id} />}
 
           {/* AI Telemetry */}
           <TelemetryPanel ticketId={ticket.id} />

@@ -444,6 +444,8 @@ export const queryKeys = {
   },
   // Claude Tasks
   claudeTasks: (ticketId: string) => ["claudeTasks", ticketId] as const,
+  // Demo Scripts
+  demoScript: (ticketId: string) => ["demoScript", ticketId] as const,
 };
 
 // Types
@@ -2211,5 +2213,119 @@ export function useDashboardAnalytics() {
     },
     staleTime: 60_000, // 1 minute - analytics don't need real-time
     refetchInterval: 300_000, // Refetch every 5 minutes
+  });
+}
+
+// =============================================================================
+// DEMO SCRIPT HOOKS - Human Review Approval UI
+// =============================================================================
+
+import { getDemoScript, updateDemoStep, submitDemoFeedback } from "../api/demo";
+import type { DemoStep } from "./schema";
+
+/**
+ * Demo script as returned from the API
+ */
+export interface DemoScript {
+  id: string;
+  ticketId: string;
+  steps: DemoStep[];
+  generatedAt: string;
+  completedAt: string | null;
+  passed: boolean | null;
+  feedback: string | null;
+}
+
+/**
+ * Hook for fetching a demo script for a ticket.
+ * Returns the script with all steps and their current status.
+ *
+ * @param ticketId - The ticket ID to fetch the demo script for
+ * @param options - Configuration options
+ */
+export function useDemoScript(
+  ticketId: string,
+  options: {
+    /** Whether to enable the query (default: true when ticketId is provided) */
+    enabled?: boolean;
+    /** Polling interval in ms for real-time updates (default: 0 = disabled) */
+    pollingInterval?: number;
+  } = {}
+) {
+  const { enabled = Boolean(ticketId), pollingInterval = 0 } = options;
+
+  const query = useQuery({
+    queryKey: queryKeys.demoScript(ticketId),
+    queryFn: async () => {
+      return getDemoScript({ data: { ticketId } });
+    },
+    enabled,
+    refetchInterval: pollingInterval > 0 ? pollingInterval : false,
+    staleTime: 0, // Demo script status can change externally
+  });
+
+  return {
+    demoScript: query.data as DemoScript | null,
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+    refetch: query.refetch,
+  };
+}
+
+/**
+ * Input type for updateDemoStep mutation
+ */
+export interface UpdateDemoStepInput {
+  demoScriptId: string;
+  stepOrder: number;
+  status: "pending" | "passed" | "failed" | "skipped";
+  notes?: string;
+}
+
+/**
+ * Hook for updating a single demo step's status.
+ * Used when user marks a step as passed/failed/skipped.
+ */
+export function useUpdateDemoStep() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: UpdateDemoStepInput) => updateDemoStep({ data }),
+    onSuccess: () => {
+      // Invalidate all demo scripts to ensure UI is up to date
+      queryClient.invalidateQueries({ queryKey: ["demoScript"] });
+    },
+  });
+}
+
+/**
+ * Input type for submitDemoFeedback mutation
+ */
+export interface SubmitDemoFeedbackInput {
+  ticketId: string;
+  passed: boolean;
+  feedback: string;
+  stepResults?: Array<{
+    order: number;
+    status: "pending" | "passed" | "failed" | "skipped";
+    notes?: string;
+  }>;
+}
+
+/**
+ * Hook for submitting final demo feedback from human reviewer.
+ * This approves or rejects the demo and updates ticket status.
+ */
+export function useSubmitDemoFeedback() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: SubmitDemoFeedbackInput) => submitDemoFeedback({ data }),
+    onSuccess: (_, variables) => {
+      // Invalidate demo script for this ticket
+      queryClient.invalidateQueries({ queryKey: queryKeys.demoScript(variables.ticketId) });
+      // Invalidate tickets to reflect status change
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+    },
   });
 }
