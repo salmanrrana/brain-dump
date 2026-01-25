@@ -67,7 +67,7 @@
     {
       "id": "0b21cc39-c87b-4361-8142-a0e9882bb48b",
       "title": "Add MCP tools for review findings management",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
