@@ -1,7 +1,7 @@
 #!/usr/bin/env npx tsx
 
 /**
- * Brain Dump CLI - Database utilities
+ * Brain Dump CLI - Database utilities and environment diagnostics
  *
  * Usage:
  *   brain-dump backup                  - Create immediate backup
@@ -10,6 +10,7 @@
  *   brain-dump restore --latest        - Restore most recent backup
  *   brain-dump check                   - Quick database integrity check
  *   brain-dump check --full            - Full database health check
+ *   brain-dump doctor                  - Check environment configuration
  *   brain-dump help                    - Show this help message
  *
  * Note: For ticket management, use Brain Dump's MCP tools:
@@ -332,6 +333,119 @@ async function handleRestore(args: string[]): Promise<void> {
   }
 }
 
+// Doctor command handler - checks environment configuration
+function handleDoctor(): void {
+  console.log("\n🩺 Brain Dump Environment Doctor\n");
+  console.log("═══════════════════════════════════════════\n");
+
+  let healthyEnvs = 0;
+  let totalEnvs = 0;
+
+  // Check Claude Code
+  console.log("Claude Code:");
+  totalEnvs++;
+  const claudeCode = {
+    installed: false,
+    hooksDir: `${process.env.HOME}/.claude/hooks`,
+    settingsFile: `${process.env.HOME}/.claude/settings.json`,
+  };
+
+  if (existsSync(claudeCode.hooksDir)) {
+    const hooks = [
+      "start-telemetry-session.sh",
+      "end-telemetry-session.sh",
+      "log-tool-telemetry.sh",
+      "log-prompt-telemetry.sh",
+    ];
+    const installedHooks = hooks.filter((h) => existsSync(join(claudeCode.hooksDir, h))).length;
+    console.log(`  ✓ Telemetry hooks: ${installedHooks}/${hooks.length} installed`);
+    if (installedHooks === hooks.length) {
+      console.log("  ✓ Status: Fully configured");
+      healthyEnvs++;
+    } else {
+      console.log("  ⚠ Status: Partially configured");
+    }
+  } else {
+    console.log("  ○ Status: Not configured");
+  }
+
+  // Check Cursor
+  console.log("\nCursor:");
+  totalEnvs++;
+  const cursorDir = `${process.env.HOME}/.cursor`;
+  const cursorHooksDir = join(cursorDir, "hooks");
+
+  if (existsSync(cursorHooksDir)) {
+    const hooks = [
+      "start-telemetry.sh",
+      "end-telemetry.sh",
+      "log-tool.sh",
+      "log-tool-failure.sh",
+      "log-prompt.sh",
+    ];
+    const installedHooks = hooks.filter((h) => existsSync(join(cursorHooksDir, h))).length;
+    console.log(`  ✓ Telemetry hooks: ${installedHooks}/${hooks.length} installed`);
+    if (installedHooks === hooks.length) {
+      console.log("  ✓ Status: Fully configured");
+      healthyEnvs++;
+    } else {
+      console.log("  ⚠ Status: Partially configured");
+    }
+  } else {
+    console.log("  ○ Status: Not configured");
+  }
+
+  // Check OpenCode
+  console.log("\nOpenCode:");
+  totalEnvs++;
+  const opencodePluigins = `${process.env.HOME}/.config/opencode/plugins`;
+
+  if (existsSync(join(opencodePluigins, "brain-dump-telemetry.ts"))) {
+    console.log("  ✓ Telemetry plugin: installed");
+    console.log("  ✓ Status: Fully configured");
+    healthyEnvs++;
+  } else {
+    console.log("  ○ Status: Not configured");
+  }
+
+  // Check VS Code
+  console.log("\nVS Code:");
+  totalEnvs++;
+  console.log("  ○ Status: Manual configuration required");
+  console.log("    See .vscode/ and .github/ for templates");
+
+  // Summary
+  console.log("\n═══════════════════════════════════════════\n");
+  console.log("Summary:");
+  console.log(`  Configured: ${healthyEnvs}/${totalEnvs} environments\n`);
+
+  if (healthyEnvs === totalEnvs) {
+    console.log("✓ All environments are ready!\n");
+  } else if (healthyEnvs > 0) {
+    console.log(`⚠ ${totalEnvs - healthyEnvs} environments need setup\n`);
+    console.log("Run: ./scripts/install.sh\n");
+  } else {
+    console.log("○ No environments configured\n");
+    console.log("Run: ./scripts/install.sh\n");
+  }
+
+  // Database status
+  console.log("Database:");
+  const dbPath = getDatabasePath();
+  if (existsSync(dbPath)) {
+    const result = quickIntegrityCheck();
+    if (result.status === "ok") {
+      console.log("  ✓ Integrity: OK");
+    } else {
+      console.log(`  ⚠ Integrity: ${result.message}`);
+    }
+  } else {
+    console.log("  ○ Database: Not initialized (run 'pnpm dev' first)");
+  }
+
+  console.log();
+}
+
 // Main CLI logic
 const args = process.argv.slice(2);
 const command = args[0];
@@ -352,6 +466,11 @@ switch (command) {
 
   case "check": {
     handleCheck(args.slice(1));
+    break;
+  }
+
+  case "doctor": {
+    handleDoctor();
     break;
   }
 
