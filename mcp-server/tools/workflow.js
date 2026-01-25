@@ -1183,7 +1183,16 @@ Use \`start_ticket_work\` to begin work on any ticket. All tickets will use this
         }
 
         // Make sure we're on the base branch first, then create new branch
-        runGitCommand(`git checkout ${baseBranch}`, epic.project_path);
+        const checkoutBase = runGitCommand(`git checkout ${baseBranch}`, epic.project_path);
+        if (!checkoutBase.success) {
+          return {
+            content: [{
+              type: "text",
+              text: `Failed to checkout base branch '${baseBranch}' before creating epic branch.\n\nError: ${checkoutBase.error}\n\nPossible causes:\n- You have uncommitted changes. Commit or stash them first.\n- The base branch does not exist locally. Try: git fetch origin ${baseBranch}`,
+            }],
+            isError: true,
+          };
+        }
         const createBranch = runGitCommand(`git checkout -b ${branchName}`, epic.project_path);
         if (!createBranch.success) {
           return { content: [{ type: "text", text: `Failed to create branch ${branchName}: ${createBranch.error}` }], isError: true };
@@ -1198,33 +1207,50 @@ Use \`start_ticket_work\` to begin work on any ticket. All tickets will use this
 
       const now = new Date().toISOString();
 
-      // Create or update epic workflow state
-      if (!epicState) {
-        // Create new epic workflow state
-        const stateId = randomUUID();
+      // Create or update epic workflow state (wrapped in try-catch for database error handling)
+      let epicTickets;
+      try {
+        if (!epicState) {
+          // Create new epic workflow state
+          const stateId = randomUUID();
+          db.prepare(`
+            INSERT INTO epic_workflow_state (id, epic_id, epic_branch_name, epic_branch_created_at, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+          `).run(stateId, epicId, branchName, now, now, now);
+        } else {
+          // Update existing state with branch info
+          db.prepare(`
+            UPDATE epic_workflow_state SET epic_branch_name = ?, epic_branch_created_at = ?, updated_at = ? WHERE epic_id = ?
+          `).run(branchName, now, now, epicId);
+        }
+
+        // Get tickets in epic
+        epicTickets = db.prepare(`
+          SELECT id, title, status, priority FROM tickets WHERE epic_id = ? ORDER BY position
+        `).all(epicId);
+
+        // Update ticket counts
+        const ticketsTotal = epicTickets.length;
+        const ticketsDone = epicTickets.filter(t => t.status === "done").length;
         db.prepare(`
-          INSERT INTO epic_workflow_state (id, epic_id, epic_branch_name, epic_branch_created_at, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `).run(stateId, epicId, branchName, now, now, now);
-        epicState = { id: stateId, epic_branch_name: branchName };
-      } else {
-        // Update existing state with branch info
-        db.prepare(`
-          UPDATE epic_workflow_state SET epic_branch_name = ?, epic_branch_created_at = ?, updated_at = ? WHERE epic_id = ?
-        `).run(branchName, now, now, epicId);
+          UPDATE epic_workflow_state SET tickets_total = ?, tickets_done = ?, updated_at = ? WHERE epic_id = ?
+        `).run(ticketsTotal, ticketsDone, now, epicId);
+      } catch (dbErr) {
+        log.error(`Failed to save epic workflow state for ${epicId}`, { error: dbErr.message });
+        // Clean up: try to delete the branch we just created
+        if (branchCreated) {
+          const baseBranch = runGitCommand("git show-ref --verify --quiet refs/heads/main", epic.project_path).success ? "main" : "master";
+          runGitCommand(`git checkout ${baseBranch}`, epic.project_path);
+          runGitCommand(`git branch -D ${branchName}`, epic.project_path);
+        }
+        return {
+          content: [{
+            type: "text",
+            text: `Failed to save epic workflow state.\n\nError: ${dbErr.message}\n\nThe branch was cleaned up. Please try again or check database health with get_database_health.`,
+          }],
+          isError: true,
+        };
       }
-
-      // Get tickets in epic
-      const epicTickets = db.prepare(`
-        SELECT id, title, status, priority FROM tickets WHERE epic_id = ? ORDER BY position
-      `).all(epicId);
-
-      // Update ticket counts
-      const ticketsTotal = epicTickets.length;
-      const ticketsDone = epicTickets.filter(t => t.status === "done").length;
-      db.prepare(`
-        UPDATE epic_workflow_state SET tickets_total = ?, tickets_done = ?, updated_at = ? WHERE epic_id = ?
-      `).run(ticketsTotal, ticketsDone, now, epicId);
 
       log.info(`Started epic work on ${epicId}: branch ${branchName}`);
 
