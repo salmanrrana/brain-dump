@@ -446,6 +446,8 @@ export const queryKeys = {
   claudeTasks: (ticketId: string) => ["claudeTasks", ticketId] as const,
   // Demo Scripts
   demoScript: (ticketId: string) => ["demoScript", ticketId] as const,
+  // Workflow State
+  workflowState: (ticketId: string) => ["workflowState", ticketId] as const,
 };
 
 // Types
@@ -2326,6 +2328,53 @@ export function useSubmitDemoFeedback() {
       queryClient.invalidateQueries({ queryKey: queryKeys.demoScript(variables.ticketId) });
       // Invalidate tickets to reflect status change
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      // Invalidate workflow state as demo feedback changes it
+      queryClient.invalidateQueries({ queryKey: queryKeys.workflowState(variables.ticketId) });
     },
   });
 }
+
+// =============================================================================
+// WORKFLOW STATE HOOKS
+// =============================================================================
+
+import { getWorkflowDisplayState, type WorkflowDisplayState } from "../api/workflow";
+
+/**
+ * Hook for fetching workflow display state for a ticket.
+ * Returns aggregated workflow progress, review findings summary, and demo status.
+ *
+ * @param ticketId - The ticket ID to fetch workflow state for
+ * @param options - Configuration options
+ */
+export function useWorkflowState(
+  ticketId: string,
+  options: {
+    /** Whether to enable the query (default: true when ticketId is provided) */
+    enabled?: boolean;
+    /** Polling interval in ms for real-time updates (default: 0 = disabled) */
+    pollingInterval?: number;
+  } = {}
+) {
+  const { enabled = Boolean(ticketId), pollingInterval = 0 } = options;
+
+  const query = useQuery({
+    queryKey: queryKeys.workflowState(ticketId),
+    queryFn: async () => {
+      return getWorkflowDisplayState({ data: ticketId });
+    },
+    enabled,
+    refetchInterval: pollingInterval > 0 ? pollingInterval : false,
+    staleTime: 0, // Workflow state can change externally (MCP tools)
+  });
+
+  return {
+    workflowState: query.data ?? null,
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+    refetch: query.refetch,
+  };
+}
+
+// Re-export WorkflowDisplayState type for consumers
+export type { WorkflowDisplayState };

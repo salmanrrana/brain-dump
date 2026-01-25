@@ -17,6 +17,8 @@ export {
 export { TicketDescription, type TicketDescriptionProps } from "./TicketDescription";
 export { TicketDetailHeader, type TicketDetailHeaderProps } from "./TicketDetailHeader";
 export { RelatedTickets, type RelatedTicketsProps } from "./RelatedTickets";
+export { WorkflowProgress, type WorkflowProgressProps } from "./WorkflowProgress";
+export { ReviewFindingsPanel, type ReviewFindingsPanelProps } from "./ReviewFindingsPanel";
 export { default } from "./CreateTicketModal";
 
 // Form schema and options for TanStack Form

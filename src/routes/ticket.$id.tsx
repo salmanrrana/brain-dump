@@ -10,6 +10,8 @@ import { TicketDetailHeader } from "../components/tickets/TicketDetailHeader";
 import { EditTicketModal } from "../components/tickets/EditTicketModal";
 import { TicketDescription } from "../components/tickets";
 import { SubtasksProgress } from "../components/tickets";
+import { WorkflowProgress } from "../components/tickets/WorkflowProgress";
+import { ReviewFindingsPanel } from "../components/tickets/ReviewFindingsPanel";
 import { ClaudeTasks } from "../components/tickets/ClaudeTasks";
 import { DemoPanel } from "../components/tickets/DemoPanel";
 import { TelemetryPanel } from "../components/TelemetryPanel";
@@ -20,6 +22,7 @@ import {
   useProjects,
   useSettings,
   useLaunchRalphForTicket,
+  useWorkflowState,
   type Ticket,
   type Epic,
 } from "../lib/hooks";
@@ -240,6 +243,15 @@ function TicketDetailPage() {
     staleTime: 0,
   });
 
+  // Fetch workflow state for this ticket
+  const { workflowState, loading: workflowLoading } = useWorkflowState(id, {
+    // Poll for updates when ticket is actively being worked on
+    pollingInterval:
+      ticket?.status === "in_progress" || ticket?.status === "ai_review"
+        ? POLLING_INTERVALS.COMMENTS_ACTIVE
+        : 0,
+  });
+
   // Subtask state - parse from ticket when available
   const [localSubtasks, setLocalSubtasks] = useState<Subtask[]>([]);
 
@@ -454,13 +466,24 @@ function TicketDetailPage() {
         launchingType={launchingType}
       />
 
+      {/* Workflow Progress Indicator - shows current phase in the workflow */}
+      {(ticket.status === "in_progress" ||
+        ticket.status === "ai_review" ||
+        ticket.status === "human_review" ||
+        ticket.status === "done") && (
+        <section style={workflowSectionStyles}>
+          <WorkflowProgress workflowState={workflowState} loading={workflowLoading} />
+        </section>
+      )}
+
       {/* Content Grid */}
       <div style={contentGridStyles}>
         {/* Description Section */}
         <TicketDescription description={ticket.description} testId="ticket-detail-description" />
 
-        {/* Subtasks Section - using SubtasksProgress component */}
-        <section style={sectionStyles}>
+        {/* Right Column - Subtasks and Review Findings */}
+        <div style={rightColumnStyles}>
+          {/* Subtasks Section - using SubtasksProgress component */}
           <SubtasksProgress
             ticketId={ticket.id}
             subtasks={localSubtasks}
@@ -468,7 +491,14 @@ function TicketDetailPage() {
             disabled={ticket.status === "done"}
             testId="ticket-detail-subtasks"
           />
-        </section>
+
+          {/* Review Findings Panel - shows during AI review phase */}
+          {(ticket.status === "ai_review" ||
+            ticket.status === "human_review" ||
+            ticket.status === "done") && (
+            <ReviewFindingsPanel workflowState={workflowState} loading={workflowLoading} />
+          )}
+        </div>
       </div>
 
       {/* Demo Review Panel - Shows prominently when ticket is in human_review status */}
@@ -571,6 +601,19 @@ const sectionStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: "var(--spacing-3)",
+};
+
+const workflowSectionStyles: React.CSSProperties = {
+  padding: "var(--spacing-4)",
+  background: "var(--bg-secondary)",
+  borderRadius: "var(--radius-lg)",
+  border: "1px solid var(--border-primary)",
+};
+
+const rightColumnStyles: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "var(--spacing-4)",
 };
 
 const activitySectionStyles: React.CSSProperties = {
