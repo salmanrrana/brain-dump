@@ -12,6 +12,7 @@ import { join } from "path";
 import { homedir } from "os";
 import { log } from "../lib/logging.js";
 import { runGitCommand, shortId, generateBranchName, generateEpicBranchName } from "../lib/git-utils.js";
+import { getActiveTelemetrySession, logMcpCallEvent } from "../lib/telemetry-self-log.js";
 
 /**
  * Maximum file size for attachments to include in MCP response (5MB).
@@ -766,16 +767,53 @@ Returns:
   Branch name, ticket details with description/acceptance criteria, and project path.`,
     { ticketId: z.string().describe("Ticket ID to start working on") },
     async ({ ticketId }) => {
+      // Self-logging for telemetry in non-hook environments
+      const telemetrySession = getActiveTelemetrySession(db, ticketId);
+      let correlationId = null;
+      const startTime = Date.now();
+      if (telemetrySession) {
+        correlationId = logMcpCallEvent(db, {
+          sessionId: telemetrySession.id,
+          ticketId: telemetrySession.ticket_id,
+          event: "start",
+          toolName: "start_ticket_work",
+          params: { ticketId },
+        });
+      }
+
       const ticket = db.prepare(`
         SELECT t.*, p.name as project_name, p.path as project_path
         FROM tickets t JOIN projects p ON t.project_id = p.id WHERE t.id = ?
       `).get(ticketId);
 
       if (!ticket) {
+        if (telemetrySession && correlationId) {
+          logMcpCallEvent(db, {
+            sessionId: telemetrySession.id,
+            ticketId: telemetrySession.ticket_id,
+            event: "end",
+            toolName: "start_ticket_work",
+            correlationId,
+            success: false,
+            durationMs: Date.now() - startTime,
+            error: "Ticket not found",
+          });
+        }
         return { content: [{ type: "text", text: `Ticket not found: ${ticketId}` }], isError: true };
       }
 
       if (ticket.status === "in_progress") {
+        if (telemetrySession && correlationId) {
+          logMcpCallEvent(db, {
+            sessionId: telemetrySession.id,
+            ticketId: telemetrySession.ticket_id,
+            event: "end",
+            toolName: "start_ticket_work",
+            correlationId,
+            success: true,
+            durationMs: Date.now() - startTime,
+          });
+        }
         return { content: [{ type: "text", text: `Ticket is already in progress.\n\n${JSON.stringify(ticket, null, 2)}` }] };
       }
 
@@ -1080,6 +1118,19 @@ Focus on implementation. When done, call \`complete_ticket_work\` with your summ
       // Build the content array: main text first, then attachments
       const content = [mainTextBlock, ...attachmentBlocks];
 
+      // Log successful completion to telemetry
+      if (telemetrySession && correlationId) {
+        logMcpCallEvent(db, {
+          sessionId: telemetrySession.id,
+          ticketId: telemetrySession.ticket_id,
+          event: "end",
+          toolName: "start_ticket_work",
+          correlationId,
+          success: true,
+          durationMs: Date.now() - startTime,
+        });
+      }
+
       return { content };
     }
   );
@@ -1341,20 +1392,68 @@ Returns:
       summary: z.string().optional().describe("Work summary describing what was done - will be auto-posted as a comment"),
     },
     async ({ ticketId, summary }) => {
+      // Self-logging for telemetry in non-hook environments
+      const telemetrySession = getActiveTelemetrySession(db, ticketId);
+      let correlationId = null;
+      const startTime = Date.now();
+      if (telemetrySession) {
+        correlationId = logMcpCallEvent(db, {
+          sessionId: telemetrySession.id,
+          ticketId: telemetrySession.ticket_id,
+          event: "start",
+          toolName: "complete_ticket_work",
+          params: { ticketId, summary: summary ? "[provided]" : undefined },
+        });
+      }
+
       const ticket = db.prepare(`
         SELECT t.*, p.name as project_name, p.path as project_path
         FROM tickets t JOIN projects p ON t.project_id = p.id WHERE t.id = ?
       `).get(ticketId);
 
       if (!ticket) {
+        if (telemetrySession && correlationId) {
+          logMcpCallEvent(db, {
+            sessionId: telemetrySession.id,
+            ticketId: telemetrySession.ticket_id,
+            event: "end",
+            toolName: "complete_ticket_work",
+            correlationId,
+            success: false,
+            durationMs: Date.now() - startTime,
+            error: "Ticket not found",
+          });
+        }
         return { content: [{ type: "text", text: `Ticket not found: ${ticketId}` }], isError: true };
       }
 
       if (ticket.status === "done") {
+        if (telemetrySession && correlationId) {
+          logMcpCallEvent(db, {
+            sessionId: telemetrySession.id,
+            ticketId: telemetrySession.ticket_id,
+            event: "end",
+            toolName: "complete_ticket_work",
+            correlationId,
+            success: true,
+            durationMs: Date.now() - startTime,
+          });
+        }
         return { content: [{ type: "text", text: `Ticket is already done.\n\n${JSON.stringify(ticket, null, 2)}` }] };
       }
 
       if (ticket.status === "ai_review" || ticket.status === "human_review") {
+        if (telemetrySession && correlationId) {
+          logMcpCallEvent(db, {
+            sessionId: telemetrySession.id,
+            ticketId: telemetrySession.ticket_id,
+            event: "end",
+            toolName: "complete_ticket_work",
+            correlationId,
+            success: true,
+            durationMs: Date.now() - startTime,
+          });
+        }
         return { content: [{ type: "text", text: `Ticket is already in ${ticket.status}.\n\nTo proceed:\n- In ai_review: Run review agents, fix findings, then generate demo\n- In human_review: Wait for human feedback via submit_demo_feedback\n\n${JSON.stringify(ticket, null, 2)}` }] };
       }
 
@@ -1578,6 +1677,19 @@ ${prDescription}
       sections.push(`---\nstatus: ai_review\nenvironment: ${environment}`);
 
       const responseText = sections.join("\n\n---\n\n");
+
+      // Log successful completion to telemetry
+      if (telemetrySession && correlationId) {
+        logMcpCallEvent(db, {
+          sessionId: telemetrySession.id,
+          ticketId: telemetrySession.ticket_id,
+          event: "end",
+          toolName: "complete_ticket_work",
+          correlationId,
+          success: true,
+          durationMs: Date.now() - startTime,
+        });
+      }
 
       return {
         content: [{

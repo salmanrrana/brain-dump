@@ -6,6 +6,8 @@
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import { log } from "../lib/logging.js";
+import { addComment } from "../lib/comment-utils.js";
+import { getActiveTelemetrySession, logMcpCallEvent } from "../lib/telemetry-self-log.js";
 
 const AGENTS = ["code-reviewer", "silent-failure-hunter", "code-simplifier"];
 const SEVERITIES = ["critical", "major", "minor", "suggestion"];
@@ -46,8 +48,34 @@ Returns the created finding with ID and current counts.`,
       suggestedFix: z.string().optional().describe("Suggested fix"),
     },
     async ({ ticketId, agent, severity, category, description, filePath, lineNumber, suggestedFix }) => {
+      // Self-logging for telemetry in non-hook environments
+      const telemetrySession = getActiveTelemetrySession(db, ticketId);
+      let correlationId = null;
+      const startTime = Date.now();
+      if (telemetrySession) {
+        correlationId = logMcpCallEvent(db, {
+          sessionId: telemetrySession.id,
+          ticketId: telemetrySession.ticket_id,
+          event: "start",
+          toolName: "submit_review_finding",
+          params: { ticketId, agent, severity, category },
+        });
+      }
+
       const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId);
       if (!ticket) {
+        if (telemetrySession && correlationId) {
+          logMcpCallEvent(db, {
+            sessionId: telemetrySession.id,
+            ticketId: telemetrySession.ticket_id,
+            event: "end",
+            toolName: "submit_review_finding",
+            correlationId,
+            success: false,
+            durationMs: Date.now() - startTime,
+            error: "Ticket not found",
+          });
+        }
         return {
           content: [{ type: "text", text: `Ticket not found: ${ticketId}\n\nUse list_tickets to see available tickets.` }],
           isError: true,
@@ -55,6 +83,18 @@ Returns the created finding with ID and current counts.`,
       }
 
       if (ticket.status !== "ai_review") {
+        if (telemetrySession && correlationId) {
+          logMcpCallEvent(db, {
+            sessionId: telemetrySession.id,
+            ticketId: telemetrySession.ticket_id,
+            event: "end",
+            toolName: "submit_review_finding",
+            correlationId,
+            success: false,
+            durationMs: Date.now() - startTime,
+            error: "Ticket not in ai_review status",
+          });
+        }
         return {
           content: [{ type: "text", text: `Ticket must be in ai_review status to submit findings.\nCurrent status: ${ticket.status}\n\nUse complete_ticket_work to move to ai_review first.` }],
           isError: true,
@@ -100,24 +140,30 @@ Returns the created finding with ID and current counts.`,
       ).run(updatedAt, ticketId);
 
       // Create progress comment (per spec: mandatory audit trail)
-      const commentId = randomUUID();
       const severityEmoji = { critical: "🔴", major: "🟠", minor: "🟡", suggestion: "💡" }[severity] || "📌";
-      db.prepare(
-        `INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at)
-         VALUES (?, ?, ?, 'claude', 'progress', ?)`
-      ).run(
-        commentId,
-        ticketId,
-        `Review finding: ${severityEmoji} [${severity}] ${category}\n\n${description}${filePath ? `\n\nFile: ${filePath}${lineNumber ? `:${lineNumber}` : ""}` : ""}${suggestedFix ? `\n\nSuggested fix:\n${suggestedFix}` : ""}`,
-        now
-      );
+      const commentContent = `Review finding: ${severityEmoji} [${severity}] ${category}\n\n${description}${filePath ? `\n\nFile: ${filePath}${lineNumber ? `:${lineNumber}` : ""}` : ""}${suggestedFix ? `\n\nSuggested fix:\n${suggestedFix}` : ""}`;
+      const commentResult = addComment(db, ticketId, commentContent, "claude", "progress");
+      const commentWarning = commentResult.success ? "" : `\n\n**Warning:** Audit trail comment was not saved: ${commentResult.error}`;
 
       log.info(`Finding submitted for ticket ${ticketId}: [${severity}] ${category}`);
+
+      // Log successful completion to telemetry
+      if (telemetrySession && correlationId) {
+        logMcpCallEvent(db, {
+          sessionId: telemetrySession.id,
+          ticketId: telemetrySession.ticket_id,
+          event: "end",
+          toolName: "submit_review_finding",
+          correlationId,
+          success: true,
+          durationMs: Date.now() - startTime,
+        });
+      }
 
       return {
         content: [{
           type: "text",
-          text: `Finding submitted successfully!\n\nFinding ID: ${findingId}\nAgent: ${agent}\nSeverity: ${severity}\nCategory: ${category}\n\nTotal findings: ${workflowState.findings_count + 1}`,
+          text: `Finding submitted successfully!\n\nFinding ID: ${findingId}\nAgent: ${agent}\nSeverity: ${severity}\nCategory: ${category}\n\nTotal findings: ${workflowState.findings_count + 1}${commentWarning}`,
         }],
       };
     }
@@ -148,8 +194,34 @@ Returns the updated finding.`,
         };
       }
 
+      // Self-logging for telemetry in non-hook environments (after finding lookup to get ticketId)
+      const telemetrySession = getActiveTelemetrySession(db, finding.ticket_id);
+      let correlationId = null;
+      const startTime = Date.now();
+      if (telemetrySession) {
+        correlationId = logMcpCallEvent(db, {
+          sessionId: telemetrySession.id,
+          ticketId: telemetrySession.ticket_id,
+          event: "start",
+          toolName: "mark_finding_fixed",
+          params: { findingId, status },
+        });
+      }
+
       const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(finding.ticket_id);
       if (!ticket) {
+        if (telemetrySession && correlationId) {
+          logMcpCallEvent(db, {
+            sessionId: telemetrySession.id,
+            ticketId: telemetrySession.ticket_id,
+            event: "end",
+            toolName: "mark_finding_fixed",
+            correlationId,
+            success: false,
+            durationMs: Date.now() - startTime,
+            error: "Ticket not found",
+          });
+        }
         return {
           content: [{ type: "text", text: `Ticket not found for this finding` }],
           isError: true,
@@ -180,7 +252,6 @@ Returns the updated finding.`,
       }
 
       // Create progress comment (per spec: mandatory audit trail)
-      const commentId = randomUUID();
       const statusEmoji = { fixed: "✅", wont_fix: "⏭️", duplicate: "📋" }[status] || "📝";
       const contentLines = [
         `${statusEmoji} Finding marked as ${status}`,
@@ -190,23 +261,28 @@ Returns the updated finding.`,
       if (fixDescription) {
         contentLines.push(`\nFix description:\n${fixDescription}`);
       }
-
-      db.prepare(
-        `INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at)
-         VALUES (?, ?, ?, 'claude', 'progress', ?)`
-      ).run(
-        commentId,
-        finding.ticket_id,
-        contentLines.join("\n"),
-        now
-      );
+      const commentResult = addComment(db, finding.ticket_id, contentLines.join("\n"), "claude", "progress");
+      const commentWarning = commentResult.success ? "" : `\n\n**Warning:** Audit trail comment was not saved: ${commentResult.error}`;
 
       log.info(`Finding ${findingId} marked as ${status}`);
+
+      // Log successful completion to telemetry
+      if (telemetrySession && correlationId) {
+        logMcpCallEvent(db, {
+          sessionId: telemetrySession.id,
+          ticketId: telemetrySession.ticket_id,
+          event: "end",
+          toolName: "mark_finding_fixed",
+          correlationId,
+          success: true,
+          durationMs: Date.now() - startTime,
+        });
+      }
 
       return {
         content: [{
           type: "text",
-          text: `Finding marked as ${status}.\n\nUpdated: ${now}`,
+          text: `Finding marked as ${status}.\n\nUpdated: ${now}${commentWarning}`,
         }],
       };
     }
