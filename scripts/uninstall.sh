@@ -162,8 +162,63 @@ uninstall_opencode() {
   CONFIG_DIR="$HOME/.config/opencode"
   PLUGINS_DIR="$CONFIG_DIR/plugins"
   SKILLS_DIR="$CONFIG_DIR/skills"
+  OPENCODE_JSON="$CONFIG_DIR/opencode.json"
 
   local failed=0
+
+  # Remove MCP configuration from opencode.json
+  if [ -f "$OPENCODE_JSON" ]; then
+    if grep -q '"brain-dump"' "$OPENCODE_JSON"; then
+      # Check if brain-dump is the only server
+      if command -v node >/dev/null 2>&1; then
+        node_result=$(OPENCODE_JSON="$OPENCODE_JSON" node -e '
+const fs = require("fs");
+const configFile = process.env.OPENCODE_JSON;
+
+try {
+    const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
+    if (config.mcp && config.mcp["brain-dump"]) {
+        delete config.mcp["brain-dump"];
+        // Remove mcp key if empty
+        if (Object.keys(config.mcp).length === 0) {
+            delete config.mcp;
+        }
+        // Remove file if only $schema remains
+        const remainingKeys = Object.keys(config).filter(k => k !== "$schema");
+        if (remainingKeys.length === 0) {
+            fs.unlinkSync(configFile);
+            console.log("removed");
+        } else {
+            fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
+            console.log("updated");
+        }
+    } else {
+        console.log("not_found");
+    }
+} catch (err) {
+    console.error("error:" + err.message);
+    process.exit(1);
+}
+' 2>&1)
+        case "$node_result" in
+          removed)
+            echo -e "${GREEN}✓ Removed opencode.json (was only brain-dump config)${NC}"
+            ;;
+          updated)
+            echo -e "${GREEN}✓ Removed brain-dump from opencode.json${NC}"
+            ;;
+          not_found)
+            echo -e "${YELLOW}brain-dump not found in opencode.json${NC}"
+            ;;
+          error:*)
+            echo -e "${YELLOW}Note:${NC} Could not update opencode.json. Please manually remove brain-dump MCP entry."
+            ;;
+        esac
+      else
+        echo -e "${YELLOW}Note:${NC} Please manually remove brain-dump MCP entry from $OPENCODE_JSON"
+      fi
+    fi
+  fi
 
   # Remove plugin
   if [ -f "$PLUGINS_DIR/brain-dump-telemetry.ts" ]; then

@@ -124,6 +124,7 @@ install_opencode() {
   OPENCODE_CONFIG="$HOME/.config/opencode"
   OPENCODE_PLUGINS="$OPENCODE_CONFIG/plugins"
   OPENCODE_SKILLS="$OPENCODE_CONFIG/skills"
+  OPENCODE_JSON="$OPENCODE_CONFIG/opencode.json"
 
   # Create directories
   if ! mkdir -p "$OPENCODE_PLUGINS"; then
@@ -134,6 +135,76 @@ install_opencode() {
   if ! mkdir -p "$OPENCODE_SKILLS"; then
     echo -e "${RED}✗ Failed to create OpenCode skills directory: $OPENCODE_SKILLS${NC}"
     exit 1
+  fi
+
+  # Configure MCP server in opencode.json
+  echo -e "${YELLOW}Configuring MCP server...${NC}"
+  if [ -f "$OPENCODE_JSON" ]; then
+    echo "Existing opencode.json found. Checking for brain-dump server..."
+    if grep -q '"brain-dump"' "$OPENCODE_JSON"; then
+      echo -e "${GREEN}✓ Brain Dump MCP server already configured${NC}"
+    else
+      echo "Adding brain-dump server to existing config..."
+      # Try to merge using node
+      if command -v node >/dev/null 2>&1; then
+        node_error=$(OPENCODE_JSON="$OPENCODE_JSON" BRAIN_DUMP_DIR="$BRAIN_DUMP_DIR" node -e '
+const fs = require("fs");
+const configFile = process.env.OPENCODE_JSON;
+const brainDumpDir = process.env.BRAIN_DUMP_DIR;
+
+try {
+    const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
+    config.mcp = config.mcp || {};
+    config.mcp["brain-dump"] = {
+        type: "local",
+        command: ["node", brainDumpDir + "/mcp-server/index.js"],
+        enabled: true
+    };
+    fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
+    console.log("Config updated successfully");
+} catch (err) {
+    console.error("Error: " + err.message);
+    process.exit(1);
+}
+' 2>&1) && echo -e "${GREEN}✓ Added brain-dump to opencode.json${NC}" || {
+          echo -e "${YELLOW}JSON merge failed: $node_error${NC}"
+          echo -e "${RED}Please manually add the brain-dump server to your opencode.json:${NC}"
+          echo ""
+          echo '  "mcp": {'
+          echo '    "brain-dump": {'
+          echo '      "type": "local",'
+          echo "      \"command\": [\"node\", \"$BRAIN_DUMP_DIR/mcp-server/index.js\"],"
+          echo '      "enabled": true'
+          echo '    }'
+          echo '  }'
+        }
+      else
+        echo -e "${RED}Please manually add the brain-dump server to your opencode.json:${NC}"
+        echo ""
+        echo '  "mcp": {'
+        echo '    "brain-dump": {'
+        echo '      "type": "local",'
+        echo "      \"command\": [\"node\", \"$BRAIN_DUMP_DIR/mcp-server/index.js\"],"
+        echo '      "enabled": true'
+        echo '    }'
+        echo '  }'
+      fi
+    fi
+  else
+    echo "Creating new opencode.json..."
+    cat > "$OPENCODE_JSON" << EOF
+{
+  "\$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "brain-dump": {
+      "type": "local",
+      "command": ["node", "$BRAIN_DUMP_DIR/mcp-server/index.js"],
+      "enabled": true
+    }
+  }
+}
+EOF
+    echo -e "${GREEN}✓ Created opencode.json with MCP server${NC}"
   fi
 
   # Copy telemetry plugin
