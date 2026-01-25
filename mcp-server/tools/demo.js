@@ -303,15 +303,22 @@ Returns updated ticket status.`,
           "UPDATE tickets SET status = 'done', completed_at = ?, updated_at = ? WHERE id = ?"
         ).run(now, now, ticketId);
 
-        // Update workflow state
+        // Update workflow state to done phase
         db.prepare(
           "UPDATE ticket_workflow_state SET current_phase = 'done', updated_at = ? WHERE ticket_id = ?"
         ).run(now, ticketId);
 
         commentContent = `✅ Demo Approved!\n\nFeedback: ${feedback}\n\nTicket is now complete.`;
+        log.info(`Ticket ${ticketId} workflow state updated to done`);
       } else {
-        // Keep in human_review
+        // Keep in human_review but reset demo_generated flag for re-demo after fixes
+        // The ticket stays in human_review so user can address issues and request new demo
+        db.prepare(
+          "UPDATE ticket_workflow_state SET demo_generated = 0, updated_at = ? WHERE ticket_id = ?"
+        ).run(now, ticketId);
+
         commentContent = `❌ Demo Rejected\n\nFeedback: ${feedback}\n\nPlease address the issues and resubmit.`;
+        log.info(`Ticket ${ticketId} demo rejected, demo_generated reset for re-demo`);
       }
 
       // Create comment

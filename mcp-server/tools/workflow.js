@@ -922,6 +922,23 @@ This ticket belongs to an epic that previously had a branch, but it was deleted.
         return { content: [{ type: "text", text: `Failed to update ticket status: ${dbErr.message}\n\nThe git branch was cleaned up. Please try again.` }], isError: true };
       }
 
+      // Create or update workflow state for this ticket (per spec: track workflow progress)
+      const existingState = db.prepare("SELECT id FROM ticket_workflow_state WHERE ticket_id = ?").get(ticketId);
+      if (!existingState) {
+        const stateId = randomUUID();
+        db.prepare(
+          `INSERT INTO ticket_workflow_state (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, created_at, updated_at)
+           VALUES (?, ?, 'implementation', 0, 0, 0, 0, ?, ?)`
+        ).run(stateId, ticketId, now, now);
+        log.info(`Created workflow state for ticket ${ticketId}`);
+      } else {
+        // Reset workflow state if ticket is being restarted
+        db.prepare(
+          `UPDATE ticket_workflow_state SET current_phase = 'implementation', review_iteration = 0, findings_count = 0, findings_fixed = 0, demo_generated = 0, updated_at = ? WHERE ticket_id = ?`
+        ).run(now, ticketId);
+        log.info(`Reset workflow state for ticket ${ticketId}`);
+      }
+
       // Auto-post "Starting work" progress comment (per spec: mandatory audit trail)
       const startCommentContent = usingEpicBranch
         ? `Started work on ticket. Branch: \`${branchName}\` (epic branch)`
@@ -1351,6 +1368,7 @@ Returns:
       }
 
       // Create or update workflow state for this ticket
+      // Per spec: increment review_iteration each time ticket enters ai_review
       let workflowState = db.prepare("SELECT * FROM ticket_workflow_state WHERE ticket_id = ?").get(ticketId);
       if (!workflowState) {
         const stateId = randomUUID();
@@ -1358,10 +1376,14 @@ Returns:
           `INSERT INTO ticket_workflow_state (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, created_at, updated_at)
            VALUES (?, ?, 'ai_review', 1, 0, 0, 0, ?, ?)`
         ).run(stateId, ticketId, now, now);
+        log.info(`Created workflow state for ticket ${ticketId} (iteration 1)`);
       } else {
+        // Increment review_iteration when entering ai_review from implementation
+        const newIteration = (workflowState.review_iteration || 0) + 1;
         db.prepare(
-          "UPDATE ticket_workflow_state SET current_phase = 'ai_review', updated_at = ? WHERE ticket_id = ?"
-        ).run(now, ticketId);
+          "UPDATE ticket_workflow_state SET current_phase = 'ai_review', review_iteration = ?, updated_at = ? WHERE ticket_id = ?"
+        ).run(newIteration, now, ticketId);
+        log.info(`Updated workflow state for ticket ${ticketId} (iteration ${newIteration})`);
       }
 
       // Auto-post work summary comment
