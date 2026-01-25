@@ -282,6 +282,48 @@ The hooks will:
 
 **Note:** This is opt-in because spawning new windows can be surprising if unexpected.
 
+#### Telemetry Hooks
+
+Claude Code telemetry hooks automatically capture AI work sessions for observability and audit trails. These hooks work silently in the background without affecting Claude's workflow.
+
+**Telemetry Hooks:**
+
+| Hook                    | Type               | Purpose                                             |
+| ----------------------- | ------------------ | --------------------------------------------------- |
+| start-telemetry-session | SessionStart       | Creates telemetry session when Claude starts        |
+| end-telemetry-session   | Stop               | Flushes queue and ends telemetry when Claude exits  |
+| log-tool-start          | PreToolUse         | Records tool start with parameters                  |
+| log-tool-end            | PostToolUse        | Records tool completion with duration (success)     |
+| log-tool-failure        | PostToolUseFailure | Records tool completion with error details (failed) |
+| log-prompt              | UserPromptSubmit   | Records user prompts submitted to Claude            |
+
+**How it works:**
+
+1. When you start a Claude Code session, `start-telemetry-session` detects the active ticket from `.claude/ralph-state.json`
+2. You call `start_telemetry_session({ ticketId })` MCP tool (hook prompts you)
+3. All subsequent tool calls are captured: PreToolUse records start event, PostToolUse/PostToolUseFailure record end
+4. Events are written to `.claude/telemetry-queue.jsonl` (JSONL format for streaming)
+5. Correlation IDs pair start/end events for duration tracking
+6. When Claude exits, `end-telemetry-session` prompts to call `end_telemetry_session()` to finalize
+7. Events are flushed to database for analytics and audit trails
+
+**Queue files:**
+
+- `.claude/telemetry-queue.jsonl` - Events pending flush to database
+- `.claude/telemetry-session.json` - Current session metadata
+- `.claude/tool-correlation-*.txt` - Correlation IDs for pairing start/end events (cleanup automatically)
+- `.claude/telemetry.log` - Debug log of hook activity
+
+**Privacy:**
+
+- Telemetry hooks don't capture file contents (only parameters summary for tools like Read)
+- Prompts are recorded but can be hashed for privacy (`redact: true` option)
+- All telemetry data stays in the database (no external transmission)
+
+**To enable telemetry:**
+
+Run `scripts/setup-claude-code.sh` or `~/.claude/hooks/merge-telemetry-hooks.sh` to configure hooks in `.claude/settings.json`.
+
 ## Specifications
 
 ### Spec Template

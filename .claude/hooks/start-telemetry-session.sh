@@ -3,7 +3,7 @@
 # SessionStart hook for telemetry
 #
 # When a Claude Code session starts, this hook:
-# 1. Detects if we're working on a Brain Dump ticket (from Ralph state or branch)
+# 1. Detects if we're working on a Brain Dump ticket (from Ralph state)
 # 2. Creates a telemetry session to track the work
 # 3. Writes the session ID to .claude/telemetry-session.json for other hooks to use
 #
@@ -45,16 +45,6 @@ if [[ -f "$RALPH_STATE" ]]; then
   TICKET_ID=$(jq -r '.ticketId // ""' "$RALPH_STATE" 2>/dev/null || echo "")
   if [[ -n "$TICKET_ID" ]]; then
     echo "[$(date -Iseconds)] Found ticket from Ralph state: $TICKET_ID" >> "$LOG_FILE"
-  fi
-fi
-
-# If no Ralph state, try to extract from branch name
-if [[ -z "$TICKET_ID" ]]; then
-  BRANCH=$(cd "$PROJECT_DIR" && git branch --show-current 2>/dev/null || echo "")
-  if [[ -n "$BRANCH" ]]; then
-    echo "[$(date -Iseconds)] Current branch: $BRANCH" >> "$LOG_FILE"
-    # Note: Branch has short ID, we'd need MCP to resolve full ticket ID
-    # For now, we'll start telemetry without ticket association
   fi
 fi
 
