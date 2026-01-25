@@ -39,7 +39,7 @@
     {
       "id": "0dce907d-5b78-4531-84cc-c18a9405ee4b",
       "title": "Remove deprecated 'review' status from codebase",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
