@@ -88,15 +88,15 @@ Returns demo script ID.`,
         "UPDATE tickets SET status = 'human_review', updated_at = ? WHERE id = ?"
       ).run(now, ticketId);
 
-      // Create progress comment
+      // Create progress comment (per spec: mandatory audit trail)
       const commentId = randomUUID();
       db.prepare(
         `INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at)
-         VALUES (?, ?, ?, 'ai', 'progress', ?)`
+         VALUES (?, ?, ?, 'claude', 'progress', ?)`
       ).run(
         commentId,
         ticketId,
-        `Demo script generated with ${steps.length} steps ready for human review.`,
+        `Demo script generated with ${steps.length} steps. Ticket is now ready for human review.`,
         now
       );
 

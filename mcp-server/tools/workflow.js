@@ -922,8 +922,11 @@ This ticket belongs to an epic that previously had a branch, but it was deleted.
         return { content: [{ type: "text", text: `Failed to update ticket status: ${dbErr.message}\n\nThe git branch was cleaned up. Please try again.` }], isError: true };
       }
 
-      // Auto-post "Starting work" comment
-      const commentResult = addComment(db, ticketId, `Starting work on: ${ticket.title}`, "ralph", "comment");
+      // Auto-post "Starting work" progress comment (per spec: mandatory audit trail)
+      const startCommentContent = usingEpicBranch
+        ? `Started work on ticket. Branch: \`${branchName}\` (epic branch)`
+        : `Started work on ticket. Branch: \`${branchName}\``;
+      const commentResult = addComment(db, ticketId, startCommentContent, "ralph", "progress");
       if (!commentResult.success) {
         log.warn(`Comment not saved for ticket ${ticketId}: ${commentResult.error}`);
       }

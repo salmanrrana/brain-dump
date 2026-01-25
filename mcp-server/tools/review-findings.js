@@ -99,12 +99,12 @@ Returns the created finding with ID and current counts.`,
         "UPDATE ticket_workflow_state SET findings_count = findings_count + 1, updated_at = ? WHERE ticket_id = ?"
       ).run(updatedAt, ticketId);
 
-      // Create progress comment
+      // Create progress comment (per spec: mandatory audit trail)
       const commentId = randomUUID();
       const severityEmoji = { critical: "🔴", major: "🟠", minor: "🟡", suggestion: "💡" }[severity] || "📌";
       db.prepare(
         `INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at)
-         VALUES (?, ?, ?, 'ai', 'progress', ?)`
+         VALUES (?, ?, ?, 'claude', 'progress', ?)`
       ).run(
         commentId,
         ticketId,
@@ -170,7 +170,7 @@ Returns the updated finding.`,
         ).run(now, finding.ticket_id);
       }
 
-      // Create progress comment
+      // Create progress comment (per spec: mandatory audit trail)
       const commentId = randomUUID();
       const statusEmoji = { fixed: "✅", wont_fix: "⏭️", duplicate: "📋" }[status] || "📝";
       const contentLines = [
@@ -184,7 +184,7 @@ Returns the updated finding.`,
 
       db.prepare(
         `INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at)
-         VALUES (?, ?, ?, 'ai', 'progress', ?)`
+         VALUES (?, ?, ?, 'claude', 'progress', ?)`
       ).run(
         commentId,
         finding.ticket_id,
