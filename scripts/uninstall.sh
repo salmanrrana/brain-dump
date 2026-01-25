@@ -32,7 +32,10 @@ echo -e "${NC}"
 echo -e "${YELLOW}This script will remove Brain Dump from detected environments.${NC}"
 echo -e "${YELLOW}Other configurations will be preserved.${NC}"
 echo ""
-read -p "Continue with uninstallation? (yes/no): " CONFIRM
+read -p "Continue with uninstallation? (yes/no): " CONFIRM || {
+  echo -e "${RED}✗ Failed to read confirmation (is stdin available?)${NC}"
+  exit 1
+}
 
 if [[ "$CONFIRM" != "yes" ]]; then
   echo "Uninstallation cancelled."
@@ -51,22 +54,38 @@ uninstall_claude_code() {
   HOOKS_DIR="$HOME/.claude/hooks"
 
   if [ -d "$HOOKS_DIR" ]; then
+    local failed=0
     # Remove Brain Dump telemetry hooks
-    rm -f "$HOOKS_DIR/start-telemetry-session.sh"
-    rm -f "$HOOKS_DIR/end-telemetry-session.sh"
-    rm -f "$HOOKS_DIR/log-tool-telemetry.sh"
-    rm -f "$HOOKS_DIR/log-prompt-telemetry.sh"
-    rm -f "$HOOKS_DIR/log-tool-start.sh"
-    rm -f "$HOOKS_DIR/log-tool-end.sh"
-    rm -f "$HOOKS_DIR/log-prompt.sh"
+    for hook in start-telemetry-session.sh end-telemetry-session.sh \
+                log-tool-telemetry.sh log-prompt-telemetry.sh \
+                log-tool-start.sh log-tool-end.sh log-prompt.sh; do
+      hook_path="$HOOKS_DIR/$hook"
+      if [ -f "$hook_path" ]; then
+        if ! rm "$hook_path"; then
+          echo -e "${RED}✗ Failed to remove $hook (permission denied or file locked)${NC}"
+          failed=1
+        fi
+      fi
+    done
 
     # Remove temporary files
-    rm -f "$HOME/.claude/telemetry-session.json"
-    rm -f "$HOME/.claude/telemetry-queue.jsonl"
-    rm -f "$HOME/.claude/telemetry.log"
-    rm -f "$HOME/.claude/tool-correlation-"*.txt
+    for temp_file in telemetry-session.json telemetry-queue.jsonl telemetry.log; do
+      if [ -f "$HOME/.claude/$temp_file" ]; then
+        if ! rm "$HOME/.claude/$temp_file"; then
+          echo -e "${YELLOW}⚠ Could not remove $temp_file${NC}"
+          failed=1
+        fi
+      fi
+    done
 
-    echo -e "${GREEN}✓ Claude Code hooks removed${NC}"
+    # Remove correlation files
+    find "$HOME/.claude" -maxdepth 1 -name "tool-correlation-*.txt" -delete 2>/dev/null || true
+
+    if [ $failed -eq 0 ]; then
+      echo -e "${GREEN}✓ Claude Code hooks removed${NC}"
+    else
+      echo -e "${YELLOW}⚠ Some hooks could not be removed. Check permissions.${NC}"
+    fi
   fi
 
   # Clean up settings.json if it exists
@@ -89,20 +108,37 @@ uninstall_cursor() {
   HOOKS_DIR="$HOME/.cursor/hooks"
 
   if [ -d "$HOOKS_DIR" ]; then
+    local failed=0
     # Remove Brain Dump telemetry hooks
-    rm -f "$HOOKS_DIR/start-telemetry.sh"
-    rm -f "$HOOKS_DIR/end-telemetry.sh"
-    rm -f "$HOOKS_DIR/log-tool.sh"
-    rm -f "$HOOKS_DIR/log-tool-failure.sh"
-    rm -f "$HOOKS_DIR/log-prompt.sh"
+    for hook in start-telemetry.sh end-telemetry.sh log-tool.sh \
+                log-tool-failure.sh log-prompt.sh; do
+      hook_path="$HOOKS_DIR/$hook"
+      if [ -f "$hook_path" ]; then
+        if ! rm "$hook_path"; then
+          echo -e "${RED}✗ Failed to remove $hook (permission denied or file locked)${NC}"
+          failed=1
+        fi
+      fi
+    done
 
     # Remove temporary files
-    rm -f "$HOME/.cursor/telemetry-session.json"
-    rm -f "$HOME/.cursor/telemetry-queue.jsonl"
-    rm -f "$HOME/.cursor/telemetry.log"
-    rm -f "$HOME/.cursor/tool-correlation-"*.txt
+    for temp_file in telemetry-session.json telemetry-queue.jsonl telemetry.log; do
+      if [ -f "$HOME/.cursor/$temp_file" ]; then
+        if ! rm "$HOME/.cursor/$temp_file"; then
+          echo -e "${YELLOW}⚠ Could not remove $temp_file${NC}"
+          failed=1
+        fi
+      fi
+    done
 
-    echo -e "${GREEN}✓ Cursor hooks removed${NC}"
+    # Remove correlation files
+    find "$HOME/.cursor" -maxdepth 1 -name "tool-correlation-*.txt" -delete 2>/dev/null || true
+
+    if [ $failed -eq 0 ]; then
+      echo -e "${GREEN}✓ Cursor hooks removed${NC}"
+    else
+      echo -e "${YELLOW}⚠ Some hooks could not be removed. Check permissions.${NC}"
+    fi
   fi
 
   # Clean up hooks.json if it only contains Brain Dump

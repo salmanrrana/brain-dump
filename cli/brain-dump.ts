@@ -189,12 +189,12 @@ function handleCheck(args: string[]): void {
 
     // Overall summary
     console.log("-".repeat(50));
-    const statusSymbol =
-      result.overallStatus === "ok"
-        ? "\u2713"
-        : result.overallStatus === "warning"
-          ? "!"
-          : "\u2717";
+    const statusSymbols: Record<string, string> = {
+      ok: "\u2713",
+      warning: "!",
+      error: "\u2717",
+    };
+    const statusSymbol = statusSymbols[result.overallStatus] ?? "\u2717";
     console.log(`Overall Status: ${statusSymbol} ${result.overallStatus.toUpperCase()}`);
     console.log(`Duration: ${result.durationMs}ms`);
 
@@ -343,21 +343,17 @@ function handleDoctor(): void {
 
   // Check Claude Code
   console.log("Claude Code:");
-  totalEnvs++;
-  const claudeCode = {
-    installed: false,
-    hooksDir: `${process.env.HOME}/.claude/hooks`,
-    settingsFile: `${process.env.HOME}/.claude/settings.json`,
-  };
+  const claudeCodeHooksDir = `${process.env.HOME}/.claude/hooks`;
 
-  if (existsSync(claudeCode.hooksDir)) {
+  if (existsSync(claudeCodeHooksDir)) {
+    totalEnvs++;
     const hooks = [
       "start-telemetry-session.sh",
       "end-telemetry-session.sh",
       "log-tool-telemetry.sh",
       "log-prompt-telemetry.sh",
     ];
-    const installedHooks = hooks.filter((h) => existsSync(join(claudeCode.hooksDir, h))).length;
+    const installedHooks = hooks.filter((h) => existsSync(join(claudeCodeHooksDir, h))).length;
     console.log(`  ✓ Telemetry hooks: ${installedHooks}/${hooks.length} installed`);
     if (installedHooks === hooks.length) {
       console.log("  ✓ Status: Fully configured");
@@ -371,11 +367,11 @@ function handleDoctor(): void {
 
   // Check Cursor
   console.log("\nCursor:");
-  totalEnvs++;
   const cursorDir = `${process.env.HOME}/.cursor`;
   const cursorHooksDir = join(cursorDir, "hooks");
 
   if (existsSync(cursorHooksDir)) {
+    totalEnvs++;
     const hooks = [
       "start-telemetry.sh",
       "end-telemetry.sh",
@@ -392,25 +388,26 @@ function handleDoctor(): void {
       console.log("  ⚠ Status: Partially configured");
     }
   } else {
+    totalEnvs++;
     console.log("  ○ Status: Not configured");
   }
 
   // Check OpenCode
   console.log("\nOpenCode:");
-  totalEnvs++;
-  const opencodePluigins = `${process.env.HOME}/.config/opencode/plugins`;
+  const opencodePlugins = `${process.env.HOME}/.config/opencode/plugins`;
 
-  if (existsSync(join(opencodePluigins, "brain-dump-telemetry.ts"))) {
+  if (existsSync(join(opencodePlugins, "brain-dump-telemetry.ts"))) {
+    totalEnvs++;
     console.log("  ✓ Telemetry plugin: installed");
     console.log("  ✓ Status: Fully configured");
     healthyEnvs++;
   } else {
+    totalEnvs++;
     console.log("  ○ Status: Not configured");
   }
 
   // Check VS Code
   console.log("\nVS Code:");
-  totalEnvs++;
   console.log("  ○ Status: Manual configuration required");
   console.log("    See .vscode/ and .github/ for templates");
 

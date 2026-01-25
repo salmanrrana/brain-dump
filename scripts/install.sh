@@ -90,10 +90,14 @@ install_claude_code() {
   echo -e "${BLUE}Installing Claude Code configuration...${NC}"
 
   if [ -f "$BRAIN_DUMP_DIR/scripts/setup-claude-code.sh" ]; then
-    bash "$BRAIN_DUMP_DIR/scripts/setup-claude-code.sh"
+    if ! bash "$BRAIN_DUMP_DIR/scripts/setup-claude-code.sh"; then
+      echo -e "${RED}✗ Claude Code installation failed${NC}"
+      exit 1
+    fi
     echo -e "${GREEN}✓ Claude Code installation complete${NC}"
   else
     echo -e "${RED}✗ setup-claude-code.sh not found${NC}"
+    exit 1
   fi
   echo ""
 }
@@ -102,10 +106,14 @@ install_cursor() {
   echo -e "${BLUE}Installing Cursor configuration...${NC}"
 
   if [ -f "$BRAIN_DUMP_DIR/scripts/setup-cursor.sh" ]; then
-    bash "$BRAIN_DUMP_DIR/scripts/setup-cursor.sh"
+    if ! bash "$BRAIN_DUMP_DIR/scripts/setup-cursor.sh"; then
+      echo -e "${RED}✗ Cursor installation failed${NC}"
+      exit 1
+    fi
     echo -e "${GREEN}✓ Cursor installation complete${NC}"
   else
     echo -e "${RED}✗ setup-cursor.sh not found${NC}"
+    exit 1
   fi
   echo ""
 }
@@ -114,18 +122,30 @@ install_opencode() {
   echo -e "${BLUE}Installing OpenCode configuration...${NC}"
 
   OPENCODE_PLUGINS="$HOME/.config/opencode/plugins"
-  mkdir -p "$OPENCODE_PLUGINS"
+  if ! mkdir -p "$OPENCODE_PLUGINS"; then
+    echo -e "${RED}✗ Failed to create OpenCode plugins directory: $OPENCODE_PLUGINS${NC}"
+    exit 1
+  fi
 
   # Copy telemetry plugin
   if [ -f "$BRAIN_DUMP_DIR/.opencode/plugins/brain-dump-telemetry.ts" ]; then
-    cp "$BRAIN_DUMP_DIR/.opencode/plugins/brain-dump-telemetry.ts" "$OPENCODE_PLUGINS/"
-    chmod +x "$OPENCODE_PLUGINS/brain-dump-telemetry.ts"
+    if ! cp "$BRAIN_DUMP_DIR/.opencode/plugins/brain-dump-telemetry.ts" "$OPENCODE_PLUGINS/"; then
+      echo -e "${RED}✗ Failed to copy telemetry plugin to $OPENCODE_PLUGINS${NC}"
+      exit 1
+    fi
+    if ! chmod +x "$OPENCODE_PLUGINS/brain-dump-telemetry.ts"; then
+      echo -e "${RED}✗ Failed to set execute permissions on telemetry plugin${NC}"
+      exit 1
+    fi
     echo -e "${GREEN}✓ Telemetry plugin installed${NC}"
   fi
 
   # Copy documentation
   if [ -f "$BRAIN_DUMP_DIR/.opencode/AGENTS.md" ]; then
-    cp "$BRAIN_DUMP_DIR/.opencode/AGENTS.md" "$OPENCODE_PLUGINS/../"
+    if ! cp "$BRAIN_DUMP_DIR/.opencode/AGENTS.md" "$OPENCODE_PLUGINS/../"; then
+      echo -e "${RED}✗ Failed to copy workflow documentation${NC}"
+      exit 1
+    fi
     echo -e "${GREEN}✓ Workflow documentation installed${NC}"
   fi
 
