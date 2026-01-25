@@ -42,6 +42,47 @@ cd "$PROJECT_DIR" 2>/dev/null || {
 }
 
 # =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
+# Get the database path (supports Linux, macOS, and XDG_DATA_HOME)
+get_db_path() {
+  # Check XDG_DATA_HOME first (matches src/lib/xdg.ts behavior)
+  if [[ -n "${XDG_DATA_HOME:-}" ]]; then
+    local xdg_path="$XDG_DATA_HOME/brain-dump/brain-dump.db"
+    if [[ -f "$xdg_path" ]]; then
+      echo "$xdg_path"
+      return 0
+    fi
+  fi
+
+  # Linux default
+  local linux_path="$HOME/.local/share/brain-dump/brain-dump.db"
+  if [[ -f "$linux_path" ]]; then
+    echo "$linux_path"
+    return 0
+  fi
+
+  # macOS default
+  local macos_path="$HOME/Library/Application Support/brain-dump/brain-dump.db"
+  if [[ -f "$macos_path" ]]; then
+    echo "$macos_path"
+    return 0
+  fi
+
+  # Not found
+  echo ""
+  return 1
+}
+
+# Validate UUID format (prevents SQL injection)
+is_valid_uuid() {
+  local value="$1"
+  # UUID format: 8-4-4-4-12 hex characters
+  [[ "$value" =~ ^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$ ]]
+}
+
+# =============================================================================
 # EPIC WORKFLOW ENFORCEMENT
 # Block direct pushes to main/master during epic work
 # =============================================================================
@@ -66,34 +107,83 @@ is_push_to_main() {
 }
 
 # Check if epic work is in progress (via ralph-state.json or epic_workflow_state)
+# Returns: epic_id if epic work in progress, empty string otherwise
+# Exit code: 0 if epic work in progress, 1 otherwise
 check_epic_work_in_progress() {
-  # Check for Ralph state file (indicates active work session)
   local ralph_state="$PROJECT_DIR/.claude/ralph-state.json"
-  if [[ -f "$ralph_state" ]]; then
-    local ticket_id
-    ticket_id=$(jq -r '.ticketId // ""' "$ralph_state" 2>/dev/null || echo "")
-    if [[ -n "$ticket_id" ]]; then
-      # There's an active Ralph session - check if ticket belongs to an epic
-      # Query the database to see if ticket has an epic_id
-      local db_path="$HOME/.local/share/brain-dump/brain-dump.db"
-      if [[ ! -f "$db_path" ]]; then
-        db_path="$HOME/Library/Application Support/brain-dump/brain-dump.db"
-      fi
-      if [[ -f "$db_path" ]]; then
-        local epic_id
-        epic_id=$(sqlite3 "$db_path" "SELECT epic_id FROM tickets WHERE id = '$ticket_id' AND epic_id IS NOT NULL LIMIT 1;" 2>/dev/null || echo "")
-        if [[ -n "$epic_id" ]]; then
-          # Check if epic has incomplete tickets
-          local incomplete_count
-          incomplete_count=$(sqlite3 "$db_path" "SELECT COUNT(*) FROM tickets WHERE epic_id = '$epic_id' AND status != 'done';" 2>/dev/null || echo "0")
-          if [[ "$incomplete_count" -gt 0 ]]; then
-            echo "$epic_id"
-            return 0
-          fi
-        fi
-      fi
-    fi
+
+  # No Ralph state file - not in Ralph mode
+  if [[ ! -f "$ralph_state" ]]; then
+    echo ""
+    return 1
   fi
+
+  # Extract ticket ID from Ralph state
+  local ticket_id
+  ticket_id=$(jq -r '.ticketId // ""' "$ralph_state" 2>/dev/null || echo "")
+  if [[ -z "$ticket_id" ]]; then
+    echo ""
+    return 1
+  fi
+
+  # Validate ticket ID format (prevents SQL injection)
+  if ! is_valid_uuid "$ticket_id"; then
+    echo "WARNING: Invalid ticket ID format in ralph-state.json" >&2
+    echo ""
+    return 1
+  fi
+
+  # Get database path
+  local db_path
+  db_path=$(get_db_path)
+  if [[ -z "$db_path" ]]; then
+    echo "WARNING: Cannot find Brain Dump database" >&2
+    echo ""
+    return 1
+  fi
+
+  # Query for epic_id with proper error handling
+  local epic_id
+  local query_result
+  query_result=$(sqlite3 "$db_path" "SELECT epic_id FROM tickets WHERE id = '$ticket_id' AND epic_id IS NOT NULL LIMIT 1;" 2>&1)
+  local query_exit=$?
+
+  if [[ $query_exit -ne 0 ]]; then
+    echo "WARNING: Database query failed: $query_result" >&2
+    echo ""
+    return 1
+  fi
+
+  epic_id="$query_result"
+  if [[ -z "$epic_id" ]]; then
+    echo ""
+    return 1
+  fi
+
+  # Validate epic_id format (prevents SQL injection on second query)
+  if ! is_valid_uuid "$epic_id"; then
+    echo "WARNING: Invalid epic ID format in database" >&2
+    echo ""
+    return 1
+  fi
+
+  # Check if epic has incomplete tickets with proper error handling
+  local incomplete_result
+  incomplete_result=$(sqlite3 "$db_path" "SELECT COUNT(*) FROM tickets WHERE epic_id = '$epic_id' AND status != 'done';" 2>&1)
+  local count_exit=$?
+
+  if [[ $count_exit -ne 0 ]]; then
+    echo "WARNING: Cannot verify epic ticket status: $incomplete_result" >&2
+    echo ""
+    return 1
+  fi
+
+  local incomplete_count="$incomplete_result"
+  if [[ "$incomplete_count" -gt 0 ]]; then
+    echo "$epic_id"
+    return 0
+  fi
+
   echo ""
   return 1
 }
@@ -103,10 +193,7 @@ if is_push_to_main; then
   epic_id=$(check_epic_work_in_progress)
   if [[ -n "$epic_id" ]]; then
     # Get epic title for better error message
-    db_path="$HOME/.local/share/brain-dump/brain-dump.db"
-    if [[ ! -f "$db_path" ]]; then
-      db_path="$HOME/Library/Application Support/brain-dump/brain-dump.db"
-    fi
+    db_path=$(get_db_path)
     epic_title=$(sqlite3 "$db_path" "SELECT title FROM epics WHERE id = '$epic_id' LIMIT 1;" 2>/dev/null || echo "Epic")
     epic_branch=$(sqlite3 "$db_path" "SELECT epic_branch_name FROM epic_workflow_state WHERE epic_id = '$epic_id' LIMIT 1;" 2>/dev/null || echo "feature/epic-*")
 
@@ -115,7 +202,7 @@ if is_push_to_main; then
   "decision": "block",
   "reason": "EPIC WORK IN PROGRESS - Direct push to main/master is blocked.
 
-📋 Active Epic: $epic_title
+Active Epic: $epic_title
 
 All work during an epic should be committed to the epic branch:
   Branch: $epic_branch
