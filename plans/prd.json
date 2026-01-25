@@ -149,7 +149,7 @@
     {
       "id": "85117900-152e-49b5-b284-bab6b1169520",
       "title": "Create Claude Code telemetry hooks",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -267,7 +267,7 @@
     {
       "id": "099c8f58-42f9-4901-9806-cd83612b7e87",
       "title": "Create workflow skills (/next-task, /review-ticket, /demo)",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -294,7 +294,7 @@
     {
       "id": "0cfb2286-7570-497c-ad93-a8e79c39f638",
       "title": "Build Human Review UI with demo approval flow",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [
         {
@@ -455,7 +455,7 @@
     {
       "id": "eebc19d4-cde5-42ac-82af-317bbcd5a368",
       "title": "Integration test: Full workflow E2E (start → ai_review → human_review → done)",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -485,7 +485,7 @@
     {
       "id": "84c0a4a3-6439-48be-a08a-2cfc8b45af54",
       "title": "Integration test: MCP tool preconditions and error handling",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [

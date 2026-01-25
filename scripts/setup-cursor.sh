@@ -228,11 +228,70 @@ if [ -d "$COMMANDS_SOURCE" ]; then
             fi
         fi
     done
-    
+
     echo -e "${GREEN}Commands installed:${NC}"
     ls "$COMMANDS_TARGET"/*.md 2>/dev/null | xargs -I {} basename {} | sed 's/^/  • /' || echo "  (none)"
 else
     echo -e "${YELLOW}No commands found in Brain Dump (.claude/commands/)${NC}"
+fi
+
+echo ""
+echo -e "${BLUE}Step 5: Configure Telemetry Hooks${NC}"
+echo "────────────────────────────────"
+echo -e "${YELLOW}Location:${NC} ~/.cursor/hooks/"
+
+HOOKS_SOURCE="$BRAIN_DUMP_DIR/hooks/cursor"
+HOOKS_TARGET="$HOME/.cursor/hooks"
+HOOKS_CONFIG="$CURSOR_CONFIG_DIR/hooks.json"
+
+if [ -d "$HOOKS_SOURCE" ]; then
+    mkdir -p "$HOOKS_TARGET"
+
+    # Copy hook scripts
+    for hook_file in "$HOOKS_SOURCE"/*.sh; do
+        if [ -f "$hook_file" ]; then
+            hook_name=$(basename "$hook_file")
+            target_path="$HOOKS_TARGET/$hook_name"
+
+            if [ -f "$target_path" ]; then
+                if ! cmp -s "$hook_file" "$target_path"; then
+                    cp "$hook_file" "$target_path"
+                    chmod +x "$target_path"
+                    echo -e "${GREEN}Updated: $hook_name${NC}"
+                else
+                    echo -e "${YELLOW}Exists: $hook_name${NC}"
+                fi
+            else
+                cp "$hook_file" "$target_path"
+                chmod +x "$target_path"
+                echo -e "${GREEN}Added: $hook_name${NC}"
+            fi
+        fi
+    done
+
+    # Copy or merge hooks.json config
+    if [ -f "$BRAIN_DUMP_DIR/.cursor/hooks.json" ]; then
+        if [ -f "$HOOKS_CONFIG" ]; then
+            echo -e "${YELLOW}Existing hooks.json found. Checking for telemetry hooks...${NC}"
+            if grep -q "start-telemetry" "$HOOKS_CONFIG"; then
+                echo -e "${GREEN}Telemetry hooks already configured.${NC}"
+            else
+                echo -e "${YELLOW}Note: Telemetry hooks template available at:${NC}"
+                echo "  $BRAIN_DUMP_DIR/.cursor/hooks.json"
+                echo ""
+                echo -e "${YELLOW}Merge manually or use:${NC}"
+                echo "  cp $BRAIN_DUMP_DIR/.cursor/hooks.json $HOOKS_CONFIG"
+            fi
+        else
+            cp "$BRAIN_DUMP_DIR/.cursor/hooks.json" "$HOOKS_CONFIG"
+            echo -e "${GREEN}Created: hooks.json${NC}"
+        fi
+    fi
+
+    echo -e "${GREEN}Telemetry hooks installed:${NC}"
+    ls "$HOOKS_TARGET"/*.sh 2>/dev/null | xargs -I {} basename {} | sed 's/^/  • /' || echo "  (none)"
+else
+    echo -e "${YELLOW}Telemetry hooks not found in Brain Dump (hooks/cursor/)${NC}"
 fi
 
 echo ""
@@ -271,11 +330,20 @@ echo "    • /extended-review - Run extended review (4 agents)"
 echo "    • /inception - Start new project"
 echo "    • /breakdown - Break down features"
 echo ""
+echo "  ${GREEN}Telemetry Hooks (~/.cursor/hooks/):${NC}"
+echo "    • start-telemetry.sh - Track session start"
+echo "    • end-telemetry.sh - Track session end"
+echo "    • log-tool.sh - Track tool usage"
+echo "    • log-tool-failure.sh - Track tool failures"
+echo "    • log-prompt.sh - Track prompts submitted"
+echo ""
 echo -e "${BLUE}Configuration Locations:${NC}"
 echo "  • MCP:      $MCP_CONFIG_FILE"
 echo "  • Subagents: $AGENTS_TARGET/ (global, all projects)"
 echo "  • Skills:   $SKILLS_TARGET/ (global, all projects)"
 echo "  • Commands: $COMMANDS_TARGET/ (global, all projects)"
+echo "  • Hooks:    $HOOKS_CONFIG (telemetry, auto-triggers)"
+echo "  • Hook Scripts: $HOOKS_TARGET/ (global, all projects)"
 echo ""
 echo -e "${BLUE}Using Brain Dump in Cursor:${NC}"
 echo "  After restarting Cursor, you can:"
