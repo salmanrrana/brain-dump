@@ -203,7 +203,29 @@ else
 {
   "\$schema": "https://json.schemastore.org/claude-code-settings.json",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/start-telemetry-session.sh"
+          },
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/check-pending-links.sh"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/log-tool-start.sh"
+          }
+        ]
+      },
       {
         "matcher": "Write",
         "hooks": [
@@ -224,6 +246,14 @@ else
       }
     ],
     "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/log-tool-end.sh"
+          }
+        ]
+      },
       {
         "matcher": "mcp__brain-dump__start_ticket_work",
         "hooks": [
@@ -297,12 +327,22 @@ else
         ]
       }
     ],
-    "SessionStart": [
+    "PostToolUseFailure": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "\$HOME/.claude/hooks/check-pending-links.sh"
+            "command": "\$HOME/.claude/hooks/log-tool-failure.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/log-prompt.sh"
           }
         ]
       }
@@ -310,6 +350,10 @@ else
     "Stop": [
       {
         "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/end-telemetry-session.sh"
+          },
           {
             "type": "command",
             "command": "\$HOME/.claude/hooks/check-for-code-changes.sh"
@@ -358,6 +402,7 @@ echo "    • State enforcement for Ralph workflow"
 echo "    • Commit linking to tickets"
 echo "    • Auto-PR creation on ticket start"
 echo "    • Claude task capture (auto-sync TodoWrite to Brain Dump)"
+echo "    • Telemetry capture (session tracking, tool usage, prompts)"
 echo ""
 echo "  ${GREEN}Skills (~/.claude/skills/):${NC}"
 echo "    • review-aggregation - Combine review findings"
