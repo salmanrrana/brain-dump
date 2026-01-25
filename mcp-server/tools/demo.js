@@ -295,6 +295,7 @@ Returns updated ticket status.`,
 
       let newStatus = "human_review";
       let commentContent = "";
+      let workflowStateWarning = "";
 
       if (passed) {
         // Mark ticket as done
@@ -304,21 +305,33 @@ Returns updated ticket status.`,
         ).run(now, now, ticketId);
 
         // Update workflow state to done phase
-        db.prepare(
-          "UPDATE ticket_workflow_state SET current_phase = 'done', updated_at = ? WHERE ticket_id = ?"
-        ).run(now, ticketId);
+        // Wrapped in try-catch: workflow state is for tracking, not critical to ticket completion
+        try {
+          db.prepare(
+            "UPDATE ticket_workflow_state SET current_phase = 'done', updated_at = ? WHERE ticket_id = ?"
+          ).run(now, ticketId);
+          log.info(`Ticket ${ticketId} workflow state updated to done`);
+        } catch (stateErr) {
+          log.error(`Failed to update workflow state to done for ticket ${ticketId}: ${stateErr.message}`, { ticketId });
+          workflowStateWarning = `\n\n**Warning:** Workflow state tracking failed but ticket is marked done.`;
+        }
 
         commentContent = `✅ Demo Approved!\n\nFeedback: ${feedback}\n\nTicket is now complete.`;
-        log.info(`Ticket ${ticketId} workflow state updated to done`);
       } else {
         // Keep in human_review but reset demo_generated flag for re-demo after fixes
         // The ticket stays in human_review so user can address issues and request new demo
-        db.prepare(
-          "UPDATE ticket_workflow_state SET demo_generated = 0, updated_at = ? WHERE ticket_id = ?"
-        ).run(now, ticketId);
+        // Wrapped in try-catch: workflow state is for tracking, not critical
+        try {
+          db.prepare(
+            "UPDATE ticket_workflow_state SET demo_generated = 0, updated_at = ? WHERE ticket_id = ?"
+          ).run(now, ticketId);
+          log.info(`Ticket ${ticketId} demo rejected, demo_generated reset for re-demo`);
+        } catch (stateErr) {
+          log.error(`Failed to reset demo_generated for ticket ${ticketId}: ${stateErr.message}`, { ticketId });
+          workflowStateWarning = `\n\n**Warning:** Workflow state tracking failed. Demo regeneration may be blocked.`;
+        }
 
         commentContent = `❌ Demo Rejected\n\nFeedback: ${feedback}\n\nPlease address the issues and resubmit.`;
-        log.info(`Ticket ${ticketId} demo rejected, demo_generated reset for re-demo`);
       }
 
       // Create comment
@@ -333,7 +346,7 @@ Returns updated ticket status.`,
       return {
         content: [{
           type: "text",
-          text: `Demo feedback submitted.\n\nResult: ${passed ? "✅ APPROVED" : "❌ REJECTED"}\nTicket status: ${newStatus}`,
+          text: `Demo feedback submitted.\n\nResult: ${passed ? "✅ APPROVED" : "❌ REJECTED"}\nTicket status: ${newStatus}${workflowStateWarning}`,
         }],
       };
     }
