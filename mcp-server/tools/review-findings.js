@@ -168,6 +168,15 @@ Returns the updated finding.`,
         db.prepare(
           "UPDATE ticket_workflow_state SET findings_fixed = findings_fixed + 1, updated_at = ? WHERE ticket_id = ?"
         ).run(now, finding.ticket_id);
+
+        // Check if all critical/major findings are now fixed
+        const openCriticalMajor = db.prepare(
+          "SELECT COUNT(*) as count FROM review_findings WHERE ticket_id = ? AND status = 'open' AND severity IN ('critical', 'major')"
+        ).get(finding.ticket_id);
+
+        if (openCriticalMajor.count === 0) {
+          log.info(`All critical/major findings fixed for ticket ${finding.ticket_id}`);
+        }
       }
 
       // Create progress comment (per spec: mandatory audit trail)

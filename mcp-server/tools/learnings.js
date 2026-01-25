@@ -178,7 +178,18 @@ Returns summary of learnings stored and any documentation updates applied.`,
         }
       }
 
-      // Create progress comment
+      // Update tickets_done count in epic workflow state
+      const ticketsDone = db.prepare(
+        "SELECT COUNT(*) as count FROM tickets WHERE epic_id = ? AND status = 'done'"
+      ).get(ticket.epic_id).count;
+
+      db.prepare(
+        `UPDATE epic_workflow_state SET tickets_done = ?, updated_at = ? WHERE epic_id = ?`
+      ).run(ticketsDone, now, ticket.epic_id);
+
+      log.info(`Reconciled learnings for ticket ${ticketId} (epic tickets done: ${ticketsDone})`);
+
+      // Create progress comment (per spec: mandatory audit trail)
       const commentId = randomUUID();
       const commentContent = `Learnings reconciled from ticket.\n\nLearnings recorded:\n${learnings
         .map(l => `- [${l.type}] ${l.description}`)
@@ -191,7 +202,7 @@ Returns summary of learnings stored and any documentation updates applied.`,
 
       db.prepare(
         `INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at)
-         VALUES (?, ?, ?, 'ai', 'progress', ?)`
+         VALUES (?, ?, ?, 'claude', 'progress', ?)`
       ).run(commentId, ticketId, commentContent, now);
 
       return {
