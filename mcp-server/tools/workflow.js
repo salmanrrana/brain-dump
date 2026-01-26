@@ -559,66 +559,6 @@ function buildAttachmentContextSection(telemetry) {
 }
 
 /**
- * Build a prominent warning section when design mockups are attached.
- * This ensures AI reviews the attached images BEFORE implementing UI.
- *
- * @deprecated Use buildAttachmentContextSection instead for type-aware context.
- * Kept for backward compatibility.
- *
- * @param {{ imageCount: number, filenames: string[], totalSizeBytes: number, failedCount: number, failedFiles: string[], attachments?: Array<{filename: string, type: string, description?: string, priority: string}>, byType?: Record<string, number> }} telemetry
- * @returns {string} Markdown warning section or empty string if no images
- */
-function buildDesignMockupWarning(telemetry) {
-  // Use type-aware context if attachments metadata is available
-  if (telemetry.attachments && telemetry.attachments.length > 0) {
-    return buildAttachmentContextSection(telemetry);
-  }
-
-  // Legacy fallback: treat all images as design mockups
-  if (telemetry.imageCount === 0) {
-    return "";
-  }
-
-  const imageFilenames = telemetry.filenames.filter(f => {
-    const ext = f.split(".").pop()?.toLowerCase() || "";
-    return ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext);
-  });
-
-  let warning = `## DESIGN MOCKUPS ATTACHED
-
-**STOP! Before implementing, review the attached images.**
-
-These mockups show the expected UI design. Your implementation MUST match:
-- Layout and component structure
-- Spacing and alignment
-- Visual styling
-- All visible elements
-
-### Attached Images (${telemetry.imageCount})
-${imageFilenames.map(f => `- ${f}`).join("\n")}
-
-The images are included below. Reference them throughout implementation.
-`;
-
-  // Add fallback text if any images failed to load
-  if (telemetry.failedCount > 0) {
-    const failedImages = telemetry.failedFiles.filter(f => {
-      const ext = f.split(".").pop()?.toLowerCase() || "";
-      return ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext);
-    });
-    if (failedImages.length > 0) {
-      warning += `
-### Failed to Load (${failedImages.length})
-The following image files could not be loaded. Check the ticket UI for these images:
-${failedImages.map(f => `- ${f}`).join("\n")}
-`;
-    }
-  }
-
-  return warning;
-}
-
-/**
  * Add a comment to a ticket (internal helper).
  * @param {import("better-sqlite3").Database} db
  * @param {string} ticketId
@@ -1056,8 +996,8 @@ This ticket belongs to an epic that previously had a branch, but it was deleted.
         });
       }
 
-      // Build design mockup warning if images are present
-      const designMockupWarning = buildDesignMockupWarning(attachmentTelemetry);
+      // Build attachment context section with type-aware instructions
+      const attachmentContext = buildAttachmentContextSection(attachmentTelemetry);
 
       // Build attachments section for non-image files (images are covered by the warning)
       let attachmentsSection = "";
@@ -1088,7 +1028,7 @@ This ticket belongs to an epic that previously had a branch, but it was deleted.
       }
 
       // Build the main text content block
-      // Design mockup warning appears prominently at the top if images are present
+      // Attachment context appears prominently at the top if attachments are present
       const mainTextBlock = {
         type: "text",
         text: `## Started Work on Ticket
@@ -1097,7 +1037,7 @@ This ticket belongs to an epic that previously had a branch, but it was deleted.
 **Project:** ${updatedTicket.project_name}
 **Path:** ${updatedTicket.project_path}
 ${epicSection}${sessionInfo ? `\n${sessionInfo}` : ""}
-${designMockupWarning ? `\n---\n\n${designMockupWarning}` : ""}
+${attachmentContext ? `\n---\n\n${attachmentContext}` : ""}
 ---
 
 ## Ticket: ${updatedTicket.title}

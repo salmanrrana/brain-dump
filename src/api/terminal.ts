@@ -388,10 +388,10 @@ echo -e "\\033[1;33m📁 Project:\\033[0m ${safeProjectPath}"
 echo -e "\\033[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
 echo ""
 
-# Launch OpenCode with the context content
-# OpenCode expects: opencode run [message..] or opencode [project]
-# Since we're already in the project directory, use 'opencode run' with the context content
-opencode run "$(cat "$CONTEXT_FILE")"
+# Launch OpenCode with the project path and prompt
+# OpenCode expects: opencode [project] --prompt [message]
+# This launches the interactive TUI with the initial prompt, similar to how Claude works
+opencode "${safeProjectPath}" --prompt "$(cat "$CONTEXT_FILE")"
 
 # Cleanup context file
 rm -f "$CONTEXT_FILE"
