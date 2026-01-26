@@ -67,7 +67,8 @@ const config = JSON.parse(fs.readFileSync('$MCP_CONFIG_FILE', 'utf8'));
 config.mcpServers = config.mcpServers || {};
 config.mcpServers['brain-dump'] = {
     command: 'node',
-    args: ['$BRAIN_DUMP_DIR/mcp-server/index.js']
+    args: ['$BRAIN_DUMP_DIR/mcp-server/index.js'],
+    env: { CURSOR: '1' }
 };
 fs.writeFileSync('$MCP_CONFIG_FILE', JSON.stringify(config, null, 2));
 console.log('Config updated successfully');
@@ -79,7 +80,8 @@ console.log('Config updated successfully');
                 echo ""
                 echo '  "brain-dump": {'
                 echo '    "command": "node",'
-                echo "    \"args\": [\"$BRAIN_DUMP_DIR/mcp-server/index.js\"]"
+                echo "    \"args\": [\"$BRAIN_DUMP_DIR/mcp-server/index.js\"],"
+                echo '    "env": { "CURSOR": "1" }'
                 echo '  }'
             }
         else
@@ -98,7 +100,10 @@ else
   "mcpServers": {
     "brain-dump": {
       "command": "node",
-      "args": ["$BRAIN_DUMP_DIR/mcp-server/index.js"]
+      "args": ["$BRAIN_DUMP_DIR/mcp-server/index.js"],
+      "env": {
+        "CURSOR": "1"
+      }
     }
   }
 }

@@ -20,8 +20,9 @@ const CLAUDE_CODE_ENV_PATTERNS = [
   "ANTHROPIC_API_KEY", "MCP_SERVER_NAME", "CLAUDE_CODE_TERMINAL_ID",
 ];
 
-// Simple flag to indicate OpenCode is calling (set via MCP config)
+// Simple flags to indicate which tool is calling (set via MCP config)
 const OPENCODE_FLAG = "OPENCODE";
+const CURSOR_FLAG = "CURSOR";
 
 /**
  * Known OpenCode environment variable patterns.
@@ -58,6 +59,49 @@ function hasClaudeCodeEnvironment() {
 }
 
 /**
+ * Check parent process tree for tool names (fallback detection).
+ * @returns {string|null} Detected tool name or null
+ */
+function detectFromProcessTree() {
+  try {
+    const { execSync } = require("child_process");
+    let currentPid = process.ppid;
+    
+    // Walk up process tree (check up to 3 levels)
+    for (let i = 0; i < 3; i++) {
+      try {
+        const cmd = execSync(`ps -p ${currentPid} -o comm= 2>/dev/null`, { encoding: "utf8" }).trim();
+        const cmdLower = cmd.toLowerCase();
+        
+        // Check for tool names in process command
+        if (cmdLower.includes("opencode")) {
+          return "opencode";
+        }
+        if (cmdLower.includes("cursor")) {
+          return "cursor";
+        }
+        if (cmdLower.includes("claude")) {
+          return "claude-code";
+        }
+        if (cmdLower.includes("code") && !cmdLower.includes("cursor")) {
+          return "vscode";
+        }
+        
+        // Get parent of current process
+        const parentPid = execSync(`ps -p ${currentPid} -o ppid= 2>/dev/null`, { encoding: "utf8" }).trim();
+        if (!parentPid || parentPid === "1") break; // Reached init/systemd
+        currentPid = parseInt(parentPid, 10);
+      } catch {
+        break; // Can't read process, stop trying
+      }
+    }
+  } catch {
+    // Process tree detection failed, ignore
+  }
+  return null;
+}
+
+/**
  * Check if any OpenCode environment variables are present.
  * OpenCode uses the OPENCODE_* prefix for configuration.
  * Also checks for explicit OPENCODE flag set via MCP config.
@@ -74,14 +118,23 @@ function hasOpenCodeEnvironment() {
   for (const key of Object.keys(process.env)) {
     if (key.startsWith("OPENCODE_")) return true;
   }
+  
+  // Fallback: check process tree
+  const detected = detectFromProcessTree();
+  if (detected === "opencode") return true;
+  
   return false;
 }
 
 /**
  * Check if any Cursor environment variables are present.
  * Cursor uses CURSOR_* prefixed environment variables.
+ * Also checks for explicit CURSOR flag set via MCP config.
  */
 function hasCursorEnvironment() {
+  // Check explicit flag (set via MCP config env section)
+  if (process.env[CURSOR_FLAG]) return true;
+  
   // Check known Cursor environment variables
   for (const envVar of CURSOR_ENV_PATTERNS) {
     if (process.env[envVar]) return true;
@@ -90,6 +143,11 @@ function hasCursorEnvironment() {
   for (const key of Object.keys(process.env)) {
     if (key.startsWith("CURSOR_")) return true;
   }
+  
+  // Fallback: check process tree
+  const detected = detectFromProcessTree();
+  if (detected === "cursor") return true;
+  
   return false;
 }
 
