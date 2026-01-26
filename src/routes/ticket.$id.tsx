@@ -409,7 +409,6 @@ function TicketDetailPage() {
         }
         // ralph-docker is disabled in LaunchActions, so no handler needed
       } catch (err) {
-        console.error("Failed to launch:", err);
         const message = err instanceof Error ? err.message : "An unexpected error occurred";
         showToast("error", `Failed to launch: ${message}`);
       } finally {

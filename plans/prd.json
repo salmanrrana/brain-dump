@@ -9,237 +9,404 @@
   ],
   "userStories": [
     {
-      "id": "23825bf6-bda0-45df-9bd0-b1952864dd72",
-      "title": "Add database schema for workflow state and review findings",
-      "passes": true,
-      "overview": "",
+      "id": "c17273b8-646a-415c-abf8-0ee48f4345b9",
+      "title": "Install telemetry hooks to ~/.claude/hooks/ and configure settings.json",
+      "passes": false,
+      "overview": "Telemetry hooks exist in the project (`.claude/hooks/`) but are NOT installed globally or configured in `~/.claude/settings.json`. This means no telemetry is captured.",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "All tables created with proper types and constraints",
-        "Foreign key relationships established",
-        "Indexes on ticket_id, epic_id columns",
-        "Migration file generated via `pnpm db:generate`",
-        "Migration runs successfully via `pnpm db:migrate`",
-        "Schema types exported from `src/lib/schema.ts`"
+        "All 4 telemetry hooks copied to `~/.claude/hooks/`",
+        "`~/.claude/settings.json` has SessionStart, PreToolUse, PostToolUse, PostToolUseFailure, UserPromptSubmit, Stop hooks configured",
+        "Running `claude --print-hooks` shows telemetry hooks",
+        "Starting a new Claude session creates a telemetry session in database",
+        "Tool usage creates events in `telemetry_events` table"
+      ],
+      "references": [],
+      "description": "## Problem\nTelemetry hooks exist in the project (`.claude/hooks/`) but are NOT installed globally or configured in `~/.claude/settings.json`. This means no telemetry is captured.\n\n## Spec References\n- **Lines 2382-2399**: Claude Code Specific Integration checklist\n- **Lines 2384-2398**: Required hooks (SessionStart, PreToolUse, PostToolUse, PostToolUseFailure, UserPromptSubmit, Stop)\n- **Lines 229-385**: Detailed hook implementation specs\n\n## Current State\n```\n~/.claude/hooks/\n├── enforce-state-before-write.sh  ✅ (workflow)\n├── link-commit-to-ticket.sh       ✅ (workflow)\n└── [NO TELEMETRY HOOKS]           ❌\n```\n\n## Required Changes\n\n### 1. Copy telemetry hooks to global location\n```bash\ncp .claude/hooks/start-telemetry-session.sh ~/.claude/hooks/\ncp .claude/hooks/log-tool-telemetry.sh ~/.claude/hooks/\ncp .claude/hooks/log-prompt-telemetry.sh ~/.claude/hooks/\ncp .claude/hooks/end-telemetry-session.sh ~/.claude/hooks/\n```\n\n### 2. Update ~/.claude/settings.json with telemetry hooks\nAdd these hook configurations (spec lines 2384-2398):\n- `SessionStart` → `start-telemetry-session.sh`\n- `PreToolUse` → `log-tool-telemetry.sh` (tool start)\n- `PostToolUse` → `log-tool-telemetry.sh` (tool end)\n- `PostToolUseFailure` → `log-tool-telemetry.sh` (tool failure)\n- `UserPromptSubmit` → `log-prompt-telemetry.sh`\n- `Stop` → `end-telemetry-session.sh`\n\n### 3. Update scripts/setup-claude-code.sh\nModify the setup script to install telemetry hooks alongside workflow hooks.\n\n## Acceptance Criteria\n- [ ] All 4 telemetry hooks copied to `~/.claude/hooks/`\n- [ ] `~/.claude/settings.json` has SessionStart, PreToolUse, PostToolUse, PostToolUseFailure, UserPromptSubmit, Stop hooks configured\n- [ ] Running `claude --print-hooks` shows telemetry hooks\n- [ ] Starting a new Claude session creates a telemetry session in database\n- [ ] Tool usage creates events in `telemetry_events` table",
+      "priority": "high",
+      "tags": [
+        "telemetry",
+        "hooks",
+        "claude-code",
+        "critical"
+      ]
+    },
+    {
+      "id": "da371598-350c-44cb-b92c-4688f981e362",
+      "title": "Make MCP workflow tools create mandatory ticket comments",
+      "passes": false,
+      "overview": "The spec mandates that every workflow phase creates a ticket comment for audit trail. Currently, MCP tools don't create comments.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`start_ticket_work` creates \"Started work\" progress comment",
+        "`complete_ticket_work` creates work_summary comment",
+        "`submit_review_finding` creates progress comment with finding summary",
+        "`mark_finding_fixed` creates progress comment",
+        "`generate_demo_script` creates progress comment",
+        "`submit_demo_feedback` creates comment with user feedback",
+        "All comments have correct author (claude, ralph:claude, user)"
       ],
       "references": [
-        "Spec: plans/specs/universal-quality-workflow.md (Database Schema section)",
-        "src/lib/schema.ts"
+        "mcp-server/tools/workflow.js",
+        "mcp-server/tools/workflow-v2.js"
       ],
-      "description": "Create the database tables needed for the Universal Quality Workflow.\n\n## Tables to Create\n\n### `ticket_workflow_state`\n- `id` (text, primary key)\n- `ticket_id` (text, foreign key to tickets)\n- `current_phase` (text: 'implementation', 'ai_review', 'human_review', 'done')\n- `review_iteration` (integer, default 0)\n- `findings_count` (integer, default 0)\n- `findings_fixed` (integer, default 0)\n- `demo_generated` (boolean, default false)\n- `created_at`, `updated_at` (timestamps)\n\n### `epic_workflow_state`\n- `id` (text, primary key)\n- `epic_id` (text, foreign key to epics)\n- `tickets_total` (integer)\n- `tickets_done` (integer)\n- `current_ticket_id` (text, nullable)\n- `learnings` (text, JSON array of learnings)\n- `created_at`, `updated_at` (timestamps)\n\n### `review_findings`\n- `id` (text, primary key)\n- `ticket_id` (text, foreign key)\n- `iteration` (integer)\n- `agent` (text: 'code-reviewer', 'silent-failure-hunter', 'code-simplifier')\n- `severity` (text: 'critical', 'major', 'minor', 'suggestion')\n- `category` (text)\n- `description` (text)\n- `file_path` (text, nullable)\n- `line_number` (integer, nullable)\n- `suggested_fix` (text, nullable)\n- `status` (text: 'open', 'fixed', 'wont_fix', 'duplicate')\n- `fixed_at` (timestamp, nullable)\n- `created_at` (timestamp)\n\n### `demo_scripts`\n- `id` (text, primary key)\n- `ticket_id` (text, foreign key)\n- `steps` (text, JSON array of demo steps)\n- `generated_at` (timestamp)\n- `completed_at` (timestamp, nullable)\n- `feedback` (text, nullable)\n- `passed` (boolean, nullable)\n\n## Acceptance Criteria\n- [ ] All tables created with proper types and constraints\n- [ ] Foreign key relationships established\n- [ ] Indexes on ticket_id, epic_id columns\n- [ ] Migration file generated via `pnpm db:generate`\n- [ ] Migration runs successfully via `pnpm db:migrate`\n- [ ] Schema types exported from `src/lib/schema.ts`\n\n## References\n- Spec: plans/specs/universal-quality-workflow.md (Database Schema section)",
+      "description": "## Problem\nThe spec mandates that every workflow phase creates a ticket comment for audit trail. Currently, MCP tools don't create comments.\n\n## Spec References\n- **Lines 91-127**: Comments & Documentation (MANDATORY) - full table of required comments\n- **Lines 2309-2319**: Comments & Documentation checklist\n- **Lines 1601-1633**: `documentAction` helper implementation pattern\n\n## Required Comment Creation\n\n| MCP Tool | Comment Type | Content (from spec line 93-109) |\n|----------|-------------|--------------------------------|\n| `start_ticket_work` | `progress` | \"Started work on ticket. Branch: {branch}\" |\n| `complete_ticket_work` | `work_summary` | Full summary of changes made |\n| `submit_review_finding` | `progress` | \"Review found {n} issues: {P0}×P0, {P1}×P1...\" |\n| `mark_finding_fixed` | `progress` | \"Fixed: {summary} [{priority}]\" |\n| `generate_demo_script` | `progress` | \"Demo script generated with {n} steps\" |\n| `submit_demo_feedback` | `comment` | User's feedback from demo |\n| `reconcile_learnings` | `progress` | \"Updated: CLAUDE.md, {n} specs, {n} tickets\" |\n\n## Implementation Pattern (spec lines 1601-1633)\n```javascript\nasync function documentAction(ticketId, { commentType, commentContent, author }) {\n  await addTicketComment(db, {\n    ticketId,\n    content: commentContent,\n    author,\n    type: commentType,\n  });\n}\n```\n\n## Files to Modify\n- `mcp-server/tools/workflow.js` - Add comment creation to each tool\n- `mcp-server/tools/workflow-v2.js` - If separate file exists\n\n## Acceptance Criteria\n- [ ] `start_ticket_work` creates \"Started work\" progress comment\n- [ ] `complete_ticket_work` creates work_summary comment\n- [ ] `submit_review_finding` creates progress comment with finding summary\n- [ ] `mark_finding_fixed` creates progress comment\n- [ ] `generate_demo_script` creates progress comment\n- [ ] `submit_demo_feedback` creates comment with user feedback\n- [ ] All comments have correct author (claude, ralph:claude, user)",
+      "priority": "high",
+      "tags": [
+        "mcp",
+        "comments",
+        "audit-trail"
+      ]
+    },
+    {
+      "id": "bc92b026-b826-4f9b-8cc1-9541f395b90e",
+      "title": "Update Ralph script to enforce full workflow: ai_review → human_review → done",
+      "passes": false,
+      "overview": "Ralph completed tickets by going directly to `done` status, skipping:\n- AI review phase (no `submit_review_finding` calls)\n- Demo generation (no `generate_demo_script` calls)\n- Human review (no `submit_demo_feedback` calls)",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Ralph calls `complete_ticket_work` (not direct status update)",
+        "Ralph runs review agents and submits findings via MCP",
+        "Ralph fixes findings and marks them fixed via MCP",
+        "Ralph generates demo script via MCP",
+        "Ralph STOPS at `human_review` (does not auto-complete)",
+        "Tickets have workflow data populated (review_findings, demo_scripts)"
+      ],
+      "references": [
+        "src/api/ralph.ts",
+        "src/api/ralph-workflow.ts"
+      ],
+      "description": "## Problem\nRalph completed tickets by going directly to `done` status, skipping:\n- AI review phase (no `submit_review_finding` calls)\n- Demo generation (no `generate_demo_script` calls)\n- Human review (no `submit_demo_feedback` calls)\n\n## Spec References\n- **Lines 1319-1360**: Ticket Workflow state machine\n- **Lines 2466-2474**: Integration checklist\n- **Lines 1035-1045**: Status Updates (MANDATORY)\n- **Lines 50-64**: Workflow Gates table\n\n## Current Ralph Behavior\n```\nin_progress → done (WRONG!)\n```\n\n## Required Ralph Behavior (spec line 1323-1340)\n```\nin_progress → ai_review → human_review → done\n```\n\n### Ralph Should:\n\n1. **After implementation** (complete_ticket_work):\n   - Call `complete_ticket_work({ ticketId, summary })`\n   - Status becomes `ai_review`\n\n2. **During ai_review** phase:\n   - Run all 3 review agents in parallel\n   - Call `submit_review_finding` for each issue found\n   - Fix issues and call `mark_finding_fixed`\n   - Repeat until `check_review_complete` returns true\n\n3. **Generate demo** (when ai_review passes):\n   - Call `generate_demo_script` with test steps\n   - Status becomes `human_review`\n\n4. **STOP and wait for human**:\n   - Ralph should NOT auto-approve\n   - Ticket stays in `human_review` until human calls `submit_demo_feedback`\n\n## Files to Modify\n- `src/api/ralph.ts` - Main Ralph implementation\n- Possibly create `src/api/ralph-workflow.ts` for workflow logic\n\n## Acceptance Criteria\n- [ ] Ralph calls `complete_ticket_work` (not direct status update)\n- [ ] Ralph runs review agents and submits findings via MCP\n- [ ] Ralph fixes findings and marks them fixed via MCP\n- [ ] Ralph generates demo script via MCP\n- [ ] Ralph STOPS at `human_review` (does not auto-complete)\n- [ ] Tickets have workflow data populated (review_findings, demo_scripts)",
+      "priority": "high",
+      "tags": [
+        "ralph",
+        "workflow",
+        "critical"
+      ]
+    },
+    {
+      "id": "0640944f-e839-4199-a626-c82663e80757",
+      "title": "Enforce feature branch + PR workflow for epic work",
+      "passes": false,
+      "overview": "Phase 1 Ralph session committed 20+ commits directly to main branch instead of creating a feature branch and PR for human review.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [
+        {
+          "step": 1,
+          "description": "Epic-level branch creation",
+          "files": []
+        },
+        {
+          "step": 2,
+          "description": "PR creation gate",
+          "files": []
+        },
+        {
+          "step": 3,
+          "description": "Pre-push hook enforcement",
+          "files": []
+        },
+        {
+          "step": 4,
+          "description": "Epic completion flow",
+          "files": [],
+          "codeTemplate": "all_tickets_done → epic_review → demo → human_approval → create_pr → merge"
+        },
+        {
+          "step": 4,
+          "description": "Epic completion flow",
+          "files": [],
+          "codeTemplate": "all_tickets_done → epic_review → demo → human_approval → create_pr → merge"
+        }
+      ],
+      "acceptanceCriteria": [
+        "Ralph creates feature branch when starting epic work",
+        "All commits during epic go to feature branch (not main)",
+        "Push to main blocked during epic work",
+        "PR created before epic marked complete",
+        "Human can review PR before merge"
+      ],
+      "references": [
+        "src/api/ralph.ts"
+      ],
+      "description": "## Problem\nPhase 1 Ralph session committed 20+ commits directly to main branch instead of creating a feature branch and PR for human review.\n\n## Spec References\n- **Lines 78-89**: Epic Workflow Gates - \"PR Created\" is a blocking gate\n- **Lines 2466-2474**: Integration checklist\n- **Lines 3167-3173**: PR workflow requirements\n\n## Current Behavior\n```\nRalph commits → main (direct)\n```\n\n## Required Behavior (spec lines 78-89)\n```\nRalph commits → feature/epic-{id} branch → PR → human review → merge to main\n```\n\n## Implementation Requirements\n\n### 1. Epic-level branch creation\nWhen Ralph starts working on an epic:\n- Create branch: `feature/epic-{epic-id}-{slug}`\n- All ticket work happens on this branch\n\n### 2. PR creation gate\nBefore marking epic complete:\n- PR must exist for the epic branch\n- All commits should reference ticket IDs\n\n### 3. Pre-push hook enforcement\nThe existing `enforce-review-before-push.sh` should:\n- Block push to main if epic work is in progress\n- Require PR creation before push\n\n### 4. Epic completion flow\n```\nall_tickets_done → epic_review → demo → human_approval → create_pr → merge\n```\n\n## Files to Modify\n- `src/api/ralph.ts` - Add branch creation at epic start\n- `~/.claude/hooks/enforce-review-before-push.sh` - Strengthen main protection\n- Possibly add pre-commit hook for ticket ID requirement\n\n## Acceptance Criteria\n- [ ] Ralph creates feature branch when starting epic work\n- [ ] All commits during epic go to feature branch (not main)\n- [ ] Push to main blocked during epic work\n- [ ] PR created before epic marked complete\n- [ ] Human can review PR before merge",
+      "priority": "high",
+      "tags": [
+        "git",
+        "pr-workflow",
+        "ralph",
+        "critical"
+      ]
+    },
+    {
+      "id": "7f232e72-af4c-4678-9ab8-7185febc3a35",
+      "title": "Populate ticket_workflow_state during workflow execution",
+      "passes": false,
+      "overview": "The `ticket_workflow_state` table exists but is never populated during workflow execution. This means we can't track workflow progress.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`start_ticket_work` creates/updates workflow state row",
+        "All workflow flags are updated at appropriate times",
+        "`review_iteration` increments correctly",
+        "`review_findings_count` is accurate",
+        "State is queryable for UI display"
+      ],
+      "references": [
+        "mcp-server/tools/workflow.js",
+        "mcp-server/tools/review.js"
+      ],
+      "description": "## Problem\nThe `ticket_workflow_state` table exists but is never populated during workflow execution. This means we can't track workflow progress.\n\n## Spec References\n- **Lines 1194-1222**: TicketWorkflowState type definition\n- **Lines 1443-1478**: Database schema for ticket_workflow_state\n- **Lines 1699-1716**: Workflow state insertion in start_ticket_work\n\n## Required State Tracking\n\nEach MCP tool should update workflow state:\n\n| MCP Tool | State Updates |\n|----------|---------------|\n| `start_ticket_work` | Create row, set `started_at` |\n| `complete_ticket_work` | Set `validation_passed=1`, `ai_review_started=1` |\n| `submit_review_finding` | Increment `review_findings_count` |\n| First finding per iteration | Increment `review_iteration` |\n| `mark_finding_fixed` | Check if all fixed → set `all_findings_fixed=1` |\n| `generate_demo_script` | Set `demo_script_generated=1`, store script ID |\n| `submit_demo_feedback` | Set `human_ran_demo=1`, `human_feedback`, `human_approved` |\n| `reconcile_learnings` | Set `learnings_reconciled=1`, store learnings |\n\n## Implementation Pattern (spec lines 1699-1716)\n```javascript\nawait db\n  .insert(ticketWorkflowState)\n  .values({\n    ticket_id: ticketId,\n    started_at: new Date().toISOString(),\n  })\n  .onConflictDoUpdate({\n    target: ticketWorkflowState.ticket_id,\n    set: { started_at: new Date().toISOString() },\n  });\n```\n\n## Files to Modify\n- `mcp-server/tools/workflow.js` - Add state updates to each tool\n- `mcp-server/tools/review.js` - Update state during review operations\n\n## Acceptance Criteria\n- [ ] `start_ticket_work` creates/updates workflow state row\n- [ ] All workflow flags are updated at appropriate times\n- [ ] `review_iteration` increments correctly\n- [ ] `review_findings_count` is accurate\n- [ ] State is queryable for UI display",
       "priority": "high",
       "tags": [
         "database",
-        "schema",
-        "foundation"
+        "workflow-state",
+        "mcp"
       ]
     },
     {
-      "id": "0dce907d-5b78-4531-84cc-c18a9405ee4b",
-      "title": "Remove deprecated 'review' status from codebase",
-      "passes": true,
-      "overview": "",
+      "id": "f8e7ed0c-bf76-4e7d-9cd4-6ffaaf8840a4",
+      "title": "Add MCP tool self-logging for telemetry in non-hook environments",
+      "passes": false,
+      "overview": "In environments without hooks (VS Code, OpenCode without plugin), MCP tools should self-log telemetry events. Currently they don't.",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "No references to 'review' status in constants",
-        "Migration converts existing 'review' tickets to 'ai_review'",
-        "TypeScript types updated (if status is typed)",
-        "UI still renders all columns correctly",
-        "`pnpm type-check` passes",
-        "`pnpm test` passes"
+        "All MCP workflow tools self-log when telemetry session is active",
+        "Events include correlationId for pairing start/end",
+        "Duration is calculated and logged",
+        "Success/failure is captured",
+        "Works in VS Code and other non-hook environments"
       ],
       "references": [
-        "Spec: plans/specs/universal-quality-workflow.md (Status Cleanup section)",
-        "src/lib/constants.ts",
-        "src/lib/utils.ts"
+        "mcp-server/tools/workflow.js",
+        "mcp-server/tools/review.js",
+        "mcp-server/tools/demo.js"
       ],
-      "description": "The old 'review' status is being replaced by 'ai_review' and 'human_review'. Remove all references to the deprecated status.\n\n## Changes Required\n\n### `src/lib/constants.ts`\n- Remove `review` from `STATUS_OPTIONS`\n- Remove `review` from `COLUMN_STATUSES`\n- Remove `review` from `STATUS_ORDER`\n- Remove `review` from `STATUS_BADGE_CONFIG`\n\n### `src/lib/utils.ts` or wherever `getStatusColor` lives\n- Remove `review` case from switch statement\n\n### Database Migration\n```sql\nUPDATE tickets SET status = 'ai_review' WHERE status = 'review';\n```\n\n## Acceptance Criteria\n- [ ] No references to 'review' status in constants\n- [ ] Migration converts existing 'review' tickets to 'ai_review'\n- [ ] TypeScript types updated (if status is typed)\n- [ ] UI still renders all columns correctly\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm test` passes\n\n## References\n- Spec: plans/specs/universal-quality-workflow.md (Status Cleanup section)",
-      "priority": "high",
-      "tags": [
-        "cleanup",
-        "breaking-change"
-      ]
-    },
-    {
-      "id": "0b21cc39-c87b-4361-8142-a0e9882bb48b",
-      "title": "Add MCP tools for review findings management",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "All tools have Zod input validation",
-        "Proper error handling with informative messages",
-        "Progress comments created for submit and fix actions",
-        "Workflow state updated atomically",
-        "Tools return structured MCP responses",
-        "`pnpm test` includes tool tests"
-      ],
-      "references": [
-        "Spec: plans/specs/universal-quality-workflow.md (MCP Tools section)",
-        "Existing tools: mcp-server/tools/"
-      ],
-      "description": "Create MCP tools to submit, query, and manage review findings from AI review agents.\n\n## Tools to Implement\n\n### `submit_review_finding`\nSubmit a finding from a review agent.\n\n**Input:**\n```typescript\n{\n  ticketId: string;\n  agent: 'code-reviewer' | 'silent-failure-hunter' | 'code-simplifier';\n  severity: 'critical' | 'major' | 'minor' | 'suggestion';\n  category: string;\n  description: string;\n  filePath?: string;\n  lineNumber?: number;\n  suggestedFix?: string;\n}\n```\n\n**Behavior:**\n1. Validate ticket exists and is in `ai_review` status\n2. Get or create workflow state, increment `review_iteration` if first finding of session\n3. Insert finding into `review_findings` table\n4. Increment `findings_count` in workflow state\n5. Create progress comment with finding summary\n6. Return finding ID and current counts\n\n### `mark_finding_fixed`\nMark a finding as fixed (or won't fix).\n\n**Input:**\n```typescript\n{\n  findingId: string;\n  status: 'fixed' | 'wont_fix' | 'duplicate';\n  fixDescription?: string;\n}\n```\n\n**Behavior:**\n1. Update finding status and `fixed_at` timestamp\n2. If 'fixed', increment `findings_fixed` in workflow state\n3. Create progress comment with fix description\n4. Return updated finding\n\n### `get_review_findings`\nGet findings for a ticket, optionally filtered.\n\n**Input:**\n```typescript\n{\n  ticketId: string;\n  status?: 'open' | 'fixed' | 'wont_fix' | 'duplicate';\n  severity?: 'critical' | 'major' | 'minor' | 'suggestion';\n  agent?: string;\n}\n```\n\n### `check_review_complete`\nCheck if all critical/major findings are resolved.\n\n**Input:** `{ ticketId: string }`\n\n**Returns:**\n```typescript\n{\n  complete: boolean;\n  openCritical: number;\n  openMajor: number;\n  openMinor: number;\n  totalFixed: number;\n  canProceedToHumanReview: boolean; // true if no open critical/major\n}\n```\n\n## Acceptance Criteria\n- [ ] All tools have Zod input validation\n- [ ] Proper error handling with informative messages\n- [ ] Progress comments created for submit and fix actions\n- [ ] Workflow state updated atomically\n- [ ] Tools return structured MCP responses\n- [ ] `pnpm test` includes tool tests\n\n## References\n- Spec: plans/specs/universal-quality-workflow.md (MCP Tools section)\n- Existing tools: mcp-server/tools/",
-      "priority": "high",
-      "tags": [
-        "mcp",
-        "review",
-        "tools"
-      ]
-    },
-    {
-      "id": "dd0fae07-5fa0-4930-ab66-7ffa2dd4279f",
-      "title": "Add MCP tools for demo script generation and feedback",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Demo script generation validates prerequisites",
-        "Steps stored as JSON array in database",
-        "Status transition to `human_review` is atomic",
-        "Feedback creates appropriate comments",
-        "Pass/fail properly updates ticket status",
-        "UI can fetch and display demo scripts"
-      ],
-      "references": [
-        "Spec: plans/specs/universal-quality-workflow.md (Demo Scripts section)"
-      ],
-      "description": "Create MCP tools to generate demo scripts and capture human feedback during review.\n\n## Tools to Implement\n\n### `generate_demo_script`\nGenerate a demo script for human review.\n\n**Input:**\n```typescript\n{\n  ticketId: string;\n  steps: Array<{\n    order: number;\n    description: string;\n    expectedOutcome: string;\n    type: 'manual' | 'visual' | 'automated';\n  }>;\n}\n```\n\n**Behavior:**\n1. Validate ticket is in `ai_review` and all critical/major findings fixed\n2. Create demo_script record with steps\n3. Update workflow state: `demo_generated = true`\n4. Transition ticket status to `human_review`\n5. Create progress comment with step count\n6. Return demo script ID\n\n### `get_demo_script`\nGet the demo script for a ticket.\n\n**Input:** `{ ticketId: string }`\n\n**Returns:** Demo script with steps and any existing feedback\n\n### `update_demo_step`\nUpdate a single demo step's status during human review.\n\n**Input:**\n```typescript\n{\n  demoScriptId: string;\n  stepOrder: number;\n  status: 'pending' | 'passed' | 'failed' | 'skipped';\n  notes?: string;\n}\n```\n\n### `submit_demo_feedback`\nSubmit final demo feedback from human reviewer.\n\n**Input:**\n```typescript\n{\n  ticketId: string;\n  passed: boolean;\n  feedback: string;\n  stepResults?: Array<{ order: number; passed: boolean; notes?: string }>;\n}\n```\n\n**Behavior:**\n1. Update demo_script with feedback and completion timestamp\n2. If passed:\n   - Set ticket status to `done`\n   - Update workflow state\n   - Create success comment\n3. If failed:\n   - Keep ticket in `human_review` (or move back to `in_progress`)\n   - Create comment with issues for AI to address\n4. Log telemetry event\n\n## Acceptance Criteria\n- [ ] Demo script generation validates prerequisites\n- [ ] Steps stored as JSON array in database\n- [ ] Status transition to `human_review` is atomic\n- [ ] Feedback creates appropriate comments\n- [ ] Pass/fail properly updates ticket status\n- [ ] UI can fetch and display demo scripts\n\n## References\n- Spec: plans/specs/universal-quality-workflow.md (Demo Scripts section)",
-      "priority": "high",
-      "tags": [
-        "mcp",
-        "demo",
-        "human-review"
-      ]
-    },
-    {
-      "id": "35e86e41-7ce1-47f0-9efb-341d9808027f",
-      "title": "Add MCP tool for learning reconciliation",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Learnings stored in epic workflow state",
-        "Doc updates are safe (backup before write)",
-        "Progress comments created for transparency",
-        "Can query learnings by epic",
-        "Supports CLAUDE.md, AGENTS.md, and custom files"
-      ],
-      "references": [
-        "Spec: plans/specs/universal-quality-workflow.md (Reconciliation section)",
-        "Dillon Mulroy workflow: learnings feed back into rules"
-      ],
-      "description": "Create MCP tool to reconcile learnings from completed tickets back into project documentation.\n\n## Tool to Implement\n\n### `reconcile_learnings`\nAnalyze completed ticket work and extract learnings to update project docs.\n\n**Input:**\n```typescript\n{\n  ticketId: string;\n  learnings: Array<{\n    type: 'pattern' | 'anti-pattern' | 'tool-usage' | 'workflow';\n    description: string;\n    suggestedUpdate?: {\n      file: string; // e.g., 'CLAUDE.md', 'AGENTS.md'\n      section: string;\n      content: string;\n    };\n  }>;\n  updateDocs?: boolean; // If true, actually apply suggested updates\n}\n```\n\n**Behavior:**\n1. Validate ticket is in `done` status\n2. Store learnings in `epic_workflow_state.learnings` JSON array\n3. If `updateDocs` is true:\n   - Read target file\n   - Find or create section\n   - Append learning content\n   - Write file back\n4. Create progress comment listing updates made\n5. Return summary of learnings and any doc updates\n\n### `get_epic_learnings`\nGet accumulated learnings for an epic.\n\n**Input:** `{ epicId: string }`\n\n**Returns:**\n```typescript\n{\n  epicId: string;\n  ticketsCompleted: number;\n  learnings: Array<{\n    ticketId: string;\n    ticketTitle: string;\n    learnings: Learning[];\n    appliedAt?: string;\n  }>;\n}\n```\n\n## Acceptance Criteria\n- [ ] Learnings stored in epic workflow state\n- [ ] Doc updates are safe (backup before write)\n- [ ] Progress comments created for transparency\n- [ ] Can query learnings by epic\n- [ ] Supports CLAUDE.md, AGENTS.md, and custom files\n\n## References\n- Spec: plans/specs/universal-quality-workflow.md (Reconciliation section)\n- Dillon Mulroy workflow: learnings feed back into rules",
+      "description": "## Problem\nIn environments without hooks (VS Code, OpenCode without plugin), MCP tools should self-log telemetry events. Currently they don't.\n\n## Spec References\n- **Lines 951-957**: MCP Telemetry Tools Reference\n- **Lines 1003-1034**: Tool Event Capture diagram\n- **Lines 979-1002**: Coverage Comparison table\n\n## Self-Logging Pattern (spec lines 1003-1034)\n```\nMCP workflow tools (each logs itself)\n         │\n         ▼\nDirect DB insert → telemetry_events table\n```\n\n## Required Self-Logging\n\nEach MCP tool should:\n1. Check if telemetry session is active\n2. Log tool start event (before main logic)\n3. Log tool end event (after completion, with success/failure)\n\n```javascript\n// In each MCP tool\nconst session = await getActiveTelemetrySession(ticketId);\nif (session) {\n  const correlationId = crypto.randomUUID();\n  \n  // Log start\n  await logToolEvent(db, {\n    sessionId: session.id,\n    event: 'start',\n    toolName: 'start_ticket_work',\n    correlationId,\n    params: { ticketId },\n  });\n  \n  // ... tool logic ...\n  \n  // Log end\n  await logToolEvent(db, {\n    sessionId: session.id,\n    event: 'end',\n    toolName: 'start_ticket_work',\n    correlationId,\n    success: true,\n    durationMs: Date.now() - startTime,\n  });\n}\n```\n\n## Files to Modify\n- `mcp-server/tools/workflow.js` - Add self-logging to workflow tools\n- `mcp-server/tools/review.js` - Add self-logging to review tools\n- `mcp-server/tools/demo.js` - Add self-logging to demo tools\n\n## Acceptance Criteria\n- [ ] All MCP workflow tools self-log when telemetry session is active\n- [ ] Events include correlationId for pairing start/end\n- [ ] Duration is calculated and logged\n- [ ] Success/failure is captured\n- [ ] Works in VS Code and other non-hook environments",
       "priority": "medium",
       "tags": [
+        "telemetry",
         "mcp",
-        "learnings",
-        "documentation"
+        "vs-code"
       ]
     },
     {
-      "id": "85117900-152e-49b5-b284-bab6b1169520",
-      "title": "Create Claude Code telemetry hooks",
-      "passes": true,
-      "overview": "",
+      "id": "4236cfeb-2e15-4c93-a897-b0a7b83ccdef",
+      "title": "Add workflow state display to ticket detail UI",
+      "passes": false,
+      "overview": "The ticket detail UI doesn't show workflow state (review iteration, findings count, demo status, etc.)",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "All 6 hooks created and executable",
-        "Queue file pattern implemented with JSONL format",
-        "Correlation IDs properly pair start/end events",
-        "Hooks merge with existing settings (not overwrite)",
-        "Works with `claude --print-hooks` for debugging",
-        "Error handling doesn't break Claude session",
-        "Documentation added to CLAUDE.md"
+        "Ticket detail shows workflow progress indicator",
+        "Review findings count is displayed",
+        "Demo status badge shows when in human_review",
+        "Kanban card shows \"Demo Ready\" for human_review tickets",
+        "Workflow state refreshes when data changes"
       ],
       "references": [
-        "Spec: plans/specs/universal-quality-workflow.md (Claude Code Telemetry section)",
-        "Claude Code Hooks: https://code.claude.com/docs/en/hooks"
+        "src/components/ticket/TicketDetail.tsx",
+        "src/components/board/TicketCard.tsx",
+        "src/api/tickets.ts",
+        "src/components/ticket/WorkflowProgress.tsx"
       ],
-      "description": "Implement the full set of Claude Code hooks for telemetry capture and workflow enforcement.\n\n## Hooks to Create\n\n### Session Lifecycle\n1. **`start-telemetry-session.sh`** (SessionStart hook)\n   - Detect active ticket from `.claude/ralph-state.json`\n   - Output message for Claude to call `start_telemetry_session`\n   - Create `.claude/telemetry-session.json` with session ID\n\n2. **`end-telemetry-session.sh`** (Stop hook)\n   - Read session ID from telemetry session file\n   - Flush remaining events from queue\n   - Output message for Claude to call `end_telemetry_session`\n   - Clean up session file\n\n### Tool Events\n3. **`log-tool-start.sh`** (PreToolUse hook)\n   - Generate correlation ID\n   - Store in `.claude/tool-correlations.json`\n   - Write start event to `.claude/telemetry-queue.jsonl`\n\n4. **`log-tool-end.sh`** (PostToolUse hook)\n   - Find correlation ID from correlations file\n   - Write end event with success=true to queue\n\n5. **`log-tool-failure.sh`** (PostToolUseFailure hook)\n   - Find correlation ID\n   - Write end event with success=false and error message to queue\n\n### Prompt Capture\n6. **`log-prompt.sh`** (UserPromptSubmit hook)\n   - Read session ID\n   - Output message for Claude to call `log_prompt_event`\n\n## Configuration\n\nUpdate `~/.claude/settings.json`:\n```json\n{\n  \"hooks\": {\n    \"SessionStart\": [{ \"type\": \"command\", \"command\": \"~/.claude/hooks/start-telemetry-session.sh\" }],\n    \"Stop\": [{ \"type\": \"command\", \"command\": \"~/.claude/hooks/end-telemetry-session.sh\" }],\n    \"PreToolUse\": [{ \"type\": \"command\", \"command\": \"~/.claude/hooks/log-tool-start.sh\" }],\n    \"PostToolUse\": [{ \"type\": \"command\", \"command\": \"~/.claude/hooks/log-tool-end.sh\" }],\n    \"PostToolUseFailure\": [{ \"type\": \"command\", \"command\": \"~/.claude/hooks/log-tool-failure.sh\" }],\n    \"UserPromptSubmit\": [{ \"type\": \"command\", \"command\": \"~/.claude/hooks/log-prompt.sh\" }]\n  }\n}\n```\n\n## File Patterns\n- Queue file: `.claude/telemetry-queue.jsonl`\n- Correlations: `.claude/tool-correlations.json`\n- Session: `.claude/telemetry-session.json`\n\n## Acceptance Criteria\n- [ ] All 6 hooks created and executable\n- [ ] Queue file pattern implemented with JSONL format\n- [ ] Correlation IDs properly pair start/end events\n- [ ] Hooks merge with existing settings (not overwrite)\n- [ ] Works with `claude --print-hooks` for debugging\n- [ ] Error handling doesn't break Claude session\n- [ ] Documentation added to CLAUDE.md\n\n## References\n- Spec: plans/specs/universal-quality-workflow.md (Claude Code Telemetry section)\n- Claude Code Hooks: https://code.claude.com/docs/en/hooks",
+      "description": "## Problem\nThe ticket detail UI doesn't show workflow state (review iteration, findings count, demo status, etc.)\n\n## Spec References\n- **Lines 1061-1104**: Data Flow Diagram showing UI components\n- **Lines 2448-2465**: Human Review Approval UI requirements\n- **Lines 1086-1102**: UI mockup showing Activity Feed, Telemetry Dashboard, Claude Tasks, Review Findings\n\n## Required UI Components\n\n### 1. Workflow Progress Indicator\nShow current phase and progress:\n```\n[✓ Started] → [✓ Implemented] → [◐ AI Review] → [ Human Review] → [ Done]\n```\n\n### 2. Review Findings Panel (spec line 1097-1100)\n```\nReview Findings\n├── P0: 0\n├── P1: 1  \n├── P2: 3\n└── Fixed: 2/4\n```\n\n### 3. Demo Status Badge\nWhen in `human_review`:\n- Show \"Demo Ready\" badge on kanban card (spec line 2456)\n- Show \"Start Demo Review\" CTA in ticket detail (spec line 2457)\n\n### 4. Workflow State Summary\n```\nWorkflow State\n├── Review Iterations: 2\n├── Findings: 4 total, 2 fixed\n├── Demo Generated: Yes\n├── Human Approved: Pending\n```\n\n## Files to Modify\n- `src/components/ticket/TicketDetail.tsx` - Add workflow state display\n- `src/components/board/TicketCard.tsx` - Add status badges\n- `src/api/tickets.ts` - Add query for workflow state\n- Create `src/components/ticket/WorkflowProgress.tsx`\n\n## Acceptance Criteria\n- [ ] Ticket detail shows workflow progress indicator\n- [ ] Review findings count is displayed\n- [ ] Demo status badge shows when in human_review\n- [ ] Kanban card shows \"Demo Ready\" for human_review tickets\n- [ ] Workflow state refreshes when data changes",
+      "priority": "medium",
+      "tags": [
+        "ui",
+        "workflow-state",
+        "ticket-detail"
+      ]
+    },
+    {
+      "id": "ca451996-9d95-41dc-b778-c85b1a66ed41",
+      "title": "Create brain-dump doctor command for environment verification",
+      "passes": false,
+      "overview": "The spec mentions a `brain-dump doctor` command for verifying all environments are configured correctly. This doesn't exist yet.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Hooks installed in `~/.claude/hooks/`",
+        "settings.json has all required hook configurations",
+        "Telemetry hooks configured (SessionStart, PreToolUse, etc.)",
+        "Skills installed in `~/.claude/commands/`",
+        "MCP server configured",
+        "Hooks in `~/.cursor/hooks/` or `.cursor/hooks/`",
+        "`hooks.json` configured",
+        "MCP server configured",
+        "Rules in `.cursor/rules/`",
+        "Plugin installed in `~/.config/opencode/plugins/`",
+        "`AGENTS.md` exists",
+        "MCP server configured in `opencode.json`",
+        "`.vscode/mcp.json` exists",
+        "`.github/copilot-instructions.md` exists",
+        "MCP server accessible",
+        "`pnpm brain-dump doctor` runs successfully",
+        "Checks all 4 environments (Claude Code, Cursor, OpenCode, VS Code)",
+        "Reports missing components clearly",
+        "Suggests fix command when issues found",
+        "Exit code 1 if issues found, 0 if clean"
+      ],
+      "references": [],
+      "description": "## Problem\nThe spec mentions a `brain-dump doctor` command for verifying all environments are configured correctly. This doesn't exist yet.\n\n## Spec References\n- **Lines 2379**: \"brain-dump doctor command verifies all environments\"\n- **Lines 2483-2489**: Supported Environments table\n- **Lines 2398**: \"Verify hooks work with claude --print-hooks\"\n\n## Required Checks\n\n### Claude Code\n- [ ] Hooks installed in `~/.claude/hooks/`\n- [ ] settings.json has all required hook configurations\n- [ ] Telemetry hooks configured (SessionStart, PreToolUse, etc.)\n- [ ] Skills installed in `~/.claude/commands/`\n- [ ] MCP server configured\n\n### Cursor\n- [ ] Hooks in `~/.cursor/hooks/` or `.cursor/hooks/`\n- [ ] `hooks.json` configured\n- [ ] MCP server configured\n- [ ] Rules in `.cursor/rules/`\n\n### OpenCode\n- [ ] Plugin installed in `~/.config/opencode/plugins/`\n- [ ] `AGENTS.md` exists\n- [ ] MCP server configured in `opencode.json`\n\n### VS Code\n- [ ] `.vscode/mcp.json` exists\n- [ ] `.github/copilot-instructions.md` exists\n- [ ] MCP server accessible\n\n## Output Format\n```\nbrain-dump doctor\n\nClaude Code\n  ✓ Hooks directory exists\n  ✓ Workflow hooks installed (5/5)\n  ✗ Telemetry hooks NOT installed (0/4) ← PROBLEM!\n  ✓ Skills installed (5/5)\n  ✓ MCP server configured\n\nCursor\n  ✓ Detected at ~/.cursor\n  ✗ Hooks not configured\n  \nOpenCode\n  ✓ Plugin installed\n  ✓ AGENTS.md exists\n\nVS Code\n  ✓ Templates exist in .vscode/\n  \nIssues Found: 2\n  1. Claude Code telemetry hooks not installed\n  2. Cursor hooks not configured\n\nRun: ./scripts/install.sh to fix\n```\n\n## Files to Create/Modify\n- `cli/commands/doctor.ts` - New doctor command\n- `cli/index.ts` - Register doctor command\n\n## Acceptance Criteria\n- [ ] `pnpm brain-dump doctor` runs successfully\n- [ ] Checks all 4 environments (Claude Code, Cursor, OpenCode, VS Code)\n- [ ] Reports missing components clearly\n- [ ] Suggests fix command when issues found\n- [ ] Exit code 1 if issues found, 0 if clean",
+      "priority": "medium",
+      "tags": [
+        "cli",
+        "doctor",
+        "verification"
+      ]
+    },
+    {
+      "id": "27f7f7f6-1e4d-4d25-b58f-cfbd25daa659",
+      "title": "End-to-end test: Full workflow with telemetry capture",
+      "passes": false,
+      "overview": "Need to verify the entire workflow works end-to-end with actual telemetry capture, not just unit tests.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`telemetry_sessions` has 1 session",
+        "`telemetry_events` has tool events (start/end pairs)",
+        "`review_findings` has 3 findings (all fixed)",
+        "`demo_scripts` has 1 demo",
+        "`ticket_workflow_state` has complete state",
+        "`ticket_comments` has all mandatory comments",
+        "Test creates ticket and runs full workflow",
+        "All telemetry data is captured",
+        "All workflow state is populated",
+        "All comments are created",
+        "Test can run in CI"
+      ],
+      "references": [],
+      "description": "## Problem\nNeed to verify the entire workflow works end-to-end with actual telemetry capture, not just unit tests.\n\n## Spec References\n- **Lines 894-946**: Telemetry Data Flow diagram\n- **Lines 979-1002**: Coverage Comparison table\n- **Lines 2466-2474**: Integration checklist\n\n## Test Scenario\n\nSimulate a complete ticket lifecycle and verify data capture:\n\n### 1. Setup\n- Create test project and ticket\n- Install telemetry hooks\n- Start Claude Code session (simulated)\n\n### 2. Workflow Execution\n```\nstart_ticket_work → creates telemetry session\n  ↓\n[Tool calls] → events captured\n  ↓\ncomplete_ticket_work → status = ai_review\n  ↓\nsubmit_review_finding (x3) → findings in DB\n  ↓\nmark_finding_fixed (x3) → findings updated\n  ↓\ngenerate_demo_script → demo in DB\n  ↓\nsubmit_demo_feedback(passed=true) → status = done\n```\n\n### 3. Verification\nQuery database and verify:\n- [ ] `telemetry_sessions` has 1 session\n- [ ] `telemetry_events` has tool events (start/end pairs)\n- [ ] `review_findings` has 3 findings (all fixed)\n- [ ] `demo_scripts` has 1 demo\n- [ ] `ticket_workflow_state` has complete state\n- [ ] `ticket_comments` has all mandatory comments\n\n## Files to Create\n- `e2e/full-workflow-telemetry.spec.ts` - Playwright test\n\n## Acceptance Criteria\n- [ ] Test creates ticket and runs full workflow\n- [ ] All telemetry data is captured\n- [ ] All workflow state is populated\n- [ ] All comments are created\n- [ ] Test can run in CI",
+      "priority": "medium",
+      "tags": [
+        "e2e",
+        "testing",
+        "telemetry"
+      ]
+    },
+    {
+      "id": "f1a63837-c3a4-447c-8b47-807cd4d53e9f",
+      "title": "Update install.sh to include telemetry hooks installation",
+      "passes": false,
+      "overview": "The current `scripts/install.sh` and `scripts/setup-claude-code.sh` install workflow enforcement hooks but NOT telemetry capture hooks.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Running `./scripts/install.sh` installs telemetry hooks",
+        "`~/.claude/hooks/` contains all 4 telemetry scripts",
+        "`~/.claude/settings.json` has telemetry hook configurations",
+        "`claude --print-hooks` shows telemetry hooks",
+        "Installation is idempotent (can run multiple times safely)"
+      ],
+      "references": [],
+      "description": "## Problem\nThe current `scripts/install.sh` and `scripts/setup-claude-code.sh` install workflow enforcement hooks but NOT telemetry capture hooks.\n\n## Spec References\n- **Lines 2368-2380**: Installation & Multi-Environment checklist\n- **Lines 2382-2399**: Claude Code Specific Integration\n- **Lines 2384-2398**: Required telemetry hooks list\n\n## Current install.sh Behavior\n```\n✓ Installs workflow enforcement hooks\n✓ Installs skills\n✗ Does NOT install telemetry hooks\n```\n\n## Required Changes\n\n### 1. Copy telemetry hook scripts\n```bash\n# In install_claude_code()\ncp \"$BRAIN_DUMP_DIR/.claude/hooks/start-telemetry-session.sh\" \"$HOME/.claude/hooks/\"\ncp \"$BRAIN_DUMP_DIR/.claude/hooks/log-tool-telemetry.sh\" \"$HOME/.claude/hooks/\"\ncp \"$BRAIN_DUMP_DIR/.claude/hooks/log-prompt-telemetry.sh\" \"$HOME/.claude/hooks/\"\ncp \"$BRAIN_DUMP_DIR/.claude/hooks/end-telemetry-session.sh\" \"$HOME/.claude/hooks/\"\nchmod +x \"$HOME/.claude/hooks/\"*.sh\n```\n\n### 2. Update settings.json merger\nThe existing `merge-telemetry-hooks.sh` should be called, or its logic integrated:\n- Add `SessionStart` hook configuration\n- Add `PreToolUse` hook for all tools (telemetry logging)\n- Add `PostToolUse` hook for all tools\n- Add `PostToolUseFailure` hook\n- Add `UserPromptSubmit` hook\n- Add `Stop` hook\n\n### 3. Verify installation\nAfter installation, verify:\n```bash\nclaude --print-hooks | grep telemetry\n```\n\n## Files to Modify\n- `scripts/install.sh` - Add telemetry hook installation\n- `scripts/setup-claude-code.sh` - Add telemetry hook configuration\n- `.claude/hooks/merge-telemetry-hooks.sh` - Ensure it works correctly\n\n## Acceptance Criteria\n- [ ] Running `./scripts/install.sh` installs telemetry hooks\n- [ ] `~/.claude/hooks/` contains all 4 telemetry scripts\n- [ ] `~/.claude/settings.json` has telemetry hook configurations\n- [ ] `claude --print-hooks` shows telemetry hooks\n- [ ] Installation is idempotent (can run multiple times safely)",
       "priority": "high",
       "tags": [
+        "install",
+        "telemetry",
+        "hooks",
+        "critical"
+      ]
+    },
+    {
+      "id": "ad9a319d-dadf-464b-9093-7b3749b50152",
+      "title": "Fix status migration: Convert remaining 'review' tickets to new statuses",
+      "passes": false,
+      "overview": "During Phase 1, tickets were left in the deprecated `review` status. The migration to `ai_review`/`human_review`/`done` didn't run properly on the production database.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "No tickets have `status = 'review'`",
+        "Completed tickets are in `done`",
+        "In-progress review tickets are in `ai_review`",
+        "UI shows all tickets correctly",
+        "Migration is reversible (has down migration)"
+      ],
+      "references": [
+        "src/lib/migrations/0010_migrate_review_status.sql"
+      ],
+      "description": "## Problem\nDuring Phase 1, tickets were left in the deprecated `review` status. The migration to `ai_review`/`human_review`/`done` didn't run properly on the production database.\n\n## Evidence\n```sql\nSELECT status, COUNT(*) FROM tickets \nWHERE epic_id = 'a5c97489-...' \nGROUP BY status;\n-- Result: review: 18, in_progress: 1\n```\n\nThe kanban board doesn't show a `review` column anymore, so these tickets are invisible.\n\n## Spec References\n- **Lines 2300-2307**: Status Cleanup checklist\n- **Lines 1404-1410**: Why Remove the `review` Status?\n- **Lines 37-48**: Ticket Statuses (Cleaned Up) table\n\n## Required Actions\n\n### 1. Create migration script\n```sql\n-- Migrate old 'review' status to new statuses\n-- For completed work (has work summary), move to 'done'\nUPDATE tickets \nSET status = 'done', \n    completed_at = COALESCE(completed_at, datetime('now'))\nWHERE status = 'review'\n  AND id IN (\n    SELECT ticket_id FROM ticket_comments \n    WHERE type = 'work_summary'\n  );\n\n-- For incomplete work, move to 'ai_review'\nUPDATE tickets \nSET status = 'ai_review'\nWHERE status = 'review';\n```\n\n### 2. Add migration file\nCreate `src/lib/migrations/0010_migrate_review_status.sql`\n\n### 3. Prevent future regressions\nAdd check constraint or validation to prevent `review` status from being set.\n\n## Files to Modify\n- Create migration file\n- Run migration with `pnpm db:migrate`\n\n## Acceptance Criteria\n- [ ] No tickets have `status = 'review'`\n- [ ] Completed tickets are in `done`\n- [ ] In-progress review tickets are in `ai_review`\n- [ ] UI shows all tickets correctly\n- [ ] Migration is reversible (has down migration)",
+      "priority": "high",
+      "tags": [
+        "database",
+        "migration",
+        "status",
+        "critical"
+      ]
+    },
+    {
+      "id": "45767992-b62d-43ad-ad0b-58072a819855",
+      "title": "Create workflow skills (/next-task, /review-ticket, /review-epic, /demo, /reconcile-learnings)",
+      "passes": false,
+      "overview": "The spec requires 5 workflow skills to be created and installed, but Phase 2 has no tickets for this.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "All 5 skills created in `.claude/commands/`",
+        "Skills follow spec implementation guide format",
+        "Install script copies skills to `~/.claude/commands/`",
+        "Skills are accessible via `/command-name` in Claude Code",
+        "Skills work correctly when invoked"
+      ],
+      "references": [],
+      "description": "## Problem\nThe spec requires 5 workflow skills to be created and installed, but Phase 2 has no tickets for this.\n\n## Spec References\n- **Lines 2360-2366**: Skills checklist\n- **Lines 2192-2225**: `/next-task` skill implementation guide\n- **Lines 2227-2291**: `/review-ticket` skill implementation guide\n\n## Required Skills\n\n### 1. `/next-task` skill\n**Location**: `.claude/commands/next-task.md`\n**Purpose**: Pick up the next task with precondition checking\n**Content**: See spec lines 2192-2225\n\n### 2. `/review-ticket` skill\n**Location**: `.claude/commands/review-ticket.md`\n**Purpose**: Run full review workflow on a ticket\n**Content**: See spec lines 2227-2291\n\n### 3. `/review-epic` skill\n**Location**: `.claude/commands/review-epic.md`\n**Purpose**: Run Tracer Review on an entire epic\n**Content**: Similar to review-ticket but for epic-level review\n\n### 4. `/demo` skill\n**Location**: `.claude/commands/demo.md`\n**Purpose**: Generate demo script after AI review passes\n**Content**: Guide for demo generation workflow\n\n### 5. `/reconcile-learnings` skill\n**Location**: `.claude/commands/reconcile-learnings.md`\n**Purpose**: Extract and apply learnings to project docs\n**Content**: Guide for updating CLAUDE.md and specs\n\n## Installation Requirements\n\nSkills should be:\n1. Created in `.claude/commands/` (project-level)\n2. Copied to `~/.claude/commands/` (global) by install script\n3. Available in all Claude Code sessions\n\n## Files to Create\n- `.claude/commands/next-task.md`\n- `.claude/commands/review-ticket.md`\n- `.claude/commands/review-epic.md`\n- `.claude/commands/demo.md`\n- `.claude/commands/reconcile-learnings.md`\n\n## Files to Modify\n- `scripts/install.sh` - Add `install_skills()` function to copy skills globally\n- `scripts/setup-claude-code.sh` - Ensure skills are installed\n\n## Acceptance Criteria\n- [ ] All 5 skills created in `.claude/commands/`\n- [ ] Skills follow spec implementation guide format\n- [ ] Install script copies skills to `~/.claude/commands/`\n- [ ] Skills are accessible via `/command-name` in Claude Code\n- [ ] Skills work correctly when invoked",
+      "priority": "high",
+      "tags": [
+        "skills",
         "claude-code",
-        "hooks",
-        "telemetry"
+        "workflow"
       ]
     },
     {
-      "id": "f4d0ca6a-5522-4c33-8f2e-c4e3f22196b7",
-      "title": "Create Cursor telemetry hooks",
-      "passes": true,
-      "overview": "",
+      "id": "5ded08ee-39e5-4c8c-970a-dbcd0b2061e6",
+      "title": "OpenCode integration: Plugin, AGENTS.md, skills, and install script support",
+      "passes": false,
+      "overview": "OpenCode integration is completely missing from Phase 2. The spec requires a full OpenCode plugin, AGENTS.md template, skills, and install script integration.",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "All 6 hooks created for Cursor format",
-        "`.cursor/hooks.json` template created",
-        "Hooks use `CURSOR_PROJECT_DIR` correctly",
-        "Test compatibility with Claude Code hooks",
-        "Exit code 2 blocks actions properly",
-        "Document differences from Claude Code hooks"
+        "Plugin created with all required event handlers",
+        "Plugin installed to global OpenCode plugins directory",
+        "AGENTS.md template created",
+        "Skill created in `.opencode/skills/`",
+        "Install script detects OpenCode and installs plugin",
+        "Install script creates AGENTS.md if not exists",
+        "Plugin tested with `opencode mcp debug brain-dump`",
+        "Documentation references OpenCode plugin docs",
+        "Telemetry captured correctly via plugin events"
       ],
-      "references": [
-        "Spec: plans/specs/universal-quality-workflow.md (Cursor section)",
-        "Cursor Hooks: https://cursor.com/docs/agent/hooks",
-        "Third-Party Hooks: https://cursor.com/docs/agent/third-party-hooks"
-      ],
-      "description": "Implement Cursor-specific hooks for telemetry capture. Cursor has full hook support similar to Claude Code.\n\n## Hooks to Create\n\nCursor hooks go in `.cursor/hooks/` or `~/.cursor/hooks/` (global).\n\n### Session Lifecycle\n1. **`start-telemetry.sh`** (sessionStart hook)\n   - Same logic as Claude Code version\n   - Uses `CURSOR_PROJECT_DIR` env var\n\n2. **`end-telemetry.sh`** (sessionEnd hook)\n   - Flush queue and end session\n\n### Tool Events\n3. **`log-tool-start.sh`** (preToolUse hook)\n4. **`log-tool-end.sh`** (postToolUse hook)\n5. **`log-tool-failure.sh`** (postToolUseFailure hook)\n\n### Prompt Capture\n6. **`log-prompt.sh`** (beforeSubmitPrompt hook)\n\n## Configuration\n\nCreate `.cursor/hooks.json`:\n```json\n{\n  \"version\": 1,\n  \"hooks\": {\n    \"sessionStart\": [{ \"command\": \"~/.cursor/hooks/start-telemetry.sh\" }],\n    \"sessionEnd\": [{ \"command\": \"~/.cursor/hooks/end-telemetry.sh\" }],\n    \"preToolUse\": [{ \"command\": \"~/.cursor/hooks/log-tool-start.sh\" }],\n    \"postToolUse\": [{ \"command\": \"~/.cursor/hooks/log-tool-end.sh\" }],\n    \"postToolUseFailure\": [{ \"command\": \"~/.cursor/hooks/log-tool-failure.sh\" }],\n    \"beforeSubmitPrompt\": [{ \"command\": \"~/.cursor/hooks/log-prompt.sh\" }]\n  }\n}\n```\n\n## Claude Code Hook Compatibility\n\nCursor can load Claude Code hooks from `.claude/settings.json`. Test that:\n1. Cursor detects existing Claude Code hooks\n2. Brain Dump hooks work in both environments\n3. No conflicts between Cursor and Claude hook formats\n\n## Acceptance Criteria\n- [ ] All 6 hooks created for Cursor format\n- [ ] `.cursor/hooks.json` template created\n- [ ] Hooks use `CURSOR_PROJECT_DIR` correctly\n- [ ] Test compatibility with Claude Code hooks\n- [ ] Exit code 2 blocks actions properly\n- [ ] Document differences from Claude Code hooks\n\n## References\n- Spec: plans/specs/universal-quality-workflow.md (Cursor section)\n- Cursor Hooks: https://cursor.com/docs/agent/hooks\n- Third-Party Hooks: https://cursor.com/docs/agent/third-party-hooks",
-      "priority": "medium",
-      "tags": [
-        "cursor",
-        "hooks",
-        "telemetry"
-      ]
-    },
-    {
-      "id": "077526d0-cd8d-4ada-a00b-b1d31ba2431c",
-      "title": "Create OpenCode telemetry plugin",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Plugin TypeScript file created",
-        "Plugin handles all relevant lifecycle events",
-        "Session start/end properly tracked",
-        "Tool events logged with correlation",
-        "`AGENTS.md` template created",
-        "Skill created for workflow guidance",
-        "MCP config snippet documented",
-        "Test with `opencode mcp debug brain-dump`"
-      ],
-      "references": [
-        "Spec: plans/specs/universal-quality-workflow.md (OpenCode section)",
-        "OpenCode Plugins: https://opencode.ai/docs/plugins/",
-        "OpenCode MCP: https://opencode.ai/docs/mcp-servers/"
-      ],
-      "description": "Implement an OpenCode plugin for telemetry capture using OpenCode's 40+ lifecycle events.\n\n## Plugin Implementation\n\nCreate `~/.config/opencode/plugins/brain-dump-telemetry.ts`:\n\n```typescript\nimport type { Plugin } from \"@opencode-ai/plugin\"\n\nconst toolCorrelations = new Map<string, { startTime: number; correlationId: string }>()\n\nexport const BrainDumpTelemetry: Plugin = async ({ client, project }) => {\n  let sessionId: string | null = null\n\n  return {\n    // Session lifecycle\n    \"session.created\": async (input) => {\n      const result = await client.callTool(\"mcp__brain-dump__start_telemetry_session\", {\n        projectPath: project?.path,\n      })\n      sessionId = result?.sessionId\n    },\n\n    \"session.idle\": async (input) => {\n      if (sessionId) {\n        await client.callTool(\"mcp__brain-dump__end_telemetry_session\", {\n          sessionId,\n          outcome: \"success\",\n        })\n        sessionId = null\n      }\n    },\n\n    \"session.error\": async (input) => {\n      if (sessionId) {\n        await client.callTool(\"mcp__brain-dump__end_telemetry_session\", {\n          sessionId,\n          outcome: \"failure\",\n        })\n        sessionId = null\n      }\n    },\n\n    // Tool lifecycle\n    \"tool.execute.before\": async (input, output) => {\n      if (!sessionId) return\n      \n      const correlationId = crypto.randomUUID()\n      toolCorrelations.set(input.tool, { startTime: Date.now(), correlationId })\n      \n      await client.callTool(\"mcp__brain-dump__log_tool_event\", {\n        sessionId,\n        event: \"start\",\n        toolName: input.tool,\n        correlationId,\n        params: { /* sanitized params */ },\n      })\n    },\n\n    \"tool.execute.after\": async (input, output) => {\n      if (!sessionId) return\n      \n      const correlation = toolCorrelations.get(input.tool)\n      if (!correlation) return\n      \n      const duration = Date.now() - correlation.startTime\n      toolCorrelations.delete(input.tool)\n      \n      await client.callTool(\"mcp__brain-dump__log_tool_event\", {\n        sessionId,\n        event: \"end\",\n        toolName: input.tool,\n        correlationId: correlation.correlationId,\n        success: !output.error,\n        durationMs: duration,\n        error: output.error?.message,\n      })\n    },\n  }\n}\n\nexport default BrainDumpTelemetry\n```\n\n## Supporting Files\n\n### AGENTS.md Template\nCreate template for workflow enforcement via rules:\n```markdown\n# Brain Dump Workflow\n\n## Before Starting Work\nAlways call `start_ticket_work` before writing code.\n\n## After Completing Work\nAlways call `complete_ticket_work` to trigger AI review.\n...\n```\n\n### Skill\nCreate `.opencode/skills/brain-dump-workflow/SKILL.md`\n\n### MCP Config\nAdd to `opencode.json`:\n```json\n{\n  \"mcp\": {\n    \"brain-dump\": {\n      \"type\": \"local\",\n      \"command\": \"node\",\n      \"args\": [\"/path/to/brain-dump/mcp-server/index.js\"]\n    }\n  }\n}\n```\n\n## Acceptance Criteria\n- [ ] Plugin TypeScript file created\n- [ ] Plugin handles all relevant lifecycle events\n- [ ] Session start/end properly tracked\n- [ ] Tool events logged with correlation\n- [ ] `AGENTS.md` template created\n- [ ] Skill created for workflow guidance\n- [ ] MCP config snippet documented\n- [ ] Test with `opencode mcp debug brain-dump`\n\n## References\n- Spec: plans/specs/universal-quality-workflow.md (OpenCode section)\n- OpenCode Plugins: https://opencode.ai/docs/plugins/\n- OpenCode MCP: https://opencode.ai/docs/mcp-servers/",
-      "priority": "medium",
+      "references": [],
+      "description": "## Problem\nOpenCode integration is completely missing from Phase 2. The spec requires a full OpenCode plugin, AGENTS.md template, skills, and install script integration.\n\n## Spec References\n- **Lines 2401-2415**: OpenCode Specific Integration checklist\n- **Lines 386-563**: OpenCode Telemetry (Plugins + MCP) implementation details\n- **Lines 534-563**: OpenCode Configuration and Rules\n\n## Required Components\n\n### 1. Brain Dump Plugin\n**File**: `~/.config/opencode/plugins/brain-dump-telemetry.ts` (global)\n**Purpose**: Capture telemetry via OpenCode plugin events\n**Events to implement**:\n- `tool.execute.before` - Log tool start\n- `tool.execute.after` - Log tool end\n- `session.created` - Start telemetry session\n- `session.idle` - End telemetry session\n\n**Implementation**: See spec lines 407-500 for full plugin code\n\n### 2. AGENTS.md Template\n**File**: `.opencode/AGENTS.md` or `~/.config/opencode/AGENTS.md`\n**Purpose**: Workflow enforcement rules for OpenCode\n**Content**: See spec lines 534-563\n\n### 3. OpenCode Skill\n**File**: `.opencode/skills/brain-dump-workflow/SKILL.md`\n**Purpose**: Reusable workflow guidance\n**Content**: See spec lines 565-599\n\n### 4. opencode.json Configuration\n**File**: `opencode.json` snippet\n**Purpose**: MCP server configuration\n**Content**: See spec lines 516-532\n\n### 5. Install Script Integration\n**File**: `scripts/install.sh`\n**Changes**:\n- Detect OpenCode installation\n- Copy plugin to `~/.config/opencode/plugins/`\n- Create `AGENTS.md` if not exists\n- Configure `opencode.json` with MCP server\n\n## Files to Create\n- `~/.config/opencode/plugins/brain-dump-telemetry.ts` (template in repo, copied on install)\n- `.opencode/AGENTS.md` (template)\n- `.opencode/skills/brain-dump-workflow/SKILL.md`\n- `docs/opencode-integration.md` (documentation)\n\n## Files to Modify\n- `scripts/install.sh` - Add OpenCode detection and plugin installation\n- `scripts/uninstall.sh` - Add OpenCode cleanup\n\n## Acceptance Criteria\n- [ ] Plugin created with all required event handlers\n- [ ] Plugin installed to global OpenCode plugins directory\n- [ ] AGENTS.md template created\n- [ ] Skill created in `.opencode/skills/`\n- [ ] Install script detects OpenCode and installs plugin\n- [ ] Install script creates AGENTS.md if not exists\n- [ ] Plugin tested with `opencode mcp debug brain-dump`\n- [ ] Documentation references OpenCode plugin docs\n- [ ] Telemetry captured correctly via plugin events",
+      "priority": "high",
       "tags": [
         "opencode",
-        "plugin",
-        "telemetry"
+        "telemetry",
+        "integration"
       ]
     },
     {
-      "id": "a9e64194-e632-409a-b315-09c8cfd78ef7",
-      "title": "Create VS Code integration templates",
-      "passes": true,
-      "overview": "",
+      "id": "592a97e0-0622-4dc7-b887-9db0cbfa8e06",
+      "title": "VS Code integration: MCP config, copilot instructions, skills, and install script support",
+      "passes": false,
+      "overview": "VS Code integration is completely missing from Phase 2. The spec requires MCP configuration, copilot instructions, skills, and install script integration.",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
@@ -247,350 +414,184 @@
         "`.vscode/mcp.json` template created",
         "`.github/copilot-instructions.md` template created",
         "`.github/skills/brain-dump-workflow.skill.md` created",
-        "MCP server works with VS Code's stdio transport",
-        "Document VS Code MCP server trust flow",
-        "Install script offers to create these files"
+        "Install script detects VS Code",
+        "Install script creates MCP config",
+        "Install script offers to create copilot instructions",
+        "MCP server works with VS Code stdio transport",
+        "Documentation explains VS Code MCP server trust flow",
+        "Workflow guidance works via instructions + MCP preconditions"
       ],
-      "references": [
-        "Spec: plans/specs/universal-quality-workflow.md (VS Code section)",
-        "VS Code MCP: https://code.visualstudio.com/docs/copilot/customization/mcp-servers",
-        "VS Code Instructions: https://code.visualstudio.com/docs/copilot/customization/custom-instructions"
-      ],
-      "description": "Create VS Code integration using instructions-based approach (no extension). VS Code doesn't have hooks, so we rely on MCP preconditions and prompt guidance.\n\n## Files to Create\n\n### MCP Configuration\n`.vscode/mcp.json`:\n```json\n{\n  \"mcpServers\": {\n    \"brain-dump\": {\n      \"command\": \"node\",\n      \"args\": [\"${workspaceFolder}/node_modules/brain-dump/mcp-server/index.js\"],\n      \"env\": {}\n    }\n  }\n}\n```\n\n### Custom Instructions\n`.github/copilot-instructions.md`:\n```markdown\n# Brain Dump Workflow Integration\n\nWhen working on tickets in this project, follow the Brain Dump workflow:\n\n## Starting Work\n1. Call `mcp__brain-dump__start_ticket_work({ ticketId })` before writing code\n2. This creates a branch and sets up tracking\n\n## During Development\n- Commit frequently with `feat(<ticket-id>): <description>` format\n- Call `mcp__brain-dump__link_commit_to_ticket` after commits\n\n## Completing Work\n1. Call `mcp__brain-dump__complete_ticket_work({ ticketId, summary })`\n2. This triggers AI review and moves ticket to ai_review status\n3. Fix any critical/major findings before proceeding\n\n## Human Review\n- AI will generate a demo script\n- Wait for human approval before marking done\n```\n\n### Agent Skill\n`.github/skills/brain-dump-workflow.skill.md`:\n```markdown\n---\nname: brain-dump-workflow\ndescription: Manages ticket workflow for Brain Dump projects\napplyTo: \"**/*\"\n---\n\n# Brain Dump Workflow Skill\n\nWhen the user asks to start work on a ticket, work on a task, or implement a feature:\n\n1. First call `mcp__brain-dump__list_tickets` to see available tickets\n2. Use `mcp__brain-dump__start_ticket_work` to begin\n...\n```\n\n## Acceptance Criteria\n- [ ] `.vscode/mcp.json` template created\n- [ ] `.github/copilot-instructions.md` template created\n- [ ] `.github/skills/brain-dump-workflow.skill.md` created\n- [ ] MCP server works with VS Code's stdio transport\n- [ ] Document VS Code MCP server trust flow\n- [ ] Install script offers to create these files\n\n## Note\nVS Code extension with Language Model Tool API is OUT OF SCOPE. We use instructions-based approach which provides medium enforcement via prompt guidance + MCP preconditions.\n\n## References\n- Spec: plans/specs/universal-quality-workflow.md (VS Code section)\n- VS Code MCP: https://code.visualstudio.com/docs/copilot/customization/mcp-servers\n- VS Code Instructions: https://code.visualstudio.com/docs/copilot/customization/custom-instructions",
-      "priority": "low",
+      "references": [],
+      "description": "## Problem\nVS Code integration is completely missing from Phase 2. The spec requires MCP configuration, copilot instructions, skills, and install script integration.\n\n## Spec References\n- **Lines 2417-2427**: VS Code Specific Integration checklist\n- **Lines 625-682**: VS Code Telemetry (Extension + Instructions + MCP) implementation\n- **Lines 2913-2948**: VS Code Additional Setup\n\n## Required Components\n\n### 1. MCP Configuration Template\n**File**: `.vscode/mcp.json` (project-level, shareable)\n**Purpose**: MCP server configuration for VS Code\n**Content**: See spec lines 2900-2910\n\n### 2. Copilot Instructions Template\n**File**: `.github/copilot-instructions.md`\n**Purpose**: Workflow enforcement via prompt guidance\n**Content**: See spec lines 639-658\n\n### 3. VS Code Skill\n**File**: `.github/skills/brain-dump-workflow.skill.md`\n**Purpose**: Auto-activated workflow guidance\n**Content**: See spec lines 660-682\n\n### 4. Install Script Integration\n**File**: `scripts/install.sh`\n**Changes**:\n- Detect VS Code installation\n- Create `.vscode/mcp.json` template\n- Offer to create `.github/copilot-instructions.md`\n- Copy skill to `.github/skills/`\n\n### 5. Documentation\n**File**: `docs/vscode-integration.md`\n**Content**:\n- MCP server trust flow\n- How to enable MCP in VS Code settings\n- Custom instructions setup\n\n## Files to Create\n- `.vscode/mcp.json` (template)\n- `.github/copilot-instructions.md` (template)\n- `.github/skills/brain-dump-workflow.skill.md`\n- `docs/vscode-integration.md`\n\n## Files to Modify\n- `scripts/install.sh` - Add VS Code detection and config creation\n- `scripts/uninstall.sh` - Add VS Code cleanup\n\n## Acceptance Criteria\n- [ ] `.vscode/mcp.json` template created\n- [ ] `.github/copilot-instructions.md` template created\n- [ ] `.github/skills/brain-dump-workflow.skill.md` created\n- [ ] Install script detects VS Code\n- [ ] Install script creates MCP config\n- [ ] Install script offers to create copilot instructions\n- [ ] MCP server works with VS Code stdio transport\n- [ ] Documentation explains VS Code MCP server trust flow\n- [ ] Workflow guidance works via instructions + MCP preconditions",
+      "priority": "medium",
       "tags": [
         "vscode",
-        "instructions",
+        "integration",
         "mcp"
       ]
     },
     {
-      "id": "099c8f58-42f9-4901-9806-cd83612b7e87",
-      "title": "Create workflow skills (/next-task, /review-ticket, /demo)",
-      "passes": true,
-      "overview": "",
+      "id": "a3412843-1b9f-4273-872d-605aee54c660",
+      "title": "Cursor integration: Hooks, rules, skills, MCP config, and install script support",
+      "passes": false,
+      "overview": "Cursor integration is completely missing from Phase 2. The spec requires hooks, rules, skills, MCP configuration, and install script integration.",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "All 5 skills created with proper frontmatter",
-        "Skills have clear step-by-step instructions",
-        "`allowed-tools` properly scoped",
-        "Skills work via `/skill-name` invocation",
-        "Documentation for each skill usage"
+        "All 6 hooks created",
+        "`.cursor/hooks.json` configured correctly",
+        "`.cursor/mcp.json` template created",
+        "`.cursor/rules/brain-dump-workflow.md` created",
+        "`.cursor/skills/brain-dump-workflow/SKILL.md` created",
+        "Install script detects Cursor",
+        "Install script installs hooks globally",
+        "Install script creates/updates hooks.json",
+        "Cursor hook compatibility tested (loads Claude hooks)",
+        "MCP server compatibility verified",
+        "Documentation explains Cursor-specific differences"
       ],
-      "references": [
-        "Spec: plans/specs/universal-quality-workflow.md (Skills section)",
-        "Claude Code Skills: https://code.claude.com/docs/en/skills"
-      ],
-      "description": "Create Claude Code skills (slash commands) for the Universal Quality Workflow.\n\n## Skills to Create\n\n### `/next-task`\nIntelligently select the next ticket to work on.\n\nFile: `~/.claude/commands/next-task.md`\n\n```markdown\n---\ndescription: Select and start the next ticket using Brain Dump workflow\nallowed-tools: [mcp__brain-dump__*]\n---\n\n# Next Task Selection\n\n1. Call `list_tickets({ status: 'ready', limit: 10 })` to see available tickets\n2. Consider:\n   - Priority (high > medium > low)\n   - Dependencies (unblocked tickets first)\n   - Epic context (continue current epic if possible)\n3. Present top 3 recommendations with rationale\n4. Once user selects, call `start_ticket_work({ ticketId })`\n```\n\n### `/review-ticket`\nRun AI review on current ticket.\n\nFile: `~/.claude/commands/review-ticket.md`\n\n```markdown\n---\ndescription: Run AI review agents on current ticket work\nallowed-tools: [mcp__brain-dump__*, Task]\n---\n\n# Ticket Review\n\n1. Get current ticket from ralph-state.json\n2. Run review agents in parallel:\n   - code-reviewer\n   - silent-failure-hunter  \n   - code-simplifier\n3. Submit findings via `submit_review_finding`\n4. Summarize findings by severity\n5. If critical/major found, list specific fixes needed\n```\n\n### `/review-epic`\nRun Tracer Review on entire epic.\n\nFile: `~/.claude/commands/review-epic.md`\n\n### `/demo`\nGenerate demo script for human review.\n\nFile: `~/.claude/commands/demo.md`\n\n```markdown\n---\ndescription: Generate demo script for human review approval\nallowed-tools: [mcp__brain-dump__*]\n---\n\n# Demo Script Generation\n\n1. Get current ticket and verify all critical/major findings fixed\n2. Analyze ticket requirements and implemented changes\n3. Generate demo steps covering:\n   - Setup/prerequisites\n   - Core functionality verification\n   - Edge cases\n   - Visual confirmation points\n4. Call `generate_demo_script({ ticketId, steps })`\n5. Summarize what human should verify\n```\n\n### `/reconcile-learnings`\nReconcile learnings from completed work.\n\nFile: `~/.claude/commands/reconcile-learnings.md`\n\n## Acceptance Criteria\n- [ ] All 5 skills created with proper frontmatter\n- [ ] Skills have clear step-by-step instructions\n- [ ] `allowed-tools` properly scoped\n- [ ] Skills work via `/skill-name` invocation\n- [ ] Documentation for each skill usage\n\n## References\n- Spec: plans/specs/universal-quality-workflow.md (Skills section)\n- Claude Code Skills: https://code.claude.com/docs/en/skills",
+      "references": [],
+      "description": "## Problem\nCursor integration is completely missing from Phase 2. The spec requires hooks, rules, skills, MCP configuration, and install script integration.\n\n## Spec References\n- **Lines 2429-2446**: Cursor Specific Integration checklist\n- **Lines 684-833**: Cursor Telemetry (Hooks + MCP) implementation\n- **Lines 3340-3372**: Cursor Documentation references\n\n## Required Components\n\n### 1. Cursor Hooks\n**Directory**: `.cursor/hooks/` (project) or `~/.cursor/hooks/` (global)\n**Hooks to create**:\n- `sessionStart` - Start telemetry session\n- `sessionEnd` - End telemetry session\n- `preToolUse` - Log tool start\n- `postToolUse` - Log tool end (success)\n- `postToolUseFailure` - Log tool end (failure)\n- `beforeSubmitPrompt` - Capture user prompt\n\n**Implementation**: See spec lines 767-800 for hook script example\n\n### 2. Hooks Configuration\n**File**: `.cursor/hooks.json` or `~/.cursor/hooks.json`\n**Purpose**: Hook configuration file\n**Content**: See spec lines 729-764\n\n### 3. MCP Configuration\n**File**: `.cursor/mcp.json`\n**Purpose**: MCP server configuration\n**Content**: See spec lines 865-876\n\n### 4. Cursor Rules\n**File**: `.cursor/rules/brain-dump-workflow.md`\n**Purpose**: Workflow enforcement rules\n**Content**: See spec lines 803-832\n\n### 5. Cursor Skill\n**File**: `.cursor/skills/brain-dump-workflow/SKILL.md`\n**Purpose**: Reusable workflow guidance\n**Content**: See spec lines 834-863\n\n### 6. Install Script Integration\n**File**: `scripts/install.sh`\n**Changes**:\n- Detect Cursor installation\n- Copy hooks to `~/.cursor/hooks/`\n- Create or update `.cursor/hooks.json`\n- Create `.cursor/mcp.json` template\n- Create `.cursor/rules/brain-dump-workflow.md`\n- Create `.cursor/skills/brain-dump-workflow/SKILL.md`\n\n### 7. Claude Code Hook Compatibility\n**Note**: Cursor can load Claude Code hooks directly (spec line 2444)\n- Test that Cursor loads `.claude/settings.json` hooks\n- Document any format differences\n\n## Files to Create\n- `.cursor/hooks/sessionStart.sh`\n- `.cursor/hooks/sessionEnd.sh`\n- `.cursor/hooks/preToolUse.sh`\n- `.cursor/hooks/postToolUse.sh`\n- `.cursor/hooks/postToolUseFailure.sh`\n- `.cursor/hooks/beforeSubmitPrompt.sh`\n- `.cursor/hooks.json` (template)\n- `.cursor/mcp.json` (template)\n- `.cursor/rules/brain-dump-workflow.md`\n- `.cursor/skills/brain-dump-workflow/SKILL.md`\n- `docs/cursor-integration.md`\n\n## Files to Modify\n- `scripts/install.sh` - Add Cursor detection and hook installation\n- `scripts/uninstall.sh` - Add Cursor cleanup\n\n## Acceptance Criteria\n- [ ] All 6 hooks created\n- [ ] `.cursor/hooks.json` configured correctly\n- [ ] `.cursor/mcp.json` template created\n- [ ] `.cursor/rules/brain-dump-workflow.md` created\n- [ ] `.cursor/skills/brain-dump-workflow/SKILL.md` created\n- [ ] Install script detects Cursor\n- [ ] Install script installs hooks globally\n- [ ] Install script creates/updates hooks.json\n- [ ] Cursor hook compatibility tested (loads Claude hooks)\n- [ ] MCP server compatibility verified\n- [ ] Documentation explains Cursor-specific differences",
       "priority": "high",
       "tags": [
-        "skills",
-        "commands",
-        "workflow"
+        "cursor",
+        "hooks",
+        "integration"
       ]
     },
     {
-      "id": "0cfb2286-7570-497c-ad93-a8e79c39f638",
-      "title": "Build Human Review UI with demo approval flow",
-      "passes": true,
-      "overview": "",
-      "types": [
-        {
-          "name": "DemoPanelProps",
-          "code": "interface DemoPanelProps {\n  ticketId: string;\n  demoScript: DemoScript;\n  onApprove: (feedback: string) => void;\n  onReject: (feedback: string, failedSteps: number[]) => void;\n}"
-        },
-        {
-          "name": "DemoStepProps",
-          "code": "interface DemoStepProps {\n  step: DemoStep;\n  onStatusChange: (status: 'pending' | 'passed' | 'failed' | 'skipped') => void;\n  onNotesChange: (notes: string) => void;\n}"
-        }
-      ],
+      "id": "f1aa0de8-9baf-4d24-918c-36aeef303fdd",
+      "title": "Human Review Approval UI: DemoPanel, DemoStep components, server functions, and TanStack Query hooks",
+      "passes": false,
+      "overview": "The existing ticket \"Add workflow state display to ticket detail UI\" only covers workflow state display, not the full demo approval UI required by the spec.",
+      "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "DemoPanel component with all features",
-        "DemoStep component with pass/fail/skip",
-        "Kanban card shows \"Demo Ready\" badge",
-        "Ticket detail shows demo review CTA",
-        "Server functions created",
-        "TanStack Query hooks created",
-        "Approval triggers ticket status to `done`",
-        "Rejection keeps ticket in `human_review` with feedback comment",
-        "Toast notification when ticket enters `human_review`"
+        "DemoPanel component shows demo steps",
+        "DemoStep component has pass/fail/skip buttons",
+        "Notes field for each step",
+        "Overall feedback text area",
+        "\"Approve & Complete\" button validates all steps marked",
+        "\"Request Changes\" button requires failed step or feedback",
+        "Kanban card shows \"Demo Ready\" badge when in human_review",
+        "Ticket detail shows prominent \"Start Demo Review\" CTA",
+        "Toast notification when ticket enters human_review",
+        "`getDemoScript` server function works",
+        "`updateDemoStep` server function works",
+        "`submitDemoFeedback` server function works",
+        "`useDemoScript` TanStack Query hook works",
+        "Approval triggers `/reconcile-learnings` prompt",
+        "Rejection creates comment with issues for AI"
       ],
       "references": [
-        "Spec: plans/specs/universal-quality-workflow.md (Human Review UI section)"
+        "src/components/ticket/DemoPanel.tsx",
+        "src/components/ticket/DemoStep.tsx",
+        "src/api/demo.ts",
+        "src/lib/hooks.ts",
+        "src/components/board/TicketCard.tsx",
+        "src/components/ticket/TicketDetail.tsx"
       ],
-      "description": "Create the UI components for human review with demo script approval.\n\n## Components to Build\n\n### `DemoPanel.tsx`\nMain panel showing demo steps for human review.\n\n```typescript\ninterface DemoPanelProps {\n  ticketId: string;\n  demoScript: DemoScript;\n  onApprove: (feedback: string) => void;\n  onReject: (feedback: string, failedSteps: number[]) => void;\n}\n```\n\nFeatures:\n- Display all demo steps with order\n- Progress indicator showing completed steps\n- Overall feedback text area\n- \"Approve & Complete\" button (disabled until all steps marked)\n- \"Request Changes\" button (requires at least one failed step or feedback)\n\n### `DemoStep.tsx`\nIndividual demo step with pass/fail/skip controls.\n\n```typescript\ninterface DemoStepProps {\n  step: DemoStep;\n  onStatusChange: (status: 'pending' | 'passed' | 'failed' | 'skipped') => void;\n  onNotesChange: (notes: string) => void;\n}\n```\n\nFeatures:\n- Step description and expected outcome\n- Pass/Fail/Skip buttons (radio-style)\n- Optional notes field\n- Visual indicator for step type (manual, visual, automated)\n\n### Kanban Card Updates\n- Show \"Demo Ready\" badge when ticket is in `human_review`\n- Prominent visual indicator for action required\n\n### Ticket Detail Updates\n- Show \"Start Demo Review\" CTA when in `human_review`\n- Embed DemoPanel in ticket detail view\n- Show demo history for completed demos\n\n## Server Functions\n\n```typescript\n// src/api/demo.ts\nexport const getDemoScript = createServerFn({ method: 'GET' })\n  .inputValidator(z.object({ ticketId: z.string() }))\n  .handler(async ({ ticketId }) => {\n    // Fetch demo script from database\n  });\n\nexport const updateDemoStep = createServerFn({ method: 'POST' })\n  .inputValidator(z.object({\n    demoScriptId: z.string(),\n    stepOrder: z.number(),\n    status: z.enum(['pending', 'passed', 'failed', 'skipped']),\n    notes: z.string().optional(),\n  }))\n  .handler(async (input) => {\n    // Update step in database\n  });\n\nexport const submitDemoFeedback = createServerFn({ method: 'POST' })\n  .inputValidator(z.object({\n    ticketId: z.string(),\n    passed: z.boolean(),\n    feedback: z.string(),\n  }))\n  .handler(async (input) => {\n    // Submit feedback, update ticket status\n  });\n```\n\n## TanStack Query Hooks\n\n```typescript\n// src/lib/hooks.ts\nexport const useDemoScript = (ticketId: string) => {\n  return useQuery({\n    queryKey: queryKeys.demoScript(ticketId),\n    queryFn: () => getDemoScript({ ticketId }),\n    enabled: !!ticketId,\n  });\n};\n\nexport const useSubmitDemoFeedback = () => {\n  const queryClient = useQueryClient();\n  return useMutation({\n    mutationFn: submitDemoFeedback,\n    onSuccess: (_, { ticketId }) => {\n      queryClient.invalidateQueries({ queryKey: queryKeys.ticket(ticketId) });\n      queryClient.invalidateQueries({ queryKey: queryKeys.demoScript(ticketId) });\n    },\n  });\n};\n```\n\n## Acceptance Criteria\n- [ ] DemoPanel component with all features\n- [ ] DemoStep component with pass/fail/skip\n- [ ] Kanban card shows \"Demo Ready\" badge\n- [ ] Ticket detail shows demo review CTA\n- [ ] Server functions created\n- [ ] TanStack Query hooks created\n- [ ] Approval triggers ticket status to `done`\n- [ ] Rejection keeps ticket in `human_review` with feedback comment\n- [ ] Toast notification when ticket enters `human_review`\n\n## References\n- Spec: plans/specs/universal-quality-workflow.md (Human Review UI section)",
+      "description": "## Problem\nThe existing ticket \"Add workflow state display to ticket detail UI\" only covers workflow state display, not the full demo approval UI required by the spec.\n\n## Spec References\n- **Lines 2448-2464**: Human Review Approval UI checklist\n- **Lines 2961-3210**: Human Review Approval UI detailed requirements\n- **Lines 3114-3165**: Data Flow for Human Approval\n\n## Required UI Components\n\n### 1. DemoPanel Component\n**File**: `src/components/ticket/DemoPanel.tsx`\n**Purpose**: Main container for demo verification\n**Features**:\n- Shows demo title and description\n- Lists all demo steps\n- Overall feedback text area\n- Approve/Reject buttons\n\n### 2. DemoStep Component\n**File**: `src/components/ticket/DemoStep.tsx`\n**Purpose**: Individual step with pass/fail/skip buttons\n**Features**:\n- Step instruction and expected result\n- Pass (✓), Fail (✗), Skip (—) buttons\n- Notes field for each step\n- Visual status indicator\n\n### 3. Server Functions\n**File**: `src/api/demo.ts`\n**Functions**:\n- `getDemoScript(ticketId)` - Fetch demo for a ticket\n- `updateDemoStep({ demoId, stepNumber, passed, notes })` - Update step status\n- `submitDemoFeedback({ demoId, passed, feedback, stepResults })` - Submit approval/rejection\n\n### 4. TanStack Query Hooks\n**File**: `src/lib/hooks.ts`\n**Hooks**:\n- `useDemoScript(ticketId)` - Fetch demo script\n- `useUpdateDemoStep()` - Mutation for updating steps\n- `useSubmitDemoFeedback()` - Mutation for approval/rejection\n\n### 5. UI Integration\n**Files**:\n- `src/components/board/TicketCard.tsx` - Add \"Demo Ready\" badge for human_review tickets\n- `src/components/ticket/TicketDetail.tsx` - Show DemoPanel when in human_review\n- `src/components/ticket/TicketDetail.tsx` - Add \"Start Demo Review\" CTA\n\n### 6. Notifications\n**File**: `src/components/ticket/TicketDetail.tsx` or notification system\n**Features**:\n- Toast notification when ticket enters human_review\n- Badge on kanban card showing \"Demo Ready\"\n\n## Files to Create\n- `src/components/ticket/DemoPanel.tsx`\n- `src/components/ticket/DemoStep.tsx`\n- `src/api/demo.ts`\n\n## Files to Modify\n- `src/lib/hooks.ts` - Add demo-related query hooks\n- `src/components/board/TicketCard.tsx` - Add demo badge\n- `src/components/ticket/TicketDetail.tsx` - Integrate DemoPanel\n\n## Acceptance Criteria\n- [ ] DemoPanel component shows demo steps\n- [ ] DemoStep component has pass/fail/skip buttons\n- [ ] Notes field for each step\n- [ ] Overall feedback text area\n- [ ] \"Approve & Complete\" button validates all steps marked\n- [ ] \"Request Changes\" button requires failed step or feedback\n- [ ] Kanban card shows \"Demo Ready\" badge when in human_review\n- [ ] Ticket detail shows prominent \"Start Demo Review\" CTA\n- [ ] Toast notification when ticket enters human_review\n- [ ] `getDemoScript` server function works\n- [ ] `updateDemoStep` server function works\n- [ ] `submitDemoFeedback` server function works\n- [ ] `useDemoScript` TanStack Query hook works\n- [ ] Approval triggers `/reconcile-learnings` prompt\n- [ ] Rejection creates comment with issues for AI",
       "priority": "high",
       "tags": [
         "ui",
-        "react",
+        "demo",
         "human-review"
       ]
     },
     {
-      "id": "c31ad292-f515-4118-b139-0c4a41e1b4fd",
-      "title": "Create multi-environment install/uninstall scripts",
-      "passes": true,
-      "overview": "",
+      "id": "e45d09bc-94e7-454f-bbcd-1fc171fead5b",
+      "title": "Verify status transitions: Atomic updates, UI real-time updates, and E2E testing",
+      "passes": false,
+      "overview": "No explicit ticket exists to verify that status transitions work correctly, are atomic with workflow state updates, and trigger UI updates in real-time.",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "`install.sh` detects all 4 environments",
-        "`install.sh` installs hooks/plugins for each detected env",
-        "`install.sh` merges with existing configs (doesn't overwrite)",
-        "`uninstall.sh` cleanly removes Brain Dump configs",
-        "`uninstall.sh` preserves other hooks/settings",
-        "`brain-dump doctor` verifies all environments",
-        "`brain-dump doctor` reports missing/broken configs",
-        "Scripts work on macOS and Linux",
-        "Documentation for manual installation"
+        "All status transitions work correctly",
+        "Status changes are atomic with workflow state updates",
+        "UI reflects status changes in real-time (no refresh needed)",
+        "TanStack Query invalidates correctly",
+        "Kanban board updates when status changes",
+        "Ticket detail page updates when status changes",
+        "E2E test covers full status transition flow",
+        "Atomic update test verifies transaction integrity"
       ],
       "references": [
-        "Spec: plans/specs/universal-quality-workflow.md (Installation section)",
-        "Existing setup: scripts/setup-claude-code.sh"
+        "mcp-server/tools/workflow.js",
+        "src/api/tickets.ts"
       ],
-      "description": "Create installation scripts that configure Brain Dump for all supported AI coding environments.\n\n## Scripts to Create\n\n### `scripts/install.sh`\nMain installation script that detects and configures all environments.\n\n```bash\n#!/bin/bash\n# Brain Dump Universal Quality Workflow Installer\n\necho \"\ud83e\udde0 Brain Dump - Universal Quality Workflow Installer\"\necho \"\"\n\n# Detect environments\ndetect_claude_code() { command -v claude &>/dev/null; }\ndetect_cursor() { [ -d \"$HOME/.cursor\" ] || [ -d \"/Applications/Cursor.app\" ]; }\ndetect_opencode() { command -v opencode &>/dev/null; }\ndetect_vscode() { command -v code &>/dev/null; }\n\n# Install functions for each environment\ninstall_claude_code() {\n  echo \"\ud83d\udce6 Installing Claude Code hooks...\"\n  mkdir -p ~/.claude/hooks\n  cp hooks/claude-code/*.sh ~/.claude/hooks/\n  chmod +x ~/.claude/hooks/*.sh\n  \n  # Merge hooks into settings.json (don't overwrite existing)\n  # Use jq to merge hook arrays\n}\n\ninstall_cursor() {\n  echo \"\ud83d\udce6 Installing Cursor hooks...\"\n  mkdir -p ~/.cursor/hooks\n  cp hooks/cursor/*.sh ~/.cursor/hooks/\n  chmod +x ~/.cursor/hooks/*.sh\n  \n  # Create or update ~/.cursor/hooks.json\n}\n\ninstall_opencode() {\n  echo \"\ud83d\udce6 Installing OpenCode plugin...\"\n  mkdir -p ~/.config/opencode/plugins\n  cp plugins/brain-dump-telemetry.ts ~/.config/opencode/plugins/\n  \n  # Create AGENTS.md template if not exists\n}\n\ninstall_vscode() {\n  echo \"\ud83d\udce6 Creating VS Code templates...\"\n  # Offer to create .vscode/mcp.json\n  # Offer to create .github/copilot-instructions.md\n}\n\n# Main flow\necho \"Detecting installed environments...\"\n[ detect_claude_code ] && echo \"  \u2713 Claude Code\"\n[ detect_cursor ] && echo \"  \u2713 Cursor\"\n[ detect_opencode ] && echo \"  \u2713 OpenCode\"\n[ detect_vscode ] && echo \"  \u2713 VS Code\"\n\n# Install to each detected environment\n# ...\n```\n\n### `scripts/uninstall.sh`\nClean removal without breaking other configurations.\n\n```bash\n#!/bin/bash\n# Brain Dump Uninstaller\n\nuninstall_claude_code() {\n  echo \"\ud83d\uddd1\ufe0f  Removing Claude Code hooks...\"\n  rm -f ~/.claude/hooks/start-telemetry-session.sh\n  rm -f ~/.claude/hooks/end-telemetry-session.sh\n  rm -f ~/.claude/hooks/log-tool-*.sh\n  rm -f ~/.claude/hooks/log-prompt.sh\n  \n  # Remove hooks from settings.json (preserve other hooks)\n}\n\n# Similar for other environments...\n```\n\n### `brain-dump doctor`\nCLI command to verify all environments are configured correctly.\n\n```bash\n# Add to cli/index.ts\ndoctor() {\n  console.log(\"\ud83e\ude7a Brain Dump Environment Doctor\")\n  \n  // Check Claude Code\n  checkClaudeCode() // hooks installed? settings.json correct?\n  \n  // Check Cursor  \n  checkCursor() // hooks.json exists? hooks installed?\n  \n  // Check OpenCode\n  checkOpenCode() // plugin installed? MCP configured?\n  \n  // Check VS Code\n  checkVSCode() // mcp.json exists? instructions exist?\n  \n  // Report summary\n}\n```\n\n## Acceptance Criteria\n- [ ] `install.sh` detects all 4 environments\n- [ ] `install.sh` installs hooks/plugins for each detected env\n- [ ] `install.sh` merges with existing configs (doesn't overwrite)\n- [ ] `uninstall.sh` cleanly removes Brain Dump configs\n- [ ] `uninstall.sh` preserves other hooks/settings\n- [ ] `brain-dump doctor` verifies all environments\n- [ ] `brain-dump doctor` reports missing/broken configs\n- [ ] Scripts work on macOS and Linux\n- [ ] Documentation for manual installation\n\n## References\n- Spec: plans/specs/universal-quality-workflow.md (Installation section)\n- Existing setup: scripts/setup-claude-code.sh",
+      "description": "## Problem\nNo explicit ticket exists to verify that status transitions work correctly, are atomic with workflow state updates, and trigger UI updates in real-time.\n\n## Spec References\n- **Lines 2333-2340**: Status Updates (MANDATORY) checklist\n- **Lines 1035-1045**: Status Updates table\n- **Lines 1319-1360**: Ticket Workflow state machine\n\n## Required Verification\n\n### 1. Status Transition Verification\nVerify each status transition:\n- `ready` → `in_progress` (via `start_ticket_work`)\n- `in_progress` → `ai_review` (via `complete_ticket_work`)\n- `ai_review` → `human_review` (when all findings fixed)\n- `human_review` → `done` (via `submit_demo_feedback(passed=true)`)\n- `human_review` → `in_progress` (via `submit_demo_feedback(passed=false)` for major issues)\n\n### 2. Atomic Updates Verification\nVerify that status changes are atomic with workflow state updates:\n- When `start_ticket_work` sets status to `in_progress`, it also creates/updates `ticket_workflow_state`\n- When `complete_ticket_work` sets status to `ai_review`, it also updates workflow state\n- When demo feedback approves, status → `done` AND workflow state updated\n- All updates happen in a single transaction\n\n### 3. UI Real-Time Updates\nVerify TanStack Query invalidation:\n- Status changes trigger query invalidation\n- UI reflects status changes immediately (no manual refresh)\n- Kanban board columns update when status changes\n- Ticket detail page updates when status changes\n\n### 4. E2E Test\nCreate comprehensive E2E test:\n- Create ticket\n- Start work → verify status + workflow state\n- Complete work → verify status + workflow state\n- Submit findings → verify status stays in ai_review\n- Fix findings → verify status transitions to human_review\n- Submit demo feedback → verify status → done\n\n## Files to Create\n- `e2e/status-transitions.spec.ts` - E2E test for status transitions\n- `integration-tests/workflow-state-atomic.test.ts` - Test atomic updates\n\n## Files to Modify\n- `mcp-server/tools/workflow.js` - Ensure atomic updates (if not already)\n- `src/api/tickets.ts` - Verify query invalidation\n\n## Acceptance Criteria\n- [ ] All status transitions work correctly\n- [ ] Status changes are atomic with workflow state updates\n- [ ] UI reflects status changes in real-time (no refresh needed)\n- [ ] TanStack Query invalidates correctly\n- [ ] Kanban board updates when status changes\n- [ ] Ticket detail page updates when status changes\n- [ ] E2E test covers full status transition flow\n- [ ] Atomic update test verifies transaction integrity",
       "priority": "medium",
       "tags": [
-        "scripts",
-        "installation",
+        "testing",
+        "status",
+        "e2e"
+      ]
+    },
+    {
+      "id": "29633522-1f00-4f99-8e6d-ade276e435a7",
+      "title": "Update install.sh for multi-environment MCP configuration (Claude Code, OpenCode, VS Code, Cursor)",
+      "passes": false,
+      "overview": "The install script needs to be updated to configure MCP servers for all supported environments, not just Claude Code. Currently it may only handle Claude Code.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Install script detects all 4 environments",
+        "Install script configures MCP for Claude Code",
+        "Install script configures MCP for OpenCode (if installed)",
+        "Install script configures MCP for VS Code (if installed)",
+        "Install script configures MCP for Cursor (if installed)",
+        "Config files use correct format for each environment",
+        "Cross-platform paths handled correctly (macOS/Linux/Windows)",
+        "Uninstall script removes MCP config from all environments",
+        "Installation is idempotent (can run multiple times safely)",
+        "`brain-dump doctor` command verifies MCP configuration",
+        "Documentation explains multi-environment setup"
+      ],
+      "references": [],
+      "description": "## Problem\nThe install script needs to be updated to configure MCP servers for all supported environments, not just Claude Code. Currently it may only handle Claude Code.\n\n## Spec References\n- **Lines 2368-2380**: Installation & Multi-Environment checklist\n- **Lines 2562-2688**: Install Script Requirements\n- **Lines 2783-2911**: Configuration file locations and MCP config differences\n\n## Required Changes\n\n### 1. Multi-Environment Detection\n**File**: `scripts/install.sh`\n**Function**: `detect_environments()`\n**Purpose**: Detect which environments are installed\n**Logic**: See spec lines 2828-2857\n\n### 2. MCP Server Configuration\n**File**: `scripts/install.sh`\n**Function**: `install_mcp_server()`\n**Environments to configure**:\n- **Claude Code**: `~/.claude/settings.json` (or `~/.claude.json`)\n- **OpenCode**: `~/.config/opencode/opencode.json` or project `opencode.json`\n- **VS Code**: `.vscode/mcp.json` (workspace) or global settings\n- **Cursor**: `.cursor/mcp.json` or `~/.cursor/mcp.json`\n\n**Config formats**: See spec lines 2868-2911\n\n### 3. Environment-Specific Config Files\nCreate templates/configs for each environment:\n- Claude Code: Already handled\n- OpenCode: Add to `opencode.json` under `mcp` key\n- VS Code: Create `.vscode/mcp.json` template\n- Cursor: Create `.cursor/mcp.json` template\n\n### 4. Cross-Platform Support\nHandle different config file locations by OS:\n- **macOS**: See spec lines 2862-2866\n- **Linux**: See spec lines 2862-2866\n- **Windows**: See spec lines 2862-2866\n\n### 5. Uninstall Support\n**File**: `scripts/uninstall.sh`\n**Function**: `uninstall_mcp_server()`\n**Purpose**: Cleanly remove MCP config from all environments\n**Logic**: See spec lines 2672-2706\n\n## Files to Modify\n- `scripts/install.sh` - Add multi-environment MCP configuration\n- `scripts/uninstall.sh` - Add multi-environment cleanup\n\n## Files to Create\n- `.vscode/mcp.json` (template)\n- `.cursor/mcp.json` (template)\n- `docs/multi-environment-setup.md` (documentation)\n\n## Acceptance Criteria\n- [ ] Install script detects all 4 environments\n- [ ] Install script configures MCP for Claude Code\n- [ ] Install script configures MCP for OpenCode (if installed)\n- [ ] Install script configures MCP for VS Code (if installed)\n- [ ] Install script configures MCP for Cursor (if installed)\n- [ ] Config files use correct format for each environment\n- [ ] Cross-platform paths handled correctly (macOS/Linux/Windows)\n- [ ] Uninstall script removes MCP config from all environments\n- [ ] Installation is idempotent (can run multiple times safely)\n- [ ] `brain-dump doctor` command verifies MCP configuration\n- [ ] Documentation explains multi-environment setup",
+      "priority": "high",
+      "tags": [
+        "install",
+        "mcp",
         "multi-environment"
       ]
     },
     {
-      "id": "44fdf6df-0f14-4067-8ac8-f3b1e7a901c1",
-      "title": "Update Ralph script to use new workflow",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Ralph prompt updated with new workflow",
-        "Ralph respects `human_review` status (doesn't pick these)",
-        "Ralph runs AI review after implementation",
-        "Ralph generates demo before stopping",
-        "Ralph stops at `human_review` (doesn't auto-complete)",
-        "Telemetry integrated into Ralph session",
-        "Progress.txt documents workflow transitions"
-      ],
-      "references": [
-        "Spec: plans/specs/universal-quality-workflow.md",
-        "Current Ralph: scripts/ralph-epic-*.sh"
-      ],
-      "description": "Update the Ralph autonomous agent script to use the new Universal Quality Workflow.\n\n## Changes Required\n\n### Ralph Prompt Updates\nUpdate the prompt in `scripts/ralph-epic-*.sh` to:\n\n1. **Use new status flow**: `in_progress` \u2192 `ai_review` \u2192 `human_review` \u2192 `done`\n\n2. **Run AI review after implementation**:\n   ```\n   After implementing and tests pass:\n   1. Call complete_ticket_work (moves to ai_review)\n   2. Run /review-ticket skill\n   3. Fix any critical/major findings\n   4. Generate demo script\n   5. Stop and wait for human review\n   ```\n\n3. **Handle human_review status**:\n   - Skip tickets in `human_review` (waiting for human)\n   - Only pick tickets in `ready` or `backlog`\n\n4. **Use telemetry**:\n   - Call `start_telemetry_session` at session start\n   - Telemetry hooks handle tool events automatically\n   - Call `end_telemetry_session` at session end\n\n### Ralph Loop Updates\nThe ralph-loop plugin should:\n- Check for `human_review` tickets and notify user\n- Not auto-continue past `ai_review` without human approval\n- Show demo approval prompts in UI\n\n## New Ralph Prompt Section\n\n```markdown\n## Workflow (Updated)\n\n1. Read plans/prd.json for incomplete tickets\n2. Skip tickets in 'human_review' (waiting for human approval)\n3. Pick ONE ticket from 'ready' or 'backlog'\n4. Call start_ticket_work(ticketId)\n5. Implement the feature (write code, run tests)\n6. Call complete_ticket_work(ticketId, summary)\n   - This moves ticket to 'ai_review'\n7. Run AI review: /review-ticket\n8. Fix any critical/major findings\n9. Generate demo: /demo\n   - This moves ticket to 'human_review'\n10. STOP - Wait for human to approve demo\n11. If all tickets complete or in human_review, output: PRD_COMPLETE\n```\n\n## Acceptance Criteria\n- [ ] Ralph prompt updated with new workflow\n- [ ] Ralph respects `human_review` status (doesn't pick these)\n- [ ] Ralph runs AI review after implementation\n- [ ] Ralph generates demo before stopping\n- [ ] Ralph stops at `human_review` (doesn't auto-complete)\n- [ ] Telemetry integrated into Ralph session\n- [ ] Progress.txt documents workflow transitions\n\n## References\n- Spec: plans/specs/universal-quality-workflow.md\n- Current Ralph: scripts/ralph-epic-*.sh",
-      "priority": "medium",
-      "tags": [
-        "ralph",
-        "workflow",
-        "automation"
-      ]
-    },
-    {
-      "id": "db3ca5cc-71a1-48e6-bf6a-efe5ce81651e",
-      "title": "Add workflow telemetry dashboard to ticket detail",
-      "passes": true,
-      "overview": "",
-      "types": [
-        {
-          "name": "TelemetryPanelProps",
-          "code": "interface TelemetryPanelProps {\n  ticketId: string;\n}"
-        }
-      ],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "TelemetryPanel component shows session list",
-        "Session detail shows tool breakdown",
-        "Timeline view for event sequence",
-        "Server function fetches and aggregates telemetry",
-        "TanStack Query hook for telemetry data",
-        "Integrated into ticket detail page",
-        "Performance: lazy load telemetry data",
-        "Empty state when no telemetry exists"
-      ],
-      "references": [
-        "Spec: plans/specs/universal-quality-workflow.md (Telemetry section)",
-        "Existing telemetry MCP tools: mcp-server/tools/telemetry.js"
-      ],
-      "description": "Display telemetry data in the Brain Dump UI to provide observability into AI work sessions.\n\n## UI Components\n\n### `TelemetryPanel.tsx`\nShows telemetry summary for a ticket's work sessions.\n\n```typescript\ninterface TelemetryPanelProps {\n  ticketId: string;\n}\n```\n\nFeatures:\n- Session list with duration, outcome, tool counts\n- Expandable session detail showing:\n  - Tool usage breakdown (by tool name)\n  - Token usage (if available)\n  - Prompt count\n  - Error rate\n- Timeline view of tool events\n- Filter by session, tool type\n\n### `ToolUsageChart.tsx`\nVisual breakdown of tools used in a session.\n\n- Bar chart or pie chart of tool distribution\n- Color coding by tool category (Read, Write, Edit, Bash, MCP)\n- Hover for details\n\n### `SessionTimeline.tsx`\nTimeline visualization of session events.\n\n- Vertical timeline with events\n- Color coding: tool start (blue), tool end (green), error (red)\n- Expandable event details\n\n## Server Functions\n\n```typescript\n// src/api/telemetry.ts\nexport const getTicketTelemetry = createServerFn({ method: 'GET' })\n  .inputValidator(z.object({ ticketId: z.string() }))\n  .handler(async ({ ticketId }) => {\n    // Get telemetry sessions for ticket\n    // Aggregate tool usage stats\n    // Return structured data for UI\n  });\n```\n\n## Integration Points\n\n### Ticket Detail Page\n- Add \"Telemetry\" tab or collapsible section\n- Show summary stats: sessions, total tools, avg duration\n- Link to expand full telemetry view\n\n### Kanban Card\n- Small telemetry indicator (session count, last activity)\n\n## Acceptance Criteria\n- [ ] TelemetryPanel component shows session list\n- [ ] Session detail shows tool breakdown\n- [ ] Timeline view for event sequence\n- [ ] Server function fetches and aggregates telemetry\n- [ ] TanStack Query hook for telemetry data\n- [ ] Integrated into ticket detail page\n- [ ] Performance: lazy load telemetry data\n- [ ] Empty state when no telemetry exists\n\n## References\n- Spec: plans/specs/universal-quality-workflow.md (Telemetry section)\n- Existing telemetry MCP tools: mcp-server/tools/telemetry.js",
-      "priority": "low",
-      "tags": [
-        "ui",
-        "telemetry",
-        "observability"
-      ]
-    },
-    {
-      "id": "877ae995-8ad9-439c-90d3-3ff6c89b49a6",
-      "title": "Update documentation for Universal Quality Workflow",
+      "id": "c67df4aa-8112-444d-ae1d-aaef9cb7610b",
+      "title": "Implement start_epic_work MCP tool: Create epic branch and ensure all tickets use same branch/PR",
       "passes": false,
-      "overview": "Brain Dump implements Dillon Mulroy's \"Next-Task\" and \"Tracer Review\" workflows...",
+      "overview": "The Phase 2 epic requires all tickets to be worked on in a single branch/PR, but there's no mechanism to:\n1. Create an epic-level branch when starting work on an epic\n2. Ensure all tickets in that epic use the same branch (instead of creating individual ticket branches)\n3. Track that all epic work is happening in one PR\nCurrently, `start_ticket_work` creates a branch per ticket (`feature/{ticket-id}-{slug}`), which would result in multiple PRs for the epic instead of one.",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "CLAUDE.md updated with workflow section",
-        "README.md updated with features",
-        "docs/universal-workflow.md created",
-        "Environment-specific docs created",
-        "All documentation references spec",
-        "Installation instructions clear",
-        "Troubleshooting section added"
+        "`start_epic_work` tool creates epic branch",
+        "`start_epic_work` stores branch name in `epic_workflow_state`",
+        "`start_ticket_work` detects epic and uses epic branch if exists",
+        "`start_ticket_work` creates epic branch if missing (or errors with helpful message)",
+        "All tickets in epic use same branch",
+        "Epic branch can be used for single PR",
+        "PR creation is tracked in epic workflow state",
+        "Epic completion requires PR to exist",
+        "Works for both Ralph and human/AI workflows"
       ],
       "references": [
-        "Spec: plans/specs/universal-quality-workflow.md (full reference)"
+        "mcp-server/tools/workflow.js",
+        "src/lib/schema.ts",
+        "mcp-server/lib/git-utils.js"
       ],
-      "description": "Update all documentation to reflect the new Universal Quality Workflow.\n\n## Documentation Updates\n\n### CLAUDE.md\nAdd section explaining the workflow:\n- Status flow diagram\n- When AI review happens\n- When human review happens\n- How to use the skills\n- Telemetry overview\n\n### README.md\nUpdate features section:\n- Mention multi-environment support\n- Link to workflow documentation\n- Installation instructions\n\n### docs/universal-workflow.md (New)\nComprehensive documentation:\n\n```markdown\n# Universal Quality Workflow\n\n## Overview\nBrain Dump implements Dillon Mulroy's \"Next-Task\" and \"Tracer Review\" workflows...\n\n## Status Flow\nbacklog \u2192 ready \u2192 in_progress \u2192 ai_review \u2192 human_review \u2192 done\n\n## Environment Support\n| Environment | Telemetry | Enforcement |\n|-------------|-----------|-------------|\n| Claude Code | Full      | Hooks       |\n| Cursor      | Full      | Hooks       |\n| OpenCode    | Full      | Plugin      |\n| VS Code     | MCP only  | Instructions|\n\n## Skills\n- /next-task - Select next ticket\n- /review-ticket - Run AI review\n- /demo - Generate demo script\n...\n\n## Installation\nRun `./scripts/install.sh` to configure all environments...\n\n## Troubleshooting\nRun `brain-dump doctor` to diagnose issues...\n```\n\n### docs/environments/ (New Directory)\nPer-environment setup guides:\n- `claude-code.md`\n- `cursor.md`\n- `opencode.md`\n- `vscode.md`\n\n## Acceptance Criteria\n- [ ] CLAUDE.md updated with workflow section\n- [ ] README.md updated with features\n- [ ] docs/universal-workflow.md created\n- [ ] Environment-specific docs created\n- [ ] All documentation references spec\n- [ ] Installation instructions clear\n- [ ] Troubleshooting section added\n\n## References\n- Spec: plans/specs/universal-quality-workflow.md (full reference)",
-      "priority": "low",
-      "tags": [
-        "documentation",
-        "docs"
-      ]
-    },
-    {
-      "id": "eebc19d4-cde5-42ac-82af-317bbcd5a368",
-      "title": "Integration test: Full workflow E2E (start \u2192 ai_review \u2192 human_review \u2192 done)",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Happy path E2E test passes",
-        "Review iteration loop test passes",
-        "Demo rejection test passes",
-        "All precondition enforcement tests pass",
-        "Tests run in CI pipeline",
-        "Test fixtures don't pollute production database"
-      ],
-      "references": [
-        "Spec: plans/specs/universal-quality-workflow.md (State Machine section)",
-        "Existing tests: See e2e/ directory for patterns",
-        "mcp-server/tools/__tests__/workflow.test.js"
-      ],
-      "description": "Create comprehensive end-to-end tests that verify the entire Universal Quality Workflow functions correctly from ticket start through human approval.\n\n## Test Scenarios\n\n### Scenario 1: Happy Path (Full Workflow)\n```\n1. start_ticket_work(ticketId)\n   \u2713 Ticket status changes to in_progress\n   \u2713 Branch created\n   \u2713 Telemetry session started\n   \n2. complete_ticket_work(ticketId, summary)\n   \u2713 Ticket status changes to ai_review\n   \u2713 Workflow state created\n   \u2713 Work summary comment added\n   \n3. submit_review_finding(ticketId, finding)\n   \u2713 Finding stored in database\n   \u2713 findings_count incremented\n   \u2713 Progress comment added\n   \n4. mark_finding_fixed(findingId)\n   \u2713 Finding status updated to 'fixed'\n   \u2713 findings_fixed incremented\n   \n5. check_review_complete(ticketId)\n   \u2713 Returns canProceedToHumanReview: true\n   \n6. generate_demo_script(ticketId, steps)\n   \u2713 Demo script created\n   \u2713 Ticket status changes to human_review\n   \u2713 Workflow state updated (demo_generated: true)\n   \n7. submit_demo_feedback(ticketId, passed: true, feedback)\n   \u2713 Ticket status changes to done\n   \u2713 Demo script marked complete\n   \u2713 Success comment added\n```\n\n### Scenario 2: Review Iteration Loop\n```\n1. Submit findings with critical severity\n2. Attempt generate_demo_script\n   \u2713 Should fail: \"Cannot proceed - open critical findings\"\n3. Mark findings fixed\n4. Retry generate_demo_script\n   \u2713 Should succeed\n```\n\n### Scenario 3: Demo Rejection\n```\n1. Complete through to human_review\n2. submit_demo_feedback(passed: false)\n   \u2713 Ticket stays in human_review (or returns to in_progress)\n   \u2713 Rejection comment added with feedback\n3. AI can pick up and address issues\n```\n\n### Scenario 4: Precondition Enforcement\n```\n- Cannot submit_review_finding if ticket not in ai_review\n- Cannot generate_demo_script if open critical/major findings\n- Cannot submit_demo_feedback if ticket not in human_review\n- Cannot reconcile_learnings if ticket not in done\n```\n\n## Test Implementation\n\n### MCP Tool Tests\nCreate `mcp-server/tools/__tests__/workflow.test.js`:\n- Test each tool in isolation with mock database\n- Test precondition failures return proper error messages\n\n### Integration Tests\nCreate `e2e/workflow.spec.ts`:\n- Full Playwright test running through UI\n- Or direct API tests calling MCP tools in sequence\n\n## Acceptance Criteria\n- [ ] Happy path E2E test passes\n- [ ] Review iteration loop test passes\n- [ ] Demo rejection test passes\n- [ ] All precondition enforcement tests pass\n- [ ] Tests run in CI pipeline\n- [ ] Test fixtures don't pollute production database\n\n## References\n- Spec: plans/specs/universal-quality-workflow.md (State Machine section)\n- Existing tests: See e2e/ directory for patterns",
+      "description": "## Problem\nThe Phase 2 epic requires all tickets to be worked on in a single branch/PR, but there's no mechanism to:\n1. Create an epic-level branch when starting work on an epic\n2. Ensure all tickets in that epic use the same branch (instead of creating individual ticket branches)\n3. Track that all epic work is happening in one PR\n\nCurrently, `start_ticket_work` creates a branch per ticket (`feature/{ticket-id}-{slug}`), which would result in multiple PRs for the epic instead of one.\n\n## Required Solution\n\n### 1. Create `start_epic_work` MCP Tool\n**File**: `mcp-server/tools/workflow.js`\n**Purpose**: Initialize epic work with a single branch\n**Behavior**:\n- Creates branch: `feature/epic-{epic-short-id}-{slug}` (using existing `generateEpicBranchName`)\n- Stores epic branch name in epic metadata or `epic_workflow_state`\n- Returns branch name and epic context\n- Creates initial commit or empty commit to establish branch\n\n### 2. Modify `start_ticket_work` to Use Epic Branch\n**File**: `mcp-server/tools/workflow.js`\n**Logic**:\n- Check if ticket belongs to an epic\n- If epic has an active branch (epic branch exists and is current), use that branch\n- If epic branch doesn't exist, create it (or prompt to call `start_epic_work` first)\n- If ticket has no epic, create ticket-specific branch (current behavior)\n\n### 3. Epic Branch Tracking\n**Database**: `epic_workflow_state` table\n**Fields**:\n- `epic_branch_name` - Store the epic branch name\n- `epic_branch_created_at` - When branch was created\n- `pr_number` - PR number once created\n- `pr_url` - PR URL once created\n\n### 4. PR Creation Gate\n**File**: `mcp-server/tools/workflow.js` or separate tool\n**Behavior**:\n- When epic work starts, create draft PR immediately (or prompt to create)\n- Link PR to epic\n- All commits go to this PR\n- Epic completion requires PR to exist\n\n## Implementation Details\n\n### start_epic_work Tool\n```javascript\nserver.tool(\n  \"start_epic_work\",\n  {\n    description: \"Start working on an epic. Creates epic-level branch and ensures all tickets use it.\",\n    inputSchema: {\n      type: \"object\",\n      properties: {\n        epicId: { type: \"string\" },\n        createPr: { type: \"boolean\", default: true }\n      },\n      required: [\"epicId\"]\n    }\n  },\n  async ({ epicId, createPr }) => {\n    // 1. Get epic\n    // 2. Generate branch name\n    // 3. Create branch from main/dev\n    // 4. Store branch name in epic_workflow_state\n    // 5. Optionally create draft PR\n    // 6. Return branch name and epic context\n  }\n);\n```\n\n### Modified start_ticket_work Logic\n```javascript\n// In start_ticket_work:\nif (ticket.epic_id) {\n  const epicState = getEpicWorkflowState(ticket.epic_id);\n  if (epicState?.epic_branch_name) {\n    // Use existing epic branch\n    branchName = epicState.epic_branch_name;\n    // Checkout if not already on it\n    if (currentBranch !== branchName) {\n      runGitCommand(`checkout ${branchName}`);\n    }\n  } else {\n    // No epic branch exists - create it or prompt\n    return error(\"Epic branch not found. Call start_epic_work first.\");\n  }\n} else {\n  // No epic - create ticket branch (current behavior)\n  branchName = generateBranchName(ticket.id, ticket.title);\n}\n```\n\n## Files to Modify\n- `mcp-server/tools/workflow.js` - Add `start_epic_work` tool, modify `start_ticket_work`\n- `src/lib/schema.ts` - Add `epic_branch_name`, `epic_branch_created_at` to `epic_workflow_state`\n- `mcp-server/lib/git-utils.js` - Already has `generateEpicBranchName`, may need helpers\n\n## Files to Create\n- Migration to add epic branch fields to `epic_workflow_state`\n\n## Acceptance Criteria\n- [ ] `start_epic_work` tool creates epic branch\n- [ ] `start_epic_work` stores branch name in `epic_workflow_state`\n- [ ] `start_ticket_work` detects epic and uses epic branch if exists\n- [ ] `start_ticket_work` creates epic branch if missing (or errors with helpful message)\n- [ ] All tickets in epic use same branch\n- [ ] Epic branch can be used for single PR\n- [ ] PR creation is tracked in epic workflow state\n- [ ] Epic completion requires PR to exist\n- [ ] Works for both Ralph and human/AI workflows",
       "priority": "high",
       "tags": [
-        "testing",
-        "e2e",
-        "integration",
-        "workflow"
-      ]
-    },
-    {
-      "id": "84c0a4a3-6439-48be-a08a-2cfc8b45af54",
-      "title": "Integration test: MCP tool preconditions and error handling",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [
-        {
-          "decision": "This Matters",
-          "alternatives": [],
-          "rationale": []
-        }
-      ],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "All precondition checks implemented in MCP tools",
-        "Error messages are helpful and actionable",
-        "Tests cover every precondition in table above",
-        "Tests verify correct tool is suggested when blocked",
-        "Error responses use `isError: true` flag"
-      ],
-      "references": [
-        "MCP Spec: https://spec.modelcontextprotocol.io/specification/server/tools/",
-        "Spec: plans/specs/universal-quality-workflow.md (MCP Tools section)"
-      ],
-      "description": "Verify that all MCP tools properly enforce preconditions and return helpful error messages when preconditions aren't met.\n\n## Why This Matters\n\nMCP tools are the **universal enforcement layer** - they must work correctly regardless of which environment (Claude Code, Cursor, OpenCode, VS Code) is calling them. Precondition checks ensure the workflow can't be bypassed.\n\n## Preconditions to Test\n\n### `start_ticket_work`\n| Precondition | Expected Error |\n|--------------|----------------|\n| Ticket doesn't exist | \"Ticket not found. Use list_tickets to see available.\" |\n| Ticket already in_progress | \"Ticket already in progress.\" |\n| Project has no git repo | \"Project must be a git repository.\" |\n\n### `complete_ticket_work`\n| Precondition | Expected Error |\n|--------------|----------------|\n| Ticket not in in_progress | \"Ticket must be in_progress to complete.\" |\n| No commits on branch | Warning: \"No commits found. Are you sure?\" |\n\n### `submit_review_finding`\n| Precondition | Expected Error |\n|--------------|----------------|\n| Ticket not in ai_review | \"Ticket must be in ai_review status to submit findings.\" |\n| Invalid severity | \"Severity must be one of: critical, major, minor, suggestion\" |\n| Invalid agent | \"Agent must be one of: code-reviewer, silent-failure-hunter, code-simplifier\" |\n\n### `mark_finding_fixed`\n| Precondition | Expected Error |\n|--------------|----------------|\n| Finding doesn't exist | \"Finding not found.\" |\n| Finding already fixed | \"Finding is already marked as fixed.\" |\n\n### `generate_demo_script`\n| Precondition | Expected Error |\n|--------------|----------------|\n| Ticket not in ai_review | \"Ticket must be in ai_review to generate demo.\" |\n| Open critical findings | \"Cannot proceed - X open critical findings must be fixed first.\" |\n| Open major findings | \"Cannot proceed - X open major findings must be fixed first.\" |\n\n### `submit_demo_feedback`\n| Precondition | Expected Error |\n|--------------|----------------|\n| Ticket not in human_review | \"Ticket must be in human_review to submit feedback.\" |\n| No demo script exists | \"No demo script found for this ticket.\" |\n\n### `reconcile_learnings`\n| Precondition | Expected Error |\n|--------------|----------------|\n| Ticket not in done | \"Ticket must be done to reconcile learnings.\" |\n\n## Test Implementation\n\n```javascript\n// mcp-server/tools/__tests__/preconditions.test.js\n\ndescribe('MCP Tool Preconditions', () => {\n  describe('submit_review_finding', () => {\n    it('rejects if ticket not in ai_review', async () => {\n      const result = await callTool('submit_review_finding', {\n        ticketId: 'ticket-in-progress',\n        agent: 'code-reviewer',\n        severity: 'major',\n        description: 'Test finding'\n      });\n      \n      expect(result.isError).toBe(true);\n      expect(result.content[0].text).toContain('must be in ai_review');\n    });\n  });\n});\n```\n\n## Acceptance Criteria\n- [ ] All precondition checks implemented in MCP tools\n- [ ] Error messages are helpful and actionable\n- [ ] Tests cover every precondition in table above\n- [ ] Tests verify correct tool is suggested when blocked\n- [ ] Error responses use `isError: true` flag\n\n## References\n- MCP Spec: https://spec.modelcontextprotocol.io/specification/server/tools/\n- Spec: plans/specs/universal-quality-workflow.md (MCP Tools section)",
-      "priority": "high",
-      "tags": [
-        "testing",
-        "mcp",
-        "preconditions",
-        "error-handling"
-      ]
-    },
-    {
-      "id": "414a7ef9-f8d1-4a5c-a0bf-9db2cd75baa3",
-      "title": "Integration test: Hook telemetry capture (Claude Code)",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [
-        {
-          "decision": "This Matters",
-          "alternatives": [],
-          "rationale": []
-        }
-      ],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "SessionStart hook creates telemetry session",
-        "Stop hook ends telemetry session and flushes queue",
-        "PreToolUse captures tool start events",
-        "PostToolUse captures tool end events with success",
-        "PostToolUseFailure captures failures with error info",
-        "Correlation IDs properly pair start/end events",
-        "Queue file is properly formatted JSONL",
-        "Events appear in database after flush"
-      ],
-      "references": [
-        "Claude Code Hooks: https://code.claude.com/docs/en/hooks",
-        "Spec: plans/specs/universal-quality-workflow.md (Claude Code Telemetry section)"
-      ],
-      "description": "Verify that Claude Code hooks properly capture telemetry events and they flow through to the database.\n\n## Why This Matters\n\nHooks provide **automated telemetry capture** - without them, telemetry would require manual MCP calls. This test ensures the hook \u2192 queue \u2192 MCP \u2192 database pipeline works end-to-end.\n\n## Test Scenarios\n\n### Scenario 1: Session Lifecycle\n```\n1. Start Claude Code session in project with active ticket\n   \u2713 SessionStart hook fires\n   \u2713 Hook outputs message to start telemetry session\n   \u2713 Telemetry session created in database\n\n2. End session (stop/exit)\n   \u2713 Stop hook fires\n   \u2713 Hook outputs message to end telemetry session\n   \u2713 Telemetry session marked complete\n   \u2713 Queue file flushed\n```\n\n### Scenario 2: Tool Event Capture\n```\n1. Start session with telemetry\n2. Execute a Read tool\n   \u2713 PreToolUse hook writes start event to queue\n   \u2713 PostToolUse hook writes end event to queue\n   \u2713 Correlation IDs match between start/end\n\n3. Execute an Edit tool that fails\n   \u2713 PreToolUse hook writes start event\n   \u2713 PostToolUseFailure hook writes end event with error\n   \u2713 success: false in event\n```\n\n### Scenario 3: Queue Processing\n```\n1. Generate 10 tool events into queue\n2. End session\n   \u2713 All events flushed to database\n   \u2713 Queue file cleared\n   \u2713 Events have correct tool names and durations\n```\n\n### Scenario 4: Prompt Capture\n```\n1. Start session with telemetry\n2. Submit user prompt\n   \u2713 UserPromptSubmit hook fires\n   \u2713 Prompt logged (or hash if redacted)\n```\n\n## Test Implementation\n\n### Hook Script Tests\n```bash\n# Test hook scripts directly\n./scripts/test-hooks.sh\n\n# Verify output format\necho '{\"tool_name\": \"Read\"}' | .claude/hooks/log-tool-start.sh\n# Should output JSON event to queue file\n```\n\n### Integration Test\n```typescript\n// e2e/telemetry-hooks.spec.ts\ntest('hooks capture tool events', async () => {\n  // 1. Create test ticket and start work\n  // 2. Simulate tool execution (trigger hooks)\n  // 3. Query telemetry from database\n  // 4. Verify events captured correctly\n});\n```\n\n## Files to Test\n- `.claude/hooks/start-telemetry-session.sh`\n- `.claude/hooks/end-telemetry-session.sh`\n- `.claude/hooks/log-tool-start.sh`\n- `.claude/hooks/log-tool-end.sh`\n- `.claude/hooks/log-tool-failure.sh`\n- `.claude/hooks/log-prompt.sh`\n\n## Acceptance Criteria\n- [ ] SessionStart hook creates telemetry session\n- [ ] Stop hook ends telemetry session and flushes queue\n- [ ] PreToolUse captures tool start events\n- [ ] PostToolUse captures tool end events with success\n- [ ] PostToolUseFailure captures failures with error info\n- [ ] Correlation IDs properly pair start/end events\n- [ ] Queue file is properly formatted JSONL\n- [ ] Events appear in database after flush\n\n## References\n- Claude Code Hooks: https://code.claude.com/docs/en/hooks\n- Spec: plans/specs/universal-quality-workflow.md (Claude Code Telemetry section)",
-      "priority": "medium",
-      "tags": [
-        "testing",
-        "hooks",
-        "telemetry",
-        "claude-code"
-      ]
-    },
-    {
-      "id": "d320e4a8-8aee-422c-8b97-1e035974b7a7",
-      "title": "Integration test: Cross-environment MCP compatibility",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [
-        {
-          "decision": "This Matters",
-          "alternatives": [],
-          "rationale": []
-        }
-      ],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Test each MCP tool from Claude Code",
-        "Test each MCP tool from Cursor",
-        "Test each MCP tool from OpenCode (via plugin)",
-        "Test each MCP tool from VS Code (via MCP extension)",
-        "All MCP tools work in Claude Code",
-        "All MCP tools work in Cursor",
-        "All MCP tools work in OpenCode",
-        "All MCP tools work in VS Code",
-        "Error responses are consistent across environments",
-        "No environment-specific bugs",
-        "Concurrent access is handled safely"
-      ],
-      "references": [
-        "MCP Spec: https://spec.modelcontextprotocol.io/",
-        "Spec: plans/specs/universal-quality-workflow.md (Environment Feature Matrix)"
-      ],
-      "description": "Verify that the MCP server works correctly across all supported environments (Claude Code, Cursor, OpenCode, VS Code).\n\n## Why This Matters\n\nThe MCP server is the **universal enforcement layer** - it must behave identically regardless of which AI coding tool is calling it. This test ensures no environment-specific bugs exist.\n\n## Test Matrix\n\n| MCP Tool | Claude Code | Cursor | OpenCode | VS Code |\n|----------|-------------|--------|----------|---------|\n| start_ticket_work | \u2713 | \u2713 | \u2713 | \u2713 |\n| complete_ticket_work | \u2713 | \u2713 | \u2713 | \u2713 |\n| submit_review_finding | \u2713 | \u2713 | \u2713 | \u2713 |\n| mark_finding_fixed | \u2713 | \u2713 | \u2713 | \u2713 |\n| generate_demo_script | \u2713 | \u2713 | \u2713 | \u2713 |\n| submit_demo_feedback | \u2713 | \u2713 | \u2713 | \u2713 |\n| start_telemetry_session | \u2713 | \u2713 | \u2713 | \u2713 |\n| log_tool_event | \u2713 | \u2713 | \u2713 | \u2713 |\n| end_telemetry_session | \u2713 | \u2713 | \u2713 | \u2713 |\n\n## Test Scenarios\n\n### Scenario 1: MCP Transport Compatibility\n```\n1. Call MCP tool via stdio (Claude Code, OpenCode)\n   \u2713 Tool executes successfully\n   \u2713 Response format is correct\n\n2. Call same MCP tool via HTTP/SSE (if applicable)\n   \u2713 Tool executes successfully\n   \u2713 Response format matches stdio\n```\n\n### Scenario 2: Environment Variable Handling\n```\nDifferent environments set different env vars:\n- Claude Code: CLAUDE_PROJECT_DIR\n- Cursor: CURSOR_PROJECT_DIR\n- OpenCode: (via plugin context)\n- VS Code: workspaceFolder variable\n\n\u2713 MCP tools handle missing/different env vars gracefully\n\u2713 Project path detection works in all environments\n```\n\n### Scenario 3: Concurrent Access\n```\n1. Start Claude Code session on ticket\n2. Simultaneously access same ticket from VS Code\n   \u2713 Both see consistent workflow state\n   \u2713 No race conditions on status updates\n   \u2713 Database properly handles concurrent writes\n```\n\n### Scenario 4: Error Response Format\n```\nFor each environment, verify error responses:\n\u2713 Use isError: true flag\n\u2713 Include helpful error message\n\u2713 Suggest correct next action\n\u2713 Format is parseable by AI\n```\n\n## Test Implementation\n\n### MCP Protocol Tests\n```javascript\n// mcp-server/__tests__/protocol.test.js\ndescribe('MCP Protocol Compatibility', () => {\n  it('handles JSON-RPC request format', async () => {\n    const request = {\n      jsonrpc: '2.0',\n      id: 1,\n      method: 'tools/call',\n      params: { name: 'start_ticket_work', arguments: { ticketId: 'test' } }\n    };\n    const response = await handleRequest(request);\n    expect(response.jsonrpc).toBe('2.0');\n    expect(response.id).toBe(1);\n  });\n});\n```\n\n### Manual Testing Checklist\n- [ ] Test each MCP tool from Claude Code\n- [ ] Test each MCP tool from Cursor\n- [ ] Test each MCP tool from OpenCode (via plugin)\n- [ ] Test each MCP tool from VS Code (via MCP extension)\n\n## Acceptance Criteria\n- [ ] All MCP tools work in Claude Code\n- [ ] All MCP tools work in Cursor\n- [ ] All MCP tools work in OpenCode\n- [ ] All MCP tools work in VS Code\n- [ ] Error responses are consistent across environments\n- [ ] No environment-specific bugs\n- [ ] Concurrent access is handled safely\n\n## References\n- MCP Spec: https://spec.modelcontextprotocol.io/\n- Spec: plans/specs/universal-quality-workflow.md (Environment Feature Matrix)",
-      "priority": "medium",
-      "tags": [
-        "testing",
-        "mcp",
-        "cross-environment",
-        "compatibility"
+        "epic",
+        "git",
+        "pr-workflow",
+        "critical"
       ]
     }
   ],
@@ -737,7 +738,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-25T00:48:34.319Z",
-  "epicTitle": "Universal Quality Workflow",
-  "epicDescription": "Implement Dillon Mulroy's \"Next-Task\" and \"Tracer Review\" workflows across all AI coding environments (Claude Code, Cursor, OpenCode, VS Code). This epic covers the full workflow from ticket selection through human demo approval, with telemetry capture for observability.\n\nSpec: plans/specs/universal-quality-workflow.md\n\nKey deliverables:\n- Database schema for workflow state, review findings, demo scripts\n- MCP tools for workflow transitions and telemetry\n- Environment-specific hooks/plugins (Claude Code, Cursor, OpenCode)\n- Human review UI with demo approval flow\n- Multi-environment install/uninstall scripts"
+  "generatedAt": "2026-01-25T08:20:20.149Z",
+  "epicTitle": "Universal Quality Workflow - Phase 2: Activation & Integration",
+  "epicDescription": "## Overview\n\nPhase 1 implemented the infrastructure (MCP tools, database tables, hooks, UI components). Phase 2 activates the workflow by:\n\n1. Installing and configuring telemetry hooks properly\n2. Making Ralph use the workflow it implements\n3. Enforcing PR workflow (branch + PR before merge to main)\n4. Verifying end-to-end data capture\n\n**CRITICAL: All Phase 2 tickets must be worked on in a single branch/PR.**\n- Use `start_epic_work` to create epic branch: `feature/epic-{epic-id}-{slug}`\n- All tickets in this epic will use the same branch\n- Single PR for the entire epic\n\n## Reference Spec\n`plans/specs/universal-quality-workflow.md` (3,387 lines)\n\n## Gap Analysis Evidence\n- Telemetry sessions: 0\n- Telemetry events: 0\n- Review findings: 0\n- Demo scripts: 0\n\nAll infrastructure exists but was never activated during Phase 1."
 }

@@ -341,6 +341,7 @@ export function useSampleData(onDeleted?: () => void): UseSampleDataReturn {
           setHasSampleData(true);
         }
       } catch (error) {
+        // Note: Components using this hook should show user-facing error notifications
         console.error("Failed to check/create sample data:", error);
       }
     };
@@ -359,6 +360,7 @@ export function useSampleData(onDeleted?: () => void): UseSampleDataReturn {
       onDeleted?.();
     },
     onError: (error) => {
+      // Note: Components using this hook should show user-facing error notifications
       console.error("Failed to delete sample data:", error);
     },
   });
@@ -574,6 +576,7 @@ export function useCreateTicket() {
       return { previousTicketQueries };
     },
     onError: (err, newTicket, context) => {
+      // Note: Components using this hook should show user-facing error notifications
       // Log error with context for debugging
       console.error("Failed to create ticket:", {
         error: err,
@@ -662,6 +665,7 @@ export function useUpdateTicket() {
       return { previousTicketQueries };
     },
     onError: (err, variables, context) => {
+      // Note: Components using this hook should show user-facing error notifications
       // Log error with context for debugging
       console.error("Failed to update ticket:", {
         error: err,
@@ -806,6 +810,7 @@ export function useCreateEpic() {
       return { previousProjects };
     },
     onError: (err, newEpic, context) => {
+      // Note: Components using this hook should show user-facing error notifications
       // Log error with context for debugging
       console.error("Failed to create epic:", {
         error: err,
@@ -864,6 +869,7 @@ export function useUpdateEpic() {
       return { previousProjects };
     },
     onError: (err, variables, context) => {
+      // Note: Components using this hook should show user-facing error notifications
       // Log error with context for debugging
       console.error("Failed to update epic:", {
         error: err,
@@ -913,6 +919,7 @@ export function useDeleteEpic() {
       return { previousProjects };
     },
     onError: (err, variables, context) => {
+      // Note: Components using this hook should show user-facing error notifications
       // Log error with context for debugging
       console.error("Failed to delete epic:", {
         error: err,
@@ -1084,6 +1091,7 @@ export function useSearch(projectId?: string | null) {
         });
         setResults(data);
       } catch (err) {
+        // Note: Components using this hook should show user-facing error notifications
         console.error("Search failed:", err);
         setResults([]);
         setSearchError(err instanceof Error ? err.message : "Search failed");
@@ -1231,6 +1239,7 @@ export function useUpdateSettings() {
       return { previousSettings };
     },
     onError: (err, newSettings, context) => {
+      // Note: Components using this hook should show user-facing error notifications
       // Log error with context for debugging
       console.error("Failed to update settings:", {
         error: err,
@@ -2407,6 +2416,7 @@ export function useWorkflowState(
       notFound = true;
     } else if (result.status === "error") {
       error = result.message;
+      // Note: Components using this hook should show user-facing error notifications
       console.error(
         `[workflow-hooks] Workflow state fetch failed for ticket ${ticketId}: ${result.message}`
       );

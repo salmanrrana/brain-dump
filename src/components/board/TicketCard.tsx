@@ -33,12 +33,12 @@ function parseTagsSafely(tagsJson: string | null): string[] {
   try {
     const parsed = JSON.parse(tagsJson);
     if (!Array.isArray(parsed)) {
-      console.warn("Ticket tags is not an array, falling back to empty array");
+      // Invalid format - silently fall back to empty array
       return [];
     }
     return parsed.filter((tag): tag is string => typeof tag === "string");
   } catch {
-    console.warn("Failed to parse ticket tags JSON, falling back to empty array");
+    // Invalid JSON - silently fall back to empty array
     return [];
   }
 }
