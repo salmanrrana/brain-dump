@@ -143,18 +143,26 @@ export const getWorkflowDisplayState = createServerFn({ method: "GET" })
       // Determine current phase based on ticket status and workflow state
       let currentPhase: WorkflowPhase = "started";
 
-      if (ticket.status === "done") {
-        currentPhase = "done";
-      } else if (ticket.status === "human_review") {
-        currentPhase = "human_review";
-      } else if (ticket.status === "ai_review") {
-        currentPhase = "ai_review";
-      } else if (ticket.status === "in_progress") {
-        // Check if any code work has been done (workflow state exists)
-        currentPhase = workflowState ? "implementation" : "started";
-      } else if (workflowState?.currentPhase) {
-        // Use stored phase if available, with safe parsing
-        currentPhase = parseWorkflowPhase(workflowState.currentPhase);
+      switch (ticket.status) {
+        case "done":
+          currentPhase = "done";
+          break;
+        case "human_review":
+          currentPhase = "human_review";
+          break;
+        case "ai_review":
+          currentPhase = "ai_review";
+          break;
+        case "in_progress":
+          // Check if any code work has been done (workflow state exists)
+          currentPhase = workflowState ? "implementation" : "started";
+          break;
+        default:
+          // Use stored phase if available, with safe parsing
+          if (workflowState?.currentPhase) {
+            currentPhase = parseWorkflowPhase(workflowState.currentPhase);
+          }
+          break;
       }
 
       return {
