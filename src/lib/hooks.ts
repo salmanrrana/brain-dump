@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState, useRef, useMemo, type RefObject } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getClaudeTasks, type ClaudeTask, type ClaudeTaskStatus } from "../api/claude-tasks";
-import { createLogger } from "./logger";
+import { createBrowserLogger } from "./browser-logger";
 
-// Logger for hook errors - writes to brain-dump.log and error.log
-const logger = createLogger("hooks");
+// Browser-safe logger for hook errors - outputs to console with source prefix
+// NOTE: Use browser-logger for client-side code, not logger.ts which uses Node.js APIs
+const logger = createBrowserLogger("hooks");
 
 // =============================================================================
 // STATE UTILITY HOOKS
