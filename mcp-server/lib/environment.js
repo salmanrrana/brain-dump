@@ -20,6 +20,9 @@ const CLAUDE_CODE_ENV_PATTERNS = [
   "ANTHROPIC_API_KEY", "MCP_SERVER_NAME", "CLAUDE_CODE_TERMINAL_ID",
 ];
 
+// Simple flag to indicate OpenCode is calling (set via MCP config)
+const OPENCODE_FLAG = "OPENCODE";
+
 /**
  * Known OpenCode environment variable patterns.
  * OpenCode uses the OPENCODE_* prefix for configuration via Viper.
@@ -57,8 +60,12 @@ function hasClaudeCodeEnvironment() {
 /**
  * Check if any OpenCode environment variables are present.
  * OpenCode uses the OPENCODE_* prefix for configuration.
+ * Also checks for explicit OPENCODE flag set via MCP config.
  */
 function hasOpenCodeEnvironment() {
+  // Check explicit flag (set via MCP config environment section)
+  if (process.env[OPENCODE_FLAG]) return true;
+  
   // Check known OpenCode environment variables
   for (const envVar of OPENCODE_ENV_PATTERNS) {
     if (process.env[envVar]) return true;
