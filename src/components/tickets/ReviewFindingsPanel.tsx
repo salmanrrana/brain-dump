@@ -11,6 +11,23 @@ export interface ReviewFindingsPanelProps {
 }
 
 /**
+ * Determines the panel styling based on finding severity and fix status.
+ *
+ * @param hasCritical - Whether there are any critical findings
+ * @param allFixed - Whether all findings have been fixed
+ * @returns CSS classes for panel background and border
+ */
+function getPanelClassName(hasCritical: boolean, allFixed: boolean): string {
+  if (hasCritical && !allFixed) {
+    return "bg-[var(--accent-danger)]/10 border-[var(--accent-danger)]/30";
+  }
+  if (allFixed) {
+    return "bg-[var(--success-muted)] border-[var(--success)]/30";
+  }
+  return "bg-[var(--warning-muted)] border-[var(--warning)]/30";
+}
+
+/**
  * ReviewFindingsPanel - Displays review findings summary by severity.
  *
  * Shows a breakdown of findings from code review agents:
@@ -67,15 +84,7 @@ export const ReviewFindingsPanel: React.FC<ReviewFindingsPanelProps> = ({
   const hasCritical = findingsSummary.critical > 0;
 
   return (
-    <div
-      className={`border rounded-lg p-4 ${
-        hasCritical && !allFixed
-          ? "bg-[var(--accent-danger)]/10 border-[var(--accent-danger)]/30"
-          : allFixed
-            ? "bg-[var(--success-muted)] border-[var(--success)]/30"
-            : "bg-[var(--warning-muted)] border-[var(--warning)]/30"
-      }`}
-    >
+    <div className={`border rounded-lg p-4 ${getPanelClassName(hasCritical, allFixed)}`}>
       <h4 className="text-sm font-medium text-[var(--text-primary)] mb-3">Review Findings</h4>
 
       <div className="space-y-2">
