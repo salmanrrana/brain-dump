@@ -55,10 +55,15 @@ export function buildEpicSection(epicInfo, usingEpicBranch) {
  * Build the warnings section from a list of warning messages.
  * @param {string[]} warnings - List of warning messages
  * @returns {string} Formatted warnings section or empty string
+ * @throws {Error} If warnings is not an array (prevents silent garbled output)
  */
 export function buildWarningsSection(warnings) {
   if (!warnings || warnings.length === 0) {
     return "";
+  }
+  // Guard against string being passed instead of array - would silently produce garbled output
+  if (!Array.isArray(warnings)) {
+    throw new Error(`buildWarningsSection: warnings must be an array, got ${typeof warnings}`);
   }
   return `\n### Warnings\n${warnings.map(w => `- ${w}`).join("\n")}\n`;
 }
