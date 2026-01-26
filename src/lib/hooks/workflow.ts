@@ -41,6 +41,7 @@ export interface DemoScript {
  * Input type for updateDemoStep mutation
  */
 export interface UpdateDemoStepInput {
+  ticketId: string;
   demoScriptId: string;
   stepOrder: number;
   status: "pending" | "passed" | "failed" | "skipped";
@@ -103,16 +104,67 @@ export function useDemoScript(
 
 /**
  * Hook for updating a single demo step's status.
- * Used when user marks a step as passed/failed/skipped.
+ * Uses TanStack Query optimistic updates for instant UI feedback.
+ *
+ * The optimistic update pattern:
+ * 1. onMutate: Cancel outgoing refetches, snapshot previous value, update cache optimistically
+ * 2. onError: Roll back to snapshot on failure
+ * 3. onSettled: Invalidate queries to ensure cache is in sync with server
  */
 export function useUpdateDemoStep() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: UpdateDemoStepInput) => updateDemoStep({ data }),
-    onSuccess: () => {
-      // Invalidate all demo scripts to ensure UI is up to date
-      queryClient.invalidateQueries({ queryKey: ["demoScript"] });
+    mutationFn: (data: UpdateDemoStepInput) => {
+      // Extract only the fields the API expects (excludes ticketId which is for cache key)
+      const { demoScriptId, stepOrder, status, notes } = data;
+      return updateDemoStep({ data: { demoScriptId, stepOrder, status, notes } });
+    },
+    onMutate: async (variables) => {
+      // Cancel any outgoing refetches to avoid overwriting our optimistic update
+      await queryClient.cancelQueries({ queryKey: queryKeys.demoScript(variables.ticketId) });
+
+      // Snapshot the previous value
+      const previousDemoScript = queryClient.getQueryData<DemoScript>(
+        queryKeys.demoScript(variables.ticketId)
+      );
+
+      // Optimistically update the cache
+      if (previousDemoScript) {
+        queryClient.setQueryData<DemoScript>(queryKeys.demoScript(variables.ticketId), (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            steps: old.steps.map(
+              (step): DemoStep =>
+                step.order === variables.stepOrder
+                  ? {
+                      ...step,
+                      status: variables.status,
+                      // Keep existing notes if new notes not provided
+                      ...(variables.notes !== undefined ? { notes: variables.notes } : {}),
+                    }
+                  : step
+            ),
+          };
+        });
+      }
+
+      // Return context with snapshot for rollback
+      return { previousDemoScript };
+    },
+    onError: (_err, variables, context) => {
+      // Roll back to the previous value on error
+      if (context?.previousDemoScript) {
+        queryClient.setQueryData(
+          queryKeys.demoScript(variables.ticketId),
+          context.previousDemoScript
+        );
+      }
+    },
+    onSettled: (_data, _err, variables) => {
+      // Always refetch after error or success to ensure cache is in sync
+      queryClient.invalidateQueries({ queryKey: queryKeys.demoScript(variables.ticketId) });
     },
   });
 }

@@ -19,64 +19,47 @@ export interface DemoPanelProps {
  * - Overall feedback textarea
  * - Approve & Complete / Request Changes buttons
  *
- * The panel automatically fetches the demo script for the ticket
- * and persists step status changes via mutations.
+ * The panel automatically fetches the demo script for the ticket.
+ * Step status changes use TanStack Query optimistic updates for instant UI feedback.
+ * Notes are stored locally until blur, then persisted to server.
  */
 export const DemoPanel: React.FC<DemoPanelProps> = ({ ticketId, onComplete }) => {
   const { showToast } = useToast();
 
-  // Fetch demo script
+  // Fetch demo script - this is the single source of truth for step statuses
   const { demoScript, loading, error, refetch } = useDemoScript(ticketId);
 
   // Mutations for updating steps and submitting feedback
+  // useUpdateDemoStep uses TanStack Query optimistic updates internally
   const updateStepMutation = useUpdateDemoStep();
   const submitFeedbackMutation = useSubmitDemoFeedback();
 
-  // Local state for step statuses and notes (optimistic UI)
-  const [localStepStatuses, setLocalStepStatuses] = useState<Record<number, DemoStepStatus>>({});
-  const [localStepNotes, setLocalStepNotes] = useState<Record<number, string>>({});
+  // Local state - only for things not persisted per-keystroke
   const [overallFeedback, setOverallFeedback] = useState("");
   const [expandedStep, setExpandedStep] = useState<number | null>(null);
+  // Pending notes are stored locally until blur to avoid excessive server calls
+  const [pendingNotes, setPendingNotes] = useState<Record<number, string>>({});
 
-  // Merge server state with local state for optimistic updates
-  // Note: useMemo removed - computation is cheap (O(n) where n ≈ 5-10 steps)
-  // and DemoStep children are not memoized, so referential stability doesn't help
-  const stepStatuses = (() => {
-    if (!demoScript?.steps) return {};
-    const serverStatuses: Record<number, DemoStepStatus> = {};
-    for (const step of demoScript.steps) {
-      serverStatuses[step.order] = (step.status as DemoStepStatus) || "pending";
-    }
-    return { ...serverStatuses, ...localStepStatuses };
-  })();
-
-  const stepNotes = (() => {
-    if (!demoScript?.steps) return {};
-    const serverNotes: Record<number, string> = {};
-    for (const step of demoScript.steps) {
-      serverNotes[step.order] = step.notes || "";
-    }
-    return { ...serverNotes, ...localStepNotes };
-  })();
-
-  // Calculate progress
+  // Calculate progress directly from cache (optimistic updates keep it current)
   const totalSteps = demoScript?.steps.length ?? 0;
-  const markedCount = Object.values(stepStatuses).filter((s) => s !== "pending").length;
+  const markedCount =
+    demoScript?.steps.filter((s) => s.status && s.status !== "pending").length ?? 0;
   const allStepsMarked = totalSteps > 0 && markedCount === totalSteps;
-  const hasFailedSteps = Object.values(stepStatuses).some((s) => s === "failed");
+  const hasFailedSteps = demoScript?.steps.some((s) => s.status === "failed") ?? false;
 
-  // Handle step status change
+  // Handle step status change - mutation handles optimistic update
   const handleStatusChange = useCallback(
     (stepOrder: number, newStatus: DemoStepStatus) => {
       if (!demoScript) return;
 
-      // Optimistic update
-      setLocalStepStatuses((prev) => ({ ...prev, [stepOrder]: newStatus }));
+      // Get current notes (pending or server)
+      const currentNotes =
+        pendingNotes[stepOrder] ?? demoScript.steps.find((s) => s.order === stepOrder)?.notes;
 
-      // Persist to server
-      const currentNotes = stepNotes[stepOrder];
+      // Mutation handles optimistic update via onMutate
       updateStepMutation.mutate(
         {
+          ticketId,
           demoScriptId: demoScript.id,
           stepOrder,
           status: newStatus,
@@ -84,22 +67,18 @@ export const DemoPanel: React.FC<DemoPanelProps> = ({ ticketId, onComplete }) =>
         },
         {
           onError: (err) => {
-            // Revert optimistic update on error
-            setLocalStepStatuses((prev) => {
-              const { [stepOrder]: _, ...rest } = prev;
-              return rest;
-            });
+            // Optimistic update already rolled back by mutation's onError
             showToast("error", `Failed to update step: ${err.message}`);
           },
         }
       );
     },
-    [demoScript, stepNotes, updateStepMutation, showToast]
+    [demoScript, ticketId, pendingNotes, updateStepMutation, showToast]
   );
 
-  // Handle step notes change
+  // Handle step notes change - store locally until blur
   const handleNotesChange = useCallback((stepOrder: number, notes: string) => {
-    setLocalStepNotes((prev) => ({ ...prev, [stepOrder]: notes }));
+    setPendingNotes((prev) => ({ ...prev, [stepOrder]: notes }));
   }, []);
 
   // Save notes when user finishes editing (blur)
@@ -107,31 +86,40 @@ export const DemoPanel: React.FC<DemoPanelProps> = ({ ticketId, onComplete }) =>
     (stepOrder: number) => {
       if (!demoScript) return;
 
-      const notes = localStepNotes[stepOrder];
+      const notes = pendingNotes[stepOrder];
       if (notes === undefined) return;
 
-      const input = {
-        demoScriptId: demoScript.id,
-        stepOrder,
-        status: (stepStatuses[stepOrder] || "pending") as
-          | "pending"
-          | "passed"
-          | "failed"
-          | "skipped",
-      };
-      updateStepMutation.mutate(notes ? { ...input, notes } : input, {
-        onError: (err) => {
-          showToast("error", `Failed to save notes: ${err.message}`);
+      const step = demoScript.steps.find((s) => s.order === stepOrder);
+      const currentStatus = (step?.status as DemoStepStatus) || "pending";
+
+      updateStepMutation.mutate(
+        {
+          ticketId,
+          demoScriptId: demoScript.id,
+          stepOrder,
+          status: currentStatus,
+          notes,
         },
-      });
+        {
+          onSuccess: () => {
+            // Clear pending notes after successful save
+            setPendingNotes((prev) => {
+              const { [stepOrder]: _, ...rest } = prev;
+              return rest;
+            });
+          },
+          onError: (err) => {
+            showToast("error", `Failed to save notes: ${err.message}`);
+          },
+        }
+      );
     },
-    [demoScript, localStepNotes, stepStatuses, updateStepMutation, showToast]
+    [demoScript, ticketId, pendingNotes, updateStepMutation, showToast]
   );
 
-  // Handle toggle expand - separates side effect from state update
+  // Handle toggle expand - save notes when collapsing
   const handleToggleExpand = useCallback(
     (stepOrder: number) => {
-      // Save notes when collapsing (before state update)
       if (expandedStep === stepOrder) {
         handleNotesSave(stepOrder);
       }
@@ -145,10 +133,12 @@ export const DemoPanel: React.FC<DemoPanelProps> = ({ ticketId, onComplete }) =>
     if (!demoScript) return [];
     return demoScript.steps.map((step) => ({
       order: step.order,
-      status: stepStatuses[step.order] || "pending",
-      ...(stepNotes[step.order] ? { notes: stepNotes[step.order] } : {}),
+      status: (step.status as DemoStepStatus) || "pending",
+      ...((pendingNotes[step.order] ?? step.notes)
+        ? { notes: pendingNotes[step.order] ?? step.notes }
+        : {}),
     }));
-  }, [demoScript, stepStatuses, stepNotes]);
+  }, [demoScript, pendingNotes]);
 
   // Handle approve
   const handleApprove = useCallback(() => {
@@ -317,8 +307,8 @@ export const DemoPanel: React.FC<DemoPanelProps> = ({ ticketId, onComplete }) =>
           <DemoStep
             key={step.order}
             step={step}
-            status={stepStatuses[step.order] || "pending"}
-            notes={stepNotes[step.order] || ""}
+            status={(step.status as DemoStepStatus) || "pending"}
+            notes={pendingNotes[step.order] ?? step.notes ?? ""}
             onStatusChange={(status) => handleStatusChange(step.order, status)}
             onNotesChange={(notes) => handleNotesChange(step.order, notes)}
             isExpanded={expandedStep === step.order}
