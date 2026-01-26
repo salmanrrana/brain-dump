@@ -1,6 +1,11 @@
 #!/bin/bash
 # Update MCP server configs to include environment flags for proper author attribution
 # This ensures OpenCode and Cursor get proper credit in ticket comments
+#
+# Detection relies on explicit environment flags set in MCP configs:
+# - OPENCODE=1 for OpenCode
+# - CURSOR=1 for Cursor
+# These flags are the primary and most reliable method for environment detection.
 
 set -e
 
