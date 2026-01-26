@@ -269,8 +269,10 @@ function TicketDetailPage() {
     if (ticketSubtasks) {
       try {
         parsed = JSON.parse(ticketSubtasks) as Subtask[];
-      } catch {
-        // Invalid JSON in subtasks field - use empty array
+      } catch (error) {
+        // Invalid JSON in subtasks field - log error and use empty array
+        console.error("Failed to parse ticket subtasks:", error);
+        showToast("error", "Failed to load subtasks. Please refresh the page.");
         parsed = [];
       }
     }
