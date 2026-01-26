@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { db } from "../lib/db";
+// NOTE: db is imported dynamically inside handlers to prevent bundling server code in client
 import { demoScripts, tickets } from "../lib/schema";
 import { eq } from "drizzle-orm";
 import type { DemoStep } from "../lib/schema";
@@ -28,6 +28,7 @@ function parseSteps(stepsJson: string | null, context: string): DemoStep[] {
 export const getDemoScript = createServerFn({ method: "GET" })
   .inputValidator(z.object({ ticketId: z.string() }))
   .handler(async ({ data: { ticketId } }: { data: { ticketId: string } }) => {
+    const { db } = await import("../lib/db");
     const script = db.select().from(demoScripts).where(eq(demoScripts.ticketId, ticketId)).get();
 
     if (!script) {
@@ -59,6 +60,7 @@ export const updateDemoStep = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data: input }) => {
+    const { db } = await import("../lib/db");
     const { demoScriptId, stepOrder, status, notes = "" } = input;
     const script = db.select().from(demoScripts).where(eq(demoScripts.id, demoScriptId)).get();
 
@@ -127,6 +129,7 @@ export const submitDemoFeedback = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data: input }) => {
+    const { db } = await import("../lib/db");
     const { ticketId, passed, feedback, stepResults } = input;
 
     // Find the demo script for this ticket

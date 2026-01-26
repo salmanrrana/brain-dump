@@ -2343,9 +2343,8 @@ import {
   type WorkflowDisplayState,
   type WorkflowDisplayResult,
 } from "../api/workflow";
-import { createLogger } from "../lib/logger";
-
-const workflowLogger = createLogger("workflow-hooks");
+// NOTE: Don't import file-based logger here - it uses Node.js APIs that don't work in browser
+// Use console for client-side logging instead
 
 /** Workflow state hook result - includes explicit error and notFound states */
 export interface UseWorkflowStateResult {
@@ -2408,7 +2407,9 @@ export function useWorkflowState(
       notFound = true;
     } else if (result.status === "error") {
       error = result.message;
-      workflowLogger.error(`Workflow state fetch failed for ticket ${ticketId}: ${result.message}`);
+      console.error(
+        `[workflow-hooks] Workflow state fetch failed for ticket ${ticketId}: ${result.message}`
+      );
     }
   }
 

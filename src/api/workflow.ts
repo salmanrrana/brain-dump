@@ -1,11 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { db } from "../lib/db";
+// NOTE: db and logger are imported dynamically inside handlers to prevent bundling server code in client
 import { ticketWorkflowState, reviewFindings, demoScripts, tickets } from "../lib/schema";
 import { eq, sql } from "drizzle-orm";
-import { createLogger } from "../lib/logger";
-
-const logger = createLogger("workflow-api");
 
 /** Valid workflow phases for display */
 const VALID_PHASES = ["started", "implementation", "ai_review", "human_review", "done"] as const;
@@ -82,6 +79,10 @@ export const getWorkflowDisplayState = createServerFn({ method: "GET" })
     return result.data;
   })
   .handler(async ({ data: ticketId }): Promise<WorkflowDisplayResult> => {
+    const { db } = await import("../lib/db");
+    const { createLogger } = await import("../lib/logger");
+    const logger = createLogger("workflow-api");
+
     try {
       // First check if ticket exists and get its status
       const ticket = db.select().from(tickets).where(eq(tickets.id, ticketId)).get();
