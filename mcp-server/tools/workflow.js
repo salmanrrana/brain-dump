@@ -618,68 +618,6 @@ function updatePrdForTicket(projectPath, ticketId) {
 }
 
 /**
- * Read and parse PRD file.
- * @param {string} projectPath
- * @returns {{ prd: object | null, error: string | null }}
- */
-function readPrd(projectPath) {
-  const prdPath = join(projectPath, "plans", "prd.json");
-
-  if (!existsSync(prdPath)) {
-    return { prd: null, error: "No PRD file found" };
-  }
-
-  try {
-    const prd = JSON.parse(readFileSync(prdPath, "utf-8"));
-    if (!prd.userStories || !Array.isArray(prd.userStories)) {
-      return { prd: null, error: "PRD has no userStories array" };
-    }
-    return { prd, error: null };
-  } catch (err) {
-    return { prd: null, error: `Failed to read PRD: ${err.message}` };
-  }
-}
-
-/**
- * Get the next strategic ticket to work on from the PRD.
- * @param {string} projectPath
- * @param {string} completedTicketId - The ticket that was just completed
- * @returns {{ nextTicket: object | null, reason: string }}
- */
-function _suggestNextTicket(projectPath, completedTicketId) {
-  const { prd, error } = readPrd(projectPath);
-  if (!prd) {
-    return { nextTicket: null, reason: error };
-  }
-
-  const incompleteStories = prd.userStories.filter(s => !s.passes && s.id !== completedTicketId);
-
-  if (incompleteStories.length === 0) {
-    return { nextTicket: null, reason: "All tickets complete! Sprint finished." };
-  }
-
-  // Prioritize by priority field (high > medium > low)
-  const priorityOrder = { high: 0, medium: 1, low: 2 };
-  incompleteStories.sort((a, b) => {
-    const aPriority = priorityOrder[a.priority] ?? 1;
-    const bPriority = priorityOrder[b.priority] ?? 1;
-    return aPriority - bPriority;
-  });
-
-  const next = incompleteStories[0];
-  const description = next.description || "";
-  return {
-    nextTicket: {
-      id: next.id,
-      title: next.title,
-      priority: next.priority,
-      description: description.length > 200 ? description.substring(0, 200) + "..." : description,
-    },
-    reason: `Next highest priority ticket (${next.priority || "medium"})`,
-  };
-}
-
-/**
  * Register workflow tools with the MCP server.
  * @param {import("@modelcontextprotocol/sdk/server/mcp.js").McpServer} server
  * @param {import("better-sqlite3").Database} db
