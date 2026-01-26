@@ -1,6 +1,7 @@
 import React from "react";
 import { AlertTriangle, AlertCircle, Info, Lightbulb, CheckCircle2, Loader2 } from "lucide-react";
 import type { WorkflowDisplayState } from "../../api/workflow";
+import { FindingRow } from "./FindingRow";
 
 export interface ReviewFindingsPanelProps {
   workflowState: WorkflowDisplayState | null;
@@ -137,21 +138,5 @@ export const ReviewFindingsPanel: React.FC<ReviewFindingsPanelProps> = ({
     </div>
   );
 };
-
-interface FindingRowProps {
-  icon: React.ReactNode;
-  label: string;
-  count: number;
-}
-
-function FindingRow({ icon, label, count }: FindingRowProps) {
-  return (
-    <div className="flex items-center gap-2">
-      {icon}
-      <span className="text-xs text-[var(--text-secondary)]">{label}:</span>
-      <span className="text-xs font-medium text-[var(--text-primary)]">{count}</span>
-    </div>
-  );
-}
 
 export default ReviewFindingsPanel;
