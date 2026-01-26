@@ -388,8 +388,9 @@ echo -e "\\033[1;33m📁 Project:\\033[0m ${safeProjectPath}"
 echo -e "\\033[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
 echo ""
 
-# Launch OpenCode with the context file
-opencode "$CONTEXT_FILE"
+# Launch OpenCode with the project path and initial prompt
+# OpenCode uses the user's default/last-used model preference
+opencode "${safeProjectPath}" --prompt "$(cat "$CONTEXT_FILE")"
 
 # Cleanup context file
 rm -f "$CONTEXT_FILE"

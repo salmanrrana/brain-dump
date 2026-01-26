@@ -10,7 +10,6 @@ export type TicketStatus =
   | "backlog"
   | "ready"
   | "in_progress"
-  | "review"
   | "ai_review"
   | "human_review"
   | "done";
@@ -288,7 +287,6 @@ export const updateTicketStatus = createServerFn({ method: "POST" })
       "backlog",
       "ready",
       "in_progress",
-      "review",
       "ai_review",
       "human_review",
       "done",

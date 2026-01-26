@@ -134,8 +134,9 @@ describe("KanbanBoard", () => {
     const loadingRegion = screen.getByRole("region", { name: /loading/i });
     // Check that we have a columns container
     expect(loadingRegion.children[0]).toBeInTheDocument();
-    // Check that we have 7 columns (children of the columns container)
-    expect(loadingRegion.children[0]?.children).toHaveLength(7);
+    // Check that we have 6 columns (children of the columns container)
+    // Columns: backlog, ready, in_progress, ai_review, human_review, done
+    expect(loadingRegion.children[0]?.children).toHaveLength(6);
   });
 
   it("renders error message when fetch fails", () => {

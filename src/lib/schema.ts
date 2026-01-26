@@ -537,3 +537,158 @@ export interface TaskSnapshotData {
   activeForm?: string;
   position: number;
 }
+
+// ============================================
+// Universal Quality Workflow Tables
+// ============================================
+
+// Ticket workflow state table - tracks ticket progress through workflow phases
+export const ticketWorkflowState = sqliteTable(
+  "ticket_workflow_state",
+  {
+    id: text("id").primaryKey(),
+    ticketId: text("ticket_id")
+      .notNull()
+      .unique()
+      .references(() => tickets.id, { onDelete: "cascade" }),
+    currentPhase: text("current_phase").notNull().default("implementation"), // 'implementation', 'ai_review', 'human_review', 'done'
+    reviewIteration: integer("review_iteration").default(0), // How many review iterations completed
+    findingsCount: integer("findings_count").default(0), // Total findings reported
+    findingsFixed: integer("findings_fixed").default(0), // Findings marked as fixed
+    demoGenerated: integer("demo_generated", { mode: "boolean" }).default(false), // Whether demo script exists
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    index("idx_ticket_workflow_state_ticket").on(table.ticketId),
+    index("idx_ticket_workflow_state_phase").on(table.currentPhase),
+  ]
+);
+
+export type TicketWorkflowState = typeof ticketWorkflowState.$inferSelect;
+export type NewTicketWorkflowState = typeof ticketWorkflowState.$inferInsert;
+
+// Epic workflow state table - tracks epic progress and learnings
+export const epicWorkflowState = sqliteTable(
+  "epic_workflow_state",
+  {
+    id: text("id").primaryKey(),
+    epicId: text("epic_id")
+      .notNull()
+      .unique()
+      .references(() => epics.id, { onDelete: "cascade" }),
+    ticketsTotal: integer("tickets_total").default(0), // Total tickets in epic
+    ticketsDone: integer("tickets_done").default(0), // Completed tickets
+    currentTicketId: text("current_ticket_id").references(() => tickets.id, {
+      onDelete: "set null",
+    }), // Currently being worked on
+    learnings: text("learnings"), // JSON array of learning objects
+    // Epic-level git branch tracking (for single PR per epic)
+    epicBranchName: text("epic_branch_name"), // e.g., "feature/epic-abc123-my-epic"
+    epicBranchCreatedAt: text("epic_branch_created_at"), // When branch was created
+    prNumber: integer("pr_number"), // GitHub PR number for the epic
+    prUrl: text("pr_url"), // Full PR URL
+    prStatus: text("pr_status").$type<"draft" | "open" | "merged" | "closed" | null>(), // PR status
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    index("idx_epic_workflow_state_epic").on(table.epicId),
+    index("idx_epic_workflow_state_current_ticket").on(table.currentTicketId),
+  ]
+);
+
+export type EpicWorkflowState = typeof epicWorkflowState.$inferSelect;
+export type NewEpicWorkflowState = typeof epicWorkflowState.$inferInsert;
+
+// Review findings table - stores findings from code review agents
+export const reviewFindings = sqliteTable(
+  "review_findings",
+  {
+    id: text("id").primaryKey(),
+    ticketId: text("ticket_id")
+      .notNull()
+      .references(() => tickets.id, { onDelete: "cascade" }),
+    iteration: integer("iteration").notNull(), // Which review iteration this finding is from
+    agent: text("agent").notNull(), // 'code-reviewer', 'silent-failure-hunter', 'code-simplifier'
+    severity: text("severity").notNull(), // 'critical', 'major', 'minor', 'suggestion'
+    category: text("category").notNull(), // Type of finding
+    description: text("description").notNull(), // What the issue is
+    filePath: text("file_path"), // Optional file path affected
+    lineNumber: integer("line_number"), // Optional line number
+    suggestedFix: text("suggested_fix"), // Optional fix suggestion
+    status: text("status").notNull().default("open"), // 'open', 'fixed', 'wont_fix', 'duplicate'
+    fixedAt: text("fixed_at"), // When marked as fixed
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    index("idx_review_findings_ticket").on(table.ticketId),
+    index("idx_review_findings_status").on(table.status),
+    index("idx_review_findings_severity").on(table.severity),
+    index("idx_review_findings_agent").on(table.agent),
+    index("idx_review_findings_iteration").on(table.ticketId, table.iteration),
+  ]
+);
+
+export type ReviewFinding = typeof reviewFindings.$inferSelect;
+export type NewReviewFinding = typeof reviewFindings.$inferInsert;
+
+// Demo scripts table - stores demo steps for human review
+export const demoScripts = sqliteTable(
+  "demo_scripts",
+  {
+    id: text("id").primaryKey(),
+    ticketId: text("ticket_id")
+      .notNull()
+      .unique()
+      .references(() => tickets.id, { onDelete: "cascade" }),
+    steps: text("steps").notNull(), // JSON array of demo step objects
+    generatedAt: text("generated_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    completedAt: text("completed_at"), // When human completed the demo
+    feedback: text("feedback"), // Human's feedback
+    passed: integer("passed", { mode: "boolean" }), // Whether human approved (true) or rejected (false)
+  },
+  (table) => [
+    index("idx_demo_scripts_ticket").on(table.ticketId),
+    index("idx_demo_scripts_generated").on(table.generatedAt),
+  ]
+);
+
+export type DemoScript = typeof demoScripts.$inferSelect;
+export type NewDemoScript = typeof demoScripts.$inferInsert;
+
+// Demo step interface for JSON storage
+export interface DemoStep {
+  order: number; // Step order
+  description: string; // What to do
+  expectedOutcome: string; // What should happen
+  type: "manual" | "visual" | "automated"; // How to verify
+  status?: "pending" | "passed" | "failed" | "skipped"; // Current status during review
+  notes?: string; // Reviewer's notes
+}
+
+// Learning interface for epic workflow
+export interface WorkflowLearning {
+  type: "pattern" | "anti-pattern" | "tool-usage" | "workflow"; // Type of learning
+  description: string; // What was learned
+  ticketId: string; // Which ticket this learning came from
+  ticketTitle?: string; // Title for context
+  suggestedUpdate?: {
+    file: string; // e.g., 'CLAUDE.md', 'AGENTS.md'
+    section: string; // Section to update
+    content: string; // Suggested content
+  };
+  appliedAt?: string; // When this learning was applied to docs
+}

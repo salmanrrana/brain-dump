@@ -1,4 +1,5 @@
 import { memo, useMemo } from "react";
+import { PlayCircle } from "lucide-react";
 import type { Ticket } from "../../lib/schema";
 import { GitInfo } from "./GitInfo";
 import { TicketTags } from "./TicketTags";
@@ -32,12 +33,12 @@ function parseTagsSafely(tagsJson: string | null): string[] {
   try {
     const parsed = JSON.parse(tagsJson);
     if (!Array.isArray(parsed)) {
-      console.warn("Ticket tags is not an array, falling back to empty array");
+      // Invalid format - silently fall back to empty array
       return [];
     }
     return parsed.filter((tag): tag is string => typeof tag === "string");
   } catch {
-    console.warn("Failed to parse ticket tags JSON, falling back to empty array");
+    // Invalid JSON - silently fall back to empty array
     return [];
   }
 }
@@ -84,6 +85,14 @@ export const TicketCard = memo(function TicketCard({
       <h3 className="line-clamp-2 text-sm font-medium leading-snug text-[var(--text-primary)]">
         {ticket.title}
       </h3>
+
+      {/* Demo Ready Badge - shown when ticket is in human_review status */}
+      {ticket.status === "human_review" && (
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-[var(--info-muted)] text-[var(--info)] text-xs font-medium w-fit">
+          <PlayCircle size={12} />
+          <span>Demo Ready</span>
+        </div>
+      )}
 
       <TicketTags tags={tags} />
 

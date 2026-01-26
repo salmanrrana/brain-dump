@@ -12,11 +12,10 @@ import { StatusPill, type TicketStatus } from "../navigation/StatusPill";
 const STATUS_SORT_ORDER: Record<string, number> = {
   in_progress: 0,
   ready: 1,
-  review: 2,
-  ai_review: 3,
-  human_review: 4,
-  backlog: 5,
-  done: 6,
+  ai_review: 2,
+  human_review: 3,
+  backlog: 4,
+  done: 5,
 };
 
 /** Sort order for ticket priorities - lower numbers appear first */
@@ -27,7 +26,6 @@ const VALID_STATUSES: readonly TicketStatus[] = [
   "backlog",
   "ready",
   "in_progress",
-  "review",
   "ai_review",
   "human_review",
   "done",

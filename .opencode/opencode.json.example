@@ -1,0 +1,24 @@
+{
+  "project": {
+    "name": "My Brain Dump Project",
+    "description": "An AI-assisted development project using Brain Dump"
+  },
+  "mcp": {
+    "servers": {
+      "brain-dump": {
+        "type": "local",
+        "command": "node",
+        "args": ["/path/to/brain-dump/mcp-server/index.js"],
+        "disabled": false
+      }
+    }
+  },
+  "plugins": {
+    "enabled": true,
+    "directory": ".opencode/plugins"
+  },
+  "skills": {
+    "enabled": true,
+    "directory": ".opencode/skills"
+  }
+}

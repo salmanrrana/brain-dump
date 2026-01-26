@@ -47,9 +47,11 @@ function Home() {
       const fromLabel = getStatusLabel(change.fromStatus);
       const toLabel = getStatusLabel(change.toStatus);
 
-      // Special message for auto-completion to review
-      if (change.toStatus === "review") {
-        showToast("success", `"${change.ticketTitle}" is ready for review!`);
+      // Special message for auto-completion to AI review
+      if (change.toStatus === "ai_review") {
+        showToast("success", `"${change.ticketTitle}" is ready for AI review!`);
+      } else if (change.toStatus === "human_review") {
+        showToast("success", `"${change.ticketTitle}" is ready for human review!`);
       } else if (change.toStatus === "done") {
         showToast("success", `"${change.ticketTitle}" has been completed!`);
       } else {

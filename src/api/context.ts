@@ -21,11 +21,7 @@ export const getTicketContext = createServerFn({ method: "GET" })
     }
 
     // Get related data - better-sqlite3 is synchronous so no parallelization needed
-    const project = db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, ticket.projectId))
-      .get();
+    const project = db.select().from(projects).where(eq(projects.id, ticket.projectId)).get();
 
     const epic = ticket.epicId
       ? db.select().from(epics).where(eq(epics.id, ticket.epicId)).get()
@@ -140,12 +136,16 @@ export const getTicketContext = createServerFn({ method: "GET" })
     contextParts.push("Before making changes, create a feature branch:");
     contextParts.push("```bash");
     contextParts.push("git fetch origin");
-    contextParts.push(`git checkout -b claude/${ticket.id}-${branchSlug} origin/dev  # or origin/main if no dev branch`);
+    contextParts.push(
+      `git checkout -b claude/${ticket.id}-${branchSlug} origin/dev  # or origin/main if no dev branch`
+    );
     contextParts.push("```");
     contextParts.push("");
     contextParts.push("Make commits with the format: `feat(" + ticket.id + "): <description>`");
     contextParts.push("");
-    contextParts.push("**IMPORTANT:** Never commit directly to main or dev. Always use feature branches.");
+    contextParts.push(
+      "**IMPORTANT:** Never commit directly to main or dev. Always use feature branches."
+    );
     contextParts.push("");
 
     // MCP integration instructions
@@ -155,16 +155,25 @@ export const getTicketContext = createServerFn({ method: "GET" })
     contextParts.push("2. Push your branch and create a PR:");
     contextParts.push("   ```bash");
     contextParts.push("   git push -u origin <branch-name>");
-    contextParts.push("   gh pr create --base dev --title \"feat(" + ticket.id + "): <description>\" --body \"<PR description>\"");
+    contextParts.push(
+      '   gh pr create --base dev --title "feat(' +
+        ticket.id +
+        '): <description>" --body "<PR description>"'
+    );
     contextParts.push("   ```");
     contextParts.push("3. Update the ticket status using the Brain Dump MCP server:");
-    contextParts.push(`   - Use \`update_ticket_status\` with ticketId: "${ticket.id}" and status: "review"`);
-    contextParts.push("   - Use \"done\" only after the PR is merged");
+    contextParts.push(
+      `   - Use \`complete_ticket_work\` with ticketId: "${ticket.id}" to move to ai_review`
+    );
+    contextParts.push("   - Ticket will move to human_review after demo script is generated");
+    contextParts.push('   - Use "done" only after human approval');
     contextParts.push("4. Add a work summary comment using `add_ticket_comment`:");
     contextParts.push(`   - ticketId: "${ticket.id}"`);
-    contextParts.push("   - author: \"claude\"");
-    contextParts.push("   - type: \"work_summary\"");
-    contextParts.push("   - content: Summary of changes made, files modified, PR link, and any notes");
+    contextParts.push('   - author: "claude"');
+    contextParts.push('   - type: "work_summary"');
+    contextParts.push(
+      "   - content: Summary of changes made, files modified, PR link, and any notes"
+    );
     contextParts.push("");
     contextParts.push("The MCP server is already configured - just call the tools directly.");
     contextParts.push("");

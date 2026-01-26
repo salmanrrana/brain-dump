@@ -865,7 +865,8 @@ setup_opencode() {
       "command": ["node", "mcp-server/index.js"],
       "enabled": true,
       "environment": {
-        "BRAIN_DUMP_PATH": "."
+        "BRAIN_DUMP_PATH": ".",
+        "OPENCODE": "1"
       }
     }
   },

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { randomUUID } from "crypto";
 import { log } from "../lib/logging.js";
 
-const STATUSES = ["backlog", "ready", "in_progress", "review", "ai_review", "human_review", "done"];
+const STATUSES = ["backlog", "ready", "in_progress", "ai_review", "human_review", "done"];
 const PRIORITIES = ["low", "medium", "high"];
 
 /** Valid attachment types for AI context */
@@ -108,7 +108,7 @@ Returns the created ticket with its generated ID.`,
 
 Args:
   projectId: Optional - filter by project
-  status: Optional - filter by status (backlog, ready, in_progress, review, ai_review, human_review, done)
+  status: Optional - filter by status (backlog, ready, in_progress, ai_review, human_review, done)
   limit: Optional - max tickets to return (default: 20)
 
 Returns array of tickets sorted by creation date (newest first).`,
@@ -149,8 +149,7 @@ Returns array of tickets sorted by creation date (newest first).`,
     "update_ticket_status",
     `Update a ticket's status.
 
-Status flow: backlog -> ready -> in_progress -> review -> done
-Alternate flow: in_progress -> ai_review -> human_review -> done
+Status flow: backlog -> ready -> in_progress -> ai_review -> human_review -> done
 
 Args:
   ticketId: The ticket ID to update
@@ -586,7 +585,7 @@ This is a convenience tool for searching tickets within an epic without having t
 Args:
   epicId: ID of the epic to search
   projectId: Optional - filter by project (if epic tickets span multiple projects)
-  status: Optional - filter by status (backlog, ready, in_progress, review, ai_review, human_review, done)
+  status: Optional - filter by status (backlog, ready, in_progress, ai_review, human_review, done)
   limit: Optional - max tickets to return (default: 100)
 
 Returns array of tickets in the epic, sorted by position.`,

@@ -48,6 +48,7 @@ import {
   useActiveRalphSessions,
 } from "../lib/hooks";
 import { RalphStatusBadge } from "./RalphStatusBadge";
+import { DemoPanel } from "./tickets/DemoPanel";
 import { TelemetryPanel } from "./TelemetryPanel";
 import { ClaudeTasks } from "./tickets/ClaudeTasks";
 import type { ServiceType } from "../lib/service-discovery";
@@ -324,7 +325,6 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
         const data = await getAttachments({ data: ticket.id });
         setAttachments(data);
       } catch (error) {
-        console.error("Failed to fetch attachments:", error);
         showToast(
           "error",
           `Failed to load attachments: ${error instanceof Error ? error.message : "Unknown error"}`
@@ -393,11 +393,9 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
         }
 
         if (failed.length > 0) {
-          console.error("Some file uploads failed:", failed);
           showToast("error", `Failed to upload ${failed.length} file(s): ${failed.join(", ")}`);
         }
       } catch (error) {
-        console.error("Failed to upload attachments:", error);
         showToast(
           "error",
           `Failed to upload attachments: ${error instanceof Error ? error.message : "Unknown error"}`
@@ -443,7 +441,6 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
         });
         setAttachments((prev) => prev.filter((a) => a.id !== attachment.id));
       } catch (error) {
-        console.error("Failed to delete attachment:", error);
         showToast(
           "error",
           `Failed to delete attachment: ${error instanceof Error ? error.message : "Unknown error"}`
@@ -514,7 +511,6 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
       }
       // Auto-hide is handled by useAutoClearState hook
     } catch (error) {
-      console.error("Failed to start work:", error);
       const message = error instanceof Error ? error.message : "An unexpected error occurred";
       showToast("error", `Failed to start work: ${message}`);
 
@@ -527,7 +523,6 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
           message: `Context copied! Run: cd "${contextResult.projectPath}" && claude`,
         });
       } catch (fallbackError) {
-        console.error("Failed to copy context to clipboard:", fallbackError);
         const errorMessage =
           fallbackError instanceof Error ? fallbackError.message : "Could not copy context";
         setStartWorkNotification({
@@ -585,7 +580,6 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
         }
         // Auto-hide is handled by useAutoClearState hook
       } catch (error) {
-        console.error("Failed to start Ralph:", error);
         const message = error instanceof Error ? error.message : "An unexpected error occurred";
         showToast("error", `Failed to launch Ralph: ${message}`);
         setStartWorkNotification({
@@ -661,7 +655,6 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
         });
       }
     } catch (error) {
-      console.error("Failed to start OpenCode:", error);
       const message = error instanceof Error ? error.message : "An unexpected error occurred";
       showToast("error", `Failed to launch OpenCode: ${message}`);
 
@@ -674,7 +667,6 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
           message: `Context copied! Run: cd "${contextResult.projectPath}" && opencode`,
         });
       } catch (fallbackError) {
-        console.error("Failed to copy context to clipboard:", fallbackError);
         setStartWorkNotification({
           type: "error",
           message: `Failed to start OpenCode: ${fallbackError instanceof Error ? fallbackError.message : "Could not copy context to clipboard"}`,
@@ -1545,6 +1537,9 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
               </div>
             </div>
           )}
+
+          {/* Demo Review Panel - Shows prominently when ticket is in human_review status */}
+          {currentStatus === "human_review" && <DemoPanel ticketId={ticket.id} />}
 
           {/* AI Telemetry */}
           <TelemetryPanel ticketId={ticket.id} />

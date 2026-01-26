@@ -16,7 +16,6 @@ export const STATUS_OPTIONS = [
   { value: "backlog", label: "Backlog" },
   { value: "ready", label: "Ready" },
   { value: "in_progress", label: "In Progress" },
-  { value: "review", label: "Review" },
   { value: "ai_review", label: "AI Review" },
   { value: "human_review", label: "Human Review" },
   { value: "done", label: "Done" },
@@ -30,7 +29,6 @@ export const COLUMN_STATUSES = [
   "backlog",
   "ready",
   "in_progress",
-  "review",
   "ai_review",
   "human_review",
   "done",
@@ -49,10 +47,9 @@ export const STATUS_ORDER: Record<string, number> = {
   backlog: 0,
   ready: 1,
   in_progress: 2,
-  review: 3,
-  ai_review: 4,
-  human_review: 5,
-  done: 6,
+  ai_review: 3,
+  human_review: 4,
+  done: 5,
 };
 
 // Priority ordering for sorting (lower = higher priority)
@@ -70,7 +67,6 @@ export function getStatusColor(status: string): string {
       return "text-green-400";
     case "in_progress":
       return "text-amber-400";
-    case "review":
     case "ai_review":
     case "human_review":
       return "text-purple-400";
@@ -139,7 +135,6 @@ export const STATUS_BADGE_CONFIG: Record<string, { label: string; className: str
   backlog: { label: "Backlog", className: "bg-slate-700 text-slate-300" },
   ready: { label: "Ready", className: "bg-blue-900/50 text-blue-300" },
   in_progress: { label: "In Progress", className: "bg-amber-900/50 text-amber-300" },
-  review: { label: "Review", className: "bg-purple-900/50 text-purple-300" },
   ai_review: { label: "AI Review", className: "bg-orange-900/50 text-orange-300" },
   human_review: { label: "Human Review", className: "bg-rose-900/50 text-rose-300" },
   done: { label: "Done", className: "bg-green-900/50 text-green-300" },

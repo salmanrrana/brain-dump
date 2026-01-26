@@ -20,10 +20,10 @@ describe("StatusPill", () => {
     });
 
     it("renders the status data attribute", () => {
-      render(<StatusPill status="review" />);
+      render(<StatusPill status="ai_review" />);
 
       const pill = screen.getByRole("status");
-      expect(pill).toHaveAttribute("data-status", "review");
+      expect(pill).toHaveAttribute("data-status", "ai_review");
     });
   });
 
@@ -32,7 +32,6 @@ describe("StatusPill", () => {
       { status: "backlog", label: "Backlog" },
       { status: "ready", label: "Ready" },
       { status: "in_progress", label: "In Progress" },
-      { status: "review", label: "Review" },
       { status: "ai_review", label: "AI Review" },
       { status: "human_review", label: "Human Review" },
       { status: "done", label: "Done" },

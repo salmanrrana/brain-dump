@@ -41,6 +41,8 @@ plans/archives/
 .idea/
 .vscode/*
 !.vscode/*.example
+!.vscode/mcp.json
+!.vscode/settings.json
 
 # Generated PR description (from pre-push hook)
 .pr-description.md

@@ -36,7 +36,6 @@ const STATUS_OPTIONS: { value: TicketStatus; label: string; color: string }[] = 
   { value: "backlog", label: "Backlog", color: "#6b7280" }, // gray
   { value: "ready", label: "Ready", color: "#3b82f6" }, // blue
   { value: "in_progress", label: "In Progress", color: "#eab308" }, // yellow
-  { value: "review", label: "Review", color: "#a855f7" }, // purple
   { value: "ai_review", label: "AI Review", color: "#06b6d4" }, // cyan
   { value: "human_review", label: "Human Review", color: "#ec4899" }, // pink
   { value: "done", label: "Done", color: "#22c55e" }, // green

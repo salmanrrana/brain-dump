@@ -194,6 +194,15 @@ if [ -f "$CLAUDE_SETTINGS" ]; then
         else
             echo -e "${GREEN}Hook paths already use global paths${NC}"
         fi
+
+        # Ensure telemetry hooks are configured (idempotent merge)
+        echo ""
+        echo -e "${YELLOW}Verifying telemetry hooks are configured...${NC}"
+        if [ -f "$SOURCE_HOOKS/merge-telemetry-hooks.sh" ]; then
+            bash "$SOURCE_HOOKS/merge-telemetry-hooks.sh"
+        else
+            echo -e "${YELLOW}Warning: merge-telemetry-hooks.sh not found. Telemetry hooks may not be configured.${NC}"
+        fi
     else
         echo -e "${YELLOW}No hooks section found. Please add hooks manually or backup and recreate.${NC}"
     fi
@@ -203,7 +212,29 @@ else
 {
   "\$schema": "https://json.schemastore.org/claude-code-settings.json",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/start-telemetry-session.sh"
+          },
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/check-pending-links.sh"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/log-tool-start.sh"
+          }
+        ]
+      },
       {
         "matcher": "Write",
         "hooks": [
@@ -224,6 +255,14 @@ else
       }
     ],
     "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/log-tool-end.sh"
+          }
+        ]
+      },
       {
         "matcher": "mcp__brain-dump__start_ticket_work",
         "hooks": [
@@ -297,12 +336,22 @@ else
         ]
       }
     ],
-    "SessionStart": [
+    "PostToolUseFailure": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "\$HOME/.claude/hooks/check-pending-links.sh"
+            "command": "\$HOME/.claude/hooks/log-tool-failure.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/log-prompt.sh"
           }
         ]
       }
@@ -310,6 +359,10 @@ else
     "Stop": [
       {
         "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/end-telemetry-session.sh"
+          },
           {
             "type": "command",
             "command": "\$HOME/.claude/hooks/check-for-code-changes.sh"
@@ -351,6 +404,11 @@ echo "    • /review - Run initial code review (3 agents)"
 echo "    • /extended-review - Run extended review (4 agents)"
 echo "    • /inception - Start new project"
 echo "    • /breakdown - Break down features"
+echo "    • /next-task - Pick up next ticket with precondition checking"
+echo "    • /review-ticket - Run AI review on current ticket"
+echo "    • /review-epic - Run comprehensive Tracer Review on epic"
+echo "    • /demo - Generate demo script for human review"
+echo "    • /reconcile-learnings - Extract and apply learnings"
 echo ""
 echo "  ${GREEN}Hooks (~/.claude/hooks/):${NC}"
 echo "    • Auto-review after code changes"
@@ -358,6 +416,7 @@ echo "    • State enforcement for Ralph workflow"
 echo "    • Commit linking to tickets"
 echo "    • Auto-PR creation on ticket start"
 echo "    • Claude task capture (auto-sync TodoWrite to Brain Dump)"
+echo "    • Telemetry capture (session tracking, tool usage, prompts)"
 echo ""
 echo "  ${GREEN}Skills (~/.claude/skills/):${NC}"
 echo "    • review-aggregation - Combine review findings"

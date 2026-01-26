@@ -135,6 +135,83 @@ export const ATTACHMENT_TYPE_CONFIG: Record<AttachmentType, AttachmentTypeConfig
 };
 
 /**
+ * File content type for attachment loading.
+ * - "image": Binary image data, loaded as base64 for AI vision
+ * - "text": Text content, embedded inline with code fence
+ * - "reference": Not loaded, just referenced by path
+ */
+export type FileContentType = "image" | "text" | "reference";
+
+/**
+ * File type configuration for a single extension.
+ */
+export interface FileTypeConfig {
+  /** MIME type for the extension */
+  mime: string;
+  /** How to load this file type */
+  type: FileContentType;
+  /** Code fence language for text files (empty string for plain text) */
+  fence?: string;
+}
+
+/**
+ * File extension to MIME type and content type mapping.
+ * Used for loading attachments and generating AI context.
+ */
+export const FILE_TYPES: Record<string, FileTypeConfig> = {
+  // Images - loaded as base64 for AI vision
+  jpg: { mime: "image/jpeg", type: "image" },
+  jpeg: { mime: "image/jpeg", type: "image" },
+  png: { mime: "image/png", type: "image" },
+  gif: { mime: "image/gif", type: "image" },
+  webp: { mime: "image/webp", type: "image" },
+  svg: { mime: "image/svg+xml", type: "image" },
+
+  // Text files - embedded inline with syntax highlighting
+  txt: { mime: "text/plain", type: "text", fence: "" },
+  md: { mime: "text/markdown", type: "text", fence: "markdown" },
+  json: { mime: "application/json", type: "text", fence: "json" },
+
+  // Reference files - not loaded, just referenced
+  pdf: { mime: "application/pdf", type: "reference" },
+};
+
+/**
+ * Allowed MIME types for upload validation (whitelist for security).
+ * Maps MIME type to allowed file extensions.
+ */
+export const ALLOWED_MIME_TYPES: Record<string, string[]> = {
+  "image/jpeg": ["jpg", "jpeg"],
+  "image/png": ["png"],
+  "image/gif": ["gif"],
+  "image/webp": ["webp"],
+  "image/svg+xml": ["svg"],
+  "application/pdf": ["pdf"],
+  "text/plain": ["txt"],
+  "text/markdown": ["md"],
+  "application/json": ["json"],
+};
+
+/**
+ * Extension to MIME type mapping.
+ */
+export const MIME_TYPES: Record<string, string> = Object.fromEntries(
+  Object.entries(FILE_TYPES).map(([ext, config]) => [ext, config.mime])
+);
+
+/**
+ * Image file extensions for quick lookup.
+ */
+export const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "gif", "webp", "svg"] as const;
+
+/**
+ * Check if a file extension is an image type.
+ */
+export function isImageExtension(ext: string): boolean {
+  return (IMAGE_EXTENSIONS as readonly string[]).includes(ext.toLowerCase());
+}
+
+/**
  * Check if a value is a valid attachment type.
  */
 export function isValidAttachmentType(type: unknown): type is AttachmentType {

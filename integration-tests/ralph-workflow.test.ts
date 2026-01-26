@@ -354,12 +354,16 @@ function simulateCompleteTicketWork(
     return { success: false, error: `Ticket not found: ${ticketId}` };
   }
 
-  if (ticket.status === "done" || ticket.status === "review") {
+  if (
+    ticket.status === "done" ||
+    ticket.status === "ai_review" ||
+    ticket.status === "human_review"
+  ) {
     return { success: true, nextTicket: null };
   }
 
-  // Update ticket status to review
-  db.prepare("UPDATE tickets SET status = 'review', updated_at = ? WHERE id = ?").run(
+  // Update ticket status to ai_review
+  db.prepare("UPDATE tickets SET status = 'ai_review', updated_at = ? WHERE id = ?").run(
     new Date().toISOString(),
     ticketId
   );
@@ -385,7 +389,7 @@ function simulateCompleteTicketWork(
   const incompleteTickets = db
     .prepare(
       `SELECT id, title, priority FROM tickets
-       WHERE project_id = ? AND status NOT IN ('done', 'review') AND id != ?
+       WHERE project_id = ? AND status NOT IN ('done', 'ai_review', 'human_review') AND id != ?
        ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 1 END`
     )
     .all(ticket.project_id, ticketId) as Array<{ id: string; title: string; priority: string }>;
@@ -504,11 +508,11 @@ describe("Ralph E2E Integration Tests", () => {
       );
       expect(completeResult.success).toBe(true);
 
-      // Step 6: Verify ticket moved to review
+      // Step 6: Verify ticket moved to ai_review
       const ticketAfterComplete = db
         .prepare("SELECT * FROM tickets WHERE id = ?")
         .get(ticketId) as TestTicket;
-      expect(ticketAfterComplete.status).toBe("review");
+      expect(ticketAfterComplete.status).toBe("ai_review");
 
       // Step 7: Verify work summary comment was posted
       const summaryComment = db
@@ -696,7 +700,7 @@ describe("Ralph E2E Integration Tests", () => {
       statusHistory.push(getTicketStatus(db, ticketId));
 
       // Verify status progression
-      expect(statusHistory).toEqual(["backlog", "in_progress", "review"]);
+      expect(statusHistory).toEqual(["backlog", "in_progress", "ai_review"]);
     });
   });
 
