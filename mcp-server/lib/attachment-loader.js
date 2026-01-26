@@ -59,7 +59,11 @@ export function normalizeAttachment(item, index) {
     };
   }
 
-  // Fallback for unexpected data
+  // Fallback for unexpected data - log warning to surface data corruption
+  log.warn(`Unexpected attachment data at index ${index}:`, {
+    type: typeof item,
+    value: item,
+  });
   return {
     id: `unknown-${index}`,
     filename: "unknown",

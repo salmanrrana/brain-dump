@@ -58,33 +58,43 @@ export function addComment(db, ticketId, content, author = null, type = "comment
  * @returns {{ comments: Array<{content: string, author: string, type: string, created_at: string}>, totalCount: number, truncated: boolean }}
  */
 export function fetchTicketComments(db, ticketId) {
-  // Get total count first
-  const countResult = db.prepare(`
-    SELECT COUNT(*) as count FROM ticket_comments WHERE ticket_id = ?
-  `).get(ticketId);
-  const totalCount = countResult?.count || 0;
+  try {
+    // Get total count first
+    const countResult = db.prepare(`
+      SELECT COUNT(*) as count FROM ticket_comments WHERE ticket_id = ?
+    `).get(ticketId);
+    const totalCount = countResult?.count || 0;
 
-  if (totalCount === 0) {
-    return { comments: [], totalCount: 0, truncated: false };
+    if (totalCount === 0) {
+      return { comments: [], totalCount: 0, truncated: false };
+    }
+
+    // Fetch most recent comments (ordered by created_at DESC, then reverse for chronological display)
+    const comments = db.prepare(`
+      SELECT content, author, type, created_at
+      FROM ticket_comments
+      WHERE ticket_id = ?
+      ORDER BY created_at DESC
+      LIMIT ?
+    `).all(ticketId, MAX_COMMENTS_IN_CONTEXT);
+
+    // Reverse to get chronological order (oldest first among the selected)
+    comments.reverse();
+
+    return {
+      comments,
+      totalCount,
+      truncated: totalCount > MAX_COMMENTS_IN_CONTEXT,
+    };
+  } catch (err) {
+    log.error(`Failed to fetch comments for ticket ${ticketId}:`, err);
+    return {
+      comments: [],
+      totalCount: 0,
+      truncated: false,
+      error: err.message,
+    };
   }
-
-  // Fetch most recent comments (ordered by created_at DESC, then reverse for chronological display)
-  const comments = db.prepare(`
-    SELECT content, author, type, created_at
-    FROM ticket_comments
-    WHERE ticket_id = ?
-    ORDER BY created_at DESC
-    LIMIT ?
-  `).all(ticketId, MAX_COMMENTS_IN_CONTEXT);
-
-  // Reverse to get chronological order (oldest first among the selected)
-  comments.reverse();
-
-  return {
-    comments,
-    totalCount,
-    truncated: totalCount > MAX_COMMENTS_IN_CONTEXT,
-  };
 }
 
 /**
