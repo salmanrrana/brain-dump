@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { PlayCircle, ThumbsUp, ThumbsDown, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { DemoStep, type DemoStepStatus } from "./DemoStep";
 import { useDemoScript, useUpdateDemoStep, useSubmitDemoFeedback } from "../../lib/hooks";
@@ -39,23 +39,25 @@ export const DemoPanel: React.FC<DemoPanelProps> = ({ ticketId, onComplete }) =>
   const [expandedStep, setExpandedStep] = useState<number | null>(null);
 
   // Merge server state with local state for optimistic updates
-  const stepStatuses = useMemo(() => {
+  // Note: useMemo removed - computation is cheap (O(n) where n ≈ 5-10 steps)
+  // and DemoStep children are not memoized, so referential stability doesn't help
+  const stepStatuses = (() => {
     if (!demoScript?.steps) return {};
     const serverStatuses: Record<number, DemoStepStatus> = {};
     for (const step of demoScript.steps) {
       serverStatuses[step.order] = (step.status as DemoStepStatus) || "pending";
     }
     return { ...serverStatuses, ...localStepStatuses };
-  }, [demoScript?.steps, localStepStatuses]);
+  })();
 
-  const stepNotes = useMemo(() => {
+  const stepNotes = (() => {
     if (!demoScript?.steps) return {};
     const serverNotes: Record<number, string> = {};
     for (const step of demoScript.steps) {
       serverNotes[step.order] = step.notes || "";
     }
     return { ...serverNotes, ...localStepNotes };
-  }, [demoScript?.steps, localStepNotes]);
+  })();
 
   // Calculate progress
   const totalSteps = demoScript?.steps.length ?? 0;
