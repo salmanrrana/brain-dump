@@ -15,6 +15,5 @@
   },
   "permission": {
     "*": "allow"
-  },
-  "model": "opencode/grok-code"
+  }
 }

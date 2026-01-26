@@ -11,7 +11,8 @@ const TERMINAL_CHECKS = {
   alacritty: "alacritty --version",
   kitty: "kitty --version",
   // macOS terminals (check for .app bundles)
-  "terminal.app": "test -d '/System/Applications/Utilities/Terminal.app' || test -d '/Applications/Utilities/Terminal.app'",
+  "terminal.app":
+    "test -d '/System/Applications/Utilities/Terminal.app' || test -d '/Applications/Utilities/Terminal.app'",
   iterm2: "test -d '/Applications/iTerm.app'",
   warp: "test -d '/Applications/Warp.app'",
   // Linux terminals
@@ -55,7 +56,11 @@ function isNotFoundError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   const err = error as Error & { code?: string };
   // ENOENT = command not found, exit code 1 = test -d failed or command returned error
-  return err.code === "ENOENT" || err.message?.includes("not found") || err.message?.includes("exit code 1");
+  return (
+    err.code === "ENOENT" ||
+    err.message?.includes("not found") ||
+    err.message?.includes("exit code 1")
+  );
 }
 
 // Detect available terminal emulator
@@ -87,7 +92,9 @@ export async function detectTerminal(): Promise<AllowedTerminal | null> {
   }
 
   if (unexpectedErrors.length > 0) {
-    logger.error(`Terminal detection completed with ${unexpectedErrors.length} unexpected error(s)`);
+    logger.error(
+      `Terminal detection completed with ${unexpectedErrors.length} unexpected error(s)`
+    );
   }
 
   return null;
@@ -183,13 +190,20 @@ export function buildTerminalCommand(
         // The script already cd's to the working directory, so we don't pass --working-directory.
         // Passing too many args through 'open --args' causes Ghostty to create multiple tabs.
         // See: https://github.com/ghostty-org/ghostty/discussions/4434
-        // Note: --title works with open --args on macOS
-        const macTitleArg = safeTitle ? ` --title="${safeTitle}"` : "";
-        return `open -n -a Ghostty --args${macTitleArg} -e "${safeScript}"`;
+        // Note: Removed --title to prevent double tab issue - window title is set by script content
+        return `open -n -a Ghostty --args -e "${safeScript}"`;
       }
-      return buildCommand("ghostty", titleArg, `--working-directory="${safePath}" -e "${safeScript}"`);
+      return buildCommand(
+        "ghostty",
+        titleArg,
+        `--working-directory="${safePath}" -e "${safeScript}"`
+      );
     case "alacritty":
-      return buildCommand("alacritty", titleArgSpace, `--working-directory "${safePath}" -e bash "${safeScript}"`);
+      return buildCommand(
+        "alacritty",
+        titleArgSpace,
+        `--working-directory "${safePath}" -e bash "${safeScript}"`
+      );
     case "kitty":
       return buildCommand("kitty", titleArgSpace, `--directory "${safePath}" bash "${safeScript}"`);
 
@@ -213,20 +227,48 @@ export function buildTerminalCommand(
 
     // Linux terminals
     case "gnome-terminal":
-      return buildCommand("gnome-terminal", titleArg, `--working-directory="${safePath}" -- "${safeScript}"`);
+      return buildCommand(
+        "gnome-terminal",
+        titleArg,
+        `--working-directory="${safePath}" -- "${safeScript}"`
+      );
     case "konsole":
       // Konsole uses -p tabtitle="Title" for setting the tab title
-      return buildCommand("konsole", safeTitle ? `-p tabtitle="${safeTitle}"` : undefined, `--workdir "${safePath}" -e "${safeScript}"`);
+      return buildCommand(
+        "konsole",
+        safeTitle ? `-p tabtitle="${safeTitle}"` : undefined,
+        `--workdir "${safePath}" -e "${safeScript}"`
+      );
     case "xfce4-terminal":
-      return buildCommand("xfce4-terminal", titleArg, `--working-directory="${safePath}" -e "${safeScript}"`);
+      return buildCommand(
+        "xfce4-terminal",
+        titleArg,
+        `--working-directory="${safePath}" -e "${safeScript}"`
+      );
     case "mate-terminal":
-      return buildCommand("mate-terminal", titleArg, `--working-directory="${safePath}" -e "${safeScript}"`);
+      return buildCommand(
+        "mate-terminal",
+        titleArg,
+        `--working-directory="${safePath}" -e "${safeScript}"`
+      );
     case "terminator":
-      return buildCommand("terminator", titleArg, `--working-directory="${safePath}" -e "${safeScript}"`);
+      return buildCommand(
+        "terminator",
+        titleArg,
+        `--working-directory="${safePath}" -e "${safeScript}"`
+      );
     case "tilix":
-      return buildCommand("tilix", titleArg, `--working-directory="${safePath}" -e "${safeScript}"`);
+      return buildCommand(
+        "tilix",
+        titleArg,
+        `--working-directory="${safePath}" -e "${safeScript}"`
+      );
     case "xterm":
-      return buildCommand("xterm", safeTitle ? `-title "${safeTitle}"` : undefined, `-e "${safeScript}"`);
+      return buildCommand(
+        "xterm",
+        safeTitle ? `-title "${safeTitle}"` : undefined,
+        `-e "${safeScript}"`
+      );
     case "x-terminal-emulator":
       // Generic x-terminal-emulator may or may not support --title
       return buildCommand("x-terminal-emulator", titleArgSpace, `-e "${safeScript}"`);
