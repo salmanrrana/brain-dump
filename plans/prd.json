@@ -9,60 +9,6 @@
   ],
   "userStories": [
     {
-      "id": "c17273b8-646a-415c-abf8-0ee48f4345b9",
-      "title": "Install telemetry hooks to ~/.claude/hooks/ and configure settings.json",
-      "passes": false,
-      "overview": "Telemetry hooks exist in the project (`.claude/hooks/`) but are NOT installed globally or configured in `~/.claude/settings.json`. This means no telemetry is captured.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "All 4 telemetry hooks copied to `~/.claude/hooks/`",
-        "`~/.claude/settings.json` has SessionStart, PreToolUse, PostToolUse, PostToolUseFailure, UserPromptSubmit, Stop hooks configured",
-        "Running `claude --print-hooks` shows telemetry hooks",
-        "Starting a new Claude session creates a telemetry session in database",
-        "Tool usage creates events in `telemetry_events` table"
-      ],
-      "references": [],
-      "description": "## Problem\nTelemetry hooks exist in the project (`.claude/hooks/`) but are NOT installed globally or configured in `~/.claude/settings.json`. This means no telemetry is captured.\n\n## Spec References\n- **Lines 2382-2399**: Claude Code Specific Integration checklist\n- **Lines 2384-2398**: Required hooks (SessionStart, PreToolUse, PostToolUse, PostToolUseFailure, UserPromptSubmit, Stop)\n- **Lines 229-385**: Detailed hook implementation specs\n\n## Current State\n```\n~/.claude/hooks/\n├── enforce-state-before-write.sh  ✅ (workflow)\n├── link-commit-to-ticket.sh       ✅ (workflow)\n└── [NO TELEMETRY HOOKS]           ❌\n```\n\n## Required Changes\n\n### 1. Copy telemetry hooks to global location\n```bash\ncp .claude/hooks/start-telemetry-session.sh ~/.claude/hooks/\ncp .claude/hooks/log-tool-telemetry.sh ~/.claude/hooks/\ncp .claude/hooks/log-prompt-telemetry.sh ~/.claude/hooks/\ncp .claude/hooks/end-telemetry-session.sh ~/.claude/hooks/\n```\n\n### 2. Update ~/.claude/settings.json with telemetry hooks\nAdd these hook configurations (spec lines 2384-2398):\n- `SessionStart` → `start-telemetry-session.sh`\n- `PreToolUse` → `log-tool-telemetry.sh` (tool start)\n- `PostToolUse` → `log-tool-telemetry.sh` (tool end)\n- `PostToolUseFailure` → `log-tool-telemetry.sh` (tool failure)\n- `UserPromptSubmit` → `log-prompt-telemetry.sh`\n- `Stop` → `end-telemetry-session.sh`\n\n### 3. Update scripts/setup-claude-code.sh\nModify the setup script to install telemetry hooks alongside workflow hooks.\n\n## Acceptance Criteria\n- [ ] All 4 telemetry hooks copied to `~/.claude/hooks/`\n- [ ] `~/.claude/settings.json` has SessionStart, PreToolUse, PostToolUse, PostToolUseFailure, UserPromptSubmit, Stop hooks configured\n- [ ] Running `claude --print-hooks` shows telemetry hooks\n- [ ] Starting a new Claude session creates a telemetry session in database\n- [ ] Tool usage creates events in `telemetry_events` table",
-      "priority": "high",
-      "tags": [
-        "telemetry",
-        "hooks",
-        "claude-code",
-        "critical"
-      ]
-    },
-    {
-      "id": "da371598-350c-44cb-b92c-4688f981e362",
-      "title": "Make MCP workflow tools create mandatory ticket comments",
-      "passes": false,
-      "overview": "The spec mandates that every workflow phase creates a ticket comment for audit trail. Currently, MCP tools don't create comments.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`start_ticket_work` creates \"Started work\" progress comment",
-        "`complete_ticket_work` creates work_summary comment",
-        "`submit_review_finding` creates progress comment with finding summary",
-        "`mark_finding_fixed` creates progress comment",
-        "`generate_demo_script` creates progress comment",
-        "`submit_demo_feedback` creates comment with user feedback",
-        "All comments have correct author (claude, ralph:claude, user)"
-      ],
-      "references": [
-        "mcp-server/tools/workflow.js",
-        "mcp-server/tools/workflow-v2.js"
-      ],
-      "description": "## Problem\nThe spec mandates that every workflow phase creates a ticket comment for audit trail. Currently, MCP tools don't create comments.\n\n## Spec References\n- **Lines 91-127**: Comments & Documentation (MANDATORY) - full table of required comments\n- **Lines 2309-2319**: Comments & Documentation checklist\n- **Lines 1601-1633**: `documentAction` helper implementation pattern\n\n## Required Comment Creation\n\n| MCP Tool | Comment Type | Content (from spec line 93-109) |\n|----------|-------------|--------------------------------|\n| `start_ticket_work` | `progress` | \"Started work on ticket. Branch: {branch}\" |\n| `complete_ticket_work` | `work_summary` | Full summary of changes made |\n| `submit_review_finding` | `progress` | \"Review found {n} issues: {P0}×P0, {P1}×P1...\" |\n| `mark_finding_fixed` | `progress` | \"Fixed: {summary} [{priority}]\" |\n| `generate_demo_script` | `progress` | \"Demo script generated with {n} steps\" |\n| `submit_demo_feedback` | `comment` | User's feedback from demo |\n| `reconcile_learnings` | `progress` | \"Updated: CLAUDE.md, {n} specs, {n} tickets\" |\n\n## Implementation Pattern (spec lines 1601-1633)\n```javascript\nasync function documentAction(ticketId, { commentType, commentContent, author }) {\n  await addTicketComment(db, {\n    ticketId,\n    content: commentContent,\n    author,\n    type: commentType,\n  });\n}\n```\n\n## Files to Modify\n- `mcp-server/tools/workflow.js` - Add comment creation to each tool\n- `mcp-server/tools/workflow-v2.js` - If separate file exists\n\n## Acceptance Criteria\n- [ ] `start_ticket_work` creates \"Started work\" progress comment\n- [ ] `complete_ticket_work` creates work_summary comment\n- [ ] `submit_review_finding` creates progress comment with finding summary\n- [ ] `mark_finding_fixed` creates progress comment\n- [ ] `generate_demo_script` creates progress comment\n- [ ] `submit_demo_feedback` creates comment with user feedback\n- [ ] All comments have correct author (claude, ralph:claude, user)",
-      "priority": "high",
-      "tags": [
-        "mcp",
-        "comments",
-        "audit-trail"
-      ]
-    },
-    {
       "id": "bc92b026-b826-4f9b-8cc1-9541f395b90e",
       "title": "Update Ralph script to enforce full workflow: ai_review → human_review → done",
       "passes": false,
@@ -299,31 +245,6 @@
       ]
     },
     {
-      "id": "f1a63837-c3a4-447c-8b47-807cd4d53e9f",
-      "title": "Update install.sh to include telemetry hooks installation",
-      "passes": false,
-      "overview": "The current `scripts/install.sh` and `scripts/setup-claude-code.sh` install workflow enforcement hooks but NOT telemetry capture hooks.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Running `./scripts/install.sh` installs telemetry hooks",
-        "`~/.claude/hooks/` contains all 4 telemetry scripts",
-        "`~/.claude/settings.json` has telemetry hook configurations",
-        "`claude --print-hooks` shows telemetry hooks",
-        "Installation is idempotent (can run multiple times safely)"
-      ],
-      "references": [],
-      "description": "## Problem\nThe current `scripts/install.sh` and `scripts/setup-claude-code.sh` install workflow enforcement hooks but NOT telemetry capture hooks.\n\n## Spec References\n- **Lines 2368-2380**: Installation & Multi-Environment checklist\n- **Lines 2382-2399**: Claude Code Specific Integration\n- **Lines 2384-2398**: Required telemetry hooks list\n\n## Current install.sh Behavior\n```\n✓ Installs workflow enforcement hooks\n✓ Installs skills\n✗ Does NOT install telemetry hooks\n```\n\n## Required Changes\n\n### 1. Copy telemetry hook scripts\n```bash\n# In install_claude_code()\ncp \"$BRAIN_DUMP_DIR/.claude/hooks/start-telemetry-session.sh\" \"$HOME/.claude/hooks/\"\ncp \"$BRAIN_DUMP_DIR/.claude/hooks/log-tool-telemetry.sh\" \"$HOME/.claude/hooks/\"\ncp \"$BRAIN_DUMP_DIR/.claude/hooks/log-prompt-telemetry.sh\" \"$HOME/.claude/hooks/\"\ncp \"$BRAIN_DUMP_DIR/.claude/hooks/end-telemetry-session.sh\" \"$HOME/.claude/hooks/\"\nchmod +x \"$HOME/.claude/hooks/\"*.sh\n```\n\n### 2. Update settings.json merger\nThe existing `merge-telemetry-hooks.sh` should be called, or its logic integrated:\n- Add `SessionStart` hook configuration\n- Add `PreToolUse` hook for all tools (telemetry logging)\n- Add `PostToolUse` hook for all tools\n- Add `PostToolUseFailure` hook\n- Add `UserPromptSubmit` hook\n- Add `Stop` hook\n\n### 3. Verify installation\nAfter installation, verify:\n```bash\nclaude --print-hooks | grep telemetry\n```\n\n## Files to Modify\n- `scripts/install.sh` - Add telemetry hook installation\n- `scripts/setup-claude-code.sh` - Add telemetry hook configuration\n- `.claude/hooks/merge-telemetry-hooks.sh` - Ensure it works correctly\n\n## Acceptance Criteria\n- [ ] Running `./scripts/install.sh` installs telemetry hooks\n- [ ] `~/.claude/hooks/` contains all 4 telemetry scripts\n- [ ] `~/.claude/settings.json` has telemetry hook configurations\n- [ ] `claude --print-hooks` shows telemetry hooks\n- [ ] Installation is idempotent (can run multiple times safely)",
-      "priority": "high",
-      "tags": [
-        "install",
-        "telemetry",
-        "hooks",
-        "critical"
-      ]
-    },
-    {
       "id": "ad9a319d-dadf-464b-9093-7b3749b50152",
       "title": "Fix status migration: Convert remaining 'review' tickets to new statuses",
       "passes": false,
@@ -348,157 +269,6 @@
         "migration",
         "status",
         "critical"
-      ]
-    },
-    {
-      "id": "45767992-b62d-43ad-ad0b-58072a819855",
-      "title": "Create workflow skills (/next-task, /review-ticket, /review-epic, /demo, /reconcile-learnings)",
-      "passes": false,
-      "overview": "The spec requires 5 workflow skills to be created and installed, but Phase 2 has no tickets for this.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "All 5 skills created in `.claude/commands/`",
-        "Skills follow spec implementation guide format",
-        "Install script copies skills to `~/.claude/commands/`",
-        "Skills are accessible via `/command-name` in Claude Code",
-        "Skills work correctly when invoked"
-      ],
-      "references": [],
-      "description": "## Problem\nThe spec requires 5 workflow skills to be created and installed, but Phase 2 has no tickets for this.\n\n## Spec References\n- **Lines 2360-2366**: Skills checklist\n- **Lines 2192-2225**: `/next-task` skill implementation guide\n- **Lines 2227-2291**: `/review-ticket` skill implementation guide\n\n## Required Skills\n\n### 1. `/next-task` skill\n**Location**: `.claude/commands/next-task.md`\n**Purpose**: Pick up the next task with precondition checking\n**Content**: See spec lines 2192-2225\n\n### 2. `/review-ticket` skill\n**Location**: `.claude/commands/review-ticket.md`\n**Purpose**: Run full review workflow on a ticket\n**Content**: See spec lines 2227-2291\n\n### 3. `/review-epic` skill\n**Location**: `.claude/commands/review-epic.md`\n**Purpose**: Run Tracer Review on an entire epic\n**Content**: Similar to review-ticket but for epic-level review\n\n### 4. `/demo` skill\n**Location**: `.claude/commands/demo.md`\n**Purpose**: Generate demo script after AI review passes\n**Content**: Guide for demo generation workflow\n\n### 5. `/reconcile-learnings` skill\n**Location**: `.claude/commands/reconcile-learnings.md`\n**Purpose**: Extract and apply learnings to project docs\n**Content**: Guide for updating CLAUDE.md and specs\n\n## Installation Requirements\n\nSkills should be:\n1. Created in `.claude/commands/` (project-level)\n2. Copied to `~/.claude/commands/` (global) by install script\n3. Available in all Claude Code sessions\n\n## Files to Create\n- `.claude/commands/next-task.md`\n- `.claude/commands/review-ticket.md`\n- `.claude/commands/review-epic.md`\n- `.claude/commands/demo.md`\n- `.claude/commands/reconcile-learnings.md`\n\n## Files to Modify\n- `scripts/install.sh` - Add `install_skills()` function to copy skills globally\n- `scripts/setup-claude-code.sh` - Ensure skills are installed\n\n## Acceptance Criteria\n- [ ] All 5 skills created in `.claude/commands/`\n- [ ] Skills follow spec implementation guide format\n- [ ] Install script copies skills to `~/.claude/commands/`\n- [ ] Skills are accessible via `/command-name` in Claude Code\n- [ ] Skills work correctly when invoked",
-      "priority": "high",
-      "tags": [
-        "skills",
-        "claude-code",
-        "workflow"
-      ]
-    },
-    {
-      "id": "5ded08ee-39e5-4c8c-970a-dbcd0b2061e6",
-      "title": "OpenCode integration: Plugin, AGENTS.md, skills, and install script support",
-      "passes": false,
-      "overview": "OpenCode integration is completely missing from Phase 2. The spec requires a full OpenCode plugin, AGENTS.md template, skills, and install script integration.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Plugin created with all required event handlers",
-        "Plugin installed to global OpenCode plugins directory",
-        "AGENTS.md template created",
-        "Skill created in `.opencode/skills/`",
-        "Install script detects OpenCode and installs plugin",
-        "Install script creates AGENTS.md if not exists",
-        "Plugin tested with `opencode mcp debug brain-dump`",
-        "Documentation references OpenCode plugin docs",
-        "Telemetry captured correctly via plugin events"
-      ],
-      "references": [],
-      "description": "## Problem\nOpenCode integration is completely missing from Phase 2. The spec requires a full OpenCode plugin, AGENTS.md template, skills, and install script integration.\n\n## Spec References\n- **Lines 2401-2415**: OpenCode Specific Integration checklist\n- **Lines 386-563**: OpenCode Telemetry (Plugins + MCP) implementation details\n- **Lines 534-563**: OpenCode Configuration and Rules\n\n## Required Components\n\n### 1. Brain Dump Plugin\n**File**: `~/.config/opencode/plugins/brain-dump-telemetry.ts` (global)\n**Purpose**: Capture telemetry via OpenCode plugin events\n**Events to implement**:\n- `tool.execute.before` - Log tool start\n- `tool.execute.after` - Log tool end\n- `session.created` - Start telemetry session\n- `session.idle` - End telemetry session\n\n**Implementation**: See spec lines 407-500 for full plugin code\n\n### 2. AGENTS.md Template\n**File**: `.opencode/AGENTS.md` or `~/.config/opencode/AGENTS.md`\n**Purpose**: Workflow enforcement rules for OpenCode\n**Content**: See spec lines 534-563\n\n### 3. OpenCode Skill\n**File**: `.opencode/skills/brain-dump-workflow/SKILL.md`\n**Purpose**: Reusable workflow guidance\n**Content**: See spec lines 565-599\n\n### 4. opencode.json Configuration\n**File**: `opencode.json` snippet\n**Purpose**: MCP server configuration\n**Content**: See spec lines 516-532\n\n### 5. Install Script Integration\n**File**: `scripts/install.sh`\n**Changes**:\n- Detect OpenCode installation\n- Copy plugin to `~/.config/opencode/plugins/`\n- Create `AGENTS.md` if not exists\n- Configure `opencode.json` with MCP server\n\n## Files to Create\n- `~/.config/opencode/plugins/brain-dump-telemetry.ts` (template in repo, copied on install)\n- `.opencode/AGENTS.md` (template)\n- `.opencode/skills/brain-dump-workflow/SKILL.md`\n- `docs/opencode-integration.md` (documentation)\n\n## Files to Modify\n- `scripts/install.sh` - Add OpenCode detection and plugin installation\n- `scripts/uninstall.sh` - Add OpenCode cleanup\n\n## Acceptance Criteria\n- [ ] Plugin created with all required event handlers\n- [ ] Plugin installed to global OpenCode plugins directory\n- [ ] AGENTS.md template created\n- [ ] Skill created in `.opencode/skills/`\n- [ ] Install script detects OpenCode and installs plugin\n- [ ] Install script creates AGENTS.md if not exists\n- [ ] Plugin tested with `opencode mcp debug brain-dump`\n- [ ] Documentation references OpenCode plugin docs\n- [ ] Telemetry captured correctly via plugin events",
-      "priority": "high",
-      "tags": [
-        "opencode",
-        "telemetry",
-        "integration"
-      ]
-    },
-    {
-      "id": "592a97e0-0622-4dc7-b887-9db0cbfa8e06",
-      "title": "VS Code integration: MCP config, copilot instructions, skills, and install script support",
-      "passes": false,
-      "overview": "VS Code integration is completely missing from Phase 2. The spec requires MCP configuration, copilot instructions, skills, and install script integration.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`.vscode/mcp.json` template created",
-        "`.github/copilot-instructions.md` template created",
-        "`.github/skills/brain-dump-workflow.skill.md` created",
-        "Install script detects VS Code",
-        "Install script creates MCP config",
-        "Install script offers to create copilot instructions",
-        "MCP server works with VS Code stdio transport",
-        "Documentation explains VS Code MCP server trust flow",
-        "Workflow guidance works via instructions + MCP preconditions"
-      ],
-      "references": [],
-      "description": "## Problem\nVS Code integration is completely missing from Phase 2. The spec requires MCP configuration, copilot instructions, skills, and install script integration.\n\n## Spec References\n- **Lines 2417-2427**: VS Code Specific Integration checklist\n- **Lines 625-682**: VS Code Telemetry (Extension + Instructions + MCP) implementation\n- **Lines 2913-2948**: VS Code Additional Setup\n\n## Required Components\n\n### 1. MCP Configuration Template\n**File**: `.vscode/mcp.json` (project-level, shareable)\n**Purpose**: MCP server configuration for VS Code\n**Content**: See spec lines 2900-2910\n\n### 2. Copilot Instructions Template\n**File**: `.github/copilot-instructions.md`\n**Purpose**: Workflow enforcement via prompt guidance\n**Content**: See spec lines 639-658\n\n### 3. VS Code Skill\n**File**: `.github/skills/brain-dump-workflow.skill.md`\n**Purpose**: Auto-activated workflow guidance\n**Content**: See spec lines 660-682\n\n### 4. Install Script Integration\n**File**: `scripts/install.sh`\n**Changes**:\n- Detect VS Code installation\n- Create `.vscode/mcp.json` template\n- Offer to create `.github/copilot-instructions.md`\n- Copy skill to `.github/skills/`\n\n### 5. Documentation\n**File**: `docs/vscode-integration.md`\n**Content**:\n- MCP server trust flow\n- How to enable MCP in VS Code settings\n- Custom instructions setup\n\n## Files to Create\n- `.vscode/mcp.json` (template)\n- `.github/copilot-instructions.md` (template)\n- `.github/skills/brain-dump-workflow.skill.md`\n- `docs/vscode-integration.md`\n\n## Files to Modify\n- `scripts/install.sh` - Add VS Code detection and config creation\n- `scripts/uninstall.sh` - Add VS Code cleanup\n\n## Acceptance Criteria\n- [ ] `.vscode/mcp.json` template created\n- [ ] `.github/copilot-instructions.md` template created\n- [ ] `.github/skills/brain-dump-workflow.skill.md` created\n- [ ] Install script detects VS Code\n- [ ] Install script creates MCP config\n- [ ] Install script offers to create copilot instructions\n- [ ] MCP server works with VS Code stdio transport\n- [ ] Documentation explains VS Code MCP server trust flow\n- [ ] Workflow guidance works via instructions + MCP preconditions",
-      "priority": "medium",
-      "tags": [
-        "vscode",
-        "integration",
-        "mcp"
-      ]
-    },
-    {
-      "id": "a3412843-1b9f-4273-872d-605aee54c660",
-      "title": "Cursor integration: Hooks, rules, skills, MCP config, and install script support",
-      "passes": false,
-      "overview": "Cursor integration is completely missing from Phase 2. The spec requires hooks, rules, skills, MCP configuration, and install script integration.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "All 6 hooks created",
-        "`.cursor/hooks.json` configured correctly",
-        "`.cursor/mcp.json` template created",
-        "`.cursor/rules/brain-dump-workflow.md` created",
-        "`.cursor/skills/brain-dump-workflow/SKILL.md` created",
-        "Install script detects Cursor",
-        "Install script installs hooks globally",
-        "Install script creates/updates hooks.json",
-        "Cursor hook compatibility tested (loads Claude hooks)",
-        "MCP server compatibility verified",
-        "Documentation explains Cursor-specific differences"
-      ],
-      "references": [],
-      "description": "## Problem\nCursor integration is completely missing from Phase 2. The spec requires hooks, rules, skills, MCP configuration, and install script integration.\n\n## Spec References\n- **Lines 2429-2446**: Cursor Specific Integration checklist\n- **Lines 684-833**: Cursor Telemetry (Hooks + MCP) implementation\n- **Lines 3340-3372**: Cursor Documentation references\n\n## Required Components\n\n### 1. Cursor Hooks\n**Directory**: `.cursor/hooks/` (project) or `~/.cursor/hooks/` (global)\n**Hooks to create**:\n- `sessionStart` - Start telemetry session\n- `sessionEnd` - End telemetry session\n- `preToolUse` - Log tool start\n- `postToolUse` - Log tool end (success)\n- `postToolUseFailure` - Log tool end (failure)\n- `beforeSubmitPrompt` - Capture user prompt\n\n**Implementation**: See spec lines 767-800 for hook script example\n\n### 2. Hooks Configuration\n**File**: `.cursor/hooks.json` or `~/.cursor/hooks.json`\n**Purpose**: Hook configuration file\n**Content**: See spec lines 729-764\n\n### 3. MCP Configuration\n**File**: `.cursor/mcp.json`\n**Purpose**: MCP server configuration\n**Content**: See spec lines 865-876\n\n### 4. Cursor Rules\n**File**: `.cursor/rules/brain-dump-workflow.md`\n**Purpose**: Workflow enforcement rules\n**Content**: See spec lines 803-832\n\n### 5. Cursor Skill\n**File**: `.cursor/skills/brain-dump-workflow/SKILL.md`\n**Purpose**: Reusable workflow guidance\n**Content**: See spec lines 834-863\n\n### 6. Install Script Integration\n**File**: `scripts/install.sh`\n**Changes**:\n- Detect Cursor installation\n- Copy hooks to `~/.cursor/hooks/`\n- Create or update `.cursor/hooks.json`\n- Create `.cursor/mcp.json` template\n- Create `.cursor/rules/brain-dump-workflow.md`\n- Create `.cursor/skills/brain-dump-workflow/SKILL.md`\n\n### 7. Claude Code Hook Compatibility\n**Note**: Cursor can load Claude Code hooks directly (spec line 2444)\n- Test that Cursor loads `.claude/settings.json` hooks\n- Document any format differences\n\n## Files to Create\n- `.cursor/hooks/sessionStart.sh`\n- `.cursor/hooks/sessionEnd.sh`\n- `.cursor/hooks/preToolUse.sh`\n- `.cursor/hooks/postToolUse.sh`\n- `.cursor/hooks/postToolUseFailure.sh`\n- `.cursor/hooks/beforeSubmitPrompt.sh`\n- `.cursor/hooks.json` (template)\n- `.cursor/mcp.json` (template)\n- `.cursor/rules/brain-dump-workflow.md`\n- `.cursor/skills/brain-dump-workflow/SKILL.md`\n- `docs/cursor-integration.md`\n\n## Files to Modify\n- `scripts/install.sh` - Add Cursor detection and hook installation\n- `scripts/uninstall.sh` - Add Cursor cleanup\n\n## Acceptance Criteria\n- [ ] All 6 hooks created\n- [ ] `.cursor/hooks.json` configured correctly\n- [ ] `.cursor/mcp.json` template created\n- [ ] `.cursor/rules/brain-dump-workflow.md` created\n- [ ] `.cursor/skills/brain-dump-workflow/SKILL.md` created\n- [ ] Install script detects Cursor\n- [ ] Install script installs hooks globally\n- [ ] Install script creates/updates hooks.json\n- [ ] Cursor hook compatibility tested (loads Claude hooks)\n- [ ] MCP server compatibility verified\n- [ ] Documentation explains Cursor-specific differences",
-      "priority": "high",
-      "tags": [
-        "cursor",
-        "hooks",
-        "integration"
-      ]
-    },
-    {
-      "id": "f1aa0de8-9baf-4d24-918c-36aeef303fdd",
-      "title": "Human Review Approval UI: DemoPanel, DemoStep components, server functions, and TanStack Query hooks",
-      "passes": false,
-      "overview": "The existing ticket \"Add workflow state display to ticket detail UI\" only covers workflow state display, not the full demo approval UI required by the spec.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "DemoPanel component shows demo steps",
-        "DemoStep component has pass/fail/skip buttons",
-        "Notes field for each step",
-        "Overall feedback text area",
-        "\"Approve & Complete\" button validates all steps marked",
-        "\"Request Changes\" button requires failed step or feedback",
-        "Kanban card shows \"Demo Ready\" badge when in human_review",
-        "Ticket detail shows prominent \"Start Demo Review\" CTA",
-        "Toast notification when ticket enters human_review",
-        "`getDemoScript` server function works",
-        "`updateDemoStep` server function works",
-        "`submitDemoFeedback` server function works",
-        "`useDemoScript` TanStack Query hook works",
-        "Approval triggers `/reconcile-learnings` prompt",
-        "Rejection creates comment with issues for AI"
-      ],
-      "references": [
-        "src/components/ticket/DemoPanel.tsx",
-        "src/components/ticket/DemoStep.tsx",
-        "src/api/demo.ts",
-        "src/lib/hooks.ts",
-        "src/components/board/TicketCard.tsx",
-        "src/components/ticket/TicketDetail.tsx"
-      ],
-      "description": "## Problem\nThe existing ticket \"Add workflow state display to ticket detail UI\" only covers workflow state display, not the full demo approval UI required by the spec.\n\n## Spec References\n- **Lines 2448-2464**: Human Review Approval UI checklist\n- **Lines 2961-3210**: Human Review Approval UI detailed requirements\n- **Lines 3114-3165**: Data Flow for Human Approval\n\n## Required UI Components\n\n### 1. DemoPanel Component\n**File**: `src/components/ticket/DemoPanel.tsx`\n**Purpose**: Main container for demo verification\n**Features**:\n- Shows demo title and description\n- Lists all demo steps\n- Overall feedback text area\n- Approve/Reject buttons\n\n### 2. DemoStep Component\n**File**: `src/components/ticket/DemoStep.tsx`\n**Purpose**: Individual step with pass/fail/skip buttons\n**Features**:\n- Step instruction and expected result\n- Pass (✓), Fail (✗), Skip (—) buttons\n- Notes field for each step\n- Visual status indicator\n\n### 3. Server Functions\n**File**: `src/api/demo.ts`\n**Functions**:\n- `getDemoScript(ticketId)` - Fetch demo for a ticket\n- `updateDemoStep({ demoId, stepNumber, passed, notes })` - Update step status\n- `submitDemoFeedback({ demoId, passed, feedback, stepResults })` - Submit approval/rejection\n\n### 4. TanStack Query Hooks\n**File**: `src/lib/hooks.ts`\n**Hooks**:\n- `useDemoScript(ticketId)` - Fetch demo script\n- `useUpdateDemoStep()` - Mutation for updating steps\n- `useSubmitDemoFeedback()` - Mutation for approval/rejection\n\n### 5. UI Integration\n**Files**:\n- `src/components/board/TicketCard.tsx` - Add \"Demo Ready\" badge for human_review tickets\n- `src/components/ticket/TicketDetail.tsx` - Show DemoPanel when in human_review\n- `src/components/ticket/TicketDetail.tsx` - Add \"Start Demo Review\" CTA\n\n### 6. Notifications\n**File**: `src/components/ticket/TicketDetail.tsx` or notification system\n**Features**:\n- Toast notification when ticket enters human_review\n- Badge on kanban card showing \"Demo Ready\"\n\n## Files to Create\n- `src/components/ticket/DemoPanel.tsx`\n- `src/components/ticket/DemoStep.tsx`\n- `src/api/demo.ts`\n\n## Files to Modify\n- `src/lib/hooks.ts` - Add demo-related query hooks\n- `src/components/board/TicketCard.tsx` - Add demo badge\n- `src/components/ticket/TicketDetail.tsx` - Integrate DemoPanel\n\n## Acceptance Criteria\n- [ ] DemoPanel component shows demo steps\n- [ ] DemoStep component has pass/fail/skip buttons\n- [ ] Notes field for each step\n- [ ] Overall feedback text area\n- [ ] \"Approve & Complete\" button validates all steps marked\n- [ ] \"Request Changes\" button requires failed step or feedback\n- [ ] Kanban card shows \"Demo Ready\" badge when in human_review\n- [ ] Ticket detail shows prominent \"Start Demo Review\" CTA\n- [ ] Toast notification when ticket enters human_review\n- [ ] `getDemoScript` server function works\n- [ ] `updateDemoStep` server function works\n- [ ] `submitDemoFeedback` server function works\n- [ ] `useDemoScript` TanStack Query hook works\n- [ ] Approval triggers `/reconcile-learnings` prompt\n- [ ] Rejection creates comment with issues for AI",
-      "priority": "high",
-      "tags": [
-        "ui",
-        "demo",
-        "human-review"
       ]
     },
     {
@@ -532,36 +302,6 @@
       ]
     },
     {
-      "id": "29633522-1f00-4f99-8e6d-ade276e435a7",
-      "title": "Update install.sh for multi-environment MCP configuration (Claude Code, OpenCode, VS Code, Cursor)",
-      "passes": false,
-      "overview": "The install script needs to be updated to configure MCP servers for all supported environments, not just Claude Code. Currently it may only handle Claude Code.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Install script detects all 4 environments",
-        "Install script configures MCP for Claude Code",
-        "Install script configures MCP for OpenCode (if installed)",
-        "Install script configures MCP for VS Code (if installed)",
-        "Install script configures MCP for Cursor (if installed)",
-        "Config files use correct format for each environment",
-        "Cross-platform paths handled correctly (macOS/Linux/Windows)",
-        "Uninstall script removes MCP config from all environments",
-        "Installation is idempotent (can run multiple times safely)",
-        "`brain-dump doctor` command verifies MCP configuration",
-        "Documentation explains multi-environment setup"
-      ],
-      "references": [],
-      "description": "## Problem\nThe install script needs to be updated to configure MCP servers for all supported environments, not just Claude Code. Currently it may only handle Claude Code.\n\n## Spec References\n- **Lines 2368-2380**: Installation & Multi-Environment checklist\n- **Lines 2562-2688**: Install Script Requirements\n- **Lines 2783-2911**: Configuration file locations and MCP config differences\n\n## Required Changes\n\n### 1. Multi-Environment Detection\n**File**: `scripts/install.sh`\n**Function**: `detect_environments()`\n**Purpose**: Detect which environments are installed\n**Logic**: See spec lines 2828-2857\n\n### 2. MCP Server Configuration\n**File**: `scripts/install.sh`\n**Function**: `install_mcp_server()`\n**Environments to configure**:\n- **Claude Code**: `~/.claude/settings.json` (or `~/.claude.json`)\n- **OpenCode**: `~/.config/opencode/opencode.json` or project `opencode.json`\n- **VS Code**: `.vscode/mcp.json` (workspace) or global settings\n- **Cursor**: `.cursor/mcp.json` or `~/.cursor/mcp.json`\n\n**Config formats**: See spec lines 2868-2911\n\n### 3. Environment-Specific Config Files\nCreate templates/configs for each environment:\n- Claude Code: Already handled\n- OpenCode: Add to `opencode.json` under `mcp` key\n- VS Code: Create `.vscode/mcp.json` template\n- Cursor: Create `.cursor/mcp.json` template\n\n### 4. Cross-Platform Support\nHandle different config file locations by OS:\n- **macOS**: See spec lines 2862-2866\n- **Linux**: See spec lines 2862-2866\n- **Windows**: See spec lines 2862-2866\n\n### 5. Uninstall Support\n**File**: `scripts/uninstall.sh`\n**Function**: `uninstall_mcp_server()`\n**Purpose**: Cleanly remove MCP config from all environments\n**Logic**: See spec lines 2672-2706\n\n## Files to Modify\n- `scripts/install.sh` - Add multi-environment MCP configuration\n- `scripts/uninstall.sh` - Add multi-environment cleanup\n\n## Files to Create\n- `.vscode/mcp.json` (template)\n- `.cursor/mcp.json` (template)\n- `docs/multi-environment-setup.md` (documentation)\n\n## Acceptance Criteria\n- [ ] Install script detects all 4 environments\n- [ ] Install script configures MCP for Claude Code\n- [ ] Install script configures MCP for OpenCode (if installed)\n- [ ] Install script configures MCP for VS Code (if installed)\n- [ ] Install script configures MCP for Cursor (if installed)\n- [ ] Config files use correct format for each environment\n- [ ] Cross-platform paths handled correctly (macOS/Linux/Windows)\n- [ ] Uninstall script removes MCP config from all environments\n- [ ] Installation is idempotent (can run multiple times safely)\n- [ ] `brain-dump doctor` command verifies MCP configuration\n- [ ] Documentation explains multi-environment setup",
-      "priority": "high",
-      "tags": [
-        "install",
-        "mcp",
-        "multi-environment"
-      ]
-    },
-    {
       "id": "c67df4aa-8112-444d-ae1d-aaef9cb7610b",
       "title": "Implement start_epic_work MCP tool: Create epic branch and ensure all tickets use same branch/PR",
       "passes": false,
@@ -591,6 +331,404 @@
         "epic",
         "git",
         "pr-workflow",
+        "critical"
+      ]
+    },
+    {
+      "id": "fdaac904-4d1d-462a-b89a-c2dabbf5114a",
+      "title": "[P2] Simplify mcp-server/tools/workflow.js by extracting helper modules",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Extract attachment loading logic to `mcp-server/lib/attachment-loader.js`",
+        "Extract comment formatting logic to `mcp-server/lib/comment-formatter.js`",
+        "Extract PRD utilities to `mcp-server/lib/prd-utils.js`",
+        "Extract conversation session logic to `mcp-server/lib/conversation-session.js`",
+        "Update `workflow.js` to import from new modules",
+        "Verify all tests still pass",
+        "Test workflow tools in Claude Code/Cursor/VS Code/OpenCode",
+        "Verify attachment loading, comments, and PRD updates still work correctly"
+      ],
+      "references": [
+        "mcp-server/tools/workflow.js",
+        "mcp-server/lib/attachment-loader.js",
+        "mcp-server/lib/comment-formatter.js",
+        "mcp-server/lib/prd-utils.js",
+        "mcp-server/lib/conversation-session.js"
+      ],
+      "description": "## Issue\n\nThe `mcp-server/tools/workflow.js` file is 1,706 lines long and contains multiple concerns that could be extracted into separate modules for better maintainability.\n\n## Location\n`mcp-server/tools/workflow.js` (1,706 lines)\n\n## Current Code Structure\n\nThe file contains:\n- Attachment loading and normalization logic (~300 lines)\n- Comment fetching and formatting (~100 lines)\n- PRD file operations (~100 lines)\n- Context building functions (~200 lines)\n- Conversation session management (~100 lines)\n- Main tool registration (~900 lines)\n\n## Recommended Fix\n\nExtract helper functions into separate modules:\n\n1. **`mcp-server/lib/attachment-loader.js`** - Extract `loadTicketAttachments`, `loadSingleAttachment`, `normalizeAttachment`, `buildAttachmentContextSection`, `buildDesignMockupWarning`\n\n2. **`mcp-server/lib/comment-formatter.js`** - Extract `fetchTicketComments`, `formatComment`, `buildCommentsSection`\n\n3. **`mcp-server/lib/prd-utils.js`** - Extract `readPrd`, `updatePrdForTicket`, `_suggestNextTicket`\n\n4. **`mcp-server/lib/conversation-session.js`** - Extract `createConversationSession`, `endConversationSessions`\n\nThis will reduce `workflow.js` to ~600-700 lines focused on tool registration.\n\n## Benefits\n- Better code organization and maintainability\n- Easier to test individual concerns\n- Reduced cognitive load when reading workflow.js\n- Reusable utilities for other MCP tools\n\n## Acceptance Criteria\n- [ ] Extract attachment loading logic to `mcp-server/lib/attachment-loader.js`\n- [ ] Extract comment formatting logic to `mcp-server/lib/comment-formatter.js`\n- [ ] Extract PRD utilities to `mcp-server/lib/prd-utils.js`\n- [ ] Extract conversation session logic to `mcp-server/lib/conversation-session.js`\n- [ ] Update `workflow.js` to import from new modules\n- [ ] Verify all tests still pass\n- [ ] Test workflow tools in Claude Code/Cursor/VS Code/OpenCode\n- [ ] Verify attachment loading, comments, and PRD updates still work correctly",
+      "priority": "medium",
+      "tags": [
+        "code-review",
+        "refactor",
+        "simplification",
+        "mcp"
+      ]
+    },
+    {
+      "id": "d54da58a-208f-4266-8804-1dba45f98bd0",
+      "title": "[P2] Split src/lib/hooks.ts into focused modules",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Create `src/lib/hooks/` directory",
+        "Split hooks into focused modules as described",
+        "Create `index.ts` that re-exports all hooks",
+        "Update all imports across codebase to use new structure",
+        "Verify all tests still pass",
+        "Verify no functionality regressions",
+        "Test in Claude Code/Cursor/VS Code/OpenCode"
+      ],
+      "references": [
+        "src/lib/hooks.ts",
+        "src/lib/hooks/state.ts",
+        "src/lib/hooks/modal.ts",
+        "src/lib/hooks/tickets.ts",
+        "src/lib/hooks/workflow.ts",
+        "src/lib/hooks/projects.ts",
+        "src/lib/hooks/settings.ts",
+        "src/lib/hooks/search.ts",
+        "src/lib/hooks/claude-tasks.ts",
+        "src/lib/hooks/index.ts",
+        "src/lib/hooks/"
+      ],
+      "description": "## Issue\n\nThe `src/lib/hooks.ts` file is 2,426 lines long and contains multiple categories of hooks that could be organized into separate files for better maintainability.\n\n## Location\n`src/lib/hooks.ts` (2,426 lines)\n\n## Current Code Structure\n\nThe file contains:\n- State utility hooks (useAutoClearState, useModalKeyboard, useClickOutside)\n- Modal state management hooks (useModal)\n- TanStack Query hooks for tickets, epics, projects, settings, workflow, demo\n- Claude Tasks hooks\n- Search hooks\n\n## Recommended Fix\n\nSplit into focused modules:\n\n1. **`src/lib/hooks/state.ts`** - State utility hooks (useAutoClearState, useModalKeyboard, useClickOutside)\n\n2. **`src/lib/hooks/modal.ts`** - Modal state management (useModal)\n\n3. **`src/lib/hooks/tickets.ts`** - Ticket-related query hooks\n\n4. **`src/lib/hooks/workflow.ts`** - Workflow and demo hooks\n\n5. **`src/lib/hooks/projects.ts`** - Project and epic hooks\n\n6. **`src/lib/hooks/settings.ts`** - Settings hooks\n\n7. **`src/lib/hooks/search.ts`** - Search hooks\n\n8. **`src/lib/hooks/claude-tasks.ts`** - Claude Tasks hooks\n\n9. **`src/lib/hooks/index.ts`** - Re-export all hooks for backward compatibility\n\n## Benefits\n- Better code organization\n- Easier to find specific hooks\n- Reduced file size improves IDE performance\n- Clearer separation of concerns\n\n## Acceptance Criteria\n- [ ] Create `src/lib/hooks/` directory\n- [ ] Split hooks into focused modules as described\n- [ ] Create `index.ts` that re-exports all hooks\n- [ ] Update all imports across codebase to use new structure\n- [ ] Verify all tests still pass\n- [ ] Verify no functionality regressions\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode",
+      "priority": "medium",
+      "tags": [
+        "code-review",
+        "refactor",
+        "simplification",
+        "react"
+      ]
+    },
+    {
+      "id": "316c8137-a4d1-4592-af7e-dea97cf1881c",
+      "title": "[P2] Extract repetitive telemetry logging pattern into helper",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Create `mcp-server/lib/telemetry-wrapper.js` with `withTelemetry` helper",
+        "Refactor `workflow.js` tools to use the helper",
+        "Refactor `demo.js` tools to use the helper",
+        "Refactor `review-findings.js` tools to use the helper",
+        "Verify telemetry still captures correctly",
+        "Test in Claude Code/Cursor/VS Code/OpenCode",
+        "Verify no functionality regressions"
+      ],
+      "references": [
+        "mcp-server/tools/workflow.js",
+        "mcp-server/tools/demo.js",
+        "mcp-server/tools/review-findings.js",
+        "mcp-server/lib/telemetry-wrapper.js"
+      ],
+      "description": "## Issue\n\nMultiple MCP tools (`workflow.js`, `demo.js`, `review-findings.js`) contain repetitive telemetry logging code:\n\n```javascript\nconst telemetrySession = getActiveTelemetrySession(db, ticketId);\nlet correlationId = null;\nconst startTime = Date.now();\nif (telemetrySession) {\n  correlationId = logMcpCallEvent(db, {\n    sessionId: telemetrySession.id,\n    ticketId: telemetrySession.ticket_id,\n    event: \"start\",\n    toolName: \"tool_name\",\n    params: {...},\n  });\n}\n// ... tool logic ...\nif (telemetrySession && correlationId) {\n  logMcpCallEvent(db, {\n    sessionId: telemetrySession.id,\n    ticketId: telemetrySession.ticket_id,\n    event: \"end\",\n    toolName: \"tool_name\",\n    correlationId,\n    success: true/false,\n    durationMs: Date.now() - startTime,\n    error: \"...\",\n  });\n}\n```\n\nThis pattern is repeated in multiple tools, making them harder to maintain.\n\n## Location\n- `mcp-server/tools/workflow.js` (multiple tools)\n- `mcp-server/tools/demo.js`\n- `mcp-server/tools/review-findings.js`\n\n## Recommended Fix\n\nCreate a helper function in `mcp-server/lib/telemetry-wrapper.js`:\n\n```javascript\nexport function withTelemetry(db, ticketId, toolName, handler) {\n  const telemetrySession = getActiveTelemetrySession(db, ticketId);\n  let correlationId = null;\n  const startTime = Date.now();\n  \n  if (telemetrySession) {\n    correlationId = logMcpCallEvent(db, {\n      sessionId: telemetrySession.id,\n      ticketId: telemetrySession.ticket_id,\n      event: \"start\",\n      toolName,\n      params: handler.params || {},\n    });\n  }\n  \n  try {\n    const result = await handler();\n    \n    if (telemetrySession && correlationId) {\n      logMcpCallEvent(db, {\n        sessionId: telemetrySession.id,\n        ticketId: telemetrySession.ticket_id,\n        event: \"end\",\n        toolName,\n        correlationId,\n        success: true,\n        durationMs: Date.now() - startTime,\n      });\n    }\n    \n    return result;\n  } catch (error) {\n    if (telemetrySession && correlationId) {\n      logMcpCallEvent(db, {\n        sessionId: telemetrySession.id,\n        ticketId: telemetrySession.ticket_id,\n        event: \"end\",\n        toolName,\n        correlationId,\n        success: false,\n        durationMs: Date.now() - startTime,\n        error: error.message,\n      });\n    }\n    throw error;\n  }\n}\n```\n\nThen refactor tools to use:\n\n```javascript\nasync ({ ticketId, ...params }) => {\n  return withTelemetry(db, ticketId, \"tool_name\", async () => {\n    // Tool logic here\n    return { content: [...] };\n  });\n}\n```\n\n## Benefits\n- Reduces code duplication\n- Ensures consistent telemetry logging\n- Easier to add telemetry to new tools\n- Centralized error handling for telemetry\n\n## Acceptance Criteria\n- [ ] Create `mcp-server/lib/telemetry-wrapper.js` with `withTelemetry` helper\n- [ ] Refactor `workflow.js` tools to use the helper\n- [ ] Refactor `demo.js` tools to use the helper\n- [ ] Refactor `review-findings.js` tools to use the helper\n- [ ] Verify telemetry still captures correctly\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode\n- [ ] Verify no functionality regressions",
+      "priority": "medium",
+      "tags": [
+        "code-review",
+        "refactor",
+        "simplification",
+        "mcp",
+        "telemetry"
+      ]
+    },
+    {
+      "id": "47bcef08-0a73-4fd3-a331-c609c8604b50",
+      "title": "[P2] Simplify DemoPanel component state management",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Refactor DemoPanel to use TanStack Query optimistic updates",
+        "Remove manual state merging logic",
+        "Remove `localStepStatuses` and `localStepNotes` state",
+        "Verify optimistic updates work correctly",
+        "Verify error rollback works correctly",
+        "Test in Claude Code/Cursor/VS Code/OpenCode",
+        "Verify no functionality regressions"
+      ],
+      "references": [
+        "src/components/tickets/DemoPanel.tsx"
+      ],
+      "description": "## Issue\n\nThe `DemoPanel` component has complex state management with multiple `useMemo` hooks merging server and local state for optimistic updates. This could be simplified.\n\n## Location\n`src/components/tickets/DemoPanel.tsx` (402 lines)\n\n## Current Code\n\n```typescript\n// Complex merging logic\nconst stepStatuses = useMemo(() => {\n  if (!demoScript?.steps) return {};\n  const serverStatuses: Record<number, DemoStepStatus> = {};\n  for (const step of demoScript.steps) {\n    serverStatuses[step.order] = (step.status as DemoStepStatus) || \"pending\";\n  }\n  return { ...serverStatuses, ...localStepStatuses };\n}, [demoScript?.steps, localStepStatuses]);\n\nconst stepNotes = useMemo(() => {\n  if (!demoScript?.steps) return {};\n  const serverNotes: Record<number, string> = {};\n  for (const step of demoScript.steps) {\n    serverNotes[step.order] = step.notes || \"\";\n  }\n  return { ...serverNotes, ...localStepNotes };\n}, [demoScript?.steps, localStepNotes]);\n```\n\n## Recommended Fix\n\n1. Use TanStack Query's optimistic updates feature instead of manual state merging\n2. Simplify to a single source of truth from the query\n3. Use `useMutation` with `onMutate` for optimistic updates\n\nExample:\n\n```typescript\nconst updateStepMutation = useMutation({\n  mutationFn: updateStep,\n  onMutate: async (variables) => {\n    // Cancel outgoing refetches\n    await queryClient.cancelQueries({ queryKey: [\"demoScript\", ticketId] });\n    \n    // Snapshot previous value\n    const previous = queryClient.getQueryData([\"demoScript\", ticketId]);\n    \n    // Optimistically update\n    queryClient.setQueryData([\"demoScript\", ticketId], (old) => {\n      // Update logic here\n    });\n    \n    return { previous };\n  },\n  onError: (err, variables, context) => {\n    // Rollback on error\n    queryClient.setQueryData([\"demoScript\", ticketId], context.previous);\n  },\n  onSettled: () => {\n    queryClient.invalidateQueries({ queryKey: [\"demoScript\", ticketId] });\n  },\n});\n```\n\n## Benefits\n- Simpler state management\n- Leverages TanStack Query's built-in optimistic update patterns\n- Less code to maintain\n- Better error handling with automatic rollback\n\n## Acceptance Criteria\n- [ ] Refactor DemoPanel to use TanStack Query optimistic updates\n- [ ] Remove manual state merging logic\n- [ ] Remove `localStepStatuses` and `localStepNotes` state\n- [ ] Verify optimistic updates work correctly\n- [ ] Verify error rollback works correctly\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode\n- [ ] Verify no functionality regressions",
+      "priority": "medium",
+      "tags": [
+        "code-review",
+        "refactor",
+        "react",
+        "tanstack-query"
+      ]
+    },
+    {
+      "id": "d4b53b0e-0b21-4c7c-ba2d-82c43ac7359f",
+      "title": "[P1] Fix empty catch block in ticket.$id.tsx",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Replace empty catch block with proper error handling",
+        "Add error logging",
+        "Add user-facing error notification",
+        "Test error scenarios",
+        "Verify errors are visible to users",
+        "Test in Claude Code/Cursor/VS Code/OpenCode"
+      ],
+      "references": [
+        "src/routes/ticket.$id.tsx:272"
+      ],
+      "description": "## Issue\n\nAn empty catch block silently swallows errors in the ticket detail route, preventing proper error handling.\n\n## Location\n`src/routes/ticket.$id.tsx:272`\n\n## Current Code\n\n```typescript\n} catch {\n  // Empty catch block - errors are silently swallowed\n}\n```\n\n## Recommended Fix\n\nAdd proper error handling:\n\n```typescript\n} catch (error) {\n  logger.error(\"Failed to load ticket detail\", error);\n  showToast(\"error\", \"Failed to load ticket. Please refresh the page.\");\n  // Optionally navigate to error page or show error state\n}\n```\n\n## Risk\n\n**MEDIUM** - Errors are silently swallowed, making debugging difficult and users unaware of failures.\n\n## Acceptance Criteria\n- [ ] Replace empty catch block with proper error handling\n- [ ] Add error logging\n- [ ] Add user-facing error notification\n- [ ] Test error scenarios\n- [ ] Verify errors are visible to users\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode",
+      "priority": "high",
+      "tags": [
+        "code-review",
+        "error-handling",
+        "react",
+        "silent-failure"
+      ]
+    },
+    {
+      "id": "0081b0a0-d886-4a84-abb8-558b6057b915",
+      "title": "[P2] Extract query key factories to separate module",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Create `src/lib/query-keys.ts` with all query key factories",
+        "Update `hooks.ts` to import from new module",
+        "Verify all query keys still work correctly",
+        "Update any other files that reference queryKeys",
+        "Test in Claude Code/Cursor/VS Code/OpenCode",
+        "Verify no functionality regressions"
+      ],
+      "references": [
+        "src/lib/hooks.ts",
+        "src/lib/query-keys.ts"
+      ],
+      "description": "## Issue\n\nThe `queryKeys` object in `src/lib/hooks.ts` is large and could be extracted to improve organization and make it easier to find query key definitions.\n\n## Location\n`src/lib/hooks.ts` - `queryKeys` object (large object with many nested keys)\n\n## Current Code Structure\n\nThe `queryKeys` object contains all query key factories for tickets, epics, projects, settings, workflow, demo, etc. This is mixed with hook definitions in a 2,426-line file.\n\n## Recommended Fix\n\nCreate `src/lib/query-keys.ts`:\n\n```typescript\nexport const queryKeys = {\n  projects: [\"projects\"] as const,\n  project: (id: string) => [\"projects\", id] as const,\n  // ... all query key factories\n};\n```\n\nThen import in `hooks.ts`:\n\n```typescript\nimport { queryKeys } from \"./query-keys\";\n```\n\n## Benefits\n- Better separation of concerns\n- Easier to find query key definitions\n- Can be imported by other modules that need query keys\n- Reduces size of hooks.ts\n\n## Acceptance Criteria\n- [ ] Create `src/lib/query-keys.ts` with all query key factories\n- [ ] Update `hooks.ts` to import from new module\n- [ ] Verify all query keys still work correctly\n- [ ] Update any other files that reference queryKeys\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode\n- [ ] Verify no functionality regressions",
+      "priority": "medium",
+      "tags": [
+        "code-review",
+        "refactor",
+        "simplification",
+        "react",
+        "tanstack-query"
+      ]
+    },
+    {
+      "id": "39e1e633-731b-487b-a528-156b0c1c20dc",
+      "title": "[P3] Review memoization usage in DemoPanel component",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Review memoization usage in DemoPanel",
+        "Remove unnecessary `useMemo` hooks if computations are cheap",
+        "Keep memoization only where it provides clear performance benefit",
+        "Verify component performance is acceptable",
+        "Test in Claude Code/Cursor/VS Code/OpenCode",
+        "Verify no functionality regressions"
+      ],
+      "references": [
+        "src/components/tickets/DemoPanel.tsx"
+      ],
+      "description": "## Issue\n\nThe `DemoPanel` component uses multiple `useMemo` hooks that may not provide performance benefits. Some computations are simple and don't need memoization.\n\n## Location\n`src/components/tickets/DemoPanel.tsx`\n\n## Current Code\n\n```typescript\nconst stepStatuses = useMemo(() => {\n  if (!demoScript?.steps) return {};\n  const serverStatuses: Record<number, DemoStepStatus> = {};\n  for (const step of demoScript.steps) { ... }\n  return { ...serverStatuses, ...localStepStatuses };\n}, [demoScript?.steps, localStepStatuses]);\n\nconst stepNotes = useMemo(() => {\n  // Similar pattern\n}, [demoScript?.steps, localStepNotes]);\n```\n\n## Recommended Fix\n\nReview whether these `useMemo` hooks are necessary:\n\n1. If `demoScript.steps` is stable (from TanStack Query), the computation may be cheap enough to not need memoization\n2. Consider if the merging operation is expensive enough to warrant memoization\n3. If simplifying state management (see ticket for TanStack Query optimistic updates), memoization may not be needed\n\n## Benefits\n- Simpler code if memoization is unnecessary\n- Better understanding of performance characteristics\n- Follows React best practices (don't over-memoize)\n\n## Acceptance Criteria\n- [ ] Review memoization usage in DemoPanel\n- [ ] Remove unnecessary `useMemo` hooks if computations are cheap\n- [ ] Keep memoization only where it provides clear performance benefit\n- [ ] Verify component performance is acceptable\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode\n- [ ] Verify no functionality regressions",
+      "priority": "low",
+      "tags": [
+        "code-review",
+        "react",
+        "performance"
+      ]
+    },
+    {
+      "id": "5bd6ebed-ab7f-4bc9-80ea-0c33fa556e6c",
+      "title": "[P2] Simplify workflow phase determination logic",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Refactor if-else chain to switch statement",
+        "Verify all status transitions work correctly",
+        "Test workflow phase determination",
+        "Test in Claude Code/Cursor/VS Code/OpenCode",
+        "Verify no functionality regressions"
+      ],
+      "references": [
+        "src/api/workflow.ts",
+        "src/api/workflow.ts:143-158"
+      ],
+      "description": "## Issue\n\nThe workflow phase determination logic in `src/api/workflow.ts` uses a long if-else chain that could be simplified with a switch statement or lookup table.\n\n## Location\n`src/api/workflow.ts:143-158`\n\n## Current Code\n\n```typescript\n// Determine current phase based on ticket status and workflow state\nlet currentPhase: WorkflowPhase = \"started\";\n\nif (ticket.status === \"done\") {\n  currentPhase = \"done\";\n} else if (ticket.status === \"human_review\") {\n  currentPhase = \"human_review\";\n} else if (ticket.status === \"ai_review\") {\n  currentPhase = \"ai_review\";\n} else if (ticket.status === \"in_progress\") {\n  // Check if any code work has been done (workflow state exists)\n  currentPhase = workflowState ? \"implementation\" : \"started\";\n} else if (workflowState?.currentPhase) {\n  // Use stored phase if available, with safe parsing\n  currentPhase = parseWorkflowPhase(workflowState.currentPhase);\n}\n```\n\n## Recommended Fix\n\nUse a switch statement for clarity:\n\n```typescript\n// Determine current phase based on ticket status and workflow state\nlet currentPhase: WorkflowPhase = \"started\";\n\nswitch (ticket.status) {\n  case \"done\":\n    currentPhase = \"done\";\n    break;\n  case \"human_review\":\n    currentPhase = \"human_review\";\n    break;\n  case \"ai_review\":\n    currentPhase = \"ai_review\";\n    break;\n  case \"in_progress\":\n    currentPhase = workflowState ? \"implementation\" : \"started\";\n    break;\n  default:\n    // Use stored phase if available, with safe parsing\n    if (workflowState?.currentPhase) {\n      currentPhase = parseWorkflowPhase(workflowState.currentPhase);\n    }\n    break;\n}\n```\n\n## Benefits\n- Clearer control flow\n- Easier to add new statuses\n- More explicit than if-else chain\n- Better readability\n\n## Acceptance Criteria\n- [ ] Refactor if-else chain to switch statement\n- [ ] Verify all status transitions work correctly\n- [ ] Test workflow phase determination\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode\n- [ ] Verify no functionality regressions",
+      "priority": "medium",
+      "tags": [
+        "code-review",
+        "refactor",
+        "simplification",
+        "api"
+      ]
+    },
+    {
+      "id": "63b515b2-6678-4953-9e82-b704d642c71a",
+      "title": "[P3] Extract FindingRow component from ReviewFindingsPanel",
+      "passes": false,
+      "overview": "",
+      "types": [
+        {
+          "name": "FindingRowProps",
+          "code": "interface FindingRowProps {\n  icon: React.ReactNode;\n  label: string;\n  count: number;\n}"
+        },
+        {
+          "name": "FindingRowProps",
+          "code": "export interface FindingRowProps {\n  icon: React.ReactNode;\n  label: string;\n  count: number;\n}"
+        }
+      ],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Create `src/components/tickets/FindingRow.tsx`",
+        "Extract FindingRow component",
+        "Update ReviewFindingsPanel to import FindingRow",
+        "Verify component still renders correctly",
+        "Test in Claude Code/Cursor/VS Code/OpenCode",
+        "Verify no functionality regressions"
+      ],
+      "references": [
+        "src/components/tickets/ReviewFindingsPanel.tsx:141-155",
+        "src/components/tickets/FindingRow.tsx"
+      ],
+      "description": "## Issue\n\nThe `FindingRow` component is defined inline within `ReviewFindingsPanel.tsx`. It could be extracted to a separate file for reusability.\n\n## Location\n`src/components/tickets/ReviewFindingsPanel.tsx:141-155`\n\n## Current Code\n\n```typescript\ninterface FindingRowProps {\n  icon: React.ReactNode;\n  label: string;\n  count: number;\n}\n\nfunction FindingRow({ icon, label, count }: FindingRowProps) {\n  return (\n    <div className=\"flex items-center gap-2\">\n      {icon}\n      <span className=\"text-xs text-[var(--text-secondary)]\">{label}:</span>\n      <span className=\"text-xs font-medium text-[var(--text-primary)]\">{count}</span>\n    </div>\n  );\n}\n```\n\n## Recommended Fix\n\nExtract to `src/components/tickets/FindingRow.tsx`:\n\n```typescript\nimport React from \"react\";\n\nexport interface FindingRowProps {\n  icon: React.ReactNode;\n  label: string;\n  count: number;\n}\n\nexport function FindingRow({ icon, label, count }: FindingRowProps) {\n  return (\n    <div className=\"flex items-center gap-2\">\n      {icon}\n      <span className=\"text-xs text-[var(--text-secondary)]\">{label}:</span>\n      <span className=\"text-xs font-medium text-[var(--text-primary)]\">{count}</span>\n    </div>\n  );\n}\n```\n\nThen import in `ReviewFindingsPanel.tsx`.\n\n## Benefits\n- Component can be reused elsewhere\n- Better code organization\n- Easier to test independently\n- Follows component extraction best practices\n\n## Acceptance Criteria\n- [ ] Create `src/components/tickets/FindingRow.tsx`\n- [ ] Extract FindingRow component\n- [ ] Update ReviewFindingsPanel to import FindingRow\n- [ ] Verify component still renders correctly\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode\n- [ ] Verify no functionality regressions\n\n## Additional Information\nMake sure this lives within the \"feature/epic-a10cc802-universal-quality-workflow-phase-2-activation-inte\" branch",
+      "priority": "low",
+      "tags": [
+        "code-review",
+        "refactor",
+        "react",
+        "component-extraction"
+      ]
+    },
+    {
+      "id": "a7bca04b-e8ce-4d38-8228-6876c85743be",
+      "title": "[P2] Simplify nested ternary in ReviewFindingsPanel className",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Extract className logic to helper function",
+        "Replace nested ternary with function call",
+        "Verify styling still works correctly",
+        "Test all panel states (critical, fixed, warning)",
+        "Test in Claude Code/Cursor/VS Code/OpenCode",
+        "Verify no functionality regressions"
+      ],
+      "references": [
+        "src/components/tickets/ReviewFindingsPanel.tsx:70-76"
+      ],
+      "description": "## Issue\n\nThe `ReviewFindingsPanel` component uses a nested ternary operator for className that could be simplified for better readability.\n\n## Location\n`src/components/tickets/ReviewFindingsPanel.tsx:70-76`\n\n## Current Code\n\n```typescript\n<div\n  className={`border rounded-lg p-4 ${\n    hasCritical && !allFixed\n      ? \"bg-[var(--accent-danger)]/10 border-[var(--accent-danger)]/30\"\n      : allFixed\n        ? \"bg-[var(--success-muted)] border-[var(--success)]/30\"\n        : \"bg-[var(--warning-muted)] border-[var(--warning)]/30\"\n  }`}\n>\n```\n\n## Recommended Fix\n\nUse a helper function or switch statement:\n\n```typescript\nfunction getPanelClassName(hasCritical: boolean, allFixed: boolean): string {\n  if (hasCritical && !allFixed) {\n    return \"bg-[var(--accent-danger)]/10 border-[var(--accent-danger)]/30\";\n  }\n  if (allFixed) {\n    return \"bg-[var(--success-muted)] border-[var(--success)]/30\";\n  }\n  return \"bg-[var(--warning-muted)] border-[var(--warning)]/30\";\n}\n\n// Then use:\n<div className={`border rounded-lg p-4 ${getPanelClassName(hasCritical, allFixed)}`}>\n```\n\n## Benefits\n- More readable than nested ternary\n- Easier to test independently\n- Follows project guidelines (avoid nested ternary operators)\n- Better maintainability\n\n## Acceptance Criteria\n- [ ] Extract className logic to helper function\n- [ ] Replace nested ternary with function call\n- [ ] Verify styling still works correctly\n- [ ] Test all panel states (critical, fixed, warning)\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode\n- [ ] Verify no functionality regressions",
+      "priority": "medium",
+      "tags": [
+        "code-review",
+        "refactor",
+        "react",
+        "simplification"
+      ]
+    },
+    {
+      "id": "4ab534b2-edce-4af2-b214-951213fba7df",
+      "title": "[P2] Extract ticket context building logic from start_ticket_work",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Create `mcp-server/lib/ticket-context-builder.js`",
+        "Extract context building logic",
+        "Update `start_ticket_work` to use builder",
+        "Verify context still builds correctly",
+        "Test in Claude Code/Cursor/VS Code/OpenCode",
+        "Verify no functionality regressions"
+      ],
+      "references": [
+        "mcp-server/tools/workflow.js",
+        "mcp-server/tools/workflow.js:769-1136",
+        "mcp-server/lib/ticket-context-builder.js"
+      ],
+      "description": "## Issue\n\nThe `start_ticket_work` tool handler in `mcp-server/tools/workflow.js` is very long (~400 lines) and contains complex context building logic that could be extracted.\n\n## Location\n`mcp-server/tools/workflow.js:769-1136` (start_ticket_work handler)\n\n## Current Code Structure\n\nThe handler does:\n1. Telemetry logging setup\n2. Ticket validation\n3. Git branch creation\n4. Workflow state management\n5. Conversation session creation\n6. Acceptance criteria parsing\n7. Comment fetching\n8. Attachment loading\n9. Context building (main text block)\n10. Content array assembly\n\n## Recommended Fix\n\nExtract context building to `mcp-server/lib/ticket-context-builder.js`:\n\n```javascript\nexport function buildTicketContext({\n  ticket,\n  branchName,\n  branchCreated,\n  epicInfo,\n  usingEpicBranch,\n  sessionInfo,\n  workflowStateWarning,\n  acceptanceCriteria,\n  commentsSection,\n  designMockupWarning,\n  attachmentsSection,\n  warningsSection,\n}) {\n  // Build the main text content block\n  // Return formatted context string\n}\n```\n\nThis reduces the handler to ~200 lines focused on orchestration.\n\n## Benefits\n- Shorter, more focused handler\n- Reusable context building logic\n- Easier to test context building independently\n- Better code organization\n\n## Acceptance Criteria\n- [ ] Create `mcp-server/lib/ticket-context-builder.js`\n- [ ] Extract context building logic\n- [ ] Update `start_ticket_work` to use builder\n- [ ] Verify context still builds correctly\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode\n- [ ] Verify no functionality regressions",
+      "priority": "medium",
+      "tags": [
+        "code-review",
+        "refactor",
+        "simplification",
+        "mcp"
+      ]
+    },
+    {
+      "id": "7baeb0a0-2617-4a33-816e-560ced39c65f",
+      "title": "[P2] Replace console.error with logger in hooks.ts mutation error handlers",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Replace console.error with logger in mutation hooks",
+        "Import logger at module level",
+        "Verify errors are logged correctly",
+        "Test error scenarios",
+        "Test in Claude Code/Cursor/VS Code/OpenCode",
+        "Verify no functionality regressions"
+      ],
+      "references": [
+        "src/lib/hooks.ts",
+        "src/lib/hooks.ts:578"
+      ],
+      "description": "## Issue\n\nMutation hooks in `src/lib/hooks.ts` use `console.error` for error logging instead of the proper logger.\n\n## Location\n`src/lib/hooks.ts:578` (and potentially other locations)\n\n## Current Code\n\n```typescript\nonError: (err, newTicket, context) => {\n  // Log error with context for debugging\n  console.error(\"Failed to create ticket:\", {\n    error: err,\n    ticketData: { title: newTicket.title, projectId: newTicket.projectId },\n  });\n  // ... rollback logic\n}\n```\n\n## Recommended Fix\n\nUse proper logger:\n\n```typescript\nimport { createLogger } from \"../lib/logger\";\nconst logger = createLogger(\"hooks\");\n\nonError: (err, newTicket, context) => {\n  logger.error(\"Failed to create ticket\", {\n    error: err,\n    ticketData: { title: newTicket.title, projectId: newTicket.projectId },\n  });\n  // ... rollback logic\n}\n```\n\n## Benefits\n- Consistent logging across codebase\n- Proper log levels and formatting\n- Better integration with logging infrastructure\n- Follows project guidelines\n\n## Acceptance Criteria\n- [ ] Replace console.error with logger in mutation hooks\n- [ ] Import logger at module level\n- [ ] Verify errors are logged correctly\n- [ ] Test error scenarios\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode\n- [ ] Verify no functionality regressions",
+      "priority": "medium",
+      "tags": [
+        "code-review",
+        "error-handling",
+        "react",
+        "logging"
+      ]
+    },
+    {
+      "id": "a20d061a-6d95-4552-a5ba-1b1903cbdbec",
+      "title": "[P1] Fix OpenCode launch: cd command uses file path instead of directory",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "OpenCode launches successfully from Edit Ticket Modal",
+        "OpenCode launches successfully from Ticket Details page",
+        "Script changes to project directory, not context file",
+        "Context file is still accessible/created correctly",
+        "Test with multiple tickets",
+        "Verify no regressions in Claude/Ralph launch"
+      ],
+      "references": [],
+      "description": "## Issue\n\nWhen launching OpenCode from the Edit Ticket Modal or Ticket Details page, the launch script fails with:\n\n```\nError: Failed to change directory to /Users/salman.rana/code/brain-dump/.brain-dump-context.md\n```\n\nThe script is trying to `cd` into a file path (`.brain-dump-context.md`) instead of the project directory.\n\n## Root Cause\n\nThe OpenCode launch code is likely passing the context file path to a `cd` command instead of the project directory path.\n\n## Expected Behavior\n\nOpenCode should launch in the project directory (`/Users/salman.rana/code/brain-dump`) with the context file available, not try to cd into the context file itself.\n\n## Acceptance Criteria\n- [ ] OpenCode launches successfully from Edit Ticket Modal\n- [ ] OpenCode launches successfully from Ticket Details page\n- [ ] Script changes to project directory, not context file\n- [ ] Context file is still accessible/created correctly\n- [ ] Test with multiple tickets\n- [ ] Verify no regressions in Claude/Ralph launch",
+      "priority": "high",
+      "tags": [
+        "bug",
+        "opencode",
         "critical"
       ]
     }
@@ -738,7 +876,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-25T08:20:20.149Z",
+  "generatedAt": "2026-01-26T20:32:41.315Z",
   "epicTitle": "Universal Quality Workflow - Phase 2: Activation & Integration",
   "epicDescription": "## Overview\n\nPhase 1 implemented the infrastructure (MCP tools, database tables, hooks, UI components). Phase 2 activates the workflow by:\n\n1. Installing and configuring telemetry hooks properly\n2. Making Ralph use the workflow it implements\n3. Enforcing PR workflow (branch + PR before merge to main)\n4. Verifying end-to-end data capture\n\n**CRITICAL: All Phase 2 tickets must be worked on in a single branch/PR.**\n- Use `start_epic_work` to create epic branch: `feature/epic-{epic-id}-{slug}`\n- All tickets in this epic will use the same branch\n- Single PR for the entire epic\n\n## Reference Spec\n`plans/specs/universal-quality-workflow.md` (3,387 lines)\n\n## Gap Analysis Evidence\n- Telemetry sessions: 0\n- Telemetry events: 0\n- Review findings: 0\n- Demo scripts: 0\n\nAll infrastructure exists but was never activated during Phase 1."
 }
