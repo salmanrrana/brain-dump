@@ -25,6 +25,11 @@ import {
   createConversationSession,
   endConversationSessions,
 } from "../lib/conversation-session.js";
+import {
+  buildTicketContextContent,
+  buildWarningsSection,
+  buildAttachmentsSection,
+} from "../lib/ticket-context-builder.js";
 
 
 /**
@@ -347,64 +352,35 @@ This ticket belongs to an epic that previously had a branch, but it was deleted.
       // Build attachment context section with type-aware instructions
       const attachmentContext = buildAttachmentContextSection(attachmentTelemetry);
 
-      // Build attachments section for non-image files (images are covered by the warning)
-      let attachmentsSection = "";
-      if (attachmentBlocks.length > 0) {
-        const textCount = attachmentBlocks.filter(b => b.type === "text").length;
-        // Only show generic attachments section for non-image files
-        if (textCount > 0) {
-          attachmentsSection = `\n### Other Attachments\n- ${textCount} text/reference file(s) included below\n`;
-        }
-      }
+      // Build sections using extracted helper functions
+      const attachmentsSection = buildAttachmentsSection(attachmentBlocks);
 
-      // Add warnings section if any (combine parse warnings, attachment warnings, and workflow state warning)
+      // Combine all warnings (parse warnings, attachment warnings, workflow state warning)
       const allWarnings = [...parseWarnings, ...attachmentWarnings];
       if (workflowStateWarning) {
         allWarnings.push(workflowStateWarning.trim());
       }
-      let warningsSection = "";
-      if (allWarnings.length > 0) {
-        warningsSection = `\n### Warnings\n${allWarnings.map(w => `- ${w}`).join("\n")}\n`;
-      }
+      const warningsSection = buildWarningsSection(allWarnings);
 
-      // Build epic info section if using epic branch
-      let epicSection = "";
-      if (usingEpicBranch && epicInfo) {
-        epicSection = `**Epic:** ${epicInfo.title}
-**Using Epic Branch:** All commits will go to the shared epic branch${epicInfo.prUrl ? `\n**Epic PR:** ${epicInfo.prUrl}` : ""}
-`;
-      }
-
-      // Build the main text content block
-      // Attachment context appears prominently at the top if attachments are present
-      const mainTextBlock = {
-        type: "text",
-        text: `## Started Work on Ticket
-
-**Branch:** \`${branchName}\` ${branchCreated ? "(created)" : "(checked out)"}
-**Project:** ${updatedTicket.project_name}
-**Path:** ${updatedTicket.project_path}
-${epicSection}${sessionInfo ? `\n${sessionInfo}` : ""}
-${attachmentContext ? `\n---\n\n${attachmentContext}` : ""}
----
-
-## Ticket: ${updatedTicket.title}
-
-**Priority:** ${priority}
-
-### Description
-${description}
-${commentsSection ? `\n${commentsSection}` : ""}
-### Acceptance Criteria
-${acceptanceCriteria.map(c => `- ${c}`).join("\n")}
-${attachmentsSection}${warningsSection}
----
-
-Focus on implementation. When done, call \`complete_ticket_work\` with your summary.`,
-      };
-
-      // Build the content array: main text first, then attachments
-      const content = [mainTextBlock, ...attachmentBlocks];
+      // Build the complete content array using the context builder
+      const content = buildTicketContextContent(
+        {
+          ticket: updatedTicket,
+          branchName,
+          branchCreated,
+          epicInfo,
+          usingEpicBranch,
+          sessionInfo,
+          attachmentContext,
+          description,
+          priority,
+          acceptanceCriteria,
+          commentsSection,
+          attachmentsSection,
+          warningsSection,
+        },
+        attachmentBlocks
+      );
 
       // Log successful completion to telemetry
       if (telemetrySession && correlationId) {
