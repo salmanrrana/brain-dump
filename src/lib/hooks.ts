@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState, useRef, useMemo, type RefObject } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getClaudeTasks, type ClaudeTask, type ClaudeTaskStatus } from "../api/claude-tasks";
+import { createLogger } from "./logger";
+
+// Logger for hook errors - writes to brain-dump.log and error.log
+const logger = createLogger("hooks");
 
 // =============================================================================
 // STATE UTILITY HOOKS
@@ -342,7 +346,10 @@ export function useSampleData(onDeleted?: () => void): UseSampleDataReturn {
         }
       } catch (error) {
         // Note: Components using this hook should show user-facing error notifications
-        console.error("Failed to check/create sample data:", error);
+        logger.error(
+          "Failed to check/create sample data",
+          error instanceof Error ? error : new Error(String(error))
+        );
       }
     };
     void initSampleData();
@@ -361,7 +368,10 @@ export function useSampleData(onDeleted?: () => void): UseSampleDataReturn {
     },
     onError: (error) => {
       // Note: Components using this hook should show user-facing error notifications
-      console.error("Failed to delete sample data:", error);
+      logger.error(
+        "Failed to delete sample data",
+        error instanceof Error ? error : new Error(String(error))
+      );
     },
   });
 
@@ -578,10 +588,10 @@ export function useCreateTicket() {
     onError: (err, newTicket, context) => {
       // Note: Components using this hook should show user-facing error notifications
       // Log error with context for debugging
-      console.error("Failed to create ticket:", {
-        error: err,
-        ticketData: { title: newTicket.title, projectId: newTicket.projectId },
-      });
+      logger.error(
+        `Failed to create ticket: title="${newTicket.title}", projectId="${newTicket.projectId}"`,
+        err instanceof Error ? err : new Error(String(err))
+      );
 
       // Rollback all ticket queries
       if (context?.previousTicketQueries) {
@@ -667,11 +677,10 @@ export function useUpdateTicket() {
     onError: (err, variables, context) => {
       // Note: Components using this hook should show user-facing error notifications
       // Log error with context for debugging
-      console.error("Failed to update ticket:", {
-        error: err,
-        ticketId: variables.id,
-        updates: variables.updates,
-      });
+      logger.error(
+        `Failed to update ticket: id="${variables.id}", updates=${JSON.stringify(variables.updates)}`,
+        err instanceof Error ? err : new Error(String(err))
+      );
 
       // Rollback all ticket queries
       if (context?.previousTicketQueries) {
@@ -812,10 +821,10 @@ export function useCreateEpic() {
     onError: (err, newEpic, context) => {
       // Note: Components using this hook should show user-facing error notifications
       // Log error with context for debugging
-      console.error("Failed to create epic:", {
-        error: err,
-        epicData: { title: newEpic.title, projectId: newEpic.projectId },
-      });
+      logger.error(
+        `Failed to create epic: title="${newEpic.title}", projectId="${newEpic.projectId}"`,
+        err instanceof Error ? err : new Error(String(err))
+      );
 
       // Rollback on error
       if (context?.previousProjects) {
@@ -871,11 +880,10 @@ export function useUpdateEpic() {
     onError: (err, variables, context) => {
       // Note: Components using this hook should show user-facing error notifications
       // Log error with context for debugging
-      console.error("Failed to update epic:", {
-        error: err,
-        epicId: variables.id,
-        updates: variables.updates,
-      });
+      logger.error(
+        `Failed to update epic: id="${variables.id}", updates=${JSON.stringify(variables.updates)}`,
+        err instanceof Error ? err : new Error(String(err))
+      );
 
       // Rollback on error
       if (context?.previousProjects) {
@@ -921,10 +929,10 @@ export function useDeleteEpic() {
     onError: (err, variables, context) => {
       // Note: Components using this hook should show user-facing error notifications
       // Log error with context for debugging
-      console.error("Failed to delete epic:", {
-        error: err,
-        epicId: variables.epicId,
-      });
+      logger.error(
+        `Failed to delete epic: epicId="${variables.epicId}"`,
+        err instanceof Error ? err : new Error(String(err))
+      );
 
       // Rollback on error
       if (context?.previousProjects) {
@@ -1092,7 +1100,7 @@ export function useSearch(projectId?: string | null) {
         setResults(data);
       } catch (err) {
         // Note: Components using this hook should show user-facing error notifications
-        console.error("Search failed:", err);
+        logger.error("Search failed", err instanceof Error ? err : new Error(String(err)));
         setResults([]);
         setSearchError(err instanceof Error ? err.message : "Search failed");
       } finally {
@@ -1241,10 +1249,10 @@ export function useUpdateSettings() {
     onError: (err, newSettings, context) => {
       // Note: Components using this hook should show user-facing error notifications
       // Log error with context for debugging
-      console.error("Failed to update settings:", {
-        error: err,
-        attemptedUpdate: newSettings,
-      });
+      logger.error(
+        `Failed to update settings: attemptedUpdate=${JSON.stringify(newSettings)}`,
+        err instanceof Error ? err : new Error(String(err))
+      );
 
       // Rollback to previous settings on error
       if (context?.previousSettings) {
@@ -2417,9 +2425,7 @@ export function useWorkflowState(
     } else if (result.status === "error") {
       error = result.message;
       // Note: Components using this hook should show user-facing error notifications
-      console.error(
-        `[workflow-hooks] Workflow state fetch failed for ticket ${ticketId}: ${result.message}`
-      );
+      logger.error(`Workflow state fetch failed for ticket ${ticketId}: ${result.message}`);
     }
   }
 
