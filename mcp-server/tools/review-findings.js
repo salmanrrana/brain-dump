@@ -142,7 +142,7 @@ Returns the created finding with ID and current counts.`,
       // Create progress comment (per spec: mandatory audit trail)
       const severityEmoji = { critical: "🔴", major: "🟠", minor: "🟡", suggestion: "💡" }[severity] || "📌";
       const commentContent = `Review finding: ${severityEmoji} [${severity}] ${category}\n\n${description}${filePath ? `\n\nFile: ${filePath}${lineNumber ? `:${lineNumber}` : ""}` : ""}${suggestedFix ? `\n\nSuggested fix:\n${suggestedFix}` : ""}`;
-      const commentResult = addComment(db, ticketId, commentContent, "claude", "progress");
+      const commentResult = addComment(db, ticketId, commentContent, null, "progress");
       const commentWarning = commentResult.success ? "" : `\n\n**Warning:** Audit trail comment was not saved: ${commentResult.error}`;
 
       log.info(`Finding submitted for ticket ${ticketId}: [${severity}] ${category}`);
@@ -261,7 +261,7 @@ Returns the updated finding.`,
       if (fixDescription) {
         contentLines.push(`\nFix description:\n${fixDescription}`);
       }
-      const commentResult = addComment(db, finding.ticket_id, contentLines.join("\n"), "claude", "progress");
+      const commentResult = addComment(db, finding.ticket_id, contentLines.join("\n"), null, "progress");
       const commentWarning = commentResult.success ? "" : `\n\n**Warning:** Audit trail comment was not saved: ${commentResult.error}`;
 
       log.info(`Finding ${findingId} marked as ${status}`);

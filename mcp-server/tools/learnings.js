@@ -200,7 +200,7 @@ Returns summary of learnings stored and any documentation updates applied.`,
         : "";
       const commentContent = `Learnings reconciled from ticket.\n\nLearnings recorded:\n${learningsLines}${docsSection}`;
 
-      const commentResult = addComment(db, ticketId, commentContent, "claude", "progress");
+      const commentResult = addComment(db, ticketId, commentContent, null, "progress");
       const commentWarning = commentResult.success ? "" : `\n\n**Warning:** Audit trail comment was not saved: ${commentResult.error}`;
 
       return {

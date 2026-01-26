@@ -4,6 +4,7 @@
  * - Claude Code (Anthropic's CLI)
  * - OpenCode (open source AI coding agent)
  * - VS Code (with MCP extension)
+ * - Cursor (with MCP extension)
  * - Unknown environment
  * @module lib/environment
  */
@@ -26,6 +27,14 @@ const CLAUDE_CODE_ENV_PATTERNS = [
 const OPENCODE_ENV_PATTERNS = [
   "OPENCODE_EXPERIMENTAL", "OPENCODE_EXPERIMENTAL_LSP_TOOL",
   "OPENCODE_DEV_DEBUG", "OPENCODE_SERVER_PASSWORD", "OPENCODE_SERVER_USERNAME",
+];
+
+/**
+ * Cursor environment variable patterns.
+ * Cursor uses CURSOR_* prefixed environment variables.
+ */
+const CURSOR_ENV_PATTERNS = [
+  "CURSOR_TRACE_ID", "CURSOR_SESSION", "CURSOR_PID", "CURSOR_CWD",
 ];
 
 function hasVSCodeEnvironment() {
@@ -62,15 +71,90 @@ function hasOpenCodeEnvironment() {
 }
 
 /**
- * Detect the current environment (claude-code, opencode, vscode, or unknown).
- * Claude Code takes priority, then OpenCode, then VS Code.
- * @returns {"claude-code"|"opencode"|"vscode"|"unknown"}
+ * Check if any Cursor environment variables are present.
+ * Cursor uses CURSOR_* prefixed environment variables.
+ */
+function hasCursorEnvironment() {
+  // Check known Cursor environment variables
+  for (const envVar of CURSOR_ENV_PATTERNS) {
+    if (process.env[envVar]) return true;
+  }
+  // Check for any CURSOR_* prefixed environment variable
+  for (const key of Object.keys(process.env)) {
+    if (key.startsWith("CURSOR_")) return true;
+  }
+  return false;
+}
+
+/**
+ * Detect the current environment (claude-code, opencode, vscode, cursor, or unknown).
+ * Claude Code takes priority, then OpenCode, then Cursor, then VS Code.
+ * @returns {"claude-code"|"opencode"|"cursor"|"vscode"|"unknown"}
  */
 export function detectEnvironment() {
   if (hasClaudeCodeEnvironment()) return "claude-code";
   if (hasOpenCodeEnvironment()) return "opencode";
+  if (hasCursorEnvironment()) return "cursor";
   if (hasVSCodeEnvironment()) return "vscode";
   return "unknown";
+}
+
+/**
+ * Get the author name for comments based on the current environment.
+ * Also checks for Ralph session to prefix with "ralph:".
+ * @returns {string} Author name (e.g., "claude", "cursor", "opencode", "vscode", "ralph:claude", etc.)
+ */
+export function detectAuthor() {
+  // Use synchronous fs access - this is safe in Node.js MCP server context
+  let fs, path;
+  try {
+    fs = require("fs");
+    path = require("path");
+  } catch {
+    // Fallback if require fails (shouldn't happen in Node.js)
+    fs = null;
+    path = null;
+  }
+  
+  // Check if Ralph session is active
+  let isRalphSession = !!process.env.RALPH_SESSION;
+  if (!isRalphSession && fs && path) {
+    try {
+      const ralphStatePath = path.join(process.cwd(), ".claude/ralph-state.json");
+      isRalphSession = fs.existsSync(ralphStatePath);
+    } catch {
+      // If file check fails, assume no Ralph session
+      isRalphSession = false;
+    }
+  }
+
+  let baseTool = "ai"; // fallback
+
+  // Detect the underlying AI tool
+  const environment = detectEnvironment();
+  switch (environment) {
+    case "claude-code":
+      baseTool = "claude";
+      break;
+    case "opencode":
+      baseTool = "opencode";
+      break;
+    case "cursor":
+      baseTool = "cursor";
+      break;
+    case "vscode":
+      baseTool = "vscode";
+      break;
+    default:
+      baseTool = "ai";
+  }
+
+  // If Ralph is orchestrating, prefix with ralph:
+  if (isRalphSession) {
+    return `ralph:${baseTool}`;
+  }
+
+  return baseTool;
 }
 
 /**

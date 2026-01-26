@@ -5,8 +5,9 @@
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import { log } from "../lib/logging.js";
+import { detectAuthor } from "../lib/environment.js";
 
-const AUTHORS = ["claude", "ralph", "user", "opencode"];
+const AUTHORS = ["claude", "ralph", "user", "opencode", "cursor", "vscode", "ai"];
 const COMMENT_TYPES = ["comment", "work_summary", "test_report", "progress"];
 
 /**
@@ -33,10 +34,14 @@ Returns the created comment.`,
     {
       ticketId: z.string().describe("Ticket ID to add comment to"),
       content: z.string().describe("Comment content (markdown supported). For work summaries, include: what was done, files changed, tests run."),
-      author: z.enum(AUTHORS).describe("Who is adding the comment"),
+      author: z.enum(AUTHORS).optional().describe("Who is adding the comment (auto-detected from environment if not provided)"),
       type: z.enum(COMMENT_TYPES).optional().describe("Type of comment (default: comment)"),
     },
     async ({ ticketId, content, author, type = "comment" }) => {
+      // Auto-detect author if not provided
+      if (!author) {
+        author = detectAuthor();
+      }
       const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId);
       if (!ticket) {
         return {

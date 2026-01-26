@@ -145,7 +145,7 @@ Returns demo script ID.`,
         db,
         ticketId,
         `Demo script generated with ${steps.length} steps. Ticket is now ready for human review.`,
-        "claude",
+        null,
         "progress"
       );
       const commentWarning = commentResult.success ? "" : `\n\n**Warning:** Audit trail comment was not saved: ${commentResult.error}`;
