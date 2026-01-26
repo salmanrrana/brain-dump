@@ -7,7 +7,7 @@ import { z } from "zod";
 import { randomUUID } from "crypto";
 import { log } from "../lib/logging.js";
 import { addComment } from "../lib/comment-utils.js";
-import { getActiveTelemetrySession, logMcpCallEvent } from "../lib/telemetry-self-log.js";
+import { withTelemetry } from "../lib/telemetry-self-log.js";
 
 /**
  * Register demo script tools with the MCP server.
@@ -39,35 +39,9 @@ Returns demo script ID.`,
         })
       ).describe("Demo steps"),
     },
-    async ({ ticketId, steps }) => {
-      // Self-logging for telemetry in non-hook environments
-      const telemetrySession = getActiveTelemetrySession(db, ticketId);
-      let correlationId = null;
-      const startTime = Date.now();
-      if (telemetrySession) {
-        correlationId = logMcpCallEvent(db, {
-          sessionId: telemetrySession.id,
-          ticketId: telemetrySession.ticket_id,
-          event: "start",
-          toolName: "generate_demo_script",
-          params: { ticketId, stepsCount: steps.length },
-        });
-      }
-
+    withTelemetry(db, "generate_demo_script", (params) => params.ticketId, async ({ ticketId, steps }) => {
       const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId);
       if (!ticket) {
-        if (telemetrySession && correlationId) {
-          logMcpCallEvent(db, {
-            sessionId: telemetrySession.id,
-            ticketId: telemetrySession.ticket_id,
-            event: "end",
-            toolName: "generate_demo_script",
-            correlationId,
-            success: false,
-            durationMs: Date.now() - startTime,
-            error: "Ticket not found",
-          });
-        }
         return {
           content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
           isError: true,
@@ -75,18 +49,6 @@ Returns demo script ID.`,
       }
 
       if (ticket.status !== "ai_review") {
-        if (telemetrySession && correlationId) {
-          logMcpCallEvent(db, {
-            sessionId: telemetrySession.id,
-            ticketId: telemetrySession.ticket_id,
-            event: "end",
-            toolName: "generate_demo_script",
-            correlationId,
-            success: false,
-            durationMs: Date.now() - startTime,
-            error: "Ticket not in ai_review status",
-          });
-        }
         return {
           content: [{ type: "text", text: `Ticket must be in ai_review status to generate demo.\nCurrent status: ${ticket.status}` }],
           isError: true,
@@ -99,18 +61,6 @@ Returns demo script ID.`,
       const openMajor = findings.filter(f => f.severity === "major" && f.status === "open").length;
 
       if (openCritical > 0 || openMajor > 0) {
-        if (telemetrySession && correlationId) {
-          logMcpCallEvent(db, {
-            sessionId: telemetrySession.id,
-            ticketId: telemetrySession.ticket_id,
-            event: "end",
-            toolName: "generate_demo_script",
-            correlationId,
-            success: false,
-            durationMs: Date.now() - startTime,
-            error: "Unresolved critical/major findings",
-          });
-        }
         return {
           content: [{
             type: "text",
@@ -152,26 +102,13 @@ Returns demo script ID.`,
 
       log.info(`Demo script created for ticket ${ticketId} with ${steps.length} steps`);
 
-      // Log successful completion to telemetry
-      if (telemetrySession && correlationId) {
-        logMcpCallEvent(db, {
-          sessionId: telemetrySession.id,
-          ticketId: telemetrySession.ticket_id,
-          event: "end",
-          toolName: "generate_demo_script",
-          correlationId,
-          success: true,
-          durationMs: Date.now() - startTime,
-        });
-      }
-
       return {
         content: [{
           type: "text",
           text: `Demo script created successfully!\n\nDemo ID: ${id}\nSteps: ${steps.length}\nStatus: human_review\n\nThe ticket is now ready for human review.${commentWarning}`,
         }],
       };
-    }
+    })
   );
 
   // Get demo script
@@ -186,7 +123,7 @@ Returns demo script with steps and feedback if available.`,
     {
       ticketId: z.string().describe("Ticket ID"),
     },
-    async ({ ticketId }) => {
+    withTelemetry(db, "get_demo_script", (params) => params.ticketId, async ({ ticketId }) => {
       const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId);
       if (!ticket) {
         return {
@@ -230,7 +167,7 @@ Returns demo script with steps and feedback if available.`,
           text: `Demo script found:\n\n${JSON.stringify(result, null, 2)}`,
         }],
       };
-    }
+    })
   );
 
   // Update demo step
@@ -328,35 +265,9 @@ Returns updated ticket status.`,
         })
       ).optional().describe("Step results"),
     },
-    async ({ ticketId, passed, feedback, stepResults }) => {
-      // Self-logging for telemetry in non-hook environments
-      const telemetrySession = getActiveTelemetrySession(db, ticketId);
-      let correlationId = null;
-      const startTime = Date.now();
-      if (telemetrySession) {
-        correlationId = logMcpCallEvent(db, {
-          sessionId: telemetrySession.id,
-          ticketId: telemetrySession.ticket_id,
-          event: "start",
-          toolName: "submit_demo_feedback",
-          params: { ticketId, passed },
-        });
-      }
-
+    withTelemetry(db, "submit_demo_feedback", (params) => params.ticketId, async ({ ticketId, passed, feedback, stepResults }) => {
       const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId);
       if (!ticket) {
-        if (telemetrySession && correlationId) {
-          logMcpCallEvent(db, {
-            sessionId: telemetrySession.id,
-            ticketId: telemetrySession.ticket_id,
-            event: "end",
-            toolName: "submit_demo_feedback",
-            correlationId,
-            success: false,
-            durationMs: Date.now() - startTime,
-            error: "Ticket not found",
-          });
-        }
         return {
           content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
           isError: true,
@@ -364,18 +275,6 @@ Returns updated ticket status.`,
       }
 
       if (ticket.status !== "human_review") {
-        if (telemetrySession && correlationId) {
-          logMcpCallEvent(db, {
-            sessionId: telemetrySession.id,
-            ticketId: telemetrySession.ticket_id,
-            event: "end",
-            toolName: "submit_demo_feedback",
-            correlationId,
-            success: false,
-            durationMs: Date.now() - startTime,
-            error: "Ticket not in human_review status",
-          });
-        }
         return {
           content: [{ type: "text", text: `Ticket must be in human_review status to submit feedback.\nCurrent status: ${ticket.status}` }],
           isError: true,
@@ -384,18 +283,6 @@ Returns updated ticket status.`,
 
       const demo = db.prepare("SELECT * FROM demo_scripts WHERE ticket_id = ?").get(ticketId);
       if (!demo) {
-        if (telemetrySession && correlationId) {
-          logMcpCallEvent(db, {
-            sessionId: telemetrySession.id,
-            ticketId: telemetrySession.ticket_id,
-            event: "end",
-            toolName: "submit_demo_feedback",
-            correlationId,
-            success: false,
-            durationMs: Date.now() - startTime,
-            error: "No demo script found",
-          });
-        }
         return {
           content: [{ type: "text", text: `No demo script found for this ticket` }],
           isError: true,
@@ -473,25 +360,12 @@ Returns updated ticket status.`,
 
       log.info(`Demo feedback submitted for ticket ${ticketId}: ${passed ? "approved" : "rejected"}`);
 
-      // Log successful completion to telemetry
-      if (telemetrySession && correlationId) {
-        logMcpCallEvent(db, {
-          sessionId: telemetrySession.id,
-          ticketId: telemetrySession.ticket_id,
-          event: "end",
-          toolName: "submit_demo_feedback",
-          correlationId,
-          success: true,
-          durationMs: Date.now() - startTime,
-        });
-      }
-
       return {
         content: [{
           type: "text",
           text: `Demo feedback submitted.\n\nResult: ${passed ? "✅ APPROVED" : "❌ REJECTED"}\nTicket status: ${newStatus}${workflowStateWarning}${commentWarning}`,
         }],
       };
-    }
+    })
   );
 }

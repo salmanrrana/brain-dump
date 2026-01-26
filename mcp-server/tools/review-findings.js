@@ -7,7 +7,7 @@ import { z } from "zod";
 import { randomUUID } from "crypto";
 import { log } from "../lib/logging.js";
 import { addComment } from "../lib/comment-utils.js";
-import { getActiveTelemetrySession, logMcpCallEvent } from "../lib/telemetry-self-log.js";
+import { getActiveTelemetrySession, logMcpCallEvent, withTelemetry } from "../lib/telemetry-self-log.js";
 
 const AGENTS = ["code-reviewer", "silent-failure-hunter", "code-simplifier"];
 const SEVERITIES = ["critical", "major", "minor", "suggestion"];
@@ -47,35 +47,9 @@ Returns the created finding with ID and current counts.`,
       lineNumber: z.number().optional().describe("Line number"),
       suggestedFix: z.string().optional().describe("Suggested fix"),
     },
-    async ({ ticketId, agent, severity, category, description, filePath, lineNumber, suggestedFix }) => {
-      // Self-logging for telemetry in non-hook environments
-      const telemetrySession = getActiveTelemetrySession(db, ticketId);
-      let correlationId = null;
-      const startTime = Date.now();
-      if (telemetrySession) {
-        correlationId = logMcpCallEvent(db, {
-          sessionId: telemetrySession.id,
-          ticketId: telemetrySession.ticket_id,
-          event: "start",
-          toolName: "submit_review_finding",
-          params: { ticketId, agent, severity, category },
-        });
-      }
-
+    withTelemetry(db, "submit_review_finding", (params) => params.ticketId, async ({ ticketId, agent, severity, category, description, filePath, lineNumber, suggestedFix }) => {
       const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId);
       if (!ticket) {
-        if (telemetrySession && correlationId) {
-          logMcpCallEvent(db, {
-            sessionId: telemetrySession.id,
-            ticketId: telemetrySession.ticket_id,
-            event: "end",
-            toolName: "submit_review_finding",
-            correlationId,
-            success: false,
-            durationMs: Date.now() - startTime,
-            error: "Ticket not found",
-          });
-        }
         return {
           content: [{ type: "text", text: `Ticket not found: ${ticketId}\n\nUse list_tickets to see available tickets.` }],
           isError: true,
@@ -83,18 +57,6 @@ Returns the created finding with ID and current counts.`,
       }
 
       if (ticket.status !== "ai_review") {
-        if (telemetrySession && correlationId) {
-          logMcpCallEvent(db, {
-            sessionId: telemetrySession.id,
-            ticketId: telemetrySession.ticket_id,
-            event: "end",
-            toolName: "submit_review_finding",
-            correlationId,
-            success: false,
-            durationMs: Date.now() - startTime,
-            error: "Ticket not in ai_review status",
-          });
-        }
         return {
           content: [{ type: "text", text: `Ticket must be in ai_review status to submit findings.\nCurrent status: ${ticket.status}\n\nUse complete_ticket_work to move to ai_review first.` }],
           isError: true,
@@ -147,26 +109,13 @@ Returns the created finding with ID and current counts.`,
 
       log.info(`Finding submitted for ticket ${ticketId}: [${severity}] ${category}`);
 
-      // Log successful completion to telemetry
-      if (telemetrySession && correlationId) {
-        logMcpCallEvent(db, {
-          sessionId: telemetrySession.id,
-          ticketId: telemetrySession.ticket_id,
-          event: "end",
-          toolName: "submit_review_finding",
-          correlationId,
-          success: true,
-          durationMs: Date.now() - startTime,
-        });
-      }
-
       return {
         content: [{
           type: "text",
           text: `Finding submitted successfully!\n\nFinding ID: ${findingId}\nAgent: ${agent}\nSeverity: ${severity}\nCategory: ${category}\n\nTotal findings: ${workflowState.findings_count + 1}${commentWarning}`,
         }],
       };
-    }
+    })
   );
 
   // Mark finding as fixed
@@ -306,7 +255,7 @@ Returns array of findings.`,
       severity: z.enum(SEVERITIES).optional().describe("Filter by severity"),
       agent: z.enum(AGENTS).optional().describe("Filter by agent"),
     },
-    async ({ ticketId, status, severity, agent }) => {
+    withTelemetry(db, "get_review_findings", (params) => params.ticketId, async ({ ticketId, status, severity, agent }) => {
       const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId);
       if (!ticket) {
         return {
@@ -357,7 +306,7 @@ Returns array of findings.`,
           text: `Found ${findings.length} finding(s).\n\n${JSON.stringify(summary, null, 2)}\n\nFindings:\n\n${findings.map((f, i) => `${i + 1}. [${f.severity}] ${f.category} - ${f.status}\n   ${f.description}${f.file_path ? `\n   File: ${f.file_path}${f.line_number ? `:${f.line_number}` : ""}` : ""}`).join("\n\n")}`,
         }],
       };
-    }
+    })
   );
 
   // Check if review is complete
@@ -372,7 +321,7 @@ Returns object with completion status and counts.`,
     {
       ticketId: z.string().describe("Ticket ID"),
     },
-    async ({ ticketId }) => {
+    withTelemetry(db, "check_review_complete", (params) => params.ticketId, async ({ ticketId }) => {
       const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId);
       if (!ticket) {
         return {
@@ -410,6 +359,6 @@ Returns object with completion status and counts.`,
           text: `${message}\n\n${JSON.stringify(result, null, 2)}`,
         }],
       };
-    }
+    })
   );
 }
