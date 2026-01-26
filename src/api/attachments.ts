@@ -8,35 +8,14 @@ import {
   type AttachmentPriority,
   type AttachmentUploader,
   normalizeAttachments,
+  ALLOWED_MIME_TYPES,
+  MIME_TYPES,
+  IMAGE_EXTENSIONS,
 } from "../lib/attachment-types";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
-// Allowed MIME types and their extensions (whitelist for security)
-const ALLOWED_MIME_TYPES: Record<string, string[]> = {
-  "image/jpeg": ["jpg", "jpeg"],
-  "image/png": ["png"],
-  "image/gif": ["gif"],
-  "image/webp": ["webp"],
-  "image/svg+xml": ["svg"],
-  "application/pdf": ["pdf"],
-  "text/plain": ["txt"],
-  "text/markdown": ["md"],
-  "application/json": ["json"],
-};
-
-const MIME_TYPES: Record<string, string> = {
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  png: "image/png",
-  gif: "image/gif",
-  webp: "image/webp",
-  svg: "image/svg+xml",
-  pdf: "application/pdf",
-  txt: "text/plain",
-  md: "text/markdown",
-  json: "application/json",
-};
+// ALLOWED_MIME_TYPES and MIME_TYPES imported from ../lib/attachment-types
 
 // Validate that the MIME type from data URL matches the file extension
 function validateMimeType(dataUrl: string, filename: string): void {
@@ -139,7 +118,7 @@ export const getAttachments = createServerFn({ method: "GET" })
       const filePath = join(ticketDir, filename);
       const stats = statSync(filePath);
       const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-      const isImage = ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext);
+      const isImage = (IMAGE_EXTENSIONS as readonly string[]).includes(ext);
 
       // Read file and create data URL
       const content = readFileSync(filePath);
@@ -277,7 +256,7 @@ export const uploadAttachment = createServerFn({ method: "POST" })
         .run();
 
       const ext = finalFilename.split(".").pop()?.toLowerCase() ?? "";
-      const isImage = ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext);
+      const isImage = (IMAGE_EXTENSIONS as readonly string[]).includes(ext);
       const mimeType = MIME_TYPES[ext] ?? "application/octet-stream";
 
       const result: Attachment = {
@@ -361,7 +340,7 @@ export const uploadPendingAttachment = createServerFn({ method: "POST" })
       writeFileSync(join(ticketDir, finalFilename), buffer);
 
       const ext = finalFilename.split(".").pop()?.toLowerCase() ?? "";
-      const isImage = ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext);
+      const isImage = (IMAGE_EXTENSIONS as readonly string[]).includes(ext);
       const mimeType = MIME_TYPES[ext] ?? "application/octet-stream";
 
       const attachmentId = randomUUID();

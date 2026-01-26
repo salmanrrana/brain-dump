@@ -13,6 +13,11 @@ import { homedir } from "os";
 import { log } from "../lib/logging.js";
 import { runGitCommand, shortId, generateBranchName, generateEpicBranchName } from "../lib/git-utils.js";
 import { getActiveTelemetrySession, logMcpCallEvent } from "../lib/telemetry-self-log.js";
+import {
+  FILE_TYPES,
+  ATTACHMENT_TYPE_CONFIG,
+  formatFileSize,
+} from "../lib/attachment-types.js";
 
 /**
  * Maximum file size for attachments to include in MCP response (5MB).
@@ -26,72 +31,9 @@ const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024;
  */
 const RECOMMENDED_ATTACHMENT_SIZE = 1 * 1024 * 1024;
 
-/**
- * File type configuration for attachments.
- * Each entry defines how to handle a file extension: mime type and content type.
- * - "image": Loaded as base64 MCP image content block
- * - "text": Read as UTF-8 and included inline with code fence
- * - "reference": Not loaded, just referenced by path
- */
-const FILE_TYPES = {
-  jpg: { mime: "image/jpeg", type: "image" },
-  jpeg: { mime: "image/jpeg", type: "image" },
-  png: { mime: "image/png", type: "image" },
-  gif: { mime: "image/gif", type: "image" },
-  webp: { mime: "image/webp", type: "image" },
-  svg: { mime: "image/svg+xml", type: "image" },  // Treat as image for consistency with src/api/attachments.ts
-  pdf: { mime: "application/pdf", type: "reference" },
-  txt: { mime: "text/plain", type: "text", fence: "" },
-  md: { mime: "text/markdown", type: "text", fence: "markdown" },
-  json: { mime: "application/json", type: "text", fence: "json" },
-};
+// FILE_TYPES imported from ../lib/attachment-types.js
 
-/**
- * Attachment type configuration for AI context generation.
- * Each type has an icon, context header, and AI instruction.
- */
-const ATTACHMENT_TYPE_CONFIG = {
-  mockup: {
-    contextHeader: "Design Mockups (IMPLEMENT TO MATCH)",
-    aiInstruction: "Your implementation MUST match this design",
-  },
-  wireframe: {
-    contextHeader: "Wireframes (REFERENCE LAYOUT)",
-    aiInstruction: "Follow this layout structure",
-  },
-  "bug-screenshot": {
-    contextHeader: "Bug Screenshots (THIS IS BROKEN)",
-    aiInstruction: "This shows what's wrong - fix this behavior",
-  },
-  "expected-behavior": {
-    contextHeader: "Expected Behavior (TARGET STATE)",
-    aiInstruction: "Make the behavior match this",
-  },
-  "actual-behavior": {
-    contextHeader: "Actual Behavior (CURRENT BROKEN STATE)",
-    aiInstruction: "This is the current broken state to fix",
-  },
-  diagram: {
-    contextHeader: "Diagrams (REFERENCE)",
-    aiInstruction: "Use for understanding architecture/flow",
-  },
-  "error-message": {
-    contextHeader: "Error Messages (DEBUG THIS)",
-    aiInstruction: "Debug and fix this error",
-  },
-  "console-log": {
-    contextHeader: "Console Output (DEBUG INFO)",
-    aiInstruction: "Use this debugging information",
-  },
-  reference: {
-    contextHeader: "Reference Images",
-    aiInstruction: "Use for general reference",
-  },
-  asset: {
-    contextHeader: "Assets (USE DIRECTLY)",
-    aiInstruction: "Use this image asset directly in the implementation",
-  },
-};
+// ATTACHMENT_TYPE_CONFIG imported from ../lib/attachment-types.js
 
 /**
  * Normalize attachment data from the database.
@@ -138,17 +80,7 @@ function normalizeAttachment(item, index) {
   };
 }
 
-/**
- * Format file size for display.
- * @param {number} bytes - File size in bytes
- * @returns {string} Formatted size (e.g., "1.5MB" or "256KB")
- */
-function formatFileSize(bytes) {
-  if (bytes >= 1024 * 1024) {
-    return `${Math.round(bytes / 1024 / 1024)}MB`;
-  }
-  return `${Math.round(bytes / 1024)}KB`;
-}
+// formatFileSize imported from ../lib/attachment-types.js
 
 /**
  * Get the attachments directory path.
