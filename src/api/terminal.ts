@@ -389,9 +389,10 @@ echo -e "\\033[0;34m━━━━━━━━━━━━━━━━━━━━
 echo ""
 
 # Launch OpenCode with the project path and prompt
-# OpenCode expects: opencode [project] --prompt [message]
+# OpenCode expects: opencode [project] --prompt [message] --model [model]
 # This launches the interactive TUI with the initial prompt, similar to how Claude works
-opencode "${safeProjectPath}" --prompt "$(cat "$CONTEXT_FILE")"
+# Use --model flag to override any cached/last-used model preference
+opencode "${safeProjectPath}" --prompt "$(cat "$CONTEXT_FILE")" --model "opencode/big-pickle"
 
 # Cleanup context file
 rm -f "$CONTEXT_FILE"
