@@ -30,6 +30,8 @@ export interface UpdateSettingsInput {
   // Enterprise conversation logging
   conversationLoggingEnabled?: boolean;
   conversationRetentionDays?: number; // Days to retain logs (7-365)
+  // Git worktree feature flag
+  enableWorktreeSupport?: boolean; // Global opt-in for worktree support
 }
 
 // List of supported terminal emulators
@@ -143,6 +145,9 @@ export const updateSettings = createServerFn({ method: "POST" })
       // Validate retention: minimum 7 days, maximum 365 days
       const retention = Math.max(7, Math.min(365, updates.conversationRetentionDays));
       updateData.conversationRetentionDays = retention;
+    }
+    if (updates.enableWorktreeSupport !== undefined) {
+      updateData.enableWorktreeSupport = updates.enableWorktreeSupport;
     }
 
     db.update(settings).set(updateData).where(eq(settings.id, "default")).run();

@@ -43,6 +43,8 @@ export interface Settings {
   // Enterprise conversation logging
   conversationLoggingEnabled: boolean | null;
   conversationRetentionDays: number | null;
+  // Git worktree feature flag
+  enableWorktreeSupport: boolean | null; // Global opt-in for worktree support
   createdAt: string;
   updatedAt: string;
 }

@@ -33,6 +33,7 @@ export const settingsFormSchema = z.object({
     .number()
     .min(7, "Retention must be at least 7 days")
     .max(365, "Retention cannot exceed 1 year"),
+  enableWorktreeSupport: z.boolean(),
 });
 
 export type SettingsFormData = z.infer<typeof settingsFormSchema>;
