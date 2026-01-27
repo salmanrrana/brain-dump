@@ -25,6 +25,7 @@ export interface UpdateProjectInput {
   path?: string;
   color?: string;
   workingMethod?: "auto" | "claude-code" | "vscode" | "opencode";
+  defaultIsolationMode?: "branch" | "worktree" | "ask" | null;
 }
 
 // Get all projects
@@ -81,6 +82,8 @@ export const updateProject = createServerFn({ method: "POST" })
     if (updates.path !== undefined) updateData.path = updates.path.trim();
     if (updates.color !== undefined) updateData.color = updates.color;
     if (updates.workingMethod !== undefined) updateData.workingMethod = updates.workingMethod;
+    if (updates.defaultIsolationMode !== undefined)
+      updateData.defaultIsolationMode = updates.defaultIsolationMode;
 
     if (Object.keys(updateData).length > 0) {
       db.update(projects).set(updateData).where(eq(projects.id, id)).run();

@@ -260,6 +260,7 @@ export function useUpdateProject() {
         path?: string;
         color?: string;
         workingMethod?: "auto" | "claude-code" | "vscode" | "opencode";
+        defaultIsolationMode?: "branch" | "worktree" | "ask" | null;
       };
     }) => updateProject({ data }),
     onSuccess: () => {
@@ -365,7 +366,12 @@ export function useUpdateEpic() {
   return useMutation({
     mutationFn: (data: {
       id: string;
-      updates: { title?: string; description?: string; color?: string };
+      updates: {
+        title?: string;
+        description?: string;
+        color?: string;
+        isolationMode?: "branch" | "worktree" | null;
+      };
     }) => updateEpic({ data }),
     onMutate: async ({ id, updates }) => {
       // Cancel outgoing refetches
@@ -390,6 +396,10 @@ export function useUpdateEpic() {
                     description:
                       updates.description !== undefined ? updates.description : epic.description,
                     color: updates.color !== undefined ? updates.color : epic.color,
+                    isolationMode:
+                      updates.isolationMode !== undefined
+                        ? updates.isolationMode
+                        : epic.isolationMode,
                   }
                 : epic
             ),

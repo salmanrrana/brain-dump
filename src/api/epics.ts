@@ -17,6 +17,7 @@ export interface UpdateEpicInput {
   title?: string;
   description?: string;
   color?: string;
+  isolationMode?: "branch" | "worktree" | null;
 }
 
 // Get all epics for a project
@@ -80,6 +81,7 @@ export const updateEpic = createServerFn({ method: "POST" })
     if (updates.description !== undefined)
       updateData.description = updates.description?.trim() ?? null;
     if (updates.color !== undefined) updateData.color = updates.color;
+    if (updates.isolationMode !== undefined) updateData.isolationMode = updates.isolationMode;
 
     if (Object.keys(updateData).length > 0) {
       db.update(epics).set(updateData).where(eq(epics.id, id)).run();
