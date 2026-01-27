@@ -148,3 +148,79 @@ export function generateBranchName(ticketId, ticketTitle) {
 export function generateEpicBranchName(epicId, epicTitle) {
   return `feature/epic-${shortId(epicId)}-${slugify(epicTitle)}`;
 }
+
+/**
+ * Safely run a GitHub CLI (gh) command using argument arrays (immune to command injection).
+ *
+ * Unlike shell-based execution, this function uses execFileSync with argument arrays,
+ * preventing shell metacharacter injection.
+ *
+ * @param {string[]} args - Array of gh command arguments (without 'gh' prefix)
+ * @param {string} cwd - Working directory for the command
+ * @param {object} [options] - Optional configuration
+ * @param {number} [options.maxBuffer=10485760] - Maximum buffer size (default 10MB)
+ * @param {number} [options.timeout] - Optional timeout in milliseconds
+ * @returns {{ success: boolean, output: string, error?: string }}
+ *
+ * @example
+ * // Query PR status
+ * runGhCommandSafe(["pr", "view", "123", "--json", "state,mergedAt"], cwd);
+ */
+export function runGhCommandSafe(args, cwd, options = {}) {
+  // Validate args is an array
+  if (!Array.isArray(args)) {
+    return {
+      success: false,
+      output: "",
+      error: "Invalid arguments: expected array of gh command arguments",
+    };
+  }
+
+  // Validate cwd is provided
+  if (!cwd || typeof cwd !== "string") {
+    return {
+      success: false,
+      output: "",
+      error: "Invalid working directory: cwd must be a non-empty string",
+    };
+  }
+
+  const { maxBuffer = 10 * 1024 * 1024, timeout } = options;
+
+  try {
+    const execOptions = {
+      cwd,
+      encoding: "utf-8",
+      maxBuffer,
+      // Don't use shell - this is the key security feature
+    };
+
+    if (timeout !== undefined) {
+      execOptions.timeout = timeout;
+    }
+
+    const output = execFileSync("gh", args, execOptions);
+    return { success: true, output: output.trim() };
+  } catch (error) {
+    // Extract meaningful error information
+    let errorMessage = error.message;
+
+    if (error.stderr && typeof error.stderr === "string" && error.stderr.trim()) {
+      errorMessage = error.stderr.trim();
+    } else if (error.stderr && Buffer.isBuffer(error.stderr)) {
+      errorMessage = error.stderr.toString("utf-8").trim() || error.message;
+    }
+
+    if (error.code === "ENOENT") {
+      errorMessage = "GitHub CLI (gh) is not installed or not in PATH";
+    } else if (error.code === "ETIMEDOUT") {
+      errorMessage = `gh command timed out after ${timeout}ms`;
+    } else if (error.killed) {
+      errorMessage = "gh command was terminated (possibly due to timeout or signal)";
+    }
+
+    log.debug(`gh command failed: gh ${args.join(" ")} in ${cwd} - ${errorMessage}`);
+
+    return { success: false, output: "", error: errorMessage };
+  }
+}
