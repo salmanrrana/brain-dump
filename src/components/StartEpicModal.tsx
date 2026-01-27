@@ -1,6 +1,9 @@
 import { type FC, useState, useRef, useCallback, useMemo, useEffect, type FormEvent } from "react";
 import { X, Loader2, GitBranch, FolderTree, Check } from "lucide-react";
 import { useClickOutside, useUpdateEpic, useUpdateProject } from "../lib/hooks";
+import { createBrowserLogger } from "../lib/browser-logger";
+
+const logger = createBrowserLogger("components:StartEpicModal");
 
 // =============================================================================
 // Types
@@ -57,17 +60,8 @@ function shortId(uuid: string): string {
  * Shorten a path for display by replacing the home directory with ~.
  */
 function shortenPath(path: string): string {
-  // On client side, assume /Users/<user> pattern for macOS
-  // and /home/<user> pattern for Linux
-  const macMatch = path.match(/^\/Users\/[^/]+/);
-  if (macMatch) {
-    return path.replace(macMatch[0], "~");
-  }
-  const linuxMatch = path.match(/^\/home\/[^/]+/);
-  if (linuxMatch) {
-    return path.replace(linuxMatch[0], "~");
-  }
-  return path;
+  // Match macOS (/Users/<user>) or Linux (/home/<user>) home directories
+  return path.replace(/^\/(?:Users|home)\/[^/]+/, "~");
 }
 
 /**
@@ -142,11 +136,8 @@ export const StartEpicModal: FC<StartEpicModalProps> = ({
       return epic.isolationMode;
     }
     // If project has a default (excluding "ask"), use it
-    if (project.defaultIsolationMode === "branch") {
-      return "branch";
-    }
-    if (project.defaultIsolationMode === "worktree") {
-      return "worktree";
+    if (project.defaultIsolationMode === "branch" || project.defaultIsolationMode === "worktree") {
+      return project.defaultIsolationMode;
     }
     // Default to branch
     return "branch";
@@ -183,6 +174,20 @@ export const StartEpicModal: FC<StartEpicModalProps> = ({
   // Derived state
   const isSubmitting = updateEpicMutation.isPending || updateProjectMutation.isPending;
 
+  // Extract error message for display
+  const errorMessage = (() => {
+    if (updateEpicMutation.error instanceof Error) {
+      return updateEpicMutation.error.message;
+    }
+    if (updateProjectMutation.error instanceof Error) {
+      return updateProjectMutation.error.message;
+    }
+    if (updateEpicMutation.error || updateProjectMutation.error) {
+      return "Failed to update settings";
+    }
+    return null;
+  })();
+
   // Generate worktree path preview
   const worktreePathPreview = useMemo(
     () => generateWorktreePathPreview(project.path, epic.id, epic.title),
@@ -202,23 +207,33 @@ export const StartEpicModal: FC<StartEpicModalProps> = ({
 
       if (isSubmitting) return;
 
-      // Update epic's isolation mode
-      await updateEpicMutation.mutateAsync({
-        id: epic.id,
-        updates: { isolationMode: selectedMode },
-      });
-
-      // Optionally update project default
-      if (rememberChoice) {
-        await updateProjectMutation.mutateAsync({
-          id: project.id,
-          updates: { defaultIsolationMode: selectedMode },
+      try {
+        // Update epic's isolation mode
+        await updateEpicMutation.mutateAsync({
+          id: epic.id,
+          updates: { isolationMode: selectedMode },
         });
-      }
 
-      // Call success handler
-      onConfirm?.(epic.id, selectedMode);
-      onClose();
+        // Optionally update project default
+        if (rememberChoice) {
+          await updateProjectMutation.mutateAsync({
+            id: project.id,
+            updates: { defaultIsolationMode: selectedMode },
+          });
+        }
+
+        // Only call success handlers after ALL mutations succeed
+        onConfirm?.(epic.id, selectedMode);
+        onClose();
+      } catch (error) {
+        // Error state is automatically set by TanStack Query mutation
+        // The error display block will show the error to the user
+        // Do NOT close the modal - let user see the error and retry
+        logger.error(
+          `Failed to start epic work: epicId="${epic.id}", mode="${selectedMode}"`,
+          error instanceof Error ? error : new Error(String(error))
+        );
+      }
     },
     [
       isSubmitting,
@@ -346,13 +361,9 @@ export const StartEpicModal: FC<StartEpicModalProps> = ({
           </label>
 
           {/* Error Display */}
-          {(updateEpicMutation.error || updateProjectMutation.error) && (
+          {errorMessage && (
             <div style={errorStyles} role="alert" data-testid="start-epic-error">
-              {updateEpicMutation.error instanceof Error
-                ? updateEpicMutation.error.message
-                : updateProjectMutation.error instanceof Error
-                  ? updateProjectMutation.error.message
-                  : "Failed to update settings"}
+              {errorMessage}
             </div>
           )}
 
