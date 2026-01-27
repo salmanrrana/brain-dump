@@ -32,7 +32,7 @@ describe("isWorktreeSupportEnabled", () => {
       "SELECT default_isolation_mode FROM projects": {
         default_isolation_mode: null,
       },
-      "SELECT value FROM settings": undefined,
+      "SELECT enable_worktree_support FROM settings": undefined,
     });
 
     const result = isWorktreeSupportEnabled(db, "project-123");
@@ -85,7 +85,7 @@ describe("isWorktreeSupportEnabled", () => {
       "SELECT default_isolation_mode FROM projects": {
         default_isolation_mode: null,
       },
-      "SELECT value FROM settings": { value: "true" },
+      "SELECT enable_worktree_support FROM settings": { enable_worktree_support: 1 },
     });
 
     const result = isWorktreeSupportEnabled(db, "project-123");

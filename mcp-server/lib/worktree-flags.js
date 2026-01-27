@@ -55,17 +55,20 @@ export function isWorktreeSupportEnabled(db, projectId) {
   // Check global setting as fallback
   try {
     const settings = db
-      .prepare("SELECT value FROM settings WHERE key = 'enable_worktree_support'")
+      .prepare("SELECT enable_worktree_support FROM settings WHERE id = 'default'")
       .get();
 
-    if (settings?.value === "true" || settings?.value === "1") {
+    if (settings?.enable_worktree_support === 1 || settings?.enable_worktree_support === true) {
       log.debug("Worktree support enabled globally via settings");
       return { enabled: true, reason: "global" };
     }
-  } catch {
-    // Settings table might use id-based lookup instead of key-based
-    // Fall through to default (disabled)
-    log.debug("No global worktree setting found, defaulting to disabled");
+  } catch (err) {
+    // Log unexpected errors - "no such column" is expected if schema hasn't migrated yet
+    if (err.message?.includes("no such column") || err.message?.includes("no such table")) {
+      log.debug("Global worktree setting column not found, defaulting to disabled");
+    } else {
+      log.warn(`Failed to check global worktree setting: ${err.message}`);
+    }
   }
 
   return { enabled: false, reason: "disabled" };

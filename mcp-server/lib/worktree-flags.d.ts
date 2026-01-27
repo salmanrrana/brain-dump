@@ -45,5 +45,5 @@ export function isWorktreeSupportEnabledForEpic(
 export function getEffectiveIsolationMode(
   db: WorktreeDb,
   epicId: string,
-  requestedMode?: string | null
+  requestedMode?: "branch" | "worktree" | null
 ): EffectiveIsolationModeResult;
