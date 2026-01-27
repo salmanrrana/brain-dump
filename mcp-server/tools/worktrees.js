@@ -125,7 +125,19 @@ Returns:
         params.push(projectId);
       }
 
-      const epicsWithWorktrees = db.prepare(epicsQuery).all(...params);
+      let epicsWithWorktrees;
+      try {
+        epicsWithWorktrees = db.prepare(epicsQuery).all(...params);
+      } catch (dbError) {
+        log.error(`Database query failed: ${dbError.message}`);
+        return {
+          content: [{
+            type: "text",
+            text: `## Worktree Cleanup Error\n\nFailed to query database for worktrees: ${dbError.message}\n\n**Possible causes:**\n- Database is locked by another process\n- Database file is corrupted\n- Schema needs migration (run \`pnpm db:migrate\`)\n\nRun \`pnpm brain-dump check\` to diagnose database issues.`,
+          }],
+          isError: true,
+        };
+      }
 
       if (epicsWithWorktrees.length === 0) {
         return {
@@ -200,12 +212,22 @@ Returns:
         }
 
         // Check if all tickets in the epic are done
-        const ticketStats = db.prepare(`
-          SELECT
-            COUNT(*) as total,
-            SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as done
-          FROM tickets WHERE epic_id = ?
-        `).get(epic.epic_id);
+        let ticketStats;
+        try {
+          ticketStats = db.prepare(`
+            SELECT
+              COUNT(*) as total,
+              SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) as done
+            FROM tickets WHERE epic_id = ?
+          `).get(epic.epic_id);
+        } catch (queryError) {
+          log.error(`Failed to query ticket stats for epic ${epic.epic_id}: ${queryError.message}`);
+          results.errors.push({
+            worktreePath: epic.worktree_path,
+            error: `Failed to check ticket status: ${queryError.message}`,
+          });
+          continue;
+        }
 
         const allTicketsDone = ticketStats.total > 0 && ticketStats.done === ticketStats.total;
 
@@ -275,14 +297,21 @@ Returns:
             if (removeResult.success) {
               // Update database
               const now = new Date().toISOString();
-              db.prepare(`
-                UPDATE epic_workflow_state
-                SET worktree_path = NULL, worktree_status = 'removed', updated_at = ?
-                WHERE epic_id = ?
-              `).run(now, epic.epic_id);
-
-              log.info(`Removed worktree for epic ${epic.epic_id}: ${epic.worktree_path}`);
-              results.removed.push(cleanupInfo);
+              try {
+                db.prepare(`
+                  UPDATE epic_workflow_state
+                  SET worktree_path = NULL, worktree_status = 'removed', updated_at = ?
+                  WHERE epic_id = ?
+                `).run(now, epic.epic_id);
+                log.info(`Removed worktree for epic ${epic.epic_id}: ${epic.worktree_path}`);
+                results.removed.push(cleanupInfo);
+              } catch (dbError) {
+                log.error(`Worktree removed but database update failed for epic ${epic.epic_id}: ${dbError.message}`);
+                results.errors.push({
+                  worktreePath: epic.worktree_path,
+                  error: `Worktree physically removed but database update failed: ${dbError.message}. The database reference may need manual cleanup.`,
+                });
+              }
             } else {
               results.errors.push({
                 worktreePath: epic.worktree_path,
@@ -359,6 +388,7 @@ Returns:
 
       return {
         content: [{ type: "text", text: response }],
+        isError: results.errors.length > 0,
       };
     }
   );
