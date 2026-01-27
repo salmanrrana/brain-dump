@@ -27,6 +27,7 @@ import { getStatusColor, getPriorityStyle } from "../lib/constants";
 import {
   useProjects,
   useProjectsWithAIActivity,
+  useAllEpicWorktreeStates,
   useSearch,
   useTags,
   useModal,
@@ -161,6 +162,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const { projects: projectsWithAI } = useProjectsWithAIActivity();
   // Active Ralph sessions for computing epics with AI
   const { sessions: activeSessions } = useActiveRalphSessions();
+  // Worktree states for all epics - used by ProjectsPanel to show badges
+  const { worktreeStates: epicWorktreeStates } = useAllEpicWorktreeStates();
   // Settings for Ralph launch
   const { settings } = useSettings();
   // Ralph launch mutation
@@ -573,6 +576,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           onLaunchRalphForEpic={handleLaunchRalphForEpic}
           epicTicketCounts={epicTicketCounts}
           epicsWithActiveAI={epicsWithActiveAI}
+          epicWorktreeStates={epicWorktreeStates}
         />
 
         {/* Mobile sidebar overlay */}

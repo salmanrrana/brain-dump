@@ -14,6 +14,7 @@ const mockEpics: Epic[] = [
     description: "User auth features",
     projectId: "project-1",
     color: "#8b5cf6",
+    isolationMode: null,
     createdAt: "2024-01-01T00:00:00Z",
   },
   {
@@ -22,6 +23,7 @@ const mockEpics: Epic[] = [
     description: "Dashboard components",
     projectId: "project-1",
     color: "#3b82f6",
+    isolationMode: null,
     createdAt: "2024-01-02T00:00:00Z",
   },
   {
@@ -30,6 +32,7 @@ const mockEpics: Epic[] = [
     description: null,
     projectId: "project-1",
     color: null, // Will use derived color
+    isolationMode: null,
     createdAt: "2024-01-03T00:00:00Z",
   },
 ];

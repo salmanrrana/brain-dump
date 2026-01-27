@@ -1,7 +1,7 @@
 import { type FC, useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { ArrowLeft, Search, Plus, X } from "lucide-react";
 import { EpicListItem } from "./EpicListItem";
-import type { Epic } from "../../lib/hooks";
+import type { Epic, EpicWorktreeState } from "../../lib/hooks";
 
 export interface ProjectWithEpics {
   id: string;
@@ -20,6 +20,8 @@ export interface EpicDrillInViewProps {
   epicTicketCounts?: Map<string, number> | undefined;
   /** Set of epic IDs with active AI */
   epicsWithActiveAI?: Set<string> | undefined;
+  /** Map of epicId -> worktree state */
+  epicWorktreeStates?: Map<string, EpicWorktreeState> | undefined;
   /** Handler to go back to projects list */
   onBack: () => void;
   /** Handler when an epic is selected */
@@ -48,6 +50,7 @@ export const EpicDrillInView: FC<EpicDrillInViewProps> = ({
   selectedEpicId,
   epicTicketCounts,
   epicsWithActiveAI,
+  epicWorktreeStates,
   onBack,
   onSelectEpic,
   onEditEpic,
@@ -296,12 +299,14 @@ export const EpicDrillInView: FC<EpicDrillInViewProps> = ({
           filteredEpics.map((epic) => {
             const ticketCount = epicTicketCounts?.get(epic.id);
             const hasActiveAI = epicsWithActiveAI?.has(epic.id) ?? false;
+            const worktreeState = epicWorktreeStates?.get(epic.id);
             return (
               <EpicListItem
                 key={epic.id}
                 epic={epic}
                 isSelected={epic.id === selectedEpicId}
                 hasActiveAI={hasActiveAI}
+                worktreeState={worktreeState}
                 onSelect={() => onSelectEpic(epic.id)}
                 onEdit={() => onEditEpic(epic)}
                 onLaunchRalph={() => onLaunchRalphForEpic(epic.id)}

@@ -59,6 +59,8 @@ export {
 export {
   useProjects,
   useProjectsWithAIActivity,
+  useEpicWorktreeStates,
+  useAllEpicWorktreeStates,
   useCreateProject,
   useUpdateProject,
   useDeleteProject,
@@ -67,6 +69,7 @@ export {
   useUpdateEpic,
   useDeleteEpic,
   type Epic,
+  type EpicWorktreeState,
   type Project,
   type ProjectBase,
   type ProjectWithEpics,

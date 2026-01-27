@@ -6,7 +6,14 @@
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getProjects, createProject, updateProject, deleteProject } from "../../api/projects";
-import { getEpicsByProject, createEpic, updateEpic, deleteEpic } from "../../api/epics";
+import {
+  getEpicsByProject,
+  createEpic,
+  updateEpic,
+  deleteEpic,
+  getEpicWorktreeStates,
+  getAllEpicWorktreeStates,
+} from "../../api/epics";
 import { createBrowserLogger } from "../browser-logger";
 import { queryKeys } from "../query-keys";
 import { useActiveRalphSessions, type ActiveRalphSession } from "./ralph";
@@ -24,7 +31,20 @@ export interface Epic {
   description: string | null;
   projectId: string;
   color: string | null;
+  /** Isolation mode for AI work: "branch" (default), "worktree", or null */
+  isolationMode: "branch" | "worktree" | null;
   createdAt: string;
+}
+
+/**
+ * Worktree state from epic_workflow_state table.
+ * Used for displaying worktree status indicators on epic cards.
+ */
+export interface EpicWorktreeState {
+  epicId: string;
+  worktreePath: string | null;
+  worktreeStatus: "active" | "stale" | "orphaned" | null;
+  worktreeCreatedAt: string | null;
 }
 
 /** Base project properties used for editing (without createdAt) */
@@ -131,6 +151,73 @@ export function useProjectsWithAIActivity() {
   };
 }
 
+/**
+ * Hook for fetching epic worktree states for a project.
+ * Returns a map of epicId -> worktree state for efficient lookup.
+ *
+ * @param projectId - The project ID to fetch worktree states for
+ * @returns Map of epic ID to worktree state
+ */
+export function useEpicWorktreeStates(projectId: string | null) {
+  const query = useQuery({
+    queryKey: ["epicWorktreeStates", projectId] as const,
+    queryFn: async () => {
+      if (!projectId) return [];
+      return getEpicWorktreeStates({ data: projectId });
+    },
+    enabled: Boolean(projectId),
+    // Refetch periodically to pick up status changes (e.g., stale after merge)
+    staleTime: 30_000, // 30 seconds
+  });
+
+  // Convert to map for efficient lookup
+  const worktreeStateMap = useMemo(() => {
+    const map = new Map<string, EpicWorktreeState>();
+    for (const state of query.data ?? []) {
+      map.set(state.epicId, state);
+    }
+    return map;
+  }, [query.data]);
+
+  return {
+    worktreeStates: worktreeStateMap,
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+    refetch: query.refetch,
+  };
+}
+
+/**
+ * Hook for fetching worktree states for ALL epics across all projects.
+ * Used by the sidebar panel to show worktree badges on epic cards.
+ *
+ * @returns Map of epic ID to worktree state
+ */
+export function useAllEpicWorktreeStates() {
+  const query = useQuery({
+    queryKey: ["allEpicWorktreeStates"] as const,
+    queryFn: getAllEpicWorktreeStates,
+    // Refetch periodically to pick up status changes (e.g., stale after merge)
+    staleTime: 30_000, // 30 seconds
+  });
+
+  // Convert to map for efficient lookup
+  const worktreeStateMap = useMemo(() => {
+    const map = new Map<string, EpicWorktreeState>();
+    for (const state of query.data ?? []) {
+      map.set(state.epicId, state);
+    }
+    return map;
+  }, [query.data]);
+
+  return {
+    worktreeStates: worktreeStateMap,
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+    refetch: query.refetch,
+  };
+}
+
 // =============================================================================
 // PROJECT MUTATIONS
 // =============================================================================
@@ -221,6 +308,7 @@ export function useCreateEpic() {
           description: newEpicData.description ?? null,
           projectId: newEpicData.projectId,
           color: newEpicData.color ?? null,
+          isolationMode: null, // New epics default to null (will be set when starting work)
           createdAt: new Date().toISOString(),
         };
 

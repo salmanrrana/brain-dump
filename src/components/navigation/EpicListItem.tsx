@@ -1,7 +1,8 @@
 import { type FC, useState, type MouseEvent } from "react";
 import { Pencil, Bot } from "lucide-react";
 import { createEnterSpaceHandler } from "../../lib/keyboard-utils";
-import type { Epic } from "../../lib/hooks";
+import type { Epic, EpicWorktreeState } from "../../lib/hooks";
+import { WorktreeBadge } from "../WorktreeBadge";
 
 export interface EpicListItemProps {
   /** Epic data */
@@ -12,6 +13,8 @@ export interface EpicListItemProps {
   hasActiveAI?: boolean | undefined;
   /** Number of tickets in this epic */
   ticketCount?: number | undefined;
+  /** Worktree state for this epic (path, status) */
+  worktreeState?: EpicWorktreeState | undefined;
   /** Handler when the epic is clicked (for selection/filtering) */
   onSelect: () => void;
   /** Handler when the edit button is clicked */
@@ -36,6 +39,7 @@ export const EpicListItem: FC<EpicListItemProps> = ({
   isSelected = false,
   hasActiveAI = false,
   ticketCount,
+  worktreeState,
   onSelect,
   onEdit,
   onLaunchRalph,
@@ -157,6 +161,16 @@ export const EpicListItem: FC<EpicListItemProps> = ({
 
       {/* Title */}
       <span style={titleStyles}>{epic.title}</span>
+
+      {/* Worktree badge (shown when isolation mode is set) */}
+      {epic.isolationMode && (
+        <WorktreeBadge
+          isolationMode={epic.isolationMode}
+          worktreeStatus={worktreeState?.worktreeStatus}
+          worktreePath={worktreeState?.worktreePath}
+          size="sm"
+        />
+      )}
 
       {/* AI indicator (always visible when active) */}
       {hasActiveAI && (

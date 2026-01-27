@@ -18,9 +18,9 @@ export interface WorktreeBadgeProps {
   /** The isolation mode: "branch", "worktree", or null */
   isolationMode: IsolationMode;
   /** The current worktree status (only relevant when isolationMode is "worktree") */
-  worktreeStatus?: WorktreeStatus;
+  worktreeStatus?: WorktreeStatus | undefined;
   /** The worktree filesystem path (shown in tooltip) */
-  worktreePath?: string | null;
+  worktreePath?: string | null | undefined;
   /** Size variant: 'sm' for card badges, 'md' for headers */
   size?: "sm" | "md";
 }

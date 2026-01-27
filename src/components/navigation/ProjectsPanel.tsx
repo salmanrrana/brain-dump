@@ -8,7 +8,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { X, Search, Plus, Folder, ChevronRight, ChevronDown, Bot } from "lucide-react";
-import { useClickOutside, type Epic } from "../../lib/hooks";
+import { useClickOutside, type Epic, type EpicWorktreeState } from "../../lib/hooks";
 import { EpicListItem } from "./EpicListItem";
 import { EpicDrillInView } from "./EpicDrillInView";
 
@@ -59,6 +59,8 @@ export interface ProjectsPanelProps {
   epicTicketCounts?: Map<string, number>;
   /** Set of epic IDs with active AI */
   epicsWithActiveAI?: Set<string>;
+  /** Map of epicId -> worktree state for displaying worktree badges */
+  epicWorktreeStates?: Map<string, EpicWorktreeState>;
   /** Loading state */
   loading?: boolean;
 }
@@ -129,6 +131,7 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
   onLaunchRalphForEpic,
   epicTicketCounts,
   epicsWithActiveAI,
+  epicWorktreeStates,
   loading = false,
 }) => {
   const [search, setSearch] = useState("");
@@ -521,6 +524,7 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
             selectedEpicId={selectedEpicId ?? null}
             epicTicketCounts={epicTicketCounts}
             epicsWithActiveAI={epicsWithActiveAI}
+            epicWorktreeStates={epicWorktreeStates}
             onBack={handleBackFromDrillIn}
             onSelectEpic={(epicId) => handleEpicSelect(epicId, drillInProject.id)}
             onEditEpic={(epic) => handleEditEpic(drillInProject.id, epic)}
@@ -686,12 +690,14 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
                       {recentEpics.map((epic) => {
                         const ticketCount = epicTicketCounts?.get(epic.id);
                         const hasAI = epicsWithActiveAI?.has(epic.id) ?? false;
+                        const worktreeState = epicWorktreeStates?.get(epic.id);
                         return (
                           <EpicListItem
                             key={epic.id}
                             epic={epic}
                             isSelected={epic.id === selectedEpicId}
                             hasActiveAI={hasAI}
+                            worktreeState={worktreeState}
                             onSelect={() => handleEpicSelect(epic.id, project.id)}
                             onEdit={() => handleEditEpic(project.id, epic)}
                             onLaunchRalph={() => handleLaunchRalph(epic.id)}
