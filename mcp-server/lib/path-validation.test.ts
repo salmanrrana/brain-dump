@@ -50,8 +50,14 @@ describe("path-validation", () => {
     // Clean up test directory
     try {
       rmSync(TEST_DIR, { recursive: true, force: true });
-    } catch {
-      // Ignore cleanup errors
+    } catch (error) {
+      // Log cleanup errors for debugging but don't fail the test.
+      // The force: true flag handles most legitimate cases (e.g., already deleted),
+      // but we log in case something unexpected happens.
+      console.warn(
+        `[path-validation.test] Cleanup warning for ${TEST_DIR}:`,
+        error instanceof Error ? error.message : String(error)
+      );
     }
   });
 
