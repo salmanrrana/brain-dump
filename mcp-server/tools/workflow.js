@@ -6,11 +6,18 @@
  * @module tools/workflow
  */
 import { z } from "zod";
-import { existsSync } from "fs";
+import { existsSync, writeFileSync } from "fs";
+import path from "path";
 import { randomUUID } from "crypto";
 import { log } from "../lib/logging.js";
 import { runGitCommand, shortId, generateBranchName, generateEpicBranchName } from "../lib/git-utils.js";
 import { getEffectiveIsolationMode } from "../lib/worktree-flags.js";
+import {
+  generateWorktreePath,
+  createWorktree,
+  validateWorktree,
+  removeWorktree,
+} from "../lib/worktree-utils.js";
 import { getActiveTelemetrySession, logMcpCallEvent } from "../lib/telemetry-self-log.js";
 import {
   loadTicketAttachments,
@@ -438,9 +445,11 @@ Returns:
       if (requestedIsolationMode === "worktree" && effectiveMode === "branch") {
         log.info(`Worktree mode requested for epic ${epicId} but feature is disabled, using branch mode`);
       }
+
       // Get epic with project info
       const epic = db.prepare(`
-        SELECT e.*, p.name as project_name, p.path as project_path
+        SELECT e.*, p.name as project_name, p.path as project_path,
+               p.worktree_location, p.worktree_base_path, p.max_worktrees
         FROM epics e JOIN projects p ON e.project_id = p.id WHERE e.id = ?
       `).get(epicId);
 
@@ -457,9 +466,253 @@ Returns:
         return { content: [{ type: "text", text: `Not a git repository: ${epic.project_path}\n\nInitialize git first: git init` }], isError: true };
       }
 
-      // Check if epic workflow state already exists with a branch
+      // Check if epic workflow state already exists
       let epicState = db.prepare(`SELECT * FROM epic_workflow_state WHERE epic_id = ?`).get(epicId);
 
+      // ===============================================
+      // WORKTREE MODE: Handle worktree resumption or creation
+      // ===============================================
+      if (effectiveMode === "worktree") {
+        // Check for existing worktree to resume
+        if (epicState?.worktree_path) {
+          const validation = validateWorktree(
+            epicState.worktree_path,
+            epic.project_path,
+            epicState.epic_branch_name
+          );
+
+          if (validation.status === "valid") {
+            // Resume existing worktree
+            const epicTickets = db.prepare(`
+              SELECT id, title, status, priority FROM tickets WHERE epic_id = ? ORDER BY position
+            `).all(epicId);
+
+            const uncommittedWarning = validation.hasUncommittedChanges
+              ? "\n\n**Note:** Worktree has uncommitted changes from previous session."
+              : "";
+
+            log.info(`Resumed worktree for epic ${epicId} at ${epicState.worktree_path}`);
+
+            return {
+              content: [{
+                type: "text",
+                text: `## Epic Worktree Resumed
+
+**Worktree Path:** \`${epicState.worktree_path}\`
+**Branch:** \`${epicState.epic_branch_name}\`
+**Epic:** ${epic.title}
+**Project:** ${epic.project_name}
+**Isolation Mode:** worktree (source: ${modeSource})${uncommittedWarning}
+${epicState.pr_url ? `**PR:** ${epicState.pr_url}` : ""}
+
+### Tickets in Epic (${epicTickets.length})
+${epicTickets.map(t => `- [${t.status}] ${t.title} (${t.priority || "medium"})`).join("\n")}
+
+---
+
+All tickets in this epic will use the worktree at \`${epicState.worktree_path}\`.
+Use \`start_ticket_work\` to begin work on any ticket.`,
+              }],
+            };
+          }
+
+          // Invalid worktree - log and clean up
+          log.warn(`Existing worktree for epic ${epicId} is invalid: ${validation.status}. Cleaning up and recreating.`);
+          if (validation.status !== "missing_directory") {
+            // Try to remove the corrupted/wrong_branch worktree
+            const removeResult = removeWorktree(epicState.worktree_path, epic.project_path, { force: true });
+            if (!removeResult.success) {
+              log.warn(`Failed to remove invalid worktree: ${removeResult.error}`);
+            }
+          }
+        }
+
+        // Generate branch name and worktree path
+        const branchName = generateEpicBranchName(epicId, epic.title);
+        const worktreeLocation = epic.worktree_location || "sibling";
+        const worktreePathResult = generateWorktreePath(
+          epic.project_path,
+          epicId,
+          epic.title,
+          {
+            location: worktreeLocation,
+            basePath: worktreeLocation === "custom" ? epic.worktree_base_path : null,
+          }
+        );
+
+        if (!worktreePathResult.success) {
+          return {
+            content: [{
+              type: "text",
+              text: `Failed to generate worktree path: ${worktreePathResult.error}`,
+            }],
+            isError: true,
+          };
+        }
+
+        const worktreePath = worktreePathResult.path;
+
+        // Create the worktree with security checks
+        const createResult = createWorktree(
+          epic.project_path,
+          worktreePath,
+          branchName,
+          { maxWorktrees: epic.max_worktrees || 5 }
+        );
+
+        if (!createResult.success) {
+          return {
+            content: [{
+              type: "text",
+              text: `Failed to create worktree: ${createResult.error}`,
+            }],
+            isError: true,
+          };
+        }
+
+        const now = new Date().toISOString();
+
+        // Initialize ralph-state.json in the worktree's .claude directory
+        const ralphState = {
+          sessionId: null, // Will be set when create_ralph_session is called
+          ticketId: null,  // Will be set when ticket work starts
+          currentState: "idle",
+          stateHistory: ["idle"],
+          worktreePath,
+          mainRepoPath: epic.project_path,
+          isolationMode: "worktree",
+          startedAt: now,
+          updatedAt: now,
+        };
+
+        const ralphStatePath = path.join(worktreePath, ".claude", "ralph-state.json");
+        try {
+          writeFileSync(ralphStatePath, JSON.stringify(ralphState, null, 2), { mode: 0o600 });
+          log.debug(`Initialized ralph-state.json at ${ralphStatePath}`);
+        } catch (err) {
+          // Rollback: remove the worktree we just created
+          log.error(`Failed to write ralph-state.json: ${err.message}`);
+          const rollbackResult = removeWorktree(worktreePath, epic.project_path, { force: true });
+          if (!rollbackResult.success) {
+            log.error(`Rollback failed: ${rollbackResult.error}`);
+          }
+          return {
+            content: [{
+              type: "text",
+              text: `Failed to initialize worktree state: ${err.message}\n\nThe worktree was cleaned up. Please try again.`,
+            }],
+            isError: true,
+          };
+        }
+
+        // Save to database (with rollback on failure)
+        let epicTickets;
+        try {
+          if (!epicState) {
+            // Create new epic workflow state
+            const stateId = randomUUID();
+            db.prepare(`
+              INSERT INTO epic_workflow_state (id, epic_id, epic_branch_name, epic_branch_created_at, worktree_path, worktree_created_at, worktree_status, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(stateId, epicId, branchName, now, worktreePath, now, "active", now, now);
+          } else {
+            // Update existing state with worktree info
+            db.prepare(`
+              UPDATE epic_workflow_state
+              SET epic_branch_name = ?, epic_branch_created_at = ?, worktree_path = ?, worktree_created_at = ?, worktree_status = ?, updated_at = ?
+              WHERE epic_id = ?
+            `).run(branchName, now, worktreePath, now, "active", now, epicId);
+          }
+
+          // Get tickets in epic
+          epicTickets = db.prepare(`
+            SELECT id, title, status, priority FROM tickets WHERE epic_id = ? ORDER BY position
+          `).all(epicId);
+
+          // Update ticket counts
+          const ticketsTotal = epicTickets.length;
+          const ticketsDone = epicTickets.filter(t => t.status === "done").length;
+          db.prepare(`
+            UPDATE epic_workflow_state SET tickets_total = ?, tickets_done = ?, updated_at = ? WHERE epic_id = ?
+          `).run(ticketsTotal, ticketsDone, now, epicId);
+        } catch (dbErr) {
+          log.error(`Failed to save epic workflow state for ${epicId}`, { error: dbErr.message });
+          // Rollback: remove the worktree we just created
+          const rollbackResult = removeWorktree(worktreePath, epic.project_path, { force: true });
+          if (!rollbackResult.success) {
+            log.error(`Rollback failed: ${rollbackResult.error}`);
+          }
+          return {
+            content: [{
+              type: "text",
+              text: `Failed to save epic workflow state.\n\nError: ${dbErr.message}\n\nThe worktree was cleaned up. Please try again or check database health with get_database_health.`,
+            }],
+            isError: true,
+          };
+        }
+
+        log.info(`Created worktree for epic ${epicId} at ${worktreePath}`);
+
+        // Optionally create draft PR
+        let prInfo = "";
+        if (createPr) {
+          // Push branch to remote first (from the worktree)
+          const pushResult = runGitCommand(`git push -u origin ${branchName}`, worktreePath);
+          if (!pushResult.success) {
+            prInfo = `\n\n**Warning:** Could not push branch to remote: ${pushResult.error}\nCreate PR manually when ready.`;
+          } else {
+            // Create draft PR using gh CLI
+            const prResult = runGitCommand(
+              `gh pr create --draft --title "[Epic] ${epic.title}" --body "Epic work for: ${epic.title}\n\nThis PR contains all tickets from the epic."`,
+              worktreePath
+            );
+            if (prResult.success && prResult.output) {
+              const prUrl = prResult.output.trim();
+              const prNumber = parseInt(prUrl.split("/").pop() || "0", 10);
+
+              db.prepare(`
+                UPDATE epic_workflow_state SET pr_number = ?, pr_url = ?, pr_status = 'draft', updated_at = ? WHERE epic_id = ?
+              `).run(prNumber, prUrl, now, epicId);
+
+              prInfo = `\n\n**Draft PR Created:** ${prUrl}`;
+              log.info(`Created draft PR for epic ${epicId}: ${prUrl}`);
+            } else {
+              prInfo = `\n\n**Warning:** Could not create PR: ${prResult.error}\nCreate PR manually when ready.`;
+            }
+          }
+        }
+
+        return {
+          content: [{
+            type: "text",
+            text: `## Started Epic Work (Worktree Mode)
+
+**Worktree Path:** \`${worktreePath}\`
+**Branch:** \`${branchName}\` (created)
+**Epic:** ${epic.title}
+**Project:** ${epic.project_name}
+**Main Repo:** ${epic.project_path}
+**Isolation Mode:** worktree (source: ${modeSource})${prInfo}
+
+### Tickets in Epic (${epicTickets.length})
+${epicTickets.map(t => `- [${t.status}] ${t.title} (${t.priority || "medium"})`).join("\n")}
+
+---
+
+**Important:** Work in the worktree directory:
+\`\`\`bash
+cd ${worktreePath}
+\`\`\`
+
+All tickets in this epic will use this isolated worktree.
+Use \`start_ticket_work\` to begin work on any ticket.`,
+          }],
+        };
+      }
+
+      // ===============================================
+      // BRANCH MODE: Original branch-based workflow
+      // ===============================================
       if (epicState?.epic_branch_name) {
         // Epic branch already exists - check it out and return info
         const branchExists = runGitCommand(`git show-ref --verify --quiet refs/heads/${epicState.epic_branch_name}`, epic.project_path);
@@ -482,6 +735,7 @@ Returns:
 **Branch:** \`${epicState.epic_branch_name}\` (checked out)
 **Epic:** ${epic.title}
 **Project:** ${epic.project_name}
+**Isolation Mode:** branch (source: ${modeSource})
 ${epicState.pr_url ? `**PR:** ${epicState.pr_url}` : ""}
 
 ### Tickets in Epic (${epicTickets.length})
@@ -615,11 +869,6 @@ Use \`start_ticket_work\` to begin work on any ticket. All tickets will use this
         }
       }
 
-      // Include isolation mode info in response
-      const modeInfo = effectiveMode === "worktree"
-        ? `\n**Isolation Mode:** worktree (source: ${modeSource})\n**Note:** Worktree mode is enabled but not yet implemented. Using branch mode.`
-        : `\n**Isolation Mode:** branch (source: ${modeSource})`;
-
       return {
         content: [{
           type: "text",
@@ -628,7 +877,8 @@ Use \`start_ticket_work\` to begin work on any ticket. All tickets will use this
 **Branch:** \`${branchName}\` ${branchCreated ? "(created)" : "(checked out)"}
 **Epic:** ${epic.title}
 **Project:** ${epic.project_name}
-**Path:** ${epic.project_path}${modeInfo}${prInfo}
+**Path:** ${epic.project_path}
+**Isolation Mode:** branch (source: ${modeSource})${prInfo}
 
 ### Tickets in Epic (${epicTickets.length})
 ${epicTickets.map(t => `- [${t.status}] ${t.title} (${t.priority || "medium"})`).join("\n")}
