@@ -119,6 +119,8 @@ export const settings = sqliteTable("settings", {
   conversationLoggingEnabled: integer("conversation_logging_enabled", { mode: "boolean" }).default(
     true
   ), // Enable/disable conversation logging
+  // Git worktree feature flag (gradual rollout)
+  enableWorktreeSupport: integer("enable_worktree_support", { mode: "boolean" }).default(false), // Global opt-in for worktree support
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),

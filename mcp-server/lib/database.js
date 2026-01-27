@@ -344,6 +344,10 @@ export function runMigrations(db) {
       db.prepare("ALTER TABLE settings ADD COLUMN conversation_logging_enabled INTEGER DEFAULT 1").run();
       log.info("Added conversation_logging_enabled column to settings table");
     }
+    if (!settingsColumnNames.includes("enable_worktree_support")) {
+      db.prepare("ALTER TABLE settings ADD COLUMN enable_worktree_support INTEGER DEFAULT 0").run();
+      log.info("Added enable_worktree_support column to settings table (feature flag, default: disabled)");
+    }
   } catch (err) {
     log.error("Failed to add conversation logging settings columns", err);
   }

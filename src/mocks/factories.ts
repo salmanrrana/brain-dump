@@ -120,6 +120,7 @@ export function createMockSettings(overrides: Partial<Settings> = {}): Settings 
     dockerSocketPath: overrides.dockerSocketPath ?? null,
     conversationRetentionDays: overrides.conversationRetentionDays ?? 90,
     conversationLoggingEnabled: overrides.conversationLoggingEnabled ?? true,
+    enableWorktreeSupport: overrides.enableWorktreeSupport ?? false,
     createdAt: overrides.createdAt ?? new Date().toISOString(),
     updatedAt: overrides.updatedAt ?? new Date().toISOString(),
   };

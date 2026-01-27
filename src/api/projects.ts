@@ -1,10 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
 import { db, sqlite } from "../lib/db";
-import { projects, epics, tickets, ticketComments } from "../lib/schema";
+import { projects, epics, tickets, ticketComments, settings } from "../lib/schema";
 import { eq, sql, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { existsSync } from "fs";
 import { ensureExists } from "../lib/utils";
+
+// Worktree feature flag types
+export interface WorktreeSupportStatus {
+  enabled: boolean;
+  reason: "project" | "global" | "disabled";
+  projectDefaultIsolationMode: "branch" | "worktree" | "ask" | null;
+}
 
 // Types
 export interface CreateProjectInput {
@@ -227,3 +234,57 @@ export const deleteProject = createServerFn({ method: "POST" })
       };
     }
   );
+
+/**
+ * Check if worktree support is enabled for a project.
+ *
+ * Worktree support is enabled when ANY of the following is true:
+ * 1. Project has `defaultIsolationMode` set to "worktree" or "ask"
+ * 2. Global settings have `enableWorktreeSupport = true`
+ *
+ * This allows both per-project opt-in and global enablement for power users.
+ */
+export const getWorktreeSupportStatus = createServerFn({ method: "GET" })
+  .inputValidator((input: { projectId: string }) => {
+    if (!input.projectId) {
+      throw new Error("Project ID is required");
+    }
+    return input;
+  })
+  .handler(async ({ data: { projectId } }): Promise<WorktreeSupportStatus> => {
+    // Check project-level setting first (more specific)
+    const project = db
+      .select({ defaultIsolationMode: projects.defaultIsolationMode })
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .get();
+
+    if (!project) {
+      return { enabled: false, reason: "disabled", projectDefaultIsolationMode: null };
+    }
+
+    const projectMode = project.defaultIsolationMode as "branch" | "worktree" | "ask" | null;
+
+    // Check if project has worktree enabled
+    if (projectMode === "worktree" || projectMode === "ask") {
+      return { enabled: true, reason: "project", projectDefaultIsolationMode: projectMode };
+    }
+
+    // Check if project explicitly uses branch mode (no global override)
+    if (projectMode === "branch") {
+      return { enabled: false, reason: "disabled", projectDefaultIsolationMode: projectMode };
+    }
+
+    // Check global setting as fallback
+    const globalSettings = db
+      .select({ enableWorktreeSupport: settings.enableWorktreeSupport })
+      .from(settings)
+      .where(eq(settings.id, "default"))
+      .get();
+
+    if (globalSettings?.enableWorktreeSupport === true) {
+      return { enabled: true, reason: "global", projectDefaultIsolationMode: projectMode };
+    }
+
+    return { enabled: false, reason: "disabled", projectDefaultIsolationMode: projectMode };
+  });

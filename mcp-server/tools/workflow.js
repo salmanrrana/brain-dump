@@ -10,6 +10,7 @@ import { existsSync } from "fs";
 import { randomUUID } from "crypto";
 import { log } from "../lib/logging.js";
 import { runGitCommand, shortId, generateBranchName, generateEpicBranchName } from "../lib/git-utils.js";
+import { getEffectiveIsolationMode } from "../lib/worktree-flags.js";
 import { getActiveTelemetrySession, logMcpCallEvent } from "../lib/telemetry-self-log.js";
 import {
   loadTicketAttachments,
@@ -416,14 +417,27 @@ All subsequent ticket work will use this epic branch instead of creating per-tic
 Args:
   epicId: The epic ID to start working on
   createPr: Whether to create a draft PR immediately (default: false)
+  isolationMode: Override isolation mode ('branch' or 'worktree'). If not provided, uses epic/project settings. Worktree mode requires feature flag to be enabled.
 
 Returns:
   Branch name, epic details, and list of tickets in the epic.`,
     {
       epicId: z.string().describe("Epic ID to start working on"),
       createPr: z.boolean().optional().default(false).describe("Create a draft PR immediately"),
+      isolationMode: z.enum(["branch", "worktree"]).optional().describe("Isolation mode: 'branch' (default) or 'worktree' (requires feature flag)"),
     },
-    async ({ epicId, createPr }) => {
+    async ({ epicId, createPr, isolationMode: requestedIsolationMode }) => {
+      // Check feature flag and get effective isolation mode
+      const { mode: effectiveMode, source: modeSource } = getEffectiveIsolationMode(
+        db,
+        epicId,
+        requestedIsolationMode || null
+      );
+
+      // Log if worktree was requested but not available
+      if (requestedIsolationMode === "worktree" && effectiveMode === "branch") {
+        log.info(`Worktree mode requested for epic ${epicId} but feature is disabled, using branch mode`);
+      }
       // Get epic with project info
       const epic = db.prepare(`
         SELECT e.*, p.name as project_name, p.path as project_path
@@ -601,6 +615,11 @@ Use \`start_ticket_work\` to begin work on any ticket. All tickets will use this
         }
       }
 
+      // Include isolation mode info in response
+      const modeInfo = effectiveMode === "worktree"
+        ? `\n**Isolation Mode:** worktree (source: ${modeSource})\n**Note:** Worktree mode is enabled but not yet implemented. Using branch mode.`
+        : `\n**Isolation Mode:** branch (source: ${modeSource})`;
+
       return {
         content: [{
           type: "text",
@@ -609,7 +628,7 @@ Use \`start_ticket_work\` to begin work on any ticket. All tickets will use this
 **Branch:** \`${branchName}\` ${branchCreated ? "(created)" : "(checked out)"}
 **Epic:** ${epic.title}
 **Project:** ${epic.project_name}
-**Path:** ${epic.project_path}${prInfo}
+**Path:** ${epic.project_path}${modeInfo}${prInfo}
 
 ### Tickets in Epic (${epicTickets.length})
 ${epicTickets.map(t => `- [${t.status}] ${t.title} (${t.priority || "medium"})`).join("\n")}
