@@ -24,6 +24,7 @@ export const epics = sqliteTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     color: text("color"),
+    isolationMode: text("isolation_mode").$type<"branch" | "worktree" | null>(), // 'branch' | 'worktree' | null
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),

@@ -71,6 +71,13 @@
       "when": 1769310397852,
       "tag": "0009_open_skreet",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1769518270229,
+      "tag": "0010_fat_sumo",
+      "breakpoints": true
     }
   ]
 }

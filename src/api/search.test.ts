@@ -43,6 +43,7 @@ describe("FTS5 Search - User Experience", () => {
         description TEXT,
         project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
         color TEXT,
+        isolation_mode TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
 

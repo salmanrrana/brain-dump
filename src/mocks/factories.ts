@@ -44,6 +44,7 @@ export function createMockEpic(overrides: Partial<Epic> = {}): Epic {
     description: overrides.description ?? null,
     projectId: overrides.projectId ?? crypto.randomUUID(),
     color: overrides.color ?? null,
+    isolationMode: overrides.isolationMode ?? null,
     createdAt: overrides.createdAt ?? new Date().toISOString(),
   };
 }
