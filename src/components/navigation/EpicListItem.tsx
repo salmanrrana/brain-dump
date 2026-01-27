@@ -1,5 +1,5 @@
 import { type FC, useState, type MouseEvent } from "react";
-import { Pencil, Bot } from "lucide-react";
+import { Pencil, Bot, Play } from "lucide-react";
 import { createEnterSpaceHandler } from "../../lib/keyboard-utils";
 import type { Epic, EpicWorktreeState } from "../../lib/hooks";
 import { WorktreeBadge } from "../WorktreeBadge";
@@ -55,6 +55,8 @@ export const EpicListItem: FC<EpicListItemProps> = ({
 
   const handleRalphClick = (e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
+    // Don't trigger if disabled (no tickets or already in progress)
+    if (ticketCount === 0 || hasActiveAI) return;
     onLaunchRalph();
   };
 
@@ -142,6 +144,53 @@ export const EpicListItem: FC<EpicListItemProps> = ({
     transition: "all var(--transition-fast)",
   };
 
+  // Determine if the button should be disabled (no tickets in epic)
+  const hasNoTickets = ticketCount === 0;
+  const isButtonDisabled = hasNoTickets || hasActiveAI;
+
+  // Determine button text based on state
+  const getButtonText = () => {
+    if (hasActiveAI) return "In Progress";
+    if (hasNoTickets) return "No Tickets";
+    if (epic.isolationMode) return "Continue";
+    return "Start";
+  };
+
+  // "Start with AI" / "Continue with AI" button - more prominent than other actions
+  const startAIButtonStyles: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "var(--spacing-1)",
+    height: "22px",
+    padding: "0 var(--spacing-2)",
+    background: hasNoTickets
+      ? "var(--bg-tertiary)"
+      : hasActiveAI
+        ? "var(--accent-ai)"
+        : epic.isolationMode
+          ? "var(--bg-tertiary)"
+          : "var(--gradient-accent)",
+    border: "none",
+    borderRadius: "var(--radius-sm)",
+    color: hasNoTickets
+      ? "var(--text-tertiary)"
+      : hasActiveAI || !epic.isolationMode
+        ? "white"
+        : "var(--text-primary)",
+    cursor: isButtonDisabled ? "not-allowed" : "pointer",
+    opacity: hasNoTickets ? 0.6 : 1,
+    transition: "all var(--transition-fast)",
+    fontSize: "var(--font-size-xs)",
+    fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+    whiteSpace: "nowrap",
+    flexShrink: 0,
+  };
+
+  const startAIButtonTextStyles: React.CSSProperties = {
+    fontSize: "var(--font-size-xs)",
+  };
+
   return (
     <div
       style={containerStyles}
@@ -197,14 +246,34 @@ export const EpicListItem: FC<EpicListItemProps> = ({
         >
           <Pencil size={12} aria-hidden="true" />
         </button>
+        {/* Start/Continue with AI button - more prominent when hovered */}
         <button
           type="button"
-          style={actionButtonStyles}
+          style={startAIButtonStyles}
           onClick={handleRalphClick}
-          aria-label={`Launch Ralph for ${epic.title}`}
-          className="hover:bg-[var(--accent-ai)]/10 hover:text-[var(--accent-ai)]"
+          disabled={isButtonDisabled}
+          aria-label={
+            hasNoTickets
+              ? `No tickets in ${epic.title}`
+              : epic.isolationMode
+                ? `Continue AI work on ${epic.title}`
+                : `Start AI work on ${epic.title}`
+          }
+          title={
+            hasNoTickets
+              ? "Add tickets to start AI work"
+              : epic.isolationMode
+                ? "Continue with AI"
+                : "Start with AI"
+          }
+          className={isButtonDisabled ? "" : "hover:brightness-110"}
         >
-          <Bot size={12} aria-hidden="true" />
+          {hasActiveAI ? (
+            <Bot size={12} className="animate-pulse" aria-hidden="true" />
+          ) : (
+            <Play size={10} aria-hidden="true" />
+          )}
+          <span style={startAIButtonTextStyles}>{getButtonText()}</span>
         </button>
       </div>
     </div>

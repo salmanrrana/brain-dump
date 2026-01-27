@@ -22,6 +22,7 @@ import DeleteConfirmationModal, { type DeletePreview } from "./DeleteConfirmatio
 import { NewTicketDropdown } from "./navigation/NewTicketDropdown";
 import { InceptionModal } from "./inception/InceptionModal";
 import { ShortcutsModal } from "./ui/ShortcutsModal";
+import { StartEpicModal, type IsolationMode } from "./StartEpicModal";
 import { useToast } from "./Toast";
 import { getStatusColor, getPriorityStyle } from "../lib/constants";
 import {
@@ -212,6 +213,18 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [deleteEpicError, setDeleteEpicError] = useState<string | null>(null);
   const deleteEpicMutation = useDeleteEpic();
   const { showToast } = useToast();
+
+  // StartEpicModal state - for configuring isolation mode before starting AI work
+  const [startEpicModalState, setStartEpicModalState] = useState<{
+    isOpen: boolean;
+    epic: Epic | null;
+    project: {
+      id: string;
+      name: string;
+      path: string;
+      defaultIsolationMode?: "branch" | "worktree" | "ask" | null;
+    } | null;
+  }>({ isOpen: false, epic: null, project: null });
 
   // Get all epics from projects
   const allEpics = useMemo(() => {
@@ -510,18 +523,55 @@ export default function AppLayout({ children }: AppLayoutProps) {
     [openEpic, closeProjectsPanel]
   );
 
-  // Handler for launching Ralph for an epic from ProjectsPanel
+  // Handler for launching Ralph for an epic - opens StartEpicModal to configure isolation mode
   const handleLaunchRalphForEpic = useCallback(
     (epicId: string) => {
+      // Find the epic and its project
+      for (const project of projects) {
+        const epic = project.epics.find((e) => e.id === epicId);
+        if (epic) {
+          // Open the StartEpicModal to let user choose isolation mode
+          // Note: defaultIsolationMode comes from the raw project data but isn't in the type yet
+          // We cast to access it since the DB returns it but the type doesn't expose it
+          const projectData = project as typeof project & {
+            defaultIsolationMode?: "branch" | "worktree" | "ask" | null;
+          };
+          setStartEpicModalState({
+            isOpen: true,
+            epic,
+            project: {
+              id: project.id,
+              name: project.name,
+              path: project.path,
+              defaultIsolationMode: projectData.defaultIsolationMode ?? null,
+            },
+          });
+          closeProjectsPanel();
+          return;
+        }
+      }
+    },
+    [projects, closeProjectsPanel]
+  );
+
+  // Handler for closing the StartEpicModal
+  const handleCloseStartEpicModal = useCallback(() => {
+    setStartEpicModalState({ isOpen: false, epic: null, project: null });
+  }, []);
+
+  // Handler for StartEpicModal confirmation - actually launch Ralph
+  const handleStartEpicConfirm = useCallback(
+    (epicId: string, _isolationMode: IsolationMode) => {
       launchRalphMutation.mutate({
         epicId,
         preferredTerminal: settings?.terminalEmulator ?? null,
         useSandbox: settings?.ralphSandbox ?? false,
         aiBackend: "claude",
       });
-      closeProjectsPanel();
+      setStartEpicModalState({ isOpen: false, epic: null, project: null });
+      showToast("success", "Starting AI work session...");
     },
-    [launchRalphMutation, settings, closeProjectsPanel]
+    [launchRalphMutation, settings, showToast]
   );
 
   // Epic ticket counts - currently not computed to avoid showing misleading "0"
@@ -654,6 +704,21 @@ export default function AppLayout({ children }: AppLayoutProps) {
             entityName={epicToDelete.title}
             preview={deleteEpicPreview}
             error={deleteEpicError}
+          />
+        )}
+
+        {/* Start Epic Modal - for configuring isolation mode before AI work */}
+        {startEpicModalState.isOpen && startEpicModalState.epic && startEpicModalState.project && (
+          <StartEpicModal
+            isOpen={true}
+            epic={{
+              id: startEpicModalState.epic.id,
+              title: startEpicModalState.epic.title,
+              isolationMode: startEpicModalState.epic.isolationMode ?? null,
+            }}
+            project={startEpicModalState.project}
+            onClose={handleCloseStartEpicModal}
+            onConfirm={handleStartEpicConfirm}
           />
         )}
       </div>
