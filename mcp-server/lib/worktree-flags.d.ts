@@ -23,7 +23,7 @@ export interface WorktreeSupportForEpicResult {
 
 export interface EffectiveIsolationModeResult {
   mode: "branch" | "worktree";
-  source: "requested" | "epic" | "project" | "default";
+  source: "requested" | "epic" | "project" | "default" | "fallback_disabled";
 }
 
 /**

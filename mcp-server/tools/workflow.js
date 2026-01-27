@@ -1403,6 +1403,11 @@ Use \`start_ticket_work\` to begin work on any ticket. All tickets will use this
         }
       }
 
+      // Add warning if worktree was requested but feature is disabled
+      const fallbackWarning = modeSource === "fallback_disabled"
+        ? "\n\n> **⚠️ Warning:** Worktree mode was requested but the feature is disabled. Using branch mode instead.\n> To enable worktree support, go to Settings → Git → Enable Worktree Support, or set the project's default isolation mode."
+        : "";
+
       return {
         content: [{
           type: "text",
@@ -1412,7 +1417,7 @@ Use \`start_ticket_work\` to begin work on any ticket. All tickets will use this
 **Epic:** ${epic.title}
 **Project:** ${epic.project_name}
 **Path:** ${epic.project_path}
-**Isolation Mode:** branch (source: ${modeSource})${prInfo}
+**Isolation Mode:** branch (source: ${modeSource})${prInfo}${fallbackWarning}
 
 ### Tickets in Epic (${epicTickets.length})
 ${epicTickets.map(t => `- [${t.status}] ${t.title} (${t.priority || "medium"})`).join("\n")}

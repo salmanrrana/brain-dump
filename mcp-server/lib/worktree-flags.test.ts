@@ -205,7 +205,7 @@ describe("getEffectiveIsolationMode", () => {
     const result = getEffectiveIsolationMode(db, "epic-123", "worktree");
 
     expect(result.mode).toBe("branch");
-    expect(result.source).toBe("default");
+    expect(result.source).toBe("fallback_disabled");
   });
 
   it("uses epic isolation mode when no request provided", () => {

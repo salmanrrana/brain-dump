@@ -128,7 +128,7 @@ export function isWorktreeSupportEnabledForEpic(db, epicId) {
  * @param {import("better-sqlite3").Database} db - Database connection
  * @param {string} epicId - Epic ID
  * @param {string | null} requestedMode - Explicitly requested mode (optional)
- * @returns {{ mode: "branch" | "worktree", source: "requested" | "epic" | "project" | "default" }}
+ * @returns {{ mode: "branch" | "worktree", source: "requested" | "epic" | "project" | "default" | "fallback_disabled" }}
  */
 export function getEffectiveIsolationMode(db, epicId, requestedMode = null) {
   // If worktree is explicitly requested, check if it's allowed
@@ -137,9 +137,9 @@ export function getEffectiveIsolationMode(db, epicId, requestedMode = null) {
     if (check.enabled) {
       return { mode: "worktree", source: "requested" };
     }
-    // Worktrees not enabled, fall back to branch
+    // Worktrees not enabled, fall back to branch - use distinct source for clarity
     log.info(`Worktree requested but not enabled, falling back to branch for epic ${epicId}`);
-    return { mode: "branch", source: "default" };
+    return { mode: "branch", source: "fallback_disabled" };
   }
 
   // If branch is explicitly requested, use it
