@@ -85,6 +85,13 @@
       "when": 1769519118190,
       "tag": "0011_melted_madrox",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1769519510550,
+      "tag": "0012_kind_korvac",
+      "breakpoints": true
     }
   ]
 }

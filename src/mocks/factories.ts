@@ -29,6 +29,12 @@ export function createMockProject(overrides: Partial<Project> = {}): Project {
     path: overrides.path ?? `/test/projects/${id}`,
     color: overrides.color ?? null,
     workingMethod: overrides.workingMethod ?? "auto",
+    // Worktree default settings
+    defaultIsolationMode: overrides.defaultIsolationMode ?? null,
+    worktreeLocation: overrides.worktreeLocation ?? "sibling",
+    worktreeBasePath: overrides.worktreeBasePath ?? null,
+    maxWorktrees: overrides.maxWorktrees ?? 5,
+    autoCleanupWorktrees: overrides.autoCleanupWorktrees ?? false,
     createdAt: overrides.createdAt ?? new Date().toISOString(),
   };
 }
