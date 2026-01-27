@@ -30,6 +30,7 @@ interface SuggestAlternativeResult extends GenerateWorktreePathResult {
 type SuggestAlternativeResponse = SuggestAlternativeResult | GenerateWorktreePathError;
 
 interface ParseWorktreePathResult {
+  matched: boolean;
   projectName: string | null;
   epicShortId: string | null;
   slug: string | null;
@@ -378,6 +379,7 @@ describe("worktree-utils module", () => {
       const result = parseWorktreePath("/Users/dev/brain-dump-epic-abc12345-git-worktree");
 
       expect(result).toEqual({
+        matched: true,
         projectName: "brain-dump",
         epicShortId: "abc12345",
         slug: "git-worktree",
@@ -388,6 +390,7 @@ describe("worktree-utils module", () => {
       const result = parseWorktreePath("/Users/dev/my-project-epic-12345678");
 
       expect(result).toEqual({
+        matched: true,
         projectName: "my-project",
         epicShortId: "12345678",
         slug: null,
@@ -398,6 +401,7 @@ describe("worktree-utils module", () => {
       const result = parseWorktreePath("/Users/dev/project/.worktrees/epic-abcd1234-feature");
 
       expect(result).toEqual({
+        matched: true,
         projectName: null,
         epicShortId: "abcd1234",
         slug: "feature",
@@ -408,16 +412,18 @@ describe("worktree-utils module", () => {
       const result = parseWorktreePath("/Users/dev/project/.worktrees/epic-abcd1234");
 
       expect(result).toEqual({
+        matched: true,
         projectName: null,
         epicShortId: "abcd1234",
         slug: null,
       });
     });
 
-    it("returns nulls for unrecognized format", () => {
+    it("returns matched: false for unrecognized format", () => {
       const result = parseWorktreePath("/Users/dev/some-random-folder");
 
       expect(result).toEqual({
+        matched: false,
         projectName: null,
         epicShortId: null,
         slug: null,
@@ -428,6 +434,7 @@ describe("worktree-utils module", () => {
       const result = parseWorktreePath("/code/my-awesome-project-epic-12345678-new-feature");
 
       expect(result).toEqual({
+        matched: true,
         projectName: "my-awesome-project",
         epicShortId: "12345678",
         slug: "new-feature",
@@ -438,6 +445,7 @@ describe("worktree-utils module", () => {
       const result = parseWorktreePath("/code/project-epic-abcdef12-this-is-a-long-slug-name");
 
       expect(result).toEqual({
+        matched: true,
         projectName: "project",
         epicShortId: "abcdef12",
         slug: "this-is-a-long-slug-name",

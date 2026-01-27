@@ -231,11 +231,15 @@ export function suggestAlternativeWorktreePath(
  * Useful for understanding an existing worktree's origin.
  *
  * @param {string} worktreePath - Path to a worktree
- * @returns {{ projectName: string | null, epicShortId: string | null, slug: string | null }}
+ * @returns {{ matched: boolean, projectName: string | null, epicShortId: string | null, slug: string | null }}
  *
  * @example
  * parseWorktreePath("/Users/dev/brain-dump-epic-abc12345-git-worktree");
- * // Returns: { projectName: "brain-dump", epicShortId: "abc12345", slug: "git-worktree" }
+ * // Returns: { matched: true, projectName: "brain-dump", epicShortId: "abc12345", slug: "git-worktree" }
+ *
+ * @example
+ * parseWorktreePath("/Users/dev/some-random-folder");
+ * // Returns: { matched: false, projectName: null, epicShortId: null, slug: null }
  */
 export function parseWorktreePath(worktreePath) {
   const dirname = path.basename(worktreePath);
@@ -244,6 +248,7 @@ export function parseWorktreePath(worktreePath) {
   const match = dirname.match(/^(.+)-epic-([a-f0-9]{8})-(.+)$/);
   if (match) {
     return {
+      matched: true,
       projectName: match[1],
       epicShortId: match[2],
       slug: match[3],
@@ -254,6 +259,7 @@ export function parseWorktreePath(worktreePath) {
   const matchNoSlug = dirname.match(/^(.+)-epic-([a-f0-9]{8})$/);
   if (matchNoSlug) {
     return {
+      matched: true,
       projectName: matchNoSlug[1],
       epicShortId: matchNoSlug[2],
       slug: null,
@@ -264,6 +270,7 @@ export function parseWorktreePath(worktreePath) {
   const subfolderMatch = dirname.match(/^epic-([a-f0-9]{8})-(.+)$/);
   if (subfolderMatch) {
     return {
+      matched: true,
       projectName: null,
       epicShortId: subfolderMatch[1],
       slug: subfolderMatch[2],
@@ -274,11 +281,12 @@ export function parseWorktreePath(worktreePath) {
   const subfolderNoSlug = dirname.match(/^epic-([a-f0-9]{8})$/);
   if (subfolderNoSlug) {
     return {
+      matched: true,
       projectName: null,
       epicShortId: subfolderNoSlug[1],
       slug: null,
     };
   }
 
-  return { projectName: null, epicShortId: null, slug: null };
+  return { matched: false, projectName: null, epicShortId: null, slug: null };
 }
