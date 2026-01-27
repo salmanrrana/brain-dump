@@ -550,8 +550,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
           return;
         }
       }
+      // Epic not found - this shouldn't happen normally but handle gracefully
+      console.error(`[AppLayout] Epic not found for launch: ${epicId}`);
+      showToast("error", "Could not find epic. Try refreshing the page.");
     },
-    [projects, closeProjectsPanel]
+    [projects, closeProjectsPanel, showToast]
   );
 
   // Handler for closing the StartEpicModal
@@ -562,14 +565,29 @@ export default function AppLayout({ children }: AppLayoutProps) {
   // Handler for StartEpicModal confirmation - actually launch Ralph
   const handleStartEpicConfirm = useCallback(
     (epicId: string, _isolationMode: IsolationMode) => {
-      launchRalphMutation.mutate({
-        epicId,
-        preferredTerminal: settings?.terminalEmulator ?? null,
-        useSandbox: settings?.ralphSandbox ?? false,
-        aiBackend: "claude",
-      });
-      setStartEpicModalState({ isOpen: false, epic: null, project: null });
-      showToast("success", "Starting AI work session...");
+      launchRalphMutation.mutate(
+        {
+          epicId,
+          preferredTerminal: settings?.terminalEmulator ?? null,
+          useSandbox: settings?.ralphSandbox ?? false,
+          aiBackend: "claude",
+        },
+        {
+          onSuccess: () => {
+            setStartEpicModalState({ isOpen: false, epic: null, project: null });
+            showToast("success", "AI work session started");
+          },
+          onError: (error) => {
+            setStartEpicModalState({ isOpen: false, epic: null, project: null });
+            showToast(
+              "error",
+              error instanceof Error
+                ? `Failed to start AI: ${error.message}`
+                : "Failed to start AI work session. Check your terminal emulator settings."
+            );
+          },
+        }
+      );
     },
     [launchRalphMutation, settings, showToast]
   );

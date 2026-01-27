@@ -147,14 +147,69 @@ export const EpicListItem: FC<EpicListItemProps> = ({
   // Determine if the button should be disabled (no tickets in epic)
   const hasNoTickets = ticketCount === 0;
   const isButtonDisabled = hasNoTickets || hasActiveAI;
+  const hasPreviousWork = Boolean(epic.isolationMode);
 
-  // Determine button text based on state
-  const getButtonText = () => {
-    if (hasActiveAI) return "In Progress";
-    if (hasNoTickets) return "No Tickets";
-    if (epic.isolationMode) return "Continue";
-    return "Start";
+  // Derive button state for consistent styling and text
+  type ButtonState = "no-tickets" | "in-progress" | "continue" | "start";
+  function getButtonState(): ButtonState {
+    if (hasNoTickets) return "no-tickets";
+    if (hasActiveAI) return "in-progress";
+    if (hasPreviousWork) return "continue";
+    return "start";
+  }
+  const buttonState = getButtonState();
+
+  // Button text based on state
+  const buttonTextMap: Record<ButtonState, string> = {
+    "no-tickets": "No Tickets",
+    "in-progress": "In Progress",
+    continue: "Continue",
+    start: "Start",
   };
+
+  // Button background based on state
+  const buttonBackgroundMap: Record<ButtonState, string> = {
+    "no-tickets": "var(--bg-tertiary)",
+    "in-progress": "var(--accent-ai)",
+    continue: "var(--bg-tertiary)",
+    start: "var(--gradient-accent)",
+  };
+
+  // Button text color based on state
+  const buttonColorMap: Record<ButtonState, string> = {
+    "no-tickets": "var(--text-tertiary)",
+    "in-progress": "white",
+    continue: "var(--text-primary)",
+    start: "white",
+  };
+
+  // Aria label based on state (includes epic title for accessibility)
+  function getAriaLabel(state: ButtonState, title: string): string {
+    switch (state) {
+      case "no-tickets":
+        return `No tickets in ${title}`;
+      case "in-progress":
+        return `AI work in progress on ${title}`;
+      case "continue":
+        return `Continue AI work on ${title}`;
+      case "start":
+        return `Start AI work on ${title}`;
+    }
+  }
+
+  // Tooltip title based on state
+  function getTitleText(state: ButtonState): string {
+    switch (state) {
+      case "no-tickets":
+        return "Add tickets to start AI work";
+      case "in-progress":
+        return "AI work in progress";
+      case "continue":
+        return "Continue with AI";
+      case "start":
+        return "Start with AI";
+    }
+  }
 
   // "Start with AI" / "Continue with AI" button - more prominent than other actions
   const startAIButtonStyles: React.CSSProperties = {
@@ -164,20 +219,10 @@ export const EpicListItem: FC<EpicListItemProps> = ({
     gap: "var(--spacing-1)",
     height: "22px",
     padding: "0 var(--spacing-2)",
-    background: hasNoTickets
-      ? "var(--bg-tertiary)"
-      : hasActiveAI
-        ? "var(--accent-ai)"
-        : epic.isolationMode
-          ? "var(--bg-tertiary)"
-          : "var(--gradient-accent)",
+    background: buttonBackgroundMap[buttonState],
     border: "none",
     borderRadius: "var(--radius-sm)",
-    color: hasNoTickets
-      ? "var(--text-tertiary)"
-      : hasActiveAI || !epic.isolationMode
-        ? "white"
-        : "var(--text-primary)",
+    color: buttonColorMap[buttonState],
     cursor: isButtonDisabled ? "not-allowed" : "pointer",
     opacity: hasNoTickets ? 0.6 : 1,
     transition: "all var(--transition-fast)",
@@ -185,10 +230,6 @@ export const EpicListItem: FC<EpicListItemProps> = ({
     fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
     whiteSpace: "nowrap",
     flexShrink: 0,
-  };
-
-  const startAIButtonTextStyles: React.CSSProperties = {
-    fontSize: "var(--font-size-xs)",
   };
 
   return (
@@ -252,20 +293,8 @@ export const EpicListItem: FC<EpicListItemProps> = ({
           style={startAIButtonStyles}
           onClick={handleRalphClick}
           disabled={isButtonDisabled}
-          aria-label={
-            hasNoTickets
-              ? `No tickets in ${epic.title}`
-              : epic.isolationMode
-                ? `Continue AI work on ${epic.title}`
-                : `Start AI work on ${epic.title}`
-          }
-          title={
-            hasNoTickets
-              ? "Add tickets to start AI work"
-              : epic.isolationMode
-                ? "Continue with AI"
-                : "Start with AI"
-          }
+          aria-label={getAriaLabel(buttonState, epic.title)}
+          title={getTitleText(buttonState)}
           className={isButtonDisabled ? "" : "hover:brightness-110"}
         >
           {hasActiveAI ? (
@@ -273,7 +302,7 @@ export const EpicListItem: FC<EpicListItemProps> = ({
           ) : (
             <Play size={10} aria-hidden="true" />
           )}
-          <span style={startAIButtonTextStyles}>{getButtonText()}</span>
+          <span>{buttonTextMap[buttonState]}</span>
         </button>
       </div>
     </div>
