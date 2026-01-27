@@ -387,6 +387,168 @@ export function listWorktrees(projectPath) {
 }
 
 /**
+ * Validation status for a worktree.
+ * @typedef {"valid" | "missing_directory" | "corrupted" | "wrong_branch"} WorktreeValidationStatus
+ */
+
+/**
+ * Result of worktree validation.
+ * @typedef {Object} WorktreeValidationResult
+ * @property {WorktreeValidationStatus} status - The validation status
+ * @property {string} [branch] - Current branch name (if valid or wrong_branch)
+ * @property {string} [expectedBranch] - Expected branch name (if wrong_branch)
+ * @property {boolean} [hasUncommittedChanges] - Whether there are uncommitted changes
+ * @property {string} [error] - Error message (if corrupted)
+ */
+
+/**
+ * Validate an existing worktree for resumption.
+ *
+ * Checks that a worktree directory exists, is a valid git worktree,
+ * is on the expected branch (if specified), and reports uncommitted changes
+ * for resumption awareness.
+ *
+ * @param {string} worktreePath - Absolute path to the worktree directory
+ * @param {string} projectPath - Absolute path to the main repository
+ * @param {string | null} [expectedBranch=null] - Expected branch name (optional)
+ * @returns {WorktreeValidationResult}
+ *
+ * @example
+ * // Valid worktree
+ * const result = validateWorktree("/Users/dev/brain-dump-epic-abc12345", "/Users/dev/brain-dump");
+ * // Returns: { status: "valid", branch: "feature/epic-abc12345", hasUncommittedChanges: false }
+ *
+ * @example
+ * // Missing directory
+ * const result = validateWorktree("/Users/dev/nonexistent", "/Users/dev/brain-dump");
+ * // Returns: { status: "missing_directory" }
+ *
+ * @example
+ * // Wrong branch
+ * const result = validateWorktree(
+ *   "/Users/dev/brain-dump-epic-abc12345",
+ *   "/Users/dev/brain-dump",
+ *   "feature/epic-abc12345-original"
+ * );
+ * // Returns: { status: "wrong_branch", branch: "other-branch", expectedBranch: "feature/epic-abc12345-original", hasUncommittedChanges: true }
+ */
+export function validateWorktree(worktreePath, projectPath, expectedBranch = null) {
+  // Input validation
+  if (!worktreePath || typeof worktreePath !== "string") {
+    return { status: "corrupted", error: "Worktree path must be a non-empty string" };
+  }
+
+  if (!projectPath || typeof projectPath !== "string") {
+    return { status: "corrupted", error: "Project path must be a non-empty string" };
+  }
+
+  // Check if directory exists
+  if (!fs.existsSync(worktreePath)) {
+    return { status: "missing_directory" };
+  }
+
+  try {
+    // Check if it's a directory
+    const stats = fs.statSync(worktreePath);
+    if (!stats.isDirectory()) {
+      return { status: "corrupted", error: "Path exists but is not a directory" };
+    }
+
+    // Check if the worktree is in the main repo's worktree list
+    // We use runGitCommandSafe on the projectPath to get the authoritative list
+    const worktreeListResult = runGitCommandSafe(
+      ["worktree", "list", "--porcelain"],
+      projectPath
+    );
+
+    if (!worktreeListResult.success) {
+      return {
+        status: "corrupted",
+        error: `Failed to list worktrees: ${worktreeListResult.error}`,
+      };
+    }
+
+    // Normalize paths for comparison (handle trailing slashes, etc.)
+    // path.normalize doesn't remove trailing slashes, so we do it manually
+    const normalizedWorktreePath = path.normalize(worktreePath).replace(/\/+$/, "");
+
+    // Parse the porcelain output to find the worktree entry
+    // Format: worktree /path\nHEAD abc123\nbranch refs/heads/name\n\n
+    const entries = worktreeListResult.output.trim().split("\n\n");
+    let foundInList = false;
+
+    for (const entry of entries) {
+      const lines = entry.split("\n");
+      for (const line of lines) {
+        if (line.startsWith("worktree ")) {
+          const listedPath = line.substring("worktree ".length);
+          const normalizedListedPath = path.normalize(listedPath).replace(/\/+$/, "");
+          if (normalizedListedPath === normalizedWorktreePath) {
+            foundInList = true;
+            break;
+          }
+        }
+      }
+      if (foundInList) break;
+    }
+
+    if (!foundInList) {
+      return {
+        status: "corrupted",
+        error: "Directory exists but is not in worktree list",
+      };
+    }
+
+    // Get current branch from the worktree (run git command IN the worktree)
+    const branchResult = runGitCommandSafe(["branch", "--show-current"], worktreePath);
+
+    if (!branchResult.success) {
+      return {
+        status: "corrupted",
+        error: `Failed to get current branch: ${branchResult.error}`,
+      };
+    }
+
+    const currentBranch = branchResult.output.trim();
+
+    // Check for uncommitted changes (run git status --porcelain in the worktree)
+    const statusResult = runGitCommandSafe(["status", "--porcelain"], worktreePath);
+
+    if (!statusResult.success) {
+      return {
+        status: "corrupted",
+        error: `Failed to check git status: ${statusResult.error}`,
+      };
+    }
+
+    const hasUncommittedChanges = statusResult.output.trim().length > 0;
+
+    // Validate branch if expected branch is specified
+    if (expectedBranch !== null && currentBranch !== expectedBranch) {
+      return {
+        status: "wrong_branch",
+        branch: currentBranch,
+        expectedBranch,
+        hasUncommittedChanges,
+      };
+    }
+
+    // All checks passed
+    return {
+      status: "valid",
+      branch: currentBranch,
+      hasUncommittedChanges,
+    };
+  } catch (error) {
+    log.warn(`Error validating worktree at ${worktreePath}: ${error.message}`);
+    return {
+      status: "corrupted",
+      error: error.message,
+    };
+  }
+}
+
+/**
  * Create a git worktree with all security checks and rollback on failure.
  *
  * This function:

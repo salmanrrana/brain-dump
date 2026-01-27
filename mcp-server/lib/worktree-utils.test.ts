@@ -73,6 +73,16 @@ interface CreateWorktreeOptions {
   createClaudeDir?: boolean;
 }
 
+type WorktreeValidationStatus = "valid" | "missing_directory" | "corrupted" | "wrong_branch";
+
+interface WorktreeValidationResult {
+  status: WorktreeValidationStatus;
+  branch?: string;
+  expectedBranch?: string;
+  hasUncommittedChanges?: boolean;
+  error?: string;
+}
+
 interface WorktreeUtils {
   generateWorktreePath: (
     projectPath: string,
@@ -95,6 +105,11 @@ interface WorktreeUtils {
     branchName: string,
     options?: CreateWorktreeOptions
   ) => CreateWorktreeResponse;
+  validateWorktree: (
+    worktreePath: string,
+    projectPath: string,
+    expectedBranch?: string | null
+  ) => WorktreeValidationResult;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -106,6 +121,7 @@ const {
   parseWorktreePath,
   listWorktrees,
   createWorktree,
+  validateWorktree,
 } = worktreeUtils;
 
 describe("worktree-utils module", () => {
@@ -752,6 +768,190 @@ describe("worktree-utils module", () => {
           // Should not be a security error about the path location
           expect(result.error).not.toContain("Worktree must be sibling or within project");
         }
+      });
+    });
+  });
+
+  describe("validateWorktree", () => {
+    // Use the actual project directory for testing (it's a git repo)
+    const projectPath = process.cwd();
+
+    describe("status: missing_directory", () => {
+      it("returns missing_directory for non-existent path", () => {
+        const result = validateWorktree("/nonexistent-worktree-path-xyz789", projectPath);
+
+        expect(result.status).toBe("missing_directory");
+        expect(result.branch).toBeUndefined();
+        expect(result.error).toBeUndefined();
+      });
+
+      it("returns missing_directory for missing worktree in valid project", () => {
+        const result = validateWorktree(`${projectPath}-epic-missing-12345678`, projectPath);
+
+        expect(result.status).toBe("missing_directory");
+      });
+    });
+
+    describe("status: corrupted", () => {
+      it("returns corrupted for null worktree path", () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const result = validateWorktree(null as any, projectPath);
+
+        expect(result.status).toBe("corrupted");
+        expect(result.error).toBe("Worktree path must be a non-empty string");
+      });
+
+      it("returns corrupted for empty worktree path", () => {
+        const result = validateWorktree("", projectPath);
+
+        expect(result.status).toBe("corrupted");
+        expect(result.error).toBe("Worktree path must be a non-empty string");
+      });
+
+      it("returns corrupted for null project path", () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const result = validateWorktree("/some/path", null as any);
+
+        expect(result.status).toBe("corrupted");
+        expect(result.error).toBe("Project path must be a non-empty string");
+      });
+
+      it("returns corrupted for empty project path", () => {
+        const result = validateWorktree("/some/path", "");
+
+        expect(result.status).toBe("corrupted");
+        expect(result.error).toBe("Project path must be a non-empty string");
+      });
+
+      it("returns corrupted for non-directory path", () => {
+        // Use a file that exists - package.json
+        const result = validateWorktree(`${projectPath}/package.json`, projectPath);
+
+        expect(result.status).toBe("corrupted");
+        expect(result.error).toBe("Path exists but is not a directory");
+      });
+
+      it("returns corrupted for directory not in worktree list", () => {
+        // Use node_modules which exists but is not a worktree
+        const result = validateWorktree(`${projectPath}/node_modules`, projectPath);
+
+        expect(result.status).toBe("corrupted");
+        expect(result.error).toBe("Directory exists but is not in worktree list");
+      });
+    });
+
+    describe("status: valid", () => {
+      it("returns valid for the main worktree (project itself)", () => {
+        // The project directory is itself the main worktree
+        const result = validateWorktree(projectPath, projectPath);
+
+        expect(result.status).toBe("valid");
+        expect(result.branch).toBeDefined();
+        expect(typeof result.branch).toBe("string");
+        expect(typeof result.hasUncommittedChanges).toBe("boolean");
+      });
+
+      it("includes branch name in valid result", () => {
+        const result = validateWorktree(projectPath, projectPath);
+
+        expect(result.status).toBe("valid");
+        expect(result.branch).toBeDefined();
+        // Branch should be a non-empty string (could be main, master, feature/*, etc.)
+        if (result.branch) {
+          expect(result.branch.length).toBeGreaterThan(0);
+        }
+      });
+
+      it("includes hasUncommittedChanges in valid result", () => {
+        const result = validateWorktree(projectPath, projectPath);
+
+        expect(result.status).toBe("valid");
+        expect(typeof result.hasUncommittedChanges).toBe("boolean");
+      });
+
+      it("returns valid when expectedBranch matches current branch", () => {
+        // First get the current branch
+        const initialResult = validateWorktree(projectPath, projectPath);
+        expect(initialResult.status).toBe("valid");
+
+        if (initialResult.status === "valid" && initialResult.branch) {
+          // Now validate with the expected branch matching
+          const result = validateWorktree(projectPath, projectPath, initialResult.branch);
+
+          expect(result.status).toBe("valid");
+          expect(result.branch).toBe(initialResult.branch);
+        }
+      });
+
+      it("returns valid when expectedBranch is null", () => {
+        const result = validateWorktree(projectPath, projectPath, null);
+
+        expect(result.status).toBe("valid");
+        expect(result.branch).toBeDefined();
+      });
+    });
+
+    describe("status: wrong_branch", () => {
+      it("returns wrong_branch when expectedBranch differs from current", () => {
+        const result = validateWorktree(
+          projectPath,
+          projectPath,
+          "nonexistent-expected-branch-xyz"
+        );
+
+        expect(result.status).toBe("wrong_branch");
+        expect(result.branch).toBeDefined();
+        expect(result.expectedBranch).toBe("nonexistent-expected-branch-xyz");
+        expect(typeof result.hasUncommittedChanges).toBe("boolean");
+      });
+
+      it("includes both current and expected branch in wrong_branch result", () => {
+        const expectedBranch = "feature/expected-but-not-current";
+        const result = validateWorktree(projectPath, projectPath, expectedBranch);
+
+        expect(result.status).toBe("wrong_branch");
+        expect(result.branch).toBeDefined();
+        expect(result.expectedBranch).toBe(expectedBranch);
+        // Current branch should not equal expected
+        expect(result.branch).not.toBe(expectedBranch);
+      });
+
+      it("includes hasUncommittedChanges in wrong_branch result", () => {
+        const result = validateWorktree(projectPath, projectPath, "nonexistent-branch");
+
+        expect(result.status).toBe("wrong_branch");
+        expect(typeof result.hasUncommittedChanges).toBe("boolean");
+      });
+    });
+
+    describe("edge cases", () => {
+      it("handles trailing slashes in paths", () => {
+        const result = validateWorktree(projectPath + "/", projectPath);
+
+        // Should still find the worktree despite trailing slash
+        // (path.normalize handles this)
+        expect(result.status).toBe("valid");
+      });
+
+      it("returns corrupted for non-git project path", () => {
+        // Use a valid directory that is NOT a git repo
+        const result = validateWorktree("/tmp", "/tmp");
+
+        expect(result.status).toBe("corrupted");
+        expect(result.error).toContain("Failed to list worktrees");
+      });
+
+      it("handles expectedBranch as empty string", () => {
+        // Empty string should be treated as "check for this specific empty branch"
+        // which will likely result in wrong_branch since branches can't be empty
+        const result = validateWorktree(projectPath, projectPath, "");
+
+        // Empty string is falsy, so it should NOT trigger branch comparison
+        // Wait, "" is falsy but !== null, let me check the implementation...
+        // Actually, "" !== null, so it will check if currentBranch !== ""
+        // Since current branch is not empty, it should be wrong_branch
+        expect(result.status).toBe("wrong_branch");
+        expect(result.expectedBranch).toBe("");
       });
     });
   });
