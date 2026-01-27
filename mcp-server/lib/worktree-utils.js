@@ -749,7 +749,7 @@ export function createWorktree(projectPath, worktreePath, branchName, options = 
  * @param {string} projectPath - Absolute path to the main repository
  * @param {object} [options] - Configuration options
  * @param {boolean} [options.force=false] - Force removal even with uncommitted changes
- * @returns {{ success: true } | { success: false, error: string }}
+ * @returns {{ success: true, warning?: string } | { success: false, error: string }}
  *
  * @example
  * // Normal removal (fails if uncommitted changes exist)
@@ -847,8 +847,13 @@ export function removeWorktree(worktreePath, projectPath, options = {}) {
   // 8. Prune stale worktree references
   const pruneResult = runGitCommandSafe(["worktree", "prune"], resolvedProjectPath);
   if (!pruneResult.success) {
-    // Log but don't fail - the worktree was removed successfully
+    // Log the failure - the worktree was removed but prune failed
     log.warn(`Failed to prune worktrees after removal: ${pruneResult.error}`);
+    // Return success with warning so callers know prune failed
+    return {
+      success: true,
+      warning: `Worktree removed but failed to prune stale references: ${pruneResult.error}`,
+    };
   }
 
   log.debug(`Successfully removed worktree: ${worktreePath}`);

@@ -79,6 +79,7 @@ interface RemoveWorktreeOptions {
 
 interface RemoveWorktreeResult {
   success: true;
+  warning?: string;
 }
 
 interface RemoveWorktreeError {
