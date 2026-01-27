@@ -594,6 +594,10 @@ export const epicWorkflowState = sqliteTable(
     prNumber: integer("pr_number"), // GitHub PR number for the epic
     prUrl: text("pr_url"), // Full PR URL
     prStatus: text("pr_status").$type<"draft" | "open" | "merged" | "closed" | null>(), // PR status
+    // Worktree tracking fields
+    worktreePath: text("worktree_path"), // Absolute path to the worktree directory
+    worktreeCreatedAt: text("worktree_created_at"), // When the worktree was created
+    worktreeStatus: text("worktree_status").$type<"active" | "stale" | "orphaned" | null>(), // "active" | "stale" | "orphaned"
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),
@@ -604,6 +608,7 @@ export const epicWorkflowState = sqliteTable(
   (table) => [
     index("idx_epic_workflow_state_epic").on(table.epicId),
     index("idx_epic_workflow_state_current_ticket").on(table.currentTicketId),
+    index("idx_epic_workflow_state_worktree_status").on(table.worktreeStatus),
   ]
 );
 
