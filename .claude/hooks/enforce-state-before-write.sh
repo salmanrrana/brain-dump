@@ -47,8 +47,9 @@ if [[ "$ENABLE_RALPH_STATE_HMAC" == "1" || "$ENABLE_RALPH_STATE_HMAC" == "true" 
   fi
 
   if [[ -n "$VERIFY_SCRIPT" ]]; then
-    # Run HMAC verification (output to stderr for logging, don't block on failure)
-    HMAC_RESULT=$(node "$VERIFY_SCRIPT" "$STATE_FILE" 2>&1) || true
+    # Run HMAC verification - capture stdout (JSON) and stderr separately
+    # Note: Any warnings/errors from node go to stderr (file descriptor 3)
+    HMAC_RESULT=$(node "$VERIFY_SCRIPT" "$STATE_FILE" 2>/dev/null) || true
     HMAC_VALID=$(echo "$HMAC_RESULT" | jq -r '.valid // false' 2>/dev/null || echo "false")
 
     if [[ "$HMAC_VALID" != "true" ]]; then

@@ -80,7 +80,11 @@ function parseStateHistory(stateHistoryJson) {
   if (!stateHistoryJson) return [];
   try {
     return JSON.parse(stateHistoryJson);
-  } catch {
+  } catch (err) {
+    log.warn("Failed to parse state history JSON, returning empty array", {
+      error: err.message,
+      jsonPreview: stateHistoryJson.substring(0, 100),
+    });
     return [];
   }
 }

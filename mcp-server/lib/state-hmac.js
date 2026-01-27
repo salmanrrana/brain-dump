@@ -43,12 +43,47 @@ export function isHmacEnabled() {
  */
 function generateMachineKey() {
   const hostname = os.hostname();
-  const username = os.userInfo().username;
+
+  // os.userInfo() can throw in containerized environments without /etc/passwd
+  let username;
+  try {
+    username = os.userInfo().username;
+  } catch {
+    // Fallback to environment variables commonly set in containers
+    username = process.env.USER || process.env.USERNAME || "unknown";
+    log.debug(`os.userInfo() unavailable, using fallback username: ${username}`);
+  }
+
   const keyMaterial = `ralph-state:${hostname}:${username}`;
 
   return crypto.createHash("sha256")
     .update(keyMaterial)
     .digest();
+}
+
+/**
+ * Recursively sort object keys for canonical JSON output.
+ * Handles nested objects and arrays correctly.
+ *
+ * @param {unknown} value - Value to canonicalize
+ * @returns {unknown} Canonicalized value
+ */
+function canonicalize(value) {
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(canonicalize);
+  }
+
+  // Sort object keys and recursively canonicalize values
+  const sortedKeys = Object.keys(value).sort();
+  const result = {};
+  for (const key of sortedKeys) {
+    result[key] = canonicalize(value[key]);
+  }
+  return result;
 }
 
 /**
@@ -63,8 +98,9 @@ export function generateStateHmac(stateData) {
   // Create a copy without _hmac to ensure consistent signing
   const { _hmac: _ignored, ...dataToSign } = stateData;
 
-  // Sort keys for deterministic JSON output
-  const canonicalJson = JSON.stringify(dataToSign, Object.keys(dataToSign).sort());
+  // Recursively sort keys for deterministic JSON output
+  const canonicalData = canonicalize(dataToSign);
+  const canonicalJson = JSON.stringify(canonicalData);
 
   return crypto.createHmac("sha256", key)
     .update(canonicalJson)

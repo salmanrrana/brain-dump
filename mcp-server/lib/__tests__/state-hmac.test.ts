@@ -126,6 +126,56 @@ describe("state-hmac", () => {
 
       expect(hmac1).toBe(hmac2);
     });
+
+    it("handles nested objects with different key orders", () => {
+      const stateData1 = {
+        sessionId: "test",
+        metadata: {
+          zebra: "last",
+          alpha: "first",
+          nested: {
+            z: 1,
+            a: 2,
+          },
+        },
+      };
+
+      const stateData2 = {
+        metadata: {
+          alpha: "first",
+          nested: {
+            a: 2,
+            z: 1,
+          },
+          zebra: "last",
+        },
+        sessionId: "test",
+      };
+
+      const hmac1 = generateStateHmac(stateData1);
+      const hmac2 = generateStateHmac(stateData2);
+
+      expect(hmac1).toBe(hmac2);
+    });
+
+    it("handles arrays within objects", () => {
+      const stateData1 = {
+        sessionId: "test",
+        stateHistory: ["idle", "analyzing", "implementing"],
+        tags: [{ name: "urgent" }, { name: "feature" }],
+      };
+
+      const stateData2 = {
+        stateHistory: ["idle", "analyzing", "implementing"],
+        sessionId: "test",
+        tags: [{ name: "urgent" }, { name: "feature" }],
+      };
+
+      const hmac1 = generateStateHmac(stateData1);
+      const hmac2 = generateStateHmac(stateData2);
+
+      expect(hmac1).toBe(hmac2);
+    });
   });
 
   describe("verifyStateHmac", () => {
