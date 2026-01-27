@@ -35,8 +35,8 @@ function checkPRMerged(prNumber, projectPath) {
     const prData = JSON.parse(ghResult.output);
     const isMerged = prData.state === "MERGED" || !!prData.mergedAt;
     return { isMerged, state: prData.state, error: null };
-  } catch {
-    return { isMerged: false, state: null, error: "Failed to parse PR data" };
+  } catch (parseError) {
+    return { isMerged: false, state: null, error: `Failed to parse PR data: ${parseError.message}` };
   }
 }
 
@@ -219,11 +219,16 @@ Returns:
           if (prCheck.isMerged) {
             prMerged = true;
             // Update database with fresh PR status
-            const now = new Date().toISOString();
-            db.prepare(`
-              UPDATE epic_workflow_state SET pr_status = 'merged', updated_at = ? WHERE epic_id = ?
-            `).run(now, epic.epic_id);
-            log.info(`Updated PR #${epic.pr_number} status to merged for epic ${epic.epic_id}`);
+            try {
+              const now = new Date().toISOString();
+              db.prepare(`
+                UPDATE epic_workflow_state SET pr_status = 'merged', updated_at = ? WHERE epic_id = ?
+              `).run(now, epic.epic_id);
+              log.info(`Updated PR #${epic.pr_number} status to merged for epic ${epic.epic_id}`);
+            } catch (dbUpdateError) {
+              log.error(`Failed to update PR status in database: ${dbUpdateError.message}`);
+              // Continue with cleanup - the PR is still merged even if we couldn't update the DB
+            }
           }
           cleanupInfo.prStatus = prCheck.state || epic.pr_status;
         }
