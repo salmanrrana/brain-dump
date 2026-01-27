@@ -3,6 +3,7 @@
  * @module lib/git-utils
  */
 import { execSync, execFileSync } from "child_process";
+import { log } from "./logging.js";
 
 /**
  * Run a git command in a specified directory.
@@ -98,6 +99,9 @@ export function runGitCommandSafe(args, cwd, options = {}) {
     } else if (error.killed) {
       errorMessage = "Git command was terminated (possibly due to timeout or signal)";
     }
+
+    // Log failed git commands for debugging and audit trail
+    log.debug(`Git command failed: git ${args.join(" ")} in ${cwd} - ${errorMessage}`);
 
     return { success: false, output: "", error: errorMessage };
   }
