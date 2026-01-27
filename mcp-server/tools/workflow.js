@@ -525,6 +525,15 @@ Use \`start_ticket_work\` to begin work on any ticket.`,
               log.warn(`Failed to remove invalid worktree: ${removeResult.error}`);
             }
           }
+
+          // Clear invalid worktree reference from database to prevent infinite loop
+          const clearNow = new Date().toISOString();
+          db.prepare(`
+            UPDATE epic_workflow_state
+            SET worktree_path = NULL, worktree_status = NULL, worktree_created_at = NULL, updated_at = ?
+            WHERE epic_id = ?
+          `).run(clearNow, epicId);
+          log.info(`Cleared invalid worktree reference from epic workflow state for ${epicId}`);
         }
 
         // Generate branch name and worktree path
@@ -593,59 +602,66 @@ Use \`start_ticket_work\` to begin work on any ticket.`,
           // Rollback: remove the worktree we just created
           log.error(`Failed to write ralph-state.json: ${err.message}`);
           const rollbackResult = removeWorktree(worktreePath, epic.project_path, { force: true });
+          const rollbackNote = rollbackResult.success
+            ? "The worktree was cleaned up."
+            : `WARNING: Failed to clean up worktree at ${worktreePath}: ${rollbackResult.error}\nYou may need to manually remove it.`;
           if (!rollbackResult.success) {
             log.error(`Rollback failed: ${rollbackResult.error}`);
           }
           return {
             content: [{
               type: "text",
-              text: `Failed to initialize worktree state: ${err.message}\n\nThe worktree was cleaned up. Please try again.`,
+              text: `Failed to initialize worktree state: ${err.message}\n\n${rollbackNote} Please try again.`,
             }],
             isError: true,
           };
         }
 
-        // Save to database (with rollback on failure)
+        // Save to database atomically (with rollback on failure)
         let epicTickets;
         try {
-          if (!epicState) {
-            // Create new epic workflow state
-            const stateId = randomUUID();
-            db.prepare(`
-              INSERT INTO epic_workflow_state (id, epic_id, epic_branch_name, epic_branch_created_at, worktree_path, worktree_created_at, worktree_status, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `).run(stateId, epicId, branchName, now, worktreePath, now, "active", now, now);
-          } else {
-            // Update existing state with worktree info
-            db.prepare(`
-              UPDATE epic_workflow_state
-              SET epic_branch_name = ?, epic_branch_created_at = ?, worktree_path = ?, worktree_created_at = ?, worktree_status = ?, updated_at = ?
-              WHERE epic_id = ?
-            `).run(branchName, now, worktreePath, now, "active", now, epicId);
-          }
+          // Use transaction to ensure all database operations succeed or none do
+          const saveWorkflowState = db.transaction(() => {
+            if (!epicState) {
+              const stateId = randomUUID();
+              db.prepare(`
+                INSERT INTO epic_workflow_state (id, epic_id, epic_branch_name, epic_branch_created_at, worktree_path, worktree_created_at, worktree_status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+              `).run(stateId, epicId, branchName, now, worktreePath, now, "active", now, now);
+            } else {
+              db.prepare(`
+                UPDATE epic_workflow_state
+                SET epic_branch_name = ?, epic_branch_created_at = ?, worktree_path = ?, worktree_created_at = ?, worktree_status = ?, updated_at = ?
+                WHERE epic_id = ?
+              `).run(branchName, now, worktreePath, now, "active", now, epicId);
+            }
 
-          // Get tickets in epic
-          epicTickets = db.prepare(`
-            SELECT id, title, status, priority FROM tickets WHERE epic_id = ? ORDER BY position
-          `).all(epicId);
+            epicTickets = db.prepare(`
+              SELECT id, title, status, priority FROM tickets WHERE epic_id = ? ORDER BY position
+            `).all(epicId);
 
-          // Update ticket counts
-          const ticketsTotal = epicTickets.length;
-          const ticketsDone = epicTickets.filter(t => t.status === "done").length;
-          db.prepare(`
-            UPDATE epic_workflow_state SET tickets_total = ?, tickets_done = ?, updated_at = ? WHERE epic_id = ?
-          `).run(ticketsTotal, ticketsDone, now, epicId);
+            const ticketsTotal = epicTickets.length;
+            const ticketsDone = epicTickets.filter(t => t.status === "done").length;
+            db.prepare(`
+              UPDATE epic_workflow_state SET tickets_total = ?, tickets_done = ?, updated_at = ? WHERE epic_id = ?
+            `).run(ticketsTotal, ticketsDone, now, epicId);
+          });
+
+          saveWorkflowState();
         } catch (dbErr) {
           log.error(`Failed to save epic workflow state for ${epicId}`, { error: dbErr.message });
           // Rollback: remove the worktree we just created
           const rollbackResult = removeWorktree(worktreePath, epic.project_path, { force: true });
+          const rollbackNote = rollbackResult.success
+            ? "The worktree was cleaned up."
+            : `WARNING: Failed to clean up worktree at ${worktreePath}: ${rollbackResult.error}\nYou may need to manually remove it.`;
           if (!rollbackResult.success) {
             log.error(`Rollback failed: ${rollbackResult.error}`);
           }
           return {
             content: [{
               type: "text",
-              text: `Failed to save epic workflow state.\n\nError: ${dbErr.message}\n\nThe worktree was cleaned up. Please try again or check database health with get_database_health.`,
+              text: `Failed to save epic workflow state.\n\nError: ${dbErr.message}\n\n${rollbackNote} Please try again or check database health with get_database_health.`,
             }],
             isError: true,
           };
@@ -668,11 +684,20 @@ Use \`start_ticket_work\` to begin work on any ticket.`,
             );
             if (prResult.success && prResult.output) {
               const prUrl = prResult.output.trim();
-              const prNumber = parseInt(prUrl.split("/").pop() || "0", 10);
+              // Extract PR number using regex to handle trailing slashes and edge cases
+              const prMatch = prUrl.match(/\/(\d+)\/?$/);
+              const prNumber = prMatch ? parseInt(prMatch[1], 10) : null;
 
-              db.prepare(`
-                UPDATE epic_workflow_state SET pr_number = ?, pr_url = ?, pr_status = 'draft', updated_at = ? WHERE epic_id = ?
-              `).run(prNumber, prUrl, now, epicId);
+              if (prNumber) {
+                db.prepare(`
+                  UPDATE epic_workflow_state SET pr_number = ?, pr_url = ?, pr_status = 'draft', updated_at = ? WHERE epic_id = ?
+                `).run(prNumber, prUrl, now, epicId);
+              } else {
+                log.warn(`Failed to parse PR number from URL: ${prUrl}`);
+                db.prepare(`
+                  UPDATE epic_workflow_state SET pr_url = ?, pr_status = 'draft', updated_at = ? WHERE epic_id = ?
+                `).run(prUrl, now, epicId);
+              }
 
               prInfo = `\n\n**Draft PR Created:** ${prUrl}`;
               log.info(`Created draft PR for epic ${epicId}: ${prUrl}`);
@@ -851,15 +876,21 @@ Use \`start_ticket_work\` to begin work on any ticket. All tickets will use this
             epic.project_path
           );
           if (prResult.success && prResult.output) {
-            // Extract PR URL from output
             const prUrl = prResult.output.trim();
-            // Extract PR number from URL (last segment)
-            const prNumber = parseInt(prUrl.split("/").pop() || "0", 10);
+            // Extract PR number using regex to handle trailing slashes and edge cases
+            const prMatch = prUrl.match(/\/(\d+)\/?$/);
+            const prNumber = prMatch ? parseInt(prMatch[1], 10) : null;
 
-            // Update epic workflow state with PR info
-            db.prepare(`
-              UPDATE epic_workflow_state SET pr_number = ?, pr_url = ?, pr_status = 'draft', updated_at = ? WHERE epic_id = ?
-            `).run(prNumber, prUrl, now, epicId);
+            if (prNumber) {
+              db.prepare(`
+                UPDATE epic_workflow_state SET pr_number = ?, pr_url = ?, pr_status = 'draft', updated_at = ? WHERE epic_id = ?
+              `).run(prNumber, prUrl, now, epicId);
+            } else {
+              log.warn(`Failed to parse PR number from URL: ${prUrl}`);
+              db.prepare(`
+                UPDATE epic_workflow_state SET pr_url = ?, pr_status = 'draft', updated_at = ? WHERE epic_id = ?
+              `).run(prUrl, now, epicId);
+            }
 
             prInfo = `\n\n**Draft PR Created:** ${prUrl}`;
             log.info(`Created draft PR for epic ${epicId}: ${prUrl}`);
