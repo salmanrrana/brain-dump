@@ -580,7 +580,6 @@ export function createWorktree(projectPath, worktreePath, branchName, options = 
   const { maxWorktrees = 5, createClaudeDir = true } = options;
 
   // Track what we've created for rollback
-  let _createdParentDir = false;
   let createdWorktree = false;
 
   // Helper function for rollback
@@ -675,11 +674,12 @@ export function createWorktree(projectPath, worktreePath, branchName, options = 
     }
 
     // 6. Create parent directory if needed
+    // Note: We don't track parent directory creation for rollback because
+    // empty directories are harmless and may be needed by other operations.
     const parentDir = path.dirname(worktreePath);
     if (!fs.existsSync(parentDir)) {
       try {
         fs.mkdirSync(parentDir, { recursive: true, mode: 0o755 });
-        _createdParentDir = true;
         log.debug(`Created parent directory: ${parentDir}`);
       } catch (mkdirError) {
         return { success: false, error: `Failed to create parent directory: ${mkdirError.message}` };
@@ -704,6 +704,13 @@ export function createWorktree(projectPath, worktreePath, branchName, options = 
     }
 
     createdWorktree = true;
+
+    // 7b. Verify worktree was actually created (defense against silent failures)
+    if (!fs.existsSync(worktreePath)) {
+      log.error(`Worktree creation reported success but directory does not exist: ${worktreePath}`);
+      return rollback("Worktree creation succeeded but directory does not exist");
+    }
+
     log.debug(`Created worktree at: ${worktreePath} with branch: ${branchName}`);
 
     // 8. Create .claude/ directory with restricted permissions
