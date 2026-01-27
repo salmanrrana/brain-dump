@@ -11,6 +11,8 @@
  *   brain-dump check                   - Quick database integrity check
  *   brain-dump check --full            - Full database health check
  *   brain-dump doctor                  - Check environment configuration
+ *   brain-dump cleanup                 - List stale worktrees (dry-run)
+ *   brain-dump cleanup --force         - Remove stale worktrees without confirmation
  *   brain-dump help                    - Show this help message
  *
  * Note: For ticket management, use Brain Dump's MCP tools:
@@ -20,8 +22,9 @@
  */
 
 import { existsSync, readFileSync } from "fs";
-import { join } from "path";
+import { join, basename } from "path";
 import { createInterface } from "readline";
+import { execFileSync } from "child_process";
 import { getDatabasePath, getBackupsDir, ensureDirectoriesSync } from "../src/lib/xdg";
 import {
   createBackup,
@@ -33,6 +36,9 @@ import {
 } from "../src/lib/backup";
 import { fullDatabaseCheck, quickIntegrityCheck } from "../src/lib/integrity";
 import { createCliLogger } from "../src/lib/logger";
+import { db } from "../src/lib/db";
+import { projects, epics, epicWorkflowState } from "../src/lib/schema";
+import { eq, isNotNull } from "drizzle-orm";
 
 // Create logger for CLI operations
 const logger = createCliLogger();
@@ -52,6 +58,8 @@ Usage:
   brain-dump check                   Quick database integrity check
   brain-dump check --full            Full database health check
   brain-dump doctor                  Check environment configuration for all IDEs
+  brain-dump cleanup                 List stale worktrees (dry-run by default)
+  brain-dump cleanup --force         Remove stale worktrees without confirmation
   brain-dump help                    Show this help message
 
 Examples:
@@ -61,6 +69,8 @@ Examples:
   brain-dump check                   # Quick integrity check
   brain-dump check --full            # Full health check with details
   brain-dump doctor                  # Verify Claude Code, Cursor, OpenCode, VS Code setup
+  brain-dump cleanup                 # Show stale worktrees (merged PRs)
+  brain-dump cleanup --force         # Remove stale worktrees without prompts
 
 For ticket management, use Brain Dump's MCP tools instead:
   - start_ticket_work       Create branch + set status to in_progress
@@ -333,6 +343,298 @@ async function handleRestore(args: string[]): Promise<void> {
     logger.error(`Database restore failed: ${result.message}`);
     process.exit(1);
   }
+}
+
+// PR status type matching schema
+type PrStatus = "draft" | "open" | "merged" | "closed" | null;
+
+// Worktree info for cleanup command
+interface WorktreeInfo {
+  path: string;
+  epicId: string;
+  epicTitle: string;
+  projectName: string;
+  projectPath: string;
+  prNumber: number | null;
+  prStatus: PrStatus;
+  worktreeStatus: string | null;
+  size: number;
+}
+
+// Calculate directory size using du command
+function getDirectorySize(dirPath: string): number {
+  try {
+    // Use du for accurate directory size - execFileSync with args array is safe
+    const output = execFileSync("du", ["-sk", dirPath], {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    const parts = output.split("\t");
+    const sizeKb = parseInt(parts[0] || "0", 10);
+    return sizeKb * 1024; // Convert KB to bytes
+  } catch {
+    return 0;
+  }
+}
+
+// Get PR status via gh CLI (using execFileSync with args array for security)
+function getPrStatus(
+  prNumber: number,
+  projectPath: string
+): { status: string; mergedAt: string | null } | null {
+  try {
+    const output = execFileSync(
+      "gh",
+      ["pr", "view", String(prNumber), "--json", "state,mergedAt"],
+      {
+        encoding: "utf-8",
+        cwd: projectPath,
+        stdio: ["pipe", "pipe", "pipe"],
+      }
+    );
+    const data = JSON.parse(output);
+    return {
+      status: data.state?.toLowerCase() || "unknown",
+      mergedAt: data.mergedAt || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Remove a git worktree safely
+function removeGitWorktree(projectPath: string, worktreePath: string, force: boolean): void {
+  const args = ["worktree", "remove"];
+  if (force) {
+    args.push("--force");
+  }
+  args.push(worktreePath);
+
+  execFileSync("git", args, {
+    encoding: "utf-8",
+    cwd: projectPath,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+}
+
+// Prune stale worktree references
+function pruneWorktrees(projectPath: string): void {
+  execFileSync("git", ["worktree", "prune"], {
+    encoding: "utf-8",
+    cwd: projectPath,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+}
+
+// Cleanup command handler - manage stale worktrees
+async function handleCleanup(args: string[]): Promise<void> {
+  const forceFlag = args.includes("--force");
+  const dryRun = !forceFlag;
+
+  console.log("\n🗂️  Brain Dump Worktree Cleanup\n");
+  console.log("Scanning for stale worktrees...\n");
+
+  // Query all worktrees from epic_workflow_state
+  const worktrees = db
+    .select({
+      worktreePath: epicWorkflowState.worktreePath,
+      worktreeStatus: epicWorkflowState.worktreeStatus,
+      epicId: epicWorkflowState.epicId,
+      prNumber: epicWorkflowState.prNumber,
+      prStatus: epicWorkflowState.prStatus,
+    })
+    .from(epicWorkflowState)
+    .where(isNotNull(epicWorkflowState.worktreePath))
+    .all();
+
+  if (worktrees.length === 0) {
+    console.log("No worktrees found in the database.\n");
+    console.log("Worktrees are created when starting epic work with isolation mode = 'worktree'.");
+    process.exit(0);
+  }
+
+  // Get epic and project details for each worktree
+  const worktreeInfos: WorktreeInfo[] = [];
+  const skipped: { path: string; reason: string }[] = [];
+
+  for (const wt of worktrees) {
+    if (!wt.worktreePath) continue;
+
+    // Get epic details
+    const epic = db
+      .select({
+        id: epics.id,
+        title: epics.title,
+        projectId: epics.projectId,
+      })
+      .from(epics)
+      .where(eq(epics.id, wt.epicId))
+      .get();
+
+    if (!epic) {
+      skipped.push({ path: wt.worktreePath, reason: "Epic not found in database" });
+      continue;
+    }
+
+    // Get project details
+    const project = db
+      .select({
+        name: projects.name,
+        path: projects.path,
+      })
+      .from(projects)
+      .where(eq(projects.id, epic.projectId))
+      .get();
+
+    if (!project || !project.path) {
+      skipped.push({ path: wt.worktreePath, reason: "Project not found in database" });
+      continue;
+    }
+
+    // Check if worktree directory exists
+    if (!existsSync(wt.worktreePath)) {
+      skipped.push({ path: wt.worktreePath, reason: "Directory no longer exists" });
+      continue;
+    }
+
+    // Check PR status if available
+    let prStatus: PrStatus = wt.prStatus;
+    if (wt.prNumber) {
+      const liveStatus = getPrStatus(wt.prNumber, project.path);
+      if (liveStatus) {
+        // Map live status to valid PrStatus type
+        const statusMap: Record<string, PrStatus> = {
+          draft: "draft",
+          open: "open",
+          merged: "merged",
+          closed: "closed",
+        };
+        prStatus = statusMap[liveStatus.status] || prStatus;
+      }
+    }
+
+    // Determine if this is a "stale" worktree (PR merged or closed)
+    const isStale = prStatus === "merged" || prStatus === "closed";
+
+    if (!isStale && !forceFlag) {
+      skipped.push({
+        path: wt.worktreePath,
+        reason: `PR is still ${prStatus || "open"} (use --force to include)`,
+      });
+      continue;
+    }
+
+    // Get directory size
+    const size = getDirectorySize(wt.worktreePath);
+
+    worktreeInfos.push({
+      path: wt.worktreePath,
+      epicId: epic.id,
+      epicTitle: epic.title,
+      projectName: project.name,
+      projectPath: project.path,
+      prNumber: wt.prNumber,
+      prStatus,
+      worktreeStatus: wt.worktreeStatus,
+      size,
+    });
+  }
+
+  // Display stale worktrees
+  if (worktreeInfos.length === 0) {
+    console.log("No stale worktrees found.\n");
+
+    if (skipped.length > 0) {
+      console.log(`Skipped ${skipped.length} worktree(s):`);
+      for (const s of skipped.slice(0, 5)) {
+        console.log(`  - ${basename(s.path)}: ${s.reason}`);
+      }
+      if (skipped.length > 5) {
+        console.log(`  ... and ${skipped.length - 5} more`);
+      }
+    }
+
+    process.exit(0);
+  }
+
+  // Calculate total size
+  const totalSize = worktreeInfos.reduce((sum, wt) => sum + wt.size, 0);
+
+  console.log(`Found ${worktreeInfos.length} stale worktree(s):\n`);
+
+  for (let i = 0; i < worktreeInfos.length; i++) {
+    const wt = worktreeInfos[i];
+    if (!wt) continue;
+    const prInfo = wt.prNumber ? `#${wt.prNumber} (${wt.prStatus})` : "No PR";
+
+    console.log(`${i + 1}. ${wt.path}`);
+    console.log(`   Epic: ${wt.epicTitle}`);
+    console.log(`   Project: ${wt.projectName}`);
+    console.log(`   PR: ${prInfo}`);
+    console.log(`   Size: ${formatSize(wt.size)}`);
+    console.log();
+  }
+
+  console.log("─".repeat(50));
+  console.log(`Total: ${formatSize(totalSize)} to reclaim\n`);
+
+  if (dryRun) {
+    console.log("This is a DRY RUN. No worktrees were removed.\n");
+    console.log("To remove stale worktrees, run:");
+    console.log("  brain-dump cleanup --force\n");
+    process.exit(0);
+  }
+
+  // Interactive confirmation for each worktree
+  let removed = 0;
+  let removedSize = 0;
+
+  for (let i = 0; i < worktreeInfos.length; i++) {
+    const wt = worktreeInfos[i];
+    if (!wt) continue;
+
+    const shouldDelete = await confirm(`Delete worktree ${i + 1}? (${basename(wt.path)})`);
+
+    if (shouldDelete) {
+      try {
+        // Remove using git worktree remove
+        removeGitWorktree(wt.projectPath, wt.path, true);
+
+        // Prune stale worktree references
+        pruneWorktrees(wt.projectPath);
+
+        // Update database: clear worktree fields
+        db.update(epicWorkflowState)
+          .set({
+            worktreePath: null,
+            worktreeStatus: null,
+            worktreeCreatedAt: null,
+          })
+          .where(eq(epicWorkflowState.epicId, wt.epicId))
+          .run();
+
+        console.log(`✓ Removed ${basename(wt.path)}`);
+        removed++;
+        removedSize += wt.size;
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.log(`✗ Failed to remove ${basename(wt.path)}: ${errorMsg}`);
+        logger.error(`Failed to remove worktree ${wt.path}: ${errorMsg}`);
+      }
+    } else {
+      console.log(`⊘ Skipped ${basename(wt.path)}`);
+    }
+  }
+
+  console.log("\n" + "─".repeat(50));
+  console.log(`Cleanup complete: ${removed} removed, ${worktreeInfos.length - removed} skipped`);
+  if (removed > 0) {
+    console.log(`Reclaimed: ${formatSize(removedSize)}`);
+    logger.info(
+      `Worktree cleanup: removed ${removed} worktrees, reclaimed ${formatSize(removedSize)}`
+    );
+  }
+  console.log();
 }
 
 // Issue tracker for doctor command
@@ -773,6 +1075,14 @@ switch (command) {
 
   case "doctor": {
     handleDoctor();
+    break;
+  }
+
+  case "cleanup": {
+    handleCleanup(args.slice(1)).catch((error) => {
+      console.error("Cleanup failed:", error);
+      process.exit(1);
+    });
     break;
   }
 
