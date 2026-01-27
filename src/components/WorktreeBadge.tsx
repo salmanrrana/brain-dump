@@ -17,7 +17,11 @@ export type WorktreeStatus = "active" | "stale" | "orphaned" | null;
 export interface WorktreeBadgeProps {
   /** The isolation mode: "branch", "worktree", or null */
   isolationMode: IsolationMode;
-  /** The current worktree status (only relevant when isolationMode is "worktree") */
+  /**
+   * The current worktree status (only relevant when isolationMode is "worktree").
+   * When isolationMode is "worktree", this should always be provided.
+   * If omitted, defaults to "active" for backwards compatibility.
+   */
   worktreeStatus?: WorktreeStatus | undefined;
   /** The worktree filesystem path (shown in tooltip) */
   worktreePath?: string | null | undefined;
@@ -119,5 +123,3 @@ export const WorktreeBadge = memo(function WorktreeBadge({
     </span>
   );
 });
-
-export default WorktreeBadge;
