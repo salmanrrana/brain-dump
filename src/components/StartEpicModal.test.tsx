@@ -8,17 +8,28 @@ import { StartEpicModal, type StartEpicModalProps } from "./StartEpicModal";
 const mockUpdateEpicMutate = vi.fn();
 const mockUpdateProjectMutate = vi.fn();
 
+// Mutable state for controlling hook return values in tests
+let mockEpicMutationState = {
+  isPending: false,
+  error: null as Error | null,
+};
+
+let mockProjectMutationState = {
+  isPending: false,
+  error: null as Error | null,
+};
+
 vi.mock("../lib/hooks", () => ({
   useClickOutside: vi.fn(),
   useUpdateEpic: () => ({
     mutateAsync: mockUpdateEpicMutate,
-    isPending: false,
-    error: null,
+    isPending: mockEpicMutationState.isPending,
+    error: mockEpicMutationState.error,
   }),
   useUpdateProject: () => ({
     mutateAsync: mockUpdateProjectMutate,
-    isPending: false,
-    error: null,
+    isPending: mockProjectMutationState.isPending,
+    error: mockProjectMutationState.error,
   }),
 }));
 
@@ -67,6 +78,9 @@ describe("StartEpicModal", () => {
     vi.clearAllMocks();
     mockUpdateEpicMutate.mockResolvedValue({});
     mockUpdateProjectMutate.mockResolvedValue({});
+    // Reset mock states
+    mockEpicMutationState = { isPending: false, error: null };
+    mockProjectMutationState = { isPending: false, error: null };
   });
 
   describe("rendering", () => {
@@ -340,6 +354,133 @@ describe("StartEpicModal", () => {
       const pathPreview = screen.getByTestId("worktree-path-preview");
       // Should have slugified title without special characters
       expect(pathPreview.textContent).toMatch(/add-user-authentication/);
+    });
+  });
+
+  describe("error handling", () => {
+    it("displays error message when epic mutation fails", () => {
+      mockEpicMutationState.error = new Error("Failed to update epic");
+      renderModal();
+
+      expect(screen.getByTestId("start-epic-error")).toHaveTextContent("Failed to update epic");
+    });
+
+    it("displays error message when project mutation fails", () => {
+      mockProjectMutationState.error = new Error("Failed to update project");
+      renderModal();
+
+      expect(screen.getByTestId("start-epic-error")).toHaveTextContent("Failed to update project");
+    });
+
+    it("displays generic error message for non-Error objects", () => {
+      // Cast to any to allow setting non-Error value for edge case testing
+      mockEpicMutationState.error = "string error" as unknown as Error;
+      renderModal();
+
+      expect(screen.getByTestId("start-epic-error")).toHaveTextContent("Failed to update settings");
+    });
+
+    it("does not close modal when mutation fails", async () => {
+      const user = userEvent.setup();
+      const onClose = vi.fn();
+      mockUpdateEpicMutate.mockRejectedValue(new Error("Network error"));
+
+      renderModal({ onClose });
+
+      await user.click(screen.getByTestId("start-epic-submit-button"));
+
+      // Wait for async rejection to be handled
+      await waitFor(() => {
+        expect(mockUpdateEpicMutate).toHaveBeenCalled();
+      });
+
+      // Modal should NOT close on error
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it("does not call onConfirm when mutation fails", async () => {
+      const user = userEvent.setup();
+      const onConfirm = vi.fn();
+      mockUpdateEpicMutate.mockRejectedValue(new Error("Network error"));
+
+      renderModal({ onConfirm });
+
+      await user.click(screen.getByTestId("start-epic-submit-button"));
+
+      await waitFor(() => {
+        expect(mockUpdateEpicMutate).toHaveBeenCalled();
+      });
+
+      // onConfirm should NOT be called on error
+      expect(onConfirm).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("loading state", () => {
+    it("disables buttons when submitting", () => {
+      mockEpicMutationState.isPending = true;
+      renderModal();
+
+      expect(screen.getByTestId("start-epic-cancel-button")).toBeDisabled();
+      expect(screen.getByTestId("start-epic-submit-button")).toBeDisabled();
+    });
+
+    it("shows loading indicator when submitting", () => {
+      mockEpicMutationState.isPending = true;
+      renderModal();
+
+      expect(screen.getByTestId("start-epic-submit-button")).toHaveTextContent("Starting...");
+    });
+  });
+
+  describe("state reset with key prop", () => {
+    it("resets form state when remounted with different key (epic.id)", async () => {
+      const user = userEvent.setup();
+
+      // First epic
+      const epic1 = { ...defaultEpic, id: "epic-1" };
+      const { rerender } = render(
+        <StartEpicModal
+          key={epic1.id}
+          isOpen={true}
+          epic={epic1}
+          project={defaultProject}
+          onClose={vi.fn()}
+        />,
+        { wrapper: createWrapper() }
+      );
+
+      // Select worktree option and check remember
+      const worktreeOption = screen.getByTestId("start-epic-option-worktree");
+      await user.click(worktreeOption);
+      const checkbox = screen.getByTestId("start-epic-remember-checkbox").querySelector("input")!;
+      await user.click(checkbox);
+
+      // Verify state was changed
+      expect(within(worktreeOption).getByRole("radio")).toBeChecked();
+      expect(checkbox).toBeChecked();
+
+      // Remount with different epic (using key prop)
+      const epic2 = { ...defaultEpic, id: "epic-2" };
+      rerender(
+        <QueryClientProvider client={new QueryClient()}>
+          <StartEpicModal
+            key={epic2.id}
+            isOpen={true}
+            epic={epic2}
+            project={defaultProject}
+            onClose={vi.fn()}
+          />
+        </QueryClientProvider>
+      );
+
+      // Should reset to defaults (branch selected, checkbox unchecked)
+      const branchOption = screen.getByTestId("start-epic-option-branch");
+      expect(within(branchOption).getByRole("radio")).toBeChecked();
+      const resetCheckbox = screen
+        .getByTestId("start-epic-remember-checkbox")
+        .querySelector("input")!;
+      expect(resetCheckbox).not.toBeChecked();
     });
   });
 });

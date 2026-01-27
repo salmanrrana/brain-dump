@@ -144,6 +144,9 @@ export const StartEpicModal: FC<StartEpicModalProps> = ({
   }, [epic.isolationMode, project.defaultIsolationMode]);
 
   // Form state
+  // NOTE: If you need to reset the form when opening with a different epic,
+  // use a key prop on this component: <StartEpicModal key={epic.id} ... />
+  // The useState initial value is only used on first mount.
   const [selectedMode, setSelectedMode] = useState<IsolationMode>(initialMode);
   const [rememberChoice, setRememberChoice] = useState(false);
 
