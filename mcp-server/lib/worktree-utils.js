@@ -735,3 +735,122 @@ export function createWorktree(projectPath, worktreePath, branchName, options = 
     return rollback(`Unexpected error: ${error.message}`);
   }
 }
+
+/**
+ * Remove a git worktree safely with all security validations.
+ *
+ * This function:
+ * 1. Validates the worktree path is within allowed boundaries
+ * 2. Checks the worktree exists in git's worktree list
+ * 3. Removes the worktree using git worktree remove
+ * 4. Prunes any stale worktree references
+ *
+ * @param {string} worktreePath - Absolute path to the worktree to remove
+ * @param {string} projectPath - Absolute path to the main repository
+ * @param {object} [options] - Configuration options
+ * @param {boolean} [options.force=false] - Force removal even with uncommitted changes
+ * @returns {{ success: true } | { success: false, error: string }}
+ *
+ * @example
+ * // Normal removal (fails if uncommitted changes exist)
+ * removeWorktree("/Users/dev/brain-dump-epic-abc12345", "/Users/dev/brain-dump");
+ *
+ * @example
+ * // Force removal (ignores uncommitted changes)
+ * removeWorktree("/Users/dev/brain-dump-epic-abc12345", "/Users/dev/brain-dump", { force: true });
+ */
+export function removeWorktree(worktreePath, projectPath, options = {}) {
+  const { force = false } = options;
+
+  // 1. Input validation
+  if (!worktreePath || typeof worktreePath !== "string") {
+    return { success: false, error: "Worktree path must be a non-empty string" };
+  }
+
+  if (!projectPath || typeof projectPath !== "string") {
+    return { success: false, error: "Project path must be a non-empty string" };
+  }
+
+  // 2. Validate project path (security check)
+  let resolvedProjectPath;
+  try {
+    resolvedProjectPath = validateProjectPath(projectPath);
+  } catch (error) {
+    if (error instanceof SecurityError) {
+      return { success: false, error: error.message };
+    }
+    throw error;
+  }
+
+  // 3. Validate worktree path is within allowed boundaries
+  try {
+    validateWorktreePath(worktreePath, resolvedProjectPath);
+  } catch (error) {
+    if (error instanceof SecurityError) {
+      return { success: false, error: error.message };
+    }
+    throw error;
+  }
+
+  // 4. Verify the worktree exists in git's worktree list
+  const listResult = listWorktrees(resolvedProjectPath);
+  if (!listResult.success) {
+    return { success: false, error: `Failed to list worktrees: ${listResult.error}` };
+  }
+
+  // Normalize path for comparison (handle trailing slashes)
+  const normalizedWorktreePath = path.normalize(worktreePath).replace(/\/+$/, "");
+  const foundWorktree = listResult.worktrees.find((wt) => {
+    const normalizedWtPath = path.normalize(wt.path).replace(/\/+$/, "");
+    return normalizedWtPath === normalizedWorktreePath;
+  });
+
+  if (!foundWorktree) {
+    return {
+      success: false,
+      error: `Worktree not found in git worktree list: ${worktreePath}. It may have already been removed or was never a valid worktree.`,
+    };
+  }
+
+  // 5. Prevent removal of main worktree
+  if (foundWorktree.isMainWorktree) {
+    return {
+      success: false,
+      error: "Cannot remove the main worktree. This is the primary repository directory.",
+    };
+  }
+
+  // 6. Build remove command with optional force flag
+  const args = ["worktree", "remove"];
+  if (force) {
+    args.push("--force");
+  }
+  args.push(worktreePath);
+
+  // 7. Execute removal
+  log.debug(
+    `Removing worktree: ${worktreePath} from project: ${resolvedProjectPath}${force ? " (force)" : ""}`
+  );
+
+  const removeResult = runGitCommandSafe(args, resolvedProjectPath);
+  if (!removeResult.success) {
+    // Provide helpful error message for common cases
+    if (removeResult.error?.includes("contains modified or untracked files")) {
+      return {
+        success: false,
+        error: `Worktree has uncommitted changes. Use force: true to remove anyway, or commit/discard changes first.`,
+      };
+    }
+    return { success: false, error: removeResult.error || "Failed to remove worktree" };
+  }
+
+  // 8. Prune stale worktree references
+  const pruneResult = runGitCommandSafe(["worktree", "prune"], resolvedProjectPath);
+  if (!pruneResult.success) {
+    // Log but don't fail - the worktree was removed successfully
+    log.warn(`Failed to prune worktrees after removal: ${pruneResult.error}`);
+  }
+
+  log.debug(`Successfully removed worktree: ${worktreePath}`);
+  return { success: true };
+}

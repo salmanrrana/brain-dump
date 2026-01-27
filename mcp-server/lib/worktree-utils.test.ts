@@ -73,6 +73,21 @@ interface CreateWorktreeOptions {
   createClaudeDir?: boolean;
 }
 
+interface RemoveWorktreeOptions {
+  force?: boolean;
+}
+
+interface RemoveWorktreeResult {
+  success: true;
+}
+
+interface RemoveWorktreeError {
+  success: false;
+  error: string;
+}
+
+type RemoveWorktreeResponse = RemoveWorktreeResult | RemoveWorktreeError;
+
 type WorktreeValidationStatus = "valid" | "missing_directory" | "corrupted" | "wrong_branch";
 
 interface WorktreeValidationResult {
@@ -110,6 +125,11 @@ interface WorktreeUtils {
     projectPath: string,
     expectedBranch?: string | null
   ) => WorktreeValidationResult;
+  removeWorktree: (
+    worktreePath: string,
+    projectPath: string,
+    options?: RemoveWorktreeOptions
+  ) => RemoveWorktreeResponse;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -122,6 +142,7 @@ const {
   listWorktrees,
   createWorktree,
   validateWorktree,
+  removeWorktree,
 } = worktreeUtils;
 
 describe("worktree-utils module", () => {
@@ -952,6 +973,214 @@ describe("worktree-utils module", () => {
         // Since current branch is not empty, it should be wrong_branch
         expect(result.status).toBe("wrong_branch");
         expect(result.expectedBranch).toBe("");
+      });
+    });
+  });
+
+  describe("removeWorktree", () => {
+    // Note: Most tests verify validation logic without actually removing worktrees.
+    // Actually removing worktrees requires creating them first, which is tested
+    // in integration tests. These unit tests focus on input validation and
+    // error handling.
+
+    const projectPath = process.cwd();
+
+    describe("input validation", () => {
+      it("returns error for null worktree path", () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const result = removeWorktree(null as any, projectPath);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toBe("Worktree path must be a non-empty string");
+        }
+      });
+
+      it("returns error for empty worktree path", () => {
+        const result = removeWorktree("", projectPath);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toBe("Worktree path must be a non-empty string");
+        }
+      });
+
+      it("returns error for null project path", () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const result = removeWorktree("/some/worktree", null as any);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toBe("Project path must be a non-empty string");
+        }
+      });
+
+      it("returns error for empty project path", () => {
+        const result = removeWorktree("/some/worktree", "");
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toBe("Project path must be a non-empty string");
+        }
+      });
+    });
+
+    describe("security validation", () => {
+      it("returns error for non-existent project path", () => {
+        const result = removeWorktree("/some/worktree", "/nonexistent-project-xyz789");
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toContain("Security");
+        }
+      });
+
+      it("returns error for relative project path", () => {
+        const result = removeWorktree("/some/worktree", "./relative-path");
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toContain("Security");
+        }
+      });
+
+      it("returns error for worktree outside allowed boundaries", () => {
+        const result = removeWorktree("/tmp/malicious-worktree", projectPath);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toContain("Security");
+        }
+      });
+
+      it("returns error for worktree with path traversal", () => {
+        const traversalPath = `${projectPath}/../sneaky-worktree`;
+        const result = removeWorktree(traversalPath, projectPath);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toContain("Security");
+        }
+      });
+
+      it("returns error for project path with path traversal", () => {
+        const siblingPath = `${projectPath}-worktree`;
+        const traversalProjectPath = `${projectPath}/../../../etc`;
+        const result = removeWorktree(siblingPath, traversalProjectPath);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toContain("Security");
+        }
+      });
+    });
+
+    describe("worktree existence validation", () => {
+      it("returns error for worktree not in git worktree list", () => {
+        // Use a path that is a valid sibling but doesn't exist as a worktree
+        const siblingPath = `${projectPath}-nonexistent-worktree-xyz`;
+        const result = removeWorktree(siblingPath, projectPath);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toContain("Worktree not found in git worktree list");
+        }
+      });
+
+      it("returns error when trying to remove main worktree", () => {
+        // The main worktree is the project directory itself
+        const result = removeWorktree(projectPath, projectPath);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toBe(
+            "Cannot remove the main worktree. This is the primary repository directory."
+          );
+        }
+      });
+    });
+
+    describe("allowed worktree locations", () => {
+      it("accepts sibling directory path for validation", () => {
+        // This verifies path validation passes for sibling paths
+        // The call will fail because the worktree doesn't exist,
+        // but the security validation should pass
+        const siblingPath = `${projectPath}-epic-test1234-valid-sibling`;
+        const result = removeWorktree(siblingPath, projectPath);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          // Should fail because worktree doesn't exist, not security
+          expect(result.error).not.toContain("Worktree must be sibling or within project");
+          expect(result.error).toContain("Worktree not found");
+        }
+      });
+
+      it("accepts subfolder path for validation", () => {
+        const subfolderPath = `${projectPath}/.worktrees/epic-test1234-subfolder`;
+        const result = removeWorktree(subfolderPath, projectPath);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          // Should fail because worktree doesn't exist, not security
+          expect(result.error).not.toContain("Worktree must be sibling or within project");
+          expect(result.error).toContain("Worktree not found");
+        }
+      });
+    });
+
+    describe("force flag", () => {
+      it("accepts force option without error during validation", () => {
+        // This tests that the force option is properly passed through
+        // The call will fail because the worktree doesn't exist,
+        // but the option parsing should work
+        const siblingPath = `${projectPath}-test-force-option`;
+        const result = removeWorktree(siblingPath, projectPath, { force: true });
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          // Error should be about non-existent worktree, not option parsing
+          expect(result.error).toContain("Worktree not found");
+        }
+      });
+
+      it("accepts force: false option", () => {
+        const siblingPath = `${projectPath}-test-no-force-option`;
+        const result = removeWorktree(siblingPath, projectPath, { force: false });
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toContain("Worktree not found");
+        }
+      });
+    });
+
+    describe("edge cases", () => {
+      it("handles trailing slashes in worktree path", () => {
+        // Use the project path (main worktree) with trailing slash
+        const result = removeWorktree(projectPath + "/", projectPath);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          // Should find the main worktree and reject removal
+          expect(result.error).toBe(
+            "Cannot remove the main worktree. This is the primary repository directory."
+          );
+        }
+      });
+
+      it("handles non-git project path", () => {
+        // Use a directory that is NOT a git repo but where the worktree path
+        // is a valid sibling. We use /private/tmp on macOS (where /tmp symlinks to)
+        // Note: /tmp -> /private/tmp on macOS, so we need both paths to match
+        // after resolving symlinks for the sibling check to pass.
+        const result = removeWorktree("/private/tmp/test-worktree", "/private/tmp");
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          // Should fail when trying to list worktrees because /private/tmp is not a git repo
+          expect(result.error).toContain("Failed to list worktrees");
+        }
       });
     });
   });
