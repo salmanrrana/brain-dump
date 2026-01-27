@@ -330,7 +330,10 @@ export function listWorktrees(projectPath) {
   // Get worktree list in porcelain format
   const result = runGitCommandSafe(["worktree", "list", "--porcelain"], projectPath);
   if (!result.success) {
-    return { success: false, error: result.error || "Failed to list worktrees" };
+    return {
+      success: false,
+      error: `Failed to list worktrees for ${projectPath}: ${result.error || "Unknown error"}`,
+    };
   }
 
   // Parse porcelain output
@@ -383,6 +386,7 @@ export function listWorktrees(projectPath) {
     }
   }
 
+  log.debug(`Listed ${worktrees.length} worktree(s) for ${projectPath}`);
   return { success: true, worktrees };
 }
 
@@ -853,9 +857,13 @@ export function removeWorktree(worktreePath, projectPath, options = {}) {
   if (!removeResult.success) {
     // Provide helpful error message for common cases
     if (removeResult.error?.includes("contains modified or untracked files")) {
+      // Only suggest force if it wasn't already set
+      const suggestion = force
+        ? "Commit or discard the changes first, or check if the worktree path is correct."
+        : "Use force: true to remove anyway, or commit/discard changes first.";
       return {
         success: false,
-        error: `Worktree has uncommitted changes. Use force: true to remove anyway, or commit/discard changes first.`,
+        error: `Worktree has uncommitted changes. ${suggestion}`,
       };
     }
     return { success: false, error: removeResult.error || "Failed to remove worktree" };
