@@ -9,6 +9,7 @@ import { randomUUID } from "crypto";
 import { writeFileSync, mkdirSync, unlinkSync, existsSync } from "fs";
 import { join } from "path";
 import { log } from "../lib/logging.js";
+import { signStateData, isHmacEnabled } from "../lib/state-hmac.js";
 
 /**
  * Write or update the ralph-state.json file for hooks to read.
@@ -37,8 +38,11 @@ function writeRalphStateFile(projectPath, stateData) {
       updatedAt: new Date().toISOString(),
     };
 
-    writeFileSync(stateFilePath, JSON.stringify(fileContent, null, 2));
-    log.info(`Wrote ralph-state.json for hooks: state=${stateData.currentState}`);
+    // Sign the state data with HMAC if enabled
+    const signedContent = signStateData(fileContent);
+
+    writeFileSync(stateFilePath, JSON.stringify(signedContent, null, 2));
+    log.info(`Wrote ralph-state.json for hooks: state=${stateData.currentState}${isHmacEnabled() ? " (HMAC signed)" : ""}`);
     return true;
   } catch (err) {
     log.warn(`Failed to write ralph-state.json: ${err.message}`);
