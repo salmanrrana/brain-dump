@@ -54,6 +54,12 @@ export interface ProjectBase {
   path: string;
   color: string | null;
   workingMethod: string | null;
+  // AI Workflow settings (optional - may not be set initially)
+  defaultIsolationMode?: "branch" | "worktree" | "ask" | null;
+  worktreeLocation?: "sibling" | "subfolder" | "custom" | null;
+  worktreeBasePath?: string | null;
+  maxWorktrees?: number | null;
+  autoCleanupWorktrees?: boolean | null;
 }
 
 /** Full project type including createdAt */
@@ -260,7 +266,12 @@ export function useUpdateProject() {
         path?: string;
         color?: string;
         workingMethod?: "auto" | "claude-code" | "vscode" | "opencode";
+        // AI Workflow settings
         defaultIsolationMode?: "branch" | "worktree" | "ask" | null;
+        worktreeLocation?: "sibling" | "subfolder" | "custom" | null;
+        worktreeBasePath?: string | null;
+        maxWorktrees?: number | null;
+        autoCleanupWorktrees?: boolean | null;
       };
     }) => updateProject({ data }),
     onSuccess: () => {

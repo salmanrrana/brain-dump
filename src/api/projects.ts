@@ -25,7 +25,12 @@ export interface UpdateProjectInput {
   path?: string;
   color?: string;
   workingMethod?: "auto" | "claude-code" | "vscode" | "opencode";
+  // AI Workflow settings
   defaultIsolationMode?: "branch" | "worktree" | "ask" | null;
+  worktreeLocation?: "sibling" | "subfolder" | "custom" | null;
+  worktreeBasePath?: string | null;
+  maxWorktrees?: number | null;
+  autoCleanupWorktrees?: boolean | null;
 }
 
 // Get all projects
@@ -84,6 +89,13 @@ export const updateProject = createServerFn({ method: "POST" })
     if (updates.workingMethod !== undefined) updateData.workingMethod = updates.workingMethod;
     if (updates.defaultIsolationMode !== undefined)
       updateData.defaultIsolationMode = updates.defaultIsolationMode;
+    if (updates.worktreeLocation !== undefined)
+      updateData.worktreeLocation = updates.worktreeLocation;
+    if (updates.worktreeBasePath !== undefined)
+      updateData.worktreeBasePath = updates.worktreeBasePath;
+    if (updates.maxWorktrees !== undefined) updateData.maxWorktrees = updates.maxWorktrees;
+    if (updates.autoCleanupWorktrees !== undefined)
+      updateData.autoCleanupWorktrees = updates.autoCleanupWorktrees;
 
     if (Object.keys(updateData).length > 0) {
       db.update(projects).set(updateData).where(eq(projects.id, id)).run();
