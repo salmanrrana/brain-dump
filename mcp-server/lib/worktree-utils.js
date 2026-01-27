@@ -5,8 +5,14 @@
  */
 import path from "path";
 import fs from "fs";
-import { slugify, shortId } from "./git-utils.js";
-import { validatePathComponent, SecurityError } from "./path-validation.js";
+import { slugify, shortId, runGitCommandSafe } from "./git-utils.js";
+import {
+  validateProjectPath,
+  validateWorktreePath,
+  ensureNotSymlink,
+  validatePathComponent,
+  SecurityError,
+} from "./path-validation.js";
 import { log } from "./logging.js";
 
 /**
@@ -289,4 +295,278 @@ export function parseWorktreePath(worktreePath) {
   }
 
   return { matched: false, projectName: null, epicShortId: null, slug: null };
+}
+
+/**
+ * List all git worktrees for a repository.
+ *
+ * Parses the output of `git worktree list --porcelain` to return structured data
+ * about each worktree. Identifies the main worktree (bare: false) vs linked worktrees.
+ *
+ * @param {string} projectPath - Absolute path to the main repository
+ * @returns {{ success: true, worktrees: Array<{path: string, head: string, branch: string | null, isMainWorktree: boolean}> } | { success: false, error: string }}
+ *
+ * @example
+ * const result = listWorktrees("/Users/dev/brain-dump");
+ * if (result.success) {
+ *   console.log(result.worktrees);
+ *   // [
+ *   //   { path: "/Users/dev/brain-dump", head: "abc123", branch: "main", isMainWorktree: true },
+ *   //   { path: "/Users/dev/brain-dump-epic-xyz", head: "def456", branch: "feature/epic-xyz", isMainWorktree: false }
+ *   // ]
+ * }
+ */
+export function listWorktrees(projectPath) {
+  // Validate project path
+  try {
+    validateProjectPath(projectPath);
+  } catch (error) {
+    if (error instanceof SecurityError) {
+      return { success: false, error: error.message };
+    }
+    throw error;
+  }
+
+  // Get worktree list in porcelain format
+  const result = runGitCommandSafe(["worktree", "list", "--porcelain"], projectPath);
+  if (!result.success) {
+    return { success: false, error: result.error || "Failed to list worktrees" };
+  }
+
+  // Parse porcelain output
+  // Format:
+  // worktree /path/to/worktree
+  // HEAD abc123...
+  // branch refs/heads/main
+  // (blank line between entries)
+  const worktrees = [];
+  const entries = result.output.trim().split("\n\n");
+
+  for (const entry of entries) {
+    if (!entry.trim()) continue;
+
+    const lines = entry.split("\n");
+    let worktreePath = null;
+    let head = null;
+    let branch = null;
+    let isBare = false;
+
+    for (const line of lines) {
+      if (line.startsWith("worktree ")) {
+        worktreePath = line.substring("worktree ".length);
+      } else if (line.startsWith("HEAD ")) {
+        head = line.substring("HEAD ".length);
+      } else if (line.startsWith("branch ")) {
+        // Extract branch name from refs/heads/branch-name
+        const fullBranch = line.substring("branch ".length);
+        branch = fullBranch.startsWith("refs/heads/")
+          ? fullBranch.substring("refs/heads/".length)
+          : fullBranch;
+      } else if (line === "bare") {
+        isBare = true;
+      }
+    }
+
+    if (worktreePath) {
+      // The main worktree doesn't have a "linked" marker and matches projectPath
+      // after normalization
+      const normalizedWorktreePath = path.normalize(worktreePath);
+      const normalizedProjectPath = path.normalize(projectPath);
+      const isMainWorktree = normalizedWorktreePath === normalizedProjectPath || isBare;
+
+      worktrees.push({
+        path: worktreePath,
+        head: head || "",
+        branch,
+        isMainWorktree,
+      });
+    }
+  }
+
+  return { success: true, worktrees };
+}
+
+/**
+ * Create a git worktree with all security checks and rollback on failure.
+ *
+ * This function:
+ * 1. Validates all input paths for security (traversal, symlinks)
+ * 2. Checks the worktree limit hasn't been reached
+ * 3. Creates the worktree directory with proper permissions
+ * 4. Creates the .claude/ directory with restricted permissions (0o700)
+ * 5. Rolls back (cleans up) on failure
+ *
+ * @param {string} projectPath - Absolute path to the main project directory
+ * @param {string} worktreePath - Absolute path where the worktree should be created
+ * @param {string} branchName - Name of the branch to create for the worktree
+ * @param {object} [options] - Configuration options
+ * @param {number} [options.maxWorktrees=5] - Maximum number of worktrees allowed
+ * @param {boolean} [options.createClaudeDir=true] - Whether to create .claude/ directory
+ * @returns {{ success: true, worktreePath: string, branchName: string } | { success: false, error: string }}
+ *
+ * @example
+ * const result = createWorktree(
+ *   "/Users/dev/brain-dump",
+ *   "/Users/dev/brain-dump-epic-abc12345-feature",
+ *   "feature/epic-abc12345-feature"
+ * );
+ * if (result.success) {
+ *   console.log(`Worktree created at: ${result.worktreePath}`);
+ * }
+ */
+export function createWorktree(projectPath, worktreePath, branchName, options = {}) {
+  const { maxWorktrees = 5, createClaudeDir = true } = options;
+
+  // Track what we've created for rollback
+  let _createdParentDir = false;
+  let createdWorktree = false;
+
+  // Helper function for rollback
+  const rollback = (error) => {
+    log.debug(`Rolling back worktree creation due to error: ${error}`);
+
+    // Remove worktree if created
+    if (createdWorktree) {
+      try {
+        const removeResult = runGitCommandSafe(
+          ["worktree", "remove", "--force", worktreePath],
+          projectPath
+        );
+        if (!removeResult.success) {
+          log.warn(`Failed to remove worktree during rollback: ${removeResult.error}`);
+          // Also try to prune
+          runGitCommandSafe(["worktree", "prune"], projectPath);
+        }
+      } catch (rollbackError) {
+        log.warn(`Error during worktree rollback: ${rollbackError.message}`);
+      }
+    }
+
+    // Note: We don't remove the parent directory if we created it
+    // because it might be needed by other operations, and removing
+    // empty directories is generally safe to leave
+
+    return { success: false, error };
+  };
+
+  try {
+    // 1. Validate project path
+    let resolvedProjectPath;
+    try {
+      resolvedProjectPath = validateProjectPath(projectPath);
+    } catch (error) {
+      if (error instanceof SecurityError) {
+        return { success: false, error: error.message };
+      }
+      throw error;
+    }
+
+    // 2. Validate worktree path
+    try {
+      validateWorktreePath(worktreePath, resolvedProjectPath);
+    } catch (error) {
+      if (error instanceof SecurityError) {
+        return { success: false, error: error.message };
+      }
+      throw error;
+    }
+
+    // 3. Check worktree limit
+    const listResult = listWorktrees(resolvedProjectPath);
+    if (!listResult.success) {
+      return { success: false, error: listResult.error };
+    }
+
+    // Count non-main worktrees
+    const linkedWorktrees = listResult.worktrees.filter((w) => !w.isMainWorktree);
+    if (linkedWorktrees.length >= maxWorktrees) {
+      return {
+        success: false,
+        error: `Worktree limit (${maxWorktrees}) reached. Current count: ${linkedWorktrees.length}. Remove stale worktrees before creating new ones.`,
+      };
+    }
+
+    // 4. Check path doesn't already exist
+    if (fs.existsSync(worktreePath)) {
+      return {
+        success: false,
+        error: `Path already exists: ${worktreePath}. Remove it first or use a different epic.`,
+      };
+    }
+
+    // 5. Validate branch name (basic validation - no shell metacharacters)
+    if (!branchName || typeof branchName !== "string" || branchName.trim() === "") {
+      return { success: false, error: "Branch name must be a non-empty string" };
+    }
+    // Check for obviously invalid branch name characters
+    // (tilde, caret, colon, question mark, asterisk, open bracket, backslash, control chars)
+    // Using code point check for control chars to avoid eslint no-control-regex
+    const invalidBranchChars = /[~^:?*[\]\\]/;
+    const hasControlChars = Array.from(branchName).some(
+      (char) => char.charCodeAt(0) < 32
+    );
+    if (invalidBranchChars.test(branchName) || hasControlChars) {
+      return { success: false, error: "Branch name contains invalid characters" };
+    }
+
+    // 6. Create parent directory if needed
+    const parentDir = path.dirname(worktreePath);
+    if (!fs.existsSync(parentDir)) {
+      try {
+        fs.mkdirSync(parentDir, { recursive: true, mode: 0o755 });
+        _createdParentDir = true;
+        log.debug(`Created parent directory: ${parentDir}`);
+      } catch (mkdirError) {
+        return { success: false, error: `Failed to create parent directory: ${mkdirError.message}` };
+      }
+    }
+
+    // 7. Create worktree (SAFE command - argument arrays)
+    const worktreeResult = runGitCommandSafe(
+      ["worktree", "add", worktreePath, "-b", branchName],
+      resolvedProjectPath
+    );
+
+    if (!worktreeResult.success) {
+      // Check for specific error cases
+      if (worktreeResult.error?.includes("already exists")) {
+        return {
+          success: false,
+          error: `Branch '${branchName}' already exists. Use a different branch name or delete the existing branch.`,
+        };
+      }
+      return rollback(worktreeResult.error || "Failed to create worktree");
+    }
+
+    createdWorktree = true;
+    log.debug(`Created worktree at: ${worktreePath} with branch: ${branchName}`);
+
+    // 8. Create .claude/ directory with restricted permissions
+    if (createClaudeDir) {
+      const claudeDir = path.join(worktreePath, ".claude");
+
+      // Check for symlink attacks before creating
+      try {
+        ensureNotSymlink(claudeDir);
+      } catch (error) {
+        if (error instanceof SecurityError) {
+          return rollback(error.message);
+        }
+        throw error;
+      }
+
+      try {
+        fs.mkdirSync(claudeDir, { recursive: true, mode: 0o700 });
+        log.debug(`Created .claude directory with restricted permissions: ${claudeDir}`);
+      } catch (mkdirError) {
+        return rollback(`Failed to create .claude directory: ${mkdirError.message}`);
+      }
+    }
+
+    return { success: true, worktreePath, branchName };
+  } catch (error) {
+    // Unexpected error - still try to rollback
+    log.error(`Unexpected error during worktree creation: ${error.message}`);
+    return rollback(`Unexpected error: ${error.message}`);
+  }
 }

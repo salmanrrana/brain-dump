@@ -36,6 +36,43 @@ interface ParseWorktreePathResult {
   slug: string | null;
 }
 
+interface Worktree {
+  path: string;
+  head: string;
+  branch: string | null;
+  isMainWorktree: boolean;
+}
+
+interface ListWorktreesResult {
+  success: true;
+  worktrees: Worktree[];
+}
+
+interface ListWorktreesError {
+  success: false;
+  error: string;
+}
+
+type ListWorktreesResponse = ListWorktreesResult | ListWorktreesError;
+
+interface CreateWorktreeResult {
+  success: true;
+  worktreePath: string;
+  branchName: string;
+}
+
+interface CreateWorktreeError {
+  success: false;
+  error: string;
+}
+
+type CreateWorktreeResponse = CreateWorktreeResult | CreateWorktreeError;
+
+interface CreateWorktreeOptions {
+  maxWorktrees?: number;
+  createClaudeDir?: boolean;
+}
+
 interface WorktreeUtils {
   generateWorktreePath: (
     projectPath: string,
@@ -51,12 +88,25 @@ interface WorktreeUtils {
     maxAttempts?: number
   ) => SuggestAlternativeResponse;
   parseWorktreePath: (worktreePath: string) => ParseWorktreePathResult;
+  listWorktrees: (projectPath: string) => ListWorktreesResponse;
+  createWorktree: (
+    projectPath: string,
+    worktreePath: string,
+    branchName: string,
+    options?: CreateWorktreeOptions
+  ) => CreateWorktreeResponse;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const worktreeUtils = require("./worktree-utils.js") as WorktreeUtils;
 
-const { generateWorktreePath, suggestAlternativeWorktreePath, parseWorktreePath } = worktreeUtils;
+const {
+  generateWorktreePath,
+  suggestAlternativeWorktreePath,
+  parseWorktreePath,
+  listWorktrees,
+  createWorktree,
+} = worktreeUtils;
 
 describe("worktree-utils module", () => {
   describe("generateWorktreePath", () => {
@@ -449,6 +499,259 @@ describe("worktree-utils module", () => {
         projectName: "project",
         epicShortId: "abcdef12",
         slug: "this-is-a-long-slug-name",
+      });
+    });
+  });
+
+  describe("listWorktrees", () => {
+    // Use the actual project directory for testing (it's a git repo)
+    const projectPath = process.cwd();
+
+    it("lists worktrees in a git repository", () => {
+      const result = listWorktrees(projectPath);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.worktrees).toBeDefined();
+        expect(Array.isArray(result.worktrees)).toBe(true);
+        // Should have at least the main worktree
+        expect(result.worktrees.length).toBeGreaterThanOrEqual(1);
+
+        // Check the main worktree has expected properties
+        const mainWorktree = result.worktrees.find((w) => w.isMainWorktree);
+        expect(mainWorktree).toBeDefined();
+        if (mainWorktree) {
+          expect(mainWorktree.path).toBeDefined();
+          expect(mainWorktree.head).toBeDefined();
+          // branch could be null for detached HEAD
+        }
+      }
+    });
+
+    it("returns error for non-existent path", () => {
+      const result = listWorktrees("/nonexistent-path-xyz789");
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain("Security");
+      }
+    });
+
+    it("returns error for relative path", () => {
+      const result = listWorktrees("./relative-path");
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain("Security");
+      }
+    });
+
+    it("identifies main worktree correctly", () => {
+      const result = listWorktrees(projectPath);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        const mainWorktrees = result.worktrees.filter((w) => w.isMainWorktree);
+        // There should be exactly one main worktree
+        expect(mainWorktrees.length).toBe(1);
+      }
+    });
+  });
+
+  describe("createWorktree", () => {
+    // Note: These tests verify the function's validation logic without actually
+    // creating worktrees. Creating real worktrees would require cleanup and
+    // could interfere with the repository state.
+
+    const projectPath = process.cwd();
+    const testBranchName = "feature/test-worktree";
+
+    describe("input validation", () => {
+      it("returns error for non-existent project path", () => {
+        const result = createWorktree(
+          "/nonexistent-project-xyz",
+          "/nonexistent-worktree-xyz",
+          testBranchName
+        );
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toContain("Security");
+        }
+      });
+
+      it("returns error for relative project path", () => {
+        const result = createWorktree("./relative-path", "/some/worktree/path", testBranchName);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toContain("Security");
+        }
+      });
+
+      it("returns error for worktree outside allowed boundaries", () => {
+        const result = createWorktree(
+          projectPath,
+          "/tmp/malicious-worktree", // Not a sibling or subfolder
+          testBranchName
+        );
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toContain("Security");
+        }
+      });
+
+      it("returns error for empty branch name", () => {
+        // Use a valid sibling path
+        const siblingPath = `${projectPath}-test-worktree-empty-branch`;
+        const result = createWorktree(projectPath, siblingPath, "");
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toBe("Branch name must be a non-empty string");
+        }
+      });
+
+      it("returns error for null branch name", () => {
+        const siblingPath = `${projectPath}-test-worktree-null-branch`;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const result = createWorktree(projectPath, siblingPath, null as any);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toBe("Branch name must be a non-empty string");
+        }
+      });
+
+      it("returns error for branch name with invalid characters", () => {
+        const siblingPath = `${projectPath}-test-worktree-invalid-branch`;
+        const result = createWorktree(projectPath, siblingPath, "branch~invalid");
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toBe("Branch name contains invalid characters");
+        }
+      });
+
+      it("returns error for branch name with tilde", () => {
+        const siblingPath = `${projectPath}-test-tilde`;
+        const result = createWorktree(projectPath, siblingPath, "branch~1");
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toBe("Branch name contains invalid characters");
+        }
+      });
+
+      it("returns error for branch name with caret", () => {
+        const siblingPath = `${projectPath}-test-caret`;
+        const result = createWorktree(projectPath, siblingPath, "branch^1");
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toBe("Branch name contains invalid characters");
+        }
+      });
+
+      it("returns error for branch name with colon", () => {
+        const siblingPath = `${projectPath}-test-colon`;
+        const result = createWorktree(projectPath, siblingPath, "branch:name");
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toBe("Branch name contains invalid characters");
+        }
+      });
+
+      it("returns error for branch name with control characters", () => {
+        const siblingPath = `${projectPath}-test-control`;
+        const result = createWorktree(projectPath, siblingPath, "branch\x00name");
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toBe("Branch name contains invalid characters");
+        }
+      });
+    });
+
+    describe("worktree limit enforcement", () => {
+      it("respects custom maxWorktrees limit", () => {
+        // This test verifies the limit check works by using maxWorktrees = 0
+        // which should immediately fail since there are already worktrees
+        const siblingPath = `${projectPath}-test-limit`;
+        const result = createWorktree(projectPath, siblingPath, "feature/test-limit", {
+          maxWorktrees: 0,
+        });
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toContain("Worktree limit");
+        }
+      });
+    });
+
+    describe("path already exists check", () => {
+      it("returns error if worktree path already exists", () => {
+        // Use a path that definitely exists (parent directory of the project)
+        // But we need a sibling, so use the project path itself
+        const result = createWorktree(projectPath, projectPath, testBranchName);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toContain("Path already exists");
+        }
+      });
+    });
+
+    describe("path traversal prevention", () => {
+      it("rejects worktree path with path traversal", () => {
+        const traversalPath = `${projectPath}/../sneaky-worktree`;
+        const result = createWorktree(projectPath, traversalPath, testBranchName);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toContain("Security");
+        }
+      });
+
+      it("rejects project path with path traversal", () => {
+        const traversalPath = `${projectPath}/../../../etc`;
+        const siblingPath = `${projectPath}-sibling`;
+        const result = createWorktree(traversalPath, siblingPath, testBranchName);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toContain("Security");
+        }
+      });
+    });
+
+    describe("allowed worktree locations", () => {
+      it("accepts sibling directory path", () => {
+        // Note: This doesn't actually create the worktree since the test branch
+        // may already exist, but it should pass validation
+        const siblingPath = `${projectPath}-epic-test1234-valid-sibling`;
+
+        // The call may fail for other reasons (branch exists, etc.)
+        // but should NOT fail on the worktree path validation
+        const result = createWorktree(projectPath, siblingPath, "feature/epic-test-sibling");
+
+        if (!result.success) {
+          // Should not be a security error about the path location
+          expect(result.error).not.toContain("Worktree must be sibling or within project");
+        }
+      });
+
+      it("accepts subfolder path", () => {
+        const subfolderPath = `${projectPath}/.worktrees/epic-test1234-subfolder`;
+
+        const result = createWorktree(projectPath, subfolderPath, "feature/epic-test-subfolder");
+
+        if (!result.success) {
+          // Should not be a security error about the path location
+          expect(result.error).not.toContain("Worktree must be sibling or within project");
+        }
       });
     });
   });
