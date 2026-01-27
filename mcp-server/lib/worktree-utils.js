@@ -581,8 +581,9 @@ export function createWorktree(projectPath, worktreePath, branchName, options = 
 
   // Track what we've created for rollback
   let createdWorktree = false;
+  let rollbackWarning = null;
 
-  // Helper function for rollback
+  // Helper function for rollback - cleans up on failure and returns error result
   const rollback = (error) => {
     log.debug(`Rolling back worktree creation due to error: ${error}`);
 
@@ -595,6 +596,7 @@ export function createWorktree(projectPath, worktreePath, branchName, options = 
         );
         if (!removeResult.success) {
           log.warn(`Failed to remove worktree during rollback: ${removeResult.error}`);
+          rollbackWarning = `Rollback failed: ${removeResult.error}. Manual cleanup may be required.`;
           // Also try to prune
           const pruneResult = runGitCommandSafe(["worktree", "prune"], projectPath);
           if (!pruneResult.success) {
@@ -602,7 +604,11 @@ export function createWorktree(projectPath, worktreePath, branchName, options = 
           }
         }
       } catch (rollbackError) {
-        log.warn(`Error during worktree rollback: ${rollbackError.message}`);
+        log.warn(`Error during worktree rollback: ${rollbackError.message}`, {
+          code: rollbackError.code,
+          path: worktreePath,
+        });
+        rollbackWarning = `Rollback error: ${rollbackError.message}. Manual cleanup may be required.`;
       }
     }
 
@@ -610,7 +616,11 @@ export function createWorktree(projectPath, worktreePath, branchName, options = 
     // because it might be needed by other operations, and removing
     // empty directories is generally safe to leave
 
-    return { success: false, error };
+    const result = { success: false, error };
+    if (rollbackWarning) {
+      result.rollbackWarning = rollbackWarning;
+    }
+    return result;
   };
 
   try {
