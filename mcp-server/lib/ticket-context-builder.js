@@ -32,6 +32,7 @@
  * @property {string} [commentsSection] - Formatted comments section
  * @property {string} [attachmentsSection] - Attachments list section
  * @property {string} [warningsSection] - Warnings section (parse errors, etc.)
+ * @property {string} [worktreeSection] - Worktree context section (for worktree isolation mode)
  */
 
 /**
@@ -107,16 +108,22 @@ export function buildTicketContextBlock({
   commentsSection,
   attachmentsSection,
   warningsSection,
+  worktreeSection,
 }) {
   const epicSection = buildEpicSection(epicInfo, usingEpicBranch);
   const branchStatus = branchCreated ? "(created)" : "(checked out)";
+
+  // For worktree mode, show worktree path as the primary location
+  const pathDisplay = epicInfo?.worktreePath
+    ? `**Working Directory:** \`${epicInfo.worktreePath}\` (worktree)\n**Main Repository:** \`${ticket.project_path}\``
+    : `**Path:** ${ticket.project_path}`;
 
   // Build the context text with conditional sections
   let contextText = `## Started Work on Ticket
 
 **Branch:** \`${branchName}\` ${branchStatus}
 **Project:** ${ticket.project_name}
-**Path:** ${ticket.project_path}
+${pathDisplay}
 ${epicSection}`;
 
   // Add session info if available
@@ -155,6 +162,11 @@ ${acceptanceCriteria.map(c => `- ${c}`).join("\n")}
   }
   if (warningsSection) {
     contextText += warningsSection;
+  }
+
+  // Add worktree context section for worktree isolation mode
+  if (worktreeSection) {
+    contextText += `\n${worktreeSection}\n`;
   }
 
   contextText += `---
