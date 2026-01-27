@@ -76,6 +76,18 @@ export const updateProject = createServerFn({ method: "POST" })
     if (input.updates.path && !existsSync(input.updates.path)) {
       throw new Error(`Directory does not exist: ${input.updates.path}`);
     }
+    // Validate maxWorktrees range (1-10)
+    if (
+      input.updates.maxWorktrees !== undefined &&
+      input.updates.maxWorktrees !== null &&
+      (input.updates.maxWorktrees < 1 || input.updates.maxWorktrees > 10)
+    ) {
+      throw new Error("maxWorktrees must be between 1 and 10");
+    }
+    // Validate worktreeBasePath is provided when location is custom
+    if (input.updates.worktreeLocation === "custom" && !input.updates.worktreeBasePath?.trim()) {
+      throw new Error("Custom worktree location requires a base path");
+    }
     return input;
   })
   .handler(async ({ data: { id, updates } }) => {
