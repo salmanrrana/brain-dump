@@ -435,7 +435,10 @@ export function createWorktree(projectPath, worktreePath, branchName, options = 
         if (!removeResult.success) {
           log.warn(`Failed to remove worktree during rollback: ${removeResult.error}`);
           // Also try to prune
-          runGitCommandSafe(["worktree", "prune"], projectPath);
+          const pruneResult = runGitCommandSafe(["worktree", "prune"], projectPath);
+          if (!pruneResult.success) {
+            log.error(`Failed to prune worktrees during rollback: ${pruneResult.error}`);
+          }
         }
       } catch (rollbackError) {
         log.warn(`Error during worktree rollback: ${rollbackError.message}`);
