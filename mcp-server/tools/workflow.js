@@ -933,6 +933,9 @@ Returns:
       // WORKTREE MODE: Handle worktree resumption or creation
       // ===============================================
       if (effectiveMode === "worktree") {
+        // Track any cleanup warnings to surface to user in final response
+        let cleanupWarning = "";
+
         // Check for existing worktree to resume
         if (epicState?.worktree_path) {
           const validation = validateWorktree(
@@ -983,6 +986,8 @@ Use \`start_ticket_work\` to begin work on any ticket.`,
             const removeResult = removeWorktree(epicState.worktree_path, epic.project_path, { force: true });
             if (!removeResult.success) {
               log.warn(`Failed to remove invalid worktree: ${removeResult.error}`);
+              // Surface the failure to the user so they can manually clean up
+              cleanupWarning = `\n\n**Warning:** Failed to clean up old worktree at \`${epicState.worktree_path}\`: ${removeResult.error}\n\nManual cleanup may be required:\n\`\`\`bash\nrm -rf ${epicState.worktree_path}\ngit worktree prune\n\`\`\``;
             }
           }
 
@@ -1177,7 +1182,7 @@ Use \`start_ticket_work\` to begin work on any ticket.`,
 **Epic:** ${epic.title}
 **Project:** ${epic.project_name}
 **Main Repo:** ${epic.project_path}
-**Isolation Mode:** worktree (source: ${modeSource})${prInfo}
+**Isolation Mode:** worktree (source: ${modeSource})${prInfo}${cleanupWarning}
 
 ### Tickets in Epic (${epicTickets.length})
 ${epicTickets.map(t => `- [${t.status}] ${t.title} (${t.priority || "medium"})`).join("\n")}
