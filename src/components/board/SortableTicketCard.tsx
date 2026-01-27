@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { TicketCard } from "./TicketCard";
+import { TicketCard, type TicketEpicWorktreeInfo } from "./TicketCard";
 import type { Ticket } from "../../lib/schema";
 import type { ActiveRalphSession } from "../../lib/hooks";
 
@@ -17,6 +17,8 @@ interface SortableTicketCardProps {
   registerRef?: (el: HTMLElement | null) => void;
   /** Handler when card receives focus */
   onFocus?: () => void;
+  /** Worktree info inherited from parent epic (optional) */
+  epicWorktreeInfo?: TicketEpicWorktreeInfo | null | undefined;
 }
 
 export function SortableTicketCard({
@@ -27,6 +29,7 @@ export function SortableTicketCard({
   isFocused = false,
   registerRef,
   onFocus,
+  epicWorktreeInfo,
 }: SortableTicketCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: ticket.id,
@@ -57,6 +60,7 @@ export function SortableTicketCard({
         tabIndex={tabIndex}
         isFocused={isFocused}
         onFocus={onFocus}
+        epicWorktreeInfo={epicWorktreeInfo}
       />
     </div>
   );

@@ -15,6 +15,19 @@ vi.mock("../../lib/hooks", () => ({
     mutateAsync: vi.fn(),
     isPending: false,
   })),
+  // Worktree-related hooks (for ticket worktree indicators)
+  useProjects: vi.fn(() => ({
+    projects: [],
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
+  })),
+  useAllEpicWorktreeStates: vi.fn(() => ({
+    worktreeStates: new Map(),
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
+  })),
 }));
 
 // Mock the Toast context

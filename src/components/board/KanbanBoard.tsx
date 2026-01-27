@@ -4,9 +4,12 @@ import {
   useTickets,
   useUpdateTicketStatus,
   useUpdateTicketPosition,
+  useProjects,
+  useAllEpicWorktreeStates,
   type ActiveRalphSession,
+  type Epic,
 } from "../../lib/hooks";
-import { TicketCard } from "./TicketCard";
+import { TicketCard, type TicketEpicWorktreeInfo } from "./TicketCard";
 import { KanbanColumn } from "./KanbanColumn";
 import { SortableTicketCard } from "./SortableTicketCard";
 import type { TicketStatus } from "../../api/tickets";
@@ -143,6 +146,46 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
   const loading = providedLoading ?? internalLoading;
   const error = providedError ?? internalError;
   const handleRefresh = onRefresh ?? refetch;
+
+  // Fetch epic data (for isolationMode) and worktree states (for worktree status/path)
+  const { projects } = useProjects();
+  const { worktreeStates } = useAllEpicWorktreeStates();
+
+  // Build lookup map for ticket epic worktree info
+  const { epicWorktreeInfoMap } = useMemo(() => {
+    // Build epicById map from all projects' epics
+    const epicMap = new Map<string, Epic>();
+    for (const project of projects) {
+      for (const epic of project.epics) {
+        epicMap.set(epic.id, epic);
+      }
+    }
+
+    // Build epicWorktreeInfoMap: epicId -> TicketEpicWorktreeInfo
+    const infoMap = new Map<string, TicketEpicWorktreeInfo>();
+    for (const [epicId, epic] of epicMap) {
+      // Only include if isolation mode is set (otherwise no indicator needed)
+      if (epic.isolationMode) {
+        const worktreeState = worktreeStates.get(epicId);
+        infoMap.set(epicId, {
+          isolationMode: epic.isolationMode,
+          worktreeStatus: worktreeState?.worktreeStatus ?? undefined,
+          worktreePath: worktreeState?.worktreePath ?? undefined,
+        });
+      }
+    }
+
+    return { epicWorktreeInfoMap: infoMap };
+  }, [projects, worktreeStates]);
+
+  // Helper function to get worktree info for a ticket
+  const getEpicWorktreeInfo = useCallback(
+    (ticketEpicId: string | null): TicketEpicWorktreeInfo | null => {
+      if (!ticketEpicId) return null;
+      return epicWorktreeInfoMap.get(ticketEpicId) ?? null;
+    },
+    [epicWorktreeInfoMap]
+  );
 
   // Mutation hooks - these handle query invalidation automatically
   const updateStatusMutation = useUpdateTicketStatus();
@@ -375,6 +418,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
                       isFocused={focusedTicketId === ticket.id}
                       registerRef={registerCardRef(ticket.id)}
                       onFocus={() => handleCardFocus(ticket.id)}
+                      epicWorktreeInfo={getEpicWorktreeInfo(ticket.epicId)}
                     />
                   ))}
                 </SortableContext>
@@ -388,6 +432,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
               ticket={activeTicket}
               isOverlay
               isAiActive={!!getRalphSession?.(activeTicket.id)}
+              epicWorktreeInfo={getEpicWorktreeInfo(activeTicket.epicId)}
             />
           ) : null}
         </DragOverlay>

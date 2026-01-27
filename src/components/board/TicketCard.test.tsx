@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { TicketCard } from "./TicketCard";
+import { TicketCard, type TicketEpicWorktreeInfo } from "./TicketCard";
 import type { Ticket } from "../../lib/schema";
 
 // Helper to create a minimal ticket with required fields
@@ -68,5 +68,85 @@ describe("TicketCard", () => {
     render(<TicketCard ticket={ticket} />);
     expect(screen.getByText("test-branch")).toBeInTheDocument();
     expect(screen.getByText("#123")).toBeInTheDocument();
+  });
+
+  describe("worktree indicator", () => {
+    it("shows worktree badge when epic uses worktree isolation with active status", () => {
+      const ticket = createTicket({ epicId: "epic-1" });
+      const epicWorktreeInfo: TicketEpicWorktreeInfo = {
+        isolationMode: "worktree",
+        worktreeStatus: "active",
+        worktreePath: "/Users/test/project-epic-worktree",
+      };
+      render(<TicketCard ticket={ticket} epicWorktreeInfo={epicWorktreeInfo} />);
+
+      // User should see the worktree badge
+      const badge = screen.getByRole("status");
+      expect(badge).toBeInTheDocument();
+      expect(badge).toHaveTextContent("worktree");
+      expect(badge).toHaveAttribute("aria-label", "Isolation mode: worktree, status: active");
+    });
+
+    it("shows worktree badge with stale status indicator", () => {
+      const ticket = createTicket({ epicId: "epic-1" });
+      const epicWorktreeInfo: TicketEpicWorktreeInfo = {
+        isolationMode: "worktree",
+        worktreeStatus: "stale",
+        worktreePath: "/Users/test/project-epic-worktree",
+      };
+      render(<TicketCard ticket={ticket} epicWorktreeInfo={epicWorktreeInfo} />);
+
+      // User should see stale status in the badge
+      const badge = screen.getByRole("status");
+      expect(badge).toHaveTextContent("worktree (stale)");
+      expect(badge).toHaveAttribute("aria-label", "Isolation mode: worktree, status: stale");
+    });
+
+    it("does not show worktree badge when epic uses branch isolation", () => {
+      const ticket = createTicket({ epicId: "epic-1" });
+      const epicWorktreeInfo: TicketEpicWorktreeInfo = {
+        isolationMode: "branch",
+      };
+      render(<TicketCard ticket={ticket} epicWorktreeInfo={epicWorktreeInfo} />);
+
+      // User should not see any worktree badge (branch mode is the default, no indicator needed)
+      expect(screen.queryByText("worktree")).not.toBeInTheDocument();
+    });
+
+    it("does not show worktree badge when epicWorktreeInfo is null", () => {
+      const ticket = createTicket({ epicId: "epic-1" });
+      render(<TicketCard ticket={ticket} epicWorktreeInfo={null} />);
+
+      // User should not see any worktree badge
+      expect(screen.queryByText("worktree")).not.toBeInTheDocument();
+    });
+
+    it("does not show worktree badge when isolationMode is null", () => {
+      const ticket = createTicket({ epicId: "epic-1" });
+      const epicWorktreeInfo: TicketEpicWorktreeInfo = {
+        isolationMode: null,
+      };
+      render(<TicketCard ticket={ticket} epicWorktreeInfo={epicWorktreeInfo} />);
+
+      // User should not see any worktree badge
+      expect(screen.queryByText("worktree")).not.toBeInTheDocument();
+    });
+
+    it("shows tooltip with worktree path when hovering", () => {
+      const ticket = createTicket({ epicId: "epic-1" });
+      const epicWorktreeInfo: TicketEpicWorktreeInfo = {
+        isolationMode: "worktree",
+        worktreeStatus: "active",
+        worktreePath: "/Users/test/project-epic-worktree",
+      };
+      render(<TicketCard ticket={ticket} epicWorktreeInfo={epicWorktreeInfo} />);
+
+      // User should be able to see the path in the tooltip
+      const badge = screen.getByRole("status");
+      expect(badge).toHaveAttribute(
+        "title",
+        expect.stringContaining("/Users/test/project-epic-worktree")
+      );
+    });
   });
 });
