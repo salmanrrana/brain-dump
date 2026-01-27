@@ -13,7 +13,6 @@ interface RunGitCommandSafeOptions {
 }
 
 interface GitUtils {
-  runGitCommand: (command: string, cwd: string) => GitCommandResult;
   runGitCommandSafe: (
     args: string[],
     cwd: string,
@@ -28,14 +27,8 @@ interface GitUtils {
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const gitUtils = require("./git-utils.js") as GitUtils;
 
-const {
-  runGitCommand,
-  runGitCommandSafe,
-  slugify,
-  shortId,
-  generateBranchName,
-  generateEpicBranchName,
-} = gitUtils;
+const { runGitCommandSafe, slugify, shortId, generateBranchName, generateEpicBranchName } =
+  gitUtils;
 
 describe("git-utils module", () => {
   describe("slugify", () => {
@@ -153,28 +146,6 @@ describe("git-utils module", () => {
       const epicTitle = "Test Epic";
       const result = generateEpicBranchName("", epicTitle);
       expect(result).toBe("feature/epic--test-epic");
-    });
-  });
-
-  describe("runGitCommand", () => {
-    it("should return success structure for valid commands", () => {
-      // This test might fail in CI if git is not available
-      // but it shows the expected interface
-      const result = runGitCommand("git --version", "/tmp");
-      expect(typeof result.success).toBe("boolean");
-      expect(typeof result.output).toBe("string");
-      if (result.success) {
-        expect(result.output).toContain("git version");
-      } else {
-        expect(result.error).toBeDefined();
-      }
-    });
-
-    it("should return error structure for invalid commands", () => {
-      const result = runGitCommand("git-invalid-command", "/tmp");
-      expect(result.success).toBe(false);
-      expect(result.output).toBe("");
-      expect(result.error).toBeDefined();
     });
   });
 

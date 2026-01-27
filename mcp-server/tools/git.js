@@ -5,7 +5,7 @@
 import { z } from "zod";
 import { existsSync, readFileSync } from "fs";
 import { log } from "../lib/logging.js";
-import { runGitCommand, shortId } from "../lib/git-utils.js";
+import { runGitCommandSafe, runGhCommandSafe, shortId } from "../lib/git-utils.js";
 
 /**
  * Sync PR statuses for all tickets in a project by querying GitHub.
@@ -37,9 +37,9 @@ async function syncProjectPRStatuses(db, projectId, projectPath) {
 
   for (const ticket of ticketsWithPRs) {
     try {
-      // Query GitHub for current PR state
-      const ghResult = runGitCommand(
-        `gh pr view ${ticket.pr_number} --json state,mergedAt 2>/dev/null`,
+      // Query GitHub for current PR state (using runGhCommandSafe for security)
+      const ghResult = runGhCommandSafe(
+        ["pr", "view", String(ticket.pr_number), "--json", "state,mergedAt"],
         projectPath
       );
 
@@ -114,7 +114,7 @@ function findActiveTicket(db, projectPath) {
   }
 
   // Try to extract ticket ID from branch name
-  const branchResult = runGitCommand("git branch --show-current", projectPath);
+  const branchResult = runGitCommandSafe(["branch", "--show-current"], projectPath);
   if (!branchResult.success || !branchResult.output) {
     return { ticketId: null, source: "none" };
   }
@@ -147,14 +147,14 @@ function findActiveTicket(db, projectPath) {
 function getRecentCommits(projectPath) {
   // Find the base branch (main or master)
   let baseBranch = "main";
-  const checkMain = runGitCommand("git rev-parse --verify main 2>/dev/null", projectPath);
+  const checkMain = runGitCommandSafe(["rev-parse", "--verify", "main"], projectPath);
   if (!checkMain.success) {
-    const checkMaster = runGitCommand("git rev-parse --verify master 2>/dev/null", projectPath);
+    const checkMaster = runGitCommandSafe(["rev-parse", "--verify", "master"], projectPath);
     if (checkMaster.success) {
       baseBranch = "master";
     } else {
       // No main or master, just get recent commits
-      const result = runGitCommand(`git log --oneline -20 --format="%H|%s"`, projectPath);
+      const result = runGitCommandSafe(["log", "--oneline", "-20", "--format=%H|%s"], projectPath);
       if (!result.success || !result.output) return [];
       return result.output
         .trim()
@@ -168,13 +168,13 @@ function getRecentCommits(projectPath) {
   }
 
   // Get commits since diverging from base branch
-  const mergeBaseResult = runGitCommand(`git merge-base ${baseBranch} HEAD`, projectPath);
+  const mergeBaseResult = runGitCommandSafe(["merge-base", baseBranch, "HEAD"], projectPath);
   if (!mergeBaseResult.success || !mergeBaseResult.output) {
     return [];
   }
 
   const mergeBase = mergeBaseResult.output.trim();
-  const result = runGitCommand(`git log --oneline ${mergeBase}..HEAD --format="%H|%s"`, projectPath);
+  const result = runGitCommandSafe(["log", "--oneline", `${mergeBase}..HEAD`, "--format=%H|%s"], projectPath);
   if (!result.success || !result.output) return [];
 
   return result.output
@@ -228,9 +228,9 @@ Returns:
 
       let commitMessage = message || "";
       if (!commitMessage && existsSync(ticket.project_path)) {
-        const gitCheck = runGitCommand("git rev-parse --git-dir", ticket.project_path);
+        const gitCheck = runGitCommandSafe(["rev-parse", "--git-dir"], ticket.project_path);
         if (gitCheck.success) {
-          const msgResult = runGitCommand(`git log -1 --format=%s ${commitHash} 2>/dev/null`, ticket.project_path);
+          const msgResult = runGitCommandSafe(["log", "-1", "--format=%s", commitHash], ticket.project_path);
           if (msgResult.success && msgResult.output) commitMessage = msgResult.output;
         }
       }
@@ -303,7 +303,7 @@ Returns:
       // Try to auto-detect PR URL if not provided
       let finalPrUrl = prUrl;
       if (!finalPrUrl && existsSync(ticket.project_path)) {
-        const remoteResult = runGitCommand("git remote get-url origin 2>/dev/null", ticket.project_path);
+        const remoteResult = runGitCommandSafe(["remote", "get-url", "origin"], ticket.project_path);
         if (remoteResult.success && remoteResult.output) {
           const remote = remoteResult.output.trim();
           // Parse GitHub URL (supports both SSH and HTTPS formats)
@@ -487,11 +487,11 @@ Current detection methods tried:
       }
 
       // Check for PR on current branch
-      const branchResult = runGitCommand("git branch --show-current", projectPath);
+      const branchResult = runGitCommandSafe(["branch", "--show-current"], projectPath);
       if (branchResult.success && branchResult.output) {
         const branch = branchResult.output.trim();
-        const prResult = runGitCommand(
-          `gh pr view "${branch}" --json number,url,state 2>/dev/null`,
+        const prResult = runGhCommandSafe(
+          ["pr", "view", branch, "--json", "number,url,state"],
           projectPath
         );
 

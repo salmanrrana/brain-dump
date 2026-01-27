@@ -10,7 +10,7 @@ import { existsSync, writeFileSync } from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
 import { log } from "../lib/logging.js";
-import { runGitCommand, shortId, generateBranchName, generateEpicBranchName } from "../lib/git-utils.js";
+import { runGitCommandSafe, runGhCommandSafe, shortId, generateBranchName, generateEpicBranchName } from "../lib/git-utils.js";
 import { getEffectiveIsolationMode } from "../lib/worktree-flags.js";
 import {
   generateWorktreePath,
@@ -127,7 +127,7 @@ Returns:
         return { content: [{ type: "text", text: `Project path does not exist: ${ticket.project_path}` }], isError: true };
       }
 
-      const gitCheck = runGitCommand("git rev-parse --git-dir", ticket.project_path);
+      const gitCheck = runGitCommandSafe(["rev-parse", "--git-dir"], ticket.project_path);
       if (!gitCheck.success) {
         return { content: [{ type: "text", text: `Not a git repository: ${ticket.project_path}\n\nInitialize git first: git init` }], isError: true };
       }
@@ -598,7 +598,7 @@ ${worktreeContext.wasCreated ? "**Note:** Worktree was just created for this epi
 
         if (epicState?.epic_branch_name) {
           // Epic has a branch - use it
-          const epicBranchExists = runGitCommand(`git show-ref --verify --quiet refs/heads/${epicState.epic_branch_name}`, ticket.project_path);
+          const epicBranchExists = runGitCommandSafe(["show-ref", "--verify", "--quiet", `refs/heads/${epicState.epic_branch_name}`], ticket.project_path);
           if (epicBranchExists.success) {
             branchName = epicState.epic_branch_name;
             usingEpicBranch = true;
@@ -612,7 +612,7 @@ ${worktreeContext.wasCreated ? "**Note:** Worktree was just created for this epi
             };
 
             // Checkout the epic branch
-            const checkoutBranch = runGitCommand(`git checkout ${branchName}`, ticket.project_path);
+            const checkoutBranch = runGitCommandSafe(["checkout", branchName], ticket.project_path);
             if (!checkoutBranch.success) {
               return { content: [{ type: "text", text: `Failed to checkout epic branch ${branchName}: ${checkoutBranch.error}` }], isError: true };
             }
@@ -647,24 +647,24 @@ This ticket belongs to an epic that previously had a branch, but it was deleted.
             usingEpicBranch = true;
             epicInfo = { title: epic.title, branchName: branchName };
 
-            const epicBranchExists = runGitCommand(`git show-ref --verify --quiet refs/heads/${branchName}`, ticket.project_path);
+            const epicBranchExists = runGitCommandSafe(["show-ref", "--verify", "--quiet", `refs/heads/${branchName}`], ticket.project_path);
             if (!epicBranchExists.success) {
               // Create the epic branch
               let baseBranch = "main";
-              const mainExists = runGitCommand("git show-ref --verify --quiet refs/heads/main", ticket.project_path);
+              const mainExists = runGitCommandSafe(["show-ref", "--verify", "--quiet", "refs/heads/main"], ticket.project_path);
               if (!mainExists.success) {
-                const masterExists = runGitCommand("git show-ref --verify --quiet refs/heads/master", ticket.project_path);
+                const masterExists = runGitCommandSafe(["show-ref", "--verify", "--quiet", "refs/heads/master"], ticket.project_path);
                 if (masterExists.success) baseBranch = "master";
               }
 
-              runGitCommand(`git checkout ${baseBranch}`, ticket.project_path);
-              const createBranch = runGitCommand(`git checkout -b ${branchName}`, ticket.project_path);
+              runGitCommandSafe(["checkout", baseBranch], ticket.project_path);
+              const createBranch = runGitCommandSafe(["checkout", "-b", branchName], ticket.project_path);
               if (!createBranch.success) {
                 return { content: [{ type: "text", text: `Failed to create epic branch ${branchName}: ${createBranch.error}` }], isError: true };
               }
               branchCreated = true;
             } else {
-              const checkoutBranch = runGitCommand(`git checkout ${branchName}`, ticket.project_path);
+              const checkoutBranch = runGitCommandSafe(["checkout", branchName], ticket.project_path);
               if (!checkoutBranch.success) {
                 return { content: [{ type: "text", text: `Failed to checkout epic branch ${branchName}: ${checkoutBranch.error}` }], isError: true };
               }
@@ -694,16 +694,16 @@ This ticket belongs to an epic that previously had a branch, but it was deleted.
       // If not using epic branch, create ticket-specific branch (original behavior)
       if (!usingEpicBranch) {
         branchName = generateBranchName(ticketId, ticket.title);
-        const branchExists = runGitCommand(`git show-ref --verify --quiet refs/heads/${branchName}`, ticket.project_path);
+        const branchExists = runGitCommandSafe(["show-ref", "--verify", "--quiet", `refs/heads/${branchName}`], ticket.project_path);
 
         if (!branchExists.success) {
-          const createBranch = runGitCommand(`git checkout -b ${branchName}`, ticket.project_path);
+          const createBranch = runGitCommandSafe(["checkout", "-b", branchName], ticket.project_path);
           if (!createBranch.success) {
             return { content: [{ type: "text", text: `Failed to create branch ${branchName}: ${createBranch.error}` }], isError: true };
           }
           branchCreated = true;
         } else {
-          const checkoutBranch = runGitCommand(`git checkout ${branchName}`, ticket.project_path);
+          const checkoutBranch = runGitCommandSafe(["checkout", branchName], ticket.project_path);
           if (!checkoutBranch.success) {
             return { content: [{ type: "text", text: `Failed to checkout branch ${branchName}: ${checkoutBranch.error}` }], isError: true };
           }
@@ -715,8 +715,9 @@ This ticket belongs to an epic that previously had a branch, but it was deleted.
         db.prepare("UPDATE tickets SET status = 'in_progress', branch_name = ?, updated_at = ? WHERE id = ?").run(branchName, now, ticketId);
       } catch (dbErr) {
         log.error(`Failed to update ticket status: ${dbErr.message}`, { ticketId });
-        // Attempt to clean up the branch we just created
-        runGitCommand(`git checkout - && git branch -d ${branchName}`, ticket.project_path);
+        // Attempt to clean up the branch we just created - use two separate commands
+        runGitCommandSafe(["checkout", "-"], ticket.project_path);
+        runGitCommandSafe(["branch", "-d", branchName], ticket.project_path);
         return { content: [{ type: "text", text: `Failed to update ticket status: ${dbErr.message}\n\nThe git branch was cleaned up. Please try again.` }], isError: true };
       }
 
@@ -920,7 +921,7 @@ Returns:
         return { content: [{ type: "text", text: `Project path does not exist: ${epic.project_path}` }], isError: true };
       }
 
-      const gitCheck = runGitCommand("git rev-parse --git-dir", epic.project_path);
+      const gitCheck = runGitCommandSafe(["rev-parse", "--git-dir"], epic.project_path);
       if (!gitCheck.success) {
         return { content: [{ type: "text", text: `Not a git repository: ${epic.project_path}\n\nInitialize git first: git init` }], isError: true };
       }
@@ -1132,13 +1133,13 @@ Use \`start_ticket_work\` to begin work on any ticket.`,
         let prInfo = "";
         if (createPr) {
           // Push branch to remote first (from the worktree)
-          const pushResult = runGitCommand(`git push -u origin ${branchName}`, worktreePath);
+          const pushResult = runGitCommandSafe(["push", "-u", "origin", branchName], worktreePath);
           if (!pushResult.success) {
             prInfo = `\n\n**Warning:** Could not push branch to remote: ${pushResult.error}\nCreate PR manually when ready.`;
           } else {
-            // Create draft PR using gh CLI
-            const prResult = runGitCommand(
-              `gh pr create --draft --title "[Epic] ${epic.title}" --body "Epic work for: ${epic.title}\n\nThis PR contains all tickets from the epic."`,
+            // Create draft PR using gh CLI (using runGhCommandSafe for security)
+            const prResult = runGhCommandSafe(
+              ["pr", "create", "--draft", "--title", `[Epic] ${epic.title}`, "--body", `Epic work for: ${epic.title}\n\nThis PR contains all tickets from the epic.`],
               worktreePath
             );
             if (prResult.success && prResult.output) {
@@ -1199,9 +1200,9 @@ Use \`start_ticket_work\` to begin work on any ticket.`,
       // ===============================================
       if (epicState?.epic_branch_name) {
         // Epic branch already exists - check it out and return info
-        const branchExists = runGitCommand(`git show-ref --verify --quiet refs/heads/${epicState.epic_branch_name}`, epic.project_path);
+        const branchExists = runGitCommandSafe(["show-ref", "--verify", "--quiet", `refs/heads/${epicState.epic_branch_name}`], epic.project_path);
         if (branchExists.success) {
-          const checkoutBranch = runGitCommand(`git checkout ${epicState.epic_branch_name}`, epic.project_path);
+          const checkoutBranch = runGitCommandSafe(["checkout", epicState.epic_branch_name], epic.project_path);
           if (!checkoutBranch.success) {
             return { content: [{ type: "text", text: `Failed to checkout existing epic branch ${epicState.epic_branch_name}: ${checkoutBranch.error}` }], isError: true };
           }
@@ -1237,20 +1238,20 @@ Use \`start_ticket_work\` to begin work on any ticket. All tickets will use this
       const branchName = generateEpicBranchName(epicId, epic.title);
 
       // Check if branch already exists in git (might have been created outside our tracking)
-      const branchExists = runGitCommand(`git show-ref --verify --quiet refs/heads/${branchName}`, epic.project_path);
+      const branchExists = runGitCommandSafe(["show-ref", "--verify", "--quiet", `refs/heads/${branchName}`], epic.project_path);
 
       let branchCreated = false;
       if (!branchExists.success) {
         // Create the branch from main/dev
         let baseBranch = "main";
-        const mainExists = runGitCommand("git show-ref --verify --quiet refs/heads/main", epic.project_path);
+        const mainExists = runGitCommandSafe(["show-ref", "--verify", "--quiet", "refs/heads/main"], epic.project_path);
         if (!mainExists.success) {
-          const masterExists = runGitCommand("git show-ref --verify --quiet refs/heads/master", epic.project_path);
+          const masterExists = runGitCommandSafe(["show-ref", "--verify", "--quiet", "refs/heads/master"], epic.project_path);
           if (masterExists.success) baseBranch = "master";
         }
 
         // Make sure we're on the base branch first, then create new branch
-        const checkoutBase = runGitCommand(`git checkout ${baseBranch}`, epic.project_path);
+        const checkoutBase = runGitCommandSafe(["checkout", baseBranch], epic.project_path);
         if (!checkoutBase.success) {
           return {
             content: [{
@@ -1260,13 +1261,13 @@ Use \`start_ticket_work\` to begin work on any ticket. All tickets will use this
             isError: true,
           };
         }
-        const createBranch = runGitCommand(`git checkout -b ${branchName}`, epic.project_path);
+        const createBranch = runGitCommandSafe(["checkout", "-b", branchName], epic.project_path);
         if (!createBranch.success) {
           return { content: [{ type: "text", text: `Failed to create branch ${branchName}: ${createBranch.error}` }], isError: true };
         }
         branchCreated = true;
       } else {
-        const checkoutBranch = runGitCommand(`git checkout ${branchName}`, epic.project_path);
+        const checkoutBranch = runGitCommandSafe(["checkout", branchName], epic.project_path);
         if (!checkoutBranch.success) {
           return { content: [{ type: "text", text: `Failed to checkout branch ${branchName}: ${checkoutBranch.error}` }], isError: true };
         }
@@ -1306,9 +1307,9 @@ Use \`start_ticket_work\` to begin work on any ticket. All tickets will use this
         log.error(`Failed to save epic workflow state for ${epicId}`, { error: dbErr.message });
         // Clean up: try to delete the branch we just created
         if (branchCreated) {
-          const baseBranch = runGitCommand("git show-ref --verify --quiet refs/heads/main", epic.project_path).success ? "main" : "master";
-          runGitCommand(`git checkout ${baseBranch}`, epic.project_path);
-          runGitCommand(`git branch -D ${branchName}`, epic.project_path);
+          const baseBranch = runGitCommandSafe(["show-ref", "--verify", "--quiet", "refs/heads/main"], epic.project_path).success ? "main" : "master";
+          runGitCommandSafe(["checkout", baseBranch], epic.project_path);
+          runGitCommandSafe(["branch", "-D", branchName], epic.project_path);
         }
         return {
           content: [{
@@ -1325,13 +1326,13 @@ Use \`start_ticket_work\` to begin work on any ticket. All tickets will use this
       let prInfo = "";
       if (createPr) {
         // Push branch to remote first
-        const pushResult = runGitCommand(`git push -u origin ${branchName}`, epic.project_path);
+        const pushResult = runGitCommandSafe(["push", "-u", "origin", branchName], epic.project_path);
         if (!pushResult.success) {
           prInfo = `\n\n**Warning:** Could not push branch to remote: ${pushResult.error}\nCreate PR manually when ready.`;
         } else {
-          // Create draft PR using gh CLI
-          const prResult = runGitCommand(
-            `gh pr create --draft --title "[Epic] ${epic.title}" --body "Epic work for: ${epic.title}\n\nThis PR contains all tickets from the epic."`,
+          // Create draft PR using gh CLI (using runGhCommandSafe for security)
+          const prResult = runGhCommandSafe(
+            ["pr", "create", "--draft", "--title", `[Epic] ${epic.title}`, "--body", `Epic work for: ${epic.title}\n\nThis PR contains all tickets from the epic.`],
             epic.project_path
           );
           if (prResult.success && prResult.output) {
@@ -1484,19 +1485,26 @@ Returns:
       let changedFiles = [];
 
       if (existsSync(ticket.project_path)) {
-        const gitCheck = runGitCommand("git rev-parse --git-dir", ticket.project_path);
+        const gitCheck = runGitCommandSafe(["rev-parse", "--git-dir"], ticket.project_path);
         if (gitCheck.success) {
           let baseBranch = "main";
-          const mainExists = runGitCommand("git show-ref --verify --quiet refs/heads/main", ticket.project_path);
+          const mainExists = runGitCommandSafe(["show-ref", "--verify", "--quiet", "refs/heads/main"], ticket.project_path);
           if (!mainExists.success) {
-            const masterExists = runGitCommand("git show-ref --verify --quiet refs/heads/master", ticket.project_path);
+            const masterExists = runGitCommandSafe(["show-ref", "--verify", "--quiet", "refs/heads/master"], ticket.project_path);
             if (masterExists.success) baseBranch = "master";
           }
 
-          const commitsResult = runGitCommand(
-            `git log ${baseBranch}..HEAD --oneline --no-decorate 2>/dev/null || git log -10 --oneline --no-decorate`,
+          // Try to get commits since base branch, fall back to recent commits
+          let commitsResult = runGitCommandSafe(
+            ["log", `${baseBranch}..HEAD`, "--oneline", "--no-decorate"],
             ticket.project_path
           );
+          if (!commitsResult.success) {
+            commitsResult = runGitCommandSafe(
+              ["log", "-10", "--oneline", "--no-decorate"],
+              ticket.project_path
+            );
+          }
 
           if (commitsResult.success && commitsResult.output) {
             commitsInfo = commitsResult.output;
@@ -1505,10 +1513,17 @@ Returns:
           }
 
           // Get list of changed files for code review guidance
-          const filesResult = runGitCommand(
-            `git diff ${baseBranch}..HEAD --name-only 2>/dev/null || git diff HEAD~5..HEAD --name-only 2>/dev/null`,
+          // Try diff since base branch, fall back to recent commits
+          let filesResult = runGitCommandSafe(
+            ["diff", `${baseBranch}..HEAD`, "--name-only"],
             ticket.project_path
           );
+          if (!filesResult.success) {
+            filesResult = runGitCommandSafe(
+              ["diff", "HEAD~5..HEAD", "--name-only"],
+              ticket.project_path
+            );
+          }
           if (filesResult.success && filesResult.output) {
             changedFiles = filesResult.output.split("\n").filter(f => f.trim());
           } else if (!filesResult.success) {

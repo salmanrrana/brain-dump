@@ -2,30 +2,14 @@
  * Git utilities for Brain Dump MCP server.
  * @module lib/git-utils
  */
-import { execSync, execFileSync } from "child_process";
+import { execFileSync } from "child_process";
 import { log } from "./logging.js";
-
-/**
- * Run a git command in a specified directory.
- * @param {string} command - The git command to run
- * @param {string} cwd - Working directory for the command
- * @returns {{ success: boolean, output: string, error?: string }}
- * @deprecated Use runGitCommandSafe for new code - this function is vulnerable to command injection
- */
-export function runGitCommand(command, cwd) {
-  try {
-    const output = execSync(command, { cwd, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
-    return { success: true, output: output.trim() };
-  } catch (error) {
-    return { success: false, output: "", error: error.stderr?.trim() || error.message };
-  }
-}
 
 /**
  * Safely run a git command using argument arrays (immune to command injection).
  *
- * Unlike runGitCommand which uses shell interpolation, this function uses
- * execFileSync with argument arrays, preventing shell metacharacter injection.
+ * This function uses execFileSync with argument arrays, preventing shell
+ * metacharacter injection attacks.
  *
  * @param {string[]} args - Array of git command arguments (without 'git' prefix)
  * @param {string} cwd - Working directory for the command
