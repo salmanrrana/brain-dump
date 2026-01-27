@@ -28,7 +28,7 @@ function checkPRMerged(prNumber, projectPath) {
   );
 
   if (!ghResult.success) {
-    return { isMerged: false, state: null, error: "gh command failed" };
+    return { isMerged: false, state: null, error: `gh command failed: ${ghResult.error || "unknown error"}` };
   }
 
   try {
@@ -194,11 +194,8 @@ Returns:
           cleanupInfo.reason = `Worktree is corrupted: ${validation.error}`;
           cleanupInfo.canRemove = true;
           // Corrupted worktrees can be force-removed
-        } else if (validation.status === "missing_directory") {
-          // Already handled above
-          cleanupInfo.reason = "Worktree directory missing";
-          cleanupInfo.canRemove = true;
         } else {
+          // Note: missing_directory status cannot occur here because existsSync check above handles it
           cleanupInfo.hasUncommittedChanges = validation.hasUncommittedChanges || false;
         }
 
