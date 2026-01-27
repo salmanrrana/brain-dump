@@ -9,6 +9,9 @@
  * @module lib/environment
  */
 
+import { existsSync } from "fs";
+import { join } from "path";
+
 const VSCODE_ENV_PATTERNS = [
   "VSCODE_GIT_ASKPASS_NODE", "VSCODE_GIT_ASKPASS_MAIN", "VSCODE_GIT_IPC_HANDLE",
   "VSCODE_INJECTION", "VSCODE_CLI", "VSCODE_PID", "VSCODE_CWD",
@@ -117,23 +120,12 @@ export function detectEnvironment() {
  * @returns {string} Author name (e.g., "claude", "cursor", "opencode", "vscode", "ralph:claude", etc.)
  */
 export function detectAuthor() {
-  // Use synchronous fs access - this is safe in Node.js MCP server context
-  let fs, path;
-  try {
-    fs = require("fs");
-    path = require("path");
-  } catch {
-    // Fallback if require fails (shouldn't happen in Node.js)
-    fs = null;
-    path = null;
-  }
-  
   // Check if Ralph session is active
   let isRalphSession = !!process.env.RALPH_SESSION;
-  if (!isRalphSession && fs && path) {
+  if (!isRalphSession) {
     try {
-      const ralphStatePath = path.join(process.cwd(), ".claude/ralph-state.json");
-      isRalphSession = fs.existsSync(ralphStatePath);
+      const ralphStatePath = join(process.cwd(), ".claude/ralph-state.json");
+      isRalphSession = existsSync(ralphStatePath);
     } catch {
       // If file check fails, assume no Ralph session
       isRalphSession = false;
