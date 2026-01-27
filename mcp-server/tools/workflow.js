@@ -185,6 +185,18 @@ Returns:
                 const cleanupResult = removeWorktree(epicState.worktree_path, ticket.project_path, { force: true });
                 if (!cleanupResult.success) {
                   log.warn(`Failed to cleanup corrupted worktree: ${cleanupResult.error}`);
+                  // Check if the path still exists - if so, we cannot safely proceed
+                  if (existsSync(epicState.worktree_path)) {
+                    return {
+                      content: [{
+                        type: "text",
+                        text: `Failed to cleanup corrupted worktree at ${epicState.worktree_path}: ${cleanupResult.error}\n\nPlease manually remove this directory and try again:\n  rm -rf "${epicState.worktree_path}"`,
+                      }],
+                      isError: true,
+                    };
+                  }
+                  // Path no longer exists despite cleanup error, we can proceed
+                  log.info(`Worktree cleanup reported failure but directory was removed`);
                 }
               }
 
@@ -269,20 +281,33 @@ Returns:
                 };
               }
 
-              // Update database
+              // Update database - wrap in try-catch to rollback worktree on failure
               const updateNow = new Date().toISOString();
-              if (!epicState) {
-                const stateId = randomUUID();
-                db.prepare(`
-                  INSERT INTO epic_workflow_state (id, epic_id, epic_branch_name, epic_branch_created_at, worktree_path, worktree_created_at, worktree_status, current_ticket_id, created_at, updated_at)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `).run(stateId, epic.id, branchName, updateNow, worktreePath, updateNow, "active", ticketId, updateNow, updateNow);
-              } else {
-                db.prepare(`
-                  UPDATE epic_workflow_state
-                  SET epic_branch_name = ?, epic_branch_created_at = ?, worktree_path = ?, worktree_created_at = ?, worktree_status = ?, current_ticket_id = ?, updated_at = ?
-                  WHERE epic_id = ?
-                `).run(branchName, updateNow, worktreePath, updateNow, "active", ticketId, updateNow, epic.id);
+              try {
+                if (!epicState) {
+                  const stateId = randomUUID();
+                  db.prepare(`
+                    INSERT INTO epic_workflow_state (id, epic_id, epic_branch_name, epic_branch_created_at, worktree_path, worktree_created_at, worktree_status, current_ticket_id, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  `).run(stateId, epic.id, branchName, updateNow, worktreePath, updateNow, "active", ticketId, updateNow, updateNow);
+                } else {
+                  db.prepare(`
+                    UPDATE epic_workflow_state
+                    SET epic_branch_name = ?, epic_branch_created_at = ?, worktree_path = ?, worktree_created_at = ?, worktree_status = ?, current_ticket_id = ?, updated_at = ?
+                    WHERE epic_id = ?
+                  `).run(branchName, updateNow, worktreePath, updateNow, "active", ticketId, updateNow, epic.id);
+                }
+              } catch (dbErr) {
+                log.error(`Failed to save epic workflow state: ${dbErr.message}`, { epicId: epic.id, worktreePath });
+                // Roll back worktree creation to avoid inconsistent state
+                removeWorktree(worktreePath, ticket.project_path, { force: true });
+                return {
+                  content: [{
+                    type: "text",
+                    text: `Worktree was created but failed to save workflow state: ${dbErr.message}\n\nThe worktree has been cleaned up. Please try again.`,
+                  }],
+                  isError: true,
+                };
               }
 
               workingDirectory = worktreePath;
@@ -388,20 +413,33 @@ Returns:
               };
             }
 
-            // Create or update epic workflow state
+            // Create or update epic workflow state - wrap in try-catch to rollback worktree on failure
             const updateNow = new Date().toISOString();
-            if (!epicState) {
-              const stateId = randomUUID();
-              db.prepare(`
-                INSERT INTO epic_workflow_state (id, epic_id, epic_branch_name, epic_branch_created_at, worktree_path, worktree_created_at, worktree_status, current_ticket_id, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-              `).run(stateId, epic.id, branchName, updateNow, worktreePath, updateNow, "active", ticketId, updateNow, updateNow);
-            } else {
-              db.prepare(`
-                UPDATE epic_workflow_state
-                SET epic_branch_name = ?, epic_branch_created_at = ?, worktree_path = ?, worktree_created_at = ?, worktree_status = ?, current_ticket_id = ?, updated_at = ?
-                WHERE epic_id = ?
-              `).run(branchName, updateNow, worktreePath, updateNow, "active", ticketId, updateNow, epic.id);
+            try {
+              if (!epicState) {
+                const stateId = randomUUID();
+                db.prepare(`
+                  INSERT INTO epic_workflow_state (id, epic_id, epic_branch_name, epic_branch_created_at, worktree_path, worktree_created_at, worktree_status, current_ticket_id, created_at, updated_at)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `).run(stateId, epic.id, branchName, updateNow, worktreePath, updateNow, "active", ticketId, updateNow, updateNow);
+              } else {
+                db.prepare(`
+                  UPDATE epic_workflow_state
+                  SET epic_branch_name = ?, epic_branch_created_at = ?, worktree_path = ?, worktree_created_at = ?, worktree_status = ?, current_ticket_id = ?, updated_at = ?
+                  WHERE epic_id = ?
+                `).run(branchName, updateNow, worktreePath, updateNow, "active", ticketId, updateNow, epic.id);
+              }
+            } catch (dbErr) {
+              log.error(`Failed to save epic workflow state: ${dbErr.message}`, { epicId: epic.id, worktreePath });
+              // Roll back worktree creation to avoid inconsistent state
+              removeWorktree(worktreePath, ticket.project_path, { force: true });
+              return {
+                content: [{
+                  type: "text",
+                  text: `Worktree was created but failed to save workflow state: ${dbErr.message}\n\nThe worktree has been cleaned up. Please try again.`,
+                }],
+                isError: true,
+              };
             }
 
             workingDirectory = worktreePath;
