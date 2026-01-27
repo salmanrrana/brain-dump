@@ -160,7 +160,7 @@ export function useProjectsWithAIActivity() {
  */
 export function useEpicWorktreeStates(projectId: string | null) {
   const query = useQuery({
-    queryKey: ["epicWorktreeStates", projectId] as const,
+    queryKey: queryKeys.epicWorktreeStates(projectId ?? ""),
     queryFn: async () => {
       if (!projectId) return [];
       return getEpicWorktreeStates({ data: projectId });
@@ -169,6 +169,14 @@ export function useEpicWorktreeStates(projectId: string | null) {
     // Refetch periodically to pick up status changes (e.g., stale after merge)
     staleTime: 30_000, // 30 seconds
   });
+
+  // Log errors for observability
+  if (query.error) {
+    logger.error(
+      `Failed to fetch epic worktree states for project "${projectId}"`,
+      query.error instanceof Error ? query.error : new Error(String(query.error))
+    );
+  }
 
   // Convert to map for efficient lookup
   const worktreeStateMap = useMemo(() => {
@@ -195,11 +203,19 @@ export function useEpicWorktreeStates(projectId: string | null) {
  */
 export function useAllEpicWorktreeStates() {
   const query = useQuery({
-    queryKey: ["allEpicWorktreeStates"] as const,
+    queryKey: queryKeys.allEpicWorktreeStates,
     queryFn: getAllEpicWorktreeStates,
     // Refetch periodically to pick up status changes (e.g., stale after merge)
     staleTime: 30_000, // 30 seconds
   });
+
+  // Log errors for observability
+  if (query.error) {
+    logger.error(
+      "Failed to fetch all epic worktree states",
+      query.error instanceof Error ? query.error : new Error(String(query.error))
+    );
+  }
 
   // Convert to map for efficient lookup
   const worktreeStateMap = useMemo(() => {
@@ -448,6 +464,8 @@ export function useDeleteEpic() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      // Also invalidate worktree states when epics are deleted
+      queryClient.invalidateQueries({ queryKey: queryKeys.allEpicWorktreeStates });
     },
   });
 }
