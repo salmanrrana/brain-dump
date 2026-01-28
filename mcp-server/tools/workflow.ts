@@ -184,13 +184,14 @@ Returns:
               if (validation.status === "corrupted") {
                 const cleanupResult = removeWorktree(epicState.worktree_path, ticket.project_path, { force: true });
                 if (!cleanupResult.success) {
-                  log.warn(`Failed to cleanup corrupted worktree: ${cleanupResult.error}`);
+                  const errorMsg = (cleanupResult as any).error;
+                  log.warn(`Failed to cleanup corrupted worktree: ${errorMsg}`);
                   // Check if the path still exists - if so, we cannot safely proceed
                   if (existsSync(epicState.worktree_path)) {
                     return {
                       content: [{
                         type: "text",
-                        text: `Failed to cleanup corrupted worktree at ${epicState.worktree_path}: ${cleanupResult.error}\n\nPlease manually remove this directory and try again:\n  rm -rf "${epicState.worktree_path}"`,
+                        text: `Failed to cleanup corrupted worktree at ${epicState.worktree_path}: ${errorMsg}\n\nPlease manually remove this directory and try again:\n  rm -rf "${epicState.worktree_path}"`,
                       }],
                       isError: true,
                     };

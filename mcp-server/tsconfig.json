@@ -2,11 +2,12 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
-    "lib": ["ES2022"],
-    "moduleResolution": "node",
+    "lib": ["ES2022", "DOM"],
+    "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "allowJs": true,
+    "allowImportingTsExtensions": true,
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
@@ -26,5 +27,6 @@
     }
   },
   "include": ["**/*.ts", "**/*.d.ts", "**/*.js"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/__tests__", "**/*.test.js"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/__tests__", "**/*.test.js"],
+  "typeRoots": ["./lib"]
 }

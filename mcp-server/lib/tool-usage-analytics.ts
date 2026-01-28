@@ -7,13 +7,44 @@
 import Database from "better-sqlite3";
 import { log, getErrorMessage } from "./logging.js";
 
+/** Type for tool usage statistics stored in memory */
+interface ToolUsageStats {
+  toolName: string;
+  sessionId: string | null;
+  ticketId: string | null;
+  projectId: string | null;
+  context: string | null;
+  invocations: number;
+  successCount: number;
+  errorCount: number;
+  totalDuration: number;
+}
+
+/** Type for recordToolUsage options */
+interface RecordToolUsageOptions {
+  sessionId?: string | null;
+  ticketId?: string | null;
+  projectId?: string | null;
+  context?: string | null;
+  success?: boolean;
+  duration?: number;
+  error?: Error | null;
+}
+
 /**
  * Tool usage analytics tracker.
  * Maintains in-memory cache of tool usage within a session,
  * with periodic flushing to the database.
  */
 export class ToolUsageAnalytics {
-  constructor(dbPath) {
+  private db: Database | null = null;
+  private sessionUsage: Map<string, ToolUsageStats> = new Map();
+  private flushInterval: number = 60000;
+  private flushInProgress: boolean = false;
+  private timer: NodeJS.Timeout | null = null;
+  private initializationError: string | null = null;
+
+  constructor(dbPath: string) {
     try {
       this.db = new Database(dbPath);
 
@@ -67,7 +98,7 @@ export class ToolUsageAnalytics {
    * @param {number} options.duration - Execution time in milliseconds
    * @param {Error} options.error - Error if tool failed
    */
-  recordToolUsage(toolName, options = {}) {
+  recordToolUsage(toolName: string, options: RecordToolUsageOptions = {}): void {
     const {
       sessionId = null,
       ticketId = null,
@@ -167,7 +198,7 @@ export class ToolUsageAnalytics {
    * @param {number} total - Total number of invocations
    * @returns {string|number} Success rate or 0 if no invocations
    */
-  #calculateSuccessRate(successes, total) {
+  #calculateSuccessRate(successes: number, total: number): string | number {
     return total > 0 ? (successes / total * 100).toFixed(1) : 0;
   }
 
@@ -201,7 +232,7 @@ export class ToolUsageAnalytics {
   /**
    * Stop the periodic flush timer and flush remaining data.
    */
-  async shutdown() {
+  async shutdown(): Promise<void> {
     if (this.timer) {
       clearInterval(this.timer);
     }
@@ -229,7 +260,7 @@ export class ToolUsageAnalytics {
    * @param {string} toolName - Name of the tool
    * @returns {Object|null} Tool statistics or null if not found
    */
-  getToolStats(toolName) {
+  getToolStats(toolName: string): Record<string, unknown> | null {
     try {
       // Defensive check for database
       if (!this.db) {
@@ -291,7 +322,7 @@ export class ToolUsageAnalytics {
    * @param {string} options.context - Filter by context type
    * @returns {Object} Analytics summary
    */
-  getAnalyticsSummary(options = {}) {
+  getAnalyticsSummary(options: { minInvocations?: number; context?: string | null } = {}): Record<string, unknown> {
     const { minInvocations = 0, context = null } = options;
 
     try {
@@ -397,7 +428,7 @@ export class ToolUsageAnalytics {
    * @param {number} options.daysUnused - Include tools unused for >= N days (default: 30)
    * @returns {Array} Candidate tools for consolidation
    */
-  getConsolidationCandidates(options = {}) {
+  getConsolidationCandidates(options: { maxInvocations?: number; daysUnused?: number } = {}): Array<Record<string, unknown>> {
     const { maxInvocations = 5, daysUnused = 30 } = options;
 
     try {
@@ -458,7 +489,7 @@ export class ToolUsageAnalytics {
    * @param {string} options.format - Export format (json, csv)
    * @returns {string} Exported data
    */
-  exportAnalytics(options = {}) {
+  exportAnalytics(options: { format?: string } = {}): string {
     const { format = "json" } = options;
 
     try {
@@ -477,7 +508,8 @@ export class ToolUsageAnalytics {
         // Simple CSV export
         let csv =
           "Tool,Invocations,Successes,Errors,SuccessRate,Sessions,LastUsed\n";
-        for (const tool of summary.tools) {
+        const tools = (summary.tools as Array<Record<string, unknown>>) || [];
+        for (const tool of tools) {
           csv += `"${tool.name}",${tool.invocations},${tool.successes},${tool.errors},${tool.successRate},${tool.sessions},"${tool.lastUsed}"\n`;
         }
         return csv;

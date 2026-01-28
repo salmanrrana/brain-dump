@@ -47,12 +47,19 @@ export const FILTER_MODES = {
  * helping validate the filtering configuration.
  */
 export class ToolFilteringEngine {
+  private db: any;
+  private enabled: boolean;
+  private mode: string;
+  private maxPriority: number;
+  private alwaysShow: Set<string>;
+  private neverShow: Set<string>;
+
   /**
    * Create a tool filtering engine.
    * @param {import("better-sqlite3").Database} db - Database connection
    * @param {FilterOptions} [options] - Filtering options
    */
-  constructor(db, options = {}) {
+  constructor(db: any, options: Record<string, any> = {}) {
     this.db = db;
     this.enabled = options.enabled !== false;
     this.mode = options.mode || "default";
@@ -72,7 +79,7 @@ export class ToolFilteringEngine {
    * @param {Object} options - Context detection options
    * @returns {Object} Active context
    */
-  _getContext(options = {}) {
+  _getContext(options: Record<string, any> = {}): Record<string, unknown> {
     try {
       return detectContext(this.db, options);
     } catch (err) {
@@ -94,7 +101,7 @@ export class ToolFilteringEngine {
    * @param {boolean} [options.shadowMode] - If true, don't enforce filtering
    * @returns {Object} Filtering result
    */
-  filterTools(options = {}) {
+  filterTools(options: { contextType?: string; ticketId?: string; sessionId?: string; shadowMode?: boolean } = {}): Record<string, unknown> {
     const {
       contextType,
       ticketId,

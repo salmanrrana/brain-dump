@@ -28,6 +28,17 @@ export const LOG_PRIORITY: Record<LogLevel, number> = {
 };
 
 /**
+ * Get a message string from any error value.
+ * @param error - Error value (Error, string, unknown, etc)
+ * @returns Error message string
+ */
+export function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return String(error);
+}
+
+/**
  * Format a log entry with timestamp, level, source, and optional error details.
  * @param level - Log level (DEBUG, INFO, WARN, ERROR)
  * @param source - Source identifier (e.g., "mcp-server")
@@ -117,10 +128,10 @@ export function shouldLog(level: LogLevel): boolean {
 
 /** Logger interface */
 export interface Logger {
-  info(message: string, error?: Error): void;
-  warn(message: string, error?: Error): void;
-  error(message: string, error?: Error): void;
-  debug(message: string, error?: Error): void;
+  info(message: string, error?: Error | Record<string, unknown> | unknown): void;
+  warn(message: string, error?: Error | Record<string, unknown> | unknown): void;
+  error(message: string, error?: Error | Record<string, unknown> | unknown): void;
+  debug(message: string, error?: Error | Record<string, unknown> | unknown): void;
 }
 
 /**
@@ -128,26 +139,32 @@ export interface Logger {
  * All methods write to stderr (for STDIO transport) and to log files.
  */
 export const log: Logger = {
-  info: (msg: string): void => {
+  info: (msg: string, err?: Error | Record<string, unknown> | unknown): void => {
     if (!shouldLog("INFO")) return;
     console.error(`[brain-dump] ${msg}`);
-    writeToLogFile(LOG_FILE, formatLogEntry("INFO", "mcp-server", msg));
+    const error = err instanceof Error ? err : undefined;
+    writeToLogFile(LOG_FILE, formatLogEntry("INFO", "mcp-server", msg, error));
   },
-  warn: (msg: string, err?: Error): void => {
+  warn: (msg: string, err?: Error | Record<string, unknown> | unknown): void => {
     if (!shouldLog("WARN")) return;
-    console.error(`[brain-dump] WARN: ${msg}`, err?.message || "");
-    writeToLogFile(LOG_FILE, formatLogEntry("WARN", "mcp-server", msg, err));
+    const errorMsg = err instanceof Error ? err.message : (typeof err === 'object' && err ? JSON.stringify(err) : String(err));
+    console.error(`[brain-dump] WARN: ${msg}`, errorMsg);
+    const error = err instanceof Error ? err : undefined;
+    writeToLogFile(LOG_FILE, formatLogEntry("WARN", "mcp-server", msg, error));
   },
-  error: (msg: string, err?: Error): void => {
+  error: (msg: string, err?: Error | Record<string, unknown> | unknown): void => {
     if (!shouldLog("ERROR")) return;
-    console.error(`[brain-dump] ERROR: ${msg}`, err?.message || "");
-    const entry = formatLogEntry("ERROR", "mcp-server", msg, err);
+    const errorMsg = err instanceof Error ? err.message : (typeof err === 'object' && err ? JSON.stringify(err) : String(err));
+    console.error(`[brain-dump] ERROR: ${msg}`, errorMsg);
+    const error = err instanceof Error ? err : undefined;
+    const entry = formatLogEntry("ERROR", "mcp-server", msg, error);
     writeToLogFile(LOG_FILE, entry);
     writeToLogFile(ERROR_LOG_FILE, entry);
   },
-  debug: (msg: string): void => {
+  debug: (msg: string, err?: Error | Record<string, unknown> | unknown): void => {
     if (!shouldLog("DEBUG")) return;
     console.error(`[brain-dump] DEBUG: ${msg}`);
-    writeToLogFile(LOG_FILE, formatLogEntry("DEBUG", "mcp-server", msg));
+    const error = err instanceof Error ? err : undefined;
+    writeToLogFile(LOG_FILE, formatLogEntry("DEBUG", "mcp-server", msg, error));
   },
 };

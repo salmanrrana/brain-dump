@@ -47,7 +47,7 @@ import { unlinkSync } from "fs";
 // =============================================================================
 // DATABASE INITIALIZATION
 // =============================================================================
-let db: Database.Database | null;
+let db: Database | null;
 let actualDbPath: string;
 
 try {
