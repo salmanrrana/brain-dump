@@ -39,6 +39,7 @@ import { registerWorktreeTools } from "./tools/worktrees.js";
 import { registerContextTools } from "./tools/context.js";
 import { registerToolFilteringTools } from "./tools/tool-filtering.js";
 import { registerShortcutTools } from "./tools/shortcuts.ts";
+import { registerAnalyticsTools } from "./tools/analytics.js";
 
 import { unlinkSync } from "fs";
 
@@ -121,6 +122,7 @@ registerWorktreeTools(server, db);
 registerContextTools(server, db);
 registerToolFilteringTools(server, db);
 registerShortcutTools(server, db);
+registerAnalyticsTools(server, db);
 
 // =============================================================================
 // CONNECT AND START
