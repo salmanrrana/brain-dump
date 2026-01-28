@@ -211,7 +211,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
             contextFile?: string;
           } = {
             type: "success",
-            message: result.message,
+            message: result.message || "Ralph launched successfully",
           };
           if (launchMethod) notification.launchMethod = launchMethod;
           if (contextFile) notification.contextFile = contextFile;
@@ -221,7 +221,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
         } else {
           setRalphNotification({
             type: "error",
-            message: result.message,
+            message: result.message || "Failed to launch Ralph",
           });
         }
         // Auto-hide is handled by useAutoClearState hook

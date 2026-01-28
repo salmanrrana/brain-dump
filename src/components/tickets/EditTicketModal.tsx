@@ -410,12 +410,12 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
           }
 
           if (result.success) {
-            showToast("success", result.message);
+            showToast("success", result.message || "Successfully launched");
             setStatus("in_progress");
             onSuccess?.();
             onClose();
           } else {
-            showToast("error", result.message);
+            showToast("error", result.message || "Launch failed");
           }
         }
         // ralph-docker is disabled in LaunchActions, so no handler needed

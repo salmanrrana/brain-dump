@@ -401,10 +401,10 @@ function TicketDetailPage() {
           }
 
           if (result.success) {
-            showToast("success", result.message);
+            showToast("success", result.message || "Successfully launched");
             void refetch();
           } else {
-            showToast("error", result.message);
+            showToast("error", result.message || "Launch failed");
           }
         }
         // ralph-docker is disabled in LaunchActions, so no handler needed

@@ -568,14 +568,14 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
           form.setFieldValue("status", "in_progress");
           setStartWorkNotification({
             type: "success",
-            message: result.message,
+            message: result.message || "Work started successfully",
           });
           setTimeout(() => onUpdate(), 500);
         } else {
-          showToast("error", result.message);
+          showToast("error", result.message || "Failed to start work");
           setStartWorkNotification({
             type: "error",
-            message: result.message,
+            message: result.message || "Failed to start work",
           });
         }
         // Auto-hide is handled by useAutoClearState hook

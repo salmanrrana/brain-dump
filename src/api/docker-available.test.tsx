@@ -24,7 +24,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useDockerAvailability } from "../lib/hooks";
 import type { DockerStatus } from "../lib/hooks";
-import { generateRalphScript } from "./ralph";
+import { generateRalphScript } from "../lib/docker-sandbox";
 import { tmpdir } from "os";
 import { join } from "path";
 import { mkdirSync, rmSync, existsSync, writeFileSync } from "fs";

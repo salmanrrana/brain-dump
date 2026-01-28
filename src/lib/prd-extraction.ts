@@ -7,6 +7,7 @@
 
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
+import { safeJsonParse } from "./utils";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Type Definitions
@@ -658,4 +659,92 @@ export function getProjectContext(projectPath: string): ProjectContext {
     console.error("[prd-extraction] Failed to read CLAUDE.md:", error);
     return defaultContext;
   }
+}
+
+/**
+ * Ticket data required for PRD generation.
+ */
+export interface TicketData {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string | null;
+  tags: string | null;
+  subtasks: string | null;
+}
+
+/**
+ * Generate enhanced PRD document from tickets.
+ * Extracts structured content from ticket descriptions using extraction utilities.
+ */
+export function generateEnhancedPRD(
+  projectName: string,
+  projectPath: string,
+  ticketList: TicketData[],
+  epicTitle?: string,
+  epicDescription?: string
+): EnhancedPRDDocument {
+  const projectContext = getProjectContext(projectPath);
+
+  const userStories: EnhancedPRDItem[] = ticketList.map((ticket) => {
+    const tags = safeJsonParse<string[]>(ticket.tags, []);
+    const description = ticket.description;
+
+    const overview = extractOverview(description);
+    const types = extractTypeDefinitions(description);
+    const designDecisions = extractDesignDecisions(description);
+    const implementationGuide = extractImplementationGuide(description);
+    const references = extractReferences(description);
+
+    let acceptanceCriteria = extractAcceptanceCriteria(description);
+    if (acceptanceCriteria.length === 0) {
+      const subtasks = safeJsonParse<{ text: string }[]>(ticket.subtasks, []);
+      if (subtasks.length > 0) {
+        acceptanceCriteria = subtasks.map((st) => st.text || String(st));
+      }
+    }
+
+    if (acceptanceCriteria.length === 0 && description) {
+      acceptanceCriteria = ["Implement as described", "Verify functionality works as expected"];
+    }
+
+    return {
+      id: ticket.id,
+      title: ticket.title,
+      passes: ticket.status === "done",
+      overview,
+      types,
+      designDecisions,
+      implementationGuide,
+      acceptanceCriteria,
+      references,
+      description,
+      priority: ticket.priority,
+      tags,
+    };
+  });
+
+  const result: EnhancedPRDDocument = {
+    projectName,
+    projectPath,
+    testingRequirements: [
+      "Tests must validate user-facing behavior, not implementation details",
+      "Focus on what users actually do - integration tests over unit tests",
+      "Don't mock excessively - test real behavior where possible",
+      "Coverage metrics are meaningless - user flow coverage is everything",
+    ],
+    userStories,
+    projectContext,
+    generatedAt: new Date().toISOString(),
+  };
+
+  if (epicTitle !== undefined) {
+    result.epicTitle = epicTitle;
+  }
+  if (epicDescription !== undefined) {
+    result.epicDescription = epicDescription;
+  }
+
+  return result;
 }
