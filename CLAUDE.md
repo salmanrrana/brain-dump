@@ -2,9 +2,61 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Quick Navigation
+
+**Getting Started**: [Commands](#commands) • [Architecture](#architecture) • [Quick Decisions](#when-should-i)
+**Development**: [Server Functions](#server-functions-pattern) • [DO/DON'T Guidelines](#dodont-guidelines) • [End-to-End Features](#end-to-end-feature-implementation-critical)
+**Workflows**: [Ralph](#ralph-workflow) • [Quality Pipeline](#universal-quality-workflow) • [Git Worktrees](#git-worktree-workflow)
+**Troubleshooting**: [Common Issues](#troubleshooting-by-symptom) • [Verification](#verification-checklist)
+**Deep Dives**: [Architecture](docs/architecture.md) • [Workflows](docs/workflows.md) • [Testing](docs/testing.md) • [Glossary](docs/glossary.md)
+
+---
+
 ## Project Overview
 
 Brain Dump is a local-first kanban task manager designed for AI-assisted development workflows. It integrates with Claude Code to provide ticket context when starting work, and includes "Ralph" - an autonomous agent mode that iterates through backlogs.
+
+**Key features**:
+
+- Local SQLite database with full-text search
+- MCP server for Claude Code integration
+- Automated quality workflow with AI code review
+- Git worktree support for parallel epic development
+- Enterprise conversation logging for compliance
+
+**→ [Full Architecture Guide](docs/architecture.md)** - Tech stack, data flow, component patterns
+
+---
+
+## When Should I...?
+
+### Write a detailed spec?
+
+- ✅ State machines or complex workflows → [Use spec template](plans/spec-template.md)
+- ✅ New MCP tools → See [MCP Tool Implementation](#mcp-tool-implementation)
+- ✅ Database schema changes → See [Database Schema](#database-schema)
+- ❌ Simple bug fixes → Just fix and test
+
+### Use worktrees vs branches?
+
+- ✅ Parallel work on multiple epics → [Worktree Mode](#git-worktree-workflow)
+- ✅ Want complete isolation → [Enable worktree support](#enabling-worktree-support)
+- ❌ Linear workflow → [Branch Mode](#branch-mode-default) (simpler)
+
+### Run /review?
+
+- ✅ After writing code → [Automatic Code Review](#automatic-code-review)
+- ✅ Before completing ticket → [Quality Workflow](#universal-quality-workflow)
+- ❌ Documentation-only changes
+- ❌ Configuration file changes
+
+### Migrate JS to TypeScript?
+
+- ✅ **ALWAYS** when editing `.js`/`.jsx` files → [Migration Guide](#typescript-requirements)
+- ✅ All new files must be `.ts`/`.tsx`
+- ❌ Never create new `.js` files
+
+---
 
 ## Commands
 
@@ -33,7 +85,14 @@ pnpm brain-dump backup --list # List available backups
 pnpm brain-dump restore       # Restore from backup
 pnpm brain-dump check         # Quick integrity check
 pnpm brain-dump check --full  # Full health check
+pnpm brain-dump cleanup       # List stale worktrees (dry-run)
+pnpm brain-dump cleanup --force # Remove stale worktrees
+pnpm brain-dump doctor        # Diagnose configuration issues
 ```
+
+**See also**: [Full command reference](docs/workflows.md#cli-commands)
+
+---
 
 ## Architecture
 
@@ -44,6 +103,8 @@ pnpm brain-dump check --full  # Full health check
 - **Styling**: Tailwind CSS v4
 - **State**: TanStack Query for server state
 - **Drag & Drop**: @dnd-kit
+
+**→ [Architecture Deep Dive](docs/architecture.md)** - Data flow diagrams, component patterns, tech decisions
 
 ### Key Directories
 
@@ -56,7 +117,7 @@ pnpm brain-dump check --full  # Full health check
 
 ### Database Schema
 
-Defined in `src/lib/schema.ts` with Drizzle ORM:
+Defined in [src/lib/schema.ts](src/lib/schema.ts) with Drizzle ORM:
 
 - `projects` - Links to filesystem paths
 - `epics` - Groups related tickets within a project
@@ -66,9 +127,14 @@ Defined in `src/lib/schema.ts` with Drizzle ORM:
 
 Full-text search via SQLite FTS5 on tickets (title, description, tags).
 
+**Real examples**:
+
+- ✅ Good query: [src/api/tickets.ts:45-67](src/api/tickets.ts:45-67) - Type-safe with Drizzle
+- ✅ Transaction: [src/api/epics.ts:123-145](src/api/epics.ts:123-145) - Multi-table update
+
 ### Data Storage (XDG Compliance)
 
-Cross-platform paths defined in `src/lib/xdg.ts`:
+Cross-platform paths defined in [src/lib/xdg.ts](src/lib/xdg.ts):
 
 - **Linux**: `~/.local/share/brain-dump/` (data), `~/.local/state/brain-dump/` (logs, backups)
 - **macOS**: `~/Library/Application Support/brain-dump/`
@@ -78,13 +144,17 @@ Legacy migration from `~/.brain-dump/` is automatic on first run.
 
 ### MCP Server
 
-The `mcp-server/index.js` is a standalone Node.js MCP server that provides tools for Claude to manage tickets from any project. It connects to the same SQLite database and includes:
+The [mcp-server/index.js](mcp-server/index.js) is a standalone Node.js MCP server that provides tools for Claude to manage tickets from any project. It connects to the same SQLite database and includes:
 
 - Project/ticket/epic CRUD operations
 - Git integration (branch creation, commit linking)
 - Database health monitoring
 
-### Ralph Workflow
+**→ [MCP Tool Implementation Guide](#mcp-tool-implementation)** - How to add new MCP tools
+
+---
+
+## Ralph Workflow
 
 Ralph is an autonomous agent mode that:
 
@@ -93,18 +163,28 @@ Ralph is an autonomous agent mode that:
 3. Implements features, runs tests, updates status via MCP
 4. Continues until all tasks pass or max iterations reached
 
-### Git Worktree Workflow
+**→ [Full Ralph Documentation](docs/workflows.md#ralph-workflow)** - State machines, hooks, telemetry
+
+**See also**:
+
+- [Universal Quality Workflow](#universal-quality-workflow) - How Ralph enforces quality
+- [Hook-Based State Enforcement](#hook-based-state-enforcement) - How hooks guide Ralph
+- [Telemetry Hooks](#telemetry-hooks) - How work is tracked
+
+---
+
+## Git Worktree Workflow
 
 Brain Dump supports two isolation modes for epic work, allowing you to choose between simplicity and parallel development capabilities.
 
-#### Branch Mode (Default)
+### Branch Mode (Default)
 
 - Work happens in the main repository directory
 - Uses standard git branching workflow
 - Simple but requires clean working tree before switching tasks
 - No additional setup needed
 
-#### Worktree Mode (Isolated)
+### Worktree Mode (Isolated)
 
 - Creates separate directory for each epic at a sibling location
 - Enables parallel AI sessions on different epics
@@ -117,7 +197,7 @@ Brain Dump supports two isolation modes for epic work, allowing you to choose be
 - Subfolder: `{projectPath}/.worktrees/epic-{shortId}-{slug}`
 - Custom: User-specified base path
 
-#### Enabling Worktree Support
+### Enabling Worktree Support
 
 Worktree support is opt-in. Enable it via:
 
@@ -126,7 +206,9 @@ Worktree support is opt-in. Enable it via:
 
 When enabled, the StartEpicModal appears when starting work on an epic, letting you choose between branch and worktree modes.
 
-#### Detecting Worktree Context
+**→ [Full Worktree Guide](docs/workflows.md#git-worktree-workflow)** - Lifecycle, cleanup, troubleshooting
+
+### Detecting Worktree Context
 
 When running in a worktree, `.claude/ralph-state.json` includes additional fields:
 
@@ -147,60 +229,9 @@ When running in a worktree, `.claude/ralph-state.json` includes additional field
 
 Hooks use `mainRepoPath` to locate the PRD file and spawn next tickets in the main repo context.
 
-#### Worktree Lifecycle
+**See also**: [Hook-Based State Enforcement](#hook-based-state-enforcement)
 
-1. **Creation**: User selects "Worktree" in StartEpicModal (or it's the project default)
-2. **`start_epic_work`** creates worktree at sibling directory with epic branch
-3. **Work proceeds** normally within worktree - commits, PRs, reviews
-4. **After PR merge**, worktree becomes "stale" (status tracked in `epic_workflow_state`)
-5. **Cleanup** via `brain-dump cleanup` or lazy cleanup on next epic start
-
-#### Worktree Cleanup
-
-Stale worktrees (merged PRs, completed epics) can be cleaned up:
-
-```bash
-# List stale worktrees (dry-run)
-brain-dump cleanup
-
-# Remove stale worktrees
-brain-dump cleanup --force
-```
-
-Or use the MCP tool:
-
-```
-cleanup_worktrees({ projectId: "...", dryRun: false })
-```
-
-**Safety rules**:
-
-- Default is dry-run (preview only)
-- Never removes worktrees with uncommitted changes unless forced
-- Only removes if epic is done AND PR is merged
-
-#### Worktree Troubleshooting
-
-**"Worktree limit reached"**
-
-- Default limit is 5 concurrent worktrees per project
-- Run `brain-dump cleanup --force` to remove stale worktrees
-- Or increase limit in project settings
-
-**"Path already exists"**
-
-- The worktree directory already exists
-- Remove it manually or use a different epic
-
-**Hooks not working in worktree**
-
-- Ensure `.claude/ralph-state.json` includes `mainRepoPath`
-- Hooks should automatically detect worktree context
-
-**Finding which directory to work in**
-
-- `start_ticket_work` response includes `projectPath` pointing to the worktree
-- Check `epic_workflow_state.worktree_path` in database
+---
 
 ## Universal Quality Workflow
 
@@ -210,8 +241,16 @@ Brain Dump implements a structured quality workflow (inspired by Dillon Mulroy's
 
 The workflow enforces a clear progression through quality gates:
 
-```
-backlog → ready → in_progress → ai_review → human_review → done
+```mermaid
+graph LR
+    A[backlog] --> B[ready]
+    B --> C[in_progress]
+    C --> D[ai_review]
+    D --> E[human_review]
+    E --> F[done]
+
+    D -->|critical findings| C
+    E -->|rejected| C
 ```
 
 - **backlog**: Not yet ready to work on
@@ -221,47 +260,47 @@ backlog → ready → in_progress → ai_review → human_review → done
 - **human_review**: Demo approval by human reviewer
 - **done**: Complete and approved
 
+**→ [Full Quality Workflow Guide](docs/workflows.md#universal-quality-workflow)** - Detailed steps, skills, troubleshooting
+
 ### Key Workflow Steps
 
-1. **Start Work** (`start_ticket_work`)
-   - Creates a git branch
-   - Sets ticket status to `in_progress`
-   - Telemetry session begins
+```mermaid
+sequenceDiagram
+    participant User
+    participant Claude
+    participant Tests
+    participant ReviewAgents
+    participant Human
 
-2. **Implementation**
-   - AI writes code, runs tests, makes commits
-   - Claude tasks show micro-plans (captured automatically)
+    User->>Claude: start_ticket_work
+    Claude->>Claude: Implement feature
+    Claude->>Tests: pnpm check
+    Tests-->>Claude: ✅ Pass
+    Claude->>Claude: complete_ticket_work
+    Claude->>ReviewAgents: /review-ticket
+    ReviewAgents-->>Claude: Findings
+    Claude->>Claude: Fix critical issues
+    Claude->>Claude: generate_demo_script
+    Human->>Human: Run demo steps
+    Human->>Claude: submit_demo_feedback (approved)
+    Claude->>Claude: Ticket → done
+```
 
-3. **Complete Implementation** (`complete_ticket_work`)
-   - Validation must pass: `pnpm type-check`, `pnpm lint`, `pnpm test`
-   - Ticket moves to `ai_review`
-   - Work summary is added to ticket comments
+1. **Start Work** (`start_ticket_work`) - Creates git branch, sets status to `in_progress`
+2. **Implementation** - AI writes code, runs tests, makes commits
+3. **Complete Implementation** (`complete_ticket_work`) - Validation passes, moves to `ai_review`
+4. **AI Review** - Three agents run in parallel, submit findings
+5. **Generate Demo** (`generate_demo_script`) - Creates manual test instructions
+6. **Human Review** - Human approves/rejects with feedback
+7. **Reconcile Learnings** (`reconcile_learnings`) - Extract and apply learnings to docs
 
-4. **AI Review**
-   - Three review agents run in parallel: `code-reviewer`, `silent-failure-hunter`, `code-simplifier`
-   - Findings are submitted via `submit_review_finding`
-   - Critical/major findings must be fixed before proceeding
-   - Review iteration counter increments
+**See also**:
 
-5. **Generate Demo** (`generate_demo_script`)
-   - Only allowed after all critical/major findings are fixed
-   - Generates step-by-step manual test instructions
-   - Ticket moves to `human_review`
-
-6. **Human Review** (Manual)
-   - Human reviewer (or user) runs through demo steps
-   - Provides feedback via `submit_demo_feedback`
-   - If approved: ticket moves to `done`
-   - If rejected: stays in `human_review` with feedback for AI to address
-
-7. **Reconcile Learnings** (`reconcile_learnings`)
-   - After completion, learnings from the ticket are extracted
-   - Project documentation (CLAUDE.md, specs) can be updated automatically
-   - Ensures continuous improvement of the workflow itself
+- [Automatic Code Review](#automatic-code-review) - How `/review` works
+- [Testing Philosophy](#testing-philosophy-kent-c-dodds) - What to test
+- [Verification Checklist](#verification-checklist) - Pre-completion checks
 
 ### Skills (Workflow Shortcuts)
-
-These skills automate common workflow operations:
 
 - **`/next-task`** - Intelligently select the next ticket considering priority and dependencies
 - **`/review-ticket`** - Run all AI review agents on current work
@@ -269,28 +308,7 @@ These skills automate common workflow operations:
 - **`/demo`** - Generate demo script after AI review passes
 - **`/reconcile-learnings`** - Extract and apply learnings to project docs
 
-### Telemetry & Observability
-
-Every workflow phase creates ticket comments for audit trails:
-
-- "Started work on ticket. Branch: {branch}"
-- "Starting AI review (iteration 1)"
-- "Found 2 issues: 1 critical, 1 major"
-- "Demo script generated with 5 steps"
-- "Ticket complete. Human approved."
-
-Plus background telemetry capture:
-
-- Tool usage (which MCP tools, how long)
-- Token counts
-- Error rates
-- Time spent in each phase
-
-View telemetry in ticket detail → "Telemetry" tab.
-
 ### Multi-Environment Support
-
-The same workflow works in all environments:
 
 | Environment | AI Review | Hook Enforcement              | Telemetry          |
 | ----------- | --------- | ----------------------------- | ------------------ |
@@ -299,50 +317,17 @@ The same workflow works in all environments:
 | OpenCode    | ✅ Full   | ❌ MCP enforces preconditions | ✅ Plugin captures |
 | VS Code     | ✅ Full   | ❌ MCP enforces preconditions | ✅ MCP captures    |
 
-### Installation
+**Installation**: Run `./scripts/install.sh` to configure your environment.
 
-To enable the workflow for your environment:
+**See also**: [Hook-Based State Enforcement](#hook-based-state-enforcement)
 
-```bash
-./scripts/install.sh
-```
+---
 
-The script detects your installed environments and configures:
-
-- Hooks (Claude Code, Cursor)
-- Plugins (OpenCode)
-- MCP configs (VS Code)
-
-To verify all environments are configured:
-
-```bash
-brain-dump doctor
-```
-
-### Troubleshooting
-
-**"Cannot proceed - open critical findings"**
-
-- You tried to generate a demo script while critical issues remain
-- Run `/review-ticket` again, fix any remaining findings
-
-**"Ticket must be in ai_review to submit findings"**
-
-- You tried to submit a finding for a ticket not in AI review
-- Call `complete_ticket_work` first to move to `ai_review`
-
-**"Cannot start ticket - previous ticket still in review"**
-
-- A previous ticket is waiting for human feedback
-- Review and approve/reject it before starting a new ticket
-
-Run `brain-dump doctor` to diagnose configuration issues.
-
-### Hook-Based State Enforcement
+## Hook-Based State Enforcement
 
 This project uses Claude Code hooks to enforce Ralph's workflow. Hooks provide guidance through feedback loops rather than just blocking actions.
 
-#### How It Works
+### How It Works
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -360,57 +345,16 @@ This project uses Claude Code hooks to enforce Ralph's workflow. Hooks provide g
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-#### Hook Scripts
+### Hook Scripts
 
 | Hook                          | File        | Enforces                                                                      |
 | ----------------------------- | ----------- | ----------------------------------------------------------------------------- |
 | enforce-state-before-write.sh | PreToolUse  | Must be in 'implementing', 'testing', or 'committing' state before Write/Edit |
 | record-state-change.sh        | PostToolUse | Logs state changes for debugging/audit                                        |
 
-#### State File
+**→ [Full Hook Documentation](docs/workflows.md#hook-based-state-enforcement)** - State file format, cross-environment support
 
-When a Ralph session is active, `.claude/ralph-state.json` contains:
-
-```json
-{
-  "sessionId": "abc-123",
-  "ticketId": "def-456",
-  "currentState": "implementing",
-  "stateHistory": ["idle", "analyzing", "implementing"],
-  "startedAt": "2026-01-16T10:00:00Z",
-  "updatedAt": "2026-01-16T10:15:00Z"
-}
-```
-
-This file is:
-
-- Created by `create_ralph_session`
-- Updated by `update_session_state`
-- Removed by `complete_ralph_session`
-
-#### When NOT in Ralph Mode
-
-When no `.claude/ralph-state.json` exists, hooks allow all operations. This ensures normal Claude Code usage is unaffected.
-
-#### Cross-Environment Support
-
-Brain Dump supports multiple development environments:
-
-| Environment   | State Tracking | Hook Enforcement | Notes                                       |
-| ------------- | -------------- | ---------------- | ------------------------------------------- |
-| Claude Code   | ✅ Full        | ✅ Full          | Hooks guide behavior through feedback       |
-| OpenCode      | ✅ Full        | ❌ None          | State tracked via MCP, guidance via prompts |
-| VS Code + MCP | ✅ Full        | ❌ None          | State tracked via MCP, guidance via prompts |
-| Cursor        | ✅ Full        | ❌ None          | State tracked via MCP, guidance via prompts |
-
-**How it works:**
-
-- MCP tools (session creation, state updates) work identically in ALL environments
-- The state file (`.claude/ralph-state.json`) is written by MCP regardless of client
-- Hook enforcement is Claude Code specific
-- In non-Claude environments, proper state transitions rely on prompt-based guidance
-
-#### If You See a STATE ENFORCEMENT Message
+### If You See a STATE ENFORCEMENT Message
 
 1. **Read the message** - it contains the exact MCP tool call needed
 2. **Call the specified tool** - e.g., `update_session_state({ sessionId: "...", state: "implementing" })`
@@ -418,208 +362,15 @@ Brain Dump supports multiple development environments:
 
 Do NOT try to work around state enforcement - it ensures work is properly tracked in the Brain Dump UI.
 
-#### Automated PR Workflow
+**See also**: [Ralph Workflow](#ralph-workflow)
 
-The following hooks provide an automated workflow for code review and PR creation:
-
-| Hook              | File                            | Purpose                                                    |
-| ----------------- | ------------------------------- | ---------------------------------------------------------- |
-| Auto-PR creation  | `create-pr-on-ticket-start.sh`  | Creates draft PR immediately when `start_ticket_work` runs |
-| Commit tracking   | `link-commit-to-ticket.sh`      | Outputs commit/PR link commands after each git commit      |
-| Pre-push review   | `enforce-review-before-push.sh` | Blocks `git push`/`gh pr create` until review is completed |
-| Post-ticket spawn | `spawn-next-ticket.sh`          | Spawns next ticket after `complete_ticket_work`            |
-| Post-PR spawn     | `spawn-after-pr.sh`             | Spawns next ticket after successful PR creation            |
-
-**Auto-PR Creation**: When `start_ticket_work` is called, the hook automatically:
-
-1. Creates an empty WIP commit on the new branch
-2. Pushes the branch to remote
-3. Creates a draft PR with the ticket title
-4. The PR is linked to the ticket for immediate tracking
-
-**Commit Tracking**: After each `git commit`, the hook outputs:
-
-1. The commit hash and message
-2. MCP commands to link the commit to the active ticket
-3. MCP commands to link the PR if one exists for the branch
-
-**PR Status Sync**: When `link_pr_to_ticket` is called, the MCP tool automatically syncs PR statuses for all tickets in the project. This updates any PRs that have been merged or closed since they were linked.
-
-**To enable these hooks**, run `scripts/setup-claude-code.sh` which installs hooks globally to `~/.claude/hooks/` and configures `~/.claude/settings.json`:
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash(git push:*)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/enforce-review-before-push.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash(gh pr create:*)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/enforce-review-before-push.sh"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "mcp__brain-dump__start_ticket_work",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/create-pr-on-ticket-start.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash(git commit:*)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/link-commit-to-ticket.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash(gh pr create:*)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/spawn-after-pr.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-**Note:** Using `$HOME/.claude/hooks/` (not `$CLAUDE_PROJECT_DIR`) ensures hooks work from any directory, not just within the brain-dump project.
-
-#### Auto-Spawn Next Ticket (Experimental)
-
-When enabled, completing a ticket or creating a PR can automatically spawn a new terminal window with Claude ready to work on the next suggested ticket. This provides:
-
-- **Automatic context reset** - Fresh Claude session for each ticket
-- **Seamless workflow** - No manual context clearing needed
-- **Pipeline feel** - Tickets flow naturally from one to the next
-
-**To enable:**
-
-```bash
-export AUTO_SPAWN_NEXT_TICKET=1
-```
-
-The hooks will:
-
-1. Parse the next ticket ID from `complete_ticket_work` output or PRD file
-2. Spawn a new terminal (Ghostty, iTerm2, or Terminal.app on macOS; Ghostty, Kitty, or GNOME Terminal on Linux)
-3. Start Claude with a prompt to begin the next ticket
-
-**Note:** This is opt-in because spawning new windows can be surprising if unexpected.
-
-#### Telemetry Hooks
-
-Claude Code telemetry hooks automatically capture AI work sessions for observability and audit trails. These hooks work silently in the background without affecting Claude's workflow.
-
-**Telemetry Hooks:**
-
-| Hook                    | Type               | Purpose                                             |
-| ----------------------- | ------------------ | --------------------------------------------------- |
-| start-telemetry-session | SessionStart       | Creates telemetry session when Claude starts        |
-| end-telemetry-session   | Stop               | Flushes queue and ends telemetry when Claude exits  |
-| log-tool-start          | PreToolUse         | Records tool start with parameters                  |
-| log-tool-end            | PostToolUse        | Records tool completion with duration (success)     |
-| log-tool-failure        | PostToolUseFailure | Records tool completion with error details (failed) |
-| log-prompt              | UserPromptSubmit   | Records user prompts submitted to Claude            |
-
-**How it works:**
-
-1. When you start a Claude Code session, `start-telemetry-session` detects the active ticket from `.claude/ralph-state.json`
-2. You call `start_telemetry_session({ ticketId })` MCP tool (hook prompts you)
-3. All subsequent tool calls are captured: PreToolUse records start event, PostToolUse/PostToolUseFailure record end
-4. Events are written to `.claude/telemetry-queue.jsonl` (JSONL format for streaming)
-5. Correlation IDs pair start/end events for duration tracking
-6. When Claude exits, `end-telemetry-session` prompts to call `end_telemetry_session()` to finalize
-7. Events are flushed to database for analytics and audit trails
-
-**Queue files:**
-
-- `.claude/telemetry-queue.jsonl` - Events pending flush to database
-- `.claude/telemetry-session.json` - Current session metadata
-- `.claude/tool-correlation-*.txt` - Correlation IDs for pairing start/end events (cleanup automatically)
-- `.claude/telemetry.log` - Debug log of hook activity
-
-**Privacy:**
-
-- Telemetry hooks don't capture file contents (only parameters summary for tools like Read)
-- Prompts are recorded but can be hashed for privacy (`redact: true` option)
-- All telemetry data stays in the database (no external transmission)
-
-**To enable telemetry:**
-
-Run `scripts/setup-claude-code.sh` or `~/.claude/hooks/merge-telemetry-hooks.sh` to configure hooks in `.claude/settings.json`.
-
-## Specifications
-
-### Spec Template
-
-For complex features, create detailed specs following the 6-layer pattern in `plans/spec-template.md`:
-
-1. **Overview** - WHY the feature exists (not just WHAT it does)
-2. **Reference Tables** - Configuration options, states, error codes
-3. **Type Definitions** - Complete TypeScript interfaces with JSDoc
-4. **State Machine** - Mermaid diagrams for stateful features
-5. **Design Decisions** - "Why X vs Y" with numbered rationale
-6. **Implementation Guide** - Step-by-step with copy-paste code
-
-### When to Write a Spec
-
-Create a detailed spec (using `plans/spec-template.md`) for:
-
-- Features with state machines or complex workflows
-- New MCP tools
-- Database schema changes
-- Features touching multiple components
-
-### Spec Location
-
-- Template: `plans/spec-template.md`
-- Specs: `plans/specs/{ticket-id}-{feature-name}.md`
-- Example: `plans/specs/7.11-state-machine-observability.md`
-
-### Key Principle
-
-> **"Explicit over Implicit"**: Every decision that could be made is made upfront, documented, and explained. Claude becomes an executor of a well-defined plan rather than an improviser working from vague requirements.
-
-## Server Functions Pattern
-
-API functions in `src/api/` use TanStack Start's `createServerFn`:
-
-```typescript
-import { createServerFn } from "@tanstack/react-start/server";
-
-export const getTickets = createServerFn().handler(async () => {
-  return db.select().from(tickets).all();
-});
-```
-
-These are called from React components via TanStack Query.
+---
 
 ## End-to-End Feature Implementation (CRITICAL)
 
 **LEARNING FROM PAST BUGS: Features must be implemented from UI to backend in a complete, connected flow.**
 
-When implementing ANY feature that involves user interaction, you MUST verify the ENTIRE data flow works end-to-end:
+When implementing ANY feature that involves user interaction, you MUST verify the ENTIRE data flow works end-to-end.
 
 ### The Anti-Pattern (What Went Wrong)
 
@@ -636,34 +387,27 @@ Result: Users could select "Worktree" in the UI, but Ralph would always launch i
 
 For EVERY feature, verify these layers are connected:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  1. UI Layer (React)                                            │
-│     - Component renders correctly                               │
-│     - User interaction triggers mutation/action                 │
-│     - Mutation calls correct API endpoint with correct params   │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│  2. API Layer (Server Functions)                                │
-│     - Accepts the parameter from UI                             │
-│     - Reads relevant data from database (including new fields!) │
-│     - Applies business logic based on settings/preferences      │
-│     - Returns meaningful response                               │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│  3. Database Layer (Schema + Queries)                           │
-│     - Schema defines the field                                  │
-│     - Queries actually SELECT the field                         │
-│     - Updates properly SET the field                            │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│  4. Side Effects (Files, Git, Terminal, External Services)      │
-│     - Code that reads the setting actually USES it              │
-│     - Behavior changes based on the setting value               │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    A[1. UI Layer] -->|mutation call| B[2. API Layer]
+    B -->|SELECT query| C[3. Database Layer]
+    C -->|field value| D[4. Side Effects]
+
+    A1[Component renders] --> A
+    A2[User clicks/types] --> A
+    A3[Mutation with params] --> A
+
+    B1[Accept parameter] --> B
+    B2[Read DB field] --> B
+    B3[Apply logic] --> B
+
+    C1[Schema defines field] --> C
+    C2[Query SELECTs field] --> C
+    C3[Update SETs field] --> C
+
+    D1[Read setting] --> D
+    D2[Branch on value] --> D
+    D3[Behavior changes] --> D
 ```
 
 ### Verification Checklist for Features
@@ -689,6 +433,63 @@ Before marking a feature complete, trace the data flow:
 ```
 
 **This pattern applies to ALL features: settings, preferences, modes, toggles, etc.**
+
+**See also**: [Verification Checklist](#verification-checklist)
+
+---
+
+## Specifications
+
+### Spec Template
+
+For complex features, create detailed specs following the 6-layer pattern in [plans/spec-template.md](plans/spec-template.md):
+
+1. **Overview** - WHY the feature exists (not just WHAT it does)
+2. **Reference Tables** - Configuration options, states, error codes
+3. **Type Definitions** - Complete TypeScript interfaces with JSDoc
+4. **State Machine** - Mermaid diagrams for stateful features
+5. **Design Decisions** - "Why X vs Y" with numbered rationale
+6. **Implementation Guide** - Step-by-step with copy-paste code
+
+**Example spec**: [plans/specs/7.11-state-machine-observability.md](plans/specs/7.11-state-machine-observability.md)
+
+### When to Write a Spec
+
+Create a detailed spec for:
+
+- Features with state machines or complex workflows
+- New MCP tools
+- Database schema changes
+- Features touching multiple components
+
+### Key Principle
+
+> **"Explicit over Implicit"**: Every decision that could be made is made upfront, documented, and explained. Claude becomes an executor of a well-defined plan rather than an improviser working from vague requirements.
+
+---
+
+## Server Functions Pattern
+
+API functions in `src/api/` use TanStack Start's `createServerFn`:
+
+```typescript
+import { createServerFn } from "@tanstack/react-start/server";
+
+export const getTickets = createServerFn().handler(async () => {
+  return db.select().from(tickets).all();
+});
+```
+
+These are called from React components via TanStack Query.
+
+**Real examples**:
+
+- ✅ Good: [src/api/tickets.ts:45-67](src/api/tickets.ts:45-67) - Type-safe with validation
+- ✅ Good: [src/api/epics.ts:123-145](src/api/epics.ts:123-145) - Error handling
+
+**See also**: [React & TanStack Query](#react--tanstack-query)
+
+---
 
 ## DO/DON'T Guidelines
 
@@ -734,6 +535,8 @@ Before marking a feature complete, trace the data flow:
 | Use `eq()`, `and()`, `sql` from drizzle-orm for conditions                 | String concatenation for WHERE clauses                |
 | Use transactions for multi-table operations: `db.transaction(() => {...})` | Multiple independent queries that should be atomic    |
 | Use `.get()` for single row, `.all()` for multiple                         | Assume query returns what you expect without checking |
+
+**Real examples**: [src/api/tickets.ts:45-67](src/api/tickets.ts:45-67), [src/api/epics.ts:123-145](src/api/epics.ts:123-145)
 
 ### React & TanStack Query
 
@@ -785,14 +588,11 @@ Before marking a feature complete, trace the data flow:
 | Tests that fail when user-facing behavior breaks          | Tests that break on refactoring internals                       |
 | Ask: "Does this test catch bugs users would encounter?"   | Chase 100% code coverage as a goal                              |
 
-## Testing
+**→ [Full Testing Guide](docs/testing.md)** - Philosophy, examples, rules
 
-- Unit tests live alongside source files: `*.test.ts`
-- E2E tests in `e2e/` directory
-- Run specific test file: `pnpm test src/lib/backup.test.ts`
-- Run single test: `pnpm test -t "test name pattern"`
+---
 
-### Testing Philosophy (Kent C. Dodds)
+## Testing Philosophy (Kent C. Dodds)
 
 **"The more your tests resemble the way your software is used, the more confidence they can give you."**
 
@@ -800,51 +600,7 @@ Before marking a feature complete, trace the data flow:
 
 If you cannot answer this question with a concrete user action and expected outcome, DO NOT write the test.
 
-### Concrete Examples
-
-**GOOD tests (real user behavior):**
-
-```typescript
-// User sees loading state → User sees data
-it("shows loading then displays tickets when data loads", () => {...});
-
-// User clicks button → something visible happens
-it("moves ticket to done column when user clicks complete", () => {...});
-
-// User sees error message when something fails
-it("shows error message when API request fails", () => {...});
-
-// User input produces expected output
-it("filters tickets when user types in search box", () => {...});
-```
-
-**BAD tests (DO NOT WRITE THESE):**
-
-```typescript
-// ❌ Testing that a function was called
-it("calls onComplete callback when clicked", () => {...});
-
-// ❌ Testing internal state
-it("sets isLoading to true during fetch", () => {...});
-
-// ❌ Testing that console.log was called
-it("logs error to console when parsing fails", () => {...});
-
-// ❌ Testing implementation details
-it("uses useMemo for expensive calculation", () => {...});
-
-// ❌ Testing CSS/styles
-it("applies correct className when selected", () => {...});
-
-// ❌ Negative tests that verify absence of behavior
-it("does not render button when disabled", () => {...}); // Unless user SEES something different
-
-// ❌ Testing props are passed correctly
-it("passes onClick handler to child component", () => {...});
-
-// ❌ Testing for coverage, not behavior
-it("handles edge case where value is undefined", () => {...}); // Unless user encounters this
-```
+**→ [Full Testing Guide](docs/testing.md)** - Concrete examples, litmus test, rules
 
 ### The Litmus Test
 
@@ -856,13 +612,9 @@ Before writing ANY test, ask yourself:
 
 If the answer to all three is YES, write the test. Otherwise, don't.
 
-### Rules
+**See also**: [DO/DON'T Guidelines - Testing](#testing-patterns-kent-c-dodds)
 
-1. **Test user flows, not functions** - A user doesn't call `handleClick()`, they click a button
-2. **Test visible outcomes, not internal state** - A user doesn't check `isLoading`, they see a spinner
-3. **Test error messages, not error handling** - A user doesn't catch exceptions, they read error text
-4. **Mock boundaries, not internals** - Mock the API, not the hook that calls it
-5. **Fewer, meaningful tests > many trivial tests** - 8 real tests beat 21 implementation tests
+---
 
 ## Verification Checklist
 
@@ -876,10 +628,10 @@ After implementing ANY feature, you MUST complete these steps:
 
 ### If You Added New Code
 
-- [ ] Added tests for new functionality (ONLY tests that verify real user behavior - see Testing Philosophy above)
+- [ ] Added tests for new functionality (ONLY tests that verify real user behavior - see [Testing Philosophy](#testing-philosophy-kent-c-dodds))
 - [ ] Used typed error classes (not generic `Error`)
-- [ ] Used Drizzle ORM (not raw SQL) - see DO/DON'T table above
-- [ ] Followed existing patterns from DO/DON'T tables
+- [ ] Used Drizzle ORM (not raw SQL) - see [Database Queries](#database-queries)
+- [ ] Followed existing patterns from [DO/DON'T tables](#dodont-guidelines)
 - [ ] No hardcoded values that should be configurable
 
 ### If You Modified Existing Code
@@ -906,7 +658,7 @@ After implementing ANY feature, you MUST complete these steps:
 ### If MCP Server Changes
 
 - [ ] Tested tool via Claude Code integration
-- [ ] Verified error responses are informative (see DO/DON'T table)
+- [ ] Verified error responses are informative (see [MCP Tool Implementation](#mcp-tool-implementation))
 - [ ] Updated tool documentation if interface changed
 - [ ] Added Zod schema for input validation
 
@@ -916,6 +668,10 @@ After implementing ANY feature, you MUST complete these steps:
 - [ ] Work summary added via `add_ticket_comment` (for Ralph sessions)
 - [ ] Session completed with appropriate outcome (for Ralph sessions)
 - [ ] Committed with proper message format: `feat(<ticket-id>): <description>`
+
+**See also**: [End-to-End Feature Implementation](#end-to-end-feature-implementation-critical)
+
+---
 
 ## Automatic Code Review
 
@@ -948,36 +704,117 @@ Run all three at once using: `/review`
 
 **This is mandatory** - the Stop hook will remind you if you forget, but you should proactively run reviews after completing code work.
 
+**See also**: [Universal Quality Workflow](#universal-quality-workflow)
+
+---
+
+## Troubleshooting by Symptom
+
+### "Cannot proceed - open critical findings"
+
+**Cause**: Tried to generate demo while critical issues remain
+**Fix**: Run `/review-ticket` again, fix findings
+**→ [Quality Workflow](#universal-quality-workflow)**
+
+### "Ticket must be in ai_review to submit findings"
+
+**Cause**: Tried to submit a finding for a ticket not in AI review
+**Fix**: Call `complete_ticket_work` first to move to `ai_review`
+**→ [Quality Workflow Steps](#key-workflow-steps)**
+
+### "Cannot start ticket - previous ticket still in review"
+
+**Cause**: A previous ticket is waiting for human feedback
+**Fix**: Review and approve/reject it before starting a new ticket
+**→ [Human Review](#key-workflow-steps)**
+
+### "Worktree limit reached"
+
+**Cause**: Too many active worktrees (default: 5)
+**Fix**: `pnpm brain-dump cleanup --force`
+**→ [Worktree Cleanup](#git-worktree-workflow)**
+
+### "Path already exists"
+
+**Cause**: The worktree directory already exists
+**Fix**: Remove it manually or use a different epic
+**→ [Worktree Troubleshooting](docs/workflows.md#worktree-troubleshooting)**
+
+### "Hooks not working in worktree"
+
+**Cause**: Missing `mainRepoPath` in `.claude/ralph-state.json`
+**Fix**: Ensure hooks detect worktree context
+**→ [Detecting Worktree Context](#detecting-worktree-context)**
+
+### Type errors after editing JS file
+
+**Cause**: Didn't migrate to TypeScript
+**Fix**: Rename to `.ts`/`.tsx`, add type annotations
+**→ [TypeScript Migration](#typescript-requirements)**
+
+### Tests failing after changes
+
+**Cause**: Breaking user-facing behavior OR testing implementation details
+**Fix**: If user behavior broke, fix it. If implementation changed but behavior is same, update/remove test
+**→ [Testing Philosophy](#testing-philosophy-kent-c-dodds)**
+
+**For more issues**: Run `pnpm brain-dump doctor` to diagnose configuration problems.
+
+**→ [Full Troubleshooting Guide](docs/troubleshooting.md)** - All common issues, solutions, diagnostics
+
+---
+
 ## Enterprise Conversation Logging
 
 Brain Dump includes enterprise-grade conversation logging for compliance auditing (SOC2, GDPR, ISO 27001).
 
-### Features
+**Quick overview**:
 
-- **Automatic session tracking**: Sessions created/ended automatically with `start_ticket_work`/`complete_ticket_work`
-- **Tamper detection**: HMAC-SHA256 content hashing on all messages
-- **Secret detection**: Automatic scanning for 20+ credential patterns
-- **Retention policies**: Configurable 7-365 day retention with legal hold support
-- **Audit trail**: All access to logs is recorded
+- Automatic session tracking with `start_ticket_work`/`complete_ticket_work`
+- HMAC-SHA256 tamper detection
+- Secret scanning for 20+ credential patterns
+- Configurable 7-365 day retention
 
-### MCP Tools
+**→ [Full Enterprise Logging Documentation](docs/enterprise-logging.md)** - SQL queries, GDPR compliance, troubleshooting
 
-| Tool                         | Purpose                                     |
-| ---------------------------- | ------------------------------------------- |
-| `start_conversation_session` | Create a new session for compliance logging |
-| `log_conversation_message`   | Record a message with tamper detection      |
-| `end_conversation_session`   | Mark session as complete                    |
-| `list_conversation_sessions` | Query sessions with filters                 |
-| `export_compliance_logs`     | Generate JSON export for auditors           |
-| `archive_old_sessions`       | Delete old sessions (respects legal hold)   |
+**Key MCP tools**:
 
-### Settings
+- `start_conversation_session` - Create session
+- `log_conversation_message` - Record with tamper detection
+- `end_conversation_session` - Mark complete
+- `export_compliance_logs` - Generate audit export
 
-Configure via Settings UI:
+---
 
-- **Enable Conversation Logging**: Toggle on/off (default: on)
-- **Retention Period**: 7-365 days (default: 90)
+## Glossary
 
-### Documentation
+**Ralph**: Autonomous agent mode that iterates through ticket backlogs
+**Worktree**: Git feature for parallel work in isolated directories
+**Tracer Review**: Structured quality review pattern (3 agents in parallel)
+**Isolation Mode**: How epics are worked on (branch vs worktree)
+**PRD**: Product Requirements Document (plans/prd.json)
+**MCP**: Model Context Protocol - standard for Claude tool integration
+**XDG**: Cross-platform directory specification for app data storage
 
-For detailed documentation including SQL queries, GDPR compliance, and troubleshooting, see [docs/enterprise-logging.md](docs/enterprise-logging.md).
+**→ [Full Glossary](docs/glossary.md)** - All terminology, abbreviations, patterns
+
+---
+
+## Deep Documentation
+
+For comprehensive guides on specific topics:
+
+- **[Architecture](docs/architecture.md)** - Tech stack deep dive, data flow diagrams, component patterns
+- **[Workflows](docs/workflows.md)** - Ralph, Quality Pipeline, Git Worktrees, Hooks
+- **[Testing](docs/testing.md)** - Kent C. Dodds philosophy, examples, rules
+- **[Troubleshooting](docs/troubleshooting.md)** - All common issues, diagnostics, solutions
+- **[Glossary](docs/glossary.md)** - Complete terminology reference
+
+**Specs and Templates**:
+
+- [Spec Template](plans/spec-template.md) - 6-layer pattern for complex features
+- [Example Spec](plans/specs/7.11-state-machine-observability.md) - Real-world spec
+
+**Configuration**:
+
+- [Enterprise Logging](docs/enterprise-logging.md) - Compliance, GDPR, audit trails
