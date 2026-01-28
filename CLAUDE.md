@@ -615,6 +615,81 @@ export const getTickets = createServerFn().handler(async () => {
 
 These are called from React components via TanStack Query.
 
+## End-to-End Feature Implementation (CRITICAL)
+
+**LEARNING FROM PAST BUGS: Features must be implemented from UI to backend in a complete, connected flow.**
+
+When implementing ANY feature that involves user interaction, you MUST verify the ENTIRE data flow works end-to-end:
+
+### The Anti-Pattern (What Went Wrong)
+
+The worktree feature was built with:
+
+1. ✅ UI modal to select worktree mode (`StartEpicModal.tsx`)
+2. ✅ Database schema for `isolation_mode` field
+3. ✅ Settings toggle for "Enable Worktree Support"
+4. ❌ **BUT** `launchRalphForEpic()` never read the `isolation_mode` field!
+
+Result: Users could select "Worktree" in the UI, but Ralph would always launch in the main repo.
+
+### The Required Pattern
+
+For EVERY feature, verify these layers are connected:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  1. UI Layer (React)                                            │
+│     - Component renders correctly                               │
+│     - User interaction triggers mutation/action                 │
+│     - Mutation calls correct API endpoint with correct params   │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  2. API Layer (Server Functions)                                │
+│     - Accepts the parameter from UI                             │
+│     - Reads relevant data from database (including new fields!) │
+│     - Applies business logic based on settings/preferences      │
+│     - Returns meaningful response                               │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  3. Database Layer (Schema + Queries)                           │
+│     - Schema defines the field                                  │
+│     - Queries actually SELECT the field                         │
+│     - Updates properly SET the field                            │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  4. Side Effects (Files, Git, Terminal, External Services)      │
+│     - Code that reads the setting actually USES it              │
+│     - Behavior changes based on the setting value               │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Verification Checklist for Features
+
+Before marking a feature complete, trace the data flow:
+
+| Step           | Question                                   | Verification                    |
+| -------------- | ------------------------------------------ | ------------------------------- |
+| UI → API       | Does the mutation pass the new parameter?  | Check mutation call site        |
+| API → DB       | Does the handler query/read the new field? | Check SELECT statements         |
+| DB → Logic     | Does the code branch on the setting value? | Check if-statements/switches    |
+| Logic → Effect | Does the behavior actually change?         | Manual testing with both values |
+
+### Example: How Worktree Should Have Been Tested
+
+```
+1. Set epic.isolationMode = "worktree" in UI
+2. Verify StartEpicModal saves it to database
+3. Click "Start Work" → launchRalphForEpic() is called
+4. Verify launchRalphForEpic READS epic.isolationMode  ← THIS WAS MISSING
+5. Verify it creates worktree when mode is "worktree"
+6. Verify Ralph launches in worktree directory, not main repo
+```
+
+**This pattern applies to ALL features: settings, preferences, modes, toggles, etc.**
+
 ## DO/DON'T Guidelines
 
 ### TypeScript Requirements

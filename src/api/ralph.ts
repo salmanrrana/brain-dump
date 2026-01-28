@@ -1,6 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { db } from "../lib/db";
-import { tickets, epics, projects, ralphSessions, type RalphSessionState } from "../lib/schema";
+import {
+  tickets,
+  epics,
+  projects,
+  ralphSessions,
+  epicWorkflowState,
+  type RalphSessionState,
+} from "../lib/schema";
 import { eq, and, inArray, isNull, desc } from "drizzle-orm";
 import { safeJsonParse } from "../lib/utils";
 import {
@@ -1371,6 +1378,144 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       return { success: false, message: `Project directory not found: ${project.path}` };
     }
 
+    // =========================================================================
+    // WORKTREE MODE: Check if epic uses worktree isolation
+    // =========================================================================
+    let workingDirectory = project.path; // Default to project path
+    let worktreeCreated = false;
+    let worktreePath: string | null = null;
+
+    if (epic.isolationMode === "worktree") {
+      console.log(`[brain-dump] Epic ${epicId} uses worktree isolation mode`);
+
+      // Check for existing worktree in epic_workflow_state
+      const existingState = db
+        .select()
+        .from(epicWorkflowState)
+        .where(eq(epicWorkflowState.epicId, epicId))
+        .get();
+
+      if (existingState?.worktreePath && existsSync(existingState.worktreePath)) {
+        // Use existing worktree
+        console.log(`[brain-dump] Using existing worktree at: ${existingState.worktreePath}`);
+        workingDirectory = existingState.worktreePath;
+        worktreePath = existingState.worktreePath;
+      } else {
+        // Need to create a new worktree
+        console.log(`[brain-dump] Creating new worktree for epic ${epicId}`);
+
+        const pathModule = await import("path");
+        const { execFileSync } = await import("child_process");
+
+        // Generate worktree path (sibling location by default)
+        const projectName = pathModule.basename(project.path);
+        const epicShortId = epic.id.substring(0, 8);
+        const epicSlug = epic.title
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .substring(0, 30);
+
+        const worktreeName = epicSlug
+          ? `${projectName}-epic-${epicShortId}-${epicSlug}`
+          : `${projectName}-epic-${epicShortId}`;
+
+        const newWorktreePath = pathModule.join(pathModule.dirname(project.path), worktreeName);
+
+        // Check if path already exists (might be from a previous run)
+        if (existsSync(newWorktreePath)) {
+          console.log(`[brain-dump] Worktree path already exists, using it: ${newWorktreePath}`);
+          workingDirectory = newWorktreePath;
+          worktreePath = newWorktreePath;
+        } else {
+          // Generate branch name
+          const branchName = `feature/epic-${epicShortId}-${epicSlug}`;
+
+          try {
+            // Create the worktree with a new branch using execFileSync (safer than exec)
+            execFileSync("git", ["worktree", "add", newWorktreePath, "-b", branchName], {
+              cwd: project.path,
+              encoding: "utf-8",
+              stdio: "pipe",
+            });
+
+            console.log(
+              `[brain-dump] Created worktree at: ${newWorktreePath} with branch: ${branchName}`
+            );
+            workingDirectory = newWorktreePath;
+            worktreePath = newWorktreePath;
+            worktreeCreated = true;
+
+            // Create .claude directory in worktree
+            const claudeDir = pathModule.join(newWorktreePath, ".claude");
+            mkdirSync(claudeDir, { recursive: true, mode: 0o700 });
+          } catch (gitError) {
+            const errorMessage = gitError instanceof Error ? gitError.message : String(gitError);
+
+            // Check if branch already exists - try to use existing branch
+            if (errorMessage.includes("already exists")) {
+              try {
+                // Try without -b flag (checkout existing branch)
+                execFileSync("git", ["worktree", "add", newWorktreePath, branchName], {
+                  cwd: project.path,
+                  encoding: "utf-8",
+                  stdio: "pipe",
+                });
+                console.log(`[brain-dump] Created worktree using existing branch: ${branchName}`);
+                workingDirectory = newWorktreePath;
+                worktreePath = newWorktreePath;
+                worktreeCreated = true;
+
+                // Create .claude directory
+                const claudeDir = pathModule.join(newWorktreePath, ".claude");
+                mkdirSync(claudeDir, { recursive: true, mode: 0o700 });
+              } catch (retryError) {
+                console.error(`[brain-dump] Failed to create worktree: ${retryError}`);
+                return {
+                  success: false,
+                  message: `Failed to create worktree: ${retryError instanceof Error ? retryError.message : String(retryError)}`,
+                };
+              }
+            } else {
+              console.error(`[brain-dump] Failed to create worktree: ${errorMessage}`);
+              return {
+                success: false,
+                message: `Failed to create worktree: ${errorMessage}`,
+              };
+            }
+          }
+        }
+
+        // Update or create epic_workflow_state with worktree info
+        const now = new Date().toISOString();
+        if (existingState) {
+          db.update(epicWorkflowState)
+            .set({
+              worktreePath: worktreePath,
+              worktreeCreatedAt: worktreeCreated ? now : existingState.worktreeCreatedAt,
+              worktreeStatus: "active",
+              updatedAt: now,
+            })
+            .where(eq(epicWorkflowState.epicId, epicId))
+            .run();
+        } else {
+          db.insert(epicWorkflowState)
+            .values({
+              id: randomUUID(),
+              epicId: epicId,
+              worktreePath: worktreePath,
+              worktreeCreatedAt: now,
+              worktreeStatus: "active",
+              createdAt: now,
+              updatedAt: now,
+            })
+            .run();
+        }
+      }
+
+      console.log(`[brain-dump] Working directory set to: ${workingDirectory}`);
+    }
+
     // If sandbox mode, validate Docker setup
     let sshWarnings: string[] | undefined;
     let dockerHostEnv: string | null = null;
@@ -1416,8 +1561,9 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     writeFileSync(prdPath, JSON.stringify(prd, null, 2));
 
     // Generate Ralph script with timeout, Docker host config, and project/epic origin
+    // NOTE: Use workingDirectory for worktree mode, so Ralph runs in the worktree
     const ralphScript = generateRalphScript(
-      project.path,
+      workingDirectory, // Use worktree path if in worktree mode
       effectiveMaxIterations,
       useSandbox,
       DEFAULT_RESOURCE_LIMITS,
@@ -1460,8 +1606,9 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       console.log(`[brain-dump] Using VS Code launch path`);
 
       // Generate the context file for Claude in VS Code
+      // NOTE: Use workingDirectory for worktree mode
       const contextContent = generateVSCodeContext(prd);
-      const contextResult = await writeVSCodeContext(project.path, contextContent);
+      const contextResult = await writeVSCodeContext(workingDirectory, contextContent);
 
       if (!contextResult.success) {
         // Rollback ticket statuses since launch failed
@@ -1473,7 +1620,7 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
 
       console.log(`[brain-dump] Created Ralph context file: ${contextResult.path}`);
 
-      const launchResult = await launchInVSCode(project.path, contextResult.path);
+      const launchResult = await launchInVSCode(workingDirectory, contextResult.path);
 
       if (!launchResult.success) {
         // Rollback ticket statuses since launch failed
@@ -1490,12 +1637,15 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
         contextFile: contextResult.path,
         ticketCount: epicTickets.length,
         warnings: sshWarnings,
+        worktreePath: worktreePath, // Include worktree info if applicable
       };
     }
 
     // Terminal path (claude-code or auto): launch in terminal emulator
-    console.log(`[brain-dump] Using terminal launch path`);
-    const launchResult = await launchInTerminal(project.path, scriptPath, preferredTerminal);
+    console.log(
+      `[brain-dump] Using terminal launch path${worktreePath ? ` (worktree: ${worktreePath})` : ""}`
+    );
+    const launchResult = await launchInTerminal(workingDirectory, scriptPath, preferredTerminal);
 
     if (!launchResult.success) {
       return launchResult;
@@ -1503,11 +1653,12 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
 
     return {
       success: true,
-      message: `Launched Ralph for ${epicTickets.length} tickets in ${launchResult.terminal}`,
+      message: `Launched Ralph for ${epicTickets.length} tickets in ${launchResult.terminal}${worktreePath ? ` (worktree: ${worktreePath})` : ""}`,
       terminalUsed: launchResult.terminal,
       launchMethod: "terminal" as const,
       ticketCount: epicTickets.length,
       warnings: sshWarnings,
+      worktreePath: worktreePath, // Include worktree info if applicable
     };
   });
 
