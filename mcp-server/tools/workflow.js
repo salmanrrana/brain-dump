@@ -677,10 +677,43 @@ This ticket belongs to an epic that previously had a branch, but it was deleted.
           }
         } else {
           // Ticket belongs to epic but no branch exists yet
-          // Get epic info to generate branch name
+
+          // WORKTREE MODE: Require explicit start_epic_work call
+          // This prevents branch mismatch issues in worktree workflows
           const epic = db.prepare(`SELECT id, title FROM epics WHERE id = ?`).get(ticket.epic_id);
           if (epic) {
-            // Auto-create the epic branch for convenience
+            const { mode: effectiveMode } = getEffectiveIsolationMode(db, ticket.epic_id, null);
+
+            if (effectiveMode === "worktree") {
+              // In worktree mode, we MUST have start_epic_work called first
+              // to ensure proper worktree creation and branch setup
+              return {
+                content: [{
+                  type: "text",
+                  text: `⚠️  **Epic Workflow Not Started**
+
+This ticket belongs to epic "${epic.title}", but the epic workflow hasn't been initialized yet.
+
+**In worktree mode, you must call \`start_epic_work\` BEFORE starting work on any ticket in the epic.**
+
+This ensures:
+- The worktree is created at the correct location
+- The epic branch is set up properly
+- All tickets in the epic share the same branch
+- No branch mismatches occur
+
+**To fix:**
+\`\`\`
+start_epic_work({ epicId: "${ticket.epic_id}" })
+\`\`\`
+
+Then try starting this ticket again.`,
+                }],
+                isError: true,
+              };
+            }
+
+            // BRANCH MODE: Auto-create epic branch for convenience (backward compatibility)
             branchName = generateEpicBranchName(epic.id, epic.title);
             usingEpicBranch = true;
             epicInfo = { title: epic.title, branchName: branchName };
