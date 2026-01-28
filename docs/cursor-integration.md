@@ -4,17 +4,19 @@ Brain Dump provides full integration with [Cursor](https://cursor.com), includin
 
 ## Overview
 
-Cursor has nearly identical hook support to Claude Code, meaning Brain Dump can capture full telemetry and enforce workflow quality gates.
+Cursor has **FULL PARITY** with Claude Code, supporting all Brain Dump features including hooks, skills, agents, commands, rules, and MCP integration.
 
 ### What Gets Installed
 
-| Component  | Location               | Purpose                                     |
-| ---------- | ---------------------- | ------------------------------------------- |
-| Hooks      | `~/.cursor/hooks/`     | Telemetry capture (session, tools, prompts) |
-| hooks.json | `~/.cursor/hooks.json` | Hook configuration                          |
-| MCP Server | `~/.cursor/mcp.json`   | Brain Dump MCP tools                        |
-| Rules      | `.cursor/rules/`       | Workflow enforcement (per-project)          |
-| Skills     | `.cursor/skills/`      | Reusable workflow guidance                  |
+| Component  | Location               | Purpose                                         |
+| ---------- | ---------------------- | ----------------------------------------------- |
+| Hooks      | `~/.cursor/hooks/`     | Workflow enforcement + telemetry capture        |
+| hooks.json | `.cursor/hooks.json`   | Hook configuration (state, review, PR gates)    |
+| MCP Server | `~/.cursor/mcp.json`   | Brain Dump MCP tools                            |
+| Rules      | `.cursor/rules/`       | Workflow guidance (always-apply)                |
+| Skills     | `.cursor/skills/`      | Reusable workflow guidance (symlinked)          |
+| Agents     | `.cursor/agents/`      | Code review agents (symlinked)                  |
+| Commands   | `.cursor/commands/`    | Workflow shortcuts (start-work, complete-work)  |
 
 ## Installation
 
@@ -52,21 +54,61 @@ Brain Dump captures the following events via Cursor hooks:
 
 ### Hook Configuration
 
-The hooks are configured in `~/.cursor/hooks.json`:
+The hooks are configured in `.cursor/hooks.json` (project-level):
 
 ```json
 {
   "version": 1,
   "hooks": {
-    "sessionStart": [{ "command": "~/.cursor/hooks/start-telemetry.sh" }],
-    "sessionEnd": [{ "command": "~/.cursor/hooks/end-telemetry.sh" }],
-    "preToolUse": [{ "command": "~/.cursor/hooks/log-tool.sh" }],
-    "postToolUse": [{ "command": "~/.cursor/hooks/log-tool.sh" }],
-    "postToolUseFailure": [{ "command": "~/.cursor/hooks/log-tool-failure.sh" }],
-    "beforeSubmitPrompt": [{ "command": "~/.cursor/hooks/log-prompt.sh" }]
+    "sessionStart": [
+      { "command": "$HOME/.cursor/hooks/start-telemetry.sh" }
+    ],
+    "sessionEnd": [
+      { "command": "$HOME/.cursor/hooks/end-telemetry.sh" }
+    ],
+    "preToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "command": "$HOME/.cursor/hooks/enforce-state-before-write.sh"
+      },
+      {
+        "matcher": "Bash(git push:*)",
+        "command": "$HOME/.cursor/hooks/enforce-review-before-push.sh"
+      },
+      { "command": "$HOME/.cursor/hooks/log-tool.sh" }
+    ],
+    "postToolUse": [
+      {
+        "matcher": "mcp__brain-dump__start_ticket_work",
+        "command": "$HOME/.cursor/hooks/create-pr-on-ticket-start.sh"
+      },
+      {
+        "matcher": "Bash(git commit:*)",
+        "command": "$HOME/.cursor/hooks/link-commit-to-ticket.sh"
+      },
+      {
+        "matcher": "Bash(gh pr create:*)",
+        "command": "$HOME/.cursor/hooks/spawn-after-pr.sh"
+      },
+      { "command": "$HOME/.cursor/hooks/log-tool.sh" }
+    ],
+    "postToolUseFailure": [
+      { "command": "$HOME/.cursor/hooks/log-tool-failure.sh" }
+    ],
+    "beforeSubmitPrompt": [
+      { "command": "$HOME/.cursor/hooks/log-prompt.sh" }
+    ]
   }
 }
 ```
+
+**Workflow Enforcement Hooks:**
+
+- `enforce-state-before-write.sh` - Blocks Write/Edit unless in implementing/testing/committing state
+- `enforce-review-before-push.sh` - Blocks git push until AI review complete
+- `create-pr-on-ticket-start.sh` - Auto-creates draft PR when starting ticket work
+- `link-commit-to-ticket.sh` - Links commits and PRs to active ticket
+- `spawn-after-pr.sh` - Optionally spawns next ticket after PR creation
 
 ## Claude Code Hook Compatibility
 
@@ -102,17 +144,45 @@ This provides access to all Brain Dump MCP tools:
 
 Project-level rules are stored in `.cursor/rules/`:
 
-- `brain-dump-workflow.md` - Quality workflow enforcement
+- `brain-dump-workflow.md` - Universal Quality Workflow enforcement
+- `testing-philosophy.md` - Kent C. Dodds testing patterns
 
 Rules with `alwaysApply: true` are automatically included in every conversation.
 
 ## Skills
 
-Project-level skills are stored in `.cursor/skills/`:
+Project-level skills are **symlinked** from `.claude/skills/` to `.cursor/skills/`:
 
-- `brain-dump-workflow/SKILL.md` - Workflow guidance
+- `review/` - Run code review pipeline
+- `review-aggregation/` - Synthesize review findings
+- `brain-dump-workflow/` - Workflow guidance
+- `tanstack-*/` - TanStack Query/Forms/Mutations guidance
 
-Skills provide structured guidance for common tasks.
+Skills provide structured guidance for common tasks and are loaded on-demand.
+
+## Agents
+
+Code review agents are **symlinked** from `.claude/agents/` to `.cursor/agents/`:
+
+- `code-reviewer.md` - Code quality review
+- `silent-failure-hunter.md` - Error handling review
+- `cruft-detector.md` - Dead code detection
+- `react-best-practices.md` - React/Next.js performance review
+- `context7-library-compliance.md` - Library usage verification
+- `senior-engineer.md` - Architectural review synthesis
+
+Agents run autonomously during the AI review phase.
+
+## Commands
+
+Cursor-specific workflow shortcuts in `.cursor/commands/`:
+
+- `start-work.md` - Start ticket work (creates branch, draft PR, telemetry)
+- `complete-work.md` - Complete implementation (validation, moves to ai_review)
+- `submit-finding.md` - Submit code review finding
+- `generate-demo.md` - Generate demo script for human review
+
+Commands provide quick access to MCP tools with usage examples.
 
 ## Using Brain Dump in Cursor
 
@@ -166,13 +236,24 @@ Hooks also fall back to `CLAUDE_PROJECT_DIR` or `pwd` if not set.
 
 ## Differences from Claude Code
 
-| Feature             | Claude Code               | Cursor                 |
-| ------------------- | ------------------------- | ---------------------- |
-| Hook config file    | `~/.claude/settings.json` | `~/.cursor/hooks.json` |
-| MCP config file     | `~/.claude/settings.json` | `~/.cursor/mcp.json`   |
-| Project dir env var | `CLAUDE_PROJECT_DIR`      | `CURSOR_PROJECT_DIR`   |
-| Rules location      | `CLAUDE.md`               | `.cursor/rules/*.md`   |
-| Skills location     | `.claude/skills/`         | `.cursor/skills/`      |
+Cursor has **FULL PARITY** with Claude Code. The only differences are configuration file locations:
+
+| Feature                  | Claude Code               | Cursor                 |
+| ------------------------ | ------------------------- | ---------------------- |
+| Hook config file         | `~/.claude/settings.json` | `.cursor/hooks.json`   |
+| MCP config file          | `~/.claude/settings.json` | `~/.cursor/mcp.json`   |
+| Project dir env var      | `CLAUDE_PROJECT_DIR`      | `CURSOR_PROJECT_DIR`   |
+| Rules location           | `CLAUDE.md`               | `.cursor/rules/*.md`   |
+| Skills location          | `.claude/skills/` (source) | `.cursor/skills/` (symlinked) |
+| Agents location          | `.claude/agents/` (source) | `.cursor/agents/` (symlinked) |
+| Commands                 | N/A                        | `.cursor/commands/*.md` |
+| **Hook Support**         | ✅ Full                    | ✅ Full                |
+| **Workflow Enforcement** | ✅ Yes                     | ✅ Yes                 |
+| **State Tracking**       | ✅ Yes                     | ✅ Yes                 |
+| **Auto PR Creation**     | ✅ Yes                     | ✅ Yes                 |
+| **Review Gates**         | ✅ Yes                     | ✅ Yes                 |
+
+**Note:** Skills and agents are symlinked from `.claude/` to `.cursor/` to maintain a single source of truth.
 
 ## Verification
 
