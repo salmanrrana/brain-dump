@@ -38,7 +38,7 @@ import { registerLearningsTools } from "./tools/learnings.js";
 import { registerWorktreeTools } from "./tools/worktrees.js";
 import { registerContextTools } from "./tools/context.js";
 import { registerToolFilteringTools } from "./tools/tool-filtering.js";
-import { registerShortcutTools } from "./tools/shortcuts.js";
+import { registerShortcutTools } from "./tools/shortcuts.ts";
 
 import { unlinkSync } from "fs";
 
