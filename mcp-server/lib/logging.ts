@@ -5,7 +5,7 @@
  */
 import { join } from "path";
 import { existsSync, mkdirSync, appendFileSync, statSync, renameSync, unlinkSync } from "fs";
-import { getLogsDir } from "./xdg.js";
+import { getLogsDir } from "./xdg.ts";
 
 /** Main log file name */
 export const LOG_FILE = "mcp-server.log";

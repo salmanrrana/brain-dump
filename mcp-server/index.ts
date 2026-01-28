@@ -9,6 +9,7 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import type Database from "better-sqlite3";
 
 // Lib modules
 import { log } from "./lib/logging.js";
@@ -38,7 +39,7 @@ import { registerLearningsTools } from "./tools/learnings.js";
 import { registerWorktreeTools } from "./tools/worktrees.js";
 import { registerContextTools } from "./tools/context.js";
 import { registerToolFilteringTools } from "./tools/tool-filtering.js";
-import { registerShortcutTools } from "./tools/shortcuts.ts";
+import { registerShortcutTools } from "./tools/shortcuts.js";
 import { registerAnalyticsTools } from "./tools/analytics.js";
 
 import { unlinkSync } from "fs";
@@ -46,8 +47,8 @@ import { unlinkSync } from "fs";
 // =============================================================================
 // DATABASE INITIALIZATION
 // =============================================================================
-let db;
-let actualDbPath;
+let db: Database.Database | null;
+let actualDbPath: string;
 
 try {
   const result = initDatabase();
@@ -60,7 +61,7 @@ try {
     if (backupResult.backup.created) log.info(backupResult.backup.message);
     if (backupResult.cleanup.deleted > 0) log.info(backupResult.cleanup.message);
   } catch (backupError) {
-    log.error("Backup maintenance failed", backupError);
+    log.error("Backup maintenance failed", backupError instanceof Error ? backupError : new Error(String(backupError)));
   }
 
   // Acquire lock file
@@ -68,7 +69,7 @@ try {
 
   log.info("Brain Dump MCP server initialized");
 } catch (error) {
-  log.error("Failed to initialize database", error);
+  log.error("Failed to initialize database", error instanceof Error ? error : new Error(String(error)));
   process.exit(1);
 }
 
@@ -86,7 +87,7 @@ function setupGracefulShutdown() {
   process.on("exit", () => {
     const lockInfo = readLockFile();
     if (lockInfo && lockInfo.pid === process.pid) {
-      try { unlinkSync(getLockFilePath()); } catch (err) { console.error(`[brain-dump] Failed to clean lock file: ${err.message}`); }
+      try { unlinkSync(getLockFilePath()); } catch (err) { console.error(`[brain-dump] Failed to clean lock file: ${err instanceof Error ? err.message : String(err)}`); }
     }
   });
 }
@@ -130,7 +131,7 @@ registerAnalyticsTools(server);
 const transport = new StdioServerTransport();
 server.connect(transport).then(() => {
   log.info("Brain Dump MCP server connected");
-}).catch((error) => {
-  log.error("Failed to connect MCP server", error);
+}).catch((error: unknown) => {
+  log.error("Failed to connect MCP server", error instanceof Error ? error : new Error(String(error)));
   process.exit(1);
 });

@@ -11,9 +11,9 @@
     ]
   },
   "scripts": {
-    "build": "tsc && cp lib/*.js dist/lib/ 2>/dev/null || true && cp tools/*.js dist/tools/ 2>/dev/null || true",
+    "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsc && cp lib/*.js dist/lib/ 2>/dev/null || true && cp tools/*.js dist/tools/ 2>/dev/null || true && node dist/index.js",
+    "dev": "tsc && node dist/index.js",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
