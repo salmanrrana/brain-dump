@@ -20,8 +20,8 @@ import {
  * @param {boolean} isError - Whether this is an error response
  * @returns {Object} MCP-formatted response
  */
-function formatResponse(text, isError = false) {
-  const response = { content: [{ type: "text", text }] };
+function formatResponse(text: string, isError = false): Record<string, unknown> {
+  const response: Record<string, unknown> = { content: [{ type: "text", text }] };
   if (isError) {
     response.isError = true;
   }
@@ -34,13 +34,14 @@ function formatResponse(text, isError = false) {
  * @param {Function} handler - Handler function returning text content
  * @returns {Promise<Object>} MCP-formatted response
  */
-async function executeWithErrorHandling(handler) {
+async function executeWithErrorHandling(handler: () => Promise<string> | string): Promise<Record<string, unknown>> {
   try {
     const text = await handler();
     return formatResponse(text);
   } catch (err) {
     log.error("Tool execution failed", err);
-    return formatResponse(`Error: ${err.message}`, true);
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    return formatResponse(`Error: ${errorMessage}`, true);
   }
 }
 
@@ -49,7 +50,7 @@ async function executeWithErrorHandling(handler) {
  * @param {import("@modelcontextprotocol/sdk/server/mcp.js").McpServer} server
  * @param {import("better-sqlite3").Database} db
  */
-export function registerContextTools(server, db) {
+export function registerContextTools(server: any, db: any): void {
   // detect_context tool
   server.tool(
     "detect_context",

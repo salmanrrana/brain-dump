@@ -50,7 +50,7 @@ const STATE_NAMES = {
  * @param {string} [options.sessionId] - Current session ID if any
  * @returns {Object} Context object with type and metadata
  */
-export function detectContext(db, options = {}) {
+export function detectContext(db: any, options: { ticketId?: string; projectId?: string; sessionId?: string } = {}): Record<string, any> {
   const { ticketId, projectId, sessionId } = options;
 
   let activeTicketId = ticketId;
@@ -180,7 +180,7 @@ export function detectContext(db, options = {}) {
  * @param {import("better-sqlite3").Database} db
  * @returns {Array<Object>} List of active contexts with their details
  */
-export function detectAllActiveContexts(db) {
+export function detectAllActiveContexts(db: any): Array<Record<string, any>> {
   const activeSessions = tryQueryDbAll(
     db,
     `SELECT DISTINCT id, ticket_id, project_id FROM conversation_sessions WHERE ended_at IS NULL`,
@@ -218,7 +218,7 @@ const TOOL_CATEGORY_MAP = {
  * @param {string} toolCategory - Tool category to check (e.g., 'ticket_work', 'planning', 'review', 'admin')
  * @returns {boolean} True if tool category is relevant to context
  */
-export function isContextRelevant(context, toolCategory) {
+export function isContextRelevant(context: any, toolCategory: any): boolean {
   if (!context || !toolCategory) return false;
 
   const contextType = context.type || "idle";
@@ -233,7 +233,7 @@ export function isContextRelevant(context, toolCategory) {
  * @param {Object} context - Context object from detectContext()
  * @returns {string} Human-readable context summary
  */
-export function getContextSummary(context) {
+export function getContextSummary(context: any): string {
   if (!context) return "Unknown context";
 
   const { type, ticketId, projectId, status, description } = context;
@@ -260,11 +260,11 @@ export function getContextSummary(context) {
  * @returns {Object|null} Single row query result or null on error
  * @private
  */
-function tryQueryDb(db, sql, params, operation) {
+function tryQueryDb(db: any, sql: string, params: any[], operation: string): any {
   try {
     return db.prepare(sql).get(...params);
   } catch (err) {
-    log.debug(`${operation} failed (expected if table doesn't exist): ${err.message}`);
+    log.debug(`${operation} failed (expected if table doesn't exist): ${err instanceof Error ? err.message : String(err)}`);
     return null;
   }
 }
@@ -279,11 +279,11 @@ function tryQueryDb(db, sql, params, operation) {
  * @returns {Array<Object>} Array of rows, empty array on error
  * @private
  */
-function tryQueryDbAll(db, sql, params, operation) {
+function tryQueryDbAll(db: any, sql: string, params: any[], operation: string): any[] {
   try {
     return db.prepare(sql).all(...params);
   } catch (err) {
-    log.debug(`${operation} failed (expected if table doesn't exist): ${err.message}`);
+    log.debug(`${operation} failed (expected if table doesn't exist): ${err instanceof Error ? err.message : String(err)}`);
     return [];
   }
 }
@@ -295,7 +295,7 @@ function tryQueryDbAll(db, sql, params, operation) {
  * @returns {Object} Formatted context object
  * @private
  */
-function buildContext(options) {
+function buildContext(options: any): Record<string, any> {
   const {
     type,
     ticketId,
@@ -312,7 +312,7 @@ function buildContext(options) {
     sessionId,
   } = options;
 
-  const baseContext = {
+  const baseContext: Record<string, any> = {
     type,
     description,
     metadata: {
