@@ -41,6 +41,7 @@ const defaultSettings: SettingsFormData = {
   prTargetBranch: "dev",
   conversationLoggingEnabled: true,
   conversationRetentionDays: 90,
+  enableWorktreeSupport: false,
 };
 
 export const settingsFormOpts = formOptions({

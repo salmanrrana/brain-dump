@@ -35,6 +35,7 @@ import { registerClaudeTasksTools } from "./tools/claude-tasks.js";
 import { registerReviewFindingsTools } from "./tools/review-findings.js";
 import { registerDemoTools } from "./tools/demo.js";
 import { registerLearningsTools } from "./tools/learnings.js";
+import { registerWorktreeTools } from "./tools/worktrees.js";
 
 import { unlinkSync } from "fs";
 
@@ -113,6 +114,7 @@ registerClaudeTasksTools(server, db);
 registerReviewFindingsTools(server, db);
 registerDemoTools(server, db);
 registerLearningsTools(server, db);
+registerWorktreeTools(server, db);
 
 // =============================================================================
 // CONNECT AND START

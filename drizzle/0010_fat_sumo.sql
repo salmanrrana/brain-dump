@@ -1,0 +1,1 @@
+ALTER TABLE `epics` ADD `isolation_mode` text;

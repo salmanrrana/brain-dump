@@ -93,6 +93,115 @@ Ralph is an autonomous agent mode that:
 3. Implements features, runs tests, updates status via MCP
 4. Continues until all tasks pass or max iterations reached
 
+### Git Worktree Workflow
+
+Brain Dump supports two isolation modes for epic work, allowing you to choose between simplicity and parallel development capabilities.
+
+#### Branch Mode (Default)
+
+- Work happens in the main repository directory
+- Uses standard git branching workflow
+- Simple but requires clean working tree before switching tasks
+- No additional setup needed
+
+#### Worktree Mode (Isolated)
+
+- Creates separate directory for each epic at a sibling location
+- Enables parallel AI sessions on different epics
+- Each worktree has its own `.claude/` folder
+- Eliminates checkout conflicts when switching between work contexts
+
+**Worktree path format**:
+
+- Sibling (default): `{projectParent}/{projectName}-epic-{shortId}-{slug}`
+- Subfolder: `{projectPath}/.worktrees/epic-{shortId}-{slug}`
+- Custom: User-specified base path
+
+#### Enabling Worktree Support
+
+Worktree support is opt-in. Enable it via:
+
+1. **Global setting**: Toggle "Enable Worktree Support" in Settings modal
+2. **Per-project**: Set "Default Isolation Mode" to "Worktree" or "Ask each time" in project settings
+
+When enabled, the StartEpicModal appears when starting work on an epic, letting you choose between branch and worktree modes.
+
+#### Detecting Worktree Context
+
+When running in a worktree, `.claude/ralph-state.json` includes additional fields:
+
+```json
+{
+  "sessionId": "abc-123",
+  "ticketId": "def-456",
+  "currentState": "implementing",
+  "isolationMode": "worktree",
+  "worktreePath": "/Users/dev/brain-dump-epic-abc12345-feature",
+  "mainRepoPath": "/Users/dev/brain-dump"
+}
+```
+
+- `isolationMode`: Either `"branch"` or `"worktree"`
+- `worktreePath`: Absolute path to the worktree directory
+- `mainRepoPath`: Absolute path to the main repository (for PRD file access)
+
+Hooks use `mainRepoPath` to locate the PRD file and spawn next tickets in the main repo context.
+
+#### Worktree Lifecycle
+
+1. **Creation**: User selects "Worktree" in StartEpicModal (or it's the project default)
+2. **`start_epic_work`** creates worktree at sibling directory with epic branch
+3. **Work proceeds** normally within worktree - commits, PRs, reviews
+4. **After PR merge**, worktree becomes "stale" (status tracked in `epic_workflow_state`)
+5. **Cleanup** via `brain-dump cleanup` or lazy cleanup on next epic start
+
+#### Worktree Cleanup
+
+Stale worktrees (merged PRs, completed epics) can be cleaned up:
+
+```bash
+# List stale worktrees (dry-run)
+brain-dump cleanup
+
+# Remove stale worktrees
+brain-dump cleanup --force
+```
+
+Or use the MCP tool:
+
+```
+cleanup_worktrees({ projectId: "...", dryRun: false })
+```
+
+**Safety rules**:
+
+- Default is dry-run (preview only)
+- Never removes worktrees with uncommitted changes unless forced
+- Only removes if epic is done AND PR is merged
+
+#### Worktree Troubleshooting
+
+**"Worktree limit reached"**
+
+- Default limit is 5 concurrent worktrees per project
+- Run `brain-dump cleanup --force` to remove stale worktrees
+- Or increase limit in project settings
+
+**"Path already exists"**
+
+- The worktree directory already exists
+- Remove it manually or use a different epic
+
+**Hooks not working in worktree**
+
+- Ensure `.claude/ralph-state.json` includes `mainRepoPath`
+- Hooks should automatically detect worktree context
+
+**Finding which directory to work in**
+
+- `start_ticket_work` response includes `projectPath` pointing to the worktree
+- Check `epic_workflow_state.worktree_path` in database
+
 ## Universal Quality Workflow
 
 Brain Dump implements a structured quality workflow (inspired by Dillon Mulroy's "tracer review" pattern) that ensures consistent code quality regardless of which AI coding environment you use.
@@ -507,6 +616,28 @@ export const getTickets = createServerFn().handler(async () => {
 These are called from React components via TanStack Query.
 
 ## DO/DON'T Guidelines
+
+### TypeScript Requirements
+
+**CRITICAL: This project uses TypeScript exclusively. All new code MUST be written in TypeScript.**
+
+| ✅ DO                                                                                                | ❌ DON'T                                                   |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Write all new files as `.ts` or `.tsx`                                                               | Create new `.js` or `.jsx` files                           |
+| Use explicit type annotations for function parameters and return types                               | Rely on JSDoc comments for type information                |
+| Define interfaces/types for complex objects: `interface User { id: string; name: string }`           | Use untyped object parameters                              |
+| Export types alongside implementations: `export type CommandResult = { success: boolean; ... }`      | Keep types internal or use separate `.d.ts` files          |
+| Use `unknown` for error types, then narrow: `error instanceof Error ? error.message : String(error)` | Use `any` for error types                                  |
+| Use strict type checking (already configured in `tsconfig.json`)                                     | Add `// @ts-ignore` or `// @ts-expect-error` unnecessarily |
+
+**Why TypeScript-only:**
+
+- **Stronger feedback loop**: Type errors catch bugs before runtime
+- **Better IDE support**: Autocomplete, refactoring, and navigation
+- **Self-documenting**: Types serve as inline documentation
+- **Fewer tests needed**: Type system catches many errors that would require tests in JavaScript
+
+**Migration status**: The MCP server (`mcp-server/`) is being migrated to TypeScript. The main application (`src/`) is already TypeScript-only.
 
 ### Database Queries
 

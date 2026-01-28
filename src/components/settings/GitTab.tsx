@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GitPullRequest, Check } from "lucide-react";
+import { GitPullRequest, GitBranch, Check, AlertTriangle } from "lucide-react";
 import {
   sectionHeaderStyles,
   fieldStyles,
@@ -128,6 +128,54 @@ export function GitTab({ isActive, form }: GitTabProps) {
             Pattern for auto-generated branch names. Available variables: {"{ticket-id}"},{" "}
             {"{slug}"}, {"{type}"}
           </p>
+        </div>
+
+        {/* AI Workflow Settings Section */}
+        <div className="pt-4 border-t border-[var(--border-primary)]">
+          <div className={sectionHeaderStyles.container}>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[color-mix(in_srgb,var(--accent-ai)_15%,transparent)]">
+              <GitBranch size={16} className="text-[var(--accent-ai)]" />
+            </div>
+            <h3 className={sectionHeaderStyles.title}>AI Workflow Settings</h3>
+          </div>
+
+          {/* Worktree Support Toggle */}
+          <form.Field
+            name="enableWorktreeSupport"
+            children={(field: BooleanFieldRenderProps) => (
+              <div className={toggleStyles.row}>
+                <div className={toggleStyles.info}>
+                  <div className={toggleStyles.label}>Enable Worktree Support</div>
+                  <div className={toggleStyles.desc}>
+                    Allow epics to use git worktrees for isolated AI sessions. When enabled, each
+                    epic can optionally use a separate working directory.
+                  </div>
+                </div>
+                <button
+                  onClick={() => field.handleChange(!field.state.value)}
+                  onBlur={field.handleBlur}
+                  className={toggleStyles.switch(field.state.value)}
+                  role="switch"
+                  aria-checked={field.state.value}
+                  aria-label="Enable Worktree Support"
+                >
+                  <span className={toggleStyles.knob(field.state.value)} />
+                </button>
+              </div>
+            )}
+          />
+
+          {/* Experimental Feature Warning */}
+          <div className="mt-3 p-3 rounded-lg bg-[color-mix(in_srgb,var(--status-warning)_10%,transparent)] border border-[color-mix(in_srgb,var(--status-warning)_30%,transparent)]">
+            <div className="flex items-start gap-2">
+              <AlertTriangle size={14} className="text-[var(--status-warning)] mt-0.5 shrink-0" />
+              <span className="text-xs text-[var(--text-secondary)]">
+                <strong className="text-[var(--status-warning)]">Experimental:</strong> Worktree
+                support enables parallel AI sessions on the same codebase. This feature requires
+                additional disk space and may affect git workflows.
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Git Status Card */}

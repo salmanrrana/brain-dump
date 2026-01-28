@@ -1,7 +1,8 @@
 import { type FC, useState, type MouseEvent } from "react";
-import { Pencil, Bot } from "lucide-react";
+import { Pencil, Bot, Play } from "lucide-react";
 import { createEnterSpaceHandler } from "../../lib/keyboard-utils";
-import type { Epic } from "../../lib/hooks";
+import type { Epic, EpicWorktreeState } from "../../lib/hooks";
+import { WorktreeBadge } from "../WorktreeBadge";
 
 export interface EpicListItemProps {
   /** Epic data */
@@ -12,6 +13,8 @@ export interface EpicListItemProps {
   hasActiveAI?: boolean | undefined;
   /** Number of tickets in this epic */
   ticketCount?: number | undefined;
+  /** Worktree state for this epic (path, status) */
+  worktreeState?: EpicWorktreeState | undefined;
   /** Handler when the epic is clicked (for selection/filtering) */
   onSelect: () => void;
   /** Handler when the edit button is clicked */
@@ -36,6 +39,7 @@ export const EpicListItem: FC<EpicListItemProps> = ({
   isSelected = false,
   hasActiveAI = false,
   ticketCount,
+  worktreeState,
   onSelect,
   onEdit,
   onLaunchRalph,
@@ -51,6 +55,8 @@ export const EpicListItem: FC<EpicListItemProps> = ({
 
   const handleRalphClick = (e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
+    // Don't trigger if disabled (no tickets or already in progress)
+    if (ticketCount === 0 || hasActiveAI) return;
     onLaunchRalph();
   };
 
@@ -138,6 +144,94 @@ export const EpicListItem: FC<EpicListItemProps> = ({
     transition: "all var(--transition-fast)",
   };
 
+  // Determine if the button should be disabled (no tickets in epic)
+  const hasNoTickets = ticketCount === 0;
+  const isButtonDisabled = hasNoTickets || hasActiveAI;
+  const hasPreviousWork = Boolean(epic.isolationMode);
+
+  // Derive button state for consistent styling and text
+  type ButtonState = "no-tickets" | "in-progress" | "continue" | "start";
+  function getButtonState(): ButtonState {
+    if (hasNoTickets) return "no-tickets";
+    if (hasActiveAI) return "in-progress";
+    if (hasPreviousWork) return "continue";
+    return "start";
+  }
+  const buttonState = getButtonState();
+
+  // Button text based on state
+  const buttonTextMap: Record<ButtonState, string> = {
+    "no-tickets": "No Tickets",
+    "in-progress": "In Progress",
+    continue: "Continue",
+    start: "Start",
+  };
+
+  // Button background based on state
+  const buttonBackgroundMap: Record<ButtonState, string> = {
+    "no-tickets": "var(--bg-tertiary)",
+    "in-progress": "var(--accent-ai)",
+    continue: "var(--bg-tertiary)",
+    start: "var(--gradient-accent)",
+  };
+
+  // Button text color based on state
+  const buttonColorMap: Record<ButtonState, string> = {
+    "no-tickets": "var(--text-tertiary)",
+    "in-progress": "white",
+    continue: "var(--text-primary)",
+    start: "white",
+  };
+
+  // Aria label based on state (includes epic title for accessibility)
+  function getAriaLabel(state: ButtonState, title: string): string {
+    switch (state) {
+      case "no-tickets":
+        return `No tickets in ${title}`;
+      case "in-progress":
+        return `AI work in progress on ${title}`;
+      case "continue":
+        return `Continue AI work on ${title}`;
+      case "start":
+        return `Start AI work on ${title}`;
+    }
+  }
+
+  // Tooltip title based on state
+  function getTitleText(state: ButtonState): string {
+    switch (state) {
+      case "no-tickets":
+        return "Add tickets to start AI work";
+      case "in-progress":
+        return "AI work in progress";
+      case "continue":
+        return "Continue with AI";
+      case "start":
+        return "Start with AI";
+    }
+  }
+
+  // "Start with AI" / "Continue with AI" button - more prominent than other actions
+  const startAIButtonStyles: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "var(--spacing-1)",
+    height: "22px",
+    padding: "0 var(--spacing-2)",
+    background: buttonBackgroundMap[buttonState],
+    border: "none",
+    borderRadius: "var(--radius-sm)",
+    color: buttonColorMap[buttonState],
+    cursor: isButtonDisabled ? "not-allowed" : "pointer",
+    opacity: hasNoTickets ? 0.6 : 1,
+    transition: "all var(--transition-fast)",
+    fontSize: "var(--font-size-xs)",
+    fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+    whiteSpace: "nowrap",
+    flexShrink: 0,
+  };
+
   return (
     <div
       style={containerStyles}
@@ -157,6 +251,16 @@ export const EpicListItem: FC<EpicListItemProps> = ({
 
       {/* Title */}
       <span style={titleStyles}>{epic.title}</span>
+
+      {/* Worktree badge (shown when isolation mode is set) */}
+      {epic.isolationMode && (
+        <WorktreeBadge
+          isolationMode={epic.isolationMode}
+          worktreeStatus={worktreeState?.worktreeStatus}
+          worktreePath={worktreeState?.worktreePath}
+          size="sm"
+        />
+      )}
 
       {/* AI indicator (always visible when active) */}
       {hasActiveAI && (
@@ -183,14 +287,22 @@ export const EpicListItem: FC<EpicListItemProps> = ({
         >
           <Pencil size={12} aria-hidden="true" />
         </button>
+        {/* Start/Continue with AI button - more prominent when hovered */}
         <button
           type="button"
-          style={actionButtonStyles}
+          style={startAIButtonStyles}
           onClick={handleRalphClick}
-          aria-label={`Launch Ralph for ${epic.title}`}
-          className="hover:bg-[var(--accent-ai)]/10 hover:text-[var(--accent-ai)]"
+          disabled={isButtonDisabled}
+          aria-label={getAriaLabel(buttonState, epic.title)}
+          title={getTitleText(buttonState)}
+          className={isButtonDisabled ? "" : "hover:brightness-110"}
         >
-          <Bot size={12} aria-hidden="true" />
+          {hasActiveAI ? (
+            <Bot size={12} className="animate-pulse" aria-hidden="true" />
+          ) : (
+            <Play size={10} aria-hidden="true" />
+          )}
+          <span>{buttonTextMap[buttonState]}</span>
         </button>
       </div>
     </div>

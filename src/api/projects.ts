@@ -1,10 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
 import { db, sqlite } from "../lib/db";
-import { projects, epics, tickets, ticketComments } from "../lib/schema";
+import { projects, epics, tickets, ticketComments, settings } from "../lib/schema";
 import { eq, sql, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { existsSync } from "fs";
 import { ensureExists } from "../lib/utils";
+
+// Worktree feature flag types
+export interface WorktreeSupportStatus {
+  enabled: boolean;
+  reason: "project" | "global" | "disabled";
+  projectDefaultIsolationMode: "branch" | "worktree" | "ask" | null;
+}
 
 // Types
 export interface CreateProjectInput {
@@ -18,6 +25,12 @@ export interface UpdateProjectInput {
   path?: string;
   color?: string;
   workingMethod?: "auto" | "claude-code" | "vscode" | "opencode";
+  // AI Workflow settings
+  defaultIsolationMode?: "branch" | "worktree" | "ask" | null;
+  worktreeLocation?: "sibling" | "subfolder" | "custom" | null;
+  worktreeBasePath?: string | null;
+  maxWorktrees?: number | null;
+  autoCleanupWorktrees?: boolean | null;
 }
 
 // Get all projects
@@ -63,6 +76,18 @@ export const updateProject = createServerFn({ method: "POST" })
     if (input.updates.path && !existsSync(input.updates.path)) {
       throw new Error(`Directory does not exist: ${input.updates.path}`);
     }
+    // Validate maxWorktrees range (1-10)
+    if (
+      input.updates.maxWorktrees !== undefined &&
+      input.updates.maxWorktrees !== null &&
+      (input.updates.maxWorktrees < 1 || input.updates.maxWorktrees > 10)
+    ) {
+      throw new Error("maxWorktrees must be between 1 and 10");
+    }
+    // Validate worktreeBasePath is provided when location is custom
+    if (input.updates.worktreeLocation === "custom" && !input.updates.worktreeBasePath?.trim()) {
+      throw new Error("Custom worktree location requires a base path");
+    }
     return input;
   })
   .handler(async ({ data: { id, updates } }) => {
@@ -74,6 +99,15 @@ export const updateProject = createServerFn({ method: "POST" })
     if (updates.path !== undefined) updateData.path = updates.path.trim();
     if (updates.color !== undefined) updateData.color = updates.color;
     if (updates.workingMethod !== undefined) updateData.workingMethod = updates.workingMethod;
+    if (updates.defaultIsolationMode !== undefined)
+      updateData.defaultIsolationMode = updates.defaultIsolationMode;
+    if (updates.worktreeLocation !== undefined)
+      updateData.worktreeLocation = updates.worktreeLocation;
+    if (updates.worktreeBasePath !== undefined)
+      updateData.worktreeBasePath = updates.worktreeBasePath;
+    if (updates.maxWorktrees !== undefined) updateData.maxWorktrees = updates.maxWorktrees;
+    if (updates.autoCleanupWorktrees !== undefined)
+      updateData.autoCleanupWorktrees = updates.autoCleanupWorktrees;
 
     if (Object.keys(updateData).length > 0) {
       db.update(projects).set(updateData).where(eq(projects.id, id)).run();
@@ -227,3 +261,57 @@ export const deleteProject = createServerFn({ method: "POST" })
       };
     }
   );
+
+/**
+ * Check if worktree support is enabled for a project.
+ *
+ * Worktree support is enabled when ANY of the following is true:
+ * 1. Project has `defaultIsolationMode` set to "worktree" or "ask"
+ * 2. Global settings have `enableWorktreeSupport = true`
+ *
+ * This allows both per-project opt-in and global enablement for power users.
+ */
+export const getWorktreeSupportStatus = createServerFn({ method: "GET" })
+  .inputValidator((input: { projectId: string }) => {
+    if (!input.projectId) {
+      throw new Error("Project ID is required");
+    }
+    return input;
+  })
+  .handler(async ({ data: { projectId } }): Promise<WorktreeSupportStatus> => {
+    // Check project-level setting first (more specific)
+    const project = db
+      .select({ defaultIsolationMode: projects.defaultIsolationMode })
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .get();
+
+    if (!project) {
+      return { enabled: false, reason: "disabled", projectDefaultIsolationMode: null };
+    }
+
+    const projectMode = project.defaultIsolationMode as "branch" | "worktree" | "ask" | null;
+
+    // Check if project has worktree enabled
+    if (projectMode === "worktree" || projectMode === "ask") {
+      return { enabled: true, reason: "project", projectDefaultIsolationMode: projectMode };
+    }
+
+    // Check if project explicitly uses branch mode (no global override)
+    if (projectMode === "branch") {
+      return { enabled: false, reason: "disabled", projectDefaultIsolationMode: projectMode };
+    }
+
+    // Check global setting as fallback
+    const globalSettings = db
+      .select({ enableWorktreeSupport: settings.enableWorktreeSupport })
+      .from(settings)
+      .where(eq(settings.id, "default"))
+      .get();
+
+    if (globalSettings?.enableWorktreeSupport === true) {
+      return { enabled: true, reason: "global", projectDefaultIsolationMode: projectMode };
+    }
+
+    return { enabled: false, reason: "disabled", projectDefaultIsolationMode: projectMode };
+  });

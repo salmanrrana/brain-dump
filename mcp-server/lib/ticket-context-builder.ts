@@ -1,46 +1,46 @@
 /**
  * Ticket context builder for Brain Dump MCP server.
  * Extracts and formats ticket information for display when starting work.
- * @module lib/ticket-context-builder
  */
 
-/**
- * @typedef {Object} EpicInfo
- * @property {string} title - Epic title
- * @property {string} [prUrl] - Optional PR URL for the epic
- */
+export interface EpicInfo {
+  title: string;
+  prUrl?: string;
+  worktreePath?: string;
+}
 
-/**
- * @typedef {Object} TicketInfo
- * @property {string} title - Ticket title
- * @property {string} project_name - Project name
- * @property {string} project_path - Project path
- */
+export interface TicketInfo {
+  title: string;
+  project_name: string;
+  project_path: string;
+}
 
-/**
- * @typedef {Object} BuildTicketContextParams
- * @property {TicketInfo} ticket - The ticket being worked on
- * @property {string} branchName - Git branch name
- * @property {boolean} branchCreated - Whether the branch was newly created
- * @property {EpicInfo} [epicInfo] - Epic information if ticket belongs to an epic
- * @property {boolean} [usingEpicBranch] - Whether using shared epic branch
- * @property {string} [sessionInfo] - Conversation session info string
- * @property {string} [attachmentContext] - Context about attachments (design mockups, etc.)
- * @property {string} description - Ticket description
- * @property {string} priority - Ticket priority (low, medium, high)
- * @property {string[]} acceptanceCriteria - List of acceptance criteria
- * @property {string} [commentsSection] - Formatted comments section
- * @property {string} [attachmentsSection] - Attachments list section
- * @property {string} [warningsSection] - Warnings section (parse errors, etc.)
- */
+export interface BuildTicketContextParams {
+  ticket: TicketInfo;
+  branchName: string;
+  branchCreated: boolean;
+  epicInfo?: EpicInfo;
+  usingEpicBranch?: boolean;
+  sessionInfo?: string;
+  attachmentContext?: string;
+  description: string;
+  priority: string;
+  acceptanceCriteria: string[];
+  commentsSection?: string;
+  attachmentsSection?: string;
+  warningsSection?: string;
+  worktreeSection?: string;
+}
+
+export interface ContentBlock {
+  type: string;
+  text?: string;
+}
 
 /**
  * Build the epic section text if using an epic branch.
- * @param {EpicInfo} [epicInfo] - Epic information
- * @param {boolean} [usingEpicBranch] - Whether using shared epic branch
- * @returns {string} Formatted epic section or empty string
  */
-export function buildEpicSection(epicInfo, usingEpicBranch) {
+export function buildEpicSection(epicInfo?: EpicInfo, usingEpicBranch?: boolean): string {
   if (!usingEpicBranch || !epicInfo) {
     return "";
   }
@@ -53,11 +53,9 @@ export function buildEpicSection(epicInfo, usingEpicBranch) {
 
 /**
  * Build the warnings section from a list of warning messages.
- * @param {string[]} warnings - List of warning messages
- * @returns {string} Formatted warnings section or empty string
  * @throws {Error} If warnings is not an array (prevents silent garbled output)
  */
-export function buildWarningsSection(warnings) {
+export function buildWarningsSection(warnings: string[]): string {
   if (!warnings || warnings.length === 0) {
     return "";
   }
@@ -65,20 +63,18 @@ export function buildWarningsSection(warnings) {
   if (!Array.isArray(warnings)) {
     throw new Error(`buildWarningsSection: warnings must be an array, got ${typeof warnings}`);
   }
-  return `\n### Warnings\n${warnings.map(w => `- ${w}`).join("\n")}\n`;
+  return `\n### Warnings\n${warnings.map((w) => `- ${w}`).join("\n")}\n`;
 }
 
 /**
  * Build the attachments section for non-image files.
- * @param {Array<{type: string}>} attachmentBlocks - Content blocks from attachment loading
- * @returns {string} Formatted attachments section or empty string
  */
-export function buildAttachmentsSection(attachmentBlocks) {
+export function buildAttachmentsSection(attachmentBlocks: ContentBlock[]): string {
   if (!attachmentBlocks || attachmentBlocks.length === 0) {
     return "";
   }
 
-  const textCount = attachmentBlocks.filter(b => b.type === "text").length;
+  const textCount = attachmentBlocks.filter((b) => b.type === "text").length;
   if (textCount === 0) {
     return "";
   }
@@ -89,9 +85,6 @@ export function buildAttachmentsSection(attachmentBlocks) {
 /**
  * Build the main ticket context text block.
  * This is the primary output that provides Claude with context about the ticket.
- *
- * @param {BuildTicketContextParams} params - Context building parameters
- * @returns {{ type: "text", text: string }} MCP text content block
  */
 export function buildTicketContextBlock({
   ticket,
@@ -107,16 +100,22 @@ export function buildTicketContextBlock({
   commentsSection,
   attachmentsSection,
   warningsSection,
-}) {
+  worktreeSection,
+}: BuildTicketContextParams): ContentBlock {
   const epicSection = buildEpicSection(epicInfo, usingEpicBranch);
   const branchStatus = branchCreated ? "(created)" : "(checked out)";
+
+  // For worktree mode, show worktree path as the primary location
+  const pathDisplay = epicInfo?.worktreePath
+    ? `**Working Directory:** \`${epicInfo.worktreePath}\` (worktree)\n**Main Repository:** \`${ticket.project_path}\``
+    : `**Path:** ${ticket.project_path}`;
 
   // Build the context text with conditional sections
   let contextText = `## Started Work on Ticket
 
 **Branch:** \`${branchName}\` ${branchStatus}
 **Project:** ${ticket.project_name}
-**Path:** ${ticket.project_path}
+${pathDisplay}
 ${epicSection}`;
 
   // Add session info if available
@@ -146,7 +145,7 @@ ${description}
 
   // Add acceptance criteria
   contextText += `### Acceptance Criteria
-${acceptanceCriteria.map(c => `- ${c}`).join("\n")}
+${acceptanceCriteria.map((c) => `- ${c}`).join("\n")}
 `;
 
   // Add attachments and warnings sections
@@ -155,6 +154,11 @@ ${acceptanceCriteria.map(c => `- ${c}`).join("\n")}
   }
   if (warningsSection) {
     contextText += warningsSection;
+  }
+
+  // Add worktree context section for worktree isolation mode
+  if (worktreeSection) {
+    contextText += `\n${worktreeSection}\n`;
   }
 
   contextText += `---
@@ -170,12 +174,11 @@ Focus on implementation. When done, call \`complete_ticket_work\` with your summ
 /**
  * Build the complete content array for start_ticket_work response.
  * Combines the main context block with any attachment blocks.
- *
- * @param {BuildTicketContextParams} params - Context building parameters
- * @param {Array<{type: string}>} [attachmentBlocks] - Additional content blocks (images, text files)
- * @returns {Array<{type: string}>} Array of MCP content blocks
  */
-export function buildTicketContextContent(params, attachmentBlocks = []) {
+export function buildTicketContextContent(
+  params: BuildTicketContextParams,
+  attachmentBlocks: ContentBlock[] = []
+): ContentBlock[] {
   const mainTextBlock = buildTicketContextBlock(params);
   return [mainTextBlock, ...attachmentBlocks];
 }

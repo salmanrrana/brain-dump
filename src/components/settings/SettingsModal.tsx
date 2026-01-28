@@ -74,6 +74,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       prTargetBranch: settings?.prTargetBranch ?? "dev",
       conversationLoggingEnabled: settings?.conversationLoggingEnabled ?? true,
       conversationRetentionDays: settings?.conversationRetentionDays ?? 90,
+      enableWorktreeSupport: settings?.enableWorktreeSupport ?? false,
     },
     validators: {
       onChange: settingsFormSchema,
@@ -97,6 +98,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         prTargetBranch: settings.prTargetBranch ?? "dev",
         conversationLoggingEnabled: settings.conversationLoggingEnabled ?? true,
         conversationRetentionDays: settings.conversationRetentionDays ?? 90,
+        enableWorktreeSupport: settings.enableWorktreeSupport ?? false,
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- form instance is stable from useForm
@@ -164,6 +166,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         conversationLoggingEnabled: values.conversationLoggingEnabled,
         conversationRetentionDays: values.conversationRetentionDays,
         dockerRuntime: values.dockerRuntime === "auto" ? null : values.dockerRuntime,
+        enableWorktreeSupport: values.enableWorktreeSupport,
       },
       {
         onSuccess: onClose,

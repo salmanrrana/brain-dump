@@ -34,6 +34,11 @@ describe("FTS5 Search - User Experience", () => {
         path TEXT NOT NULL UNIQUE,
         color TEXT,
         working_method TEXT DEFAULT 'auto',
+        default_isolation_mode TEXT,
+        worktree_location TEXT DEFAULT 'sibling',
+        worktree_base_path TEXT,
+        max_worktrees INTEGER DEFAULT 5,
+        auto_cleanup_worktrees INTEGER DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
 
@@ -43,6 +48,7 @@ describe("FTS5 Search - User Experience", () => {
         description TEXT,
         project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
         color TEXT,
+        isolation_mode TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
 

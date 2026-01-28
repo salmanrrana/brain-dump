@@ -50,20 +50,30 @@ if [[ ! -f "$RALPH_STATE" ]]; then
   exit 0
 fi
 
-# Get the current ticket ID from Ralph state
-CURRENT_TICKET_ID=$(jq -r '.ticketId // ""' "$RALPH_STATE" 2>/dev/null || echo "")
+# Read ticket ID and worktree info from Ralph state in a single jq call
+read -r CURRENT_TICKET_ID MAIN_REPO_PATH ISOLATION_MODE < <(
+  jq -r '[.ticketId, .mainRepoPath, .isolationMode] | map(. // "") | @tsv' "$RALPH_STATE" 2>/dev/null
+)
 if [[ -z "$CURRENT_TICKET_ID" ]]; then
   exit 0
 fi
 
-# Log the spawn intent
+# Log the spawn intent (directory already exists since ralph-state.json is there)
 LOG_FILE="$PROJECT_DIR/.claude/ralph-state.log"
-mkdir -p "$(dirname "$LOG_FILE")"
 echo "[$(date -Iseconds)] PR CREATED - checking for next ticket after: $CURRENT_TICKET_ID" >> "$LOG_FILE"
 
-# Query Brain Dump for next ticket (via the PRD file)
-PRD_FILE="$PROJECT_DIR/plans/prd.json"
+# Worktree support: PRD file and spawn directory are in the main repo, not the worktree
+if [[ -n "$MAIN_REPO_PATH" && "$ISOLATION_MODE" == "worktree" ]]; then
+  PRD_FILE="$MAIN_REPO_PATH/plans/prd.json"
+  SPAWN_DIR="$MAIN_REPO_PATH"
+  echo "[$(date -Iseconds)] Worktree detected, using main repo: $MAIN_REPO_PATH" >> "$LOG_FILE"
+else
+  PRD_FILE="$PROJECT_DIR/plans/prd.json"
+  SPAWN_DIR="$PROJECT_DIR"
+fi
+
 if [[ ! -f "$PRD_FILE" ]]; then
+  echo "[$(date -Iseconds)] PRD file not found: $PRD_FILE" >> "$LOG_FILE"
   exit 0
 fi
 
@@ -81,13 +91,13 @@ if [[ -z "$NEXT_TICKET_ID" ]]; then
   exit 0
 fi
 
-echo "[$(date -Iseconds)] SPAWNING next ticket: $NEXT_TICKET_ID" >> "$LOG_FILE"
+echo "[$(date -Iseconds)] SPAWNING next ticket: $NEXT_TICKET_ID in $SPAWN_DIR" >> "$LOG_FILE"
 
 # Create a temporary script to run in the new terminal
 SPAWN_SCRIPT=$(mktemp /tmp/ralph-next-XXXXXX.sh)
 cat > "$SPAWN_SCRIPT" << SCRIPT
 #!/bin/bash
-cd "$PROJECT_DIR"
+cd "$SPAWN_DIR"
 
 # Start Claude with context for the next ticket
 echo "PR created successfully!"

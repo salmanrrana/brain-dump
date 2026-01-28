@@ -3,6 +3,20 @@ import { PlayCircle } from "lucide-react";
 import type { Ticket } from "../../lib/schema";
 import { GitInfo } from "./GitInfo";
 import { TicketTags } from "./TicketTags";
+import { WorktreeBadge, type IsolationMode, type WorktreeStatus } from "../WorktreeBadge";
+
+/**
+ * Epic worktree information for display on ticket cards.
+ * This represents the isolation context inherited from the ticket's parent epic.
+ */
+export interface TicketEpicWorktreeInfo {
+  /** The epic's isolation mode (null means no special isolation configured) */
+  isolationMode: IsolationMode;
+  /** Current worktree status (only relevant when isolationMode is "worktree") */
+  worktreeStatus?: WorktreeStatus | undefined;
+  /** The worktree filesystem path (shown in tooltip) */
+  worktreePath?: string | null | undefined;
+}
 
 export interface TicketCardProps {
   ticket: Ticket;
@@ -16,6 +30,8 @@ export interface TicketCardProps {
   isFocused?: boolean;
   /** Handler when card receives focus */
   onFocus?: (() => void) | undefined;
+  /** Worktree info inherited from parent epic (optional) */
+  epicWorktreeInfo?: TicketEpicWorktreeInfo | null | undefined;
 }
 
 const PRIORITY_BORDER_COLORS: Record<string, string> = {
@@ -52,6 +68,7 @@ export const TicketCard = memo(function TicketCard({
   tabIndex = 0,
   isFocused = false,
   onFocus,
+  epicWorktreeInfo,
 }: TicketCardProps) {
   // Memoize tag parsing to avoid expensive JSON.parse on every render
   const tags = useMemo(() => parseTagsSafely(ticket.tags), [ticket.tags]);
@@ -85,6 +102,16 @@ export const TicketCard = memo(function TicketCard({
       <h3 className="line-clamp-2 text-sm font-medium leading-snug text-[var(--text-primary)]">
         {ticket.title}
       </h3>
+
+      {/* Worktree indicator - shown when ticket's epic uses worktree isolation */}
+      {epicWorktreeInfo?.isolationMode === "worktree" && (
+        <WorktreeBadge
+          isolationMode="worktree"
+          worktreeStatus={epicWorktreeInfo.worktreeStatus}
+          worktreePath={epicWorktreeInfo.worktreePath}
+          size="sm"
+        />
+      )}
 
       {/* Demo Ready Badge - shown when ticket is in human_review status */}
       {ticket.status === "human_review" && (

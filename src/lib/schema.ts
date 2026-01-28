@@ -8,6 +8,16 @@ export const projects = sqliteTable("projects", {
   path: text("path").notNull().unique(),
   color: text("color"),
   workingMethod: text("working_method").default("auto"), // 'claude-code', 'vscode', 'opencode', 'auto'
+  // Worktree default settings
+  defaultIsolationMode: text("default_isolation_mode").$type<
+    "branch" | "worktree" | "ask" | null
+  >(), // 'branch' | 'worktree' | 'ask' | null (null = ask each time)
+  worktreeLocation: text("worktree_location")
+    .default("sibling")
+    .$type<"sibling" | "subfolder" | "custom">(), // 'sibling' | 'subfolder' | 'custom'
+  worktreeBasePath: text("worktree_base_path"), // Only used if worktree_location = 'custom'
+  maxWorktrees: integer("max_worktrees").default(5), // Limit to prevent disk exhaustion
+  autoCleanupWorktrees: integer("auto_cleanup_worktrees", { mode: "boolean" }).default(false), // Auto-cleanup when PR merged
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),
@@ -24,6 +34,7 @@ export const epics = sqliteTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     color: text("color"),
+    isolationMode: text("isolation_mode").$type<"branch" | "worktree" | null>(), // 'branch' | 'worktree' | null
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),
@@ -108,6 +119,8 @@ export const settings = sqliteTable("settings", {
   conversationLoggingEnabled: integer("conversation_logging_enabled", { mode: "boolean" }).default(
     true
   ), // Enable/disable conversation logging
+  // Git worktree feature flag (gradual rollout)
+  enableWorktreeSupport: integer("enable_worktree_support", { mode: "boolean" }).default(false), // Global opt-in for worktree support
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),
@@ -593,6 +606,10 @@ export const epicWorkflowState = sqliteTable(
     prNumber: integer("pr_number"), // GitHub PR number for the epic
     prUrl: text("pr_url"), // Full PR URL
     prStatus: text("pr_status").$type<"draft" | "open" | "merged" | "closed" | null>(), // PR status
+    // Worktree tracking fields
+    worktreePath: text("worktree_path"), // Absolute path to the worktree directory
+    worktreeCreatedAt: text("worktree_created_at"), // When the worktree was created
+    worktreeStatus: text("worktree_status").$type<"active" | "stale" | "orphaned" | null>(), // "active" | "stale" | "orphaned"
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),
@@ -603,6 +620,7 @@ export const epicWorkflowState = sqliteTable(
   (table) => [
     index("idx_epic_workflow_state_epic").on(table.epicId),
     index("idx_epic_workflow_state_current_ticket").on(table.currentTicketId),
+    index("idx_epic_workflow_state_worktree_status").on(table.worktreeStatus),
   ]
 );
 

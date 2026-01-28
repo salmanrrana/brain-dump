@@ -1,7 +1,8 @@
 import { type FC, useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { ArrowLeft, Search, Plus, X } from "lucide-react";
 import { EpicListItem } from "./EpicListItem";
-import type { Epic } from "../../lib/hooks";
+import { EpicWorktreeInfoPanel } from "./EpicWorktreeInfoPanel";
+import type { Epic, EpicWorktreeState } from "../../lib/hooks";
 
 export interface ProjectWithEpics {
   id: string;
@@ -20,6 +21,8 @@ export interface EpicDrillInViewProps {
   epicTicketCounts?: Map<string, number> | undefined;
   /** Set of epic IDs with active AI */
   epicsWithActiveAI?: Set<string> | undefined;
+  /** Map of epicId -> worktree state */
+  epicWorktreeStates?: Map<string, EpicWorktreeState> | undefined;
   /** Handler to go back to projects list */
   onBack: () => void;
   /** Handler when an epic is selected */
@@ -30,6 +33,12 @@ export interface EpicDrillInViewProps {
   onAddEpic: () => void;
   /** Handler to launch Ralph for an epic */
   onLaunchRalphForEpic: (epicId: string) => void;
+  /** Handler to open worktree in IDE */
+  onOpenWorktreeInIDE?: (worktreePath: string) => void;
+  /** Handler to open terminal in worktree */
+  onOpenWorktreeTerminal?: (worktreePath: string) => void;
+  /** Handler to cleanup a worktree */
+  onCleanupWorktree?: (epicId: string) => void;
 }
 
 /**
@@ -48,11 +57,15 @@ export const EpicDrillInView: FC<EpicDrillInViewProps> = ({
   selectedEpicId,
   epicTicketCounts,
   epicsWithActiveAI,
+  epicWorktreeStates,
   onBack,
   onSelectEpic,
   onEditEpic,
   onAddEpic,
   onLaunchRalphForEpic,
+  onOpenWorktreeInIDE,
+  onOpenWorktreeTerminal,
+  onCleanupWorktree,
 }) => {
   const [search, setSearch] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -76,6 +89,15 @@ export const EpicDrillInView: FC<EpicDrillInViewProps> = ({
     setSearch("");
     searchInputRef.current?.focus();
   }, []);
+
+  // Get selected epic and its worktree state for the info panel
+  const selectedEpic = useMemo(
+    () => project.epics.find((e) => e.id === selectedEpicId) ?? null,
+    [project.epics, selectedEpicId]
+  );
+  const selectedEpicWorktreeState = selectedEpicId
+    ? epicWorktreeStates?.get(selectedEpicId)
+    : undefined;
 
   // Styles
   const headerStyles: React.CSSProperties = {
@@ -279,6 +301,32 @@ export const EpicDrillInView: FC<EpicDrillInViewProps> = ({
         </div>
       </div>
 
+      {/* Worktree info panel - shown when a worktree-enabled epic is selected */}
+      {selectedEpic?.isolationMode === "worktree" && (
+        <EpicWorktreeInfoPanel
+          epicTitle={selectedEpic.title}
+          isolationMode={selectedEpic.isolationMode}
+          worktreePath={selectedEpicWorktreeState?.worktreePath}
+          worktreeStatus={selectedEpicWorktreeState?.worktreeStatus}
+          worktreeCreatedAt={selectedEpicWorktreeState?.worktreeCreatedAt}
+          onOpenInIDE={
+            onOpenWorktreeInIDE && selectedEpicWorktreeState?.worktreePath
+              ? () => onOpenWorktreeInIDE(selectedEpicWorktreeState.worktreePath!)
+              : undefined
+          }
+          onOpenTerminal={
+            onOpenWorktreeTerminal && selectedEpicWorktreeState?.worktreePath
+              ? () => onOpenWorktreeTerminal(selectedEpicWorktreeState.worktreePath!)
+              : undefined
+          }
+          onCleanup={
+            onCleanupWorktree && selectedEpicId
+              ? () => onCleanupWorktree(selectedEpicId)
+              : undefined
+          }
+        />
+      )}
+
       {/* Epic list */}
       <div style={listStyles} role="listbox" aria-label="Epics">
         {filteredEpics.length === 0 ? (
@@ -296,12 +344,14 @@ export const EpicDrillInView: FC<EpicDrillInViewProps> = ({
           filteredEpics.map((epic) => {
             const ticketCount = epicTicketCounts?.get(epic.id);
             const hasActiveAI = epicsWithActiveAI?.has(epic.id) ?? false;
+            const worktreeState = epicWorktreeStates?.get(epic.id);
             return (
               <EpicListItem
                 key={epic.id}
                 epic={epic}
                 isSelected={epic.id === selectedEpicId}
                 hasActiveAI={hasActiveAI}
+                worktreeState={worktreeState}
                 onSelect={() => onSelectEpic(epic.id)}
                 onEdit={() => onEditEpic(epic)}
                 onLaunchRalph={() => onLaunchRalphForEpic(epic.id)}

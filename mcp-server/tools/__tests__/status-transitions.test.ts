@@ -38,6 +38,7 @@ const SCHEMA_SQL = `
     title TEXT NOT NULL,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     color TEXT,
+    isolation_mode TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 

@@ -71,6 +71,27 @@
       "when": 1769310397852,
       "tag": "0009_open_skreet",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1769518270229,
+      "tag": "0010_fat_sumo",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1769519118190,
+      "tag": "0011_melted_madrox",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1769519510550,
+      "tag": "0012_kind_korvac",
+      "breakpoints": true
     }
   ]
 }

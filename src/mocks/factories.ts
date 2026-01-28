@@ -29,6 +29,12 @@ export function createMockProject(overrides: Partial<Project> = {}): Project {
     path: overrides.path ?? `/test/projects/${id}`,
     color: overrides.color ?? null,
     workingMethod: overrides.workingMethod ?? "auto",
+    // Worktree default settings
+    defaultIsolationMode: overrides.defaultIsolationMode ?? null,
+    worktreeLocation: overrides.worktreeLocation ?? "sibling",
+    worktreeBasePath: overrides.worktreeBasePath ?? null,
+    maxWorktrees: overrides.maxWorktrees ?? 5,
+    autoCleanupWorktrees: overrides.autoCleanupWorktrees ?? false,
     createdAt: overrides.createdAt ?? new Date().toISOString(),
   };
 }
@@ -44,6 +50,7 @@ export function createMockEpic(overrides: Partial<Epic> = {}): Epic {
     description: overrides.description ?? null,
     projectId: overrides.projectId ?? crypto.randomUUID(),
     color: overrides.color ?? null,
+    isolationMode: overrides.isolationMode ?? null,
     createdAt: overrides.createdAt ?? new Date().toISOString(),
   };
 }
@@ -113,6 +120,7 @@ export function createMockSettings(overrides: Partial<Settings> = {}): Settings 
     dockerSocketPath: overrides.dockerSocketPath ?? null,
     conversationRetentionDays: overrides.conversationRetentionDays ?? 90,
     conversationLoggingEnabled: overrides.conversationLoggingEnabled ?? true,
+    enableWorktreeSupport: overrides.enableWorktreeSupport ?? false,
     createdAt: overrides.createdAt ?? new Date().toISOString(),
     updatedAt: overrides.updatedAt ?? new Date().toISOString(),
   };
