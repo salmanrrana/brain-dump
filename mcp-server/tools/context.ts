@@ -32,16 +32,26 @@ function formatResponse(text: string, isError = false): Record<string, unknown> 
  * Execute tool handler with error handling and response formatting.
  *
  * @param {Function} handler - Handler function returning text content
+ * @param {string} toolName - Name of the tool for error logging
  * @returns {Promise<Object>} MCP-formatted response
  */
-async function executeWithErrorHandling(handler: () => Promise<string> | string): Promise<Record<string, unknown>> {
+async function executeWithErrorHandling(handler: () => Promise<string> | string, toolName: string = "unknown"): Promise<Record<string, unknown>> {
   try {
     const text = await handler();
     return formatResponse(text);
   } catch (err) {
-    log.error("Tool execution failed", err);
     const errorMessage = err instanceof Error ? err.message : String(err);
-    return formatResponse(`Error: ${errorMessage}`, true);
+    const errorType = err?.constructor?.name || "Unknown";
+
+    // Programming errors indicate bugs in the tool implementation
+    if (err instanceof TypeError || err instanceof ReferenceError) {
+      log.error(`Tool bug in ${toolName}: ${errorType}: ${errorMessage}`, err instanceof Error ? err : new Error(String(err)));
+      return formatResponse(`Internal tool error in ${toolName}: ${errorMessage}. This is a bug - please report it.`, true);
+    }
+
+    // All other errors - operational failures
+    log.error(`Tool execution failed in ${toolName}: ${errorMessage}`, err instanceof Error ? err : new Error(String(err)));
+    return formatResponse(`Failed to execute ${toolName}: ${errorMessage}`, true);
   }
 }
 
@@ -87,7 +97,7 @@ Returns:
       return executeWithErrorHandling(() => {
         const context = detectContext(db, { ticketId, projectId, sessionId });
         return JSON.stringify(context, null, 2);
-      });
+      }, "detect_context");
     }
   );
 
@@ -111,7 +121,7 @@ Returns:
           return "No active contexts found. No conversation sessions are currently active.";
         }
         return JSON.stringify(contexts, null, 2);
-      });
+      }, "detect_all_contexts");
     }
   );
 
@@ -139,7 +149,7 @@ Returns:
       return executeWithErrorHandling(() => {
         const context = detectContext(db, { ticketId, projectId, sessionId });
         return getContextSummary(context);
-      });
+      }, "get_context_summary");
     }
   );
 
@@ -177,7 +187,7 @@ Returns:
         const contextSummary = getContextSummary(context);
         const status = relevant ? "RELEVANT" : "NOT RELEVANT";
         return `Tool category '${toolCategory}' is ${status} to current context.\n\nContext: ${contextSummary}`;
-      });
+      }, "is_context_relevant");
     }
   );
 }

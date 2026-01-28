@@ -264,7 +264,16 @@ function tryQueryDb(db: any, sql: string, params: any[], operation: string): any
   try {
     return db.prepare(sql).get(...params);
   } catch (err) {
-    log.debug(`${operation} failed (expected if table doesn't exist): ${err instanceof Error ? err.message : String(err)}`);
+    const errorMessage = err instanceof Error ? err.message : String(err);
+
+    // Table doesn't exist is expected during migrations or initial setup
+    if (errorMessage.includes("no such table")) {
+      log.debug(`${operation} skipped (table not yet created): ${errorMessage}`);
+      return null;
+    }
+
+    // All other errors are unexpected and should be surfaced for debugging
+    log.error(`${operation} failed unexpectedly: ${errorMessage}`, err instanceof Error ? err : new Error(String(err)));
     return null;
   }
 }
@@ -283,7 +292,16 @@ function tryQueryDbAll(db: any, sql: string, params: any[], operation: string): 
   try {
     return db.prepare(sql).all(...params);
   } catch (err) {
-    log.debug(`${operation} failed (expected if table doesn't exist): ${err instanceof Error ? err.message : String(err)}`);
+    const errorMessage = err instanceof Error ? err.message : String(err);
+
+    // Table doesn't exist is expected during migrations or initial setup
+    if (errorMessage.includes("no such table")) {
+      log.debug(`${operation} skipped (table not yet created): ${errorMessage}`);
+      return [];
+    }
+
+    // All other errors are unexpected and should be surfaced for debugging
+    log.error(`${operation} failed unexpectedly: ${errorMessage}`, err instanceof Error ? err : new Error(String(err)));
     return [];
   }
 }
