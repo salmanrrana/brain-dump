@@ -134,3 +134,7 @@ They require human demo approval via `submit_demo_feedback({ ticketId, passed, f
 
 **Note:** Previous demo failed on step 3 due to scope confusion - the reviewer tested files OUTSIDE this ticket's scope (src/api/services.ts, terminal.ts). This ticket is specifically about mcp-server/lib/path-validation.js.
 
+
+### 2026-01-28 - Ralph Session: MCP Tool Consolidation Phase 2
+**Work:** Completed tickets 6991c44f (Settings UI), f4c0491d (Integration tests), 225d2d18 (Mode selection)
+**Commits:** c00dbb0, c60668e, 96ea54a
