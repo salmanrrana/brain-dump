@@ -1,0 +1,422 @@
+================================================================================
+   ERROR HANDLING AUDIT: CONTEXT DETECTION SYSTEM
+   Silent Failure Hunter Report
+================================================================================
+
+AUDIT SCOPE
+  Files Reviewed: 3
+  Lines Analyzed: ~500
+  Duration: Comprehensive
+
+FILES AUDITED
+  • mcp-server/lib/context-detection.js
+  • mcp-server/tools/context.js
+  • mcp-server/__tests__/context-detection.test.js
+
+================================================================================
+                         FINDINGS SUMMARY
+================================================================================
+
+CRITICAL ISSUES: 3
+├── #1: Silent database failures in detectContext()        [IMMEDIATE ACTION]
+├── #2: No input validation                                [IMMEDIATE ACTION]
+└── #3: Unspecific database error handling                 [IMMEDIATE ACTION]
+
+HIGH ISSUES: 6
+├── #4: Generic MCP tool error messages                    [FIX BEFORE MERGE]
+├── #5: detectAllActiveContexts() returns empty on error   [FIX BEFORE MERGE]
+├── #6: Missing validation in utility functions            [FIX BEFORE MERGE]
+└── #7: Error handling code duplication                    [FIX BEFORE MERGE]
+
+MEDIUM ISSUES: 2
+├── #8: Missing test database table                        [FOLLOW-UP]
+├── #9: Test helpers don't validate success                [FOLLOW-UP]
+├── #10: Missing error context in logs                     [FOLLOW-UP]
+└── #11: Invalid status not detected                       [FOLLOW-UP]
+
+================================================================================
+                      CRITICAL ISSUES DETAIL
+================================================================================
+
+ISSUE #1: SILENT DATABASE FAILURES
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Location: mcp-server/lib/context-detection.js, lines 38-81                 │
+│ Severity: CRITICAL - Silent failures, invisible in production              │
+│                                                                             │
+│ Pattern:                                                                    │
+│   try {                                                                     │
+│     activeSession = db.prepare(...).get(sessionId);                         │
+│   } catch (err) {                                                           │
+│     log.debug(`Session lookup failed: ${err.message}`);  ← DEBUG LEVEL!    │
+│   }                                                                         │
+│                                                                             │
+│ Problem:                                                                    │
+│   1. Error only logged at DEBUG level (disabled in production)              │
+│   2. Function continues as if nothing happened                              │
+│   3. activeSession remains null, context detection returns wrong type       │
+│   4. User receives "admin" context instead of "ticket_work"                 │
+│   5. No trace in production logs of what went wrong                         │
+│                                                                             │
+│ Impact:                                                                     │
+│   • User: "Why am I in admin context when working on ticket-1?"             │
+│   • Developer: Zero visibility in logs, impossible to debug                 │
+│   • System: Context-dependent tool visibility becomes unreliable            │
+│                                                                             │
+│ Fix: Replace log.debug() with ERROR level + error context object           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+ISSUE #2: NO INPUT VALIDATION
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Location: mcp-server/lib/context-detection.js, line 28                     │
+│ Severity: CRITICAL - Type confusion, SQL injection risk                     │
+│                                                                             │
+│ Pattern:                                                                    │
+│   export function detectContext(db, options = {}) {                         │
+│     const { ticketId, projectId, sessionId } = options; ← No validation    │
+│     // Use values directly in SQL queries                                   │
+│     db.prepare(...).get(sessionId);                                         │
+│   }                                                                         │
+│                                                                             │
+│ Problem:                                                                    │
+│   1. No type checking (could be null, objects, numbers)                     │
+│   2. No length/format validation                                            │
+│   3. Values used directly in database queries                               │
+│   4. Silent failures if invalid types are passed                            │
+│                                                                             │
+│ Example Failures:                                                           │
+│   detectContext(db, {ticketId: null})        → Wrong context silently      │
+│   detectContext(db, {ticketId: {}})          → Type error in query          │
+│   detectContext(db, {sessionId: ""})         → Edge case handling missing   │
+│                                                                             │
+│ Fix: Add Zod schema validation with error handling                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+ISSUE #3: UNSPECIFIC ERROR HANDLING
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Location: mcp-server/lib/context-detection.js, line 50-51                  │
+│ Severity: CRITICAL - Misleading comment normalizes failures                 │
+│                                                                             │
+│ Pattern:                                                                    │
+│   } catch (err) {                                                           │
+│     log.debug(`Session lookup failed (expected if table doesn't exist)`);   │
+│   }                                                                         │
+│                                                                             │
+│ Problem:                                                                    │
+│   1. Comment suggests missing table is EXPECTED (it's not!)                 │
+│   2. All errors treated identically                                         │
+│   3. Can't distinguish initialization failure from connection failure       │
+│   4. Missing migrations would be invisible                                  │
+│                                                                             │
+│ Real Scenario:                                                              │
+│   • Migration fails to run (bug in CI/CD)                                   │
+│   • conversation_sessions table never created                               │
+│   • App ships to production with broken migrations                          │
+│   • Users see context detection "fail silently"                             │
+│   • Error is completely invisible because logged at DEBUG level             │
+│   • Developers spend hours debugging with no evidence in logs               │
+│                                                                             │
+│ Fix: Check error type, distinguish initialization from runtime errors      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+                        HIGH ISSUES DETAIL
+================================================================================
+
+ISSUE #4: GENERIC MCP TOOL ERROR MESSAGES
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Location: mcp-server/tools/context.js, lines 54-234 (all 4 tools)          │
+│ Severity: HIGH - Users don't know what went wrong or how to fix it          │
+│                                                                             │
+│ Current Error Message:                                                      │
+│   "Failed to detect context: SQLITE_CANTOPEN"                               │
+│                                                                             │
+│ What User Thinks:                                                           │
+│   ??? What does SQLITE_CANTOPEN mean? What do I do?                         │
+│                                                                             │
+│ Better Error Message:                                                       │
+│   "Cannot access database file. Check that:\n                              │
+│    - The file has read/write permissions\n                                 │
+│    - The disk has available space\n                                        │
+│    - The path is not on a locked filesystem"                               │
+│                                                                             │
+│ Impact:                                                                     │
+│   • Users stuck without guidance                                            │
+│   • Support burden increases                                                │
+│   • Difficult to explain solutions                                          │
+│                                                                             │
+│ Fix: Add actionable error messages with recovery steps                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+ISSUE #5: EMPTY ARRAY ON ERROR
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Location: mcp-server/lib/context-detection.js, lines 194-220               │
+│ Severity: HIGH - Caller can't distinguish error from "no contexts"          │
+│                                                                             │
+│ Pattern:                                                                    │
+│   export function detectAllActiveContexts(db) {                             │
+│     const activeContexts = [];                                              │
+│     try {                                                                   │
+│       const activeSessions = db.prepare(...).all();                         │
+│       for (const session of activeSessions) { ... }                         │
+│     } catch (err) {                                                         │
+│       log.debug(`Failed: ${err.message}`); ← Logs but continues             │
+│     }                                                                       │
+│     return activeContexts; ← Returns [] whether error or no contexts!       │
+│   }                                                                         │
+│                                                                             │
+│ Problem:                                                                    │
+│   • Caller gets [] and can't tell if:                                       │
+│     - No active sessions (normal)                                           │
+│     - Database error prevented checking (abnormal)                          │
+│   • Multi-window workflows confused about isolation                         │
+│   • Cleanup operations might skip contexts that need cleanup                │
+│                                                                             │
+│ Scenario:                                                                   │
+│   Window A is working on ticket-1                                           │
+│   Window B queries detectAllActiveContexts()                                │
+│   Database error occurs, but returns []                                     │
+│   Window B thinks it's alone, doesn't see Window A's work                   │
+│   Conflict occurs!                                                          │
+│                                                                             │
+│ Fix: Return {success, contexts, error} so caller can distinguish            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+ISSUE #6: MISSING VALIDATION IN UTILITIES
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Location: mcp-server/lib/context-detection.js, lines 230-269               │
+│ Severity: HIGH - Malformed objects produce wrong results silently           │
+│                                                                             │
+│ Function: isContextRelevant()                                               │
+│   const contextType = context.type || "idle"; ← Fallback silently!          │
+│                                                                             │
+│ Function: getContextSummary()                                               │
+│   const { type, status, description } = context; ← Could be undefined      │
+│   return `${type} context: ... (${status})`    ← Broken if status missing   │
+│                                                                             │
+│ Problem:                                                                    │
+│   1. No validation that context has expected properties                     │
+│   2. Undefined properties silently produce wrong text                        │
+│   3. Type property missing defaults to "idle" (masks bugs)                  │
+│   4. Tests don't cover malformed context objects                            │
+│                                                                             │
+│ Example Failure:                                                            │
+│   Caller passes: {ticketId: "t1"}  (missing type)                           │
+│   isContextRelevant() returns: false                                        │
+│   But it SHOULD be checking tool relevance for correct context!             │
+│                                                                             │
+│ Fix: Add property validation, fail loudly on malformed context              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+ISSUE #7: ERROR HANDLING DUPLICATION
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Location: mcp-server/tools/context.js, all 4 tools                         │
+│ Severity: HIGH - Maintenance nightmare, inconsistent handling               │
+│                                                                             │
+│ Pattern Repeated 4 Times:                                                   │
+│   async ({ ticketId, ... }) => {                                            │
+│     try {                                                                   │
+│       const context = detectContext(db, ...);                               │
+│       return { content: [{ type: "text", text: JSON.stringify(...) }] };   │
+│     } catch (err) {                                                         │
+│       log.error("Failed to detect context", err);                           │
+│       return {                                                              │
+│         content: [{                                                         │
+│           type: "text",                                                     │
+│           text: `Failed to detect context: ${err.message}`,                 │
+│           isError: true,                                                    │
+│         }],                                                                 │
+│       };                                                                    │
+│     }                                                                       │
+│   }                                                                         │
+│                                                                             │
+│ Problem:                                                                    │
+│   1. Same error handling duplicated in 4 places                             │
+│   2. Inconsistent error messages across tools                               │
+│   3. Hard to improve error handling (must change 4 places)                  │
+│   4. Maintenance burden for future developers                               │
+│                                                                             │
+│ Fix: Extract reusable withErrorHandling() helper function                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+                      ERROR HANDLING ANTI-PATTERNS
+================================================================================
+
+PATTERN #1: DEBUG-LEVEL LOGGING IN ERROR PATHS
+├─ Problem: Not visible in production (LOG_LEVEL default is INFO)
+├─ Impact: Production errors completely invisible
+├─ Solution: Use log.error() for real problems
+└─ Locations: Lines 51, 67, 79, 216 in context-detection.js
+
+PATTERN #2: CATCH ALL EXCEPTIONS IDENTICALLY
+├─ Problem: Can't distinguish error types
+├─ Impact: Database corruption treated same as connection failure
+├─ Solution: Check error.message or error.code to handle differently
+└─ Locations: Lines 39, 57, 74 in context-detection.js
+
+PATTERN #3: CONTINUE EXECUTION AFTER CATCHING ERROR
+├─ Problem: Function returns wrong result
+├─ Impact: User receives incorrect context silently
+├─ Solution: Return error context or propagate error
+└─ Locations: Lines 50, 66, 78 in context-detection.js
+
+PATTERN #4: GENERIC ERROR MESSAGES
+├─ Problem: Users don't know how to fix
+├─ Impact: Support burden, frustrated users
+├─ Solution: Include recovery guidance in error message
+└─ Locations: Lines 67-76 in tools/context.js (all 4 tools)
+
+PATTERN #5: NO INPUT VALIDATION
+├─ Problem: Type errors silently produce wrong results
+├─ Impact: Difficult to debug when invalid data is passed
+├─ Solution: Validate inputs with Zod before using
+└─ Locations: Line 28 in context-detection.js
+
+================================================================================
+                          IMPACT SCENARIOS
+================================================================================
+
+SCENARIO 1: User in Middle of Work
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1. User starts working on ticket-1                                          │
+│ 2. Context detection runs (ticket lookup fails silently)                     │
+│ 3. User receives "admin" context instead of "ticket_work"                    │
+│ 4. Tools available in admin context show (not ticket_work tools)             │
+│ 5. User can't see the tools they need                                        │
+│ 6. User reports "tools disappeared"                                         │
+│ 7. Developer checks logs: nothing (debug level logging)                      │
+│ 8. Impossible to debug 6 months later                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SCENARIO 2: Multi-Window Conflict
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Window A: detectAllActiveContexts() works fine                               │
+│ Window B: detectAllActiveContexts() has database error                       │
+│ Window B: Gets empty list [], assumes no active contexts                     │
+│ Window B: Allows starting new work (should wait for Window A)                │
+│ Result: Conflict! Two windows working on same ticket                         │
+│ Debug: No way to know database error occurred in Window B                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SCENARIO 3: Ralph Workflow Breaks
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1. Ralph tries to detect current ticket context                              │
+│ 2. Session lookup fails (database locked, permission issue, etc.)            │
+│ 3. Function logs at DEBUG level, returns admin context                       │
+│ 4. Ralph thinks it's in admin context, not ticket_work                       │
+│ 5. Ralph picks wrong next task or skips work                                 │
+│ 6. Workflow breaks silently                                                  │
+│ 7. Logs show nothing (debug level)                                           │
+│ 8. User reports "Ralph isn't working right"                                  │
+│ 9. Impossible to find root cause                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+                        REMEDIATION OVERVIEW
+================================================================================
+
+PHASE 1: CRITICAL FIXES (2-3 hours)
+  ✓ Issue #1: Replace silent catch blocks with ERROR level logging
+  ✓ Issue #2: Add Zod input validation
+  ✓ Issue #3: Distinguish initialization errors from runtime errors
+
+  Impact: Prevents silent failures from reaching users
+
+PHASE 2: HIGH FIXES (3-4 hours)
+  ✓ Issue #4: Enhance error messages with recovery guidance
+  ✓ Issue #5: Return result object with success flag
+  ✓ Issue #6: Add validation to utility functions
+  ✓ Issue #7: Extract reusable error handling helper
+
+  Impact: Users get actionable error messages
+
+PHASE 3: MEDIUM FIXES (1-2 hours)
+  ✓ Issue #8: Add missing test table
+  ✓ Issue #9: Validate test helper success
+  ✓ Issue #10: Include parameters in error logs
+  ✓ Issue #11: Detect invalid ticket status
+
+  Impact: Better test reliability and debuggability
+
+================================================================================
+                         DOCUMENTATION
+================================================================================
+
+4 COMPREHENSIVE DOCUMENTS GENERATED:
+
+1. ERROR_HANDLING_EXECUTIVE_SUMMARY.md
+   └─ High-level overview for managers and decision-makers
+   └─ Read time: 10-15 minutes
+   └─ Covers: What was found, why it matters, cost to fix
+
+2. ERROR_HANDLING_AUDIT_REPORT.md
+   └─ Detailed forensic audit for developers
+   └─ Read time: 45-60 minutes
+   └─ Covers: All 11 issues with complete analysis
+
+3. REMEDIATION_GUIDE.md
+   └─ Step-by-step implementation guide
+   └─ Read time: 30-45 minutes
+   └─ Covers: Before/after code, ready-to-use solutions
+
+4. ERROR_HANDLING_CHECKLIST.md
+   └─ Progress tracking and verification
+   └─ Read time: 20-30 minutes
+   └─ Covers: Checkboxes, testing steps, code review points
+
+5. ERROR_HANDLING_AUDIT_INDEX.md
+   └─ Navigation guide to all documents
+   └─ Read time: 10-15 minutes
+   └─ Covers: What's in each document, how to use them
+
+================================================================================
+                       RECOMMENDED NEXT STEPS
+================================================================================
+
+IMMEDIATE (Today)
+  1. Read ERROR_HANDLING_EXECUTIVE_SUMMARY.md (15 min)
+  2. Discuss findings with team (15 min)
+  3. Decide on fix priority (CRITICAL/HIGH/MEDIUM) (5 min)
+
+SHORT TERM (This Week)
+  1. Assign developer to implement CRITICAL fixes
+  2. Set up code review process
+  3. Schedule pair programming if needed
+  4. Create feature branch for fixes
+
+MEDIUM TERM (This Sprint)
+  1. Complete CRITICAL fixes
+  2. Complete HIGH fixes
+  3. Review and merge
+  4. Test in staging environment
+  5. Deploy to production
+
+LONG TERM (Ongoing)
+  1. Apply same audit to other MCP tools
+  2. Apply same audit to server functions (src/api/)
+  3. Review similar patterns in codebase
+  4. Train team on error handling best practices
+
+================================================================================
+                            QUESTIONS?
+================================================================================
+
+For clarification on any issue, see the detailed documents:
+  • What's wrong? → ERROR_HANDLING_AUDIT_REPORT.md
+  • How to fix? → REMEDIATION_GUIDE.md
+  • How to verify? → ERROR_HANDLING_CHECKLIST.md
+  • How to navigate? → ERROR_HANDLING_AUDIT_INDEX.md
+
+================================================================================
+                          AUDIT COMPLETED
+================================================================================
+
+Status: ANALYSIS COMPLETE
+Files: 3 reviewed
+Issues: 11 found (3 CRITICAL, 6 HIGH, 2 MEDIUM)
+Documentation: 5 comprehensive documents generated
+Ready for: Implementation and code review
+
+Next: Start with ERROR_HANDLING_EXECUTIVE_SUMMARY.md
+
+================================================================================

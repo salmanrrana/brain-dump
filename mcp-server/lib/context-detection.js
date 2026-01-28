@@ -15,6 +15,31 @@
 
 import { log } from "./logging.js";
 
+// Status constants for context detection
+const TICKET_STATUSES = {
+  IN_PROGRESS: "in_progress",
+  AI_REVIEW: "ai_review",
+  HUMAN_REVIEW: "human_review",
+  BACKLOG: "backlog",
+  READY: "ready",
+  DONE: "done",
+};
+
+const CONTEXT_TYPES = {
+  TICKET_WORK: "ticket_work",
+  PLANNING: "planning",
+  REVIEW: "review",
+  ADMIN: "admin",
+};
+
+const STATE_NAMES = {
+  IMPLEMENTING: "implementing",
+  REVIEWING: "reviewing",
+  PLANNING: "planning",
+  COMPLETE: "complete",
+  ADMIN: "admin",
+};
+
 /**
  * Detect the active context based on current session and ticket state.
  *
@@ -28,160 +53,124 @@ import { log } from "./logging.js";
 export function detectContext(db, options = {}) {
   const { ticketId, projectId, sessionId } = options;
 
-  // Try to find active ticket if not provided
   let activeTicketId = ticketId;
   let activeTicket = null;
   let activeProject = null;
   let activeSession = null;
 
-  // Step 1: Check for active session
+  // Check for active session
   if (sessionId) {
-    try {
-      activeSession = db
-        .prepare(
-          `SELECT * FROM conversation_sessions
-           WHERE id = ? AND ended_at IS NULL LIMIT 1`
-        )
-        .get(sessionId);
-
-      if (activeSession) {
-        activeTicketId = activeSession.ticket_id;
-      }
-    } catch (err) {
-      log.debug(`Session lookup failed (expected if table doesn't exist): ${err.message}`);
+    activeSession = tryQueryDb(
+      db,
+      `SELECT * FROM conversation_sessions WHERE id = ? AND ended_at IS NULL LIMIT 1`,
+      [sessionId],
+      "Session lookup"
+    );
+    if (activeSession) {
+      activeTicketId = activeSession.ticket_id;
     }
   }
 
-  // Step 2: Look up ticket and its status
+  // Look up ticket and its status
   if (activeTicketId) {
-    try {
-      activeTicket = db
-        .prepare(
-          `SELECT t.*, p.id as project_id
-           FROM tickets t
-           LEFT JOIN projects p ON t.project_id = p.id
-           WHERE t.id = ? LIMIT 1`
-        )
-        .get(activeTicketId);
-    } catch (err) {
-      log.debug(`Ticket lookup failed: ${err.message}`);
-    }
+    activeTicket = tryQueryDb(
+      db,
+      `SELECT t.*, p.id as project_id FROM tickets t
+       LEFT JOIN projects p ON t.project_id = p.id WHERE t.id = ? LIMIT 1`,
+      [activeTicketId],
+      "Ticket lookup"
+    );
   }
 
-  // Step 3: Look up project if we have a project ID
+  // Look up project if we have a project ID
   const effectiveProjectId = activeTicket?.project_id || projectId;
   if (effectiveProjectId) {
-    try {
-      activeProject = db
-        .prepare("SELECT * FROM projects WHERE id = ? LIMIT 1")
-        .get(effectiveProjectId);
-    } catch (err) {
-      log.debug(`Project lookup failed: ${err.message}`);
-    }
+    activeProject = tryQueryDb(
+      db,
+      "SELECT * FROM projects WHERE id = ? LIMIT 1",
+      [effectiveProjectId],
+      "Project lookup"
+    );
   }
 
-  // Step 4: Determine context based on ticket status
+  // Determine context based on ticket status
   if (activeTicket) {
-    const { status, id: ticketId } = activeTicket;
+    const { status, id: currentTicketId } = activeTicket;
 
-    if (status === "in_progress") {
-      return {
-        type: "ticket_work",
-        ticketId,
-        projectId: effectiveProjectId,
-        status,
-        description: "Active ticket implementation",
-        metadata: {
-          ticket: activeTicket,
-          project: activeProject,
-          session: activeSession,
-          stateFile: {
-            sessionId,
-            ticketId,
-            currentState: "implementing",
-          },
-        },
-      };
-    }
+    switch (status) {
+      case TICKET_STATUSES.IN_PROGRESS:
+        return buildContext({
+          type: CONTEXT_TYPES.TICKET_WORK,
+          ticketId: currentTicketId,
+          projectId: effectiveProjectId,
+          status,
+          description: "Active ticket implementation",
+          currentState: STATE_NAMES.IMPLEMENTING,
+          activeTicket,
+          activeProject,
+          activeSession,
+          sessionId,
+        });
 
-    if (status === "ai_review" || status === "human_review") {
-      return {
-        type: "review",
-        ticketId,
-        projectId: effectiveProjectId,
-        status,
-        description: "Code review phase",
-        metadata: {
-          ticket: activeTicket,
-          project: activeProject,
-          session: activeSession,
-          reviewPhase: status === "ai_review" ? "automated" : "manual",
-          stateFile: {
-            sessionId,
-            ticketId,
-            currentState: "reviewing",
-          },
-        },
-      };
-    }
+      case TICKET_STATUSES.AI_REVIEW:
+      case TICKET_STATUSES.HUMAN_REVIEW:
+        return buildContext({
+          type: CONTEXT_TYPES.REVIEW,
+          ticketId: currentTicketId,
+          projectId: effectiveProjectId,
+          status,
+          description: "Code review phase",
+          currentState: STATE_NAMES.REVIEWING,
+          reviewPhase: status === TICKET_STATUSES.AI_REVIEW ? "automated" : "manual",
+          activeTicket,
+          activeProject,
+          activeSession,
+          sessionId,
+        });
 
-    if (status === "backlog" || status === "ready") {
-      return {
-        type: "planning",
-        ticketId,
-        projectId: effectiveProjectId,
-        status,
-        description: "Ticket planning/readiness",
-        metadata: {
-          ticket: activeTicket,
-          project: activeProject,
-          session: activeSession,
-          readinessLevel: status === "ready" ? "ready_to_work" : "needs_planning",
-          stateFile: {
-            sessionId,
-            ticketId,
-            currentState: "planning",
-          },
-        },
-      };
-    }
+      case TICKET_STATUSES.BACKLOG:
+      case TICKET_STATUSES.READY:
+        return buildContext({
+          type: CONTEXT_TYPES.PLANNING,
+          ticketId: currentTicketId,
+          projectId: effectiveProjectId,
+          status,
+          description: "Ticket planning/readiness",
+          currentState: STATE_NAMES.PLANNING,
+          readinessLevel: status === TICKET_STATUSES.READY ? "ready_to_work" : "needs_planning",
+          activeTicket,
+          activeProject,
+          activeSession,
+          sessionId,
+        });
 
-    if (status === "done") {
-      return {
-        type: "admin",
-        ticketId,
-        projectId: effectiveProjectId,
-        status,
-        description: "Ticket completed - administrative context",
-        metadata: {
-          ticket: activeTicket,
-          project: activeProject,
-          session: activeSession,
-          stateFile: {
-            sessionId,
-            ticketId,
-            currentState: "complete",
-          },
-        },
-      };
+      case TICKET_STATUSES.DONE:
+        return buildContext({
+          type: CONTEXT_TYPES.ADMIN,
+          ticketId: currentTicketId,
+          projectId: effectiveProjectId,
+          status,
+          description: "Ticket completed - administrative context",
+          currentState: STATE_NAMES.COMPLETE,
+          activeTicket,
+          activeProject,
+          activeSession,
+          sessionId,
+        });
     }
   }
 
-  // Step 5: Default to admin context if no active ticket
-  return {
-    type: "admin",
+  // Default to admin context if no active ticket
+  return buildContext({
+    type: CONTEXT_TYPES.ADMIN,
     projectId: effectiveProjectId,
     description: "Administrative/setup context",
-    metadata: {
-      project: activeProject,
-      session: activeSession,
-      reason: "no_active_ticket",
-      stateFile: {
-        sessionId,
-        currentState: "admin",
-      },
-    },
-  };
+    currentState: STATE_NAMES.ADMIN,
+    reason: "no_active_ticket",
+    activeProject,
+    activeSession,
+    sessionId,
+  });
 }
 
 /**
@@ -192,32 +181,34 @@ export function detectContext(db, options = {}) {
  * @returns {Array<Object>} List of active contexts with their details
  */
 export function detectAllActiveContexts(db) {
-  const activeContexts = [];
+  const activeSessions = tryQueryDbAll(
+    db,
+    `SELECT DISTINCT id, ticket_id, project_id FROM conversation_sessions WHERE ended_at IS NULL`,
+    [],
+    "Detect all active contexts"
+  );
 
-  try {
-    // Find all active sessions
-    const activeSessions = db
-      .prepare(
-        `SELECT DISTINCT session_id, ticket_id, project_id
-         FROM conversation_sessions
-         WHERE ended_at IS NULL`
-      )
-      .all();
-
-    for (const session of activeSessions) {
-      const context = detectContext(db, {
-        sessionId: session.session_id,
-        ticketId: session.ticket_id,
-        projectId: session.project_id,
-      });
-      activeContexts.push(context);
-    }
-  } catch (err) {
-    log.debug(`Failed to detect all active contexts: ${err.message}`);
+  if (!activeSessions || activeSessions.length === 0) {
+    return [];
   }
 
-  return activeContexts;
+  return activeSessions.map((session) =>
+    detectContext(db, {
+      sessionId: session.id,
+      ticketId: session.ticket_id,
+      projectId: session.project_id,
+    })
+  );
 }
+
+// Map context types to relevant tool categories
+const TOOL_CATEGORY_MAP = {
+  [CONTEXT_TYPES.TICKET_WORK]: ["ticket_work", "code", "testing", "git", "general"],
+  [CONTEXT_TYPES.PLANNING]: ["planning", "ticket_management", "general"],
+  [CONTEXT_TYPES.REVIEW]: ["review", "code", "testing", "general"],
+  [CONTEXT_TYPES.ADMIN]: ["admin", "settings", "general", "project_management"],
+  idle: ["general", "admin"],
+};
 
 /**
  * Determine if a given context is suitable for a particular tool category.
@@ -231,17 +222,7 @@ export function isContextRelevant(context, toolCategory) {
   if (!context || !toolCategory) return false;
 
   const contextType = context.type || "idle";
-
-  // Map context types to relevant tool categories
-  const categoryMap = {
-    ticket_work: ["ticket_work", "code", "testing", "git", "general"],
-    planning: ["planning", "ticket_management", "general"],
-    review: ["review", "code", "testing", "general"],
-    admin: ["admin", "settings", "general", "project_management"],
-    idle: ["general", "admin"],
-  };
-
-  const relevantCategories = categoryMap[contextType] || [];
+  const relevantCategories = TOOL_CATEGORY_MAP[contextType] || [];
   return relevantCategories.includes(toolCategory);
 }
 
@@ -258,7 +239,8 @@ export function getContextSummary(context) {
   const { type, ticketId, projectId, status, description } = context;
 
   if (ticketId) {
-    return `${type} context: Ticket ${ticketId} (${status}) in project ${projectId || "unknown"}`;
+    const project = projectId || "unknown";
+    return `${type} context: Ticket ${ticketId} (${status}) in project ${project}`;
   }
 
   if (projectId) {
@@ -266,4 +248,106 @@ export function getContextSummary(context) {
   }
 
   return `${type} context: ${description || "No active work"}`;
+}
+
+/**
+ * Safe database query wrapper with error handling.
+ *
+ * @param {import("better-sqlite3").Database} db
+ * @param {string} sql - SQL query
+ * @param {Array} params - Query parameters
+ * @param {string} operation - Operation name for logging
+ * @returns {Object|null} Single row query result or null on error
+ * @private
+ */
+function tryQueryDb(db, sql, params, operation) {
+  try {
+    return db.prepare(sql).get(...params);
+  } catch (err) {
+    log.debug(`${operation} failed (expected if table doesn't exist): ${err.message}`);
+    return null;
+  }
+}
+
+/**
+ * Safe database query wrapper for multiple rows with error handling.
+ *
+ * @param {import("better-sqlite3").Database} db
+ * @param {string} sql - SQL query
+ * @param {Array} params - Query parameters
+ * @param {string} operation - Operation name for logging
+ * @returns {Array<Object>} Array of rows, empty array on error
+ * @private
+ */
+function tryQueryDbAll(db, sql, params, operation) {
+  try {
+    return db.prepare(sql).all(...params);
+  } catch (err) {
+    log.debug(`${operation} failed (expected if table doesn't exist): ${err.message}`);
+    return [];
+  }
+}
+
+/**
+ * Build a context object with common structure.
+ *
+ * @param {Object} options - Context options
+ * @returns {Object} Formatted context object
+ * @private
+ */
+function buildContext(options) {
+  const {
+    type,
+    ticketId,
+    projectId,
+    status,
+    description,
+    currentState,
+    reviewPhase,
+    readinessLevel,
+    reason,
+    activeTicket,
+    activeProject,
+    activeSession,
+    sessionId,
+  } = options;
+
+  const baseContext = {
+    type,
+    description,
+    metadata: {
+      ticket: activeTicket || undefined,
+      project: activeProject || undefined,
+      session: activeSession || undefined,
+      stateFile: {
+        sessionId,
+        currentState,
+      },
+    },
+  };
+
+  // Add optional fields
+  if (ticketId) {
+    baseContext.ticketId = ticketId;
+    baseContext.status = status;
+    baseContext.metadata.stateFile.ticketId = ticketId;
+  }
+
+  if (projectId) {
+    baseContext.projectId = projectId;
+  }
+
+  if (reviewPhase) {
+    baseContext.metadata.reviewPhase = reviewPhase;
+  }
+
+  if (readinessLevel) {
+    baseContext.metadata.readinessLevel = readinessLevel;
+  }
+
+  if (reason) {
+    baseContext.metadata.reason = reason;
+  }
+
+  return baseContext;
 }

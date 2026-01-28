@@ -14,6 +14,37 @@ import {
 } from "../lib/context-detection.js";
 
 /**
+ * Wrap response content in MCP format.
+ *
+ * @param {string} text - Response text content
+ * @param {boolean} isError - Whether this is an error response
+ * @returns {Object} MCP-formatted response
+ */
+function formatResponse(text, isError = false) {
+  const response = { content: [{ type: "text", text }] };
+  if (isError) {
+    response.isError = true;
+  }
+  return response;
+}
+
+/**
+ * Execute tool handler with error handling and response formatting.
+ *
+ * @param {Function} handler - Handler function returning text content
+ * @returns {Promise<Object>} MCP-formatted response
+ */
+async function executeWithErrorHandling(handler) {
+  try {
+    const text = await handler();
+    return formatResponse(text);
+  } catch (err) {
+    log.error("Tool execution failed", err);
+    return formatResponse(`Error: ${err.message}`, true);
+  }
+}
+
+/**
  * Register context tools with the MCP server.
  * @param {import("@modelcontextprotocol/sdk/server/mcp.js").McpServer} server
  * @param {import("better-sqlite3").Database} db
@@ -52,29 +83,10 @@ Returns:
       sessionId: z.string().optional().describe("Conversation session ID"),
     },
     async ({ ticketId, projectId, sessionId }) => {
-      try {
+      return executeWithErrorHandling(() => {
         const context = detectContext(db, { ticketId, projectId, sessionId });
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(context, null, 2),
-            },
-          ],
-        };
-      } catch (err) {
-        log.error("Failed to detect context", err);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Failed to detect context: ${err.message}`,
-              isError: true,
-            },
-          ],
-        };
-      }
+        return JSON.stringify(context, null, 2);
+      });
     }
   );
 
@@ -92,40 +104,13 @@ Returns:
   Array of context objects, one for each active session.`,
     {},
     async () => {
-      try {
+      return executeWithErrorHandling(() => {
         const contexts = detectAllActiveContexts(db);
-
         if (contexts.length === 0) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: "No active contexts found. No conversation sessions are currently active.",
-              },
-            ],
-          };
+          return "No active contexts found. No conversation sessions are currently active.";
         }
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(contexts, null, 2),
-            },
-          ],
-        };
-      } catch (err) {
-        log.error("Failed to detect all active contexts", err);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Failed to detect active contexts: ${err.message}`,
-              isError: true,
-            },
-          ],
-        };
-      }
+        return JSON.stringify(contexts, null, 2);
+      });
     }
   );
 
@@ -150,30 +135,10 @@ Returns:
       sessionId: z.string().optional().describe("Conversation session ID"),
     },
     async ({ ticketId, projectId, sessionId }) => {
-      try {
+      return executeWithErrorHandling(() => {
         const context = detectContext(db, { ticketId, projectId, sessionId });
-        const summary = getContextSummary(context);
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: summary,
-            },
-          ],
-        };
-      } catch (err) {
-        log.error("Failed to get context summary", err);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Failed to get context summary: ${err.message}`,
-              isError: true,
-            },
-          ],
-        };
-      }
+        return getContextSummary(context);
+      });
     }
   );
 
@@ -205,32 +170,13 @@ Returns:
       sessionId: z.string().optional().describe("Conversation session ID"),
     },
     async ({ toolCategory, ticketId, projectId, sessionId }) => {
-      try {
+      return executeWithErrorHandling(() => {
         const context = detectContext(db, { ticketId, projectId, sessionId });
         const relevant = isContextRelevant(context, toolCategory);
-
         const contextSummary = getContextSummary(context);
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Tool category '${toolCategory}' is ${relevant ? "RELEVANT" : "NOT RELEVANT"} to current context.\n\nContext: ${contextSummary}`,
-            },
-          ],
-        };
-      } catch (err) {
-        log.error("Failed to check context relevance", err);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Failed to check context relevance: ${err.message}`,
-              isError: true,
-            },
-          ],
-        };
-      }
+        const status = relevant ? "RELEVANT" : "NOT RELEVANT";
+        return `Tool category '${toolCategory}' is ${status} to current context.\n\nContext: ${contextSummary}`;
+      });
     }
   );
 }

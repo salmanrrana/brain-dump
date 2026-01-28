@@ -92,19 +92,18 @@ function initializeTestDatabase() {
       CREATE INDEX idx_tickets_project ON tickets(project_id);
       CREATE INDEX idx_tickets_epic ON tickets(epic_id);
       CREATE INDEX idx_tickets_status ON tickets(status);
-      CREATE INDEX idx_comments_ticket ON ticket_comments(ticket_id);
     `);
   }
 
   return db;
 }
 
-// Helper to insert test data
+// Test data insertion helpers
+const now = new Date().toISOString();
+
 function insertTestProject(db, id = "proj-1", name = "Test Project") {
-  const now = new Date().toISOString();
-  db.prepare(
-    `INSERT INTO projects (id, name, path, created_at) VALUES (?, ?, ?, ?)`
-  ).run(id, name, `/tmp/${id}`, now);
+  db.prepare("INSERT INTO projects (id, name, path, created_at) VALUES (?, ?, ?, ?)")
+    .run(id, name, `/tmp/${id}`, now);
   return id;
 }
 
@@ -112,29 +111,17 @@ function insertTestTicket(
   db,
   ticketId = "ticket-1",
   projectId = "proj-1",
-  status = "backlog",
-  title = "Test Ticket"
+  status = "backlog"
 ) {
-  const now = new Date().toISOString();
   db.prepare(
-    `INSERT INTO tickets
-     (id, title, status, project_id, position, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(ticketId, title, status, projectId, 1.0, now, now);
+    "INSERT INTO tickets (id, title, status, project_id, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+  ).run(ticketId, `Ticket ${ticketId}`, status, projectId, 1.0, now, now);
   return ticketId;
 }
 
-function insertTestSession(
-  db,
-  sessionId = "session-1",
-  ticketId = null,
-  projectId = null
-) {
-  const now = new Date().toISOString();
+function insertTestSession(db, sessionId = "session-1", ticketId = null, projectId = null) {
   db.prepare(
-    `INSERT INTO conversation_sessions
-     (id, project_id, ticket_id, environment, data_classification, started_at, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+    "INSERT INTO conversation_sessions (id, project_id, ticket_id, environment, data_classification, started_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
   ).run(sessionId, projectId, ticketId, "test", "internal", now, now);
   return sessionId;
 }
@@ -159,10 +146,12 @@ describe("Context Detection System", () => {
 
       const context = detectContext(db, { ticketId: "ticket-1" });
 
-      expect(context.type).toBe("ticket_work");
-      expect(context.status).toBe("in_progress");
-      expect(context.ticketId).toBe("ticket-1");
-      expect(context.description).toBe("Active ticket implementation");
+      expect(context).toMatchObject({
+        type: "ticket_work",
+        status: "in_progress",
+        ticketId: "ticket-1",
+        description: "Active ticket implementation",
+      });
     });
 
     it("should return review context for ai_review ticket", () => {
@@ -399,15 +388,16 @@ describe("Context Detection System", () => {
         sessionId: "test-session",
       });
 
-      expect(context.metadata.stateFile).toBeDefined();
-      expect(context.metadata.stateFile.sessionId).toBe("test-session");
-      expect(context.metadata.stateFile.ticketId).toBe("ticket-13");
-      expect(context.metadata.stateFile.currentState).toBe("implementing");
+      expect(context.metadata.stateFile).toMatchObject({
+        sessionId: "test-session",
+        ticketId: "ticket-13",
+        currentState: "implementing",
+      });
     });
 
     it("should use correct state for different context types", () => {
       insertTestProject(db);
-      insertTestTicket(db, "ticket-14", "proj-1", "planning");
+      insertTestTicket(db, "ticket-14", "proj-1", "backlog");
       insertTestTicket(db, "ticket-15", "proj-1", "ai_review");
       insertTestTicket(db, "ticket-16", "proj-1", "done");
 
