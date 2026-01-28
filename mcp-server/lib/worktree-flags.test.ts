@@ -2,15 +2,15 @@
  * Tests for worktree feature flag utilities.
  */
 import { describe, it, expect } from "vitest";
+import type { Database } from "better-sqlite3";
 import {
   isWorktreeSupportEnabled,
   isWorktreeSupportEnabledForEpic,
   getEffectiveIsolationMode,
-  type WorktreeDb,
 } from "./worktree-flags.js";
 
 // Mock database helper
-function createMockDb(preparedResults: Record<string, unknown> = {}): WorktreeDb {
+function createMockDb(preparedResults: Record<string, unknown> = {}): Database {
   return {
     prepare: (sql: string) => ({
       get: (): unknown => {
@@ -23,7 +23,7 @@ function createMockDb(preparedResults: Record<string, unknown> = {}): WorktreeDb
         return undefined;
       },
     }),
-  };
+  } as unknown as Database;
 }
 
 describe("isWorktreeSupportEnabled", () => {

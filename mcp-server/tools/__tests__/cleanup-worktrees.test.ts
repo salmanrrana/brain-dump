@@ -98,7 +98,6 @@ const SCHEMA_SQL = `
 `;
 
 // Import the worktree utils we need
-// @ts-expect-error - JavaScript module without declaration file
 import { validateWorktree, removeWorktree } from "../../lib/worktree-utils.js";
 
 // Helper to simulate what cleanup_worktrees does

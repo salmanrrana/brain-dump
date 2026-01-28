@@ -1,16 +1,8 @@
 {
-  "sessionId": "5038fd58-1098-443c-b5d0-0bbfe3aec7dd",
-  "ticketId": "316c8137-a4d1-4592-af7e-dea97cf1881c",
-  "currentState": "implementing",
-  "stateHistory": [
-    "idle",
-    "analyzing",
-    "implementing",
-    "testing",
-    "committing",
-    "reviewing",
-    "implementing"
-  ],
-  "startedAt": "2026-01-26T21:05:47.133Z",
-  "updatedAt": "2026-01-26T21:14:46.375Z"
+  "sessionId": "5b008148-5a07-43ac-83c9-514a1635b36e",
+  "ticketId": "ed3637e8-e933-454a-bd98-76fa2e1ab31d",
+  "currentState": "testing",
+  "stateHistory": ["idle", "analyzing", "implementing", "testing"],
+  "startedAt": "2026-01-28T00:20:37.999Z",
+  "updatedAt": "2026-01-28T00:29:40.229Z"
 }

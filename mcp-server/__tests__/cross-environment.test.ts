@@ -113,7 +113,7 @@ describe("MCP Protocol Compatibility", () => {
 
     it("detects missing project directory gracefully", () => {
       const env: Record<string, string | undefined> = {};
-      const projectDir = env.CLAUDE_PROJECT_DIR || env.CURSOR_PROJECT_DIR || process.cwd();
+      const projectDir = env["CLAUDE_PROJECT_DIR"] || env["CURSOR_PROJECT_DIR"] || process.cwd();
       expect(projectDir).toBeDefined();
       expect(typeof projectDir).toBe("string");
     });

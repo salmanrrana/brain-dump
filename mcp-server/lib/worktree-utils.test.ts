@@ -1,142 +1,8 @@
 /**
- * Tests for worktree-utils.js
+ * Tests for worktree-utils.ts
  */
 import { describe, it, expect } from "vitest";
-
-// Types for the JS module
-interface GenerateWorktreePathResult {
-  success: true;
-  path: string;
-  worktreeName: string;
-}
-
-interface GenerateWorktreePathError {
-  success: false;
-  error: string;
-}
-
-type GenerateWorktreePathResponse = GenerateWorktreePathResult | GenerateWorktreePathError;
-
-interface GenerateWorktreePathOptions {
-  location?: "sibling" | "subfolder" | "custom";
-  basePath?: string;
-  slugMaxLength?: number;
-}
-
-interface SuggestAlternativeResult extends GenerateWorktreePathResult {
-  suffix: number;
-}
-
-type SuggestAlternativeResponse = SuggestAlternativeResult | GenerateWorktreePathError;
-
-interface ParseWorktreePathResult {
-  matched: boolean;
-  projectName: string | null;
-  epicShortId: string | null;
-  slug: string | null;
-}
-
-interface Worktree {
-  path: string;
-  head: string;
-  branch: string | null;
-  isMainWorktree: boolean;
-}
-
-interface ListWorktreesResult {
-  success: true;
-  worktrees: Worktree[];
-}
-
-interface ListWorktreesError {
-  success: false;
-  error: string;
-}
-
-type ListWorktreesResponse = ListWorktreesResult | ListWorktreesError;
-
-interface CreateWorktreeResult {
-  success: true;
-  worktreePath: string;
-  branchName: string;
-}
-
-interface CreateWorktreeError {
-  success: false;
-  error: string;
-}
-
-type CreateWorktreeResponse = CreateWorktreeResult | CreateWorktreeError;
-
-interface CreateWorktreeOptions {
-  maxWorktrees?: number;
-  createClaudeDir?: boolean;
-}
-
-interface RemoveWorktreeOptions {
-  force?: boolean;
-}
-
-interface RemoveWorktreeResult {
-  success: true;
-  warning?: string;
-}
-
-interface RemoveWorktreeError {
-  success: false;
-  error: string;
-}
-
-type RemoveWorktreeResponse = RemoveWorktreeResult | RemoveWorktreeError;
-
-type WorktreeValidationStatus = "valid" | "missing_directory" | "corrupted" | "wrong_branch";
-
-interface WorktreeValidationResult {
-  status: WorktreeValidationStatus;
-  branch?: string;
-  expectedBranch?: string;
-  hasUncommittedChanges?: boolean;
-  error?: string;
-}
-
-interface WorktreeUtils {
-  generateWorktreePath: (
-    projectPath: string,
-    epicId: string,
-    epicTitle: string,
-    options?: GenerateWorktreePathOptions
-  ) => GenerateWorktreePathResponse;
-  suggestAlternativeWorktreePath: (
-    projectPath: string,
-    epicId: string,
-    epicTitle: string,
-    options?: GenerateWorktreePathOptions,
-    maxAttempts?: number
-  ) => SuggestAlternativeResponse;
-  parseWorktreePath: (worktreePath: string) => ParseWorktreePathResult;
-  listWorktrees: (projectPath: string) => ListWorktreesResponse;
-  createWorktree: (
-    projectPath: string,
-    worktreePath: string,
-    branchName: string,
-    options?: CreateWorktreeOptions
-  ) => CreateWorktreeResponse;
-  validateWorktree: (
-    worktreePath: string,
-    projectPath: string,
-    expectedBranch?: string | null
-  ) => WorktreeValidationResult;
-  removeWorktree: (
-    worktreePath: string,
-    projectPath: string,
-    options?: RemoveWorktreeOptions
-  ) => RemoveWorktreeResponse;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const worktreeUtils = require("./worktree-utils.js") as WorktreeUtils;
-
-const {
+import {
   generateWorktreePath,
   suggestAlternativeWorktreePath,
   parseWorktreePath,
@@ -144,7 +10,7 @@ const {
   createWorktree,
   validateWorktree,
   removeWorktree,
-} = worktreeUtils;
+} from "./worktree-utils.js";
 
 describe("worktree-utils module", () => {
   describe("generateWorktreePath", () => {

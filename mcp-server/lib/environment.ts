@@ -6,21 +6,50 @@
  * - VS Code (with MCP extension)
  * - Cursor (with MCP extension)
  * - Unknown environment
- * @module lib/environment
  */
 
 import { existsSync } from "fs";
 import { join } from "path";
 
+export type Environment = "claude-code" | "opencode" | "cursor" | "vscode" | "unknown";
+export type Author =
+  | "claude"
+  | "opencode"
+  | "cursor"
+  | "vscode"
+  | "ai"
+  | "ralph:claude"
+  | "ralph:opencode"
+  | "ralph:cursor"
+  | "ralph:vscode"
+  | "ralph:ai";
+
+export interface EnvironmentInfo {
+  environment: Environment;
+  workspacePath: string | null;
+  envVarsDetected: string[];
+}
+
 const VSCODE_ENV_PATTERNS = [
-  "VSCODE_GIT_ASKPASS_NODE", "VSCODE_GIT_ASKPASS_MAIN", "VSCODE_GIT_IPC_HANDLE",
-  "VSCODE_INJECTION", "VSCODE_CLI", "VSCODE_PID", "VSCODE_CWD",
-  "VSCODE_NLS_CONFIG", "VSCODE_IPC_HOOK", "TERM_PROGRAM",
+  "VSCODE_GIT_ASKPASS_NODE",
+  "VSCODE_GIT_ASKPASS_MAIN",
+  "VSCODE_GIT_IPC_HANDLE",
+  "VSCODE_INJECTION",
+  "VSCODE_CLI",
+  "VSCODE_PID",
+  "VSCODE_CWD",
+  "VSCODE_NLS_CONFIG",
+  "VSCODE_IPC_HOOK",
+  "TERM_PROGRAM",
 ];
 
 const CLAUDE_CODE_ENV_PATTERNS = [
-  "CLAUDE_CODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_API_KEY",
-  "ANTHROPIC_API_KEY", "MCP_SERVER_NAME", "CLAUDE_CODE_TERMINAL_ID",
+  "CLAUDE_CODE",
+  "CLAUDE_CODE_ENTRYPOINT",
+  "CLAUDE_API_KEY",
+  "ANTHROPIC_API_KEY",
+  "MCP_SERVER_NAME",
+  "CLAUDE_CODE_TERMINAL_ID",
 ];
 
 // Simple flags to indicate which tool is calling (set via MCP config)
@@ -32,32 +61,33 @@ const CURSOR_FLAG = "CURSOR";
  * OpenCode uses the OPENCODE_* prefix for configuration via Viper.
  */
 const OPENCODE_ENV_PATTERNS = [
-  "OPENCODE_EXPERIMENTAL", "OPENCODE_EXPERIMENTAL_LSP_TOOL",
-  "OPENCODE_DEV_DEBUG", "OPENCODE_SERVER_PASSWORD", "OPENCODE_SERVER_USERNAME",
+  "OPENCODE_EXPERIMENTAL",
+  "OPENCODE_EXPERIMENTAL_LSP_TOOL",
+  "OPENCODE_DEV_DEBUG",
+  "OPENCODE_SERVER_PASSWORD",
+  "OPENCODE_SERVER_USERNAME",
 ];
 
 /**
  * Cursor environment variable patterns.
  * Cursor uses CURSOR_* prefixed environment variables.
  */
-const CURSOR_ENV_PATTERNS = [
-  "CURSOR_TRACE_ID", "CURSOR_SESSION", "CURSOR_PID", "CURSOR_CWD",
-];
+const CURSOR_ENV_PATTERNS = ["CURSOR_TRACE_ID", "CURSOR_SESSION", "CURSOR_PID", "CURSOR_CWD"];
 
-function hasVSCodeEnvironment() {
+function hasVSCodeEnvironment(): boolean {
   for (const envVar of VSCODE_ENV_PATTERNS) {
     if (envVar === "TERM_PROGRAM") {
-      if (process.env.TERM_PROGRAM === "vscode") return true;
+      if (process.env["TERM_PROGRAM"] === "vscode") return true;
     } else if (process.env[envVar]) return true;
   }
   return false;
 }
 
-function hasClaudeCodeEnvironment() {
+function hasClaudeCodeEnvironment(): boolean {
   for (const envVar of CLAUDE_CODE_ENV_PATTERNS) {
     if (process.env[envVar]) return true;
   }
-  if (process.env.SHELL && process.env.SHELL.includes("claude")) return true;
+  if (process.env["SHELL"]?.includes("claude")) return true;
   return false;
 }
 
@@ -66,10 +96,10 @@ function hasClaudeCodeEnvironment() {
  * OpenCode uses the OPENCODE_* prefix for configuration.
  * Also checks for explicit OPENCODE flag set via MCP config.
  */
-function hasOpenCodeEnvironment() {
+function hasOpenCodeEnvironment(): boolean {
   // Check explicit flag (set via MCP config environment section)
   if (process.env[OPENCODE_FLAG]) return true;
-  
+
   // Check known OpenCode environment variables
   for (const envVar of OPENCODE_ENV_PATTERNS) {
     if (process.env[envVar]) return true;
@@ -86,10 +116,10 @@ function hasOpenCodeEnvironment() {
  * Cursor uses CURSOR_* prefixed environment variables.
  * Also checks for explicit CURSOR flag set via MCP config.
  */
-function hasCursorEnvironment() {
+function hasCursorEnvironment(): boolean {
   // Check explicit flag (set via MCP config env section)
   if (process.env[CURSOR_FLAG]) return true;
-  
+
   // Check known Cursor environment variables
   for (const envVar of CURSOR_ENV_PATTERNS) {
     if (process.env[envVar]) return true;
@@ -104,9 +134,8 @@ function hasCursorEnvironment() {
 /**
  * Detect the current environment (claude-code, opencode, vscode, cursor, or unknown).
  * Claude Code takes priority, then OpenCode, then Cursor, then VS Code.
- * @returns {"claude-code"|"opencode"|"cursor"|"vscode"|"unknown"}
  */
-export function detectEnvironment() {
+export function detectEnvironment(): Environment {
   if (hasClaudeCodeEnvironment()) return "claude-code";
   if (hasOpenCodeEnvironment()) return "opencode";
   if (hasCursorEnvironment()) return "cursor";
@@ -117,11 +146,10 @@ export function detectEnvironment() {
 /**
  * Get the author name for comments based on the current environment.
  * Also checks for Ralph session to prefix with "ralph:".
- * @returns {string} Author name (e.g., "claude", "cursor", "opencode", "vscode", "ralph:claude", etc.)
  */
-export function detectAuthor() {
+export function detectAuthor(): Author {
   // Check if Ralph session is active
-  let isRalphSession = !!process.env.RALPH_SESSION;
+  let isRalphSession = !!process.env["RALPH_SESSION"];
   if (!isRalphSession) {
     try {
       const ralphStatePath = join(process.cwd(), ".claude/ralph-state.json");
@@ -132,7 +160,7 @@ export function detectAuthor() {
     }
   }
 
-  let baseTool = "ai"; // fallback
+  let baseTool: "claude" | "opencode" | "cursor" | "vscode" | "ai" = "ai"; // fallback
 
   // Detect the underlying AI tool
   const environment = detectEnvironment();
@@ -155,7 +183,7 @@ export function detectAuthor() {
 
   // If Ralph is orchestrating, prefix with ralph:
   if (isRalphSession) {
-    return `ralph:${baseTool}`;
+    return `ralph:${baseTool}` as Author;
   }
 
   return baseTool;
@@ -163,12 +191,11 @@ export function detectAuthor() {
 
 /**
  * Get detailed environment information.
- * @returns {{environment: string, workspacePath: string|null, envVarsDetected: string[]}}
  */
-export function getEnvironmentInfo() {
+export function getEnvironmentInfo(): EnvironmentInfo {
   const environment = detectEnvironment();
-  const envVarsDetected = [];
-  let workspacePath = null;
+  const envVarsDetected: string[] = [];
+  let workspacePath: string | null = null;
 
   for (const envVar of CLAUDE_CODE_ENV_PATTERNS) {
     if (process.env[envVar]) envVarsDetected.push(envVar);
@@ -186,18 +213,19 @@ export function getEnvironmentInfo() {
 
   for (const envVar of VSCODE_ENV_PATTERNS) {
     if (envVar === "TERM_PROGRAM") {
-      if (process.env.TERM_PROGRAM === "vscode") envVarsDetected.push("TERM_PROGRAM=vscode");
+      if (process.env["TERM_PROGRAM"] === "vscode") envVarsDetected.push("TERM_PROGRAM=vscode");
     } else if (process.env[envVar]) envVarsDetected.push(envVar);
   }
 
-  if (process.env.VSCODE_CWD) workspacePath = process.env.VSCODE_CWD;
-  else if (process.env.PWD) workspacePath = process.env.PWD;
+  if (process.env["VSCODE_CWD"]) workspacePath = process.env["VSCODE_CWD"];
+  else if (process.env["PWD"]) workspacePath = process.env["PWD"];
   else {
     try {
       workspacePath = process.cwd();
     } catch (error) {
       // Log for debugging - cwd can fail if directory was deleted or permissions changed
-      console.warn("[environment] Could not determine working directory:", error.message);
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn("[environment] Could not determine working directory:", message);
     }
   }
 

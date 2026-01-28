@@ -1,310 +1,136 @@
 # Ralph Progress Log
-# Previous entries archived to: archives/progress-20260126-121823.txt
+# Previous entries archived to: archives/progress-20260127-181324.txt
 
-### 2026-01-26 - Ralph Session: Status Check (Opus 4.5)
-- **Time:** 2026-01-26T19:07:00Z
-- **Current State:**
-  - 21 tickets in `human_review` awaiting demo approval
-  - 20+ tickets in `in_progress` (orphaned from previous sessions)
-  - 22 tickets in `ai_review` (stale - from previous incomplete sessions)
-  - 0 tickets in `ready` status
-  - 0 tickets in `backlog` ready to auto-start for this epic
+- 3 minor issues from silent-failure-hunter (error handling suggestions)
+- No critical/major findings
+- All tests pass (1681 total, 26 worktree-specific)
 
-- **Conclusion:** PRD_COMPLETE
-  - All workable tickets have completed implementation
-  - All are awaiting human demo approval
+**Acceptance Criteria Verified:**
+- ✅ WorktreeBadge appears on epic cards
+- ✅ Expanded info in epic detail view
+- ✅ Sidebar shows status indicators  
+- ✅ Data fetching integrated with existing queries
+- ✅ No visual regression for epics without worktrees
 
-- **Action Required:**
-  Human must approve demos for tickets in `human_review` via:
-  ```
-  get_demo_script({ ticketId: "<id>" })
-  submit_demo_feedback({ ticketId: "<id>", passed: true, feedback: "Approved" })
-  ```
+**Next:** Human reviewer should run demo script and approve via submit_demo_feedback
 
----
+### 2026-01-27 17:57:08 - Ralph Session: ba517380 (Display worktree status on ticket cards)
+- **Ticket:** ba517380 - Display worktree status indicator on ticket cards
+- **Session ID:** 3652e17a-7c9f-4408-8f7a-3ed4cec735e2
+- **Session Outcome:** success (4 minutes)
+- **Status:** ai_review → human_review
 
-1. Review and approve demos:
-   ```
-   get_demo_script({ ticketId: "<id>" })
-   submit_demo_feedback({ ticketId: "<id>", passed: true, feedback: "Approved" })
-   ```
+**Work Done:**
+1. Verified existing implementation is complete (TicketCard, KanbanBoard, tests)
+2. Ran all verification checks: type-check ✅, lint ✅, tests ✅ (1681 pass)
+3. Ran 3 review agents in parallel - no critical/major findings
+4. Existing demo script with 6 steps already present
+5. Moved ticket to human_review
 
-2. Or move backlog tickets to ready:
-   ```
-   update_ticket_status({ ticketId: "<id>", status: "ready" })
-   ```
+**Acceptance Criteria Verified:**
+- ✅ Ticket cards show WorktreeBadge when epic uses worktree isolation
+- ✅ Hovering shows worktree path tooltip
+- ✅ Icon color indicates worktree status (active=green, stale=yellow)
+- ✅ No indicator shown for branch-based epics
 
-### 2026-01-26 - Ralph Session: Ticket 9ef70633 Complete
-- **Ticket:** Add Cursor launch option to LaunchActions component
-- **Status:** human_review (awaiting demo approval)
-- **Changes:**
-  - Added 'cursor' and 'vscode' to LaunchType union type
-  - Added Cursor option with indigo (#6366f1) styling
-  - Added VS Code option with VS Code blue (#007acc) - disabled with "Coming soon"
-  - Implemented cursor launch handler in ticket detail page and EditTicketModal
-  - All tests pass (1380 passed)
-- **AI Review Findings:**
-  - FIXED: VS Code handler was clickable but incomplete - now marked as disabled
-  - SUGGESTION: handleLaunch code could be extracted to shared hook (future refactor)
-  - MINOR: console.error usage (pre-existing pattern)
-- **Commits:**
-  - eba5ce7 feat(9ef70633): Add Cursor and VS Code launch options to LaunchActions
-  - c21dc79 fix(9ef70633): Mark VS Code launch option as disabled
-- **Demo Script:** 6 steps for manual verification
-- **Next:** Human must approve via submit_demo_feedback
+**Next:** Human reviewer should run demo script and approve via submit_demo_feedback
 
-### 2026-01-26 - Ralph Session: Ticket 9396b1e2 Complete
-- **Ticket:** Add VS Code direct ticket launch function
-- **Status:** human_review (awaiting demo approval)
-- **Changes:**
-  - Added findVSCodeCli() to detect VS Code CLI on macOS, Linux, Windows
-  - Added isVSCodeInstalled() to check CLI availability
-  - Added createVSCodeLaunchScript() with blue VS Code branding
-  - Added launchVSCodeInTerminal() server function with full workflow
-  - Added openProjectInVSCode() for quick "Open in IDE" actions
-  - All functions follow established patterns with proper validation and escaping
-  - Tests pass: 1380 passed
-- **AI Review Findings:**
-  - MINOR: Empty catch block in findVSCodeCli (existing pattern)
-  - SUGGESTION: Fire-and-forget exec() pattern (existing codebase pattern)
-  - SUGGESTION: Code duplication could be abstracted (future refactor)
-- **Commits:**
-  - 394af7f feat(9396b1e2): Add VS Code direct ticket launch function
-- **Demo Script:** 6 steps for manual verification
-- **Next:** Human must approve via submit_demo_feedback
 
-### 2026-01-26 - Ralph Session: PRD_COMPLETE (Blocked)
-- **Status:** BLOCKED - All actionable work requires human intervention
-- **Summary:**
-  - Ready tickets: 0 (none to pick up)
-  - Human Review tickets: 22+ (awaiting demo approval - tickets 9ef70633, 9396b1e2, and 20+ others)
-  - In Progress tickets: 20+ (improperly started, need workflow fix)
-  - Backlog tickets: 30+ (not yet ready for work)
+### 2026-01-27 17:57:50 - Ralph Session Summary
+**Epic:** Git Worktree Integration
 
-- **Recent Progress:**
-  - Ticket 9ef70633 (Cursor/VS Code launch options) completed and in human_review
-  - Ticket 9396b1e2 (VS Code direct launch function) completed and in human_review
-  - Both have demo scripts ready for human approval
+**Status Analysis:**
+All remaining worktree epic tickets are either in human_review or ai_review status.
+The PRD shows passes: false because tickets only get passes: true after human approval (done status).
 
-- **Blocking Issue:** No tickets in `ready` status. Ralph cannot proceed until:
-  1. Human approves demos for tickets in `human_review` via:
-     ```
-     get_demo_script({ ticketId: "<id>" })
-     submit_demo_feedback({ ticketId: "<id>", passed: true, feedback: "Approved" })
-     ```
-  2. Or human moves backlog tickets to `ready` via:
-     ```
-     update_ticket_status({ ticketId: "<id>", status: "ready" })
-     ```
+**Tickets in human_review (awaiting human demo approval):**
+- 5fcf37c3 - Update CLAUDE.md documentation
+- 74a96ff6 - Add CLI cleanup command
+- c1eca668 - Add HMAC integrity verification
+- f42d9fa2 - Audit and update hooks
+- 1215de69 - Add project settings UI
+- ba517380 - Display worktree status on ticket cards (just moved)
+- 3d174b74 - Create StartEpicModal
+- a934abf6 - Add Start with AI buttons
 
-PRD_COMPLETE
+**Ticket in ai_review:**
+- 5da014a3 - Display worktree status on epic cards (needs to be moved to human_review)
 
-### 2026-01-26 - Ralph Session: Ticket db3ca5cc AI Review Complete
-- **Ticket:** Add workflow telemetry dashboard to ticket detail
-- **Status:** human_review (awaiting demo approval)
-- **Work Done:**
-  - Ran AI review agents (code-reviewer, silent-failure-hunter, code-simplifier)
-  - Found 4 findings: 1 critical, 1 major, 1 minor, 1 suggestion
-  - FIXED (critical): Unguarded JSON.parse in telemetry.ts - added try-catch for corrupted data
-  - FIXED (major): Division by zero risk in avgSessionDurationMs - added defensive check
-  - Minor/suggestion findings left for future improvement
-  - All 1380 tests pass
-- **Commits:**
-  - 391bde0 fix(db3ca5cc): Add defensive error handling in telemetry API
-- **Demo Script:** 6 steps for manual verification
-- **Next:** Human must approve via submit_demo_feedback
+**Blocked ticket:**
+- 836dd456 - Remove feature flag (Phase 7 - blocked until all others done)
 
-### 2026-01-26 - Ralph Session: PRD_COMPLETE (Blocked)
-- **Status:** BLOCKED - All actionable work requires human intervention
-- **Summary:**
-  - Ready tickets: 0 (none to pick up)
-  - Human Review tickets: 22+ (awaiting demo approval)
-  - In Progress tickets: 10 (improperly started, lacking branch names - need workflow fix)
-  - Backlog tickets: 30+ (not yet ready for work)
+**Output:** PRD_COMPLETE - All implementation work done. Human must run demo scripts and approve via submit_demo_feedback for each ticket.
 
-PRD_COMPLETE
 
-### 2026-01-26 - Ralph Session: PRD Status Check
-- **Status:** BLOCKED - All actionable work requires human intervention
-- **Summary:**
-  - Ready tickets: 0 (none to pick up)
-  - Human Review tickets: 22+ (awaiting demo approval)
-  - In Progress tickets: 5 (orphaned - started without proper workflow, missing branch names)
-  - Backlog tickets: 30+ (not yet ready for work)
+### 2026-01-28 - Ralph Session: Epic Status Check (Confirmation)
+**Epic:** Git Worktree Integration
 
-- **Orphaned In-Progress Tickets (need workflow fix):**
-  - 7baeb0a0: Replace console.error with logger in hooks.ts
-  - 4ab534b2: Extract ticket context building logic
-  - a7bca04b: Simplify nested ternary in ReviewFindingsPanel
-  - 5bd6ebed: Simplify workflow phase determination logic
-  - 39e1e633: Review memoization usage in DemoPanel
+**Analysis:**
+All 16 implementation tickets have completed AI review and are now in `human_review` status.
+They require human demo approval via `submit_demo_feedback({ ticketId, passed, feedback })`.
 
-- **Actions Required:**
-  1. Human must approve demos for tickets in `human_review` via:
-     ```
-     get_demo_script({ ticketId: "<id>" })
-     submit_demo_feedback({ ticketId: "<id>", passed: true, feedback: "Approved" })
-     ```
-  2. Or move backlog tickets to `ready` via:
-     ```
-     update_ticket_status({ ticketId: "<id>", status: "ready" })
-     ```
-  3. Or fix orphaned in_progress tickets by either:
-     - Moving them back to `ready` and restarting properly
-     - Completing them through the workflow
+**Tickets Awaiting Human Approval:**
+| Ticket ID | Title |
+|-----------|-------|
+| 2c3945e0 | Add path validation utilities for worktree security |
+| adee40aa | Implement removeWorktree and listWorktrees functions |
+| 4b6aef9e | Update start_epic_work MCP tool with worktree support |
+| 5b754d51 | Update start_ticket_work to inherit epic isolation mode |
+| dd75f5fa | Implement cleanup_worktrees MCP tool |
+| 5da014a3 | Display worktree status on epic cards and headers |
+| ba517380 | Display worktree status indicator on ticket cards |
+| 3d174b74 | Create StartEpicModal component with isolation mode choice |
+| a934abf6 | Add "Start with AI" action buttons to sidebar and epic views |
+| 1215de69 | Add project settings UI for worktree defaults |
+| f42d9fa2 | Audit and update hooks for worktree compatibility |
+| c1eca668 | Add state file HMAC integrity verification |
+| b553747e | Add feature flag for worktree support |
+| 74a96ff6 | Add CLI "brain-dump cleanup" command |
+| 5ade716e | Implement safe git command execution |
+| 5fcf37c3 | Update CLAUDE.md documentation |
 
-PRD_COMPLETE
+**Blocked Ticket:**
+- 836dd456: Remove feature flag (Phase 7 - depends on all 16 tickets being approved)
 
-### 2026-01-26 - Ralph Session: Ticket a7bca04b Complete
-- **Ticket:** [P2] Simplify nested ternary in ReviewFindingsPanel className
-- **Status:** human_review (awaiting demo approval)
-- **Changes:**
-  - Extracted nested ternary to helper function `getPanelClassName(hasCritical, allFixed)`
-  - Function uses explicit if-statements for better readability
-  - Added JSDoc documentation to helper function
-  - Replaced 7-line nested ternary with single function call
-  - All 1380 tests pass
-- **AI Review Findings:** None - clean refactoring
-- **Commits:**
-  - 3939032 feat(a7bca04b): Simplify nested ternary in ReviewFindingsPanel className
-- **Demo Script:** 6 steps for manual verification
-- **Next:** Human must approve via submit_demo_feedback
+**Next Steps for Human:**
+1. Open Brain Dump UI at http://localhost:4242
+2. For each ticket in human_review:
+   - View the demo script
+   - Run through the demo steps manually
+   - Approve: `submit_demo_feedback({ ticketId: "<id>", passed: true, feedback: "Approved" })`
+   - Or reject with feedback for changes needed
 
-### 2026-01-26 - Ralph Session: Ticket 7baeb0a0 Complete
-- **Ticket:** [P2] Replace console.error with logger in hooks.ts mutation error handlers
-- **Status:** human_review (awaiting demo approval)
-- **Work Done:**
-  - Replaced all 10 instances of console.error with browser-safe logger
-  - Created new module: src/lib/browser-logger.ts
-  - AI review found critical issue: original logger.ts uses Node.js APIs
-  - Fixed by creating browser-compatible logger that uses console methods
-  - All 1380 tests pass
-- **Commits:**
-  - 921e29a feat(7baeb0a0): Replace console.error with logger in hooks.ts
-  - dc03714 fix(7baeb0a0): Use browser-safe logger instead of Node.js logger
-- **Review Findings:**
-  - 1 critical (fixed): Browser incompatibility with Node.js logger
-  - 2 minor (noted): Code duplication pattern, missing Error object in one call
-- **Demo Script:** 6 steps for manual verification
-- **Next:** Human must approve via submit_demo_feedback
+**Output:** PRD_COMPLETE - All implementation done. Human approval required.
 
-### 2026-01-26 - Ralph Session: Ticket 5bd6ebed Complete
-- **Ticket:** [P2] Simplify workflow phase determination logic
-- **Status:** human_review (awaiting demo approval)
-- **Work Done:**
-  - Refactored if-else chain to switch statement in src/api/workflow.ts
-  - Switch statement now handles: done, human_review, ai_review, in_progress, default
-  - Maintains same logic but with clearer control flow
-  - All 1380 tests pass
-- **AI Review Findings:** None - clean refactoring preserves existing behavior
-- **Commits:**
-  - 1b8442e feat(5bd6ebed): Simplify workflow phase determination logic
-- **Demo Script:** 6 steps for manual verification
-- **Next:** Human must approve via submit_demo_feedback
 
-### 2026-01-26 - Ralph Session: Ticket 39e1e633 Complete
-- **Ticket:** [P3] Review memoization usage in DemoPanel component
-- **Status:** human_review (awaiting demo approval)
-- **Work Done:**
-  - Analyzed useMemo usage in DemoPanel component
-  - Removed unnecessary useMemo from stepStatuses and stepNotes computations
-  - Rationale: computation is O(n) where n ≈ 5-10 steps (very cheap)
-  - DemoStep children are not memoized, so referential stability doesn't help
-  - Replaced with IIFEs (Immediately Invoked Function Expressions)
-  - Added explanatory comment documenting the reasoning
-  - All 1380 tests pass
-- **AI Review Findings:**
-  - 1 minor (noted): IIFEs add syntax noise, could use helper functions instead
-  - No critical or major issues
-- **Commits:**
-  - b60f105 refactor(39e1e633): Remove unnecessary useMemo from DemoPanel
-- **Demo Script:** 6 steps for manual verification
-- **Next:** Human must approve via submit_demo_feedback
+### 2026-01-28 - Ralph Session: 2c3945e0 (Path Validation - Re-review)
+- **Ticket:** 2c3945e0 - Add path validation utilities for worktree security
+- **Session ID:** 59c7edbf-5ece-4ff4-9be3-640e8461e76b
+- **Session Outcome:** success (3 minutes)
+- **Status:** in_progress → ai_review → human_review
 
-### 2026-01-26 - Ralph Session: Ticket 0081b0a0 Complete
-- **Ticket:** [P2] Extract query key factories to separate module
-- **Status:** human_review (awaiting demo approval)
-- **Work Done:**
-  - Created src/lib/query-keys.ts with all TanStack Query key factories
-  - Extracted ~45 lines of queryKeys definition from hooks.ts
-  - Added comprehensive JSDoc documentation with usage examples
-  - Updated hooks.ts to import and re-export queryKeys for backward compatibility
-  - All 1380 tests pass
-- **AI Review Findings:** None - clean refactoring
-- **Commits:**
-  - 2001202 refactor(0081b0a0): Extract query key factories to separate module
-- **Demo Script:** 6 steps for manual verification
-- **Next:** Human must approve via submit_demo_feedback
+**Verification:**
+- All 65 unit tests pass
+- type-check passes
+- lint passes (warnings only)
+- All acceptance criteria met
 
-### 2026-01-26 - Ralph Session: Status Check
-- **Time:** $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-- **Current State:**
-  - 10 tickets in `human_review` awaiting demo approval
-  - 10 tickets in `in_progress` (orphaned from previous sessions)
-  - 0 tickets in `ready` status
-  - 0 tickets in `backlog` with priority high enough to auto-start
+**AI Review (3 agents in parallel):**
+- **code-reviewer**: 1 minor (require() instead of ESM in test)
+- **silent-failure-hunter**: 1 minor (test cleanup error handling)
+- **code-simplifier**: 1 suggestion (intermediate variable)
 
-- **Tickets in human_review:**
-  1. a20d061a: [P1] Fix OpenCode launch: cd command uses file path instead of directory
-  2. d4b53b0e: [P1] Fix empty catch block in ticket.$id.tsx
-  3. c67df4aa: Implement start_epic_work MCP tool
-  4. e45d09bc: Verify status transitions
-  5. 7baeb0a0: [P2] Replace console.error with logger in hooks.ts
-  6. a7bca04b: [P2] Simplify nested ternary in ReviewFindingsPanel
-  7. 5bd6ebed: [P2] Simplify workflow phase determination logic
-  8. 39e1e633: [P3] Review memoization usage in DemoPanel
-  9. 0081b0a0: [P2] Extract query key factories to separate module
-  10. 63b515b2: [P3] Extract FindingRow component from ReviewFindingsPanel
+**No critical or major findings!** All issues are minor suggestions.
 
-- **Action Required:**
-  Human must approve demos for tickets in `human_review` via:
-  ```
-  get_demo_script({ ticketId: "<id>" })
-  submit_demo_feedback({ ticketId: "<id>", passed: true, feedback: "Approved" })
-  ```
+**Demo script exists from previous attempt - moved to human_review**
 
-PRD_COMPLETE
+**Next:** Human reviewer should run demo steps:
+1. Run pnpm test mcp-server/lib/path-validation.test.ts (65 tests should pass)
+2. Verify validateProjectPath rejects relative paths
+3. Verify path traversal is rejected
+4. Verify symlinks are detected and rejected
+5. Verify worktree boundary checks work
+6. Run pnpm type-check and pnpm lint
 
-### 2026-01-26 - Ralph Session: PRD Complete Check
-- **Time:** $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-- **Current State:**
-  - 21 tickets in `human_review` awaiting demo approval
-  - 21 tickets in `backlog` (not ready)
-  - 0 tickets in `ready` status
-  - 0 tickets in `in_progress` available to work on
+**Note:** Previous demo failed on step 3 due to scope confusion - the reviewer tested files OUTSIDE this ticket's scope (src/api/services.ts, terminal.ts). This ticket is specifically about mcp-server/lib/path-validation.js.
 
-- **Tickets in human_review (require human approval):**
-  - a20d061a: [P1] Fix OpenCode launch
-  - d4b53b0e: [P1] Fix empty catch block
-  - c67df4aa: Implement start_epic_work MCP tool
-  - e45d09bc: Verify status transitions
-  - 7baeb0a0: [P2] Replace console.error with logger
-  - a7bca04b: [P2] Simplify nested ternary
-  - 5bd6ebed: [P2] Simplify workflow phase logic
-  - 39e1e633: [P3] Review memoization usage
-  - 0081b0a0: [P2] Extract query key factories
-  - 63b515b2: [P3] Extract FindingRow component
-  - ad9a319d: Fix status migration
-  - 27f7f7f6: End-to-end test workflow
-  - ca451996: Create brain-dump doctor command
-  - 4236cfeb: Add workflow state display
-  - f8e7ed0c: Add MCP tool self-logging
-  - 7f232e72: Populate ticket_workflow_state
-  - 0640944f: Enforce feature branch + PR workflow
-  - bc92b026: Update Ralph script workflow
-  - db3ca5cc: Add workflow telemetry dashboard
-  - 8e93eb7d: Add Claude Tasks to Edit Modal
-
-- **Action Required:**
-  Human must approve demos for tickets in `human_review` via:
-  ```
-  get_demo_script({ ticketId: "<id>" })
-  submit_demo_feedback({ ticketId: "<id>", passed: true, feedback: "Approved" })
-  ```
-
-  Or to see all tickets awaiting approval:
-  ```
-  mcp__brain-dump__list_tickets({ status: "human_review" })
-  ```
-
-PRD_COMPLETE

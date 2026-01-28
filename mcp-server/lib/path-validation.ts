@@ -5,9 +5,8 @@
  * - Path traversal (using ".." to escape directories)
  * - Symlink attacks (using symlinks to redirect operations)
  * - Relative path injection (using relative paths to bypass checks)
- *
- * @module lib/path-validation
  */
+
 import path from "path";
 import fs from "fs";
 import { log } from "./logging.js";
@@ -16,11 +15,9 @@ import { log } from "./logging.js";
  * Custom error class for security violations.
  */
 export class SecurityError extends Error {
-  /**
-   * @param {string} message - Error message
-   * @param {string} type - Type of security violation
-   */
-  constructor(message, type) {
+  public readonly type: string;
+
+  constructor(message: string, type: string) {
     super(message);
     this.name = "SecurityError";
     this.type = type;
@@ -36,36 +33,20 @@ export class SecurityError extends Error {
  * 3. Path must not contain ".." sequences
  * 4. Resolves symlinks to get the real path
  *
- * @param {string} inputPath - The project path to validate
- * @returns {string} The resolved real path (symlinks followed)
+ * @param inputPath - The project path to validate
+ * @returns The resolved real path (symlinks followed)
  * @throws {SecurityError} If validation fails
- *
- * @example
- * // Valid path
- * validateProjectPath("/Users/dev/my-project"); // Returns real path
- *
- * // Invalid - relative path
- * validateProjectPath("./my-project"); // Throws SecurityError
- *
- * // Invalid - path traversal
- * validateProjectPath("/Users/dev/../../../etc/passwd"); // Throws SecurityError
  */
-export function validateProjectPath(inputPath) {
+export function validateProjectPath(inputPath: string): string {
   // Check for null/undefined/empty
   if (!inputPath || typeof inputPath !== "string") {
-    throw new SecurityError(
-      "Security: Project path must be a non-empty string",
-      "invalid_input"
-    );
+    throw new SecurityError("Security: Project path must be a non-empty string", "invalid_input");
   }
 
   // Check for absolute path
   if (!path.isAbsolute(inputPath)) {
     log.warn(`Path validation failed: relative path attempted: ${inputPath}`);
-    throw new SecurityError(
-      "Security: Project path must be absolute",
-      "relative_path"
-    );
+    throw new SecurityError("Security: Project path must be absolute", "relative_path");
   }
 
   // Check for path traversal attempts in the ORIGINAL input
@@ -74,18 +55,12 @@ export function validateProjectPath(inputPath) {
   // This is intentional: we want to reject suspicious input, not normalize it.
   if (inputPath.includes("..")) {
     log.warn(`Path validation failed: traversal detected in: ${inputPath}`);
-    throw new SecurityError(
-      "Security: Path traversal detected",
-      "path_traversal"
-    );
+    throw new SecurityError("Security: Path traversal detected", "path_traversal");
   }
 
   // Check that path exists
   if (!fs.existsSync(inputPath)) {
-    throw new SecurityError(
-      "Security: Project path does not exist",
-      "path_not_found"
-    );
+    throw new SecurityError("Security: Project path does not exist", "path_not_found");
   }
 
   // Resolve symlinks to get the real path
@@ -94,11 +69,8 @@ export function validateProjectPath(inputPath) {
     const realPath = fs.realpathSync(inputPath);
     return realPath;
   } catch (error) {
-    log.error(`Failed to resolve real path for: ${inputPath}`, error);
-    throw new SecurityError(
-      "Security: Failed to resolve path",
-      "resolution_failed"
-    );
+    log.error(`Failed to resolve real path for: ${inputPath}`, error as Error);
+    throw new SecurityError("Security: Failed to resolve path", "resolution_failed");
   }
 }
 
@@ -112,52 +84,30 @@ export function validateProjectPath(inputPath) {
  * This prevents creating worktrees in arbitrary locations that could
  * overwrite system files or other projects.
  *
- * @param {string} worktreePath - The proposed worktree path
- * @param {string} projectPath - The main project path (already validated)
+ * @param worktreePath - The proposed worktree path
+ * @param projectPath - The main project path (MUST be pre-validated via validateProjectPath)
  * @throws {SecurityError} If worktree path is outside allowed boundaries
- *
- * @example
- * // Valid - sibling directory
- * validateWorktreePath("/Users/dev/project-worktree", "/Users/dev/project");
- *
- * // Valid - subfolder
- * validateWorktreePath("/Users/dev/project/.worktrees/epic-1", "/Users/dev/project");
- *
- * // Invalid - arbitrary location
- * validateWorktreePath("/tmp/malicious", "/Users/dev/project"); // Throws SecurityError
  */
-export function validateWorktreePath(worktreePath, projectPath) {
+export function validateWorktreePath(worktreePath: string, projectPath: string): void {
   // Check for null/undefined/empty
   if (!worktreePath || typeof worktreePath !== "string") {
-    throw new SecurityError(
-      "Security: Worktree path must be a non-empty string",
-      "invalid_input"
-    );
+    throw new SecurityError("Security: Worktree path must be a non-empty string", "invalid_input");
   }
 
   if (!projectPath || typeof projectPath !== "string") {
-    throw new SecurityError(
-      "Security: Project path must be a non-empty string",
-      "invalid_input"
-    );
+    throw new SecurityError("Security: Project path must be a non-empty string", "invalid_input");
   }
 
   // Check for absolute path
   if (!path.isAbsolute(worktreePath)) {
     log.warn(`Worktree path validation failed: relative path: ${worktreePath}`);
-    throw new SecurityError(
-      "Security: Worktree path must be absolute",
-      "relative_path"
-    );
+    throw new SecurityError("Security: Worktree path must be absolute", "relative_path");
   }
 
   // Check for path traversal in the ORIGINAL worktree path input
   if (worktreePath.includes("..")) {
     log.warn(`Worktree path validation failed: traversal in: ${worktreePath}`);
-    throw new SecurityError(
-      "Security: Path traversal detected in worktree path",
-      "path_traversal"
-    );
+    throw new SecurityError("Security: Path traversal detected in worktree path", "path_traversal");
   }
 
   // Normalize both paths for comparison (after traversal check)
@@ -191,26 +141,13 @@ export function validateWorktreePath(worktreePath, projectPath) {
  * Note: If the path doesn't exist (ENOENT), this is considered safe
  * because no symlink exists there yet.
  *
- * @param {string} targetPath - The path to check
+ * @param targetPath - The path to check
  * @throws {SecurityError} If the path is a symlink
- *
- * @example
- * // Safe - regular directory
- * ensureNotSymlink("/Users/dev/project/.claude"); // OK
- *
- * // Safe - path doesn't exist yet
- * ensureNotSymlink("/Users/dev/project/.claude/new-dir"); // OK
- *
- * // Unsafe - path is a symlink
- * ensureNotSymlink("/Users/dev/project/.claude"); // Throws if .claude is a symlink
  */
-export function ensureNotSymlink(targetPath) {
+export function ensureNotSymlink(targetPath: string): void {
   // Check for null/undefined/empty
   if (!targetPath || typeof targetPath !== "string") {
-    throw new SecurityError(
-      "Security: Target path must be a non-empty string",
-      "invalid_input"
-    );
+    throw new SecurityError("Security: Target path must be a non-empty string", "invalid_input");
   }
 
   try {
@@ -227,7 +164,7 @@ export function ensureNotSymlink(targetPath) {
   } catch (error) {
     // ENOENT means the path doesn't exist - this is fine
     // (no symlink to exploit)
-    if (error.code === "ENOENT") {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       return; // Path doesn't exist, safe to proceed
     }
 
@@ -237,9 +174,10 @@ export function ensureNotSymlink(targetPath) {
     }
 
     // Other errors (permission denied, etc.) should be reported
-    log.error(`Failed to check symlink status for: ${targetPath}`, error);
+    const message = error instanceof Error ? error.message : String(error);
+    log.error(`Failed to check symlink status for: ${targetPath}`, error as Error);
     throw new SecurityError(
-      `Security: Failed to verify path is not a symlink: ${error.message}`,
+      `Security: Failed to verify path is not a symlink: ${message}`,
       "check_failed"
     );
   }
@@ -249,24 +187,22 @@ export function ensureNotSymlink(targetPath) {
  * Validate a path component (directory or file name) for dangerous characters.
  *
  * Prevents names that could cause issues:
- * - Control characters
+ * - Control characters (ASCII 0-31)
  * - Path separators (/ or \)
- * - Shell metacharacters in names
+ * - Null bytes (can truncate strings in C-based APIs)
+ * - Windows reserved names (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
  *
- * @param {string} name - The path component to validate
- * @returns {boolean} True if the name is safe
+ * Note: This function does NOT validate shell metacharacters (;, $, |, etc.).
+ * Shell safety is achieved by using runGitCommandSafe with argument arrays
+ * rather than string concatenation.
+ *
+ * @param name - The path component to validate
+ * @returns True if the name is safe
  * @throws {SecurityError} If the name contains dangerous characters
- *
- * @example
- * validatePathComponent("my-project"); // Returns true
- * validatePathComponent("project; rm -rf /"); // Throws SecurityError
  */
-export function validatePathComponent(name) {
+export function validatePathComponent(name: string): boolean {
   if (!name || typeof name !== "string") {
-    throw new SecurityError(
-      "Security: Path component must be a non-empty string",
-      "invalid_input"
-    );
+    throw new SecurityError("Security: Path component must be a non-empty string", "invalid_input");
   }
 
   // Check for path separators
@@ -297,10 +233,7 @@ export function validatePathComponent(name) {
   // Check for reserved names on Windows
   const windowsReserved = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
   if (windowsReserved.test(name)) {
-    throw new SecurityError(
-      "Security: Path component uses reserved Windows name",
-      "reserved_name"
-    );
+    throw new SecurityError("Security: Path component uses reserved Windows name", "reserved_name");
   }
 
   return true;

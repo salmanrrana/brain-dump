@@ -1,34 +1,12 @@
 import { describe, it, expect } from "vitest";
 
-// Types for the JS module
-interface GitCommandResult {
-  success: boolean;
-  output: string;
-  error?: string;
-}
-
-interface RunGitCommandSafeOptions {
-  maxBuffer?: number;
-  timeout?: number;
-}
-
-interface GitUtils {
-  runGitCommandSafe: (
-    args: string[],
-    cwd: string,
-    options?: RunGitCommandSafeOptions
-  ) => GitCommandResult;
-  slugify: (text: string) => string;
-  shortId: (uuid: string) => string;
-  generateBranchName: (ticketId: string, ticketTitle: string) => string;
-  generateEpicBranchName: (epicId: string, epicTitle: string) => string;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const gitUtils = require("./git-utils.js") as GitUtils;
-
-const { runGitCommandSafe, slugify, shortId, generateBranchName, generateEpicBranchName } =
-  gitUtils;
+import {
+  runGitCommandSafe,
+  slugify,
+  shortId,
+  generateBranchName,
+  generateEpicBranchName,
+} from "./git-utils.js";
 
 describe("git-utils module", () => {
   describe("slugify", () => {
@@ -244,7 +222,7 @@ describe("git-utils module", () => {
         expect(result.success).toBe(false);
         expect(result.error).toBeDefined();
         // The whoami output should NOT appear anywhere
-        expect(result.error).not.toContain(process.env.USER || "");
+        expect(result.error).not.toContain(process.env["USER"] || "");
       });
 
       it("should safely handle arguments with $() command substitution", () => {

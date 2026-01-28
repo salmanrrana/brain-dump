@@ -22,9 +22,7 @@ import { tmpdir } from "os";
 import { randomUUID } from "crypto";
 import { execSync } from "child_process";
 import { getEffectiveIsolationMode } from "../../lib/worktree-flags.js";
-// @ts-expect-error - JavaScript module without declaration file
 import { generateWorktreePath, validateWorktree } from "../../lib/worktree-utils.js";
-// @ts-expect-error - JavaScript module without declaration file
 import { generateEpicBranchName } from "../../lib/git-utils.js";
 
 // Database schema that includes all relevant tables

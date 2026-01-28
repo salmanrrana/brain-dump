@@ -1,11 +1,11 @@
 /**
  * Worktree utility functions for generating and managing worktree paths.
- *
- * @module lib/worktree-utils
  */
+
 import path from "path";
 import fs from "fs";
 import { slugify, shortId, runGitCommandSafe } from "./git-utils.js";
+import type { CommandResult } from "./git-utils.js";
 import {
   validateProjectPath,
   validateWorktreePath,
@@ -21,6 +21,94 @@ import { log } from "./logging.js";
  */
 const DEFAULT_SLUG_MAX_LENGTH = 30;
 
+export type WorktreeLocation = "sibling" | "subfolder" | "custom";
+
+export interface WorktreeOptions {
+  location?: WorktreeLocation;
+  basePath?: string | null;
+  slugMaxLength?: number;
+}
+
+export interface WorktreePathResult {
+  success: true;
+  path: string;
+  worktreeName: string;
+}
+
+export interface WorktreePathError {
+  success: false;
+  error: string;
+}
+
+export type WorktreePathResponse = WorktreePathResult | WorktreePathError;
+
+export interface AlternativeWorktreePathResult extends WorktreePathResult {
+  suffix: number;
+}
+
+export type AlternativeWorktreePathResponse = AlternativeWorktreePathResult | WorktreePathError;
+
+export interface ParsedWorktreePath {
+  matched: boolean;
+  projectName: string | null;
+  epicShortId: string | null;
+  slug: string | null;
+}
+
+export interface WorktreeInfo {
+  path: string;
+  head: string;
+  branch: string | null;
+  isMainWorktree: boolean;
+}
+
+export interface ListWorktreesResult {
+  success: true;
+  worktrees: WorktreeInfo[];
+}
+
+export type ListWorktreesResponse = ListWorktreesResult | WorktreePathError;
+
+export type WorktreeValidationStatus = "valid" | "missing_directory" | "corrupted" | "wrong_branch";
+
+export interface WorktreeValidationResult {
+  status: WorktreeValidationStatus;
+  branch?: string;
+  expectedBranch?: string;
+  hasUncommittedChanges?: boolean;
+  error?: string;
+}
+
+export interface CreateWorktreeOptions {
+  maxWorktrees?: number;
+  createClaudeDir?: boolean;
+}
+
+export interface CreateWorktreeResult {
+  success: true;
+  worktreePath: string;
+  branchName: string;
+}
+
+export interface CreateWorktreeError {
+  success: false;
+  error: string;
+  rollbackWarning?: string;
+}
+
+export type CreateWorktreeResponse = CreateWorktreeResult | CreateWorktreeError;
+
+export interface RemoveWorktreeOptions {
+  force?: boolean;
+}
+
+export interface RemoveWorktreeResult {
+  success: true;
+  warning?: string;
+}
+
+export type RemoveWorktreeResponse = RemoveWorktreeResult | WorktreePathError;
+
 /**
  * Generate a worktree path based on project settings.
  *
@@ -28,35 +116,13 @@ const DEFAULT_SLUG_MAX_LENGTH = 30;
  * - Sibling: `{projectParent}/{projectName}-epic-{shortId}-{slug}`
  * - Subfolder: `{projectPath}/.worktrees/epic-{shortId}-{slug}`
  * - Custom: `{basePath}/{projectName}-epic-{shortId}-{slug}`
- *
- * @param {string} projectPath - Absolute path to the main project directory
- * @param {string} epicId - Epic UUID (will be truncated to 8 chars)
- * @param {string} epicTitle - Epic title (will be slugified)
- * @param {object} [options] - Configuration options
- * @param {"sibling" | "subfolder" | "custom"} [options.location="sibling"] - Where to create the worktree
- * @param {string} [options.basePath] - Base path for custom location (required if location="custom")
- * @param {number} [options.slugMaxLength=30] - Maximum length for the slug portion
- * @returns {{ success: true, path: string, worktreeName: string } | { success: false, error: string }}
- *
- * @example
- * // Sibling location (default)
- * generateWorktreePath("/Users/dev/brain-dump", "abc-123", "Git Worktree Integration");
- * // Returns: { success: true, path: "/Users/dev/brain-dump-epic-abc12345-git-worktree-integration", worktreeName: "brain-dump-epic-abc12345-git-worktree-integration" }
- *
- * @example
- * // Subfolder location
- * generateWorktreePath("/Users/dev/brain-dump", "abc-123", "Feature X", { location: "subfolder" });
- * // Returns: { success: true, path: "/Users/dev/brain-dump/.worktrees/epic-abc12345-feature-x", worktreeName: "epic-abc12345-feature-x" }
- *
- * @example
- * // Custom location
- * generateWorktreePath("/Users/dev/brain-dump", "abc-123", "Feature X", {
- *   location: "custom",
- *   basePath: "/worktrees"
- * });
- * // Returns: { success: true, path: "/worktrees/brain-dump-epic-abc12345-feature-x", worktreeName: "brain-dump-epic-abc12345-feature-x" }
  */
-export function generateWorktreePath(projectPath, epicId, epicTitle, options = {}) {
+export function generateWorktreePath(
+  projectPath: string,
+  epicId: string,
+  epicTitle: string,
+  options: WorktreeOptions = {}
+): WorktreePathResponse {
   const {
     location = "sibling",
     basePath = null,
@@ -103,8 +169,8 @@ export function generateWorktreePath(projectPath, epicId, epicTitle, options = {
   // Get project name for use in worktree name
   const projectName = path.basename(projectPath);
 
-  let worktreePath;
-  let worktreeName;
+  let worktreePath: string;
+  let worktreeName: string;
 
   switch (location) {
     case "sibling": {
@@ -119,9 +185,7 @@ export function generateWorktreePath(projectPath, epicId, epicTitle, options = {
 
     case "subfolder": {
       // Subfolder: {projectPath}/.worktrees/epic-{shortId}-{slug}
-      worktreeName = epicSlug
-        ? `epic-${epicShortId}-${epicSlug}`
-        : `epic-${epicShortId}`;
+      worktreeName = epicSlug ? `epic-${epicShortId}-${epicSlug}` : `epic-${epicShortId}`;
 
       worktreePath = path.join(projectPath, ".worktrees", worktreeName);
       break;
@@ -169,25 +233,14 @@ export function generateWorktreePath(projectPath, epicId, epicTitle, options = {
  * Suggest an alternative worktree path when the primary one is taken.
  *
  * Appends a numeric suffix to find an available path.
- *
- * @param {string} projectPath - Absolute path to the main project directory
- * @param {string} epicId - Epic UUID
- * @param {string} epicTitle - Epic title
- * @param {object} [options] - Same options as generateWorktreePath
- * @param {number} [maxAttempts=10] - Maximum number of suffixes to try
- * @returns {{ success: true, path: string, worktreeName: string, suffix: number } | { success: false, error: string }}
- *
- * @example
- * // If "brain-dump-epic-abc12345-feature" exists, try "brain-dump-epic-abc12345-feature-2", etc.
- * suggestAlternativeWorktreePath("/Users/dev/brain-dump", "abc-123", "Feature");
  */
 export function suggestAlternativeWorktreePath(
-  projectPath,
-  epicId,
-  epicTitle,
-  options = {},
+  projectPath: string,
+  epicId: string,
+  epicTitle: string,
+  options: WorktreeOptions = {},
   maxAttempts = 10
-) {
+): AlternativeWorktreePathResponse {
   const {
     location = "sibling",
     basePath = null,
@@ -235,19 +288,8 @@ export function suggestAlternativeWorktreePath(
  * Parse a worktree path to extract components.
  *
  * Useful for understanding an existing worktree's origin.
- *
- * @param {string} worktreePath - Path to a worktree
- * @returns {{ matched: boolean, projectName: string | null, epicShortId: string | null, slug: string | null }}
- *
- * @example
- * parseWorktreePath("/Users/dev/brain-dump-epic-abc12345-git-worktree");
- * // Returns: { matched: true, projectName: "brain-dump", epicShortId: "abc12345", slug: "git-worktree" }
- *
- * @example
- * parseWorktreePath("/Users/dev/some-random-folder");
- * // Returns: { matched: false, projectName: null, epicShortId: null, slug: null }
  */
-export function parseWorktreePath(worktreePath) {
+export function parseWorktreePath(worktreePath: string): ParsedWorktreePath {
   const dirname = path.basename(worktreePath);
 
   // Try to match the pattern: {projectName}-epic-{shortId}-{slug}
@@ -255,9 +297,9 @@ export function parseWorktreePath(worktreePath) {
   if (match) {
     return {
       matched: true,
-      projectName: match[1],
-      epicShortId: match[2],
-      slug: match[3],
+      projectName: match[1] ?? null,
+      epicShortId: match[2] ?? null,
+      slug: match[3] ?? null,
     };
   }
 
@@ -266,8 +308,8 @@ export function parseWorktreePath(worktreePath) {
   if (matchNoSlug) {
     return {
       matched: true,
-      projectName: matchNoSlug[1],
-      epicShortId: matchNoSlug[2],
+      projectName: matchNoSlug[1] ?? null,
+      epicShortId: matchNoSlug[2] ?? null,
       slug: null,
     };
   }
@@ -278,8 +320,8 @@ export function parseWorktreePath(worktreePath) {
     return {
       matched: true,
       projectName: null,
-      epicShortId: subfolderMatch[1],
-      slug: subfolderMatch[2],
+      epicShortId: subfolderMatch[1] ?? null,
+      slug: subfolderMatch[2] ?? null,
     };
   }
 
@@ -289,7 +331,7 @@ export function parseWorktreePath(worktreePath) {
     return {
       matched: true,
       projectName: null,
-      epicShortId: subfolderNoSlug[1],
+      epicShortId: subfolderNoSlug[1] ?? null,
       slug: null,
     };
   }
@@ -302,21 +344,8 @@ export function parseWorktreePath(worktreePath) {
  *
  * Parses the output of `git worktree list --porcelain` to return structured data
  * about each worktree. Identifies the main worktree (bare: false) vs linked worktrees.
- *
- * @param {string} projectPath - Absolute path to the main repository
- * @returns {{ success: true, worktrees: Array<{path: string, head: string, branch: string | null, isMainWorktree: boolean}> } | { success: false, error: string }}
- *
- * @example
- * const result = listWorktrees("/Users/dev/brain-dump");
- * if (result.success) {
- *   console.log(result.worktrees);
- *   // [
- *   //   { path: "/Users/dev/brain-dump", head: "abc123", branch: "main", isMainWorktree: true },
- *   //   { path: "/Users/dev/brain-dump-epic-xyz", head: "def456", branch: "feature/epic-xyz", isMainWorktree: false }
- *   // ]
- * }
  */
-export function listWorktrees(projectPath) {
+export function listWorktrees(projectPath: string): ListWorktreesResponse {
   // Validate project path
   try {
     validateProjectPath(projectPath);
@@ -328,7 +357,7 @@ export function listWorktrees(projectPath) {
   }
 
   // Get worktree list in porcelain format
-  const result = runGitCommandSafe(["worktree", "list", "--porcelain"], projectPath);
+  const result: CommandResult = runGitCommandSafe(["worktree", "list", "--porcelain"], projectPath);
   if (!result.success) {
     return {
       success: false,
@@ -342,16 +371,16 @@ export function listWorktrees(projectPath) {
   // HEAD abc123...
   // branch refs/heads/main
   // (blank line between entries)
-  const worktrees = [];
+  const worktrees: WorktreeInfo[] = [];
   const entries = result.output.trim().split("\n\n");
 
   for (const entry of entries) {
     if (!entry.trim()) continue;
 
     const lines = entry.split("\n");
-    let worktreePath = null;
-    let head = null;
-    let branch = null;
+    let worktreePath: string | null = null;
+    let head: string | null = null;
+    let branch: string | null = null;
     let isBare = false;
 
     for (const line of lines) {
@@ -391,52 +420,17 @@ export function listWorktrees(projectPath) {
 }
 
 /**
- * Validation status for a worktree.
- * @typedef {"valid" | "missing_directory" | "corrupted" | "wrong_branch"} WorktreeValidationStatus
- */
-
-/**
- * Result of worktree validation.
- * @typedef {Object} WorktreeValidationResult
- * @property {WorktreeValidationStatus} status - The validation status
- * @property {string} [branch] - Current branch name (if valid or wrong_branch)
- * @property {string} [expectedBranch] - Expected branch name (if wrong_branch)
- * @property {boolean} [hasUncommittedChanges] - Whether there are uncommitted changes
- * @property {string} [error] - Error message (if corrupted)
- */
-
-/**
  * Validate an existing worktree for resumption.
  *
  * Checks that a worktree directory exists, is a valid git worktree,
  * is on the expected branch (if specified), and reports uncommitted changes
  * for resumption awareness.
- *
- * @param {string} worktreePath - Absolute path to the worktree directory
- * @param {string} projectPath - Absolute path to the main repository
- * @param {string | null} [expectedBranch=null] - Expected branch name (optional)
- * @returns {WorktreeValidationResult}
- *
- * @example
- * // Valid worktree
- * const result = validateWorktree("/Users/dev/brain-dump-epic-abc12345", "/Users/dev/brain-dump");
- * // Returns: { status: "valid", branch: "feature/epic-abc12345", hasUncommittedChanges: false }
- *
- * @example
- * // Missing directory
- * const result = validateWorktree("/Users/dev/nonexistent", "/Users/dev/brain-dump");
- * // Returns: { status: "missing_directory" }
- *
- * @example
- * // Wrong branch
- * const result = validateWorktree(
- *   "/Users/dev/brain-dump-epic-abc12345",
- *   "/Users/dev/brain-dump",
- *   "feature/epic-abc12345-original"
- * );
- * // Returns: { status: "wrong_branch", branch: "other-branch", expectedBranch: "feature/epic-abc12345-original", hasUncommittedChanges: true }
  */
-export function validateWorktree(worktreePath, projectPath, expectedBranch = null) {
+export function validateWorktree(
+  worktreePath: string,
+  projectPath: string,
+  expectedBranch: string | null = null
+): WorktreeValidationResult {
   // Input validation
   if (!worktreePath || typeof worktreePath !== "string") {
     return { status: "corrupted", error: "Worktree path must be a non-empty string" };
@@ -460,10 +454,7 @@ export function validateWorktree(worktreePath, projectPath, expectedBranch = nul
 
     // Check if the worktree is in the main repo's worktree list
     // We use runGitCommandSafe on the projectPath to get the authoritative list
-    const worktreeListResult = runGitCommandSafe(
-      ["worktree", "list", "--porcelain"],
-      projectPath
-    );
+    const worktreeListResult = runGitCommandSafe(["worktree", "list", "--porcelain"], projectPath);
 
     if (!worktreeListResult.success) {
       return {
@@ -544,10 +535,11 @@ export function validateWorktree(worktreePath, projectPath, expectedBranch = nul
       hasUncommittedChanges,
     };
   } catch (error) {
-    log.warn(`Error validating worktree at ${worktreePath}: ${error.message}`);
+    const message = error instanceof Error ? error.message : String(error);
+    log.warn(`Error validating worktree at ${worktreePath}: ${message}`);
     return {
       status: "corrupted",
-      error: error.message,
+      error: message,
     };
   }
 }
@@ -561,34 +553,21 @@ export function validateWorktree(worktreePath, projectPath, expectedBranch = nul
  * 3. Creates the worktree directory with proper permissions
  * 4. Creates the .claude/ directory with restricted permissions (0o700)
  * 5. Rolls back (cleans up) on failure
- *
- * @param {string} projectPath - Absolute path to the main project directory
- * @param {string} worktreePath - Absolute path where the worktree should be created
- * @param {string} branchName - Name of the branch to create for the worktree
- * @param {object} [options] - Configuration options
- * @param {number} [options.maxWorktrees=5] - Maximum number of worktrees allowed
- * @param {boolean} [options.createClaudeDir=true] - Whether to create .claude/ directory
- * @returns {{ success: true, worktreePath: string, branchName: string } | { success: false, error: string }}
- *
- * @example
- * const result = createWorktree(
- *   "/Users/dev/brain-dump",
- *   "/Users/dev/brain-dump-epic-abc12345-feature",
- *   "feature/epic-abc12345-feature"
- * );
- * if (result.success) {
- *   console.log(`Worktree created at: ${result.worktreePath}`);
- * }
  */
-export function createWorktree(projectPath, worktreePath, branchName, options = {}) {
+export function createWorktree(
+  projectPath: string,
+  worktreePath: string,
+  branchName: string,
+  options: CreateWorktreeOptions = {}
+): CreateWorktreeResponse {
   const { maxWorktrees = 5, createClaudeDir = true } = options;
 
   // Track what we've created for rollback
   let createdWorktree = false;
-  let rollbackWarning = null;
+  let rollbackWarning: string | null = null;
 
   // Helper function for rollback - cleans up on failure and returns error result
-  const rollback = (error) => {
+  const rollback = (error: string): CreateWorktreeError => {
     log.debug(`Rolling back worktree creation due to error: ${error}`);
 
     // Remove worktree if created
@@ -608,11 +587,10 @@ export function createWorktree(projectPath, worktreePath, branchName, options = 
           }
         }
       } catch (rollbackError) {
-        log.warn(`Error during worktree rollback: ${rollbackError.message}`, {
-          code: rollbackError.code,
-          path: worktreePath,
-        });
-        rollbackWarning = `Rollback error: ${rollbackError.message}. Manual cleanup may be required.`;
+        const message =
+          rollbackError instanceof Error ? rollbackError.message : String(rollbackError);
+        log.warn(`Error during worktree rollback: ${message}`);
+        rollbackWarning = `Rollback error: ${message}. Manual cleanup may be required.`;
       }
     }
 
@@ -620,7 +598,7 @@ export function createWorktree(projectPath, worktreePath, branchName, options = 
     // because it might be needed by other operations, and removing
     // empty directories is generally safe to leave
 
-    const result = { success: false, error };
+    const result: CreateWorktreeError = { success: false, error };
     if (rollbackWarning) {
       result.rollbackWarning = rollbackWarning;
     }
@@ -629,7 +607,7 @@ export function createWorktree(projectPath, worktreePath, branchName, options = 
 
   try {
     // 1. Validate project path
-    let resolvedProjectPath;
+    let resolvedProjectPath: string;
     try {
       resolvedProjectPath = validateProjectPath(projectPath);
     } catch (error) {
@@ -678,11 +656,8 @@ export function createWorktree(projectPath, worktreePath, branchName, options = 
     }
     // Check for obviously invalid branch name characters
     // (tilde, caret, colon, question mark, asterisk, open bracket, backslash, control chars)
-    // Using code point check for control chars to avoid eslint no-control-regex
     const invalidBranchChars = /[~^:?*[\]\\]/;
-    const hasControlChars = Array.from(branchName).some(
-      (char) => char.charCodeAt(0) < 32
-    );
+    const hasControlChars = Array.from(branchName).some((char) => char.charCodeAt(0) < 32);
     if (invalidBranchChars.test(branchName) || hasControlChars) {
       return { success: false, error: "Branch name contains invalid characters" };
     }
@@ -696,7 +671,8 @@ export function createWorktree(projectPath, worktreePath, branchName, options = 
         fs.mkdirSync(parentDir, { recursive: true, mode: 0o755 });
         log.debug(`Created parent directory: ${parentDir}`);
       } catch (mkdirError) {
-        return { success: false, error: `Failed to create parent directory: ${mkdirError.message}` };
+        const message = mkdirError instanceof Error ? mkdirError.message : String(mkdirError);
+        return { success: false, error: `Failed to create parent directory: ${message}` };
       }
     }
 
@@ -745,15 +721,17 @@ export function createWorktree(projectPath, worktreePath, branchName, options = 
         fs.mkdirSync(claudeDir, { recursive: true, mode: 0o700 });
         log.debug(`Created .claude directory with restricted permissions: ${claudeDir}`);
       } catch (mkdirError) {
-        return rollback(`Failed to create .claude directory: ${mkdirError.message}`);
+        const message = mkdirError instanceof Error ? mkdirError.message : String(mkdirError);
+        return rollback(`Failed to create .claude directory: ${message}`);
       }
     }
 
     return { success: true, worktreePath, branchName };
   } catch (error) {
     // Unexpected error - still try to rollback
-    log.error(`Unexpected error during worktree creation: ${error.message}`);
-    return rollback(`Unexpected error: ${error.message}`);
+    const message = error instanceof Error ? error.message : String(error);
+    log.error(`Unexpected error during worktree creation: ${message}`);
+    return rollback(`Unexpected error: ${message}`);
   }
 }
 
@@ -765,22 +743,12 @@ export function createWorktree(projectPath, worktreePath, branchName, options = 
  * 2. Checks the worktree exists in git's worktree list
  * 3. Removes the worktree using git worktree remove
  * 4. Prunes any stale worktree references
- *
- * @param {string} worktreePath - Absolute path to the worktree to remove
- * @param {string} projectPath - Absolute path to the main repository
- * @param {object} [options] - Configuration options
- * @param {boolean} [options.force=false] - Force removal even with uncommitted changes
- * @returns {{ success: true, warning?: string } | { success: false, error: string }}
- *
- * @example
- * // Normal removal (fails if uncommitted changes exist)
- * removeWorktree("/Users/dev/brain-dump-epic-abc12345", "/Users/dev/brain-dump");
- *
- * @example
- * // Force removal (ignores uncommitted changes)
- * removeWorktree("/Users/dev/brain-dump-epic-abc12345", "/Users/dev/brain-dump", { force: true });
  */
-export function removeWorktree(worktreePath, projectPath, options = {}) {
+export function removeWorktree(
+  worktreePath: string,
+  projectPath: string,
+  options: RemoveWorktreeOptions = {}
+): RemoveWorktreeResponse {
   const { force = false } = options;
 
   // 1. Input validation
@@ -793,7 +761,7 @@ export function removeWorktree(worktreePath, projectPath, options = {}) {
   }
 
   // 2. Validate project path (security check)
-  let resolvedProjectPath;
+  let resolvedProjectPath: string;
   try {
     resolvedProjectPath = validateProjectPath(projectPath);
   } catch (error) {

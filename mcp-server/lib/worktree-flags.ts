@@ -5,10 +5,45 @@
  * Worktree support can be enabled:
  * - Globally via settings table (enable_worktree_support)
  * - Per-project via projects.default_isolation_mode (not null = opt-in)
- *
- * @module lib/worktree-flags
  */
+
+import type { Database } from "better-sqlite3";
 import { log } from "./logging.js";
+
+export interface WorktreeSupportResult {
+  enabled: boolean;
+  reason: "project" | "global" | "disabled";
+}
+
+export interface WorktreeSupportForEpicResult {
+  enabled: boolean;
+  reason: "epic" | "project" | "global" | "disabled";
+  isolationMode: string | null;
+}
+
+export interface EffectiveIsolationModeResult {
+  mode: "branch" | "worktree";
+  source: "requested" | "epic" | "project" | "default" | "fallback_disabled";
+}
+
+interface ProjectRow {
+  default_isolation_mode: string | null;
+}
+
+interface SettingsRow {
+  enable_worktree_support: number | boolean | null;
+}
+
+interface EpicRow {
+  project_id: string;
+  isolation_mode: string | null;
+}
+
+interface EpicWithProjectRow {
+  isolation_mode: string | null;
+  project_id: string;
+  default_isolation_mode: string | null;
+}
 
 /**
  * Check if worktree support is enabled for a given project.
@@ -18,18 +53,14 @@ import { log } from "./logging.js";
  * 2. Global settings have `enable_worktree_support = true`
  *
  * This allows both per-project opt-in and global enablement for power users.
- *
- * @param {import("better-sqlite3").Database} db - Database connection
- * @param {string} projectId - Project ID to check
- * @returns {{ enabled: boolean, reason: "project" | "global" | "disabled" }}
  */
-export function isWorktreeSupportEnabled(db, projectId) {
+export function isWorktreeSupportEnabled(db: Database, projectId: string): WorktreeSupportResult {
   // Check project-level setting first (more specific)
   if (projectId) {
     try {
       const project = db
         .prepare("SELECT default_isolation_mode FROM projects WHERE id = ?")
-        .get(projectId);
+        .get(projectId) as ProjectRow | undefined;
 
       if (project?.default_isolation_mode) {
         // "branch" means explicitly using branch mode, not opt-in to worktrees
@@ -48,7 +79,8 @@ export function isWorktreeSupportEnabled(db, projectId) {
         }
       }
     } catch (err) {
-      log.warn(`Failed to check project worktree setting for ${projectId}: ${err.message}`);
+      const message = err instanceof Error ? err.message : String(err);
+      log.warn(`Failed to check project worktree setting for ${projectId}: ${message}`);
     }
   }
 
@@ -56,18 +88,19 @@ export function isWorktreeSupportEnabled(db, projectId) {
   try {
     const settings = db
       .prepare("SELECT enable_worktree_support FROM settings WHERE id = 'default'")
-      .get();
+      .get() as SettingsRow | undefined;
 
     if (settings?.enable_worktree_support === 1 || settings?.enable_worktree_support === true) {
       log.debug("Worktree support enabled globally via settings");
       return { enabled: true, reason: "global" };
     }
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     // Log unexpected errors - "no such column" is expected if schema hasn't migrated yet
-    if (err.message?.includes("no such column") || err.message?.includes("no such table")) {
+    if (message?.includes("no such column") || message?.includes("no such table")) {
       log.debug("Global worktree setting column not found, defaulting to disabled");
     } else {
-      log.warn(`Failed to check global worktree setting: ${err.message}`);
+      log.warn(`Failed to check global worktree setting: ${message}`);
     }
   }
 
@@ -79,16 +112,15 @@ export function isWorktreeSupportEnabled(db, projectId) {
  *
  * Uses the epic's project to determine worktree support status,
  * and also checks the epic's own isolation_mode setting.
- *
- * @param {import("better-sqlite3").Database} db - Database connection
- * @param {string} epicId - Epic ID to check
- * @returns {{ enabled: boolean, reason: "epic" | "project" | "global" | "disabled", isolationMode: string | null }}
  */
-export function isWorktreeSupportEnabledForEpic(db, epicId) {
+export function isWorktreeSupportEnabledForEpic(
+  db: Database,
+  epicId: string
+): WorktreeSupportForEpicResult {
   try {
     const epic = db
       .prepare("SELECT project_id, isolation_mode FROM epics WHERE id = ?")
-      .get(epicId);
+      .get(epicId) as EpicRow | undefined;
 
     if (!epic) {
       log.warn(`Epic not found: ${epicId}`);
@@ -111,7 +143,8 @@ export function isWorktreeSupportEnabledForEpic(db, epicId) {
       isolationMode: epic.isolation_mode,
     };
   } catch (err) {
-    log.error(`Failed to check epic worktree support for ${epicId}: ${err.message}`);
+    const message = err instanceof Error ? err.message : String(err);
+    log.error(`Failed to check epic worktree support for ${epicId}: ${message}`);
     return { enabled: false, reason: "disabled", isolationMode: null };
   }
 }
@@ -124,13 +157,12 @@ export function isWorktreeSupportEnabledForEpic(db, epicId) {
  * - Else use epic.isolation_mode if set
  * - Else use project.default_isolation_mode if set
  * - Else default to "branch" (safe default)
- *
- * @param {import("better-sqlite3").Database} db - Database connection
- * @param {string} epicId - Epic ID
- * @param {string | null} requestedMode - Explicitly requested mode (optional)
- * @returns {{ mode: "branch" | "worktree", source: "requested" | "epic" | "project" | "default" | "fallback_disabled" }}
  */
-export function getEffectiveIsolationMode(db, epicId, requestedMode = null) {
+export function getEffectiveIsolationMode(
+  db: Database,
+  epicId: string,
+  requestedMode: "branch" | "worktree" | null = null
+): EffectiveIsolationModeResult {
   // If worktree is explicitly requested, check if it's allowed
   if (requestedMode === "worktree") {
     const check = isWorktreeSupportEnabledForEpic(db, epicId);
@@ -156,7 +188,7 @@ export function getEffectiveIsolationMode(db, epicId, requestedMode = null) {
          JOIN projects p ON e.project_id = p.id
          WHERE e.id = ?`
       )
-      .get(epicId);
+      .get(epicId) as EpicWithProjectRow | undefined;
 
     if (!epic) {
       return { mode: "branch", source: "default" };
@@ -187,7 +219,8 @@ export function getEffectiveIsolationMode(db, epicId, requestedMode = null) {
     // Default: use branches (safe, no special setup needed)
     return { mode: "branch", source: "default" };
   } catch (err) {
-    log.error(`Failed to get effective isolation mode for epic ${epicId}: ${err.message}`);
+    const message = err instanceof Error ? err.message : String(err);
+    log.error(`Failed to get effective isolation mode for epic ${epicId}: ${message}`);
     return { mode: "branch", source: "default" };
   }
 }

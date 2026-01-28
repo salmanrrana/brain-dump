@@ -1,9 +1,26 @@
 /**
  * Git utilities for Brain Dump MCP server.
- * @module lib/git-utils
  */
-import { execFileSync } from "child_process";
+
+import { execFileSync, ExecFileSyncOptions } from "child_process";
 import { log } from "./logging.js";
+
+export interface CommandResult {
+  success: boolean;
+  output: string;
+  error?: string;
+}
+
+export interface CommandOptions {
+  maxBuffer?: number;
+  timeout?: number;
+}
+
+interface ExecError extends Error {
+  code?: string;
+  stderr?: string | Buffer;
+  killed?: boolean;
+}
 
 /**
  * Safely run a git command using argument arrays (immune to command injection).
@@ -11,12 +28,10 @@ import { log } from "./logging.js";
  * This function uses execFileSync with argument arrays, preventing shell
  * metacharacter injection attacks.
  *
- * @param {string[]} args - Array of git command arguments (without 'git' prefix)
- * @param {string} cwd - Working directory for the command
- * @param {object} [options] - Optional configuration
- * @param {number} [options.maxBuffer=10485760] - Maximum buffer size (default 10MB)
- * @param {number} [options.timeout] - Optional timeout in milliseconds
- * @returns {{ success: boolean, output: string, error?: string }}
+ * @param args - Array of git command arguments (without 'git' prefix)
+ * @param cwd - Working directory for the command
+ * @param options - Optional configuration
+ * @returns Command result with success status and output
  *
  * @example
  * // Safe - no injection possible
@@ -26,7 +41,11 @@ import { log } from "./logging.js";
  * const epicTitle = "; rm -rf /";
  * runGitCommandSafe(["branch", "-m", epicTitle], cwd); // Won't execute rm
  */
-export function runGitCommandSafe(args, cwd, options = {}) {
+export function runGitCommandSafe(
+  args: string[],
+  cwd: string,
+  options: CommandOptions = {}
+): CommandResult {
   // Validate args is an array
   if (!Array.isArray(args)) {
     return {
@@ -48,7 +67,7 @@ export function runGitCommandSafe(args, cwd, options = {}) {
   const { maxBuffer = 10 * 1024 * 1024, timeout } = options;
 
   try {
-    const execOptions = {
+    const execOptions: ExecFileSyncOptions = {
       cwd,
       encoding: "utf-8",
       maxBuffer,
@@ -61,26 +80,27 @@ export function runGitCommandSafe(args, cwd, options = {}) {
     }
 
     const output = execFileSync("git", args, execOptions);
-    return { success: true, output: output.trim() };
+    return { success: true, output: output.toString().trim() };
   } catch (error) {
+    const err = error as ExecError;
     // Extract meaningful error information
-    let errorMessage = error.message;
+    let errorMessage = err.message;
 
     // If stderr is available, prefer it (git outputs errors to stderr)
-    if (error.stderr && typeof error.stderr === "string" && error.stderr.trim()) {
-      errorMessage = error.stderr.trim();
+    if (err.stderr && typeof err.stderr === "string" && err.stderr.trim()) {
+      errorMessage = err.stderr.trim();
     }
     // Handle buffer output (when stdio is inherited or captured differently)
-    else if (error.stderr && Buffer.isBuffer(error.stderr)) {
-      errorMessage = error.stderr.toString("utf-8").trim() || error.message;
+    else if (err.stderr && Buffer.isBuffer(err.stderr)) {
+      errorMessage = err.stderr.toString("utf-8").trim() || err.message;
     }
 
     // Handle specific error cases with helpful messages
-    if (error.code === "ENOENT") {
+    if (err.code === "ENOENT") {
       errorMessage = "Git is not installed or not in PATH";
-    } else if (error.code === "ETIMEDOUT") {
+    } else if (err.code === "ETIMEDOUT") {
       errorMessage = `Git command timed out after ${timeout}ms`;
-    } else if (error.killed) {
+    } else if (err.killed) {
       errorMessage = "Git command was terminated (possibly due to timeout or signal)";
     }
 
@@ -93,10 +113,8 @@ export function runGitCommandSafe(args, cwd, options = {}) {
 
 /**
  * Convert text to a URL-safe slug.
- * @param {string} text - Text to slugify
- * @returns {string}
  */
-export function slugify(text) {
+export function slugify(text: string): string {
   return text
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
@@ -106,30 +124,22 @@ export function slugify(text) {
 
 /**
  * Get short ID from UUID (first 8 chars).
- * @param {string} uuid - Full UUID
- * @returns {string}
  */
-export function shortId(uuid) {
+export function shortId(uuid: string): string {
   return uuid.substring(0, 8);
 }
 
 /**
  * Generate a feature branch name from ticket info.
- * @param {string} ticketId - Ticket UUID
- * @param {string} ticketTitle - Ticket title
- * @returns {string}
  */
-export function generateBranchName(ticketId, ticketTitle) {
+export function generateBranchName(ticketId: string, ticketTitle: string): string {
   return `feature/${shortId(ticketId)}-${slugify(ticketTitle)}`;
 }
 
 /**
  * Generate an epic feature branch name from epic info.
- * @param {string} epicId - Epic UUID
- * @param {string} epicTitle - Epic title
- * @returns {string}
  */
-export function generateEpicBranchName(epicId, epicTitle) {
+export function generateEpicBranchName(epicId: string, epicTitle: string): string {
   return `feature/epic-${shortId(epicId)}-${slugify(epicTitle)}`;
 }
 
@@ -139,18 +149,20 @@ export function generateEpicBranchName(epicId, epicTitle) {
  * Unlike shell-based execution, this function uses execFileSync with argument arrays,
  * preventing shell metacharacter injection.
  *
- * @param {string[]} args - Array of gh command arguments (without 'gh' prefix)
- * @param {string} cwd - Working directory for the command
- * @param {object} [options] - Optional configuration
- * @param {number} [options.maxBuffer=10485760] - Maximum buffer size (default 10MB)
- * @param {number} [options.timeout] - Optional timeout in milliseconds
- * @returns {{ success: boolean, output: string, error?: string }}
+ * @param args - Array of gh command arguments (without 'gh' prefix)
+ * @param cwd - Working directory for the command
+ * @param options - Optional configuration
+ * @returns Command result with success status and output
  *
  * @example
  * // Query PR status
  * runGhCommandSafe(["pr", "view", "123", "--json", "state,mergedAt"], cwd);
  */
-export function runGhCommandSafe(args, cwd, options = {}) {
+export function runGhCommandSafe(
+  args: string[],
+  cwd: string,
+  options: CommandOptions = {}
+): CommandResult {
   // Validate args is an array
   if (!Array.isArray(args)) {
     return {
@@ -172,7 +184,7 @@ export function runGhCommandSafe(args, cwd, options = {}) {
   const { maxBuffer = 10 * 1024 * 1024, timeout } = options;
 
   try {
-    const execOptions = {
+    const execOptions: ExecFileSyncOptions = {
       cwd,
       encoding: "utf-8",
       maxBuffer,
@@ -184,22 +196,23 @@ export function runGhCommandSafe(args, cwd, options = {}) {
     }
 
     const output = execFileSync("gh", args, execOptions);
-    return { success: true, output: output.trim() };
+    return { success: true, output: output.toString().trim() };
   } catch (error) {
+    const err = error as ExecError;
     // Extract meaningful error information
-    let errorMessage = error.message;
+    let errorMessage = err.message;
 
-    if (error.stderr && typeof error.stderr === "string" && error.stderr.trim()) {
-      errorMessage = error.stderr.trim();
-    } else if (error.stderr && Buffer.isBuffer(error.stderr)) {
-      errorMessage = error.stderr.toString("utf-8").trim() || error.message;
+    if (err.stderr && typeof err.stderr === "string" && err.stderr.trim()) {
+      errorMessage = err.stderr.trim();
+    } else if (err.stderr && Buffer.isBuffer(err.stderr)) {
+      errorMessage = err.stderr.toString("utf-8").trim() || err.message;
     }
 
-    if (error.code === "ENOENT") {
+    if (err.code === "ENOENT") {
       errorMessage = "GitHub CLI (gh) is not installed or not in PATH";
-    } else if (error.code === "ETIMEDOUT") {
+    } else if (err.code === "ETIMEDOUT") {
       errorMessage = `gh command timed out after ${timeout}ms`;
-    } else if (error.killed) {
+    } else if (err.killed) {
       errorMessage = "gh command was terminated (possibly due to timeout or signal)";
     }
 

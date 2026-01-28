@@ -617,6 +617,28 @@ These are called from React components via TanStack Query.
 
 ## DO/DON'T Guidelines
 
+### TypeScript Requirements
+
+**CRITICAL: This project uses TypeScript exclusively. All new code MUST be written in TypeScript.**
+
+| ✅ DO                                                                                                | ❌ DON'T                                                   |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Write all new files as `.ts` or `.tsx`                                                               | Create new `.js` or `.jsx` files                           |
+| Use explicit type annotations for function parameters and return types                               | Rely on JSDoc comments for type information                |
+| Define interfaces/types for complex objects: `interface User { id: string; name: string }`           | Use untyped object parameters                              |
+| Export types alongside implementations: `export type CommandResult = { success: boolean; ... }`      | Keep types internal or use separate `.d.ts` files          |
+| Use `unknown` for error types, then narrow: `error instanceof Error ? error.message : String(error)` | Use `any` for error types                                  |
+| Use strict type checking (already configured in `tsconfig.json`)                                     | Add `// @ts-ignore` or `// @ts-expect-error` unnecessarily |
+
+**Why TypeScript-only:**
+
+- **Stronger feedback loop**: Type errors catch bugs before runtime
+- **Better IDE support**: Autocomplete, refactoring, and navigation
+- **Self-documenting**: Types serve as inline documentation
+- **Fewer tests needed**: Type system catches many errors that would require tests in JavaScript
+
+**Migration status**: The MCP server (`mcp-server/`) is being migrated to TypeScript. The main application (`src/`) is already TypeScript-only.
+
 ### Database Queries
 
 | ✅ DO                                                                      | ❌ DON'T                                              |

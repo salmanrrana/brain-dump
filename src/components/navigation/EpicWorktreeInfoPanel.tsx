@@ -73,11 +73,7 @@ export const EpicWorktreeInfoPanel = memo(function EpicWorktreeInfoPanel({
           aria-hidden="true"
         />
         <span style={labelStyles}>Worktree</span>
-        <WorktreeBadge
-          isolationMode="worktree"
-          worktreeStatus={worktreeStatus ?? undefined}
-          size="sm"
-        />
+        <WorktreeBadge isolationMode="worktree" worktreeStatus={worktreeStatus} size="sm" />
       </div>
 
       {/* Path display */}

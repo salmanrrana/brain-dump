@@ -50,29 +50,26 @@ if [[ ! -f "$RALPH_STATE" ]]; then
   exit 0
 fi
 
-# Get the current ticket ID from Ralph state
-CURRENT_TICKET_ID=$(jq -r '.ticketId // ""' "$RALPH_STATE" 2>/dev/null || echo "")
+# Read ticket ID and worktree info from Ralph state in a single jq call
+read -r CURRENT_TICKET_ID MAIN_REPO_PATH ISOLATION_MODE < <(
+  jq -r '[.ticketId, .mainRepoPath, .isolationMode] | map(. // "") | @tsv' "$RALPH_STATE" 2>/dev/null
+)
 if [[ -z "$CURRENT_TICKET_ID" ]]; then
   exit 0
 fi
 
-# Log the spawn intent
+# Log the spawn intent (directory already exists since ralph-state.json is there)
 LOG_FILE="$PROJECT_DIR/.claude/ralph-state.log"
-mkdir -p "$(dirname "$LOG_FILE")"
 echo "[$(date -Iseconds)] PR CREATED - checking for next ticket after: $CURRENT_TICKET_ID" >> "$LOG_FILE"
 
-# Worktree support: Check if we're in a worktree and need to use mainRepoPath
-# The PRD file only exists in the main repository, not in worktrees
-MAIN_REPO_PATH=$(jq -r '.mainRepoPath // ""' "$RALPH_STATE" 2>/dev/null || echo "")
-ISOLATION_MODE=$(jq -r '.isolationMode // ""' "$RALPH_STATE" 2>/dev/null || echo "")
-
+# Worktree support: PRD file and spawn directory are in the main repo, not the worktree
 if [[ -n "$MAIN_REPO_PATH" && "$ISOLATION_MODE" == "worktree" ]]; then
-  # We're in a worktree - use mainRepoPath for PRD lookup
   PRD_FILE="$MAIN_REPO_PATH/plans/prd.json"
-  echo "[$(date -Iseconds)] Worktree detected, using main repo PRD: $PRD_FILE" >> "$LOG_FILE"
+  SPAWN_DIR="$MAIN_REPO_PATH"
+  echo "[$(date -Iseconds)] Worktree detected, using main repo: $MAIN_REPO_PATH" >> "$LOG_FILE"
 else
-  # Normal branch mode - PRD is in current directory
   PRD_FILE="$PROJECT_DIR/plans/prd.json"
+  SPAWN_DIR="$PROJECT_DIR"
 fi
 
 if [[ ! -f "$PRD_FILE" ]]; then
@@ -94,19 +91,10 @@ if [[ -z "$NEXT_TICKET_ID" ]]; then
   exit 0
 fi
 
-echo "[$(date -Iseconds)] SPAWNING next ticket: $NEXT_TICKET_ID" >> "$LOG_FILE"
+echo "[$(date -Iseconds)] SPAWNING next ticket: $NEXT_TICKET_ID in $SPAWN_DIR" >> "$LOG_FILE"
 
 # Create a temporary script to run in the new terminal
 SPAWN_SCRIPT=$(mktemp /tmp/ralph-next-XXXXXX.sh)
-
-# Determine where to spawn the next session
-# If we're in a worktree, spawn in the main repo (start_ticket_work handles worktree creation)
-SPAWN_DIR="$PROJECT_DIR"
-if [[ -n "$MAIN_REPO_PATH" && "$ISOLATION_MODE" == "worktree" ]]; then
-  SPAWN_DIR="$MAIN_REPO_PATH"
-  echo "[$(date -Iseconds)] Spawning next session in main repo: $SPAWN_DIR" >> "$LOG_FILE"
-fi
-
 cat > "$SPAWN_SCRIPT" << SCRIPT
 #!/bin/bash
 cd "$SPAWN_DIR"

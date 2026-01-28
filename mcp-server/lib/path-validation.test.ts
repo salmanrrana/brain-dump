@@ -3,35 +3,13 @@ import { join, dirname } from "path";
 import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 
-// Type definitions for the JS module
-interface SecurityErrorInstance extends Error {
-  name: "SecurityError";
-  type: string;
-}
-
-interface SecurityErrorConstructor {
-  new (message: string, type: string): SecurityErrorInstance;
-  prototype: SecurityErrorInstance;
-}
-
-interface PathValidation {
-  validateProjectPath: (inputPath: string) => string;
-  validateWorktreePath: (worktreePath: string, projectPath: string) => void;
-  ensureNotSymlink: (targetPath: string) => void;
-  validatePathComponent: (name: string) => boolean;
-  SecurityError: SecurityErrorConstructor;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pathValidation = require("./path-validation.js") as PathValidation;
-
-const {
+import {
   validateProjectPath,
   validateWorktreePath,
   ensureNotSymlink,
   validatePathComponent,
-  SecurityError: SecurityErrorClass,
-} = pathValidation;
+  SecurityError as SecurityErrorClass,
+} from "./path-validation.js";
 
 // Create a unique test directory for each test run
 const TEST_DIR = join(tmpdir(), `path-validation-test-${Date.now()}`);

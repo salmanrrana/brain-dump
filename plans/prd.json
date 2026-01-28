@@ -9,727 +9,988 @@
   ],
   "userStories": [
     {
-      "id": "bc92b026-b826-4f9b-8cc1-9541f395b90e",
-      "title": "Update Ralph script to enforce full workflow: ai_review → human_review → done",
-      "passes": false,
-      "overview": "Ralph completed tickets by going directly to `done` status, skipping:\n- AI review phase (no `submit_review_finding` calls)\n- Demo generation (no `generate_demo_script` calls)\n- Human review (no `submit_demo_feedback` calls)",
+      "id": "ed3637e8-e933-454a-bd98-76fa2e1ab31d",
+      "title": "Add tool metadata system for categorization and context tagging",
+      "passes": true,
+      "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Ralph calls `complete_ticket_work` (not direct status update)",
-        "Ralph runs review agents and submits findings via MCP",
-        "Ralph fixes findings and marks them fixed via MCP",
-        "Ralph generates demo script via MCP",
-        "Ralph STOPS at `human_review` (does not auto-complete)",
-        "Tickets have workflow data populated (review_findings, demo_scripts)"
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]"
       ],
-      "references": [
-        "src/api/ralph.ts",
-        "src/api/ralph-workflow.ts"
-      ],
-      "description": "## Problem\nRalph completed tickets by going directly to `done` status, skipping:\n- AI review phase (no `submit_review_finding` calls)\n- Demo generation (no `generate_demo_script` calls)\n- Human review (no `submit_demo_feedback` calls)\n\n## Spec References\n- **Lines 1319-1360**: Ticket Workflow state machine\n- **Lines 2466-2474**: Integration checklist\n- **Lines 1035-1045**: Status Updates (MANDATORY)\n- **Lines 50-64**: Workflow Gates table\n\n## Current Ralph Behavior\n```\nin_progress → done (WRONG!)\n```\n\n## Required Ralph Behavior (spec line 1323-1340)\n```\nin_progress → ai_review → human_review → done\n```\n\n### Ralph Should:\n\n1. **After implementation** (complete_ticket_work):\n   - Call `complete_ticket_work({ ticketId, summary })`\n   - Status becomes `ai_review`\n\n2. **During ai_review** phase:\n   - Run all 3 review agents in parallel\n   - Call `submit_review_finding` for each issue found\n   - Fix issues and call `mark_finding_fixed`\n   - Repeat until `check_review_complete` returns true\n\n3. **Generate demo** (when ai_review passes):\n   - Call `generate_demo_script` with test steps\n   - Status becomes `human_review`\n\n4. **STOP and wait for human**:\n   - Ralph should NOT auto-approve\n   - Ticket stays in `human_review` until human calls `submit_demo_feedback`\n\n## Files to Modify\n- `src/api/ralph.ts` - Main Ralph implementation\n- Possibly create `src/api/ralph-workflow.ts` for workflow logic\n\n## Acceptance Criteria\n- [ ] Ralph calls `complete_ticket_work` (not direct status update)\n- [ ] Ralph runs review agents and submits findings via MCP\n- [ ] Ralph fixes findings and marks them fixed via MCP\n- [ ] Ralph generates demo script via MCP\n- [ ] Ralph STOPS at `human_review` (does not auto-complete)\n- [ ] Tickets have workflow data populated (review_findings, demo_scripts)",
+      "references": [],
+      "description": "Add metadata to all MCP tools (categories, contexts, priority) to enable context-aware filtering. This is the foundation for reducing visible tool count.",
       "priority": "high",
       "tags": [
-        "ralph",
-        "workflow",
-        "critical"
+        "mcp-server",
+        "architecture",
+        "tool-management"
       ]
     },
     {
-      "id": "0640944f-e839-4199-a626-c82663e80757",
-      "title": "Enforce feature branch + PR workflow for epic work",
+      "id": "e6029a26-66c6-4a3a-bd54-c7c5b3f78a4d",
+      "title": "Implement context detection system",
       "passes": false,
-      "overview": "Phase 1 Ralph session committed 20+ commits directly to main branch instead of creating a feature branch and PR for human review.",
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]"
+      ],
+      "references": [],
+      "description": "Detect active context (ticket_work, planning, review, admin) from ticket status, session state, and project state.",
+      "priority": "high",
+      "tags": [
+        "mcp-server",
+        "workflow",
+        "context-detection"
+      ]
+    },
+    {
+      "id": "95a4ec09-2f70-4999-82a8-bfc54235f9c3",
+      "title": "Implement context-aware tool filtering",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]"
+      ],
+      "references": [],
+      "description": "Filter MCP tools based on active context, reducing visible tools from 65 to 10-15 per context.",
+      "priority": "high",
+      "tags": [
+        "mcp-server",
+        "tool-filtering",
+        "performance"
+      ]
+    },
+    {
+      "id": "f9882660-72b8-452d-82a1-d52302c99f19",
+      "title": "Create workflow shortcut tools",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]"
+      ],
+      "references": [],
+      "description": "Add high-level workflow tools that combine common operations (e.g., quick_start_ticket combines start_ticket_work + telemetry + git linking).",
+      "priority": "medium",
+      "tags": [
+        "mcp-server",
+        "workflow",
+        "shortcuts"
+      ]
+    },
+    {
+      "id": "db586c7a-8fa8-49fa-b64b-6de68ce81872",
+      "title": "Add tool usage analytics",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]"
+      ],
+      "references": [],
+      "description": "Track which tools are actually used to identify candidates for consolidation or removal.",
+      "priority": "medium",
+      "tags": [
+        "mcp-server",
+        "analytics",
+        "tool-management"
+      ]
+    },
+    {
+      "id": "13a9f263-9527-4d68-987b-47adb4c7e146",
+      "title": "Consolidate rarely-used tools",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]"
+      ],
+      "references": [],
+      "description": "Based on usage analytics, merge or remove rarely-used tools to reduce total tool count.",
+      "priority": "low",
+      "tags": [
+        "mcp-server",
+        "consolidation",
+        "cleanup"
+      ]
+    },
+    {
+      "id": "ee7e8310-b463-45f7-8d46-e1a475c19e71",
+      "title": "Document context-aware tool usage patterns",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]",
+        "[object Object]"
+      ],
+      "references": [],
+      "description": "Create comprehensive documentation explaining context-aware tool filtering and best practices.",
+      "priority": "low",
+      "tags": [
+        "documentation",
+        "mcp-server",
+        "user-guide"
+      ]
+    },
+    {
+      "id": "e0f46ee7-0351-4548-8f7d-9c9345d7f294",
+      "title": "Migrate MCP Server from JavaScript + JSDoc to TypeScript",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [
+        {
+          "decision": "This Matters",
+          "alternatives": [],
+          "rationale": []
+        }
+      ],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "All `.js` files in `mcp-server/` converted to `.ts`",
+        "`pnpm build` compiles without errors",
+        "`pnpm type-check` passes (add to root package.json for mcp-server)",
+        "All existing tests pass",
+        "Claude Desktop config updated to use `build/index.js`",
+        "`install.sh` runs `pnpm build` in mcp-server",
+        "Documentation updated (CLAUDE.md, README)"
+      ],
+      "references": [
+        "MCP TypeScript Server Quickstart: https://modelcontextprotocol.io/docs/develop/build-server#typescript",
+        "MCP TypeScript Client Quickstart: https://modelcontextprotocol.io/docs/develop/build-client#typescript",
+        "lib/*.js",
+        "lib/*.ts"
+      ],
+      "description": "## Summary\n\nConvert the `mcp-server/` directory from JavaScript with JSDoc type annotations to proper TypeScript, following MCP's official documentation and best practices.\n\n## Why This Matters\n\n1. **MCP SDK is designed for TypeScript** - All official examples use TypeScript\n2. **JSDoc was never the intended pattern** - It was a historical shortcut that became tech debt\n3. **Better feedback loops** - Compile-time errors catch bugs before runtime\n4. **Type inference** - TypeScript's inference is far superior to JSDoc annotations\n5. **Refactoring safety** - Full compile-time checks across the codebase\n\n## Current State\n\n| Aspect | Current | Target |\n|--------|---------|--------|\n| Language | JavaScript + JSDoc | TypeScript |\n| Build step | None (direct execution) | `tsc` → `build/` |\n| Type safety | IDE hints only | Full compile-time |\n| Test files | Already TypeScript ✓ | TypeScript ✓ |\n\n## Migration Steps\n\n### 1. Add TypeScript dependencies\n```bash\ncd mcp-server\npnpm add -D typescript @types/node @types/better-sqlite3\n```\n\n### 2. Create `tsconfig.json` (per MCP docs)\n```json\n{\n  \"compilerOptions\": {\n    \"target\": \"ES2022\",\n    \"module\": \"Node16\",\n    \"moduleResolution\": \"Node16\",\n    \"outDir\": \"./build\",\n    \"rootDir\": \"./\",\n    \"strict\": true,\n    \"esModuleInterop\": true,\n    \"skipLibCheck\": true,\n    \"forceConsistentCasingInFileNames\": true\n  },\n  \"include\": [\"**/*.ts\"],\n  \"exclude\": [\"node_modules\", \"build\"]\n}\n```\n\n### 3. Update `package.json`\n```json\n{\n  \"scripts\": {\n    \"build\": \"tsc\",\n    \"start\": \"node build/index.js\"\n  }\n}\n```\n\n### 4. Rename files\n- `index.js` → `index.ts`\n- `lib/*.js` → `lib/*.ts`\n- `tools/*.js` → `tools/*.ts`\n\n### 5. Let TypeScript read existing JSDoc\nTypeScript will automatically infer types from JSDoc comments during migration.\n\n### 6. Update Claude Desktop config\nPoint to `build/index.js` instead of `index.js`\n\n### 7. Update install scripts\nAdd `pnpm build` step to `install.sh`\n\n## Acceptance Criteria\n\n- [ ] All `.js` files in `mcp-server/` converted to `.ts`\n- [ ] `pnpm build` compiles without errors\n- [ ] `pnpm type-check` passes (add to root package.json for mcp-server)\n- [ ] All existing tests pass\n- [ ] Claude Desktop config updated to use `build/index.js`\n- [ ] `install.sh` runs `pnpm build` in mcp-server\n- [ ] Documentation updated (CLAUDE.md, README)\n\n## Reference\n\n- MCP TypeScript Server Quickstart: https://modelcontextprotocol.io/docs/develop/build-server#typescript\n- MCP TypeScript Client Quickstart: https://modelcontextprotocol.io/docs/develop/build-client#typescript",
+      "priority": "medium",
+      "tags": [
+        "typescript",
+        "mcp",
+        "tech-debt",
+        "dx"
+      ]
+    },
+    {
+      "id": "6991c44f-1ca7-4429-86bf-ef2328665238",
+      "title": "Add settings UI for context-aware tool filtering opt-in",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [
+        {
+          "decision": "This Matters",
+          "alternatives": [
+            "Users should be able to disable filtering if it causes issues",
+            "Filtering is a new behavior that changes the tools visible to LLMs",
+            "Backward compatibility: existing workflows should work without changes"
+          ],
+          "rationale": []
+        }
+      ],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Settings schema includes `enableContextAwareToolFiltering` boolean field (default: false)",
+        "Migration file created for new settings field",
+        "SettingsModal has toggle for enabling/disabling context-aware filtering",
+        "Setting persists correctly when saved",
+        "MCP server reads setting and respects it (bypass filtering when disabled)",
+        "Default behavior (filtering disabled) matches current tool exposure",
+        "Help text explains what context-aware filtering does and its benefits"
+      ],
+      "references": [
+        "Proposal: `docs/mcp-tool-consolidation-proposal.md`",
+        "Depends on: Context detection system and tool filtering being implemented first"
+      ],
+      "description": "## Summary\n\nAdd a setting in the Settings UI to enable/disable context-aware MCP tool filtering. Per the proposal, filtering should be \"opt-in via settings\" to maintain backward compatibility.\n\n## Why This Matters\n\n- Users should be able to disable filtering if it causes issues\n- Filtering is a new behavior that changes the tools visible to LLMs\n- Backward compatibility: existing workflows should work without changes\n\n## Implementation\n\n### Database/Schema Changes\n- Add `enableContextAwareToolFiltering` boolean field to settings table (default: false)\n- Add migration for the new field\n\n### Settings UI Changes (EnterpriseTab or new \"MCP\" tab)\n- Add toggle: \"Enable Context-Aware Tool Filtering\"\n- Add description explaining what it does\n- Add tooltip or help text with examples\n\n### MCP Server Changes\n- Read setting from database in context filter function\n- If disabled, return all tools (current behavior)\n- If enabled, apply context filtering logic\n\n## Acceptance Criteria\n\n- [ ] Settings schema includes `enableContextAwareToolFiltering` boolean field (default: false)\n- [ ] Migration file created for new settings field\n- [ ] SettingsModal has toggle for enabling/disabling context-aware filtering\n- [ ] Setting persists correctly when saved\n- [ ] MCP server reads setting and respects it (bypass filtering when disabled)\n- [ ] Default behavior (filtering disabled) matches current tool exposure\n- [ ] Help text explains what context-aware filtering does and its benefits\n\n## References\n\n- Proposal: `docs/mcp-tool-consolidation-proposal.md`\n- Depends on: Context detection system and tool filtering being implemented first",
+      "priority": "medium",
+      "tags": [
+        "settings",
+        "ui",
+        "mcp-server",
+        "feature-flag"
+      ]
+    },
+    {
+      "id": "f4c0491d-9aba-4b34-8c21-5f64691f74a9",
+      "title": "Integration testing for context-aware tool system",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [
+        {
+          "decision": "This Matters",
+          "alternatives": [
+            "Tool filtering directly affects LLM tool selection",
+            "Incorrect filtering could hide critical tools or expose too many",
+            "Must validate context detection accuracy",
+            "Must verify shortcut tools work correctly",
+            "Performance benchmarking needed for metrics"
+          ],
+          "rationale": []
+        }
+      ],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Detects `ticket_work` context when ticket is in_progress",
+        "Detects `ai_review` context when ticket is in ai_review status",
+        "Detects `human_review` context when ticket is in human_review status",
+        "Detects `planning` context when no active ticket",
+        "Detects `admin` context when explicitly requested",
+        "Handles missing/corrupted ralph-state.json gracefully",
+        "High-priority tools always visible regardless of context",
+        "Workflow tools visible in ticket_work context",
+        "Review tools visible in ai_review context",
+        "Admin tools hidden unless in admin context",
+        "Telemetry tools hidden unless explicitly needed",
+        "Tool count reduced from 65 to expected range (10-15) per context",
+        "`quick_start_ticket` combines all expected operations",
+        "`quick_complete_ticket` combines all expected operations",
+        "Shortcut tools handle errors in component operations gracefully",
+        "Backward compatibility: individual tools still work",
+        "Filtering disabled by default",
+        "Enabling filtering changes tool visibility",
+        "Setting persists across MCP server restarts",
+        "Hot reload of setting (if supported)",
+        "Measure tool selection time with filtering enabled vs disabled",
+        "Measure token usage in tool descriptions with filtering",
+        "Document baseline metrics for comparison",
+        "Test file(s) created with all scenarios above",
+        "All context detection scenarios have passing tests",
+        "All tool filtering scenarios have passing tests",
+        "Shortcut tool tests pass",
+        "Performance benchmarks documented with baseline numbers",
+        "Tests run as part of `pnpm test` suite",
+        "CI/CD integration (if applicable)"
+      ],
+      "references": [
+        "Proposal: `docs/mcp-tool-consolidation-proposal.md`",
+        "Depends on: All feature tickets completed",
+        "mcp-server/__tests__/"
+      ],
+      "description": "## Summary\n\nCreate comprehensive integration tests for the context-aware tool filtering system to validate it works correctly across different workflow scenarios.\n\n## Why This Matters\n\n- Tool filtering directly affects LLM tool selection\n- Incorrect filtering could hide critical tools or expose too many\n- Must validate context detection accuracy\n- Must verify shortcut tools work correctly\n- Performance benchmarking needed for metrics\n\n## Test Scenarios\n\n### Context Detection Tests\n- [ ] Detects `ticket_work` context when ticket is in_progress\n- [ ] Detects `ai_review` context when ticket is in ai_review status\n- [ ] Detects `human_review` context when ticket is in human_review status\n- [ ] Detects `planning` context when no active ticket\n- [ ] Detects `admin` context when explicitly requested\n- [ ] Handles missing/corrupted ralph-state.json gracefully\n\n### Tool Filtering Tests\n- [ ] High-priority tools always visible regardless of context\n- [ ] Workflow tools visible in ticket_work context\n- [ ] Review tools visible in ai_review context\n- [ ] Admin tools hidden unless in admin context\n- [ ] Telemetry tools hidden unless explicitly needed\n- [ ] Tool count reduced from 65 to expected range (10-15) per context\n\n### Shortcut Tool Tests\n- [ ] `quick_start_ticket` combines all expected operations\n- [ ] `quick_complete_ticket` combines all expected operations\n- [ ] Shortcut tools handle errors in component operations gracefully\n- [ ] Backward compatibility: individual tools still work\n\n### Settings Integration Tests\n- [ ] Filtering disabled by default\n- [ ] Enabling filtering changes tool visibility\n- [ ] Setting persists across MCP server restarts\n- [ ] Hot reload of setting (if supported)\n\n### Performance Benchmarks\n- [ ] Measure tool selection time with filtering enabled vs disabled\n- [ ] Measure token usage in tool descriptions with filtering\n- [ ] Document baseline metrics for comparison\n\n## Implementation Notes\n\n- Tests should follow Kent C. Dodds philosophy (test user behavior, not implementation)\n- Use real database fixtures\n- Integration tests in `mcp-server/__tests__/` or similar\n\n## Acceptance Criteria\n\n- [ ] Test file(s) created with all scenarios above\n- [ ] All context detection scenarios have passing tests\n- [ ] All tool filtering scenarios have passing tests\n- [ ] Shortcut tool tests pass\n- [ ] Performance benchmarks documented with baseline numbers\n- [ ] Tests run as part of `pnpm test` suite\n- [ ] CI/CD integration (if applicable)\n\n## References\n\n- Proposal: `docs/mcp-tool-consolidation-proposal.md`\n- Depends on: All feature tickets completed",
+      "priority": "medium",
+      "tags": [
+        "testing",
+        "integration-tests",
+        "mcp-server",
+        "quality"
+      ]
+    },
+    {
+      "id": "a74cc6a7-6e8f-479d-acbe-f8de665c358f",
+      "title": "Split MCP server into modular servers",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`mcp-server/index-core.js` entry point with ~10 core tools",
+        "`mcp-server/index-workflow.js` entry point with ~8 workflow tools",
+        "`mcp-server/index-telemetry.js` entry point with ~7 telemetry tools",
+        "`mcp-server/index-admin.js` entry point with ~10 admin tools",
+        "Shared lib imports work across all entry points",
+        "Each server can be started independently",
+        "Install script updated to configure modular servers",
+        "Documentation updated with server descriptions"
+      ],
+      "references": [
+        "mcp-server/index-core.js",
+        "mcp-server/index-workflow.js",
+        "mcp-server/index-telemetry.js",
+        "mcp-server/index-admin.js"
+      ],
+      "description": "## Summary\n\nRefactor the monolithic MCP server into four modular servers to reduce tool count per context and improve maintainability.\n\n## Target Architecture\n\n| Server | Tools | Purpose | When Configured |\n|--------|-------|---------|-----------------|\n| `brain-dump-core` | ~10 | Essential project/ticket/epic CRUD | Always |\n| `brain-dump-workflow` | ~8 | Ticket work lifecycle | During ticket work |\n| `brain-dump-telemetry` | ~7 | Internal telemetry capture | Hooks only |\n| `brain-dump-admin` | ~10 | Compliance, cleanup, settings | Admin tasks |\n\n## Tool Distribution\n\n### brain-dump-core (~10 tools)\n- list_projects, find_project_by_path, create_project\n- create_ticket, list_tickets, update_ticket_status\n- list_epics, create_epic\n- add_ticket_comment, get_ticket_comments\n\n### brain-dump-workflow (~8 tools)\n- start_ticket_work, complete_ticket_work\n- start_epic_work\n- link_commit_to_ticket, link_pr_to_ticket, sync_ticket_links\n- update_acceptance_criterion\n- submit_review_finding, mark_finding_fixed, check_review_complete\n- generate_demo_script\n\n### brain-dump-telemetry (~7 tools)\n- start_telemetry_session, end_telemetry_session\n- log_prompt_event, log_tool_event, log_context_event\n- get_telemetry_session, list_telemetry_sessions\n\n### brain-dump-admin (~10 tools)\n- start_conversation_session, end_conversation_session\n- export_compliance_logs, archive_old_sessions\n- get_database_health, cleanup_worktrees\n- delete_project, delete_ticket, delete_epic\n- get/update settings\n\n## Implementation Approach\n\n1. Create shared lib module for database, logging, utilities\n2. Create separate entry points: `index-core.js`, `index-workflow.js`, etc.\n3. Each server imports only its tools\n4. Update package.json with multiple bin entries\n5. Create unified install script that configures appropriate servers\n\n## Acceptance Criteria\n\n- [ ] `mcp-server/index-core.js` entry point with ~10 core tools\n- [ ] `mcp-server/index-workflow.js` entry point with ~8 workflow tools\n- [ ] `mcp-server/index-telemetry.js` entry point with ~7 telemetry tools\n- [ ] `mcp-server/index-admin.js` entry point with ~10 admin tools\n- [ ] Shared lib imports work across all entry points\n- [ ] Each server can be started independently\n- [ ] Install script updated to configure modular servers\n- [ ] Documentation updated with server descriptions\n\n## Dependencies\n\n- Depends on: TypeScript migration (should complete first for cleaner refactor)\n- Blocks: Claude Code plugin creation, provider-specific configs",
+      "priority": "high",
+      "tags": [
+        "mcp-server",
+        "architecture",
+        "modular",
+        "refactor"
+      ]
+    },
+    {
+      "id": "b147ec6d-e302-46b9-a59d-1261f2a0df90",
+      "title": "Create composite workflow tools",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`start_work` tool implemented combining 3 operations",
+        "`complete_work` tool implemented combining 3 operations",
+        "`submit_review` tool implemented for bulk finding submission",
+        "Rollback/cleanup on partial failures",
+        "Individual tools still work independently",
+        "Tool descriptions recommend composite tools for common workflows",
+        "Tests for composite tool success and failure scenarios",
+        "Documentation explains when to use composite vs individual tools"
+      ],
+      "references": [
+        "Original proposal: `docs/mcp-tool-consolidation-proposal.md`",
+        "Existing shortcut ticket: f9882660-72b8-452d-82a1-d52302c99f19"
+      ],
+      "description": "## Summary\n\nCreate higher-level composite tools that combine common multi-step operations into single tool calls, reducing the number of tool calls needed for standard workflows.\n\n## Composite Tools to Create\n\n### 1. `start_work` (combines 3 operations)\n```\nstart_ticket_work + create_ralph_session + start_telemetry_session\n```\n\n**Input:**\n- ticketId: string\n- createTelemetrySession: boolean (default: true)\n\n**Output:**\n- Branch name\n- Ticket context\n- Session IDs (ralph, telemetry)\n- Working directory (worktree path if applicable)\n\n### 2. `complete_work` (combines 3 operations)\n```\ncomplete_ticket_work + sync_ticket_links + end_telemetry_session\n```\n\n**Input:**\n- ticketId: string\n- summary: string (work summary)\n\n**Output:**\n- Ticket status\n- Linked commits/PRs\n- Session summary\n\n### 3. `submit_review` (combines review workflow)\n```\nsubmit_review_finding + check_review_complete (conditional)\n```\n\n**Input:**\n- ticketId: string\n- findings: array of { agent, severity, category, description, filePath?, suggestedFix? }\n\n**Output:**\n- Created findings\n- Review completion status\n- Next steps guidance\n\n## Implementation Notes\n\n- Composite tools should be atomic where possible (rollback on failure)\n- Individual tools remain available for fine-grained control\n- Composite tools should clearly document what they combine\n- Tool descriptions should recommend composite tools for standard workflows\n\n## Acceptance Criteria\n\n- [ ] `start_work` tool implemented combining 3 operations\n- [ ] `complete_work` tool implemented combining 3 operations\n- [ ] `submit_review` tool implemented for bulk finding submission\n- [ ] Rollback/cleanup on partial failures\n- [ ] Individual tools still work independently\n- [ ] Tool descriptions recommend composite tools for common workflows\n- [ ] Tests for composite tool success and failure scenarios\n- [ ] Documentation explains when to use composite vs individual tools\n\n## References\n\n- Original proposal: `docs/mcp-tool-consolidation-proposal.md`\n- Existing shortcut ticket: f9882660-72b8-452d-82a1-d52302c99f19",
+      "priority": "high",
+      "tags": [
+        "mcp-server",
+        "workflow",
+        "composite-tools",
+        "dx"
+      ]
+    },
+    {
+      "id": "0dc9b35d-4f82-40a7-8265-2dd45c54dbd1",
+      "title": "Create Claude Code plugin package structure",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Plugin directory structure created under `.claude/plugins/brain-dump-workflow/`",
+        "plugin.json manifest with all components listed",
+        "Skills moved and working (next-task, review, demo, reconcile)",
+        "Agents moved and working (3 review agents)",
+        "Hooks moved and working (state enforcement, telemetry, auto-pr)",
+        "MCP config included in plugin",
+        "Install script creates proper symlinks",
+        "Uninstall script removes plugin cleanly",
+        "Documentation updated with plugin usage"
+      ],
+      "references": [],
+      "description": "## Summary\n\nPackage Brain Dump's Claude Code integration as a proper plugin with skills, agents, hooks, and MCP server configs. This creates a unified, installable plugin experience.\n\n## Target Structure\n\n```\n.claude/plugins/brain-dump-workflow/\n├── plugin.json              # Plugin manifest\n├── SKILL.md                 # Main plugin skill (workflow guidance)\n├── skills/\n│   ├── next-task/SKILL.md   # /next-task skill\n│   ├── review/SKILL.md      # /review skill\n│   ├── demo/SKILL.md        # /demo skill\n│   └── reconcile/SKILL.md   # /reconcile-learnings skill\n├── agents/\n│   ├── code-reviewer.md     # Code review agent\n│   ├── silent-failure-hunter.md\n│   └── code-simplifier.md\n├── hooks/\n│   ├── enforce-state.sh     # State enforcement hook\n│   ├── telemetry.sh         # Telemetry capture hooks\n│   └── auto-pr.sh           # Auto PR creation hooks\n├── commands/\n│   ├── review.md            # /review command\n│   ├── next-task.md         # /next-task command\n│   └── demo.md              # /demo command\n└── mcp/\n    └── brain-dump.json      # MCP server config for Claude Code\n```\n\n## Plugin Manifest (plugin.json)\n\n```json\n{\n  \"name\": \"brain-dump-workflow\",\n  \"version\": \"1.0.0\",\n  \"description\": \"AI-assisted ticket workflow with quality gates\",\n  \"author\": \"Brain Dump\",\n  \"skills\": [\"next-task\", \"review\", \"demo\", \"reconcile\"],\n  \"agents\": [\"code-reviewer\", \"silent-failure-hunter\", \"code-simplifier\"],\n  \"hooks\": [\"enforce-state\", \"telemetry\", \"auto-pr\"],\n  \"mcp\": {\n    \"servers\": [\"brain-dump-core\", \"brain-dump-workflow\"]\n  }\n}\n```\n\n## Implementation Steps\n\n1. Create plugin directory structure\n2. Move existing skills from `.claude/skills/` to plugin\n3. Move existing agents from `.claude/agents/` to plugin\n4. Move existing hooks from `.claude/hooks/` to plugin\n5. Create plugin.json manifest\n6. Create install script that symlinks plugin to `~/.claude/plugins/`\n7. Update CLAUDE.md with plugin usage instructions\n\n## Acceptance Criteria\n\n- [ ] Plugin directory structure created under `.claude/plugins/brain-dump-workflow/`\n- [ ] plugin.json manifest with all components listed\n- [ ] Skills moved and working (next-task, review, demo, reconcile)\n- [ ] Agents moved and working (3 review agents)\n- [ ] Hooks moved and working (state enforcement, telemetry, auto-pr)\n- [ ] MCP config included in plugin\n- [ ] Install script creates proper symlinks\n- [ ] Uninstall script removes plugin cleanly\n- [ ] Documentation updated with plugin usage\n\n## Dependencies\n\n- Depends on: Modular MCP server split (for clean MCP configs)\n- Related to: Provider-specific configs ticket",
+      "priority": "high",
+      "tags": [
+        "claude-code",
+        "plugin",
+        "packaging",
+        "dx"
+      ]
+    },
+    {
+      "id": "724c195c-ff21-4701-b27f-15d3af3c60f1",
+      "title": "Create provider-specific configuration packages",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`.cursor/` directory with rules.md, mcp.json, and prompts",
+        "`.opencode/` directory with config.yaml, mcp.json, and skills",
+        "`.vscode/` directory with mcp.json and settings",
+        "Install script detects and configures each environment",
+        "MCP servers work correctly from each environment",
+        "Workflow guidance appropriate for each environment",
+        "Documentation for each provider's setup"
+      ],
+      "references": [],
+      "description": "## Summary\n\nCreate configuration packages for different AI coding environments (Cursor, OpenCode, VS Code) that provide the same workflow capabilities as the Claude Code plugin.\n\n## Target Structure\n\n### Cursor (.cursor/)\n```\n.cursor/\n├── rules.md                  # Cursor rules file (like CLAUDE.md)\n├── mcp.json                  # MCP server config\n└── prompts/\n    ├── workflow.md           # Workflow guidance prompt\n    └── review.md             # Review guidance prompt\n```\n\n### OpenCode (.opencode/)\n```\n.opencode/\n├── config.yaml               # OpenCode config\n├── mcp.json                  # MCP server config\n└── skills/\n    ├── next-task.md\n    ├── review.md\n    └── demo.md\n```\n\n### VS Code (.vscode/)\n```\n.vscode/\n├── mcp.json                  # MCP server config for Copilot/Continue\n├── settings.json             # VS Code settings (if needed)\n└── tasks.json                # Task definitions for workflow\n```\n\n## MCP Configuration Pattern\n\nEach provider needs an mcp.json that configures:\n1. brain-dump-core server (always)\n2. brain-dump-workflow server (for ticket work)\n\n```json\n{\n  \"mcpServers\": {\n    \"brain-dump-core\": {\n      \"command\": \"node\",\n      \"args\": [\"~/.brain-dump/mcp-server/index-core.js\"],\n      \"env\": {}\n    },\n    \"brain-dump-workflow\": {\n      \"command\": \"node\", \n      \"args\": [\"~/.brain-dump/mcp-server/index-workflow.js\"],\n      \"env\": {}\n    }\n  }\n}\n```\n\n## Cursor Rules Content\n\nThe rules.md should include:\n- Workflow status flow (backlog -> ready -> in_progress -> ai_review -> human_review -> done)\n- Required MCP tool calls for each phase\n- Review requirements before PR\n- DO/DON'T guidelines adapted from CLAUDE.md\n\n## Install Script Updates\n\n`scripts/install.sh` should:\n1. Detect installed environments\n2. Copy appropriate config to each environment's config location\n3. Verify MCP server is accessible\n4. Run health check\n\n## Acceptance Criteria\n\n- [ ] `.cursor/` directory with rules.md, mcp.json, and prompts\n- [ ] `.opencode/` directory with config.yaml, mcp.json, and skills\n- [ ] `.vscode/` directory with mcp.json and settings\n- [ ] Install script detects and configures each environment\n- [ ] MCP servers work correctly from each environment\n- [ ] Workflow guidance appropriate for each environment\n- [ ] Documentation for each provider's setup\n\n## Dependencies\n\n- Depends on: Modular MCP server split\n- Related to: Claude Code plugin package",
+      "priority": "medium",
+      "tags": [
+        "multi-provider",
+        "cursor",
+        "vscode",
+        "opencode",
+        "configuration"
+      ]
+    },
+    {
+      "id": "225d2d18-3651-4570-9c6f-771c956100cd",
+      "title": "Add explicit mode selection for tool filtering",
+      "passes": false,
+      "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [
         {
           "step": 1,
-          "description": "Epic-level branch creation",
-          "files": []
+          "description": "Mode Setting Tool",
+          "files": [],
+          "codeTemplate": "server.tool(\"set_tool_mode\", {\n  mode: z.enum([\"all\", \"core\", \"workflow\", \"review\", \"admin\", \"auto\"]),\n  persist: z.boolean().default(false),  // Save to settings\n}, async ({ mode, persist }) => {\n  // Update current session mode\n  // Optionally persist to database\n  // Emit tools/list_changed notification\n});"
         },
         {
           "step": 2,
-          "description": "PR creation gate",
-          "files": []
+          "description": "Mode Detection in Tool Listing",
+          "files": [],
+          "codeTemplate": "// In tools/list handler\nconst currentMode = getToolMode();  // From session or settings\n\nif (currentMode === \"auto\") {\n  // Use context detection (ticket status, etc.)\n  return filterToolsByContext(allTools, detectContext());\n} else if (currentMode === \"all\") {\n  return allTools;\n} else {\n  return filterToolsByMode(allTools, currentMode);\n}"
         },
         {
           "step": 3,
-          "description": "Pre-push hook enforcement",
+          "description": "Settings Integration",
           "files": []
         },
         {
           "step": 4,
-          "description": "Epic completion flow",
-          "files": [],
-          "codeTemplate": "all_tickets_done → epic_review → demo → human_approval → create_pr → merge"
+          "description": "Session-Level Override",
+          "files": []
         },
         {
           "step": 4,
-          "description": "Epic completion flow",
-          "files": [],
-          "codeTemplate": "all_tickets_done → epic_review → demo → human_approval → create_pr → merge"
+          "description": "Session-Level Override",
+          "files": []
         }
       ],
       "acceptanceCriteria": [
-        "Ralph creates feature branch when starting epic work",
-        "All commits during epic go to feature branch (not main)",
-        "Push to main blocked during epic work",
-        "PR created before epic marked complete",
-        "Human can review PR before merge"
-      ],
-      "references": [
-        "src/api/ralph.ts"
-      ],
-      "description": "## Problem\nPhase 1 Ralph session committed 20+ commits directly to main branch instead of creating a feature branch and PR for human review.\n\n## Spec References\n- **Lines 78-89**: Epic Workflow Gates - \"PR Created\" is a blocking gate\n- **Lines 2466-2474**: Integration checklist\n- **Lines 3167-3173**: PR workflow requirements\n\n## Current Behavior\n```\nRalph commits → main (direct)\n```\n\n## Required Behavior (spec lines 78-89)\n```\nRalph commits → feature/epic-{id} branch → PR → human review → merge to main\n```\n\n## Implementation Requirements\n\n### 1. Epic-level branch creation\nWhen Ralph starts working on an epic:\n- Create branch: `feature/epic-{epic-id}-{slug}`\n- All ticket work happens on this branch\n\n### 2. PR creation gate\nBefore marking epic complete:\n- PR must exist for the epic branch\n- All commits should reference ticket IDs\n\n### 3. Pre-push hook enforcement\nThe existing `enforce-review-before-push.sh` should:\n- Block push to main if epic work is in progress\n- Require PR creation before push\n\n### 4. Epic completion flow\n```\nall_tickets_done → epic_review → demo → human_approval → create_pr → merge\n```\n\n## Files to Modify\n- `src/api/ralph.ts` - Add branch creation at epic start\n- `~/.claude/hooks/enforce-review-before-push.sh` - Strengthen main protection\n- Possibly add pre-commit hook for ticket ID requirement\n\n## Acceptance Criteria\n- [ ] Ralph creates feature branch when starting epic work\n- [ ] All commits during epic go to feature branch (not main)\n- [ ] Push to main blocked during epic work\n- [ ] PR created before epic marked complete\n- [ ] Human can review PR before merge",
-      "priority": "high",
-      "tags": [
-        "git",
-        "pr-workflow",
-        "ralph",
-        "critical"
-      ]
-    },
-    {
-      "id": "7f232e72-af4c-4678-9ab8-7185febc3a35",
-      "title": "Populate ticket_workflow_state during workflow execution",
-      "passes": false,
-      "overview": "The `ticket_workflow_state` table exists but is never populated during workflow execution. This means we can't track workflow progress.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`start_ticket_work` creates/updates workflow state row",
-        "All workflow flags are updated at appropriate times",
-        "`review_iteration` increments correctly",
-        "`review_findings_count` is accurate",
-        "State is queryable for UI display"
-      ],
-      "references": [
-        "mcp-server/tools/workflow.js",
-        "mcp-server/tools/review.js"
-      ],
-      "description": "## Problem\nThe `ticket_workflow_state` table exists but is never populated during workflow execution. This means we can't track workflow progress.\n\n## Spec References\n- **Lines 1194-1222**: TicketWorkflowState type definition\n- **Lines 1443-1478**: Database schema for ticket_workflow_state\n- **Lines 1699-1716**: Workflow state insertion in start_ticket_work\n\n## Required State Tracking\n\nEach MCP tool should update workflow state:\n\n| MCP Tool | State Updates |\n|----------|---------------|\n| `start_ticket_work` | Create row, set `started_at` |\n| `complete_ticket_work` | Set `validation_passed=1`, `ai_review_started=1` |\n| `submit_review_finding` | Increment `review_findings_count` |\n| First finding per iteration | Increment `review_iteration` |\n| `mark_finding_fixed` | Check if all fixed → set `all_findings_fixed=1` |\n| `generate_demo_script` | Set `demo_script_generated=1`, store script ID |\n| `submit_demo_feedback` | Set `human_ran_demo=1`, `human_feedback`, `human_approved` |\n| `reconcile_learnings` | Set `learnings_reconciled=1`, store learnings |\n\n## Implementation Pattern (spec lines 1699-1716)\n```javascript\nawait db\n  .insert(ticketWorkflowState)\n  .values({\n    ticket_id: ticketId,\n    started_at: new Date().toISOString(),\n  })\n  .onConflictDoUpdate({\n    target: ticketWorkflowState.ticket_id,\n    set: { started_at: new Date().toISOString() },\n  });\n```\n\n## Files to Modify\n- `mcp-server/tools/workflow.js` - Add state updates to each tool\n- `mcp-server/tools/review.js` - Update state during review operations\n\n## Acceptance Criteria\n- [ ] `start_ticket_work` creates/updates workflow state row\n- [ ] All workflow flags are updated at appropriate times\n- [ ] `review_iteration` increments correctly\n- [ ] `review_findings_count` is accurate\n- [ ] State is queryable for UI display",
-      "priority": "high",
-      "tags": [
-        "database",
-        "workflow-state",
-        "mcp"
-      ]
-    },
-    {
-      "id": "f8e7ed0c-bf76-4e7d-9cd4-6ffaaf8840a4",
-      "title": "Add MCP tool self-logging for telemetry in non-hook environments",
-      "passes": false,
-      "overview": "In environments without hooks (VS Code, OpenCode without plugin), MCP tools should self-log telemetry events. Currently they don't.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "All MCP workflow tools self-log when telemetry session is active",
-        "Events include correlationId for pairing start/end",
-        "Duration is calculated and logged",
-        "Success/failure is captured",
-        "Works in VS Code and other non-hook environments"
-      ],
-      "references": [
-        "mcp-server/tools/workflow.js",
-        "mcp-server/tools/review.js",
-        "mcp-server/tools/demo.js"
-      ],
-      "description": "## Problem\nIn environments without hooks (VS Code, OpenCode without plugin), MCP tools should self-log telemetry events. Currently they don't.\n\n## Spec References\n- **Lines 951-957**: MCP Telemetry Tools Reference\n- **Lines 1003-1034**: Tool Event Capture diagram\n- **Lines 979-1002**: Coverage Comparison table\n\n## Self-Logging Pattern (spec lines 1003-1034)\n```\nMCP workflow tools (each logs itself)\n         │\n         ▼\nDirect DB insert → telemetry_events table\n```\n\n## Required Self-Logging\n\nEach MCP tool should:\n1. Check if telemetry session is active\n2. Log tool start event (before main logic)\n3. Log tool end event (after completion, with success/failure)\n\n```javascript\n// In each MCP tool\nconst session = await getActiveTelemetrySession(ticketId);\nif (session) {\n  const correlationId = crypto.randomUUID();\n  \n  // Log start\n  await logToolEvent(db, {\n    sessionId: session.id,\n    event: 'start',\n    toolName: 'start_ticket_work',\n    correlationId,\n    params: { ticketId },\n  });\n  \n  // ... tool logic ...\n  \n  // Log end\n  await logToolEvent(db, {\n    sessionId: session.id,\n    event: 'end',\n    toolName: 'start_ticket_work',\n    correlationId,\n    success: true,\n    durationMs: Date.now() - startTime,\n  });\n}\n```\n\n## Files to Modify\n- `mcp-server/tools/workflow.js` - Add self-logging to workflow tools\n- `mcp-server/tools/review.js` - Add self-logging to review tools\n- `mcp-server/tools/demo.js` - Add self-logging to demo tools\n\n## Acceptance Criteria\n- [ ] All MCP workflow tools self-log when telemetry session is active\n- [ ] Events include correlationId for pairing start/end\n- [ ] Duration is calculated and logged\n- [ ] Success/failure is captured\n- [ ] Works in VS Code and other non-hook environments",
-      "priority": "medium",
-      "tags": [
-        "telemetry",
-        "mcp",
-        "vs-code"
-      ]
-    },
-    {
-      "id": "4236cfeb-2e15-4c93-a897-b0a7b83ccdef",
-      "title": "Add workflow state display to ticket detail UI",
-      "passes": false,
-      "overview": "The ticket detail UI doesn't show workflow state (review iteration, findings count, demo status, etc.)",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Ticket detail shows workflow progress indicator",
-        "Review findings count is displayed",
-        "Demo status badge shows when in human_review",
-        "Kanban card shows \"Demo Ready\" for human_review tickets",
-        "Workflow state refreshes when data changes"
-      ],
-      "references": [
-        "src/components/ticket/TicketDetail.tsx",
-        "src/components/board/TicketCard.tsx",
-        "src/api/tickets.ts",
-        "src/components/ticket/WorkflowProgress.tsx"
-      ],
-      "description": "## Problem\nThe ticket detail UI doesn't show workflow state (review iteration, findings count, demo status, etc.)\n\n## Spec References\n- **Lines 1061-1104**: Data Flow Diagram showing UI components\n- **Lines 2448-2465**: Human Review Approval UI requirements\n- **Lines 1086-1102**: UI mockup showing Activity Feed, Telemetry Dashboard, Claude Tasks, Review Findings\n\n## Required UI Components\n\n### 1. Workflow Progress Indicator\nShow current phase and progress:\n```\n[✓ Started] → [✓ Implemented] → [◐ AI Review] → [ Human Review] → [ Done]\n```\n\n### 2. Review Findings Panel (spec line 1097-1100)\n```\nReview Findings\n├── P0: 0\n├── P1: 1  \n├── P2: 3\n└── Fixed: 2/4\n```\n\n### 3. Demo Status Badge\nWhen in `human_review`:\n- Show \"Demo Ready\" badge on kanban card (spec line 2456)\n- Show \"Start Demo Review\" CTA in ticket detail (spec line 2457)\n\n### 4. Workflow State Summary\n```\nWorkflow State\n├── Review Iterations: 2\n├── Findings: 4 total, 2 fixed\n├── Demo Generated: Yes\n├── Human Approved: Pending\n```\n\n## Files to Modify\n- `src/components/ticket/TicketDetail.tsx` - Add workflow state display\n- `src/components/board/TicketCard.tsx` - Add status badges\n- `src/api/tickets.ts` - Add query for workflow state\n- Create `src/components/ticket/WorkflowProgress.tsx`\n\n## Acceptance Criteria\n- [ ] Ticket detail shows workflow progress indicator\n- [ ] Review findings count is displayed\n- [ ] Demo status badge shows when in human_review\n- [ ] Kanban card shows \"Demo Ready\" for human_review tickets\n- [ ] Workflow state refreshes when data changes",
-      "priority": "medium",
-      "tags": [
-        "ui",
-        "workflow-state",
-        "ticket-detail"
-      ]
-    },
-    {
-      "id": "ca451996-9d95-41dc-b778-c85b1a66ed41",
-      "title": "Create brain-dump doctor command for environment verification",
-      "passes": false,
-      "overview": "The spec mentions a `brain-dump doctor` command for verifying all environments are configured correctly. This doesn't exist yet.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Hooks installed in `~/.claude/hooks/`",
-        "settings.json has all required hook configurations",
-        "Telemetry hooks configured (SessionStart, PreToolUse, etc.)",
-        "Skills installed in `~/.claude/commands/`",
-        "MCP server configured",
-        "Hooks in `~/.cursor/hooks/` or `.cursor/hooks/`",
-        "`hooks.json` configured",
-        "MCP server configured",
-        "Rules in `.cursor/rules/`",
-        "Plugin installed in `~/.config/opencode/plugins/`",
-        "`AGENTS.md` exists",
-        "MCP server configured in `opencode.json`",
-        "`.vscode/mcp.json` exists",
-        "`.github/copilot-instructions.md` exists",
-        "MCP server accessible",
-        "`pnpm brain-dump doctor` runs successfully",
-        "Checks all 4 environments (Claude Code, Cursor, OpenCode, VS Code)",
-        "Reports missing components clearly",
-        "Suggests fix command when issues found",
-        "Exit code 1 if issues found, 0 if clean"
+        "`set_tool_mode` tool implemented",
+        "`get_tool_mode` tool implemented",
+        "Mode filtering applied in tools/list",
+        "Settings UI for default mode",
+        "Session-level mode override works",
+        "`auto` mode falls back to context detection",
+        "Mode persists correctly when requested",
+        "Tests for each mode's tool filtering"
       ],
       "references": [],
-      "description": "## Problem\nThe spec mentions a `brain-dump doctor` command for verifying all environments are configured correctly. This doesn't exist yet.\n\n## Spec References\n- **Lines 2379**: \"brain-dump doctor command verifies all environments\"\n- **Lines 2483-2489**: Supported Environments table\n- **Lines 2398**: \"Verify hooks work with claude --print-hooks\"\n\n## Required Checks\n\n### Claude Code\n- [ ] Hooks installed in `~/.claude/hooks/`\n- [ ] settings.json has all required hook configurations\n- [ ] Telemetry hooks configured (SessionStart, PreToolUse, etc.)\n- [ ] Skills installed in `~/.claude/commands/`\n- [ ] MCP server configured\n\n### Cursor\n- [ ] Hooks in `~/.cursor/hooks/` or `.cursor/hooks/`\n- [ ] `hooks.json` configured\n- [ ] MCP server configured\n- [ ] Rules in `.cursor/rules/`\n\n### OpenCode\n- [ ] Plugin installed in `~/.config/opencode/plugins/`\n- [ ] `AGENTS.md` exists\n- [ ] MCP server configured in `opencode.json`\n\n### VS Code\n- [ ] `.vscode/mcp.json` exists\n- [ ] `.github/copilot-instructions.md` exists\n- [ ] MCP server accessible\n\n## Output Format\n```\nbrain-dump doctor\n\nClaude Code\n  ✓ Hooks directory exists\n  ✓ Workflow hooks installed (5/5)\n  ✗ Telemetry hooks NOT installed (0/4) ← PROBLEM!\n  ✓ Skills installed (5/5)\n  ✓ MCP server configured\n\nCursor\n  ✓ Detected at ~/.cursor\n  ✗ Hooks not configured\n  \nOpenCode\n  ✓ Plugin installed\n  ✓ AGENTS.md exists\n\nVS Code\n  ✓ Templates exist in .vscode/\n  \nIssues Found: 2\n  1. Claude Code telemetry hooks not installed\n  2. Cursor hooks not configured\n\nRun: ./scripts/install.sh to fix\n```\n\n## Files to Create/Modify\n- `cli/commands/doctor.ts` - New doctor command\n- `cli/index.ts` - Register doctor command\n\n## Acceptance Criteria\n- [ ] `pnpm brain-dump doctor` runs successfully\n- [ ] Checks all 4 environments (Claude Code, Cursor, OpenCode, VS Code)\n- [ ] Reports missing components clearly\n- [ ] Suggests fix command when issues found\n- [ ] Exit code 1 if issues found, 0 if clean",
-      "priority": "medium",
+      "description": "## Summary\n\nPer agent review findings, implement explicit mode selection for context-aware tool filtering instead of relying solely on auto-detection. This gives users control and makes behavior predictable.\n\n## Modes\n\n| Mode | Description | Tool Set |\n|------|-------------|----------|\n| `all` | No filtering (current behavior) | All 65 tools |\n| `core` | Basic operations only | ~10 core tools |\n| `workflow` | Active ticket work | ~18 workflow + core tools |\n| `review` | AI review phase | ~12 review + core tools |\n| `admin` | Administrative tasks | ~20 admin + core tools |\n| `auto` | Auto-detect from context | Dynamic based on ticket status |\n\n## Implementation\n\n### 1. Mode Setting Tool\n```javascript\nserver.tool(\"set_tool_mode\", {\n  mode: z.enum([\"all\", \"core\", \"workflow\", \"review\", \"admin\", \"auto\"]),\n  persist: z.boolean().default(false),  // Save to settings\n}, async ({ mode, persist }) => {\n  // Update current session mode\n  // Optionally persist to database\n  // Emit tools/list_changed notification\n});\n```\n\n### 2. Mode Detection in Tool Listing\n```javascript\n// In tools/list handler\nconst currentMode = getToolMode();  // From session or settings\n\nif (currentMode === \"auto\") {\n  // Use context detection (ticket status, etc.)\n  return filterToolsByContext(allTools, detectContext());\n} else if (currentMode === \"all\") {\n  return allTools;\n} else {\n  return filterToolsByMode(allTools, currentMode);\n}\n```\n\n### 3. Settings Integration\n- Add `defaultToolMode` to settings table\n- UI toggle in Settings modal\n- Per-project override option\n\n### 4. Session-Level Override\n- Mode can be set per-session without persisting\n- Useful for temporary admin tasks\n- Resets on session end\n\n## Acceptance Criteria\n\n- [ ] `set_tool_mode` tool implemented\n- [ ] `get_tool_mode` tool implemented\n- [ ] Mode filtering applied in tools/list\n- [ ] Settings UI for default mode\n- [ ] Session-level mode override works\n- [ ] `auto` mode falls back to context detection\n- [ ] Mode persists correctly when requested\n- [ ] Tests for each mode's tool filtering\n\n## Dependencies\n\n- Depends on: Tool metadata system (for categorization)\n- Related to: Context detection system, shadow mode",
+      "priority": "high",
       "tags": [
-        "cli",
-        "doctor",
-        "verification"
+        "mcp-server",
+        "tool-filtering",
+        "mode-selection",
+        "dx"
       ]
     },
     {
-      "id": "27f7f7f6-1e4d-4d25-b58f-cfbd25daa659",
-      "title": "End-to-end test: Full workflow with telemetry capture",
+      "id": "2e6a823f-b0e5-46de-aa42-106f6e0e416a",
+      "title": "Add shadow mode for safe tool filtering testing",
       "passes": false,
-      "overview": "Need to verify the entire workflow works end-to-end with actual telemetry capture, not just unit tests.",
+      "overview": "",
       "types": [],
       "designDecisions": [],
-      "implementationGuide": [],
+      "implementationGuide": [
+        {
+          "step": 1,
+          "description": "Shadow Mode Setting",
+          "files": [],
+          "codeTemplate": "// In settings\nshadowModeEnabled: boolean;  // default: false\nshadowModeStartedAt: string | null;  // ISO timestamp"
+        },
+        {
+          "step": 2,
+          "description": "Shadow Mode Logging",
+          "files": [],
+          "codeTemplate": "// In tool call handler\nif (shadowModeEnabled) {\n  const wouldBeFiltered = !filterToolsByContext(tools, context).includes(tool);\n  if (wouldBeFiltered) {\n    log.info(`[SHADOW] Tool '${toolName}' called but would be filtered in mode '${mode}'`);\n    // Record to telemetry\n    recordShadowModeHit(toolName, context, mode);\n  }\n}"
+        },
+        {
+          "step": 3,
+          "description": "Shadow Mode Analytics",
+          "files": [],
+          "codeTemplate": "server.tool(\"get_shadow_mode_stats\", {}, async () => {\n  return {\n    enabled: shadowModeEnabled,\n    startedAt: shadowModeStartedAt,\n    totalCalls: count,\n    wouldBeFilteredCalls: filteredCount,\n    byTool: { /* tool -> count of would-be-filtered */ },\n    recommendation: filteredCount === 0 \n      ? \"Safe to enable filtering - no hidden tools were used\"\n      : \"Review tools that would be hidden before enabling filtering\"\n  };\n});"
+        },
+        {
+          "step": 4,
+          "description": "UI Dashboard",
+          "files": []
+        },
+        {
+          "step": 4,
+          "description": "UI Dashboard",
+          "files": []
+        }
+      ],
       "acceptanceCriteria": [
-        "`telemetry_sessions` has 1 session",
-        "`telemetry_events` has tool events (start/end pairs)",
-        "`review_findings` has 3 findings (all fixed)",
-        "`demo_scripts` has 1 demo",
-        "`ticket_workflow_state` has complete state",
-        "`ticket_comments` has all mandatory comments",
-        "Test creates ticket and runs full workflow",
-        "All telemetry data is captured",
-        "All workflow state is populated",
-        "All comments are created",
-        "Test can run in CI"
+        "Shadow mode toggle in settings",
+        "Tool calls logged when would be filtered",
+        "`get_shadow_mode_stats` tool implemented",
+        "Statistics stored in database",
+        "UI shows shadow mode status and stats",
+        "Clear recommendation based on usage",
+        "Shadow mode can run for configurable duration",
+        "Documentation explains shadow mode workflow"
       ],
       "references": [],
-      "description": "## Problem\nNeed to verify the entire workflow works end-to-end with actual telemetry capture, not just unit tests.\n\n## Spec References\n- **Lines 894-946**: Telemetry Data Flow diagram\n- **Lines 979-1002**: Coverage Comparison table\n- **Lines 2466-2474**: Integration checklist\n\n## Test Scenario\n\nSimulate a complete ticket lifecycle and verify data capture:\n\n### 1. Setup\n- Create test project and ticket\n- Install telemetry hooks\n- Start Claude Code session (simulated)\n\n### 2. Workflow Execution\n```\nstart_ticket_work → creates telemetry session\n  ↓\n[Tool calls] → events captured\n  ↓\ncomplete_ticket_work → status = ai_review\n  ↓\nsubmit_review_finding (x3) → findings in DB\n  ↓\nmark_finding_fixed (x3) → findings updated\n  ↓\ngenerate_demo_script → demo in DB\n  ↓\nsubmit_demo_feedback(passed=true) → status = done\n```\n\n### 3. Verification\nQuery database and verify:\n- [ ] `telemetry_sessions` has 1 session\n- [ ] `telemetry_events` has tool events (start/end pairs)\n- [ ] `review_findings` has 3 findings (all fixed)\n- [ ] `demo_scripts` has 1 demo\n- [ ] `ticket_workflow_state` has complete state\n- [ ] `ticket_comments` has all mandatory comments\n\n## Files to Create\n- `e2e/full-workflow-telemetry.spec.ts` - Playwright test\n\n## Acceptance Criteria\n- [ ] Test creates ticket and runs full workflow\n- [ ] All telemetry data is captured\n- [ ] All workflow state is populated\n- [ ] All comments are created\n- [ ] Test can run in CI",
+      "description": "## Summary\n\nPer agent review findings, implement a \"shadow mode\" that logs what would be filtered without actually filtering. This allows safe validation of filtering rules before enabling them.\n\n## Shadow Mode Behavior\n\nWhen shadow mode is enabled:\n1. All tools remain visible (no actual filtering)\n2. Each tool call logs whether it would have been filtered\n3. Summary statistics track \"would-be-filtered\" calls\n4. Alerts when a tool that would be hidden is actually used\n\n## Implementation\n\n### 1. Shadow Mode Setting\n```typescript\n// In settings\nshadowModeEnabled: boolean;  // default: false\nshadowModeStartedAt: string | null;  // ISO timestamp\n```\n\n### 2. Shadow Mode Logging\n```javascript\n// In tool call handler\nif (shadowModeEnabled) {\n  const wouldBeFiltered = !filterToolsByContext(tools, context).includes(tool);\n  if (wouldBeFiltered) {\n    log.info(`[SHADOW] Tool '${toolName}' called but would be filtered in mode '${mode}'`);\n    // Record to telemetry\n    recordShadowModeHit(toolName, context, mode);\n  }\n}\n```\n\n### 3. Shadow Mode Analytics\n```javascript\nserver.tool(\"get_shadow_mode_stats\", {}, async () => {\n  return {\n    enabled: shadowModeEnabled,\n    startedAt: shadowModeStartedAt,\n    totalCalls: count,\n    wouldBeFilteredCalls: filteredCount,\n    byTool: { /* tool -> count of would-be-filtered */ },\n    recommendation: filteredCount === 0 \n      ? \"Safe to enable filtering - no hidden tools were used\"\n      : \"Review tools that would be hidden before enabling filtering\"\n  };\n});\n```\n\n### 4. UI Dashboard\n- Shadow mode toggle in Settings\n- Statistics display showing:\n  - Days in shadow mode\n  - Tools that would be hidden but were used\n  - Recommendation for enabling filtering\n\n## Workflow\n\n1. Enable shadow mode (all tools visible)\n2. Work normally for 1-2 weeks\n3. Review shadow mode stats\n4. Adjust filtering rules if needed\n5. Enable actual filtering with confidence\n\n## Acceptance Criteria\n\n- [ ] Shadow mode toggle in settings\n- [ ] Tool calls logged when would be filtered\n- [ ] `get_shadow_mode_stats` tool implemented\n- [ ] Statistics stored in database\n- [ ] UI shows shadow mode status and stats\n- [ ] Clear recommendation based on usage\n- [ ] Shadow mode can run for configurable duration\n- [ ] Documentation explains shadow mode workflow\n\n## Dependencies\n\n- Depends on: Tool metadata system, context detection\n- Should be implemented before: Actual filtering enablement",
       "priority": "medium",
       "tags": [
-        "e2e",
+        "mcp-server",
+        "tool-filtering",
+        "shadow-mode",
         "testing",
-        "telemetry"
+        "safety"
       ]
     },
     {
-      "id": "ad9a319d-dadf-464b-9093-7b3749b50152",
-      "title": "Fix status migration: Convert remaining 'review' tickets to new statuses",
-      "passes": false,
-      "overview": "During Phase 1, tickets were left in the deprecated `review` status. The migration to `ai_review`/`human_review`/`done` didn't run properly on the production database.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "No tickets have `status = 'review'`",
-        "Completed tickets are in `done`",
-        "In-progress review tickets are in `ai_review`",
-        "UI shows all tickets correctly",
-        "Migration is reversible (has down migration)"
-      ],
-      "references": [
-        "src/lib/migrations/0010_migrate_review_status.sql"
-      ],
-      "description": "## Problem\nDuring Phase 1, tickets were left in the deprecated `review` status. The migration to `ai_review`/`human_review`/`done` didn't run properly on the production database.\n\n## Evidence\n```sql\nSELECT status, COUNT(*) FROM tickets \nWHERE epic_id = 'a5c97489-...' \nGROUP BY status;\n-- Result: review: 18, in_progress: 1\n```\n\nThe kanban board doesn't show a `review` column anymore, so these tickets are invisible.\n\n## Spec References\n- **Lines 2300-2307**: Status Cleanup checklist\n- **Lines 1404-1410**: Why Remove the `review` Status?\n- **Lines 37-48**: Ticket Statuses (Cleaned Up) table\n\n## Required Actions\n\n### 1. Create migration script\n```sql\n-- Migrate old 'review' status to new statuses\n-- For completed work (has work summary), move to 'done'\nUPDATE tickets \nSET status = 'done', \n    completed_at = COALESCE(completed_at, datetime('now'))\nWHERE status = 'review'\n  AND id IN (\n    SELECT ticket_id FROM ticket_comments \n    WHERE type = 'work_summary'\n  );\n\n-- For incomplete work, move to 'ai_review'\nUPDATE tickets \nSET status = 'ai_review'\nWHERE status = 'review';\n```\n\n### 2. Add migration file\nCreate `src/lib/migrations/0010_migrate_review_status.sql`\n\n### 3. Prevent future regressions\nAdd check constraint or validation to prevent `review` status from being set.\n\n## Files to Modify\n- Create migration file\n- Run migration with `pnpm db:migrate`\n\n## Acceptance Criteria\n- [ ] No tickets have `status = 'review'`\n- [ ] Completed tickets are in `done`\n- [ ] In-progress review tickets are in `ai_review`\n- [ ] UI shows all tickets correctly\n- [ ] Migration is reversible (has down migration)",
-      "priority": "high",
-      "tags": [
-        "database",
-        "migration",
-        "status",
-        "critical"
-      ]
-    },
-    {
-      "id": "e45d09bc-94e7-454f-bbcd-1fc171fead5b",
-      "title": "Verify status transitions: Atomic updates, UI real-time updates, and E2E testing",
-      "passes": false,
-      "overview": "No explicit ticket exists to verify that status transitions work correctly, are atomic with workflow state updates, and trigger UI updates in real-time.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "All status transitions work correctly",
-        "Status changes are atomic with workflow state updates",
-        "UI reflects status changes in real-time (no refresh needed)",
-        "TanStack Query invalidates correctly",
-        "Kanban board updates when status changes",
-        "Ticket detail page updates when status changes",
-        "E2E test covers full status transition flow",
-        "Atomic update test verifies transaction integrity"
-      ],
-      "references": [
-        "mcp-server/tools/workflow.js",
-        "src/api/tickets.ts"
-      ],
-      "description": "## Problem\nNo explicit ticket exists to verify that status transitions work correctly, are atomic with workflow state updates, and trigger UI updates in real-time.\n\n## Spec References\n- **Lines 2333-2340**: Status Updates (MANDATORY) checklist\n- **Lines 1035-1045**: Status Updates table\n- **Lines 1319-1360**: Ticket Workflow state machine\n\n## Required Verification\n\n### 1. Status Transition Verification\nVerify each status transition:\n- `ready` → `in_progress` (via `start_ticket_work`)\n- `in_progress` → `ai_review` (via `complete_ticket_work`)\n- `ai_review` → `human_review` (when all findings fixed)\n- `human_review` → `done` (via `submit_demo_feedback(passed=true)`)\n- `human_review` → `in_progress` (via `submit_demo_feedback(passed=false)` for major issues)\n\n### 2. Atomic Updates Verification\nVerify that status changes are atomic with workflow state updates:\n- When `start_ticket_work` sets status to `in_progress`, it also creates/updates `ticket_workflow_state`\n- When `complete_ticket_work` sets status to `ai_review`, it also updates workflow state\n- When demo feedback approves, status → `done` AND workflow state updated\n- All updates happen in a single transaction\n\n### 3. UI Real-Time Updates\nVerify TanStack Query invalidation:\n- Status changes trigger query invalidation\n- UI reflects status changes immediately (no manual refresh)\n- Kanban board columns update when status changes\n- Ticket detail page updates when status changes\n\n### 4. E2E Test\nCreate comprehensive E2E test:\n- Create ticket\n- Start work → verify status + workflow state\n- Complete work → verify status + workflow state\n- Submit findings → verify status stays in ai_review\n- Fix findings → verify status transitions to human_review\n- Submit demo feedback → verify status → done\n\n## Files to Create\n- `e2e/status-transitions.spec.ts` - E2E test for status transitions\n- `integration-tests/workflow-state-atomic.test.ts` - Test atomic updates\n\n## Files to Modify\n- `mcp-server/tools/workflow.js` - Ensure atomic updates (if not already)\n- `src/api/tickets.ts` - Verify query invalidation\n\n## Acceptance Criteria\n- [ ] All status transitions work correctly\n- [ ] Status changes are atomic with workflow state updates\n- [ ] UI reflects status changes in real-time (no refresh needed)\n- [ ] TanStack Query invalidates correctly\n- [ ] Kanban board updates when status changes\n- [ ] Ticket detail page updates when status changes\n- [ ] E2E test covers full status transition flow\n- [ ] Atomic update test verifies transaction integrity",
-      "priority": "medium",
-      "tags": [
-        "testing",
-        "status",
-        "e2e"
-      ]
-    },
-    {
-      "id": "c67df4aa-8112-444d-ae1d-aaef9cb7610b",
-      "title": "Implement start_epic_work MCP tool: Create epic branch and ensure all tickets use same branch/PR",
-      "passes": false,
-      "overview": "The Phase 2 epic requires all tickets to be worked on in a single branch/PR, but there's no mechanism to:\n1. Create an epic-level branch when starting work on an epic\n2. Ensure all tickets in that epic use the same branch (instead of creating individual ticket branches)\n3. Track that all epic work is happening in one PR\nCurrently, `start_ticket_work` creates a branch per ticket (`feature/{ticket-id}-{slug}`), which would result in multiple PRs for the epic instead of one.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`start_epic_work` tool creates epic branch",
-        "`start_epic_work` stores branch name in `epic_workflow_state`",
-        "`start_ticket_work` detects epic and uses epic branch if exists",
-        "`start_ticket_work` creates epic branch if missing (or errors with helpful message)",
-        "All tickets in epic use same branch",
-        "Epic branch can be used for single PR",
-        "PR creation is tracked in epic workflow state",
-        "Epic completion requires PR to exist",
-        "Works for both Ralph and human/AI workflows"
-      ],
-      "references": [
-        "mcp-server/tools/workflow.js",
-        "src/lib/schema.ts",
-        "mcp-server/lib/git-utils.js"
-      ],
-      "description": "## Problem\nThe Phase 2 epic requires all tickets to be worked on in a single branch/PR, but there's no mechanism to:\n1. Create an epic-level branch when starting work on an epic\n2. Ensure all tickets in that epic use the same branch (instead of creating individual ticket branches)\n3. Track that all epic work is happening in one PR\n\nCurrently, `start_ticket_work` creates a branch per ticket (`feature/{ticket-id}-{slug}`), which would result in multiple PRs for the epic instead of one.\n\n## Required Solution\n\n### 1. Create `start_epic_work` MCP Tool\n**File**: `mcp-server/tools/workflow.js`\n**Purpose**: Initialize epic work with a single branch\n**Behavior**:\n- Creates branch: `feature/epic-{epic-short-id}-{slug}` (using existing `generateEpicBranchName`)\n- Stores epic branch name in epic metadata or `epic_workflow_state`\n- Returns branch name and epic context\n- Creates initial commit or empty commit to establish branch\n\n### 2. Modify `start_ticket_work` to Use Epic Branch\n**File**: `mcp-server/tools/workflow.js`\n**Logic**:\n- Check if ticket belongs to an epic\n- If epic has an active branch (epic branch exists and is current), use that branch\n- If epic branch doesn't exist, create it (or prompt to call `start_epic_work` first)\n- If ticket has no epic, create ticket-specific branch (current behavior)\n\n### 3. Epic Branch Tracking\n**Database**: `epic_workflow_state` table\n**Fields**:\n- `epic_branch_name` - Store the epic branch name\n- `epic_branch_created_at` - When branch was created\n- `pr_number` - PR number once created\n- `pr_url` - PR URL once created\n\n### 4. PR Creation Gate\n**File**: `mcp-server/tools/workflow.js` or separate tool\n**Behavior**:\n- When epic work starts, create draft PR immediately (or prompt to create)\n- Link PR to epic\n- All commits go to this PR\n- Epic completion requires PR to exist\n\n## Implementation Details\n\n### start_epic_work Tool\n```javascript\nserver.tool(\n  \"start_epic_work\",\n  {\n    description: \"Start working on an epic. Creates epic-level branch and ensures all tickets use it.\",\n    inputSchema: {\n      type: \"object\",\n      properties: {\n        epicId: { type: \"string\" },\n        createPr: { type: \"boolean\", default: true }\n      },\n      required: [\"epicId\"]\n    }\n  },\n  async ({ epicId, createPr }) => {\n    // 1. Get epic\n    // 2. Generate branch name\n    // 3. Create branch from main/dev\n    // 4. Store branch name in epic_workflow_state\n    // 5. Optionally create draft PR\n    // 6. Return branch name and epic context\n  }\n);\n```\n\n### Modified start_ticket_work Logic\n```javascript\n// In start_ticket_work:\nif (ticket.epic_id) {\n  const epicState = getEpicWorkflowState(ticket.epic_id);\n  if (epicState?.epic_branch_name) {\n    // Use existing epic branch\n    branchName = epicState.epic_branch_name;\n    // Checkout if not already on it\n    if (currentBranch !== branchName) {\n      runGitCommand(`checkout ${branchName}`);\n    }\n  } else {\n    // No epic branch exists - create it or prompt\n    return error(\"Epic branch not found. Call start_epic_work first.\");\n  }\n} else {\n  // No epic - create ticket branch (current behavior)\n  branchName = generateBranchName(ticket.id, ticket.title);\n}\n```\n\n## Files to Modify\n- `mcp-server/tools/workflow.js` - Add `start_epic_work` tool, modify `start_ticket_work`\n- `src/lib/schema.ts` - Add `epic_branch_name`, `epic_branch_created_at` to `epic_workflow_state`\n- `mcp-server/lib/git-utils.js` - Already has `generateEpicBranchName`, may need helpers\n\n## Files to Create\n- Migration to add epic branch fields to `epic_workflow_state`\n\n## Acceptance Criteria\n- [ ] `start_epic_work` tool creates epic branch\n- [ ] `start_epic_work` stores branch name in `epic_workflow_state`\n- [ ] `start_ticket_work` detects epic and uses epic branch if exists\n- [ ] `start_ticket_work` creates epic branch if missing (or errors with helpful message)\n- [ ] All tickets in epic use same branch\n- [ ] Epic branch can be used for single PR\n- [ ] PR creation is tracked in epic workflow state\n- [ ] Epic completion requires PR to exist\n- [ ] Works for both Ralph and human/AI workflows",
-      "priority": "high",
-      "tags": [
-        "epic",
-        "git",
-        "pr-workflow",
-        "critical"
-      ]
-    },
-    {
-      "id": "fdaac904-4d1d-462a-b89a-c2dabbf5114a",
-      "title": "[P2] Simplify mcp-server/tools/workflow.js by extracting helper modules",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Extract attachment loading logic to `mcp-server/lib/attachment-loader.js`",
-        "Extract comment formatting logic to `mcp-server/lib/comment-formatter.js`",
-        "Extract PRD utilities to `mcp-server/lib/prd-utils.js`",
-        "Extract conversation session logic to `mcp-server/lib/conversation-session.js`",
-        "Update `workflow.js` to import from new modules",
-        "Verify all tests still pass",
-        "Test workflow tools in Claude Code/Cursor/VS Code/OpenCode",
-        "Verify attachment loading, comments, and PRD updates still work correctly"
-      ],
-      "references": [
-        "mcp-server/tools/workflow.js",
-        "mcp-server/lib/attachment-loader.js",
-        "mcp-server/lib/comment-formatter.js",
-        "mcp-server/lib/prd-utils.js",
-        "mcp-server/lib/conversation-session.js"
-      ],
-      "description": "## Issue\n\nThe `mcp-server/tools/workflow.js` file is 1,706 lines long and contains multiple concerns that could be extracted into separate modules for better maintainability.\n\n## Location\n`mcp-server/tools/workflow.js` (1,706 lines)\n\n## Current Code Structure\n\nThe file contains:\n- Attachment loading and normalization logic (~300 lines)\n- Comment fetching and formatting (~100 lines)\n- PRD file operations (~100 lines)\n- Context building functions (~200 lines)\n- Conversation session management (~100 lines)\n- Main tool registration (~900 lines)\n\n## Recommended Fix\n\nExtract helper functions into separate modules:\n\n1. **`mcp-server/lib/attachment-loader.js`** - Extract `loadTicketAttachments`, `loadSingleAttachment`, `normalizeAttachment`, `buildAttachmentContextSection`, `buildDesignMockupWarning`\n\n2. **`mcp-server/lib/comment-formatter.js`** - Extract `fetchTicketComments`, `formatComment`, `buildCommentsSection`\n\n3. **`mcp-server/lib/prd-utils.js`** - Extract `readPrd`, `updatePrdForTicket`, `_suggestNextTicket`\n\n4. **`mcp-server/lib/conversation-session.js`** - Extract `createConversationSession`, `endConversationSessions`\n\nThis will reduce `workflow.js` to ~600-700 lines focused on tool registration.\n\n## Benefits\n- Better code organization and maintainability\n- Easier to test individual concerns\n- Reduced cognitive load when reading workflow.js\n- Reusable utilities for other MCP tools\n\n## Acceptance Criteria\n- [ ] Extract attachment loading logic to `mcp-server/lib/attachment-loader.js`\n- [ ] Extract comment formatting logic to `mcp-server/lib/comment-formatter.js`\n- [ ] Extract PRD utilities to `mcp-server/lib/prd-utils.js`\n- [ ] Extract conversation session logic to `mcp-server/lib/conversation-session.js`\n- [ ] Update `workflow.js` to import from new modules\n- [ ] Verify all tests still pass\n- [ ] Test workflow tools in Claude Code/Cursor/VS Code/OpenCode\n- [ ] Verify attachment loading, comments, and PRD updates still work correctly",
-      "priority": "medium",
-      "tags": [
-        "code-review",
-        "refactor",
-        "simplification",
-        "mcp"
-      ]
-    },
-    {
-      "id": "d54da58a-208f-4266-8804-1dba45f98bd0",
-      "title": "[P2] Split src/lib/hooks.ts into focused modules",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Create `src/lib/hooks/` directory",
-        "Split hooks into focused modules as described",
-        "Create `index.ts` that re-exports all hooks",
-        "Update all imports across codebase to use new structure",
-        "Verify all tests still pass",
-        "Verify no functionality regressions",
-        "Test in Claude Code/Cursor/VS Code/OpenCode"
-      ],
-      "references": [
-        "src/lib/hooks.ts",
-        "src/lib/hooks/state.ts",
-        "src/lib/hooks/modal.ts",
-        "src/lib/hooks/tickets.ts",
-        "src/lib/hooks/workflow.ts",
-        "src/lib/hooks/projects.ts",
-        "src/lib/hooks/settings.ts",
-        "src/lib/hooks/search.ts",
-        "src/lib/hooks/claude-tasks.ts",
-        "src/lib/hooks/index.ts",
-        "src/lib/hooks/"
-      ],
-      "description": "## Issue\n\nThe `src/lib/hooks.ts` file is 2,426 lines long and contains multiple categories of hooks that could be organized into separate files for better maintainability.\n\n## Location\n`src/lib/hooks.ts` (2,426 lines)\n\n## Current Code Structure\n\nThe file contains:\n- State utility hooks (useAutoClearState, useModalKeyboard, useClickOutside)\n- Modal state management hooks (useModal)\n- TanStack Query hooks for tickets, epics, projects, settings, workflow, demo\n- Claude Tasks hooks\n- Search hooks\n\n## Recommended Fix\n\nSplit into focused modules:\n\n1. **`src/lib/hooks/state.ts`** - State utility hooks (useAutoClearState, useModalKeyboard, useClickOutside)\n\n2. **`src/lib/hooks/modal.ts`** - Modal state management (useModal)\n\n3. **`src/lib/hooks/tickets.ts`** - Ticket-related query hooks\n\n4. **`src/lib/hooks/workflow.ts`** - Workflow and demo hooks\n\n5. **`src/lib/hooks/projects.ts`** - Project and epic hooks\n\n6. **`src/lib/hooks/settings.ts`** - Settings hooks\n\n7. **`src/lib/hooks/search.ts`** - Search hooks\n\n8. **`src/lib/hooks/claude-tasks.ts`** - Claude Tasks hooks\n\n9. **`src/lib/hooks/index.ts`** - Re-export all hooks for backward compatibility\n\n## Benefits\n- Better code organization\n- Easier to find specific hooks\n- Reduced file size improves IDE performance\n- Clearer separation of concerns\n\n## Acceptance Criteria\n- [ ] Create `src/lib/hooks/` directory\n- [ ] Split hooks into focused modules as described\n- [ ] Create `index.ts` that re-exports all hooks\n- [ ] Update all imports across codebase to use new structure\n- [ ] Verify all tests still pass\n- [ ] Verify no functionality regressions\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode",
-      "priority": "medium",
-      "tags": [
-        "code-review",
-        "refactor",
-        "simplification",
-        "react"
-      ]
-    },
-    {
-      "id": "316c8137-a4d1-4592-af7e-dea97cf1881c",
-      "title": "[P2] Extract repetitive telemetry logging pattern into helper",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Create `mcp-server/lib/telemetry-wrapper.js` with `withTelemetry` helper",
-        "Refactor `workflow.js` tools to use the helper",
-        "Refactor `demo.js` tools to use the helper",
-        "Refactor `review-findings.js` tools to use the helper",
-        "Verify telemetry still captures correctly",
-        "Test in Claude Code/Cursor/VS Code/OpenCode",
-        "Verify no functionality regressions"
-      ],
-      "references": [
-        "mcp-server/tools/workflow.js",
-        "mcp-server/tools/demo.js",
-        "mcp-server/tools/review-findings.js",
-        "mcp-server/lib/telemetry-wrapper.js"
-      ],
-      "description": "## Issue\n\nMultiple MCP tools (`workflow.js`, `demo.js`, `review-findings.js`) contain repetitive telemetry logging code:\n\n```javascript\nconst telemetrySession = getActiveTelemetrySession(db, ticketId);\nlet correlationId = null;\nconst startTime = Date.now();\nif (telemetrySession) {\n  correlationId = logMcpCallEvent(db, {\n    sessionId: telemetrySession.id,\n    ticketId: telemetrySession.ticket_id,\n    event: \"start\",\n    toolName: \"tool_name\",\n    params: {...},\n  });\n}\n// ... tool logic ...\nif (telemetrySession && correlationId) {\n  logMcpCallEvent(db, {\n    sessionId: telemetrySession.id,\n    ticketId: telemetrySession.ticket_id,\n    event: \"end\",\n    toolName: \"tool_name\",\n    correlationId,\n    success: true/false,\n    durationMs: Date.now() - startTime,\n    error: \"...\",\n  });\n}\n```\n\nThis pattern is repeated in multiple tools, making them harder to maintain.\n\n## Location\n- `mcp-server/tools/workflow.js` (multiple tools)\n- `mcp-server/tools/demo.js`\n- `mcp-server/tools/review-findings.js`\n\n## Recommended Fix\n\nCreate a helper function in `mcp-server/lib/telemetry-wrapper.js`:\n\n```javascript\nexport function withTelemetry(db, ticketId, toolName, handler) {\n  const telemetrySession = getActiveTelemetrySession(db, ticketId);\n  let correlationId = null;\n  const startTime = Date.now();\n  \n  if (telemetrySession) {\n    correlationId = logMcpCallEvent(db, {\n      sessionId: telemetrySession.id,\n      ticketId: telemetrySession.ticket_id,\n      event: \"start\",\n      toolName,\n      params: handler.params || {},\n    });\n  }\n  \n  try {\n    const result = await handler();\n    \n    if (telemetrySession && correlationId) {\n      logMcpCallEvent(db, {\n        sessionId: telemetrySession.id,\n        ticketId: telemetrySession.ticket_id,\n        event: \"end\",\n        toolName,\n        correlationId,\n        success: true,\n        durationMs: Date.now() - startTime,\n      });\n    }\n    \n    return result;\n  } catch (error) {\n    if (telemetrySession && correlationId) {\n      logMcpCallEvent(db, {\n        sessionId: telemetrySession.id,\n        ticketId: telemetrySession.ticket_id,\n        event: \"end\",\n        toolName,\n        correlationId,\n        success: false,\n        durationMs: Date.now() - startTime,\n        error: error.message,\n      });\n    }\n    throw error;\n  }\n}\n```\n\nThen refactor tools to use:\n\n```javascript\nasync ({ ticketId, ...params }) => {\n  return withTelemetry(db, ticketId, \"tool_name\", async () => {\n    // Tool logic here\n    return { content: [...] };\n  });\n}\n```\n\n## Benefits\n- Reduces code duplication\n- Ensures consistent telemetry logging\n- Easier to add telemetry to new tools\n- Centralized error handling for telemetry\n\n## Acceptance Criteria\n- [ ] Create `mcp-server/lib/telemetry-wrapper.js` with `withTelemetry` helper\n- [ ] Refactor `workflow.js` tools to use the helper\n- [ ] Refactor `demo.js` tools to use the helper\n- [ ] Refactor `review-findings.js` tools to use the helper\n- [ ] Verify telemetry still captures correctly\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode\n- [ ] Verify no functionality regressions",
-      "priority": "medium",
-      "tags": [
-        "code-review",
-        "refactor",
-        "simplification",
-        "mcp",
-        "telemetry"
-      ]
-    },
-    {
-      "id": "47bcef08-0a73-4fd3-a331-c609c8604b50",
-      "title": "[P2] Simplify DemoPanel component state management",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Refactor DemoPanel to use TanStack Query optimistic updates",
-        "Remove manual state merging logic",
-        "Remove `localStepStatuses` and `localStepNotes` state",
-        "Verify optimistic updates work correctly",
-        "Verify error rollback works correctly",
-        "Test in Claude Code/Cursor/VS Code/OpenCode",
-        "Verify no functionality regressions"
-      ],
-      "references": [
-        "src/components/tickets/DemoPanel.tsx"
-      ],
-      "description": "## Issue\n\nThe `DemoPanel` component has complex state management with multiple `useMemo` hooks merging server and local state for optimistic updates. This could be simplified.\n\n## Location\n`src/components/tickets/DemoPanel.tsx` (402 lines)\n\n## Current Code\n\n```typescript\n// Complex merging logic\nconst stepStatuses = useMemo(() => {\n  if (!demoScript?.steps) return {};\n  const serverStatuses: Record<number, DemoStepStatus> = {};\n  for (const step of demoScript.steps) {\n    serverStatuses[step.order] = (step.status as DemoStepStatus) || \"pending\";\n  }\n  return { ...serverStatuses, ...localStepStatuses };\n}, [demoScript?.steps, localStepStatuses]);\n\nconst stepNotes = useMemo(() => {\n  if (!demoScript?.steps) return {};\n  const serverNotes: Record<number, string> = {};\n  for (const step of demoScript.steps) {\n    serverNotes[step.order] = step.notes || \"\";\n  }\n  return { ...serverNotes, ...localStepNotes };\n}, [demoScript?.steps, localStepNotes]);\n```\n\n## Recommended Fix\n\n1. Use TanStack Query's optimistic updates feature instead of manual state merging\n2. Simplify to a single source of truth from the query\n3. Use `useMutation` with `onMutate` for optimistic updates\n\nExample:\n\n```typescript\nconst updateStepMutation = useMutation({\n  mutationFn: updateStep,\n  onMutate: async (variables) => {\n    // Cancel outgoing refetches\n    await queryClient.cancelQueries({ queryKey: [\"demoScript\", ticketId] });\n    \n    // Snapshot previous value\n    const previous = queryClient.getQueryData([\"demoScript\", ticketId]);\n    \n    // Optimistically update\n    queryClient.setQueryData([\"demoScript\", ticketId], (old) => {\n      // Update logic here\n    });\n    \n    return { previous };\n  },\n  onError: (err, variables, context) => {\n    // Rollback on error\n    queryClient.setQueryData([\"demoScript\", ticketId], context.previous);\n  },\n  onSettled: () => {\n    queryClient.invalidateQueries({ queryKey: [\"demoScript\", ticketId] });\n  },\n});\n```\n\n## Benefits\n- Simpler state management\n- Leverages TanStack Query's built-in optimistic update patterns\n- Less code to maintain\n- Better error handling with automatic rollback\n\n## Acceptance Criteria\n- [ ] Refactor DemoPanel to use TanStack Query optimistic updates\n- [ ] Remove manual state merging logic\n- [ ] Remove `localStepStatuses` and `localStepNotes` state\n- [ ] Verify optimistic updates work correctly\n- [ ] Verify error rollback works correctly\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode\n- [ ] Verify no functionality regressions",
-      "priority": "medium",
-      "tags": [
-        "code-review",
-        "refactor",
-        "react",
-        "tanstack-query"
-      ]
-    },
-    {
-      "id": "d4b53b0e-0b21-4c7c-ba2d-82c43ac7359f",
-      "title": "[P1] Fix empty catch block in ticket.$id.tsx",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Replace empty catch block with proper error handling",
-        "Add error logging",
-        "Add user-facing error notification",
-        "Test error scenarios",
-        "Verify errors are visible to users",
-        "Test in Claude Code/Cursor/VS Code/OpenCode"
-      ],
-      "references": [
-        "src/routes/ticket.$id.tsx:272"
-      ],
-      "description": "## Issue\n\nAn empty catch block silently swallows errors in the ticket detail route, preventing proper error handling.\n\n## Location\n`src/routes/ticket.$id.tsx:272`\n\n## Current Code\n\n```typescript\n} catch {\n  // Empty catch block - errors are silently swallowed\n}\n```\n\n## Recommended Fix\n\nAdd proper error handling:\n\n```typescript\n} catch (error) {\n  logger.error(\"Failed to load ticket detail\", error);\n  showToast(\"error\", \"Failed to load ticket. Please refresh the page.\");\n  // Optionally navigate to error page or show error state\n}\n```\n\n## Risk\n\n**MEDIUM** - Errors are silently swallowed, making debugging difficult and users unaware of failures.\n\n## Acceptance Criteria\n- [ ] Replace empty catch block with proper error handling\n- [ ] Add error logging\n- [ ] Add user-facing error notification\n- [ ] Test error scenarios\n- [ ] Verify errors are visible to users\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode",
-      "priority": "high",
-      "tags": [
-        "code-review",
-        "error-handling",
-        "react",
-        "silent-failure"
-      ]
-    },
-    {
-      "id": "0081b0a0-d886-4a84-abb8-558b6057b915",
-      "title": "[P2] Extract query key factories to separate module",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Create `src/lib/query-keys.ts` with all query key factories",
-        "Update `hooks.ts` to import from new module",
-        "Verify all query keys still work correctly",
-        "Update any other files that reference queryKeys",
-        "Test in Claude Code/Cursor/VS Code/OpenCode",
-        "Verify no functionality regressions"
-      ],
-      "references": [
-        "src/lib/hooks.ts",
-        "src/lib/query-keys.ts"
-      ],
-      "description": "## Issue\n\nThe `queryKeys` object in `src/lib/hooks.ts` is large and could be extracted to improve organization and make it easier to find query key definitions.\n\n## Location\n`src/lib/hooks.ts` - `queryKeys` object (large object with many nested keys)\n\n## Current Code Structure\n\nThe `queryKeys` object contains all query key factories for tickets, epics, projects, settings, workflow, demo, etc. This is mixed with hook definitions in a 2,426-line file.\n\n## Recommended Fix\n\nCreate `src/lib/query-keys.ts`:\n\n```typescript\nexport const queryKeys = {\n  projects: [\"projects\"] as const,\n  project: (id: string) => [\"projects\", id] as const,\n  // ... all query key factories\n};\n```\n\nThen import in `hooks.ts`:\n\n```typescript\nimport { queryKeys } from \"./query-keys\";\n```\n\n## Benefits\n- Better separation of concerns\n- Easier to find query key definitions\n- Can be imported by other modules that need query keys\n- Reduces size of hooks.ts\n\n## Acceptance Criteria\n- [ ] Create `src/lib/query-keys.ts` with all query key factories\n- [ ] Update `hooks.ts` to import from new module\n- [ ] Verify all query keys still work correctly\n- [ ] Update any other files that reference queryKeys\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode\n- [ ] Verify no functionality regressions",
-      "priority": "medium",
-      "tags": [
-        "code-review",
-        "refactor",
-        "simplification",
-        "react",
-        "tanstack-query"
-      ]
-    },
-    {
-      "id": "39e1e633-731b-487b-a528-156b0c1c20dc",
-      "title": "[P3] Review memoization usage in DemoPanel component",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Review memoization usage in DemoPanel",
-        "Remove unnecessary `useMemo` hooks if computations are cheap",
-        "Keep memoization only where it provides clear performance benefit",
-        "Verify component performance is acceptable",
-        "Test in Claude Code/Cursor/VS Code/OpenCode",
-        "Verify no functionality regressions"
-      ],
-      "references": [
-        "src/components/tickets/DemoPanel.tsx"
-      ],
-      "description": "## Issue\n\nThe `DemoPanel` component uses multiple `useMemo` hooks that may not provide performance benefits. Some computations are simple and don't need memoization.\n\n## Location\n`src/components/tickets/DemoPanel.tsx`\n\n## Current Code\n\n```typescript\nconst stepStatuses = useMemo(() => {\n  if (!demoScript?.steps) return {};\n  const serverStatuses: Record<number, DemoStepStatus> = {};\n  for (const step of demoScript.steps) { ... }\n  return { ...serverStatuses, ...localStepStatuses };\n}, [demoScript?.steps, localStepStatuses]);\n\nconst stepNotes = useMemo(() => {\n  // Similar pattern\n}, [demoScript?.steps, localStepNotes]);\n```\n\n## Recommended Fix\n\nReview whether these `useMemo` hooks are necessary:\n\n1. If `demoScript.steps` is stable (from TanStack Query), the computation may be cheap enough to not need memoization\n2. Consider if the merging operation is expensive enough to warrant memoization\n3. If simplifying state management (see ticket for TanStack Query optimistic updates), memoization may not be needed\n\n## Benefits\n- Simpler code if memoization is unnecessary\n- Better understanding of performance characteristics\n- Follows React best practices (don't over-memoize)\n\n## Acceptance Criteria\n- [ ] Review memoization usage in DemoPanel\n- [ ] Remove unnecessary `useMemo` hooks if computations are cheap\n- [ ] Keep memoization only where it provides clear performance benefit\n- [ ] Verify component performance is acceptable\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode\n- [ ] Verify no functionality regressions",
-      "priority": "low",
-      "tags": [
-        "code-review",
-        "react",
-        "performance"
-      ]
-    },
-    {
-      "id": "5bd6ebed-ab7f-4bc9-80ea-0c33fa556e6c",
-      "title": "[P2] Simplify workflow phase determination logic",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Refactor if-else chain to switch statement",
-        "Verify all status transitions work correctly",
-        "Test workflow phase determination",
-        "Test in Claude Code/Cursor/VS Code/OpenCode",
-        "Verify no functionality regressions"
-      ],
-      "references": [
-        "src/api/workflow.ts",
-        "src/api/workflow.ts:143-158"
-      ],
-      "description": "## Issue\n\nThe workflow phase determination logic in `src/api/workflow.ts` uses a long if-else chain that could be simplified with a switch statement or lookup table.\n\n## Location\n`src/api/workflow.ts:143-158`\n\n## Current Code\n\n```typescript\n// Determine current phase based on ticket status and workflow state\nlet currentPhase: WorkflowPhase = \"started\";\n\nif (ticket.status === \"done\") {\n  currentPhase = \"done\";\n} else if (ticket.status === \"human_review\") {\n  currentPhase = \"human_review\";\n} else if (ticket.status === \"ai_review\") {\n  currentPhase = \"ai_review\";\n} else if (ticket.status === \"in_progress\") {\n  // Check if any code work has been done (workflow state exists)\n  currentPhase = workflowState ? \"implementation\" : \"started\";\n} else if (workflowState?.currentPhase) {\n  // Use stored phase if available, with safe parsing\n  currentPhase = parseWorkflowPhase(workflowState.currentPhase);\n}\n```\n\n## Recommended Fix\n\nUse a switch statement for clarity:\n\n```typescript\n// Determine current phase based on ticket status and workflow state\nlet currentPhase: WorkflowPhase = \"started\";\n\nswitch (ticket.status) {\n  case \"done\":\n    currentPhase = \"done\";\n    break;\n  case \"human_review\":\n    currentPhase = \"human_review\";\n    break;\n  case \"ai_review\":\n    currentPhase = \"ai_review\";\n    break;\n  case \"in_progress\":\n    currentPhase = workflowState ? \"implementation\" : \"started\";\n    break;\n  default:\n    // Use stored phase if available, with safe parsing\n    if (workflowState?.currentPhase) {\n      currentPhase = parseWorkflowPhase(workflowState.currentPhase);\n    }\n    break;\n}\n```\n\n## Benefits\n- Clearer control flow\n- Easier to add new statuses\n- More explicit than if-else chain\n- Better readability\n\n## Acceptance Criteria\n- [ ] Refactor if-else chain to switch statement\n- [ ] Verify all status transitions work correctly\n- [ ] Test workflow phase determination\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode\n- [ ] Verify no functionality regressions",
-      "priority": "medium",
-      "tags": [
-        "code-review",
-        "refactor",
-        "simplification",
-        "api"
-      ]
-    },
-    {
-      "id": "63b515b2-6678-4953-9e82-b704d642c71a",
-      "title": "[P3] Extract FindingRow component from ReviewFindingsPanel",
+      "id": "7c39dd14-02ec-4770-88e1-364aea2dc9b2",
+      "title": "Add circuit breakers and feature flags for tool filtering",
       "passes": false,
       "overview": "",
       "types": [
         {
-          "name": "FindingRowProps",
-          "code": "interface FindingRowProps {\n  icon: React.ReactNode;\n  label: string;\n  count: number;\n}"
+          "name": "FeatureFlags",
+          "code": "interface FeatureFlags {\n  enableToolFiltering: boolean;\n  enableModularServers: boolean;\n  enableShadowMode: boolean;\n  enableCompositeTools: boolean;\n  maxToolsPerContext: number;\n}"
         },
         {
-          "name": "FindingRowProps",
-          "code": "export interface FindingRowProps {\n  icon: React.ReactNode;\n  label: string;\n  count: number;\n}"
+          "name": "CircuitBreakerState",
+          "code": "interface CircuitBreakerState {\n  state: \"closed\" | \"open\" | \"half-open\";\n  failures: number;\n  lastFailure: string | null;\n  lastReset: string | null;\n}"
         }
       ],
       "designDecisions": [],
-      "implementationGuide": [],
+      "implementationGuide": [
+        {
+          "step": 1,
+          "description": "Feature Flag Storage",
+          "files": [],
+          "codeTemplate": "// In settings table\ninterface FeatureFlags {\n  enableToolFiltering: boolean;\n  enableModularServers: boolean;\n  enableShadowMode: boolean;\n  enableCompositeTools: boolean;\n  maxToolsPerContext: number;\n}"
+        },
+        {
+          "step": 2,
+          "description": "Circuit Breaker State",
+          "files": [],
+          "codeTemplate": "// In database or memory\ninterface CircuitBreakerState {\n  state: \"closed\" | \"open\" | \"half-open\";\n  failures: number;\n  lastFailure: string | null;\n  lastReset: string | null;\n}"
+        },
+        {
+          "step": 3,
+          "description": "MCP Tool for Flag Management",
+          "files": [],
+          "codeTemplate": "server.tool(\"manage_feature_flags\", {\n  action: z.enum([\"get\", \"set\", \"reset\"]),\n  flag: z.string().optional(),\n  value: z.boolean().optional(),\n}, async ({ action, flag, value }) => {\n  // Get/set/reset feature flags\n});"
+        },
+        {
+          "step": 4,
+          "description": "Circuit Breaker Status Tool",
+          "files": [],
+          "codeTemplate": "server.tool(\"get_circuit_breaker_status\", {}, async () => {\n  return {\n    toolFiltering: circuitBreakerState,\n    recentErrors: lastNErrors,\n    recommendation: state === \"open\" \n      ? \"Filtering disabled due to errors. Review logs before re-enabling.\"\n      : \"Filtering operational.\"\n  };\n});"
+        },
+        {
+          "step": 4,
+          "description": "Circuit Breaker Status Tool",
+          "files": [],
+          "codeTemplate": "server.tool(\"get_circuit_breaker_status\", {}, async () => {\n  return {\n    toolFiltering: circuitBreakerState,\n    recentErrors: lastNErrors,\n    recommendation: state === \"open\" \n      ? \"Filtering disabled due to errors. Review logs before re-enabling.\"\n      : \"Filtering operational.\"\n  };\n});"
+        }
+      ],
       "acceptanceCriteria": [
-        "Create `src/components/tickets/FindingRow.tsx`",
-        "Extract FindingRow component",
-        "Update ReviewFindingsPanel to import FindingRow",
-        "Verify component still renders correctly",
-        "Test in Claude Code/Cursor/VS Code/OpenCode",
-        "Verify no functionality regressions"
-      ],
-      "references": [
-        "src/components/tickets/ReviewFindingsPanel.tsx:141-155",
-        "src/components/tickets/FindingRow.tsx"
-      ],
-      "description": "## Issue\n\nThe `FindingRow` component is defined inline within `ReviewFindingsPanel.tsx`. It could be extracted to a separate file for reusability.\n\n## Location\n`src/components/tickets/ReviewFindingsPanel.tsx:141-155`\n\n## Current Code\n\n```typescript\ninterface FindingRowProps {\n  icon: React.ReactNode;\n  label: string;\n  count: number;\n}\n\nfunction FindingRow({ icon, label, count }: FindingRowProps) {\n  return (\n    <div className=\"flex items-center gap-2\">\n      {icon}\n      <span className=\"text-xs text-[var(--text-secondary)]\">{label}:</span>\n      <span className=\"text-xs font-medium text-[var(--text-primary)]\">{count}</span>\n    </div>\n  );\n}\n```\n\n## Recommended Fix\n\nExtract to `src/components/tickets/FindingRow.tsx`:\n\n```typescript\nimport React from \"react\";\n\nexport interface FindingRowProps {\n  icon: React.ReactNode;\n  label: string;\n  count: number;\n}\n\nexport function FindingRow({ icon, label, count }: FindingRowProps) {\n  return (\n    <div className=\"flex items-center gap-2\">\n      {icon}\n      <span className=\"text-xs text-[var(--text-secondary)]\">{label}:</span>\n      <span className=\"text-xs font-medium text-[var(--text-primary)]\">{count}</span>\n    </div>\n  );\n}\n```\n\nThen import in `ReviewFindingsPanel.tsx`.\n\n## Benefits\n- Component can be reused elsewhere\n- Better code organization\n- Easier to test independently\n- Follows component extraction best practices\n\n## Acceptance Criteria\n- [ ] Create `src/components/tickets/FindingRow.tsx`\n- [ ] Extract FindingRow component\n- [ ] Update ReviewFindingsPanel to import FindingRow\n- [ ] Verify component still renders correctly\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode\n- [ ] Verify no functionality regressions\n\n## Additional Information\nMake sure this lives within the \"feature/epic-a10cc802-universal-quality-workflow-phase-2-activation-inte\" branch",
-      "priority": "low",
-      "tags": [
-        "code-review",
-        "refactor",
-        "react",
-        "component-extraction"
-      ]
-    },
-    {
-      "id": "a7bca04b-e8ce-4d38-8228-6876c85743be",
-      "title": "[P2] Simplify nested ternary in ReviewFindingsPanel className",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Extract className logic to helper function",
-        "Replace nested ternary with function call",
-        "Verify styling still works correctly",
-        "Test all panel states (critical, fixed, warning)",
-        "Test in Claude Code/Cursor/VS Code/OpenCode",
-        "Verify no functionality regressions"
-      ],
-      "references": [
-        "src/components/tickets/ReviewFindingsPanel.tsx:70-76"
-      ],
-      "description": "## Issue\n\nThe `ReviewFindingsPanel` component uses a nested ternary operator for className that could be simplified for better readability.\n\n## Location\n`src/components/tickets/ReviewFindingsPanel.tsx:70-76`\n\n## Current Code\n\n```typescript\n<div\n  className={`border rounded-lg p-4 ${\n    hasCritical && !allFixed\n      ? \"bg-[var(--accent-danger)]/10 border-[var(--accent-danger)]/30\"\n      : allFixed\n        ? \"bg-[var(--success-muted)] border-[var(--success)]/30\"\n        : \"bg-[var(--warning-muted)] border-[var(--warning)]/30\"\n  }`}\n>\n```\n\n## Recommended Fix\n\nUse a helper function or switch statement:\n\n```typescript\nfunction getPanelClassName(hasCritical: boolean, allFixed: boolean): string {\n  if (hasCritical && !allFixed) {\n    return \"bg-[var(--accent-danger)]/10 border-[var(--accent-danger)]/30\";\n  }\n  if (allFixed) {\n    return \"bg-[var(--success-muted)] border-[var(--success)]/30\";\n  }\n  return \"bg-[var(--warning-muted)] border-[var(--warning)]/30\";\n}\n\n// Then use:\n<div className={`border rounded-lg p-4 ${getPanelClassName(hasCritical, allFixed)}`}>\n```\n\n## Benefits\n- More readable than nested ternary\n- Easier to test independently\n- Follows project guidelines (avoid nested ternary operators)\n- Better maintainability\n\n## Acceptance Criteria\n- [ ] Extract className logic to helper function\n- [ ] Replace nested ternary with function call\n- [ ] Verify styling still works correctly\n- [ ] Test all panel states (critical, fixed, warning)\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode\n- [ ] Verify no functionality regressions",
-      "priority": "medium",
-      "tags": [
-        "code-review",
-        "refactor",
-        "react",
-        "simplification"
-      ]
-    },
-    {
-      "id": "4ab534b2-edce-4af2-b214-951213fba7df",
-      "title": "[P2] Extract ticket context building logic from start_ticket_work",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Create `mcp-server/lib/ticket-context-builder.js`",
-        "Extract context building logic",
-        "Update `start_ticket_work` to use builder",
-        "Verify context still builds correctly",
-        "Test in Claude Code/Cursor/VS Code/OpenCode",
-        "Verify no functionality regressions"
-      ],
-      "references": [
-        "mcp-server/tools/workflow.js",
-        "mcp-server/tools/workflow.js:769-1136",
-        "mcp-server/lib/ticket-context-builder.js"
-      ],
-      "description": "## Issue\n\nThe `start_ticket_work` tool handler in `mcp-server/tools/workflow.js` is very long (~400 lines) and contains complex context building logic that could be extracted.\n\n## Location\n`mcp-server/tools/workflow.js:769-1136` (start_ticket_work handler)\n\n## Current Code Structure\n\nThe handler does:\n1. Telemetry logging setup\n2. Ticket validation\n3. Git branch creation\n4. Workflow state management\n5. Conversation session creation\n6. Acceptance criteria parsing\n7. Comment fetching\n8. Attachment loading\n9. Context building (main text block)\n10. Content array assembly\n\n## Recommended Fix\n\nExtract context building to `mcp-server/lib/ticket-context-builder.js`:\n\n```javascript\nexport function buildTicketContext({\n  ticket,\n  branchName,\n  branchCreated,\n  epicInfo,\n  usingEpicBranch,\n  sessionInfo,\n  workflowStateWarning,\n  acceptanceCriteria,\n  commentsSection,\n  designMockupWarning,\n  attachmentsSection,\n  warningsSection,\n}) {\n  // Build the main text content block\n  // Return formatted context string\n}\n```\n\nThis reduces the handler to ~200 lines focused on orchestration.\n\n## Benefits\n- Shorter, more focused handler\n- Reusable context building logic\n- Easier to test context building independently\n- Better code organization\n\n## Acceptance Criteria\n- [ ] Create `mcp-server/lib/ticket-context-builder.js`\n- [ ] Extract context building logic\n- [ ] Update `start_ticket_work` to use builder\n- [ ] Verify context still builds correctly\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode\n- [ ] Verify no functionality regressions",
-      "priority": "medium",
-      "tags": [
-        "code-review",
-        "refactor",
-        "simplification",
-        "mcp"
-      ]
-    },
-    {
-      "id": "7baeb0a0-2617-4a33-816e-560ced39c65f",
-      "title": "[P2] Replace console.error with logger in hooks.ts mutation error handlers",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Replace console.error with logger in mutation hooks",
-        "Import logger at module level",
-        "Verify errors are logged correctly",
-        "Test error scenarios",
-        "Test in Claude Code/Cursor/VS Code/OpenCode",
-        "Verify no functionality regressions"
-      ],
-      "references": [
-        "src/lib/hooks.ts",
-        "src/lib/hooks.ts:578"
-      ],
-      "description": "## Issue\n\nMutation hooks in `src/lib/hooks.ts` use `console.error` for error logging instead of the proper logger.\n\n## Location\n`src/lib/hooks.ts:578` (and potentially other locations)\n\n## Current Code\n\n```typescript\nonError: (err, newTicket, context) => {\n  // Log error with context for debugging\n  console.error(\"Failed to create ticket:\", {\n    error: err,\n    ticketData: { title: newTicket.title, projectId: newTicket.projectId },\n  });\n  // ... rollback logic\n}\n```\n\n## Recommended Fix\n\nUse proper logger:\n\n```typescript\nimport { createLogger } from \"../lib/logger\";\nconst logger = createLogger(\"hooks\");\n\nonError: (err, newTicket, context) => {\n  logger.error(\"Failed to create ticket\", {\n    error: err,\n    ticketData: { title: newTicket.title, projectId: newTicket.projectId },\n  });\n  // ... rollback logic\n}\n```\n\n## Benefits\n- Consistent logging across codebase\n- Proper log levels and formatting\n- Better integration with logging infrastructure\n- Follows project guidelines\n\n## Acceptance Criteria\n- [ ] Replace console.error with logger in mutation hooks\n- [ ] Import logger at module level\n- [ ] Verify errors are logged correctly\n- [ ] Test error scenarios\n- [ ] Test in Claude Code/Cursor/VS Code/OpenCode\n- [ ] Verify no functionality regressions",
-      "priority": "medium",
-      "tags": [
-        "code-review",
-        "error-handling",
-        "react",
-        "logging"
-      ]
-    },
-    {
-      "id": "a20d061a-6d95-4552-a5ba-1b1903cbdbec",
-      "title": "[P1] Fix OpenCode launch: cd command uses file path instead of directory",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "OpenCode launches successfully from Edit Ticket Modal",
-        "OpenCode launches successfully from Ticket Details page",
-        "Script changes to project directory, not context file",
-        "Context file is still accessible/created correctly",
-        "Test with multiple tickets",
-        "Verify no regressions in Claude/Ralph launch"
+        "Feature flags stored in settings table",
+        "`manage_feature_flags` tool implemented",
+        "Circuit breaker pattern for tool filtering",
+        "Automatic disable on repeated failures",
+        "Automatic retry after cooldown period",
+        "UI for viewing/managing feature flags",
+        "Logging for circuit breaker state changes",
+        "Tests for circuit breaker transitions"
       ],
       "references": [],
-      "description": "## Issue\n\nWhen launching OpenCode from the Edit Ticket Modal or Ticket Details page, the launch script fails with:\n\n```\nError: Failed to change directory to /Users/salman.rana/code/brain-dump/.brain-dump-context.md\n```\n\nThe script is trying to `cd` into a file path (`.brain-dump-context.md`) instead of the project directory.\n\n## Root Cause\n\nThe OpenCode launch code is likely passing the context file path to a `cd` command instead of the project directory path.\n\n## Expected Behavior\n\nOpenCode should launch in the project directory (`/Users/salman.rana/code/brain-dump`) with the context file available, not try to cd into the context file itself.\n\n## Acceptance Criteria\n- [ ] OpenCode launches successfully from Edit Ticket Modal\n- [ ] OpenCode launches successfully from Ticket Details page\n- [ ] Script changes to project directory, not context file\n- [ ] Context file is still accessible/created correctly\n- [ ] Test with multiple tickets\n- [ ] Verify no regressions in Claude/Ralph launch",
+      "description": "## Summary\n\nPer agent review findings, implement circuit breakers and feature flags to safely roll out tool filtering with automatic fallback mechanisms.\n\n## Circuit Breaker Pattern\n\nWhen tool filtering causes errors, automatically disable it:\n\n```javascript\nclass ToolFilteringCircuitBreaker {\n  constructor() {\n    this.failures = 0;\n    this.threshold = 3;  // Disable after 3 failures\n    this.resetTimeout = 300000;  // 5 minutes\n    this.state = \"closed\";  // closed = filtering active\n  }\n\n  recordFailure(error) {\n    this.failures++;\n    if (this.failures >= this.threshold) {\n      this.state = \"open\";  // Disable filtering\n      log.warn(\"Circuit breaker OPEN: Tool filtering disabled due to errors\");\n      setTimeout(() => this.halfOpen(), this.resetTimeout);\n    }\n  }\n\n  halfOpen() {\n    this.state = \"half-open\";  // Try filtering again\n    this.failures = 0;\n  }\n}\n```\n\n## Feature Flags\n\n| Flag | Default | Description |\n|------|---------|-------------|\n| `enableToolFiltering` | false | Master switch for context-aware filtering |\n| `enableModularServers` | false | Use split servers vs monolithic |\n| `enableShadowMode` | false | Log but don't filter |\n| `enableCompositeTools` | false | Enable composite workflow tools |\n| `maxToolsPerContext` | 20 | Cap tools shown per context |\n\n## Implementation\n\n### 1. Feature Flag Storage\n```typescript\n// In settings table\ninterface FeatureFlags {\n  enableToolFiltering: boolean;\n  enableModularServers: boolean;\n  enableShadowMode: boolean;\n  enableCompositeTools: boolean;\n  maxToolsPerContext: number;\n}\n```\n\n### 2. Circuit Breaker State\n```typescript\n// In database or memory\ninterface CircuitBreakerState {\n  state: \"closed\" | \"open\" | \"half-open\";\n  failures: number;\n  lastFailure: string | null;\n  lastReset: string | null;\n}\n```\n\n### 3. MCP Tool for Flag Management\n```javascript\nserver.tool(\"manage_feature_flags\", {\n  action: z.enum([\"get\", \"set\", \"reset\"]),\n  flag: z.string().optional(),\n  value: z.boolean().optional(),\n}, async ({ action, flag, value }) => {\n  // Get/set/reset feature flags\n});\n```\n\n### 4. Circuit Breaker Status Tool\n```javascript\nserver.tool(\"get_circuit_breaker_status\", {}, async () => {\n  return {\n    toolFiltering: circuitBreakerState,\n    recentErrors: lastNErrors,\n    recommendation: state === \"open\" \n      ? \"Filtering disabled due to errors. Review logs before re-enabling.\"\n      : \"Filtering operational.\"\n  };\n});\n```\n\n## Acceptance Criteria\n\n- [ ] Feature flags stored in settings table\n- [ ] `manage_feature_flags` tool implemented\n- [ ] Circuit breaker pattern for tool filtering\n- [ ] Automatic disable on repeated failures\n- [ ] Automatic retry after cooldown period\n- [ ] UI for viewing/managing feature flags\n- [ ] Logging for circuit breaker state changes\n- [ ] Tests for circuit breaker transitions\n\n## Dependencies\n\n- Related to: Tool filtering implementation\n- Should be implemented early in the filtering rollout",
       "priority": "high",
       "tags": [
-        "bug",
+        "mcp-server",
+        "circuit-breaker",
+        "feature-flags",
+        "safety",
+        "reliability"
+      ]
+    },
+    {
+      "id": "46a0cada-a216-4516-b502-fe11cb4a86c8",
+      "title": "Optimize tool descriptions to under 150 tokens each",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "start_ticket_work",
+        "complete_ticket_work",
+        "add_ticket_comment",
+        "create_ticket",
+        "list_tickets",
+        "update_ticket_status",
+        "submit_review_finding",
+        "generate_demo_script",
+        "All git tools (3)",
+        "All review finding tools (4)",
+        "All session tools (5)",
+        "All telemetry tools (7)",
+        "All conversation tools (6)",
+        "All admin tools (4)",
+        "All demo tools (4)",
+        "All 65 tools have descriptions under 150 tokens",
+        "Descriptions follow consistent format",
+        "Core functionality still clear from description",
+        "Args and return types documented concisely",
+        "Total token savings measured (target: 50%+ reduction)",
+        "No loss of essential information"
+      ],
+      "references": [],
+      "description": "## Summary\n\nPer agent review findings, shorten all MCP tool descriptions to under 150 tokens each to reduce context consumption while maintaining clarity.\n\n## Current State\n\nMany tool descriptions are verbose (200-400 tokens). Example:\n\n```javascript\n// BEFORE (start_ticket_work - ~250 tokens)\n`Start working on a ticket.\n\nThis tool handles all workflow automatically:\n1. Creates a git branch: feature/{ticket-short-id}-{slug}\n2. Sets the ticket status to in_progress\n3. Auto-posts a \"Starting work\" comment for tracking\n4. Returns ticket context including description and acceptance criteria\n\nIf the ticket belongs to an epic with worktree isolation mode:\n- Uses the epic's worktree directory instead of the main project\n- Creates the worktree if it doesn't exist yet\n- Updates ralph-state.json in the worktree's .claude directory\n\nUse this when picking up a ticket to work on.\nThe project must have a git repository initialized.\n\nArgs:\n  ticketId: The ticket ID to start working on\n\nReturns:\n  Branch name, ticket details with description/acceptance criteria, and project path (worktree path if using worktree isolation).`\n```\n\n## Target Format\n\n```javascript\n// AFTER (start_ticket_work - ~80 tokens)\n`Start ticket work. Creates branch, sets status to in_progress, returns ticket context.\n\nHandles worktree isolation if epic is configured for it.\n\nArgs: ticketId (required)\nReturns: { branchName, ticketContext, projectPath }`\n```\n\n## Guidelines\n\n1. **First line**: One-sentence summary of what tool does\n2. **Second line**: Key behavior notes (if any)\n3. **Args**: Compact list with types\n4. **Returns**: Brief structure description\n5. **No**: Detailed workflows, edge cases, or implementation details\n\n## Tools to Optimize (Priority Order)\n\n### High-Use Tools (most impact)\n- [ ] start_ticket_work\n- [ ] complete_ticket_work\n- [ ] add_ticket_comment\n- [ ] create_ticket\n- [ ] list_tickets\n- [ ] update_ticket_status\n- [ ] submit_review_finding\n- [ ] generate_demo_script\n\n### Medium-Use Tools\n- [ ] All git tools (3)\n- [ ] All review finding tools (4)\n- [ ] All session tools (5)\n- [ ] All telemetry tools (7)\n\n### Low-Use Tools\n- [ ] All conversation tools (6)\n- [ ] All admin tools (4)\n- [ ] All demo tools (4)\n\n## Acceptance Criteria\n\n- [ ] All 65 tools have descriptions under 150 tokens\n- [ ] Descriptions follow consistent format\n- [ ] Core functionality still clear from description\n- [ ] Args and return types documented concisely\n- [ ] Total token savings measured (target: 50%+ reduction)\n- [ ] No loss of essential information\n\n## Measurement\n\n```javascript\n// Add to MCP server\nfunction measureToolDescriptions() {\n  return tools.map(t => ({\n    name: t.name,\n    descriptionTokens: countTokens(t.description),\n    exceedsLimit: countTokens(t.description) > 150\n  }));\n}\n```\n\n## Dependencies\n\n- Can be done independently\n- Should be done before: Tool filtering (shorter descriptions = better filtering UX)",
+      "priority": "medium",
+      "tags": [
+        "mcp-server",
+        "dx",
+        "token-optimization",
+        "descriptions"
+      ]
+    },
+    {
+      "id": "1d5bec4e-cdcf-42b7-a2a7-b78306e21a82",
+      "title": "Add disambiguation hints for similar tools",
+      "passes": false,
+      "overview": "Several tool pairs/groups have overlapping functionality that confuses tool selection:\n### 1. Session Tools\n| Tool | Purpose | When to Use |\n|------|---------|-------------|\n| `create_ralph_session` | Ralph workflow tracking | Starting Ralph autonomous loop |\n| `start_telemetry_session` | Tool usage telemetry | Any ticket work session |\n| `start_conversation_session` | Compliance logging | Enterprise audit requirements |\n### 2. Comment Tools\n| Tool | Purpose | When to Use |\n|------|---------|-------------|\n| `add_ticket_comment` | Work logs, summaries | After completing work units |\n| `log_conversation_message` | Compliance audit | Enterprise logging |\n### 3. Completion Tools\n| Tool | Purpose | When to Use |\n|------|---------|-------------|\n| `complete_ticket_work` | Finish ticket implementation | After all code written |\n| `complete_ralph_session` | End Ralph loop | After Ralph finishes |\n| `end_telemetry_session` | Finalize telemetry | Session cleanup |\n### 4. Linking Tools\n| Tool | Purpose | When to Use |\n|------|---------|-------------|\n| `link_commit_to_ticket` | Manual commit link | After specific commits |\n| `link_pr_to_ticket` | Manual PR link | After PR creation |\n| `sync_ticket_links` | Auto-discover links | Periodic or before completion |",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [
+        {
+          "step": 1,
+          "description": "Add `relatedTools` Metadata",
+          "files": [],
+          "codeTemplate": "server.tool(\"create_ralph_session\", description, schema, handler, {\n  relatedTools: [\n    { name: \"start_telemetry_session\", relationship: \"complementary\", hint: \"Also start telemetry for tool tracking\" },\n    { name: \"start_conversation_session\", relationship: \"alternative\", hint: \"Use instead for compliance-only logging\" }\n  ]\n});"
+        },
+        {
+          "step": 2,
+          "description": "Add Disambiguation in Descriptions",
+          "files": [],
+          "codeTemplate": "// BEFORE\n`Create a Ralph session for autonomous work.`\n\n// AFTER\n`Create Ralph session for autonomous loop. NOT for telemetry (use start_telemetry_session) or compliance (use start_conversation_session).`"
+        },
+        {
+          "step": 3,
+          "description": "Add `get_tool_recommendation` Tool",
+          "files": [],
+          "codeTemplate": "server.tool(\"get_tool_recommendation\", {\n  intent: z.string().describe(\"What you're trying to accomplish\"),\n}, async ({ intent }) => {\n  // Analyze intent and recommend specific tool\n  return {\n    recommendedTool: \"start_ticket_work\",\n    reason: \"You want to begin work on a ticket - this handles branch creation and status update\",\n    alternatives: [\n      { tool: \"start_work\", reason: \"Composite tool if you also need telemetry session\" }\n    ]\n  };\n});"
+        },
+        {
+          "step": 3,
+          "description": "Add `get_tool_recommendation` Tool",
+          "files": [],
+          "codeTemplate": "server.tool(\"get_tool_recommendation\", {\n  intent: z.string().describe(\"What you're trying to accomplish\"),\n}, async ({ intent }) => {\n  // Analyze intent and recommend specific tool\n  return {\n    recommendedTool: \"start_ticket_work\",\n    reason: \"You want to begin work on a ticket - this handles branch creation and status update\",\n    alternatives: [\n      { tool: \"start_work\", reason: \"Composite tool if you also need telemetry session\" }\n    ]\n  };\n});"
+        }
+      ],
+      "acceptanceCriteria": [
+        "All similar tool groups identified and documented",
+        "Disambiguation hints added to tool descriptions",
+        "`relatedTools` metadata on all overlapping tools",
+        "`get_tool_recommendation` helper tool implemented",
+        "Documentation with decision tree for common tasks",
+        "Tests verify correct tool selection for ambiguous intents"
+      ],
+      "references": [],
+      "description": "## Summary\n\nPer agent review findings, add clear disambiguation between similar tools to help LLMs choose correctly.\n\n## Problem Tools\n\nSeveral tool pairs/groups have overlapping functionality that confuses tool selection:\n\n### 1. Session Tools\n| Tool | Purpose | When to Use |\n|------|---------|-------------|\n| `create_ralph_session` | Ralph workflow tracking | Starting Ralph autonomous loop |\n| `start_telemetry_session` | Tool usage telemetry | Any ticket work session |\n| `start_conversation_session` | Compliance logging | Enterprise audit requirements |\n\n### 2. Comment Tools\n| Tool | Purpose | When to Use |\n|------|---------|-------------|\n| `add_ticket_comment` | Work logs, summaries | After completing work units |\n| `log_conversation_message` | Compliance audit | Enterprise logging |\n\n### 3. Completion Tools\n| Tool | Purpose | When to Use |\n|------|---------|-------------|\n| `complete_ticket_work` | Finish ticket implementation | After all code written |\n| `complete_ralph_session` | End Ralph loop | After Ralph finishes |\n| `end_telemetry_session` | Finalize telemetry | Session cleanup |\n\n### 4. Linking Tools\n| Tool | Purpose | When to Use |\n|------|---------|-------------|\n| `link_commit_to_ticket` | Manual commit link | After specific commits |\n| `link_pr_to_ticket` | Manual PR link | After PR creation |\n| `sync_ticket_links` | Auto-discover links | Periodic or before completion |\n\n## Implementation\n\n### 1. Add `relatedTools` Metadata\n```javascript\nserver.tool(\"create_ralph_session\", description, schema, handler, {\n  relatedTools: [\n    { name: \"start_telemetry_session\", relationship: \"complementary\", hint: \"Also start telemetry for tool tracking\" },\n    { name: \"start_conversation_session\", relationship: \"alternative\", hint: \"Use instead for compliance-only logging\" }\n  ]\n});\n```\n\n### 2. Add Disambiguation in Descriptions\n```javascript\n// BEFORE\n`Create a Ralph session for autonomous work.`\n\n// AFTER\n`Create Ralph session for autonomous loop. NOT for telemetry (use start_telemetry_session) or compliance (use start_conversation_session).`\n```\n\n### 3. Add `get_tool_recommendation` Tool\n```javascript\nserver.tool(\"get_tool_recommendation\", {\n  intent: z.string().describe(\"What you're trying to accomplish\"),\n}, async ({ intent }) => {\n  // Analyze intent and recommend specific tool\n  return {\n    recommendedTool: \"start_ticket_work\",\n    reason: \"You want to begin work on a ticket - this handles branch creation and status update\",\n    alternatives: [\n      { tool: \"start_work\", reason: \"Composite tool if you also need telemetry session\" }\n    ]\n  };\n});\n```\n\n## Acceptance Criteria\n\n- [ ] All similar tool groups identified and documented\n- [ ] Disambiguation hints added to tool descriptions\n- [ ] `relatedTools` metadata on all overlapping tools\n- [ ] `get_tool_recommendation` helper tool implemented\n- [ ] Documentation with decision tree for common tasks\n- [ ] Tests verify correct tool selection for ambiguous intents\n\n## Decision Trees for Documentation\n\n```\nStarting ticket work?\n├── Just the ticket → start_ticket_work\n├── + Telemetry → start_work (composite)\n└── + Compliance logging → start_work + start_conversation_session\n\nEnding work?\n├── Implementation done → complete_ticket_work\n├── Ending Ralph loop → complete_ralph_session\n└── Just cleanup → end_telemetry_session\n```\n\n## Dependencies\n\n- Depends on: Tool metadata system\n- Related to: Tool description optimization",
+      "priority": "medium",
+      "tags": [
+        "mcp-server",
+        "dx",
+        "disambiguation",
+        "tool-selection"
+      ]
+    },
+    {
+      "id": "e1b3655e-8954-4b40-9a98-0f946db57ae6",
+      "title": "Add tools/list_changed notification support",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [
+        {
+          "step": 1,
+          "description": "Notification Helper",
+          "files": [],
+          "codeTemplate": "// In lib/notifications.js\nexport function notifyToolsListChanged(server) {\n  server.notification({\n    method: \"notifications/tools/list_changed\"\n  });\n}"
+        },
+        {
+          "step": 2,
+          "description": "Emit on Mode Change",
+          "files": [],
+          "codeTemplate": "// In set_tool_mode handler\nasync ({ mode, persist }) => {\n  updateToolMode(mode, persist);\n  notifyToolsListChanged(server);\n  return { mode, toolCount: getToolCount(mode) };\n};"
+        },
+        {
+          "step": 3,
+          "description": "Emit on Context Change",
+          "files": [],
+          "codeTemplate": "// In complete_ticket_work handler\nasync ({ ticketId, summary }) => {\n  // ... complete work logic ...\n  \n  // Status changed from in_progress to ai_review\n  // Tool set may change (review tools now relevant)\n  notifyToolsListChanged(server);\n  \n  return result;\n};"
+        },
+        {
+          "step": 4,
+          "description": "Debounce Rapid Changes",
+          "files": [],
+          "codeTemplate": "// Avoid notification spam during rapid operations\nconst debouncedNotify = debounce(notifyToolsListChanged, 500);"
+        },
+        {
+          "step": 4,
+          "description": "Debounce Rapid Changes",
+          "files": [],
+          "codeTemplate": "// Avoid notification spam during rapid operations\nconst debouncedNotify = debounce(notifyToolsListChanged, 500);"
+        }
+      ],
+      "acceptanceCriteria": [
+        "`notifyToolsListChanged` helper implemented",
+        "Notification emitted on mode change",
+        "Notification emitted on relevant status changes",
+        "Notification emitted on feature flag changes",
+        "Debouncing prevents notification spam",
+        "Documentation explains client handling",
+        "Tests verify notifications are emitted correctly"
+      ],
+      "references": [
+        "MCP Spec: Notifications section",
+        "Related: Mode selection, context detection"
+      ],
+      "description": "## Summary\n\nPer agent review findings, implement the MCP `tools/list_changed` notification to inform clients when available tools change (due to context changes or mode switches).\n\n## MCP Protocol\n\nThe MCP spec includes a `tools/list_changed` notification that servers can send to inform clients the tool list has changed:\n\n```typescript\n// MCP notification\n{\n  \"jsonrpc\": \"2.0\",\n  \"method\": \"notifications/tools/list_changed\"\n}\n```\n\nWhen clients receive this, they should re-fetch the tool list via `tools/list`.\n\n## When to Emit\n\n1. **Mode Change**: When `set_tool_mode` is called\n2. **Context Change**: When ticket status changes (e.g., in_progress -> ai_review)\n3. **Feature Flag Toggle**: When filtering is enabled/disabled\n4. **Session Start/End**: When starting or completing ticket work\n\n## Implementation\n\n### 1. Notification Helper\n```javascript\n// In lib/notifications.js\nexport function notifyToolsListChanged(server) {\n  server.notification({\n    method: \"notifications/tools/list_changed\"\n  });\n}\n```\n\n### 2. Emit on Mode Change\n```javascript\n// In set_tool_mode handler\nasync ({ mode, persist }) => {\n  updateToolMode(mode, persist);\n  notifyToolsListChanged(server);\n  return { mode, toolCount: getToolCount(mode) };\n};\n```\n\n### 3. Emit on Context Change\n```javascript\n// In complete_ticket_work handler\nasync ({ ticketId, summary }) => {\n  // ... complete work logic ...\n  \n  // Status changed from in_progress to ai_review\n  // Tool set may change (review tools now relevant)\n  notifyToolsListChanged(server);\n  \n  return result;\n};\n```\n\n### 4. Debounce Rapid Changes\n```javascript\n// Avoid notification spam during rapid operations\nconst debouncedNotify = debounce(notifyToolsListChanged, 500);\n```\n\n## Client Handling (Documentation)\n\nDocument for LLM clients:\n- When you receive `tools/list_changed`, call `tools/list` to refresh\n- Don't cache tool lists indefinitely\n- Expect tool availability to change during workflows\n\n## Acceptance Criteria\n\n- [ ] `notifyToolsListChanged` helper implemented\n- [ ] Notification emitted on mode change\n- [ ] Notification emitted on relevant status changes\n- [ ] Notification emitted on feature flag changes\n- [ ] Debouncing prevents notification spam\n- [ ] Documentation explains client handling\n- [ ] Tests verify notifications are emitted correctly\n\n## References\n\n- MCP Spec: Notifications section\n- Related: Mode selection, context detection",
+      "priority": "medium",
+      "tags": [
+        "mcp-server",
+        "mcp-protocol",
+        "notifications",
+        "tool-filtering"
+      ]
+    },
+    {
+      "id": "79d4ad9f-bae5-4dd1-b6f6-917be08543bc",
+      "title": "End-to-end workflow verification testing",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Branch/worktree created correctly",
+        "Status set to in_progress",
+        "Session started (telemetry, ralph if applicable)",
+        "Ticket context returned",
+        "State tracking works during implementation",
+        "State enforcement hooks fire correctly",
+        "Files can be written without errors",
+        "Commits linked to ticket automatically",
+        "PRs created and linked",
+        "Push hooks work correctly",
+        "Review agents can run",
+        "Findings can be submitted",
+        "Status transitions to ai_review",
+        "Findings can be marked fixed",
+        "Review completion checked correctly",
+        "Iteration counter increments",
+        "Demo script generation works",
+        "Status transitions to human_review",
+        "Feedback can be submitted",
+        "Ticket marked complete",
+        "Sessions ended correctly",
+        "Status transitions to done",
+        "Work summaries can be added",
+        "Progress updates work",
+        "Comments visible in UI",
+        "Tool usage captured",
+        "Prompts captured (if enabled)",
+        "Session data queryable",
+        "All 9 critical workflows have E2E tests",
+        "Tests cover branch mode and worktree mode",
+        "Tests cover review iteration scenarios",
+        "Tests cover human rejection scenarios",
+        "Tests verify composite tools",
+        "Tests verify mode switching",
+        "Tests verify circuit breaker",
+        "All tests pass in CI",
+        "Test report shows coverage of critical paths"
+      ],
+      "references": [],
+      "description": "## Summary\n\nCreate comprehensive end-to-end tests that verify all 9 critical workflows work correctly after the tool consolidation changes.\n\n## Critical Workflows to Test\n\nFrom the requirements, ALL of these must work:\n\n### 1. Start Ticket\n- [ ] Branch/worktree created correctly\n- [ ] Status set to in_progress\n- [ ] Session started (telemetry, ralph if applicable)\n- [ ] Ticket context returned\n\n### 2. Coding (Write/Edit)\n- [ ] State tracking works during implementation\n- [ ] State enforcement hooks fire correctly\n- [ ] Files can be written without errors\n\n### 3. Commit/Push\n- [ ] Commits linked to ticket automatically\n- [ ] PRs created and linked\n- [ ] Push hooks work correctly\n\n### 4. AI Review\n- [ ] Review agents can run\n- [ ] Findings can be submitted\n- [ ] Status transitions to ai_review\n\n### 5. Fix Issues\n- [ ] Findings can be marked fixed\n- [ ] Review completion checked correctly\n- [ ] Iteration counter increments\n\n### 6. Human Review\n- [ ] Demo script generation works\n- [ ] Status transitions to human_review\n- [ ] Feedback can be submitted\n\n### 7. Done\n- [ ] Ticket marked complete\n- [ ] Sessions ended correctly\n- [ ] Status transitions to done\n\n### 8. AI Comments\n- [ ] Work summaries can be added\n- [ ] Progress updates work\n- [ ] Comments visible in UI\n\n### 9. Telemetry\n- [ ] Tool usage captured\n- [ ] Prompts captured (if enabled)\n- [ ] Session data queryable\n\n## Test Scenarios\n\n### Scenario A: Happy Path (Branch Mode)\n```\n1. Create ticket\n2. start_ticket_work -> branch created\n3. Write code (simulated)\n4. Commit (simulated) \n5. complete_ticket_work -> ai_review\n6. Submit 2 findings, mark both fixed\n7. generate_demo_script -> human_review\n8. submit_demo_feedback(passed) -> done\n9. Verify telemetry captured all steps\n```\n\n### Scenario B: Happy Path (Worktree Mode)\nSame as A but with epic using worktree isolation\n\n### Scenario C: Review Iteration\n```\n1-5. Same as A\n6. Submit 1 critical finding\n7. Try generate_demo_script -> should fail (unresolved finding)\n8. Mark finding fixed\n9. generate_demo_script -> succeeds\n```\n\n### Scenario D: Human Rejection\n```\n1-7. Same as A\n8. submit_demo_feedback(failed, \"Bug in form validation\")\n9. Verify ticket stays in human_review\n10. Fix and re-submit\n```\n\n### Scenario E: Composite Tools\n```\n1. start_work (composite) -> creates branch, ralph session, telemetry\n2. Work...\n3. complete_work (composite) -> completes ticket, syncs links, ends sessions\n4. Verify all individual operations occurred\n```\n\n### Scenario F: Mode Switching\n```\n1. set_tool_mode(\"workflow\")\n2. Verify only workflow tools visible\n3. Try admin tool -> should fail or not be visible\n4. set_tool_mode(\"admin\")\n5. Verify admin tools now visible\n```\n\n### Scenario G: Circuit Breaker\n```\n1. Enable tool filtering\n2. Simulate 3 filtering errors\n3. Verify circuit breaker opens\n4. Verify all tools visible (fallback)\n5. Wait for cooldown\n6. Verify filtering re-enabled\n```\n\n## Test Implementation\n\n```typescript\n// e2e/workflow-verification.test.ts\ndescribe(\"Critical Workflow Verification\", () => {\n  describe(\"Scenario A: Happy Path (Branch Mode)\", () => {\n    it(\"completes full ticket lifecycle\", async () => {\n      // Setup\n      const project = await createTestProject();\n      const ticket = await createTestTicket(project.id);\n      \n      // Start work\n      const startResult = await mcpCall(\"start_ticket_work\", { ticketId: ticket.id });\n      expect(startResult.branchName).toMatch(/^feature\\//);\n      expect(await getTicketStatus(ticket.id)).toBe(\"in_progress\");\n      \n      // ... continue through all steps\n    });\n  });\n});\n```\n\n## Acceptance Criteria\n\n- [ ] All 9 critical workflows have E2E tests\n- [ ] Tests cover branch mode and worktree mode\n- [ ] Tests cover review iteration scenarios\n- [ ] Tests cover human rejection scenarios\n- [ ] Tests verify composite tools\n- [ ] Tests verify mode switching\n- [ ] Tests verify circuit breaker\n- [ ] All tests pass in CI\n- [ ] Test report shows coverage of critical paths\n\n## Dependencies\n\n- Should run AFTER all other tickets in epic are complete\n- Serves as final validation before release",
+      "priority": "high",
+      "tags": [
+        "testing",
+        "e2e",
+        "verification",
+        "workflow",
+        "quality"
+      ]
+    },
+    {
+      "id": "4a51a60a-dc83-4e1f-96c4-92e0c8142532",
+      "title": "Update VS Code configuration to use full AI customization features",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`.github/copilot-instructions.md` with workflow instructions",
+        "`.github/skills/` with next-task, review, demo, workflow skills",
+        "`.github/agents/` with 3 review agents",
+        "`.github/prompts/` with start-work, complete-work prompts",
+        "`.vscode/mcp.json` with modular server configs",
+        "Skills work with GitHub Copilot in VS Code",
+        "Agents can be invoked from chat",
+        "MCP tools accessible in chat",
+        "Documentation explains VS Code-specific setup"
+      ],
+      "references": [
+        "VS Code Custom Instructions: https://code.visualstudio.com/docs/copilot/customization/custom-instructions",
+        "VS Code Agent Skills: https://code.visualstudio.com/docs/copilot/customization/agent-skills",
+        "VS Code Custom Agents: https://code.visualstudio.com/docs/copilot/customization/custom-agents",
+        "VS Code Prompt Files: https://code.visualstudio.com/docs/copilot/customization/prompt-files",
+        "VS Code MCP Servers: https://code.visualstudio.com/docs/copilot/customization/mcp-servers"
+      ],
+      "description": "## Summary\n\nBased on VS Code documentation review, VS Code has **near-parity** with Claude Code for AI customization. Update the VS Code configuration to use all available features.\n\n## VS Code AI Customization Features (Discovered)\n\n| Feature | VS Code Location | Claude Code Equivalent |\n|---------|-----------------|----------------------|\n| **Custom Instructions** | `.github/copilot-instructions.md` | `CLAUDE.md` |\n| **Conditional Instructions** | `.github/instructions/*.instructions.md` | `.claude/instructions/` |\n| **Agent Skills** | `.github/skills/*/SKILL.md` | `.claude/skills/*/SKILL.md` ✅ Same format! |\n| **Custom Agents** | `.github/agents/*.agent.md` | `.claude/agents/` |\n| **Prompt Files** | `.github/prompts/*.prompt.md` | Commands |\n| **MCP Servers** | `.vscode/mcp.json` | `.mcp.json` |\n| **AGENTS.md** | `.github/AGENTS.md` | `AGENTS.md` |\n| **Hooks** | ❌ Not supported | ✅ Full support |\n\n## Target VS Code Structure\n\n```\n.github/\n├── copilot-instructions.md          # Main instructions (like CLAUDE.md)\n├── instructions/\n│   ├── brain-dump-workflow.instructions.md  # Workflow guidance\n│   └── coding-standards.instructions.md     # Code quality rules\n├── skills/\n│   ├── next-task/SKILL.md           # /next-task skill\n│   ├── review/SKILL.md              # /review skill\n│   ├── demo/SKILL.md                # /demo skill\n│   └── brain-dump-workflow/SKILL.md # Main workflow skill\n├── agents/\n│   ├── code-reviewer.agent.md       # Code review agent\n│   ├── silent-failure-hunter.agent.md\n│   └── code-simplifier.agent.md\n├── prompts/\n│   ├── start-work.prompt.md         # /start-work prompt\n│   ├── complete-work.prompt.md      # /complete-work prompt\n│   └── review.prompt.md             # /review prompt\n└── AGENTS.md                        # Multi-agent workflow guide\n\n.vscode/\n├── mcp.json                         # MCP server configuration\n└── settings.json                    # VS Code settings (if needed)\n```\n\n## copilot-instructions.md Content\n\n```markdown\n# Brain Dump Workflow Instructions\n\n## Ticket Workflow Status Flow\n\nbacklog → ready → in_progress → ai_review → human_review → done\n\n## Required MCP Tools\n\nWhen working on tickets, use these Brain Dump MCP tools:\n\n- `start_ticket_work` - Begin work on a ticket (creates branch, sets status)\n- `complete_ticket_work` - Finish implementation (moves to ai_review)\n- `add_ticket_comment` - Add work summaries and progress notes\n- `submit_review_finding` - Report issues found during review\n- `generate_demo_script` - Create manual test steps for human review\n\n## Review Requirements\n\nBefore marking work complete:\n1. Run `pnpm type-check`\n2. Run `pnpm lint`\n3. Run `pnpm test`\n4. Use code-reviewer agent for code review\n5. Fix all critical/major findings\n\n## DO/DON'T Guidelines\n\n[Adapted from CLAUDE.md - concise version for Copilot]\n```\n\n## Skills Format (Same as Claude Code!)\n\n```markdown\n---\nname: next-task\ndescription: Select the next ticket to work on based on priority and dependencies\n---\n\nWhen asked to select the next task or what to work on next:\n\n1. Call `list_tickets({ status: 'ready', limit: 10 })`\n2. Evaluate by:\n   - Priority (high > medium > low)\n   - Dependencies (unblocked tickets first)\n   - Epic context (continue current epic if possible)\n3. Present top 3 recommendations with rationale\n4. Once selected, call `start_ticket_work({ ticketId })`\n```\n\n## Agent Format\n\n```markdown\n---\nname: code-reviewer\ndescription: Reviews code for bugs, security issues, and best practices\ntools:\n  - brain-dump-core/*\n  - brain-dump-workflow/*\nmcp-servers:\n  brain-dump-core:\n    command: node\n    args: [\"~/.brain-dump/mcp-server/index-core.js\"]\n---\n\n# Code Reviewer Agent\n\nYou are a senior code reviewer. When reviewing code:\n\n1. Check for logic errors and bugs\n2. Identify security vulnerabilities\n3. Verify error handling is complete\n4. Check adherence to project conventions in CLAUDE.md\n\nReport findings using `submit_review_finding` tool with appropriate severity.\n```\n\n## MCP Configuration (.vscode/mcp.json)\n\n```json\n{\n  \"servers\": {\n    \"brain-dump-core\": {\n      \"type\": \"stdio\",\n      \"command\": \"node\",\n      \"args\": [\"${userHome}/.brain-dump/mcp-server/index-core.js\"]\n    },\n    \"brain-dump-workflow\": {\n      \"type\": \"stdio\",\n      \"command\": \"node\",\n      \"args\": [\"${userHome}/.brain-dump/mcp-server/index-workflow.js\"]\n    }\n  }\n}\n```\n\n## Key Difference from Claude Code\n\nVS Code lacks **hooks** for shell-based enforcement. Workflow guidance must come from:\n- Instructions (loaded automatically)\n- Skills (loaded contextually)\n- Agents (invoked for specific tasks)\n\nState enforcement relies on MCP tool preconditions rather than PreToolUse hooks.\n\n## Acceptance Criteria\n\n- [ ] `.github/copilot-instructions.md` with workflow instructions\n- [ ] `.github/skills/` with next-task, review, demo, workflow skills\n- [ ] `.github/agents/` with 3 review agents\n- [ ] `.github/prompts/` with start-work, complete-work prompts\n- [ ] `.vscode/mcp.json` with modular server configs\n- [ ] Skills work with GitHub Copilot in VS Code\n- [ ] Agents can be invoked from chat\n- [ ] MCP tools accessible in chat\n- [ ] Documentation explains VS Code-specific setup\n\n## References\n\n- VS Code Custom Instructions: https://code.visualstudio.com/docs/copilot/customization/custom-instructions\n- VS Code Agent Skills: https://code.visualstudio.com/docs/copilot/customization/agent-skills\n- VS Code Custom Agents: https://code.visualstudio.com/docs/copilot/customization/custom-agents\n- VS Code Prompt Files: https://code.visualstudio.com/docs/copilot/customization/prompt-files\n- VS Code MCP Servers: https://code.visualstudio.com/docs/copilot/customization/mcp-servers",
+      "priority": "medium",
+      "tags": [
+        "vscode",
+        "copilot",
+        "skills",
+        "agents",
+        "mcp",
+        "configuration"
+      ]
+    },
+    {
+      "id": "7928387c-ed50-49b4-afc7-bfb228da06f1",
+      "title": "Create comprehensive OpenCode configuration with plugins, agents, and skills",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`.opencode/opencode.json` with MCP server configs",
+        "`.opencode/agents/` with 3 review agents in markdown",
+        "`.opencode/skills/` with next-task, review, demo, workflow skills",
+        "`.opencode/plugins/state-enforcement/` with hook implementation",
+        "`.opencode/plugins/brain-dump-workflow/` with telemetry hooks",
+        "`AGENTS.md` with workflow instructions (or symlink to CLAUDE.md)",
+        "Skills work with skill tool invocation",
+        "Plugins install dependencies correctly",
+        "State enforcement hooks block writes in wrong state",
+        "Telemetry captured for tool usage",
+        "Documentation explains OpenCode-specific setup"
+      ],
+      "references": [
+        "OpenCode MCP Servers: https://opencode.ai/docs/mcp-servers/",
+        "OpenCode Skills: https://opencode.ai/docs/skills/",
+        "OpenCode Agents: https://opencode.ai/docs/agents/",
+        "OpenCode Plugins: https://opencode.ai/docs/plugins/",
+        "OpenCode Rules: https://opencode.ai/docs/rules/",
+        "OpenCode Custom Tools: https://opencode.ai/docs/custom-tools/"
+      ],
+      "description": "## Summary\n\nBased on OpenCode documentation review, OpenCode has **feature parity with Claude Code** including plugins with hooks! Create comprehensive OpenCode configuration.\n\n## OpenCode Capabilities (Discovered)\n\n| Feature | OpenCode Location | Claude Code Equivalent |\n|---------|------------------|----------------------|\n| **Rules** | `AGENTS.md` or `CLAUDE.md` | `CLAUDE.md` ✅ Same! |\n| **Skills** | `.opencode/skills/*/SKILL.md` | `.claude/skills/*/SKILL.md` ✅ Same format! |\n| **Agents** | `.opencode/agents/*.md` | `.claude/agents/` ✅ Similar |\n| **MCP Servers** | `opencode.json` under `mcp` | `.mcp.json` |\n| **Plugins** | `.opencode/plugins/` | `.claude/plugins/` ✅ Similar! |\n| **Custom Tools** | `.opencode/tools/` | N/A (uses MCP instead) |\n| **Hooks** | Plugins with `tool.execute.before/after` | Shell-based hooks ✅ Equivalent! |\n\n## Key Discovery: OpenCode Has Plugin Hooks!\n\nOpenCode plugins support event hooks that provide equivalent functionality to Claude Code hooks:\n\n```typescript\n// OpenCode plugin with hooks\nexport default function(context) {\n  return {\n    hooks: {\n      \"tool.execute.before\": async (event) => {\n        // PreToolUse equivalent - can block or modify\n      },\n      \"tool.execute.after\": async (event) => {\n        // PostToolUse equivalent\n      },\n      \"session.created\": async (event) => {\n        // SessionStart equivalent\n      }\n    }\n  }\n}\n```\n\n## Target OpenCode Structure\n\n```\n.opencode/\n├── opencode.json                    # Main config file\n├── agents/\n│   ├── code-reviewer.md             # Code review agent\n│   ├── silent-failure-hunter.md     # Error handling agent\n│   └── code-simplifier.md           # Simplification agent\n├── skills/\n│   ├── next-task/SKILL.md           # /next-task skill\n│   ├── review/SKILL.md              # /review skill\n│   ├── demo/SKILL.md                # /demo skill\n│   └── brain-dump-workflow/SKILL.md # Main workflow skill\n├── plugins/\n│   ├── brain-dump-workflow/\n│   │   ├── index.ts                 # Plugin entry point\n│   │   └── package.json             # Dependencies\n│   └── state-enforcement/\n│       └── index.ts                 # State enforcement hooks\n├── tools/\n│   └── brain-dump-shortcuts.ts      # Custom composite tools (optional)\n└── package.json                     # Plugin dependencies\n\nAGENTS.md                            # Project rules (or symlink to CLAUDE.md)\n```\n\n## opencode.json Configuration\n\n```json\n{\n  \"mcp\": {\n    \"brain-dump-core\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"~/.brain-dump/mcp-server/index-core.js\"],\n      \"enabled\": true\n    },\n    \"brain-dump-workflow\": {\n      \"type\": \"local\",\n      \"command\": [\"node\", \"~/.brain-dump/mcp-server/index-workflow.js\"],\n      \"enabled\": true\n    }\n  },\n  \"agent\": {\n    \"build\": {\n      \"tools\": {\n        \"brain-dump-core*\": true,\n        \"brain-dump-workflow*\": true\n      }\n    },\n    \"code-reviewer\": {\n      \"mode\": \"subagent\",\n      \"description\": \"Reviews code for bugs and best practices\",\n      \"prompt\": \"{file:.opencode/agents/code-reviewer.md}\",\n      \"tools\": {\n        \"brain-dump-core*\": true,\n        \"edit\": false,\n        \"write\": false\n      }\n    }\n  },\n  \"instructions\": [\"CLAUDE.md\"]\n}\n```\n\n## Plugin: State Enforcement\n\n```typescript\n// .opencode/plugins/state-enforcement/index.ts\nimport { plugin } from \"@opencode-ai/plugin\"\n\nexport default plugin((context) => ({\n  hooks: {\n    \"tool.execute.before\": async (event) => {\n      // Check ralph-state.json before allowing writes\n      if ([\"write\", \"edit\"].includes(event.tool)) {\n        const state = await readRalphState(context.worktree)\n        if (state && ![\"implementing\", \"testing\", \"committing\"].includes(state.currentState)) {\n          return {\n            blocked: true,\n            message: `Cannot write in '${state.currentState}' state. Call update_session_state first.`\n          }\n        }\n      }\n    },\n    \"session.created\": async (event) => {\n      // Auto-start telemetry session\n      const ticketId = await detectActiveTicket(context.worktree)\n      if (ticketId) {\n        console.log(`Detected active ticket: ${ticketId}`)\n        // Prompt to start telemetry\n      }\n    }\n  }\n}))\n```\n\n## Plugin: Telemetry Capture\n\n```typescript\n// .opencode/plugins/brain-dump-workflow/index.ts\nimport { plugin } from \"@opencode-ai/plugin\"\n\nexport default plugin((context) => ({\n  hooks: {\n    \"tool.execute.before\": async (event) => {\n      // Log tool start\n      await logToolEvent(context.sessionID, \"start\", event.tool)\n    },\n    \"tool.execute.after\": async (event) => {\n      // Log tool end with duration\n      await logToolEvent(context.sessionID, \"end\", event.tool, event.duration)\n    }\n  }\n}))\n```\n\n## Skills (Same Format as Claude Code!)\n\n```markdown\n---\nname: next-task\ndescription: Select the next ticket to work on based on priority and dependencies\n---\n\nWhen asked to select the next task or what to work on next:\n\n1. Call `brain-dump-core_list_tickets({ status: 'ready', limit: 10 })`\n2. Evaluate by:\n   - Priority (high > medium > low)\n   - Dependencies (unblocked tickets first)\n   - Epic context (continue current epic if possible)\n3. Present top 3 recommendations with rationale\n4. Once selected, call `brain-dump-workflow_start_ticket_work({ ticketId })`\n```\n\n## Agent Format (Markdown)\n\n```markdown\n# Code Reviewer\n\nReviews code for bugs, security issues, and best practices.\n\n## Role\nYou are a senior code reviewer. When reviewing code:\n1. Check for logic errors and bugs\n2. Identify security vulnerabilities\n3. Verify error handling is complete\n4. Check adherence to project conventions\n\n## Tool Usage\nReport findings using `brain-dump-workflow_submit_review_finding` with:\n- severity: critical, major, minor, suggestion\n- category: type-safety, error-handling, security, etc.\n- description: Clear explanation of the issue\n- suggestedFix: How to fix it\n```\n\n## Key Differences from Claude Code\n\n| Aspect | Claude Code | OpenCode |\n|--------|-------------|----------|\n| Hooks | Shell scripts | TypeScript plugins |\n| MCP config | `.mcp.json` | `opencode.json` under `mcp` |\n| Tool naming | `mcp__brain-dump__tool` | `brain-dump-core_tool` |\n| Plugin format | plugin.json manifest | TypeScript module export |\n\n## Acceptance Criteria\n\n- [ ] `.opencode/opencode.json` with MCP server configs\n- [ ] `.opencode/agents/` with 3 review agents in markdown\n- [ ] `.opencode/skills/` with next-task, review, demo, workflow skills\n- [ ] `.opencode/plugins/state-enforcement/` with hook implementation\n- [ ] `.opencode/plugins/brain-dump-workflow/` with telemetry hooks\n- [ ] `AGENTS.md` with workflow instructions (or symlink to CLAUDE.md)\n- [ ] Skills work with skill tool invocation\n- [ ] Plugins install dependencies correctly\n- [ ] State enforcement hooks block writes in wrong state\n- [ ] Telemetry captured for tool usage\n- [ ] Documentation explains OpenCode-specific setup\n\n## References\n\n- OpenCode MCP Servers: https://opencode.ai/docs/mcp-servers/\n- OpenCode Skills: https://opencode.ai/docs/skills/\n- OpenCode Agents: https://opencode.ai/docs/agents/\n- OpenCode Plugins: https://opencode.ai/docs/plugins/\n- OpenCode Rules: https://opencode.ai/docs/rules/\n- OpenCode Custom Tools: https://opencode.ai/docs/custom-tools/",
+      "priority": "medium",
+      "tags": [
         "opencode",
-        "critical"
+        "plugins",
+        "skills",
+        "agents",
+        "mcp",
+        "hooks",
+        "configuration"
+      ]
+    },
+    {
+      "id": "0e3ab913-ebff-418a-9732-948e31fbc115",
+      "title": "Configure Cursor with Full Universal Quality Workflow Support",
+      "passes": false,
+      "overview": "Configure Cursor IDE with complete Universal Quality Workflow support, leveraging Cursor's **full feature parity** with Claude Code including hooks, skills, subagents, rules, MCP, and commands.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [
+        {
+          "step": 1,
+          "description": "Hooks Configuration (`.cursor/hooks.json`)",
+          "files": [],
+          "codeTemplate": "{\n  \"version\": 1,\n  \"hooks\": {\n    \"preToolUse\": [\n      {\n        \"matcher\": \"Write|Edit\",\n        \"command\": \"$HOME/.cursor/hooks/enforce-state-before-write.sh\"\n      },\n      {\n        \"matcher\": \"Bash(git push:*)\",\n        \"command\": \"$HOME/.cursor/hooks/enforce-review-before-push.sh\"\n      }\n    ],\n    \"postToolUse\": [\n      {\n        \"matcher\": \"mcp__brain-dump__start_ticket_work\",\n        \"command\": \"$HOME/.cursor/hooks/create-pr-on-ticket-start.sh\"\n      },\n      {\n        \"matcher\": \"Bash(git commit:*)\",\n        \"command\": \"$HOME/.cursor/hooks/link-commit-to-ticket.sh\"\n      },\n      {\n        \"matcher\": \"Bash(gh pr create:*)\",\n        \"command\": \"$HOME/.cursor/hooks/spawn-after-pr.sh\"\n      }\n    ],\n    \"sessionStart\": [\n      {\n        \"command\": \"$HOME/.cursor/hooks/start-telemetry-session.sh\"\n      }\n    ],\n    \"sessionEnd\": [\n      {\n        \"command\": \"$HOME/.cursor/hooks/end-telemetry-session.sh\"\n      }\n    ]\n  }\n}"
+        },
+        {
+          "step": 2,
+          "description": "MCP Configuration (`.cursor/mcp.json`)",
+          "files": [],
+          "codeTemplate": "{\n  \"mcpServers\": {\n    \"brain-dump\": {\n      \"command\": \"node\",\n      \"args\": [\"/path/to/brain-dump/mcp-server/index.js\"],\n      \"env\": {\n        \"LOG_LEVEL\": \"info\"\n      }\n    }\n  }\n}"
+        },
+        {
+          "step": 3,
+          "description": "Skills (Same format as Claude Code)",
+          "files": []
+        },
+        {
+          "step": 4,
+          "description": "Agents (Same format as Claude Code)",
+          "files": []
+        },
+        {
+          "step": 5,
+          "description": "Commands (Cursor-specific)",
+          "files": [],
+          "codeTemplate": "# .cursor/commands/start-work.md\n---\nname: start-work\ndescription: Start work on a ticket\n---\nCall mcp__brain-dump__start_ticket_work with the ticket ID to begin work.\nThis will create a branch, set status to in_progress, and start telemetry."
+        },
+        {
+          "step": 6,
+          "description": "Rules (Cursor-specific)",
+          "files": []
+        },
+        {
+          "step": 6,
+          "description": "Rules (Cursor-specific)",
+          "files": []
+        }
+      ],
+      "acceptanceCriteria": [
+        "`.cursor/hooks.json` configured with all state enforcement hooks",
+        "`.cursor/mcp.json` configured with brain-dump MCP server",
+        "Skills copied/symlinked from `.claude/skills/`",
+        "Agents copied/symlinked from `.claude/agents/`",
+        "Commands created for common workflow operations",
+        "Rules configured for workflow guidance",
+        "Verified hooks fire correctly (test with Write tool)",
+        "Verified MCP tools accessible in Cursor",
+        "Verified skills load on-demand",
+        "Documented setup in README or install script"
+      ],
+      "references": [],
+      "description": "## Overview\n\nConfigure Cursor IDE with complete Universal Quality Workflow support, leveraging Cursor's **full feature parity** with Claude Code including hooks, skills, subagents, rules, MCP, and commands.\n\n## Key Discovery\n\nCursor has **FULL hook support** - unlike our initial assumption, Cursor supports:\n- `preToolUse`, `postToolUse`, `postToolUseFailure`\n- `sessionStart`, `sessionEnd`\n- `beforeShellExecution`, `afterShellExecution`\n- `beforeMCPExecution`, `afterMCPExecution`\n\nThis means ALL Brain Dump workflows including state enforcement can work in Cursor!\n\n## Target Structure\n\n```\n.cursor/\n├── hooks.json                         # Full hook configuration\n├── mcp.json                           # MCP server configuration\n├── skills/\n│   ├── next-task/SKILL.md\n│   ├── review/SKILL.md\n│   ├── review-ticket/SKILL.md\n│   └── brain-dump-workflow/SKILL.md\n├── agents/\n│   ├── code-reviewer.md\n│   ├── silent-failure-hunter.md\n│   └── code-simplifier.md\n├── commands/\n│   ├── start-work.md\n│   └── complete-work.md\n└── rules/\n    ├── brain-dump-workflow.md\n    └── testing-philosophy.md\n```\n\n## Implementation Tasks\n\n### 1. Hooks Configuration (`.cursor/hooks.json`)\n\n```json\n{\n  \"version\": 1,\n  \"hooks\": {\n    \"preToolUse\": [\n      {\n        \"matcher\": \"Write|Edit\",\n        \"command\": \"$HOME/.cursor/hooks/enforce-state-before-write.sh\"\n      },\n      {\n        \"matcher\": \"Bash(git push:*)\",\n        \"command\": \"$HOME/.cursor/hooks/enforce-review-before-push.sh\"\n      }\n    ],\n    \"postToolUse\": [\n      {\n        \"matcher\": \"mcp__brain-dump__start_ticket_work\",\n        \"command\": \"$HOME/.cursor/hooks/create-pr-on-ticket-start.sh\"\n      },\n      {\n        \"matcher\": \"Bash(git commit:*)\",\n        \"command\": \"$HOME/.cursor/hooks/link-commit-to-ticket.sh\"\n      },\n      {\n        \"matcher\": \"Bash(gh pr create:*)\",\n        \"command\": \"$HOME/.cursor/hooks/spawn-after-pr.sh\"\n      }\n    ],\n    \"sessionStart\": [\n      {\n        \"command\": \"$HOME/.cursor/hooks/start-telemetry-session.sh\"\n      }\n    ],\n    \"sessionEnd\": [\n      {\n        \"command\": \"$HOME/.cursor/hooks/end-telemetry-session.sh\"\n      }\n    ]\n  }\n}\n```\n\n### 2. MCP Configuration (`.cursor/mcp.json`)\n\n```json\n{\n  \"mcpServers\": {\n    \"brain-dump\": {\n      \"command\": \"node\",\n      \"args\": [\"/path/to/brain-dump/mcp-server/index.js\"],\n      \"env\": {\n        \"LOG_LEVEL\": \"info\"\n      }\n    }\n  }\n}\n```\n\n### 3. Skills (Same format as Claude Code)\n\nCopy/symlink from `.claude/skills/` or create in `.cursor/skills/`:\n- `next-task/SKILL.md` - Intelligent ticket selection\n- `review/SKILL.md` - Run review agents in parallel\n- `review-ticket/SKILL.md` - Review and submit findings\n- `brain-dump-workflow/SKILL.md` - Full workflow guidance\n\n### 4. Agents (Same format as Claude Code)\n\nCopy/symlink from `.claude/agents/` or create in `.cursor/agents/`:\n- `code-reviewer.md` - Code quality review\n- `silent-failure-hunter.md` - Error handling review\n- `code-simplifier.md` - Code simplification review\n\n### 5. Commands (Cursor-specific)\n\nCreate workflow shortcuts in `.cursor/commands/`:\n\n```markdown\n# .cursor/commands/start-work.md\n---\nname: start-work\ndescription: Start work on a ticket\n---\nCall mcp__brain-dump__start_ticket_work with the ticket ID to begin work.\nThis will create a branch, set status to in_progress, and start telemetry.\n```\n\n### 6. Rules (Cursor-specific)\n\nCreate rules in `.cursor/rules/`:\n- `brain-dump-workflow.md` - Universal Quality Workflow guidance\n- `testing-philosophy.md` - Kent C. Dodds testing patterns\n\nOr use `AGENTS.md` in project root (Cursor supports this).\n\n## Acceptance Criteria\n\n- [ ] `.cursor/hooks.json` configured with all state enforcement hooks\n- [ ] `.cursor/mcp.json` configured with brain-dump MCP server\n- [ ] Skills copied/symlinked from `.claude/skills/`\n- [ ] Agents copied/symlinked from `.claude/agents/`\n- [ ] Commands created for common workflow operations\n- [ ] Rules configured for workflow guidance\n- [ ] Verified hooks fire correctly (test with Write tool)\n- [ ] Verified MCP tools accessible in Cursor\n- [ ] Verified skills load on-demand\n- [ ] Documented setup in README or install script\n\n## Notes\n\n- Cursor supports both `.cursor/` AND `.claude/` directories for skills/agents\n- Hook scripts can be shared between Claude Code and Cursor\n- Consider adding `setup-cursor.sh` script to automate configuration\n- Update capability matrix in docs to show Cursor has FULL parity",
+      "priority": "high",
+      "tags": [
+        "cursor",
+        "configuration",
+        "hooks",
+        "skills",
+        "mcp",
+        "multi-provider"
       ]
     }
   ],
@@ -876,7 +1137,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-26T20:32:41.315Z",
-  "epicTitle": "Universal Quality Workflow - Phase 2: Activation & Integration",
-  "epicDescription": "## Overview\n\nPhase 1 implemented the infrastructure (MCP tools, database tables, hooks, UI components). Phase 2 activates the workflow by:\n\n1. Installing and configuring telemetry hooks properly\n2. Making Ralph use the workflow it implements\n3. Enforcing PR workflow (branch + PR before merge to main)\n4. Verifying end-to-end data capture\n\n**CRITICAL: All Phase 2 tickets must be worked on in a single branch/PR.**\n- Use `start_epic_work` to create epic branch: `feature/epic-{epic-id}-{slug}`\n- All tickets in this epic will use the same branch\n- Single PR for the entire epic\n\n## Reference Spec\n`plans/specs/universal-quality-workflow.md` (3,387 lines)\n\n## Gap Analysis Evidence\n- Telemetry sessions: 0\n- Telemetry events: 0\n- Review findings: 0\n- Demo scripts: 0\n\nAll infrastructure exists but was never activated during Phase 1."
+  "generatedAt": "2026-01-28T00:13:23.415Z",
+  "epicTitle": "MCP Tool Consolidation and Context-Aware Filtering",
+  "epicDescription": "## Goal\n\nReduce MCP tool count from 65 to manageable levels while **maintaining ALL functionality** for the Universal Quality Workflow across ALL providers (Claude Code, Cursor, VS Code, OpenCode).\n\n## Multi-Provider Capability Matrix (CORRECTED)\n\n| Feature | Claude Code | Cursor | OpenCode | VS Code |\n|---------|-------------|--------|----------|---------|\n| **Instructions** | `CLAUDE.md` | `.cursor/rules/` or `AGENTS.md` | `AGENTS.md` | `.github/copilot-instructions.md` |\n| **Skills** | `.claude/skills/` | `.cursor/skills/` (same format!) | `.opencode/skills/` (same format!) | `.github/skills/` (same format!) |\n| **Agents** | `.claude/agents/` | `.cursor/agents/` | `.opencode/agents/` | `.github/agents/` |\n| **MCP** | `.mcp.json` | `.cursor/mcp.json` | `opencode.json` | `.vscode/mcp.json` |\n| **Hooks** | Shell scripts ✅ | Shell scripts ✅ | TypeScript plugins ✅ | ❌ None |\n| **Commands** | `.claude/commands/` | `.cursor/commands/` | N/A | Prompt files |\n\n**Key Discovery**: Cursor has FULL hook support (`preToolUse`, `postToolUse`, `sessionStart`, `sessionEnd`, etc.), making it fully equivalent to Claude Code for workflow enforcement!\n\n## Revised Architecture (Multi-Provider)\n\nBased on analysis, the solution combines multiple strategies:\n\n### 1. Modular MCP Servers (Universal - Works Everywhere)\n\nSplit the monolithic MCP server into purpose-specific servers:\n\n| Server | Tools | When Used |\n|--------|-------|-----------|\n| `brain-dump-core` | ~10 essential tools | Always configured |\n| `brain-dump-workflow` | ~8 workflow tools | When working on tickets |\n| `brain-dump-telemetry` | ~7 telemetry tools | Via hooks (internal) |\n| `brain-dump-admin` | ~10 compliance tools | Admin/enterprise only |\n\n### 2. Composite Tools (Reduce Count)\n\nCreate higher-level tools that combine common operations:\n\n| Composite Tool | Replaces |\n|---------------|----------|\n| `start_work` | `start_ticket_work` + `create_ralph_session` + `start_telemetry_session` |\n| `complete_work` | `complete_ticket_work` + `sync_ticket_links` + `end_telemetry_session` |\n| `submit_review` | Combines review finding workflow |\n\nTarget: 65 → ~25-30 composite tools total\n\n### 3. Claude Code Plugin (Rich Experience)\n\nPackage as plugin with:\n- Skills for workflow guidance (on-demand, no token cost until invoked)\n- Agents for autonomous work\n- Hooks for state enforcement\n- MCP server configs\n\n### 4. Provider-Specific Configs\n\nCreate configs in the repo for each provider:\n- `.claude/plugins/brain-dump-workflow/` - Full plugin\n- `.cursor/` - Hooks + MCP + skills + agents + commands\n- `.opencode/` - Plugins with hooks + MCP + skills\n- `.github/` (VS Code) - MCP + skills + agents (no hooks)\n\n## Critical Workflow Requirements\n\n**ALL of these must work after consolidation:**\n\n1. **Start Ticket** - Create branch/worktree, set status, begin session\n2. **Coding** - Write/edit code with proper state tracking\n3. **Commit/Push** - Link commits to tickets, create PRs\n4. **AI Review** - Run review agents, submit findings\n5. **Fix Issues** - Mark findings fixed, iterate\n6. **Human Review** - Generate demo script, await approval\n7. **Done** - Complete ticket, reconcile learnings\n8. **AI Comments** - Add work summaries, progress updates\n9. **Telemetry** - Capture tool usage, prompts, session data\n\n## Success Metrics\n\n- Tool count: 65 → 25-30 (via composites) → 10-15 visible per context (via filtering)\n- Token reduction: ~60% fewer tokens for tool descriptions\n- LLM selection accuracy: 60-70% → 85-90%\n- Cross-provider parity: Same workflows work in all 4 environments\n\n## Agent Review Findings (Incorporated)\n\nFrom MCP Engineer, Architect, LLM Specialist, DevOps reviews:\n- Use explicit mode selection, not just auto-detection\n- Add shadow mode before actual filtering\n- Add `tools/list_changed` notification support\n- Add circuit breakers and feature flags\n- Shorten tool descriptions to <150 tokens each\n- Add disambiguation between similar tools"
 }
