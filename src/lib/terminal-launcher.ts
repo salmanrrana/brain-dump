@@ -129,16 +129,17 @@ function detectTerminal(): string {
   return "unknown";
 }
 
-function launchGhostty(projectPath: string, claudeCodePath: string): Promise<LaunchResult> {
+function launchGhostty(_projectPath: string, claudeCodePath: string): Promise<LaunchResult> {
   return new Promise((resolve) => {
-    const child = spawn(
-      "open",
-      ["-a", "Ghostty", "--args", "-w", projectPath, "-e", claudeCodePath],
-      {
-        detached: true,
-        stdio: "ignore",
-      }
-    );
+    // On macOS, use 'open -n -a Ghostty --args -e <script>' with minimal args.
+    // The -n flag opens a new instance, and -e executes the script.
+    // The script already cd's to the working directory, so we don't pass -w.
+    // Passing too many args through 'open --args' causes Ghostty to create multiple tabs.
+    // Official docs: https://github.com/ghostty-org/ghostty/discussions/4434
+    const child = spawn("open", ["-n", "-a", "Ghostty", "--args", "-e", claudeCodePath], {
+      detached: true,
+      stdio: "ignore",
+    });
 
     child.on("error", (error) => {
       console.error("Ghostty launch error:", error);
@@ -153,16 +154,13 @@ function launchGhostty(projectPath: string, claudeCodePath: string): Promise<Lau
   });
 }
 
-function launchITerm2(projectPath: string, claudeCodePath: string): Promise<LaunchResult> {
+function launchITerm2(_projectPath: string, claudeCodePath: string): Promise<LaunchResult> {
   return new Promise((resolve) => {
-    const applescript = `
-      tell application "iTerm"
-        create window with default profile
-        tell current session of current window
-          write text "cd ${projectPath.replace(/"/g, '\\"')} && ${claudeCodePath.replace(/"/g, '\\"')}"
-        end tell
-      end tell
-    `;
+    // iTerm2: Use official AppleScript API to create window with command
+    // Official syntax: create window with default profile command "command"
+    // See: https://iterm2.com/documentation-scripting.html
+    const escapedScriptPath = claudeCodePath.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const applescript = `tell application "iTerm" to create window with default profile command "${escapedScriptPath}"`;
 
     const child = spawn("osascript", ["-e", applescript], {
       detached: true,
@@ -182,14 +180,12 @@ function launchITerm2(projectPath: string, claudeCodePath: string): Promise<Laun
   });
 }
 
-function launchTerminalApp(projectPath: string, claudeCodePath: string): Promise<LaunchResult> {
+function launchTerminalApp(_projectPath: string, claudeCodePath: string): Promise<LaunchResult> {
   return new Promise((resolve) => {
-    const applescript = `
-      tell application "Terminal"
-        do script "cd ${projectPath.replace(/"/g, '\\"')} && ${claudeCodePath.replace(/"/g, '\\"')}"
-        activate
-      end tell
-    `;
+    // Terminal.app: Use do script command per Apple's official documentation
+    // See: https://support.apple.com/guide/terminal/automate-tasks-using-applescript-and-terminal-trml1003/mac
+    const escapedScriptPath = claudeCodePath.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const applescript = `tell application "Terminal" to do script "${escapedScriptPath}"`;
 
     const child = spawn("osascript", ["-e", applescript], {
       detached: true,
