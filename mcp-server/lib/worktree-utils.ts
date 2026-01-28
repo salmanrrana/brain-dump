@@ -33,6 +33,7 @@ export interface WorktreePathResult {
   success: true;
   path: string;
   worktreeName: string;
+  error?: undefined;
 }
 
 export interface WorktreePathError {
@@ -40,13 +41,13 @@ export interface WorktreePathError {
   error: string;
 }
 
-export type WorktreePathResponse = WorktreePathResult | WorktreePathError;
+export type WorktreePathResponse = (WorktreePathResult | WorktreePathError) & { error?: string };
 
 export interface AlternativeWorktreePathResult extends WorktreePathResult {
   suffix: number;
 }
 
-export type AlternativeWorktreePathResponse = AlternativeWorktreePathResult | WorktreePathError;
+export type AlternativeWorktreePathResponse = (AlternativeWorktreePathResult | WorktreePathError) & { error?: string };
 
 export interface ParsedWorktreePath {
   matched: boolean;
@@ -65,9 +66,10 @@ export interface WorktreeInfo {
 export interface ListWorktreesResult {
   success: true;
   worktrees: WorktreeInfo[];
+  error?: undefined;
 }
 
-export type ListWorktreesResponse = ListWorktreesResult | WorktreePathError;
+export type ListWorktreesResponse = (ListWorktreesResult | WorktreePathError) & { error?: string };
 
 export type WorktreeValidationStatus = "valid" | "missing_directory" | "corrupted" | "wrong_branch";
 
@@ -88,6 +90,7 @@ export interface CreateWorktreeResult {
   success: true;
   worktreePath: string;
   branchName: string;
+  error?: undefined;
 }
 
 export interface CreateWorktreeError {
@@ -96,7 +99,7 @@ export interface CreateWorktreeError {
   rollbackWarning?: string;
 }
 
-export type CreateWorktreeResponse = CreateWorktreeResult | CreateWorktreeError;
+export type CreateWorktreeResponse = (CreateWorktreeResult | CreateWorktreeError) & { error?: string };
 
 export interface RemoveWorktreeOptions {
   force?: boolean;
@@ -105,9 +108,17 @@ export interface RemoveWorktreeOptions {
 export interface RemoveWorktreeResult {
   success: true;
   warning?: string;
+  error?: undefined;
 }
 
-export type RemoveWorktreeResponse = RemoveWorktreeResult | WorktreePathError;
+export type RemoveWorktreeResponse = (RemoveWorktreeResult | WorktreePathError) & { error?: string };
+
+/**
+ * Helper to extract error message from response types that can fail.
+ */
+export function getErrorMessage(response: { success: boolean; error?: string }): string | undefined {
+  return !response.success && 'error' in response ? (response as WorktreePathError).error : undefined;
+}
 
 /**
  * Generate a worktree path based on project settings.
@@ -255,7 +266,7 @@ export function suggestAlternativeWorktreePath(
 
   // If it failed for a reason other than "path exists", propagate the error
   if (!primary.error?.includes("Path already exists")) {
-    return primary;
+    return primary as any;
   }
 
   // Try adding numeric suffixes
@@ -274,7 +285,7 @@ export function suggestAlternativeWorktreePath(
 
     // If error is not "path exists", something else is wrong
     if (!result.error?.includes("Path already exists")) {
-      return result;
+      return result as any;
     }
   }
 

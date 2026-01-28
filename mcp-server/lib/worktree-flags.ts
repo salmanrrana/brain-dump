@@ -7,7 +7,7 @@
  * - Per-project via projects.default_isolation_mode (not null = opt-in)
  */
 
-import type { Database } from "better-sqlite3";
+import type Database from "better-sqlite3";
 import { log } from "./logging.js";
 
 export interface WorktreeSupportResult {

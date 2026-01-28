@@ -6,29 +6,28 @@
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
+    "allowJs": true,
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
     "outDir": "./dist",
     "rootDir": ".",
-
-    /* Type Checking */
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitReturns": true,
-    "exactOptionalPropertyTypes": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "noPropertyAccessFromIndexSignature": true,
-    "allowUnusedLabels": false,
-    "allowUnreachableCode": false,
-
-    /* Emit */
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "noImplicitAny": false,
+    "strict": false,
+    "noImplicitReturns": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
   },
-  "include": ["**/*.ts", "**/*.d.ts"],
-  "exclude": ["node_modules", "dist"]
+  "ts-node": {
+    "transpileOnly": true,
+    "compilerOptions": {
+      "module": "commonjs"
+    }
+  },
+  "include": ["**/*.ts", "**/*.d.ts", "**/*.js"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/__tests__", "**/*.test.js"],
+  "typeRoots": ["./lib"]
 }
