@@ -22,18 +22,9 @@ import {
   type EnhancedPRDDocument,
 } from "../lib/prd-extraction";
 
-// Import Docker utilities for socket-aware Docker commands
 import { execDockerCommand, getDockerHostEnvValue } from "./docker-utils";
 
-// ============================================================================
-// SHARED WORKFLOW CONSTANTS
-// Extracted to reduce duplication between getRalphPrompt() and generateVSCodeContext()
-// ============================================================================
-
-/**
- * The 4-phase Universal Quality Workflow instructions.
- * Used by both Claude Code (via getRalphPrompt) and VS Code (via generateVSCodeContext).
- */
+// Shared workflow constants used by getRalphPrompt() and generateVSCodeContext()
 const WORKFLOW_PHASES = `
 ### Phase 1: Implementation
 1. **Read PRD** - Check \`plans/prd.json\` for incomplete tickets (\`passes: false\`)
@@ -61,10 +52,6 @@ const WORKFLOW_PHASES = `
 If all tickets are in human_review or done, output: \`PRD_COMPLETE\`
 `;
 
-/**
- * The verification checklist from CLAUDE.md.
- * Used by both getRalphPrompt() and generateVSCodeContext().
- */
 const VERIFICATION_CHECKLIST = `
 ## Verification (from CLAUDE.md)
 
@@ -90,9 +77,6 @@ Before completing ANY ticket, you MUST:
 - Committed with format: \`feat(<ticket-id>): <description>\`
 `;
 
-/**
- * Rules for Ralph workflow.
- */
 const WORKFLOW_RULES = `
 ## Rules
 - ONE ticket per iteration
@@ -103,19 +87,6 @@ const WORKFLOW_RULES = `
 - **NEVER auto-approve tickets** - always stop at human_review
 `;
 
-// ============================================================================
-
-/**
- * Generate enhanced PRD with Loom-style structure.
- * Extracts structured content from ticket descriptions including:
- * - Overview (WHY the feature exists)
- * - Type definitions
- * - Design decisions with rationale
- * - Implementation guides
- * - Acceptance criteria
- * - References to files and docs
- * - Project context from CLAUDE.md
- */
 function generateEnhancedPRD(
   projectName: string,
   projectPath: string,
@@ -130,24 +101,20 @@ function generateEnhancedPRD(
     const tags = safeJsonParse<string[]>(ticket.tags, []);
     const description = ticket.description;
 
-    // Extract structured content from ticket description
     const overview = extractOverview(description);
     const types = extractTypeDefinitions(description);
     const designDecisions = extractDesignDecisions(description);
     const implementationGuide = extractImplementationGuide(description);
     const references = extractReferences(description);
 
-    // Extract acceptance criteria from description, fallback to subtasks
     let acceptanceCriteria = extractAcceptanceCriteria(description);
     if (acceptanceCriteria.length === 0) {
-      // Fallback: use subtasks as acceptance criteria
       const subtasks = safeJsonParse<{ text: string }[]>(ticket.subtasks, []);
       if (subtasks.length > 0) {
         acceptanceCriteria = subtasks.map((st) => st.text || String(st));
       }
     }
 
-    // If still no criteria, provide defaults
     if (acceptanceCriteria.length === 0 && description) {
       acceptanceCriteria = ["Implement as described", "Verify functionality works as expected"];
     }
@@ -192,7 +159,6 @@ function generateEnhancedPRD(
   return result;
 }
 
-// Lean Ralph prompt - MCP tools handle workflow, Ralph focuses on implementation
 function getRalphPrompt(): string {
   return `You are Ralph, an autonomous coding agent. Focus on implementation - MCP tools handle workflow.
 
@@ -355,9 +321,6 @@ When stopping a dev server:
 \`\`\``;
 }
 
-// Generate VS Code context file for Ralph mode
-// This creates a markdown file that Claude in VS Code can read
-// Accepts either legacy PRDDocument or EnhancedPRDDocument
 function generateVSCodeContext(prd: EnhancedPRDDocument): string {
   const incompleteTickets = prd.userStories.filter((story) => !story.passes);
   const completedTickets = prd.userStories.filter((story) => story.passes);
@@ -446,7 +409,6 @@ When stopping a dev server:
 `;
 }
 
-// Write VS Code context file to project
 async function writeVSCodeContext(
   projectPath: string,
   content: string
@@ -471,11 +433,10 @@ async function writeVSCodeContext(
   }
 }
 
-// Resource limit configuration for Docker sandbox
 interface DockerResourceLimits {
-  memory: string; // e.g., "2g" for 2GB
-  cpus: string; // e.g., "1.5" for 1.5 cores
-  pidsLimit: number; // e.g., 256
+  memory: string;
+  cpus: string;
+  pidsLimit: number;
 }
 
 const DEFAULT_RESOURCE_LIMITS: DockerResourceLimits = {
@@ -484,10 +445,8 @@ const DEFAULT_RESOURCE_LIMITS: DockerResourceLimits = {
   pidsLimit: 256,
 };
 
-// Default timeout for Ralph session (1 hour in seconds)
 const DEFAULT_TIMEOUT_SECONDS = 3600;
 
-// Project origin info for Docker label tracking
 interface ProjectOriginInfo {
   projectId: string;
   projectName: string;
@@ -495,7 +454,6 @@ interface ProjectOriginInfo {
   epicTitle?: string | undefined;
 }
 
-// Generate the Ralph bash script (unified for both native and Docker)
 export function generateRalphScript(
   projectPath: string,
   maxIterations: number = 10,
@@ -509,10 +467,8 @@ export function generateRalphScript(
   const imageName = "brain-dump-ralph-sandbox:latest";
   const sandboxHeader = useSandbox ? " (Docker Sandbox)" : "";
 
-  // Docker host setup - export DOCKER_HOST if using non-default socket
   const dockerHostSetup = dockerHostEnv
     ? `
-# Docker socket configuration (Lima/Colima/Rancher/Podman)
 export DOCKER_HOST="${dockerHostEnv}"
 echo -e "\\033[1;33m🐳 Docker Host:\\033[0m ${dockerHostEnv}"
 `
@@ -532,10 +488,8 @@ echo -e "\\033[1;33m📊 Resources:\\033[0m ${resourceLimits.memory} RAM, ${reso
 echo -e "\\033[1;33m⏱️  Timeout:\\033[0m ${timeoutDisplay}"`
     : `echo -e "\\033[1;33m⏱️  Timeout:\\033[0m ${timeoutDisplay}"`;
 
-  // Docker image check (only for sandbox mode)
   const dockerImageCheck = useSandbox
     ? `
-# Check if Docker image exists
 if ! docker image inspect "${imageName}" > /dev/null 2>&1; then
   echo -e "\\033[0;31m❌ Docker image not found: ${imageName}\\033[0m"
   echo "Please build the sandbox image first in Brain Dump settings."
@@ -544,20 +498,12 @@ fi
 `
     : "";
 
-  // Different prompt file location and Claude invocation for sandbox vs native
-  // For native mode, use mktemp -t for cross-platform compatibility (works on both macOS and Linux)
-  // Add error handling to fail fast if temp file creation fails
   const promptFileSetup = useSandbox
     ? `PROMPT_FILE="$PROJECT_PATH/.ralph-prompt.md"`
     : `PROMPT_FILE=$(mktemp -t ralph-prompt) || { echo -e "\\033[0;31m❌ Failed to create temp file\\033[0m"; exit 1; }`;
 
-  // SSH setup for Docker sandbox mode
-  // This allows git push from inside container using host's SSH keys
-  // Note: Lima/Colima on macOS runs Docker in a VM, so we can't directly mount the macOS SSH socket
   const sshAgentSetup = useSandbox
     ? `
-# SSH agent forwarding (if available)
-# Note: With Lima/Colima, the macOS SSH socket isn't accessible from the Docker VM
 SSH_MOUNT_ARGS=""
 USING_VM_DOCKER=false
 
@@ -582,29 +528,21 @@ else
   echo -e "\\033[0;33m  Start with: eval \\$(ssh-agent) && ssh-add\\033[0m"
 fi
 
-# Mount known_hosts to avoid SSH host verification prompts (this should work with Lima too)
 KNOWN_HOSTS_MOUNT=""
 if [ -f "$HOME/.ssh/known_hosts" ]; then
   echo -e "\\033[0;32m✓ Mounting known_hosts for host verification\\033[0m"
   KNOWN_HOSTS_MOUNT="-v $HOME/.ssh/known_hosts:/home/ralph/.ssh/known_hosts:ro"
 fi
 
-# Claude Code config mounts (location varies by platform)
-# IMPORTANT: Only mount the auth file (~/.claude.json), NOT the ~/.claude/ directory
-# Claude needs to write to ~/.claude/ for session data, statsig, todos, debug logs
-# If we mount it as read-only, Claude fails with EROFS errors
-# By only mounting ~/.claude.json, Claude can authenticate but create its own session data
 EXTRA_MOUNTS=()
 CLAUDE_CONFIG_FOUND=false
 
-# Mount only the auth token file, not the entire directory
 if [ -f "$HOME/.claude.json" ]; then
   echo -e "\\033[0;32m✓ Mounting Claude auth from ~/.claude.json\\033[0m"
   EXTRA_MOUNTS+=(-v "$HOME/.claude.json:/home/ralph/.claude.json:ro")
   CLAUDE_CONFIG_FOUND=true
 fi
 
-# Fallback for XDG-style config on Linux - mount settings.json only if it exists
 if [ "$CLAUDE_CONFIG_FOUND" = "false" ]; then
   if [ -f "$HOME/.config/claude-code/settings.json" ]; then
     echo -e "\\033[0;32m✓ Mounting Claude settings from ~/.config/claude-code/settings.json\\033[0m"
@@ -618,21 +556,16 @@ if [ "$CLAUDE_CONFIG_FOUND" = "false" ]; then
   echo -e "\\033[0;33m  Expected: ~/.claude.json or ~/.config/claude-code/settings.json\\033[0m"
 fi
 
-# GitHub CLI config mount (optional)
 if [ -d "$HOME/.config/gh" ]; then
   echo -e "\\033[0;32m✓ Mounting GitHub CLI config\\033[0m"
   EXTRA_MOUNTS+=(-v "$HOME/.config/gh:/home/ralph/.config/gh:ro")
 fi
 
-# API key handling for Docker container
-# Claude stores API key in macOS keychain, which isn't accessible from Docker
-# We need to extract it and pass via environment variable
 ANTHROPIC_API_KEY_ARG=""
 if [ -n "\${ANTHROPIC_API_KEY:-}" ]; then
   echo -e "\\033[0;32m✓ Using ANTHROPIC_API_KEY from environment\\033[0m"
   ANTHROPIC_API_KEY_ARG="-e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY"
 elif command -v security >/dev/null 2>&1; then
-  # macOS: Try to get API key from keychain
   KEYCHAIN_KEY=$(security find-generic-password -s "Claude" -a "$(whoami)" -w 2>/dev/null || true)
   if [ -n "$KEYCHAIN_KEY" ]; then
     echo -e "\\033[0;32m✓ Retrieved Claude API key from macOS keychain\\033[0m"
@@ -648,11 +581,8 @@ fi
 `
     : "";
 
-  // Grace period for container to stop cleanly (30 seconds)
   const stopGracePeriod = 30;
 
-  // Build Docker labels for project origin tracking
-  // These labels allow the UI to display "Started by: [Project] ([Epic])"
   const projectLabels = projectOrigin
     ? `--label "brain-dump.project-id=${projectOrigin.projectId}" \\
     --label "brain-dump.project-name=${projectOrigin.projectName.replace(/"/g, '\\"')}"${
@@ -664,32 +594,10 @@ fi
     } \\`
     : "";
 
-  // AI backend display name
   const aiName = aiBackend === "opencode" ? "OpenCode" : "Claude";
 
-  // Generate the AI invocation command based on backend choice
   const aiInvocation = useSandbox
-    ? `  # Run ${aiName} in Docker container
-  # Claude Code auth is passed via mounted config (platform-dependent location)
-  # SSH agent is forwarded if available (allows git push from container)
-  # known_hosts is mounted read-only to avoid SSH host verification prompts
-  # Port ranges exposed for dev servers:
-  #   8100-8110: Frontend (Vite, Next.js, React)
-  #   8200-8210: Backend (Express, Fastify)
-  #   8300-8310: Storybook, docs
-  #   8400-8410: Databases (exposed for debugging)
-  # Resource limits:
-  #   memory: ${resourceLimits.memory} (prevents OOM on host)
-  #   cpus: ${resourceLimits.cpus} (prevents CPU monopolization)
-  #   pids-limit: ${resourceLimits.pidsLimit} (prevents fork bombs)
-  # Security:
-  #   no-new-privileges: prevents privilege escalation inside container
-  # Timeout:
-  #   stop-timeout: ${stopGracePeriod}s (grace period before SIGKILL)
-  # Labels:
-  #   brain-dump.project-id/project-name: Tracks which project started this container
-  #   brain-dump.epic-id/epic-title: Tracks which epic (if applicable)
-  docker run --rm -it \\
+    ? `  docker run --rm -it \\
     --name "ralph-\${SESSION_ID}" \\
     --network ralph-net \\
     --memory=${resourceLimits.memory} \\
@@ -713,19 +621,14 @@ fi
     "${imageName}" \\
     claude --dangerously-skip-permissions /workspace/.ralph-prompt.md`
     : aiBackend === "opencode"
-      ? `  # Run OpenCode directly with prompt
-  opencode "$PROJECT_PATH" --prompt "$(cat "$PROMPT_FILE")"`
-      : `  # Run Claude in print mode (-p) so it exits after completion
-  # This allows the bash loop to continue to the next iteration
-  claude --dangerously-skip-permissions --output-format text -p "$(cat "$PROMPT_FILE")"`;
+      ? `  opencode "$PROJECT_PATH" --prompt "$(cat "$PROMPT_FILE")"`
+      : `  claude --dangerously-skip-permissions --output-format text -p "$(cat "$PROMPT_FILE")"`;
 
   const iterationLabel = useSandbox ? "(Docker)" : "";
   const endMessage = useSandbox ? "" : `echo "Run again with: $0 <max_iterations>"`;
 
-  // Timeout trap handler - cleans up container and saves progress note
   const timeoutTrapHandler = useSandbox
     ? `
-# Timeout handling for graceful shutdown
 TIMEOUT_REACHED=false
 RALPH_TIMEOUT=${timeoutSeconds}
 
@@ -737,13 +640,11 @@ handle_timeout() {
   echo -e "\\033[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
   echo ""
 
-  # Stop Docker container if running
   if docker ps -q --filter "name=ralph-\${SESSION_ID}" | grep -q .; then
     echo -e "\\033[0;33m🐳 Stopping Ralph container...\\033[0m"
     docker stop "ralph-\${SESSION_ID}" 2>/dev/null || true
   fi
 
-  # Log timeout to progress file
   echo "" >> "$PROGRESS_FILE"
   echo "---" >> "$PROGRESS_FILE"
   echo "" >> "$PROGRESS_FILE"
@@ -756,23 +657,17 @@ handle_timeout() {
   exit 124
 }
 
-# Set up alarm signal handler
 trap handle_timeout ALRM
-
-# Start background timer that will send ALRM after timeout
 (sleep $RALPH_TIMEOUT && kill -ALRM $$ 2>/dev/null) &
 TIMER_PID=$!
 
-# Clean up timer and services file on exit
 cleanup_on_exit() {
   kill $TIMER_PID 2>/dev/null || true
-  # Remove .ralph-services.json to prevent stale data in UI
   rm -f "$PROJECT_PATH/.ralph-services.json" 2>/dev/null || true
 }
 trap cleanup_on_exit EXIT
 `
     : `
-# Timeout handling for graceful shutdown
 TIMEOUT_REACHED=false
 RALPH_TIMEOUT=${timeoutSeconds}
 
@@ -784,7 +679,6 @@ handle_timeout() {
   echo -e "\\033[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
   echo ""
 
-  # Log timeout to progress file
   echo "" >> "$PROGRESS_FILE"
   echo "---" >> "$PROGRESS_FILE"
   echo "" >> "$PROGRESS_FILE"
@@ -797,17 +691,12 @@ handle_timeout() {
   exit 124
 }
 
-# Set up alarm signal handler
 trap handle_timeout ALRM
-
-# Start background timer that will send ALRM after timeout
 (sleep $RALPH_TIMEOUT && kill -ALRM $$ 2>/dev/null) &
 TIMER_PID=$!
 
-# Clean up timer and services file on normal exit
 cleanup_on_exit() {
   kill $TIMER_PID 2>/dev/null || true
-  # Remove .ralph-services.json to prevent stale data in UI
   rm -f "$PROJECT_PATH/.ralph-services.json" 2>/dev/null || true
 }
 trap cleanup_on_exit EXIT
@@ -824,17 +713,14 @@ SESSION_ID="$(date +%s)-$$"
 
 cd "$PROJECT_PATH"
 ${dockerHostSetup}${dockerImageCheck}${sshAgentSetup}
-# Ensure plans directory exists
 mkdir -p "$PROJECT_PATH/plans"
 
-# Initialize progress file if it doesn't exist
 if [ ! -f "$PROGRESS_FILE" ]; then
   echo "# Ralph Progress Log" > "$PROGRESS_FILE"
   echo "# Use this to leave notes for the next iteration" >> "$PROGRESS_FILE"
   echo "" >> "$PROGRESS_FILE"
 fi
 
-# Rotate progress file if it exceeds 500 lines
 rotate_progress_file() {
   if [ -f "$PROGRESS_FILE" ]; then
     LINE_COUNT=$(wc -l < "$PROGRESS_FILE" | tr -d ' ')
@@ -844,12 +730,9 @@ rotate_progress_file() {
       TIMESTAMP=$(date '+%Y%m%d-%H%M%S')
       ARCHIVE_FILE="$ARCHIVE_DIR/progress-$TIMESTAMP.txt"
 
-      # Keep last 100 lines in active file, archive the rest
       LINES_TO_ARCHIVE=$((LINE_COUNT - 100))
       head -n "$LINES_TO_ARCHIVE" "$PROGRESS_FILE" > "$ARCHIVE_FILE"
       tail -n 100 "$PROGRESS_FILE" > "$PROGRESS_FILE.tmp"
-
-      # Add header to rotated file
       {
         echo "# Ralph Progress Log"
         echo "# Previous entries archived to: archives/progress-$TIMESTAMP.txt"
@@ -863,7 +746,6 @@ rotate_progress_file() {
   fi
 }
 
-# Run rotation before starting
 rotate_progress_file
 ${timeoutTrapHandler}
 echo ""
@@ -885,7 +767,6 @@ for i in $(seq 1 $MAX_ITERATIONS); do
   echo -e "\\033[0;35m═══════════════════════════════════════════════════════════\\033[0m"
   echo ""
 
-  # Create prompt file for this iteration
   ${promptFileSetup}
   cat > "$PROMPT_FILE" << 'RALPH_PROMPT_EOF'
 ${getRalphPrompt()}
@@ -905,7 +786,6 @@ ${aiInvocation}
   echo -e "\\033[0;36m  Exit code: $AI_EXIT_CODE\\033[0m"
   echo -e "\\033[0;36m───────────────────────────────────────────────────────────\\033[0m"
 
-  # Check if all tasks in PRD are complete (all have passes:true)
   if [ -f "$PRD_FILE" ]; then
     INCOMPLETE=$(grep -c '"passes": false' "$PRD_FILE" 2>/dev/null || echo "0")
     TOTAL=$(grep -c '"passes":' "$PRD_FILE" 2>/dev/null || echo "0")
@@ -938,12 +818,10 @@ exec bash
 `;
 }
 
-// Ensure Docker network exists for container networking
 async function ensureDockerNetwork(
   networkName: string
 ): Promise<{ success: true } | { success: false; message: string }> {
   try {
-    // Check if network already exists (uses configured/detected socket)
     await execDockerCommand(`network inspect ${networkName}`);
     console.log(`[brain-dump] Docker network "${networkName}" already exists`);
     return { success: true };
@@ -951,8 +829,6 @@ async function ensureDockerNetwork(
     const errorMessage =
       inspectError instanceof Error ? inspectError.message : String(inspectError);
 
-    // Only proceed to create if the error indicates "network not found"
-    // Other errors (Docker not running, permission denied) should be reported immediately
     if (!errorMessage.includes("No such network") && !errorMessage.includes("not found")) {
       console.error(`[brain-dump] Docker network inspect failed:`, errorMessage);
       return {
@@ -961,14 +837,11 @@ async function ensureDockerNetwork(
       };
     }
 
-    // Network doesn't exist, create it
     try {
       await execDockerCommand(`network create ${networkName}`);
       console.log(`[brain-dump] Created Docker network "${networkName}"`);
       return { success: true };
     } catch (createError) {
-      // Race condition: another process may have created it between our check and create
-      // Verify by checking again
       try {
         await execDockerCommand(`network inspect ${networkName}`);
         console.log(
@@ -985,7 +858,6 @@ async function ensureDockerNetwork(
   }
 }
 
-// Validate Docker setup for sandbox mode
 async function validateDockerSetup(): Promise<
   { success: true; warnings?: string[] } | { success: false; message: string }
 > {
@@ -993,7 +865,6 @@ async function validateDockerSetup(): Promise<
   const { join } = await import("path");
   const warnings: string[] = [];
 
-  // Check if Docker is running (uses configured/detected socket)
   try {
     await execDockerCommand("info");
   } catch (error) {
@@ -1004,17 +875,14 @@ async function validateDockerSetup(): Promise<
     };
   }
 
-  // Ensure ralph-net network exists for container networking
   const networkResult = await ensureDockerNetwork("ralph-net");
   if (!networkResult.success) {
     return networkResult;
   }
 
-  // Check if image exists, build if not
   try {
     await execDockerCommand("image inspect brain-dump-ralph-sandbox:latest");
   } catch {
-    // Image doesn't exist, try to build it
     console.log("[brain-dump] Building sandbox image...");
     const dockerfilePath = join(process.cwd(), "docker", "ralph-sandbox.Dockerfile");
     const contextPath = join(process.cwd(), "docker");
@@ -1040,7 +908,6 @@ async function validateDockerSetup(): Promise<
     }
   }
 
-  // Check SSH agent availability (warning, not blocking)
   const sshAuthSock = process.env.SSH_AUTH_SOCK;
   if (!sshAuthSock || !existsSync(sshAuthSock)) {
     warnings.push(
@@ -1057,20 +924,17 @@ async function validateDockerSetup(): Promise<
   return { success: true };
 }
 
-// Check if VS Code CLI is available and get the path
 async function findVSCodeCli(): Promise<string | null> {
   const { execSync } = await import("child_process");
   const { existsSync } = await import("fs");
 
-  // First check if 'code' is in PATH
   try {
     execSync("which code", { stdio: "pipe" });
     return "code";
   } catch {
-    // Not in PATH, check common macOS locations
+    // Not in PATH, check common locations
   }
 
-  // macOS: Check the full path to VS Code CLI
   const macOSPaths = [
     "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
     "/usr/local/bin/code",
@@ -1086,7 +950,6 @@ async function findVSCodeCli(): Promise<string | null> {
   return null;
 }
 
-// Launch VS Code with project context
 async function launchInVSCode(
   projectPath: string,
   contextFilePath?: string
@@ -1094,7 +957,6 @@ async function launchInVSCode(
   const { exec } = await import("child_process");
   const { existsSync } = await import("fs");
 
-  // Verify project path exists
   if (!existsSync(projectPath)) {
     return {
       success: false,
@@ -1102,7 +964,6 @@ async function launchInVSCode(
     };
   }
 
-  // Find VS Code CLI
   const codeCli = await findVSCodeCli();
   if (!codeCli) {
     return {
@@ -1113,13 +974,8 @@ async function launchInVSCode(
     };
   }
 
-  // Build the command
-  // Note: projectPath and contextFilePath come from the database (trusted internal values)
-  // We quote paths to handle spaces but these are not arbitrary user input
-  // Use -n flag to open in new window, -g to not focus a specific file
   let command = `"${codeCli}" -n "${projectPath}"`;
 
-  // If context file provided, open it as well
   if (contextFilePath && existsSync(contextFilePath)) {
     command += ` -g "${contextFilePath}"`;
   }
@@ -1140,7 +996,6 @@ async function launchInVSCode(
   }
 }
 
-// Shared launch logic for terminal
 async function launchInTerminal(
   projectPath: string,
   scriptPath: string,
@@ -1179,7 +1034,6 @@ async function launchInTerminal(
   }
 }
 
-// Launch Ralph for a single ticket
 export const launchRalphForTicket = createServerFn({ method: "POST" })
   .inputValidator(
     (data: {
@@ -1205,12 +1059,10 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     const { settings } = await import("../lib/schema");
     const { eq: eqSettings } = await import("drizzle-orm");
 
-    // Get settings for timeout and iterations configuration
     const appSettings = db.select().from(settings).where(eqSettings(settings.id, "default")).get();
     const timeoutSeconds = appSettings?.ralphTimeout ?? DEFAULT_TIMEOUT_SECONDS;
     const effectiveMaxIterations = maxIterations ?? appSettings?.ralphMaxIterations ?? 10;
 
-    // Get the ticket with its project
     const ticket = db.select().from(tickets).where(eq(tickets.id, ticketId)).get();
 
     if (!ticket) {
@@ -1227,7 +1079,6 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
       return { success: false, message: `Project directory not found: ${project.path}` };
     }
 
-    // If sandbox mode, validate Docker setup
     let sshWarnings: string[] | undefined;
     let dockerHostEnv: string | null = null;
     if (useSandbox) {
@@ -1236,20 +1087,16 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
         return dockerResult;
       }
       sshWarnings = dockerResult.warnings;
-      // Get Docker host env value for non-default sockets
       dockerHostEnv = await getDockerHostEnvValue();
     }
 
-    // Create plans directory in project
     const plansDir = join(project.path, "plans");
     mkdirSync(plansDir, { recursive: true });
 
-    // Generate enhanced PRD with Loom-style structure for this ticket
     const prd = generateEnhancedPRD(project.name, project.path, [ticket]);
     const prdPath = join(plansDir, "prd.json");
     writeFileSync(prdPath, JSON.stringify(prd, null, 2));
 
-    // Generate Ralph script with timeout, Docker host config, and project origin
     const ralphScript = generateRalphScript(
       project.path,
       effectiveMaxIterations,
@@ -1271,25 +1118,20 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     writeFileSync(scriptPath, ralphScript, { mode: 0o700 });
     chmodSync(scriptPath, 0o700);
 
-    // Update ticket status to in_progress
     db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticketId)).run();
 
-    // Branch based on workingMethod setting
     const workingMethod = project.workingMethod || "auto";
     console.log(
       `[brain-dump] Ralph ticket launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`
     );
 
     if (workingMethod === "vscode") {
-      // VS Code path: generate context file and launch VS Code
       console.log(`[brain-dump] Using VS Code launch path for single ticket`);
 
-      // Generate the context file for Claude in VS Code (single ticket PRD)
       const contextContent = generateVSCodeContext(prd);
       const contextResult = await writeVSCodeContext(project.path, contextContent);
 
       if (!contextResult.success) {
-        // Rollback ticket status since launch failed
         db.update(tickets).set({ status: ticket.status }).where(eq(tickets.id, ticketId)).run();
         return contextResult;
       }
@@ -1299,7 +1141,6 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
       const launchResult = await launchInVSCode(project.path, contextResult.path);
 
       if (!launchResult.success) {
-        // Rollback ticket status since launch failed
         db.update(tickets).set({ status: ticket.status }).where(eq(tickets.id, ticketId)).run();
         return launchResult;
       }
@@ -1313,7 +1154,6 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
       };
     }
 
-    // Terminal path (claude-code or auto): launch in terminal emulator
     console.log(`[brain-dump] Using terminal launch path for single ticket`);
     const launchResult = await launchInTerminal(project.path, scriptPath, preferredTerminal);
 
@@ -1330,7 +1170,6 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     };
   });
 
-// Launch Ralph for an entire epic
 export const launchRalphForEpic = createServerFn({ method: "POST" })
   .inputValidator(
     (data: {
@@ -1356,58 +1195,50 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     const { settings } = await import("../lib/schema");
     const { eq: eqSettings } = await import("drizzle-orm");
 
-    // Get settings for timeout and iterations configuration
     const appSettings = db.select().from(settings).where(eqSettings(settings.id, "default")).get();
     const timeoutSeconds = appSettings?.ralphTimeout ?? DEFAULT_TIMEOUT_SECONDS;
     const effectiveMaxIterations = maxIterations ?? appSettings?.ralphMaxIterations ?? 10;
 
-    // Get the epic
-    const epic = db.select().from(epics).where(eq(epics.id, epicId)).get();
+    // OPTIMIZATION: Single JOIN query instead of 3 separate SELECTs
+    const epicData = db
+      .select({
+        epic: epics,
+        project: projects,
+        workflowState: epicWorkflowState,
+      })
+      .from(epics)
+      .innerJoin(projects, eq(epics.projectId, projects.id))
+      .leftJoin(epicWorkflowState, eq(epicWorkflowState.epicId, epics.id))
+      .where(eq(epics.id, epicId))
+      .get();
 
-    if (!epic) {
+    if (!epicData) {
       return { success: false, message: "Epic not found" };
     }
 
-    const project = db.select().from(projects).where(eq(projects.id, epic.projectId)).get();
-
-    if (!project) {
-      return { success: false, message: "Project not found" };
-    }
+    const { epic, project, workflowState: existingState } = epicData;
 
     if (!existsSync(project.path)) {
       return { success: false, message: `Project directory not found: ${project.path}` };
     }
 
-    // =========================================================================
-    // WORKTREE MODE: Check if epic uses worktree isolation
-    // =========================================================================
-    let workingDirectory = project.path; // Default to project path
+    let workingDirectory = project.path;
     let worktreeCreated = false;
     let worktreePath: string | null = null;
 
     if (epic.isolationMode === "worktree") {
       console.log(`[brain-dump] Epic ${epicId} uses worktree isolation mode`);
 
-      // Check for existing worktree in epic_workflow_state
-      const existingState = db
-        .select()
-        .from(epicWorkflowState)
-        .where(eq(epicWorkflowState.epicId, epicId))
-        .get();
-
       if (existingState?.worktreePath && existsSync(existingState.worktreePath)) {
-        // Use existing worktree
         console.log(`[brain-dump] Using existing worktree at: ${existingState.worktreePath}`);
         workingDirectory = existingState.worktreePath;
         worktreePath = existingState.worktreePath;
       } else {
-        // Need to create a new worktree
         console.log(`[brain-dump] Creating new worktree for epic ${epicId}`);
 
         const pathModule = await import("path");
         const { execFileSync } = await import("child_process");
 
-        // Generate worktree path (sibling location by default)
         const projectName = pathModule.basename(project.path);
         const epicShortId = epic.id.substring(0, 8);
         const epicSlug = epic.title
@@ -1422,17 +1253,14 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
 
         const newWorktreePath = pathModule.join(pathModule.dirname(project.path), worktreeName);
 
-        // Check if path already exists (might be from a previous run)
         if (existsSync(newWorktreePath)) {
           console.log(`[brain-dump] Worktree path already exists, using it: ${newWorktreePath}`);
           workingDirectory = newWorktreePath;
           worktreePath = newWorktreePath;
         } else {
-          // Generate branch name
           const branchName = `feature/epic-${epicShortId}-${epicSlug}`;
 
           try {
-            // Create the worktree with a new branch using execFileSync (safer than exec)
             execFileSync("git", ["worktree", "add", newWorktreePath, "-b", branchName], {
               cwd: project.path,
               encoding: "utf-8",
@@ -1446,16 +1274,13 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
             worktreePath = newWorktreePath;
             worktreeCreated = true;
 
-            // Create .claude directory in worktree
             const claudeDir = pathModule.join(newWorktreePath, ".claude");
             mkdirSync(claudeDir, { recursive: true, mode: 0o700 });
           } catch (gitError) {
             const errorMessage = gitError instanceof Error ? gitError.message : String(gitError);
 
-            // Check if branch already exists - try to use existing branch
             if (errorMessage.includes("already exists")) {
               try {
-                // Try without -b flag (checkout existing branch)
                 execFileSync("git", ["worktree", "add", newWorktreePath, branchName], {
                   cwd: project.path,
                   encoding: "utf-8",
@@ -1466,7 +1291,6 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
                 worktreePath = newWorktreePath;
                 worktreeCreated = true;
 
-                // Create .claude directory
                 const claudeDir = pathModule.join(newWorktreePath, ".claude");
                 mkdirSync(claudeDir, { recursive: true, mode: 0o700 });
               } catch (retryError) {
@@ -1485,38 +1309,11 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
             }
           }
         }
-
-        // Update or create epic_workflow_state with worktree info
-        const now = new Date().toISOString();
-        if (existingState) {
-          db.update(epicWorkflowState)
-            .set({
-              worktreePath: worktreePath,
-              worktreeCreatedAt: worktreeCreated ? now : existingState.worktreeCreatedAt,
-              worktreeStatus: "active",
-              updatedAt: now,
-            })
-            .where(eq(epicWorkflowState.epicId, epicId))
-            .run();
-        } else {
-          db.insert(epicWorkflowState)
-            .values({
-              id: randomUUID(),
-              epicId: epicId,
-              worktreePath: worktreePath,
-              worktreeCreatedAt: now,
-              worktreeStatus: "active",
-              createdAt: now,
-              updatedAt: now,
-            })
-            .run();
-        }
       }
 
       console.log(`[brain-dump] Working directory set to: ${workingDirectory}`);
     }
 
-    // If sandbox mode, validate Docker setup
     let sshWarnings: string[] | undefined;
     let dockerHostEnv: string | null = null;
     if (useSandbox) {
@@ -1525,11 +1322,9 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
         return dockerResult;
       }
       sshWarnings = dockerResult.warnings;
-      // Get Docker host env value for non-default sockets
       dockerHostEnv = await getDockerHostEnvValue();
     }
 
-    // Get all non-done tickets for this epic
     const epicTickets = db
       .select()
       .from(tickets)
@@ -1545,11 +1340,9 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       return { success: false, message: "No pending tickets in this epic" };
     }
 
-    // Create plans directory in project
     const plansDir = join(project.path, "plans");
     mkdirSync(plansDir, { recursive: true });
 
-    // Generate enhanced PRD with Loom-style structure for all epic tickets
     const prd = generateEnhancedPRD(
       project.name,
       project.path,
@@ -1560,10 +1353,8 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     const prdPath = join(plansDir, "prd.json");
     writeFileSync(prdPath, JSON.stringify(prd, null, 2));
 
-    // Generate Ralph script with timeout, Docker host config, and project/epic origin
-    // NOTE: Use workingDirectory for worktree mode, so Ralph runs in the worktree
     const ralphScript = generateRalphScript(
-      workingDirectory, // Use worktree path if in worktree mode
+      workingDirectory,
       effectiveMaxIterations,
       useSandbox,
       DEFAULT_RESOURCE_LIMITS,
@@ -1588,32 +1379,67 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     writeFileSync(scriptPath, ralphScript, { mode: 0o700 });
     chmodSync(scriptPath, 0o700);
 
-    // Update all tickets to in_progress
-    for (const ticket of epicTickets) {
-      if (ticket.status === "backlog" || ticket.status === "ready") {
-        db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticket.id)).run();
-      }
-    }
+    // OPTIMIZATION: Batch update + transaction for atomicity
+    const ticketIdsToUpdate = epicTickets
+      .filter((t) => t.status === "backlog" || t.status === "ready")
+      .map((t) => t.id);
 
-    // Branch based on workingMethod setting
+    // OPTIMIZATION: Atomic transaction - either all succeed or all rollback
+    db.transaction(() => {
+      // Update worktree state if applicable
+      if (epic.isolationMode === "worktree" && worktreePath) {
+        const now = new Date().toISOString();
+        const worktreeStateUpdate = {
+          worktreePath: worktreePath,
+          worktreeCreatedAt: worktreeCreated ? now : (existingState?.worktreeCreatedAt ?? now),
+          worktreeStatus: "active" as const,
+          updatedAt: now,
+        };
+
+        if (existingState) {
+          db.update(epicWorkflowState)
+            .set(worktreeStateUpdate)
+            .where(eq(epicWorkflowState.epicId, epicId))
+            .run();
+        } else {
+          db.insert(epicWorkflowState)
+            .values({
+              id: randomUUID(),
+              epicId: epicId,
+              ...worktreeStateUpdate,
+              createdAt: now,
+            })
+            .run();
+        }
+      }
+
+      // Batch update tickets to in_progress
+      if (ticketIdsToUpdate.length > 0) {
+        db.update(tickets)
+          .set({ status: "in_progress" })
+          .where(inArray(tickets.id, ticketIdsToUpdate))
+          .run();
+      }
+    });
+
     const workingMethod = project.workingMethod || "auto";
     console.log(
       `[brain-dump] Ralph launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`
     );
 
     if (workingMethod === "vscode") {
-      // VS Code path: generate context file and launch VS Code
       console.log(`[brain-dump] Using VS Code launch path`);
 
-      // Generate the context file for Claude in VS Code
-      // NOTE: Use workingDirectory for worktree mode
       const contextContent = generateVSCodeContext(prd);
       const contextResult = await writeVSCodeContext(workingDirectory, contextContent);
 
       if (!contextResult.success) {
-        // Rollback ticket statuses since launch failed
-        for (const ticket of epicTickets) {
-          db.update(tickets).set({ status: ticket.status }).where(eq(tickets.id, ticket.id)).run();
+        // OPTIMIZATION: Batch rollback instead of N+1 queries
+        if (ticketIdsToUpdate.length > 0) {
+          db.update(tickets)
+            .set({ status: "ready" }) // Rollback to previous state
+            .where(inArray(tickets.id, ticketIdsToUpdate))
+            .run();
         }
         return contextResult;
       }
@@ -1623,9 +1449,12 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       const launchResult = await launchInVSCode(workingDirectory, contextResult.path);
 
       if (!launchResult.success) {
-        // Rollback ticket statuses since launch failed
-        for (const ticket of epicTickets) {
-          db.update(tickets).set({ status: ticket.status }).where(eq(tickets.id, ticket.id)).run();
+        // OPTIMIZATION: Batch rollback instead of N+1 queries
+        if (ticketIdsToUpdate.length > 0) {
+          db.update(tickets)
+            .set({ status: "ready" }) // Rollback to previous state
+            .where(inArray(tickets.id, ticketIdsToUpdate))
+            .run();
         }
         return launchResult;
       }
@@ -1637,11 +1466,10 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
         contextFile: contextResult.path,
         ticketCount: epicTickets.length,
         warnings: sshWarnings,
-        worktreePath: worktreePath, // Include worktree info if applicable
+        worktreePath: worktreePath,
       };
     }
 
-    // Terminal path (claude-code or auto): launch in terminal emulator
     console.log(
       `[brain-dump] Using terminal launch path${worktreePath ? ` (worktree: ${worktreePath})` : ""}`
     );
@@ -1658,24 +1486,15 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       launchMethod: "terminal" as const,
       ticketCount: epicTickets.length,
       warnings: sshWarnings,
-      worktreePath: worktreePath, // Include worktree info if applicable
+      worktreePath: worktreePath,
     };
   });
 
-// =============================================================================
-// RALPH SESSION STATUS
-// =============================================================================
-
-/**
- * Response type for active Ralph session query
- */
-// JSON value type for metadata (compatible with exactOptionalPropertyTypes)
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
 export interface ActiveRalphSession {
   id: string;
   ticketId: string;
-  /** Project ID the ticket belongs to - used for determining projects with active AI */
   projectId: string;
   currentState: RalphSessionState;
   startedAt: string;
@@ -1686,14 +1505,9 @@ export interface ActiveRalphSession {
   }> | null;
 }
 
-/**
- * Get active Ralph session for a ticket (if any).
- * An active session is one that has not been completed (completedAt is null).
- */
 export const getActiveRalphSession = createServerFn({ method: "GET" })
   .inputValidator((ticketId: string) => ticketId)
   .handler(async ({ data: ticketId }): Promise<ActiveRalphSession | null> => {
-    // Join with tickets to get projectId for the session
     const session = db
       .select({
         id: ralphSessions.id,
@@ -1724,14 +1538,8 @@ export const getActiveRalphSession = createServerFn({ method: "GET" })
     };
   });
 
-/**
- * Get all active Ralph sessions (for batch fetching on kanban board).
- * Returns a map of ticketId -> session for efficient lookup.
- * Includes projectId for each session to determine which projects have active AI.
- */
 export const getActiveRalphSessions = createServerFn({ method: "GET" }).handler(
   async (): Promise<Record<string, ActiveRalphSession>> => {
-    // Join with tickets to get projectId for each session
     const sessions = db
       .select({
         id: ralphSessions.id,
@@ -1749,7 +1557,6 @@ export const getActiveRalphSessions = createServerFn({ method: "GET" }).handler(
 
     const result: Record<string, ActiveRalphSession> = {};
     for (const session of sessions) {
-      // Only keep the most recent session per ticket
       if (!result[session.ticketId]) {
         result[session.ticketId] = {
           id: session.id,
