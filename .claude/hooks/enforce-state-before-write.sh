@@ -7,10 +7,6 @@
 #
 # When NOT in Ralph mode (no state file), allows all operations.
 # When in Ralph mode, blocks Write/Edit unless in correct state.
-#
-# Optional HMAC verification: When ENABLE_RALPH_STATE_HMAC=1, verifies
-# the state file hasn't been tampered with. Logs warning but doesn't block
-# on HMAC failure (defense in depth, not hard blocker).
 
 set -e
 
@@ -34,30 +30,6 @@ if [[ ! -f "$STATE_FILE" ]]; then
   # Not in Ralph mode - allow normal operation
   echo '{"decision": "allow"}'
   exit 0
-fi
-
-# Optional HMAC verification when enabled
-if [[ "$ENABLE_RALPH_STATE_HMAC" == "1" || "$ENABLE_RALPH_STATE_HMAC" == "true" ]]; then
-  # Find the verify script - try multiple locations
-  VERIFY_SCRIPT=""
-  if [[ -f "$PROJECT_DIR/mcp-server/lib/verify-state-hmac.js" ]]; then
-    VERIFY_SCRIPT="$PROJECT_DIR/mcp-server/lib/verify-state-hmac.js"
-  elif [[ -f "$HOME/.brain-dump/mcp-server/lib/verify-state-hmac.js" ]]; then
-    VERIFY_SCRIPT="$HOME/.brain-dump/mcp-server/lib/verify-state-hmac.js"
-  fi
-
-  if [[ -n "$VERIFY_SCRIPT" ]]; then
-    # Run HMAC verification - capture stdout (JSON) and stderr separately
-    # Note: Any warnings/errors from node go to stderr (file descriptor 3)
-    HMAC_RESULT=$(node "$VERIFY_SCRIPT" "$STATE_FILE" 2>/dev/null) || true
-    HMAC_VALID=$(echo "$HMAC_RESULT" | jq -r '.valid // false' 2>/dev/null || echo "false")
-
-    if [[ "$HMAC_VALID" != "true" ]]; then
-      HMAC_REASON=$(echo "$HMAC_RESULT" | jq -r '.reason // "unknown"' 2>/dev/null || echo "unknown")
-      # Log warning to stderr but don't block - defense in depth
-      echo "[SECURITY WARNING] Ralph state HMAC verification failed: $HMAC_REASON" >&2
-    fi
-  fi
 fi
 
 # Read current state from file
