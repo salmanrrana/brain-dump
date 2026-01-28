@@ -123,6 +123,7 @@ export const settings = sqliteTable("settings", {
   enableWorktreeSupport: integer("enable_worktree_support", { mode: "boolean" }).default(false), // Global opt-in for worktree support
   // MCP tool filtering settings
   enableContextAwareToolFiltering: integer("enable_context_aware_tool_filtering", { mode: "boolean" }).default(false), // Enable context-aware tool filtering (reduces tool count per context)
+  defaultToolMode: text("default_tool_mode").$type<"all" | "core" | "workflow" | "review" | "admin" | "auto">().default("auto"), // Default tool visibility mode (all, core, workflow, review, admin, auto)
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),

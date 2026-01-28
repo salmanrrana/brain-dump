@@ -34,6 +34,7 @@ export interface UpdateSettingsInput {
   enableWorktreeSupport?: boolean; // Global opt-in for worktree support
   // MCP tool filtering
   enableContextAwareToolFiltering?: boolean; // Enable context-aware tool filtering
+  defaultToolMode?: "all" | "core" | "workflow" | "review" | "admin" | "auto"; // Default tool visibility mode
 }
 
 // List of supported terminal emulators
@@ -153,6 +154,11 @@ export const updateSettings = createServerFn({ method: "POST" })
     }
     if (updates.enableContextAwareToolFiltering !== undefined) {
       updateData.enableContextAwareToolFiltering = updates.enableContextAwareToolFiltering;
+    }
+    if (updates.defaultToolMode !== undefined) {
+      const validModes = ["all", "core", "workflow", "review", "admin", "auto"];
+      const mode = validModes.includes(updates.defaultToolMode) ? updates.defaultToolMode : "auto";
+      updateData.defaultToolMode = mode;
     }
 
     db.update(settings).set(updateData).where(eq(settings.id, "default")).run();

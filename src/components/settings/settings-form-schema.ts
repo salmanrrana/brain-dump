@@ -12,6 +12,8 @@ export const dockerRuntimeSchema = z.enum([
   "podman",
 ]);
 
+export const toolModeSchema = z.enum(["all", "core", "workflow", "review", "admin", "auto"]);
+
 export const settingsFormSchema = z.object({
   terminalEmulator: z.string(),
   defaultProjectsDirectory: z.string(),
@@ -35,8 +37,10 @@ export const settingsFormSchema = z.object({
     .max(365, "Retention cannot exceed 1 year"),
   enableWorktreeSupport: z.boolean(),
   enableContextAwareToolFiltering: z.boolean(),
+  defaultToolMode: toolModeSchema,
 });
 
 export type SettingsFormData = z.infer<typeof settingsFormSchema>;
 export type WorkingMethod = z.infer<typeof workingMethodSchema>;
 export type DockerRuntime = z.infer<typeof dockerRuntimeSchema>;
+export type ToolMode = z.infer<typeof toolModeSchema>;

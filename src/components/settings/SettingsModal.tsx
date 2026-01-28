@@ -76,6 +76,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       conversationRetentionDays: settings?.conversationRetentionDays ?? 90,
       enableWorktreeSupport: settings?.enableWorktreeSupport ?? false,
       enableContextAwareToolFiltering: settings?.enableContextAwareToolFiltering ?? false,
+      defaultToolMode: (settings?.defaultToolMode as SettingsFormData["defaultToolMode"]) ?? "auto",
     },
     validators: {
       onChange: settingsFormSchema,
@@ -101,6 +102,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         conversationRetentionDays: settings.conversationRetentionDays ?? 90,
         enableWorktreeSupport: settings.enableWorktreeSupport ?? false,
         enableContextAwareToolFiltering: settings.enableContextAwareToolFiltering ?? false,
+        defaultToolMode: (settings.defaultToolMode as SettingsFormData["defaultToolMode"]) ?? "auto",
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- form instance is stable from useForm

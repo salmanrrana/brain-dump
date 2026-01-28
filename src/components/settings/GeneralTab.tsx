@@ -212,6 +212,37 @@ export function GeneralTab({
               </div>
             )}
           />
+
+          <form.Field
+            name="defaultToolMode"
+            children={(field: StringFieldRenderProps) => (
+              <div>
+                <label htmlFor="tool-mode-select" className={fieldStyles.label}>
+                  Default Tool Visibility Mode
+                </label>
+                <div className="relative">
+                  <select
+                    id="tool-mode-select"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    onBlur={field.handleBlur}
+                    className={inputStyles.select}
+                  >
+                    <option value="auto">Auto-detect (recommended)</option>
+                    <option value="all">All tools (65)</option>
+                    <option value="core">Core tools only (~10)</option>
+                    <option value="workflow">Workflow tools (~18)</option>
+                    <option value="review">Review tools (~15)</option>
+                    <option value="admin">Admin tools (~20)</option>
+                  </select>
+                  <ChevronDown size={16} className={inputStyles.selectArrow} />
+                </div>
+                <p className={fieldStyles.hint}>
+                  Controls which tools are visible when using context-aware filtering. Auto-detect changes based on your current workflow.
+                </p>
+              </div>
+            )}
+          />
         </div>
       </div>
     </div>
