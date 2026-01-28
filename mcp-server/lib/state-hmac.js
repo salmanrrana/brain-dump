@@ -5,19 +5,34 @@
  * Threat model: Malicious code in a worktree could modify ralph-state.json
  * to trick hooks into bypassing state enforcement. HMAC detects this tampering.
  *
+ * SECURITY: The HMAC key is stored in the user's data directory (outside any
+ * worktree) with restrictive permissions. This ensures worktree code cannot
+ * access the key to forge signatures.
+ *
  * This feature is opt-in via the ENABLE_RALPH_STATE_HMAC environment variable.
  *
  * @module lib/state-hmac
  */
 import crypto from "crypto";
-import os from "os";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from "fs";
+import { join, dirname } from "path";
 import { log } from "./logging.js";
+import { getDataDir } from "./xdg.js";
 
 /**
  * Environment variable to enable HMAC verification.
  * When enabled, ralph-state.json files will include HMAC signatures.
  */
 const ENABLE_HMAC_ENV = "ENABLE_RALPH_STATE_HMAC";
+
+/**
+ * Get the path to the HMAC key file.
+ * Stored in user's data directory, OUTSIDE any worktree.
+ * @returns {string} Absolute path to hmac.key
+ */
+export function getHmacKeyPath() {
+  return join(getDataDir(), "hmac.key");
+}
 
 /**
  * Check if HMAC verification is enabled via environment variable.
@@ -29,36 +44,51 @@ export function isHmacEnabled() {
 }
 
 /**
- * Generate a machine-specific HMAC key.
- * Uses hostname + username to create a key that is:
- * - Consistent on the same machine for the same user
- * - Different across machines/users (prevents key sharing)
- * - Does not require external secret management
+ * Get or create the HMAC key.
  *
- * Note: This is NOT cryptographically ideal (known plaintext) but provides
- * practical protection against casual tampering. For high-security environments,
- * consider using a proper secret management system.
+ * SECURITY: On first call, generates a 256-bit cryptographically random key
+ * and stores it with restrictive permissions (0600 = owner read/write only).
+ * The key is stored OUTSIDE any worktree in the user's data directory.
  *
  * @returns {Buffer} 32-byte HMAC key
+ * @throws {Error} If key file cannot be read or created
  */
-function generateMachineKey() {
-  const hostname = os.hostname();
+function getOrCreateHmacKey() {
+  const keyPath = getHmacKeyPath();
 
-  // os.userInfo() can throw in containerized environments without /etc/passwd
-  let username;
   try {
-    username = os.userInfo().username;
-  } catch {
-    // Fallback to environment variables commonly set in containers
-    username = process.env.USER || process.env.USERNAME || "unknown";
-    log.debug(`os.userInfo() unavailable, using fallback username: ${username}`);
+    if (existsSync(keyPath)) {
+      const key = readFileSync(keyPath);
+      if (key.length === 32) {
+        return key;
+      }
+      // Invalid key length - regenerate
+      log.warn(`HMAC key file has invalid length (${key.length}), regenerating`);
+    }
+
+    // Generate new 256-bit (32 byte) cryptographically random key
+    const key = crypto.randomBytes(32);
+
+    // Ensure directory exists
+    const keyDir = dirname(keyPath);
+    mkdirSync(keyDir, { recursive: true, mode: 0o700 });
+
+    // Write key with restrictive permissions (owner read/write only)
+    writeFileSync(keyPath, key, { mode: 0o600 });
+
+    // Double-ensure permissions (some systems ignore mode in writeFileSync)
+    try {
+      chmodSync(keyPath, 0o600);
+    } catch {
+      // Ignore chmod errors on Windows
+    }
+
+    log.info(`Generated new HMAC key at ${keyPath}`);
+    return key;
+  } catch (err) {
+    log.error(`Failed to get/create HMAC key: ${err.message}`);
+    throw err;
   }
-
-  const keyMaterial = `ralph-state:${hostname}:${username}`;
-
-  return crypto.createHash("sha256")
-    .update(keyMaterial)
-    .digest();
 }
 
 /**
@@ -93,7 +123,7 @@ function canonicalize(value) {
  * @returns {string} Hex-encoded HMAC-SHA256 signature
  */
 export function generateStateHmac(stateData) {
-  const key = generateMachineKey();
+  const key = getOrCreateHmacKey();
 
   // Create a copy without _hmac to ensure consistent signing
   const { _hmac: _ignored, ...dataToSign } = stateData;
