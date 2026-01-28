@@ -154,6 +154,22 @@ The [mcp-server/index.js](mcp-server/index.js) is a standalone Node.js MCP serve
 
 ---
 
+## Critical: MCP Server Database Synchronization
+
+⚠️ **When using Ralph in worktrees or multi-process scenarios**, ticket updates may not appear in the Brain Dump UI immediately. This is because:
+
+- Ralph runs in a separate Claude CLI process with its own MCP server
+- Both processes access the same SQLite database
+- The MCP server **must** use compiled JavaScript (`dist/index.js`), not TypeScript source
+
+**Fix if needed**:
+
+```bash
+./scripts/fix-mcp-server-path.sh
+```
+
+→ **Full details**: [MCP Server Database Synchronization](docs/mcp-server-sync.md)
+
 ## Ralph Workflow
 
 Ralph is an autonomous agent mode that:
