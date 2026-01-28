@@ -12,11 +12,11 @@ import { getLockFilePath } from "./xdg.js";
  * @param {number} pid - Process ID to check
  * @returns {boolean} True if process is running
  */
-export function isProcessRunning(pid) {
+export function isProcessRunning(pid: number): boolean {
   try {
-    process.kill(pid, 0);
+    (process as any).kill(pid, 0);
     return true;
-  } catch (e) {
+  } catch (e: any) {
     return e.code === "EPERM";
   }
 }

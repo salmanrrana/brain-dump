@@ -11,7 +11,7 @@ const APP_NAME = "brain-dump";
 
 /** Get the current platform. */
 export function getPlatform(): "linux" | "darwin" | "win32" | "other" {
-  const p = process.platform;
+  const p = (process as any).platform;
   return (p === "linux" || p === "darwin" || p === "win32") ? p : "other";
 }
 

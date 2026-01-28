@@ -94,10 +94,10 @@ const VALID_STATES = [
   "committing",   // Creating git commits
   "reviewing",    // Self-review before completing
   "done",         // Session completed
-];
+] as const;
 
 // Valid session outcomes
-const VALID_OUTCOMES = ["success", "failure", "timeout", "cancelled"];
+const VALID_OUTCOMES = ["success", "failure", "timeout", "cancelled"] as const;
 
 /**
  * Register session state management tools with the MCP server.

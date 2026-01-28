@@ -6,8 +6,8 @@ import { z } from "zod";
 import { randomUUID } from "crypto";
 import { log } from "../lib/logging.js";
 
-const STATUSES = ["backlog", "ready", "in_progress", "ai_review", "human_review", "done"];
-const PRIORITIES = ["low", "medium", "high"];
+const STATUSES = ["backlog", "ready", "in_progress", "ai_review", "human_review", "done"] as const;
+const PRIORITIES = ["low", "medium", "high"] as const;
 
 /** Valid attachment types for AI context */
 const ATTACHMENT_TYPES = [
@@ -21,13 +21,13 @@ const ATTACHMENT_TYPES = [
   "console-log",
   "reference",
   "asset",
-];
+] as const;
 
 /** Valid attachment priorities */
-const ATTACHMENT_PRIORITIES = ["primary", "supplementary"];
+const ATTACHMENT_PRIORITIES = ["primary", "supplementary"] as const;
 
 /** Valid attachment uploaders - exported for use in other modules if needed */
-const _ATTACHMENT_UPLOADERS = ["human", "claude", "ralph", "opencode", "cursor", "windsurf"];
+const _ATTACHMENT_UPLOADERS = ["human", "claude", "ralph", "opencode", "cursor", "windsurf"] as const;
 
 /**
  * Register ticket management tools with the MCP server.

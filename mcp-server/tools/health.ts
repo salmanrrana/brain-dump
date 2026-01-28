@@ -9,7 +9,7 @@ import { getDbPath, getBackupsDir } from "../lib/xdg.js";
 import { listBackups } from "../lib/backup.js";
 import { checkLock } from "../lib/lock.js";
 
-const WORKING_METHODS = ["auto", "claude-code", "vscode"];
+const WORKING_METHODS = ["auto", "claude-code", "vscode"] as const;
 
 /**
  * Register health and settings tools with the MCP server.

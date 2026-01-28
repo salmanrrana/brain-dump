@@ -7,7 +7,7 @@
 import { z } from "zod";
 import { getAnalytics } from "../lib/tool-usage-analytics.js";
 import { getErrorMessage } from "../lib/logging.js";
-import { DB_PATH } from "../lib/environment.js";
+import { getDbPath } from "../lib/xdg.js";
 
 /**
  * Create an MCP response with text content.
@@ -40,7 +40,7 @@ export const getToolUsageStats = {
         );
       }
 
-      const analytics = getAnalytics(DB_PATH);
+      const analytics = getAnalytics(getDbPath());
 
       // Check if analytics initialized properly
       if (!analytics) {
@@ -107,7 +107,7 @@ export const getToolUsageSummary = {
   }),
   handler: async ({ minInvocations = 0, context = null }) => {
     try {
-      const analytics = getAnalytics(DB_PATH);
+      const analytics = getAnalytics(getDbPath());
 
       // Check if analytics initialized properly
       if (!analytics) {
@@ -189,7 +189,7 @@ export const getConsolidationCandidates = {
   }),
   handler: async ({ maxInvocations = 5, daysUnused = 30 }) => {
     try {
-      const analytics = getAnalytics(DB_PATH);
+      const analytics = getAnalytics(getDbPath());
 
       // Check if analytics initialized properly
       if (!analytics) {
@@ -267,7 +267,7 @@ export const exportToolAnalytics = {
   }),
   handler: async ({ format = "json" }) => {
     try {
-      const analytics = getAnalytics(DB_PATH);
+      const analytics = getAnalytics(getDbPath());
 
       // Check if analytics initialized properly
       if (!analytics) {

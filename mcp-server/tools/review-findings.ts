@@ -9,8 +9,8 @@ import { log } from "../lib/logging.js";
 import { addComment } from "../lib/comment-utils.js";
 import { getActiveTelemetrySession, logMcpCallEvent, withTelemetry } from "../lib/telemetry-self-log.js";
 
-const AGENTS = ["code-reviewer", "silent-failure-hunter", "code-simplifier"];
-const SEVERITIES = ["critical", "major", "minor", "suggestion"];
+const AGENTS = ["code-reviewer", "silent-failure-hunter", "code-simplifier"] as const;
+const SEVERITIES = ["critical", "major", "minor", "suggestion"] as const;
 
 /**
  * Register review findings tools with the MCP server.

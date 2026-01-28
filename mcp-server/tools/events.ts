@@ -16,7 +16,7 @@ const VALID_EVENT_TYPES = [
   "progress",     // General progress update
   "state_change", // Session state transition
   "error",        // Error occurred
-];
+] as const;
 
 /**
  * Register event emission tools with the MCP server.

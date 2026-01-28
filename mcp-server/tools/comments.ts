@@ -7,8 +7,8 @@ import { randomUUID } from "crypto";
 import { log } from "../lib/logging.js";
 import { detectAuthor } from "../lib/environment.js";
 
-const AUTHORS = ["claude", "ralph", "user", "opencode", "cursor", "vscode", "ai"];
-const COMMENT_TYPES = ["comment", "work_summary", "test_report", "progress"];
+const AUTHORS = ["claude", "ralph", "user", "opencode", "cursor", "vscode", "ai"] as const;
+const COMMENT_TYPES = ["comment", "work_summary", "test_report", "progress"] as const;
 
 /**
  * Register ticket comment tools with the MCP server.

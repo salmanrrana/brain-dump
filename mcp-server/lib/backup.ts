@@ -62,7 +62,7 @@ export function updateLastBackupMarker() {
  * @param {string} [dateString] - Date in YYYY-MM-DD format (defaults to today)
  * @returns {string}
  */
-export function getBackupFilename(dateString) {
+export function getBackupFilename(dateString?: string) {
   const date = dateString || getTodayDateString();
   return `${BACKUP_PREFIX}${date}${BACKUP_SUFFIX}`;
 }

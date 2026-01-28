@@ -358,7 +358,7 @@ export function runMigrations(db) {
  * @param {string} [dbPath] - Optional path to database (defaults to XDG path)
  * @returns {{db: Database, actualDbPath: string}} Database connection and path used
  */
-export function initDatabase(dbPath) {
+export function initDatabase(dbPath?: string) {
   ensureDirectoriesSync();
 
   // Run legacy migration if needed

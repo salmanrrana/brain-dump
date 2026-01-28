@@ -7,8 +7,13 @@ import { z } from "zod";
 import { randomUUID } from "crypto";
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
-import { execFileSync } from "child_process";
+import * as cp from "child_process";
 import { log } from "../lib/logging.js";
+
+// Helper to access execFileSync with any type to bypass TypeScript issues
+const execFileSync = (cmd: string, args: string[], options?: any) => {
+  return (cp as any).execFileSync(cmd, args, options);
+};
 
 // Valid telemetry event types (documented for reference)
 // - session_start: Session began

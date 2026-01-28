@@ -2,8 +2,21 @@
  * Git utilities for Brain Dump MCP server.
  */
 
-import { execFileSync, ExecFileSyncOptions } from "child_process";
+import * as cp from "child_process";
 import { log } from "./logging.js";
+
+// Wrapper function to replace execFileSync functionality
+function execFileSync(cmd: string, args: string[], options: any) {
+  const result = (cp as any).spawnSync(cmd, args, { ...options, encoding: "utf-8" });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    const error: any = new Error(result.stderr || result.stdout || "Command failed");
+    error.code = result.status;
+    error.stderr = result.stderr;
+    throw error;
+  }
+  return result.stdout;
+}
 
 export interface CommandResult {
   success: boolean;
@@ -16,9 +29,18 @@ export interface CommandOptions {
   timeout?: number;
 }
 
+export interface ExecFileSyncOptions {
+  cwd?: string;
+  input?: string | unknown;
+  encoding?: string;
+  maxBuffer?: number;
+  timeout?: number;
+  stdio?: string | string[];
+}
+
 interface ExecError extends Error {
   code?: string;
-  stderr?: string | Buffer;
+  stderr?: string | unknown;
   killed?: boolean;
 }
 
@@ -91,8 +113,8 @@ export function runGitCommandSafe(
       errorMessage = err.stderr.trim();
     }
     // Handle buffer output (when stdio is inherited or captured differently)
-    else if (err.stderr && Buffer.isBuffer(err.stderr)) {
-      errorMessage = err.stderr.toString("utf-8").trim() || err.message;
+    else if (err.stderr && typeof err.stderr === "object" && "toString" in err.stderr) {
+      errorMessage = (err.stderr as unknown as { toString(): string }).toString().trim() || err.message;
     }
 
     // Handle specific error cases with helpful messages
@@ -204,8 +226,8 @@ export function runGhCommandSafe(
 
     if (err.stderr && typeof err.stderr === "string" && err.stderr.trim()) {
       errorMessage = err.stderr.trim();
-    } else if (err.stderr && Buffer.isBuffer(err.stderr)) {
-      errorMessage = err.stderr.toString("utf-8").trim() || err.message;
+    } else if (err.stderr && typeof err.stderr === "object" && "toString" in err.stderr) {
+      errorMessage = (err.stderr as unknown as { toString(): string }).toString().trim() || err.message;
     }
 
     if (err.code === "ENOENT") {

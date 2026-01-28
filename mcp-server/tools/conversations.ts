@@ -9,8 +9,8 @@ import { hostname } from "os";
 import { log } from "../lib/logging.js";
 import { containsSecrets } from "../lib/secrets.js";
 
-const DATA_CLASSIFICATIONS = ["public", "internal", "confidential", "restricted"];
-const MESSAGE_ROLES = ["user", "assistant", "system", "tool"];
+const DATA_CLASSIFICATIONS = ["public", "internal", "confidential", "restricted"] as const;
+const MESSAGE_ROLES = ["user", "assistant", "system", "tool"] as const;
 
 /**
  * Compute HMAC-SHA256 hash for tamper detection.

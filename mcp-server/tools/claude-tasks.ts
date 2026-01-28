@@ -10,7 +10,7 @@ import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { log } from "../lib/logging.js";
 
-const TASK_STATUSES = /** @type {const} */ (["pending", "in_progress", "completed"]);
+const TASK_STATUSES = ["pending", "in_progress", "completed"] as const;
 
 /**
  * Task input schema for save_claude_tasks.
@@ -29,7 +29,7 @@ const taskInputSchema = z.object({
  * @param {string} [projectPath] - Optional project path to check
  * @returns {{ ticketId: string | null, sessionId: string | null }}
  */
-function readRalphState(projectPath) {
+function readRalphState(projectPath?: string) {
   const paths = [
     projectPath ? join(projectPath, ".claude", "ralph-state.json") : null,
     join(process.cwd(), ".claude", "ralph-state.json"),
