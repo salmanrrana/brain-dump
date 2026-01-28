@@ -22,8 +22,8 @@ NC='\033[0m' # No Color
 # Cleanup handler for temp files
 TEMP_SETTINGS=""
 cleanup() {
-  [[ -n "$TEMP_SETTINGS" && -f "$TEMP_SETTINGS" ]] && rm -f "$TEMP_SETTINGS"
-  [[ -n "$TEMP_SETTINGS" && -f "${TEMP_SETTINGS}.new" ]] && rm -f "${TEMP_SETTINGS}.new"
+  [[ -n "$TEMP_SETTINGS" && -f "$TEMP_SETTINGS" ]] && rm -f "$TEMP_SETTINGS" || true
+  [[ -n "$TEMP_SETTINGS" && -f "${TEMP_SETTINGS}.new" ]] && rm -f "${TEMP_SETTINGS}.new" || true
 }
 trap cleanup EXIT
 

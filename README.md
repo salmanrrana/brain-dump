@@ -18,7 +18,7 @@
 
 ```bash
 git clone https://github.com/salmanrrana/brain-dump.git
-cd brain-dump && ./install.sh
+cd brain-dump && ./scripts/install.sh
 pnpm dev
 ```
 
@@ -104,13 +104,13 @@ Open [localhost:4242](http://localhost:4242). Done.
 
 All environments get the same MCP tools, agents, and workflows.
 
-| Environment     | Install                   | Best For                       |
-| --------------- | ------------------------- | ------------------------------ |
-| **Claude Code** | `./install.sh --claude`   | Terminal-native AI development |
-| **VS Code**     | `./install.sh --vscode`   | Copilot Chat + extensions      |
-| **OpenCode**    | `./install.sh --opencode` | Open-source AI coding          |
-| **Cursor**      | `./install.sh --cursor`   | Modern AI-first IDE experience |
-| **All**         | `./install.sh --all`      | Try everything                 |
+| Environment     | Install                           | Best For                       |
+| --------------- | --------------------------------- | ------------------------------ |
+| **Claude Code** | `./scripts/install.sh --claude`   | Terminal-native AI development |
+| **VS Code**     | `./scripts/install.sh --vscode`   | Copilot Chat + extensions      |
+| **OpenCode**    | `./scripts/install.sh --opencode` | Open-source AI coding          |
+| **Cursor**      | `./scripts/install.sh --cursor`   | Modern AI-first IDE experience |
+| **All**         | `./scripts/install.sh --all`      | Try everything                 |
 
 <details>
 <summary><strong>Environment-specific details</strong></summary>

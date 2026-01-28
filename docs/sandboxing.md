@@ -50,7 +50,7 @@ In Claude Code, run:
 Or use the install script:
 
 ```bash
-./install.sh --sandbox
+./scripts/install.sh --sandbox
 ```
 
 This configures `~/.claude/settings.json` with:
@@ -173,7 +173,7 @@ devcontainer exec --workspace-folder . bash
 **Install Script Helper**:
 
 ```bash
-./install.sh --devcontainer
+./scripts/install.sh --devcontainer
 ```
 
 This verifies your setup and provides guidance.
@@ -390,7 +390,7 @@ A purpose-built Docker container for Ralph's autonomous agent work.
 Or via install script:
 
 ```bash
-./install.sh --docker
+./scripts/install.sh --docker
 ```
 
 ### Starting Ralph in Sandbox
@@ -499,29 +499,29 @@ Ralph mounts `SSH_AUTH_SOCK` for forwarding.
 
 ```bash
 # Configure native sandboxing
-./install.sh --sandbox
+./scripts/install.sh --sandbox
 
 # Verify devcontainer setup
-./install.sh --devcontainer
+./scripts/install.sh --devcontainer
 
 # Build Ralph sandbox image
-./install.sh --docker
+./scripts/install.sh --docker
 
 # All together
-./install.sh --claude --sandbox  # Claude Code with native sandbox
+./scripts/install.sh --claude --sandbox  # Claude Code with native sandbox
 ```
 
 ### Uninstall Options
 
 ```bash
 # Remove sandbox configuration
-./uninstall.sh --sandbox
+./scripts/uninstall.sh --sandbox
 
 # Remove devcontainer volumes
-./uninstall.sh --devcontainer
+./scripts/uninstall.sh --devcontainer
 
 # Both
-./uninstall.sh --all
+./scripts/uninstall.sh --all
 ```
 
 ### Environment Variables

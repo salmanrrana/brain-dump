@@ -61,9 +61,7 @@ describe("VS Code Setup Script", () => {
       // If it exists, it should at least not be the primary config
       // This test documents that we don't want configs there
       if (fs.existsSync(wrongPath)) {
-        console.warn(
-          "Warning: Old mcp.json found in ~/.vscode - consider removing"
-        );
+        console.warn("Warning: Old mcp.json found in ~/.vscode - consider removing");
       }
     });
 
@@ -78,9 +76,7 @@ describe("VS Code Setup Script", () => {
       expect(config.servers["brain-dump"]).toBeDefined();
       expect(config.servers["brain-dump"].type).toBe("stdio");
       expect(config.servers["brain-dump"].command).toBe("node");
-      expect(config.servers["brain-dump"].args[0]).toContain(
-        "mcp-server/index.js"
-      );
+      expect(config.servers["brain-dump"].args[0]).toContain("mcp-server/index.js");
     });
   });
 
@@ -104,24 +100,21 @@ describe("VS Code Setup Script", () => {
       expect(fs.existsSync(promptsDir)).toBe(true);
     });
 
-    it.each(expectedAgents)(
-      "should have %s in VS Code prompts folder",
-      (agentFile) => {
-        const targetPath = path.join(promptsDir, agentFile);
-        const sourcePath = path.join(sourceAgentsDir, agentFile);
+    it.each(expectedAgents)("should have %s in VS Code prompts folder", (agentFile) => {
+      const targetPath = path.join(promptsDir, agentFile);
+      const sourcePath = path.join(sourceAgentsDir, agentFile);
 
-        if (!fs.existsSync(sourcePath)) {
-          return; // Skip if source doesn't exist
-        }
-
-        // User-facing check: does the agent file exist?
-        expect(fs.existsSync(targetPath)).toBe(true);
-
-        // Verify it's a valid agent file (has required structure)
-        const content = fs.readFileSync(targetPath, "utf-8");
-        expect(content.length).toBeGreaterThan(0);
+      if (!fs.existsSync(sourcePath)) {
+        return; // Skip if source doesn't exist
       }
-    );
+
+      // User-facing check: does the agent file exist?
+      expect(fs.existsSync(targetPath)).toBe(true);
+
+      // Verify it's a valid agent file (has required structure)
+      const content = fs.readFileSync(targetPath, "utf-8");
+      expect(content.length).toBeGreaterThan(0);
+    });
   });
 
   describe("Skills Configuration", () => {
@@ -135,26 +128,23 @@ describe("VS Code Setup Script", () => {
       expect(fs.existsSync(COPILOT_SKILLS_DIR)).toBe(true);
     });
 
-    it.each(expectedSkills)(
-      "should have %s skill copied correctly",
-      (skillName) => {
-        const targetPath = path.join(COPILOT_SKILLS_DIR, skillName);
-        const sourcePath = path.join(sourceSkillsDir, skillName);
+    it.each(expectedSkills)("should have %s skill copied correctly", (skillName) => {
+      const targetPath = path.join(COPILOT_SKILLS_DIR, skillName);
+      const sourcePath = path.join(sourceSkillsDir, skillName);
 
-        if (!fs.existsSync(sourcePath)) {
-          return; // Skip if source doesn't exist
-        }
-
-        // Skill should exist as a directory (copied, not symlinked)
-        expect(fs.existsSync(targetPath)).toBe(true);
-        const stats = fs.statSync(targetPath);
-        expect(stats.isDirectory()).toBe(true);
-
-        // Verify skill has a SKILL.md file
-        const skillMdPath = path.join(targetPath, "SKILL.md");
-        expect(fs.existsSync(skillMdPath)).toBe(true);
+      if (!fs.existsSync(sourcePath)) {
+        return; // Skip if source doesn't exist
       }
-    );
+
+      // Skill should exist as a directory (copied, not symlinked)
+      expect(fs.existsSync(targetPath)).toBe(true);
+      const stats = fs.statSync(targetPath);
+      expect(stats.isDirectory()).toBe(true);
+
+      // Verify skill has a SKILL.md file
+      const skillMdPath = path.join(targetPath, "SKILL.md");
+      expect(fs.existsSync(skillMdPath)).toBe(true);
+    });
   });
 
   describe("Prompts Configuration", () => {
@@ -171,27 +161,24 @@ describe("VS Code Setup Script", () => {
       expect(fs.existsSync(promptsDir)).toBe(true);
     });
 
-    it.each(expectedPrompts)(
-      "should have %s in VS Code prompts folder",
-      (promptFile) => {
-        const targetPath = path.join(promptsDir, promptFile);
-        const sourcePath = path.join(sourcePromptsDir, promptFile);
+    it.each(expectedPrompts)("should have %s in VS Code prompts folder", (promptFile) => {
+      const targetPath = path.join(promptsDir, promptFile);
+      const sourcePath = path.join(sourcePromptsDir, promptFile);
 
-        if (!fs.existsSync(sourcePath)) {
-          return; // Skip if source doesn't exist
-        }
-
-        // User-facing check: does the prompt file exist?
-        expect(fs.existsSync(targetPath)).toBe(true);
-
-        // Verify it's a regular file with content
-        const stats = fs.lstatSync(targetPath);
-        expect(stats.isFile()).toBe(true);
-
-        const content = fs.readFileSync(targetPath, "utf-8");
-        expect(content.length).toBeGreaterThan(0);
+      if (!fs.existsSync(sourcePath)) {
+        return; // Skip if source doesn't exist
       }
-    );
+
+      // User-facing check: does the prompt file exist?
+      expect(fs.existsSync(targetPath)).toBe(true);
+
+      // Verify it's a regular file with content
+      const stats = fs.lstatSync(targetPath);
+      expect(stats.isFile()).toBe(true);
+
+      const content = fs.readFileSync(targetPath, "utf-8");
+      expect(content.length).toBeGreaterThan(0);
+    });
   });
 
   describe("Source Files Existence", () => {
@@ -213,9 +200,7 @@ describe("VS Code Setup Script", () => {
 
       const dirs = fs
         .readdirSync(skillsDir)
-        .filter((f) =>
-          fs.statSync(path.join(skillsDir, f)).isDirectory()
-        );
+        .filter((f) => fs.statSync(path.join(skillsDir, f)).isDirectory());
       expect(dirs.length).toBeGreaterThan(0);
     });
 
@@ -230,17 +215,17 @@ describe("VS Code Setup Script", () => {
   });
 });
 
-describe("Install Script Path Conventions", () => {
-  // These tests verify the install.sh follows correct conventions
+describe("Setup Script Path Conventions", () => {
+  // These tests verify the setup-vscode.sh follows correct conventions
 
-  const installScript = path.join(BRAIN_DUMP_DIR, "install.sh");
+  const setupScript = path.join(BRAIN_DUMP_DIR, "scripts", "setup-vscode.sh");
 
   it("should exist and be executable", () => {
-    expect(fs.existsSync(installScript)).toBe(true);
+    expect(fs.existsSync(setupScript)).toBe(true);
   });
 
   it("should use ~/.copilot/skills for skills (not VSCODE_USER_DIR/skills)", () => {
-    const content = fs.readFileSync(installScript, "utf-8");
+    const content = fs.readFileSync(setupScript, "utf-8");
 
     // Should reference ~/.copilot/skills
     expect(content).toContain("COPILOT_SKILLS_DIR");
@@ -248,7 +233,7 @@ describe("Install Script Path Conventions", () => {
   });
 
   it("should use VSCODE_TARGET for MCP config (not ~/.vscode)", () => {
-    const content = fs.readFileSync(installScript, "utf-8");
+    const content = fs.readFileSync(setupScript, "utf-8");
 
     // Should NOT use ~/.vscode for MCP
     // The MCP config should go in VS Code User profile
@@ -256,16 +241,16 @@ describe("Install Script Path Conventions", () => {
   });
 
   it("should document correct VS Code paths in comments", () => {
-    const content = fs.readFileSync(installScript, "utf-8");
+    const content = fs.readFileSync(setupScript, "utf-8");
 
     // Should have documentation about correct paths
     expect(content).toContain("VS Code docs");
   });
 
   it("should copy files directly instead of symlinks", () => {
-    const content = fs.readFileSync(installScript, "utf-8");
+    const content = fs.readFileSync(setupScript, "utf-8");
 
-    // The install script should mention copying directly
+    // The setup script should mention copying directly
     expect(content).toContain("Copy files directly");
     expect(content).toContain("Copy directories directly");
   });

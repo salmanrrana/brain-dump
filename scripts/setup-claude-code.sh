@@ -90,20 +90,20 @@ echo "────────────────────────�
 # Check if claude CLI is available
 if command -v claude &> /dev/null; then
     echo "Installing pr-review-toolkit plugin..."
-    claude plugins install pr-review-toolkit 2>/dev/null || echo -e "${YELLOW}pr-review-toolkit already installed or install failed${NC}"
+    claude plugin install pr-review-toolkit 2>/dev/null || echo -e "${YELLOW}pr-review-toolkit already installed or install failed${NC}"
 
     echo "Installing code-simplifier plugin..."
-    claude plugins install code-simplifier 2>/dev/null || echo -e "${YELLOW}code-simplifier already installed or install failed${NC}"
+    claude plugin install code-simplifier 2>/dev/null || echo -e "${YELLOW}code-simplifier already installed or install failed${NC}"
 
     echo "Installing context7 plugin..."
-    claude plugins install context7 2>/dev/null || echo -e "${YELLOW}context7 already installed or install failed${NC}"
+    claude plugin install context7 2>/dev/null || echo -e "${YELLOW}context7 already installed or install failed${NC}"
 
     echo -e "${GREEN}Plugins configured.${NC}"
 else
     echo -e "${YELLOW}Claude CLI not found. Please install plugins manually:${NC}"
-    echo "  claude plugins install pr-review-toolkit"
-    echo "  claude plugins install code-simplifier"
-    echo "  claude plugins install context7"
+    echo "  claude plugin install pr-review-toolkit"
+    echo "  claude plugin install code-simplifier"
+    echo "  claude plugin install context7"
 fi
 
 echo ""
