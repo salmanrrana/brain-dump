@@ -19,6 +19,16 @@ export const MAX_LOG_FILES = 5;
 export const LOG_PRIORITY = { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 };
 
 /**
+ * Extract error message from any error object.
+ * Handles Error instances, strings, and null/undefined safely.
+ * @param {unknown} error - Any error object
+ * @returns {string} Error message
+ */
+export function getErrorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
  * Format a log entry with timestamp, level, source, and optional error details.
  * @param {string} level - Log level (DEBUG, INFO, WARN, ERROR)
  * @param {string} source - Source identifier (e.g., "mcp-server")
@@ -30,7 +40,7 @@ export function formatLogEntry(level, source, message, error) {
   const timestamp = new Date().toISOString();
   let line = `${timestamp} [${level}] [${source}] ${message}`;
   if (error) {
-    line += `\n  Error: ${error.message || String(error)}`;
+    line += `\n  Error: ${getErrorMessage(error)}`;
     if (error.stack) {
       for (const stackLine of error.stack.split("\n").slice(1)) {
         line += `\n  ${stackLine.trim()}`;

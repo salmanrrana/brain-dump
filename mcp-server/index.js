@@ -122,7 +122,7 @@ registerWorktreeTools(server, db);
 registerContextTools(server, db);
 registerToolFilteringTools(server, db);
 registerShortcutTools(server, db);
-registerAnalyticsTools(server, db);
+registerAnalyticsTools(server);
 
 // =============================================================================
 // CONNECT AND START

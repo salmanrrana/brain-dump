@@ -5,7 +5,7 @@
  */
 
 import Database from "better-sqlite3";
-import { log } from "./logging.js";
+import { log, getErrorMessage } from "./logging.js";
 
 /**
  * Tool usage analytics tracker.
@@ -14,10 +14,45 @@ import { log } from "./logging.js";
  */
 export class ToolUsageAnalytics {
   constructor(dbPath) {
-    this.db = new Database(dbPath);
-    this.sessionUsage = new Map(); // Map of toolName -> usage stats for current session
-    this.flushInterval = 60000; // Flush to DB every 60 seconds
-    this.startFlushTimer();
+    try {
+      this.db = new Database(dbPath);
+
+      // Verify database is responsive
+      this.db.prepare("SELECT 1").get();
+
+      // Verify schema exists
+      const tableExists = this.db.prepare(`
+        SELECT name FROM sqlite_master
+        WHERE type='table' AND name='tool_usage_events'
+      `).get();
+
+      if (!tableExists) {
+        throw new Error(
+          'Database schema missing: tool_usage_events table not found. ' +
+          'Database must be initialized with proper schema before use.'
+        );
+      }
+
+      this.sessionUsage = new Map(); // Map of toolName -> usage stats for current session
+      this.flushInterval = 60000; // Flush to DB every 60 seconds
+      this.flushInProgress = false; // Track concurrent flush operations
+      this.startFlushTimer();
+
+      log.info(`Analytics database initialized: ${dbPath}`);
+    } catch (error) {
+      const errorMsg = getErrorMessage(error);
+      log.error(
+        `Failed to initialize analytics database at ${dbPath}:`,
+        error instanceof Error ? error : new Error(errorMsg)
+      );
+      this.initializationError = errorMsg;
+      this.db = null;
+      this.sessionUsage = new Map();
+      throw new Error(
+        `Analytics initialization failed: ${errorMsg}. ` +
+        `Check database path, permissions, and ensure schema is initialized.`
+      );
+    }
   }
 
   /**
@@ -68,14 +103,10 @@ export class ToolUsageAnalytics {
     } else {
       stats.errorCount++;
       if (error) {
-        log.warn(
-          `Tool '${toolName}' failed:`,
-          error instanceof Error ? error.message : String(error)
-        );
+        log.warn(`Tool '${toolName}' failed:`, error);
       }
     }
 
-    // Log at appropriate level
     if (!success) {
       log.debug(`Tool usage recorded: ${toolName} (failed, duration: ${duration}ms)`);
     } else if (duration > 1000) {
@@ -125,11 +156,19 @@ export class ToolUsageAnalytics {
       );
       this.sessionUsage.clear();
     } catch (error) {
-      log.error(
-        "Failed to flush tool usage to database:",
-        error instanceof Error ? error.message : String(error)
-      );
+      log.error("Failed to flush tool usage to database:", error);
     }
+  }
+
+  /**
+   * Calculate success rate as a percentage string.
+   * @private
+   * @param {number} successes - Number of successful invocations
+   * @param {number} total - Total number of invocations
+   * @returns {string|number} Success rate or 0 if no invocations
+   */
+  #calculateSuccessRate(successes, total) {
+    return total > 0 ? (successes / total * 100).toFixed(1) : 0;
   }
 
   /**
@@ -137,8 +176,25 @@ export class ToolUsageAnalytics {
    * @private
    */
   startFlushTimer() {
-    this.timer = setInterval(() => {
-      this.flushToDatabase();
+    this.timer = setInterval(async () => {
+      // Prevent concurrent flushes
+      if (this.flushInProgress) {
+        log.debug('Previous analytics flush still in progress, skipping this cycle');
+        return;
+      }
+
+      try {
+        this.flushInProgress = true;
+        await this.flushToDatabase();
+      } catch (error) {
+        log.error(
+          'Analytics flush failed in timer',
+          error instanceof Error ? error : new Error(getErrorMessage(error))
+        );
+        // Don't clear sessionUsage on error - we'll retry next cycle
+      } finally {
+        this.flushInProgress = false;
+      }
     }, this.flushInterval);
   }
 
@@ -149,8 +205,23 @@ export class ToolUsageAnalytics {
     if (this.timer) {
       clearInterval(this.timer);
     }
-    await this.flushToDatabase();
-    this.db.close();
+    // Wait for any in-progress flush to complete
+    let retries = 0;
+    while (this.flushInProgress && retries < 10) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      retries++;
+    }
+    try {
+      await this.flushToDatabase();
+    } catch (error) {
+      log.error(
+        'Final analytics flush failed during shutdown',
+        error instanceof Error ? error : new Error(getErrorMessage(error))
+      );
+    }
+    if (this.db) {
+      this.db.close();
+    }
   }
 
   /**
@@ -160,6 +231,16 @@ export class ToolUsageAnalytics {
    */
   getToolStats(toolName) {
     try {
+      // Defensive check for database
+      if (!this.db) {
+        throw new Error('Analytics database not initialized. Check server logs for initialization errors.');
+      }
+
+      // Validate input
+      if (!toolName || typeof toolName !== 'string') {
+        throw new Error('toolName must be a non-empty string');
+      }
+
       const stmt = this.db.prepare(`
         SELECT
           tool_name as toolName,
@@ -189,24 +270,16 @@ export class ToolUsageAnalytics {
         totalInvocations: result.totalInvocations || 0,
         totalSuccesses: result.totalSuccesses || 0,
         totalErrors: result.totalErrors || 0,
-        successRate:
-          result.totalInvocations > 0
-            ? (result.totalSuccesses / result.totalInvocations * 100).toFixed(1)
-            : 0,
+        successRate: this.#calculateSuccessRate(result.totalSuccesses, result.totalInvocations),
         totalDuration: result.totalDuration || 0,
-        averageDuration: result.averageDuration
-          ? Math.round(result.averageDuration)
-          : 0,
+        averageDuration: result.averageDuration ? Math.round(result.averageDuration) : 0,
         lastUsed: result.lastUsed,
         uniqueSessions: result.uniqueSessions || 0,
         uniqueTickets: result.uniqueTickets || 0,
         contexts: result.contexts ? result.contexts.split(",") : [],
       };
     } catch (error) {
-      log.error(
-        `Failed to get tool stats for '${toolName}':`,
-        error instanceof Error ? error.message : String(error)
-      );
+      log.error(`Failed to get tool stats for '${toolName}':`, error);
       return null;
     }
   }
@@ -222,29 +295,56 @@ export class ToolUsageAnalytics {
     const { minInvocations = 0, context = null } = options;
 
     try {
-      let query = `
-        SELECT
-          tool_name as toolName,
-          SUM(invocations) as totalInvocations,
-          SUM(success_count) as totalSuccesses,
-          SUM(error_count) as totalErrors,
-          COUNT(DISTINCT session_id) as uniqueSessions,
-          MAX(last_used_at) as lastUsed
-        FROM tool_usage_events
-      `;
-
-      if (context) {
-        query += ` WHERE context = '${context}'`;
+      // Validate inputs
+      if (typeof minInvocations !== 'number' || minInvocations < 0) {
+        throw new Error('minInvocations must be a non-negative number');
+      }
+      if (context && typeof context !== 'string') {
+        throw new Error('context must be a string');
       }
 
-      query += `
-        GROUP BY tool_name
-        HAVING SUM(invocations) >= ${minInvocations}
-        ORDER BY SUM(invocations) DESC
-      `;
+      // Validate context is one of the allowed values
+      const validContexts = ["ticket_work", "planning", "review", "admin"];
+      if (context && !validContexts.includes(context)) {
+        throw new Error(`Invalid context: ${context}. Must be one of: ${validContexts.join(', ')}`);
+      }
+
+      // Defensive check for database
+      if (!this.db) {
+        throw new Error('Analytics database not initialized. Check server logs for initialization errors.');
+      }
+
+      const query = context
+        ? `
+          SELECT
+            tool_name as toolName,
+            SUM(invocations) as totalInvocations,
+            SUM(success_count) as totalSuccesses,
+            SUM(error_count) as totalErrors,
+            COUNT(DISTINCT session_id) as uniqueSessions,
+            MAX(last_used_at) as lastUsed
+          FROM tool_usage_events
+          WHERE context = ?
+          GROUP BY tool_name
+          HAVING SUM(invocations) >= ?
+          ORDER BY SUM(invocations) DESC
+        `
+        : `
+          SELECT
+            tool_name as toolName,
+            SUM(invocations) as totalInvocations,
+            SUM(success_count) as totalSuccesses,
+            SUM(error_count) as totalErrors,
+            COUNT(DISTINCT session_id) as uniqueSessions,
+            MAX(last_used_at) as lastUsed
+          FROM tool_usage_events
+          GROUP BY tool_name
+          HAVING SUM(invocations) >= ?
+          ORDER BY SUM(invocations) DESC
+        `;
 
       const stmt = this.db.prepare(query);
-      const tools = stmt.all();
+      const tools = context ? stmt.all(context, minInvocations) : stmt.all(minInvocations);
 
       // Calculate summary statistics
       const stats = {
@@ -272,10 +372,7 @@ export class ToolUsageAnalytics {
           invocations: t.totalInvocations || 0,
           successes: t.totalSuccesses || 0,
           errors: t.totalErrors || 0,
-          successRate:
-            t.totalInvocations > 0
-              ? (t.totalSuccesses / t.totalInvocations * 100).toFixed(1)
-              : 0,
+          successRate: this.#calculateSuccessRate(t.totalSuccesses, t.totalInvocations),
           sessions: t.uniqueSessions || 0,
           lastUsed: t.lastUsed,
         })),
@@ -283,15 +380,12 @@ export class ToolUsageAnalytics {
 
       return stats;
     } catch (error) {
-      log.error(
-        "Failed to get analytics summary:",
-        error instanceof Error ? error.message : String(error)
-      );
+      log.error("Failed to get analytics summary:", error);
       return {
         totalTools: 0,
         totalInvocations: 0,
         tools: [],
-        error: error instanceof Error ? error.message : String(error),
+        error: getErrorMessage(error),
       };
     }
   }
@@ -307,6 +401,19 @@ export class ToolUsageAnalytics {
     const { maxInvocations = 5, daysUnused = 30 } = options;
 
     try {
+      // Defensive check for database
+      if (!this.db) {
+        throw new Error('Analytics database not initialized. Check server logs for initialization errors.');
+      }
+
+      // Validate inputs
+      if (typeof maxInvocations !== 'number' || maxInvocations < 0) {
+        throw new Error('maxInvocations must be a non-negative number');
+      }
+      if (typeof daysUnused !== 'number' || daysUnused < 0) {
+        throw new Error('daysUnused must be a non-negative number');
+      }
+
       const stmt = this.db.prepare(`
         SELECT
           tool_name as toolName,
@@ -340,10 +447,7 @@ export class ToolUsageAnalytics {
             : "Not used recently",
       }));
     } catch (error) {
-      log.error(
-        "Failed to get consolidation candidates:",
-        error instanceof Error ? error.message : String(error)
-      );
+      log.error("Failed to get consolidation candidates:", error);
       return [];
     }
   }
@@ -381,10 +485,7 @@ export class ToolUsageAnalytics {
 
       return JSON.stringify(exportData);
     } catch (error) {
-      log.error(
-        "Failed to export analytics:",
-        error instanceof Error ? error.message : String(error)
-      );
+      log.error("Failed to export analytics:", error);
       return JSON.stringify({ error: "Failed to export analytics" });
     }
   }
