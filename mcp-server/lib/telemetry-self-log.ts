@@ -47,7 +47,7 @@ export function getActiveTelemetrySession(db, ticketId) {
  * @param {string} [options.error] - Error message if failed (for end events)
  * @returns {string | null} The correlation ID for pairing start/end events
  */
-export function logMcpCallEvent(db, {
+export function logMcpCallEvent(db: any, {
   sessionId,
   ticketId,
   event,
@@ -57,7 +57,17 @@ export function logMcpCallEvent(db, {
   success,
   durationMs,
   error,
-}) {
+}: {
+  sessionId?: any;
+  ticketId?: any;
+  event?: string;
+  toolName?: string;
+  correlationId?: string;
+  params?: any;
+  success?: boolean;
+  durationMs?: number;
+  error?: any;
+} = {}) {
   const id = randomUUID();
   const now = new Date().toISOString();
 
