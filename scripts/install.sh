@@ -368,22 +368,30 @@ install_mcp_dependencies() {
     print_info "Installing MCP server dependencies in mcp-server/..."
     if (cd "$MCP_SERVER_DIR" && pnpm install); then
         print_success "MCP server dependencies installed"
-        
-        # Validate the MCP server executable exists and has valid syntax
-        MCP_SERVER_EXECUTABLE="$MCP_SERVER_DIR/index.js"
+
+        # Build TypeScript sources
+        print_info "Building MCP server TypeScript..."
+        if (cd "$MCP_SERVER_DIR" && pnpm build); then
+            print_success "MCP server compiled successfully"
+        else
+            print_warning "MCP server build had warnings (continuing)"
+        fi
+
+        # Validate the compiled MCP server exists
+        MCP_SERVER_EXECUTABLE="$MCP_SERVER_DIR/dist/index.js"
         if [ ! -f "$MCP_SERVER_EXECUTABLE" ]; then
             print_error "MCP server executable not found at $MCP_SERVER_EXECUTABLE"
             FAILED+=("MCP server dependencies (executable missing)")
             return 1
         fi
-        
+
         # Validate the server can start (quick syntax check)
         if ! node -c "$MCP_SERVER_EXECUTABLE" 2>/dev/null; then
             print_error "MCP server has syntax errors"
             FAILED+=("MCP server dependencies (syntax error)")
             return 1
         fi
-        
+
         INSTALLED+=("MCP server dependencies")
         return 0
     else
