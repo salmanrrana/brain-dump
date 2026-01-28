@@ -121,6 +121,8 @@ export const settings = sqliteTable("settings", {
   ), // Enable/disable conversation logging
   // Git worktree feature flag (gradual rollout)
   enableWorktreeSupport: integer("enable_worktree_support", { mode: "boolean" }).default(false), // Global opt-in for worktree support
+  // MCP tool filtering settings
+  enableContextAwareToolFiltering: integer("enable_context_aware_tool_filtering", { mode: "boolean" }).default(false), // Enable context-aware tool filtering (reduces tool count per context)
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),

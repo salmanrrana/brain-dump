@@ -32,6 +32,8 @@ export interface UpdateSettingsInput {
   conversationRetentionDays?: number; // Days to retain logs (7-365)
   // Git worktree feature flag
   enableWorktreeSupport?: boolean; // Global opt-in for worktree support
+  // MCP tool filtering
+  enableContextAwareToolFiltering?: boolean; // Enable context-aware tool filtering
 }
 
 // List of supported terminal emulators
@@ -148,6 +150,9 @@ export const updateSettings = createServerFn({ method: "POST" })
     }
     if (updates.enableWorktreeSupport !== undefined) {
       updateData.enableWorktreeSupport = updates.enableWorktreeSupport;
+    }
+    if (updates.enableContextAwareToolFiltering !== undefined) {
+      updateData.enableContextAwareToolFiltering = updates.enableContextAwareToolFiltering;
     }
 
     db.update(settings).set(updateData).where(eq(settings.id, "default")).run();

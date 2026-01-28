@@ -1,7 +1,7 @@
-import { ChevronDown, Terminal, FolderPlus, Folder } from "lucide-react";
+import { ChevronDown, Terminal, FolderPlus, Folder, Zap } from "lucide-react";
 import { SUPPORTED_TERMINALS } from "../../api/settings";
-import { sectionHeaderStyles, fieldStyles, inputStyles } from "./settingsStyles";
-import type { SettingsForm, StringFieldRenderProps } from "./settings-form-opts";
+import { sectionHeaderStyles, fieldStyles, inputStyles, toggleStyles } from "./settingsStyles";
+import type { SettingsForm, StringFieldRenderProps, BooleanFieldRenderProps } from "./settings-form-opts";
 
 // =============================================================================
 // TYPES
@@ -175,6 +175,40 @@ export function GeneralTab({
                   Used when clicking "Start Work" on a ticket. Auto-detect will try Ghostty first,
                   then fall back to other installed terminals.
                 </p>
+              </div>
+            )}
+          />
+        </div>
+
+        {/* MCP Tool Filtering Section */}
+        <div>
+          <div className={sectionHeaderStyles.container}>
+            <div className={sectionHeaderStyles.iconBox("var(--accent-primary)")}>
+              <Zap size={16} className="text-[var(--accent-primary)]" />
+            </div>
+            <h3 className={sectionHeaderStyles.title}>MCP Tools</h3>
+          </div>
+
+          <form.Field
+            name="enableContextAwareToolFiltering"
+            children={(field: BooleanFieldRenderProps) => (
+              <div className={toggleStyles.row}>
+                <div className={toggleStyles.info}>
+                  <div className={toggleStyles.label}>Context-Aware Tool Filtering</div>
+                  <div className={toggleStyles.desc}>
+                    Automatically filter MCP tools based on your current workflow (ticket work, planning, review). Reduces visible tools from 65 to 10-15 per context.
+                  </div>
+                </div>
+                <button
+                  onClick={() => field.handleChange(!field.state.value)}
+                  onBlur={field.handleBlur}
+                  className={toggleStyles.switch(field.state.value)}
+                  role="switch"
+                  aria-checked={field.state.value}
+                  aria-label="Enable Context-Aware Tool Filtering"
+                >
+                  <span className={toggleStyles.knob(field.state.value)} />
+                </button>
               </div>
             )}
           />

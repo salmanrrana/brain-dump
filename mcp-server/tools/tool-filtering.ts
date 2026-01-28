@@ -53,7 +53,16 @@ function formatResponse(text, isError = false) {
 export function registerToolFilteringTools(server, db) {
   // Initialize filtering engine if not already done
   if (!filteringEngine) {
-    initToolFiltering(db);
+    // Read the enableContextAwareToolFiltering setting from database
+    try {
+      const settings = db.prepare("SELECT enable_context_aware_tool_filtering FROM settings WHERE id = 'default' LIMIT 1").get();
+      const filteringEnabled = settings?.enable_context_aware_tool_filtering ?? false;
+      initToolFiltering(db, { enabled: filteringEnabled });
+    } catch (err) {
+      // If settings table doesn't exist or query fails, disable filtering
+      log.warn("Could not read context-aware filtering setting, disabling filtering", err);
+      initToolFiltering(db, { enabled: false });
+    }
   }
 
   // =========================================================================
