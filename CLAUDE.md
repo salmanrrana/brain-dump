@@ -495,13 +495,11 @@ These are called from React components via TanStack Query.
 
 ### TypeScript Requirements
 
-**CRITICAL: This project uses TypeScript exclusively. All new code MUST be written in TypeScript.**
-
-**MANDATORY MIGRATION RULE: If you touch ANY JavaScript file (`.js`, `.jsx`), you MUST migrate it to TypeScript (`.ts`, `.tsx`) as part of your changes. No exceptions.**
+**🚨 CRITICAL: This project uses TypeScript exclusively. If you touch ANY `.js`/`.jsx` file, you MUST migrate it to `.ts`/`.tsx` as part of your changes. No exceptions.**
 
 | ✅ DO                                                                                                | ❌ DON'T                                                   |
 | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| **Migrate `.js`/`.jsx` to `.ts`/`.tsx` when editing them (REQUIRED)**                                | Touch a JavaScript file and leave it as JavaScript         |
+| Migrate `.js`/`.jsx` → `.ts`/`.tsx` when editing them                                                | Touch a JavaScript file and leave it as JavaScript         |
 | Write all new files as `.ts` or `.tsx`                                                               | Create new `.js` or `.jsx` files                           |
 | Use explicit type annotations for function parameters and return types                               | Rely on JSDoc comments for type information                |
 | Define interfaces/types for complex objects: `interface User { id: string; name: string }`           | Use untyped object parameters                              |
@@ -509,22 +507,7 @@ These are called from React components via TanStack Query.
 | Use `unknown` for error types, then narrow: `error instanceof Error ? error.message : String(error)` | Use `any` for error types                                  |
 | Use strict type checking (already configured in `tsconfig.json`)                                     | Add `// @ts-ignore` or `// @ts-expect-error` unnecessarily |
 
-**Why TypeScript-only:**
-
-- **Stronger feedback loop**: Type errors catch bugs before runtime
-- **Better IDE support**: Autocomplete, refactoring, and navigation
-- **Self-documenting**: Types serve as inline documentation
-- **Fewer tests needed**: Type system catches many errors that would require tests in JavaScript
-
-**Migration status**: The MCP server (`mcp-server/`) is being actively migrated to TypeScript. If you edit ANY `.js` file in `mcp-server/`, migrate it to `.ts` immediately. The main application (`src/`) is already TypeScript-only.
-
-**How to migrate a JS file:**
-
-1. Rename `.js` → `.ts` (or `.jsx` → `.tsx`)
-2. Add type annotations to function parameters and return types
-3. Define interfaces for complex objects
-4. Fix any type errors that appear
-5. Update imports in other files if needed
+**Migration Guide:** Rename → Add types → Fix errors → Update imports. See `mcp-server/` for examples of partially-migrated code.
 
 ### Database Queries
 

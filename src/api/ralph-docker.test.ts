@@ -20,7 +20,7 @@ import { execSync } from "child_process";
 
 // Import the function we're testing
 // Note: We test the generated script output, not internal implementation
-import { generateRalphScript } from "./ralph";
+import { generateRalphScript } from "../lib/docker-sandbox";
 
 describe("Ralph Docker Sandbox", () => {
   const testProjectPath = join(tmpdir(), "ralph-docker-test");
