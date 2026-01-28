@@ -259,9 +259,9 @@ export const exportToolAnalytics = {
 /**
  * Register analytics tools with the MCP server.
  * @param {McpServer} server - The MCP server instance
- * @param {Database} db - The database instance (unused, kept for API consistency)
+ * @param {Database} _db - The database instance (unused, kept for API consistency)
  */
-export function registerAnalyticsTools(server, db) {
+export function registerAnalyticsTools(server, _db) {
   server.tool("get_tool_usage_stats", getToolUsageStats.inputSchema, getToolUsageStats.handler);
   server.tool("get_tool_usage_summary", getToolUsageSummary.inputSchema, getToolUsageSummary.handler);
   server.tool("get_consolidation_candidates", getConsolidationCandidates.inputSchema, getConsolidationCandidates.handler);
