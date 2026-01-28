@@ -11,7 +11,7 @@
     {
       "id": "ed3637e8-e933-454a-bd98-76fa2e1ab31d",
       "title": "Add tool metadata system for categorization and context tagging",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -1109,35 +1109,10 @@
     "verificationSteps": [
       "Run `pnpm type-check` - must pass with no errors",
       "Run `pnpm lint` - must pass with no errors",
-      "Run `pnpm test` - all tests must pass",
-      "Added tests for new functionality (ONLY tests that verify real user behavior - see Testing Philosophy above)",
-      "Used typed error classes (not generic `Error`)",
-      "Used Drizzle ORM (not raw SQL) - see DO/DON'T table above",
-      "Followed existing patterns from DO/DON'T tables",
-      "No hardcoded values that should be configurable",
-      "Existing tests still pass",
-      "No regressions in related functionality",
-      "Updated tests if behavior changed",
-      "Did not break backward compatibility (unless explicitly requested)",
-      "Manually verified in browser at `localhost:4242`",
-      "Checked responsive layout",
-      "Verified TanStack Query invalidates and updates correctly",
-      "Accessibility: keyboard navigation works, proper ARIA labels",
-      "Migration file created via `pnpm db:generate`",
-      "Migration tested with `pnpm db:migrate`",
-      "Backup tested if schema changed (use `pnpm brain-dump backup` then test restore)",
-      "Updated `src/lib/schema.ts` with proper types and constraints",
-      "Tested tool via Claude Code integration",
-      "Verified error responses are informative (see DO/DON'T table)",
-      "Updated tool documentation if interface changed",
-      "Added Zod schema for input validation",
-      "All acceptance criteria from ticket met",
-      "Work summary added via `add_ticket_comment` (for Ralph sessions)",
-      "Session completed with appropriate outcome (for Ralph sessions)",
-      "Committed with proper message format: `feat(<ticket-id>): <description>`"
+      "Run `pnpm test` - all tests must pass"
     ]
   },
-  "generatedAt": "2026-01-28T00:13:23.415Z",
+  "generatedAt": "2026-01-28T19:33:51.061Z",
   "epicTitle": "MCP Tool Consolidation and Context-Aware Filtering",
-  "epicDescription": "## Goal\n\nReduce MCP tool count from 65 to manageable levels while **maintaining ALL functionality** for the Universal Quality Workflow across ALL providers (Claude Code, Cursor, VS Code, OpenCode).\n\n## Multi-Provider Capability Matrix (CORRECTED)\n\n| Feature | Claude Code | Cursor | OpenCode | VS Code |\n|---------|-------------|--------|----------|---------|\n| **Instructions** | `CLAUDE.md` | `.cursor/rules/` or `AGENTS.md` | `AGENTS.md` | `.github/copilot-instructions.md` |\n| **Skills** | `.claude/skills/` | `.cursor/skills/` (same format!) | `.opencode/skills/` (same format!) | `.github/skills/` (same format!) |\n| **Agents** | `.claude/agents/` | `.cursor/agents/` | `.opencode/agents/` | `.github/agents/` |\n| **MCP** | `.mcp.json` | `.cursor/mcp.json` | `opencode.json` | `.vscode/mcp.json` |\n| **Hooks** | Shell scripts ✅ | Shell scripts ✅ | TypeScript plugins ✅ | ❌ None |\n| **Commands** | `.claude/commands/` | `.cursor/commands/` | N/A | Prompt files |\n\n**Key Discovery**: Cursor has FULL hook support (`preToolUse`, `postToolUse`, `sessionStart`, `sessionEnd`, etc.), making it fully equivalent to Claude Code for workflow enforcement!\n\n## Revised Architecture (Multi-Provider)\n\nBased on analysis, the solution combines multiple strategies:\n\n### 1. Modular MCP Servers (Universal - Works Everywhere)\n\nSplit the monolithic MCP server into purpose-specific servers:\n\n| Server | Tools | When Used |\n|--------|-------|-----------|\n| `brain-dump-core` | ~10 essential tools | Always configured |\n| `brain-dump-workflow` | ~8 workflow tools | When working on tickets |\n| `brain-dump-telemetry` | ~7 telemetry tools | Via hooks (internal) |\n| `brain-dump-admin` | ~10 compliance tools | Admin/enterprise only |\n\n### 2. Composite Tools (Reduce Count)\n\nCreate higher-level tools that combine common operations:\n\n| Composite Tool | Replaces |\n|---------------|----------|\n| `start_work` | `start_ticket_work` + `create_ralph_session` + `start_telemetry_session` |\n| `complete_work` | `complete_ticket_work` + `sync_ticket_links` + `end_telemetry_session` |\n| `submit_review` | Combines review finding workflow |\n\nTarget: 65 → ~25-30 composite tools total\n\n### 3. Claude Code Plugin (Rich Experience)\n\nPackage as plugin with:\n- Skills for workflow guidance (on-demand, no token cost until invoked)\n- Agents for autonomous work\n- Hooks for state enforcement\n- MCP server configs\n\n### 4. Provider-Specific Configs\n\nCreate configs in the repo for each provider:\n- `.claude/plugins/brain-dump-workflow/` - Full plugin\n- `.cursor/` - Hooks + MCP + skills + agents + commands\n- `.opencode/` - Plugins with hooks + MCP + skills\n- `.github/` (VS Code) - MCP + skills + agents (no hooks)\n\n## Critical Workflow Requirements\n\n**ALL of these must work after consolidation:**\n\n1. **Start Ticket** - Create branch/worktree, set status, begin session\n2. **Coding** - Write/edit code with proper state tracking\n3. **Commit/Push** - Link commits to tickets, create PRs\n4. **AI Review** - Run review agents, submit findings\n5. **Fix Issues** - Mark findings fixed, iterate\n6. **Human Review** - Generate demo script, await approval\n7. **Done** - Complete ticket, reconcile learnings\n8. **AI Comments** - Add work summaries, progress updates\n9. **Telemetry** - Capture tool usage, prompts, session data\n\n## Success Metrics\n\n- Tool count: 65 → 25-30 (via composites) → 10-15 visible per context (via filtering)\n- Token reduction: ~60% fewer tokens for tool descriptions\n- LLM selection accuracy: 60-70% → 85-90%\n- Cross-provider parity: Same workflows work in all 4 environments\n\n## Agent Review Findings (Incorporated)\n\nFrom MCP Engineer, Architect, LLM Specialist, DevOps reviews:\n- Use explicit mode selection, not just auto-detection\n- Add shadow mode before actual filtering\n- Add `tools/list_changed` notification support\n- Add circuit breakers and feature flags\n- Shorten tool descriptions to <150 tokens each\n- Add disambiguation between similar tools"
+  "epicDescription": "Reduce Claude's tool context overhead by implementing intelligent tool filtering based on workflow context. This epic consolidates MCP tools and adds smart filtering to show only relevant tools for the current task."
 }

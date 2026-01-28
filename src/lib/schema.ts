@@ -710,3 +710,38 @@ export interface WorkflowLearning {
   };
   appliedAt?: string; // When this learning was applied to docs
 }
+
+// Tool usage events table - tracks MCP tool invocations for analytics
+export const toolUsageEvents = sqliteTable(
+  "tool_usage_events",
+  {
+    id: text("id").primaryKey(),
+    toolName: text("tool_name").notNull(), // Name of the tool that was called
+    sessionId: text("session_id"), // Ralph session ID if applicable
+    ticketId: text("ticket_id"), // Ticket being worked on (if applicable)
+    projectId: text("project_id"), // Project context
+    invocations: integer("invocations").notNull().default(1), // Number of times called in this session
+    errorCount: integer("error_count").notNull().default(0), // How many times it errored
+    successCount: integer("success_count").notNull().default(0), // How many times it succeeded
+    totalDuration: integer("total_duration").default(0), // Total execution time in ms
+    lastUsedAt: text("last_used_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    context: text("context")
+      .$type<"ticket_work" | "planning" | "review" | "admin" | "unknown">()
+      .default("unknown"), // Context where tool was used
+  },
+  (table) => [
+    index("idx_tool_usage_tool_name").on(table.toolName),
+    index("idx_tool_usage_session").on(table.sessionId),
+    index("idx_tool_usage_ticket").on(table.ticketId),
+    index("idx_tool_usage_project").on(table.projectId),
+    index("idx_tool_usage_last_used").on(table.lastUsedAt),
+  ]
+);
+
+export type ToolUsageEvent = typeof toolUsageEvents.$inferSelect;
+export type NewToolUsageEvent = typeof toolUsageEvents.$inferInsert;

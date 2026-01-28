@@ -36,6 +36,7 @@ import { registerReviewFindingsTools } from "./tools/review-findings.js";
 import { registerDemoTools } from "./tools/demo.js";
 import { registerLearningsTools } from "./tools/learnings.js";
 import { registerWorktreeTools } from "./tools/worktrees.js";
+import { registerAnalyticsTools } from "./tools/analytics.js";
 
 import { unlinkSync } from "fs";
 
@@ -115,6 +116,7 @@ registerReviewFindingsTools(server, db);
 registerDemoTools(server, db);
 registerLearningsTools(server, db);
 registerWorktreeTools(server, db);
+registerAnalyticsTools(server, db);
 
 // =============================================================================
 // CONNECT AND START
