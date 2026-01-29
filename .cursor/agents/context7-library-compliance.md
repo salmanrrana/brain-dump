@@ -1,1 +1,0 @@
-../../.claude/agents/context7-library-compliance.md

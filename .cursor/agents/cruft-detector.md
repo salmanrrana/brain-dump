@@ -1,1 +1,0 @@
-../../.claude/agents/cruft-detector.md
