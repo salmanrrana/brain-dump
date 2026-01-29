@@ -20,9 +20,27 @@ import {
   DEFAULT_RESOURCE_LIMITS,
   DEFAULT_TIMEOUT_SECONDS,
 } from "../lib/docker-sandbox";
-import { launchInVSCode, launchInTerminal } from "../lib/terminal-launcher";
+import { launchInVSCode, launchInTerminal, findVSCodeCli } from "../lib/terminal-launcher";
 import { createWorktree } from "../lib/worktree-manager";
 import { getDockerHostEnvValue } from "./docker-utils";
+
+/**
+ * Determine whether to use VS Code for launching Ralph.
+ * Returns true only when the project is configured for VS Code,
+ * the user is not using OpenCode, and VS Code is installed.
+ * Logs a fallback message when VS Code is configured but not found.
+ */
+async function shouldLaunchInVSCode(workingMethod: string, aiBackend: string): Promise<boolean> {
+  if (workingMethod !== "vscode" || aiBackend === "opencode") {
+    return false;
+  }
+  const vsCodeCli = await findVSCodeCli();
+  if (!vsCodeCli) {
+    console.log(`[brain-dump] VS Code not found, falling back to terminal launch`);
+    return false;
+  }
+  return true;
+}
 
 export const launchRalphForTicket = createServerFn({ method: "POST" })
   .inputValidator(
@@ -112,10 +130,10 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
 
     const workingMethod = project.workingMethod || "auto";
     console.log(
-      `[brain-dump] Ralph ticket launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`
+      `[brain-dump] Ralph ticket launch: workingMethod="${workingMethod}", aiBackend="${aiBackend}" for project "${project.name}", timeout=${timeoutSeconds}s`
     );
 
-    if (workingMethod === "vscode") {
+    if (await shouldLaunchInVSCode(workingMethod, aiBackend)) {
       console.log(`[brain-dump] Using VS Code launch path for single ticket`);
 
       const contextContent = generateVSCodeContext(prd);
@@ -368,20 +386,19 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
 
     const workingMethod = project.workingMethod || "auto";
     console.log(
-      `[brain-dump] Ralph launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`
+      `[brain-dump] Ralph launch: workingMethod="${workingMethod}", aiBackend="${aiBackend}" for project "${project.name}", timeout=${timeoutSeconds}s`
     );
 
-    if (workingMethod === "vscode") {
+    if (await shouldLaunchInVSCode(workingMethod, aiBackend)) {
       console.log(`[brain-dump] Using VS Code launch path`);
 
       const contextContent = generateVSCodeContext(prd);
       const contextResult = await writeVSCodeContext(workingDirectory, contextContent);
 
       if (!contextResult.success) {
-        // OPTIMIZATION: Batch rollback instead of N+1 queries
         if (ticketIdsToUpdate.length > 0) {
           db.update(tickets)
-            .set({ status: "ready" }) // Rollback to previous state
+            .set({ status: "ready" })
             .where(inArray(tickets.id, ticketIdsToUpdate))
             .run();
         }
@@ -393,10 +410,9 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       const launchResult = await launchInVSCode(workingDirectory, contextResult.path);
 
       if (!launchResult.success) {
-        // OPTIMIZATION: Batch rollback instead of N+1 queries
         if (ticketIdsToUpdate.length > 0) {
           db.update(tickets)
-            .set({ status: "ready" }) // Rollback to previous state
+            .set({ status: "ready" })
             .where(inArray(tickets.id, ticketIdsToUpdate))
             .run();
         }
