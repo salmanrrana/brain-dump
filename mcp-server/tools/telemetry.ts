@@ -352,7 +352,7 @@ Returns:
       event: z.enum(["start", "end"]).describe("Whether tool is starting or completed"),
       toolName: z.string().describe("Name of the tool"),
       correlationId: z.string().optional().describe("Unique ID to pair start/end events"),
-      params: z.record(z.unknown()).optional().describe("Parameter summary (sanitized)"),
+      params: z.record(z.string(), z.unknown()).optional().describe("Parameter summary (sanitized)"),
       result: z.string().optional().describe("Result summary"),
       success: z.boolean().optional().describe("Whether tool call succeeded"),
       durationMs: z.number().optional().describe("Duration in milliseconds"),

@@ -58,7 +58,7 @@ Returns the created session with its ID for use in subsequent logging calls.`,
       projectId: z.string().optional().describe("Optional project ID to link the session to"),
       ticketId: z.string().optional().describe("Optional ticket ID to link the session to"),
       userId: z.string().optional().describe("Optional user identifier for multi-user tracking"),
-      metadata: z.record(z.unknown()).optional().describe("Optional JSON object with additional session context"),
+      metadata: z.record(z.string(), z.unknown()).optional().describe("Optional JSON object with additional session context"),
       dataClassification: z.enum(DATA_CLASSIFICATIONS).optional().describe("Data sensitivity level (default: internal)"),
     },
     async ({ projectId, ticketId, userId, metadata, dataClassification = "internal" }) => {
@@ -157,7 +157,7 @@ Returns the created message with its ID and content hash for verification.`,
         .array(
           z.object({
             name: z.string(),
-            parameters: z.record(z.unknown()).optional(),
+            parameters: z.record(z.string(), z.unknown()).optional(),
             result: z.unknown().optional(),
           })
         )
@@ -365,8 +365,8 @@ Returns array of sessions with message counts, sorted by started_at descending.`
     async ({ projectId, ticketId, environment, startDate, endDate, includeActive = true, limit = 50 }) => {
       try {
         // Build dynamic WHERE clause
-        const conditions = [];
-        const params = [];
+        const conditions: string[] = [];
+        const params: (string | number)[] = [];
 
         if (projectId) {
           conditions.push("cs.project_id = ?");
