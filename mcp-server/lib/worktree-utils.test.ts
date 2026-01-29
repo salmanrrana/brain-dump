@@ -164,7 +164,7 @@ describe("worktree-utils module", () => {
 
     describe("input validation", () => {
       it("returns error for null projectPath", () => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const result = generateWorktreePath(null as any, testEpicId, testEpicTitle);
         expect(result.success).toBe(false);
         if (!result.success) {
@@ -189,7 +189,7 @@ describe("worktree-utils module", () => {
       });
 
       it("returns error for null epicId", () => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const result = generateWorktreePath(testProjectPath, null as any, testEpicTitle);
         expect(result.success).toBe(false);
         if (!result.success) {
@@ -198,7 +198,7 @@ describe("worktree-utils module", () => {
       });
 
       it("returns error for null epicTitle", () => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const result = generateWorktreePath(testProjectPath, testEpicId, null as any);
         expect(result.success).toBe(false);
         if (!result.success) {
@@ -208,7 +208,7 @@ describe("worktree-utils module", () => {
 
       it("returns error for unknown location type", () => {
         const result = generateWorktreePath(testProjectPath, testEpicId, testEpicTitle, {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           location: "unknown" as any,
         });
         expect(result.success).toBe(false);
@@ -292,7 +292,7 @@ describe("worktree-utils module", () => {
     });
 
     it("propagates input validation errors", () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const result = suggestAlternativeWorktreePath(testProjectPath, null as any, testEpicTitle);
 
       expect(result.success).toBe(false);
@@ -519,7 +519,7 @@ describe("worktree-utils module", () => {
 
       it("returns error for null branch name", () => {
         const siblingPath = `${projectPath}-test-worktree-null-branch`;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const result = createWorktree(projectPath, siblingPath, null as any);
 
         expect(result.success).toBe(false);
@@ -682,7 +682,7 @@ describe("worktree-utils module", () => {
 
     describe("status: corrupted", () => {
       it("returns corrupted for null worktree path", () => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const result = validateWorktree(null as any, projectPath);
 
         expect(result.status).toBe("corrupted");
@@ -697,7 +697,7 @@ describe("worktree-utils module", () => {
       });
 
       it("returns corrupted for null project path", () => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const result = validateWorktree("/some/path", null as any);
 
         expect(result.status).toBe("corrupted");
@@ -854,7 +854,7 @@ describe("worktree-utils module", () => {
 
     describe("input validation", () => {
       it("returns error for null worktree path", () => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const result = removeWorktree(null as any, projectPath);
 
         expect(result.success).toBe(false);
@@ -873,7 +873,7 @@ describe("worktree-utils module", () => {
       });
 
       it("returns error for null project path", () => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const result = removeWorktree("/some/worktree", null as any);
 
         expect(result.success).toBe(false);
@@ -1045,8 +1045,8 @@ describe("worktree-utils module", () => {
 
         expect(result.success).toBe(false);
         if (!result.success) {
-          // Should fail when trying to list worktrees because /private/tmp is not a git repo
-          expect(result.error).toContain("Failed to list worktrees");
+          // Should fail - either path doesn't exist or is not a git repo
+          expect(result.error).toMatch(/Failed to list worktrees|Project path does not exist/);
         }
       });
     });

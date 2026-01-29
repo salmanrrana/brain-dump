@@ -135,6 +135,54 @@ They require human demo approval via `submit_demo_feedback({ ticketId, passed, f
 **Note:** Previous demo failed on step 3 due to scope confusion - the reviewer tested files OUTSIDE this ticket's scope (src/api/services.ts, terminal.ts). This ticket is specifically about mcp-server/lib/path-validation.js.
 
 
-### 2026-01-28 - Ralph Session: MCP Tool Consolidation Phase 2
-**Work:** Completed tickets 6991c44f (Settings UI), f4c0491d (Integration tests), 225d2d18 (Mode selection)
-**Commits:** c00dbb0, c60668e, 96ea54a
+### 2026-01-28 14:15 - Ticket Creation: Unified AI Provider Launch System Epic
+**Epic:** epic-decc42e3e2ea - Unified AI Provider Launch System
+
+**Created 5 new tickets to fill identified gaps:**
+
+1. **ticket-4c560850ea9b** [HIGH] - Add Cursor to provider enum and new settings fields
+   - Schema changes to support Cursor as a working method
+   - New settings fields: hideUninstalledProviders, defaultRalphMode
+   - Estimate: 1 hour
+   - Blocks: Tickets 2 and 3
+
+2. **ticket-38de23401a4d** [HIGH] - Add Cursor CLI detection and launch function
+   - Implement isCursorInstalled() detection function
+   - Implement launchInCursor() launch function
+   - Parallel to VS Code implementation
+   - Estimate: 2 hours
+
+3. **ticket-ce4c05d3b18e** [HIGH] - Fix VS Code/Cursor launch to update ticket status
+   - Create wrapper functions: launchVSCodeForTicket, launchCursorForTicket
+   - Integrate with ticket workflow (status updates, state files, context creation)
+   - Estimate: 3 hours
+
+4. **ticket-37a8bb551ee0** [MEDIUM] - Unified Ralph mode context for all providers
+   - Create createRalphContext() function for consistent Ralph setup
+   - Terminal providers (Claude Code, OpenCode): automatic state tracking
+   - Editor providers (VS Code, Cursor): explicit session start instructions
+   - Estimate: 3 hours
+
+5. **ticket-55963ef10268** [MEDIUM] - End-to-end integration test for unified provider launch
+   - E2E tests for all 8 scenarios (4 providers x 2 modes)
+   - Test ticket status updates, context file creation
+   - Verify uninstalled provider handling
+   - Estimate: 4 hours
+
+**Epic Summary:**
+- Total tickets: 13 (was 8)
+- New estimate: 22-30 hours (was 14-19)
+- High priority: 6 tickets (3 new)
+- Medium priority: 5 tickets (2 new)
+- Low priority: 2 tickets (unchanged)
+
+**PRD Created:**
+- plans/unified-provider-launch-prd.json (171 lines)
+- Contains all 13 tickets with full descriptions
+- Ready for Ralph autonomous mode
+
+**Next Steps:**
+1. Begin with high-priority tickets (schema changes blocks others)
+2. Follow the recommended order in ticket descriptions
+3. Run E2E tests after all implementation complete
+

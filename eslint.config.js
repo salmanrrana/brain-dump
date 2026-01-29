@@ -6,7 +6,7 @@ import prettier from "eslint-config-prettier";
 import globals from "globals";
 
 export default tseslint.config(
-  { ignores: ["dist", "node_modules", ".vinxi", ".output", "vendor", ".claude", ".opencode"] },
+  { ignores: ["dist", "**/dist", "node_modules", ".vinxi", ".output", "vendor", ".claude", ".opencode"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -21,6 +21,17 @@ export default tseslint.config(
         "warn",
         { allowConstantExport: true },
       ],
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+    },
+  },
+  // MCP server TypeScript files - relaxed rules (strict: false, gradual migration)
+  {
+    files: ["mcp-server/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": [
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },

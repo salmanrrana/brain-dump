@@ -101,7 +101,10 @@ Args:
 
 Returns the saved tasks.`,
     {
-      ticketId: z.string().optional().describe("Ticket ID (auto-detected from Ralph state if not provided)"),
+      ticketId: z
+        .string()
+        .optional()
+        .describe("Ticket ID (auto-detected from Ralph state if not provided)"),
       tasks: z.array(taskInputSchema).describe("Array of tasks to save"),
       createSnapshot: z.boolean().optional().describe("Create an audit snapshot of the task list"),
     },
@@ -118,7 +121,12 @@ Returns the saved tasks.`,
           log.info(`Auto-detected ticket ${resolvedTicketId} from Ralph state`);
         } else {
           return {
-            content: [{ type: "text", text: "No ticketId provided and no active Ralph session found. Provide a ticketId or start ticket work first." }],
+            content: [
+              {
+                type: "text",
+                text: "No ticketId provided and no active Ralph session found. Provide a ticketId or start ticket work first.",
+              },
+            ],
             isError: true,
           };
         }
@@ -128,7 +136,12 @@ Returns the saved tasks.`,
       const ticket = ensureTicketExists(db, resolvedTicketId);
       if (!ticket) {
         return {
-          content: [{ type: "text", text: `Ticket not found: ${resolvedTicketId}. Use list_tickets to see available tickets.` }],
+          content: [
+            {
+              type: "text",
+              text: `Ticket not found: ${resolvedTicketId}. Use list_tickets to see available tickets.`,
+            },
+          ],
           isError: true,
         };
       }
@@ -145,10 +158,17 @@ Returns the saved tasks.`,
 
       const transaction = db.transaction(() => {
         // Get existing tasks to preserve status history for audit trail
-        const existingTasks = db.prepare(
-          "SELECT id, status, status_history, created_at FROM claude_tasks WHERE ticket_id = ?"
-        ).all(resolvedTicketId);
-        const existingTaskMap = new Map(existingTasks.map(t => [t.id, t]));
+        const existingTasks = db
+          .prepare(
+            "SELECT id, status, status_history, created_at FROM claude_tasks WHERE ticket_id = ?"
+          )
+          .all(resolvedTicketId) as Array<{
+          id: string;
+          status: string;
+          status_history: string;
+          created_at: string;
+        }>;
+        const existingTaskMap = new Map(existingTasks.map((t) => [t.id, t]));
 
         db.prepare("DELETE FROM claude_tasks WHERE ticket_id = ?").run(resolvedTicketId);
 
@@ -176,7 +196,8 @@ Returns the saved tasks.`,
           }
 
           // Add new status entry if status changed
-          const lastStatus = statusHistory.length > 0 ? statusHistory[statusHistory.length - 1].status : null;
+          const lastStatus =
+            statusHistory.length > 0 ? statusHistory[statusHistory.length - 1].status : null;
           if (task.status !== lastStatus) {
             statusHistory.push({ status: task.status, timestamp: now });
           }
@@ -211,10 +232,12 @@ Returns the saved tasks.`,
         // Create snapshot if requested
         if (createSnapshot) {
           const snapshotId = randomUUID();
-          db.prepare(`
+          db.prepare(
+            `
             INSERT INTO claude_task_snapshots (id, ticket_id, session_id, tasks, reason, created_at)
             VALUES (?, ?, ?, ?, 'manual', ?)
-          `).run(snapshotId, resolvedTicketId, resolvedSessionId, JSON.stringify(savedTasks), now);
+          `
+          ).run(snapshotId, resolvedTicketId, resolvedSessionId, JSON.stringify(savedTasks), now);
         }
 
         return savedTasks;
@@ -230,16 +253,20 @@ Returns the saved tasks.`,
         }, {});
 
         return {
-          content: [{
-            type: "text",
-            text: `## Claude Tasks Saved
+          content: [
+            {
+              type: "text",
+              text: `## Claude Tasks Saved
 
 **Ticket:** ${ticket.title}
-**Tasks:** ${savedTasks.length} (${Object.entries(statusCounts).map(([s, c]) => `${c} ${s}`).join(", ")})
+**Tasks:** ${savedTasks.length} (${Object.entries(statusCounts)
+                .map(([s, c]) => `${c} ${s}`)
+                .join(", ")})
 ${createSnapshot ? "**Snapshot:** Created for audit trail" : ""}
 
 ${savedTasks.map((t, i) => `${i + 1}. ${getTaskStatusIcon(t.status)} ${t.subject}`).join("\n")}`,
-          }],
+            },
+          ],
         };
       } catch (err) {
         log.error(`Failed to save Claude tasks: ${err.message}`);
@@ -266,7 +293,10 @@ Args:
 
 Returns array of tasks with full details.`,
     {
-      ticketId: z.string().optional().describe("Ticket ID (auto-detected from Ralph state if not provided)"),
+      ticketId: z
+        .string()
+        .optional()
+        .describe("Ticket ID (auto-detected from Ralph state if not provided)"),
       includeHistory: z.boolean().optional().describe("Include status change history"),
     },
     async ({ ticketId, includeHistory = false }) => {
@@ -280,7 +310,12 @@ Returns array of tasks with full details.`,
           log.info(`Auto-detected ticket ${resolvedTicketId} from Ralph state`);
         } else {
           return {
-            content: [{ type: "text", text: "No ticketId provided and no active Ralph session found. Provide a ticketId or start ticket work first." }],
+            content: [
+              {
+                type: "text",
+                text: "No ticketId provided and no active Ralph session found. Provide a ticketId or start ticket work first.",
+              },
+            ],
             isError: true,
           };
         }
@@ -290,31 +325,43 @@ Returns array of tasks with full details.`,
       const ticket = ensureTicketExists(db, resolvedTicketId);
       if (!ticket) {
         return {
-          content: [{ type: "text", text: `Ticket not found: ${resolvedTicketId}. Use list_tickets to see available tickets.` }],
+          content: [
+            {
+              type: "text",
+              text: `Ticket not found: ${resolvedTicketId}. Use list_tickets to see available tickets.`,
+            },
+          ],
           isError: true,
         };
       }
 
       // Fetch tasks ordered by position
-      const tasks = db.prepare(`
+      const tasks = db
+        .prepare(
+          `
         SELECT id, subject, description, status, active_form as activeForm, position, status_history, session_id, created_at, updated_at, completed_at
         FROM claude_tasks
         WHERE ticket_id = ?
         ORDER BY position ASC
-      `).all(resolvedTicketId);
+      `
+        )
+         
+        .all(resolvedTicketId) as Array<Record<string, any>>;
 
       if (tasks.length === 0) {
         return {
-          content: [{
-            type: "text",
-            text: `No Claude tasks recorded for ticket "${ticket.title}".\n\nTasks are captured when Claude uses the TodoWrite tool while working on this ticket.`,
-          }],
+          content: [
+            {
+              type: "text",
+              text: `No Claude tasks recorded for ticket "${ticket.title}".\n\nTasks are captured when Claude uses the TodoWrite tool while working on this ticket.`,
+            },
+          ],
         };
       }
 
       // Parse status history if requested
-      const formattedTasks = tasks.map(t => {
-        const task = {
+      const formattedTasks = tasks.map((t) => {
+        const task: Record<string, any> = {
           id: t.id,
           subject: t.subject,
           description: t.description,
@@ -330,7 +377,7 @@ Returns array of tasks with full details.`,
           try {
             task.statusHistory = JSON.parse(t.status_history);
           } catch (err) {
-            log.warn(`Failed to parse status_history for task ${t.id}: ${err.message}`);
+            log.warn(`Failed to parse status_history for task ${t.id}: ${(err as Error).message}`);
             task.statusHistory = [];
           }
         }
@@ -346,24 +393,30 @@ Returns array of tasks with full details.`,
       log.info(`Retrieved ${formattedTasks.length} Claude tasks for ticket ${resolvedTicketId}`);
 
       return {
-        content: [{
-          type: "text",
-          text: `## Claude Tasks for "${ticket.title}"
+        content: [
+          {
+            type: "text",
+            text: `## Claude Tasks for "${ticket.title}"
 
-**Total:** ${formattedTasks.length} (${Object.entries(statusCounts).map(([s, c]) => `${c} ${s}`).join(", ")})
+**Total:** ${formattedTasks.length} (${Object.entries(statusCounts)
+              .map(([s, c]) => `${c} ${s}`)
+              .join(", ")})
 
-${formattedTasks.map((t, i) => {
-  let entry = `${i + 1}. ${getTaskStatusIcon(t.status)} **${t.subject}**`;
-  if (t.description) entry += `\n   ${t.description}`;
-  if (t.activeForm && t.status === "in_progress") entry += `\n   _${t.activeForm}_`;
-  return entry;
-}).join("\n\n")}
+${formattedTasks
+  .map((t, i) => {
+    let entry = `${i + 1}. ${getTaskStatusIcon(t.status)} **${t.subject}**`;
+    if (t.description) entry += `\n   ${t.description}`;
+    if (t.activeForm && t.status === "in_progress") entry += `\n   _${t.activeForm}_`;
+    return entry;
+  })
+  .join("\n\n")}
 
 ---
 \`\`\`json
 ${JSON.stringify(formattedTasks, null, 2)}
 \`\`\``,
-        }],
+          },
+        ],
       };
     }
   );
@@ -381,7 +434,10 @@ Args:
 
 Returns confirmation of cleared tasks.`,
     {
-      ticketId: z.string().optional().describe("Ticket ID (auto-detected from Ralph state if not provided)"),
+      ticketId: z
+        .string()
+        .optional()
+        .describe("Ticket ID (auto-detected from Ralph state if not provided)"),
     },
     async ({ ticketId }) => {
       // Auto-detect ticket from Ralph state if not provided
@@ -395,7 +451,12 @@ Returns confirmation of cleared tasks.`,
           resolvedSessionId = ralphState.sessionId;
         } else {
           return {
-            content: [{ type: "text", text: "No ticketId provided and no active Ralph session found. Provide a ticketId or start ticket work first." }],
+            content: [
+              {
+                type: "text",
+                text: "No ticketId provided and no active Ralph session found. Provide a ticketId or start ticket work first.",
+              },
+            ],
             isError: true,
           };
         }
@@ -405,20 +466,31 @@ Returns confirmation of cleared tasks.`,
       const ticket = ensureTicketExists(db, resolvedTicketId);
       if (!ticket) {
         return {
-          content: [{ type: "text", text: `Ticket not found: ${resolvedTicketId}. Use list_tickets to see available tickets.` }],
+          content: [
+            {
+              type: "text",
+              text: `Ticket not found: ${resolvedTicketId}. Use list_tickets to see available tickets.`,
+            },
+          ],
           isError: true,
         };
       }
 
       // Get existing tasks for snapshot
-      const existingTasks = db.prepare(`
+      const existingTasks = db
+        .prepare(
+          `
         SELECT id, subject, description, status, active_form as activeForm, position
         FROM claude_tasks WHERE ticket_id = ? ORDER BY position ASC
-      `).all(resolvedTicketId);
+      `
+        )
+        .all(resolvedTicketId);
 
       if (existingTasks.length === 0) {
         return {
-          content: [{ type: "text", text: `No Claude tasks to clear for ticket "${ticket.title}".` }],
+          content: [
+            { type: "text", text: `No Claude tasks to clear for ticket "${ticket.title}".` },
+          ],
         };
       }
 
@@ -426,27 +498,33 @@ Returns confirmation of cleared tasks.`,
 
       // Create snapshot before clearing
       const snapshotId = randomUUID();
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO claude_task_snapshots (id, ticket_id, session_id, tasks, reason, created_at)
         VALUES (?, ?, ?, ?, 'cleared', ?)
-      `).run(snapshotId, resolvedTicketId, resolvedSessionId, JSON.stringify(existingTasks), now);
+      `
+      ).run(snapshotId, resolvedTicketId, resolvedSessionId, JSON.stringify(existingTasks), now);
 
       // Delete all tasks
-      const result = db.prepare("DELETE FROM claude_tasks WHERE ticket_id = ?").run(resolvedTicketId);
+      const result = db
+        .prepare("DELETE FROM claude_tasks WHERE ticket_id = ?")
+        .run(resolvedTicketId);
 
       log.info(`Cleared ${result.changes} Claude tasks for ticket ${resolvedTicketId}`);
 
       return {
-        content: [{
-          type: "text",
-          text: `## Claude Tasks Cleared
+        content: [
+          {
+            type: "text",
+            text: `## Claude Tasks Cleared
 
 **Ticket:** ${ticket.title}
 **Cleared:** ${result.changes} task(s)
 **Snapshot:** Created for audit trail (ID: ${snapshotId.substring(0, 8)}...)
 
 The task list for this ticket is now empty.`,
-        }],
+          },
+        ],
       };
     }
   );
@@ -473,31 +551,42 @@ Returns array of snapshots with task data.`,
       const ticket = db.prepare("SELECT id, title FROM tickets WHERE id = ?").get(ticketId);
       if (!ticket) {
         return {
-          content: [{ type: "text", text: `Ticket not found: ${ticketId}. Use list_tickets to see available tickets.` }],
+          content: [
+            {
+              type: "text",
+              text: `Ticket not found: ${ticketId}. Use list_tickets to see available tickets.`,
+            },
+          ],
           isError: true,
         };
       }
 
       // Fetch snapshots
-      const snapshots = db.prepare(`
+      const snapshots = db
+        .prepare(
+          `
         SELECT id, session_id, tasks, reason, created_at
         FROM claude_task_snapshots
         WHERE ticket_id = ?
         ORDER BY created_at DESC
         LIMIT ?
-      `).all(ticketId, limit);
+      `
+        )
+        .all(ticketId, limit);
 
       if (snapshots.length === 0) {
         return {
-          content: [{
-            type: "text",
-            text: `No task snapshots recorded for ticket "${ticket.title}".`,
-          }],
+          content: [
+            {
+              type: "text",
+              text: `No task snapshots recorded for ticket "${ticket.title}".`,
+            },
+          ],
         };
       }
 
       // Parse tasks JSON
-      const formattedSnapshots = snapshots.map(s => {
+      const formattedSnapshots = snapshots.map((s) => {
         let parsedTasks = [];
         try {
           parsedTasks = JSON.parse(s.tasks);
@@ -515,17 +604,21 @@ Returns array of snapshots with task data.`,
       });
 
       return {
-        content: [{
-          type: "text",
-          text: `## Task Snapshots for "${ticket.title}"
+        content: [
+          {
+            type: "text",
+            text: `## Task Snapshots for "${ticket.title}"
 
-${formattedSnapshots.map((s, i) => {
-  const date = new Date(s.createdAt).toLocaleString();
-  return `### ${i + 1}. ${s.reason} - ${date}
+${formattedSnapshots
+  .map((s, i) => {
+    const date = new Date(s.createdAt).toLocaleString();
+    return `### ${i + 1}. ${s.reason} - ${date}
 **Tasks:** ${s.taskCount}
-${s.tasks.map(t => `- ${getTaskStatusIcon(t.status)} ${t.subject}`).join("\n")}`;
-}).join("\n\n")}`,
-        }],
+${s.tasks.map((t) => `- ${getTaskStatusIcon(t.status)} ${t.subject}`).join("\n")}`;
+  })
+  .join("\n\n")}`,
+          },
+        ],
       };
     }
   );

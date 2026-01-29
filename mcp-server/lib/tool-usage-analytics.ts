@@ -52,15 +52,19 @@ export class ToolUsageAnalytics {
       this.db.prepare("SELECT 1").get();
 
       // Verify schema exists
-      const tableExists = this.db.prepare(`
+      const tableExists = this.db
+        .prepare(
+          `
         SELECT name FROM sqlite_master
         WHERE type='table' AND name='tool_usage_events'
-      `).get();
+      `
+        )
+        .get();
 
       if (!tableExists) {
         throw new Error(
-          'Database schema missing: tool_usage_events table not found. ' +
-          'Database must be initialized with proper schema before use.'
+          "Database schema missing: tool_usage_events table not found. " +
+            "Database must be initialized with proper schema before use."
         );
       }
 
@@ -81,7 +85,7 @@ export class ToolUsageAnalytics {
       this.sessionUsage = new Map();
       throw new Error(
         `Analytics initialization failed: ${errorMsg}. ` +
-        `Check database path, permissions, and ensure schema is initialized.`
+          `Check database path, permissions, and ensure schema is initialized.`
       );
     }
   }
@@ -109,8 +113,8 @@ export class ToolUsageAnalytics {
       error = null,
     } = options;
 
-    // Get or create usage entry for this tool
-    const key = `${toolName}:${sessionId}:${ticketId}:${projectId}`;
+    // Get or create usage entry for this tool (include context in key for separate tracking)
+    const key = `${toolName}:${sessionId}:${ticketId}:${projectId}:${context}`;
     if (!this.sessionUsage.has(key)) {
       this.sessionUsage.set(key, {
         toolName,
@@ -167,7 +171,7 @@ export class ToolUsageAnalytics {
       `);
 
       for (const stats of this.sessionUsage.values()) {
-        const id = `${stats.toolName}:${stats.sessionId}:${stats.ticketId}:${stats.projectId}`;
+        const id = `${stats.toolName}:${stats.sessionId}:${stats.ticketId}:${stats.projectId}:${stats.context}`;
         stmt.run(
           id,
           stats.toolName,
@@ -182,9 +186,7 @@ export class ToolUsageAnalytics {
         );
       }
 
-      log.debug(
-        `Flushed ${this.sessionUsage.size} tool usage records to database`
-      );
+      log.debug(`Flushed ${this.sessionUsage.size} tool usage records to database`);
       this.sessionUsage.clear();
     } catch (error) {
       log.error("Failed to flush tool usage to database:", error);
@@ -199,7 +201,7 @@ export class ToolUsageAnalytics {
    * @returns {string|number} Success rate or 0 if no invocations
    */
   #calculateSuccessRate(successes: number, total: number): string | number {
-    return total > 0 ? (successes / total * 100).toFixed(1) : 0;
+    return total > 0 ? ((successes / total) * 100).toFixed(1) : 0;
   }
 
   /**
@@ -210,7 +212,7 @@ export class ToolUsageAnalytics {
     this.timer = setInterval(async () => {
       // Prevent concurrent flushes
       if (this.flushInProgress) {
-        log.debug('Previous analytics flush still in progress, skipping this cycle');
+        log.debug("Previous analytics flush still in progress, skipping this cycle");
         return;
       }
 
@@ -219,7 +221,7 @@ export class ToolUsageAnalytics {
         await this.flushToDatabase();
       } catch (error) {
         log.error(
-          'Analytics flush failed in timer',
+          "Analytics flush failed in timer",
           error instanceof Error ? error : new Error(getErrorMessage(error))
         );
         // Don't clear sessionUsage on error - we'll retry next cycle
@@ -239,14 +241,14 @@ export class ToolUsageAnalytics {
     // Wait for any in-progress flush to complete
     let retries = 0;
     while (this.flushInProgress && retries < 10) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       retries++;
     }
     try {
       await this.flushToDatabase();
     } catch (error) {
       log.error(
-        'Final analytics flush failed during shutdown',
+        "Final analytics flush failed during shutdown",
         error instanceof Error ? error : new Error(getErrorMessage(error))
       );
     }
@@ -264,12 +266,14 @@ export class ToolUsageAnalytics {
     try {
       // Defensive check for database
       if (!this.db) {
-        throw new Error('Analytics database not initialized. Check server logs for initialization errors.');
+        throw new Error(
+          "Analytics database not initialized. Check server logs for initialization errors."
+        );
       }
 
       // Validate input
-      if (!toolName || typeof toolName !== 'string') {
-        throw new Error('toolName must be a non-empty string');
+      if (!toolName || typeof toolName !== "string") {
+        throw new Error("toolName must be a non-empty string");
       }
 
       const stmt = this.db.prepare(`
@@ -280,7 +284,7 @@ export class ToolUsageAnalytics {
           SUM(success_count) as totalSuccesses,
           SUM(error_count) as totalErrors,
           SUM(total_duration) as totalDuration,
-          AVG(total_duration) as averageDuration,
+          CASE WHEN SUM(invocations) > 0 THEN CAST(SUM(total_duration) AS REAL) / SUM(invocations) ELSE 0 END as averageDuration,
           MAX(last_used_at) as lastUsed,
           COUNT(DISTINCT session_id) as uniqueSessions,
           COUNT(DISTINCT ticket_id) as uniqueTickets,
@@ -322,27 +326,31 @@ export class ToolUsageAnalytics {
    * @param {string} options.context - Filter by context type
    * @returns {Object} Analytics summary
    */
-  getAnalyticsSummary(options: { minInvocations?: number; context?: string | null } = {}): Record<string, unknown> {
+  getAnalyticsSummary(
+    options: { minInvocations?: number; context?: string | null } = {}
+  ): Record<string, unknown> {
     const { minInvocations = 0, context = null } = options;
 
     try {
       // Validate inputs
-      if (typeof minInvocations !== 'number' || minInvocations < 0) {
-        throw new Error('minInvocations must be a non-negative number');
+      if (typeof minInvocations !== "number" || minInvocations < 0) {
+        throw new Error("minInvocations must be a non-negative number");
       }
-      if (context && typeof context !== 'string') {
-        throw new Error('context must be a string');
+      if (context && typeof context !== "string") {
+        throw new Error("context must be a string");
       }
 
       // Validate context is one of the allowed values
       const validContexts = ["ticket_work", "planning", "review", "admin"];
       if (context && !validContexts.includes(context)) {
-        throw new Error(`Invalid context: ${context}. Must be one of: ${validContexts.join(', ')}`);
+        throw new Error(`Invalid context: ${context}. Must be one of: ${validContexts.join(", ")}`);
       }
 
       // Defensive check for database
       if (!this.db) {
-        throw new Error('Analytics database not initialized. Check server logs for initialization errors.');
+        throw new Error(
+          "Analytics database not initialized. Check server logs for initialization errors."
+        );
       }
 
       const query = context
@@ -384,19 +392,18 @@ export class ToolUsageAnalytics {
         averageInvocationsPerTool:
           tools.length > 0
             ? Math.round(
-                tools.reduce((sum, t) => sum + (t.totalInvocations || 0), 0) /
-                  tools.length
+                tools.reduce((sum, t) => sum + (t.totalInvocations || 0), 0) / tools.length
               )
             : 0,
         toolsWithErrors: tools.filter((t) => (t.totalErrors || 0) > 0).length,
         averageSuccessRate:
           tools.length > 0
-            ? (
-                tools.reduce((sum, t) => {
-                  const total = (t.totalSuccesses || 0) + (t.totalErrors || 0);
-                  return total > 0 ? sum + (t.totalSuccesses / total) : sum;
-                }, 0) / tools.length
-              ) * 100
+            ? (tools.reduce((sum, t) => {
+                const total = (t.totalSuccesses || 0) + (t.totalErrors || 0);
+                return total > 0 ? sum + t.totalSuccesses / total : sum;
+              }, 0) /
+                tools.length) *
+              100
             : 0,
         tools: tools.map((t) => ({
           name: t.toolName,
@@ -428,21 +435,25 @@ export class ToolUsageAnalytics {
    * @param {number} options.daysUnused - Include tools unused for >= N days (default: 30)
    * @returns {Array} Candidate tools for consolidation
    */
-  getConsolidationCandidates(options: { maxInvocations?: number; daysUnused?: number } = {}): Array<Record<string, unknown>> {
+  getConsolidationCandidates(
+    options: { maxInvocations?: number; daysUnused?: number } = {}
+  ): Array<Record<string, unknown>> {
     const { maxInvocations = 5, daysUnused = 30 } = options;
 
     try {
       // Defensive check for database
       if (!this.db) {
-        throw new Error('Analytics database not initialized. Check server logs for initialization errors.');
+        throw new Error(
+          "Analytics database not initialized. Check server logs for initialization errors."
+        );
       }
 
       // Validate inputs
-      if (typeof maxInvocations !== 'number' || maxInvocations < 0) {
-        throw new Error('maxInvocations must be a non-negative number');
+      if (typeof maxInvocations !== "number" || maxInvocations < 0) {
+        throw new Error("maxInvocations must be a non-negative number");
       }
-      if (typeof daysUnused !== 'number' || daysUnused < 0) {
-        throw new Error('daysUnused must be a non-negative number');
+      if (typeof daysUnused !== "number" || daysUnused < 0) {
+        throw new Error("daysUnused must be a non-negative number");
       }
 
       const stmt = this.db.prepare(`
@@ -472,10 +483,7 @@ export class ToolUsageAnalytics {
         hoursUnused: c.hoursUnused || 0,
         lastUsed: c.lastUsed,
         contexts: c.contextCount || 0,
-        reason:
-          (c.totalInvocations || 0) <= maxInvocations
-            ? "Rarely used"
-            : "Not used recently",
+        reason: (c.totalInvocations || 0) <= maxInvocations ? "Rarely used" : "Not used recently",
       }));
     } catch (error) {
       log.error("Failed to get consolidation candidates:", error);
@@ -506,8 +514,7 @@ export class ToolUsageAnalytics {
         return JSON.stringify(exportData, null, 2);
       } else if (format === "csv") {
         // Simple CSV export
-        let csv =
-          "Tool,Invocations,Successes,Errors,SuccessRate,Sessions,LastUsed\n";
+        let csv = "Tool,Invocations,Successes,Errors,SuccessRate,Sessions,LastUsed\n";
         const tools = (summary.tools as Array<Record<string, unknown>>) || [];
         for (const tool of tools) {
           csv += `"${tool.name}",${tool.invocations},${tool.successes},${tool.errors},${tool.successRate},${tool.sessions},"${tool.lastUsed}"\n`;

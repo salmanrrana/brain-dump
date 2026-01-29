@@ -47,6 +47,7 @@ export const FILTER_MODES = {
  * helping validate the filtering configuration.
  */
 export class ToolFilteringEngine {
+   
   private db: any;
   private enabled: boolean;
   private mode: string;
@@ -59,6 +60,7 @@ export class ToolFilteringEngine {
    * @param {import("better-sqlite3").Database} db - Database connection
    * @param {FilterOptions} [options] - Filtering options
    */
+   
   constructor(db: any, options: Record<string, any> = {}) {
     this.db = db;
     this.enabled = options.enabled !== false;
@@ -79,6 +81,7 @@ export class ToolFilteringEngine {
    * @param {Object} options - Context detection options
    * @returns {Object} Active context
    */
+   
   _getContext(options: Record<string, any> = {}): Record<string, unknown> {
     try {
       return detectContext(this.db, options);
@@ -101,13 +104,32 @@ export class ToolFilteringEngine {
    * @param {boolean} [options.shadowMode] - If true, don't enforce filtering
    * @returns {Object} Filtering result
    */
-  filterTools(options: { contextType?: string; ticketId?: string; sessionId?: string; shadowMode?: boolean } = {}): Record<string, unknown> {
-    const {
-      contextType,
-      ticketId,
-      sessionId,
-      shadowMode = false,
-    } = options;
+  filterTools(
+    options: {
+      contextType?: string;
+      ticketId?: string;
+      sessionId?: string;
+      shadowMode?: boolean;
+    } = {}
+  ): Record<string, unknown> {
+    const { contextType, ticketId, sessionId, shadowMode = false } = options;
+
+    // When filtering is disabled or in full mode, return all tools
+    if (!this.enabled || this.mode === "full") {
+      const allTools = TOOL_METADATA_REGISTRY.map((t) => t.name).sort();
+      return {
+        context: contextType ? { type: contextType } : { type: "admin" },
+        contextType: contextType || "admin",
+        visibleTools: allTools,
+        hiddenTools: [],
+        totalTools: TOOL_METADATA_REGISTRY.length,
+        reducedCount: 0,
+        reducePercent: 0,
+        mode: this.mode,
+        enabled: this.enabled,
+        shadowMode,
+      };
+    }
 
     // Get active context
     let detectedContext;
@@ -120,9 +142,7 @@ export class ToolFilteringEngine {
     const context = detectedContext.type || "admin";
 
     // Get tools relevant to this context
-    const relevantTools = new Set(
-      getToolsForContext(context, this.maxPriority)
-    );
+    const relevantTools = new Set(getToolsForContext(context, this.maxPriority));
 
     // Apply alwaysShow and neverShow rules
     for (const tool of this.alwaysShow) {
@@ -137,9 +157,9 @@ export class ToolFilteringEngine {
 
     // In shadow mode, also return what would be hidden (for testing)
     const hiddenTools = shadowMode
-      ? TOOL_METADATA_REGISTRY.filter(
-          (tool) => !visibleTools.includes(tool.name)
-        ).map((tool) => tool.name)
+      ? TOOL_METADATA_REGISTRY.filter((tool) => !visibleTools.includes(tool.name)).map(
+          (tool) => tool.name
+        )
       : [];
 
     return {
@@ -150,8 +170,7 @@ export class ToolFilteringEngine {
       totalTools: TOOL_METADATA_REGISTRY.length,
       reducedCount: TOOL_METADATA_REGISTRY.length - visibleTools.length,
       reducePercent: Math.round(
-        ((TOOL_METADATA_REGISTRY.length - visibleTools.length) /
-          TOOL_METADATA_REGISTRY.length) *
+        ((TOOL_METADATA_REGISTRY.length - visibleTools.length) / TOOL_METADATA_REGISTRY.length) *
           100
       ),
       mode: this.mode,
@@ -174,7 +193,7 @@ export class ToolFilteringEngine {
     if (this.alwaysShow.has(toolName)) return true;
 
     // Get relevant tools for context
-    const result = this.filterTools(options);
+    const result = this.filterTools(options) as { visibleTools: string[] };
     return result.visibleTools.includes(toolName);
   }
 
@@ -196,12 +215,7 @@ export class ToolFilteringEngine {
     const toolNames = new Set();
 
     // Count tools per context
-    for (const contextType of [
-      "ticket_work",
-      "planning",
-      "review",
-      "admin",
-    ]) {
+    for (const contextType of ["ticket_work", "planning", "review", "admin"]) {
       const visibleTools = getToolsForContext(contextType, this.maxPriority);
       const filtered = visibleTools.filter(
         (t) =>

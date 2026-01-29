@@ -61,7 +61,10 @@ try {
     if (backupResult.backup.created) log.info(backupResult.backup.message);
     if (backupResult.cleanup.deleted > 0) log.info(backupResult.cleanup.message);
   } catch (backupError) {
-    log.error("Backup maintenance failed", backupError instanceof Error ? backupError : new Error(String(backupError)));
+    log.error(
+      "Backup maintenance failed",
+      backupError instanceof Error ? backupError : new Error(String(backupError))
+    );
   }
 
   // Acquire lock file
@@ -69,7 +72,10 @@ try {
 
   log.info("Brain Dump MCP server initialized");
 } catch (error) {
-  log.error("Failed to initialize database", error instanceof Error ? error : new Error(String(error)));
+  log.error(
+    "Failed to initialize database",
+    error instanceof Error ? error : new Error(String(error))
+  );
   process.exit(1);
 }
 
@@ -82,12 +88,24 @@ function setupGracefulShutdown() {
     db?.close();
   };
 
-  process.on("SIGTERM", () => { cleanup(); process.exit(0); });
-  process.on("SIGINT", () => { cleanup(); process.exit(0); });
+  process.on("SIGTERM", () => {
+    cleanup();
+    process.exit(0);
+  });
+  process.on("SIGINT", () => {
+    cleanup();
+    process.exit(0);
+  });
   process.on("exit", () => {
     const lockInfo = readLockFile();
     if (lockInfo && lockInfo.pid === process.pid) {
-      try { unlinkSync(getLockFilePath()); } catch (err) { console.error(`[brain-dump] Failed to clean lock file: ${err instanceof Error ? err.message : String(err)}`); }
+      try {
+        unlinkSync(getLockFilePath());
+      } catch (err) {
+        console.error(
+          `[brain-dump] Failed to clean lock file: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
     }
   });
 }
@@ -123,15 +141,21 @@ registerWorktreeTools(server, db);
 registerContextTools(server, db);
 registerToolFilteringTools(server, db);
 registerShortcutTools(server, db);
-registerAnalyticsTools(server);
+registerAnalyticsTools(server, db);
 
 // =============================================================================
 // CONNECT AND START
 // =============================================================================
 const transport = new StdioServerTransport();
-server.connect(transport).then(() => {
-  log.info("Brain Dump MCP server connected");
-}).catch((error: unknown) => {
-  log.error("Failed to connect MCP server", error instanceof Error ? error : new Error(String(error)));
-  process.exit(1);
-});
+server
+  .connect(transport)
+  .then(() => {
+    log.info("Brain Dump MCP server connected");
+  })
+  .catch((error: unknown) => {
+    log.error(
+      "Failed to connect MCP server",
+      error instanceof Error ? error : new Error(String(error))
+    );
+    process.exit(1);
+  });

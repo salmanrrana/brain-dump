@@ -73,7 +73,7 @@ fi
 
   const promptFileSetup = useSandbox
     ? `PROMPT_FILE="$PROJECT_PATH/.ralph-prompt.md"`
-    : `PROMPT_FILE=$(mktemp -t ralph-prompt) || { echo -e "\\033[0;31m❌ Failed to create temp file\\033[0m"; exit 1; }`;
+    : `PROMPT_FILE=$(mktemp -t ralph-prompt.XXXXXX) || { echo -e "\\033[0;31m❌ Failed to create temp file\\033[0m"; exit 1; }`;
 
   const sshAgentSetup = useSandbox
     ? `
@@ -200,47 +200,17 @@ fi
   const iterationLabel = useSandbox ? "(Docker)" : "";
   const endMessage = useSandbox ? "" : `echo "Run again with: $0 <max_iterations>"`;
 
-  const timeoutTrapHandler = useSandbox
+  // Docker sandbox needs to stop the container on timeout; otherwise the handler is identical
+  const dockerStopOnTimeout = useSandbox
     ? `
-TIMEOUT_REACHED=false
-RALPH_TIMEOUT=${timeoutSeconds}
-
-handle_timeout() {
-  TIMEOUT_REACHED=true
-  echo ""
-  echo -e "\\033[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-  echo -e "\\033[0;31m⏰ TIMEOUT: Ralph session exceeded ${timeoutDisplay} limit\\033[0m"
-  echo -e "\\033[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-  echo ""
-
   if docker ps -q --filter "name=ralph-\${SESSION_ID}" | grep -q .; then
     echo -e "\\033[0;33m🐳 Stopping Ralph container...\\033[0m"
     docker stop "ralph-\${SESSION_ID}" 2>/dev/null || true
   fi
-
-  echo "" >> "$PROGRESS_FILE"
-  echo "---" >> "$PROGRESS_FILE"
-  echo "" >> "$PROGRESS_FILE"
-  echo "### $(date '+%Y-%m-%d %H:%M:%S') - Session Timeout" >> "$PROGRESS_FILE"
-  echo "- **Reason:** Timeout reached (${timeoutDisplay} limit)" >> "$PROGRESS_FILE"
-  echo "- **Status:** Session terminated, work may be incomplete" >> "$PROGRESS_FILE"
-  echo "- **Action:** Review progress and restart if needed" >> "$PROGRESS_FILE"
-
-  echo -e "\\033[0;33m📝 Timeout logged to progress.txt\\033[0m"
-  exit 124
-}
-
-trap handle_timeout ALRM
-(sleep $RALPH_TIMEOUT && kill -ALRM $$ 2>/dev/null) &
-TIMER_PID=$!
-
-cleanup_on_exit() {
-  kill $TIMER_PID 2>/dev/null || true
-  rm -f "$PROJECT_PATH/.ralph-services.json" 2>/dev/null || true
-}
-trap cleanup_on_exit EXIT
 `
-    : `
+    : "";
+
+  const timeoutTrapHandler = `
 TIMEOUT_REACHED=false
 RALPH_TIMEOUT=${timeoutSeconds}
 
@@ -251,7 +221,7 @@ handle_timeout() {
   echo -e "\\033[0;31m⏰ TIMEOUT: Ralph session exceeded ${timeoutDisplay} limit\\033[0m"
   echo -e "\\033[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
   echo ""
-
+${dockerStopOnTimeout}
   echo "" >> "$PROGRESS_FILE"
   echo "---" >> "$PROGRESS_FILE"
   echo "" >> "$PROGRESS_FILE"

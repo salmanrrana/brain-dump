@@ -16,7 +16,7 @@ import * as fs from "fs";
  */
 
 describe("MCP Protocol Compatibility", () => {
-  const projectRoot = "/Users/salman.rana/code/brain-dump";
+  const projectRoot = path.resolve(__dirname, "../..");
   const mcpServerPath = path.join(projectRoot, "mcp-server/dist/index.js");
 
   beforeAll(() => {

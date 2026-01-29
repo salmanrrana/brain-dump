@@ -637,10 +637,14 @@ describe("Ralph E2E Integration Tests", () => {
       const projectId = createTestProject();
       const ticketId = createTestTicket(projectId, "Test Branch");
 
-      // Create branch manually
+      // Create branch manually, then switch back to the initial branch
       const branchName = generateBranchName(ticketId, "Test Branch");
+      const initialBranch = execSync("git rev-parse --abbrev-ref HEAD", {
+        cwd: testDir,
+        encoding: "utf-8",
+      }).trim();
       execSync(`git checkout -b ${branchName}`, { cwd: testDir, stdio: "pipe" });
-      execSync("git checkout main", { cwd: testDir, stdio: "pipe" });
+      execSync(`git checkout ${initialBranch}`, { cwd: testDir, stdio: "pipe" });
 
       // Start ticket work should checkout existing branch
       const result = startTicketWork(db, ticketId);

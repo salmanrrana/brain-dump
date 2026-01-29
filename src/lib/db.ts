@@ -192,18 +192,38 @@ function seedSampleData() {
 // Initialize tables on startup
 initTables();
 
-// Add working_method column to projects table if it doesn't exist (migration)
-function migrateProjectsTable() {
-  const tableInfo = sqlite.prepare("PRAGMA table_info(projects)").all() as { name: string }[];
-  const columns = tableInfo.map((col) => col.name);
+/**
+ * Add missing columns to an existing table.
+ * Each migration is a [columnName, alterTableSQL] pair.
+ * Only runs ALTER TABLE for columns not already present.
+ */
+function addMissingColumns(
+  tableName: string,
+  migrations: Array<[columnName: string, sql: string]>
+): void {
+  const tableInfo = sqlite.prepare(`PRAGMA table_info(${tableName})`).all() as { name: string }[];
+  const existingColumns = new Set(tableInfo.map((col) => col.name));
 
-  if (!columns.includes("working_method")) {
-    console.log("Adding working_method column to projects...");
-    sqlite.exec("ALTER TABLE projects ADD COLUMN working_method TEXT DEFAULT 'auto'");
+  for (const [columnName, sql] of migrations) {
+    if (!existingColumns.has(columnName)) {
+      console.log(`Adding ${columnName} column to ${tableName}...`);
+      sqlite.exec(sql);
+    }
   }
 }
 
-migrateProjectsTable();
+// Add missing columns to projects table (inline migration)
+addMissingColumns("projects", [
+  ["working_method", "ALTER TABLE projects ADD COLUMN working_method TEXT DEFAULT 'auto'"],
+  ["default_isolation_mode", "ALTER TABLE projects ADD COLUMN default_isolation_mode TEXT"],
+  ["worktree_location", "ALTER TABLE projects ADD COLUMN worktree_location TEXT DEFAULT 'sibling'"],
+  ["worktree_base_path", "ALTER TABLE projects ADD COLUMN worktree_base_path TEXT"],
+  ["max_worktrees", "ALTER TABLE projects ADD COLUMN max_worktrees INTEGER DEFAULT 5"],
+  [
+    "auto_cleanup_worktrees",
+    "ALTER TABLE projects ADD COLUMN auto_cleanup_worktrees INTEGER DEFAULT 0",
+  ],
+]);
 
 // Initialize FTS5 table for search if it doesn't exist
 function initFTS5() {
@@ -291,21 +311,30 @@ function initSettings() {
     console.log("Settings table created successfully");
   } else {
     // Add new columns if they don't exist (migration)
-    const tableInfo = sqlite.prepare("PRAGMA table_info(settings)").all() as { name: string }[];
-    const columns = tableInfo.map((col) => col.name);
-
-    if (!columns.includes("ralph_sandbox")) {
-      console.log("Adding ralph_sandbox column to settings...");
-      sqlite.exec("ALTER TABLE settings ADD COLUMN ralph_sandbox INTEGER DEFAULT 0");
-    }
-    if (!columns.includes("auto_create_pr")) {
-      console.log("Adding auto_create_pr column to settings...");
-      sqlite.exec("ALTER TABLE settings ADD COLUMN auto_create_pr INTEGER DEFAULT 1");
-    }
-    if (!columns.includes("pr_target_branch")) {
-      console.log("Adding pr_target_branch column to settings...");
-      sqlite.exec("ALTER TABLE settings ADD COLUMN pr_target_branch TEXT DEFAULT 'dev'");
-    }
+    addMissingColumns("settings", [
+      ["ralph_sandbox", "ALTER TABLE settings ADD COLUMN ralph_sandbox INTEGER DEFAULT 0"],
+      ["auto_create_pr", "ALTER TABLE settings ADD COLUMN auto_create_pr INTEGER DEFAULT 1"],
+      ["pr_target_branch", "ALTER TABLE settings ADD COLUMN pr_target_branch TEXT DEFAULT 'dev'"],
+      ["ralph_timeout", "ALTER TABLE settings ADD COLUMN ralph_timeout INTEGER DEFAULT 3600"],
+      [
+        "ralph_max_iterations",
+        "ALTER TABLE settings ADD COLUMN ralph_max_iterations INTEGER DEFAULT 10",
+      ],
+      [
+        "default_projects_directory",
+        "ALTER TABLE settings ADD COLUMN default_projects_directory TEXT",
+      ],
+      [
+        "default_working_method",
+        "ALTER TABLE settings ADD COLUMN default_working_method TEXT DEFAULT 'auto'",
+      ],
+      ["docker_runtime", "ALTER TABLE settings ADD COLUMN docker_runtime TEXT"],
+      ["docker_socket_path", "ALTER TABLE settings ADD COLUMN docker_socket_path TEXT"],
+      [
+        "enable_worktree_support",
+        "ALTER TABLE settings ADD COLUMN enable_worktree_support INTEGER DEFAULT 0",
+      ],
+    ]);
   }
 }
 
@@ -335,6 +364,14 @@ function initTicketComments() {
 }
 
 initTicketComments();
+
+// Add git/PR tracking columns to tickets table (inline migration)
+addMissingColumns("tickets", [
+  ["branch_name", "ALTER TABLE tickets ADD COLUMN branch_name TEXT"],
+  ["pr_number", "ALTER TABLE tickets ADD COLUMN pr_number INTEGER"],
+  ["pr_url", "ALTER TABLE tickets ADD COLUMN pr_url TEXT"],
+  ["pr_status", "ALTER TABLE tickets ADD COLUMN pr_status TEXT"],
+]);
 
 // Initialize ralph_events table if it doesn't exist
 function initRalphEvents() {
@@ -485,18 +522,16 @@ function initConversationLogging() {
   }
 
   // Add conversation logging settings to settings table
-  const settingsInfo = sqlite.prepare("PRAGMA table_info(settings)").all() as { name: string }[];
-  const settingsColumns = settingsInfo.map((col) => col.name);
-
-  if (!settingsColumns.includes("conversation_retention_days")) {
-    console.log("Adding conversation_retention_days column to settings...");
-    sqlite.exec("ALTER TABLE settings ADD COLUMN conversation_retention_days INTEGER DEFAULT 90");
-  }
-
-  if (!settingsColumns.includes("conversation_logging_enabled")) {
-    console.log("Adding conversation_logging_enabled column to settings...");
-    sqlite.exec("ALTER TABLE settings ADD COLUMN conversation_logging_enabled INTEGER DEFAULT 1");
-  }
+  addMissingColumns("settings", [
+    [
+      "conversation_retention_days",
+      "ALTER TABLE settings ADD COLUMN conversation_retention_days INTEGER DEFAULT 90",
+    ],
+    [
+      "conversation_logging_enabled",
+      "ALTER TABLE settings ADD COLUMN conversation_logging_enabled INTEGER DEFAULT 1",
+    ],
+  ]);
 }
 
 initConversationLogging();

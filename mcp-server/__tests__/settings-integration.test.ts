@@ -61,9 +61,7 @@ function initializeTestDatabase() {
   `);
 
   // Insert default settings
-  db.prepare(
-    "INSERT INTO settings (id) VALUES ('default')"
-  ).run();
+  db.prepare("INSERT INTO settings (id) VALUES ('default')").run();
 
   return db;
 }
@@ -79,7 +77,7 @@ describe("Settings Integration for Context-Aware Tool Filtering", () => {
     it("should have filtering disabled by default", () => {
       const settings = db
         .prepare("SELECT enable_context_aware_tool_filtering FROM settings WHERE id = 'default'")
-        .get() as any;
+        .get() as Record<string, number>;
       expect(settings.enable_context_aware_tool_filtering).toBe(0);
     });
 
@@ -102,7 +100,7 @@ describe("Settings Integration for Context-Aware Tool Filtering", () => {
 
       const settings = db
         .prepare("SELECT enable_context_aware_tool_filtering FROM settings WHERE id = 'default'")
-        .get() as any;
+        .get() as Record<string, number>;
       expect(settings.enable_context_aware_tool_filtering).toBe(1);
     });
 
@@ -119,7 +117,7 @@ describe("Settings Integration for Context-Aware Tool Filtering", () => {
 
       const settings = db
         .prepare("SELECT enable_context_aware_tool_filtering FROM settings WHERE id = 'default'")
-        .get() as any;
+        .get() as Record<string, number>;
       expect(settings.enable_context_aware_tool_filtering).toBe(0);
     });
   });
@@ -129,12 +127,12 @@ describe("Settings Integration for Context-Aware Tool Filtering", () => {
       // Settings table starts with filtering disabled
       const settings = db
         .prepare("SELECT enable_context_aware_tool_filtering FROM settings WHERE id = 'default'")
-        .get() as any;
+        .get() as Record<string, number>;
       expect(settings.enable_context_aware_tool_filtering).toBe(0);
 
       // Initialize engine - should respect the setting
       const engine = initToolFiltering(db, {
-        enabled: settings.enable_context_aware_tool_filtering === 1
+        enabled: settings.enable_context_aware_tool_filtering === 1,
       });
       const result = engine.filterTools();
       expect(result.enabled).toBe(false);
@@ -148,12 +146,12 @@ describe("Settings Integration for Context-Aware Tool Filtering", () => {
 
       const settings = db
         .prepare("SELECT enable_context_aware_tool_filtering FROM settings WHERE id = 'default'")
-        .get() as any;
+        .get() as Record<string, number>;
       expect(settings.enable_context_aware_tool_filtering).toBe(1);
 
       // Initialize engine with enabled=true
       const engine = initToolFiltering(db, {
-        enabled: settings.enable_context_aware_tool_filtering === 1
+        enabled: settings.enable_context_aware_tool_filtering === 1,
       });
       const result = engine.filterTools();
       expect(result.enabled).toBe(true);
@@ -178,7 +176,7 @@ describe("Settings Integration for Context-Aware Tool Filtering", () => {
       const result = engine.filterTools();
 
       // All 65 tools should be visible
-      expect(result.visibleTools.length).toBe(65);
+      expect(result.visibleTools.length).toBe(70);
       expect(result.reducedCount).toBe(0);
     });
 
@@ -201,15 +199,15 @@ describe("Settings Integration for Context-Aware Tool Filtering", () => {
 
       // All tools should be available, matching current behavior
       const result = engine.filterTools();
-      expect(result.totalTools).toBe(65);
-      expect(result.visibleTools.length).toBe(65);
+      expect(result.totalTools).toBe(70);
+      expect(result.visibleTools.length).toBe(70);
     });
 
     it("should require explicit opt-in to enable filtering", () => {
       // Even if the column exists, filtering should be off by default
       const settings = db
         .prepare("SELECT enable_context_aware_tool_filtering FROM settings WHERE id = 'default'")
-        .get() as any;
+        .get() as Record<string, number>;
 
       // Default is 0 (false)
       expect(settings.enable_context_aware_tool_filtering).toBe(0);
@@ -226,24 +224,26 @@ describe("Settings Integration for Context-Aware Tool Filtering", () => {
       // Verify it was set
       let settings = db
         .prepare("SELECT enable_context_aware_tool_filtering FROM settings WHERE id = 'default'")
-        .get() as any;
+        .get() as Record<string, number>;
       expect(settings.enable_context_aware_tool_filtering).toBe(1);
 
       // Simulate reading setting again (as MCP server would)
       settings = db
         .prepare("SELECT enable_context_aware_tool_filtering FROM settings WHERE id = 'default'")
-        .get() as any;
+        .get() as Record<string, number>;
       expect(settings.enable_context_aware_tool_filtering).toBe(1);
     });
 
     it("should handle database queries safely", () => {
       // Verify query doesn't throw even if column has edge cases
-      const result = db.prepare(
-        "SELECT enable_context_aware_tool_filtering FROM settings WHERE id = 'default'"
-      ).get();
+      const result = db
+        .prepare("SELECT enable_context_aware_tool_filtering FROM settings WHERE id = 'default'")
+        .get();
 
       expect(result).toBeDefined();
-      expect(typeof (result as any).enable_context_aware_tool_filtering).toBe("number");
+      expect(typeof (result as Record<string, number>).enable_context_aware_tool_filtering).toBe(
+        "number"
+      );
     });
   });
 });

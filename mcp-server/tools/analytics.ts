@@ -33,11 +33,8 @@ export const getToolUsageStats = {
   handler: async ({ toolName }) => {
     try {
       // Validate input
-      if (!toolName || typeof toolName !== 'string') {
-        return createMCPResponse(
-          `Invalid input: toolName must be a non-empty string`,
-          true
-        );
+      if (!toolName || typeof toolName !== "string") {
+        return createMCPResponse(`Invalid input: toolName must be a non-empty string`, true);
       }
 
       const analytics = getAnalytics(getDbPath());
@@ -46,7 +43,7 @@ export const getToolUsageStats = {
       if (!analytics) {
         return createMCPResponse(
           `Analytics system unavailable: database connection failed. ` +
-          `Check that the database file is accessible and not corrupted.`,
+            `Check that the database file is accessible and not corrupted.`,
           true
         );
       }
@@ -67,7 +64,8 @@ export const getToolUsageStats = {
         );
       }
 
-      const text = `Tool Usage Statistics: ${toolName}\n\n` +
+      const text =
+        `Tool Usage Statistics: ${toolName}\n\n` +
         `Total Invocations: ${stats.totalInvocations}\n` +
         `Total Successes: ${stats.totalSuccesses}\n` +
         `Total Errors: ${stats.totalErrors}\n` +
@@ -80,10 +78,7 @@ export const getToolUsageStats = {
 
       return createMCPResponse(text);
     } catch (error) {
-      return createMCPResponse(
-        `Error retrieving tool statistics: ${getErrorMessage(error)}`,
-        true
-      );
+      return createMCPResponse(`Error retrieving tool statistics: ${getErrorMessage(error)}`, true);
     }
   },
 };
@@ -97,9 +92,7 @@ export const getToolUsageSummary = {
     minInvocations: z
       .number()
       .optional()
-      .describe(
-        "Only include tools with at least this many invocations (default: 0)"
-      ),
+      .describe("Only include tools with at least this many invocations (default: 0)"),
     context: z
       .enum(["ticket_work", "planning", "review", "admin"])
       .optional()
@@ -113,7 +106,7 @@ export const getToolUsageSummary = {
       if (!analytics) {
         return createMCPResponse(
           `Analytics system unavailable: database connection failed. ` +
-          `Check that the database file is accessible and not corrupted.`,
+            `Check that the database file is accessible and not corrupted.`,
           true
         );
       }
@@ -153,9 +146,10 @@ export const getToolUsageSummary = {
 
       const topTools = summary.tools.slice(0, 10);
       for (const tool of topTools) {
-        const status =
-          tool.errors > 0 ? "⚠️" : tool.invocations > 100 ? "✓" : "→";
-        lines.push(`${status} ${tool.name}: ${tool.invocations} calls (${tool.successRate}% success)`);
+        const status = tool.errors > 0 ? "⚠️" : tool.invocations > 100 ? "✓" : "→";
+        lines.push(
+          `${status} ${tool.name}: ${tool.invocations} calls (${tool.successRate}% success)`
+        );
       }
 
       if (summary.tools.length > 10) {
@@ -195,7 +189,7 @@ export const getConsolidationCandidates = {
       if (!analytics) {
         return createMCPResponse(
           `Analytics system unavailable: database connection failed. ` +
-          `Check that the database file is accessible and not corrupted.`,
+            `Check that the database file is accessible and not corrupted.`,
           true
         );
       }
@@ -230,9 +224,7 @@ export const getConsolidationCandidates = {
       for (const candidate of candidates) {
         const hoursUnused = candidate.hoursUnused || 0;
         const daysText =
-          hoursUnused > 24
-            ? `${Math.round(hoursUnused / 24)} days`
-            : `${hoursUnused} hours`;
+          hoursUnused > 24 ? `${Math.round(hoursUnused / 24)} days` : `${hoursUnused} hours`;
         lines.push(
           `• ${candidate.name}`,
           `  Invocations: ${candidate.invocations}`,
@@ -260,10 +252,7 @@ export const getConsolidationCandidates = {
  */
 export const exportToolAnalytics = {
   inputSchema: z.object({
-    format: z
-      .enum(["json", "csv"])
-      .optional()
-      .describe("Export format (default: json)"),
+    format: z.enum(["json", "csv"]).optional().describe("Export format (default: json)"),
   }),
   handler: async ({ format = "json" }) => {
     try {
@@ -273,7 +262,7 @@ export const exportToolAnalytics = {
       if (!analytics) {
         return createMCPResponse(
           `Analytics system unavailable: database connection failed. ` +
-          `Check that the database file is accessible and not corrupted.`,
+            `Check that the database file is accessible and not corrupted.`,
           true
         );
       }
@@ -289,10 +278,7 @@ export const exportToolAnalytics = {
       const exportData = analytics.exportAnalytics({ format });
       return createMCPResponse(exportData);
     } catch (error) {
-      return createMCPResponse(
-        `Error exporting analytics: ${getErrorMessage(error)}`,
-        true
-      );
+      return createMCPResponse(`Error exporting analytics: ${getErrorMessage(error)}`, true);
     }
   },
 };
@@ -301,7 +287,7 @@ export const exportToolAnalytics = {
  * Register analytics tools with the MCP server.
  * @param {McpServer} server - The MCP server instance
  */
-export function registerAnalyticsTools(server) {
+export function registerAnalyticsTools(server, _db?) {
   server.tool(
     "get_tool_usage_stats",
     `Get usage statistics for a specific MCP tool.

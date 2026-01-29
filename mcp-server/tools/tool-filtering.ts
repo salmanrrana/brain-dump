@@ -38,11 +38,10 @@ export function getFilteringEngine() {
  * @returns {Object} MCP-formatted response
  */
 function formatResponse(text, isError = false) {
-  const response = { content: [{ type: "text", text }] };
-  if (isError) {
-    response.isError = true;
-  }
-  return response;
+  return {
+    content: [{ type: "text", text }],
+    ...(isError && { isError: true }),
+  };
 }
 
 /**
@@ -55,7 +54,11 @@ export function registerToolFilteringTools(server, db) {
   if (!filteringEngine) {
     // Read the enableContextAwareToolFiltering setting from database
     try {
-      const settings = db.prepare("SELECT enable_context_aware_tool_filtering FROM settings WHERE id = 'default' LIMIT 1").get();
+      const settings = db
+        .prepare(
+          "SELECT enable_context_aware_tool_filtering FROM settings WHERE id = 'default' LIMIT 1"
+        )
+        .get();
       const filteringEnabled = settings?.enable_context_aware_tool_filtering ?? false;
       initToolFiltering(db, { enabled: filteringEnabled });
     } catch (err) {
@@ -116,9 +119,11 @@ ${result.enabled ? "✓ Filtering enabled" : "✗ Filtering disabled"}
 
 Visible Tools:
 ${result.visibleTools.map((tool, i) => `${i + 1}. ${tool}`).join("\n")}
-${shadowMode && result.hiddenTools.length > 0
-  ? `\nHidden Tools (Shadow Mode):\n${result.hiddenTools.map((tool, i) => `${i + 1}. ${tool}`).join("\n")}`
-  : ""}`;
+${
+  shadowMode && result.hiddenTools.length > 0
+    ? `\nHidden Tools (Shadow Mode):\n${result.hiddenTools.map((tool, i) => `${i + 1}. ${tool}`).join("\n")}`
+    : ""
+}`;
 
         return formatResponse(summary);
       } catch (err) {
@@ -254,9 +259,7 @@ Args:
 Returns:
   Confirmation of mode change.`,
     {
-      mode: z
-        .enum(["strict", "default", "permissive", "full"])
-        .describe("Filter mode"),
+      mode: z.enum(["strict", "default", "permissive", "full"]).describe("Filter mode"),
     },
     async ({ mode }) => {
       try {
@@ -294,9 +297,7 @@ Returns:
       try {
         filteringEngine.setEnabled(enabled);
 
-        return formatResponse(
-          `Tool filtering ${enabled ? "enabled" : "disabled"}`
-        );
+        return formatResponse(`Tool filtering ${enabled ? "enabled" : "disabled"}`);
       } catch (err) {
         log.error("Failed to set filtering", err);
         return formatResponse(`Error: ${err.message}`, true);
@@ -333,10 +334,7 @@ Returns:
         const metadata = getToolMetadata(toolName);
 
         if (!metadata) {
-          return formatResponse(
-            `Tool not found: ${toolName}`,
-            true
-          );
+          return formatResponse(`Tool not found: ${toolName}`, true);
         }
 
         const isVisible = filteringEngine.isToolVisible(toolName, {

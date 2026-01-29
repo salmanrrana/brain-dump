@@ -44,16 +44,7 @@ interface MockServer {
 }
 
 // Import the module we're testing
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const conversations = require("./conversations.js") as {
-  registerConversationTools: (
-    server: MockServer,
-    db: Database.Database,
-    detectEnvironment: () => string
-  ) => void;
-};
-
-const { registerConversationTools } = conversations;
+import { registerConversationTools } from "./conversations.js";
 
 describe("conversation tools", () => {
   let db: Database.Database;

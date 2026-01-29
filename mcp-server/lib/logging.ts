@@ -5,7 +5,7 @@
  */
 import { join } from "path";
 import { existsSync, mkdirSync, appendFileSync, statSync, renameSync, unlinkSync } from "fs";
-import { getLogsDir } from "./xdg.ts";
+import { getLogsDir } from "./xdg.js";
 
 /** Main log file name */
 export const LOG_FILE = "mcp-server.log";
@@ -147,14 +147,24 @@ export const log: Logger = {
   },
   warn: (msg: string, err?: Error | Record<string, unknown> | unknown): void => {
     if (!shouldLog("WARN")) return;
-    const errorMsg = err instanceof Error ? err.message : (typeof err === 'object' && err ? JSON.stringify(err) : String(err));
+    const errorMsg =
+      err instanceof Error
+        ? err.message
+        : typeof err === "object" && err
+          ? JSON.stringify(err)
+          : String(err);
     console.error(`[brain-dump] WARN: ${msg}`, errorMsg);
     const error = err instanceof Error ? err : undefined;
     writeToLogFile(LOG_FILE, formatLogEntry("WARN", "mcp-server", msg, error));
   },
   error: (msg: string, err?: Error | Record<string, unknown> | unknown): void => {
     if (!shouldLog("ERROR")) return;
-    const errorMsg = err instanceof Error ? err.message : (typeof err === 'object' && err ? JSON.stringify(err) : String(err));
+    const errorMsg =
+      err instanceof Error
+        ? err.message
+        : typeof err === "object" && err
+          ? JSON.stringify(err)
+          : String(err);
     console.error(`[brain-dump] ERROR: ${msg}`, errorMsg);
     const error = err instanceof Error ? err : undefined;
     const entry = formatLogEntry("ERROR", "mcp-server", msg, error);

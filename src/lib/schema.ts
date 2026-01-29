@@ -122,8 +122,12 @@ export const settings = sqliteTable("settings", {
   // Git worktree feature flag (gradual rollout)
   enableWorktreeSupport: integer("enable_worktree_support", { mode: "boolean" }).default(false), // Global opt-in for worktree support
   // MCP tool filtering settings
-  enableContextAwareToolFiltering: integer("enable_context_aware_tool_filtering", { mode: "boolean" }).default(false), // Enable context-aware tool filtering (reduces tool count per context)
-  defaultToolMode: text("default_tool_mode").$type<"all" | "core" | "workflow" | "review" | "admin" | "auto">().default("auto"), // Default tool visibility mode (all, core, workflow, review, admin, auto)
+  enableContextAwareToolFiltering: integer("enable_context_aware_tool_filtering", {
+    mode: "boolean",
+  }).default(false), // Enable context-aware tool filtering (reduces tool count per context)
+  defaultToolMode: text("default_tool_mode")
+    .$type<"all" | "core" | "workflow" | "review" | "admin" | "auto">()
+    .default("auto"), // Default tool visibility mode (all, core, workflow, review, admin, auto)
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),
@@ -723,7 +727,9 @@ export const toolUsageEvents = sqliteTable(
     sessionId: text("session_id"), // Ralph session ID if applicable
     ticketId: text("ticket_id"), // Current ticket ID
     projectId: text("project_id"), // Current project ID
-    context: text("context").default("unknown"), // Active context (ticket_work, planning, review, admin)
+    context: text("context")
+      .$type<"ticket_work" | "planning" | "review" | "admin" | "unknown">()
+      .default("unknown"), // Active context (ticket_work, planning, review, admin)
     invocations: integer("invocations").notNull().default(1),
     successCount: integer("success_count").notNull().default(0),
     errorCount: integer("error_count").notNull().default(0),

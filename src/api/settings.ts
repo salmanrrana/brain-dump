@@ -38,13 +38,19 @@ export interface UpdateSettingsInput {
 }
 
 // List of supported terminal emulators
+// Organized by platform, but all are valid choices (terminal-launcher.ts handles platform detection)
 export const SUPPORTED_TERMINALS = [
   { value: "", label: "Auto-detect (recommended)" },
+  // Cross-platform
   { value: "ghostty", label: "Ghostty" },
+  { value: "kitty", label: "kitty" },
+  { value: "alacritty", label: "Alacritty" },
+  // macOS
+  { value: "iterm2", label: "iTerm2 (macOS)" },
+  { value: "terminal.app", label: "Terminal.app (macOS)" },
+  // Linux
   { value: "gnome-terminal", label: "GNOME Terminal" },
   { value: "konsole", label: "Konsole" },
-  { value: "alacritty", label: "Alacritty" },
-  { value: "kitty", label: "kitty" },
   { value: "xfce4-terminal", label: "Xfce Terminal" },
   { value: "mate-terminal", label: "MATE Terminal" },
   { value: "terminator", label: "Terminator" },

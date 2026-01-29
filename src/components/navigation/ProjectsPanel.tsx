@@ -7,7 +7,7 @@ import {
   useMemo,
   type KeyboardEvent,
 } from "react";
-import { X, Search, Plus, Folder, ChevronRight, ChevronDown, Bot } from "lucide-react";
+import { X, Search, Plus, Folder, ChevronRight, ChevronDown, Bot, Pencil } from "lucide-react";
 import { useClickOutside, type Epic, type EpicWorktreeState } from "../../lib/hooks";
 import { EpicListItem } from "./EpicListItem";
 import { EpicDrillInView } from "./EpicDrillInView";
@@ -138,6 +138,7 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
   const [view, setView] = useState<PanelView>("projects");
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
   const [drillInProject, setDrillInProject] = useState<ProjectWithAIActivity | null>(null);
+  const [hoveredProjectId, setHoveredProjectId] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -464,6 +465,21 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
     flexShrink: 0,
   };
 
+  const editButtonStyles: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "28px",
+    height: "28px",
+    background: "var(--bg-secondary)",
+    border: "1px solid var(--border-primary)",
+    borderRadius: "var(--radius-sm)",
+    color: "var(--text-secondary)",
+    cursor: "pointer",
+    transition: "all var(--transition-fast)",
+    flexShrink: 0,
+  };
+
   const expandedEpicsStyles: React.CSSProperties = {
     paddingBottom: "var(--spacing-2)",
   };
@@ -636,6 +652,8 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
                     style={projectRowStyles}
                     onClick={() => handleSelectProject(project.id)}
                     onDoubleClick={() => handleDoubleClick(project)}
+                    onMouseEnter={() => setHoveredProjectId(project.id)}
+                    onMouseLeave={() => setHoveredProjectId(null)}
                     role="option"
                     aria-selected={isSelected}
                     aria-expanded={hasEpics ? isExpanded : undefined}
@@ -670,6 +688,23 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
                       <p style={projectNameStyles}>{project.name}</p>
                       <p style={projectPathStyles}>{project.path}</p>
                     </div>
+
+                    {/* Edit button - shows on hover */}
+                    {hoveredProjectId === project.id && (
+                      <button
+                        type="button"
+                        style={editButtonStyles}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDoubleClick(project);
+                        }}
+                        aria-label={`Edit ${project.name}`}
+                        title="Edit project"
+                        className="hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] hover:border-[var(--accent-primary)]"
+                      >
+                        <Pencil size={14} aria-hidden="true" />
+                      </button>
+                    )}
 
                     {/* AI indicator */}
                     {project.hasActiveAI && (

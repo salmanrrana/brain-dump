@@ -7,11 +7,7 @@ import { existsSync, readFileSync, statSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { log } from "./logging.js";
-import {
-  FILE_TYPES,
-  ATTACHMENT_TYPE_CONFIG,
-  formatFileSize,
-} from "./attachment-types.js";
+import { FILE_TYPES, ATTACHMENT_TYPE_CONFIG, formatFileSize } from "./attachment-types.js";
 
 /**
  * Maximum file size for attachments to include in MCP response (5MB).
@@ -144,8 +140,8 @@ export function loadTicketAttachments(ticketId, attachmentsList) {
     totalSizeBytes: 0,
     filenames: [],
     failedFiles: [],
-    attachments: [],  // Normalized attachment objects
-    byType: {},       // Count by attachment type
+    attachments: [], // Normalized attachment objects
+    byType: {}, // Count by attachment type
   };
 
   if (!attachmentsList || !Array.isArray(attachmentsList) || attachmentsList.length === 0) {
@@ -160,7 +156,7 @@ export function loadTicketAttachments(ticketId, attachmentsList) {
   if (!existsSync(ticketDir)) {
     warnings.push(`Attachments directory not found: ${ticketDir}`);
     telemetry.failedCount = normalizedAttachments.length;
-    telemetry.failedFiles = normalizedAttachments.map(a => a.filename);
+    telemetry.failedFiles = normalizedAttachments.map((a) => a.filename);
     return { contentBlocks, warnings, telemetry };
   }
 
@@ -196,7 +192,9 @@ export function loadTicketAttachments(ticketId, attachmentsList) {
     }
 
     if (stats.size > MAX_ATTACHMENT_SIZE) {
-      warnings.push(`Skipping ${filename}: File size (${formatFileSize(stats.size)}) exceeds 5MB limit`);
+      warnings.push(
+        `Skipping ${filename}: File size (${formatFileSize(stats.size)}) exceeds 5MB limit`
+      );
       telemetry.failedCount++;
       telemetry.failedFiles.push(filename);
       continue;
@@ -204,7 +202,9 @@ export function loadTicketAttachments(ticketId, attachmentsList) {
 
     // Warn about large files that may not be reliably processed
     if (stats.size > RECOMMENDED_ATTACHMENT_SIZE) {
-      warnings.push(`${filename} is ${formatFileSize(stats.size)} - files over 1MB may not be processed reliably by all AI clients`);
+      warnings.push(
+        `${filename} is ${formatFileSize(stats.size)} - files over 1MB may not be processed reliably by all AI clients`
+      );
     }
 
     try {
@@ -252,7 +252,8 @@ export function buildAttachmentContextSection(telemetry) {
   }
 
   // Group attachments by type
-  const byType = {};
+   
+  const byType: Record<string, any[]> = {};
   for (const attachment of telemetry.attachments) {
     const type = attachment.type || "reference";
     if (!byType[type]) {
@@ -265,7 +266,8 @@ export function buildAttachmentContextSection(telemetry) {
 
   // Check for high-priority design types
   const hasDesignTypes = byType.mockup || byType.wireframe;
-  const hasBugTypes = byType["bug-screenshot"] || byType["actual-behavior"] || byType["expected-behavior"];
+  const hasBugTypes =
+    byType["bug-screenshot"] || byType["actual-behavior"] || byType["expected-behavior"];
 
   if (hasDesignTypes) {
     context += `**IMPORTANT: Review attached design images BEFORE implementing.**\n\n`;
