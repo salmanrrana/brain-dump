@@ -42,6 +42,8 @@ const defaultSettings: SettingsFormData = {
   conversationLoggingEnabled: true,
   conversationRetentionDays: 90,
   enableWorktreeSupport: false,
+  enableContextAwareToolFiltering: false,
+  defaultToolMode: "auto",
 };
 
 export const settingsFormOpts = formOptions({

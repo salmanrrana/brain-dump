@@ -269,7 +269,7 @@ export const createTicket = createServerFn({ method: "POST" })
 
 Separate Node.js process that exposes Brain Dump functionality to Claude:
 
-**Location**: `mcp-server/index.js`
+**Location**: `mcp-server/dist/index.js`
 
 **Protocol**: Model Context Protocol (JSON-RPC over stdio)
 

@@ -14,7 +14,8 @@
     "brain-dump": "npx tsx cli/brain-dump.ts",
     "dev": "vite dev --port 4242",
     "dev:v2": "vite dev --port 4243",
-    "build": "vite build",
+    "build": "vite build && pnpm build:mcp",
+    "build:mcp": "tsc -p mcp-server/tsconfig.json",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -32,6 +33,7 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "ralph:build-sandbox": "docker build -t brain-dump-ralph-sandbox:latest -f docker/ralph-sandbox.Dockerfile docker/",
+    "postinstall": "pnpm build:mcp",
     "prepare": "husky"
   },
   "dependencies": {

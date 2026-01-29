@@ -141,7 +141,7 @@ try {
     config.servers["brain-dump"] = {
         type: "stdio",
         command: "node",
-        args: [brainDumpDir + "/mcp-server/index.js"]
+        args: [brainDumpDir + "/mcp-server/dist/index.js"]
     };
     fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
     console.log("Config updated successfully");
@@ -156,7 +156,7 @@ try {
                 echo '  "brain-dump": {'
                 echo '    "type": "stdio",'
                 echo '    "command": "node",'
-                echo "    \"args\": [\"$BRAIN_DUMP_DIR/mcp-server/index.js\"]"
+                echo "    \"args\": [\"$BRAIN_DUMP_DIR/mcp-server/dist/index.js\"]"
                 echo '  }'
             }
         else
@@ -165,7 +165,7 @@ try {
             echo '  "brain-dump": {'
             echo '    "type": "stdio",'
             echo '    "command": "node",'
-            echo "    \"args\": [\"$BRAIN_DUMP_DIR/mcp-server/index.js\"]"
+            echo "    \"args\": [\"$BRAIN_DUMP_DIR/mcp-server/dist/index.js\"]"
             echo '  }'
         fi
     fi
@@ -177,7 +177,7 @@ else
     "brain-dump": {
       "type": "stdio",
       "command": "node",
-      "args": ["$BRAIN_DUMP_DIR/mcp-server/index.js"]
+      "args": ["$BRAIN_DUMP_DIR/mcp-server/dist/index.js"]
     }
   }
 }

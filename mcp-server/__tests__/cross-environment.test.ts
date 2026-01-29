@@ -17,7 +17,7 @@ import * as fs from "fs";
 
 describe("MCP Protocol Compatibility", () => {
   const projectRoot = "/Users/salman.rana/code/brain-dump";
-  const mcpServerPath = path.join(projectRoot, "mcp-server/index.js");
+  const mcpServerPath = path.join(projectRoot, "mcp-server/dist/index.js");
 
   beforeAll(() => {
     // Verify MCP server exists
@@ -323,7 +323,7 @@ describe("MCP Protocol Compatibility", () => {
 
   describe("MCP Server File Structure", () => {
     it("MCP server entry point exists", () => {
-      const serverPath = path.join(projectRoot, "mcp-server/index.js");
+      const serverPath = path.join(projectRoot, "mcp-server/dist/index.js");
       expect(fs.existsSync(serverPath)).toBeTruthy();
     });
 

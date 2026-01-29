@@ -76,7 +76,7 @@ describe("VS Code Setup Script", () => {
       expect(config.servers["brain-dump"]).toBeDefined();
       expect(config.servers["brain-dump"].type).toBe("stdio");
       expect(config.servers["brain-dump"].command).toBe("node");
-      expect(config.servers["brain-dump"].args[0]).toContain("mcp-server/index.js");
+      expect(config.servers["brain-dump"].args[0]).toContain("mcp-server/dist/index.js");
     });
   });
 

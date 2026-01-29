@@ -1,7 +1,7 @@
 {
   "brain-dump": {
     "command": "node",
-    "args": ["${userHome}/code/brain-dump/mcp-server/index.js"],
+    "args": ["${userHome}/code/brain-dump/mcp-server/dist/index.js"],
     "env": {
       "CURSOR": "1"
     }

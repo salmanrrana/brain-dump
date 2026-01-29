@@ -33,7 +33,7 @@ Add to `~/.vscode/mcp.json`:
     "brain-dump": {
       "type": "stdio",
       "command": "node",
-      "args": ["/path/to/brain-dump/mcp-server/index.js"]
+      "args": ["/path/to/brain-dump/mcp-server/dist/index.js"]
     }
   }
 }

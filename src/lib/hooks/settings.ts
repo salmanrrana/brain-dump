@@ -45,6 +45,9 @@ export interface Settings {
   conversationRetentionDays: number | null;
   // Git worktree feature flag
   enableWorktreeSupport: boolean | null; // Global opt-in for worktree support
+  // MCP tool filtering settings
+  enableContextAwareToolFiltering: boolean | null;
+  defaultToolMode: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -66,7 +66,7 @@ Template for `opencode.json` configuration.
 
 **What to configure:**
 
-- MCP server path (update `/path/to/brain-dump/mcp-server/index.js`)
+- MCP server path (update `/path/to/brain-dump/mcp-server/dist/index.js`)
 - Plugin directory
 - Skills directory
 - Project metadata
@@ -98,7 +98,7 @@ cp opencode.json.example opencode.json
          "brain-dump": {
            "type": "local",
            "command": "node",
-           "args": ["/path/to/brain-dump/mcp-server/index.js"]
+           "args": ["/path/to/brain-dump/mcp-server/dist/index.js"]
          }
        }
      }
@@ -126,7 +126,7 @@ If you want Brain Dump integration in your specific project:
        "servers": {
          "brain-dump": {
            "command": "node",
-           "args": ["./mcp-server/index.js"]
+           "args": ["./mcp-server/dist/index.js"]
          }
        }
      }

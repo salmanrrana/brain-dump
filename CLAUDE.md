@@ -144,7 +144,7 @@ Legacy migration from `~/.brain-dump/` is automatic on first run.
 
 ### MCP Server
 
-The [mcp-server/index.js](mcp-server/index.js) is a standalone Node.js MCP server that provides tools for Claude to manage tickets from any project. It connects to the same SQLite database and includes:
+The [mcp-server/dist/index.js](mcp-server/dist/index.js) is a standalone Node.js MCP server that provides tools for Claude to manage tickets from any project. It connects to the same SQLite database and includes:
 
 - Project/ticket/epic CRUD operations
 - Git integration (branch creation, commit linking)

@@ -1,6 +1,6 @@
 {
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "vendor", "dist", ".vinxi"],
+  "exclude": ["node_modules", "vendor", "dist", ".vinxi", "mcp-server"],
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",

@@ -61,7 +61,7 @@ if [ -f "$CLAUDE_CONFIG" ]; then
   "mcpServers": {
     "brain-dump": {
       "command": "node",
-      "args": ["$BRAIN_DUMP_DIR/mcp-server/index.js"]
+      "args": ["$BRAIN_DUMP_DIR/mcp-server/dist/index.js"]
     }
   }
 }
@@ -75,7 +75,7 @@ else
   "mcpServers": {
     "brain-dump": {
       "command": "node",
-      "args": ["$BRAIN_DUMP_DIR/mcp-server/index.js"]
+      "args": ["$BRAIN_DUMP_DIR/mcp-server/dist/index.js"]
     }
   }
 }
@@ -186,10 +186,14 @@ if [ -f "$CLAUDE_SETTINGS" ]; then
         # Check if hooks use old $CLAUDE_PROJECT_DIR paths and update them
         if grep -q 'CLAUDE_PROJECT_DIR' "$CLAUDE_SETTINGS"; then
             echo -e "${YELLOW}Updating hook paths from \$CLAUDE_PROJECT_DIR to \$HOME/.claude/hooks/...${NC}"
-            # Use sed to replace the old paths with new global paths
-            sed -i.bak 's|"\$CLAUDE_PROJECT_DIR"/.claude/hooks/|\$HOME/.claude/hooks/|g' "$CLAUDE_SETTINGS"
-            sed -i.bak 's|"\\$CLAUDE_PROJECT_DIR"/.claude/hooks/|$HOME/.claude/hooks/|g' "$CLAUDE_SETTINGS"
-            rm -f "$CLAUDE_SETTINGS.bak"
+            # Use sed to replace the old paths with new global paths (cross-platform)
+            if [[ "$(uname)" == "Darwin" ]]; then
+                sed -i '' 's|"\$CLAUDE_PROJECT_DIR"/.claude/hooks/|\$HOME/.claude/hooks/|g' "$CLAUDE_SETTINGS"
+                sed -i '' 's|"\\$CLAUDE_PROJECT_DIR"/.claude/hooks/|$HOME/.claude/hooks/|g' "$CLAUDE_SETTINGS"
+            else
+                sed -i 's|"\$CLAUDE_PROJECT_DIR"/.claude/hooks/|\$HOME/.claude/hooks/|g' "$CLAUDE_SETTINGS"
+                sed -i 's|"\\$CLAUDE_PROJECT_DIR"/.claude/hooks/|$HOME/.claude/hooks/|g' "$CLAUDE_SETTINGS"
+            fi
             echo -e "${GREEN}Hook paths updated to use global ~/.claude/hooks/${NC}"
         else
             echo -e "${GREEN}Hook paths already use global paths${NC}"

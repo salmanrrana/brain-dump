@@ -197,7 +197,7 @@ if [ ! -d ".opencode" ]; then
     echo -e "${GREEN}Created .opencode directories${NC}"
 fi
 
-MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/index.js"
+MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/dist/index.js"
 OPENCODE_CONFIG=".opencode/opencode.json"
 
 # Create or update opencode.json with correct configuration
@@ -209,7 +209,7 @@ if [ ! -f "$OPENCODE_CONFIG" ]; then
   "mcp": {
     "brain-dump": {
       "type": "local",
-      "command": ["node", "mcp-server/index.js"],
+      "command": ["node", "mcp-server/dist/index.js"],
       "enabled": true,
       "environment": {
         "BRAIN_DUMP_PATH": ".",
@@ -245,7 +245,7 @@ try {
     const config = JSON.parse(fs.readFileSync('$OPENCODE_CONFIG', 'utf8'));
     if (config.mcp && config.mcp['brain-dump']) {
         config.mcp['brain-dump'].type = 'local';
-        config.mcp['brain-dump'].command = ['node', 'mcp-server/index.js'];
+        config.mcp['brain-dump'].command = ['node', 'mcp-server/dist/index.js'];
         config.mcp['brain-dump'].enabled = true;
         config.mcp['brain-dump'].environment = config.mcp['brain-dump'].environment || {};
         config.mcp['brain-dump'].environment.BRAIN_DUMP_PATH = '.';
@@ -253,7 +253,7 @@ try {
         config.mcp = config.mcp || {};
         config.mcp['brain-dump'] = {
             type: 'local',
-            command: ['node', 'mcp-server/index.js'],
+            command: ['node', 'mcp-server/dist/index.js'],
             enabled: true,
             environment: { BRAIN_DUMP_PATH: '.' }
         };

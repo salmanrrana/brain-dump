@@ -151,7 +151,7 @@ cat ~/.local/state/brain-dump/migration.log
      "mcpServers": {
        "brain-dump": {
          "command": "node",
-         "args": ["/path/to/brain-dump/mcp-server/index.js"]
+         "args": ["/path/to/brain-dump/mcp-server/dist/index.js"]
        }
      }
    }
@@ -159,13 +159,13 @@ cat ~/.local/state/brain-dump/migration.log
 
 2. Test the server directly:
    ```bash
-   node /path/to/brain-dump/mcp-server/index.js
+   node /path/to/brain-dump/mcp-server/dist/index.js
    # Should output JSON-RPC on stderr
    ```
 
 3. Check for Node.js errors:
    ```bash
-   node /path/to/brain-dump/mcp-server/index.js 2>&1 | head -20
+   node /path/to/brain-dump/mcp-server/dist/index.js 2>&1 | head -20
    ```
 
 ### MCP Server Database Errors

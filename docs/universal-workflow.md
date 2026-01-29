@@ -536,7 +536,7 @@ Ralph respects the same workflow as interactive mode. All tickets are reviewed a
 
 ### MCP Server (Workflow Engine)
 
-The MCP server (`mcp-server/index.js`) is the enforcement point:
+The MCP server (`mcp-server/dist/index.js`) is the enforcement point:
 
 - All MCP tools in one place
 - Preconditions checked for every operation

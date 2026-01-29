@@ -121,6 +121,9 @@ export function createMockSettings(overrides: Partial<Settings> = {}): Settings 
     conversationRetentionDays: overrides.conversationRetentionDays ?? 90,
     conversationLoggingEnabled: overrides.conversationLoggingEnabled ?? true,
     enableWorktreeSupport: overrides.enableWorktreeSupport ?? false,
+    enableContextAwareToolFiltering:
+      overrides.enableContextAwareToolFiltering ?? false,
+    defaultToolMode: overrides.defaultToolMode ?? "auto",
     createdAt: overrides.createdAt ?? new Date().toISOString(),
     updatedAt: overrides.updatedAt ?? new Date().toISOString(),
   };

@@ -97,7 +97,7 @@ In Cursor, MCP is configured in `.cursor/mcp.json`:
   "mcpServers": {
     "brain-dump": {
       "command": "node",
-      "args": ["/path/to/brain-dump/mcp-server/index.js"]
+      "args": ["/path/to/brain-dump/mcp-server/dist/index.js"]
     }
   }
 }
