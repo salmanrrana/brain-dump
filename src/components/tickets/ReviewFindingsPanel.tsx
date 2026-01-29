@@ -1,0 +1,151 @@
+import React from "react";
+import { AlertTriangle, AlertCircle, Info, Lightbulb, CheckCircle2, Loader2 } from "lucide-react";
+import type { WorkflowDisplayState } from "../../api/workflow";
+import { FindingRow } from "./FindingRow";
+
+export interface ReviewFindingsPanelProps {
+  workflowState: WorkflowDisplayState | null;
+  loading?: boolean;
+  /** Error message if workflow state failed to load */
+  error?: string | null;
+}
+
+/**
+ * Determines the panel styling based on finding severity and fix status.
+ *
+ * @param hasCritical - Whether there are any critical findings
+ * @param allFixed - Whether all findings have been fixed
+ * @returns CSS classes for panel background and border
+ */
+function getPanelClassName(hasCritical: boolean, allFixed: boolean): string {
+  if (hasCritical && !allFixed) {
+    return "bg-[var(--accent-danger)]/10 border-[var(--accent-danger)]/30";
+  }
+  if (allFixed) {
+    return "bg-[var(--success-muted)] border-[var(--success)]/30";
+  }
+  return "bg-[var(--warning-muted)] border-[var(--warning)]/30";
+}
+
+/**
+ * ReviewFindingsPanel - Displays review findings summary by severity.
+ *
+ * Shows a breakdown of findings from code review agents:
+ * Review Findings
+ * ├── P0 (Critical): 0
+ * ├── P1 (Major): 1
+ * ├── P2 (Minor): 3
+ * ├── Suggestions: 2
+ * └── Fixed: 2/6
+ */
+export const ReviewFindingsPanel: React.FC<ReviewFindingsPanelProps> = ({
+  workflowState,
+  loading = false,
+  error = null,
+}) => {
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
+        <Loader2 size={16} className="animate-spin" />
+        <span className="text-sm">Loading findings...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-[var(--accent-danger)]/10 border border-[var(--accent-danger)]/30 rounded-lg p-4">
+        <div className="flex items-center gap-2 text-[var(--accent-danger)]">
+          <AlertCircle size={16} />
+          <span className="text-sm">Failed to load findings</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!workflowState) {
+    return null;
+  }
+
+  const { findingsSummary } = workflowState;
+  const hasFindings = findingsSummary.total > 0;
+
+  if (!hasFindings) {
+    return (
+      <div className="bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg p-4">
+        <h4 className="text-sm font-medium text-[var(--text-primary)] mb-2">Review Findings</h4>
+        <p className="text-xs text-[var(--text-tertiary)]">No review findings yet</p>
+      </div>
+    );
+  }
+
+  const unfixedCount = findingsSummary.total - findingsSummary.fixed;
+  const allFixed = unfixedCount === 0;
+  const hasCritical = findingsSummary.critical > 0;
+
+  return (
+    <div className={`border rounded-lg p-4 ${getPanelClassName(hasCritical, allFixed)}`}>
+      <h4 className="text-sm font-medium text-[var(--text-primary)] mb-3">Review Findings</h4>
+
+      <div className="space-y-2">
+        {/* Critical (P0) */}
+        {findingsSummary.critical > 0 && (
+          <FindingRow
+            icon={<AlertTriangle size={14} className="text-[var(--accent-danger)]" />}
+            label="P0 (Critical)"
+            count={findingsSummary.critical}
+          />
+        )}
+
+        {/* Major (P1) */}
+        {findingsSummary.major > 0 && (
+          <FindingRow
+            icon={<AlertCircle size={14} className="text-[var(--warning)]" />}
+            label="P1 (Major)"
+            count={findingsSummary.major}
+          />
+        )}
+
+        {/* Minor (P2) */}
+        {findingsSummary.minor > 0 && (
+          <FindingRow
+            icon={<Info size={14} className="text-[var(--info)]" />}
+            label="P2 (Minor)"
+            count={findingsSummary.minor}
+          />
+        )}
+
+        {/* Suggestions */}
+        {findingsSummary.suggestion > 0 && (
+          <FindingRow
+            icon={<Lightbulb size={14} className="text-[var(--text-tertiary)]" />}
+            label="Suggestions"
+            count={findingsSummary.suggestion}
+          />
+        )}
+
+        {/* Divider */}
+        <div className="border-t border-[var(--border-primary)] my-2" />
+
+        {/* Fixed count */}
+        <div className="flex items-center gap-2">
+          <CheckCircle2
+            size={14}
+            className={allFixed ? "text-[var(--success)]" : "text-[var(--text-tertiary)]"}
+          />
+          <span className="text-xs text-[var(--text-secondary)]">Fixed:</span>
+          <span
+            className={`text-xs font-medium ${
+              allFixed ? "text-[var(--success)]" : "text-[var(--text-primary)]"
+            }`}
+          >
+            {findingsSummary.fixed}/{findingsSummary.total}
+          </span>
+          {allFixed && <span className="text-xs text-[var(--success)] ml-1">All resolved</span>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ReviewFindingsPanel;

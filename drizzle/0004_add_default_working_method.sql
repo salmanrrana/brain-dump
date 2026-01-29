@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `default_working_method` text DEFAULT 'auto';

@@ -1,0 +1,62 @@
+{
+  "name": "Brain Dump Dev",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {
+      "TZ": "${localEnv:TZ:America/Los_Angeles}",
+      "PNPM_VERSION": "9",
+      "GIT_DELTA_VERSION": "0.18.2",
+      "ZSH_IN_DOCKER_VERSION": "1.2.0"
+    }
+  },
+  "runArgs": ["--cap-add=NET_ADMIN", "--cap-add=NET_RAW"],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anthropic.claude-code",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "eamodio.gitlens"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": "explicit"
+        },
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "bash",
+            "icon": "terminal-bash"
+          },
+          "zsh": {
+            "path": "zsh"
+          }
+        },
+        "tailwindCSS.experimental.classRegex": [["cn\\(([^)]*)\\)", "[\"'`]([^\"'`]*)[\"'`]"]]
+      }
+    }
+  },
+  "remoteUser": "node",
+  "mounts": [
+    "source=brain-dump-pnpm-store-${devcontainerId},target=/home/node/.local/share/pnpm,type=volume",
+    "source=brain-dump-bashhistory-${devcontainerId},target=/commandhistory,type=volume",
+    "source=brain-dump-claude-config-${devcontainerId},target=/home/node/.claude,type=volume",
+    "source=${localEnv:BRAIN_DUMP_HOST_DATA_DIR:${localEnv:HOME}/Library/Application Support/brain-dump},target=/home/node/.brain-dump,type=bind,consistency=cached"
+  ],
+  "containerEnv": {
+    "NODE_OPTIONS": "--max-old-space-size=4096",
+    "PNPM_HOME": "/home/node/.local/share/pnpm",
+    "CLAUDE_CONFIG_DIR": "/home/node/.claude",
+    "BRAIN_DUMP_DATA_DIR": "/home/node/.brain-dump",
+    "POWERLEVEL9K_DISABLE_GITSTATUS": "true"
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
+  "workspaceFolder": "/workspace",
+  "forwardPorts": [4242],
+  "postCreateCommand": "pnpm install",
+  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh",
+  "waitFor": "postStartCommand"
+}

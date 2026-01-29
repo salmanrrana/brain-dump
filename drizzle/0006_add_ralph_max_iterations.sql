@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `ralph_max_iterations` integer DEFAULT 10;

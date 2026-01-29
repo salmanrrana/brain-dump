@@ -1,0 +1,17 @@
+services:
+  brain-dump:
+    build: .
+    container_name: brain-dump
+    ports:
+      - "4242:4242"
+    volumes:
+      # Persist SQLite database and attachments
+      - brain-dump-data:/root/.brain-dump
+    environment:
+      - NODE_ENV=production
+      - HOST=0.0.0.0
+      - PORT=4242
+    restart: unless-stopped
+
+volumes:
+  brain-dump-data:

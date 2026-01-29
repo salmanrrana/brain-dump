@@ -1,0 +1,548 @@
+/**
+ * Brain Dump Design System - CSS Custom Properties
+ *
+ * Neon Productivity theme system with three accent color schemes:
+ * - Ember (orange) - Default theme
+ * - Mint (emerald) - Green accent
+ * - Solar (gold) - Yellow accent
+ *
+ * All themes share the same dark base colors but differ in accent colors.
+ */
+
+/* ============================================
+   BASE THEME (Ember - Default)
+   ============================================ */
+:root {
+  /* Background Colors - Dark base shared by all themes */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-tertiary: #171717;
+  --bg-card: #141414;
+  --bg-hover: #1a1a1a;
+  --bg-active: #222222;
+
+  /* Text Colors */
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-tertiary: #71717a;
+  --text-muted: #52525b;
+
+  /* Border Colors */
+  --border-primary: #27272a;
+  --border-secondary: #3f3f46;
+  --border-focus: #52525b;
+
+  /* Accent Colors - Ember Theme (Orange) */
+  --accent-primary: #f97316;
+  --accent-secondary: #ea580c;
+  --accent-tertiary: #c2410c;
+  --accent-muted: rgba(249, 115, 22, 0.15);
+  --accent-glow: rgba(249, 115, 22, 0.4);
+
+  /* Gradient for primary buttons/highlights */
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+
+  /* Status Colors */
+  --status-backlog: #71717a;
+  --status-ready: #3b82f6;
+  --status-in-progress: #8b5cf6;
+  --status-review: #a855f7;
+  --status-done: #22c55e;
+
+  /* Priority Colors */
+  --priority-high: #ef4444;
+  --priority-medium: #f97316;
+  --priority-low: #71717a;
+
+  /* PR Status Colors */
+  --pr-open: #22c55e;
+  --pr-draft: #71717a;
+  --pr-merged: #a855f7;
+  --pr-closed: #ef4444;
+
+  /* Semantic Colors */
+  --success: #22c55e;
+  --success-muted: rgba(34, 197, 94, 0.15);
+  --warning: #eab308;
+  --warning-muted: rgba(234, 179, 8, 0.15);
+  --error: #ef4444;
+  --error-muted: rgba(239, 68, 68, 0.15);
+  --info: #3b82f6;
+  --info-muted: rgba(59, 130, 246, 0.15);
+
+  /* Accent semantic aliases (for component consistency) */
+  --accent-danger: var(--error);
+  --accent-warning: var(--warning);
+  --border-hover: var(--border-secondary);
+  --text-on-accent: #ffffff;
+
+  /* Status aliases (for semantic consistency) */
+  --status-success: var(--success);
+  --status-warning: var(--warning);
+  --status-error: var(--error);
+  --status-info: var(--info);
+
+  /* AI accent color (teal for all themes) */
+  --accent-ai: #14b8a6;
+  --accent-ai-glow: rgba(20, 184, 166, 0.4);
+
+  /* Typography Scale */
+  --font-size-xs: 0.75rem; /* 12px */
+  --font-size-sm: 0.875rem; /* 14px */
+  --font-size-base: 1rem; /* 16px */
+  --font-size-lg: 1.125rem; /* 18px */
+  --font-size-xl: 1.25rem; /* 20px */
+  --font-size-2xl: 1.5rem; /* 24px */
+  --font-size-3xl: 1.875rem; /* 30px */
+  --font-size-4xl: 2.25rem; /* 36px */
+
+  /* Font Weights */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Line Heights */
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+
+  /* Spacing Scale (4px base unit) */
+  --spacing-0: 0;
+  --spacing-1: 0.25rem; /* 4px */
+  --spacing-2: 0.5rem; /* 8px */
+  --spacing-3: 0.75rem; /* 12px */
+  --spacing-4: 1rem; /* 16px */
+  --spacing-5: 1.25rem; /* 20px */
+  --spacing-6: 1.5rem; /* 24px */
+  --spacing-8: 2rem; /* 32px */
+  --spacing-10: 2.5rem; /* 40px */
+  --spacing-12: 3rem; /* 48px */
+  --spacing-16: 4rem; /* 64px */
+  --spacing-20: 5rem; /* 80px */
+  --spacing-24: 6rem; /* 96px */
+
+  /* Border Radius */
+  --radius-none: 0;
+  --radius-sm: 0.25rem; /* 4px */
+  --radius-md: 0.375rem; /* 6px */
+  --radius-lg: 0.5rem; /* 8px */
+  --radius-xl: 0.75rem; /* 12px */
+  --radius-2xl: 1rem; /* 16px */
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+
+  /* Focus Ring - WCAG AA compliant (3:1 contrast ratio) */
+  --focus-ring-color: var(--accent-primary);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --focus-ring-offset-color: var(--bg-primary);
+
+  /* Glow shadows use accent color */
+  --shadow-glow: 0 0 20px var(--accent-glow);
+  --shadow-glow-sm: 0 0 10px var(--accent-glow);
+  --shadow-glow-lg: 0 0 30px var(--accent-glow);
+
+  /* Modal shadow - theme-colored glow with depth */
+  --shadow-modal: 0 0 60px var(--accent-glow), 0 25px 50px rgba(0, 0, 0, 0.5);
+
+  /* Transitions */
+  --transition-fast: 100ms ease;
+  --transition-normal: 150ms ease;
+  --transition-slow: 300ms ease;
+
+  /* Animation durations (for reduced motion support) */
+  --animation-duration-fast: 150ms;
+  --animation-duration-normal: 300ms;
+  --animation-duration-slow: 500ms;
+  --animation-duration-pulse: 2s;
+
+  /* Z-Index Scale */
+  --z-dropdown: 10;
+  --z-sticky: 20;
+  --z-fixed: 30;
+  --z-modal-backdrop: 40;
+  --z-modal: 50;
+  --z-popover: 60;
+  --z-tooltip: 70;
+  --z-toast: 80;
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
+/* Slide in from left - for mobile sidebar */
+@keyframes slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left var(--animation-duration-normal) ease-out;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .animate-slide-in-left {
+    animation: none;
+    transform: translateX(0);
+  }
+}
+
+/* ============================================
+   TOUCH DEVICE STYLES
+   ============================================ */
+
+/* Larger touch targets on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  /* Ticket cards have larger padding for easier touch */
+  [role="button"] {
+    min-height: 48px; /* Minimum touch target size */
+  }
+
+  /* Scrollable areas have momentum scrolling indicator */
+  [data-testid="kanban-board"] {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ============================================
+   MINT THEME (Emerald + Rose)
+   ============================================ */
+[data-theme="mint"] {
+  /* Accent Colors - Mint Theme (Emerald) */
+  --accent-primary: #10b981;
+  --accent-secondary: #059669;
+  --accent-tertiary: #047857;
+  --accent-muted: rgba(16, 185, 129, 0.15);
+  --accent-glow: rgba(16, 185, 129, 0.4);
+
+  /* AI/Secondary accent - Rose for Mint theme */
+  --accent-ai: #f43f5e;
+  --accent-ai-glow: rgba(244, 63, 94, 0.4);
+
+  /* Update gradient */
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+}
+
+/* ============================================
+   SOLAR THEME (Gold + Blue)
+   ============================================ */
+[data-theme="solar"] {
+  /* Accent Colors - Solar Theme (Gold) */
+  --accent-primary: #eab308;
+  --accent-secondary: #ca8a04;
+  --accent-tertiary: #a16207;
+  --accent-muted: rgba(234, 179, 8, 0.15);
+  --accent-glow: rgba(234, 179, 8, 0.4);
+
+  /* AI/Secondary accent - Blue for Solar theme */
+  --accent-ai: #3b82f6;
+  --accent-ai-glow: rgba(59, 130, 246, 0.4);
+
+  /* Update gradient */
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+}
+
+/* ============================================
+   EMBER THEME (Explicit - same as :root)
+   Used when data-theme="ember" is explicitly set
+   ============================================ */
+[data-theme="ember"] {
+  /* Accent Colors - Ember Theme (Orange) */
+  --accent-primary: #f97316;
+  --accent-secondary: #ea580c;
+  --accent-tertiary: #c2410c;
+  --accent-muted: rgba(249, 115, 22, 0.15);
+  --accent-glow: rgba(249, 115, 22, 0.4);
+
+  /* Update gradient */
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+}
+
+/* ============================================
+   ARCTIC THEME (Ice Blue + Violet)
+   Cool, professional - great for late-night coding
+   ============================================ */
+[data-theme="arctic"] {
+  /* Accent Colors - Arctic Theme (Sky Blue) */
+  --accent-primary: #0ea5e9;
+  --accent-secondary: #0284c7;
+  --accent-tertiary: #0369a1;
+  --accent-muted: rgba(14, 165, 233, 0.15);
+  --accent-glow: rgba(14, 165, 233, 0.4);
+
+  /* AI/Secondary accent - Violet for Arctic theme */
+  --accent-ai: #a855f7;
+  --accent-ai-glow: rgba(168, 85, 247, 0.4);
+
+  /* Update gradient */
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+}
+
+/* ============================================
+   NEON THEME (Violet + Cyan)
+   Cyberpunk/synthwave vibe - high energy
+   ============================================ */
+[data-theme="neon"] {
+  /* Accent Colors - Neon Theme (Violet) */
+  --accent-primary: #8b5cf6;
+  --accent-secondary: #7c3aed;
+  --accent-tertiary: #6d28d9;
+  --accent-muted: rgba(139, 92, 246, 0.15);
+  --accent-glow: rgba(139, 92, 246, 0.4);
+
+  /* AI/Secondary accent - Cyan for Neon theme */
+  --accent-ai: #06b6d4;
+  --accent-ai-glow: rgba(6, 182, 212, 0.4);
+
+  /* Update gradient */
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+}
+
+/* ============================================
+   BLUSH THEME (Pink + Teal)
+   Modern, softer aesthetic
+   ============================================ */
+[data-theme="blush"] {
+  /* Accent Colors - Blush Theme (Pink) */
+  --accent-primary: #ec4899;
+  --accent-secondary: #db2777;
+  --accent-tertiary: #be185d;
+  --accent-muted: rgba(236, 72, 153, 0.15);
+  --accent-glow: rgba(236, 72, 153, 0.4);
+
+  /* AI/Secondary accent - Teal for Blush theme */
+  --accent-ai: #14b8a6;
+  --accent-ai-glow: rgba(20, 184, 166, 0.4);
+
+  /* Update gradient */
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+}
+
+/* ============================================
+   LIGHT THEMES
+   ============================================ */
+
+/* ============================================
+   DAYLIGHT THEME (Warm Light + Orange)
+   Warm off-white base, reduces eye strain
+   ============================================ */
+[data-theme="daylight"] {
+  /* Background Colors - Warm light base */
+  --bg-primary: #fafaf9;
+  --bg-secondary: #f5f5f4;
+  --bg-tertiary: #e7e5e4;
+  --bg-card: #ffffff;
+  --bg-hover: #d6d3d1;
+  --bg-active: #a8a29e;
+
+  /* Text Colors - Dark for light bg */
+  --text-primary: #1c1917;
+  --text-secondary: #57534e;
+  --text-tertiary: #78716c;
+  --text-muted: #a8a29e;
+
+  /* Border Colors */
+  --border-primary: #d6d3d1;
+  --border-secondary: #a8a29e;
+  --border-focus: #78716c;
+
+  /* Accent Colors - Orange (like Ember) */
+  --accent-primary: #ea580c;
+  --accent-secondary: #c2410c;
+  --accent-tertiary: #9a3412;
+  --accent-muted: rgba(234, 88, 12, 0.12);
+  --accent-glow: rgba(234, 88, 12, 0.25);
+
+  /* AI accent - Teal */
+  --accent-ai: #0d9488;
+  --accent-ai-glow: rgba(13, 148, 136, 0.25);
+
+  /* Semantic Colors - Slightly darker for light bg */
+  --success: #16a34a;
+  --success-muted: rgba(22, 163, 74, 0.12);
+  --warning: #ca8a04;
+  --warning-muted: rgba(202, 138, 4, 0.12);
+  --error: #dc2626;
+  --error-muted: rgba(220, 38, 38, 0.12);
+  --info: #2563eb;
+  --info-muted: rgba(37, 99, 235, 0.12);
+
+  /* Status Colors - Adjusted for light bg */
+  --status-backlog: #78716c;
+  --status-ready: #2563eb;
+  --status-in-progress: #7c3aed;
+  --status-review: #9333ea;
+  --status-done: #16a34a;
+
+  /* Priority Colors */
+  --priority-high: #dc2626;
+  --priority-medium: #ea580c;
+  --priority-low: #78716c;
+
+  /* Shadows - Lighter for light theme */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 20px var(--accent-glow);
+  --shadow-glow-sm: 0 0 10px var(--accent-glow);
+  --shadow-glow-lg: 0 0 30px var(--accent-glow);
+  --shadow-modal: 0 0 40px var(--accent-glow), 0 25px 50px rgba(0, 0, 0, 0.15);
+
+  /* Update gradient */
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+}
+
+/* ============================================
+   FROST THEME (Cool Light + Blue)
+   Clean, cool white with blue accents
+   ============================================ */
+[data-theme="frost"] {
+  /* Background Colors - Cool light base */
+  --bg-primary: #f8fafc;
+  --bg-secondary: #f1f5f9;
+  --bg-tertiary: #e2e8f0;
+  --bg-card: #ffffff;
+  --bg-hover: #cbd5e1;
+  --bg-active: #94a3b8;
+
+  /* Text Colors */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #64748b;
+  --text-muted: #94a3b8;
+
+  /* Border Colors */
+  --border-primary: #cbd5e1;
+  --border-secondary: #94a3b8;
+  --border-focus: #64748b;
+
+  /* Accent Colors - Blue (like Arctic) */
+  --accent-primary: #0284c7;
+  --accent-secondary: #0369a1;
+  --accent-tertiary: #075985;
+  --accent-muted: rgba(2, 132, 199, 0.12);
+  --accent-glow: rgba(2, 132, 199, 0.25);
+
+  /* AI accent - Violet */
+  --accent-ai: #7c3aed;
+  --accent-ai-glow: rgba(124, 58, 237, 0.25);
+
+  /* Semantic Colors */
+  --success: #16a34a;
+  --success-muted: rgba(22, 163, 74, 0.12);
+  --warning: #ca8a04;
+  --warning-muted: rgba(202, 138, 4, 0.12);
+  --error: #dc2626;
+  --error-muted: rgba(220, 38, 38, 0.12);
+  --info: #2563eb;
+  --info-muted: rgba(37, 99, 235, 0.12);
+
+  /* Status Colors */
+  --status-backlog: #64748b;
+  --status-ready: #2563eb;
+  --status-in-progress: #7c3aed;
+  --status-review: #9333ea;
+  --status-done: #16a34a;
+
+  /* Priority Colors */
+  --priority-high: #dc2626;
+  --priority-medium: #ea580c;
+  --priority-low: #64748b;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 20px var(--accent-glow);
+  --shadow-glow-sm: 0 0 10px var(--accent-glow);
+  --shadow-glow-lg: 0 0 30px var(--accent-glow);
+  --shadow-modal: 0 0 40px var(--accent-glow), 0 25px 50px rgba(0, 0, 0, 0.15);
+
+  /* Update gradient */
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+}
+
+/* ============================================
+   PAPER THEME (Neutral Light + Violet)
+   Classic, paper-like with violet accents
+   ============================================ */
+[data-theme="paper"] {
+  /* Background Colors - Neutral white base */
+  --bg-primary: #fafafa;
+  --bg-secondary: #f4f4f5;
+  --bg-tertiary: #e4e4e7;
+  --bg-card: #ffffff;
+  --bg-hover: #d4d4d8;
+  --bg-active: #a1a1aa;
+
+  /* Text Colors */
+  --text-primary: #18181b;
+  --text-secondary: #52525b;
+  --text-tertiary: #71717a;
+  --text-muted: #a1a1aa;
+
+  /* Border Colors */
+  --border-primary: #d4d4d8;
+  --border-secondary: #a1a1aa;
+  --border-focus: #71717a;
+
+  /* Accent Colors - Violet (like Neon) */
+  --accent-primary: #7c3aed;
+  --accent-secondary: #6d28d9;
+  --accent-tertiary: #5b21b6;
+  --accent-muted: rgba(124, 58, 237, 0.12);
+  --accent-glow: rgba(124, 58, 237, 0.25);
+
+  /* AI accent - Cyan */
+  --accent-ai: #0891b2;
+  --accent-ai-glow: rgba(8, 145, 178, 0.25);
+
+  /* Semantic Colors */
+  --success: #16a34a;
+  --success-muted: rgba(22, 163, 74, 0.12);
+  --warning: #ca8a04;
+  --warning-muted: rgba(202, 138, 4, 0.12);
+  --error: #dc2626;
+  --error-muted: rgba(220, 38, 38, 0.12);
+  --info: #2563eb;
+  --info-muted: rgba(37, 99, 235, 0.12);
+
+  /* Status Colors */
+  --status-backlog: #71717a;
+  --status-ready: #2563eb;
+  --status-in-progress: #7c3aed;
+  --status-review: #9333ea;
+  --status-done: #16a34a;
+
+  /* Priority Colors */
+  --priority-high: #dc2626;
+  --priority-medium: #ea580c;
+  --priority-low: #71717a;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 20px var(--accent-glow);
+  --shadow-glow-sm: 0 0 10px var(--accent-glow);
+  --shadow-glow-lg: 0 0 30px var(--accent-glow);
+  --shadow-modal: 0 0 40px var(--accent-glow), 0 25px 50px rgba(0, 0, 0, 0.15);
+
+  /* Update gradient */
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+}

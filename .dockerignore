@@ -1,0 +1,39 @@
+# Dependencies
+node_modules
+
+# Build output
+.output
+dist
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Testing
+coverage
+e2e
+playwright-report
+test-results
+
+# Development
+*.log
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+LICENSE
+plans/
+
+# Local data (will be mounted as volume)
+*.db

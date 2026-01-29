@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# pre-push - Validates branch and prepares PR context before pushing
+#
+# This hook runs before git push and:
+# 1. Validates branch naming conventions
+# 2. Generates a PR description file with ticket context
+# 3. Outputs helpful information about creating a PR
+
+set -e
+
+REMOTE="$1"
+URL="$2"
+
+# Get current branch
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+
+# Skip for main/master branches
+if [[ "$BRANCH" == "main" ]] || [[ "$BRANCH" == "master" ]] || [[ "$BRANCH" == "dev" ]]; then
+  exit 0
+fi
+
+# Get the directory where this script lives
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+CONTEXT_SCRIPT="$SCRIPT_DIR/scripts/get-ticket-context.sh"
+
+# Check branch naming convention
+# Valid patterns: feature/*, bugfix/*, hotfix/*, chore/*, docs/*
+if ! echo "$BRANCH" | grep -qE '^(feature|bugfix|hotfix|chore|docs|fix|refactor)/'; then
+  echo "⚠️  Warning: Branch '$BRANCH' doesn't follow naming convention"
+  echo "   Recommended: feature/, bugfix/, hotfix/, chore/, docs/"
+  echo ""
+fi
+
+# Try to get ticket context
+if [[ -x "$CONTEXT_SCRIPT" ]]; then
+  TICKET_ID=$("$CONTEXT_SCRIPT" id 2>/dev/null || echo "")
+  TICKET_CONTEXT=$("$CONTEXT_SCRIPT" full 2>/dev/null || echo "")
+
+  if [[ -n "$TICKET_ID" ]]; then
+    echo "📋 Ticket detected: $TICKET_ID"
+
+    # Generate PR description file
+    PR_DESC_FILE="$SCRIPT_DIR/.pr-description.md"
+
+    # Get commit summary since diverging from main
+    COMMITS=$(git log --oneline main..HEAD 2>/dev/null || git log --oneline origin/main..HEAD 2>/dev/null || echo "")
+
+    {
+      echo "## Summary"
+      echo ""
+      echo "<!-- Auto-generated from ticket context -->"
+      echo ""
+      if [[ -n "$COMMITS" ]]; then
+        echo "### Commits in this PR"
+        echo ""
+        echo "\`\`\`"
+        echo "$COMMITS"
+        echo "\`\`\`"
+        echo ""
+      fi
+      echo "## Ticket Context"
+      echo ""
+      echo "$TICKET_CONTEXT"
+      echo ""
+      echo "## Test Plan"
+      echo ""
+      echo "- [ ] Unit tests pass (\`pnpm test\`)"
+      echo "- [ ] Type check passes (\`pnpm type-check\`)"
+      echo "- [ ] Lint passes (\`pnpm lint\`)"
+      echo ""
+      echo "---"
+      echo ""
+      echo "🤖 Generated with [Claude Code](https://claude.com/claude-code)"
+    } > "$PR_DESC_FILE"
+
+    echo "📝 PR description generated: .pr-description.md"
+    echo ""
+  fi
+fi
+
+# Helpful output for creating PR
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🚀 Pushing branch: $BRANCH"
+echo ""
+echo "After push, create a PR:"
+echo "  gh pr create --base main"
+echo ""
+echo "Or visit:"
+echo "  https://github.com/salmanrrana/brain-dump/pull/new/$BRANCH"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+exit 0

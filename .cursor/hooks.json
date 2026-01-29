@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "$HOME/.cursor/hooks/start-telemetry.sh"
+      }
+    ],
+    "sessionEnd": [
+      {
+        "command": "$HOME/.cursor/hooks/end-telemetry.sh"
+      }
+    ],
+    "preToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "command": "$HOME/.cursor/hooks/enforce-state-before-write.sh"
+      },
+      {
+        "matcher": "Bash(git push:*)",
+        "command": "$HOME/.cursor/hooks/enforce-review-before-push.sh"
+      },
+      {
+        "command": "$HOME/.cursor/hooks/log-tool.sh"
+      }
+    ],
+    "postToolUse": [
+      {
+        "matcher": "mcp__brain-dump__start_ticket_work",
+        "command": "$HOME/.cursor/hooks/create-pr-on-ticket-start.sh"
+      },
+      {
+        "matcher": "Bash(git commit:*)",
+        "command": "$HOME/.cursor/hooks/link-commit-to-ticket.sh"
+      },
+      {
+        "matcher": "Bash(gh pr create:*)",
+        "command": "$HOME/.cursor/hooks/spawn-after-pr.sh"
+      },
+      {
+        "command": "$HOME/.cursor/hooks/log-tool.sh"
+      }
+    ],
+    "postToolUseFailure": [
+      {
+        "command": "$HOME/.cursor/hooks/log-tool-failure.sh"
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "$HOME/.cursor/hooks/log-prompt.sh"
+      }
+    ]
+  }
+}

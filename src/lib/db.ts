@@ -1,0 +1,573 @@
+import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import * as schema from "./schema";
+import { getDatabasePath, ensureDirectoriesSync } from "./xdg";
+import { migrateFromLegacySync } from "./migration";
+import { performDailyBackupSync } from "./backup";
+import { initializeLockSync } from "./lockfile";
+import { initializeWatcher, stopWatching } from "./db-watcher";
+import { startupIntegrityCheck } from "./integrity";
+
+// Ensure XDG directories exist with proper permissions
+ensureDirectoriesSync();
+
+// Run migration from legacy ~/.brain-dump if needed
+// This must happen before opening the database
+const migrationResult = migrateFromLegacySync();
+if (migrationResult.migrated) {
+  console.log(`[DB] Migration completed: ${migrationResult.message}`);
+}
+
+// Get database path from XDG utility
+const dbPath = getDatabasePath();
+
+// Run quick integrity check on startup (fast, stops at first error)
+const integrityResult = startupIntegrityCheck(dbPath);
+if (!integrityResult.healthy) {
+  console.warn(`[DB] WARNING: ${integrityResult.message}`);
+  if (integrityResult.suggestRestore) {
+    console.warn(`[DB] A backup is available. Run: brain-dump restore --latest`);
+  }
+} else {
+  console.log(`[DB] ${integrityResult.message}`);
+}
+
+// Create database connection
+const sqlite = new Database(dbPath);
+sqlite.pragma("journal_mode = WAL");
+sqlite.pragma("foreign_keys = ON");
+
+// Acquire lock and setup graceful shutdown
+// This ensures lock is cleaned up and WAL is checkpointed on shutdown
+const lockResult = initializeLockSync("vite", () => {
+  try {
+    stopWatching(); // Stop file watcher
+    sqlite.pragma("wal_checkpoint(TRUNCATE)");
+    sqlite.close();
+  } catch (error) {
+    console.warn("[DB] Cleanup error during shutdown:", error);
+  }
+});
+if (lockResult.acquired) {
+  console.log(`[DB] ${lockResult.message}`);
+}
+
+// Start watching for unexpected database file deletions
+if (initializeWatcher(dbPath)) {
+  console.log(`[DB] Database file watcher started`);
+}
+
+// Auto-create tables if they don't exist
+function initTables() {
+  const projectsExists = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='projects'")
+    .get();
+
+  if (!projectsExists) {
+    console.log("Creating database tables...");
+
+    // Create projects table
+    sqlite.exec(`
+      CREATE TABLE projects (
+        id TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        path TEXT NOT NULL UNIQUE,
+        color TEXT,
+        working_method TEXT DEFAULT 'auto',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+
+    // Create epics table
+    sqlite.exec(`
+      CREATE TABLE epics (
+        id TEXT PRIMARY KEY NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        color TEXT,
+        isolation_mode TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    sqlite.exec(`CREATE INDEX idx_epics_project ON epics (project_id)`);
+
+    // Create tickets table
+    sqlite.exec(`
+      CREATE TABLE tickets (
+        id TEXT PRIMARY KEY NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL DEFAULT 'backlog',
+        priority TEXT,
+        position REAL NOT NULL,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        epic_id TEXT REFERENCES epics(id) ON DELETE SET NULL,
+        tags TEXT,
+        subtasks TEXT,
+        is_blocked INTEGER DEFAULT 0,
+        blocked_reason TEXT,
+        linked_files TEXT,
+        attachments TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        completed_at TEXT
+      )
+    `);
+    sqlite.exec(`CREATE INDEX idx_tickets_project ON tickets (project_id)`);
+    sqlite.exec(`CREATE INDEX idx_tickets_epic ON tickets (epic_id)`);
+    sqlite.exec(`CREATE INDEX idx_tickets_status ON tickets (status)`);
+
+    console.log("Database tables created successfully");
+
+    // Seed sample data
+    seedSampleData();
+  }
+}
+
+function seedSampleData() {
+  console.log("Seeding sample data...");
+
+  const projectId = "sample-project-1";
+  const epicId = "sample-epic-1";
+
+  // Create a sample project using parameterized query
+  sqlite
+    .prepare("INSERT INTO projects (id, name, path, color) VALUES (?, ?, ?, ?)")
+    .run(projectId, "My First Project", "/home/user/projects/my-project", "#3b82f6");
+
+  // Create a sample epic using parameterized query
+  sqlite
+    .prepare("INSERT INTO epics (id, title, description, project_id, color) VALUES (?, ?, ?, ?, ?)")
+    .run(epicId, "Getting Started", "Learn how to use Brain Dump", projectId, "#8b5cf6");
+
+  // Create sample tickets
+  const sampleTickets = [
+    {
+      id: "sample-1",
+      title: "Welcome to Brain Dump!",
+      desc: "This is your personal task management system. Drag tickets between columns to update their status.",
+      status: "backlog",
+      priority: "medium",
+      pos: 1000,
+    },
+    {
+      id: "sample-2",
+      title: 'Try the "Start Work" button',
+      desc: 'Click "Start Work" on a ticket to open Claude Code with full context.',
+      status: "ready",
+      priority: "high",
+      pos: 2000,
+    },
+    {
+      id: "sample-3",
+      title: "Create your own project",
+      desc: "Click the + button in the sidebar to add a new project with your actual code path.",
+      status: "backlog",
+      priority: "low",
+      pos: 3000,
+    },
+    {
+      id: "sample-4",
+      title: "Use keyboard shortcuts",
+      desc: 'Press "n" for new ticket, "/" to search, "?" for help.',
+      status: "backlog",
+      priority: "medium",
+      pos: 4000,
+    },
+  ];
+
+  // Use parameterized query for ticket insertion
+  const insertTicket = sqlite.prepare(
+    "INSERT INTO tickets (id, title, description, status, priority, position, project_id, epic_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+  );
+
+  for (const t of sampleTickets) {
+    insertTicket.run(t.id, t.title, t.desc, t.status, t.priority, t.pos, projectId, epicId);
+  }
+
+  console.log("Sample data seeded successfully");
+}
+
+// Initialize tables on startup
+initTables();
+
+/**
+ * Add missing columns to an existing table.
+ * Each migration is a [columnName, alterTableSQL] pair.
+ * Only runs ALTER TABLE for columns not already present.
+ */
+function addMissingColumns(
+  tableName: string,
+  migrations: Array<[columnName: string, sql: string]>
+): void {
+  const tableInfo = sqlite.prepare(`PRAGMA table_info(${tableName})`).all() as { name: string }[];
+  const existingColumns = new Set(tableInfo.map((col) => col.name));
+
+  for (const [columnName, sql] of migrations) {
+    if (!existingColumns.has(columnName)) {
+      console.log(`Adding ${columnName} column to ${tableName}...`);
+      sqlite.exec(sql);
+    }
+  }
+}
+
+// Add missing columns to projects table (inline migration)
+addMissingColumns("projects", [
+  ["working_method", "ALTER TABLE projects ADD COLUMN working_method TEXT DEFAULT 'auto'"],
+  ["default_isolation_mode", "ALTER TABLE projects ADD COLUMN default_isolation_mode TEXT"],
+  ["worktree_location", "ALTER TABLE projects ADD COLUMN worktree_location TEXT DEFAULT 'sibling'"],
+  ["worktree_base_path", "ALTER TABLE projects ADD COLUMN worktree_base_path TEXT"],
+  ["max_worktrees", "ALTER TABLE projects ADD COLUMN max_worktrees INTEGER DEFAULT 5"],
+  [
+    "auto_cleanup_worktrees",
+    "ALTER TABLE projects ADD COLUMN auto_cleanup_worktrees INTEGER DEFAULT 0",
+  ],
+]);
+
+// Initialize FTS5 table for search if it doesn't exist
+function initFTS5() {
+  const tableExists = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='tickets_fts'")
+    .get();
+
+  if (!tableExists) {
+    // Create FTS5 virtual table
+    sqlite.exec(`
+      CREATE VIRTUAL TABLE tickets_fts USING fts5(
+        title,
+        description,
+        tags,
+        subtasks,
+        content=tickets,
+        content_rowid=rowid
+      )
+    `);
+
+    // Populate with existing data
+    sqlite.exec(`
+      INSERT INTO tickets_fts(rowid, title, description, tags, subtasks)
+      SELECT rowid, title, COALESCE(description, ''), COALESCE(tags, ''), COALESCE(subtasks, '')
+      FROM tickets
+    `);
+
+    // Create triggers to keep FTS in sync
+    sqlite.exec(`
+      CREATE TRIGGER tickets_ai AFTER INSERT ON tickets BEGIN
+        INSERT INTO tickets_fts(rowid, title, description, tags, subtasks)
+        VALUES (NEW.rowid, NEW.title, COALESCE(NEW.description, ''), COALESCE(NEW.tags, ''), COALESCE(NEW.subtasks, ''));
+      END
+    `);
+
+    sqlite.exec(`
+      CREATE TRIGGER tickets_ad AFTER DELETE ON tickets BEGIN
+        INSERT INTO tickets_fts(tickets_fts, rowid, title, description, tags, subtasks)
+        VALUES ('delete', OLD.rowid, OLD.title, COALESCE(OLD.description, ''), COALESCE(OLD.tags, ''), COALESCE(OLD.subtasks, ''));
+      END
+    `);
+
+    sqlite.exec(`
+      CREATE TRIGGER tickets_au AFTER UPDATE ON tickets BEGIN
+        INSERT INTO tickets_fts(tickets_fts, rowid, title, description, tags, subtasks)
+        VALUES ('delete', OLD.rowid, OLD.title, COALESCE(OLD.description, ''), COALESCE(OLD.tags, ''), COALESCE(OLD.subtasks, ''));
+        INSERT INTO tickets_fts(rowid, title, description, tags, subtasks)
+        VALUES (NEW.rowid, NEW.title, COALESCE(NEW.description, ''), COALESCE(NEW.tags, ''), COALESCE(NEW.subtasks, ''));
+      END
+    `);
+  }
+}
+
+// Check if tickets table exists before initializing FTS
+const ticketsTableExists = sqlite
+  .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='tickets'")
+  .get();
+
+if (ticketsTableExists) {
+  initFTS5();
+}
+
+// Initialize settings table if it doesn't exist
+function initSettings() {
+  const settingsExists = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'")
+    .get();
+
+  if (!settingsExists) {
+    console.log("Creating settings table...");
+    sqlite.exec(`
+      CREATE TABLE settings (
+        id TEXT PRIMARY KEY DEFAULT 'default' NOT NULL,
+        terminal_emulator TEXT,
+        ralph_sandbox INTEGER DEFAULT 0,
+        auto_create_pr INTEGER DEFAULT 1,
+        pr_target_branch TEXT DEFAULT 'dev',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+
+    // Insert default settings row
+    sqlite.exec(`INSERT INTO settings (id) VALUES ('default')`);
+    console.log("Settings table created successfully");
+  } else {
+    // Add new columns if they don't exist (migration)
+    addMissingColumns("settings", [
+      ["ralph_sandbox", "ALTER TABLE settings ADD COLUMN ralph_sandbox INTEGER DEFAULT 0"],
+      ["auto_create_pr", "ALTER TABLE settings ADD COLUMN auto_create_pr INTEGER DEFAULT 1"],
+      ["pr_target_branch", "ALTER TABLE settings ADD COLUMN pr_target_branch TEXT DEFAULT 'dev'"],
+      ["ralph_timeout", "ALTER TABLE settings ADD COLUMN ralph_timeout INTEGER DEFAULT 3600"],
+      [
+        "ralph_max_iterations",
+        "ALTER TABLE settings ADD COLUMN ralph_max_iterations INTEGER DEFAULT 10",
+      ],
+      [
+        "default_projects_directory",
+        "ALTER TABLE settings ADD COLUMN default_projects_directory TEXT",
+      ],
+      [
+        "default_working_method",
+        "ALTER TABLE settings ADD COLUMN default_working_method TEXT DEFAULT 'auto'",
+      ],
+      ["docker_runtime", "ALTER TABLE settings ADD COLUMN docker_runtime TEXT"],
+      ["docker_socket_path", "ALTER TABLE settings ADD COLUMN docker_socket_path TEXT"],
+      [
+        "enable_worktree_support",
+        "ALTER TABLE settings ADD COLUMN enable_worktree_support INTEGER DEFAULT 0",
+      ],
+    ]);
+  }
+}
+
+initSettings();
+
+// Initialize ticket_comments table if it doesn't exist
+function initTicketComments() {
+  const commentsExists = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ticket_comments'")
+    .get();
+
+  if (!commentsExists) {
+    console.log("Creating ticket_comments table...");
+    sqlite.exec(`
+      CREATE TABLE ticket_comments (
+        id TEXT PRIMARY KEY NOT NULL,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        content TEXT NOT NULL,
+        author TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'comment',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    sqlite.exec(`CREATE INDEX idx_comments_ticket ON ticket_comments (ticket_id)`);
+    console.log("ticket_comments table created successfully");
+  }
+}
+
+initTicketComments();
+
+// Add git/PR tracking columns to tickets table (inline migration)
+addMissingColumns("tickets", [
+  ["branch_name", "ALTER TABLE tickets ADD COLUMN branch_name TEXT"],
+  ["pr_number", "ALTER TABLE tickets ADD COLUMN pr_number INTEGER"],
+  ["pr_url", "ALTER TABLE tickets ADD COLUMN pr_url TEXT"],
+  ["pr_status", "ALTER TABLE tickets ADD COLUMN pr_status TEXT"],
+]);
+
+// Initialize ralph_events table if it doesn't exist
+function initRalphEvents() {
+  const eventsExists = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ralph_events'")
+    .get();
+
+  if (!eventsExists) {
+    console.log("Creating ralph_events table...");
+    sqlite.exec(`
+      CREATE TABLE ralph_events (
+        id TEXT PRIMARY KEY NOT NULL,
+        session_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        data TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    sqlite.exec(`CREATE INDEX idx_ralph_events_session ON ralph_events (session_id)`);
+    sqlite.exec(`CREATE INDEX idx_ralph_events_created ON ralph_events (created_at)`);
+    console.log("ralph_events table created successfully");
+  }
+}
+
+initRalphEvents();
+
+// Initialize ralph_sessions table if it doesn't exist
+function initRalphSessions() {
+  const sessionsExists = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ralph_sessions'")
+    .get();
+
+  if (!sessionsExists) {
+    console.log("Creating ralph_sessions table...");
+    sqlite.exec(`
+      CREATE TABLE ralph_sessions (
+        id TEXT PRIMARY KEY NOT NULL,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        current_state TEXT NOT NULL DEFAULT 'idle',
+        state_history TEXT,
+        outcome TEXT,
+        error_message TEXT,
+        started_at TEXT NOT NULL DEFAULT (datetime('now')),
+        completed_at TEXT
+      )
+    `);
+    sqlite.exec(`CREATE INDEX idx_ralph_sessions_ticket ON ralph_sessions (ticket_id)`);
+    sqlite.exec(`CREATE INDEX idx_ralph_sessions_state ON ralph_sessions (current_state)`);
+    console.log("ralph_sessions table created successfully");
+  }
+}
+
+initRalphSessions();
+
+// Initialize conversation logging tables for enterprise compliance
+function initConversationLogging() {
+  // Create conversation_sessions table
+  const conversationSessionsExists = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='conversation_sessions'")
+    .get();
+
+  if (!conversationSessionsExists) {
+    console.log("Creating conversation_sessions table...");
+    sqlite.exec(`
+      CREATE TABLE conversation_sessions (
+        id TEXT PRIMARY KEY NOT NULL,
+        project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+        ticket_id TEXT REFERENCES tickets(id) ON DELETE SET NULL,
+        user_id TEXT,
+        environment TEXT NOT NULL DEFAULT 'unknown',
+        session_metadata TEXT,
+        data_classification TEXT DEFAULT 'internal',
+        legal_hold INTEGER DEFAULT 0,
+        started_at TEXT NOT NULL DEFAULT (datetime('now')),
+        ended_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    sqlite.exec(
+      `CREATE INDEX idx_conversation_sessions_project ON conversation_sessions (project_id)`
+    );
+    sqlite.exec(
+      `CREATE INDEX idx_conversation_sessions_ticket ON conversation_sessions (ticket_id)`
+    );
+    sqlite.exec(`CREATE INDEX idx_conversation_sessions_user ON conversation_sessions (user_id)`);
+    sqlite.exec(
+      `CREATE INDEX idx_conversation_sessions_started ON conversation_sessions (started_at)`
+    );
+    console.log("conversation_sessions table created successfully");
+  }
+
+  // Create conversation_messages table
+  const conversationMessagesExists = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='conversation_messages'")
+    .get();
+
+  if (!conversationMessagesExists) {
+    console.log("Creating conversation_messages table...");
+    sqlite.exec(`
+      CREATE TABLE conversation_messages (
+        id TEXT PRIMARY KEY NOT NULL,
+        session_id TEXT NOT NULL REFERENCES conversation_sessions(id) ON DELETE CASCADE,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        content_hash TEXT NOT NULL,
+        tool_calls TEXT,
+        token_count INTEGER,
+        model_id TEXT,
+        sequence_number INTEGER NOT NULL,
+        contains_potential_secrets INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    sqlite.exec(
+      `CREATE INDEX idx_conversation_messages_session ON conversation_messages (session_id)`
+    );
+    sqlite.exec(
+      `CREATE INDEX idx_conversation_messages_session_seq ON conversation_messages (session_id, sequence_number)`
+    );
+    sqlite.exec(
+      `CREATE INDEX idx_conversation_messages_created ON conversation_messages (created_at)`
+    );
+    console.log("conversation_messages table created successfully");
+  }
+
+  // Create audit_log_access table
+  const auditLogExists = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='audit_log_access'")
+    .get();
+
+  if (!auditLogExists) {
+    console.log("Creating audit_log_access table...");
+    sqlite.exec(`
+      CREATE TABLE audit_log_access (
+        id TEXT PRIMARY KEY NOT NULL,
+        accessor_id TEXT NOT NULL,
+        target_type TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        result TEXT NOT NULL,
+        accessed_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    sqlite.exec(`CREATE INDEX idx_audit_log_accessor ON audit_log_access (accessor_id)`);
+    sqlite.exec(`CREATE INDEX idx_audit_log_target ON audit_log_access (target_type, target_id)`);
+    sqlite.exec(`CREATE INDEX idx_audit_log_accessed ON audit_log_access (accessed_at)`);
+    console.log("audit_log_access table created successfully");
+  }
+
+  // Add conversation logging settings to settings table
+  addMissingColumns("settings", [
+    [
+      "conversation_retention_days",
+      "ALTER TABLE settings ADD COLUMN conversation_retention_days INTEGER DEFAULT 90",
+    ],
+    [
+      "conversation_logging_enabled",
+      "ALTER TABLE settings ADD COLUMN conversation_logging_enabled INTEGER DEFAULT 1",
+    ],
+  ]);
+}
+
+initConversationLogging();
+
+// Perform daily backup maintenance (deferred 5s to avoid blocking startup)
+// VACUUM INTO can take 10+ seconds on larger databases
+const BACKUP_DEFER_MS = 5000;
+
+function scheduleBackupMaintenance(): void {
+  setTimeout(() => {
+    try {
+      const result = performDailyBackupSync();
+      if (result.backup.created) {
+        console.log(`[Backup] ${result.backup.message}`);
+      }
+      if (result.cleanup.deleted > 0) {
+        console.log(`[Backup] ${result.cleanup.message}`);
+      }
+    } catch (error) {
+      console.error("[Backup] Backup maintenance failed:", error);
+    }
+  }, BACKUP_DEFER_MS);
+}
+scheduleBackupMaintenance();
+
+// Clean up old launch scripts on startup
+async function cleanupLaunchScripts() {
+  try {
+    const { cleanupOldScripts } = await import("../api/terminal");
+    await cleanupOldScripts();
+  } catch (error) {
+    console.warn("[DB] Failed to cleanup launch scripts:", error);
+  }
+}
+cleanupLaunchScripts();
+
+export const db = drizzle(sqlite, { schema });
+
+export { sqlite, dbPath };
