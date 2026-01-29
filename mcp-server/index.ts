@@ -7,7 +7,7 @@
  * Uses the modern McpServer API with Zod schema validation.
  */
 
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type Database from "better-sqlite3";
 
@@ -115,7 +115,7 @@ setupGracefulShutdown();
 // =============================================================================
 // MCP SERVER SETUP
 // =============================================================================
-const server = new Server({
+const server = new McpServer({
   name: "brain-dump",
   version: "1.0.0",
 });
