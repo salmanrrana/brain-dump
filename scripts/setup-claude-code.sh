@@ -32,7 +32,6 @@ BRAIN_DUMP_DIR="$(dirname "$SCRIPT_DIR")"
 echo -e "${YELLOW}Brain Dump location:${NC} $BRAIN_DUMP_DIR"
 
 # Claude Code config files
-CLAUDE_CONFIG="$HOME/.claude.json"
 CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 GLOBAL_CLAUDE_DIR="$HOME/.claude"
 
@@ -50,23 +49,18 @@ if [ -f "$CLAUDE_CONFIG" ]; then
     echo -e "${YELLOW}Existing ~/.claude.json found.${NC}"
 
     if grep -q '"brain-dump"' "$CLAUDE_CONFIG"; then
-        echo -e "${GREEN}Brain Dump MCP server already configured.${NC}"
+        echo -e "${GREEN}✓ Brain Dump MCP server already configured${NC}"
+        # Also check if it points to dist or index.js and update if needed
+        if grep -q 'mcp-server/dist/index.js' "$CLAUDE_CONFIG"; then
+            echo -e "${YELLOW}Updating MCP server path (dist → direct)...${NC}"
+            if command -v sed >/dev/null 2>&1; then
+                sed -i.bak 's|mcp-server/dist/index\.js|mcp-server/index.js|g' "$CLAUDE_CONFIG"
+                echo -e "${GREEN}✓ MCP server path updated${NC}"
+            fi
+        fi
     else
-        echo -e "${YELLOW}Please manually add the brain-dump server to your ~/.claude.json:${NC}"
-        echo ""
-        echo -e "${BLUE}Add this to your mcpServers section:${NC}"
-        echo ""
-        cat << EOF
-{
-  "mcpServers": {
-    "brain-dump": {
-      "command": "node",
-      "args": ["$BRAIN_DUMP_DIR/mcp-server/index.js"]
-    }
-  }
-}
-EOF
-        echo ""
+        echo -e "${YELLOW}Brain Dump MCP server not found in ~/.claude.json${NC}"
+        echo -e "${YELLOW}Please use: claude mcp add brain-dump -- node $BRAIN_DUMP_DIR/mcp-server/index.js${NC}"
     fi
 else
     echo "Creating ~/.claude.json..."
@@ -80,7 +74,7 @@ else
   }
 }
 EOF
-    echo -e "${GREEN}Created $CLAUDE_CONFIG${NC}"
+    echo -e "${GREEN}✓ Created $CLAUDE_CONFIG${NC}"
 fi
 
 echo ""
