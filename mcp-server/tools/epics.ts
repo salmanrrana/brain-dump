@@ -26,7 +26,9 @@ Args:
 Returns array of epics with their IDs and titles.`,
     { projectId: z.string().describe("Project ID") },
     async ({ projectId }: { projectId: string }) => {
-      const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId) as DbProject | undefined;
+      const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId) as
+        | DbProject
+        | undefined;
       if (!project) {
         return {
           content: [{ type: "text", text: `Project not found: ${projectId}` }],
@@ -34,15 +36,20 @@ Returns array of epics with their IDs and titles.`,
         };
       }
 
-      const epics = db.prepare("SELECT * FROM epics WHERE project_id = ? ORDER BY title").all(projectId) as DbEpic[];
+      const epics = db
+        .prepare("SELECT * FROM epics WHERE project_id = ? ORDER BY title")
+        .all(projectId) as DbEpic[];
 
       return {
-        content: [{
-          type: "text",
-          text: epics.length > 0
-            ? JSON.stringify(epics, null, 2)
-            : `No epics found for project "${project.name}". Use create_epic to add one.`,
-        }],
+        content: [
+          {
+            type: "text",
+            text:
+              epics.length > 0
+                ? JSON.stringify(epics, null, 2)
+                : `No epics found for project "${project.name}". Use create_epic to add one.`,
+          },
+        ],
       };
     }
   );
@@ -65,13 +72,20 @@ Returns the created epic.`,
       description: z.string().optional().describe("Optional description"),
       color: z.string().optional().describe("Optional hex color"),
     },
-    async ({ projectId, title, description, color }: {
+    async ({
+      projectId,
+      title,
+      description,
+      color,
+    }: {
       projectId: string;
       title: string;
-      description?: string;
-      color?: string;
+      description?: string | undefined;
+      color?: string | undefined;
     }) => {
-      const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId) as DbProject | undefined;
+      const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId) as
+        | DbProject
+        | undefined;
       if (!project) {
         return {
           content: [{ type: "text", text: `Project not found: ${projectId}` }],
@@ -90,7 +104,12 @@ Returns the created epic.`,
       log.info(`Created epic: ${title} in project ${project.name}`);
 
       return {
-        content: [{ type: "text", text: `Epic created in "${project.name}"!\n\n${JSON.stringify(epic, null, 2)}` }],
+        content: [
+          {
+            type: "text",
+            text: `Epic created in "${project.name}"!\n\n${JSON.stringify(epic, null, 2)}`,
+          },
+        ],
       };
     }
   );
@@ -113,11 +132,16 @@ Returns the updated epic.`,
       description: z.string().optional().describe("New description"),
       color: z.string().optional().describe("New hex color"),
     },
-    async ({ epicId, title, description, color }: {
+    async ({
+      epicId,
+      title,
+      description,
+      color,
+    }: {
       epicId: string;
-      title?: string;
-      description?: string;
-      color?: string;
+      title?: string | undefined;
+      description?: string | undefined;
+      color?: string | undefined;
     }) => {
       const epic = db.prepare("SELECT * FROM epics WHERE id = ?").get(epicId) as DbEpic | undefined;
       if (!epic) {
@@ -146,7 +170,12 @@ Returns the updated epic.`,
 
       if (updates.length === 0) {
         return {
-          content: [{ type: "text", text: "No updates provided. Specify at least one of: title, description, color" }],
+          content: [
+            {
+              type: "text",
+              text: "No updates provided. Specify at least one of: title, description, color",
+            },
+          ],
           isError: true,
         };
       }
@@ -158,7 +187,9 @@ Returns the updated epic.`,
       log.info(`Updated epic: ${updatedEpic.title}`);
 
       return {
-        content: [{ type: "text", text: `Epic updated!\n\n${JSON.stringify(updatedEpic, null, 2)}` }],
+        content: [
+          { type: "text", text: `Epic updated!\n\n${JSON.stringify(updatedEpic, null, 2)}` },
+        ],
       };
     }
   );
@@ -183,9 +214,13 @@ Returns:
   - If confirm=true: Confirmation of deletion`,
     {
       epicId: z.string().describe("Epic ID to delete"),
-      confirm: z.boolean().optional().default(false).describe("Set to true to actually delete (default: false, dry run)"),
+      confirm: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe("Set to true to actually delete (default: false, dry run)"),
     },
-    async ({ epicId, confirm }: { epicId: string; confirm?: boolean }) => {
+    async ({ epicId, confirm }: { epicId: string; confirm?: boolean | undefined }) => {
       const epic = db.prepare("SELECT * FROM epics WHERE id = ?").get(epicId) as DbEpic | undefined;
       if (!epic) {
         return {
@@ -195,7 +230,9 @@ Returns:
       }
 
       // Get tickets that would be unlinked
-      const tickets = db.prepare("SELECT id, title, status FROM tickets WHERE epic_id = ?").all(epicId) as Array<{ id: string; title: string; status: string }>;
+      const tickets = db
+        .prepare("SELECT id, title, status FROM tickets WHERE epic_id = ?")
+        .all(epicId) as Array<{ id: string; title: string; status: string }>;
 
       // Dry run - show what would be affected
       if (!confirm) {
@@ -222,8 +259,10 @@ Returns:
 
       // Actually delete (wrapped in transaction for atomicity)
       const deleteEpic = db.transaction(() => {
-        db.prepare("UPDATE tickets SET epic_id = NULL, updated_at = ? WHERE epic_id = ?")
-          .run(new Date().toISOString(), epicId);
+        db.prepare("UPDATE tickets SET epic_id = NULL, updated_at = ? WHERE epic_id = ?").run(
+          new Date().toISOString(),
+          epicId
+        );
 
         db.prepare("DELETE FROM epics WHERE id = ?").run(epicId);
       });
@@ -244,10 +283,12 @@ Returns:
       }
 
       return {
-        content: [{
-          type: "text",
-          text: `✅ Epic "${epic.title}" deleted successfully.\n\n${tickets.length} ticket(s) were unlinked from this epic.`,
-        }],
+        content: [
+          {
+            type: "text",
+            text: `✅ Epic "${epic.title}" deleted successfully.\n\n${tickets.length} ticket(s) were unlinked from this epic.`,
+          },
+        ],
       };
     }
   );

@@ -11,13 +11,13 @@ import type Database from "better-sqlite3";
 
 // Valid event types that Ralph can emit
 const VALID_EVENT_TYPES = [
-  "thinking",     // Claude is processing
-  "tool_start",   // About to call a tool
-  "tool_end",     // Tool call completed
-  "file_change",  // File was modified
-  "progress",     // General progress update
+  "thinking", // Claude is processing
+  "tool_start", // About to call a tool
+  "tool_end", // Tool call completed
+  "file_change", // File was modified
+  "progress", // General progress update
   "state_change", // Session state transition
-  "error",        // Error occurred
+  "error", // Error occurred
 ] as const;
 
 /**
@@ -74,19 +74,27 @@ Returns:
     {
       sessionId: z.string().describe("The Ralph session ID (usually the ticket ID)"),
       type: z.enum(VALID_EVENT_TYPES).describe("The event type"),
-      data: z.object({
-        message: z.string().optional().describe("Human-readable description"),
-        tool: z.string().optional().describe("Tool name for tool events"),
-        file: z.string().optional().describe("File path for file-related events"),
-        state: z.string().optional().describe("Current state for state_change events"),
-        error: z.string().optional().describe("Error message for error events"),
-        success: z.boolean().optional().describe("Success status for tool_end events"),
-      }).passthrough().optional().describe("Event-specific data"),
+      data: z
+        .object({
+          message: z.string().optional().describe("Human-readable description"),
+          tool: z.string().optional().describe("Tool name for tool events"),
+          file: z.string().optional().describe("File path for file-related events"),
+          state: z.string().optional().describe("Current state for state_change events"),
+          error: z.string().optional().describe("Error message for error events"),
+          success: z.boolean().optional().describe("Success status for tool_end events"),
+        })
+        .passthrough()
+        .optional()
+        .describe("Event-specific data"),
     },
-    async ({ sessionId, type, data }: {
+    async ({
+      sessionId,
+      type,
+      data,
+    }: {
       sessionId: string;
-      type: typeof VALID_EVENT_TYPES[number];
-      data?: Record<string, unknown>;
+      type: (typeof VALID_EVENT_TYPES)[number];
+      data?: Record<string, unknown> | undefined;
     }) => {
       const id = randomUUID();
       const now = new Date().toISOString();
@@ -108,19 +116,26 @@ Returns:
         };
 
         return {
-          content: [{
-            type: "text",
-            text: `Event emitted successfully.\n\n${JSON.stringify(event, null, 2)}`,
-          }],
+          content: [
+            {
+              type: "text",
+              text: `Event emitted successfully.\n\n${JSON.stringify(event, null, 2)}`,
+            },
+          ],
         };
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
-        log.error(`Failed to emit event: ${errorMsg}`, { sessionId, type });
+        log.error(
+          `Failed to emit event (session: ${sessionId}, type: ${type}): ${errorMsg}`,
+          err instanceof Error ? err : undefined
+        );
         return {
-          content: [{
-            type: "text",
-            text: `Failed to emit event: ${errorMsg}`,
-          }],
+          content: [
+            {
+              type: "text",
+              text: `Failed to emit event: ${errorMsg}`,
+            },
+          ],
           isError: true,
         };
       }
@@ -147,22 +162,42 @@ Returns:
       since: z.string().optional().describe("ISO timestamp to get events after"),
       limit: z.number().optional().default(50).describe("Maximum events to return"),
     },
-    async ({ sessionId, since, limit = 50 }: {
+    async ({
+      sessionId,
+      since,
+      limit = 50,
+    }: {
       sessionId: string;
-      since?: string;
-      limit?: number;
+      since?: string | undefined;
+      limit?: number | undefined;
     }) => {
       try {
         const events = since
-          ? db.prepare(
-              "SELECT * FROM ralph_events WHERE session_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT ?"
-            ).all(sessionId, since, limit) as Array<{ id: string; session_id: string; type: string; data: string | null; created_at: string }>
-          : db.prepare(
-              "SELECT * FROM ralph_events WHERE session_id = ? ORDER BY created_at ASC LIMIT ?"
-            ).all(sessionId, limit) as Array<{ id: string; session_id: string; type: string; data: string | null; created_at: string }>;
+          ? (db
+              .prepare(
+                "SELECT * FROM ralph_events WHERE session_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT ?"
+              )
+              .all(sessionId, since, limit) as Array<{
+              id: string;
+              session_id: string;
+              type: string;
+              data: string | null;
+              created_at: string;
+            }>)
+          : (db
+              .prepare(
+                "SELECT * FROM ralph_events WHERE session_id = ? ORDER BY created_at ASC LIMIT ?"
+              )
+              .all(sessionId, limit) as Array<{
+              id: string;
+              session_id: string;
+              type: string;
+              data: string | null;
+              created_at: string;
+            }>);
 
         // Parse JSON data field
-        const parsedEvents = events.map(event => ({
+        const parsedEvents = events.map((event) => ({
           id: event.id,
           sessionId: event.session_id,
           type: event.type,
@@ -170,26 +205,39 @@ Returns:
           createdAt: event.created_at,
         }));
 
-        log.info(`Retrieved ${parsedEvents.length} events for session ${sessionId.substring(0, 8)}...`);
+        log.info(
+          `Retrieved ${parsedEvents.length} events for session ${sessionId.substring(0, 8)}...`
+        );
 
         return {
-          content: [{
-            type: "text",
-            text: JSON.stringify({
-              sessionId,
-              eventCount: parsedEvents.length,
-              events: parsedEvents,
-            }, null, 2),
-          }],
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  sessionId,
+                  eventCount: parsedEvents.length,
+                  events: parsedEvents,
+                },
+                null,
+                2
+              ),
+            },
+          ],
         };
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
-        log.error(`Failed to get events: ${errorMsg}`, { sessionId });
+        log.error(
+          `Failed to get events (session: ${sessionId}): ${errorMsg}`,
+          err instanceof Error ? err : undefined
+        );
         return {
-          content: [{
-            type: "text",
-            text: `Failed to get events: ${errorMsg}`,
-          }],
+          content: [
+            {
+              type: "text",
+              text: `Failed to get events: ${errorMsg}`,
+            },
+          ],
           isError: true,
         };
       }
@@ -214,26 +262,33 @@ Returns:
     },
     async ({ sessionId }: { sessionId: string }) => {
       try {
-        const result = db.prepare(
-          "DELETE FROM ralph_events WHERE session_id = ?"
-        ).run(sessionId) as { changes: number };
+        const result = db
+          .prepare("DELETE FROM ralph_events WHERE session_id = ?")
+          .run(sessionId) as { changes: number };
 
         log.info(`Cleared ${result.changes} events for session ${sessionId.substring(0, 8)}...`);
 
         return {
-          content: [{
-            type: "text",
-            text: `Cleared ${result.changes} events for session ${sessionId}.`,
-          }],
+          content: [
+            {
+              type: "text",
+              text: `Cleared ${result.changes} events for session ${sessionId}.`,
+            },
+          ],
         };
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
-        log.error(`Failed to clear events: ${errorMsg}`, { sessionId });
+        log.error(
+          `Failed to clear events (session: ${sessionId}): ${errorMsg}`,
+          err instanceof Error ? err : undefined
+        );
         return {
-          content: [{
-            type: "text",
-            text: `Failed to clear events: ${errorMsg}`,
-          }],
+          content: [
+            {
+              type: "text",
+              text: `Failed to clear events: ${errorMsg}`,
+            },
+          ],
           isError: true,
         };
       }

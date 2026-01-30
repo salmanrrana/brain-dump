@@ -34,20 +34,34 @@ Args:
 Returns the created comment.`,
     {
       ticketId: z.string().describe("Ticket ID to add comment to"),
-      content: z.string().describe("Comment content (markdown supported). For work summaries, include: what was done, files changed, tests run."),
-      author: z.enum(AUTHORS).optional().describe("Who is adding the comment (auto-detected from environment if not provided)"),
+      content: z
+        .string()
+        .describe(
+          "Comment content (markdown supported). For work summaries, include: what was done, files changed, tests run."
+        ),
+      author: z
+        .enum(AUTHORS)
+        .optional()
+        .describe("Who is adding the comment (auto-detected from environment if not provided)"),
       type: z.enum(COMMENT_TYPES).optional().describe("Type of comment (default: comment)"),
     },
-    async ({ ticketId, content, author, type = "comment" }: {
+    async ({
+      ticketId,
+      content,
+      author,
+      type = "comment",
+    }: {
       ticketId: string;
       content: string;
-      author?: typeof AUTHORS[number];
-      type?: typeof COMMENT_TYPES[number]
+      author?: (typeof AUTHORS)[number] | undefined;
+      type?: (typeof COMMENT_TYPES)[number] | undefined;
     }) => {
       // Auto-detect author if not provided
-      let finalAuthor = author || detectAuthor();
+      const finalAuthor = author || detectAuthor();
 
-      const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId) as DbTicket | undefined;
+      const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId) as
+        | DbTicket
+        | undefined;
       if (!ticket) {
         return {
           content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
@@ -62,11 +76,18 @@ Returns the created comment.`,
         "INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at) VALUES (?, ?, ?, ?, ?, ?)"
       ).run(id, ticketId, content.trim(), finalAuthor, type, now);
 
-      const comment = db.prepare("SELECT * FROM ticket_comments WHERE id = ?").get(id) as DbTicketComment;
+      const comment = db
+        .prepare("SELECT * FROM ticket_comments WHERE id = ?")
+        .get(id) as DbTicketComment;
       log.info(`Added ${type} to ticket ${ticketId} by ${finalAuthor}`);
 
       return {
-        content: [{ type: "text", text: `Comment added to ticket "${ticket.title}"!\n\n${JSON.stringify(comment, null, 2)}` }],
+        content: [
+          {
+            type: "text",
+            text: `Comment added to ticket "${ticket.title}"!\n\n${JSON.stringify(comment, null, 2)}`,
+          },
+        ],
       };
     }
   );
@@ -82,7 +103,9 @@ Args:
   ticketId: The ticket ID to get comments for`,
     { ticketId: z.string().describe("Ticket ID") },
     async ({ ticketId }: { ticketId: string }) => {
-      const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId) as DbTicket | undefined;
+      const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId) as
+        | DbTicket
+        | undefined;
       if (!ticket) {
         return {
           content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
@@ -90,17 +113,20 @@ Args:
         };
       }
 
-      const comments = db.prepare(
-        "SELECT * FROM ticket_comments WHERE ticket_id = ? ORDER BY created_at DESC"
-      ).all(ticketId) as DbTicketComment[];
+      const comments = db
+        .prepare("SELECT * FROM ticket_comments WHERE ticket_id = ? ORDER BY created_at DESC")
+        .all(ticketId) as DbTicketComment[];
 
       return {
-        content: [{
-          type: "text",
-          text: comments.length > 0
-            ? JSON.stringify(comments, null, 2)
-            : `No comments found for ticket "${ticket.title}".`,
-        }],
+        content: [
+          {
+            type: "text",
+            text:
+              comments.length > 0
+                ? JSON.stringify(comments, null, 2)
+                : `No comments found for ticket "${ticket.title}".`,
+          },
+        ],
       };
     }
   );

@@ -30,12 +30,15 @@ Example response:
     async () => {
       const projects = db.prepare("SELECT * FROM projects ORDER BY name").all() as DbProject[];
       return {
-        content: [{
-          type: "text",
-          text: projects.length > 0
-            ? JSON.stringify(projects, null, 2)
-            : "No projects found. Use create_project to add one.",
-        }],
+        content: [
+          {
+            type: "text",
+            text:
+              projects.length > 0
+                ? JSON.stringify(projects, null, 2)
+                : "No projects found. Use create_project to add one.",
+          },
+        ],
       };
     }
   );
@@ -66,10 +69,12 @@ Returns the matching project or a message if no project found.`,
       }
 
       return {
-        content: [{
-          type: "text",
-          text: `No project found for path: ${path}\n\nUse create_project to register this directory.`,
-        }],
+        content: [
+          {
+            type: "text",
+            text: `No project found for path: ${path}\n\nUse create_project to register this directory.`,
+          },
+        ],
       };
     }
   );
@@ -93,7 +98,15 @@ Returns the created project with its generated ID.`,
       path: z.string().describe("Absolute filesystem path to project root"),
       color: z.string().optional().describe("Optional hex color (e.g., '#3b82f6')"),
     },
-    async ({ name: projectName, path, color }: { name: string; path: string; color?: string }) => {
+    async ({
+      name: projectName,
+      path,
+      color,
+    }: {
+      name: string;
+      path: string;
+      color?: string | undefined;
+    }) => {
       if (!existsSync(path)) {
         return {
           content: [{ type: "text", text: `Directory does not exist: ${path}` }],
@@ -101,13 +114,17 @@ Returns the created project with its generated ID.`,
         };
       }
 
-      const existing = db.prepare("SELECT * FROM projects WHERE path = ?").get(path) as DbProject | undefined;
+      const existing = db.prepare("SELECT * FROM projects WHERE path = ?").get(path) as
+        | DbProject
+        | undefined;
       if (existing) {
         return {
-          content: [{
-            type: "text",
-            text: `Project already exists at this path:\n\n${JSON.stringify(existing, null, 2)}`,
-          }],
+          content: [
+            {
+              type: "text",
+              text: `Project already exists at this path:\n\n${JSON.stringify(existing, null, 2)}`,
+            },
+          ],
         };
       }
 
@@ -122,10 +139,12 @@ Returns the created project with its generated ID.`,
       log.info(`Created project: ${projectName} at ${path}`);
 
       return {
-        content: [{
-          type: "text",
-          text: `Project created!\n\n${JSON.stringify(project, null, 2)}`,
-        }],
+        content: [
+          {
+            type: "text",
+            text: `Project created!\n\n${JSON.stringify(project, null, 2)}`,
+          },
+        ],
       };
     }
   );
@@ -153,10 +172,16 @@ Returns:
   - If confirm=true: Confirmation of deletion with counts`,
     {
       projectId: z.string().describe("Project ID to delete"),
-      confirm: z.boolean().optional().default(false).describe("Set to true to actually delete (default: false, dry run)"),
+      confirm: z
+        .boolean()
+        .optional()
+        .default(false)
+        .describe("Set to true to actually delete (default: false, dry run)"),
     },
     async ({ projectId, confirm }: { projectId: string; confirm?: boolean }) => {
-      const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId) as DbProject | undefined;
+      const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId) as
+        | DbProject
+        | undefined;
       if (!project) {
         return {
           content: [{ type: "text", text: `Project not found: ${projectId}` }],
@@ -165,14 +190,27 @@ Returns:
       }
 
       // Gather all data that would be deleted
-      const epics = db.prepare("SELECT id, title FROM epics WHERE project_id = ?").all(projectId) as Array<{ id: string; title: string }>;
-      const tickets = db.prepare("SELECT id, title, status, epic_id FROM tickets WHERE project_id = ?").all(projectId) as Array<{ id: string; title: string; status: string; epic_id: string | null }>;
-      const ticketIds = tickets.map(t => t.id);
+      const epics = db
+        .prepare("SELECT id, title FROM epics WHERE project_id = ?")
+        .all(projectId) as Array<{ id: string; title: string }>;
+      const tickets = db
+        .prepare("SELECT id, title, status, epic_id FROM tickets WHERE project_id = ?")
+        .all(projectId) as Array<{
+        id: string;
+        title: string;
+        status: string;
+        epic_id: string | null;
+      }>;
+      const ticketIds = tickets.map((t) => t.id);
 
       let commentCount = 0;
       if (ticketIds.length > 0) {
         const placeholders = ticketIds.map(() => "?").join(",");
-        const countResult = db.prepare(`SELECT COUNT(*) as count FROM ticket_comments WHERE ticket_id IN (${placeholders})`).get(...ticketIds) as { count: number };
+        const countResult = db
+          .prepare(
+            `SELECT COUNT(*) as count FROM ticket_comments WHERE ticket_id IN (${placeholders})`
+          )
+          .get(...ticketIds) as { count: number };
         commentCount = countResult.count;
       }
 
@@ -203,7 +241,7 @@ Returns:
         if (tickets.length > 0) {
           // Group tickets by epic
           const ticketsByEpic: Record<string, typeof tickets> = {};
-          tickets.forEach(t => {
+          tickets.forEach((t) => {
             const epicKey = t.epic_id || "_none_";
             if (!ticketsByEpic[epicKey]) ticketsByEpic[epicKey] = [];
             ticketsByEpic[epicKey].push(t);
@@ -213,16 +251,16 @@ Returns:
           const noEpicTickets = ticketsByEpic["_none_"];
           if (noEpicTickets) {
             preview += `   (No epic):\n`;
-            noEpicTickets.forEach(t => {
+            noEpicTickets.forEach((t) => {
               preview += `     • [${t.status}] ${t.title}\n`;
             });
           }
 
           // Show tickets by epic
-          epics.forEach(epic => {
+          epics.forEach((epic) => {
             if (ticketsByEpic[epic.id]) {
               preview += `   ${epic.title}:\n`;
-              ticketsByEpic[epic.id].forEach(t => {
+              ticketsByEpic[epic.id]!.forEach((t) => {
                 preview += `     • [${t.status}] ${t.title}\n`;
               });
             }
@@ -250,7 +288,9 @@ Returns:
         // 1. Delete comments
         if (ticketIds.length > 0) {
           const placeholders = ticketIds.map(() => "?").join(",");
-          db.prepare(`DELETE FROM ticket_comments WHERE ticket_id IN (${placeholders})`).run(...ticketIds);
+          db.prepare(`DELETE FROM ticket_comments WHERE ticket_id IN (${placeholders})`).run(
+            ...ticketIds
+          );
         }
 
         // 2. Delete tickets
@@ -265,12 +305,19 @@ Returns:
 
       try {
         deleteProject();
-        log.info(`Deleted project: ${project.name} (${tickets.length} tickets, ${epics.length} epics, ${commentCount} comments)`);
+        log.info(
+          `Deleted project: ${project.name} (${tickets.length} tickets, ${epics.length} epics, ${commentCount} comments)`
+        );
       } catch (error) {
-        log.error(`Failed to delete project "${project.name}": ${error instanceof Error ? error.message : String(error)}`);
-        const userMessage = error instanceof Error && error.message.includes("SQLITE_BUSY")
-          ? "The database is busy. Please try again in a moment."
-          : error instanceof Error ? error.message : "Unknown error";
+        log.error(
+          `Failed to delete project "${project.name}": ${error instanceof Error ? error.message : String(error)}`
+        );
+        const userMessage =
+          error instanceof Error && error.message.includes("SQLITE_BUSY")
+            ? "The database is busy. Please try again in a moment."
+            : error instanceof Error
+              ? error.message
+              : "Unknown error";
         return {
           content: [{ type: "text", text: `❌ Failed to delete project: ${userMessage}` }],
           isError: true,
@@ -278,10 +325,12 @@ Returns:
       }
 
       return {
-        content: [{
-          type: "text",
-          text: `✅ Project "${project.name}" deleted successfully.\n\nDeleted:\n- ${epics.length} epic(s)\n- ${tickets.length} ticket(s)\n- ${commentCount} comment(s)`,
-        }],
+        content: [
+          {
+            type: "text",
+            text: `✅ Project "${project.name}" deleted successfully.\n\nDeleted:\n- ${epics.length} epic(s)\n- ${tickets.length} ticket(s)\n- ${commentCount} comment(s)`,
+          },
+        ],
       };
     }
   );
