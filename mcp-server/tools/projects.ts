@@ -131,21 +131,35 @@ Returns the created project with its generated ID.`,
       const id = randomUUID();
       const now = new Date().toISOString();
 
-      db.prepare(
-        "INSERT INTO projects (id, name, path, color, created_at) VALUES (?, ?, ?, ?, ?)"
-      ).run(id, projectName.trim(), path, color || null, now);
+      try {
+        db.prepare(
+          "INSERT INTO projects (id, name, path, color, created_at) VALUES (?, ?, ?, ?, ?)"
+        ).run(id, projectName.trim(), path, color || null, now);
 
-      const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(id) as DbProject;
-      log.info(`Created project: ${projectName} at ${path}`);
+        const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(id) as DbProject;
+        log.info(`Created project: ${projectName} at ${path}`);
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Project created!\n\n${JSON.stringify(project, null, 2)}`,
-          },
-        ],
-      };
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Project created!\n\n${JSON.stringify(project, null, 2)}`,
+            },
+          ],
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        log.error(`Failed to create project "${projectName}": ${errorMsg}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Failed to create project: ${errorMsg}`,
+            },
+          ],
+          isError: true,
+        };
+      }
     }
   );
 

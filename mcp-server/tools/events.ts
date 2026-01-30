@@ -196,14 +196,26 @@ Returns:
               created_at: string;
             }>);
 
-        // Parse JSON data field
-        const parsedEvents = events.map((event) => ({
-          id: event.id,
-          sessionId: event.session_id,
-          type: event.type,
-          data: event.data ? JSON.parse(event.data) : {},
-          createdAt: event.created_at,
-        }));
+        // Parse JSON data field with error handling
+        const parsedEvents = events.map((event) => {
+          let data = {};
+          if (event.data) {
+            try {
+              data = JSON.parse(event.data);
+            } catch (parseErr) {
+              log.warn(
+                `Failed to parse event data for ${event.id}: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`
+              );
+            }
+          }
+          return {
+            id: event.id,
+            sessionId: event.session_id,
+            type: event.type,
+            data,
+            createdAt: event.created_at,
+          };
+        });
 
         log.info(
           `Retrieved ${parsedEvents.length} events for session ${sessionId.substring(0, 8)}...`

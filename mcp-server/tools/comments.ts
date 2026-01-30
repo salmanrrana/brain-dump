@@ -72,23 +72,37 @@ Returns the created comment.`,
       const id = randomUUID();
       const now = new Date().toISOString();
 
-      db.prepare(
-        "INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at) VALUES (?, ?, ?, ?, ?, ?)"
-      ).run(id, ticketId, content.trim(), finalAuthor, type, now);
+      try {
+        db.prepare(
+          "INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+        ).run(id, ticketId, content.trim(), finalAuthor, type, now);
 
-      const comment = db
-        .prepare("SELECT * FROM ticket_comments WHERE id = ?")
-        .get(id) as DbTicketComment;
-      log.info(`Added ${type} to ticket ${ticketId} by ${finalAuthor}`);
+        const comment = db
+          .prepare("SELECT * FROM ticket_comments WHERE id = ?")
+          .get(id) as DbTicketComment;
+        log.info(`Added ${type} to ticket ${ticketId} by ${finalAuthor}`);
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Comment added to ticket "${ticket.title}"!\n\n${JSON.stringify(comment, null, 2)}`,
-          },
-        ],
-      };
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Comment added to ticket "${ticket.title}"!\n\n${JSON.stringify(comment, null, 2)}`,
+            },
+          ],
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        log.error(`Failed to add comment to ticket "${ticket.title}": ${errorMsg}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Failed to add comment: ${errorMsg}`,
+            },
+          ],
+          isError: true,
+        };
+      }
     }
   );
 

@@ -96,21 +96,35 @@ Returns the created epic.`,
       const id = randomUUID();
       const now = new Date().toISOString();
 
-      db.prepare(
-        "INSERT INTO epics (id, title, description, project_id, color, created_at) VALUES (?, ?, ?, ?, ?, ?)"
-      ).run(id, title.trim(), description?.trim() || null, projectId, color || null, now);
+      try {
+        db.prepare(
+          "INSERT INTO epics (id, title, description, project_id, color, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+        ).run(id, title.trim(), description?.trim() || null, projectId, color || null, now);
 
-      const epic = db.prepare("SELECT * FROM epics WHERE id = ?").get(id) as DbEpic;
-      log.info(`Created epic: ${title} in project ${project.name}`);
+        const epic = db.prepare("SELECT * FROM epics WHERE id = ?").get(id) as DbEpic;
+        log.info(`Created epic: ${title} in project ${project.name}`);
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Epic created in "${project.name}"!\n\n${JSON.stringify(epic, null, 2)}`,
-          },
-        ],
-      };
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Epic created in "${project.name}"!\n\n${JSON.stringify(epic, null, 2)}`,
+            },
+          ],
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        log.error(`Failed to create epic "${title}": ${errorMsg}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Failed to create epic: ${errorMsg}`,
+            },
+          ],
+          isError: true,
+        };
+      }
     }
   );
 
@@ -180,17 +194,32 @@ Returns the updated epic.`,
         };
       }
 
-      values.push(epicId as string | null);
-      db.prepare(`UPDATE epics SET ${updates.join(", ")} WHERE id = ?`).run(...values);
+      values.push(epicId);
 
-      const updatedEpic = db.prepare("SELECT * FROM epics WHERE id = ?").get(epicId) as DbEpic;
-      log.info(`Updated epic: ${updatedEpic.title}`);
+      try {
+        db.prepare(`UPDATE epics SET ${updates.join(", ")} WHERE id = ?`).run(...values);
 
-      return {
-        content: [
-          { type: "text", text: `Epic updated!\n\n${JSON.stringify(updatedEpic, null, 2)}` },
-        ],
-      };
+        const updatedEpic = db.prepare("SELECT * FROM epics WHERE id = ?").get(epicId) as DbEpic;
+        log.info(`Updated epic: ${updatedEpic.title}`);
+
+        return {
+          content: [
+            { type: "text", text: `Epic updated!\n\n${JSON.stringify(updatedEpic, null, 2)}` },
+          ],
+        };
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        log.error(`Failed to update epic: ${errorMsg}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Failed to update epic: ${errorMsg}`,
+            },
+          ],
+          isError: true,
+        };
+      }
     }
   );
 
