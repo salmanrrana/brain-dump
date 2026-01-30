@@ -38,67 +38,26 @@ const WORKFLOW_PHASES = `
 5. **Create session** - Call \`create_ralph_session(ticketId)\`
 6. **Implement** - Write code, run tests (\`pnpm test\`)
 7. **Commit** - \`git commit -m "feat(<ticket-id>): <description>"\`
-8. **Complete implementation** - Call \`complete_ticket_work(ticketId, "summary")\` → **status becomes ai_review**
-   - **IMPORTANT**: This moves ticket to **ai_review**, NOT done
-   - You are now entering Phase 2
+8. **Complete implementation** - Call \`complete_ticket_work(ticketId, "summary")\` → moves to **ai_review**
 
-### Phase 2: AI Review (MANDATORY - DO NOT SKIP)
-**GATE: Ticket status must be 'ai_review' before proceeding**
+### Phase 2: AI Review (MANDATORY - cannot skip)
+9. **Run review agents** - All 3 in parallel:
+   - code-reviewer (code quality, patterns, bugs)
+   - silent-failure-hunter (error handling, edge cases)
+   - code-simplifier (over-engineered code, duplication)
+10. **Submit findings** - For each issue found: \`submit_review_finding({ ticketId, agent, severity, category, description })\`
+11. **Fix critical/major** - For each critical or major finding: fix code, then call \`mark_finding_fixed({ findingId, status: "fixed" })\`
+12. **Verify complete** - Call \`check_review_complete({ ticketId })\` - must return \`canProceedToHumanReview: true\`
 
-9. **Run review agents** - ALL 3 in parallel (non-negotiable):
-   - code-reviewer (check code quality, patterns, bugs)
-   - silent-failure-hunter (check error handling, edge cases)
-   - code-simplifier (check for over-engineered code, duplication)
-10. **Submit findings** - For EACH issue found, call:
-   \`\`\`
-   submit_review_finding({
-     ticketId, agent, severity, category, description
-   })
-   \`\`\`
-11. **Fix critical/major findings** - For each finding with severity critical or major:
-   - Make code changes to fix the issue
-   - Call \`mark_finding_fixed({ findingId, status: "fixed" })\`
-   - Repeat review agents until all critical/major issues are resolved
-12. **Verify review complete** - Call \`check_review_complete({ ticketId })\`
-    - If response: \`canProceedToHumanReview: false\` → **STOP and fix remaining critical/major findings**
-    - If response: \`canProceedToHumanReview: true\` → Proceed to Phase 3
-    - **You CANNOT proceed without true response**
-
-### Phase 3: Demo Generation (Only after Phase 2 complete)
-**GATE: check_review_complete must return canProceedToHumanReview: true**
-
-13. **Generate demo script** - Call:
-    \`\`\`
-    generate_demo_script({
-      ticketId,
-      steps: [
-        { order: 1, action: "...", expected: "..." },
-        ...
-      ]
-    })
-    \`\`\`
-    - **This moves ticket to human_review**
-    - Demo must have at least 3 steps that a human can manually verify
+### Phase 3: Demo Generation
+13. **Generate demo** - Call \`generate_demo_script({ ticketId, steps: [...] })\` - must have at least 3 manual test steps
 
 ### Phase 4: STOP AND WAIT FOR HUMAN
-**MANDATORY STOP POINT**
+14. **Output completion** - Show ticket moved to human_review, awaiting human approval
+15. **Complete session** - Call \`complete_ralph_session({ sessionId, outcome: "success" })\`
+16. **STOP** - Do not proceed further. Human reviewer will call \`submit_demo_feedback\` to approve/reject.
 
-14. **Output completion status**:
-    \`\`\`
-    ✅ TICKET COMPLETE: <ticket-id>
-    Status: human_review
-    Demo: Generated (<N> steps)
-    Awaiting: Human approval via submit_demo_feedback
-    \`\`\`
-15. **Complete session** - Call:
-    \`\`\`
-    complete_ralph_session({ sessionId, outcome: "success" })
-    \`\`\`
-16. **STOP** - Do NOT proceed further. Do NOT call submit_demo_feedback. Do NOT change status to done.
-    - Human reviewer will test the demo and call submit_demo_feedback to approve/reject
-    - You have NO authority to mark tickets done
-
-If ALL tickets are in human_review or done, output: \`PRD_COMPLETE\`
+If all tickets are in human_review or done, output: \`PRD_COMPLETE\`
 `;
 
 /**
@@ -106,94 +65,42 @@ If ALL tickets are in human_review or done, output: \`PRD_COMPLETE\`
  * Used by both getRalphPrompt() and generateVSCodeContext().
  */
 const VERIFICATION_CHECKLIST = `
-## Verification: Phase-by-Phase Checklist
+## Verification Checklist
 
-### PHASE 1 COMPLETION (Before calling complete_ticket_work)
+### Before Completing Phase 1
+Run these checks before calling \`complete_ticket_work\`:
+- \`pnpm type-check\` - must pass with no errors
+- \`pnpm lint\` - must pass with no errors
+- \`pnpm test\` - all tests must pass
+- All acceptance criteria from ticket implemented
+- Changes committed with format: \`feat(<ticket-id>): <description>\`
 
-**Code Quality (MANDATORY)**
-- ✓ Run \`pnpm type-check\` - must pass with no errors
-- ✓ Run \`pnpm lint\` - must pass with no errors
-- ✓ Run \`pnpm test\` - all tests must pass
-- ✓ All acceptance criteria from ticket met
-- ✓ Work summary prepared (will be posted by complete_ticket_work)
-- ✓ Committed with format: \`feat(<ticket-id>): <description>\`
+### Before Proceeding Past Phase 2
+- All 3 review agents run (code-reviewer, silent-failure-hunter, code-simplifier)
+- All findings submitted with \`submit_review_finding\`
+- All critical/major findings fixed and marked with \`mark_finding_fixed\`
+- \`check_review_complete\` returns \`canProceedToHumanReview: true\`
 
-**Before calling complete_ticket_work:**
-- [ ] Have I implemented all acceptance criteria?
-- [ ] Do all tests pass?
-- [ ] Have I committed my changes?
-- [ ] Am I ready to enter Phase 2 (AI Review)?
-
-### PHASE 2 COMPLETION (Before calling check_review_complete)
-
-**AI Review (MANDATORY - No skipping)**
-- [ ] Have I run all 3 review agents? (code-reviewer, silent-failure-hunter, code-simplifier)
-- [ ] Have I submitted findings for EACH issue found?
-- [ ] Have I fixed all critical/major findings?
-- [ ] Have I called mark_finding_fixed for each fixed finding?
-- [ ] Am I ready to call check_review_complete?
-
-**After check_review_complete:**
-- [ ] Does response show canProceedToHumanReview: true?
-- [ ] Are there still critical/major findings? (If yes, STOP - fix them first)
-- [ ] Am I ready to proceed to Phase 3?
-
-### PHASE 3 COMPLETION (Before STOP)
-
-**Demo Script (MANDATORY)**
-- [ ] Have I called generate_demo_script?
-- [ ] Does demo have at least 3 manual test steps?
-- [ ] Is the response successful?
-- [ ] Is ticket now in human_review status?
-- [ ] Am I about to STOP?
-
-### PHASE 4 REQUIREMENT
-
-**STOP Checklist**
-- [ ] Have I completed Phase 1 (implementation)? ✓
-- [ ] Have I completed Phase 2 (AI review)? ✓
-- [ ] Have I completed Phase 3 (demo)? ✓
-- [ ] Is ticket now in human_review status? ✓
-- [ ] Have I called complete_ralph_session? ✓
-- [ ] Will I NOW STOP and NOT proceed further? ✓
-- [ ] Will I NEVER call submit_demo_feedback? ✓
-- [ ] Will I NEVER set ticket to done? ✓
+### Before Calling complete_ralph_session
+- \`generate_demo_script\` called with at least 3 manual test steps
+- Ticket status is \`human_review\`
+- Human reviewer will call \`submit_demo_feedback\` (not you)
 `;
 
 /**
  * Rules for Ralph workflow.
  */
 const WORKFLOW_RULES = `
-## NON-NEGOTIABLE RULES
+## Workflow Rules
 
-### Workflow Enforcement
-- **MUST follow all 4 phases in order**: Implementation → AI Review → Demo → STOP
-- **CANNOT skip Phase 2 (AI Review)** - This is mandatory, not optional
-- **CANNOT skip Phase 3 (Demo)** - Demo must be generated before human_review
-- **CANNOT auto-approve tickets** - Always stop at human_review (Phase 4)
-- **CANNOT call submit_demo_feedback** - Only humans can approve tickets
-- **CANNOT set ticket status to done** - Only humans can approve (via submit_demo_feedback)
-
-### Phase Gates (Cannot proceed without)
-- Phase 1 → Phase 2: Must call complete_ticket_work successfully
-- Phase 2 → Phase 3: Must call check_review_complete and get canProceedToHumanReview: true
-- Phase 3 → Phase 4: Must call generate_demo_script successfully
-- Phase 4 → Complete: Must call complete_ralph_session and STOP
-
-### Implementation Requirements
+- Follow all 4 phases in strict order: Implementation → AI Review → Demo → STOP
 - ONE ticket per iteration
-- Run \`pnpm type-check && pnpm lint && pnpm test\` - ALL must pass before completing
+- All quality checks must pass: \`pnpm type-check && pnpm lint && pnpm test\`
 - Keep changes minimal and focused
-- If stuck on a ticket, note in \`plans/progress.txt\` and move on to next ticket
-- **Follow the Verification Checklist in CLAUDE.md before completing each ticket**
-
-### Output Requirements
-- Before Phase 2: Output "STARTING AI REVIEW PHASE"
-- During Phase 2: Output each finding submitted
-- After Phase 2 complete: Output "REVIEW COMPLETE - Proceeding to demo"
-- During Phase 3: Output demo script generated
-- Before STOP: Output "TICKET COMPLETE" with status
-- At end: Output "PRD_COMPLETE" only if all tickets in human_review or done
+- Phase gates are enforced - cannot skip phases or proceed without required responses
+- Do not call \`submit_demo_feedback\` - only humans approve tickets
+- Do not move ticket to \`done\` - only humans can approve via \`submit_demo_feedback\`
+- If stuck, note progress in \`plans/progress.txt\` and move to next ticket
 `;
 
 // ============================================================================
@@ -647,12 +554,12 @@ echo -e "\\033[1;33m🐳 Docker Host:\\033[0m ${dockerHostEnv}"
   // Format timeout for display (e.g., "1h", "30m", "1h 30m")
   const timeoutHours = Math.floor(timeoutSeconds / 3600);
   const timeoutMinutes = Math.floor((timeoutSeconds % 3600) / 60);
-  const timeoutDisplay =
-    timeoutHours > 0 && timeoutMinutes > 0
-      ? `${timeoutHours}h ${timeoutMinutes}m`
-      : timeoutHours > 0
-        ? `${timeoutHours}h`
-        : `${timeoutMinutes}m`;
+  let timeoutDisplay = `${timeoutMinutes}m`;
+  if (timeoutHours > 0 && timeoutMinutes > 0) {
+    timeoutDisplay = `${timeoutHours}h ${timeoutMinutes}m`;
+  } else if (timeoutHours > 0) {
+    timeoutDisplay = `${timeoutHours}h`;
+  }
   const containerInfo = useSandbox
     ? `echo -e "\\033[1;33m🐳 Container:\\033[0m ${imageName}"
 echo -e "\\033[1;33m📊 Resources:\\033[0m ${resourceLimits.memory} RAM, ${resourceLimits.cpus} CPUs, ${resourceLimits.pidsLimit} max PIDs"
