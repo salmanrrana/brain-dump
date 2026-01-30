@@ -11,7 +11,7 @@
 /** Epic information */
 interface EpicInfo {
   title: string;
-  prUrl?: string;
+  prUrl?: string | undefined;
 }
 
 /** Ticket information */
@@ -34,16 +34,16 @@ interface BuildTicketContextParams {
   ticket: TicketInfo;
   branchName: string;
   branchCreated: boolean;
-  epicInfo?: EpicInfo;
-  usingEpicBranch?: boolean;
-  sessionInfo?: string;
-  attachmentContext?: string;
+  epicInfo?: EpicInfo | undefined;
+  usingEpicBranch?: boolean | undefined;
+  sessionInfo?: string | undefined;
+  attachmentContext?: string | undefined;
   description: string;
   priority: string;
   acceptanceCriteria: string[];
-  commentsSection?: string;
-  attachmentsSection?: string;
-  warningsSection?: string;
+  commentsSection?: string | undefined;
+  attachmentsSection?: string | undefined;
+  warningsSection?: string | undefined;
 }
 
 /** Text content block returned from builders */
@@ -83,9 +83,7 @@ export function buildWarningsSection(warnings: string[] | undefined): string {
   }
   // Guard against string being passed instead of array - would silently produce garbled output
   if (!Array.isArray(warnings)) {
-    throw new Error(
-      `buildWarningsSection: warnings must be an array, got ${typeof warnings}`
-    );
+    throw new Error(`buildWarningsSection: warnings must be an array, got ${typeof warnings}`);
   }
   return `\n### Warnings\n${warnings.map((w) => `- ${w}`).join("\n")}\n`;
 }
@@ -93,16 +91,12 @@ export function buildWarningsSection(warnings: string[] | undefined): string {
 /**
  * Build the attachments section for non-image files.
  */
-export function buildAttachmentsSection(
-  attachmentBlocks: ContentBlock[] | undefined
-): string {
+export function buildAttachmentsSection(attachmentBlocks: ContentBlock[] | undefined): string {
   if (!attachmentBlocks || attachmentBlocks.length === 0) {
     return "";
   }
 
-  const textCount = attachmentBlocks.filter(
-    (b) => b.type === "text"
-  ).length;
+  const textCount = attachmentBlocks.filter((b) => b.type === "text").length;
   if (textCount === 0) {
     return "";
   }
@@ -114,9 +108,7 @@ export function buildAttachmentsSection(
  * Build the main ticket context text block.
  * This is the primary output that provides Claude with context about the ticket.
  */
-export function buildTicketContextBlock(
-  params: BuildTicketContextParams
-): TextContentBlock {
+export function buildTicketContextBlock(params: BuildTicketContextParams): TextContentBlock {
   const {
     ticket,
     branchName,
