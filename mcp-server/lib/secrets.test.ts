@@ -1,26 +1,5 @@
 import { describe, it, expect } from "vitest";
-
-// Types for the JS module
-interface SecretPattern {
-  name: string;
-  pattern: RegExp;
-}
-
-interface SecretDetectionResult {
-  detected: boolean;
-  types: string[];
-  count: number;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const secrets = require("./secrets.js") as {
-  detectSecrets: (content: string) => SecretDetectionResult;
-  containsSecrets: (content: string) => boolean;
-  redactSecrets: (content: string, placeholder?: string) => string;
-  SECRET_PATTERNS: SecretPattern[];
-};
-
-const { detectSecrets, containsSecrets, redactSecrets, SECRET_PATTERNS } = secrets;
+import { detectSecrets, containsSecrets, redactSecrets, SECRET_PATTERNS } from "./secrets.js";
 
 describe("secrets detection module", () => {
   describe("detectSecrets", () => {
@@ -243,7 +222,7 @@ describe("secrets detection module", () => {
 
   describe("SECRET_PATTERNS", () => {
     it("should have all required patterns defined", () => {
-      const patternNames = (SECRET_PATTERNS as SecretPattern[]).map((p) => p.name);
+      const patternNames = SECRET_PATTERNS.map((p) => p.name);
 
       expect(patternNames).toContain("OpenAI API Key");
       expect(patternNames).toContain("Anthropic API Key");

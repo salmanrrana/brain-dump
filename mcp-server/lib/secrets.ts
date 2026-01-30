@@ -186,7 +186,7 @@ export function containsSecrets(content: unknown): boolean {
  */
 export function redactSecrets(content: unknown, placeholder = "[REDACTED]"): string {
   if (!content || typeof content !== "string") {
-    return String(content);
+    return content as string;
   }
 
   let redacted = content;
