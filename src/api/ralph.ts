@@ -41,12 +41,12 @@ const WORKFLOW_PHASES = `
 8. **Complete implementation** - Call \`complete_ticket_work(ticketId, "summary")\` → moves to **ai_review**
 
 ### Phase 2: AI Review (MANDATORY - cannot skip)
-9. **Run review agents** - All 3 in parallel:
-   - code-reviewer (code quality, patterns, bugs)
-   - silent-failure-hunter (error handling, edge cases)
-   - code-simplifier (over-engineered code, duplication)
-10. **Submit findings** - For each issue found: \`submit_review_finding({ ticketId, agent, severity, category, description })\`
-11. **Fix critical/major** - For each critical or major finding: fix code, then call \`mark_finding_fixed({ findingId, status: "fixed" })\`
+9. **Perform code self-review** - Analyze your implementation for:
+   - Code quality, patterns, compliance with CLAUDE.md guidelines (code-reviewer concerns)
+   - Error handling, edge cases, silent failures, exception safety (silent-failure-hunter concerns)
+   - Simplifications, duplication, over-engineering (code-simplifier concerns)
+10. **Submit findings** - For each issue found: \`submit_review_finding({ ticketId, agent: "code-reviewer|silent-failure-hunter|code-simplifier", severity: "critical|major|minor|suggestion", category: "...", description: "..." })\`
+11. **Fix critical/major** - For each critical or major finding: fix code, then call \`mark_finding_fixed({ findingId, status: "fixed", fixDescription: "..." })\`
 12. **Verify complete** - Call \`check_review_complete({ ticketId })\` - must return \`canProceedToHumanReview: true\`
 
 ### Phase 3: Demo Generation
@@ -76,10 +76,10 @@ Run these checks before calling \`complete_ticket_work\`:
 - Changes committed with format: \`feat(<ticket-id>): <description>\`
 
 ### Before Proceeding Past Phase 2
-- All 3 review agents run (code-reviewer, silent-failure-hunter, code-simplifier)
-- All findings submitted with \`submit_review_finding\`
+- Self-review completed for code quality, error handling, and simplification concerns
+- All findings submitted with \`submit_review_finding\` (at least specify critical/major issues)
 - All critical/major findings fixed and marked with \`mark_finding_fixed\`
-- \`check_review_complete\` returns \`canProceedToHumanReview: true\`
+- \`check_review_complete\` returns \`canProceedToHumanReview: true\``
 
 ### Before Calling complete_ralph_session
 - \`generate_demo_script\` called with at least 3 manual test steps
