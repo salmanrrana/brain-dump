@@ -1,8 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import { db } from "../lib/db";
-import { tickets } from "../lib/schema";
-import { eq } from "drizzle-orm";
 import { detectTerminal, isTerminalAvailable, buildTerminalCommand } from "./terminal-utils";
+import { startTicketWorkflow } from "./start-ticket-workflow";
 
 // Check if OpenCode CLI is installed
 async function isOpenCodeInstalled(): Promise<{ installed: boolean; error?: string }> {
@@ -264,14 +262,15 @@ export const launchClaudeInTerminal = createServerFn({ method: "POST" })
       };
     }
 
-    // Update ticket status to in_progress
-    try {
-      db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticketId)).run();
-    } catch (error) {
-      console.error("Failed to update ticket status:", error);
+    // Start ticket workflow: git branch, status update, workflow state, audit comment
+    const workflowResult = await startTicketWorkflow(ticketId, projectPath);
+    if (!workflowResult.success) {
       warnings.push(
-        "Failed to update ticket status to 'In Progress'. You may need to update it manually."
+        workflowResult.error ||
+          "Failed to start ticket workflow. You may need to update status manually."
       );
+    } else {
+      warnings.push(...workflowResult.warnings);
     }
 
     // Save current ticket ID to state file for CLI tool
@@ -486,14 +485,15 @@ export const launchOpenCodeInTerminal = createServerFn({ method: "POST" })
       };
     }
 
-    // Update ticket status to in_progress
-    try {
-      db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticketId)).run();
-    } catch (error) {
-      console.error("Failed to update ticket status:", error);
+    // Start ticket workflow: git branch, status update, workflow state, audit comment
+    const workflowResult = await startTicketWorkflow(ticketId, projectPath);
+    if (!workflowResult.success) {
       warnings.push(
-        "Failed to update ticket status to 'In Progress'. You may need to update it manually."
+        workflowResult.error ||
+          "Failed to start ticket workflow. You may need to update status manually."
       );
+    } else {
+      warnings.push(...workflowResult.warnings);
     }
 
     // Save current ticket ID to state file for CLI tool

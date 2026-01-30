@@ -14,6 +14,7 @@ import {
   type EnhancedPRDItem,
   type EnhancedPRDDocument,
 } from "../lib/prd-extraction";
+import { startTicketWorkflow } from "./start-ticket-workflow";
 
 // Import Docker utilities for socket-aware Docker commands
 import { execDockerCommand, getDockerHostEnvValue } from "./docker-utils";
@@ -928,8 +929,11 @@ RALPH_PROMPT_EOF
   echo -e "\\033[0;33m⏳ Starting ${aiName}${useSandbox ? " in Docker sandbox" : " (autonomous mode)"}...\\033[0m"
   echo ""
 
+  # Allow non-zero exit from AI invocation (prevents set -e from killing the loop)
+  set +e
 ${aiInvocation}
   AI_EXIT_CODE=$?
+  set -e
 
   rm -f "$PROMPT_FILE"
 
@@ -1305,8 +1309,13 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     writeFileSync(scriptPath, ralphScript, { mode: 0o700 });
     chmodSync(scriptPath, 0o700);
 
-    // Update ticket status to in_progress
-    db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticketId)).run();
+    // Start ticket workflow: git branch, status update, workflow state, audit comment
+    const workflowResult = await startTicketWorkflow(ticketId, project.path);
+    if (!workflowResult.success) {
+      console.warn(`[brain-dump] Workflow start warning: ${workflowResult.error}`);
+      // Fallback: ensure ticket is at least in_progress even if workflow failed
+      db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticketId)).run();
+    }
 
     // Branch based on workingMethod setting
     const workingMethod = project.workingMethod || "auto";
@@ -1483,9 +1492,25 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     writeFileSync(scriptPath, ralphScript, { mode: 0o700 });
     chmodSync(scriptPath, 0o700);
 
-    // Update all tickets to in_progress
+    // Start workflow for the first ticket (creates/checks out branch, sets up workflow state)
+    // For epic launches, Ralph handles individual tickets via MCP start_ticket_work during iteration.
+    // Here we start the workflow for the first backlog/ready ticket to create the epic branch,
+    // and mark others as in_progress for the PRD.
+    const firstTicket = epicTickets.find((t) => t.status === "backlog" || t.status === "ready");
+    if (firstTicket) {
+      const workflowResult = await startTicketWorkflow(firstTicket.id, project.path);
+      if (!workflowResult.success) {
+        console.warn(
+          `[brain-dump] Workflow start warning for first ticket: ${workflowResult.error}`
+        );
+      }
+    }
+    // Mark remaining tickets as in_progress (they'll get full workflow when Ralph picks them up)
     for (const ticket of epicTickets) {
-      if (ticket.status === "backlog" || ticket.status === "ready") {
+      if (
+        ticket.id !== firstTicket?.id &&
+        (ticket.status === "backlog" || ticket.status === "ready")
+      ) {
         db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticket.id)).run();
       }
     }
