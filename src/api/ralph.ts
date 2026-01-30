@@ -79,7 +79,7 @@ Run these checks before calling \`complete_ticket_work\`:
 - Self-review completed for code quality, error handling, and simplification concerns
 - All findings submitted with \`submit_review_finding\` (at least specify critical/major issues)
 - All critical/major findings fixed and marked with \`mark_finding_fixed\`
-- \`check_review_complete\` returns \`canProceedToHumanReview: true\``
+- \`check_review_complete\` returns \`canProceedToHumanReview: true\`
 
 ### Before Calling complete_ralph_session
 - \`generate_demo_script\` called with at least 3 manual test steps
