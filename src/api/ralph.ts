@@ -28,6 +28,8 @@ import { execDockerCommand, getDockerHostEnvValue } from "./docker-utils";
  * Used by both Claude Code (via getRalphPrompt) and VS Code (via generateVSCodeContext).
  */
 const WORKFLOW_PHASES = `
+## MANDATORY 4-PHASE WORKFLOW
+
 ### Phase 1: Implementation
 1. **Read PRD** - Check \`plans/prd.json\` for incomplete tickets (\`passes: false\`)
 2. **Read Progress** - Run \`tail -100 plans/progress.txt\` for recent context
@@ -36,22 +38,67 @@ const WORKFLOW_PHASES = `
 5. **Create session** - Call \`create_ralph_session(ticketId)\`
 6. **Implement** - Write code, run tests (\`pnpm test\`)
 7. **Commit** - \`git commit -m "feat(<ticket-id>): <description>"\`
-8. **Complete implementation** - Call \`complete_ticket_work(ticketId, "summary")\` → moves to **ai_review**
+8. **Complete implementation** - Call \`complete_ticket_work(ticketId, "summary")\` → **status becomes ai_review**
+   - **IMPORTANT**: This moves ticket to **ai_review**, NOT done
+   - You are now entering Phase 2
 
-### Phase 2: AI Review (REQUIRED)
-9. **Run review agents** - Launch all 3 in parallel: code-reviewer, silent-failure-hunter, code-simplifier
-10. **Submit findings** - \`submit_review_finding({ ticketId, agent, severity, category, description })\`
-11. **Fix critical/major** - Then \`mark_finding_fixed({ findingId, status: "fixed" })\`
-12. **Verify complete** - \`check_review_complete({ ticketId })\` must return \`canProceedToHumanReview: true\`
+### Phase 2: AI Review (MANDATORY - DO NOT SKIP)
+**GATE: Ticket status must be 'ai_review' before proceeding**
 
-### Phase 3: Demo Generation
-13. **Generate demo** - \`generate_demo_script({ ticketId, steps: [...] })\` → moves to **human_review**
+9. **Run review agents** - ALL 3 in parallel (non-negotiable):
+   - code-reviewer (check code quality, patterns, bugs)
+   - silent-failure-hunter (check error handling, edge cases)
+   - code-simplifier (check for over-engineered code, duplication)
+10. **Submit findings** - For EACH issue found, call:
+   \`\`\`
+   submit_review_finding({
+     ticketId, agent, severity, category, description
+   })
+   \`\`\`
+11. **Fix critical/major findings** - For each finding with severity critical or major:
+   - Make code changes to fix the issue
+   - Call \`mark_finding_fixed({ findingId, status: "fixed" })\`
+   - Repeat review agents until all critical/major issues are resolved
+12. **Verify review complete** - Call \`check_review_complete({ ticketId })\`
+    - If response: \`canProceedToHumanReview: false\` → **STOP and fix remaining critical/major findings**
+    - If response: \`canProceedToHumanReview: true\` → Proceed to Phase 3
+    - **You CANNOT proceed without true response**
 
-### Phase 4: STOP
-14. **Complete session** - \`complete_ralph_session(sessionId, "success")\`
-15. **STOP** - Human must approve via \`submit_demo_feedback\`. Never auto-complete.
+### Phase 3: Demo Generation (Only after Phase 2 complete)
+**GATE: check_review_complete must return canProceedToHumanReview: true**
 
-If all tickets are in human_review or done, output: \`PRD_COMPLETE\`
+13. **Generate demo script** - Call:
+    \`\`\`
+    generate_demo_script({
+      ticketId,
+      steps: [
+        { order: 1, action: "...", expected: "..." },
+        ...
+      ]
+    })
+    \`\`\`
+    - **This moves ticket to human_review**
+    - Demo must have at least 3 steps that a human can manually verify
+
+### Phase 4: STOP AND WAIT FOR HUMAN
+**MANDATORY STOP POINT**
+
+14. **Output completion status**:
+    \`\`\`
+    ✅ TICKET COMPLETE: <ticket-id>
+    Status: human_review
+    Demo: Generated (<N> steps)
+    Awaiting: Human approval via submit_demo_feedback
+    \`\`\`
+15. **Complete session** - Call:
+    \`\`\`
+    complete_ralph_session({ sessionId, outcome: "success" })
+    \`\`\`
+16. **STOP** - Do NOT proceed further. Do NOT call submit_demo_feedback. Do NOT change status to done.
+    - Human reviewer will test the demo and call submit_demo_feedback to approve/reject
+    - You have NO authority to mark tickets done
+
+If ALL tickets are in human_review or done, output: \`PRD_COMPLETE\`
 `;
 
 /**
@@ -59,41 +106,94 @@ If all tickets are in human_review or done, output: \`PRD_COMPLETE\`
  * Used by both getRalphPrompt() and generateVSCodeContext().
  */
 const VERIFICATION_CHECKLIST = `
-## Verification (from CLAUDE.md)
+## Verification: Phase-by-Phase Checklist
 
-Before completing ANY ticket, you MUST:
+### PHASE 1 COMPLETION (Before calling complete_ticket_work)
 
-### Code Quality (Always Required)
-- Run \`pnpm type-check\` - must pass with no errors
-- Run \`pnpm lint\` - must pass with no errors
-- Run \`pnpm test\` - all tests must pass
+**Code Quality (MANDATORY)**
+- ✓ Run \`pnpm type-check\` - must pass with no errors
+- ✓ Run \`pnpm lint\` - must pass with no errors
+- ✓ Run \`pnpm test\` - all tests must pass
+- ✓ All acceptance criteria from ticket met
+- ✓ Work summary prepared (will be posted by complete_ticket_work)
+- ✓ Committed with format: \`feat(<ticket-id>): <description>\`
 
-### If You Added New Code
-- Added tests for new functionality
-- Used Drizzle ORM (not raw SQL)
-- Followed patterns in CLAUDE.md DO/DON'T tables
+**Before calling complete_ticket_work:**
+- [ ] Have I implemented all acceptance criteria?
+- [ ] Do all tests pass?
+- [ ] Have I committed my changes?
+- [ ] Am I ready to enter Phase 2 (AI Review)?
 
-### If You Modified Existing Code
-- Existing tests still pass
-- Updated tests if behavior changed
+### PHASE 2 COMPLETION (Before calling check_review_complete)
 
-### Before Marking Complete
-- All acceptance criteria from ticket met
-- Work summary added via \`add_ticket_comment\`
-- Committed with format: \`feat(<ticket-id>): <description>\`
+**AI Review (MANDATORY - No skipping)**
+- [ ] Have I run all 3 review agents? (code-reviewer, silent-failure-hunter, code-simplifier)
+- [ ] Have I submitted findings for EACH issue found?
+- [ ] Have I fixed all critical/major findings?
+- [ ] Have I called mark_finding_fixed for each fixed finding?
+- [ ] Am I ready to call check_review_complete?
+
+**After check_review_complete:**
+- [ ] Does response show canProceedToHumanReview: true?
+- [ ] Are there still critical/major findings? (If yes, STOP - fix them first)
+- [ ] Am I ready to proceed to Phase 3?
+
+### PHASE 3 COMPLETION (Before STOP)
+
+**Demo Script (MANDATORY)**
+- [ ] Have I called generate_demo_script?
+- [ ] Does demo have at least 3 manual test steps?
+- [ ] Is the response successful?
+- [ ] Is ticket now in human_review status?
+- [ ] Am I about to STOP?
+
+### PHASE 4 REQUIREMENT
+
+**STOP Checklist**
+- [ ] Have I completed Phase 1 (implementation)? ✓
+- [ ] Have I completed Phase 2 (AI review)? ✓
+- [ ] Have I completed Phase 3 (demo)? ✓
+- [ ] Is ticket now in human_review status? ✓
+- [ ] Have I called complete_ralph_session? ✓
+- [ ] Will I NOW STOP and NOT proceed further? ✓
+- [ ] Will I NEVER call submit_demo_feedback? ✓
+- [ ] Will I NEVER set ticket to done? ✓
 `;
 
 /**
  * Rules for Ralph workflow.
  */
 const WORKFLOW_RULES = `
-## Rules
+## NON-NEGOTIABLE RULES
+
+### Workflow Enforcement
+- **MUST follow all 4 phases in order**: Implementation → AI Review → Demo → STOP
+- **CANNOT skip Phase 2 (AI Review)** - This is mandatory, not optional
+- **CANNOT skip Phase 3 (Demo)** - Demo must be generated before human_review
+- **CANNOT auto-approve tickets** - Always stop at human_review (Phase 4)
+- **CANNOT call submit_demo_feedback** - Only humans can approve tickets
+- **CANNOT set ticket status to done** - Only humans can approve (via submit_demo_feedback)
+
+### Phase Gates (Cannot proceed without)
+- Phase 1 → Phase 2: Must call complete_ticket_work successfully
+- Phase 2 → Phase 3: Must call check_review_complete and get canProceedToHumanReview: true
+- Phase 3 → Phase 4: Must call generate_demo_script successfully
+- Phase 4 → Complete: Must call complete_ralph_session and STOP
+
+### Implementation Requirements
 - ONE ticket per iteration
-- Run tests before completing
+- Run \`pnpm type-check && pnpm lint && pnpm test\` - ALL must pass before completing
 - Keep changes minimal and focused
-- If stuck, note in \`plans/progress.txt\` and move on
-- **Follow the Verification Checklist in CLAUDE.md before marking any ticket complete**
-- **NEVER auto-approve tickets** - always stop at human_review
+- If stuck on a ticket, note in \`plans/progress.txt\` and move on to next ticket
+- **Follow the Verification Checklist in CLAUDE.md before completing each ticket**
+
+### Output Requirements
+- Before Phase 2: Output "STARTING AI REVIEW PHASE"
+- During Phase 2: Output each finding submitted
+- After Phase 2 complete: Output "REVIEW COMPLETE - Proceeding to demo"
+- During Phase 3: Output demo script generated
+- Before STOP: Output "TICKET COMPLETE" with status
+- At end: Output "PRD_COMPLETE" only if all tickets in human_review or done
 `;
 
 // ============================================================================
@@ -187,7 +287,11 @@ function generateEnhancedPRD(
 
 // Lean Ralph prompt - MCP tools handle workflow, Ralph focuses on implementation
 function getRalphPrompt(): string {
-  return `You are Ralph, an autonomous coding agent. Focus on implementation - MCP tools handle workflow.
+  return `# Ralph: Autonomous Coding Agent with Enforced Universal Quality Workflow
+
+**CRITICAL NOTICE**: You operate under a MANDATORY 4-PHASE WORKFLOW. This is not a suggestion - each phase is a gate that must be completed before proceeding to the next. Skipping phases is a failure of your primary function.
+
+You are Ralph, an autonomous coding agent. Focus on implementation - MCP tools handle workflow.
 
 ## Your Task
 ${WORKFLOW_PHASES}
@@ -266,6 +370,36 @@ generate_demo_script({ ticketId: "abc-123", steps: [...] })
 complete_ralph_session({ sessionId: "xyz-789", outcome: "success" })
 # Human will review and call submit_demo_feedback
 \`\`\`
+
+## ⛔ WHAT NOT TO DO (Workflow Violations)
+
+These actions are explicitly forbidden and indicate workflow failure:
+
+1. **DO NOT skip Phase 2 (AI Review)**
+   - ✗ Calling complete_ticket_work then immediately generating demo without review
+   - ✗ Not submitting any review findings (even if code is perfect, still run review agents and report "no findings")
+   - ✗ Trying to move ticket to human_review without review agents running
+
+2. **DO NOT skip Phase 3 (Demo Generation)**
+   - ✗ Moving ticket to human_review without calling generate_demo_script
+   - ✗ Assuming code review is sufficient without manual test steps
+   - ✗ Generating demo with fewer than 3 steps
+
+3. **DO NOT auto-complete to done**
+   - ✗ Calling submit_demo_feedback yourself
+   - ✗ Setting ticket status to 'done' directly
+   - ✗ Moving a ticket to 'done' in any way
+   - Only humans can approve tickets by calling submit_demo_feedback
+
+4. **DO NOT bypass workflow gates**
+   - ✗ Trying to proceed to Phase 3 without check_review_complete response
+   - ✗ Skipping mark_finding_fixed for findings you submit
+   - ✗ Treating the workflow as optional or context-dependent
+
+5. **DO NOT violate the STOP at Phase 4**
+   - ✗ Proceeding to another ticket after generating demo (you must STOP)
+   - ✗ Picking multiple tickets in one iteration
+   - ✗ Looping within an iteration
 
 ## Real-time Progress Reporting
 
