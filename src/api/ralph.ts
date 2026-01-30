@@ -856,6 +856,12 @@ PROJECT_PATH="${projectPath}"
 PRD_FILE="$PROJECT_PATH/plans/prd.json"
 PROGRESS_FILE="$PROJECT_PATH/plans/progress.txt"
 SESSION_ID="$(date +%s)-$$"
+MAX_RETRIES=3
+CONSECUTIVE_FAILURES=0
+MAX_CONSECUTIVE_FAILURES=5
+LAST_INCOMPLETE_COUNT=-1
+NO_PROGRESS_COUNT=0
+MAX_NO_PROGRESS=3
 
 cd "$PROJECT_PATH"
 ${dockerHostSetup}${dockerImageCheck}${sshAgentSetup}
@@ -926,14 +932,44 @@ for i in $(seq 1 $MAX_ITERATIONS); do
 ${getRalphPrompt()}
 RALPH_PROMPT_EOF
 
+  # Validate prompt file is non-empty before passing to Claude
+  if [ ! -s "$PROMPT_FILE" ]; then
+    echo -e "\\033[0;31m❌ Prompt file is empty or missing. Skipping iteration.\\033[0m"
+    echo "[$(date -Iseconds)] ERROR: Empty prompt file at iteration $i" >> "$PROGRESS_FILE"
+    CONSECUTIVE_FAILURES=$((CONSECUTIVE_FAILURES + 1))
+    rm -f "$PROMPT_FILE"
+    if [ $CONSECUTIVE_FAILURES -ge $MAX_CONSECUTIVE_FAILURES ]; then
+      echo -e "\\033[0;31m❌ Too many consecutive failures ($CONSECUTIVE_FAILURES). Stopping Ralph.\\033[0m"
+      echo "[$(date -Iseconds)] ABORTED: $CONSECUTIVE_FAILURES consecutive failures" >> "$PROGRESS_FILE"
+      exit 1
+    fi
+    sleep 2
+    continue
+  fi
+
   echo -e "\\033[0;33m⏳ Starting ${aiName}${useSandbox ? " in Docker sandbox" : " (autonomous mode)"}...\\033[0m"
   echo ""
 
-  # Allow non-zero exit from AI invocation (prevents set -e from killing the loop)
-  set +e
+  # Retry loop for Claude invocation (handles transient "No messages returned" errors)
+  AI_EXIT_CODE=1
+  for RETRY in $(seq 1 $MAX_RETRIES); do
+    set +e
 ${aiInvocation}
-  AI_EXIT_CODE=$?
-  set -e
+    AI_EXIT_CODE=$?
+    set -e
+
+    if [ $AI_EXIT_CODE -eq 0 ]; then
+      break
+    fi
+
+    if [ $RETRY -lt $MAX_RETRIES ]; then
+      BACKOFF=$((RETRY * 5))
+      echo ""
+      echo -e "\\033[0;31m⚠️  ${aiName} exited with code $AI_EXIT_CODE (attempt $RETRY/$MAX_RETRIES)\\033[0m"
+      echo -e "\\033[0;33m⏳ Retrying in \${BACKOFF}s...\\033[0m"
+      sleep $BACKOFF
+    fi
+  done
 
   rm -f "$PROMPT_FILE"
 
@@ -942,6 +978,27 @@ ${aiInvocation}
   echo -e "\\033[0;36m  Iteration $i complete at $(date '+%H:%M:%S')\\033[0m"
   echo -e "\\033[0;36m  Exit code: $AI_EXIT_CODE\\033[0m"
   echo -e "\\033[0;36m───────────────────────────────────────────────────────────\\033[0m"
+
+  # Track consecutive failures to detect persistent issues
+  if [ $AI_EXIT_CODE -ne 0 ]; then
+    CONSECUTIVE_FAILURES=$((CONSECUTIVE_FAILURES + 1))
+    echo -e "\\033[0;31m⚠️  Consecutive failures: $CONSECUTIVE_FAILURES/$MAX_CONSECUTIVE_FAILURES\\033[0m"
+    echo "[$(date -Iseconds)] FAILURE: Iteration $i failed after $MAX_RETRIES retries (exit code: $AI_EXIT_CODE)" >> "$PROGRESS_FILE"
+
+    if [ $CONSECUTIVE_FAILURES -ge $MAX_CONSECUTIVE_FAILURES ]; then
+      echo ""
+      echo -e "\\033[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+      echo -e "\\033[0;31m❌ $MAX_CONSECUTIVE_FAILURES consecutive failures. Ralph is stopping.\\033[0m"
+      echo -e "\\033[0;31m   This usually means Claude CLI cannot start properly.\\033[0m"
+      echo -e "\\033[0;31m   Check: API key, network, MCP server, or run 'claude --help'\\033[0m"
+      echo -e "\\033[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+      echo "[$(date -Iseconds)] ABORTED: $CONSECUTIVE_FAILURES consecutive failures" >> "$PROGRESS_FILE"
+      exit 1
+    fi
+  else
+    # Reset on success
+    CONSECUTIVE_FAILURES=0
+  fi
 
   # Check if all tasks in PRD are complete (all have passes:true)
   if [ -f "$PRD_FILE" ]; then
@@ -959,6 +1016,25 @@ ${aiInvocation}
       echo -e "\\033[0;32m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
       exit 0
     fi
+
+    # Detect stuck state: if incomplete count hasn't changed for MAX_NO_PROGRESS iterations,
+    # all tickets are likely in human_review or blocked. Stop looping.
+    if [ "$INCOMPLETE" = "$LAST_INCOMPLETE_COUNT" ] && [ $AI_EXIT_CODE -eq 0 ]; then
+      NO_PROGRESS_COUNT=$((NO_PROGRESS_COUNT + 1))
+      if [ $NO_PROGRESS_COUNT -ge $MAX_NO_PROGRESS ]; then
+        echo ""
+        echo -e "\\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+        echo -e "\\033[0;33m⏸️  No progress for $MAX_NO_PROGRESS iterations ($INCOMPLETE tickets still incomplete).\\033[0m"
+        echo -e "\\033[0;33m   Tickets are likely in human_review or blocked.\\033[0m"
+        echo -e "\\033[0;33m   Ralph is stopping to avoid wasting iterations.\\033[0m"
+        echo -e "\\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+        echo "[$(date -Iseconds)] STALLED: No progress for $MAX_NO_PROGRESS iterations. $INCOMPLETE/$TOTAL incomplete." >> "$PROGRESS_FILE"
+        exit 0
+      fi
+    else
+      NO_PROGRESS_COUNT=0
+    fi
+    LAST_INCOMPLETE_COUNT="$INCOMPLETE"
   fi
 
   echo ""
