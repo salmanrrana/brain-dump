@@ -281,7 +281,7 @@ export function FeatureCard({ id }: { id: string }) {
 - **Database**: Add migration via `pnpm db:generate`
 - **API**: Export from `src/api/index.ts`
 - **Routes**: Add route in `src/routes/`
-- **MCP**: Register in `mcp-server/index.js`
+- **MCP**: Register in `mcp-server/index.ts`
 
 ### Testing Requirements
 

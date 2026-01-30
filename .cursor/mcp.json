@@ -1,7 +1,7 @@
 {
   "brain-dump": {
-    "command": "node",
-    "args": ["${userHome}/code/brain-dump/mcp-server/index.js"],
+    "command": "npx",
+    "args": ["tsx", "${userHome}/code/brain-dump/mcp-server/index.ts"],
     "env": {
       "CURSOR": "1"
     }

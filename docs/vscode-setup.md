@@ -44,8 +44,8 @@ Create `~/.vscode/mcp.json` (global) or `.vscode/mcp.json` (per-project):
   "servers": {
     "brain-dump": {
       "type": "stdio",
-      "command": "node",
-      "args": ["/path/to/brain-dump/mcp-server/index.js"]
+      "command": "npx",
+      "args": ["tsx", "/path/to/brain-dump/mcp-server/index.ts"]
     }
   }
 }

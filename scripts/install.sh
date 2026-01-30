@@ -159,7 +159,7 @@ try {
     config.mcp = config.mcp || {};
     config.mcp["brain-dump"] = {
         type: "local",
-        command: ["node", brainDumpDir + "/mcp-server/index.js"],
+        command: ["npx", "tsx", brainDumpDir + "/mcp-server/index.ts"],
         enabled: true
     };
     fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
@@ -177,7 +177,7 @@ try {
           echo '  "mcp": {'
           echo '    "brain-dump": {'
           echo '      "type": "local",'
-          echo "      \"command\": [\"node\", \"$BRAIN_DUMP_DIR/mcp-server/index.js\"],"
+          echo "      \"command\": [\"npx\", \"tsx\", \"$BRAIN_DUMP_DIR/mcp-server/index.ts\"],"
           echo '      "enabled": true'
           echo '    }'
           echo '  }'
@@ -189,7 +189,7 @@ try {
         echo '  "mcp": {'
         echo '    "brain-dump": {'
         echo '      "type": "local",'
-        echo "      \"command\": [\"node\", \"$BRAIN_DUMP_DIR/mcp-server/index.js\"],"
+        echo "      \"command\": [\"npx\", \"tsx\", \"$BRAIN_DUMP_DIR/mcp-server/index.ts\"],"
         echo '      "enabled": true'
         echo '    }'
         echo '  }'
@@ -203,7 +203,7 @@ try {
   "mcp": {
     "brain-dump": {
       "type": "local",
-      "command": ["node", "$BRAIN_DUMP_DIR/mcp-server/index.js"],
+      "command": ["npx", "tsx", "$BRAIN_DUMP_DIR/mcp-server/index.ts"],
       "enabled": true
     }
   }

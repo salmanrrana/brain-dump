@@ -160,7 +160,7 @@ complete_ticket_work(ticketId, summary)  # Mark done + update PRD
 
 ```bash
 # Check MCP server
-node mcp-server/index.js
+npx tsx mcp-server/index.ts
 
 # Verify configuration
 cat .opencode/opencode.json

@@ -51,16 +51,24 @@ if [ -f "$CLAUDE_CONFIG" ]; then
     if grep -q '"brain-dump"' "$CLAUDE_CONFIG"; then
         echo -e "${GREEN}✓ Brain Dump MCP server already configured${NC}"
         # Also check if it points to dist or index.js and update if needed
-        if grep -q 'mcp-server/dist/index.js' "$CLAUDE_CONFIG"; then
-            echo -e "${YELLOW}Updating MCP server path (dist → direct)...${NC}"
-            if command -v sed >/dev/null 2>&1; then
-                sed -i.bak 's|mcp-server/dist/index\.js|mcp-server/index.js|g' "$CLAUDE_CONFIG"
-                echo -e "${GREEN}✓ MCP server path updated${NC}"
+        if grep -q 'mcp-server/dist/index.js\|mcp-server/index.js' "$CLAUDE_CONFIG"; then
+            echo -e "${YELLOW}Updating MCP server path to TypeScript (index.ts with tsx)...${NC}"
+            if command -v node >/dev/null 2>&1; then
+                node -e "
+const fs = require('fs');
+const config = JSON.parse(fs.readFileSync('$CLAUDE_CONFIG', 'utf8'));
+if (config.mcpServers && config.mcpServers['brain-dump']) {
+    config.mcpServers['brain-dump'].command = 'npx';
+    config.mcpServers['brain-dump'].args = ['tsx', '$BRAIN_DUMP_DIR/mcp-server/index.ts'];
+    fs.writeFileSync('$CLAUDE_CONFIG', JSON.stringify(config, null, 2));
+}
+"
+                echo -e "${GREEN}✓ MCP server path updated to TypeScript${NC}"
             fi
         fi
     else
         echo -e "${YELLOW}Brain Dump MCP server not found in ~/.claude.json${NC}"
-        echo -e "${YELLOW}Please use: claude mcp add brain-dump -- node $BRAIN_DUMP_DIR/mcp-server/index.js${NC}"
+        echo -e "${YELLOW}Please use: claude mcp add brain-dump -- npx tsx $BRAIN_DUMP_DIR/mcp-server/index.ts${NC}"
     fi
 else
     echo "Creating ~/.claude.json..."
@@ -68,8 +76,8 @@ else
 {
   "mcpServers": {
     "brain-dump": {
-      "command": "node",
-      "args": ["$BRAIN_DUMP_DIR/mcp-server/index.js"]
+      "command": "npx",
+      "args": ["tsx", "$BRAIN_DUMP_DIR/mcp-server/index.ts"]
     }
   }
 }

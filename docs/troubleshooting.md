@@ -9,17 +9,20 @@ Common issues and solutions for Brain Dump.
 **Symptoms**: Operations fail with "SQLITE_BUSY" or "database is locked" errors.
 
 **Causes**:
+
 - Multiple processes accessing the database simultaneously
 - Previous process didn't shut down cleanly
 
 **Solutions**:
 
 1. Check for running processes:
+
    ```bash
    cat ~/.local/state/brain-dump/brain-dump.lock
    ```
 
 2. If the lock is stale (process not running), remove it:
+
    ```bash
    rm ~/.local/state/brain-dump/brain-dump.lock
    ```
@@ -34,6 +37,7 @@ Common issues and solutions for Brain Dump.
 **Symptoms**: Operations fail with "database disk image is malformed" or integrity check fails.
 
 **Diagnosis**:
+
 ```bash
 # Quick check
 pnpm brain-dump check
@@ -45,11 +49,13 @@ pnpm brain-dump check --full
 **Recovery**:
 
 1. Restore from backup:
+
    ```bash
    pnpm brain-dump restore --latest
    ```
 
 2. If no backup available, try SQLite recovery:
+
    ```bash
    # Export what's readable
    sqlite3 ~/.local/share/brain-dump/brain-dump.db ".dump" > dump.sql
@@ -66,6 +72,7 @@ pnpm brain-dump check --full
 **Cause**: References to deleted projects, epics, or tickets.
 
 **Solution**:
+
 ```bash
 # Show violations
 sqlite3 ~/.local/share/brain-dump/brain-dump.db "PRAGMA foreign_key_check;"
@@ -84,6 +91,7 @@ sqlite3 ~/.local/share/brain-dump/brain-dump.db "
 **Cause**: WAL wasn't checkpointed, possibly due to unclean shutdown.
 
 **Solution**:
+
 ```bash
 # Force checkpoint
 sqlite3 ~/.local/share/brain-dump/brain-dump.db "PRAGMA wal_checkpoint(TRUNCATE);"
@@ -96,6 +104,7 @@ sqlite3 ~/.local/share/brain-dump/brain-dump.db "PRAGMA wal_checkpoint(TRUNCATE)
 **Symptoms**: Data not appearing after upgrade, still using `~/.brain-dump/`.
 
 **Diagnosis**:
+
 ```bash
 # Check if legacy data exists
 ls -la ~/.brain-dump/
@@ -110,6 +119,7 @@ cat ~/.local/state/brain-dump/migration.log
 **Solutions**:
 
 1. Remove migration marker and restart:
+
    ```bash
    rm ~/.brain-dump/.migrated
    # Restart Brain Dump
@@ -129,6 +139,7 @@ cat ~/.local/state/brain-dump/migration.log
 **Cause**: Database was created in both locations (possibly from different installations).
 
 **Solution**:
+
 1. Decide which database to keep
 2. Back up both:
    ```bash
@@ -146,26 +157,28 @@ cat ~/.local/state/brain-dump/migration.log
 **Solutions**:
 
 1. Verify configuration in `~/.claude.json`:
+
    ```json
    {
      "mcpServers": {
        "brain-dump": {
-         "command": "node",
-         "args": ["/path/to/brain-dump/mcp-server/index.js"]
+         "command": "npx",
+         "args": ["tsx", "/path/to/brain-dump/mcp-server/index.ts"]
        }
      }
    }
    ```
 
 2. Test the server directly:
+
    ```bash
-   node /path/to/brain-dump/mcp-server/index.js
+   npx tsx /path/to/brain-dump/mcp-server/index.ts
    # Should output JSON-RPC on stderr
    ```
 
-3. Check for Node.js errors:
+3. Check for errors:
    ```bash
-   node /path/to/brain-dump/mcp-server/index.js 2>&1 | head -20
+   npx tsx /path/to/brain-dump/mcp-server/index.ts 2>&1 | head -20
    ```
 
 ### MCP Server Database Errors
@@ -175,11 +188,13 @@ cat ~/.local/state/brain-dump/migration.log
 **Solutions**:
 
 1. Check MCP server logs:
+
    ```bash
    cat ~/.local/state/brain-dump/logs/mcp-server.log
    ```
 
 2. Verify database path:
+
    ```bash
    ls -la ~/.local/share/brain-dump/brain-dump.db
    ```
@@ -198,6 +213,7 @@ cat ~/.local/state/brain-dump/migration.log
 **Cause**: No ticket is being tracked.
 
 **Solution**:
+
 ```bash
 # Check current ticket
 pnpm brain-dump current
@@ -216,6 +232,7 @@ pnpm brain-dump clear
 **Solutions**:
 
 1. Check if database exists:
+
    ```bash
    ls -la ~/.local/share/brain-dump/brain-dump.db
    ```
@@ -237,6 +254,7 @@ pnpm brain-dump clear
 1. Check browser console for errors (F12 > Console)
 
 2. Verify Vite dev server is running:
+
    ```bash
    pnpm dev
    ```
@@ -253,6 +271,7 @@ pnpm brain-dump clear
 **Solutions**:
 
 1. Check attachments directory exists:
+
    ```bash
    ls -la ~/.local/share/brain-dump/attachments/
    ```
@@ -271,11 +290,13 @@ pnpm brain-dump clear
 **Solutions**:
 
 1. Check database size:
+
    ```bash
    du -h ~/.local/share/brain-dump/brain-dump.db
    ```
 
 2. Rebuild search index:
+
    ```bash
    sqlite3 ~/.local/share/brain-dump/brain-dump.db "
      INSERT INTO tickets_fts(tickets_fts) VALUES('rebuild');
@@ -304,12 +325,12 @@ pnpm brain-dump clear
 
 For debugging any issue, check these logs:
 
-| Log | Location | Content |
-|-----|----------|---------|
-| Main | `~/.local/state/brain-dump/logs/brain-dump.log` | All operations |
-| MCP | `~/.local/state/brain-dump/logs/mcp-server.log` | MCP tool calls |
-| Errors | `~/.local/state/brain-dump/logs/error.log` | Errors only |
-| Migration | `~/.local/state/brain-dump/migration.log` | Migration history |
+| Log       | Location                                        | Content           |
+| --------- | ----------------------------------------------- | ----------------- |
+| Main      | `~/.local/state/brain-dump/logs/brain-dump.log` | All operations    |
+| MCP       | `~/.local/state/brain-dump/logs/mcp-server.log` | MCP tool calls    |
+| Errors    | `~/.local/state/brain-dump/logs/error.log`      | Errors only       |
+| Migration | `~/.local/state/brain-dump/migration.log`       | Migration history |
 
 ### Enabling Debug Logs
 
