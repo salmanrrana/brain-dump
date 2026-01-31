@@ -91,7 +91,7 @@
     {
       "id": "b867032f-c001-446e-8aad-304936bb1497",
       "title": "Implement brain-dump-review-marker.ts plugin",
-      "passes": false,
+      "passes": true,
       "overview": "Create an OpenCode plugin that automatically creates a `.claude/.review-completed` marker file after the AI review phase completes successfully. This marker is checked by the review guard plugin to allow/block git push operations.\n- After `check_review_complete` returns success, AI should be able to push code\n- The review guard plugin blocks push if code changes exist but review isn't complete\n- This plugin automates marker creation so AI doesn't need to manually create the file\n- Marker file contains timestamp for staleness checking (30-minute freshness in guard)",
       "types": [],
       "designDecisions": [],
