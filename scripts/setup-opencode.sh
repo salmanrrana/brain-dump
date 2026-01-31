@@ -90,6 +90,20 @@ if [ -f "$OPENCODE_JSON" ]; then
     echo "Adding brain-dump server to existing config..."
     # Try to merge using node
     if command -v node >/dev/null 2>&1; then
+      # Helper function to print manual setup instructions
+      print_manual_setup() {
+        echo -e "${YELLOW}Please manually add the brain-dump server to your opencode.json:${NC}"
+        echo ""
+        echo '  "mcp": {'
+        echo '    "brain-dump": {'
+        echo '      "type": "local",'
+        echo "      \"command\": [\"npx\", \"tsx\", \"$BRAIN_DUMP_DIR/mcp-server/index.ts\"],"
+        echo '      "enabled": true'
+        echo '    }'
+        echo '  }'
+      }
+
+      NODE_ERROR_FILE=$(mktemp)
       if OPENCODE_JSON="$OPENCODE_JSON" BRAIN_DUMP_DIR="$BRAIN_DUMP_DIR" node -e '
 const fs = require("fs");
 const configFile = process.env.OPENCODE_JSON;
@@ -108,32 +122,21 @@ try {
     console.error("Error: " + err.message);
     process.exit(1);
 }
-' 2>/dev/null; then
+' 2>"$NODE_ERROR_FILE"; then
         echo -e "${GREEN}✓ Added brain-dump server to opencode.json${NC}"
         MCP_CONFIGURED=1
+        rm -f "$NODE_ERROR_FILE"
       else
         echo -e "${RED}✗ Failed to update opencode.json${NC}"
-        echo -e "${YELLOW}Please manually add the brain-dump server to your opencode.json:${NC}"
-        echo ""
-        echo '  "mcp": {'
-        echo '    "brain-dump": {'
-        echo '      "type": "local",'
-        echo "      \"command\": [\"npx\", \"tsx\", \"$BRAIN_DUMP_DIR/mcp-server/index.ts\"],"
-        echo '      "enabled": true'
-        echo '    }'
-        echo '  }'
+        if [ -s "$NODE_ERROR_FILE" ]; then
+          echo -e "${YELLOW}Error details: $(cat "$NODE_ERROR_FILE")${NC}"
+        fi
+        rm -f "$NODE_ERROR_FILE"
+        print_manual_setup
       fi
     else
       echo -e "${RED}✗ Node.js is required but not found${NC}"
-      echo -e "${YELLOW}Please manually add the brain-dump server to your opencode.json:${NC}"
-      echo ""
-      echo '  "mcp": {'
-      echo '    "brain-dump": {'
-      echo '      "type": "local",'
-      echo "      \"command\": [\"npx\", \"tsx\", \"$BRAIN_DUMP_DIR/mcp-server/index.ts\"],"
-      echo '      "enabled": true'
-      echo '    }'
-      echo '  }'
+      print_manual_setup
     fi
   fi
 else
@@ -187,9 +190,11 @@ PLUGINS=(
 for plugin in "${PLUGINS[@]}"; do
   if [ -f "$BRAIN_DUMP_DIR/.opencode/plugins/$plugin" ]; then
     if cp "$BRAIN_DUMP_DIR/.opencode/plugins/$plugin" "$OPENCODE_PLUGINS/"; then
-      if chmod +x "$OPENCODE_PLUGINS/$plugin" 2>/dev/null; then
+      if chmod +x "$OPENCODE_PLUGINS/$plugin" && [ -x "$OPENCODE_PLUGINS/$plugin" ]; then
         echo -e "${GREEN}✓ $plugin${NC}"
         PLUGINS_COPIED=$((PLUGINS_COPIED + 1))
+      else
+        echo -e "${RED}✗ Failed to set executable bit on $plugin${NC}"
       fi
     else
       echo -e "${RED}✗ Failed to copy $plugin${NC}"
@@ -219,9 +224,12 @@ if [ -f "$BRAIN_DUMP_DIR/.opencode/AGENTS.md" ]; then
     echo -e "${GREEN}✓ AGENTS.md (workflow documentation)${NC}"
   else
     echo -e "${RED}✗ Failed to copy AGENTS.md${NC}"
+    exit 1
   fi
 else
-  echo -e "${YELLOW}⚠ AGENTS.md not found at $BRAIN_DUMP_DIR/.opencode/AGENTS.md${NC}"
+  echo -e "${RED}✗ AGENTS.md not found at $BRAIN_DUMP_DIR/.opencode/AGENTS.md${NC}"
+  echo -e "${YELLOW}AGENTS.md is required for OpenCode workflow guidance${NC}"
+  exit 1
 fi
 
 echo ""
