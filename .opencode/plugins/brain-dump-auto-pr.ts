@@ -21,7 +21,7 @@ import { execSync } from "child_process";
 
 /**
  * Safely execute a shell command and return output
- * Returns empty string on error (graceful failure)
+ * Returns empty string on error and logs the error for visibility
  */
 function safeExec(command: string, cwd?: string): string {
   try {
@@ -32,7 +32,11 @@ function safeExec(command: string, cwd?: string): string {
     });
     return result.trim();
   } catch (error) {
-    // Command failed - return empty string
+    // Log error for debugging without breaking workflow
+    console.error(`[Brain Dump] Command failed: ${command}`);
+    if (error instanceof Error) {
+      console.error(`[Brain Dump] Error: ${error.message}`);
+    }
     return "";
   }
 }
@@ -69,6 +73,15 @@ function extractTicketTitle(output: string): string {
  */
 function getShortId(ticketId: string): string {
   return ticketId.substring(0, 8);
+}
+
+/**
+ * Escapes a string for safe use in shell commands
+ * Replaces special characters that could be interpreted by the shell
+ */
+function escapeShellArg(arg: string): string {
+  // Use single quotes and escape any single quotes within the string
+  return `'${arg.replace(/'/g, "'\\''")}'`;
 }
 
 /**
@@ -118,7 +131,7 @@ export default async (context: any) => {
 
       // Check if PR already exists for this branch
       const existingPrNumber = safeExec(
-        `git rev-parse --abbrev-ref HEAD | xargs -I {} gh pr list --head {} --json number --jq '.[0].number // ""'`,
+        `gh pr list --head ${branchName} --json number --jq '.[0].number // ""'`,
         projectPath
       );
       if (existingPrNumber) {
@@ -126,9 +139,10 @@ export default async (context: any) => {
         return;
       }
 
-      // Create empty WIP commit
+      // Create empty WIP commit (escaped for shell safety)
+      const commitMessage = `feat(${shortId}): WIP - ${ticketTitle}\n\nThis is an auto-generated commit to enable PR creation.\nActual implementation follows in subsequent commits.\n\nTicket: ${ticketId}`;
       const commitResult = safeExec(
-        `git commit --allow-empty -m "feat(${shortId}): WIP - ${ticketTitle}\n\nThis is an auto-generated commit to enable PR creation.\nActual implementation follows in subsequent commits.\n\nTicket: ${ticketId}"`,
+        `git commit --allow-empty -m ${escapeShellArg(commitMessage)}`,
         projectPath
       );
 
@@ -144,9 +158,11 @@ export default async (context: any) => {
         return;
       }
 
-      // Create draft PR using gh pr create
+      // Create draft PR using gh pr create (escaped for shell safety)
+      const prTitle = `feat(${shortId}): ${ticketTitle}`;
+      const prBody = `## Summary\nWork in progress for ticket: ${ticketId}\n\n**${ticketTitle}**\n\n---\n_This PR was auto-created when work started on the ticket._\n_Draft status will be removed when the ticket is complete._\n\nGenerated with [OpenCode](https://opencode.ai)`;
       const prResult = safeExec(
-        `gh pr create --draft --title "feat(${shortId}): ${ticketTitle}" --body "## Summary\\nWork in progress for ticket: ${ticketId}\\n\\n**${ticketTitle}**\\n\\n---\\n_This PR was auto-created when work started on the ticket._\\n_Draft status will be removed when the ticket is complete._\\n\\nGenerated with [OpenCode](https://opencode.ai)"`,
+        `gh pr create --draft --title ${escapeShellArg(prTitle)} --body ${escapeShellArg(prBody)}`,
         projectPath
       );
 

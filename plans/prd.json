@@ -36,7 +36,7 @@
     {
       "id": "ec3ce586-d79b-4f9a-8179-e12f73f3f00e",
       "title": "Implement brain-dump-auto-pr.ts plugin",
-      "passes": false,
+      "passes": true,
       "overview": "Create an OpenCode plugin that automatically creates a draft GitHub PR when `start_ticket_work` completes successfully. This ensures PRs are created early and linked to tickets immediately, following the same workflow as Claude Code's `.claude/hooks/create-pr-on-ticket-start.sh`\n- `start_ticket_work` creates a git branch (e.g., `feature/abc123-ticket-slug`)\n- The auto-PR workflow runs immediately after branch creation\n- Draft PRs are auto-linked to tickets and update as new commits are pushed\n- This plugin communicates via `console.log()` (visible in OpenCode chat)",
       "types": [],
       "designDecisions": [],
