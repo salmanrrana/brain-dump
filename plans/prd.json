@@ -62,7 +62,7 @@
     {
       "id": "64670dc9-cee5-4079-8e40-5bbf6d271c78",
       "title": "Implement brain-dump-commit-tracking.ts plugin",
-      "passes": false,
+      "passes": true,
       "overview": "Create an OpenCode plugin that outputs MCP commands to link commits to tickets after each git commit. This maintains an audit trail and helps the AI remember to link its work. Replicates `.claude/hooks/link-commit-to-ticket.sh`\n- After each git commit during Ralph session, suggest `link_commit_to_ticket()` MCP call\n- If a PR exists on the branch, also suggest `link_pr_to_ticket()` \n- Output is visible in OpenCode chat for AI to copy and use\n- This plugin only triggers when in Ralph mode (active session)",
       "types": [],
       "designDecisions": [],

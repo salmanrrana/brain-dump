@@ -24,7 +24,7 @@ import { join } from "path";
 
 /**
  * Safely execute a shell command and return output
- * Returns empty string on error (graceful failure)
+ * Returns empty string on error and logs for debugging
  */
 function safeExec(command: string, cwd?: string): string {
   try {
@@ -34,9 +34,23 @@ function safeExec(command: string, cwd?: string): string {
       encoding: "utf-8",
     });
     return result.trim();
-  } catch {
+  } catch (error) {
+    // Log error for debugging without breaking workflow
+    console.error(`[Brain Dump] Command failed: ${command}`);
+    if (error instanceof Error) {
+      console.error(`[Brain Dump] Error: ${error.message}`);
+    }
     return "";
   }
+}
+
+/**
+ * Escapes a string for safe use in shell commands
+ * Replaces special characters that could be interpreted by the shell
+ */
+function escapeShellArg(arg: string): string {
+  // Use single quotes and escape any single quotes within the string
+  return `'${arg.replace(/'/g, "'\\''")}'`;
 }
 
 /**
@@ -129,8 +143,11 @@ export default async (context: any) => {
       // Get current branch
       const branch = safeExec("git branch --show-current", projectPath);
 
-      // Get commit message for display
-      const commitMessage = safeExec(`git log -1 --pretty=format:%s ${commitHash}`, projectPath);
+      // Get commit message for display (escaped for shell safety)
+      const commitMessage = safeExec(
+        `git log -1 --pretty=format:%s ${escapeShellArg(commitHash)}`,
+        projectPath
+      );
 
       // Output the link commit command
       console.log("");
@@ -149,10 +166,10 @@ export default async (context: any) => {
       );
       console.log("║                                                              ║");
 
-      // Check if PR exists for this branch
+      // Check if PR exists for this branch (escaped for shell safety)
       if (branch) {
         const prNumber = safeExec(
-          `gh pr list --head ${branch} --json number --jq '.[0].number // ""'`,
+          `gh pr list --head ${escapeShellArg(branch)} --json number --jq '.[0].number // ""'`,
           projectPath
         );
 
