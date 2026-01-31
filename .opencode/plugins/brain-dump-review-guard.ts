@@ -34,7 +34,11 @@ function safeExec(command: string, cwd?: string): string {
       encoding: "utf-8",
     });
     return result.trim();
-  } catch {
+  } catch (error) {
+    console.error(`[Brain Dump] Command failed: ${command}`);
+    if (error instanceof Error) {
+      console.error(`[Brain Dump] Error: ${error.message}`);
+    }
     return "";
   }
 }
