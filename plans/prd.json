@@ -11,7 +11,7 @@
     {
       "id": "984dcf9b-697f-4524-8c9a-c9fe4fec482c",
       "title": "Implement brain-dump-state-enforcement.ts plugin",
-      "passes": false,
+      "passes": true,
       "overview": "Create an OpenCode plugin that enforces the Universal Quality Workflow (UQW) state machine by blocking Write/Edit operations unless the Ralph session is in a valid code-writing state. This plugin replicates the Claude Code hook: `.claude/hooks/enforce-state-before-write.sh`\n- The Ralph state machine has specific states: `idle`, `analyzing`, `implementing`, `testing`, `committing`, `reviewing`, `done`\n- Only three states allow code writing: `implementing`, `testing`, `committing`\n- The state is tracked in `.claude/ralph-state.json` (shared across all environments)\n- When not in Ralph mode, the plugin should allow all operations (fail open)",
       "types": [],
       "designDecisions": [],

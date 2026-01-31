@@ -1,8 +1,0 @@
-{
-  "sessionId": "23872fb4-84b2-49fe-ae02-de1f6bd53796",
-  "ticketId": "984dcf9b-697f-4524-8c9a-c9fe4fec482c",
-  "currentState": "committing",
-  "stateHistory": ["idle", "analyzing", "implementing", "testing", "committing"],
-  "startedAt": "2026-01-31T18:59:32.858Z",
-  "updatedAt": "2026-01-31T19:01:15.433Z"
-}
