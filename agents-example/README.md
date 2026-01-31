@@ -12,6 +12,7 @@ Run the setup script to configure everything globally:
 ```
 
 This will:
+
 1. Configure the Brain Dump MCP server globally
 2. Install agents (Ralph, Ticket Worker, Planner) to your VS Code profile
 3. Install skills (ticket management, Ralph workflow)
@@ -32,8 +33,8 @@ Add to `~/.vscode/mcp.json`:
   "servers": {
     "brain-dump": {
       "type": "stdio",
-      "command": "node",
-      "args": ["/path/to/brain-dump/mcp-server/index.js"]
+      "command": "npx",
+      "args": ["tsx", "/path/to/brain-dump/mcp-server/index.ts"]
     }
   }
 }
@@ -43,11 +44,11 @@ Add to `~/.vscode/mcp.json`:
 
 Copy the contents of `.github/` to your VS Code user profile:
 
-| OS | Path |
-|----|------|
-| Linux | `~/.config/Code/User/` |
-| macOS | `~/Library/Application Support/Code/User/` |
-| Windows | `%APPDATA%\Code\User\` |
+| OS      | Path                                       |
+| ------- | ------------------------------------------ |
+| Linux   | `~/.config/Code/User/`                     |
+| macOS   | `~/Library/Application Support/Code/User/` |
+| Windows | `%APPDATA%\Code\User\`                     |
 
 ```bash
 # Linux example
@@ -60,27 +61,27 @@ cp -r .github/prompts ~/.config/Code/User/
 
 ### Agents (`.github/agents/`)
 
-| Agent | Description | Best For |
-|-------|-------------|----------|
-| **Inception** | New project kickstart | Starting projects from scratch with interview |
-| **Planner** | Implementation planner | Breaking down features into tickets |
-| **Ralph** | Autonomous backlog processor | Working through multiple tickets hands-free |
-| **Ticket Worker** | Single ticket implementer | Interactive development on one ticket |
+| Agent             | Description                  | Best For                                      |
+| ----------------- | ---------------------------- | --------------------------------------------- |
+| **Inception**     | New project kickstart        | Starting projects from scratch with interview |
+| **Planner**       | Implementation planner       | Breaking down features into tickets           |
+| **Ralph**         | Autonomous backlog processor | Working through multiple tickets hands-free   |
+| **Ticket Worker** | Single ticket implementer    | Interactive development on one ticket         |
 
 ### Skills (`.github/skills/`)
 
-| Skill | Description |
-|-------|-------------|
+| Skill                  | Description                                        |
+| ---------------------- | -------------------------------------------------- |
 | **brain-dump-tickets** | Ticket management workflows and MCP tool reference |
-| **ralph-workflow** | Autonomous processing workflow documentation |
+| **ralph-workflow**     | Autonomous processing workflow documentation       |
 
 ### Prompts (`.github/prompts/`)
 
-| Prompt | Command | Description |
-|--------|---------|-------------|
-| Start Ticket | `/start-ticket` | Begin work on a ticket (creates branch) |
-| Complete Ticket | `/complete-ticket` | Finish work and add summary |
-| Create Tickets | `/create-tickets` | Create tickets from requirements |
+| Prompt          | Command            | Description                             |
+| --------------- | ------------------ | --------------------------------------- |
+| Start Ticket    | `/start-ticket`    | Begin work on a ticket (creates branch) |
+| Complete Ticket | `/complete-ticket` | Finish work and add summary             |
+| Create Tickets  | `/create-tickets`  | Create tickets from requirements        |
 
 ## Using Background Agents
 
@@ -118,6 +119,7 @@ Background agents run in isolation using git worktrees, so your main workspace s
 ```
 
 Brain Dump is the single source of truth. All your projects get access to:
+
 - Ralph and other agents
 - Ticket management skills
 - Quick prompts for common tasks
@@ -125,12 +127,12 @@ Brain Dump is the single source of truth. All your projects get access to:
 
 ## Comparison: VS Code vs Claude Code
 
-| Feature | VS Code (Copilot) | Claude Code (Terminal) |
-|---------|-------------------|------------------------|
-| Autonomous execution | Via Background Agents | Native (bash loop) |
-| Git isolation | Worktrees (automatic) | Branches (manual) |
-| Model | Copilot models | Claude models |
-| MCP tools | Yes | Yes |
-| Best for | Interactive + Background | Fully autonomous |
+| Feature              | VS Code (Copilot)        | Claude Code (Terminal) |
+| -------------------- | ------------------------ | ---------------------- |
+| Autonomous execution | Via Background Agents    | Native (bash loop)     |
+| Git isolation        | Worktrees (automatic)    | Branches (manual)      |
+| Model                | Copilot models           | Claude models          |
+| MCP tools            | Yes                      | Yes                    |
+| Best for             | Interactive + Background | Fully autonomous       |
 
 Both approaches work with Brain Dump. Choose based on your preference.

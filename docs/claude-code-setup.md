@@ -21,8 +21,8 @@ Add to your `~/.claude.json`:
 {
   "mcpServers": {
     "brain-dump": {
-      "command": "node",
-      "args": ["/path/to/brain-dump/mcp-server/index.js"]
+      "command": "npx",
+      "args": ["tsx", "/path/to/brain-dump/mcp-server/index.ts"]
     }
   }
 }

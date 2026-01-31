@@ -4,7 +4,7 @@
   "mcp": {
     "brain-dump": {
       "type": "local",
-      "command": ["node", "mcp-server/index.js"],
+      "command": ["npx", "tsx", "mcp-server/index.ts"],
       "enabled": true,
       "environment": {
         "BRAIN_DUMP_PATH": ".",

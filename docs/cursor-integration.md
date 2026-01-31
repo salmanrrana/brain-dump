@@ -83,8 +83,8 @@ The MCP server is configured in `~/.cursor/mcp.json`:
 ```json
 {
   "brain-dump": {
-    "command": "node",
-    "args": ["/path/to/brain-dump/mcp-server/index.js"],
+    "command": "npx",
+    "args": ["tsx", "/path/to/brain-dump/mcp-server/index.ts"],
     "env": {}
   }
 }
@@ -145,7 +145,7 @@ Run the code review agents and submit any findings
 ### MCP Server Not Available
 
 1. Verify the MCP config path is correct in `~/.cursor/mcp.json`
-2. Check that the MCP server runs: `node /path/to/brain-dump/mcp-server/index.js`
+2. Check that the MCP server runs: `npx tsx /path/to/brain-dump/mcp-server/index.ts`
 3. Restart Cursor to reload MCP servers
 
 ### Telemetry Not Capturing

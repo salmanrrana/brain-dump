@@ -1,21 +1,11 @@
 import { describe, it, expect } from "vitest";
-
-// Types for the JS module
-interface GitUtils {
-  runGitCommand: (
-    command: string,
-    cwd: string
-  ) => { success: boolean; output: string; error?: string };
-  slugify: (text: string) => string;
-  shortId: (uuid: string) => string;
-  generateBranchName: (ticketId: string, ticketTitle: string) => string;
-  generateEpicBranchName: (epicId: string, epicTitle: string) => string;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const gitUtils = require("./git-utils.js") as GitUtils;
-
-const { runGitCommand, slugify, shortId, generateBranchName, generateEpicBranchName } = gitUtils;
+import {
+  runGitCommand,
+  slugify,
+  shortId,
+  generateBranchName,
+  generateEpicBranchName,
+} from "./git-utils.js";
 
 describe("git-utils module", () => {
   describe("slugify", () => {

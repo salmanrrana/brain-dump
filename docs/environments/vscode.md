@@ -237,7 +237,7 @@ Should have `brain-dump` server configured.
 **Check 2:** Start the MCP server manually (if needed)
 
 ```bash
-node /path/to/brain-dump/mcp-server/index.js
+npx tsx /path/to/brain-dump/mcp-server/index.ts
 ```
 
 **Check 3:** Check VS Code MCP extension is installed

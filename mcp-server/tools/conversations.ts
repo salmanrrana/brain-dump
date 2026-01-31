@@ -8,34 +8,126 @@ import { randomUUID, createHmac } from "crypto";
 import { hostname } from "os";
 import { log } from "../lib/logging.js";
 import { containsSecrets } from "../lib/secrets.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type Database from "better-sqlite3";
 
-const DATA_CLASSIFICATIONS = ["public", "internal", "confidential", "restricted"];
-const MESSAGE_ROLES = ["user", "assistant", "system", "tool"];
+// ============================================
+// Constants
+// ============================================
+
+const DATA_CLASSIFICATIONS = ["public", "internal", "confidential", "restricted"] as const;
+const MESSAGE_ROLES = ["user", "assistant", "system", "tool"] as const;
+
+// ============================================
+// Type Definitions
+// ============================================
+
+/** Minimal project row for validation */
+interface ProjectBasicRow {
+  id: string;
+  name: string;
+}
+
+/** Minimal ticket row for validation */
+interface TicketBasicRow {
+  id: string;
+  title: string;
+}
+
+/** DB row for a conversation session */
+interface DbConversationSessionRow {
+  id: string;
+  project_id: string | null;
+  ticket_id: string | null;
+  user_id: string | null;
+  environment: string;
+  session_metadata: string | null;
+  data_classification: string;
+  legal_hold: number;
+  started_at: string;
+  ended_at: string | null;
+  created_at: string;
+}
+
+/** DB row for conversation session with JOINed names */
+interface DbConversationSessionJoinedRow extends DbConversationSessionRow {
+  project_name: string | null;
+  ticket_title: string | null;
+  message_count: number;
+}
+
+/** DB row for a conversation message */
+interface DbConversationMessageRow {
+  id: string;
+  session_id: string;
+  role: string;
+  content: string;
+  content_hash: string;
+  tool_calls: string | null;
+  token_count: number | null;
+  model_id: string | null;
+  sequence_number: number;
+  contains_potential_secrets: number;
+  created_at: string;
+}
+
+/** Max sequence number query result */
+interface MaxSeqRow {
+  max_seq: number | null;
+}
+
+/** Count query result */
+interface CountRow {
+  count: number;
+}
+
+/** Settings row for retention days */
+interface SettingsRetentionRow {
+  conversation_retention_days: number;
+}
+
+/** Session row for archive listing */
+interface ArchiveSessionRow {
+  id: string;
+  project_id: string | null;
+  ticket_id: string | null;
+  environment: string;
+  data_classification: string;
+  started_at: string;
+  ended_at: string | null;
+  project_name: string | null;
+  message_count: number;
+}
+
+// ============================================
+// Helper Functions
+// ============================================
 
 /**
  * Compute HMAC-SHA256 hash for tamper detection.
  * Uses a derived key from machine hostname + session ID for simplicity.
  * In production, this should use a proper secret management system.
- *
- * @param {string} content - Content to hash
- * @param {string} sessionId - Session ID for key derivation
- * @returns {string} Hex-encoded HMAC-SHA256 hash
  */
-function computeContentHash(content, sessionId) {
-  // Derive a simple key from hostname + session ID
-  // Note: In production, use proper key management
+function computeContentHash(content: string, sessionId: string): string {
   const key = `brain-dump:${hostname()}:${sessionId}`;
   return createHmac("sha256", key).update(content).digest("hex");
 }
 
+// ============================================
+// Tool Registration
+// ============================================
+
 /**
  * Register conversation logging tools with the MCP server.
- * @param {import("@modelcontextprotocol/sdk/server/mcp.js").McpServer} server
- * @param {import("better-sqlite3").Database} db
- * @param {() => string} detectEnvironment - Function to detect current environment
  */
-export function registerConversationTools(server, db, detectEnvironment) {
-  // Start a new conversation session
+export function registerConversationTools(
+  server: McpServer,
+  db: Database.Database,
+  detectEnvironment: () => string
+): void {
+  // ============================================
+  // start_conversation_session
+  // ============================================
   server.tool(
     "start_conversation_session",
     `Start a new conversation session for compliance logging.
@@ -58,16 +150,41 @@ Returns the created session with its ID for use in subsequent logging calls.`,
       projectId: z.string().optional().describe("Optional project ID to link the session to"),
       ticketId: z.string().optional().describe("Optional ticket ID to link the session to"),
       userId: z.string().optional().describe("Optional user identifier for multi-user tracking"),
-      metadata: z.record(z.unknown()).optional().describe("Optional JSON object with additional session context"),
-      dataClassification: z.enum(DATA_CLASSIFICATIONS).optional().describe("Data sensitivity level (default: internal)"),
+      metadata: z
+        .record(z.unknown())
+        .optional()
+        .describe("Optional JSON object with additional session context"),
+      dataClassification: z
+        .enum(DATA_CLASSIFICATIONS)
+        .optional()
+        .describe("Data sensitivity level (default: internal)"),
     },
-    async ({ projectId, ticketId, userId, metadata, dataClassification = "internal" }) => {
+    async ({
+      projectId,
+      ticketId,
+      userId,
+      metadata,
+      dataClassification = "internal",
+    }: {
+      projectId?: string | undefined;
+      ticketId?: string | undefined;
+      userId?: string | undefined;
+      metadata?: Record<string, unknown> | undefined;
+      dataClassification?: (typeof DATA_CLASSIFICATIONS)[number] | undefined;
+    }) => {
       // Validate projectId if provided
       if (projectId) {
-        const project = db.prepare("SELECT id, name FROM projects WHERE id = ?").get(projectId);
+        const project = db.prepare("SELECT id, name FROM projects WHERE id = ?").get(projectId) as
+          | ProjectBasicRow
+          | undefined;
         if (!project) {
           return {
-            content: [{ type: "text", text: `Project not found: ${projectId}. Use list_projects to see available projects.` }],
+            content: [
+              {
+                type: "text" as const,
+                text: `Project not found: ${projectId}. Use list_projects to see available projects.`,
+              },
+            ],
             isError: true,
           };
         }
@@ -75,10 +192,17 @@ Returns the created session with its ID for use in subsequent logging calls.`,
 
       // Validate ticketId if provided
       if (ticketId) {
-        const ticket = db.prepare("SELECT id, title FROM tickets WHERE id = ?").get(ticketId);
+        const ticket = db.prepare("SELECT id, title FROM tickets WHERE id = ?").get(ticketId) as
+          | TicketBasicRow
+          | undefined;
         if (!ticket) {
           return {
-            content: [{ type: "text", text: `Ticket not found: ${ticketId}. Use list_tickets to see available tickets.` }],
+            content: [
+              {
+                type: "text" as const,
+                text: `Ticket not found: ${ticketId}. Use list_tickets to see available tickets.`,
+              },
+            ],
             isError: true,
           };
         }
@@ -90,19 +214,36 @@ Returns the created session with its ID for use in subsequent logging calls.`,
       const metadataJson = metadata ? JSON.stringify(metadata) : null;
 
       try {
-        db.prepare(`
+        db.prepare(
+          `
           INSERT INTO conversation_sessions
           (id, project_id, ticket_id, user_id, environment, session_metadata, data_classification, started_at, created_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(id, projectId || null, ticketId || null, userId || null, environment, metadataJson, dataClassification, now, now);
+        `
+        ).run(
+          id,
+          projectId || null,
+          ticketId || null,
+          userId || null,
+          environment,
+          metadataJson,
+          dataClassification,
+          now,
+          now
+        );
 
-        const session = db.prepare("SELECT * FROM conversation_sessions WHERE id = ?").get(id);
-        log.info(`Started conversation session ${id} (env: ${environment}, project: ${projectId || "none"}, ticket: ${ticketId || "none"})`);
+        const session = db
+          .prepare("SELECT * FROM conversation_sessions WHERE id = ?")
+          .get(id) as DbConversationSessionRow;
+        log.info(
+          `Started conversation session ${id} (env: ${environment}, project: ${projectId || "none"}, ticket: ${ticketId || "none"})`
+        );
 
         return {
-          content: [{
-            type: "text",
-            text: `## Conversation Session Started
+          content: [
+            {
+              type: "text" as const,
+              text: `## Conversation Session Started
 
 **Session ID:** ${id}
 **Environment:** ${environment}
@@ -117,19 +258,25 @@ Use this session ID with \`log_conversation_message\` to log messages.
 \`\`\`json
 ${JSON.stringify(session, null, 2)}
 \`\`\``,
-          }],
+            },
+          ],
         };
-      } catch (error) {
-        log.error("Failed to create conversation session", error);
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        log.error(`Failed to create conversation session: ${errorMsg}`);
         return {
-          content: [{ type: "text", text: `Failed to create conversation session: ${error.message}` }],
+          content: [
+            { type: "text" as const, text: `Failed to create conversation session: ${errorMsg}` },
+          ],
           isError: true,
         };
       }
     }
   );
 
-  // Log a conversation message
+  // ============================================
+  // log_conversation_message
+  // ============================================
   server.tool(
     "log_conversation_message",
     `Log a message to an existing conversation session.
@@ -163,30 +310,69 @@ Returns the created message with its ID and content hash for verification.`,
         )
         .optional()
         .describe("Optional array of tool calls made in this message"),
-      tokenCount: z.number().int().positive().optional().describe("Optional token count for this message"),
+      tokenCount: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe("Optional token count for this message"),
       modelId: z.string().optional().describe("Optional model identifier"),
     },
-    async ({ sessionId, role, content, toolCalls, tokenCount, modelId }) => {
+    async ({
+      sessionId,
+      role,
+      content,
+      toolCalls,
+      tokenCount,
+      modelId,
+    }: {
+      sessionId: string;
+      role: (typeof MESSAGE_ROLES)[number];
+      content: string;
+      toolCalls?:
+        | Array<{
+            name: string;
+            parameters?: Record<string, unknown> | undefined;
+            result?: unknown;
+          }>
+        | undefined;
+      tokenCount?: number | undefined;
+      modelId?: string | undefined;
+    }) => {
       // Validate session exists and is not ended
-      const session = db.prepare("SELECT * FROM conversation_sessions WHERE id = ?").get(sessionId);
+      const session = db
+        .prepare("SELECT * FROM conversation_sessions WHERE id = ?")
+        .get(sessionId) as DbConversationSessionRow | undefined;
       if (!session) {
         return {
-          content: [{ type: "text", text: `Session not found: ${sessionId}. Use start_conversation_session to create one.` }],
+          content: [
+            {
+              type: "text" as const,
+              text: `Session not found: ${sessionId}. Use start_conversation_session to create one.`,
+            },
+          ],
           isError: true,
         };
       }
 
       if (session.ended_at) {
         return {
-          content: [{ type: "text", text: `Session ${sessionId} has already ended. Start a new session to continue logging.` }],
+          content: [
+            {
+              type: "text" as const,
+              text: `Session ${sessionId} has already ended. Start a new session to continue logging.`,
+            },
+          ],
           isError: true,
         };
       }
 
       // Get next sequence number for this session
       const lastMessage = db
-        .prepare("SELECT MAX(sequence_number) as max_seq FROM conversation_messages WHERE session_id = ?")
-        .get(sessionId);
+        .prepare(
+          "SELECT MAX(sequence_number) as max_seq FROM conversation_messages WHERE session_id = ?"
+        )
+        .get(sessionId) as MaxSeqRow | undefined;
       const sequenceNumber = (lastMessage?.max_seq || 0) + 1;
 
       // Compute content hash for tamper detection
@@ -200,11 +386,13 @@ Returns the created message with its ID and content hash for verification.`,
       const toolCallsJson = toolCalls ? JSON.stringify(toolCalls) : null;
 
       try {
-        db.prepare(`
+        db.prepare(
+          `
           INSERT INTO conversation_messages
           (id, session_id, role, content, content_hash, tool_calls, token_count, model_id, sequence_number, contains_potential_secrets, created_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
+        `
+        ).run(
           id,
           sessionId,
           role,
@@ -218,12 +406,15 @@ Returns the created message with its ID and content hash for verification.`,
           now
         );
 
-        log.info(`Logged ${role} message to session ${sessionId} (seq: ${sequenceNumber}${hasPotentialSecrets ? ", SECRETS DETECTED" : ""})`);
+        log.info(
+          `Logged ${role} message to session ${sessionId} (seq: ${sequenceNumber}${hasPotentialSecrets ? ", SECRETS DETECTED" : ""})`
+        );
 
         return {
-          content: [{
-            type: "text",
-            text: `## Message Logged
+          content: [
+            {
+              type: "text" as const,
+              text: `## Message Logged
 
 **Message ID:** ${id}
 **Session:** ${sessionId}
@@ -234,19 +425,23 @@ ${hasPotentialSecrets ? "**⚠️ Potential Secrets Detected:** Yes" : ""}
 ${tokenCount ? `**Tokens:** ${tokenCount}` : ""}
 ${modelId ? `**Model:** ${modelId}` : ""}
 **Logged:** ${now}`,
-          }],
+            },
+          ],
         };
-      } catch (error) {
-        log.error("Failed to log conversation message", error);
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        log.error(`Failed to log conversation message: ${errorMsg}`);
         return {
-          content: [{ type: "text", text: `Failed to log message: ${error.message}` }],
+          content: [{ type: "text" as const, text: `Failed to log message: ${errorMsg}` }],
           isError: true,
         };
       }
     }
   );
 
-  // End a conversation session
+  // ============================================
+  // end_conversation_session
+  // ============================================
   server.tool(
     "end_conversation_session",
     `End a conversation session and prevent further message logging.
@@ -264,52 +459,69 @@ If the session was already ended, returns current state without error.`,
     {
       sessionId: z.string().describe("Session ID to end"),
     },
-    async ({ sessionId }) => {
+    async ({ sessionId }: { sessionId: string }) => {
       // Validate session exists
-      const session = db.prepare("SELECT * FROM conversation_sessions WHERE id = ?").get(sessionId);
+      const session = db
+        .prepare("SELECT * FROM conversation_sessions WHERE id = ?")
+        .get(sessionId) as DbConversationSessionRow | undefined;
       if (!session) {
         return {
-          content: [{ type: "text", text: `Session not found: ${sessionId}. Use list_projects to see available sessions.` }],
+          content: [
+            {
+              type: "text" as const,
+              text: `Session not found: ${sessionId}. Use list_projects to see available sessions.`,
+            },
+          ],
           isError: true,
         };
       }
 
       // If already ended, return current state without error
       if (session.ended_at) {
-        const messageCount = db
+        const countRow = db
           .prepare("SELECT COUNT(*) as count FROM conversation_messages WHERE session_id = ?")
-          .get(sessionId)?.count || 0;
+          .get(sessionId) as CountRow | undefined;
+        const messageCount = countRow?.count || 0;
 
         return {
-          content: [{
-            type: "text",
-            text: `## Session Already Ended
+          content: [
+            {
+              type: "text" as const,
+              text: `## Session Already Ended
 
 **Session ID:** ${sessionId}
 **Ended:** ${session.ended_at}
 **Total Messages:** ${messageCount}
 
 This session was already ended. No changes made.`,
-          }],
+            },
+          ],
         };
       }
 
       const now = new Date().toISOString();
 
       try {
-        db.prepare("UPDATE conversation_sessions SET ended_at = ? WHERE id = ?").run(now, sessionId);
+        db.prepare("UPDATE conversation_sessions SET ended_at = ? WHERE id = ?").run(
+          now,
+          sessionId
+        );
 
-        const messageCount = db
+        const countRow = db
           .prepare("SELECT COUNT(*) as count FROM conversation_messages WHERE session_id = ?")
-          .get(sessionId)?.count || 0;
+          .get(sessionId) as CountRow | undefined;
+        const messageCount = countRow?.count || 0;
 
-        const updatedSession = db.prepare("SELECT * FROM conversation_sessions WHERE id = ?").get(sessionId);
+        const updatedSession = db
+          .prepare("SELECT * FROM conversation_sessions WHERE id = ?")
+          .get(sessionId) as DbConversationSessionRow;
         log.info(`Ended conversation session ${sessionId} (messages: ${messageCount})`);
 
         return {
-          content: [{
-            type: "text",
-            text: `## Session Ended
+          content: [
+            {
+              type: "text" as const,
+              text: `## Session Ended
 
 **Session ID:** ${sessionId}
 **Started:** ${session.started_at}
@@ -323,19 +535,23 @@ This session is now closed. No further messages can be logged.
 \`\`\`json
 ${JSON.stringify(updatedSession, null, 2)}
 \`\`\``,
-          }],
+            },
+          ],
         };
-      } catch (error) {
-        log.error("Failed to end conversation session", error);
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        log.error(`Failed to end conversation session: ${errorMsg}`);
         return {
-          content: [{ type: "text", text: `Failed to end session: ${error.message}` }],
+          content: [{ type: "text" as const, text: `Failed to end session: ${errorMsg}` }],
           isError: true,
         };
       }
     }
   );
 
-  // List conversation sessions with filters
+  // ============================================
+  // list_conversation_sessions
+  // ============================================
   server.tool(
     "list_conversation_sessions",
     `List conversation sessions with optional filters.
@@ -356,17 +572,51 @@ Returns array of sessions with message counts, sorted by started_at descending.`
     {
       projectId: z.string().optional().describe("Filter by project ID"),
       ticketId: z.string().optional().describe("Filter by ticket ID"),
-      environment: z.string().optional().describe("Filter by environment (claude-code, vscode, unknown)"),
-      startDate: z.string().optional().describe("Sessions started on or after this date (ISO format)"),
-      endDate: z.string().optional().describe("Sessions started on or before this date (ISO format)"),
-      includeActive: z.boolean().optional().describe("Include sessions that haven't ended (default: true)"),
-      limit: z.number().int().min(1).max(200).optional().describe("Maximum results (default: 50, max: 200)"),
+      environment: z
+        .string()
+        .optional()
+        .describe("Filter by environment (claude-code, vscode, unknown)"),
+      startDate: z
+        .string()
+        .optional()
+        .describe("Sessions started on or after this date (ISO format)"),
+      endDate: z
+        .string()
+        .optional()
+        .describe("Sessions started on or before this date (ISO format)"),
+      includeActive: z
+        .boolean()
+        .optional()
+        .describe("Include sessions that haven't ended (default: true)"),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(200)
+        .optional()
+        .describe("Maximum results (default: 50, max: 200)"),
     },
-    async ({ projectId, ticketId, environment, startDate, endDate, includeActive = true, limit = 50 }) => {
+    async ({
+      projectId,
+      ticketId,
+      environment,
+      startDate,
+      endDate,
+      includeActive = true,
+      limit = 50,
+    }: {
+      projectId?: string | undefined;
+      ticketId?: string | undefined;
+      environment?: string | undefined;
+      startDate?: string | undefined;
+      endDate?: string | undefined;
+      includeActive?: boolean | undefined;
+      limit?: number | undefined;
+    }) => {
       try {
         // Build dynamic WHERE clause
-        const conditions = [];
-        const params = [];
+        const conditions: string[] = [];
+        const params: (string | number)[] = [];
 
         if (projectId) {
           conditions.push("cs.project_id = ?");
@@ -416,9 +666,11 @@ Returns array of sessions with message counts, sorted by started_at descending.`
 
         params.push(limit);
 
-        const sessions = db.prepare(query).all(...params);
+        const sessions = db.prepare(query).all(...params) as DbConversationSessionJoinedRow[];
 
-        log.info(`Listed ${sessions.length} conversation sessions (filters: project=${projectId || "any"}, ticket=${ticketId || "any"}, env=${environment || "any"})`);
+        log.info(
+          `Listed ${sessions.length} conversation sessions (filters: project=${projectId || "any"}, ticket=${ticketId || "any"}, env=${environment || "any"})`
+        );
 
         // Format response
         const sessionList = sessions.map((s) => ({
@@ -437,9 +689,10 @@ Returns array of sessions with message counts, sorted by started_at descending.`
         }));
 
         return {
-          content: [{
-            type: "text",
-            text: `## Conversation Sessions
+          content: [
+            {
+              type: "text" as const,
+              text: `## Conversation Sessions
 
 **Found:** ${sessions.length} session${sessions.length !== 1 ? "s" : ""}
 ${projectId ? `**Project Filter:** ${projectId}` : ""}
@@ -451,19 +704,23 @@ ${endDate ? `**End Date:** ${endDate}` : ""}
 \`\`\`json
 ${JSON.stringify(sessionList, null, 2)}
 \`\`\``,
-          }],
+            },
+          ],
         };
-      } catch (error) {
-        log.error("Failed to list conversation sessions", error);
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        log.error(`Failed to list conversation sessions: ${errorMsg}`);
         return {
-          content: [{ type: "text", text: `Failed to list sessions: ${error.message}` }],
+          content: [{ type: "text" as const, text: `Failed to list sessions: ${errorMsg}` }],
           isError: true,
         };
       }
     }
   );
 
-  // Export compliance logs for auditors
+  // ============================================
+  // export_compliance_logs
+  // ============================================
   server.tool(
     "export_compliance_logs",
     `Export conversation logs for compliance auditing.
@@ -493,23 +750,37 @@ Access to this tool is logged to the audit_log_access table.`,
       includeContent: z.boolean().optional().describe("Include full message text (default: true)"),
       verifyIntegrity: z.boolean().optional().describe("Verify HMAC hashes (default: true)"),
     },
-    async ({ sessionId, projectId, startDate, endDate, includeContent = true, verifyIntegrity = true }) => {
+    async ({
+      sessionId: filterSessionId,
+      projectId: filterProjectId,
+      startDate,
+      endDate,
+      includeContent = true,
+      verifyIntegrity = true,
+    }: {
+      sessionId?: string | undefined;
+      projectId?: string | undefined;
+      startDate: string;
+      endDate: string;
+      includeContent?: boolean | undefined;
+      verifyIntegrity?: boolean | undefined;
+    }) => {
       const exportId = randomUUID();
       const exportedAt = new Date().toISOString();
 
       try {
         // Build session query
         const conditions = ["cs.started_at >= ?", "cs.started_at <= ?"];
-        const params = [startDate, endDate];
+        const params: string[] = [startDate, endDate];
 
-        if (sessionId) {
+        if (filterSessionId) {
           conditions.push("cs.id = ?");
-          params.push(sessionId);
+          params.push(filterSessionId);
         }
 
-        if (projectId) {
+        if (filterProjectId) {
           conditions.push("cs.project_id = ?");
-          params.push(projectId);
+          params.push(filterProjectId);
         }
 
         const sessionsQuery = `
@@ -524,44 +795,60 @@ Access to this tool is logged to the audit_log_access table.`,
           ORDER BY cs.started_at ASC
         `;
 
-        const sessions = db.prepare(sessionsQuery).all(...params);
+        const sessions = db
+          .prepare(sessionsQuery)
+          .all(...params) as DbConversationSessionJoinedRow[];
 
         if (sessions.length === 0) {
           // Log access even when no results
-          db.prepare(`
+          db.prepare(
+            `
             INSERT INTO audit_log_access (id, accessor_id, target_type, target_id, action, result, accessed_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-          `).run(exportId, "system", "compliance_export", exportId, "export", "no_sessions_found", exportedAt);
+          `
+          ).run(
+            exportId,
+            "system",
+            "compliance_export",
+            exportId,
+            "export",
+            "no_sessions_found",
+            exportedAt
+          );
 
           return {
-            content: [{
-              type: "text",
-              text: `## Compliance Export
+            content: [
+              {
+                type: "text" as const,
+                text: `## Compliance Export
 
 **Export ID:** ${exportId}
 **Date Range:** ${startDate} to ${endDate}
 **Sessions Found:** 0
 
 No sessions found matching the specified criteria.`,
-            }],
+              },
+            ],
           };
         }
 
         // Collect messages and verify integrity
         let totalMessages = 0;
         let validMessages = 0;
-        const invalidMessageIds = [];
+        const invalidMessageIds: string[] = [];
 
         const exportedSessions = sessions.map((session) => {
           const messages = db
-            .prepare("SELECT * FROM conversation_messages WHERE session_id = ? ORDER BY sequence_number ASC")
-            .all(session.id);
+            .prepare(
+              "SELECT * FROM conversation_messages WHERE session_id = ? ORDER BY sequence_number ASC"
+            )
+            .all(session.id) as DbConversationMessageRow[];
 
           const processedMessages = messages.map((msg) => {
             totalMessages++;
 
             // Verify integrity if enabled
-            let integrityValid = null;
+            let integrityValid: boolean | null = null;
             if (verifyIntegrity) {
               const expectedHash = computeContentHash(msg.content, session.id);
               integrityValid = expectedHash === msg.content_hash;
@@ -628,62 +915,87 @@ No sessions found matching the specified criteria.`,
         };
 
         // Log successful export to audit table
-        db.prepare(`
+        db.prepare(
+          `
           INSERT INTO audit_log_access (id, accessor_id, target_type, target_id, action, result, accessed_at)
           VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).run(
+        `
+        ).run(
           exportId,
           "system",
           "compliance_export",
-          sessionId || projectId || "date_range",
+          filterSessionId || filterProjectId || "date_range",
           "export",
           `exported_${sessions.length}_sessions_${totalMessages}_messages`,
           exportedAt
         );
 
-        log.info(`Exported compliance logs: ${sessions.length} sessions, ${totalMessages} messages (integrity: ${verifyIntegrity ? (invalidMessageIds.length === 0 ? "PASSED" : "FAILED") : "SKIPPED"})`);
+        log.info(
+          `Exported compliance logs: ${sessions.length} sessions, ${totalMessages} messages (integrity: ${verifyIntegrity ? (invalidMessageIds.length === 0 ? "PASSED" : "FAILED") : "SKIPPED"})`
+        );
 
         return {
-          content: [{
-            type: "text",
-            text: `## Compliance Export Complete
+          content: [
+            {
+              type: "text" as const,
+              text: `## Compliance Export Complete
 
 **Export ID:** ${exportId}
 **Date Range:** ${startDate} to ${endDate}
 **Sessions:** ${sessions.length}
 **Messages:** ${totalMessages}
-${verifyIntegrity ? `
+${
+  verifyIntegrity
+    ? `
 **Integrity Check:** ${invalidMessageIds.length === 0 ? "✅ PASSED" : "⚠️ FAILED"}
 **Valid Messages:** ${validMessages}/${totalMessages}
 ${invalidMessageIds.length > 0 ? `**Invalid Message IDs:** ${invalidMessageIds.join(", ")}` : ""}
-` : "**Integrity Check:** Skipped"}
+`
+    : "**Integrity Check:** Skipped"
+}
 
 \`\`\`json
 ${JSON.stringify(exportData, null, 2)}
 \`\`\``,
-          }],
+            },
+          ],
         };
-      } catch (error) {
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
         // Log failed export attempt
         try {
-          db.prepare(`
+          db.prepare(
+            `
             INSERT INTO audit_log_access (id, accessor_id, target_type, target_id, action, result, accessed_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-          `).run(exportId, "system", "compliance_export", sessionId || projectId || "date_range", "export", `error: ${error.message}`, exportedAt);
+          `
+          ).run(
+            exportId,
+            "system",
+            "compliance_export",
+            filterSessionId || filterProjectId || "date_range",
+            "export",
+            `error: ${errorMsg}`,
+            exportedAt
+          );
         } catch {
           // Ignore audit logging errors
         }
 
-        log.error("Failed to export compliance logs", error);
+        log.error(`Failed to export compliance logs: ${errorMsg}`);
         return {
-          content: [{ type: "text", text: `Failed to export compliance logs: ${error.message}` }],
+          content: [
+            { type: "text" as const, text: `Failed to export compliance logs: ${errorMsg}` },
+          ],
           isError: true,
         };
       }
     }
   );
 
-  // Archive old conversation sessions (retention cleanup)
+  // ============================================
+  // archive_old_sessions
+  // ============================================
   server.tool(
     "archive_old_sessions",
     `Archive (delete) conversation sessions older than the retention period.
@@ -705,10 +1017,24 @@ Returns:
 IMPORTANT: Sessions under legal hold are always preserved regardless of age.
 All deletion actions are logged to the audit_log_access table.`,
     {
-      retentionDays: z.number().int().min(1).optional().describe("Days to retain sessions (default: from settings or 90)"),
-      confirm: z.boolean().optional().describe("Set to true to actually delete (default: false, dry-run)"),
+      retentionDays: z
+        .number()
+        .int()
+        .min(1)
+        .optional()
+        .describe("Days to retain sessions (default: from settings or 90)"),
+      confirm: z
+        .boolean()
+        .optional()
+        .describe("Set to true to actually delete (default: false, dry-run)"),
     },
-    async ({ retentionDays, confirm = false }) => {
+    async ({
+      retentionDays,
+      confirm = false,
+    }: {
+      retentionDays?: number | undefined;
+      confirm?: boolean | undefined;
+    }) => {
       const archiveId = randomUUID();
       const archivedAt = new Date().toISOString();
 
@@ -716,15 +1042,21 @@ All deletion actions are logged to the audit_log_access table.`,
         // Get retention days from settings if not specified
         let effectiveRetention = retentionDays;
         if (!effectiveRetention) {
-          const settings = db.prepare("SELECT conversation_retention_days FROM settings LIMIT 1").get();
+          const settings = db
+            .prepare("SELECT conversation_retention_days FROM settings LIMIT 1")
+            .get() as SettingsRetentionRow | undefined;
           effectiveRetention = settings?.conversation_retention_days || 90;
         }
 
         // Calculate cutoff date
-        const cutoffDate = new Date(Date.now() - effectiveRetention * 24 * 60 * 60 * 1000).toISOString();
+        const cutoffDate = new Date(
+          Date.now() - effectiveRetention * 24 * 60 * 60 * 1000
+        ).toISOString();
 
         // Find sessions older than cutoff that are NOT under legal hold
-        const sessionsToDelete = db.prepare(`
+        const sessionsToDelete = db
+          .prepare(
+            `
           SELECT
             cs.id,
             cs.project_id,
@@ -739,27 +1071,45 @@ All deletion actions are logged to the audit_log_access table.`,
           LEFT JOIN projects p ON cs.project_id = p.id
           WHERE cs.started_at < ? AND cs.legal_hold = 0
           ORDER BY cs.started_at ASC
-        `).all(cutoffDate);
+        `
+          )
+          .all(cutoffDate) as ArchiveSessionRow[];
 
         // Count sessions under legal hold (for reporting)
-        const legalHoldCount = db.prepare(`
+        const legalHoldRow = db
+          .prepare(
+            `
           SELECT COUNT(*) as count FROM conversation_sessions
           WHERE started_at < ? AND legal_hold = 1
-        `).get(cutoffDate)?.count || 0;
+        `
+          )
+          .get(cutoffDate) as CountRow | undefined;
+        const legalHoldCount = legalHoldRow?.count || 0;
 
         const totalMessages = sessionsToDelete.reduce((sum, s) => sum + s.message_count, 0);
 
         if (sessionsToDelete.length === 0) {
           // Log the check even if nothing to delete
-          db.prepare(`
+          db.prepare(
+            `
             INSERT INTO audit_log_access (id, accessor_id, target_type, target_id, action, result, accessed_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-          `).run(archiveId, "system", "retention_cleanup", "none", confirm ? "delete" : "dry_run", "no_sessions_eligible", archivedAt);
+          `
+          ).run(
+            archiveId,
+            "system",
+            "retention_cleanup",
+            "none",
+            confirm ? "delete" : "dry_run",
+            "no_sessions_eligible",
+            archivedAt
+          );
 
           return {
-            content: [{
-              type: "text",
-              text: `## Retention Cleanup
+            content: [
+              {
+                type: "text" as const,
+                text: `## Retention Cleanup
 
 **Archive ID:** ${archiveId}
 **Retention Period:** ${effectiveRetention} days
@@ -770,16 +1120,27 @@ All deletion actions are logged to the audit_log_access table.`,
 **Sessions Under Legal Hold:** ${legalHoldCount}
 
 No sessions eligible for archival.${legalHoldCount > 0 ? ` ${legalHoldCount} session(s) are older than the retention period but protected by legal hold.` : ""}`,
-            }],
+              },
+            ],
           };
         }
 
         // DRY RUN: Show preview
         if (!confirm) {
-          db.prepare(`
+          db.prepare(
+            `
             INSERT INTO audit_log_access (id, accessor_id, target_type, target_id, action, result, accessed_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-          `).run(archiveId, "system", "retention_cleanup", "preview", "dry_run", `preview_${sessionsToDelete.length}_sessions_${totalMessages}_messages`, archivedAt);
+          `
+          ).run(
+            archiveId,
+            "system",
+            "retention_cleanup",
+            "preview",
+            "dry_run",
+            `preview_${sessionsToDelete.length}_sessions_${totalMessages}_messages`,
+            archivedAt
+          );
 
           const sessionPreview = sessionsToDelete.map((s) => ({
             id: s.id,
@@ -791,12 +1152,15 @@ No sessions eligible for archival.${legalHoldCount > 0 ? ` ${legalHoldCount} ses
             endedAt: s.ended_at,
           }));
 
-          log.info(`Retention dry-run: ${sessionsToDelete.length} sessions (${totalMessages} messages) eligible for deletion`);
+          log.info(
+            `Retention dry-run: ${sessionsToDelete.length} sessions (${totalMessages} messages) eligible for deletion`
+          );
 
           return {
-            content: [{
-              type: "text",
-              text: `## Retention Cleanup - DRY RUN
+            content: [
+              {
+                type: "text" as const,
+                text: `## Retention Cleanup - DRY RUN
 
 **Archive ID:** ${archiveId}
 **Retention Period:** ${effectiveRetention} days
@@ -814,7 +1178,8 @@ To delete these sessions, run again with \`confirm: true\`.
 \`\`\`json
 ${JSON.stringify(sessionPreview, null, 2)}
 \`\`\``,
-            }],
+              },
+            ],
           };
         }
 
@@ -823,14 +1188,15 @@ ${JSON.stringify(sessionPreview, null, 2)}
 
         // Use transaction for atomic deletion
         const deleteTransaction = db.transaction(() => {
-          // Messages are deleted by CASCADE, but count them first for reporting
-          const deletedMessages = db.prepare(`
-            DELETE FROM conversation_messages WHERE session_id IN (${sessionIds.map(() => "?").join(",")})
-          `).run(...sessionIds);
+          const placeholders = sessionIds.map(() => "?").join(",");
 
-          const deletedSessions = db.prepare(`
-            DELETE FROM conversation_sessions WHERE id IN (${sessionIds.map(() => "?").join(",")})
-          `).run(...sessionIds);
+          const deletedMessages = db
+            .prepare(`DELETE FROM conversation_messages WHERE session_id IN (${placeholders})`)
+            .run(...sessionIds);
+
+          const deletedSessions = db
+            .prepare(`DELETE FROM conversation_sessions WHERE id IN (${placeholders})`)
+            .run(...sessionIds);
 
           return {
             messagesDeleted: deletedMessages.changes,
@@ -841,10 +1207,12 @@ ${JSON.stringify(sessionPreview, null, 2)}
         const result = deleteTransaction();
 
         // Log the deletion
-        db.prepare(`
+        db.prepare(
+          `
           INSERT INTO audit_log_access (id, accessor_id, target_type, target_id, action, result, accessed_at)
           VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).run(
+        `
+        ).run(
           archiveId,
           "system",
           "retention_cleanup",
@@ -854,12 +1222,15 @@ ${JSON.stringify(sessionPreview, null, 2)}
           archivedAt
         );
 
-        log.info(`Retention cleanup: deleted ${result.sessionsDeleted} sessions and ${result.messagesDeleted} messages (retention: ${effectiveRetention} days)`);
+        log.info(
+          `Retention cleanup: deleted ${result.sessionsDeleted} sessions and ${result.messagesDeleted} messages (retention: ${effectiveRetention} days)`
+        );
 
         return {
-          content: [{
-            type: "text",
-            text: `## Retention Cleanup Complete
+          content: [
+            {
+              type: "text" as const,
+              text: `## Retention Cleanup Complete
 
 **Archive ID:** ${archiveId}
 **Retention Period:** ${effectiveRetention} days
@@ -871,22 +1242,34 @@ ${JSON.stringify(sessionPreview, null, 2)}
 
 ✅ Archived sessions have been permanently deleted.
 This action has been logged for compliance auditing.`,
-          }],
+            },
+          ],
         };
-      } catch (error) {
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
         // Log failed archive attempt
         try {
-          db.prepare(`
+          db.prepare(
+            `
             INSERT INTO audit_log_access (id, accessor_id, target_type, target_id, action, result, accessed_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-          `).run(archiveId, "system", "retention_cleanup", "error", confirm ? "delete" : "dry_run", `error: ${error.message}`, archivedAt);
+          `
+          ).run(
+            archiveId,
+            "system",
+            "retention_cleanup",
+            "error",
+            confirm ? "delete" : "dry_run",
+            `error: ${errorMsg}`,
+            archivedAt
+          );
         } catch {
           // Ignore audit logging errors
         }
 
-        log.error("Failed to archive old sessions", error);
+        log.error(`Failed to archive old sessions: ${errorMsg}`);
         return {
-          content: [{ type: "text", text: `Failed to archive sessions: ${error.message}` }],
+          content: [{ type: "text" as const, text: `Failed to archive sessions: ${errorMsg}` }],
           isError: true,
         };
       }

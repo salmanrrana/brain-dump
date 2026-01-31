@@ -206,8 +206,8 @@ These skills work with Brain Dump MCP tools. Ensure your `~/.claude/settings.jso
   "mcp": {
     "brain-dump": {
       "type": "local",
-      "command": "node",
-      "args": ["/path/to/brain-dump/mcp-server/index.js"]
+      "command": "npx",
+      "args": ["tsx", "/path/to/brain-dump/mcp-server/index.ts"]
     }
   }
 }

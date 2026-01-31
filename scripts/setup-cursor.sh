@@ -66,8 +66,8 @@ const fs = require('fs');
 const config = JSON.parse(fs.readFileSync('$MCP_CONFIG_FILE', 'utf8'));
 config.mcpServers = config.mcpServers || {};
 config.mcpServers['brain-dump'] = {
-    command: 'node',
-    args: ['$BRAIN_DUMP_DIR/mcp-server/index.js'],
+    command: 'npx',
+    args: ['tsx', '$BRAIN_DUMP_DIR/mcp-server/index.ts'],
     env: { CURSOR: '1' }
 };
 fs.writeFileSync('$MCP_CONFIG_FILE', JSON.stringify(config, null, 2));
@@ -79,8 +79,8 @@ console.log('Config updated successfully');
                 echo -e "${RED}Please manually add the brain-dump server to your mcp.json:${NC}"
                 echo ""
                 echo '  "brain-dump": {'
-                echo '    "command": "node",'
-                echo "    \"args\": [\"$BRAIN_DUMP_DIR/mcp-server/index.js\"],"
+                echo '    "command": "npx",'
+                echo "    \"args\": [\"tsx\", \"$BRAIN_DUMP_DIR/mcp-server/index.ts\"],"
                 echo '    "env": { "CURSOR": "1" }'
                 echo '  }'
             }
@@ -88,8 +88,8 @@ console.log('Config updated successfully');
             echo -e "${RED}Please manually add the brain-dump server to your mcp.json:${NC}"
             echo ""
             echo '  "brain-dump": {'
-            echo '    "command": "node",'
-            echo "    \"args\": [\"$BRAIN_DUMP_DIR/mcp-server/index.js\"]"
+            echo '    "command": "npx",'
+            echo "    \"args\": [\"tsx\", \"$BRAIN_DUMP_DIR/mcp-server/index.ts\"]"
             echo '  }'
         fi
     fi
@@ -99,8 +99,8 @@ else
 {
   "mcpServers": {
     "brain-dump": {
-      "command": "node",
-      "args": ["$BRAIN_DUMP_DIR/mcp-server/index.js"],
+      "command": "npx",
+      "args": ["tsx", "$BRAIN_DUMP_DIR/mcp-server/index.ts"],
       "env": {
         "CURSOR": "1"
       }

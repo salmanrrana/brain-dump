@@ -9,37 +9,102 @@ import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { execFileSync } from "child_process";
 import { log } from "../lib/logging.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type Database from "better-sqlite3";
 
-// Valid telemetry event types (documented for reference)
-// - session_start: Session began
-// - session_end: Session ended
-// - prompt: User prompt submitted
-// - tool_start: Tool call started
-// - tool_end: Tool call completed
-// - mcp_call: MCP tool invocation
-// - task_created: Claude Task created
-// - task_started: Claude Task started
-// - task_completed: Claude Task completed
-// - context_loaded: Context loaded (files, comments, images)
-// - error: Error occurred
+// ============================================
+// Constants
+// ============================================
+
+const SESSION_OUTCOMES = ["success", "failure", "timeout", "cancelled"] as const;
+const TOOL_EVENTS = ["start", "end"] as const;
+
+// ============================================
+// Type Definitions
+// ============================================
+
+/** Result of ticket detection */
+interface TicketDetectionResult {
+  ticketId: string | null;
+  source: string;
+  shortId?: string | null | undefined;
+  error?: string | undefined;
+}
+
+/** Ralph state file structure */
+interface RalphState {
+  ticketId?: string;
+}
+
+/** DB row for telemetry_sessions table */
+interface DbTelemetrySessionRow {
+  id: string;
+  ticket_id: string | null;
+  project_id: string | null;
+  environment: string | null;
+  branch_name: string | null;
+  started_at: string;
+  ended_at: string | null;
+  total_prompts: number;
+  total_tool_calls: number;
+  total_duration_ms: number | null;
+  total_tokens: number | null;
+  outcome: string | null;
+}
+
+/** Minimal session row for verification */
+interface SessionBasicRow {
+  id: string;
+  ticket_id: string | null;
+}
+
+/** Ticket row for joining with telemetry */
+interface TicketInfoRow {
+  project_id: string;
+  title: string;
+  branch_name: string | null;
+}
+
+/** Ticket title row */
+interface TicketTitleRow {
+  title: string;
+}
+
+/** Telemetry event DB row */
+interface DbTelemetryEventRow {
+  id: string;
+  session_id: string;
+  ticket_id: string | null;
+  event_type: string;
+  tool_name: string | null;
+  event_data: string | null;
+  duration_ms: number | null;
+  is_error: number;
+  correlation_id: string | null;
+  created_at: string;
+  eventData?: Record<string, unknown> | null;
+}
+
+// ============================================
+// Helper Functions
+// ============================================
 
 /**
  * Detect active ticket from Ralph state file or git branch.
- * @param {string} projectPath - The project directory
- * @returns {{ticketId: string | null, source: string}}
  */
-function detectActiveTicket(projectPath) {
+function detectActiveTicket(projectPath: string): TicketDetectionResult {
   try {
     // First, try Ralph state file
     const ralphStatePath = join(projectPath, ".claude", "ralph-state.json");
     if (existsSync(ralphStatePath)) {
       try {
-        const state = JSON.parse(readFileSync(ralphStatePath, "utf-8"));
+        const state = JSON.parse(readFileSync(ralphStatePath, "utf-8")) as RalphState;
         if (state.ticketId) {
           return { ticketId: state.ticketId, source: "ralph-state" };
         }
       } catch (parseErr) {
-        log.warn(`Failed to parse ralph-state.json: ${parseErr.message}`);
+        const errorMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+        log.warn(`Failed to parse ralph-state.json: ${errorMsg}`);
         // Continue to try other detection methods
       }
     }
@@ -59,27 +124,29 @@ function detectActiveTicket(projectPath) {
         // This is a limitation - we'd need DB access to resolve it
         return { ticketId: null, source: "branch-partial", shortId: match[1] };
       }
-    } catch (gitErr) {
+    } catch (gitErr: unknown) {
       // Only log if it's not an expected "not a git repo" error
-      const isExpected = gitErr.code === "ENOENT" || gitErr.message?.includes("not a git repository");
+      const errorObj = gitErr as { code?: string; message?: string };
+      const isExpected =
+        errorObj.code === "ENOENT" || errorObj.message?.includes("not a git repository");
       if (!isExpected) {
-        log.warn(`Git detection failed: ${gitErr.message}`);
+        const errorMsg = gitErr instanceof Error ? gitErr.message : String(gitErr);
+        log.warn(`Git detection failed: ${errorMsg}`);
       }
     }
 
     return { ticketId: null, source: "none" };
   } catch (err) {
-    return { ticketId: null, source: "error", error: err.message };
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    return { ticketId: null, source: "error", error: errorMsg };
   }
 }
 
 /**
  * Summarize tool parameters to avoid storing sensitive content.
- * @param {Record<string, unknown>} params
- * @returns {string}
  */
-function summarizeParams(params) {
-  const summary = {};
+function summarizeParams(params: Record<string, unknown>): string {
+  const summary: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(params)) {
     if (typeof value === "string") {
       // Truncate strings and note length
@@ -95,13 +162,18 @@ function summarizeParams(params) {
   return JSON.stringify(summary);
 }
 
+// ============================================
+// Tool Registration
+// ============================================
+
 /**
  * Register telemetry tools with the MCP server.
- * @param {import("@modelcontextprotocol/sdk/server/mcp.js").McpServer} server
- * @param {import("better-sqlite3").Database} db
- * @param {Function} detectEnvironment - Function to detect current environment
  */
-export function registerTelemetryTools(server, db, detectEnvironment) {
+export function registerTelemetryTools(
+  server: McpServer,
+  db: Database.Database,
+  detectEnvironment: () => string
+): void {
   // ============================================
   // start_telemetry_session
   // ============================================
@@ -123,9 +195,20 @@ Returns:
     {
       ticketId: z.string().optional().describe("The ticket ID (auto-detected if not provided)"),
       projectPath: z.string().optional().describe("Project path (auto-detected if not provided)"),
-      environment: z.string().optional().describe("Environment name (auto-detected if not provided)"),
+      environment: z
+        .string()
+        .optional()
+        .describe("Environment name (auto-detected if not provided)"),
     },
-    async ({ ticketId, projectPath, environment }) => {
+    async ({
+      ticketId,
+      projectPath,
+      environment,
+    }: {
+      ticketId?: string | undefined;
+      projectPath?: string | undefined;
+      environment?: string | undefined;
+    }) => {
       const id = randomUUID();
       const now = new Date().toISOString();
 
@@ -133,7 +216,7 @@ Returns:
       const detectedEnv = environment || detectEnvironment();
 
       // Try to detect ticket if not provided
-      let resolvedTicketId = ticketId;
+      let resolvedTicketId: string | null | undefined = ticketId;
       let detectionSource = "provided";
 
       if (!resolvedTicketId && projectPath) {
@@ -143,9 +226,9 @@ Returns:
       }
 
       // Get project ID from ticket if we have one
-      let projectId = null;
-      let branchName = null;
-      let ticketTitle = null;
+      let projectId: string | null = null;
+      let branchName: string | null = null;
+      let ticketTitle: string | null = null;
 
       if (resolvedTicketId) {
         const ticket = db
@@ -154,7 +237,7 @@ Returns:
              FROM tickets t
              WHERE t.id = ?`
           )
-          .get(resolvedTicketId);
+          .get(resolvedTicketId) as TicketInfoRow | undefined;
 
         if (ticket) {
           projectId = ticket.project_id;
@@ -193,7 +276,7 @@ Returns:
         return {
           content: [
             {
-              type: "text",
+              type: "text" as const,
               text: `## Telemetry Session Started
 
 **Session ID:** ${id}
@@ -211,12 +294,13 @@ Use this session ID for subsequent telemetry calls:
           ],
         };
       } catch (err) {
-        log.error(`Failed to start telemetry session: ${err.message}`);
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        log.error(`Failed to start telemetry session: ${errorMsg}`);
         return {
           content: [
             {
-              type: "text",
-              text: `Failed to start telemetry session: ${err.message}`,
+              type: "text" as const,
+              text: `Failed to start telemetry session: ${errorMsg}`,
             },
           ],
           isError: true,
@@ -249,15 +333,27 @@ Returns:
       redact: z.boolean().optional().default(false).describe("Hash the prompt for privacy"),
       tokenCount: z.number().optional().describe("Token count for the prompt"),
     },
-    async ({ sessionId, prompt, redact = false, tokenCount }) => {
+    async ({
+      sessionId,
+      prompt,
+      redact = false,
+      tokenCount,
+    }: {
+      sessionId: string;
+      prompt: string;
+      redact?: boolean | undefined;
+      tokenCount?: number | undefined;
+    }) => {
       // Verify session exists
-      const session = db.prepare("SELECT id, ticket_id FROM telemetry_sessions WHERE id = ?").get(sessionId);
+      const session = db
+        .prepare("SELECT id, ticket_id FROM telemetry_sessions WHERE id = ?")
+        .get(sessionId) as SessionBasicRow | undefined;
 
       if (!session) {
         return {
           content: [
             {
-              type: "text",
+              type: "text" as const,
               text: `Telemetry session not found: ${sessionId}. Use start_telemetry_session first.`,
             },
           ],
@@ -292,25 +388,28 @@ Returns:
         ).run(id, sessionId, session.ticket_id, JSON.stringify(eventData), tokenCount || null, now);
 
         // Update session stats
-        db.prepare("UPDATE telemetry_sessions SET total_prompts = total_prompts + 1 WHERE id = ?").run(sessionId);
+        db.prepare(
+          "UPDATE telemetry_sessions SET total_prompts = total_prompts + 1 WHERE id = ?"
+        ).run(sessionId);
 
         log.info(`Logged prompt event for session ${sessionId.substring(0, 8)}...`);
 
         return {
           content: [
             {
-              type: "text",
+              type: "text" as const,
               text: `Prompt logged successfully (${prompt.length} chars${isRedacted ? ", redacted" : ""})`,
             },
           ],
         };
       } catch (err) {
-        log.error(`Failed to log prompt event: ${err.message}`);
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        log.error(`Failed to log prompt event: ${errorMsg}`);
         return {
           content: [
             {
-              type: "text",
-              text: `Failed to log prompt event: ${err.message}`,
+              type: "text" as const,
+              text: `Failed to log prompt event: ${errorMsg}`,
             },
           ],
           isError: true,
@@ -344,7 +443,7 @@ Returns:
   The correlation ID for pairing start/end events.`,
     {
       sessionId: z.string().describe("The telemetry session ID"),
-      event: z.enum(["start", "end"]).describe("Whether tool is starting or completed"),
+      event: z.enum(TOOL_EVENTS).describe("Whether tool is starting or completed"),
       toolName: z.string().describe("Name of the tool"),
       correlationId: z.string().optional().describe("Unique ID to pair start/end events"),
       params: z.record(z.unknown()).optional().describe("Parameter summary (sanitized)"),
@@ -353,15 +452,37 @@ Returns:
       durationMs: z.number().optional().describe("Duration in milliseconds"),
       error: z.string().optional().describe("Error message if failed"),
     },
-    async ({ sessionId, event, toolName, correlationId, params, result, success, durationMs, error }) => {
+    async ({
+      sessionId,
+      event,
+      toolName,
+      correlationId,
+      params,
+      result,
+      success,
+      durationMs,
+      error,
+    }: {
+      sessionId: string;
+      event: (typeof TOOL_EVENTS)[number];
+      toolName: string;
+      correlationId?: string | undefined;
+      params?: Record<string, unknown> | undefined;
+      result?: string | undefined;
+      success?: boolean | undefined;
+      durationMs?: number | undefined;
+      error?: string | undefined;
+    }) => {
       // Verify session exists
-      const session = db.prepare("SELECT id, ticket_id FROM telemetry_sessions WHERE id = ?").get(sessionId);
+      const session = db
+        .prepare("SELECT id, ticket_id FROM telemetry_sessions WHERE id = ?")
+        .get(sessionId) as SessionBasicRow | undefined;
 
       if (!session) {
         return {
           content: [
             {
-              type: "text",
+              type: "text" as const,
               text: `Telemetry session not found: ${sessionId}. Use start_telemetry_session first.`,
             },
           ],
@@ -378,7 +499,7 @@ Returns:
       const eventType = event === "start" ? "tool_start" : "tool_end";
 
       // Build event data - sanitize params to avoid storing sensitive content
-      const eventData = {
+      const eventData: Record<string, unknown> = {
         toolName,
         ...(params && { paramsSummary: summarizeParams(params) }),
         ...(result && { resultSummary: result.substring(0, 500) }),
@@ -406,17 +527,19 @@ Returns:
 
         // Update session stats on tool_end
         if (event === "end") {
-          db.prepare("UPDATE telemetry_sessions SET total_tool_calls = total_tool_calls + 1 WHERE id = ?").run(
-            sessionId
-          );
+          db.prepare(
+            "UPDATE telemetry_sessions SET total_tool_calls = total_tool_calls + 1 WHERE id = ?"
+          ).run(sessionId);
         }
 
-        log.info(`Logged ${eventType} event: ${toolName} for session ${sessionId.substring(0, 8)}...`);
+        log.info(
+          `Logged ${eventType} event: ${toolName} for session ${sessionId.substring(0, 8)}...`
+        );
 
         return {
           content: [
             {
-              type: "text",
+              type: "text" as const,
               text:
                 event === "start"
                   ? `Tool start logged: ${toolName} (correlation: ${corrId})`
@@ -425,12 +548,13 @@ Returns:
           ],
         };
       } catch (err) {
-        log.error(`Failed to log tool event: ${err.message}`);
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        log.error(`Failed to log tool event: ${errorMsg}`);
         return {
           content: [
             {
-              type: "text",
-              text: `Failed to log tool event: ${err.message}`,
+              type: "text" as const,
+              text: `Failed to log tool event: ${errorMsg}`,
             },
           ],
           isError: true,
@@ -469,15 +593,33 @@ Returns:
       attachmentCount: z.number().default(0).describe("Number of attachments loaded"),
       imageCount: z.number().default(0).describe("Number of images loaded"),
     },
-    async ({ sessionId, hasDescription, hasAcceptanceCriteria, criteriaCount, commentCount, attachmentCount, imageCount }) => {
+    async ({
+      sessionId,
+      hasDescription,
+      hasAcceptanceCriteria,
+      criteriaCount,
+      commentCount,
+      attachmentCount,
+      imageCount,
+    }: {
+      sessionId: string;
+      hasDescription: boolean;
+      hasAcceptanceCriteria: boolean;
+      criteriaCount?: number | undefined;
+      commentCount?: number | undefined;
+      attachmentCount?: number | undefined;
+      imageCount?: number | undefined;
+    }) => {
       // Verify session exists
-      const session = db.prepare("SELECT id, ticket_id FROM telemetry_sessions WHERE id = ?").get(sessionId);
+      const session = db
+        .prepare("SELECT id, ticket_id FROM telemetry_sessions WHERE id = ?")
+        .get(sessionId) as SessionBasicRow | undefined;
 
       if (!session) {
         return {
           content: [
             {
-              type: "text",
+              type: "text" as const,
               text: `Telemetry session not found: ${sessionId}. Use start_telemetry_session first.`,
             },
           ],
@@ -488,13 +630,18 @@ Returns:
       const id = randomUUID();
       const now = new Date().toISOString();
 
+      const effectiveCriteriaCount = criteriaCount ?? 0;
+      const effectiveCommentCount = commentCount ?? 0;
+      const effectiveAttachmentCount = attachmentCount ?? 0;
+      const effectiveImageCount = imageCount ?? 0;
+
       const eventData = {
         hasDescription,
         hasAcceptanceCriteria,
-        criteriaCount,
-        commentCount,
-        attachmentCount,
-        imageCount,
+        criteriaCount: effectiveCriteriaCount,
+        commentCount: effectiveCommentCount,
+        attachmentCount: effectiveAttachmentCount,
+        imageCount: effectiveImageCount,
       };
 
       try {
@@ -509,18 +656,19 @@ Returns:
         return {
           content: [
             {
-              type: "text",
-              text: `Context loaded event logged: ${criteriaCount} criteria, ${commentCount} comments, ${imageCount} images`,
+              type: "text" as const,
+              text: `Context loaded event logged: ${effectiveCriteriaCount} criteria, ${effectiveCommentCount} comments, ${effectiveImageCount} images`,
             },
           ],
         };
       } catch (err) {
-        log.error(`Failed to log context event: ${err.message}`);
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        log.error(`Failed to log context event: ${errorMsg}`);
         return {
           content: [
             {
-              type: "text",
-              text: `Failed to log context event: ${err.message}`,
+              type: "text" as const,
+              text: `Failed to log context event: ${errorMsg}`,
             },
           ],
           isError: true,
@@ -548,18 +696,28 @@ Returns:
   Session summary with statistics.`,
     {
       sessionId: z.string().describe("The telemetry session ID"),
-      outcome: z.enum(["success", "failure", "timeout", "cancelled"]).optional().describe("Session outcome"),
+      outcome: z.enum(SESSION_OUTCOMES).optional().describe("Session outcome"),
       totalTokens: z.number().optional().describe("Total token count"),
     },
-    async ({ sessionId, outcome, totalTokens }) => {
+    async ({
+      sessionId,
+      outcome,
+      totalTokens,
+    }: {
+      sessionId: string;
+      outcome?: (typeof SESSION_OUTCOMES)[number] | undefined;
+      totalTokens?: number | undefined;
+    }) => {
       // Get session
-      const session = db.prepare("SELECT * FROM telemetry_sessions WHERE id = ?").get(sessionId);
+      const session = db.prepare("SELECT * FROM telemetry_sessions WHERE id = ?").get(sessionId) as
+        | DbTelemetrySessionRow
+        | undefined;
 
       if (!session) {
         return {
           content: [
             {
-              type: "text",
+              type: "text" as const,
               text: `Telemetry session not found: ${sessionId}`,
             },
           ],
@@ -571,7 +729,7 @@ Returns:
         return {
           content: [
             {
-              type: "text",
+              type: "text" as const,
               text: `Session ${sessionId} already ended at ${session.ended_at}`,
             },
           ],
@@ -614,12 +772,14 @@ Returns:
 
         const durationMin = Math.round(totalDurationMs / 60000);
 
-        log.info(`Ended telemetry session ${sessionId}: ${session.total_prompts} prompts, ${session.total_tool_calls} tools, ${durationMin}min`);
+        log.info(
+          `Ended telemetry session ${sessionId}: ${session.total_prompts} prompts, ${session.total_tool_calls} tools, ${durationMin}min`
+        );
 
         return {
           content: [
             {
-              type: "text",
+              type: "text" as const,
               text: `## Telemetry Session Ended
 
 **Session ID:** ${sessionId.substring(0, 8)}...
@@ -634,12 +794,13 @@ ${totalTokens ? `- **Total Tokens:** ${totalTokens}` : ""}`,
           ],
         };
       } catch (err) {
-        log.error(`Failed to end telemetry session: ${err.message}`);
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        log.error(`Failed to end telemetry session: ${errorMsg}`);
         return {
           content: [
             {
-              type: "text",
-              text: `Failed to end telemetry session: ${err.message}`,
+              type: "text" as const,
+              text: `Failed to end telemetry session: ${errorMsg}`,
             },
           ],
           isError: true,
@@ -671,12 +832,22 @@ Returns:
       includeEvents: z.boolean().optional().default(true).describe("Include event details"),
       eventLimit: z.number().optional().default(100).describe("Maximum events to return"),
     },
-    async ({ sessionId, ticketId, includeEvents = true, eventLimit = 100 }) => {
+    async ({
+      sessionId,
+      ticketId,
+      includeEvents = true,
+      eventLimit = 100,
+    }: {
+      sessionId?: string | undefined;
+      ticketId?: string | undefined;
+      includeEvents?: boolean | undefined;
+      eventLimit?: number | undefined;
+    }) => {
       if (!sessionId && !ticketId) {
         return {
           content: [
             {
-              type: "text",
+              type: "text" as const,
               text: "Either sessionId or ticketId must be provided.",
             },
           ],
@@ -684,9 +855,11 @@ Returns:
         };
       }
 
-      let session;
+      let session: DbTelemetrySessionRow | undefined;
       if (sessionId) {
-        session = db.prepare("SELECT * FROM telemetry_sessions WHERE id = ?").get(sessionId);
+        session = db.prepare("SELECT * FROM telemetry_sessions WHERE id = ?").get(sessionId) as
+          | DbTelemetrySessionRow
+          | undefined;
       } else {
         session = db
           .prepare(
@@ -695,14 +868,14 @@ Returns:
              ORDER BY started_at DESC
              LIMIT 1`
           )
-          .get(ticketId);
+          .get(ticketId) as DbTelemetrySessionRow | undefined;
       }
 
       if (!session) {
         return {
           content: [
             {
-              type: "text",
+              type: "text" as const,
               text: `No telemetry session found for: ${sessionId || ticketId}`,
             },
           ],
@@ -710,25 +883,26 @@ Returns:
         };
       }
 
-      let events = [];
+      let events: DbTelemetryEventRow[] = [];
       if (includeEvents) {
-        events = db
+        const rawEvents = db
           .prepare(
             `SELECT * FROM telemetry_events
              WHERE session_id = ?
              ORDER BY created_at ASC
              LIMIT ?`
           )
-          .all(session.id, eventLimit);
+          .all(session.id, eventLimit) as DbTelemetryEventRow[];
 
         // Parse event data with error handling for corrupted JSON
-        events = events.map((e) => {
-          let eventData = null;
+        events = rawEvents.map((e) => {
+          let eventData: Record<string, unknown> | null = null;
           if (e.event_data) {
             try {
               eventData = JSON.parse(e.event_data);
             } catch (parseErr) {
-              log.warn(`Failed to parse event data for event ${e.id}: ${parseErr.message}`);
+              const errorMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+              log.warn(`Failed to parse event data for event ${e.id}: ${errorMsg}`);
               eventData = { _parseError: true };
             }
           }
@@ -737,16 +911,18 @@ Returns:
       }
 
       // Get ticket title if linked
-      let ticketTitle = null;
+      let ticketTitle: string | null = null;
       if (session.ticket_id) {
-        const ticket = db.prepare("SELECT title FROM tickets WHERE id = ?").get(session.ticket_id);
-        ticketTitle = ticket?.title;
+        const ticket = db
+          .prepare("SELECT title FROM tickets WHERE id = ?")
+          .get(session.ticket_id) as TicketTitleRow | undefined;
+        ticketTitle = ticket?.title ?? null;
       }
 
       return {
         content: [
           {
-            type: "text",
+            type: "text" as const,
             text: JSON.stringify(
               {
                 session: {
@@ -796,9 +972,19 @@ Returns:
       since: z.string().optional().describe("Sessions started after this date"),
       limit: z.number().optional().default(20).describe("Maximum sessions to return"),
     },
-    async ({ ticketId, projectId, since, limit = 20 }) => {
+    async ({
+      ticketId,
+      projectId,
+      since,
+      limit = 20,
+    }: {
+      ticketId?: string | undefined;
+      projectId?: string | undefined;
+      since?: string | undefined;
+      limit?: number | undefined;
+    }) => {
       let query = "SELECT * FROM telemetry_sessions WHERE 1=1";
-      const params = [];
+      const params: (string | number)[] = [];
 
       if (ticketId) {
         query += " AND ticket_id = ?";
@@ -816,20 +1002,22 @@ Returns:
       query += " ORDER BY started_at DESC LIMIT ?";
       params.push(limit);
 
-      const sessions = db.prepare(query).all(...params);
+      const sessions = db.prepare(query).all(...params) as DbTelemetrySessionRow[];
 
       // Enrich with ticket titles
       const enriched = sessions.map((s) => {
-        let ticketTitle = null;
+        let sessionTicketTitle: string | null = null;
         if (s.ticket_id) {
-          const ticket = db.prepare("SELECT title FROM tickets WHERE id = ?").get(s.ticket_id);
-          ticketTitle = ticket?.title;
+          const ticket = db.prepare("SELECT title FROM tickets WHERE id = ?").get(s.ticket_id) as
+            | TicketTitleRow
+            | undefined;
+          sessionTicketTitle = ticket?.title ?? null;
         }
 
         return {
           id: s.id,
           ticketId: s.ticket_id,
-          ticketTitle,
+          ticketTitle: sessionTicketTitle,
           environment: s.environment,
           startedAt: s.started_at,
           endedAt: s.ended_at,
@@ -843,7 +1031,7 @@ Returns:
       return {
         content: [
           {
-            type: "text",
+            type: "text" as const,
             text: JSON.stringify(
               {
                 sessionCount: enriched.length,

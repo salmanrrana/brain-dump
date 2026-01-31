@@ -464,7 +464,7 @@ configure_mcp_server() {
 
     CLAUDE_CONFIG="$HOME/.claude.json"
     BRAIN_DUMP_DIR="$(pwd)"
-    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/index.js"
+    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/index.ts"
 
     # Check if MCP server file exists
     if [ ! -f "$MCP_SERVER_PATH" ]; then
@@ -480,8 +480,8 @@ configure_mcp_server() {
 {
   "mcpServers": {
     "brain-dump": {
-      "command": "node",
-      "args": ["$MCP_SERVER_PATH"]
+      "command": "npx",
+      "args": ["tsx", "$MCP_SERVER_PATH"]
     }
   }
 }
@@ -514,8 +514,8 @@ const fs = require('fs');
 const config = JSON.parse(fs.readFileSync('$CLAUDE_CONFIG', 'utf8'));
 config.mcpServers = config.mcpServers || {};
 config.mcpServers['brain-dump'] = {
-    command: 'node',
-    args: ['$MCP_SERVER_PATH']
+    command: 'npx',
+    args: ['tsx', '$MCP_SERVER_PATH']
 };
 fs.writeFileSync('$CLAUDE_CONFIG', JSON.stringify(config, null, 2));
 console.log('Config updated successfully');
@@ -534,8 +534,8 @@ console.log('Config updated successfully');
         print_warning "Could not auto-merge. Please add this to your mcpServers in ~/.claude.json:"
         echo ""
         echo "    \"brain-dump\": {"
-        echo "      \"command\": \"node\","
-        echo "      \"args\": [\"$MCP_SERVER_PATH\"]"
+        echo "      \"command\": \"npx\","
+        echo "      \"args\": [\"tsx\", \"$MCP_SERVER_PATH\"]"
         echo "    }"
         echo ""
         SKIPPED+=("MCP server (manual merge required)")
@@ -548,8 +548,8 @@ console.log('Config updated successfully');
 {
   "mcpServers": {
     "brain-dump": {
-      "command": "node",
-      "args": ["$MCP_SERVER_PATH"]
+      "command": "npx",
+      "args": ["tsx", "$MCP_SERVER_PATH"]
     }
   }
 }
@@ -850,7 +850,7 @@ setup_opencode() {
     fi
 
     BRAIN_DUMP_DIR="$(pwd)"
-    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/index.js"
+    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/index.ts"
     OPENCODE_CONFIG=".opencode/opencode.json"
 
     # Create or update opencode.json with correct configuration
@@ -862,7 +862,7 @@ setup_opencode() {
   "mcp": {
     "brain-dump": {
       "type": "local",
-      "command": ["node", "mcp-server/index.js"],
+      "command": ["npx", "tsx", "mcp-server/index.ts"],
       "enabled": true,
       "environment": {
         "BRAIN_DUMP_PATH": ".",
@@ -896,7 +896,7 @@ const fs = require('fs');
 const config = JSON.parse(fs.readFileSync('$OPENCODE_CONFIG', 'utf8'));
 if (config.mcp && config.mcp['brain-dump']) {
     config.mcp['brain-dump'].type = 'local';
-    config.mcp['brain-dump'].command = ['node', 'mcp-server/index.js'];
+    config.mcp['brain-dump'].command = ['npx', 'tsx', 'mcp-server/index.ts'];
     config.mcp['brain-dump'].enabled = true;
     config.mcp['brain-dump'].environment = config.mcp['brain-dump'].environment || {};
     config.mcp['brain-dump'].environment.BRAIN_DUMP_PATH = '.';
@@ -904,7 +904,7 @@ if (config.mcp && config.mcp['brain-dump']) {
     config.mcp = config.mcp || {};
     config.mcp['brain-dump'] = {
         type: 'local',
-        command: ['node', 'mcp-server/index.js'],
+        command: ['npx', 'tsx', 'mcp-server/index.ts'],
         enabled: true,
         environment: { BRAIN_DUMP_PATH: '.' }
     };
@@ -1185,7 +1185,7 @@ configure_vscode_mcp() {
     fi
 
     BRAIN_DUMP_DIR="$(pwd)"
-    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/index.js"
+    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/index.ts"
     MCP_CONFIG_FILE="$VSCODE_TARGET/mcp.json"
 
     # Helper function to create fresh MCP config
@@ -1195,8 +1195,8 @@ configure_vscode_mcp() {
   "servers": {
     "brain-dump": {
       "type": "stdio",
-      "command": "node",
-      "args": ["$MCP_SERVER_PATH"]
+      "command": "npx",
+      "args": ["tsx", "$MCP_SERVER_PATH"]
     }
   }
 }
@@ -1248,8 +1248,8 @@ const config = JSON.parse(fs.readFileSync('$MCP_CONFIG_FILE', 'utf8'));
 config.servers = config.servers || {};
 config.servers['brain-dump'] = {
     type: 'stdio',
-    command: 'node',
-    args: ['$MCP_SERVER_PATH']
+    command: 'npx',
+    args: ['tsx', '$MCP_SERVER_PATH']
 };
 fs.writeFileSync('$MCP_CONFIG_FILE', JSON.stringify(config, null, 2));
 console.log('Config updated successfully');
@@ -1269,8 +1269,8 @@ console.log('Config updated successfully');
     echo ""
     echo '  "brain-dump": {'
     echo '    "type": "stdio",'
-    echo '    "command": "node",'
-    echo "    \"args\": [\"$MCP_SERVER_PATH\"]"
+    echo '    "command": "npx",'
+    echo "    \"args\": [\"tsx\", \"$MCP_SERVER_PATH\"]"
     echo '  }'
     echo ""
     SKIPPED+=("VS Code MCP server (manual merge required)")
@@ -1868,7 +1868,6 @@ main() {
                 SETUP_VSCODE=true
                 SETUP_CURSOR=true
                 SETUP_OPENCODE=true
-                SETUP_SANDBOX=true
                 IDE_FLAG_PROVIDED=true
                 ;;
             --docker)

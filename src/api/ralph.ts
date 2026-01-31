@@ -14,6 +14,7 @@ import {
   type EnhancedPRDItem,
   type EnhancedPRDDocument,
 } from "../lib/prd-extraction";
+import { startTicketWorkflow } from "./start-ticket-workflow";
 
 // Import Docker utilities for socket-aware Docker commands
 import { execDockerCommand, getDockerHostEnvValue } from "./docker-utils";
@@ -28,6 +29,8 @@ import { execDockerCommand, getDockerHostEnvValue } from "./docker-utils";
  * Used by both Claude Code (via getRalphPrompt) and VS Code (via generateVSCodeContext).
  */
 const WORKFLOW_PHASES = `
+## MANDATORY 4-PHASE WORKFLOW
+
 ### Phase 1: Implementation
 1. **Read PRD** - Check \`plans/prd.json\` for incomplete tickets (\`passes: false\`)
 2. **Read Progress** - Run \`tail -100 plans/progress.txt\` for recent context
@@ -38,18 +41,22 @@ const WORKFLOW_PHASES = `
 7. **Commit** - \`git commit -m "feat(<ticket-id>): <description>"\`
 8. **Complete implementation** - Call \`complete_ticket_work(ticketId, "summary")\` → moves to **ai_review**
 
-### Phase 2: AI Review (REQUIRED)
-9. **Run review agents** - Launch all 3 in parallel: code-reviewer, silent-failure-hunter, code-simplifier
-10. **Submit findings** - \`submit_review_finding({ ticketId, agent, severity, category, description })\`
-11. **Fix critical/major** - Then \`mark_finding_fixed({ findingId, status: "fixed" })\`
-12. **Verify complete** - \`check_review_complete({ ticketId })\` must return \`canProceedToHumanReview: true\`
+### Phase 2: AI Review (MANDATORY - cannot skip)
+9. **Perform code self-review** - Analyze your implementation for:
+   - Code quality, patterns, compliance with CLAUDE.md guidelines (code-reviewer concerns)
+   - Error handling, edge cases, silent failures, exception safety (silent-failure-hunter concerns)
+   - Simplifications, duplication, over-engineering (code-simplifier concerns)
+10. **Submit findings** - For each issue found: \`submit_review_finding({ ticketId, agent: "code-reviewer|silent-failure-hunter|code-simplifier", severity: "critical|major|minor|suggestion", category: "...", description: "..." })\`
+11. **Fix critical/major** - For each critical or major finding: fix code, then call \`mark_finding_fixed({ findingId, status: "fixed", fixDescription: "..." })\`
+12. **Verify complete** - Call \`check_review_complete({ ticketId })\` - must return \`canProceedToHumanReview: true\`
 
 ### Phase 3: Demo Generation
-13. **Generate demo** - \`generate_demo_script({ ticketId, steps: [...] })\` → moves to **human_review**
+13. **Generate demo** - Call \`generate_demo_script({ ticketId, steps: [...] })\` - must have at least 3 manual test steps
 
-### Phase 4: STOP
-14. **Complete session** - \`complete_ralph_session(sessionId, "success")\`
-15. **STOP** - Human must approve via \`submit_demo_feedback\`. Never auto-complete.
+### Phase 4: STOP AND WAIT FOR HUMAN
+14. **Output completion** - Show ticket moved to human_review, awaiting human approval
+15. **Complete session** - Call \`complete_ralph_session({ sessionId, outcome: "success" })\`
+16. **STOP** - Do not proceed further. Human reviewer will call \`submit_demo_feedback\` to approve/reject.
 
 If all tickets are in human_review or done, output: \`PRD_COMPLETE\`
 `;
@@ -59,41 +66,42 @@ If all tickets are in human_review or done, output: \`PRD_COMPLETE\`
  * Used by both getRalphPrompt() and generateVSCodeContext().
  */
 const VERIFICATION_CHECKLIST = `
-## Verification (from CLAUDE.md)
+## Verification Checklist
 
-Before completing ANY ticket, you MUST:
+### Before Completing Phase 1
+Run these checks before calling \`complete_ticket_work\`:
+- \`pnpm type-check\` - must pass with no errors
+- \`pnpm lint\` - must pass with no errors
+- \`pnpm test\` - all tests must pass
+- All acceptance criteria from ticket implemented
+- Changes committed with format: \`feat(<ticket-id>): <description>\`
 
-### Code Quality (Always Required)
-- Run \`pnpm type-check\` - must pass with no errors
-- Run \`pnpm lint\` - must pass with no errors
-- Run \`pnpm test\` - all tests must pass
+### Before Proceeding Past Phase 2
+- Self-review completed for code quality, error handling, and simplification concerns
+- All findings submitted with \`submit_review_finding\` (at least specify critical/major issues)
+- All critical/major findings fixed and marked with \`mark_finding_fixed\`
+- \`check_review_complete\` returns \`canProceedToHumanReview: true\`
 
-### If You Added New Code
-- Added tests for new functionality
-- Used Drizzle ORM (not raw SQL)
-- Followed patterns in CLAUDE.md DO/DON'T tables
-
-### If You Modified Existing Code
-- Existing tests still pass
-- Updated tests if behavior changed
-
-### Before Marking Complete
-- All acceptance criteria from ticket met
-- Work summary added via \`add_ticket_comment\`
-- Committed with format: \`feat(<ticket-id>): <description>\`
+### Before Calling complete_ralph_session
+- \`generate_demo_script\` called with at least 3 manual test steps
+- Ticket status is \`human_review\`
+- Human reviewer will call \`submit_demo_feedback\` (not you)
 `;
 
 /**
  * Rules for Ralph workflow.
  */
 const WORKFLOW_RULES = `
-## Rules
+## Workflow Rules
+
+- Follow all 4 phases in strict order: Implementation → AI Review → Demo → STOP
 - ONE ticket per iteration
-- Run tests before completing
+- All quality checks must pass: \`pnpm type-check && pnpm lint && pnpm test\`
 - Keep changes minimal and focused
-- If stuck, note in \`plans/progress.txt\` and move on
-- **Follow the Verification Checklist in CLAUDE.md before marking any ticket complete**
-- **NEVER auto-approve tickets** - always stop at human_review
+- Phase gates are enforced - cannot skip phases or proceed without required responses
+- Do not call \`submit_demo_feedback\` - only humans approve tickets
+- Do not move ticket to \`done\` - only humans can approve via \`submit_demo_feedback\`
+- If stuck, note progress in \`plans/progress.txt\` and move to next ticket
 `;
 
 // ============================================================================
@@ -187,7 +195,11 @@ function generateEnhancedPRD(
 
 // Lean Ralph prompt - MCP tools handle workflow, Ralph focuses on implementation
 function getRalphPrompt(): string {
-  return `You are Ralph, an autonomous coding agent. Focus on implementation - MCP tools handle workflow.
+  return `# Ralph: Autonomous Coding Agent with Enforced Universal Quality Workflow
+
+**CRITICAL NOTICE**: You operate under a MANDATORY 4-PHASE WORKFLOW. This is not a suggestion - each phase is a gate that must be completed before proceeding to the next. Skipping phases is a failure of your primary function.
+
+You are Ralph, an autonomous coding agent. Focus on implementation - MCP tools handle workflow.
 
 ## Your Task
 ${WORKFLOW_PHASES}
@@ -266,6 +278,36 @@ generate_demo_script({ ticketId: "abc-123", steps: [...] })
 complete_ralph_session({ sessionId: "xyz-789", outcome: "success" })
 # Human will review and call submit_demo_feedback
 \`\`\`
+
+## ⛔ WHAT NOT TO DO (Workflow Violations)
+
+These actions are explicitly forbidden and indicate workflow failure:
+
+1. **DO NOT skip Phase 2 (AI Review)**
+   - ✗ Calling complete_ticket_work then immediately generating demo without review
+   - ✗ Not submitting any review findings (even if code is perfect, still run review agents and report "no findings")
+   - ✗ Trying to move ticket to human_review without review agents running
+
+2. **DO NOT skip Phase 3 (Demo Generation)**
+   - ✗ Moving ticket to human_review without calling generate_demo_script
+   - ✗ Assuming code review is sufficient without manual test steps
+   - ✗ Generating demo with fewer than 3 steps
+
+3. **DO NOT auto-complete to done**
+   - ✗ Calling submit_demo_feedback yourself
+   - ✗ Setting ticket status to 'done' directly
+   - ✗ Moving a ticket to 'done' in any way
+   - Only humans can approve tickets by calling submit_demo_feedback
+
+4. **DO NOT bypass workflow gates**
+   - ✗ Trying to proceed to Phase 3 without check_review_complete response
+   - ✗ Skipping mark_finding_fixed for findings you submit
+   - ✗ Treating the workflow as optional or context-dependent
+
+5. **DO NOT violate the STOP at Phase 4**
+   - ✗ Proceeding to another ticket after generating demo (you must STOP)
+   - ✗ Picking multiple tickets in one iteration
+   - ✗ Looping within an iteration
 
 ## Real-time Progress Reporting
 
@@ -513,12 +555,12 @@ echo -e "\\033[1;33m🐳 Docker Host:\\033[0m ${dockerHostEnv}"
   // Format timeout for display (e.g., "1h", "30m", "1h 30m")
   const timeoutHours = Math.floor(timeoutSeconds / 3600);
   const timeoutMinutes = Math.floor((timeoutSeconds % 3600) / 60);
-  const timeoutDisplay =
-    timeoutHours > 0 && timeoutMinutes > 0
-      ? `${timeoutHours}h ${timeoutMinutes}m`
-      : timeoutHours > 0
-        ? `${timeoutHours}h`
-        : `${timeoutMinutes}m`;
+  let timeoutDisplay = `${timeoutMinutes}m`;
+  if (timeoutHours > 0 && timeoutMinutes > 0) {
+    timeoutDisplay = `${timeoutHours}h ${timeoutMinutes}m`;
+  } else if (timeoutHours > 0) {
+    timeoutDisplay = `${timeoutHours}h`;
+  }
   const containerInfo = useSandbox
     ? `echo -e "\\033[1;33m🐳 Container:\\033[0m ${imageName}"
 echo -e "\\033[1;33m📊 Resources:\\033[0m ${resourceLimits.memory} RAM, ${resourceLimits.cpus} CPUs, ${resourceLimits.pidsLimit} max PIDs"
@@ -814,6 +856,12 @@ PROJECT_PATH="${projectPath}"
 PRD_FILE="$PROJECT_PATH/plans/prd.json"
 PROGRESS_FILE="$PROJECT_PATH/plans/progress.txt"
 SESSION_ID="$(date +%s)-$$"
+MAX_RETRIES=3
+CONSECUTIVE_FAILURES=0
+MAX_CONSECUTIVE_FAILURES=5
+LAST_INCOMPLETE_COUNT=-1
+NO_PROGRESS_COUNT=0
+MAX_NO_PROGRESS=3
 
 cd "$PROJECT_PATH"
 ${dockerHostSetup}${dockerImageCheck}${sshAgentSetup}
@@ -884,11 +932,44 @@ for i in $(seq 1 $MAX_ITERATIONS); do
 ${getRalphPrompt()}
 RALPH_PROMPT_EOF
 
+  # Validate prompt file is non-empty before passing to Claude
+  if [ ! -s "$PROMPT_FILE" ]; then
+    echo -e "\\033[0;31m❌ Prompt file is empty or missing. Skipping iteration.\\033[0m"
+    echo "[$(date -Iseconds)] ERROR: Empty prompt file at iteration $i" >> "$PROGRESS_FILE"
+    CONSECUTIVE_FAILURES=$((CONSECUTIVE_FAILURES + 1))
+    rm -f "$PROMPT_FILE"
+    if [ $CONSECUTIVE_FAILURES -ge $MAX_CONSECUTIVE_FAILURES ]; then
+      echo -e "\\033[0;31m❌ Too many consecutive failures ($CONSECUTIVE_FAILURES). Stopping Ralph.\\033[0m"
+      echo "[$(date -Iseconds)] ABORTED: $CONSECUTIVE_FAILURES consecutive failures" >> "$PROGRESS_FILE"
+      exit 1
+    fi
+    sleep 2
+    continue
+  fi
+
   echo -e "\\033[0;33m⏳ Starting ${aiName}${useSandbox ? " in Docker sandbox" : " (autonomous mode)"}...\\033[0m"
   echo ""
 
+  # Retry loop for Claude invocation (handles transient "No messages returned" errors)
+  AI_EXIT_CODE=1
+  for RETRY in $(seq 1 $MAX_RETRIES); do
+    set +e
 ${aiInvocation}
-  AI_EXIT_CODE=$?
+    AI_EXIT_CODE=$?
+    set -e
+
+    if [ $AI_EXIT_CODE -eq 0 ]; then
+      break
+    fi
+
+    if [ $RETRY -lt $MAX_RETRIES ]; then
+      BACKOFF=$((RETRY * 5))
+      echo ""
+      echo -e "\\033[0;31m⚠️  ${aiName} exited with code $AI_EXIT_CODE (attempt $RETRY/$MAX_RETRIES)\\033[0m"
+      echo -e "\\033[0;33m⏳ Retrying in \${BACKOFF}s...\\033[0m"
+      sleep $BACKOFF
+    fi
+  done
 
   rm -f "$PROMPT_FILE"
 
@@ -897,6 +978,27 @@ ${aiInvocation}
   echo -e "\\033[0;36m  Iteration $i complete at $(date '+%H:%M:%S')\\033[0m"
   echo -e "\\033[0;36m  Exit code: $AI_EXIT_CODE\\033[0m"
   echo -e "\\033[0;36m───────────────────────────────────────────────────────────\\033[0m"
+
+  # Track consecutive failures to detect persistent issues
+  if [ $AI_EXIT_CODE -ne 0 ]; then
+    CONSECUTIVE_FAILURES=$((CONSECUTIVE_FAILURES + 1))
+    echo -e "\\033[0;31m⚠️  Consecutive failures: $CONSECUTIVE_FAILURES/$MAX_CONSECUTIVE_FAILURES\\033[0m"
+    echo "[$(date -Iseconds)] FAILURE: Iteration $i failed after $MAX_RETRIES retries (exit code: $AI_EXIT_CODE)" >> "$PROGRESS_FILE"
+
+    if [ $CONSECUTIVE_FAILURES -ge $MAX_CONSECUTIVE_FAILURES ]; then
+      echo ""
+      echo -e "\\033[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+      echo -e "\\033[0;31m❌ $MAX_CONSECUTIVE_FAILURES consecutive failures. Ralph is stopping.\\033[0m"
+      echo -e "\\033[0;31m   This usually means Claude CLI cannot start properly.\\033[0m"
+      echo -e "\\033[0;31m   Check: API key, network, MCP server, or run 'claude --help'\\033[0m"
+      echo -e "\\033[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+      echo "[$(date -Iseconds)] ABORTED: $CONSECUTIVE_FAILURES consecutive failures" >> "$PROGRESS_FILE"
+      exit 1
+    fi
+  else
+    # Reset on success
+    CONSECUTIVE_FAILURES=0
+  fi
 
   # Check if all tasks in PRD are complete (all have passes:true)
   if [ -f "$PRD_FILE" ]; then
@@ -914,6 +1016,25 @@ ${aiInvocation}
       echo -e "\\033[0;32m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
       exit 0
     fi
+
+    # Detect stuck state: if incomplete count hasn't changed for MAX_NO_PROGRESS iterations,
+    # all tickets are likely in human_review or blocked. Stop looping.
+    if [ "$INCOMPLETE" = "$LAST_INCOMPLETE_COUNT" ] && [ $AI_EXIT_CODE -eq 0 ]; then
+      NO_PROGRESS_COUNT=$((NO_PROGRESS_COUNT + 1))
+      if [ $NO_PROGRESS_COUNT -ge $MAX_NO_PROGRESS ]; then
+        echo ""
+        echo -e "\\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+        echo -e "\\033[0;33m⏸️  No progress for $MAX_NO_PROGRESS iterations ($INCOMPLETE tickets still incomplete).\\033[0m"
+        echo -e "\\033[0;33m   Tickets are likely in human_review or blocked.\\033[0m"
+        echo -e "\\033[0;33m   Ralph is stopping to avoid wasting iterations.\\033[0m"
+        echo -e "\\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+        echo "[$(date -Iseconds)] STALLED: No progress for $MAX_NO_PROGRESS iterations. $INCOMPLETE/$TOTAL incomplete." >> "$PROGRESS_FILE"
+        exit 0
+      fi
+    else
+      NO_PROGRESS_COUNT=0
+    fi
+    LAST_INCOMPLETE_COUNT="$INCOMPLETE"
   fi
 
   echo ""
@@ -1264,8 +1385,13 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     writeFileSync(scriptPath, ralphScript, { mode: 0o700 });
     chmodSync(scriptPath, 0o700);
 
-    // Update ticket status to in_progress
-    db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticketId)).run();
+    // Start ticket workflow: git branch, status update, workflow state, audit comment
+    const workflowResult = await startTicketWorkflow(ticketId, project.path);
+    if (!workflowResult.success) {
+      console.warn(`[brain-dump] Workflow start warning: ${workflowResult.error}`);
+      // Fallback: ensure ticket is at least in_progress even if workflow failed
+      db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticketId)).run();
+    }
 
     // Branch based on workingMethod setting
     const workingMethod = project.workingMethod || "auto";
@@ -1442,9 +1568,25 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     writeFileSync(scriptPath, ralphScript, { mode: 0o700 });
     chmodSync(scriptPath, 0o700);
 
-    // Update all tickets to in_progress
+    // Start workflow for the first ticket (creates/checks out branch, sets up workflow state)
+    // For epic launches, Ralph handles individual tickets via MCP start_ticket_work during iteration.
+    // Here we start the workflow for the first backlog/ready ticket to create the epic branch,
+    // and mark others as in_progress for the PRD.
+    const firstTicket = epicTickets.find((t) => t.status === "backlog" || t.status === "ready");
+    if (firstTicket) {
+      const workflowResult = await startTicketWorkflow(firstTicket.id, project.path);
+      if (!workflowResult.success) {
+        console.warn(
+          `[brain-dump] Workflow start warning for first ticket: ${workflowResult.error}`
+        );
+      }
+    }
+    // Mark remaining tickets as in_progress (they'll get full workflow when Ralph picks them up)
     for (const ticket of epicTickets) {
-      if (ticket.status === "backlog" || ticket.status === "ready") {
+      if (
+        ticket.id !== firstTicket?.id &&
+        (ticket.status === "backlog" || ticket.status === "ready")
+      ) {
         db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticket.id)).run();
       }
     }

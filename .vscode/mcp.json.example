@@ -8,7 +8,7 @@
   //
   // Requirements:
   // - VS Code 1.99+ with native MCP support
-  // - Node.js installed
+  // - Node.js and tsx installed (npx tsx)
   // - Brain Dump database initialized (run the app once)
 
   "servers": {
@@ -17,13 +17,14 @@
       "type": "stdio",
 
       // Command to run the MCP server
-      // Use absolute path or ensure node is in PATH
-      "command": "node",
+      // Uses npx to run tsx for TypeScript execution
+      "command": "npx",
 
       // Arguments passed to the command
-      // Update this path to your brain-dump installation
+      // Update the path to your brain-dump installation
       "args": [
-        "/home/xtra/code/personal_projects/brain-dump/mcp-server/index.js"
+        "tsx",
+        "/home/xtra/code/personal_projects/brain-dump/mcp-server/index.ts"
       ],
 
       // Environment variables (optional)
