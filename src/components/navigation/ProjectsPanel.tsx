@@ -7,7 +7,7 @@ import {
   useMemo,
   type KeyboardEvent,
 } from "react";
-import { X, Search, Plus, Folder, ChevronRight, ChevronDown, Bot } from "lucide-react";
+import { X, Search, Plus, Folder, ChevronRight, ChevronDown, Bot, Pencil } from "lucide-react";
 import { useClickOutside, type Epic } from "../../lib/hooks";
 import { EpicListItem } from "./EpicListItem";
 import { EpicDrillInView } from "./EpicDrillInView";
@@ -135,6 +135,7 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
   const [view, setView] = useState<PanelView>("projects");
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
   const [drillInProject, setDrillInProject] = useState<ProjectWithAIActivity | null>(null);
+  const [hoveredProjectId, setHoveredProjectId] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -632,6 +633,8 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
                     style={projectRowStyles}
                     onClick={() => handleSelectProject(project.id)}
                     onDoubleClick={() => handleDoubleClick(project)}
+                    onMouseEnter={() => setHoveredProjectId(project.id)}
+                    onMouseLeave={() => setHoveredProjectId(null)}
                     role="option"
                     aria-selected={isSelected}
                     aria-expanded={hasEpics ? isExpanded : undefined}
@@ -677,6 +680,38 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
                       >
                         <Bot size={16} aria-hidden="true" />
                       </span>
+                    )}
+
+                    {/* Edit (pencil) button — visible on hover */}
+                    {onEditProject && (
+                      <button
+                        type="button"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: "28px",
+                          height: "28px",
+                          background: "var(--bg-secondary)",
+                          border: "1px solid var(--border-primary)",
+                          borderRadius: "var(--radius-sm)",
+                          color: "var(--text-secondary)",
+                          cursor: "pointer",
+                          transition: "opacity var(--transition-fast)",
+                          opacity: hoveredProjectId === project.id ? 1 : 0,
+                          pointerEvents: hoveredProjectId === project.id ? "auto" : "none",
+                          flexShrink: 0,
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditProject(project);
+                        }}
+                        aria-label={`Edit ${project.name}`}
+                        data-testid={`edit-project-${project.id}`}
+                        className="hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] hover:border-[var(--accent-primary)]"
+                      >
+                        <Pencil size={14} aria-hidden="true" />
+                      </button>
                     )}
                   </div>
 
