@@ -119,7 +119,7 @@
     {
       "id": "33de0b4b-447b-400a-a3a4-3e13d7c4c178",
       "title": "Implement brain-dump-review-guard.ts plugin",
-      "passes": false,
+      "passes": true,
       "overview": "Create an OpenCode plugin that blocks git push/gh pr create until code review is complete. This ensures all code goes through the mandatory AI review phase before being pushed. Replicates `.claude/hooks/enforce-review-before-push.sh`\n- UQW requires code review before push: `in_progress` → `ai_review` → human review → push\n- This plugin checks for uncommitted source code changes before push\n- If changes exist but no `.claude/.review-completed` marker, blocks with helpful error\n- Marker must be fresh (< 30 minutes old) for push to proceed",
       "types": [],
       "designDecisions": [],
@@ -149,7 +149,7 @@
     {
       "id": "a0b46674-873e-4540-941c-43249bc475de",
       "title": "Add UQW workflow guidance to AGENTS.md",
-      "passes": false,
+      "passes": true,
       "overview": "Create or update `.opencode/AGENTS.md` with comprehensive Universal Quality Workflow guidance for OpenCode. This document guides the AI through the complete Ralph session workflow, state transitions, and common errors.\n- Unlike Claude Code hooks that provide interactive feedback, OpenCode relies more on documentation\n- AGENTS.md is loaded by OpenCode's context system to guide AI behavior\n- Must explain state machine, valid transitions, error recovery, and the AI review process\n- This is critical for helping AI understand \\\"STATE ENFORCEMENT\\\" and \\\"CODE REVIEW REQUIRED\\\" errors",
       "types": [],
       "designDecisions": [],
@@ -177,7 +177,7 @@
     {
       "id": "7e47f8c2-f886-4bd6-b013-2b080f7e826c",
       "title": "Create scripts/setup-opencode.sh installation script",
-      "passes": false,
+      "passes": true,
       "overview": "Create an automated setup script that installs OpenCode plugins and configures MCP server integration. This script detects the OpenCode environment, copies plugin files, and verifies the MCP configuration.\n- Brain Dump integrates with OpenCode via MCP server (similar to Claude Code)\n- Plugins should be installed to `.opencode/plugins/` or `~/.config/opencode/plugins/`\n- MCP config goes in `.opencode/opencode.json`\n- The main `scripts/install.sh` should detect OpenCode and call this script\n- Installation should be idempotent (safe to run multiple times)",
       "types": [],
       "designDecisions": [],
@@ -206,7 +206,7 @@
     {
       "id": "da61b726-9999-46cd-a4ae-57755af8ae62",
       "title": "Document UQW differences between Claude Code and OpenCode",
-      "passes": false,
+      "passes": true,
       "overview": "Create comprehensive documentation explaining how the Universal Quality Workflow works in Claude Code vs OpenCode, and why the implementations differ. This helps users understand the trade-offs and capabilities of each environment.\n- Both Claude Code and OpenCode use the same MCP server and UQW workflow\n- Key difference: Claude Code uses shell hooks, OpenCode uses TypeScript plugins\n- Claude Code provides interactive feedback, OpenCode relies on console output + AGENTS.md\n- Both share the same `.claude/ralph-state.json` state file for consistency",
       "types": [],
       "designDecisions": [],
@@ -236,7 +236,7 @@
     {
       "id": "01118bbb-4887-47c8-919d-0ec8887532fb",
       "title": "OpenCode UQW Implementation Plan Overview",
-      "passes": false,
+      "passes": true,
       "overview": "This is the reference ticket containing the **COMPLETE** OpenCode Universal Quality Workflow implementation plan. This plan implements the UQW for OpenCode, ensuring it follows the same state-enforced workflow as Claude Code while leveraging OpenCode's plugin system and the existing MCP server infrastructure.\n**Key Insight**: The MCP server already handles ALL workflow logic (state transitions, validation, telemetry). OpenCode plugins only need to:\n1. **Enforce** state transitions (block Write/Edit unless in correct state)\n2. **Automate** PR workflows (auto-create PRs, track commits)\n3. **Guard** quality gates (block push until review complete)\n4. **Guide** the AI (via AGENTS.md rules)",
       "types": [],
       "designDecisions": [],
