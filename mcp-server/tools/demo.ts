@@ -265,7 +265,7 @@ Returns demo script with steps and feedback if available.`,
           content: [
             {
               type: "text" as const,
-              text: `Demo script found:\n\n${JSON.stringify(result, null, 2)}`,
+              text: `Demo script found:\n\n${JSON.stringify(result)}`,
             },
           ],
         };

@@ -256,7 +256,7 @@ ${userId ? `**User:** ${userId}` : ""}
 Use this session ID with \`log_conversation_message\` to log messages.
 
 \`\`\`json
-${JSON.stringify(session, null, 2)}
+${JSON.stringify(session)}
 \`\`\``,
             },
           ],
@@ -533,7 +533,7 @@ This session was already ended. No changes made.`,
 This session is now closed. No further messages can be logged.
 
 \`\`\`json
-${JSON.stringify(updatedSession, null, 2)}
+${JSON.stringify(updatedSession)}
 \`\`\``,
             },
           ],
@@ -702,7 +702,7 @@ ${startDate ? `**Start Date:** ${startDate}` : ""}
 ${endDate ? `**End Date:** ${endDate}` : ""}
 
 \`\`\`json
-${JSON.stringify(sessionList, null, 2)}
+${JSON.stringify(sessionList)}
 \`\`\``,
             },
           ],
@@ -955,7 +955,7 @@ ${invalidMessageIds.length > 0 ? `**Invalid Message IDs:** ${invalidMessageIds.j
 }
 
 \`\`\`json
-${JSON.stringify(exportData, null, 2)}
+${JSON.stringify(exportData)}
 \`\`\``,
             },
           ],
@@ -1176,7 +1176,7 @@ To delete these sessions, run again with \`confirm: true\`.
 ### Sessions Eligible for Deletion
 
 \`\`\`json
-${JSON.stringify(sessionPreview, null, 2)}
+${JSON.stringify(sessionPreview)}
 \`\`\``,
               },
             ],

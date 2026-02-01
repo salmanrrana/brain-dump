@@ -840,32 +840,88 @@ install_opencode() {
 
 # Configure OpenCode with Brain Dump agents and skills
 setup_opencode() {
-    print_step "Configuring OpenCode for Brain Dump"
-
-    # Ensure .opencode directory exists
-    if [ ! -d ".opencode" ]; then
-        print_warning "Missing .opencode directory"
-        SKIPPED+=("OpenCode config (missing .opencode directory)")
-        return 1
-    fi
+    print_step "Configuring OpenCode for Brain Dump (global installation)"
 
     BRAIN_DUMP_DIR="$(pwd)"
     MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/index.ts"
-    OPENCODE_CONFIG=".opencode/opencode.json"
 
-    # Create or update opencode.json with correct configuration
-    if [ ! -f "$OPENCODE_CONFIG" ]; then
-        print_info "Creating OpenCode configuration..."
-        cat > "$OPENCODE_CONFIG" << EOF
+    # Global OpenCode config directories (works from any project)
+    OPENCODE_GLOBAL="$HOME/.config/opencode"
+    OPENCODE_GLOBAL_JSON="$OPENCODE_GLOBAL/opencode.json"
+    OPENCODE_GLOBAL_AGENTS="$OPENCODE_GLOBAL/agents"
+    OPENCODE_GLOBAL_SKILLS="$OPENCODE_GLOBAL/skills"
+
+    # Create global directories
+    for dir in "$OPENCODE_GLOBAL" "$OPENCODE_GLOBAL_AGENTS" "$OPENCODE_GLOBAL_SKILLS"; do
+        mkdir -p "$dir" || { print_error "Failed to create $dir"; return 1; }
+    done
+    print_success "Global directories ready: $OPENCODE_GLOBAL"
+
+    # ── Step 1: Write/merge global opencode.json with absolute MCP path ──
+    if [ -f "$OPENCODE_GLOBAL_JSON" ]; then
+        # Merge into existing config (preserve other MCP servers)
+        if grep -q '"brain-dump"' "$OPENCODE_GLOBAL_JSON"; then
+            print_info "Updating existing Brain Dump MCP config with absolute paths..."
+        else
+            print_info "Adding Brain Dump MCP server to existing config..."
+        fi
+
+        if command_exists node; then
+            cp "$OPENCODE_GLOBAL_JSON" "$OPENCODE_GLOBAL_JSON.backup"
+            if OPENCODE_JSON="$OPENCODE_GLOBAL_JSON" BRAIN_DUMP_DIR="$BRAIN_DUMP_DIR" node -e '
+const fs = require("fs");
+const configFile = process.env.OPENCODE_JSON;
+const brainDumpDir = process.env.BRAIN_DUMP_DIR;
+const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
+config.mcp = config.mcp || {};
+config.mcp["brain-dump"] = {
+    type: "local",
+    command: ["npx", "tsx", brainDumpDir + "/mcp-server/index.ts"],
+    enabled: true,
+    environment: { BRAIN_DUMP_PATH: brainDumpDir, OPENCODE: "1" }
+};
+config.tools = Object.assign(config.tools || {}, {
+    "brain-dump_start_ticket_work": true,
+    "brain-dump_complete_ticket_work": true,
+    "brain-dump_submit_review_finding": true,
+    "brain-dump_mark_finding_fixed": true,
+    "brain-dump_check_review_complete": true,
+    "brain-dump_generate_demo_script": true,
+    "brain-dump_add_ticket_comment": true,
+    "brain-dump_create_ralph_session": true,
+    "brain-dump_update_session_state": true,
+    "brain-dump_complete_ralph_session": true,
+    "brain-dump_emit_ralph_event": true,
+    "brain-dump_list_tickets": true,
+    "brain-dump_list_projects": true,
+    "brain-dump_*": false
+});
+config.permission = config.permission || {};
+config.permission["*"] = "allow";
+fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
+' 2>/dev/null; then
+                print_success "Updated global opencode.json with Brain Dump MCP server"
+                rm -f "$OPENCODE_GLOBAL_JSON.backup"
+            else
+                print_warning "Failed to merge config, restoring backup"
+                mv "$OPENCODE_GLOBAL_JSON.backup" "$OPENCODE_GLOBAL_JSON" 2>/dev/null || true
+            fi
+        else
+            print_warning "Node.js required to merge existing config"
+            SKIPPED+=("OpenCode global config merge (no Node.js)")
+        fi
+    else
+        # Create fresh global config
+        cat > "$OPENCODE_GLOBAL_JSON" << EOF
 {
   "\$schema": "https://opencode.ai/config.json",
   "mcp": {
     "brain-dump": {
       "type": "local",
-      "command": ["npx", "tsx", "mcp-server/index.ts"],
+      "command": ["npx", "tsx", "$BRAIN_DUMP_DIR/mcp-server/index.ts"],
       "enabled": true,
       "environment": {
-        "BRAIN_DUMP_PATH": ".",
+        "BRAIN_DUMP_PATH": "$BRAIN_DUMP_DIR",
         "OPENCODE": "1"
       }
     }
@@ -881,7 +937,9 @@ setup_opencode() {
     "brain-dump_create_ralph_session": true,
     "brain-dump_update_session_state": true,
     "brain-dump_complete_ralph_session": true,
+    "brain-dump_emit_ralph_event": true,
     "brain-dump_list_tickets": true,
+    "brain-dump_list_projects": true,
     "brain-dump_*": false
   },
   "permission": {
@@ -889,99 +947,95 @@ setup_opencode() {
   }
 }
 EOF
-        print_success "Created OpenCode configuration"
-    else
-        # Check if type is "stdio" and update to "local"
-        if grep -q '"type": "stdio"' "$OPENCODE_CONFIG"; then
-            print_info "Updating OpenCode MCP type from 'stdio' to 'local'..."
-            # Create backup
-            cp "$OPENCODE_CONFIG" "$OPENCODE_CONFIG.backup"
-            
-            # Update the configuration
-            if command_exists node; then
-                local node_error
-                node_error=$(node -e "
-const fs = require('fs');
-const config = JSON.parse(fs.readFileSync('$OPENCODE_CONFIG', 'utf8'));
-if (config.mcp && config.mcp['brain-dump']) {
-    config.mcp['brain-dump'].type = 'local';
-    config.mcp['brain-dump'].command = ['npx', 'tsx', 'mcp-server/index.ts'];
-    config.mcp['brain-dump'].enabled = true;
-    config.mcp['brain-dump'].environment = config.mcp['brain-dump'].environment || {};
-    config.mcp['brain-dump'].environment.BRAIN_DUMP_PATH = '.';
-} else {
-    config.mcp = config.mcp || {};
-    config.mcp['brain-dump'] = {
-        type: 'local',
-        command: ['npx', 'tsx', 'mcp-server/index.ts'],
-        enabled: true,
-        environment: { BRAIN_DUMP_PATH: '.' }
-    };
-}
-config.tools = {
-    'brain-dump_start_ticket_work': true,
-    'brain-dump_complete_ticket_work': true,
-    'brain-dump_submit_review_finding': true,
-    'brain-dump_mark_finding_fixed': true,
-    'brain-dump_check_review_complete': true,
-    'brain-dump_generate_demo_script': true,
-    'brain-dump_add_ticket_comment': true,
-    'brain-dump_create_ralph_session': true,
-    'brain-dump_update_session_state': true,
-    'brain-dump_complete_ralph_session': true,
-    'brain-dump_list_tickets': true,
-    'brain-dump_*': false
-};
-config.permission = config.permission || {};
-config.permission['*'] = 'allow';
-fs.writeFileSync('$OPENCODE_CONFIG', JSON.stringify(config, null, 2));
-console.log('Configuration updated successfully');
-" 2>&1) && {
-                    print_success "Updated OpenCode configuration to use 'local' type"
-                    rm "$OPENCODE_CONFIG.backup" 2>/dev/null || true
-                } || {
-                    print_warning "Failed to update configuration: $node_error"
-                    print_warning "Restoring backup and providing manual instructions"
-                    mv "$OPENCODE_CONFIG.backup" "$OPENCODE_CONFIG" 2>/dev/null || true
-                    SKIPPED+=("OpenCode config (manual update needed)")
-                    return 0
-                }
-            else
-                print_warning "Node not available for config update"
-                SKIPPED+=("OpenCode config (manual update needed)")
-                return 0
-            fi
-        else
-            print_success "OpenCode configuration already exists"
-        fi
+        print_success "Created global opencode.json"
     fi
 
-    # Validate configuration
-    if ! grep -q '"brain-dump"' "$OPENCODE_CONFIG"; then
-        print_warning "MCP server not configured in opencode.json"
-        SKIPPED+=("OpenCode config (MCP server missing)")
+    # Validate global config
+    if ! grep -q '"brain-dump"' "$OPENCODE_GLOBAL_JSON" 2>/dev/null; then
+        print_warning "MCP server not found in global opencode.json"
+        SKIPPED+=("OpenCode global config (MCP server missing)")
         return 1
     fi
 
-    # Count configured items
-    local agent_count=$(ls .opencode/agent/*.md 2>/dev/null | wc -l)
-    local skill_count=$(find .opencode/skill -name "SKILL.md" 2>/dev/null | wc -l)
-    
-    [ "$agent_count" -gt 0 ] && print_success "Found $agent_count agents"
-    [ "$skill_count" -gt 0 ] && print_success "Found $skill_count skills"
+    # ── Step 2: Copy agents to global location ──
+    if [ -d ".opencode/agent" ]; then
+        local agents_copied=0
+        for agent_file in .opencode/agent/*.md; do
+            [ -f "$agent_file" ] || continue
+            cp "$agent_file" "$OPENCODE_GLOBAL_AGENTS/" && agents_copied=$((agents_copied + 1))
+        done
+        [ "$agents_copied" -gt 0 ] && print_success "Installed $agents_copied agents to $OPENCODE_GLOBAL_AGENTS"
+    fi
+
+    # ── Step 3: Copy skills to global location ──
+    if [ -d ".opencode/skill" ]; then
+        local skills_copied=0
+        for skill_dir in .opencode/skill/*/; do
+            [ -d "$skill_dir" ] || continue
+            local skill_name=$(basename "$skill_dir")
+            cp -r "$skill_dir" "$OPENCODE_GLOBAL_SKILLS/" && skills_copied=$((skills_copied + 1))
+        done
+        [ "$skills_copied" -gt 0 ] && print_success "Installed $skills_copied skills to $OPENCODE_GLOBAL_SKILLS"
+    fi
+
+    # ── Step 4: Copy AGENTS.md to global location ──
+    if [ -f ".opencode/AGENTS.md" ]; then
+        cp ".opencode/AGENTS.md" "$OPENCODE_GLOBAL/" && print_success "Installed AGENTS.md to $OPENCODE_GLOBAL"
+    fi
+
+    # ── Step 5: Update local .opencode/opencode.json with absolute paths ──
+    if [ -d ".opencode" ]; then
+        cat > ".opencode/opencode.json" << EOF
+{
+  "\$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "brain-dump": {
+      "type": "local",
+      "command": ["npx", "tsx", "$BRAIN_DUMP_DIR/mcp-server/index.ts"],
+      "enabled": true,
+      "environment": {
+        "BRAIN_DUMP_PATH": "$BRAIN_DUMP_DIR",
+        "OPENCODE": "1"
+      }
+    }
+  },
+  "tools": {
+    "brain-dump_start_ticket_work": true,
+    "brain-dump_complete_ticket_work": true,
+    "brain-dump_submit_review_finding": true,
+    "brain-dump_mark_finding_fixed": true,
+    "brain-dump_check_review_complete": true,
+    "brain-dump_generate_demo_script": true,
+    "brain-dump_add_ticket_comment": true,
+    "brain-dump_create_ralph_session": true,
+    "brain-dump_update_session_state": true,
+    "brain-dump_complete_ralph_session": true,
+    "brain-dump_emit_ralph_event": true,
+    "brain-dump_list_tickets": true,
+    "brain-dump_list_projects": true,
+    "brain-dump_*": false
+  },
+  "permission": {
+    "*": "allow"
+  }
+}
+EOF
+        print_success "Updated local .opencode/opencode.json with absolute paths"
+    fi
 
     create_opencode_fallbacks
-    INSTALLED+=("OpenCode configuration")
+    INSTALLED+=("OpenCode configuration (global)")
     return 0
 }
 
-# Create fallback agents for missing OpenCode plugins
+# Create fallback agents for missing OpenCode plugins (global location)
 create_opencode_fallbacks() {
-    print_step "Creating fallback agents for missing plugins"
+    local agents_dir="${OPENCODE_GLOBAL_AGENTS:-$HOME/.config/opencode/agents}"
+    mkdir -p "$agents_dir"
 
     # Code reviewer fallback
-    if [ ! -f ".opencode/agent/code-reviewer-fallback.md" ]; then
-        cat > ".opencode/agent/code-reviewer-fallback.md" << 'EOF'
+    if [ ! -f "$agents_dir/code-reviewer-fallback.md" ]; then
+        cat > "$agents_dir/code-reviewer-fallback.md" << 'EOF'
 ---
 description: Fallback code reviewer when pr-review-toolkit is unavailable
 mode: subagent
@@ -1001,12 +1055,12 @@ Fallback code reviewer for when specialized tools are unavailable.
 3. Hunt silent failures (empty catches, fire-and-forget async)
 4. Provide structured report with critical/important/minor issues
 EOF
-        print_success "Created code-reviewer-fallback agent"
+        print_success "Created code-reviewer-fallback agent (global)"
     fi
 
-    # Code simplifier fallback  
-    if [ ! -f ".opencode/agent/code-simplifier-fallback.md" ]; then
-        cat > ".opencode/agent/code-simplifier-fallback.md" << 'EOF'
+    # Code simplifier fallback
+    if [ ! -f "$agents_dir/code-simplifier-fallback.md" ]; then
+        cat > "$agents_dir/code-simplifier-fallback.md" << 'EOF'
 ---
 description: Fallback code simplifier when code-simplifier plugin is unavailable
 mode: subagent
@@ -1024,14 +1078,12 @@ Fallback code simplifier for when specialized tools are unavailable.
 
 ## What NOT to Change
 - Don't add new features or change public APIs
-- Don't "improve" working error handling  
+- Don't "improve" working error handling
 - Don't add abstractions for single-use code
 - Don't optimize prematurely
 EOF
-        print_success "Created code-simplifier-fallback agent"
+        print_success "Created code-simplifier-fallback agent (global)"
     fi
-
-    INSTALLED+=("OpenCode fallback agents")
 }
 
 # Setup Claude Code skills from vendored third-party skills
@@ -1769,7 +1821,8 @@ print_summary() {
     fi
 
     if [ "$SETUP_OPENCODE" = true ]; then
-        echo "  4. Start OpenCode in this directory: ${CYAN}opencode${NC}"
+        echo "  4. Start OpenCode from any project directory: ${CYAN}opencode${NC}"
+        echo "     Brain Dump MCP tools are installed globally (~/.config/opencode/)"
         echo "  5. Use Tab to switch between Ralph and Build agents"
         echo "  6. Use @ticket-worker, @planner, @code-reviewer as needed"
         if ! command_exists opencode; then

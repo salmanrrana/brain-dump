@@ -212,7 +212,7 @@ Returns:
           content: [
             {
               type: "text" as const,
-              text: `Ticket is already in progress.\n\n${JSON.stringify(ticket, null, 2)}`,
+              text: `Ticket is already in progress.\n\n${JSON.stringify(ticket)}`,
             },
           ],
         };
@@ -1034,7 +1034,7 @@ Returns:
           content: [
             {
               type: "text" as const,
-              text: `Ticket is already done.\n\n${JSON.stringify(ticket, null, 2)}`,
+              text: `Ticket is already done.\n\n${JSON.stringify(ticket)}`,
             },
           ],
         };
@@ -1056,7 +1056,7 @@ Returns:
           content: [
             {
               type: "text" as const,
-              text: `Ticket is already in ${ticket.status}.\n\nTo proceed:\n- In ai_review: Run review agents, fix findings, then generate demo\n- In human_review: Wait for human feedback via submit_demo_feedback\n\n${JSON.stringify(ticket, null, 2)}`,
+              text: `Ticket is already in ${ticket.status}.\n\nTo proceed:\n- In ai_review: Run review agents, fix findings, then generate demo\n- In human_review: Wait for human feedback via submit_demo_feedback\n\n${JSON.stringify(ticket)}`,
             },
           ],
         };

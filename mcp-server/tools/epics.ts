@@ -46,7 +46,7 @@ Returns array of epics with their IDs and titles.`,
             type: "text",
             text:
               epics.length > 0
-                ? JSON.stringify(epics, null, 2)
+                ? JSON.stringify(epics)
                 : `No epics found for project "${project.name}". Use create_epic to add one.`,
           },
         ],
@@ -108,7 +108,7 @@ Returns the created epic.`,
           content: [
             {
               type: "text",
-              text: `Epic created in "${project.name}"!\n\n${JSON.stringify(epic, null, 2)}`,
+              text: `Epic created in "${project.name}"!\n\n${JSON.stringify(epic)}`,
             },
           ],
         };
@@ -203,9 +203,7 @@ Returns the updated epic.`,
         log.info(`Updated epic: ${updatedEpic.title}`);
 
         return {
-          content: [
-            { type: "text", text: `Epic updated!\n\n${JSON.stringify(updatedEpic, null, 2)}` },
-          ],
+          content: [{ type: "text", text: `Epic updated!\n\n${JSON.stringify(updatedEpic)}` }],
         };
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);

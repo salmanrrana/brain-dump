@@ -190,7 +190,7 @@ Returns:
       };
 
       log.info(`Database health check: ${status}`);
-      return { content: [{ type: "text", text: JSON.stringify(health, null, 2) }] };
+      return { content: [{ type: "text", text: JSON.stringify(health) }] };
     }
   );
 
@@ -237,7 +237,7 @@ environment-specific guidance or behavior.`,
       };
 
       log.info(`Environment detected: ${envInfo.environment}`);
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
     }
   );
 
@@ -293,7 +293,7 @@ Returns:
       log.info(
         `Got settings for project ${project.name}: workingMethod=${workingMethod}, effective=${effectiveEnvironment}`
       );
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
     }
   );
 
@@ -365,9 +365,7 @@ Returns:
 
       log.info(`Updated settings for project ${project.name}: workingMethod=${workingMethod}`);
       return {
-        content: [
-          { type: "text", text: `Project settings updated!\n\n${JSON.stringify(result, null, 2)}` },
-        ],
+        content: [{ type: "text", text: `Project settings updated!\n\n${JSON.stringify(result)}` }],
       };
     }
   );

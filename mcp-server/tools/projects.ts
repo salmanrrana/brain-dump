@@ -35,7 +35,7 @@ Example response:
             type: "text",
             text:
               projects.length > 0
-                ? JSON.stringify(projects, null, 2)
+                ? JSON.stringify(projects)
                 : "No projects found. Use create_project to add one.",
           },
         ],
@@ -64,7 +64,7 @@ Returns the matching project or a message if no project found.`,
 
       if (matchingProject) {
         return {
-          content: [{ type: "text", text: JSON.stringify(matchingProject, null, 2) }],
+          content: [{ type: "text", text: JSON.stringify(matchingProject) }],
         };
       }
 
@@ -122,7 +122,7 @@ Returns the created project with its generated ID.`,
           content: [
             {
               type: "text",
-              text: `Project already exists at this path:\n\n${JSON.stringify(existing, null, 2)}`,
+              text: `Project already exists at this path:\n\n${JSON.stringify(existing)}`,
             },
           ],
         };
@@ -143,7 +143,7 @@ Returns the created project with its generated ID.`,
           content: [
             {
               type: "text",
-              text: `Project created!\n\n${JSON.stringify(project, null, 2)}`,
+              text: `Project created!\n\n${JSON.stringify(project)}`,
             },
           ],
         };

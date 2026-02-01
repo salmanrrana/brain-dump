@@ -86,7 +86,7 @@ Returns the created comment.`,
           content: [
             {
               type: "text",
-              text: `Comment added to ticket "${ticket.title}"!\n\n${JSON.stringify(comment, null, 2)}`,
+              text: `Comment added to ticket "${ticket.title}"!\n\n${JSON.stringify(comment)}`,
             },
           ],
         };
@@ -137,7 +137,7 @@ Args:
             type: "text",
             text:
               comments.length > 0
-                ? JSON.stringify(comments, null, 2)
+                ? JSON.stringify(comments)
                 : `No comments found for ticket "${ticket.title}".`,
           },
         ],

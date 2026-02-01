@@ -541,7 +541,7 @@ ${formattedTasks
 
 ---
 \`\`\`json
-${JSON.stringify(formattedTasks, null, 2)}
+${JSON.stringify(formattedTasks)}
 \`\`\``,
           },
         ],

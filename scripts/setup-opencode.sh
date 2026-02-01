@@ -115,8 +115,27 @@ try {
     config.mcp["brain-dump"] = {
         type: "local",
         command: ["npx", "tsx", brainDumpDir + "/mcp-server/index.ts"],
-        enabled: true
+        enabled: true,
+        environment: { BRAIN_DUMP_PATH: brainDumpDir, OPENCODE: "1" }
     };
+    config.tools = Object.assign(config.tools || {}, {
+        "brain-dump_start_ticket_work": true,
+        "brain-dump_complete_ticket_work": true,
+        "brain-dump_submit_review_finding": true,
+        "brain-dump_mark_finding_fixed": true,
+        "brain-dump_check_review_complete": true,
+        "brain-dump_generate_demo_script": true,
+        "brain-dump_add_ticket_comment": true,
+        "brain-dump_create_ralph_session": true,
+        "brain-dump_update_session_state": true,
+        "brain-dump_complete_ralph_session": true,
+        "brain-dump_emit_ralph_event": true,
+        "brain-dump_list_tickets": true,
+        "brain-dump_list_projects": true,
+        "brain-dump_*": false
+    });
+    config.permission = config.permission || {};
+    config.permission["*"] = "allow";
     fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
 } catch (err) {
     console.error("Error: " + err.message);
@@ -148,8 +167,31 @@ else
     "brain-dump": {
       "type": "local",
       "command": ["npx", "tsx", "$BRAIN_DUMP_DIR/mcp-server/index.ts"],
-      "enabled": true
+      "enabled": true,
+      "environment": {
+        "BRAIN_DUMP_PATH": "$BRAIN_DUMP_DIR",
+        "OPENCODE": "1"
+      }
     }
+  },
+  "tools": {
+    "brain-dump_start_ticket_work": true,
+    "brain-dump_complete_ticket_work": true,
+    "brain-dump_submit_review_finding": true,
+    "brain-dump_mark_finding_fixed": true,
+    "brain-dump_check_review_complete": true,
+    "brain-dump_generate_demo_script": true,
+    "brain-dump_add_ticket_comment": true,
+    "brain-dump_create_ralph_session": true,
+    "brain-dump_update_session_state": true,
+    "brain-dump_complete_ralph_session": true,
+    "brain-dump_emit_ralph_event": true,
+    "brain-dump_list_tickets": true,
+    "brain-dump_list_projects": true,
+    "brain-dump_*": false
+  },
+  "permission": {
+    "*": "allow"
   }
 }
 EOF

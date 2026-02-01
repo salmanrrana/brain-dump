@@ -444,7 +444,7 @@ Returns array of findings.`,
           content: [
             {
               type: "text" as const,
-              text: `Found ${findings.length} finding(s).\n\n${JSON.stringify(summary, null, 2)}\n\nFindings:\n\n${findings.map((f, i) => `${i + 1}. [${f.severity}] ${f.category} - ${f.status}\n   ${f.description}${f.file_path ? `\n   File: ${f.file_path}${f.line_number ? `:${f.line_number}` : ""}` : ""}`).join("\n\n")}`,
+              text: `Found ${findings.length} finding(s).\n\n${JSON.stringify(summary)}\n\nFindings:\n\n${findings.map((f, i) => `${i + 1}. [${f.severity}] ${f.category} - ${f.status}\n   ${f.description}${f.file_path ? `\n   File: ${f.file_path}${f.line_number ? `:${f.line_number}` : ""}` : ""}`).join("\n\n")}`,
             },
           ],
         };
@@ -516,7 +516,7 @@ Returns object with completion status and counts.`,
           content: [
             {
               type: "text" as const,
-              text: `${message}\n\n${JSON.stringify(result, null, 2)}`,
+              text: `${message}\n\n${JSON.stringify(result)}`,
             },
           ],
         };
