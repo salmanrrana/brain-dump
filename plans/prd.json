@@ -236,7 +236,7 @@
     {
       "id": "01118bbb-4887-47c8-919d-0ec8887532fb",
       "title": "OpenCode UQW Implementation Plan Overview",
-      "passes": false,
+      "passes": true,
       "overview": "This is the reference ticket containing the **COMPLETE** OpenCode Universal Quality Workflow implementation plan. This plan implements the UQW for OpenCode, ensuring it follows the same state-enforced workflow as Claude Code while leveraging OpenCode's plugin system and the existing MCP server infrastructure.\n**Key Insight**: The MCP server already handles ALL workflow logic (state transitions, validation, telemetry). OpenCode plugins only need to:\n1. **Enforce** state transitions (block Write/Edit unless in correct state)\n2. **Automate** PR workflows (auto-create PRs, track commits)\n3. **Guard** quality gates (block push until review complete)\n4. **Guide** the AI (via AGENTS.md rules)",
       "types": [],
       "designDecisions": [],

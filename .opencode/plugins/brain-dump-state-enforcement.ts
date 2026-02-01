@@ -58,22 +58,32 @@ export default async (context: any) => {
         const content = readFileSync(stateFilePath, "utf-8");
         ralphState = JSON.parse(content);
       } catch (error) {
-        // If state file is corrupted or unreadable, allow operation (fail open)
-        // This prevents the plugin from breaking the workflow
-        return;
+        // State file is corrupted - this is critical, don't silently ignore
+        throw new Error(
+          `STATE ENFORCEMENT: Ralph state file is corrupted at ${stateFilePath}\n\n` +
+            `This usually happens if the file was edited incorrectly or the system crashed during writing.\n\n` +
+            `Error: ${error instanceof Error ? error.message : String(error)}\n\n` +
+            `To recover, run: rm .claude/ralph-state.json`
+        );
       }
 
-      // Validate required fields exist before using them
+      // Validate required fields exist
       const currentState = ralphState.currentState;
       if (!currentState || typeof currentState !== "string") {
-        // State file is missing required fields - treat as corrupt, allow operation
-        return;
+        throw new Error(
+          `STATE ENFORCEMENT: Ralph state file is missing 'currentState' field.\n\n` +
+            `The state file at ${stateFilePath} is incomplete or corrupted.\n\n` +
+            `To recover, run: rm .claude/ralph-state.json`
+        );
       }
 
       const sessionId = ralphState.sessionId;
       if (!sessionId || typeof sessionId !== "string") {
-        // State file is missing sessionId - can't provide helpful error anyway
-        return;
+        throw new Error(
+          `STATE ENFORCEMENT: Ralph state file is missing 'sessionId' field.\n\n` +
+            `The state file at ${stateFilePath} is incomplete or corrupted.\n\n` +
+            `To recover, run: rm .claude/ralph-state.json`
+        );
       }
 
       // Check if current state allows writing

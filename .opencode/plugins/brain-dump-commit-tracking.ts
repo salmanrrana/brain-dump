@@ -71,13 +71,19 @@ function extractCommitHash(output: string): string {
 
 /**
  * Reads ticket ID from Ralph state file
+ * Logs errors to help debug state file issues
  */
 function readTicketIdFromState(stateFilePath: string): string {
   try {
     const content = readFileSync(stateFilePath, "utf-8");
     const state = JSON.parse(content);
     return state.ticketId || "";
-  } catch {
+  } catch (error) {
+    // Log error context to help debug state file issues
+    console.error(`[Brain Dump] Failed to read Ralph state file: ${stateFilePath}`);
+    if (error instanceof Error) {
+      console.error(`[Brain Dump] Error: ${error.message}`);
+    }
     return "";
   }
 }

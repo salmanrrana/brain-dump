@@ -21,35 +21,49 @@ import { join } from "path";
 
 /**
  * Checks if check_review_complete output indicates review is complete
+ * Parses JSON and validates structured fields to determine if all critical/major findings are resolved
  */
 function isReviewComplete(output: any): boolean {
-  let outputStr = typeof output === "string" ? output : JSON.stringify(output);
+  try {
+    // Parse output as JSON if it's a string
+    let data = typeof output === "string" ? JSON.parse(output) : output;
 
-  // Check for explicit success indicators
-  if (outputStr.includes('"complete": true') || outputStr.includes("'complete': true")) {
-    return true;
-  }
+    // Validate we have an object to work with
+    if (!data || typeof data !== "object") {
+      console.error("[Brain Dump] Review complete check failed: output is not a valid object");
+      return false;
+    }
 
-  if (
-    outputStr.includes('"canProceedToHumanReview": true') ||
-    outputStr.includes("'canProceedToHumanReview': true")
-  ) {
-    return true;
-  }
-
-  // Check for no open critical or major findings
-  if (outputStr.includes('"openCritical": 0') || outputStr.includes("'openCritical': 0")) {
-    if (outputStr.includes('"openMajor": 0') || outputStr.includes("'openMajor': 0")) {
+    // Check explicit success indicators with proper type safety
+    if (data.complete === true) {
       return true;
     }
-  }
 
-  // Check for success message in output
-  if (outputStr.includes("✅ Review complete") || outputStr.includes("Review complete!")) {
-    return true;
-  }
+    if (data.canProceedToHumanReview === true) {
+      return true;
+    }
 
-  return false;
+    // Check for no open critical/major findings
+    if (
+      typeof data.openCritical === "number" &&
+      data.openCritical === 0 &&
+      typeof data.openMajor === "number" &&
+      data.openMajor === 0
+    ) {
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    // Can't parse output - review status unknown
+    // Fail closed: don't create marker if we can't validate the response
+    console.error(
+      `[Brain Dump] Could not parse review complete output: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    return false;
+  }
 }
 
 /**
@@ -101,11 +115,14 @@ export default async (context: any) => {
         console.log("╚══════════════════════════════════════════════════════════════╝");
         console.log("");
       } catch (error) {
-        // Log error but don't break workflow
-        console.error("[Brain Dump] Failed to create review marker file");
-        if (error instanceof Error) {
-          console.error(`[Brain Dump] Error: ${error.message}`);
-        }
+        // Log error with context but don't break workflow
+        const markerPath = join(projectPath, ".claude", ".review-completed");
+        console.error(`[Brain Dump] Failed to create review marker file at ${markerPath}`);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error(`Reason: ${errorMsg}`);
+        console.error(
+          `[Brain Dump] Note: You may need to manually create this marker or check file permissions.`
+        );
       }
     },
   };
