@@ -20,6 +20,7 @@ import { LaunchActions, type LaunchType } from "./LaunchActions";
 import { CreateEpicModal } from "../epics/CreateEpicModal";
 import { getTicketContext } from "../../api/context";
 import { launchClaudeInTerminal, launchOpenCodeInTerminal } from "../../api/terminal";
+import { startTicketWorkflow } from "../../api/start-ticket-workflow";
 import type { TicketStatus, Subtask } from "../../api/tickets";
 import { safeJsonParse } from "../../lib/utils";
 
@@ -396,6 +397,14 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
             showToast("error", launchResult.message);
           }
         } else if (type === "ralph-native") {
+          // Initialize workflow first (git branch, status, audit comment)
+          const workflowResult = await startTicketWorkflow(ticket.id, contextResult.projectPath);
+          if (!workflowResult.success) {
+            showToast("error", `Workflow init failed: ${workflowResult.error || "Unknown error"}`);
+          } else if (workflowResult.warnings?.length) {
+            workflowResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
           // Launch Ralph in native mode
           const result = await launchRalphMutation.mutateAsync({
             ticketId: ticket.id,
