@@ -29,33 +29,53 @@ import { execDockerCommand, getDockerHostEnvValue } from "./docker-utils";
  * Used by both Claude Code (via getRalphPrompt) and VS Code (via generateVSCodeContext).
  */
 const WORKFLOW_PHASES = `
+## CRITICAL: Use MCP Tools, Not Local Alternatives
+
+Every step below that says "invoke" means you MUST LITERALLY call the Brain Dump MCP tool
+and receive a response. These are NOT conceptual steps. If you skip an MCP tool call,
+the ticket will have NO record of your work in Brain Dump.
+
+Do NOT substitute local alternatives:
+- Do NOT use \`git checkout -b\` instead of \`start_ticket_work\`
+- Do NOT use local \`/review\` skills or subagents instead of \`submit_review_finding\`
+- Do NOT describe demo steps in text instead of calling \`generate_demo_script\`
+- Do NOT manually update ticket status instead of using workflow MCP tools
+
 ## MANDATORY 4-PHASE WORKFLOW
 
 ### Phase 1: Implementation
 1. **Read PRD** - Check \`plans/prd.json\` for incomplete tickets (\`passes: false\`)
 2. **Read Progress** - Run \`tail -100 plans/progress.txt\` for recent context
 3. **Pick ONE ticket** - Based on priority, dependencies, foundation work
-4. **Start work** - Call \`start_ticket_work(ticketId)\`
-5. **Create session** - Call \`create_ralph_session(ticketId)\`
+4. **Start work** - You MUST invoke the MCP tool: \`start_ticket_work({ ticketId: "<ticketId>" })\`
+   Verify you received a response containing \`branchName\`. Do NOT create branches manually with git.
+5. **Create session** - You MUST invoke the MCP tool: \`create_ralph_session({ ticketId: "<ticketId>" })\`
+   Verify you received a response containing \`sessionId\`.
 6. **Implement** - Write code, run tests (\`pnpm test\`)
 7. **Commit** - \`git commit -m "feat(<ticket-id>): <description>"\`
-8. **Complete implementation** - Call \`complete_ticket_work(ticketId, "summary")\` → moves to **ai_review**
+8. **Complete implementation** - You MUST invoke the MCP tool: \`complete_ticket_work({ ticketId: "<ticketId>", summary: "<what you did>" })\`
+   Verify you received a response confirming the ticket moved to \`ai_review\`.
 
-### Phase 2: AI Review (MANDATORY - cannot skip)
-9. **Perform code self-review** - Analyze your implementation for:
-   - Code quality, patterns, compliance with CLAUDE.md guidelines (code-reviewer concerns)
-   - Error handling, edge cases, silent failures, exception safety (silent-failure-hunter concerns)
-   - Simplifications, duplication, over-engineering (code-simplifier concerns)
-10. **Submit findings** - For each issue found: \`submit_review_finding({ ticketId, agent: "code-reviewer|silent-failure-hunter|code-simplifier", severity: "critical|major|minor|suggestion", category: "...", description: "..." })\`
-11. **Fix critical/major** - For each critical or major finding: fix code, then call \`mark_finding_fixed({ findingId, status: "fixed", fixDescription: "..." })\`
-12. **Verify complete** - Call \`check_review_complete({ ticketId })\` - must return \`canProceedToHumanReview: true\`
+### Phase 2: AI Review (via MCP tools — NOT local review skills)
+IMPORTANT: Do NOT use local \`/review\` skills, subagents, or code review tools.
+Perform self-review by reading your own diffs, then record findings directly via MCP tools.
+
+9. **Self-review your changes** - Read through your diffs and identify issues (type safety, error handling, code quality, simplification opportunities)
+10. **Record each finding via MCP** - For EACH issue found, you MUST invoke:
+    \`submit_review_finding({ ticketId: "<ticketId>", agent: "code-reviewer", severity: "<severity>", category: "<category>", description: "<description>" })\`
+    Verify you received a response containing \`findingId\`.
+11. **Fix critical/major issues** - Then for each fixed issue, invoke: \`mark_finding_fixed({ findingId: "<id>", status: "fixed", fixDescription: "..." })\`
+12. **Verify review complete** - You MUST invoke: \`check_review_complete({ ticketId: "<ticketId>" })\`
+    The response MUST contain \`canProceedToHumanReview: true\`. If false, fix remaining issues and re-check.
 
 ### Phase 3: Demo Generation
-13. **Generate demo** - Call \`generate_demo_script({ ticketId, steps: [...] })\` - must have at least 3 manual test steps
+13. **Generate demo via MCP** - You MUST invoke: \`generate_demo_script({ ticketId: "<ticketId>", steps: [...] })\`
+    Must have at least 3 manual test steps. Do NOT just describe demo steps in text.
+    Verify you received a response confirming the demo was created and ticket moved to \`human_review\`.
 
 ### Phase 4: STOP AND WAIT FOR HUMAN
 14. **Output completion** - Show ticket moved to human_review, awaiting human approval
-15. **Complete session** - Call \`complete_ralph_session({ sessionId, outcome: "success" })\`
+15. **Complete session** - You MUST invoke: \`complete_ralph_session({ sessionId: "<sessionId>", outcome: "success" })\`
 16. **STOP** - Do not proceed further. Human reviewer will call \`submit_demo_feedback\` to approve/reject.
 
 If all tickets are in human_review or done, output: \`PRD_COMPLETE\`
@@ -283,28 +303,35 @@ complete_ralph_session({ sessionId: "xyz-789", outcome: "success" })
 
 These actions are explicitly forbidden and indicate workflow failure:
 
-1. **DO NOT skip Phase 2 (AI Review)**
-   - ✗ Calling complete_ticket_work then immediately generating demo without review
-   - ✗ Not submitting any review findings (even if code is perfect, still run review agents and report "no findings")
-   - ✗ Trying to move ticket to human_review without review agents running
+1. **DO NOT use local alternatives instead of MCP tools**
+   - ✗ Using \`git checkout -b\` or \`git branch\` instead of \`start_ticket_work\`
+   - ✗ Using local \`/review\` skills, subagents, or code review tools instead of \`submit_review_finding\`
+   - ✗ Describing demo steps in text instead of calling \`generate_demo_script\`
+   - ✗ Manually setting ticket status instead of using workflow MCP tools
+   - Every "invoke" step in the workflow above is a LITERAL MCP tool call
 
-2. **DO NOT skip Phase 3 (Demo Generation)**
-   - ✗ Moving ticket to human_review without calling generate_demo_script
+2. **DO NOT skip Phase 2 (AI Review)**
+   - ✗ Calling complete_ticket_work then immediately generating demo without review
+   - ✗ Not submitting any review findings via MCP (you must call submit_review_finding for each issue)
+   - ✗ Trying to move ticket to human_review without submitting findings via MCP
+
+3. **DO NOT skip Phase 3 (Demo Generation)**
+   - ✗ Moving ticket to human_review without calling generate_demo_script MCP tool
    - ✗ Assuming code review is sufficient without manual test steps
    - ✗ Generating demo with fewer than 3 steps
 
-3. **DO NOT auto-complete to done**
+4. **DO NOT auto-complete to done**
    - ✗ Calling submit_demo_feedback yourself
    - ✗ Setting ticket status to 'done' directly
    - ✗ Moving a ticket to 'done' in any way
    - Only humans can approve tickets by calling submit_demo_feedback
 
-4. **DO NOT bypass workflow gates**
-   - ✗ Trying to proceed to Phase 3 without check_review_complete response
+5. **DO NOT bypass workflow gates**
+   - ✗ Trying to proceed to Phase 3 without check_review_complete MCP response
    - ✗ Skipping mark_finding_fixed for findings you submit
    - ✗ Treating the workflow as optional or context-dependent
 
-5. **DO NOT violate the STOP at Phase 4**
+6. **DO NOT violate the STOP at Phase 4**
    - ✗ Proceeding to another ticket after generating demo (you must STOP)
    - ✗ Picking multiple tickets in one iteration
    - ✗ Looping within an iteration
@@ -434,11 +461,16 @@ ${WORKFLOW_RULES}
 ${VERIFICATION_CHECKLIST}
 ---
 
-## MCP Tools Available
+## MCP Tools (MUST be invoked literally — NOT local alternatives)
 
-- \`start_ticket_work(ticketId)\` - Creates branch, posts "Starting work" comment
-- \`complete_ticket_work(ticketId, summary)\` - Updates status, posts summary, suggests next ticket
-- \`add_ticket_comment(ticketId, content, author, type)\` - Add work notes
+- \`start_ticket_work(ticketId)\` - Creates branch, starts tracking (do NOT use git checkout -b)
+- \`create_ralph_session(ticketId)\` - Creates session for state tracking
+- \`complete_ticket_work(ticketId, summary)\` - Moves to ai_review, posts summary
+- \`submit_review_finding(ticketId, agent, severity, category, description)\` - Records review issue (do NOT use local /review skills)
+- \`mark_finding_fixed(findingId, status)\` - Marks finding as resolved
+- \`check_review_complete(ticketId)\` - Verifies all critical/major findings fixed
+- \`generate_demo_script(ticketId, steps)\` - Creates demo for human review (do NOT describe in text)
+- \`complete_ralph_session(sessionId, outcome)\` - Completes the session
 
 ---
 

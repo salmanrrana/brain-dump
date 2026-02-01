@@ -149,25 +149,31 @@ export const getTicketContext = createServerFn({ method: "GET" })
     contextParts.push("");
 
     // Mandatory workflow instructions
-    contextParts.push("## MANDATORY Workflow");
-    contextParts.push("Load the brain-dump-workflow skill and follow its 5-step sequence.");
+    contextParts.push("## MANDATORY Workflow (MCP tools — NOT local alternatives)");
     contextParts.push("");
-    contextParts.push("Quick reference:");
     contextParts.push(
-      `1. \`start_ticket_work({ ticketId: "${ticket.id}" })\` → FIRST, before any code`
+      "You MUST invoke these Brain Dump MCP tools literally. Do NOT use local git commands,"
+    );
+    contextParts.push("local review skills, or text descriptions as substitutes.");
+    contextParts.push("");
+    contextParts.push("Steps (each is a LITERAL MCP tool invocation):");
+    contextParts.push(
+      `1. \`start_ticket_work({ ticketId: "${ticket.id}" })\` → creates branch, starts tracking`
     );
     contextParts.push("2. Write code → run `pnpm type-check && pnpm lint && pnpm test` → commit");
     contextParts.push(
-      `3. \`complete_ticket_work({ ticketId: "${ticket.id}", summary: "..." })\` → after committing`
+      `3. \`complete_ticket_work({ ticketId: "${ticket.id}", summary: "..." })\` → moves to ai_review`
     );
     contextParts.push(
-      "4. Self-review → `submit_review_finding()` for each issue → fix → `check_review_complete()`"
+      "4. Self-review → `submit_review_finding()` for each issue (NOT local /review skills) → fix → `check_review_complete()`"
     );
     contextParts.push(
       `5. \`generate_demo_script({ ticketId: "${ticket.id}", steps: [...] })\` → then STOP`
     );
     contextParts.push("");
-    contextParts.push("These steps are MANDATORY. The Brain Dump MCP server is configured.");
+    contextParts.push(
+      "These are LITERAL tool calls. If you skip them, no record appears in Brain Dump."
+    );
     contextParts.push("");
 
     const context = contextParts.join("\n");

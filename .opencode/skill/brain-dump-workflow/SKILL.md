@@ -7,9 +7,12 @@ description: >
 
 # Brain Dump Universal Quality Workflow
 
+> **Canonical source**: `src/api/ralph.ts` → `getRalphPrompt()`.
+> This skill provides a quick reference. The system prompt has the full workflow.
+
 ## MANDATORY 5-Step Sequence
 
-Every ticket MUST go through these steps. Never skip any.
+Every ticket MUST go through these steps using MCP tools. Never skip any.
 
 ### Step 1: Start Work
 
@@ -33,15 +36,22 @@ Call `complete_ticket_work({ ticketId: "<id>", summary: "<what you did>" })`
 
 This moves ticket to `ai_review` and posts a work summary comment.
 
-### Step 4: AI Review
+### Step 4: AI Review (via MCP tools — NOT local review skills)
 
-Perform self-review of all changes. For each issue found:
+IMPORTANT: Do NOT use local `/review` skills, subagents, or code review tools.
+Perform self-review by reading your own diffs, then record findings via MCP.
 
-Call `submit_review_finding({ ticketId, agent: "code-reviewer", severity, category, description })`
+For each issue found, you MUST invoke the MCP tool:
 
-Fix critical/major issues, then call `mark_finding_fixed({ findingId, status: "fixed" })`
+`submit_review_finding({ ticketId, agent: "code-reviewer", severity, category, description })`
 
-Verify: `check_review_complete({ ticketId })` -- must return `canProceedToHumanReview: true`
+Verify you receive a `findingId` in the response for each submission.
+
+Fix critical/major issues, then invoke:
+
+`mark_finding_fixed({ findingId, status: "fixed" })`
+
+Verify: `check_review_complete({ ticketId })` — response must contain `canProceedToHumanReview: true`
 
 ### Step 5: Generate Demo + STOP
 
@@ -57,6 +67,10 @@ Include 3-7 manual test steps. Ticket moves to `human_review`.
 - Set ticket status to "done" directly
 - Continue working after generating demo
 - Write code before calling `start_ticket_work`
+- Use local review skills or subagents instead of `submit_review_finding`
+- Describe demo steps in text instead of calling `generate_demo_script`
+- Create git branches manually instead of using `start_ticket_work`
+- Use any local alternative when an MCP tool exists for the step
 
 ## Severity Guide (for Step 4)
 
