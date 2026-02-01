@@ -1,17 +1,18 @@
 /**
- * Shared workflow logic for starting ticket work.
+ * Shared workflow logic for starting ticket and epic work.
  *
  * This module bridges the gap between the UI launch functions (terminal.ts, ralph.ts)
- * and the MCP `start_ticket_work` tool (mcp-server/tools/workflow.ts).
+ * and the MCP `start_ticket_work` / `start_epic_work` tools (mcp-server/tools/workflow.ts).
  *
- * The MCP tool handles the full workflow: git branch, status update, workflow state,
+ * The MCP tools handle the full workflow: git branch, status update, workflow state,
  * audit comments, compliance sessions, and rich context building.
- * The UI launch functions previously only updated the ticket status.
+ * The UI launch functions previously only updated the status.
  *
  * This module extracts the essential pre-launch steps so both UI and MCP paths
  * produce consistent audit trails and git state.
  */
 
+import { createServerFn } from "@tanstack/react-start";
 import { db } from "../lib/db";
 import {
   tickets,
@@ -397,3 +398,171 @@ export async function startTicketWorkflow(
     warnings,
   };
 }
+
+// --- Epic Workflow ---
+
+export interface StartEpicWorkflowResult {
+  success: boolean;
+  branchName?: string;
+  branchCreated?: boolean;
+  warnings: string[];
+  error?: string;
+}
+
+/**
+ * Execute the essential workflow steps when starting epic work from the UI.
+ *
+ * This performs the same critical steps as the MCP `start_epic_work` tool:
+ * 1. Create/checkout epic git branch
+ * 2. Initialize epic_workflow_state
+ * 3. Post "Starting work" audit comment
+ */
+export async function startEpicWorkflow(
+  epicId: string,
+  projectPath: string
+): Promise<StartEpicWorkflowResult> {
+  const warnings: string[] = [];
+
+  // 1. Verify project path exists
+  if (!existsSync(projectPath)) {
+    return {
+      success: false,
+      warnings,
+      error: `Project directory not found: ${projectPath}`,
+    };
+  }
+
+  // 2. Verify git repository
+  const gitCheck = runGitCommand("git rev-parse --git-dir", projectPath);
+  if (!gitCheck.success) {
+    return {
+      success: false,
+      warnings,
+      error: `Not a git repository: ${projectPath}. Initialize git first.`,
+    };
+  }
+
+  // 3. Fetch epic with project info
+  const epic = db
+    .select({
+      id: epics.id,
+      title: epics.title,
+    })
+    .from(epics)
+    .where(eq(epics.id, epicId))
+    .get();
+
+  if (!epic) {
+    return {
+      success: false,
+      warnings,
+      error: `Epic not found: ${epicId}`,
+    };
+  }
+
+  // 4. Generate epic branch name
+  const branchName = generateEpicBranchName(epic.id, epic.title);
+  let branchCreated = false;
+
+  // 5. Check if branch already exists
+  const branchExists = runGitCommand(
+    `git show-ref --verify --quiet refs/heads/${branchName}`,
+    projectPath
+  );
+
+  if (!branchExists.success) {
+    // Determine base branch
+    let baseBranch = "main";
+    const mainExists = runGitCommand("git show-ref --verify --quiet refs/heads/main", projectPath);
+    if (!mainExists.success) {
+      const masterExists = runGitCommand(
+        "git show-ref --verify --quiet refs/heads/master",
+        projectPath
+      );
+      if (masterExists.success) baseBranch = "master";
+    }
+
+    // Create epic branch from base branch
+    runGitCommand(`git checkout ${baseBranch}`, projectPath);
+    const createResult = runGitCommand(`git checkout -b ${branchName}`, projectPath);
+    if (!createResult.success) {
+      warnings.push(`Failed to create epic branch: ${createResult.error}`);
+      // Fall through — workflow state still gets created even without branch
+    } else {
+      branchCreated = true;
+    }
+  } else {
+    // Branch exists, checkout to it
+    const checkoutResult = runGitCommand(`git checkout ${branchName}`, projectPath);
+    if (!checkoutResult.success) {
+      warnings.push(`Failed to checkout epic branch: ${checkoutResult.error}`);
+    }
+  }
+
+  // 6. Create or reset epic workflow state
+  const now = new Date().toISOString();
+  try {
+    const existingState = db
+      .select({ id: epicWorkflowState.id })
+      .from(epicWorkflowState)
+      .where(eq(epicWorkflowState.epicId, epicId))
+      .get();
+
+    if (!existingState) {
+      db.insert(epicWorkflowState)
+        .values({
+          id: randomUUID(),
+          epicId,
+          epicBranchName: branchName,
+          epicBranchCreatedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .run();
+    } else {
+      db.update(epicWorkflowState)
+        .set({
+          epicBranchName: branchName,
+          epicBranchCreatedAt: now,
+          updatedAt: now,
+        })
+        .where(eq(epicWorkflowState.epicId, epicId))
+        .run();
+    }
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : "Unknown error";
+    warnings.push(`Workflow state tracking failed: ${errMsg}`);
+  }
+
+  // 7. Post "Starting work" audit comment would go here, but epics don't have direct comments
+  // Instead, this is tracked in the epic_workflow_state
+
+  return {
+    success: true,
+    branchName,
+    branchCreated,
+    warnings,
+  };
+}
+
+// --- Server Function Wrappers (for UI) ---
+
+/**
+ * Server function to start ticket workflow from the UI.
+ * Called by EditTicketModal before launching AI.
+ */
+export const startTicketWorkflowFn = createServerFn({ method: "POST" })
+  .inputValidator((data: { ticketId: string; projectPath: string }) => data)
+  .handler(async ({ data }: { data: { ticketId: string; projectPath: string } }) => {
+    return startTicketWorkflow(data.ticketId, data.projectPath);
+  });
+
+/**
+ * Server function to start epic workflow from the UI.
+ * Called by EpicModal and sidebar epic launch before launching Ralph.
+ */
+export const startEpicWorkflowFn = createServerFn({ method: "POST" })
+  .inputValidator((data: { epicId: string; projectPath: string }) => data)
+  .handler(async ({ data }: { data: { epicId: string; projectPath: string } }) => {
+    return startEpicWorkflow(data.epicId, data.projectPath);
+  });

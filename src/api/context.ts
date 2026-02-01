@@ -189,3 +189,32 @@ export const getTicketContext = createServerFn({ method: "GET" })
       epicName: epic?.title ?? null,
     };
   });
+
+// Get context for epic work (mainly project path for workflow initialization)
+export const getEpicContext = createServerFn({ method: "GET" })
+  .inputValidator((epicId: string) => {
+    if (!epicId) {
+      throw new Error("Epic ID is required");
+    }
+    return epicId;
+  })
+  .handler(({ data: epicId }) => {
+    // Get the epic first
+    const epic = db.select().from(epics).where(eq(epics.id, epicId)).get();
+    if (!epic) {
+      throw new Error(`Epic not found: ${epicId}`);
+    }
+
+    // Get related project
+    const project = db.select().from(projects).where(eq(projects.id, epic.projectId)).get();
+    if (!project) {
+      throw new Error(`Project not found: ${epic.projectId}`);
+    }
+
+    return {
+      epicId: epic.id,
+      epicTitle: epic.title,
+      projectPath: project.path,
+      projectName: project.name,
+    };
+  });
