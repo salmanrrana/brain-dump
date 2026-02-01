@@ -20,7 +20,7 @@ import { LaunchActions, type LaunchType } from "./LaunchActions";
 import { CreateEpicModal } from "../epics/CreateEpicModal";
 import { getTicketContext } from "../../api/context";
 import { launchClaudeInTerminal, launchOpenCodeInTerminal } from "../../api/terminal";
-import { startTicketWorkflow } from "../../api/start-ticket-workflow";
+import { startTicketWorkflowFn } from "../../api/workflow-server-fns";
 import type { TicketStatus, Subtask } from "../../api/tickets";
 import { safeJsonParse } from "../../lib/utils";
 
@@ -398,7 +398,9 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
           }
         } else if (type === "ralph-native") {
           // Initialize workflow first (git branch, status, audit comment)
-          const workflowResult = await startTicketWorkflow(ticket.id, contextResult.projectPath);
+          const workflowResult = await startTicketWorkflowFn({
+            data: { ticketId: ticket.id, projectPath: contextResult.projectPath },
+          });
           if (!workflowResult.success) {
             showToast("error", `Workflow init failed: ${workflowResult.error || "Unknown error"}`);
           } else if (workflowResult.warnings?.length) {
@@ -428,7 +430,9 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
           }
         } else if (type === "ralph-opencode") {
           // Initialize workflow first (git branch, status, audit comment)
-          const workflowResult = await startTicketWorkflow(ticket.id, contextResult.projectPath);
+          const workflowResult = await startTicketWorkflowFn({
+            data: { ticketId: ticket.id, projectPath: contextResult.projectPath },
+          });
           if (!workflowResult.success) {
             showToast("error", `Workflow init failed: ${workflowResult.error || "Unknown error"}`);
           } else if (workflowResult.warnings?.length) {

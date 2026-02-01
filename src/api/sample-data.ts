@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { db } from "../lib/db";
 import { projects, epics, tickets } from "../lib/schema";
 import { eq, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -10,9 +11,6 @@ const SAMPLE_PROJECT_PATH = "/tmp/sample-project";
 export const checkFirstLaunch = createServerFn({ method: "GET" })
   .inputValidator(() => {})
   .handler(async () => {
-    // Dynamic import to prevent bundling db in browser
-    const { db } = await import("../lib/db");
-
     const projectCount = db
       .select({ count: sql<number>`count(*)` })
       .from(projects)
@@ -38,9 +36,6 @@ export const checkFirstLaunch = createServerFn({ method: "GET" })
 export const createSampleData = createServerFn({ method: "POST" })
   .inputValidator(() => {})
   .handler(async () => {
-    // Dynamic import to prevent bundling db in browser
-    const { db } = await import("../lib/db");
-
     // Check if sample data already exists
     const existing = db.select().from(projects).where(eq(projects.name, SAMPLE_PROJECT_NAME)).get();
 
@@ -157,9 +152,6 @@ export const createSampleData = createServerFn({ method: "POST" })
 export const deleteSampleData = createServerFn({ method: "POST" })
   .inputValidator(() => {})
   .handler(async () => {
-    // Dynamic import to prevent bundling db in browser
-    const { db } = await import("../lib/db");
-
     const sampleProject = db
       .select()
       .from(projects)

@@ -23,17 +23,6 @@ const config = defineConfig({
     tanstackStart(),
     viteReact(),
   ],
-  build: {
-    rollupOptions: {
-      external: ["better-sqlite3"],
-    },
-  },
-  ssr: {
-    noExternal: [],
-  },
-  optimizeDeps: {
-    exclude: ["better-sqlite3"],
-  },
 });
 
 export default config;

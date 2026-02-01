@@ -10,9 +10,6 @@
  *
  * This module extracts the essential pre-launch steps so both UI and MCP paths
  * produce consistent audit trails and git state.
- *
- * These functions are called directly from client code (e.g., EditTicketModal, EpicModal).
- * TanStack Start automatically routes them through the server when called from client components.
  */
 
 import { db } from "../lib/db";
