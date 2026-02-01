@@ -1,5 +1,4 @@
 import { defineConfig } from "vite";
-import { devtools } from "@tanstack/devtools-vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import viteTsConfigPaths from "vite-tsconfig-paths";
@@ -10,7 +9,6 @@ import { nitro } from "nitro/vite";
 // This separation is required for React 19 compatibility with TanStack Start
 const config = defineConfig({
   plugins: [
-    devtools(),
     nitro({
       // Externalize native modules - they can't be bundled
       rollupConfig: {
