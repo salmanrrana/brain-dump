@@ -1,13 +1,14 @@
 #!/bin/bash
 # Brain Dump OpenCode Setup Script
-# Configures OpenCode to use Brain Dump's MCP server and plugins
+# Configures OpenCode to use Brain Dump's MCP server, skill, and safety plugins
 #
 # This script:
 # 1. Detects OpenCode installation
 # 2. Configures the Brain Dump MCP server
-# 3. Installs OpenCode plugins
+# 3. Installs safety-net plugins (review-guard, review-marker, telemetry)
 # 4. Copies workflow documentation (AGENTS.md)
-# 5. Installs OpenCode skills
+# 5. Installs the brain-dump-workflow skill
+# 6. Installs the Ralph agent
 #
 # After running, Brain Dump tools will be available in OpenCode sessions.
 
@@ -48,6 +49,7 @@ echo ""
 OPENCODE_CONFIG="$HOME/.config/opencode"
 OPENCODE_PLUGINS="$OPENCODE_CONFIG/plugins"
 OPENCODE_SKILLS="$OPENCODE_CONFIG/skills"
+OPENCODE_AGENTS="$OPENCODE_CONFIG/agents"
 OPENCODE_JSON="$OPENCODE_CONFIG/opencode.json"
 
 # ─────────────────────────────────────────────────────────────────
@@ -57,17 +59,15 @@ OPENCODE_JSON="$OPENCODE_CONFIG/opencode.json"
 echo -e "${BLUE}Step 1: Verify OpenCode directories${NC}"
 echo "──────────────────────────────────────"
 
-if ! mkdir -p "$OPENCODE_PLUGINS"; then
-  echo -e "${RED}✗ Failed to create OpenCode plugins directory: $OPENCODE_PLUGINS${NC}"
-  exit 1
-fi
+for dir in "$OPENCODE_PLUGINS" "$OPENCODE_SKILLS" "$OPENCODE_AGENTS"; do
+  if ! mkdir -p "$dir"; then
+    echo -e "${RED}✗ Failed to create directory: $dir${NC}"
+    exit 1
+  fi
+done
 echo -e "${GREEN}✓ Plugins directory ready: $OPENCODE_PLUGINS${NC}"
-
-if ! mkdir -p "$OPENCODE_SKILLS"; then
-  echo -e "${RED}✗ Failed to create OpenCode skills directory: $OPENCODE_SKILLS${NC}"
-  exit 1
-fi
 echo -e "${GREEN}✓ Skills directory ready: $OPENCODE_SKILLS${NC}"
+echo -e "${GREEN}✓ Agents directory ready: $OPENCODE_AGENTS${NC}"
 
 echo ""
 
@@ -169,22 +169,19 @@ fi
 echo ""
 
 # ─────────────────────────────────────────────────────────────────
-# Step 3: Copy plugins
+# Step 3: Copy safety-net plugins
 # ─────────────────────────────────────────────────────────────────
 
-echo -e "${BLUE}Step 3: Install OpenCode Plugins${NC}"
-echo "──────────────────────────────────"
+echo -e "${BLUE}Step 3: Install Safety-Net Plugins${NC}"
+echo "────────────────────────────────────"
 
 PLUGINS_COPIED=0
 
-# List of plugins to copy
+# Only safety-net plugins (workflow knowledge is now in the skill)
 PLUGINS=(
-  "brain-dump-telemetry.ts"
-  "brain-dump-state-enforcement.ts"
-  "brain-dump-auto-pr.ts"
-  "brain-dump-commit-tracking.ts"
-  "brain-dump-review-marker.ts"
   "brain-dump-review-guard.ts"
+  "brain-dump-review-marker.ts"
+  "brain-dump-telemetry.ts"
 )
 
 for plugin in "${PLUGINS[@]}"; do
@@ -209,7 +206,7 @@ if [ $PLUGINS_COPIED -eq 0 ]; then
   exit 1
 fi
 
-echo -e "${GREEN}✓ Copied $PLUGINS_COPIED plugins to $OPENCODE_PLUGINS${NC}"
+echo -e "${GREEN}✓ Copied $PLUGINS_COPIED safety-net plugins to $OPENCODE_PLUGINS${NC}"
 echo ""
 
 # ─────────────────────────────────────────────────────────────────
@@ -235,20 +232,39 @@ fi
 echo ""
 
 # ─────────────────────────────────────────────────────────────────
-# Step 5: Copy skills
+# Step 5: Copy skill
 # ─────────────────────────────────────────────────────────────────
 
-echo -e "${BLUE}Step 5: Install OpenCode Skills${NC}"
-echo "────────────────────────────────"
+echo -e "${BLUE}Step 5: Install brain-dump-workflow Skill${NC}"
+echo "────────────────────────────────────────────"
 
 if [ -d "$BRAIN_DUMP_DIR/.opencode/skills/brain-dump-workflow" ]; then
   if cp -r "$BRAIN_DUMP_DIR/.opencode/skills/brain-dump-workflow" "$OPENCODE_SKILLS/"; then
-    echo -e "${GREEN}✓ brain-dump-workflow skill${NC}"
+    echo -e "${GREEN}✓ brain-dump-workflow skill (SKILL.md + reference docs)${NC}"
   else
     echo -e "${RED}✗ Failed to copy skill${NC}"
   fi
 else
   echo -e "${YELLOW}⚠ Skill not found at $BRAIN_DUMP_DIR/.opencode/skills/brain-dump-workflow${NC}"
+fi
+
+echo ""
+
+# ─────────────────────────────────────────────────────────────────
+# Step 6: Copy Ralph agent
+# ─────────────────────────────────────────────────────────────────
+
+echo -e "${BLUE}Step 6: Install Ralph Agent${NC}"
+echo "─────────────────────────────"
+
+if [ -f "$BRAIN_DUMP_DIR/.opencode/agents/ralph.md" ]; then
+  if cp "$BRAIN_DUMP_DIR/.opencode/agents/ralph.md" "$OPENCODE_AGENTS/"; then
+    echo -e "${GREEN}✓ ralph.md (autonomous ticket agent)${NC}"
+  else
+    echo -e "${RED}✗ Failed to copy Ralph agent${NC}"
+  fi
+else
+  echo -e "${YELLOW}⚠ Ralph agent not found at $BRAIN_DUMP_DIR/.opencode/agents/ralph.md${NC}"
 fi
 
 echo ""
@@ -279,6 +295,18 @@ else
   echo -e "${YELLOW}⚠ AGENTS.md not found${NC}"
 fi
 
+if [ -d "$OPENCODE_SKILLS/brain-dump-workflow" ]; then
+  echo -e "${GREEN}✓ brain-dump-workflow skill installed${NC}"
+else
+  echo -e "${YELLOW}⚠ Skill not found${NC}"
+fi
+
+if [ -f "$OPENCODE_AGENTS/ralph.md" ]; then
+  echo -e "${GREEN}✓ Ralph agent installed${NC}"
+else
+  echo -e "${YELLOW}⚠ Ralph agent not found${NC}"
+fi
+
 echo ""
 
 # ─────────────────────────────────────────────────────────────────
@@ -294,28 +322,32 @@ echo -e "${BLUE}Configuration locations:${NC}"
 echo "  OpenCode config: $OPENCODE_CONFIG"
 echo "  Plugins: $OPENCODE_PLUGINS"
 echo "  Skills: $OPENCODE_SKILLS"
+echo "  Agents: $OPENCODE_AGENTS"
 echo ""
 
 echo -e "${BLUE}What's been configured:${NC}"
 echo ""
 echo "  ${GREEN}MCP Server:${NC}"
-echo "    • brain-dump (ticket management tools)"
+echo "    • brain-dump (ticket management tools, ~11 whitelisted)"
 echo ""
-echo "  ${GREEN}Plugins:${NC}"
-echo "    • brain-dump-telemetry - Track AI work sessions"
-echo "    • brain-dump-state-enforcement - Enforce workflow state transitions"
-echo "    • brain-dump-auto-pr - Auto-create draft PRs"
-echo "    • brain-dump-commit-tracking - Track commits to tickets"
-echo "    • brain-dump-review-marker - Mark code review completion"
+echo "  ${GREEN}Skill:${NC}"
+echo "    • brain-dump-workflow (mandatory 5-step quality workflow)"
+echo ""
+echo "  ${GREEN}Agent:${NC}"
+echo "    • ralph (autonomous ticket implementation)"
+echo ""
+echo "  ${GREEN}Safety Plugins:${NC}"
 echo "    • brain-dump-review-guard - Prevent push without review"
+echo "    • brain-dump-review-marker - Mark code review completion"
+echo "    • brain-dump-telemetry - Track AI work sessions"
 echo ""
 echo "  ${GREEN}Documentation:${NC}"
-echo "    • AGENTS.md - Comprehensive workflow guidance"
+echo "    • AGENTS.md - Workflow quick reference"
 echo ""
 
 echo -e "${BLUE}Next steps:${NC}"
 echo "  1. Restart OpenCode to load new configurations"
-echo "  2. Read ${YELLOW}.opencode/AGENTS.md${NC} for workflow guidance"
+echo "  2. The brain-dump-workflow skill teaches the AI the full workflow"
 echo "  3. Run: ${YELLOW}brain-dump doctor${NC} to verify installation"
 echo "  4. Start working on a ticket with Brain Dump"
 echo ""

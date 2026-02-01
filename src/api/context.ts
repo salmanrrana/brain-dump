@@ -148,34 +148,26 @@ export const getTicketContext = createServerFn({ method: "GET" })
     );
     contextParts.push("");
 
-    // MCP integration instructions
-    contextParts.push("## When Complete");
-    contextParts.push("When you finish this task:");
-    contextParts.push("1. Ensure all changes are committed to your feature branch");
-    contextParts.push("2. Push your branch and create a PR:");
-    contextParts.push("   ```bash");
-    contextParts.push("   git push -u origin <branch-name>");
+    // Mandatory workflow instructions
+    contextParts.push("## MANDATORY Workflow");
+    contextParts.push("Load the brain-dump-workflow skill and follow its 5-step sequence.");
+    contextParts.push("");
+    contextParts.push("Quick reference:");
     contextParts.push(
-      '   gh pr create --base dev --title "feat(' +
-        ticket.id +
-        '): <description>" --body "<PR description>"'
+      `1. \`start_ticket_work({ ticketId: "${ticket.id}" })\` → FIRST, before any code`
     );
-    contextParts.push("   ```");
-    contextParts.push("3. Update the ticket status using the Brain Dump MCP server:");
+    contextParts.push("2. Write code → run `pnpm type-check && pnpm lint && pnpm test` → commit");
     contextParts.push(
-      `   - Use \`complete_ticket_work\` with ticketId: "${ticket.id}" to move to ai_review`
+      `3. \`complete_ticket_work({ ticketId: "${ticket.id}", summary: "..." })\` → after committing`
     );
-    contextParts.push("   - Ticket will move to human_review after demo script is generated");
-    contextParts.push('   - Use "done" only after human approval');
-    contextParts.push("4. Add a work summary comment using `add_ticket_comment`:");
-    contextParts.push(`   - ticketId: "${ticket.id}"`);
-    contextParts.push('   - author: "claude"');
-    contextParts.push('   - type: "work_summary"');
     contextParts.push(
-      "   - content: Summary of changes made, files modified, PR link, and any notes"
+      "4. Self-review → `submit_review_finding()` for each issue → fix → `check_review_complete()`"
+    );
+    contextParts.push(
+      `5. \`generate_demo_script({ ticketId: "${ticket.id}", steps: [...] })\` → then STOP`
     );
     contextParts.push("");
-    contextParts.push("The MCP server is already configured - just call the tools directly.");
+    contextParts.push("These steps are MANDATORY. The Brain Dump MCP server is configured.");
     contextParts.push("");
 
     const context = contextParts.join("\n");

@@ -4,6 +4,8 @@ description: Pick up the next task with precondition checking
 
 # Next Task
 
+Load the `brain-dump-workflow` skill for context on the full workflow.
+
 You are starting work on the next available task from the Brain Dump kanban board.
 
 ## Steps

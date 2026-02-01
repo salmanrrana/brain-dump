@@ -98,93 +98,32 @@ Ralph is an autonomous agent mode that:
 
 ## Universal Quality Workflow
 
-Brain Dump implements a structured quality workflow (inspired by Dillon Mulroy's "tracer review" pattern) that ensures consistent code quality regardless of which AI coding environment you use.
+Brain Dump uses a mandatory quality workflow for all tickets. When working on any ticket,
+load the `brain-dump-workflow` skill for the complete tool call sequence.
 
 ### Status Flow
-
-The workflow enforces a clear progression through quality gates:
 
 ```
 backlog → ready → in_progress → ai_review → human_review → done
 ```
 
-- **backlog**: Not yet ready to work on
-- **ready**: Ready to be picked up by AI or human
-- **in_progress**: Active development (code being written)
-- **ai_review**: Automated quality review by code review agents (finding issues, fixing them)
-- **human_review**: Demo approval by human reviewer
-- **done**: Complete and approved
+### Quick Reference
 
-### Key Workflow Steps
-
-1. **Start Work** (`start_ticket_work`)
-   - Creates a git branch
-   - Sets ticket status to `in_progress`
-   - Telemetry session begins
-
-2. **Implementation**
-   - AI writes code, runs tests, makes commits
-   - Claude tasks show micro-plans (captured automatically)
-
-3. **Complete Implementation** (`complete_ticket_work`)
-   - Validation must pass: `pnpm type-check`, `pnpm lint`, `pnpm test`
-   - Ticket moves to `ai_review`
-   - Work summary is added to ticket comments
-
-4. **AI Review**
-   - Three review agents run in parallel: `code-reviewer`, `silent-failure-hunter`, `code-simplifier`
-   - Findings are submitted via `submit_review_finding`
-   - Critical/major findings must be fixed before proceeding
-   - Review iteration counter increments
-
-5. **Generate Demo** (`generate_demo_script`)
-   - Only allowed after all critical/major findings are fixed
-   - Generates step-by-step manual test instructions
-   - Ticket moves to `human_review`
-
-6. **Human Review** (Manual)
-   - Human reviewer (or user) runs through demo steps
-   - Provides feedback via `submit_demo_feedback`
-   - If approved: ticket moves to `done`
-   - If rejected: stays in `human_review` with feedback for AI to address
-
-7. **Reconcile Learnings** (`reconcile_learnings`)
-   - After completion, learnings from the ticket are extracted
-   - Project documentation (CLAUDE.md, specs) can be updated automatically
-   - Ensures continuous improvement of the workflow itself
+1. `start_ticket_work({ ticketId })` → before writing code
+2. Implement + `pnpm check`
+3. `complete_ticket_work({ ticketId, summary })` → after committing
+4. Self-review + `submit_review_finding()` → for each issue
+5. `generate_demo_script({ ticketId, steps })` → then STOP
 
 ### Skills (Workflow Shortcuts)
 
-These skills automate common workflow operations:
-
-- **`/next-task`** - Intelligently select the next ticket considering priority and dependencies
+- **`/next-task`** - Select the next ticket considering priority and dependencies
 - **`/review-ticket`** - Run all AI review agents on current work
 - **`/review-epic`** - Run Tracer Review on an entire epic
 - **`/demo`** - Generate demo script after AI review passes
 - **`/reconcile-learnings`** - Extract and apply learnings to project docs
 
-### Telemetry & Observability
-
-Every workflow phase creates ticket comments for audit trails:
-
-- "Started work on ticket. Branch: {branch}"
-- "Starting AI review (iteration 1)"
-- "Found 2 issues: 1 critical, 1 major"
-- "Demo script generated with 5 steps"
-- "Ticket complete. Human approved."
-
-Plus background telemetry capture:
-
-- Tool usage (which MCP tools, how long)
-- Token counts
-- Error rates
-- Time spent in each phase
-
-View telemetry in ticket detail → "Telemetry" tab.
-
 ### Multi-Environment Support
-
-The same workflow works in all environments:
 
 | Environment | AI Review | Hook Enforcement              | Telemetry          |
 | ----------- | --------- | ----------------------------- | ------------------ |
@@ -193,44 +132,10 @@ The same workflow works in all environments:
 | OpenCode    | ✅ Full   | ❌ MCP enforces preconditions | ✅ Plugin captures |
 | VS Code     | ✅ Full   | ❌ MCP enforces preconditions | ✅ MCP captures    |
 
-### Installation
-
-To enable the workflow for your environment:
-
-```bash
-./scripts/install.sh
-```
-
-The script detects your installed environments and configures:
-
-- Hooks (Claude Code, Cursor)
-- Plugins (OpenCode)
-- MCP configs (VS Code)
-
-To verify all environments are configured:
-
-```bash
-brain-dump doctor
-```
-
 ### Troubleshooting
 
-**"Cannot proceed - open critical findings"**
-
-- You tried to generate a demo script while critical issues remain
-- Run `/review-ticket` again, fix any remaining findings
-
-**"Ticket must be in ai_review to submit findings"**
-
-- You tried to submit a finding for a ticket not in AI review
-- Call `complete_ticket_work` first to move to `ai_review`
-
-**"Cannot start ticket - previous ticket still in review"**
-
-- A previous ticket is waiting for human feedback
-- Review and approve/reject it before starting a new ticket
-
-Run `brain-dump doctor` to diagnose configuration issues.
+For common errors and recovery steps, see the `brain-dump-workflow` skill's
+`reference/troubleshooting.md`. Run `brain-dump doctor` to diagnose configuration issues.
 
 ### Hook-Based State Enforcement
 
@@ -733,6 +638,21 @@ Run all three at once using: `/review`
 - Read-only operations (searching, exploring)
 
 **This is mandatory** - the Stop hook will remind you if you forget, but you should proactively run reviews after completing code work.
+
+## Development Learnings
+
+### Always Build End-to-End
+
+When implementing features, always verify the complete chain:
+
+- Frontend trigger (button click, modal action) →
+- API/server function →
+- Backend logic →
+- Observable output (UI update, database change, terminal output)
+
+Never build backend logic without connecting the frontend.
+Never build a frontend trigger without verifying it calls the right backend.
+Test the FULL flow, not just individual pieces.
 
 ## Enterprise Conversation Logging
 

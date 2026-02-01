@@ -4,6 +4,8 @@ description: Run AI review agents on current ticket work and submit findings
 
 # Review Ticket
 
+Load the `brain-dump-workflow` skill for context on the full workflow.
+
 You are running the AI review workflow for a ticket in `ai_review` status. This is part of the Universal Quality Workflow.
 
 ## Prerequisites
