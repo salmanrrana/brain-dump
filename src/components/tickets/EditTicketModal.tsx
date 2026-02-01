@@ -405,12 +405,42 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
             workflowResult.warnings.forEach((warning) => showToast("info", warning));
           }
 
-          // Launch Ralph in native mode
+          // Launch Ralph with Claude backend
           const result = await launchRalphMutation.mutateAsync({
             ticketId: ticket.id,
             preferredTerminal: settings?.terminalEmulator ?? null,
             useSandbox: false,
             aiBackend: "claude",
+          });
+
+          // Show warnings if any
+          if ("warnings" in result && result.warnings) {
+            (result.warnings as string[]).forEach((warning) => showToast("info", warning));
+          }
+
+          if (result.success) {
+            showToast("success", result.message);
+            setStatus("in_progress");
+            onSuccess?.();
+            onClose();
+          } else {
+            showToast("error", result.message);
+          }
+        } else if (type === "ralph-opencode") {
+          // Initialize workflow first (git branch, status, audit comment)
+          const workflowResult = await startTicketWorkflow(ticket.id, contextResult.projectPath);
+          if (!workflowResult.success) {
+            showToast("error", `Workflow init failed: ${workflowResult.error || "Unknown error"}`);
+          } else if (workflowResult.warnings?.length) {
+            workflowResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          // Launch Ralph with OpenCode backend
+          const result = await launchRalphMutation.mutateAsync({
+            ticketId: ticket.id,
+            preferredTerminal: settings?.terminalEmulator ?? null,
+            useSandbox: false,
+            aiBackend: "opencode",
           });
 
           // Show warnings if any
