@@ -871,12 +871,21 @@ setup_opencode() {
     }
   },
   "tools": {
-    "brain-dump_*": true
+    "brain-dump_start_ticket_work": true,
+    "brain-dump_complete_ticket_work": true,
+    "brain-dump_submit_review_finding": true,
+    "brain-dump_mark_finding_fixed": true,
+    "brain-dump_check_review_complete": true,
+    "brain-dump_generate_demo_script": true,
+    "brain-dump_add_ticket_comment": true,
+    "brain-dump_create_ralph_session": true,
+    "brain-dump_update_session_state": true,
+    "brain-dump_complete_ralph_session": true,
+    "brain-dump_list_tickets": true,
+    "brain-dump_*": false
   },
   "permission": {
-    "skill": {
-      "*": "allow"
-    }
+    "*": "allow"
   }
 }
 EOF
@@ -909,11 +918,22 @@ if (config.mcp && config.mcp['brain-dump']) {
         environment: { BRAIN_DUMP_PATH: '.' }
     };
 }
-config.tools = config.tools || {};
-config.tools['brain-dump_*'] = true;
+config.tools = {
+    'brain-dump_start_ticket_work': true,
+    'brain-dump_complete_ticket_work': true,
+    'brain-dump_submit_review_finding': true,
+    'brain-dump_mark_finding_fixed': true,
+    'brain-dump_check_review_complete': true,
+    'brain-dump_generate_demo_script': true,
+    'brain-dump_add_ticket_comment': true,
+    'brain-dump_create_ralph_session': true,
+    'brain-dump_update_session_state': true,
+    'brain-dump_complete_ralph_session': true,
+    'brain-dump_list_tickets': true,
+    'brain-dump_*': false
+};
 config.permission = config.permission || {};
-config.permission.skill = config.permission.skill || {};
-config.permission.skill['*'] = 'allow';
+config.permission['*'] = 'allow';
 fs.writeFileSync('$OPENCODE_CONFIG', JSON.stringify(config, null, 2));
 console.log('Configuration updated successfully');
 " 2>&1) && {

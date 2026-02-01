@@ -1,104 +1,83 @@
 ---
 name: brain-dump-workflow
-description: Use when working with Brain Dump tickets, managing backlog, or using Ralph/Ticket Worker agents
-license: MIT
-compatibility: opencode
+description: >
+  MANDATORY quality workflow for Brain Dump tickets. Defines the exact MCP tool
+  call sequence every ticket must follow. Load this before starting any ticket work.
 ---
 
-# Brain Dump Workflow
+# Brain Dump Universal Quality Workflow
 
-## Core Concepts
+## MANDATORY 5-Step Sequence
 
-- **MCP Server**: Structured ticket operations via tools
-- **Local-first**: No cloud dependencies
-- **Agent Integration**: Ralph/Ticket Worker use MCP tools
-- **Ticket States**: Backlog → Ready → In Progress → Review → Done
+Every ticket MUST go through these steps. Never skip any.
 
-## Essential MCP Tools
+### Step 1: Start Work
 
-```bash
-# Project Management
-find_project_by_path()    # Identify current project
-list_projects()           # Show all projects
+Call `start_ticket_work({ ticketId: "<id>" })` BEFORE writing any code.
 
-# Ticket Operations
-list_tickets()            # Show tickets with status
-create_ticket()           # Create new ticket
-update_ticket_status()    # Change ticket state
-add_ticket_comment()       # Add comments/updates
+This creates a git branch, sets status to `in_progress`, and posts a "Starting work" comment.
 
-# Workflow Tools
-start_ticket_work(ticketId)     # Create branch + set in_progress
-complete_ticket_work()         # Mark done + update PRD
-```
+### Step 2: Implement + Verify
 
-## Agent Patterns
+Write code, then run quality gates:
 
-### Ralph (Autonomous)
+- `pnpm type-check` -- must pass
+- `pnpm lint` -- must pass
+- `pnpm test` -- must pass
 
-```bash
-# Trigger: Run Ralph without specific ticket
-1. Read plans/prd.json for incomplete tickets
-2. Check plans/progress.txt for context
-3. Select optimal ticket by priority/dependencies
-4. Call start_ticket_work() to begin
-5. Implement, test, commit
-6. Call complete_ticket_work() to finish
-```
+Commit with format: `feat(<ticket-short-id>): <description>`
 
-### Ticket Worker (Interactive)
+### Step 3: Complete Implementation
 
-```bash
-# Trigger: @ticket-worker or select ticket
-1. Use list_tickets() to show options
-2. User selects ticket to work on
-3. Call start_ticket_work(ticketId)
-4. Implement with user guidance
-5. Update progress with add_ticket_comment()
-```
+Call `complete_ticket_work({ ticketId: "<id>", summary: "<what you did>" })`
 
-## Quick Reference
+This moves ticket to `ai_review` and posts a work summary comment.
 
-### Ticket Structure
+### Step 4: AI Review
 
-```markdown
-## Title (action-oriented)
+Perform self-review of all changes. For each issue found:
 
-## Description (what + why)
+Call `submit_review_finding({ ticketId, agent: "code-reviewer", severity, category, description })`
 
-## Acceptance Criteria
+Fix critical/major issues, then call `mark_finding_fixed({ findingId, status: "fixed" })`
 
-- [ ] Specific, testable requirement
-- [ ] Integration point
-```
+Verify: `check_review_complete({ ticketId })` -- must return `canProceedToHumanReview: true`
 
-### Workflow Commands
+### Step 5: Generate Demo + STOP
 
-```bash
-# Start work
-@ticket-worker    # Interactive mode
-@ralph            # Autonomous mode
-@planner "feature"  # Plan and create tickets
+Call `generate_demo_script({ ticketId, steps: [{ order, description, expectedOutcome, type }] })`
 
-# During development
-add_ticket_comment(ticketId, "progress", "claude", "progress")
-add_ticket_comment(ticketId, "decision", "claude", "decision")
+Include 3-7 manual test steps. Ticket moves to `human_review`.
 
-# Complete work
-complete_ticket_work(ticketId, "summary of changes")
-update_ticket_status(ticketId, "done")
-```
+**STOP HERE. Do NOT continue. Only humans can approve tickets.**
 
-### Best Practices
+## DO NOT
 
-1. **Clear tickets**: Specific acceptance criteria
-2. **Progress updates**: Regular comments
-3. **Test before done**: Verify criteria
-4. **Use agents wisely**: Ralph for autonomy, Ticket Worker for collaboration
-5. **Document decisions**: Comments explain "why"
+- Skip any step above
+- Set ticket status to "done" directly
+- Continue working after generating demo
+- Write code before calling `start_ticket_work`
 
-### Size Guidelines
+## Severity Guide (for Step 4)
 
-- Target: 1-4 hours per ticket
-- Too large: Break into multiple tickets
-- Too small: Combine related work
+| Severity     | When to Use                                     |
+| ------------ | ----------------------------------------------- |
+| `critical`   | Bug that breaks functionality or causes crashes |
+| `major`      | Incorrect behavior or error handling issue      |
+| `minor`      | Code quality issue, not a bug                   |
+| `suggestion` | Nice-to-have improvement                        |
+
+## Demo Step Types (for Step 5)
+
+| Type        | When to Use                      |
+| ----------- | -------------------------------- |
+| `manual`    | User performs an action          |
+| `visual`    | User visually confirms something |
+| `automated` | System runs a command/test       |
+
+## Reference Docs
+
+For detailed guidance on specific phases, see:
+
+- `reference/review-guide.md` -- Self-review checklist and review agent details
+- `reference/troubleshooting.md` -- Common errors and recovery steps

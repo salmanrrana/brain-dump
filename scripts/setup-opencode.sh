@@ -238,14 +238,14 @@ echo ""
 echo -e "${BLUE}Step 5: Install brain-dump-workflow Skill${NC}"
 echo "────────────────────────────────────────────"
 
-if [ -d "$BRAIN_DUMP_DIR/.opencode/skills/brain-dump-workflow" ]; then
-  if cp -r "$BRAIN_DUMP_DIR/.opencode/skills/brain-dump-workflow" "$OPENCODE_SKILLS/"; then
+if [ -d "$BRAIN_DUMP_DIR/.opencode/skill/brain-dump-workflow" ]; then
+  if cp -r "$BRAIN_DUMP_DIR/.opencode/skill/brain-dump-workflow" "$OPENCODE_SKILLS/"; then
     echo -e "${GREEN}✓ brain-dump-workflow skill (SKILL.md + reference docs)${NC}"
   else
     echo -e "${RED}✗ Failed to copy skill${NC}"
   fi
 else
-  echo -e "${YELLOW}⚠ Skill not found at $BRAIN_DUMP_DIR/.opencode/skills/brain-dump-workflow${NC}"
+  echo -e "${YELLOW}⚠ Skill not found at $BRAIN_DUMP_DIR/.opencode/skill/brain-dump-workflow${NC}"
 fi
 
 echo ""
@@ -257,14 +257,14 @@ echo ""
 echo -e "${BLUE}Step 6: Install Ralph Agent${NC}"
 echo "─────────────────────────────"
 
-if [ -f "$BRAIN_DUMP_DIR/.opencode/agents/ralph.md" ]; then
-  if cp "$BRAIN_DUMP_DIR/.opencode/agents/ralph.md" "$OPENCODE_AGENTS/"; then
+if [ -f "$BRAIN_DUMP_DIR/.opencode/agent/ralph.md" ]; then
+  if cp "$BRAIN_DUMP_DIR/.opencode/agent/ralph.md" "$OPENCODE_AGENTS/"; then
     echo -e "${GREEN}✓ ralph.md (autonomous ticket agent)${NC}"
   else
     echo -e "${RED}✗ Failed to copy Ralph agent${NC}"
   fi
 else
-  echo -e "${YELLOW}⚠ Ralph agent not found at $BRAIN_DUMP_DIR/.opencode/agents/ralph.md${NC}"
+  echo -e "${YELLOW}⚠ Ralph agent not found at $BRAIN_DUMP_DIR/.opencode/agent/ralph.md${NC}"
 fi
 
 echo ""
