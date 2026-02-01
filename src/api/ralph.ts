@@ -1572,7 +1572,9 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     // For epic launches, Ralph handles individual tickets via MCP start_ticket_work during iteration.
     // Here we start the workflow for the first backlog/ready ticket to create the epic branch,
     // and mark others as in_progress for the PRD.
-    const firstTicket = epicTickets.find((t) => t.status === "backlog" || t.status === "ready");
+    const firstTicket = epicTickets.find(
+      (t: (typeof epicTickets)[0]) => t.status === "backlog" || t.status === "ready"
+    );
     if (firstTicket) {
       const workflowResult = await startTicketWorkflow(firstTicket.id, project.path);
       if (!workflowResult.success) {

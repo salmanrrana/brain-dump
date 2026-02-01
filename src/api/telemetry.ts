@@ -137,7 +137,7 @@ export const getLatestTelemetrySession = createServerFn({ method: "GET" })
       .limit(100)
       .all();
 
-    const events = rawEvents.map((e) => ({
+    const events = rawEvents.map((e: (typeof rawEvents)[0]) => ({
       ...e,
       eventData: e.eventData ? JSON.parse(e.eventData) : null,
     })) as ParsedTelemetryEvent[];

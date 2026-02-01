@@ -48,8 +48,6 @@ import {
 } from "../lib/hooks";
 import { deleteEpic as deleteEpicFn } from "../api/epics";
 import { useKeyboardShortcuts } from "../lib/keyboard-shortcuts";
-import { getEpicContext } from "../api/context";
-import { startEpicWorkflowFn } from "../api/start-ticket-workflow";
 
 // App context for managing global state
 interface AppState {
@@ -509,20 +507,20 @@ export default function AppLayout({ children }: AppLayoutProps) {
     [openEpic, closeProjectsPanel]
   );
 
-  // Handler for launching Ralph for an epic from ProjectsPanel
-  const handleLaunchRalphForEpic = useCallback(
-    async (epicId: string) => {
+  // Shared logic for launching Ralph for an epic with workflow initialization
+  const launchRalphForEpicWithWorkflow = useCallback(
+    async (epicId: string, onComplete?: () => void) => {
       try {
+        // Dynamic imports needed because these functions use Node.js modules
+        // which can't be statically imported on the client
+        const { getEpicContext } = await import("../api/context");
+        const { startEpicWorkflow } = await import("../api/start-ticket-workflow");
+
         // Get epic context (including project path for workflow initialization)
         const contextResult = await getEpicContext({ data: epicId });
 
         // Initialize epic workflow first (git branch, workflow state)
-        const workflowResult = await startEpicWorkflowFn({
-          data: {
-            epicId,
-            projectPath: contextResult.projectPath,
-          },
-        });
+        const workflowResult = await startEpicWorkflow(epicId, contextResult.projectPath);
 
         if (!workflowResult.success) {
           // Workflow init failed - don't launch Ralph
@@ -536,13 +534,23 @@ export default function AppLayout({ children }: AppLayoutProps) {
           useSandbox: settings?.ralphSandbox ?? false,
           aiBackend: "claude",
         });
-        closeProjectsPanel();
+
+        // Call optional cleanup callback (e.g., close projects panel or item click)
+        onComplete?.();
       } catch {
         // Error getting context or initializing workflow - don't launch
         // Error would be shown to user via other means if needed
       }
     },
-    [launchRalphMutation, settings, closeProjectsPanel]
+    [launchRalphMutation, settings]
+  );
+
+  // Handler for launching Ralph for an epic from ProjectsPanel
+  const handleLaunchRalphForEpic = useCallback(
+    (epicId: string) => {
+      launchRalphForEpicWithWorkflow(epicId, closeProjectsPanel);
+    },
+    [launchRalphForEpicWithWorkflow, closeProjectsPanel]
   );
 
   // Epic ticket counts - currently not computed to avoid showing misleading "0"
@@ -615,7 +623,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
               aria-modal="true"
               aria-label="Mobile navigation menu"
             >
-              <Sidebar onItemClick={closeMobileMenu} />
+              <Sidebar
+                onItemClick={closeMobileMenu}
+                onLaunchRalphForEpic={handleLaunchRalphForEpic}
+              />
             </div>
           </div>
         )}
@@ -884,9 +895,11 @@ function AppHeader() {
 interface SidebarProps {
   /** Optional callback when a navigation item is clicked (for mobile menu close) */
   onItemClick?: () => void;
+  /** Handler for launching Ralph for an epic */
+  onLaunchRalphForEpic?: (epicId: string) => void;
 }
 
-function Sidebar({ onItemClick }: SidebarProps = {}) {
+function Sidebar({ onItemClick, onLaunchRalphForEpic }: SidebarProps = {}) {
   const { projects, loading, error } = useProjects();
   const {
     filters,
@@ -904,8 +917,14 @@ function Sidebar({ onItemClick }: SidebarProps = {}) {
 
   // Get active Ralph sessions for AI indicators
   const { sessions: activeSessions } = useActiveRalphSessions();
-  const { settings } = useSettings();
-  const launchRalphMutation = useLaunchRalphForEpic();
+
+  // Provide no-op default if handler not passed
+  const handleLaunchRalphForEpic = useCallback(
+    (epicId: string) => {
+      onLaunchRalphForEpic?.(epicId);
+    },
+    [onLaunchRalphForEpic]
+  );
 
   // Check Docker availability first (cached, re-checks every 60s)
   const { available: dockerAvailable } = useDockerAvailable();
@@ -991,42 +1010,6 @@ function Sidebar({ onItemClick }: SidebarProps = {}) {
   const handleEditEpic = (projectId: string, epic: Epic) => {
     openEpicModal(projectId, epic);
   };
-
-  // Handler for launching Ralph for an epic from sidebar
-  const handleLaunchRalphForEpic = useCallback(
-    async (epicId: string) => {
-      try {
-        // Get epic context (including project path for workflow initialization)
-        const contextResult = await getEpicContext({ data: epicId });
-
-        // Initialize epic workflow first (git branch, workflow state)
-        const workflowResult = await startEpicWorkflowFn({
-          data: {
-            epicId,
-            projectPath: contextResult.projectPath,
-          },
-        });
-
-        if (!workflowResult.success) {
-          // Workflow init failed - don't launch Ralph
-          return;
-        }
-
-        // Launch Ralph with workflow initialized
-        launchRalphMutation.mutate({
-          epicId,
-          preferredTerminal: settings?.terminalEmulator ?? null,
-          useSandbox: settings?.ralphSandbox ?? false,
-          aiBackend: "claude",
-        });
-        onItemClick?.();
-      } catch {
-        // Error getting context or initializing workflow - don't launch
-        // Error would be shown to user via other means if needed
-      }
-    },
-    [launchRalphMutation, settings, onItemClick]
-  );
 
   return (
     <aside

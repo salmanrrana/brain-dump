@@ -16,8 +16,6 @@ import ErrorAlert from "./ErrorAlert";
 import { COLOR_OPTIONS } from "../lib/constants";
 import { epicFormOpts } from "./epics/epic-form-opts";
 import { epicFormSchema } from "./epics/epic-form-schema";
-import { startEpicWorkflowFn } from "../api/start-ticket-workflow";
-import { getEpicContext } from "../api/context";
 
 interface Epic {
   id: string;
@@ -192,16 +190,16 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
       setRalphNotification(null);
 
       try {
+        // Dynamic imports needed because these functions use Node.js modules
+        // which can't be statically imported on the client
+        const { getEpicContext } = await import("../api/context");
+        const { startEpicWorkflow } = await import("../api/start-ticket-workflow");
+
         // Get epic context (including project path for workflow initialization)
         const contextResult = await getEpicContext({ data: epic.id });
 
-        // Initialize epic workflow first (git branch, workflow state, audit comment)
-        const workflowResult = await startEpicWorkflowFn({
-          data: {
-            epicId: epic.id,
-            projectPath: contextResult.projectPath,
-          },
-        });
+        // Initialize epic workflow first (git branch, workflow state)
+        const workflowResult = await startEpicWorkflow(epic.id, contextResult.projectPath);
 
         if (!workflowResult.success) {
           setRalphNotification({

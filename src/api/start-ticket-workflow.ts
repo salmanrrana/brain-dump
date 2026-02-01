@@ -10,9 +10,11 @@
  *
  * This module extracts the essential pre-launch steps so both UI and MCP paths
  * produce consistent audit trails and git state.
+ *
+ * These functions are called directly from client code (e.g., EditTicketModal, EpicModal).
+ * TanStack Start automatically routes them through the server when called from client components.
  */
 
-import { createServerFn } from "@tanstack/react-start";
 import { db } from "../lib/db";
 import {
   tickets,
@@ -544,25 +546,3 @@ export async function startEpicWorkflow(
     warnings,
   };
 }
-
-// --- Server Function Wrappers (for UI) ---
-
-/**
- * Server function to start ticket workflow from the UI.
- * Called by EditTicketModal before launching AI.
- */
-export const startTicketWorkflowFn = createServerFn({ method: "POST" })
-  .inputValidator((data: { ticketId: string; projectPath: string }) => data)
-  .handler(async ({ data }: { data: { ticketId: string; projectPath: string } }) => {
-    return startTicketWorkflow(data.ticketId, data.projectPath);
-  });
-
-/**
- * Server function to start epic workflow from the UI.
- * Called by EpicModal and sidebar epic launch before launching Ralph.
- */
-export const startEpicWorkflowFn = createServerFn({ method: "POST" })
-  .inputValidator((data: { epicId: string; projectPath: string }) => data)
-  .handler(async ({ data }: { data: { epicId: string; projectPath: string } }) => {
-    return startEpicWorkflow(data.epicId, data.projectPath);
-  });

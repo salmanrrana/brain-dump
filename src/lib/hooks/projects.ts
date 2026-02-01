@@ -70,7 +70,7 @@ export function useProjects() {
 
       // Fetch epics for each project
       const projectsWithEpics: ProjectWithEpics[] = await Promise.all(
-        projectList.map(async (project) => {
+        projectList.map(async (project: (typeof projectList)[0]) => {
           const epics = await getEpicsByProject({ data: project.id });
           return { ...project, epics };
         })

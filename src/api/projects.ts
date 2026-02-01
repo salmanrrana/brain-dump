@@ -162,7 +162,7 @@ export const deleteProject = createServerFn({ method: "POST" })
       // Count comments across all tickets
       let commentCount = 0;
       if (projectTickets.length > 0) {
-        const ticketIds = projectTickets.map((t) => t.id);
+        const ticketIds = projectTickets.map((t: (typeof projectTickets)[0]) => t.id);
         const commentResult = db
           .select({ count: sql<number>`COUNT(*)` })
           .from(ticketComments)
@@ -192,7 +192,7 @@ export const deleteProject = createServerFn({ method: "POST" })
         sqlite.transaction(() => {
           // 1. Delete comments for all project tickets
           if (projectTickets.length > 0) {
-            const ticketIds = projectTickets.map((t) => t.id);
+            const ticketIds = projectTickets.map((t: (typeof projectTickets)[0]) => t.id);
             db.delete(ticketComments).where(inArray(ticketComments.ticketId, ticketIds)).run();
           }
 
