@@ -9,1258 +9,264 @@
   ],
   "userStories": [
     {
-      "id": "ab103f17-227a-4fd3-83d4-32f85c4b13ef",
-      "title": "TypeScript Migration Overview (Plan Reference)",
-      "passes": false,
-      "overview": "This is the master reference ticket for the entire TypeScript migration epic. It contains the complete, detailed migration plan with all phases, strategies, and acceptance criteria. Use this ticket throughout the migration to reference the overall strategy and implementation details.\n**Purpose:** Reference ticket documenting the complete end-to-end migration approach.",
+      "id": "984dcf9b-697f-4524-8c9a-c9fe4fec482c",
+      "title": "Implement brain-dump-state-enforcement.ts plugin",
+      "passes": true,
+      "overview": "Create an OpenCode plugin that enforces the Universal Quality Workflow (UQW) state machine by blocking Write/Edit operations unless the Ralph session is in a valid code-writing state. This plugin replicates the Claude Code hook: `.claude/hooks/enforce-state-before-write.sh`\n- The Ralph state machine has specific states: `idle`, `analyzing`, `implementing`, `testing`, `committing`, `reviewing`, `done`\n- Only three states allow code writing: `implementing`, `testing`, `committing`\n- The state is tracked in `.claude/ralph-state.json` (shared across all environments)\n- When not in Ralph mode, the plugin should allow all operations (fail open)",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
+        "Plugin reads `.claude/ralph-state.json` before every Write/Edit attempt",
+        "Blocks with helpful error message if in wrong state",
+        "Allows operation if not in Ralph mode (graceful degradation)",
+        "Error message includes exact MCP command to fix state",
+        "Error message lists valid states for writing code",
+        "Plugin follows OpenCode plugin structure and event hooks pattern"
       ],
-      "references": [
-        "mcp-server/tsconfig.json",
-        "mcp-server/types.ts",
-        "mcp-server/package.json"
-      ],
-      "description": "# TypeScript Migration Plan: Brain Dump MCP Server\n\n## Overview\n\nThis is the master reference ticket for the entire TypeScript migration epic. It contains the complete, detailed migration plan with all phases, strategies, and acceptance criteria. Use this ticket throughout the migration to reference the overall strategy and implementation details.\n\n**Purpose:** Reference ticket documenting the complete end-to-end migration approach.\n\n## Current State\n\n- **32 JavaScript files**: 16 tools, 16 lib files, 1 index.js (~10,100 lines)\n- **8 TypeScript test files**: Already working with Vitest\n- **Modern patterns already in place**: ESM modules, Zod validation, MCP SDK v1.0.0\n- **Key dependencies**: All have TypeScript support (@types/better-sqlite3, @types/node)\n\n## Strategy: Incremental Migration\n\nConverting incrementally (lib → tools → index) to maintain zero downtime and allow testing at each phase.\n\n### Phase 1: TypeScript Configuration & Shared Types\n- Create `mcp-server/tsconfig.json` with strict mode\n- Create `mcp-server/types.ts` with all shared type definitions (50+ types)\n- Update `mcp-server/package.json` with TypeScript dependencies\n- Key dependencies: `@types/better-sqlite3`, `@types/node`, `tsx`, `typescript`, `vitest`\n\n### Phase 2: Convert Lib Files (15 files, bottom-up by dependency)\n**Order:** xdg → logging → lock → git-utils → secrets → environment → database → backup → attachment-types → attachment-loader → comment-utils → conversation-session → ticket-context-builder → prd-utils → telemetry-self-log\n\n### Phase 3: Convert Tool Files (16 files, any order)\n**Groups:** \n- Projects/Tickets/Epics/Comments (11 tools, 4 files)\n- Workflow & Git (9 tools, 2 files)\n- Files/Health/Events/Sessions (9 tools, 4 files)\n- Conversations/Telemetry/Claude-Tasks/Review/Demo/Learnings (22 tools, 6 files)\n\n### Phase 4: Convert Entry Point\n- Convert `index.js` → `index.ts`\n- Update shebang to `#!/usr/bin/env tsx`\n\n### Phase 5: Testing & Verification\n- Type checking: `pnpm type-check` passes with 0 errors\n- Unit tests: All 8 test files pass\n- MCP tools: All 55+ tools tested via Claude Code\n- Integration: Full workflow tested (create → start → complete → review → demo → done)\n\n### Phase 6: Documentation & PR\n- Update CLAUDE.md, README.md\n- Create mcp-server/README.md\n- Update MCP client configs\n- Create PR from `feat/mcp-typescript-migration` → `main`\n\n## Tool Inventory (55+ Tools)\n\n### Projects (4 tools)\nlist_projects, create_project, find_project_by_path, update_project\n\n### Tickets (9 tools)\ncreate_ticket, update_ticket, list_tickets, get_ticket, delete_ticket, search_tickets, list_tickets_by_status, add_tags_to_ticket, remove_tags_from_ticket\n\n### Epics (5 tools)\ncreate_epic, list_epics, update_epic, delete_epic, list_tickets_by_epic\n\n### Comments (2 tools)\nadd_ticket_comment, list_ticket_comments\n\n### Workflow (6 tools)\nstart_ticket_work, complete_ticket_work, update_session_state, create_ralph_session, complete_ralph_session, update_ticket_status\n\n### Git (3 tools)\ncreate_branch, link_commit_to_ticket, link_pr_to_ticket\n\n### Files (3 tools)\nattach_file_to_ticket, list_ticket_attachments, read_ticket_attachment\n\n### Health (1 tool)\ncheck_database_health\n\n### Events (2 tools)\nrecord_event, list_session_events\n\n### Sessions (3 tools)\ncreate_session, end_session, list_sessions\n\n### Conversations (6 tools)\nstart_conversation_session, log_conversation_message, end_conversation_session, list_conversation_sessions, export_compliance_logs, archive_old_sessions\n\n### Telemetry (4 tools)\nstart_telemetry_session, log_telemetry_event, end_telemetry_session, flush_telemetry_queue\n\n### Claude Tasks (3 tools)\nrecord_claude_task, list_claude_tasks, get_claude_task\n\n### Review Findings (3 tools)\nsubmit_review_finding, list_review_findings, resolve_finding\n\n### Demo (2 tools)\ngenerate_demo_script, record_demo_feedback\n\n### Learnings (2 tools)\nextract_learnings, apply_learnings\n\n## Key Files to Convert\n\n- Entry point: `/Users/salman.rana/code/brain-dump/mcp-server/index.js`\n- Database module: `/Users/salman.rana/code/brain-dump/mcp-server/lib/database.js`\n- Most complex tool: `/Users/salman.rana/code/brain-dump/mcp-server/tools/workflow.js` (971 lines)\n- Root TypeScript config: `/Users/salman.rana/code/brain-dump/tsconfig.json`\n\n## Branch Strategy\n\nAll work happens on one feature branch: `feat/mcp-typescript-migration`\n- Each ticket commits to this branch\n- One final PR to `main` after all tickets complete\n- Ensures atomic, well-tested merge\n\n## Success Criteria\n\n✅ All 32 JavaScript files converted to TypeScript\n✅ `pnpm type-check` passes with 0 errors\n✅ All 8 existing tests pass\n✅ Server starts successfully\n✅ All 55+ MCP tools work in Claude Code\n✅ Documentation updated\n✅ No new console warnings\n✅ Database operations still work\n✅ Git integration works\n✅ Telemetry captures events\n\n## Rollback Strategy\n\nIf issues arise at any phase:\n```bash\ngit checkout HEAD -- mcp-server/lib/*.ts  # Rollback lib files\ngit checkout HEAD -- mcp-server/tools/*.ts  # Rollback tools\ngit checkout HEAD -- mcp-server/index.ts  # Rollback entry point\ngit checkout HEAD -- mcp-server/  # Full rollback\npnpm install\n```\n\n---\n\n**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-      "priority": "high",
+      "references": [],
+      "description": "## Overview\nCreate an OpenCode plugin that enforces the Universal Quality Workflow (UQW) state machine by blocking Write/Edit operations unless the Ralph session is in a valid code-writing state. This plugin replicates the Claude Code hook: `.claude/hooks/enforce-state-before-write.sh`\n\n## Context\n- The Ralph state machine has specific states: `idle`, `analyzing`, `implementing`, `testing`, `committing`, `reviewing`, `done`\n- Only three states allow code writing: `implementing`, `testing`, `committing`\n- The state is tracked in `.claude/ralph-state.json` (shared across all environments)\n- When not in Ralph mode, the plugin should allow all operations (fail open)\n\n## Acceptance Criteria\n- [ ] Plugin reads `.claude/ralph-state.json` before every Write/Edit attempt\n- [ ] Blocks with helpful error message if in wrong state\n- [ ] Allows operation if not in Ralph mode (graceful degradation)\n- [ ] Error message includes exact MCP command to fix state\n- [ ] Error message lists valid states for writing code\n- [ ] Plugin follows OpenCode plugin structure and event hooks pattern\n\n## Implementation Notes\n- File: `.opencode/plugins/brain-dump-state-enforcement.ts`\n- Hook: `tool.execute.before` (triggers before Write/Edit tools)\n- Valid states: `[\"implementing\", \"testing\", \"committing\"]`\n- Error format should match: `STATE ENFORCEMENT: You are in '{state}' state but tried to write/edit code.`\n- Include exact sessionId from state file in error message for quick copy-paste fix\n- Reference the telemetry plugin (`.opencode/plugins/brain-dump-telemetry.ts`) for OpenCode plugin patterns\n\n## Related\n- Ticket: \"Add UQW workflow guidance to AGENTS.md\" (documents expected errors)\n- Concept: Ralph session state machine (see CLAUDE.md Universal Quality Workflow section)\",\n<parameter name=\"priority\">high\n\n## Additional INformation\nhave all code live in branch \"feature/64670dc9-implement-brain-dump-commit-tracking-ts-plugin\"",
+      "priority": null,
       "tags": [
-        "setup",
-        "reference",
-        "overview"
+        "opencode",
+        "plugins",
+        "enforcement"
       ]
     },
     {
-      "id": "de6a9d35-f9a5-4f1a-b3b3-2d6e8dae4d8a",
-      "title": "Setup TypeScript Configuration",
-      "passes": false,
-      "overview": "Set up TypeScript infrastructure for the MCP server including configuration files, shared type definitions, and package dependencies. This foundational ticket enables all subsequent conversion work.",
+      "id": "ec3ce586-d79b-4f9a-8179-e12f73f3f00e",
+      "title": "Implement brain-dump-auto-pr.ts plugin",
+      "passes": true,
+      "overview": "Create an OpenCode plugin that automatically creates a draft GitHub PR when `start_ticket_work` completes successfully. This ensures PRs are created early and linked to tickets immediately, following the same workflow as Claude Code's `.claude/hooks/create-pr-on-ticket-start.sh`\n- `start_ticket_work` creates a git branch (e.g., `feature/abc123-ticket-slug`)\n- The auto-PR workflow runs immediately after branch creation\n- Draft PRs are auto-linked to tickets and update as new commits are pushed\n- This plugin communicates via `console.log()` (visible in OpenCode chat)",
       "types": [],
       "designDecisions": [],
-      "implementationGuide": [
-        {
-          "step": 1,
-          "description": "Create `mcp-server/tsconfig.json`",
-          "files": [],
-          "codeTemplate": "{\n  \"extends\": \"../tsconfig.json\",\n  \"include\": [\"**/*.ts\"],\n  \"exclude\": [\"node_modules\", \"dist\", \"__tests__\"],\n  \"compilerOptions\": {\n    \"target\": \"ES2022\",\n    \"module\": \"ESNext\",\n    \"lib\": [\"ES2022\"],\n    \"types\": [\"node\"],\n    \"moduleResolution\": \"bundler\",\n    \"allowImportingTsExtensions\": true,\n    \"resolveJsonModule\": true,\n    \"noEmit\": true,\n    \"strict\": true,\n    \"noUncheckedIndexedAccess\": true,\n    \"noImplicitReturns\": true,\n    \"exactOptionalPropertyTypes\": true,\n    \"noUnusedLocals\": true,\n    \"noUnusedParameters\": true,\n    \"noFallthroughCasesInSwitch\": true,\n    \"noUncheckedSideEffectImports\": true,\n    \"allowJs\": true,\n    \"checkJs\": false,\n    \"esModuleInterop\": true,\n    \"skipLibCheck\": true\n  }\n}"
-        },
-        {
-          "step": 2,
-          "description": "Create `mcp-server/types.ts`",
-          "files": [
-            "mcp-server/types.ts"
-          ]
-        },
-        {
-          "step": 3,
-          "description": "Update `mcp-server/package.json`",
-          "files": [],
-          "codeTemplate": "{\n  \"scripts\": {\n    \"start\": \"tsx index.ts\",\n    \"dev\": \"tsx watch index.ts\",\n    \"type-check\": \"tsc --noEmit\",\n    \"test\": \"vitest run\",\n    \"test:watch\": \"vitest\"\n  },\n  \"devDependencies\": {\n    \"@types/better-sqlite3\": \"^7.6.13\",\n    \"@types/node\": \"^22.10.2\",\n    \"tsx\": \"^4.21.0\",\n    \"typescript\": \"^5.7.2\",\n    \"vitest\": \"^3.0.5\"\n  }\n}"
-        },
-        {
-          "step": 4,
-          "description": "Install Dependencies",
-          "files": [],
-          "codeTemplate": "cd mcp-server\npnpm install"
-        },
-        {
-          "step": 5,
-          "description": "Verify Setup",
-          "files": [],
-          "codeTemplate": "pnpm type-check  # Should pass with 0 errors (no .ts files yet)"
-        },
-        {
-          "step": 5,
-          "description": "Verify Setup",
-          "files": [],
-          "codeTemplate": "pnpm type-check  # Should pass with 0 errors (no .ts files yet)"
-        }
-      ],
+      "implementationGuide": [],
       "acceptanceCriteria": [
-        "`mcp-server/tsconfig.json` created with strict mode enabled",
-        "`mcp-server/types.ts` created with 50+ type definitions",
-        "`mcp-server/package.json` updated with new scripts and devDependencies",
-        "All dependencies installed successfully",
-        "`pnpm type-check` passes with 0 errors",
-        "Root `pnpm type-check` still passes (if root includes mcp-server)"
+        "Plugin triggers after `mcp__brain-dump__start_ticket_work` completes successfully",
+        "Parses output to extract branch name, ticket ID, and ticket title",
+        "Creates empty WIP commit with format: `feat(shortId): WIP - title`",
+        "Pushes branch to remote with `-u` flag",
+        "Creates draft PR via `gh pr create --draft`",
+        "Outputs PR URL and branch name to console",
+        "Handles failures gracefully (doesn't block workflow if git/gh fails)"
       ],
-      "references": [
-        "TypeScript config: `mcp-server/tsconfig.json`",
-        "Root config: `tsconfig.json`",
-        "Package: `mcp-server/package.json`",
-        "---",
-        "**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-        "mcp-server/tsconfig.json",
-        "mcp-server/types.ts",
-        "mcp-server/package.json"
-      ],
-      "description": "## Overview\n\nSet up TypeScript infrastructure for the MCP server including configuration files, shared type definitions, and package dependencies. This foundational ticket enables all subsequent conversion work.\n\n## Implementation Guide\n\n### Step 1: Create `mcp-server/tsconfig.json`\n\n**Files:** `mcp-server/tsconfig.json`\n\n```json\n{\n  \"extends\": \"../tsconfig.json\",\n  \"include\": [\"**/*.ts\"],\n  \"exclude\": [\"node_modules\", \"dist\", \"__tests__\"],\n  \"compilerOptions\": {\n    \"target\": \"ES2022\",\n    \"module\": \"ESNext\",\n    \"lib\": [\"ES2022\"],\n    \"types\": [\"node\"],\n    \"moduleResolution\": \"bundler\",\n    \"allowImportingTsExtensions\": true,\n    \"resolveJsonModule\": true,\n    \"noEmit\": true,\n    \"strict\": true,\n    \"noUncheckedIndexedAccess\": true,\n    \"noImplicitReturns\": true,\n    \"exactOptionalPropertyTypes\": true,\n    \"noUnusedLocals\": true,\n    \"noUnusedParameters\": true,\n    \"noFallthroughCasesInSwitch\": true,\n    \"noUncheckedSideEffectImports\": true,\n    \"allowJs\": true,\n    \"checkJs\": false,\n    \"esModuleInterop\": true,\n    \"skipLibCheck\": true\n  }\n}\n```\n\n**Design decision:** `\"noEmit\": true` means we'll use `tsx` directly instead of a compilation step, keeping the workflow simple.\n\n### Step 2: Create `mcp-server/types.ts`\n\n**Files:** `mcp-server/types.ts`\n\nCreate comprehensive shared type definitions including:\n\n**Database interfaces:**\n- DbTicket, DbProject, DbEpic, DbTicketComment, DbRalphSession, DbSession, DbTelemetryEvent, DbReviewFinding, DbDemoScript, DbLearning, DbConversationSession, DbConversationMessage\n\n**Enums (as string literal unions):**\n- TicketStatus: \"backlog\" | \"ready\" | \"in_progress\" | \"ai_review\" | \"human_review\" | \"done\"\n- Priority: \"low\" | \"medium\" | \"high\"\n- PrStatus: \"draft\" | \"open\" | \"merged\" | \"closed\"\n- WorkingMethod: \"auto\" | \"claude-code\" | \"vscode\"\n- FindingSeverity: \"critical\" | \"major\" | \"minor\" | \"suggestion\"\n- DemoStepType: \"manual\" | \"visual\" | \"automated\"\n\n**MCP types:**\n- ToolResponse, ContentBlock, ToolRegistrationFn\n\n**Utility types:**\n- GitCommandResult, BackupResult, EnvironmentInfo\n\n### Step 3: Update `mcp-server/package.json`\n\n**Files:** `mcp-server/package.json`\n\nAdd scripts and update devDependencies:\n\n```json\n{\n  \"scripts\": {\n    \"start\": \"tsx index.ts\",\n    \"dev\": \"tsx watch index.ts\",\n    \"type-check\": \"tsc --noEmit\",\n    \"test\": \"vitest run\",\n    \"test:watch\": \"vitest\"\n  },\n  \"devDependencies\": {\n    \"@types/better-sqlite3\": \"^7.6.13\",\n    \"@types/node\": \"^22.10.2\",\n    \"tsx\": \"^4.21.0\",\n    \"typescript\": \"^5.7.2\",\n    \"vitest\": \"^3.0.5\"\n  }\n}\n```\n\n### Step 4: Install Dependencies\n\n```bash\ncd mcp-server\npnpm install\n```\n\n### Step 5: Verify Setup\n\n```bash\npnpm type-check  # Should pass with 0 errors (no .ts files yet)\n```\n\n## Acceptance Criteria\n\n- [ ] `mcp-server/tsconfig.json` created with strict mode enabled\n- [ ] `mcp-server/types.ts` created with 50+ type definitions\n- [ ] `mcp-server/package.json` updated with new scripts and devDependencies\n- [ ] All dependencies installed successfully\n- [ ] `pnpm type-check` passes with 0 errors\n- [ ] Root `pnpm type-check` still passes (if root includes mcp-server)\n\n## References\n\n- TypeScript config: `mcp-server/tsconfig.json`\n- Root config: `tsconfig.json`\n- Package: `mcp-server/package.json`\n\n---\n\n**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-      "priority": "high",
+      "references": [],
+      "description": "## Overview\nCreate an OpenCode plugin that automatically creates a draft GitHub PR when `start_ticket_work` completes successfully. This ensures PRs are created early and linked to tickets immediately, following the same workflow as Claude Code's `.claude/hooks/create-pr-on-ticket-start.sh`\n\n## Context\n- `start_ticket_work` creates a git branch (e.g., `feature/abc123-ticket-slug`)\n- The auto-PR workflow runs immediately after branch creation\n- Draft PRs are auto-linked to tickets and update as new commits are pushed\n- This plugin communicates via `console.log()` (visible in OpenCode chat)\n\n## Acceptance Criteria\n- [ ] Plugin triggers after `mcp__brain-dump__start_ticket_work` completes successfully\n- [ ] Parses output to extract branch name, ticket ID, and ticket title\n- [ ] Creates empty WIP commit with format: `feat(shortId): WIP - title`\n- [ ] Pushes branch to remote with `-u` flag\n- [ ] Creates draft PR via `gh pr create --draft`\n- [ ] Outputs PR URL and branch name to console\n- [ ] Handles failures gracefully (doesn't block workflow if git/gh fails)\n\n## Implementation Notes\n- File: `.opencode/plugins/brain-dump-auto-pr.ts`\n- Hook: `tool.execute.after` (triggers after MCP tool completes)\n- Parse ticket details from `start_ticket_work` output (multiple possible formats)\n- Commands: git commit, git push, gh pr create\n- Use `execSync` with `stdio: [\"pipe\", \"pipe\", \"pipe\"]` to suppress output\n- Output format: console.log with [Brain Dump] prefix for visibility\n- Reference the telemetry plugin for plugin structure patterns\n\n## Related\n- Concept: Git workflow integration\n- Concept: Draft PR tracking\",\n<parameter name=\"priority\">high\n\n## Additional INformation\nhave all code live in branch \"feature/64670dc9-implement-brain-dump-commit-tracking-ts-plugin\"",
+      "priority": null,
       "tags": [
-        "setup",
-        "infrastructure",
-        "typescript"
+        "opencode",
+        "plugins",
+        "automation"
       ]
     },
     {
-      "id": "f70e7e87-b888-4525-bd95-9a880fb10251",
-      "title": "Convert Core Lib Files to TypeScript (Part 1)",
-      "passes": false,
-      "overview": "Convert the first batch of core lib files that have minimal or no interdependencies. These foundational files enable all subsequent lib conversions.",
+      "id": "64670dc9-cee5-4079-8e40-5bbf6d271c78",
+      "title": "Implement brain-dump-commit-tracking.ts plugin",
+      "passes": true,
+      "overview": "Create an OpenCode plugin that outputs MCP commands to link commits to tickets after each git commit. This maintains an audit trail and helps the AI remember to link its work. Replicates `.claude/hooks/link-commit-to-ticket.sh`\n- After each git commit during Ralph session, suggest `link_commit_to_ticket()` MCP call\n- If a PR exists on the branch, also suggest `link_pr_to_ticket()` \n- Output is visible in OpenCode chat for AI to copy and use\n- This plugin only triggers when in Ralph mode (active session)",
       "types": [],
       "designDecisions": [],
-      "implementationGuide": [
-        {
-          "step": 1,
-          "description": "Convert `lib/xdg.ts`",
-          "files": [
-            "mcp-server/lib/xdg.ts"
-          ]
-        },
-        {
-          "step": 2,
-          "description": "Convert `lib/logging.ts`",
-          "files": [
-            "mcp-server/lib/logging.ts"
-          ]
-        },
-        {
-          "step": 3,
-          "description": "Convert `lib/lock.js`",
-          "files": [
-            "mcp-server/lib/lock.ts"
-          ]
-        },
-        {
-          "step": 4,
-          "description": "Convert `lib/git-utils.ts`",
-          "files": [
-            "mcp-server/lib/git-utils.ts"
-          ]
-        },
-        {
-          "step": 5,
-          "description": "Convert `lib/secrets.ts`",
-          "files": [
-            "mcp-server/lib/secrets.ts"
-          ]
-        },
-        {
-          "step": 6,
-          "description": "Verify After Each File",
-          "files": [],
-          "codeTemplate": "pnpm type-check  # Must pass\npnpm test        # Must pass (existing test: lib/git-utils.test.ts)"
-        },
-        {
-          "step": 6,
-          "description": "Verify After Each File",
-          "files": [],
-          "codeTemplate": "pnpm type-check  # Must pass\npnpm test        # Must pass (existing test: lib/git-utils.test.ts)"
-        }
-      ],
+      "implementationGuide": [],
       "acceptanceCriteria": [
-        "All 5 files converted to TypeScript (.ts extension)",
-        "All function signatures have explicit return types",
-        "All function parameters are typed",
-        "No JSDoc type annotations (like `@param {string}`)",
-        "`pnpm type-check` passes with 0 errors",
-        "`pnpm test` passes (existing tests still work)",
-        "Existing test file `lib/git-utils.test.ts` passes",
-        "Each file verified before moving to next"
+        "Plugin triggers after Bash tool executes command containing `git commit`",
+        "Checks if `.claude/ralph-state.json` exists (Ralph mode active)",
+        "Gets latest commit hash via `git rev-parse --short HEAD`",
+        "Gets latest commit message via `git log -1 --pretty=format:%B`",
+        "Reads ticketId from state file",
+        "Outputs suggested MCP command: `link_commit_to_ticket({ ticketId, commitHash })`",
+        "Checks for PR on current branch via `gh pr list`",
+        "If PR exists, outputs: `link_pr_to_ticket({ ticketId, prNumber })`",
+        "Output clearly formatted with section headers for visibility",
+        "Fails silently if not in Ralph mode or command fails"
       ],
-      "references": [
-        "Related lib files: `lib/database.js`, `lib/backup.js` (convert in Part 2)",
-        "Test reference: `lib/git-utils.test.ts`",
-        "Conversion template: See overview ticket",
-        "---",
-        "**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-        "lib/xdg.js",
-        "lib/xdg.ts",
-        "lib/logging.js",
-        "lib/logging.ts",
-        "lib/lock.js",
-        "lib/lock.ts",
-        "lib/git-utils.js",
-        "lib/git-utils.ts",
-        "lib/secrets.js",
-        "lib/secrets.ts",
-        "mcp-server/lib/xdg.ts",
-        "mcp-server/lib/logging.ts",
-        "mcp-server/lib/lock.ts",
-        "mcp-server/lib/git-utils.ts",
-        "mcp-server/lib/secrets.ts",
-        "lib/git-utils.test.ts",
-        "lib/database.js",
-        "lib/backup.js"
-      ],
-      "description": "## Overview\n\nConvert the first batch of core lib files that have minimal or no interdependencies. These foundational files enable all subsequent lib conversions.\n\n## Files to Convert\n\n1. `lib/xdg.js` → `lib/xdg.ts` (no lib dependencies)\n2. `lib/logging.js` → `lib/logging.ts` (depends on xdg)\n3. `lib/lock.js` → `lib/lock.ts` (depends on xdg, logging)\n4. `lib/git-utils.js` → `lib/git-utils.ts` (depends on logging)\n5. `lib/secrets.js` → `lib/secrets.ts` (standalone)\n\n## Conversion Template\n\nFor each file, follow this pattern:\n\n1. **Rename** `.js` → `.ts`\n2. **Add type imports** at the top:\n   ```typescript\n   import type { Database } from \"better-sqlite3\";\n   import type { DbTicket, ToolResponse } from \"../types.js\";\n   ```\n3. **Add explicit return types** to all functions:\n   ```typescript\n   export function getDataDir(): string { ... }\n   export async function logEvent(name: string): Promise<void> { ... }\n   ```\n4. **Type function parameters**:\n   ```typescript\n   export function joinPath(base: string, ...parts: string[]): string { ... }\n   ```\n5. **Remove JSDoc type annotations** (`@param {string}`, `@returns {Promise}`) - TypeScript signatures are now the documentation\n6. **Keep descriptive comments** - module description, function purpose\n7. **Type cast database queries** if needed:\n   ```typescript\n   const tickets = db.prepare(\"SELECT * FROM tickets\").all() as DbTicket[];\n   ```\n\n## Implementation Guide\n\n### Step 1: Convert `lib/xdg.ts`\n\n**Files:** `mcp-server/lib/xdg.ts`\n\n- Add function return types for all path utilities\n- Type the platform detection checks\n- Verify with `pnpm type-check`\n\n### Step 2: Convert `lib/logging.ts`\n\n**Files:** `mcp-server/lib/logging.ts`\n\n- Depends on xdg (update import)\n- Type log functions: `info(msg: string, error?: Error): void`\n- Add types for log level constants\n\n### Step 3: Convert `lib/lock.js`\n\n**Files:** `mcp-server/lib/lock.ts`\n\n- Depends on xdg, logging (update imports)\n- Type lock functions: `acquireLock(): Promise<void>`, `releaseLock(): void`\n\n### Step 4: Convert `lib/git-utils.ts`\n\n**Files:** `mcp-server/lib/git-utils.ts`\n\n- Depends on logging (update import)\n- Type git command execution\n- Type return value as `GitCommandResult`\n\n### Step 5: Convert `lib/secrets.ts`\n\n**Files:** `mcp-server/lib/secrets.ts`\n\n- Standalone file (no lib dependencies)\n- Type secret pattern definitions\n- Type detection functions\n\n### Step 6: Verify After Each File\n\n```bash\npnpm type-check  # Must pass\npnpm test        # Must pass (existing test: lib/git-utils.test.ts)\n```\n\n## Acceptance Criteria\n\n- [ ] All 5 files converted to TypeScript (.ts extension)\n- [ ] All function signatures have explicit return types\n- [ ] All function parameters are typed\n- [ ] No JSDoc type annotations (like `@param {string}`)\n- [ ] `pnpm type-check` passes with 0 errors\n- [ ] `pnpm test` passes (existing tests still work)\n- [ ] Existing test file `lib/git-utils.test.ts` passes\n- [ ] Each file verified before moving to next\n\n## References\n\n- Related lib files: `lib/database.js`, `lib/backup.js` (convert in Part 2)\n- Test reference: `lib/git-utils.test.ts`\n- Conversion template: See overview ticket\n\n---\n\n**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-      "priority": "high",
+      "references": [],
+      "description": "## Overview\nCreate an OpenCode plugin that outputs MCP commands to link commits to tickets after each git commit. This maintains an audit trail and helps the AI remember to link its work. Replicates `.claude/hooks/link-commit-to-ticket.sh`\n\n## Context\n- After each git commit during Ralph session, suggest `link_commit_to_ticket()` MCP call\n- If a PR exists on the branch, also suggest `link_pr_to_ticket()` \n- Output is visible in OpenCode chat for AI to copy and use\n- This plugin only triggers when in Ralph mode (active session)\n\n## Acceptance Criteria\n- [ ] Plugin triggers after Bash tool executes command containing `git commit`\n- [ ] Checks if `.claude/ralph-state.json` exists (Ralph mode active)\n- [ ] Gets latest commit hash via `git rev-parse --short HEAD`\n- [ ] Gets latest commit message via `git log -1 --pretty=format:%B`\n- [ ] Reads ticketId from state file\n- [ ] Outputs suggested MCP command: `link_commit_to_ticket({ ticketId, commitHash })`\n- [ ] Checks for PR on current branch via `gh pr list`\n- [ ] If PR exists, outputs: `link_pr_to_ticket({ ticketId, prNumber })`\n- [ ] Output clearly formatted with section headers for visibility\n- [ ] Fails silently if not in Ralph mode or command fails\n\n## Implementation Notes\n- File: `.opencode/plugins/brain-dump-commit-tracking.ts`\n- Hook: `tool.execute.after` (triggers after Bash tool)\n- Check command contains: \\\"git commit\\\"\n- Use `execSync` with error handling (fail open)\n- Output format: console.log with clear borders for visibility\n- Extract commit info from `git log` commands\n- Reference the telemetry plugin for plugin structure\n\n## Related\n- Ticket: \\\"Implement brain-dump-commit-tracking.ts plugin\\\" (complements state enforcement)\n- Concept: Audit trail and commit tracking\",\n<parameter name=\"priority\">medium\n\n## Additional INformation\nhave all code live in branch \"feature/64670dc9-implement-brain-dump-commit-tracking-ts-plugin\"",
+      "priority": null,
       "tags": [
-        "conversion",
-        "lib",
-        "typescript"
+        "opencode",
+        "plugins",
+        "automation"
       ]
     },
     {
-      "id": "9a994694-c4e6-409c-9533-a600dfac71a3",
-      "title": "Convert Database & Related Lib Files (Part 2)",
-      "passes": false,
-      "overview": "Convert database module and files that depend on it. This is critical path work since many tools depend on proper database types.",
+      "id": "b867032f-c001-446e-8aad-304936bb1497",
+      "title": "Implement brain-dump-review-marker.ts plugin",
+      "passes": true,
+      "overview": "Create an OpenCode plugin that automatically creates a `.claude/.review-completed` marker file after the AI review phase completes successfully. This marker is checked by the review guard plugin to allow/block git push operations.\n- After `check_review_complete` returns success, AI should be able to push code\n- The review guard plugin blocks push if code changes exist but review isn't complete\n- This plugin automates marker creation so AI doesn't need to manually create the file\n- Marker file contains timestamp for staleness checking (30-minute freshness in guard)",
       "types": [],
       "designDecisions": [],
-      "implementationGuide": [
-        {
-          "step": 1,
-          "description": "Convert `lib/environment.ts`",
-          "files": [
-            "mcp-server/lib/environment.ts"
-          ]
-        },
-        {
-          "step": 2,
-          "description": "Convert `lib/database.ts`",
-          "files": [
-            "mcp-server/lib/database.ts"
-          ],
-          "codeTemplate": "// Type all query results with type casts\nconst tickets = db.prepare(\"SELECT * FROM tickets\").all() as DbTicket[];\nconst ticket = db.prepare(\"SELECT * FROM tickets WHERE id = ?\").get(id) as DbTicket | undefined;"
-        },
-        {
-          "step": 3,
-          "description": "Convert `lib/backup.ts`",
-          "files": [
-            "mcp-server/lib/backup.ts"
-          ]
-        },
-        {
-          "step": 4,
-          "description": "Verify Database Operations",
-          "files": [],
-          "codeTemplate": "# In Node.js REPL or test\nimport { initDatabase } from \"./lib/database.ts\";\nconst { db, actualDbPath } = initDatabase();\nconst result = db.prepare(\"SELECT count(*) as count FROM projects\").get();\nconsole.log(result); // Should show project count"
-        },
-        {
-          "step": 4,
-          "description": "Verify Database Operations",
-          "files": [],
-          "codeTemplate": "# In Node.js REPL or test\nimport { initDatabase } from \"./lib/database.ts\";\nconst { db, actualDbPath } = initDatabase();\nconst result = db.prepare(\"SELECT count(*) as count FROM projects\").get();\nconsole.log(result); // Should show project count"
-        }
-      ],
+      "implementationGuide": [],
       "acceptanceCriteria": [
-        "Database initialization works",
-        "Migrations run successfully",
-        "WAL mode enabled",
-        "Type checking passes",
-        "All 3 files converted to TypeScript",
-        "Database initialization works without errors",
-        "All database queries properly typed with casts",
-        "Backup creation works",
-        "`pnpm type-check` passes with 0 errors",
-        "`pnpm test` passes",
-        "Database file creates at correct XDG location",
-        "WAL mode is enabled (check with `.mode` in sqlite3)",
-        "Integrity checks pass"
+        "Plugin triggers after `mcp__brain-dump__check_review_complete` completes",
+        "Parses output to determine if review is complete",
+        "Recognizes: `complete: true`, `canProceedToHumanReview: true`, or `openCritical === 0 && openMajor === 0`",
+        "If review complete, creates/touches `.claude/.review-completed` marker file",
+        "Marker file contains ISO timestamp",
+        "Creates `.claude/` directory if it doesn't exist",
+        "Outputs success message to console",
+        "Handles errors gracefully (logs but doesn't break workflow)",
+        "Does nothing if review is not complete"
       ],
-      "references": [
-        "Depends on: Ticket 3 (Core Lib Part 1)",
-        "Related: `lib/backup.test.ts` (if exists)",
-        "Schema reference: `../src/lib/schema.ts` (main project, for reference)",
-        "---",
-        "**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-        "lib/environment.js",
-        "lib/environment.ts",
-        "lib/database.js",
-        "lib/database.ts",
-        "lib/backup.js",
-        "lib/backup.ts",
-        "mcp-server/lib/environment.ts",
-        "mcp-server/lib/database.ts",
-        "mcp-server/lib/backup.ts",
-        "lib/backup.test.ts"
-      ],
-      "description": "## Overview\n\nConvert database module and files that depend on it. This is critical path work since many tools depend on proper database types.\n\n## Files to Convert\n\n1. `lib/environment.js` → `lib/environment.ts` (standalone)\n2. `lib/database.js` → `lib/database.ts` (depends on xdg, logging)\n3. `lib/backup.js` → `lib/backup.ts` (depends on xdg, logging, database)\n\n## Special Attention\n\n`database.js` is critical—it handles:\n- Database initialization and WAL mode setup\n- Schema migrations\n- Integrity checks and backups\n- Database queries used throughout the codebase\n\nType safety here prevents cascading errors downstream.\n\n## Implementation Guide\n\n### Step 1: Convert `lib/environment.ts`\n\n**Files:** `mcp-server/lib/environment.ts`\n\n- Standalone file (no lib dependencies)\n- Type environment detection results\n- Type function: `detectEnvironment(): EnvironmentInfo`\n- Where `EnvironmentInfo` includes: `environment: 'claude-code' | 'cursor' | 'vscode' | 'unknown'`, `workspacePath: string`, `detectedProject?: ProjectInfo`\n\n### Step 2: Convert `lib/database.ts`\n\n**Files:** `mcp-server/lib/database.ts`\n\nThis is the most critical file in this batch.\n\n**Key functions to type:**\n- `initDatabase(): { db: Database; actualDbPath: string }`\n- `runMigrations(db: Database): void`\n- `enableWAL(db: Database): void`\n- `checkIntegrity(db: Database): boolean`\n\n**Database query patterns:**\n```typescript\n// Type all query results with type casts\nconst tickets = db.prepare(\"SELECT * FROM tickets\").all() as DbTicket[];\nconst ticket = db.prepare(\"SELECT * FROM tickets WHERE id = ?\").get(id) as DbTicket | undefined;\n```\n\n**Verify:**\n- [ ] Database initialization works\n- [ ] Migrations run successfully\n- [ ] WAL mode enabled\n- [ ] Type checking passes\n\n### Step 3: Convert `lib/backup.ts`\n\n**Files:** `mcp-server/lib/backup.ts`\n\n- Depends on xdg, logging, database (update imports)\n- Type backup operations: `createBackup(db: Database): BackupResult`\n- Where `BackupResult` includes: `success: boolean`, `path: string`, `timestamp: string`\n- Type file path utilities for backup location\n\n### Step 4: Verify Database Operations\n\nAfter converting database.ts, test manually:\n\n```bash\n# In Node.js REPL or test\nimport { initDatabase } from \"./lib/database.ts\";\nconst { db, actualDbPath } = initDatabase();\nconst result = db.prepare(\"SELECT count(*) as count FROM projects\").get();\nconsole.log(result); // Should show project count\n```\n\n## Acceptance Criteria\n\n- [ ] All 3 files converted to TypeScript\n- [ ] Database initialization works without errors\n- [ ] All database queries properly typed with casts\n- [ ] Backup creation works\n- [ ] `pnpm type-check` passes with 0 errors\n- [ ] `pnpm test` passes\n- [ ] Database file creates at correct XDG location\n- [ ] WAL mode is enabled (check with `.mode` in sqlite3)\n- [ ] Integrity checks pass\n\n## References\n\n- Depends on: Ticket 3 (Core Lib Part 1)\n- Related: `lib/backup.test.ts` (if exists)\n- Schema reference: `../src/lib/schema.ts` (main project, for reference)\n\n---\n\n**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-      "priority": "high",
+      "references": [],
+      "description": "## Overview\nCreate an OpenCode plugin that automatically creates a `.claude/.review-completed` marker file after the AI review phase completes successfully. This marker is checked by the review guard plugin to allow/block git push operations.\n\n## Context\n- After `check_review_complete` returns success, AI should be able to push code\n- The review guard plugin blocks push if code changes exist but review isn't complete\n- This plugin automates marker creation so AI doesn't need to manually create the file\n- Marker file contains timestamp for staleness checking (30-minute freshness in guard)\n\n## Acceptance Criteria\n- [ ] Plugin triggers after `mcp__brain-dump__check_review_complete` completes\n- [ ] Parses output to determine if review is complete\n- [ ] Recognizes: `complete: true`, `canProceedToHumanReview: true`, or `openCritical === 0 && openMajor === 0`\n- [ ] If review complete, creates/touches `.claude/.review-completed` marker file\n- [ ] Marker file contains ISO timestamp\n- [ ] Creates `.claude/` directory if it doesn't exist\n- [ ] Outputs success message to console\n- [ ] Handles errors gracefully (logs but doesn't break workflow)\n- [ ] Does nothing if review is not complete\n\n## Implementation Notes\n- File: `.opencode/plugins/brain-dump-review-marker.ts`\n- Hook: `tool.execute.after` (triggers after MCP tool)\n- Parse output: Handle both string (JSON format) and object formats\n- Create file at: `join(projectPath, \\\".claude\\\", \\\".review-completed\\\")`\n- Write timestamp: `new Date().toISOString()`\n- Use `mkdirSync` with `recursive: true`\n- Reference the telemetry plugin for patterns\n\n## Related\n- Ticket: \\\"Implement brain-dump-review-guard.ts plugin\\\" (uses this marker)\n- Concept: AI review workflow\",\n<parameter name=\"priority\">medium\n\n## Additional INformation\nhave all code live in branch \"feature/64670dc9-implement-brain-dump-commit-tracking-ts-plugin\"",
+      "priority": null,
       "tags": [
-        "conversion",
-        "lib",
-        "database",
-        "critical"
+        "opencode",
+        "plugins",
+        "review"
       ]
     },
     {
-      "id": "397d2efe-698f-4e30-8149-050fde4ff656",
-      "title": "Convert Utility Lib Files to TypeScript (Part 3)",
-      "passes": false,
-      "overview": "Convert remaining utility lib files that support tool functionality and data processing.",
+      "id": "33de0b4b-447b-400a-a3a4-3e13d7c4c178",
+      "title": "Implement brain-dump-review-guard.ts plugin",
+      "passes": true,
+      "overview": "Create an OpenCode plugin that blocks git push/gh pr create until code review is complete. This ensures all code goes through the mandatory AI review phase before being pushed. Replicates `.claude/hooks/enforce-review-before-push.sh`\n- UQW requires code review before push: `in_progress` → `ai_review` → human review → push\n- This plugin checks for uncommitted source code changes before push\n- If changes exist but no `.claude/.review-completed` marker, blocks with helpful error\n- Marker must be fresh (< 30 minutes old) for push to proceed",
       "types": [],
       "designDecisions": [],
-      "implementationGuide": [
-        {
-          "step": 1,
-          "description": "Convert `lib/attachment-types.ts`",
-          "files": [
-            "mcp-server/lib/attachment-types.ts"
-          ]
-        },
-        {
-          "step": 2,
-          "description": "Convert `lib/attachment-loader.ts`",
-          "files": [
-            "mcp-server/lib/attachment-loader.ts"
-          ]
-        },
-        {
-          "step": 3,
-          "description": "Convert `lib/comment-utils.ts`",
-          "files": [
-            "mcp-server/lib/comment-utils.ts"
-          ]
-        },
-        {
-          "step": 4,
-          "description": "Convert `lib/conversation-session.ts`",
-          "files": [
-            "mcp-server/lib/conversation-session.ts"
-          ]
-        },
-        {
-          "step": 5,
-          "description": "Convert `lib/ticket-context-builder.ts`",
-          "files": [
-            "mcp-server/lib/ticket-context-builder.ts"
-          ]
-        },
-        {
-          "step": 6,
-          "description": "Convert `lib/prd-utils.ts`",
-          "files": [
-            "mcp-server/lib/prd-utils.ts"
-          ]
-        },
-        {
-          "step": 7,
-          "description": "Convert `lib/telemetry-self-log.ts`",
-          "files": [
-            "mcp-server/lib/telemetry-self-log.ts"
-          ]
-        },
-        {
-          "step": 8,
-          "description": "Verify All Conversions",
-          "files": [],
-          "codeTemplate": "pnpm type-check  # Must pass with 0 errors\npnpm test        # All existing tests still pass"
-        },
-        {
-          "step": 8,
-          "description": "Verify All Conversions",
-          "files": [],
-          "codeTemplate": "pnpm type-check  # Must pass with 0 errors\npnpm test        # All existing tests still pass"
-        }
-      ],
+      "implementationGuide": [],
       "acceptanceCriteria": [
-        "All 7 files converted to TypeScript (.ts extension)",
-        "All function signatures have explicit return types",
-        "All function parameters are properly typed",
-        "`pnpm type-check` passes with 0 errors",
-        "`pnpm test` passes (including lib/secrets.test.ts)",
-        "All 15 lib files now TypeScript (complete Phase 2)",
-        "No JSDoc type annotations remaining"
+        "Plugin triggers before Bash tool executes `git push` or `gh pr create`",
+        "Gets uncommitted source file changes via `git diff`",
+        "If no source code changes, allows push (nothing to review)",
+        "Checks for `.claude/.review-completed` marker existence",
+        "If marker doesn't exist, throws error with helpful message",
+        "If marker exists but stale (> 30 minutes), throws error about fresh review needed",
+        "If marker is fresh, allows push",
+        "Error message includes review agent names or `/review` command",
+        "Error guides user on what to do next",
+        "Handles git/file errors gracefully"
       ],
-      "references": [
-        "Depends on: Ticket 4 (Database & Related Lib Part 2)",
-        "Overview reference: Ticket 1 (Overview)",
-        "---",
-        "**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-        "lib/attachment-types.js",
-        "lib/attachment-types.ts",
-        "lib/attachment-loader.js",
-        "lib/attachment-loader.ts",
-        "lib/comment-utils.js",
-        "lib/comment-utils.ts",
-        "lib/conversation-session.js",
-        "lib/conversation-session.ts",
-        "lib/ticket-context-builder.js",
-        "lib/ticket-context-builder.ts",
-        "lib/prd-utils.js",
-        "lib/prd-utils.ts",
-        "lib/telemetry-self-log.js",
-        "lib/telemetry-self-log.ts",
-        "mcp-server/lib/attachment-types.ts",
-        "mcp-server/lib/attachment-loader.ts",
-        "mcp-server/lib/comment-utils.ts",
-        "mcp-server/lib/conversation-session.ts",
-        "mcp-server/lib/ticket-context-builder.ts",
-        "mcp-server/lib/prd-utils.ts",
-        "mcp-server/lib/telemetry-self-log.ts"
-      ],
-      "description": "## Overview\n\nConvert remaining utility lib files that support tool functionality and data processing.\n\n## Files to Convert\n\n1. `lib/attachment-types.js` → `lib/attachment-types.ts`\n2. `lib/attachment-loader.js` → `lib/attachment-loader.ts`\n3. `lib/comment-utils.js` → `lib/comment-utils.ts`\n4. `lib/conversation-session.js` → `lib/conversation-session.ts`\n5. `lib/ticket-context-builder.js` → `lib/ticket-context-builder.ts`\n6. `lib/prd-utils.js` → `lib/prd-utils.ts`\n7. `lib/telemetry-self-log.js` → `lib/telemetry-self-log.ts`\n\n## Implementation Guide\n\n### Step 1: Convert `lib/attachment-types.ts`\n\n**Files:** `mcp-server/lib/attachment-types.ts`\n\n- Type attachment classification constants\n- Type functions: `classifyAttachment(filename: string): AttachmentType`\n- Where `AttachmentType` = \"mockup\" | \"wireframe\" | \"bug-screenshot\" | \"expected-behavior\" | \"actual-behavior\" | \"diagram\" | \"error-message\" | \"console-log\" | \"reference\" | \"asset\"\n\n### Step 2: Convert `lib/attachment-loader.ts`\n\n**Files:** `mcp-server/lib/attachment-loader.ts`\n\n- Type attachment loading functions\n- Type return: `loadAttachment(path: string): Promise<AttachmentData>`\n- Handle various file types with proper typing\n\n### Step 3: Convert `lib/comment-utils.ts`\n\n**Files:** `mcp-server/lib/comment-utils.ts`\n\n- Type comment formatting utilities\n- Type functions for building work summaries and status messages\n- Ensure timestamp and author handling is properly typed\n\n### Step 4: Convert `lib/conversation-session.ts`\n\n**Files:** `mcp-server/lib/conversation-session.ts`\n\n- Type conversation session state management\n- Type functions: `createSession(): ConversationSession`, `logMessage(session: ConversationSession, message: Message): void`\n- Proper types for session metadata\n\n### Step 5: Convert `lib/ticket-context-builder.ts`\n\n**Files:** `mcp-server/lib/ticket-context-builder.ts`\n\n- Type context building for Ralph\n- Type function: `buildTicketContext(ticketId: string): TicketContext`\n- Include acceptance criteria, comments, attachments in context\n\n### Step 6: Convert `lib/prd-utils.ts`\n\n**Files:** `mcp-server/lib/prd-utils.ts`\n\n- Type PRD (Product Requirement Document) utilities\n- Type functions for generating and updating PRD files\n- Type PRD structure with typed user stories\n\n### Step 7: Convert `lib/telemetry-self-log.ts`\n\n**Files:** `mcp-server/lib/telemetry-self-log.ts`\n\n- Type telemetry self-logging utilities\n- Type event logging with proper structure\n- Ensure hook-based telemetry is properly typed\n\n### Step 8: Verify All Conversions\n\n```bash\npnpm type-check  # Must pass with 0 errors\npnpm test        # All existing tests still pass\n```\n\n## Acceptance Criteria\n\n- [ ] All 7 files converted to TypeScript (.ts extension)\n- [ ] All function signatures have explicit return types\n- [ ] All function parameters are properly typed\n- [ ] `pnpm type-check` passes with 0 errors\n- [ ] `pnpm test` passes (including lib/secrets.test.ts)\n- [ ] All 15 lib files now TypeScript (complete Phase 2)\n- [ ] No JSDoc type annotations remaining\n\n## References\n\n- Depends on: Ticket 4 (Database & Related Lib Part 2)\n- Overview reference: Ticket 1 (Overview)\n\n---\n\n**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-      "priority": "medium",
+      "references": [],
+      "description": "## Overview\nCreate an OpenCode plugin that blocks git push/gh pr create until code review is complete. This ensures all code goes through the mandatory AI review phase before being pushed. Replicates `.claude/hooks/enforce-review-before-push.sh`\n\n## Context\n- UQW requires code review before push: `in_progress` → `ai_review` → human review → push\n- This plugin checks for uncommitted source code changes before push\n- If changes exist but no `.claude/.review-completed` marker, blocks with helpful error\n- Marker must be fresh (< 30 minutes old) for push to proceed\n\n## Acceptance Criteria\n- [ ] Plugin triggers before Bash tool executes `git push` or `gh pr create`\n- [ ] Gets uncommitted source file changes via `git diff` \n- [ ] If no source code changes, allows push (nothing to review)\n- [ ] Checks for `.claude/.review-completed` marker existence\n- [ ] If marker doesn't exist, throws error with helpful message\n- [ ] If marker exists but stale (> 30 minutes), throws error about fresh review needed\n- [ ] If marker is fresh, allows push\n- [ ] Error message includes review agent names or `/review` command\n- [ ] Error guides user on what to do next\n- [ ] Handles git/file errors gracefully\n\n## Implementation Notes\n- File: `.opencode/plugins/brain-dump-review-guard.ts`\n- Hook: `tool.execute.before` (triggers before Bash tool)\n- Check commands: `git push` or `gh pr create`\n- Get changes: `git diff --name-only HEAD`\n- Filter source files: Exclude `package.json`, `*.md`, config files\n- Marker path: `join(projectPath, \\\".claude\\\", \\\".review-completed\\\")`\n- Staleness: Check file mtime is less than 30 minutes old\n- Error message format should guide AI to run review agents\n- Reference the telemetry plugin for plugin structure\n\n## Related\n- Ticket: \\\"Implement brain-dump-review-marker.ts plugin\\\" (creates marker this checks)\n- Concept: Code review workflow enforcement\",\n<parameter name=\"priority\">medium\n\n## Additional INformation\nhave all code live in branch \"feature/64670dc9-implement-brain-dump-commit-tracking-ts-plugin\"",
+      "priority": null,
       "tags": [
-        "conversion",
-        "lib",
-        "utilities"
+        "opencode",
+        "plugins",
+        "enforcement",
+        "review"
       ]
     },
     {
-      "id": "8741c1b1-6fd4-4fff-9fee-36238dcc93da",
-      "title": "Convert Core MCP Tools to TypeScript (Part 1)",
-      "passes": false,
-      "overview": "Convert the core CRUD tools for Brain Dump entities (Projects, Tickets, Epics, Comments). These 4 files cover 20 MCP tools and establish the pattern for all subsequent tool conversions.",
+      "id": "a0b46674-873e-4540-941c-43249bc475de",
+      "title": "Add UQW workflow guidance to AGENTS.md",
+      "passes": true,
+      "overview": "Create or update `.opencode/AGENTS.md` with comprehensive Universal Quality Workflow guidance for OpenCode. This document guides the AI through the complete Ralph session workflow, state transitions, and common errors.\n- Unlike Claude Code hooks that provide interactive feedback, OpenCode relies more on documentation\n- AGENTS.md is loaded by OpenCode's context system to guide AI behavior\n- Must explain state machine, valid transitions, error recovery, and the AI review process\n- This is critical for helping AI understand \\\"STATE ENFORCEMENT\\\" and \\\"CODE REVIEW REQUIRED\\\" errors",
       "types": [],
       "designDecisions": [],
-      "implementationGuide": [
-        {
-          "step": 1,
-          "description": "Convert `tools/projects.ts`",
-          "files": [
-            "mcp-server/tools/projects.ts",
-            "../types.ts"
-          ]
-        },
-        {
-          "step": 2,
-          "description": "Convert `tools/tickets.ts`",
-          "files": [
-            "mcp-server/tools/tickets.ts"
-          ]
-        },
-        {
-          "step": 3,
-          "description": "Convert `tools/epics.ts`",
-          "files": [
-            "mcp-server/tools/epics.ts"
-          ]
-        },
-        {
-          "step": 4,
-          "description": "Convert `tools/comments.ts`",
-          "files": [
-            "mcp-server/tools/comments.ts"
-          ]
-        },
-        {
-          "step": 5,
-          "description": "Test Each Tool",
-          "files": [],
-          "codeTemplate": "# Type check\npnpm type-check\n\n# Verify tool in Claude Code (if possible)\n# Or run existing tests\npnpm test"
-        },
-        {
-          "step": 5,
-          "description": "Test Each Tool",
-          "files": [],
-          "codeTemplate": "# Type check\npnpm type-check\n\n# Verify tool in Claude Code (if possible)\n# Or run existing tests\npnpm test"
-        }
-      ],
+      "implementationGuide": [],
       "acceptanceCriteria": [
-        "All 4 tool files converted to TypeScript",
-        "All tool handlers return `Promise<ToolResponse>`",
-        "All database queries typed with casts",
-        "Zod validation schemas in place",
-        "`pnpm type-check` passes with 0 errors",
-        "All 20 MCP tools accessible in Claude Code",
-        "Error handling returns `isError: true`",
-        "Tool descriptions are clear and helpful"
+        "Document Ralph state machine with all 7 states",
+        "Explain which states allow code writing: `implementing`, `testing`, `committing`",
+        "Provide exact error message examples and how to fix them",
+        "Document complete AI review workflow with MCP commands",
+        "Include self-review checklist for OpenCode (no external agents available)",
+        "Explain why OpenCode needs more documentation (vs Claude Code's interactive hooks)",
+        "Provide copy-paste command examples for common operations",
+        "Format: Markdown with clear headers and code blocks",
+        "Location: `.opencode/AGENTS.md`"
       ],
-      "references": [
-        "Depends on: Ticket 5 (Utility Lib Part 3)",
-        "Tool pattern: See implementation guide above",
-        "Database types: `types.ts`",
-        "---",
-        "**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-        "mcp-server/tools/projects.ts",
-        "mcp-server/tools/tickets.ts",
-        "mcp-server/tools/epics.ts",
-        "mcp-server/tools/comments.ts"
-      ],
-      "description": "## Overview\n\nConvert the core CRUD tools for Brain Dump entities (Projects, Tickets, Epics, Comments). These 4 files cover 20 MCP tools and establish the pattern for all subsequent tool conversions.\n\n## Files to Convert\n\n1. `tools/projects.js` → `tools/projects.ts` (4 tools)\n2. `tools/tickets.js` → `tools/tickets.ts` (9 tools)\n3. `tools/epics.js` → `tools/epics.ts` (5 tools)\n4. `tools/comments.js` → `tools/comments.ts` (2 tools)\n\n## MCP Tools Covered (20 total)\n\n**Projects (4 tools):**\n- list_projects\n- create_project\n- find_project_by_path\n- update_project\n\n**Tickets (9 tools):**\n- create_ticket\n- update_ticket\n- list_tickets\n- get_ticket\n- delete_ticket\n- search_tickets\n- list_tickets_by_status\n- add_tags_to_ticket\n- remove_tags_from_ticket\n\n**Epics (5 tools):**\n- create_epic\n- list_epics\n- update_epic\n- delete_epic\n- list_tickets_by_epic\n\n**Comments (2 tools):**\n- add_ticket_comment\n- list_ticket_comments\n\n## Tool Conversion Pattern\n\nEach tool follows this TypeScript pattern:\n\n```typescript\nimport { z } from \"zod\";\nimport type { Database } from \"better-sqlite3\";\nimport type { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\nimport type { ToolResponse, DbTicket, DbProject } from \"../types.js\";\nimport { log } from \"../lib/logging.js\";\n\nexport function registerProjectTools(\n  server: McpServer,\n  db: Database\n): void {\n  server.tool(\n    \"list_projects\",\n    \"List all projects\",\n    {},\n    async (): Promise<ToolResponse> => {\n      try {\n        const projects = db\n          .prepare(\"SELECT * FROM projects\")\n          .all() as DbProject[];\n        return {\n          content: [\n            { type: \"text\", text: JSON.stringify(projects, null, 2) },\n          ],\n        };\n      } catch (error) {\n        return {\n          content: [{ type: \"text\", text: `Error: ${(error as Error).message}` }],\n          isError: true,\n        };\n      }\n    }\n  );\n  // ... more tools\n}\n```\n\n## Implementation Guide\n\n### Step 1: Convert `tools/projects.ts`\n\n**Files:** `mcp-server/tools/projects.ts`\n\n- 4 tools for project CRUD operations\n- Type database query results as `DbProject[]`\n- Import types from `../types.ts`\n- Return type: `Promise<ToolResponse>`\n\n### Step 2: Convert `tools/tickets.ts`\n\n**Files:** `mcp-server/tools/tickets.ts`\n\nMost complex of this batch (handles many ticket operations):\n- 9 tools for ticket CRUD, searching, tagging\n- Type results as `DbTicket[]` or `DbTicket | undefined`\n- Handle optional parameters properly\n- Use Zod for input validation\n\n### Step 3: Convert `tools/epics.ts`\n\n**Files:** `mcp-server/tools/epics.ts`\n\n- 5 tools for epic management\n- Type results as `DbEpic[]` or `DbEpic`\n- Handle ticket grouping in `list_tickets_by_epic`\n\n### Step 4: Convert `tools/comments.ts`\n\n**Files:** `mcp-server/tools/comments.ts`\n\n- 2 tools for comment operations\n- Type results as `DbTicketComment[]`\n- Proper timestamp handling\n\n### Step 5: Test Each Tool\n\nAfter converting each file:\n\n```bash\n# Type check\npnpm type-check\n\n# Verify tool in Claude Code (if possible)\n# Or run existing tests\npnpm test\n```\n\n## Acceptance Criteria\n\n- [ ] All 4 tool files converted to TypeScript\n- [ ] All tool handlers return `Promise<ToolResponse>`\n- [ ] All database queries typed with casts\n- [ ] Zod validation schemas in place\n- [ ] `pnpm type-check` passes with 0 errors\n- [ ] All 20 MCP tools accessible in Claude Code\n- [ ] Error handling returns `isError: true`\n- [ ] Tool descriptions are clear and helpful\n\n## References\n\n- Depends on: Ticket 5 (Utility Lib Part 3)\n- Tool pattern: See implementation guide above\n- Database types: `types.ts`\n\n---\n\n**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-      "priority": "high",
+      "references": [],
+      "description": "## Overview\nCreate or update `.opencode/AGENTS.md` with comprehensive Universal Quality Workflow guidance for OpenCode. This document guides the AI through the complete Ralph session workflow, state transitions, and common errors.\n\n## Context\n- Unlike Claude Code hooks that provide interactive feedback, OpenCode relies more on documentation\n- AGENTS.md is loaded by OpenCode's context system to guide AI behavior\n- Must explain state machine, valid transitions, error recovery, and the AI review process\n- This is critical for helping AI understand \\\"STATE ENFORCEMENT\\\" and \\\"CODE REVIEW REQUIRED\\\" errors\n\n## Sections to Include\n1. **Ralph Session Overview**: What is a Ralph session, when does it start\n2. **State Machine Diagram**: Explain all states and valid transitions\n3. **State Enforcement Rules**: Why Can't Write/Edit Unless In Valid State\n4. **Workflow Entry Point**: Always start with `start_ticket_work()`\n5. **Common Errors & Fixes**: \n   - \\\"STATE ENFORCEMENT: You are in 'analyzing' state\\\" → Call update_session_state\n   - \\\"CODE REVIEW REQUIRED before push\\\" → Run review agents\n   - \\\"Cannot generate demo - unresolved findings\\\" → Fix critical/major findings\n6. **AI Review Workflow**: Submit findings → Fix → Verify → Generate demo\n7. **Self-Review Checklist**: Error handling, type safety, edge cases, tests, performance\n\n## Acceptance Criteria\n- [ ] Document Ralph state machine with all 7 states\n- [ ] Explain which states allow code writing: `implementing`, `testing`, `committing`\n- [ ] Provide exact error message examples and how to fix them\n- [ ] Document complete AI review workflow with MCP commands\n- [ ] Include self-review checklist for OpenCode (no external agents available)\n- [ ] Explain why OpenCode needs more documentation (vs Claude Code's interactive hooks)\n- [ ] Provide copy-paste command examples for common operations\n- [ ] Format: Markdown with clear headers and code blocks\n- [ ] Location: `.opencode/AGENTS.md`\n\n## Implementation Notes\n- Write comprehensive but concise (reader is AI, not humans)\n- Use markdown code blocks for commands\n- Include examples from actual ticket workflows\n- Explain the \\\"why\\\" behind each rule\n- Cross-reference CLAUDE.md Universal Quality Workflow section\n- Explain difference between Claude Code hook enforcement and OpenCode plugin approach\n- Include troubleshooting section for unclear error messages\n\n## Related\n- Document: CLAUDE.md Universal Quality Workflow section\n- Concept: Ralph session state machine\",\n<parameter name=\"priority\">high\n\n## Additional INformation\nhave all code live in branch \"feature/64670dc9-implement-brain-dump-commit-tracking-ts-plugin\"",
+      "priority": null,
       "tags": [
-        "conversion",
-        "tools",
-        "crud"
+        "opencode",
+        "documentation",
+        "workflow"
       ]
     },
     {
-      "id": "e3d74cbb-bd76-4520-a6ed-e0c118b6334b",
-      "title": "Convert Workflow & Git Tools to TypeScript (Part 2)",
-      "passes": false,
-      "overview": "Convert workflow state management and git integration tools. `workflow.js` is the most complex file in the entire migration (971 lines), so extra care is needed here.",
-      "types": [
-        {
-          "name": "SessionState",
-          "code": "interface SessionState {\n  sessionId: string;\n  ticketId: string;\n  currentState: 'idle' | 'analyzing' | 'implementing' | 'testing' | 'committing' | 'reviewing' | 'done';\n  stateHistory: string[];\n  startedAt: Date;\n  updatedAt: Date;\n}"
-        },
-        {
-          "name": "WorkSummary",
-          "code": "interface WorkSummary {\n  ticket: DbTicket;\n  filesChanged: string[];\n  testsRun: boolean;\n  commitsCreated: string[];\n}"
-        },
-        {
-          "name": "GitCommandResult",
-          "code": "interface GitCommandResult {\n  success: boolean;\n  output: string;\n  error?: string;\n  exitCode: number;\n}"
-        },
-        {
-          "name": "BranchInfo",
-          "code": "interface BranchInfo {\n  name: string;\n  created: boolean;\n  pushed: boolean;\n}"
-        }
-      ],
-      "designDecisions": [],
-      "implementationGuide": [
-        {
-          "step": 1,
-          "description": "Convert `tools/workflow.ts`",
-          "files": [
-            "mcp-server/tools/workflow.ts"
-          ],
-          "codeTemplate": "// Session state management\ninterface SessionState {\n  sessionId: string;\n  ticketId: string;\n  currentState: 'idle' | 'analyzing' | 'implementing' | 'testing' | 'committing' | 'reviewing' | 'done';\n  stateHistory: string[];\n  startedAt: Date;\n  updatedAt: Date;\n}\n\n// Work summary structure\ninterface WorkSummary {\n  ticket: DbTicket;\n  filesChanged: string[];\n  testsRun: boolean;\n  commitsCreated: string[];\n}\n\nexport function registerWorkflowTools(\n  server: McpServer,\n  db: Database\n): void {\n  // Type all handlers as Promise<ToolResponse>\n  // Ensure state transitions are valid\n  // Validate telemetry events\n}"
-        },
-        {
-          "step": 2,
-          "description": "Convert `tools/git.ts`",
-          "files": [
-            "mcp-server/tools/git.ts"
-          ],
-          "codeTemplate": "interface GitCommandResult {\n  success: boolean;\n  output: string;\n  error?: string;\n  exitCode: number;\n}\n\ninterface BranchInfo {\n  name: string;\n  created: boolean;\n  pushed: boolean;\n}"
-        },
-        {
-          "step": 3,
-          "description": "Test Workflow Tools",
-          "files": [],
-          "codeTemplate": "# Type check\npnpm type-check\n\n# Run existing workflow tests\npnpm test tools/workflow.test.ts\n\n# Manual testing in Claude Code:\n# - start_ticket_work\n# - update_session_state\n# - complete_ticket_work"
-        },
-        {
-          "step": 3,
-          "description": "Test Workflow Tools",
-          "files": [],
-          "codeTemplate": "# Type check\npnpm type-check\n\n# Run existing workflow tests\npnpm test tools/workflow.test.ts\n\n# Manual testing in Claude Code:\n# - start_ticket_work\n# - update_session_state\n# - complete_ticket_work"
-        }
-      ],
-      "acceptanceCriteria": [
-        "Type session state structures",
-        "Type work summary generation",
-        "Type acceptance criteria handling",
-        "Type telemetry event emission",
-        "Handle git branch creation returns",
-        "Type database queries for context building",
-        "Verify all 6 workflow tools work",
-        "Type git command execution",
-        "Type branch creation with validation",
-        "Type commit linking with validation",
-        "Type PR linking with return values",
-        "Handle git errors properly",
-        "Both files converted to TypeScript",
-        "Session state types properly defined",
-        "All 6 workflow tools work correctly",
-        "All 3 git tools work correctly",
-        "`pnpm type-check` passes with 0 errors",
-        "Existing workflow test file passes",
-        "State transitions are validated",
-        "Telemetry events are properly typed",
-        "Git operations handle errors gracefully"
-      ],
-      "references": [
-        "Depends on: Ticket 6 (Core MCP Tools Part 1)",
-        "Test reference: `tools/workflow.test.ts`",
-        "Context building: `lib/ticket-context-builder.ts`",
-        "Telemetry: `lib/telemetry-self-log.ts`",
-        "---",
-        "**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-        "mcp-server/tools/workflow.ts",
-        "mcp-server/tools/git.ts",
-        "lib/ticket-context-builder.ts",
-        "lib/telemetry-self-log.ts"
-      ],
-      "description": "## Overview\n\nConvert workflow state management and git integration tools. `workflow.js` is the most complex file in the entire migration (971 lines), so extra care is needed here.\n\n## Files to Convert\n\n1. `tools/workflow.js` → `tools/workflow.ts` (6 tools)\n2. `tools/git.js` → `tools/git.ts` (3 tools)\n\n## MCP Tools Covered (9 tools)\n\n**Workflow (6 tools):**\n- start_ticket_work\n- complete_ticket_work\n- update_session_state\n- create_ralph_session\n- complete_ralph_session\n- update_ticket_status\n\n**Git (3 tools):**\n- create_branch\n- link_commit_to_ticket\n- link_pr_to_ticket\n\n## Special Attention\n\n### `workflow.js` is Complex (971 lines)\n\nThis file handles:\n- Ralph session state management\n- Telemetry integration\n- Ticket context building\n- Acceptance criteria tracking\n- Work summary generation\n- PR linking\n\n**Critical patterns to type:**\n- Session state transitions with proper typing\n- Telemetry event emission with structured data\n- Git branch creation with return type checking\n- Database transaction handling for multi-step operations\n\n## Implementation Guide\n\n### Step 1: Convert `tools/workflow.ts`\n\n**Files:** `mcp-server/tools/workflow.ts`\n\nThis is the most important file in Phase 3.\n\n**Key functions to type carefully:**\n\n```typescript\n// Session state management\ninterface SessionState {\n  sessionId: string;\n  ticketId: string;\n  currentState: 'idle' | 'analyzing' | 'implementing' | 'testing' | 'committing' | 'reviewing' | 'done';\n  stateHistory: string[];\n  startedAt: Date;\n  updatedAt: Date;\n}\n\n// Work summary structure\ninterface WorkSummary {\n  ticket: DbTicket;\n  filesChanged: string[];\n  testsRun: boolean;\n  commitsCreated: string[];\n}\n\nexport function registerWorkflowTools(\n  server: McpServer,\n  db: Database\n): void {\n  // Type all handlers as Promise<ToolResponse>\n  // Ensure state transitions are valid\n  // Validate telemetry events\n}\n```\n\n**Tasks:**\n- [ ] Type session state structures\n- [ ] Type work summary generation\n- [ ] Type acceptance criteria handling\n- [ ] Type telemetry event emission\n- [ ] Handle git branch creation returns\n- [ ] Type database queries for context building\n- [ ] Verify all 6 workflow tools work\n\n### Step 2: Convert `tools/git.ts`\n\n**Files:** `mcp-server/tools/git.ts`\n\nGit integration tools:\n\n```typescript\ninterface GitCommandResult {\n  success: boolean;\n  output: string;\n  error?: string;\n  exitCode: number;\n}\n\ninterface BranchInfo {\n  name: string;\n  created: boolean;\n  pushed: boolean;\n}\n```\n\n**Tasks:**\n- [ ] Type git command execution\n- [ ] Type branch creation with validation\n- [ ] Type commit linking with validation\n- [ ] Type PR linking with return values\n- [ ] Handle git errors properly\n\n### Step 3: Test Workflow Tools\n\nThe workflow tools are critical—test them thoroughly:\n\n```bash\n# Type check\npnpm type-check\n\n# Run existing workflow tests\npnpm test tools/workflow.test.ts\n\n# Manual testing in Claude Code:\n# - start_ticket_work\n# - update_session_state\n# - complete_ticket_work\n```\n\n## Acceptance Criteria\n\n- [ ] Both files converted to TypeScript\n- [ ] Session state types properly defined\n- [ ] All 6 workflow tools work correctly\n- [ ] All 3 git tools work correctly\n- [ ] `pnpm type-check` passes with 0 errors\n- [ ] Existing workflow test file passes\n- [ ] State transitions are validated\n- [ ] Telemetry events are properly typed\n- [ ] Git operations handle errors gracefully\n\n## References\n\n- Depends on: Ticket 6 (Core MCP Tools Part 1)\n- Test reference: `tools/workflow.test.ts`\n- Context building: `lib/ticket-context-builder.ts`\n- Telemetry: `lib/telemetry-self-log.ts`\n\n---\n\n**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-      "priority": "high",
-      "tags": [
-        "conversion",
-        "tools",
-        "workflow",
-        "critical"
-      ]
-    },
-    {
-      "id": "206c57e7-dffb-4aeb-a757-25a58e243276",
-      "title": "Convert Advanced MCP Tools to TypeScript (Part 3)",
-      "passes": false,
-      "overview": "Convert file handling, health checks, event tracking, and session management tools.",
-      "types": [
-        {
-          "name": "FileAttachment",
-          "code": "interface FileAttachment {\n  id: string;\n  ticketId: string;\n  filename: string;\n  filetype: string;\n  path: string;\n  size: number;\n  metadata?: {\n    type: AttachmentType;\n    description?: string;\n    priority?: 'primary' | 'supplementary';\n    linkedCriteria?: string[];\n  };\n  createdAt: Date;\n}"
-        },
-        {
-          "name": "HealthReport",
-          "code": "interface HealthReport {\n  status: 'healthy' | 'warning' | 'error';\n  databasePath: string;\n  databaseSize: number;\n  lastBackup: string | null;\n  backupCount: number;\n  integrityCheck: boolean;\n  issues: string[];\n}"
-        },
-        {
-          "name": "Event",
-          "code": "interface Event {\n  id: string;\n  sessionId: string;\n  type: string;\n  data: Record<string, unknown>;\n  createdAt: Date;\n}"
-        },
-        {
-          "name": "Session",
-          "code": "interface Session {\n  id: string;\n  ticketId?: string;\n  projectId?: string;\n  environment: 'claude-code' | 'vscode' | 'cursor' | 'unknown';\n  startedAt: Date;\n  endedAt?: Date;\n  status: 'active' | 'ended';\n}"
-        }
-      ],
-      "designDecisions": [],
-      "implementationGuide": [
-        {
-          "step": 1,
-          "description": "Convert `tools/files.ts`",
-          "files": [
-            "mcp-server/tools/files.ts"
-          ],
-          "codeTemplate": "interface FileAttachment {\n  id: string;\n  ticketId: string;\n  filename: string;\n  filetype: string;\n  path: string;\n  size: number;\n  metadata?: {\n    type: AttachmentType;\n    description?: string;\n    priority?: 'primary' | 'supplementary';\n    linkedCriteria?: string[];\n  };\n  createdAt: Date;\n}\n\nexport function registerFileTools(\n  server: McpServer,\n  db: Database\n): void {\n  // Type attachment operations\n}"
-        },
-        {
-          "step": 2,
-          "description": "Convert `tools/health.ts`",
-          "files": [
-            "mcp-server/tools/health.ts"
-          ],
-          "codeTemplate": "interface HealthReport {\n  status: 'healthy' | 'warning' | 'error';\n  databasePath: string;\n  databaseSize: number;\n  lastBackup: string | null;\n  backupCount: number;\n  integrityCheck: boolean;\n  issues: string[];\n}"
-        },
-        {
-          "step": 3,
-          "description": "Convert `tools/events.ts`",
-          "files": [
-            "mcp-server/tools/events.ts"
-          ],
-          "codeTemplate": "interface Event {\n  id: string;\n  sessionId: string;\n  type: string;\n  data: Record<string, unknown>;\n  createdAt: Date;\n}\n\nexport function registerEventTools(\n  server: McpServer,\n  db: Database\n): void {\n  // Type event operations\n}"
-        },
-        {
-          "step": 4,
-          "description": "Convert `tools/sessions.ts`",
-          "files": [
-            "mcp-server/tools/sessions.ts"
-          ],
-          "codeTemplate": "interface Session {\n  id: string;\n  ticketId?: string;\n  projectId?: string;\n  environment: 'claude-code' | 'vscode' | 'cursor' | 'unknown';\n  startedAt: Date;\n  endedAt?: Date;\n  status: 'active' | 'ended';\n}\n\nexport function registerSessionTools(\n  server: McpServer,\n  db: Database\n): void {\n  // Type session operations\n}"
-        },
-        {
-          "step": 5,
-          "description": "Verify All Conversions",
-          "files": [],
-          "codeTemplate": "pnpm type-check  # Must pass with 0 errors\npnpm test        # All tests still pass"
-        },
-        {
-          "step": 5,
-          "description": "Verify All Conversions",
-          "files": [],
-          "codeTemplate": "pnpm type-check  # Must pass with 0 errors\npnpm test        # All tests still pass"
-        }
-      ],
-      "acceptanceCriteria": [
-        "Type attachment metadata structures",
-        "Type file operations with proper error handling",
-        "Validate attachment types",
-        "Handle file paths securely",
-        "Type health check results",
-        "Type database statistics",
-        "Type backup information",
-        "Type event structures",
-        "Type event data validation",
-        "Type session event queries",
-        "Type session creation with environment detection",
-        "Type session ending and cleanup",
-        "Type session queries with filters",
-        "All 4 tool files converted to TypeScript",
-        "All tool handlers properly typed",
-        "File attachment types properly defined",
-        "Health check returns proper structure",
-        "Event tracking is properly typed",
-        "Session management is properly typed",
-        "`pnpm type-check` passes with 0 errors",
-        "All 9 MCP tools work in Claude Code",
-        "Error handling is comprehensive"
-      ],
-      "references": [
-        "Depends on: Ticket 7 (Workflow & Git Tools Part 2)",
-        "Database types: `types.ts`",
-        "Attachment types: `lib/attachment-types.ts`",
-        "---",
-        "**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-        "mcp-server/tools/files.ts",
-        "mcp-server/tools/health.ts",
-        "mcp-server/tools/events.ts",
-        "mcp-server/tools/sessions.ts",
-        "lib/attachment-types.ts"
-      ],
-      "description": "## Overview\n\nConvert file handling, health checks, event tracking, and session management tools.\n\n## Files to Convert\n\n1. `tools/files.js` → `tools/files.ts` (3 tools)\n2. `tools/health.js` → `tools/health.ts` (1 tool)\n3. `tools/events.js` → `tools/events.ts` (2 tools)\n4. `tools/sessions.js` → `tools/sessions.ts` (3 tools)\n\n## MCP Tools Covered (9 tools)\n\n**Files (3 tools):**\n- attach_file_to_ticket\n- list_ticket_attachments\n- read_ticket_attachment\n\n**Health (1 tool):**\n- check_database_health\n\n**Events (2 tools):**\n- record_event\n- list_session_events\n\n**Sessions (3 tools):**\n- create_session\n- end_session\n- list_sessions\n\n## Implementation Guide\n\n### Step 1: Convert `tools/files.ts`\n\n**Files:** `mcp-server/tools/files.ts`\n\nFile attachment management:\n\n```typescript\ninterface FileAttachment {\n  id: string;\n  ticketId: string;\n  filename: string;\n  filetype: string;\n  path: string;\n  size: number;\n  metadata?: {\n    type: AttachmentType;\n    description?: string;\n    priority?: 'primary' | 'supplementary';\n    linkedCriteria?: string[];\n  };\n  createdAt: Date;\n}\n\nexport function registerFileTools(\n  server: McpServer,\n  db: Database\n): void {\n  // Type attachment operations\n}\n```\n\n**Tasks:**\n- [ ] Type attachment metadata structures\n- [ ] Type file operations with proper error handling\n- [ ] Validate attachment types\n- [ ] Handle file paths securely\n\n### Step 2: Convert `tools/health.ts`\n\n**Files:** `mcp-server/tools/health.ts`\n\nDatabase health monitoring:\n\n```typescript\ninterface HealthReport {\n  status: 'healthy' | 'warning' | 'error';\n  databasePath: string;\n  databaseSize: number;\n  lastBackup: string | null;\n  backupCount: number;\n  integrityCheck: boolean;\n  issues: string[];\n}\n```\n\n**Tasks:**\n- [ ] Type health check results\n- [ ] Type database statistics\n- [ ] Type backup information\n\n### Step 3: Convert `tools/events.ts`\n\n**Files:** `mcp-server/tools/events.ts`\n\nEvent tracking and logging:\n\n```typescript\ninterface Event {\n  id: string;\n  sessionId: string;\n  type: string;\n  data: Record<string, unknown>;\n  createdAt: Date;\n}\n\nexport function registerEventTools(\n  server: McpServer,\n  db: Database\n): void {\n  // Type event operations\n}\n```\n\n**Tasks:**\n- [ ] Type event structures\n- [ ] Type event data validation\n- [ ] Type session event queries\n\n### Step 4: Convert `tools/sessions.ts`\n\n**Files:** `mcp-server/tools/sessions.ts`\n\nSession management:\n\n```typescript\ninterface Session {\n  id: string;\n  ticketId?: string;\n  projectId?: string;\n  environment: 'claude-code' | 'vscode' | 'cursor' | 'unknown';\n  startedAt: Date;\n  endedAt?: Date;\n  status: 'active' | 'ended';\n}\n\nexport function registerSessionTools(\n  server: McpServer,\n  db: Database\n): void {\n  // Type session operations\n}\n```\n\n**Tasks:**\n- [ ] Type session creation with environment detection\n- [ ] Type session ending and cleanup\n- [ ] Type session queries with filters\n\n### Step 5: Verify All Conversions\n\n```bash\npnpm type-check  # Must pass with 0 errors\npnpm test        # All tests still pass\n```\n\n## Acceptance Criteria\n\n- [ ] All 4 tool files converted to TypeScript\n- [ ] All tool handlers properly typed\n- [ ] File attachment types properly defined\n- [ ] Health check returns proper structure\n- [ ] Event tracking is properly typed\n- [ ] Session management is properly typed\n- [ ] `pnpm type-check` passes with 0 errors\n- [ ] All 9 MCP tools work in Claude Code\n- [ ] Error handling is comprehensive\n\n## References\n\n- Depends on: Ticket 7 (Workflow & Git Tools Part 2)\n- Database types: `types.ts`\n- Attachment types: `lib/attachment-types.ts`\n\n---\n\n**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-      "priority": "medium",
-      "tags": [
-        "conversion",
-        "tools",
-        "files",
-        "health"
-      ]
-    },
-    {
-      "id": "28c48045-042e-49a7-9fc8-1475647706ca",
-      "title": "Convert Specialized Tools to TypeScript (Part 4)",
-      "passes": false,
-      "overview": "Convert specialized tools for conversation logging, telemetry capture, Claude Tasks integration, review findings management, demo generation, and learnings extraction. These 6 files cover advanced features.",
-      "types": [
-        {
-          "name": "ConversationSession",
-          "code": "interface ConversationSession {\n  id: string;\n  projectId?: string;\n  ticketId?: string;\n  userId?: string;\n  environment: 'claude-code' | 'vscode' | 'cursor' | 'unknown';\n  startedAt: Date;\n  endedAt?: Date;\n  messageCount: number;\n  dataClassification: 'public' | 'internal' | 'confidential' | 'restricted';\n}"
-        },
-        {
-          "name": "ConversationMessage",
-          "code": "interface ConversationMessage {\n  id: string;\n  sessionId: string;\n  role: 'user' | 'assistant' | 'system' | 'tool';\n  content: string;\n  contentHash: string; // HMAC-SHA256 for tamper detection\n  secretsDetected: boolean;\n  createdAt: Date;\n}"
-        },
-        {
-          "name": "TelemetrySession",
-          "code": "interface TelemetrySession {\n  id: string;\n  ticketId?: string;\n  projectId?: string;\n  environment: string;\n  startedAt: Date;\n  endedAt?: Date;\n  eventCount: number;\n  totalTokens: number;\n}"
-        },
-        {
-          "name": "TelemetryEvent",
-          "code": "interface TelemetryEvent {\n  id: string;\n  sessionId: string;\n  type: 'prompt' | 'tool_start' | 'tool_end' | 'context' | 'error';\n  timestamp: Date;\n  data: Record<string, unknown>;\n  correlationId?: string; // For pairing start/end events\n}"
-        },
-        {
-          "name": "ClaudeTask",
-          "code": "interface ClaudeTask {\n  id: string;\n  ticketId: string;\n  subject: string;\n  description: string;\n  status: 'pending' | 'in_progress' | 'completed';\n  createdAt: Date;\n  updatedAt: Date;\n}"
-        },
-        {
-          "name": "ReviewFinding",
-          "code": "interface ReviewFinding {\n  id: string;\n  ticketId: string;\n  agent: 'code-reviewer' | 'silent-failure-hunter' | 'code-simplifier';\n  severity: 'critical' | 'major' | 'minor' | 'suggestion';\n  category: string;\n  description: string;\n  filePath?: string;\n  lineNumber?: number;\n  suggestedFix?: string;\n  status: 'open' | 'fixed' | 'wont_fix' | 'duplicate';\n  createdAt: Date;\n}"
-        },
-        {
-          "name": "DemoStep",
-          "code": "interface DemoStep {\n  order: number;\n  description: string;\n  expectedOutcome: string;\n  type: 'manual' | 'visual' | 'automated';\n  status: 'pending' | 'passed' | 'failed' | 'skipped';\n  notes?: string;\n}"
-        },
-        {
-          "name": "DemoScript",
-          "code": "interface DemoScript {\n  id: string;\n  ticketId: string;\n  steps: DemoStep[];\n  createdAt: Date;\n  feedback?: string;\n  approved: boolean;\n}"
-        },
-        {
-          "name": "Learning",
-          "code": "interface Learning {\n  id: string;\n  ticketId: string;\n  type: 'pattern' | 'anti-pattern' | 'tool-usage' | 'workflow';\n  description: string;\n  suggestedUpdate?: {\n    file: string;\n    section: string;\n    content: string;\n  };\n  createdAt: Date;\n}"
-        }
-      ],
-      "designDecisions": [],
-      "implementationGuide": [
-        {
-          "step": 1,
-          "description": "Convert `tools/conversations.ts`",
-          "files": [
-            "mcp-server/tools/conversations.ts"
-          ],
-          "codeTemplate": "interface ConversationSession {\n  id: string;\n  projectId?: string;\n  ticketId?: string;\n  userId?: string;\n  environment: 'claude-code' | 'vscode' | 'cursor' | 'unknown';\n  startedAt: Date;\n  endedAt?: Date;\n  messageCount: number;\n  dataClassification: 'public' | 'internal' | 'confidential' | 'restricted';\n}\n\ninterface ConversationMessage {\n  id: string;\n  sessionId: string;\n  role: 'user' | 'assistant' | 'system' | 'tool';\n  content: string;\n  contentHash: string; // HMAC-SHA256 for tamper detection\n  secretsDetected: boolean;\n  createdAt: Date;\n}"
-        },
-        {
-          "step": 2,
-          "description": "Convert `tools/telemetry.ts`",
-          "files": [
-            "mcp-server/tools/telemetry.ts"
-          ],
-          "codeTemplate": "interface TelemetrySession {\n  id: string;\n  ticketId?: string;\n  projectId?: string;\n  environment: string;\n  startedAt: Date;\n  endedAt?: Date;\n  eventCount: number;\n  totalTokens: number;\n}\n\ninterface TelemetryEvent {\n  id: string;\n  sessionId: string;\n  type: 'prompt' | 'tool_start' | 'tool_end' | 'context' | 'error';\n  timestamp: Date;\n  data: Record<string, unknown>;\n  correlationId?: string; // For pairing start/end events\n}"
-        },
-        {
-          "step": 3,
-          "description": "Convert `tools/claude-tasks.ts`",
-          "files": [
-            "mcp-server/tools/claude-tasks.ts"
-          ],
-          "codeTemplate": "interface ClaudeTask {\n  id: string;\n  ticketId: string;\n  subject: string;\n  description: string;\n  status: 'pending' | 'in_progress' | 'completed';\n  createdAt: Date;\n  updatedAt: Date;\n}"
-        },
-        {
-          "step": 4,
-          "description": "Convert `tools/review-findings.ts`",
-          "files": [
-            "mcp-server/tools/review-findings.ts"
-          ],
-          "codeTemplate": "interface ReviewFinding {\n  id: string;\n  ticketId: string;\n  agent: 'code-reviewer' | 'silent-failure-hunter' | 'code-simplifier';\n  severity: 'critical' | 'major' | 'minor' | 'suggestion';\n  category: string;\n  description: string;\n  filePath?: string;\n  lineNumber?: number;\n  suggestedFix?: string;\n  status: 'open' | 'fixed' | 'wont_fix' | 'duplicate';\n  createdAt: Date;\n}"
-        },
-        {
-          "step": 5,
-          "description": "Convert `tools/demo.ts`",
-          "files": [
-            "mcp-server/tools/demo.ts"
-          ],
-          "codeTemplate": "interface DemoStep {\n  order: number;\n  description: string;\n  expectedOutcome: string;\n  type: 'manual' | 'visual' | 'automated';\n  status: 'pending' | 'passed' | 'failed' | 'skipped';\n  notes?: string;\n}\n\ninterface DemoScript {\n  id: string;\n  ticketId: string;\n  steps: DemoStep[];\n  createdAt: Date;\n  feedback?: string;\n  approved: boolean;\n}"
-        },
-        {
-          "step": 6,
-          "description": "Convert `tools/learnings.ts`",
-          "files": [
-            "mcp-server/tools/learnings.ts"
-          ],
-          "codeTemplate": "interface Learning {\n  id: string;\n  ticketId: string;\n  type: 'pattern' | 'anti-pattern' | 'tool-usage' | 'workflow';\n  description: string;\n  suggestedUpdate?: {\n    file: string;\n    section: string;\n    content: string;\n  };\n  createdAt: Date;\n}"
-        },
-        {
-          "step": 7,
-          "description": "Verify All Conversions",
-          "files": [],
-          "codeTemplate": "pnpm type-check  # Must pass with 0 errors\npnpm test        # All tests still pass\n# Existing test: tools/conversations.test.ts"
-        },
-        {
-          "step": 7,
-          "description": "Verify All Conversions",
-          "files": [],
-          "codeTemplate": "pnpm type-check  # Must pass with 0 errors\npnpm test        # All tests still pass\n# Existing test: tools/conversations.test.ts"
-        }
-      ],
-      "acceptanceCriteria": [
-        "Type session creation with metadata",
-        "Type message logging with tamper detection",
-        "Type session queries with filters",
-        "Type compliance export structure",
-        "Type archive/retention operations",
-        "Type session creation",
-        "Type event logging with correlation IDs",
-        "Type event flushing to database",
-        "Type session aggregation",
-        "Type task creation and updates",
-        "Type task queries",
-        "Type status transitions",
-        "Type finding creation",
-        "Type finding queries with filters",
-        "Type finding status updates",
-        "Type severity validation",
-        "Type demo script generation",
-        "Type step tracking",
-        "Type feedback recording",
-        "Type approval workflow",
-        "Type learning extraction",
-        "Type learning storage",
-        "Type documentation updates",
-        "Type learning queries",
-        "All 6 tool files converted to TypeScript",
-        "All tool handlers properly typed",
-        "Conversation logging types defined",
-        "Telemetry event types defined",
-        "Claude Tasks types defined",
-        "Review findings types defined",
-        "Demo script types defined",
-        "Learning types defined",
-        "`pnpm type-check` passes with 0 errors",
-        "All 20 MCP tools work in Claude Code",
-        "Existing conversation test passes",
-        "All 16 tool files now TypeScript (complete Phase 3)"
-      ],
-      "references": [
-        "Depends on: Ticket 8 (Advanced MCP Tools Part 3)",
-        "Test reference: `tools/conversations.test.ts`",
-        "Database types: `types.ts`",
-        "---",
-        "**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-        "mcp-server/tools/conversations.ts",
-        "mcp-server/tools/telemetry.ts",
-        "mcp-server/tools/claude-tasks.ts",
-        "mcp-server/tools/review-findings.ts",
-        "mcp-server/tools/demo.ts",
-        "mcp-server/tools/learnings.ts"
-      ],
-      "description": "## Overview\n\nConvert specialized tools for conversation logging, telemetry capture, Claude Tasks integration, review findings management, demo generation, and learnings extraction. These 6 files cover advanced features.\n\n## Files to Convert\n\n1. `tools/conversations.js` → `tools/conversations.ts` (6 tools)\n2. `tools/telemetry.js` → `tools/telemetry.ts` (4 tools)\n3. `tools/claude-tasks.js` → `tools/claude-tasks.ts` (3 tools)\n4. `tools/review-findings.js` → `tools/review-findings.ts` (3 tools)\n5. `tools/demo.js` → `tools/demo.ts` (2 tools)\n6. `tools/learnings.js` → `tools/learnings.ts` (2 tools)\n\n## MCP Tools Covered (20 tools)\n\n**Conversations (6 tools):**\n- start_conversation_session\n- log_conversation_message\n- end_conversation_session\n- list_conversation_sessions\n- export_compliance_logs\n- archive_old_sessions\n\n**Telemetry (4 tools):**\n- start_telemetry_session\n- log_telemetry_event\n- end_telemetry_session\n- flush_telemetry_queue\n\n**Claude Tasks (3 tools):**\n- record_claude_task\n- list_claude_tasks\n- get_claude_task\n\n**Review Findings (3 tools):**\n- submit_review_finding\n- list_review_findings\n- resolve_finding\n\n**Demo (2 tools):**\n- generate_demo_script\n- record_demo_feedback\n\n**Learnings (2 tools):**\n- extract_learnings\n- apply_learnings\n\n## Implementation Guide\n\n### Step 1: Convert `tools/conversations.ts`\n\n**Files:** `mcp-server/tools/conversations.ts`\n\nConversation logging for compliance auditing:\n\n```typescript\ninterface ConversationSession {\n  id: string;\n  projectId?: string;\n  ticketId?: string;\n  userId?: string;\n  environment: 'claude-code' | 'vscode' | 'cursor' | 'unknown';\n  startedAt: Date;\n  endedAt?: Date;\n  messageCount: number;\n  dataClassification: 'public' | 'internal' | 'confidential' | 'restricted';\n}\n\ninterface ConversationMessage {\n  id: string;\n  sessionId: string;\n  role: 'user' | 'assistant' | 'system' | 'tool';\n  content: string;\n  contentHash: string; // HMAC-SHA256 for tamper detection\n  secretsDetected: boolean;\n  createdAt: Date;\n}\n```\n\n**Tasks:**\n- [ ] Type session creation with metadata\n- [ ] Type message logging with tamper detection\n- [ ] Type session queries with filters\n- [ ] Type compliance export structure\n- [ ] Type archive/retention operations\n\n### Step 2: Convert `tools/telemetry.ts`\n\n**Files:** `mcp-server/tools/telemetry.ts`\n\nTelemetry event capture:\n\n```typescript\ninterface TelemetrySession {\n  id: string;\n  ticketId?: string;\n  projectId?: string;\n  environment: string;\n  startedAt: Date;\n  endedAt?: Date;\n  eventCount: number;\n  totalTokens: number;\n}\n\ninterface TelemetryEvent {\n  id: string;\n  sessionId: string;\n  type: 'prompt' | 'tool_start' | 'tool_end' | 'context' | 'error';\n  timestamp: Date;\n  data: Record<string, unknown>;\n  correlationId?: string; // For pairing start/end events\n}\n```\n\n**Tasks:**\n- [ ] Type session creation\n- [ ] Type event logging with correlation IDs\n- [ ] Type event flushing to database\n- [ ] Type session aggregation\n\n### Step 3: Convert `tools/claude-tasks.ts`\n\n**Files:** `mcp-server/tools/claude-tasks.ts`\n\nClaude's task tracking:\n\n```typescript\ninterface ClaudeTask {\n  id: string;\n  ticketId: string;\n  subject: string;\n  description: string;\n  status: 'pending' | 'in_progress' | 'completed';\n  createdAt: Date;\n  updatedAt: Date;\n}\n```\n\n**Tasks:**\n- [ ] Type task creation and updates\n- [ ] Type task queries\n- [ ] Type status transitions\n\n### Step 4: Convert `tools/review-findings.ts`\n\n**Files:** `mcp-server/tools/review-findings.ts`\n\nCode review findings management:\n\n```typescript\ninterface ReviewFinding {\n  id: string;\n  ticketId: string;\n  agent: 'code-reviewer' | 'silent-failure-hunter' | 'code-simplifier';\n  severity: 'critical' | 'major' | 'minor' | 'suggestion';\n  category: string;\n  description: string;\n  filePath?: string;\n  lineNumber?: number;\n  suggestedFix?: string;\n  status: 'open' | 'fixed' | 'wont_fix' | 'duplicate';\n  createdAt: Date;\n}\n```\n\n**Tasks:**\n- [ ] Type finding creation\n- [ ] Type finding queries with filters\n- [ ] Type finding status updates\n- [ ] Type severity validation\n\n### Step 5: Convert `tools/demo.ts`\n\n**Files:** `mcp-server/tools/demo.ts`\n\nDemo script generation and tracking:\n\n```typescript\ninterface DemoStep {\n  order: number;\n  description: string;\n  expectedOutcome: string;\n  type: 'manual' | 'visual' | 'automated';\n  status: 'pending' | 'passed' | 'failed' | 'skipped';\n  notes?: string;\n}\n\ninterface DemoScript {\n  id: string;\n  ticketId: string;\n  steps: DemoStep[];\n  createdAt: Date;\n  feedback?: string;\n  approved: boolean;\n}\n```\n\n**Tasks:**\n- [ ] Type demo script generation\n- [ ] Type step tracking\n- [ ] Type feedback recording\n- [ ] Type approval workflow\n\n### Step 6: Convert `tools/learnings.ts`\n\n**Files:** `mcp-server/tools/learnings.ts`\n\nLearning extraction and documentation:\n\n```typescript\ninterface Learning {\n  id: string;\n  ticketId: string;\n  type: 'pattern' | 'anti-pattern' | 'tool-usage' | 'workflow';\n  description: string;\n  suggestedUpdate?: {\n    file: string;\n    section: string;\n    content: string;\n  };\n  createdAt: Date;\n}\n```\n\n**Tasks:**\n- [ ] Type learning extraction\n- [ ] Type learning storage\n- [ ] Type documentation updates\n- [ ] Type learning queries\n\n### Step 7: Verify All Conversions\n\n```bash\npnpm type-check  # Must pass with 0 errors\npnpm test        # All tests still pass\n# Existing test: tools/conversations.test.ts\n```\n\n## Acceptance Criteria\n\n- [ ] All 6 tool files converted to TypeScript\n- [ ] All tool handlers properly typed\n- [ ] Conversation logging types defined\n- [ ] Telemetry event types defined\n- [ ] Claude Tasks types defined\n- [ ] Review findings types defined\n- [ ] Demo script types defined\n- [ ] Learning types defined\n- [ ] `pnpm type-check` passes with 0 errors\n- [ ] All 20 MCP tools work in Claude Code\n- [ ] Existing conversation test passes\n- [ ] All 16 tool files now TypeScript (complete Phase 3)\n\n## References\n\n- Depends on: Ticket 8 (Advanced MCP Tools Part 3)\n- Test reference: `tools/conversations.test.ts`\n- Database types: `types.ts`\n\n---\n\n**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-      "priority": "medium",
-      "tags": [
-        "conversion",
-        "tools",
-        "advanced"
-      ]
-    },
-    {
-      "id": "29754f8f-d136-40dc-9c87-a0ae527a309c",
-      "title": "Convert Entry Point and Update Tests",
-      "passes": false,
-      "overview": "Convert the main entry point from JavaScript to TypeScript and ensure all existing tests work with the fully migrated TypeScript codebase.",
+      "id": "7e47f8c2-f886-4bd6-b013-2b080f7e826c",
+      "title": "Create scripts/setup-opencode.sh installation script",
+      "passes": true,
+      "overview": "Create an automated setup script that installs OpenCode plugins and configures MCP server integration. This script detects the OpenCode environment, copies plugin files, and verifies the MCP configuration.\n- Brain Dump integrates with OpenCode via MCP server (similar to Claude Code)\n- Plugins should be installed to `.opencode/plugins/` or `~/.config/opencode/plugins/`\n- MCP config goes in `.opencode/opencode.json`\n- The main `scripts/install.sh` should detect OpenCode and call this script\n- Installation should be idempotent (safe to run multiple times)",
       "types": [],
       "designDecisions": [],
-      "implementationGuide": [
-        {
-          "step": 1,
-          "description": "Convert `index.ts`",
-          "files": [
-            "mcp-server/index.ts"
-          ],
-          "codeTemplate": "#!/usr/bin/env tsx\n\nimport { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\nimport { StdioServerTransport } from \"@modelcontextprotocol/sdk/server/stdio.js\";\nimport { unlinkSync } from \"fs\";\nimport type { Database } from \"better-sqlite3\";\n\n// Lib imports\nimport { log } from \"./lib/logging.js\";\nimport { initDatabase } from \"./lib/database.js\";\nimport { acquireLock, releaseLock } from \"./lib/lock.js\";\nimport { startDailyBackup } from \"./lib/backup.js\";\n\n// Tool imports\nimport { registerProjectTools } from \"./tools/projects.js\";\nimport { registerTicketTools } from \"./tools/tickets.js\";\nimport { registerEpicTools } from \"./tools/epics.js\";\nimport { registerCommentTools } from \"./tools/comments.js\";\n// ... all other tools\n\nlet db: Database;\nlet actualDbPath: string;\n\ntry {\n  // Initialize database\n  const { db: database, actualDbPath: path } = initDatabase();\n  db = database;\n  actualDbPath = path;\n\n  // Acquire lock\n  acquireLock();\n\n  // Start daily backup\n  startDailyBackup(db);\n} catch (error) {\n  log.error(\"Failed to initialize database\", error as Error);\n  process.exit(1);\n}\n\nfunction setupGracefulShutdown(): void {\n  process.on(\"SIGINT\", () => {\n    log.info(\"Shutting down gracefully...\");\n    releaseLock();\n    process.exit(0);\n  });\n}\n\n// Create MCP server\nconst server = new McpServer({ name: \"brain-dump\", version: \"1.0.0\" });\n\n// Register all tools\nregisterProjectTools(server, db);\nregisterTicketTools(server, db);\nregisterEpicTools(server, db);\nregisterCommentTools(server, db);\nregisterWorkflowTools(server, db);\nregisterGitTools(server, db);\nregisterFileTools(server, db);\nregisterHealthTools(server, db);\nregisterEventTools(server, db);\nregisterSessionTools(server, db);\nregisterConversationTools(server, db);\nregisterTelemetryTools(server, db);\nregisterClaudeTasksTools(server, db);\nregisterReviewFindingsTools(server, db);\nregisterDemoTools(server, db);\nregisterLearningsTools(server, db);\n\n// Connect to transport\nconst transport = new StdioServerTransport();\n\nsetupGracefulShutdown();\n\nserver\n  .connect(transport)\n  .then(() => {\n    log.info(\"Brain Dump MCP server connected\");\n  })\n  .catch((error) => {\n    log.error(\"Failed to connect MCP server\", error as Error);\n    process.exit(1);\n  });"
-        },
-        {
-          "step": 2,
-          "description": "Verify Type Checking",
-          "files": [],
-          "codeTemplate": "pnpm type-check  # Must pass with 0 errors"
-        },
-        {
-          "step": 3,
-          "description": "Run All Tests",
-          "files": [],
-          "codeTemplate": "pnpm test  # All 8 test files must pass"
-        },
-        {
-          "step": 4,
-          "description": "Start Server Manually",
-          "files": [],
-          "codeTemplate": "tsx index.ts  # Server must start without errors"
-        },
-        {
-          "step": 5,
-          "description": "Verify Server Functionality",
-          "files": [],
-          "codeTemplate": "# Call a simple tool\nbrain-dump: list_projects\n\n# Should return list of projects"
-        },
-        {
-          "step": 5,
-          "description": "Verify Server Functionality",
-          "files": [],
-          "codeTemplate": "# Call a simple tool\nbrain-dump: list_projects\n\n# Should return list of projects"
-        }
-      ],
+      "implementationGuide": [],
       "acceptanceCriteria": [
-        "Rename index.js → index.ts",
-        "Add all type imports",
-        "Type all variables and function parameters",
-        "Update shebang for tsx execution",
-        "Verify all tool registrations",
-        "`index.ts` created from `index.js`",
-        "All type annotations added",
-        "Shebang updated to `#!/usr/bin/env tsx`",
-        "All tool registrations working",
-        "All 8 test files pass",
-        "`pnpm type-check` passes with 0 errors",
-        "Server starts successfully with `tsx index.ts`",
-        "No console errors or warnings on startup",
-        "Lock file acquired properly",
-        "Database initialization works",
-        "Daily backup triggers correctly",
-        "All MCP tools accessible",
-        "Server can be connected to via stdio transport"
+        "Script: `scripts/setup-opencode.sh` created and executable",
+        "Detects OpenCode installation (command -v opencode)",
+        "Determines plugin directory (`.opencode/plugins` or `~/.config/opencode/plugins`)",
+        "Copies all 5 plugin files to plugin directory",
+        "Creates/verifies `.opencode/opencode.json` with correct MCP config",
+        "Creates/verifies `.opencode/AGENTS.md` with workflow guidance",
+        "Outputs verification instructions and next steps",
+        "Handles errors gracefully (creates directories if missing)",
+        "Idempotent (safe to run multiple times)",
+        "`scripts/install.sh` modified to detect and call this script"
       ],
-      "references": [
-        "Entry point: `mcp-server/index.ts`",
-        "Database init: `lib/database.ts`",
-        "All tool files: `tools/*.ts`",
-        "Test files: Various `*.test.ts` files",
-        "---",
-        "**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-        "lib/git-utils.test.ts",
-        "lib/secrets.test.ts",
-        "mcp-server/index.ts",
-        "lib/database.ts"
-      ],
-      "description": "## Overview\n\nConvert the main entry point from JavaScript to TypeScript and ensure all existing tests work with the fully migrated TypeScript codebase.\n\n## Files to Convert\n\n1. `index.js` → `index.ts` (main MCP server entry point)\n\n## Test Files to Verify (8 existing tests)\n\n- `__tests__/cross-environment.test.ts`\n- `lib/git-utils.test.ts`\n- `lib/secrets.test.ts`\n- `tools/__tests__/status-transitions.test.ts`\n- `tools/__tests__/workflow-e2e.test.ts`\n- `tools/conversations.test.ts`\n- `tools/preconditions.test.ts`\n- `tools/workflow.test.ts`\n\n## Implementation Guide\n\n### Step 1: Convert `index.ts`\n\n**Files:** `mcp-server/index.ts`\n\nThe entry point orchestrates everything:\n\n```typescript\n#!/usr/bin/env tsx\n\nimport { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\nimport { StdioServerTransport } from \"@modelcontextprotocol/sdk/server/stdio.js\";\nimport { unlinkSync } from \"fs\";\nimport type { Database } from \"better-sqlite3\";\n\n// Lib imports\nimport { log } from \"./lib/logging.js\";\nimport { initDatabase } from \"./lib/database.js\";\nimport { acquireLock, releaseLock } from \"./lib/lock.js\";\nimport { startDailyBackup } from \"./lib/backup.js\";\n\n// Tool imports\nimport { registerProjectTools } from \"./tools/projects.js\";\nimport { registerTicketTools } from \"./tools/tickets.js\";\nimport { registerEpicTools } from \"./tools/epics.js\";\nimport { registerCommentTools } from \"./tools/comments.js\";\n// ... all other tools\n\nlet db: Database;\nlet actualDbPath: string;\n\ntry {\n  // Initialize database\n  const { db: database, actualDbPath: path } = initDatabase();\n  db = database;\n  actualDbPath = path;\n\n  // Acquire lock\n  acquireLock();\n\n  // Start daily backup\n  startDailyBackup(db);\n} catch (error) {\n  log.error(\"Failed to initialize database\", error as Error);\n  process.exit(1);\n}\n\nfunction setupGracefulShutdown(): void {\n  process.on(\"SIGINT\", () => {\n    log.info(\"Shutting down gracefully...\");\n    releaseLock();\n    process.exit(0);\n  });\n}\n\n// Create MCP server\nconst server = new McpServer({ name: \"brain-dump\", version: \"1.0.0\" });\n\n// Register all tools\nregisterProjectTools(server, db);\nregisterTicketTools(server, db);\nregisterEpicTools(server, db);\nregisterCommentTools(server, db);\nregisterWorkflowTools(server, db);\nregisterGitTools(server, db);\nregisterFileTools(server, db);\nregisterHealthTools(server, db);\nregisterEventTools(server, db);\nregisterSessionTools(server, db);\nregisterConversationTools(server, db);\nregisterTelemetryTools(server, db);\nregisterClaudeTasksTools(server, db);\nregisterReviewFindingsTools(server, db);\nregisterDemoTools(server, db);\nregisterLearningsTools(server, db);\n\n// Connect to transport\nconst transport = new StdioServerTransport();\n\nsetupGracefulShutdown();\n\nserver\n  .connect(transport)\n  .then(() => {\n    log.info(\"Brain Dump MCP server connected\");\n  })\n  .catch((error) => {\n    log.error(\"Failed to connect MCP server\", error as Error);\n    process.exit(1);\n  });\n```\n\n**Key changes:**\n- Update shebang to `#!/usr/bin/env tsx`\n- Add type annotations for all variables\n- Type the `db` variable properly\n- Add `type` imports for types like `Database`\n- Cast error to `Error` type: `error as Error`\n\n**Tasks:**\n- [ ] Rename index.js → index.ts\n- [ ] Add all type imports\n- [ ] Type all variables and function parameters\n- [ ] Update shebang for tsx execution\n- [ ] Verify all tool registrations\n\n### Step 2: Verify Type Checking\n\n```bash\npnpm type-check  # Must pass with 0 errors\n```\n\n### Step 3: Run All Tests\n\n```bash\npnpm test  # All 8 test files must pass\n```\n\nAll test files should pass because:\n- Vitest works with TypeScript files\n- Type changes don't affect test logic\n- Tests test behavior, not implementation details\n\n### Step 4: Start Server Manually\n\n```bash\ntsx index.ts  # Server must start without errors\n```\n\nVerify:\n- No console errors on startup\n- Lock file acquired properly\n- Database initialized\n- Daily backup starts\n- Ready to receive MCP calls\n\n### Step 5: Verify Server Functionality\n\nIn Claude Code or another MCP client, test:\n\n```\n# Call a simple tool\nbrain-dump: list_projects\n\n# Should return list of projects\n```\n\n## Acceptance Criteria\n\n- [ ] `index.ts` created from `index.js`\n- [ ] All type annotations added\n- [ ] Shebang updated to `#!/usr/bin/env tsx`\n- [ ] All tool registrations working\n- [ ] All 8 test files pass\n- [ ] `pnpm type-check` passes with 0 errors\n- [ ] Server starts successfully with `tsx index.ts`\n- [ ] No console errors or warnings on startup\n- [ ] Lock file acquired properly\n- [ ] Database initialization works\n- [ ] Daily backup triggers correctly\n- [ ] All MCP tools accessible\n- [ ] Server can be connected to via stdio transport\n\n## References\n\n- Entry point: `mcp-server/index.ts`\n- Database init: `lib/database.ts`\n- All tool files: `tools/*.ts`\n- Test files: Various `*.test.ts` files\n\n---\n\n**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-      "priority": "high",
+      "references": [],
+      "description": "## Overview\nCreate an automated setup script that installs OpenCode plugins and configures MCP server integration. This script detects the OpenCode environment, copies plugin files, and verifies the MCP configuration.\n\n## Context\n- Brain Dump integrates with OpenCode via MCP server (similar to Claude Code)\n- Plugins should be installed to `.opencode/plugins/` or `~/.config/opencode/plugins/`\n- MCP config goes in `.opencode/opencode.json`\n- The main `scripts/install.sh` should detect OpenCode and call this script\n- Installation should be idempotent (safe to run multiple times)\n\n## Acceptance Criteria\n- [ ] Script: `scripts/setup-opencode.sh` created and executable\n- [ ] Detects OpenCode installation (command -v opencode)\n- [ ] Determines plugin directory (`.opencode/plugins` or `~/.config/opencode/plugins`)\n- [ ] Copies all 5 plugin files to plugin directory\n- [ ] Creates/verifies `.opencode/opencode.json` with correct MCP config\n- [ ] Creates/verifies `.opencode/AGENTS.md` with workflow guidance\n- [ ] Outputs verification instructions and next steps\n- [ ] Handles errors gracefully (creates directories if missing)\n- [ ] Idempotent (safe to run multiple times)\n- [ ] `scripts/install.sh` modified to detect and call this script\n\n## MCP Config Template\n```json\n{\n  \\\"$schema\\\": \\\"https://opencode.ai/config.json\\\",\n  \\\"mcp\\\": {\n    \\\"brain-dump\\\": {\n      \\\"type\\\": \\\"local\\\",\n      \\\"command\\\": [\\\"npx\\\", \\\"tsx\\\", \\\"mcp-server/index.ts\\\"],\n      \\\"enabled\\\": true,\n      \\\"environment\\\": {\n        \\\"OPENCODE\\\": \\\"1\\\"\n      }\n    }\n  },\n  \\\"tools\\\": {\n    \\\"mcp__brain-dump__*\\\": true\n  }\n}\n```\n\n## Integration with scripts/install.sh\nAdd to `scripts/install.sh`:\n```bash\nif command -v opencode &> /dev/null; then\n  echo \\\"📦 Detected: OpenCode\\\"\n  ./scripts/setup-opencode.sh\nfi\n```\n\n## Implementation Notes\n- Use bash (consistent with other setup scripts)\n- Create directories with mkdir -p\n- Copy plugin files from `.opencode/plugins/`\n- Verify both plugin directory and opencode.json exist after setup\n- Output clear success/failure messages\n- Reference existing `scripts/setup-claude-code.sh` for patterns\n\n## Related\n- Script: `scripts/install.sh`\n- Concept: Multi-environment setup automation\",\n<parameter name=\"priority\">medium\n\n## Additional INformation\nhave all code live in branch \"feature/64670dc9-implement-brain-dump-commit-tracking-ts-plugin\"",
+      "priority": null,
       "tags": [
-        "conversion",
-        "entry-point",
-        "testing"
+        "opencode",
+        "installation",
+        "automation"
       ]
     },
     {
-      "id": "0ae72d70-d624-47fd-8615-e1ca40667d78",
-      "title": "Update Documentation and Configuration",
-      "passes": false,
-      "overview": "Update all documentation to reflect the TypeScript migration and configure MCP clients to work with the new `index.ts` entry point.",
+      "id": "da61b726-9999-46cd-a4ae-57755af8ae62",
+      "title": "Document UQW differences between Claude Code and OpenCode",
+      "passes": true,
+      "overview": "Create comprehensive documentation explaining how the Universal Quality Workflow works in Claude Code vs OpenCode, and why the implementations differ. This helps users understand the trade-offs and capabilities of each environment.\n- Both Claude Code and OpenCode use the same MCP server and UQW workflow\n- Key difference: Claude Code uses shell hooks, OpenCode uses TypeScript plugins\n- Claude Code provides interactive feedback, OpenCode relies on console output + AGENTS.md\n- Both share the same `.claude/ralph-state.json` state file for consistency",
       "types": [],
       "designDecisions": [],
-      "implementationGuide": [
-        {
-          "step": 1,
-          "description": "Update CLAUDE.md",
-          "files": []
-        },
-        {
-          "step": 2,
-          "description": "Update README.md",
-          "files": []
-        },
-        {
-          "step": 3,
-          "description": "Create mcp-server/README.md",
-          "files": []
-        },
-        {
-          "step": 4,
-          "description": "Update MCP Client Configs",
-          "files": []
-        },
-        {
-          "step": 5,
-          "description": "Update Root Package.json",
-          "files": []
-        },
-        {
-          "step": 6,
-          "description": "Verify",
-          "files": [],
-          "codeTemplate": "# Type check passes\npnpm type-check\n\n# All documentation references are consistent\n# All tool names match actual implementation"
-        },
-        {
-          "step": 6,
-          "description": "Verify",
-          "files": [],
-          "codeTemplate": "# Type check passes\npnpm type-check\n\n# All documentation references are consistent\n# All tool names match actual implementation"
-        }
-      ],
+      "implementationGuide": [],
       "acceptanceCriteria": [
-        "CLAUDE.md updated with TypeScript mentions",
-        "CLAUDE.md updated with MCP client configurations",
-        "README.md updated",
-        "mcp-server/README.md created with complete documentation",
-        "All tool names are accurate in documentation",
-        "MCP client configs documented",
-        "Root package.json scripts updated",
-        "No broken links or references",
-        "All documentation is consistent",
-        "Type-check works with updated configs"
+        "Document created at: `docs/uqw-multi-environment.md`",
+        "Overview section explains UQW (target: exists, why it matters)",
+        "Claude Code section describes hook-based approach",
+        "OpenCode section describes plugin-based approach",
+        "Differences table clearly compares implementations",
+        "Explains why different approaches needed (Claude Code can have hooks, OpenCode needs plugins)",
+        "Troubleshooting covers most common issues",
+        "Plugin reference documents all 5 plugins",
+        "Markdown formatted with clear headers and code examples",
+        "Cross-references CLAUDE.md UQW section",
+        "Explains cross-environment consistency (same underlying system)"
       ],
-      "references": [
-        "CLAUDE.md: Project instructions",
-        "README.md: Project overview",
-        "mcp-server/README.md: Server documentation",
-        "package.json: Build and development scripts",
-        "---",
-        "**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-        "mcp-server/index.ts",
-        "mcp-server/tsconfig.json",
-        "mcp-server/types.ts",
-        "lib/*.ts",
-        "lib/database.ts"
-      ],
-      "description": "## Overview\n\nUpdate all documentation to reflect the TypeScript migration and configure MCP clients to work with the new `index.ts` entry point.\n\n## Files to Update\n\n### 1. `/Users/salman.rana/code/brain-dump/CLAUDE.md`\n\n**Section: Architecture → Tech Stack**\n\nUpdate from:\n```markdown\n- **MCP Server**: JavaScript with @modelcontextprotocol/sdk\n```\n\nTo:\n```markdown\n- **MCP Server**: TypeScript with @modelcontextprotocol/sdk\n```\n\n**Section: Architecture → MCP Server**\n\nUpdate description:\n```markdown\n### MCP Server\n\nThe `mcp-server/index.ts` is a standalone TypeScript MCP server that provides tools for Claude to manage tickets from any project. It connects to the same SQLite database and includes:\n\n- Project/ticket/epic CRUD operations\n- Git integration (branch creation, commit linking)\n- Database health monitoring\n- Universal Quality Workflow state management\n- Conversation logging and telemetry capture\n- Review findings and demo management\n```\n\n**Section: Commands → Quality checks**\n\nAdd or update:\n```markdown\npnpm type-check             # TypeScript type checking (includes MCP server)\n```\n\n**Section: Tech Stack → MCP Server specific info**\n\nAdd new subsection with TypeScript details:\n```markdown\n#### MCP Server (TypeScript)\n\n- **Language**: TypeScript (strict mode)\n- **Entry**: `mcp-server/index.ts` (runs with `tsx`)\n- **Configuration**: `mcp-server/tsconfig.json`\n- **Types**: `mcp-server/types.ts` (50+ shared type definitions)\n- **Development**: `pnpm dev` in mcp-server directory\n- **Testing**: `pnpm test` (8 test files)\n```\n\n### 2. `/Users/salman.rana/code/brain-dump/README.md`\n\n**Tech Stack section:** Add TypeScript mention for MCP server\n\n**Development section:** Update any references to `index.js` → `index.ts`\n\n### 3. Create `/Users/salman.rana/code/brain-dump/mcp-server/README.md`\n\nIf doesn't exist, create comprehensive documentation:\n\n```markdown\n# Brain Dump MCP Server\n\nTypeScript MCP server providing tools for managing Brain Dump tickets from any project.\n\n## Development\n\n\\`\\`\\`bash\n# Run server\npnpm start\n\n# Development with watch mode\npnpm dev\n\n# Type checking\npnpm type-check\n\n# Tests\npnpm test\npnpm test:watch\n\\`\\`\\`\n\n## Architecture\n\n- **Entry point**: `index.ts` - Server initialization and tool registration\n- **Tools**: `tools/*.ts` - MCP tool implementations (16 modules, 55+ tools)\n- **Library**: `lib/*.ts` - Utilities and database access (15 modules)\n- **Types**: `types.ts` - Shared TypeScript definitions\n\n## Tools Overview\n\n### Projects (4 tools)\nlist_projects, create_project, find_project_by_path, update_project\n\n### Tickets (9 tools)\ncreate_ticket, update_ticket, list_tickets, get_ticket, delete_ticket, search_tickets, list_tickets_by_status, add_tags_to_ticket, remove_tags_from_ticket\n\n### Epics (5 tools)\ncreate_epic, list_epics, update_epic, delete_epic, list_tickets_by_epic\n\n### Comments (2 tools)\nadd_ticket_comment, list_ticket_comments\n\n### Workflow (6 tools)\nstart_ticket_work, complete_ticket_work, update_session_state, create_ralph_session, complete_ralph_session, update_ticket_status\n\n### Git (3 tools)\ncreate_branch, link_commit_to_ticket, link_pr_to_ticket\n\n### Files (3 tools)\nattach_file_to_ticket, list_ticket_attachments, read_ticket_attachment\n\n### Health (1 tool)\ncheck_database_health\n\n### Events (2 tools)\nrecord_event, list_session_events\n\n### Sessions (3 tools)\ncreate_session, end_session, list_sessions\n\n### Conversations (6 tools)\nstart_conversation_session, log_conversation_message, end_conversation_session, list_conversation_sessions, export_compliance_logs, archive_old_sessions\n\n### Telemetry (4 tools)\nstart_telemetry_session, log_telemetry_event, end_telemetry_session, flush_telemetry_queue\n\n### Claude Tasks (3 tools)\nrecord_claude_task, list_claude_tasks, get_claude_task\n\n### Review Findings (3 tools)\nsubmit_review_finding, list_review_findings, resolve_finding\n\n### Demo (2 tools)\ngenerate_demo_script, record_demo_feedback\n\n### Learnings (2 tools)\nextract_learnings, apply_learnings\n\n## Adding New Tools\n\n1. Create new file in `tools/` following the pattern:\n   \\`\\`\\`typescript\n   import type { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\n   import type { Database } from \"better-sqlite3\";\n   import type { ToolResponse } from \"../types.js\";\n\n   export function registerMyTools(\n     server: McpServer,\n     db: Database\n   ): void {\n     server.tool(\"my-tool\", \"Description\", {}, async (): Promise<ToolResponse> => {\n       // Implementation\n     });\n   }\n   \\`\\`\\`\n\n2. Import and register in `index.ts`:\n   \\`\\`\\`typescript\n   import { registerMyTools } from \"./tools/my-tools.js\";\n   registerMyTools(server, db);\n   \\`\\`\\`\n\n3. Run `pnpm type-check` to verify\n4. Add tests if needed\n\n## Type Safety\n\nAll code follows strict TypeScript mode:\n- `noImplicitAny: true` - No implicit any types\n- `strictNullChecks: true` - Null safety enforced\n- `exactOptionalPropertyTypes: true` - Optional properties strict\n- All database queries typed with casts\n\n## Database\n\n- **Engine**: SQLite with better-sqlite3\n- **Location**: XDG Base Directory compliant\n  - Linux: `~/.local/share/brain-dump/`\n  - macOS: `~/Library/Application Support/brain-dump/`\n  - Windows: `%APPDATA%\\brain-dump\\`\n- **Initialization**: `initDatabase()` in `lib/database.ts`\n- **Migrations**: Automatic on startup\n\n## Testing\n\n8 test files covering:\n- Git utilities\n- Secret detection\n- Workflow state transitions\n- Conversation logging\n- Cross-environment compatibility\n- E2E workflows\n\nRun all tests: `pnpm test`\nRun specific test: `pnpm test path/to/file.test.ts`\nWatch mode: `pnpm test:watch`\n```\n\n### 4. Update MCP Client Configurations\n\n**For Claude Code:** Update `~/.claude/settings.json`\n\n```json\n{\n  \"mcpServers\": {\n    \"brain-dump\": {\n      \"command\": \"tsx\",\n      \"args\": [\"/Users/salman.rana/code/brain-dump/mcp-server/index.ts\"]\n    }\n  }\n}\n```\n\n**For VS Code (Cline/Roo-Cline):** Update `.vscode/settings.json` or MCP configuration file\n\n**For Cursor:** Similar to Claude Code configuration\n\n**For OpenCode:** Similar to VS Code configuration\n\nDocument in CLAUDE.md:\n```markdown\n### MCP Client Configuration\n\n#### Claude Code\n\nUpdate `~/.claude/settings.json`:\n\n\\`\\`\\`json\n{\n  \"mcpServers\": {\n    \"brain-dump\": {\n      \"command\": \"tsx\",\n      \"args\": [\"/Users/salman.rana/code/brain-dump/mcp-server/index.ts\"]\n    }\n  }\n}\n\\`\\`\\`\n\n#### VS Code (with Cline or Roo-Cline)\n\nUpdate your MCP config (typically `.vscode/settings.json` or MCP client settings):\n\n\\`\\`\\`json\n{\n  \"brain-dump\": {\n    \"command\": \"tsx\",\n    \"args\": [\"/path/to/brain-dump/mcp-server/index.ts\"]\n  }\n}\n\\`\\`\\`\n\n#### Cursor\n\nSimilar to Claude Code configuration.\n\n#### OpenCode\n\nSimilar to VS Code configuration.\n```\n\n### 5. Update Root `package.json` Scripts\n\nEnsure `pnpm type-check` includes mcp-server:\n\n```json\n{\n  \"scripts\": {\n    \"type-check\": \"tsc --noEmit && cd mcp-server && tsc --noEmit\",\n    \"dev\": \"concurrently \\\"pnpm dev --filter=@brain-dump/web\\\" \\\"cd mcp-server && pnpm dev\\\"\",\n    \"start\": \"cd mcp-server && pnpm start\"\n  }\n}\n```\n\n## Implementation Guide\n\n### Step 1: Update CLAUDE.md\n\n**Files:** `/Users/salman.rana/code/brain-dump/CLAUDE.md`\n\n- Update Tech Stack section\n- Update MCP Server section description\n- Update Commands section\n- Add MCP Server TypeScript subsection\n- Add MCP Client Configuration section\n\n### Step 2: Update README.md\n\n**Files:** `/Users/salman.rana/code/brain-dump/README.md`\n\n- Update Tech Stack to mention TypeScript\n- Update Development section references\n- Add link to mcp-server/README.md\n\n### Step 3: Create mcp-server/README.md\n\n**Files:** `/Users/salman.rana/code/brain-dump/mcp-server/README.md`\n\n- Copy template from this ticket\n- Ensure all tool names are accurate\n- Document adding new tools\n- Include testing instructions\n\n### Step 4: Update MCP Client Configs\n\n**Files:** Various client config files\n\n- Claude Code: `~/.claude/settings.json`\n- VS Code/Cursor/OpenCode: MCP configuration files\n- Document all in CLAUDE.md\n\n### Step 5: Update Root Package.json\n\n**Files:** `/Users/salman.rana/code/brain-dump/package.json`\n\n- Update `type-check` script to include mcp-server\n- Update `dev` script if needed\n- Update `start` script if needed\n\n### Step 6: Verify\n\n```bash\n# Type check passes\npnpm type-check\n\n# All documentation references are consistent\n# All tool names match actual implementation\n```\n\n## Acceptance Criteria\n\n- [ ] CLAUDE.md updated with TypeScript mentions\n- [ ] CLAUDE.md updated with MCP client configurations\n- [ ] README.md updated\n- [ ] mcp-server/README.md created with complete documentation\n- [ ] All tool names are accurate in documentation\n- [ ] MCP client configs documented\n- [ ] Root package.json scripts updated\n- [ ] No broken links or references\n- [ ] All documentation is consistent\n- [ ] Type-check works with updated configs\n\n## References\n\n- CLAUDE.md: Project instructions\n- README.md: Project overview\n- mcp-server/README.md: Server documentation\n- package.json: Build and development scripts\n\n---\n\n**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-      "priority": "medium",
+      "references": [],
+      "description": "## Overview\nCreate comprehensive documentation explaining how the Universal Quality Workflow works in Claude Code vs OpenCode, and why the implementations differ. This helps users understand the trade-offs and capabilities of each environment.\n\n## Context\n- Both Claude Code and OpenCode use the same MCP server and UQW workflow\n- Key difference: Claude Code uses shell hooks, OpenCode uses TypeScript plugins\n- Claude Code provides interactive feedback, OpenCode relies on console output + AGENTS.md\n- Both share the same `.claude/ralph-state.json` state file for consistency\n\n## Document Sections\n1. **Overview**: What is UQW and why it exists (applies to both)\n2. **Claude Code Implementation**: \n   - Hook-based enforcement (shell scripts in `.claude/hooks/`)\n   - Interactive feedback loop (blocks and shows error inline)\n   - How state enforcement works\n   - Auto-PR, commit tracking, review guard flows\n3. **OpenCode Implementation**:\n   - Plugin-based enforcement (TypeScript in `.opencode/plugins/`)\n   - Console-based feedback (output visible in chat)\n   - Why AGENTS.md guidance is critical\n   - Fallback when plugins aren't available\n4. **Key Differences Table**:\n   - Blocking mechanism (Claude: hook decision object, OpenCode: throw Error)\n   - Feedback to AI (Claude: injected context, OpenCode: console.log)\n   - State file location (both: `.claude/ralph-state.json`)\n   - Correlation ID tracking (Claude: text files, OpenCode: in-memory Map)\n   - Environment variables (Claude: CLAUDE_CODE=1, OpenCode: OPENCODE=1)\n   - AI guidance approach (Claude: hooks guide interactively, OpenCode: docs guide proactively)\n5. **Cross-Environment Consistency**:\n   - Same MCP server code\n   - Same database schema\n   - Same state file format\n   - Telemetry captured identically\n6. **Troubleshooting Guide**:\n   - Common errors and how to fix them in each environment\n   - Plugin loading issues in OpenCode\n   - Hook not triggering in Claude Code\n   - Missing state file issues\n7. **Plugin Reference**:\n   - Brief description of each plugin\n   - When each plugin triggers\n   - What it does and why\n\n## Acceptance Criteria\n- [ ] Document created at: `docs/uqw-multi-environment.md`\n- [ ] Overview section explains UQW (target: exists, why it matters)\n- [ ] Claude Code section describes hook-based approach\n- [ ] OpenCode section describes plugin-based approach\n- [ ] Differences table clearly compares implementations\n- [ ] Explains why different approaches needed (Claude Code can have hooks, OpenCode needs plugins)\n- [ ] Troubleshooting covers most common issues\n- [ ] Plugin reference documents all 5 plugins\n- [ ] Markdown formatted with clear headers and code examples\n- [ ] Cross-references CLAUDE.md UQW section\n- [ ] Explains cross-environment consistency (same underlying system)\n\n## Implementation Notes\n- Use markdown with clear hierarchy\n- Include diagrams/tables for comparison\n- Keep explanations concise (technical audience)\n- Focus on \\\"why\\\" not just \\\"what\\\"\n- Acknowledge both have advantages and limitations\n- This is lowest priority - can be done after all plugins work\n\n## Related\n- Document: CLAUDE.md (reference implementation)\n- Concept: Multi-environment architecture\",\n<parameter name=\"priority\">low\n\n## Additional INformation\nhave all code live in branch \"feature/64670dc9-implement-brain-dump-commit-tracking-ts-plugin\"",
+      "priority": null,
       "tags": [
         "documentation",
-        "configuration",
-        "setup"
+        "comparison",
+        "multi-environment"
       ]
     },
     {
-      "id": "3cbdfa09-8e00-43bc-b8e3-6f340c2f0518",
-      "title": "End-to-End Testing and Verification",
-      "passes": false,
-      "overview": "Comprehensive end-to-end testing of the fully migrated TypeScript MCP server. Verify all functionality works identically to the original JavaScript version.",
+      "id": "01118bbb-4887-47c8-919d-0ec8887532fb",
+      "title": "OpenCode UQW Implementation Plan Overview",
+      "passes": true,
+      "overview": "This is the reference ticket containing the **COMPLETE** OpenCode Universal Quality Workflow implementation plan. This plan implements the UQW for OpenCode, ensuring it follows the same state-enforced workflow as Claude Code while leveraging OpenCode's plugin system and the existing MCP server infrastructure.\n**Key Insight**: The MCP server already handles ALL workflow logic (state transitions, validation, telemetry). OpenCode plugins only need to:\n1. **Enforce** state transitions (block Write/Edit unless in correct state)\n2. **Automate** PR workflows (auto-create PRs, track commits)\n3. **Guard** quality gates (block push until review complete)\n4. **Guide** the AI (via AGENTS.md rules)",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "`pnpm type-check` passes with 0 errors",
-        "No TypeScript warnings",
-        "All 32 files converted successfully",
-        "All 8 tests pass",
-        "No test failures or errors",
-        "Test coverage unchanged",
-        "Server starts successfully",
-        "No console errors on startup",
-        "No console warnings",
-        "Lock file acquired properly",
-        "Database initialized correctly",
-        "Daily backup triggered",
-        "Server ready to receive MCP calls",
-        "list_projects - Returns all projects",
-        "create_project - Creates new project",
-        "find_project_by_path - Finds project by path",
-        "update_project - Updates project",
-        "create_ticket - Creates new ticket",
-        "update_ticket - Updates ticket status/priority",
-        "list_tickets - Returns all tickets",
-        "get_ticket - Retrieves single ticket",
-        "delete_ticket - Deletes ticket",
-        "search_tickets - Searches by keyword",
-        "list_tickets_by_status - Filters by status",
-        "add_tags_to_ticket - Adds tags",
-        "remove_tags_from_ticket - Removes tags",
-        "create_epic - Creates epic",
-        "list_epics - Lists all epics",
-        "update_epic - Updates epic",
-        "delete_epic - Deletes epic",
-        "list_tickets_by_epic - Lists tickets in epic",
-        "add_ticket_comment - Adds comment",
-        "list_ticket_comments - Lists comments",
-        "start_ticket_work - Starts ticket work",
-        "complete_ticket_work - Completes work",
-        "update_session_state - Updates state",
-        "create_ralph_session - Creates session",
-        "complete_ralph_session - Ends session",
-        "update_ticket_status - Updates status",
-        "create_branch - Creates git branch",
-        "link_commit_to_ticket - Links commit",
-        "link_pr_to_ticket - Links PR",
-        "attach_file_to_ticket - Attaches file",
-        "list_ticket_attachments - Lists attachments",
-        "read_ticket_attachment - Reads attachment",
-        "check_database_health - Returns health report",
-        "record_event - Records event",
-        "list_session_events - Lists events",
-        "create_session - Creates session",
-        "end_session - Ends session",
-        "list_sessions - Lists sessions",
-        "start_conversation_session - Starts session",
-        "log_conversation_message - Logs message",
-        "end_conversation_session - Ends session",
-        "list_conversation_sessions - Lists sessions",
-        "export_compliance_logs - Exports logs",
-        "archive_old_sessions - Archives sessions",
-        "start_telemetry_session - Starts session",
-        "log_telemetry_event - Logs event",
-        "end_telemetry_session - Ends session",
-        "flush_telemetry_queue - Flushes queue",
-        "record_claude_task - Records task",
-        "list_claude_tasks - Lists tasks",
-        "get_claude_task - Gets task",
-        "submit_review_finding - Submits finding",
-        "list_review_findings - Lists findings",
-        "resolve_finding - Resolves finding",
-        "generate_demo_script - Generates script",
-        "record_demo_feedback - Records feedback",
-        "extract_learnings - Extracts learnings",
-        "apply_learnings - Applies learnings",
-        "Full workflow completes without errors",
-        "Each step returns expected data",
-        "Database state consistent throughout",
-        "All state transitions valid",
-        "All comments recorded properly",
-        "Final ticket status correct",
-        "Database initializes without errors",
-        "Migrations run successfully",
-        "Queries return correct types",
-        "WAL mode enabled",
-        "Integrity checks pass",
-        "Backups work",
-        "VACUUM works",
-        "FTS searches work",
-        "Branch creation works",
-        "Commit linking works",
-        "PR linking works",
-        "No git errors",
-        "Telemetry events capture",
-        "Sessions track properly",
-        "Conversation logging works",
-        "No telemetry errors",
-        "State enforcement works (if in Ralph mode)",
-        "Hooks function correctly",
-        "Server startup time acceptable (<5 seconds)",
-        "No obvious performance degradation",
-        "Memory usage reasonable",
-        "CPU usage reasonable during operations",
-        "Works in Claude Code ✅",
-        "Works in VS Code + MCP (if available)",
-        "Works in Cursor (if available)",
-        "Works in OpenCode (if available)",
-        "All type checking passes",
-        "All 8 unit tests pass",
-        "Server starts without errors",
-        "All 55+ MCP tools work correctly",
-        "Full integration workflow completes",
-        "Database operations all functional",
-        "Git integration works",
-        "Telemetry captures correctly",
-        "Performance acceptable",
-        "No regressions identified",
-        "All tests pass on CI/CD if applicable"
+        "All 5 plugins created and follow OpenCode plugin structure",
+        "Plugins read `.claude/ralph-state.json` and handle missing files gracefully",
+        "State enforcement blocks Write/Edit unless in valid state",
+        "Auto-PR creates draft PRs after `start_ticket_work`",
+        "Commit tracking outputs MCP commands after commits",
+        "Review marker creates `.claude/.review-completed` after review completes",
+        "Review guard blocks push unless review marker exists and is fresh",
+        "AGENTS.md created with all required sections",
+        "Setup script installs plugins and configures MCP",
+        "`scripts/install.sh` modified to detect and setup OpenCode",
+        "All plugins handle errors gracefully (fail open, don't break workflow)",
+        "Telemetry integration unchanged (plugins don't interfere with telemetry)",
+        "Tested in actual OpenCode environment"
       ],
       "references": [
-        "Overview: Ticket 1 (TypeScript Migration Overview)",
-        "Test files: Various `*.test.ts` files",
-        "Type checking: `pnpm type-check`",
-        "All MCP tools: 55+ tools across 16 files",
-        "---",
-        "**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-        "lib/git-utils.test.ts",
-        "lib/secrets.test.ts"
-      ],
-      "description": "## Overview\n\nComprehensive end-to-end testing of the fully migrated TypeScript MCP server. Verify all functionality works identically to the original JavaScript version.\n\n## Test Scenarios\n\n### 1. Type Checking & Compilation\n\n```bash\npnpm type-check  # Must pass with 0 errors\n```\n\n**Acceptance:**\n- [ ] `pnpm type-check` passes with 0 errors\n- [ ] No TypeScript warnings\n- [ ] All 32 files converted successfully\n\n### 2. Unit Tests\n\n```bash\npnpm test  # All 8 test files must pass\n```\n\n**Test files:**\n- `__tests__/cross-environment.test.ts`\n- `lib/git-utils.test.ts`\n- `lib/secrets.test.ts`\n- `tools/__tests__/status-transitions.test.ts`\n- `tools/__tests__/workflow-e2e.test.ts`\n- `tools/conversations.test.ts`\n- `tools/preconditions.test.ts`\n- `tools/workflow.test.ts`\n\n**Acceptance:**\n- [ ] All 8 tests pass\n- [ ] No test failures or errors\n- [ ] Test coverage unchanged\n\n### 3. Server Startup\n\n```bash\ntsx index.ts  # Server must start without errors\n```\n\n**Verification:**\n- [ ] Server starts successfully\n- [ ] No console errors on startup\n- [ ] No console warnings\n- [ ] Lock file acquired properly\n- [ ] Database initialized correctly\n- [ ] Daily backup triggered\n- [ ] Server ready to receive MCP calls\n\n### 4. MCP Tool Testing via Claude Code (55+ tools)\n\nTest all tools in each category:\n\n**Projects (4 tools):**\n- [ ] list_projects - Returns all projects\n- [ ] create_project - Creates new project\n- [ ] find_project_by_path - Finds project by path\n- [ ] update_project - Updates project\n\n**Tickets (9 tools):**\n- [ ] create_ticket - Creates new ticket\n- [ ] update_ticket - Updates ticket status/priority\n- [ ] list_tickets - Returns all tickets\n- [ ] get_ticket - Retrieves single ticket\n- [ ] delete_ticket - Deletes ticket\n- [ ] search_tickets - Searches by keyword\n- [ ] list_tickets_by_status - Filters by status\n- [ ] add_tags_to_ticket - Adds tags\n- [ ] remove_tags_from_ticket - Removes tags\n\n**Epics (5 tools):**\n- [ ] create_epic - Creates epic\n- [ ] list_epics - Lists all epics\n- [ ] update_epic - Updates epic\n- [ ] delete_epic - Deletes epic\n- [ ] list_tickets_by_epic - Lists tickets in epic\n\n**Comments (2 tools):**\n- [ ] add_ticket_comment - Adds comment\n- [ ] list_ticket_comments - Lists comments\n\n**Workflow (6 tools):**\n- [ ] start_ticket_work - Starts ticket work\n- [ ] complete_ticket_work - Completes work\n- [ ] update_session_state - Updates state\n- [ ] create_ralph_session - Creates session\n- [ ] complete_ralph_session - Ends session\n- [ ] update_ticket_status - Updates status\n\n**Git (3 tools):**\n- [ ] create_branch - Creates git branch\n- [ ] link_commit_to_ticket - Links commit\n- [ ] link_pr_to_ticket - Links PR\n\n**Files (3 tools):**\n- [ ] attach_file_to_ticket - Attaches file\n- [ ] list_ticket_attachments - Lists attachments\n- [ ] read_ticket_attachment - Reads attachment\n\n**Health (1 tool):**\n- [ ] check_database_health - Returns health report\n\n**Events (2 tools):**\n- [ ] record_event - Records event\n- [ ] list_session_events - Lists events\n\n**Sessions (3 tools):**\n- [ ] create_session - Creates session\n- [ ] end_session - Ends session\n- [ ] list_sessions - Lists sessions\n\n**Conversations (6 tools):**\n- [ ] start_conversation_session - Starts session\n- [ ] log_conversation_message - Logs message\n- [ ] end_conversation_session - Ends session\n- [ ] list_conversation_sessions - Lists sessions\n- [ ] export_compliance_logs - Exports logs\n- [ ] archive_old_sessions - Archives sessions\n\n**Telemetry (4 tools):**\n- [ ] start_telemetry_session - Starts session\n- [ ] log_telemetry_event - Logs event\n- [ ] end_telemetry_session - Ends session\n- [ ] flush_telemetry_queue - Flushes queue\n\n**Claude Tasks (3 tools):**\n- [ ] record_claude_task - Records task\n- [ ] list_claude_tasks - Lists tasks\n- [ ] get_claude_task - Gets task\n\n**Review (3 tools):**\n- [ ] submit_review_finding - Submits finding\n- [ ] list_review_findings - Lists findings\n- [ ] resolve_finding - Resolves finding\n\n**Demo (2 tools):**\n- [ ] generate_demo_script - Generates script\n- [ ] record_demo_feedback - Records feedback\n\n**Learnings (2 tools):**\n- [ ] extract_learnings - Extracts learnings\n- [ ] apply_learnings - Applies learnings\n\n### 5. Integration Workflow Test\n\nTest complete ticket workflow:\n\n```\n1. create_project - Create test project\n2. create_ticket - Create test ticket\n3. start_ticket_work - Start work on ticket\n4. update_session_state - Change state\n5. add_ticket_comment - Add work comment\n6. update_ticket - Update ticket\n7. complete_ticket_work - Complete work\n8. generate_demo_script - Generate demo\n9. record_demo_feedback - Record feedback\n10. list_tickets - Verify ticket updated\n```\n\n**Acceptance:**\n- [ ] Full workflow completes without errors\n- [ ] Each step returns expected data\n- [ ] Database state consistent throughout\n- [ ] All state transitions valid\n- [ ] All comments recorded properly\n- [ ] Final ticket status correct\n\n### 6. Database Operations\n\nVerify database still works correctly:\n\n```bash\n# In Node.js REPL or test\nimport { initDatabase } from \"./lib/database.ts\";\nconst { db } = initDatabase();\n\n// Test query\nconst projects = db.prepare(\"SELECT * FROM projects\").all();\nconsole.log(projects); // Should show projects\n```\n\n**Acceptance:**\n- [ ] Database initializes without errors\n- [ ] Migrations run successfully\n- [ ] Queries return correct types\n- [ ] WAL mode enabled\n- [ ] Integrity checks pass\n- [ ] Backups work\n- [ ] VACUUM works\n- [ ] FTS searches work\n\n### 7. Git Integration\n\nTest git operations:\n\n```bash\n# In Claude Code\ngit status\n# Should show clean or feature branch\n```\n\n**Acceptance:**\n- [ ] Branch creation works\n- [ ] Commit linking works\n- [ ] PR linking works\n- [ ] No git errors\n\n### 8. Telemetry & Hooks\n\nVerify telemetry capture works:\n\n**Acceptance:**\n- [ ] Telemetry events capture\n- [ ] Sessions track properly\n- [ ] Conversation logging works\n- [ ] No telemetry errors\n- [ ] State enforcement works (if in Ralph mode)\n- [ ] Hooks function correctly\n\n### 9. Performance Check\n\nVerify TypeScript version performs similarly to JavaScript:\n\n**Test:**\n```bash\n# Time tool startup\ntime tsx index.ts &\nsleep 2\nkill %1\n\n# Compare with original if needed\n```\n\n**Acceptance:**\n- [ ] Server startup time acceptable (<5 seconds)\n- [ ] No obvious performance degradation\n- [ ] Memory usage reasonable\n- [ ] CPU usage reasonable during operations\n\n### 10. Cross-Environment Testing\n\nTest in multiple environments if possible:\n\n**Acceptance:**\n- [ ] Works in Claude Code ✅\n- [ ] Works in VS Code + MCP (if available)\n- [ ] Works in Cursor (if available)\n- [ ] Works in OpenCode (if available)\n\n## Acceptance Criteria (Overall)\n\n- [ ] All type checking passes\n- [ ] All 8 unit tests pass\n- [ ] Server starts without errors\n- [ ] All 55+ MCP tools work correctly\n- [ ] Full integration workflow completes\n- [ ] Database operations all functional\n- [ ] Git integration works\n- [ ] Telemetry captures correctly\n- [ ] Performance acceptable\n- [ ] No regressions identified\n- [ ] All tests pass on CI/CD if applicable\n\n## Test Report Template\n\nAfter completing all tests, create a summary:\n\n```\n# TypeScript Migration - E2E Test Report\n\n## Summary\n✅ All tests passed\n✅ No regressions detected\n✅ All 55+ MCP tools verified\n\n## Test Results\n- Type checking: PASS\n- Unit tests (8): PASS\n- Server startup: PASS\n- MCP tools: 55+ PASS\n- Integration workflow: PASS\n- Database operations: PASS\n- Git integration: PASS\n- Telemetry: PASS\n- Performance: ACCEPTABLE\n- Cross-environment: PASS\n\n## Issues Found\n[None] or [List of minor issues if any]\n\n## Conclusion\nReady for production merge. All functionality verified.\n```\n\n## References\n\n- Overview: Ticket 1 (TypeScript Migration Overview)\n- Test files: Various `*.test.ts` files\n- Type checking: `pnpm type-check`\n- All MCP tools: 55+ tools across 16 files\n\n---\n\n**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-      "priority": "high",
-      "tags": [
-        "testing",
-        "verification",
-        "qa"
-      ]
-    },
-    {
-      "id": "266608d6-1469-4b87-9e64-0d884507e364",
-      "title": "Create PR and Merge TypeScript Migration",
-      "passes": false,
-      "overview": "Create a comprehensive pull request for the entire TypeScript migration and prepare for merge to main branch. This is the final ticket that brings all migration work together.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [
-        {
-          "step": 1,
-          "description": "Final Verification Before PR",
-          "files": [],
-          "codeTemplate": "# Run complete test suite\npnpm type-check        # Must pass with 0 errors\npnpm lint              # Must pass\npnpm test              # All 8 tests must pass\n\n# Verify server starts\ntsx mcp-server/index.ts &\n# Wait 2 seconds, then kill\n\n# Check git status\ngit status\n# Should show all 32 files converted"
-        },
-        {
-          "step": 2,
-          "description": "Create Comprehensive PR Description",
-          "files": [],
-          "codeTemplate": "feat: TypeScript Migration for MCP Server"
-        },
-        {
-          "step": 2,
-          "description": "Create Comprehensive PR Description",
-          "files": [],
-          "codeTemplate": "feat: TypeScript Migration for MCP Server"
-        }
-      ],
-      "acceptanceCriteria": [
-        "`pnpm type-check` passes with 0 errors",
-        "`pnpm lint` passes",
-        "`pnpm test` passes",
-        "Server starts successfully",
-        "All 32 files are .ts (no .js remaining)",
-        "Git status clean or only expected changes",
-        "All files converted from JavaScript to TypeScript",
-        "All type annotations added",
-        "All 8 tests pass",
-        "`pnpm type-check` passes with 0 errors",
-        "Type checking runs in CI/CD",
-        "Documentation updated",
-        "MCP client configs documented",
-        "No regressions identified",
-        "All 55+ MCP tools verified",
-        "Full integration workflow tested",
-        "Performance acceptable",
-        "Ready for production",
-        "Feature branch exists locally",
-        "Feature branch pushed to remote",
-        "All commits on feature branch",
-        "PR created successfully",
-        "PR title is clear",
-        "PR description is comprehensive",
-        "PR points to main branch",
-        "All commits included in PR",
-        "PR approved by reviewer",
-        "All CI checks pass",
-        "PR merged to main",
-        "Feature branch deleted",
-        "Main branch has all migration commits",
-        "All files on main are TypeScript",
-        "Type checking passes",
-        "Tests pass",
-        "Server starts successfully",
-        "PR created with comprehensive description",
-        "All 32 files converted documented in PR",
-        "Statistics and metrics included",
-        "Testing results documented",
-        "Breaking changes noted (none expected)",
-        "Deployment notes provided",
-        "PR reviewed (if required)",
-        "All CI checks pass",
-        "PR merged to main",
-        "Feature branch deleted",
-        "Main branch verified",
-        "Post-merge verification complete"
-      ],
-      "references": [
-        "PR template: See implementation guide",
-        "All migration tickets: Tickets 2-12",
-        "Type definitions: `types.ts`",
-        "Documentation: CLAUDE.md, README.md, mcp-server/README.md",
-        "---",
-        "**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
-        "lib/*.ts",
         "mcp-server/index.ts",
-        "mcp-server/types.ts",
-        "mcp-server/tsconfig.json"
+        "src/lib/schema.ts"
       ],
-      "description": "## Overview\n\nCreate a comprehensive pull request for the entire TypeScript migration and prepare for merge to main branch. This is the final ticket that brings all migration work together.\n\n## Pre-PR Verification\n\nBefore creating PR, verify:\n\n```bash\n# Ensure all previous tickets complete\n✅ Ticket 2: Setup TypeScript Configuration\n✅ Ticket 3: Convert Core Lib Files (Part 1)\n✅ Ticket 4: Convert Database & Related Lib (Part 2)\n✅ Ticket 5: Convert Utility Lib Files (Part 3)\n✅ Ticket 6: Convert Core MCP Tools (Part 1)\n✅ Ticket 7: Convert Workflow & Git Tools (Part 2)\n✅ Ticket 8: Convert Advanced MCP Tools (Part 3)\n✅ Ticket 9: Convert Specialized Tools (Part 4)\n✅ Ticket 10: Convert Entry Point and Tests\n✅ Ticket 11: Update Documentation and Configuration\n✅ Ticket 12: End-to-End Testing and Verification\n```\n\n## Implementation Guide\n\n### Step 1: Final Verification Before PR\n\n```bash\n# Run complete test suite\npnpm type-check        # Must pass with 0 errors\npnpm lint              # Must pass\npnpm test              # All 8 tests must pass\n\n# Verify server starts\ntsx mcp-server/index.ts &\n# Wait 2 seconds, then kill\n\n# Check git status\ngit status\n# Should show all 32 files converted\n```\n\n**Acceptance:**\n- [ ] `pnpm type-check` passes with 0 errors\n- [ ] `pnpm lint` passes\n- [ ] `pnpm test` passes\n- [ ] Server starts successfully\n- [ ] All 32 files are .ts (no .js remaining)\n- [ ] Git status clean or only expected changes\n\n### Step 2: Create Comprehensive PR Description\n\n**Title:**\n```\nfeat: TypeScript Migration for MCP Server\n```\n\n**Body Template:**\n\n```markdown\n## 🎯 Summary\n\nComplete TypeScript migration of the Brain Dump MCP server from JavaScript, enabling full type safety across 32 files (~10,100 lines) while maintaining 100% backward compatibility.\n\n## ✨ Changes\n\n### Files Migrated\n- ✅ 15 lib files: `lib/*.ts` (database, logging, utilities, etc.)\n- ✅ 16 tool files: `tools/*.ts` (55+ MCP tools)\n- ✅ 1 entry point: `index.ts` (server orchestration)\n- ✅ Shared types: `types.ts` (50+ type definitions)\n- ✅ TypeScript config: `tsconfig.json`\n\n### Migration Statistics\n- **Total files converted**: 32\n- **Total lines migrated**: ~10,100\n- **MCP tools tested**: 55+\n- **Type definitions added**: 50+\n- **Test files updated**: 8\n- **Breaking changes**: 0\n\n### Key Improvements\n- Full type safety with strict mode enabled\n- Better IDE support and autocomplete throughout codebase\n- Catch bugs at compile time rather than runtime\n- Align MCP server with rest of Brain Dump (already TypeScript)\n- Improved developer experience for future maintainers\n\n## 📋 What Was Changed\n\n### Lib Files Converted (15 total)\n- Core: xdg.ts, logging.ts, lock.ts, git-utils.ts, secrets.ts\n- Database: environment.ts, database.ts, backup.ts\n- Utilities: attachment-types.ts, attachment-loader.ts, comment-utils.ts, conversation-session.ts, ticket-context-builder.ts, prd-utils.ts, telemetry-self-log.ts\n\n### Tool Files Converted (16 total)\n- Projects: projects.ts (4 tools)\n- Tickets: tickets.ts (9 tools)\n- Epics: epics.ts (5 tools)\n- Comments: comments.ts (2 tools)\n- Workflow: workflow.ts (6 tools) - 971 lines, most complex file\n- Git: git.ts (3 tools)\n- Files: files.ts (3 tools)\n- Health: health.ts (1 tool)\n- Events: events.ts (2 tools)\n- Sessions: sessions.ts (3 tools)\n- Conversations: conversations.ts (6 tools)\n- Telemetry: telemetry.ts (4 tools)\n- Claude Tasks: claude-tasks.ts (3 tools)\n- Review Findings: review-findings.ts (3 tools)\n- Demo: demo.ts (2 tools)\n- Learnings: learnings.ts (2 tools)\n\n### Entry Point\n- index.js → index.ts with proper TypeScript types throughout\n\n### Documentation Updates\n- Updated CLAUDE.md with TypeScript/MCP server info\n- Updated README.md\n- Created mcp-server/README.md with comprehensive developer guide\n- Updated MCP client configurations (Claude Code, VS Code, Cursor, OpenCode)\n\n## 🧪 Testing\n\n### Type Safety\n- ✅ `pnpm type-check` passes with 0 errors\n- ✅ All TypeScript strict mode checks pass\n- ✅ No implicit any types\n\n### Unit Tests\n- ✅ All 8 existing test files pass\n  - lib/git-utils.test.ts\n  - lib/secrets.test.ts\n  - __tests__/cross-environment.test.ts\n  - tools/__tests__/status-transitions.test.ts\n  - tools/__tests__/workflow-e2e.test.ts\n  - tools/conversations.test.ts\n  - tools/preconditions.test.ts\n  - tools/workflow.test.ts\n\n### Integration Testing\n- ✅ Server starts successfully with `tsx index.ts`\n- ✅ All 55+ MCP tools work correctly via Claude Code\n- ✅ Full ticket workflow tested (create → start → complete → review → demo → done)\n- ✅ Database operations functional\n- ✅ Git integration working\n- ✅ Telemetry capturing events correctly\n\n### Performance\n- ✅ Server startup time acceptable\n- ✅ No performance degradation\n- ✅ Memory usage reasonable\n\n## 🔄 Backward Compatibility\n\n- ✅ 100% backward compatible - no API changes\n- ✅ All MCP tool signatures identical\n- ✅ All database operations unchanged\n- ✅ All git integration working identically\n- ✅ All workflow state management identical\n\n## 🚀 Deployment Notes\n\n- **Entry point**: Still at `mcp-server/index.ts` (now TypeScript)\n- **Run command**: `tsx index.ts` (or via npm script: `pnpm start`)\n- **Type checking**: `pnpm type-check` now includes MCP server\n- **MCP client config**: Update to point to `index.ts` (if using `.js` path before)\n\n## 📚 References\n\n- Migration plan: See overview ticket for complete technical details\n- Type definitions: `mcp-server/types.ts`\n- Server config: `mcp-server/tsconfig.json`\n- MCP SDK: v1.0.0 (already TypeScript-ready)\n\n## ✅ Checklist\n\n- [x] All files converted from JavaScript to TypeScript\n- [x] All type annotations added\n- [x] All 8 tests pass\n- [x] `pnpm type-check` passes with 0 errors\n- [x] Type checking runs in CI/CD\n- [x] Documentation updated\n- [x] MCP client configs documented\n- [x] No regressions identified\n- [x] All 55+ MCP tools verified\n- [x] Full integration workflow tested\n- [x] Performance acceptable\n- [x] Ready for production\n\n---\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n```\n\n### Step 3: Create Feature Branch and Push\n\n```bash\n# Create feature branch (if not already created)\ngit checkout -b feat/mcp-typescript-migration\n\n# Verify branch\ngit branch -v\n\n# Push to remote\ngit push -u origin feat/mcp-typescript-migration\n```\n\n**Acceptance:**\n- [ ] Feature branch exists locally\n- [ ] Feature branch pushed to remote\n- [ ] All commits on feature branch\n\n### Step 4: Create PR via GitHub\n\n```bash\n# Create PR with comprehensive body\ngh pr create \\\n  --title \"feat: TypeScript Migration for MCP Server\" \\\n  --body \"$(cat pr-description.md)\" \\\n  --base main \\\n  --head feat/mcp-typescript-migration\n```\n\n**Or via web interface:**\n\n1. Go to: https://github.com/[owner]/brain-dump\n2. Click \"New Pull Request\"\n3. Base: `main`, Compare: `feat/mcp-typescript-migration`\n4. Add title and comprehensive description\n5. Submit PR\n\n**Acceptance:**\n- [ ] PR created successfully\n- [ ] PR title is clear\n- [ ] PR description is comprehensive\n- [ ] PR points to main branch\n- [ ] All commits included in PR\n\n### Step 5: Address PR Feedback (if any)\n\nIf reviewers request changes:\n\n```bash\n# Make fixes on feature branch\ngit add .\ngit commit -m \"fix: Address PR feedback - [specific fix description]\"\ngit push origin feat/mcp-typescript-migration\n```\n\n- PR automatically updates with new commits\n\n### Step 6: Merge to Main\n\nAfter PR approval:\n\n```bash\n# Merge via GitHub UI (recommended)\n# Or via CLI:\ngh pr merge feat/mcp-typescript-migration \\\n  --merge \\\n  --delete-branch\n```\n\n**Acceptance:**\n- [ ] PR approved by reviewer\n- [ ] All CI checks pass\n- [ ] PR merged to main\n- [ ] Feature branch deleted\n- [ ] Main branch has all migration commits\n\n### Step 7: Update Remote MCP Configurations\n\nAfter merge, update MCP client configurations to point to main:\n\n```bash\n# Users should update their settings\n# ~/.claude/settings.json (Claude Code)\n# .vscode/settings.json (VS Code)\n# etc.\n```\n\nDocument in release notes or commit message.\n\n### Step 8: Verify Merged Code\n\nAfter merge, verify on main:\n\n```bash\n# Switch to main\ngit checkout main\ngit pull origin main\n\n# Verify migration is complete\nls -la mcp-server/ | grep -E \"\\\\.ts$\"  # Should show all .ts files\nls -la mcp-server/ | grep -E \"\\\\.js$\"  # Should be empty (except package.json)\n\n# Final verification\npnpm type-check\npnpm test\n```\n\n**Acceptance:**\n- [ ] All files on main are TypeScript\n- [ ] Type checking passes\n- [ ] Tests pass\n- [ ] Server starts successfully\n\n## Acceptance Criteria\n\n- [ ] PR created with comprehensive description\n- [ ] All 32 files converted documented in PR\n- [ ] Statistics and metrics included\n- [ ] Testing results documented\n- [ ] Breaking changes noted (none expected)\n- [ ] Deployment notes provided\n- [ ] PR reviewed (if required)\n- [ ] All CI checks pass\n- [ ] PR merged to main\n- [ ] Feature branch deleted\n- [ ] Main branch verified\n- [ ] Post-merge verification complete\n\n## References\n\n- PR template: See implementation guide\n- All migration tickets: Tickets 2-12\n- Type definitions: `types.ts`\n- Documentation: CLAUDE.md, README.md, mcp-server/README.md\n\n---\n\n**All work will be done on a single feature branch `feat/mcp-typescript-migration`. This ticket is part of the TypeScript Migration for MCP Server epic.**",
+      "description": "## Overview\n\nThis is the reference ticket containing the **COMPLETE** OpenCode Universal Quality Workflow implementation plan. This plan implements the UQW for OpenCode, ensuring it follows the same state-enforced workflow as Claude Code while leveraging OpenCode's plugin system and the existing MCP server infrastructure.\n\n**Key Insight**: The MCP server already handles ALL workflow logic (state transitions, validation, telemetry). OpenCode plugins only need to:\n1. **Enforce** state transitions (block Write/Edit unless in correct state)\n2. **Automate** PR workflows (auto-create PRs, track commits)\n3. **Guard** quality gates (block push until review complete)\n4. **Guide** the AI (via AGENTS.md rules)\n\n## Current State\n\n### What Already Exists ✅\n- **MCP Server**: Fully functional with all UQW tools (`start_ticket_work`, `complete_ticket_work`, `submit_review_finding`, `check_review_complete`, `generate_demo_script`, `submit_demo_feedback`, `reconcile_learnings`)\n- **Telemetry Plugin**: `.opencode/plugins/brain-dump-telemetry.ts` - comprehensive session and tool tracking\n- **State File**: `.claude/ralph-state.json` written by MCP server (shared across all environments)\n- **Database Schema**: `ticket_workflow_state`, `ralph_sessions`, `telemetry_sessions` tables\n- **Claude Code Hooks**: Reference implementation at `.claude/hooks/` for all enforcement patterns\n\n### What Needs Implementation 🚧\n- **5 Enforcement/Automation Plugins**: State enforcement, auto-PR, commit tracking, review marker, review guard\n- **AGENTS.md Guidance**: Comprehensive workflow documentation for OpenCode AI\n- **Setup Script**: Installation script for plugins and MCP config\n- **Integration**: Modify `scripts/install.sh` to detect and setup OpenCode\n\n## Critical Files to Create\n\n1. `.opencode/plugins/brain-dump-state-enforcement.ts` - Block Write/Edit unless in `implementing`/`testing`/`committing` state\n2. `.opencode/plugins/brain-dump-auto-pr.ts` - Auto-create draft PRs after `start_ticket_work`\n3. `.opencode/plugins/brain-dump-commit-tracking.ts` - Output MCP link commands after git commits\n4. `.opencode/plugins/brain-dump-review-marker.ts` - Auto-create `.claude/.review-completed` marker\n5. `.opencode/plugins/brain-dump-review-guard.ts` - Block push until code review complete\n6. `.opencode/AGENTS.md` - Comprehensive UQW workflow guidance\n7. `scripts/setup-opencode.sh` - Installation and configuration\n8. `scripts/install.sh` - Modify to include OpenCode detection\n\n## AI Review Workflow (Critical Phase)\n\nThe UQW includes a **mandatory AI review phase** between implementation and human review. The MCP server already implements all the logic.\n\n### Complete Flow: Implementation → AI Review → Human Review\n\n```\n1. complete_ticket_work(ticketId, summary)\n   ├─> Validates: pnpm type-check && pnpm lint && pnpm test\n   ├─> Updates ticket status: in_progress → ai_review\n   ├─> Increments review_iteration\n   └─> Creates/updates ticket_workflow_state\n\n2. Run 3 Review Agents (in parallel)\n   ├─> @code-reviewer (code quality, project guidelines)\n   ├─> @silent-failure-hunter (error handling, silent failures)\n   └─> @code-simplifier (code clarity, unnecessary complexity)\n\n3. For each issue found:\n   submit_review_finding({\n     ticketId,\n     agent: \"code-reviewer\" | \"silent-failure-hunter\" | \"code-simplifier\",\n     severity: \"critical\" | \"major\" | \"minor\" | \"suggestion\",\n     category: \"type-safety\" | \"error-handling\" | \"performance\" | ...,\n     description: \"Detailed issue description\",\n     filePath: \"src/api/tickets.ts\",\n     lineNumber: 42,\n     suggestedFix: \"How to fix this issue\"\n   })\n   └─> MCP validates: ticket must be in ai_review status\n   └─> Increments findings_count\n   └─> Stores finding in review_findings table\n\n4. Add findings summary to ticket:\n   add_ticket_comment({\n     ticketId,\n     content: \"## AI Review (Iteration 1)\\\\n\\\\nFound 3 issues:\\\\n- 1 critical\\\\n- 2 major\\\\n...\",\n     author: \"ralph\",\n     type: \"work_summary\"\n   })\n\n5. Fix all critical/major findings:\n   For each finding:\n     ├─> Write/Edit code to fix\n     ├─> Run tests to verify\n     └─> mark_finding_fixed({\n           findingId,\n           status: \"fixed\",\n           fixDescription: \"...\"\n         })\n\n6. Verify all critical/major findings resolved:\n   check_review_complete({ ticketId })\n   └─> Returns: { complete: true/false, openCritical: 0, openMajor: 0 }\n   └─> If NOT complete → Cannot proceed to demo\n   └─> If complete → Can generate demo script\n\n7. Generate demo script (only if review complete):\n   generate_demo_script({\n     ticketId,\n     steps: [\n       { order: 1, description: \"Open app\", expectedOutcome: \"...\", type: \"manual\" },\n       ...\n     ]\n   })\n   └─> MPC validates: all critical/major findings fixed\n   └─> Updates ticket status: ai_review → human_review\n\n8. Human reviewer runs demo steps:\n   └─> Manual testing via Brain Dump UI\n   └─> Provides feedback via submit_demo_feedback\n\n9. Demo feedback determines final status:\n   submit_demo_feedback({\n     ticketId,\n     passed: true/false,\n     feedback: \"All tests passed\" | \"Issue found: ...\",\n     stepResults: [...]\n   })\n   └─> If passed: ticket → done\n   └─> If failed: ticket stays in human_review\n```\n\n## Plugin Implementation Details\n\n### Step 1: State Enforcement Plugin (`.opencode/plugins/brain-dump-state-enforcement.ts`)\n- **Purpose**: Block Write/Edit unless Ralph session is in `implementing`/`testing`/`committing` state\n- **Hook**: `tool.execute.before` (triggers before Write/Edit tools)\n- **Valid States**: `[\"implementing\", \"testing\", \"committing\"]`\n- **Error Format**: `STATE ENFORCEMENT: You are in '{state}' state but tried to write/edit code.`\n- **Logic**: Read `.claude/ralph-state.json`, check currentState, throw Error if invalid, allow if not in Ralph mode (fail open)\n\n### Step 2: Auto-PR Plugin (`.opencode/plugins/brain-dump-auto-pr.ts`)\n- **Purpose**: Auto-create draft GitHub PR when `start_ticket_work` completes\n- **Hook**: `tool.execute.after` on `mcp__brain-dump__start_ticket_work`\n- **Workflow**: Parse output → Create empty WIP commit → Push branch → Create draft PR → Output PR URL\n- **Communication**: Via `console.log()` (visible in OpenCode chat)\n- **Graceful Failure**: Doesn't block workflow if git/gh fails\n\n### Step 3: Commit Tracking Plugin (`.opencode/plugins/brain-dump-commit-tracking.ts`)\n- **Purpose**: Output MCP commands to link commits to tickets after each git commit\n- **Hook**: `tool.execute.after` on Bash tool (when command contains `git commit`)\n- **Workflow**: Get latest commit hash/message → Read ticketId from state → Output suggested MCP commands\n- **Output**: Suggests both `link_commit_to_ticket()` and `link_pr_to_ticket()` (if PR exists)\n- **Graceful**: Fails silently if not in Ralph mode or git fails\n\n### Step 4: Review Marker Plugin (`.opencode/plugins/brain-dump-review-marker.ts`)\n- **Purpose**: Auto-create `.claude/.review-completed` marker after AI review completes\n- **Hook**: `tool.execute.after` on `mcp__brain-dump__check_review_complete`\n- **Logic**: Parse output → Check if `complete: true` or `canProceedToHumanReview: true` → Create marker file with timestamp\n- **File**: `.claude/.review-completed` (contains ISO timestamp)\n- **Used By**: Review guard plugin checks for this marker before allowing push\n\n### Step 5: Review Guard Plugin (`.opencode/plugins/brain-dump-review-guard.ts`)\n- **Purpose**: Block git push/gh pr create until code review is complete\n- **Hook**: `tool.execute.before` on Bash tool (when command contains `git push` or `gh pr create`)\n- **Validation**: Get uncommitted source changes → Check for marker → Verify freshness (< 30 min old)\n- **Error Message**: Guides user to run review agents or call `/review` command\n- **Graceful**: Allows push if no source code changes (nothing to review)\n\n## OpenCode vs Claude Code Differences\n\n| Aspect | Claude Code | OpenCode |\n|--------|-------------|----------|\n| Hook Type | Shell scripts in `.claude/hooks/` | TypeScript plugins in `.opencode/plugins/` |\n| Blocking Mechanism | Hook decision object `{\"decision\": \"block\"}` | `throw new Error()` |\n| Feedback to AI | Injected into chat context | `console.log()` visible in chat |\n| State File | `.claude/ralph-state.json` (same) | `.claude/ralph-state.json` (same) |\n| Correlation IDs | Text files (`.claude/tool-correlation-*.txt`) | In-memory Map |\n| Environment Var | `CLAUDE_CODE=1` | `OPENCODE=1` |\n| AI Guidance | Hooks provide interactive feedback | AGENTS.md critical for proactive guidance |\n| Interactivity | User sees blocking error inline, can fix and retry | AI must read error, understand, and fix |\n\n**Key Implication**: OpenCode plugins provide less interactive feedback. Therefore, **AGENTS.md guidance is CRITICAL**.\n\n## Setup Script Integration\n\n**Script**: `scripts/setup-opencode.sh`\n- Detects OpenCode installation\n- Determines plugin directory (`.opencode/plugins` or `~/.config/opencode/plugins`)\n- Copies all 5 plugin files\n- Creates/verifies `.opencode/opencode.json` with MCP config\n- Creates/verifies `.opencode/AGENTS.md` with workflow guidance\n- Outputs verification instructions\n\n**Integration into `scripts/install.sh`**:\n```bash\nif command -v opencode &> /dev/null; then\n  echo \\\"📦 Detected: OpenCode\\\"\n  ./scripts/setup-opencode.sh\nfi\n```\n\n**MCP Config Template** (in `.opencode/opencode.json`):\n```json\n{\n  \\\"$schema\\\": \\\"https://opencode.ai/config.json\\\",\n  \\\"mcp\\\": {\n    \\\"brain-dump\\\": {\n      \\\"type\\\": \\\"local\\\",\n      \\\"command\\\": [\\\"npx\\\", \\\"tsx\\\", \\\"mcp-server/index.ts\\\"],\n      \\\"enabled\\\": true,\n      \\\"environment\\\": {\n        \\\"OPENCODE\\\": \\\"1\\\"\n      }\n    }\n  },\n  \\\"tools\\\": {\n    \\\"mcp__brain-dump__*\\\": true\n  }\n}\n```\n\n## AGENTS.md Content Structure\n\nThe `.opencode/AGENTS.md` document should include:\n\n1. **Ralph Session Overview** - What is a Ralph session, when it starts, why it matters\n2. **State Machine Diagram** - All 7 states and valid transitions\n3. **State Enforcement Rules** - Why Write/Edit only allowed in certain states\n4. **Workflow Entry Point** - Always start with `start_ticket_work()`\n5. **Common Errors & Fixes**:\n   - \\\"STATE ENFORCEMENT: You are in 'analyzing' state\\\" → Call `update_session_state`\n   - \\\"CODE REVIEW REQUIRED before push\\\" → Run review agents\n   - \\\"Cannot generate demo - unresolved findings\\\" → Fix critical/major findings\n6. **AI Review Workflow** - Complete workflow with MCP commands\n7. **Self-Review Checklist** - Error handling, type safety, edge cases, tests, performance\n8. **Troubleshooting** - Unclear errors, plugins not loading, missing state file\n\n## Verification Checklist (for Implementation)\n\n- [ ] All 5 plugins created and follow OpenCode plugin structure\n- [ ] Plugins read `.claude/ralph-state.json` and handle missing files gracefully\n- [ ] State enforcement blocks Write/Edit unless in valid state\n- [ ] Auto-PR creates draft PRs after `start_ticket_work`\n- [ ] Commit tracking outputs MCP commands after commits\n- [ ] Review marker creates `.claude/.review-completed` after review completes\n- [ ] Review guard blocks push unless review marker exists and is fresh\n- [ ] AGENTS.md created with all required sections\n- [ ] Setup script installs plugins and configures MCP\n- [ ] `scripts/install.sh` modified to detect and setup OpenCode\n- [ ] All plugins handle errors gracefully (fail open, don't break workflow)\n- [ ] Telemetry integration unchanged (plugins don't interfere with telemetry)\n- [ ] Tested in actual OpenCode environment\n\n## Success Criteria\n\n✅ OpenCode enforces same UQW state transitions as Claude Code\n✅ All 5 plugins integrate seamlessly with existing MCP server\n✅ Telemetry captures all tool usage and prompts\n✅ Auto-PR workflow creates draft PRs when work starts\n✅ Commit tracking helps maintain audit trail\n✅ Review guard prevents pushing unreviewed code\n✅ AGENTS.md provides clear guidance for common errors\n✅ Installation script detects OpenCode and configures automatically\n✅ Both Claude Code and OpenCode share same state file and workflow\n\n## Epic Structure\n\n**Epic**: \\\"OpenCode Universal Quality Workflow\\\" (ID: `fe789e29-355f-4e2c-9764-e665d7c58d39`)\n\n**Branch**: `feature/epic-fe789e29-opencode-universal-quality-workflow`\n\n**Tickets** (8 total):\n1. Overview ticket (this one) - Reference document\n2. State enforcement plugin implementation\n3. Auto-PR plugin implementation\n4. Commit tracking plugin implementation\n5. Review marker plugin implementation\n6. Review guard plugin implementation\n7. AGENTS.md guidance documentation\n8. Setup script and installation integration\n9. (Optional) Documentation comparing Claude Code vs OpenCode differences\n\n## Key References\n\n- **Telemetry Plugin**: `.opencode/plugins/brain-dump-telemetry.ts` (reference for plugin structure)\n- **Claude Code Hooks**: `.claude/hooks/` (reference implementations to replicate)\n- **CLAUDE.md**: Universal Quality Workflow section (architecture and workflow details)\n- **MCP Server**: `mcp-server/index.ts` (all workflow logic already implemented)\n- **Database Schema**: `src/lib/schema.ts` (workflow state tables)\n\n## Additional INformation\nhave all code live in branch \"feature/64670dc9-implement-brain-dump-commit-tracking-ts-plugin\"",
       "priority": "high",
       "tags": [
-        "final",
-        "pr",
-        "merge"
+        "documentation",
+        "planning",
+        "opencode",
+        "reference"
       ]
     }
   ],
@@ -1407,7 +413,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-01-30T15:35:14.927Z",
-  "epicTitle": "TypeScript Migration for MCP Server",
-  "epicDescription": "Comprehensive migration of the Brain Dump MCP server from JavaScript to TypeScript across 32 files (~10,100 lines). This epic covers TypeScript setup, incremental lib/tool conversion, comprehensive testing, and documentation updates. All work will be done on a single feature branch `feat/mcp-typescript-migration` with one final PR to main.\n\n**Key Goals:**\n- Full type safety across ~10,000 lines of code\n- Better IDE support and autocomplete\n- Catch bugs at compile time\n- Align with rest of Brain Dump codebase (already TypeScript)\n\n**Scope:** 32 JavaScript files (16 tools, 16 lib, 1 index) → TypeScript\n**Branch Strategy:** Single feature branch, one PR\n**Testing:** All 55+ MCP tools verified, all 8 existing tests pass"
+  "generatedAt": "2026-02-01T08:18:34.927Z",
+  "epicTitle": "OpenCode Universal Quality Workflow",
+  "epicDescription": "Implement the Universal Quality Workflow for OpenCode, ensuring it follows the same state-enforced workflow as Claude Code. Leverages OpenCode's plugin system to replicate hook-based enforcement while reusing the existing MCP server infrastructure."
 }

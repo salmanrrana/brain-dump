@@ -148,34 +148,32 @@ export const getTicketContext = createServerFn({ method: "GET" })
     );
     contextParts.push("");
 
-    // MCP integration instructions
-    contextParts.push("## When Complete");
-    contextParts.push("When you finish this task:");
-    contextParts.push("1. Ensure all changes are committed to your feature branch");
-    contextParts.push("2. Push your branch and create a PR:");
-    contextParts.push("   ```bash");
-    contextParts.push("   git push -u origin <branch-name>");
+    // Mandatory workflow instructions
+    contextParts.push("## MANDATORY Workflow (MCP tools — NOT local alternatives)");
+    contextParts.push("");
     contextParts.push(
-      '   gh pr create --base dev --title "feat(' +
-        ticket.id +
-        '): <description>" --body "<PR description>"'
+      "You MUST invoke these Brain Dump MCP tools literally. Do NOT use local git commands,"
     );
-    contextParts.push("   ```");
-    contextParts.push("3. Update the ticket status using the Brain Dump MCP server:");
+    contextParts.push("local review skills, or text descriptions as substitutes.");
+    contextParts.push("");
+    contextParts.push("Steps (each is a LITERAL MCP tool invocation):");
     contextParts.push(
-      `   - Use \`complete_ticket_work\` with ticketId: "${ticket.id}" to move to ai_review`
+      `1. \`start_ticket_work({ ticketId: "${ticket.id}" })\` → creates branch, starts tracking`
     );
-    contextParts.push("   - Ticket will move to human_review after demo script is generated");
-    contextParts.push('   - Use "done" only after human approval');
-    contextParts.push("4. Add a work summary comment using `add_ticket_comment`:");
-    contextParts.push(`   - ticketId: "${ticket.id}"`);
-    contextParts.push('   - author: "claude"');
-    contextParts.push('   - type: "work_summary"');
+    contextParts.push("2. Write code → run `pnpm type-check && pnpm lint && pnpm test` → commit");
     contextParts.push(
-      "   - content: Summary of changes made, files modified, PR link, and any notes"
+      `3. \`complete_ticket_work({ ticketId: "${ticket.id}", summary: "..." })\` → moves to ai_review`
+    );
+    contextParts.push(
+      "4. Self-review → `submit_review_finding()` for each issue (NOT local /review skills) → fix → `check_review_complete()`"
+    );
+    contextParts.push(
+      `5. \`generate_demo_script({ ticketId: "${ticket.id}", steps: [...] })\` → then STOP`
     );
     contextParts.push("");
-    contextParts.push("The MCP server is already configured - just call the tools directly.");
+    contextParts.push(
+      "These are LITERAL tool calls. If you skip them, no record appears in Brain Dump."
+    );
     contextParts.push("");
 
     const context = contextParts.join("\n");
@@ -187,5 +185,34 @@ export const getTicketContext = createServerFn({ method: "GET" })
       ticketTitle: ticket.title,
       projectName: project.name,
       epicName: epic?.title ?? null,
+    };
+  });
+
+// Get context for epic work (mainly project path for workflow initialization)
+export const getEpicContext = createServerFn({ method: "GET" })
+  .inputValidator((epicId: string) => {
+    if (!epicId) {
+      throw new Error("Epic ID is required");
+    }
+    return epicId;
+  })
+  .handler(({ data: epicId }) => {
+    // Get the epic first
+    const epic = db.select().from(epics).where(eq(epics.id, epicId)).get();
+    if (!epic) {
+      throw new Error(`Epic not found: ${epicId}`);
+    }
+
+    // Get related project
+    const project = db.select().from(projects).where(eq(projects.id, epic.projectId)).get();
+    if (!project) {
+      throw new Error(`Project not found: ${epic.projectId}`);
+    }
+
+    return {
+      epicId: epic.id,
+      epicTitle: epic.title,
+      projectPath: project.path,
+      projectName: project.name,
     };
   });

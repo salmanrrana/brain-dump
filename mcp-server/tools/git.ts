@@ -318,7 +318,7 @@ Returns:
           content: [
             {
               type: "text" as const,
-              text: `Commit ${commitHash} is already linked to this ticket.\n\nLinked commits:\n${JSON.stringify(linkedCommits, null, 2)}`,
+              text: `Commit ${commitHash} is already linked to this ticket.\n\nLinked commits:\n${JSON.stringify(linkedCommits)}`,
             },
           ],
         };

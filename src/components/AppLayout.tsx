@@ -48,6 +48,8 @@ import {
 } from "../lib/hooks";
 import { deleteEpic as deleteEpicFn } from "../api/epics";
 import { useKeyboardShortcuts } from "../lib/keyboard-shortcuts";
+import { getEpicContext } from "../api/context";
+import { startEpicWorkflowFn } from "../api/workflow-server-fns";
 
 // App context for managing global state
 interface AppState {
@@ -509,14 +511,36 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   // Handler for launching Ralph for an epic from ProjectsPanel
   const handleLaunchRalphForEpic = useCallback(
-    (epicId: string) => {
-      launchRalphMutation.mutate({
-        epicId,
-        preferredTerminal: settings?.terminalEmulator ?? null,
-        useSandbox: settings?.ralphSandbox ?? false,
-        aiBackend: "claude",
-      });
-      closeProjectsPanel();
+    async (epicId: string) => {
+      try {
+        // Get epic context (including project path for workflow initialization)
+        const contextResult = await getEpicContext({ data: epicId });
+
+        // Initialize epic workflow first (git branch, workflow state)
+        const workflowResult = await startEpicWorkflowFn({
+          data: {
+            epicId,
+            projectPath: contextResult.projectPath,
+          },
+        });
+
+        if (!workflowResult.success) {
+          // Workflow init failed - don't launch Ralph
+          return;
+        }
+
+        // Launch Ralph with workflow initialized
+        launchRalphMutation.mutate({
+          epicId,
+          preferredTerminal: settings?.terminalEmulator ?? null,
+          useSandbox: settings?.ralphSandbox ?? false,
+          aiBackend: "claude",
+        });
+        closeProjectsPanel();
+      } catch {
+        // Error getting context or initializing workflow - don't launch
+        // Error would be shown to user via other means if needed
+      }
     },
     [launchRalphMutation, settings, closeProjectsPanel]
   );
@@ -970,14 +994,36 @@ function Sidebar({ onItemClick }: SidebarProps = {}) {
 
   // Handler for launching Ralph for an epic from sidebar
   const handleLaunchRalphForEpic = useCallback(
-    (epicId: string) => {
-      launchRalphMutation.mutate({
-        epicId,
-        preferredTerminal: settings?.terminalEmulator ?? null,
-        useSandbox: settings?.ralphSandbox ?? false,
-        aiBackend: "claude",
-      });
-      onItemClick?.();
+    async (epicId: string) => {
+      try {
+        // Get epic context (including project path for workflow initialization)
+        const contextResult = await getEpicContext({ data: epicId });
+
+        // Initialize epic workflow first (git branch, workflow state)
+        const workflowResult = await startEpicWorkflowFn({
+          data: {
+            epicId,
+            projectPath: contextResult.projectPath,
+          },
+        });
+
+        if (!workflowResult.success) {
+          // Workflow init failed - don't launch Ralph
+          return;
+        }
+
+        // Launch Ralph with workflow initialized
+        launchRalphMutation.mutate({
+          epicId,
+          preferredTerminal: settings?.terminalEmulator ?? null,
+          useSandbox: settings?.ralphSandbox ?? false,
+          aiBackend: "claude",
+        });
+        onItemClick?.();
+      } catch {
+        // Error getting context or initializing workflow - don't launch
+        // Error would be shown to user via other means if needed
+      }
     },
     [launchRalphMutation, settings, onItemClick]
   );

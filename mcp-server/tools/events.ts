@@ -119,7 +119,7 @@ Returns:
           content: [
             {
               type: "text",
-              text: `Event emitted successfully.\n\n${JSON.stringify(event, null, 2)}`,
+              text: `Event emitted successfully.\n\n${JSON.stringify(event)}`,
             },
           ],
         };
@@ -225,15 +225,11 @@ Returns:
           content: [
             {
               type: "text",
-              text: JSON.stringify(
-                {
-                  sessionId,
-                  eventCount: parsedEvents.length,
-                  events: parsedEvents,
-                },
-                null,
-                2
-              ),
+              text: JSON.stringify({
+                sessionId,
+                eventCount: parsedEvents.length,
+                events: parsedEvents,
+              }),
             },
           ],
         };

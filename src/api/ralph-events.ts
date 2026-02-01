@@ -33,7 +33,7 @@ export const getRalphEvents = createServerFn({ method: "GET" })
       }
 
       // Parse JSON data field
-      const parsedEvents = events.map((event) => ({
+      const parsedEvents = events.map((event: (typeof events)[0]) => ({
         id: event.id,
         sessionId: event.sessionId,
         type: event.type,

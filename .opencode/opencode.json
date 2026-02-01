@@ -1,19 +1,31 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "opencode/big-pickle",
   "mcp": {
     "brain-dump": {
       "type": "local",
-      "command": ["npx", "tsx", "mcp-server/index.ts"],
+      "command": ["npx", "tsx", "/Users/salman.rana/code/brain-dump/mcp-server/index.ts"],
       "enabled": true,
       "environment": {
-        "BRAIN_DUMP_PATH": ".",
+        "BRAIN_DUMP_PATH": "/Users/salman.rana/code/brain-dump",
         "OPENCODE": "1"
       }
     }
   },
   "tools": {
-    "brain-dump_*": true
+    "brain-dump_start_ticket_work": true,
+    "brain-dump_complete_ticket_work": true,
+    "brain-dump_submit_review_finding": true,
+    "brain-dump_mark_finding_fixed": true,
+    "brain-dump_check_review_complete": true,
+    "brain-dump_generate_demo_script": true,
+    "brain-dump_add_ticket_comment": true,
+    "brain-dump_create_ralph_session": true,
+    "brain-dump_update_session_state": true,
+    "brain-dump_complete_ralph_session": true,
+    "brain-dump_emit_ralph_event": true,
+    "brain-dump_list_tickets": true,
+    "brain-dump_list_projects": true,
+    "brain-dump_*": false
   },
   "permission": {
     "*": "allow"

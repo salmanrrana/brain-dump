@@ -190,7 +190,7 @@ describe("Claude Tasks API - Database Query Logic", () => {
     const tasks = db.select().from(claudeTasks).where(eq(claudeTasks.ticketId, testTicketId)).all();
 
     // User should see correct status for each task
-    const statusMap = new Map(tasks.map((t) => [t.subject, t.status]));
+    const statusMap = new Map(tasks.map((t: (typeof tasks)[0]) => [t.subject, t.status]));
     expect(statusMap.get("Task not started")).toBe("pending");
     expect(statusMap.get("Task in progress")).toBe("in_progress");
     expect(statusMap.get("Task completed")).toBe("completed");

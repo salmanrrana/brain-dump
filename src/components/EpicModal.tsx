@@ -16,6 +16,8 @@ import ErrorAlert from "./ErrorAlert";
 import { COLOR_OPTIONS } from "../lib/constants";
 import { epicFormOpts } from "./epics/epic-form-opts";
 import { epicFormSchema } from "./epics/epic-form-schema";
+import { startEpicWorkflowFn } from "../api/workflow-server-fns";
+import { getEpicContext } from "../api/context";
 
 interface Epic {
   id: string;
@@ -190,6 +192,30 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
       setRalphNotification(null);
 
       try {
+        // Get epic context (including project path for workflow initialization)
+        const contextResult = await getEpicContext({ data: epic.id });
+
+        // Initialize epic workflow first (git branch, workflow state, audit comment)
+        const workflowResult = await startEpicWorkflowFn({
+          data: {
+            epicId: epic.id,
+            projectPath: contextResult.projectPath,
+          },
+        });
+
+        if (!workflowResult.success) {
+          setRalphNotification({
+            type: "error",
+            message: `Workflow init failed: ${workflowResult.error || "Unknown error"}`,
+          });
+          setIsStartingRalph(false);
+          return;
+        } else if (workflowResult.warnings?.length) {
+          // Warnings are informational - continue with launch
+          // (Warnings would be shown via toast in a real implementation)
+        }
+
+        // Launch Ralph
         const result = await launchRalphMutation.mutateAsync({
           epicId: epic.id,
           // maxIterations now uses global setting from Settings

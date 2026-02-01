@@ -4,6 +4,8 @@ description: Generate demo script for human review approval
 
 # Generate Demo Script
 
+Load the `brain-dump-workflow` skill for context on the full workflow.
+
 You are generating a demo script for a ticket that has passed AI review and is ready for human approval.
 
 ## Prerequisites

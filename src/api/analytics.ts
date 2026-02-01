@@ -166,8 +166,12 @@ export const getDashboardAnalytics = createServerFn({ method: "GET" }).handler(
 
     // 4. Ralph session metrics
     const allSessions = db.select().from(ralphSessions).all();
-    const completedSessions = allSessions.filter((s) => s.completedAt !== null);
-    const successfulSessions = completedSessions.filter((s) => s.outcome === "success");
+    const completedSessions = allSessions.filter(
+      (s: (typeof allSessions)[0]) => s.completedAt !== null
+    );
+    const successfulSessions = completedSessions.filter(
+      (s: (typeof completedSessions)[0]) => s.outcome === "success"
+    );
 
     const totalSessions = allSessions.length;
     const successRate =

@@ -3,7 +3,6 @@ import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 
 import AppLayout from "../components/AppLayout";
 import { ToastProvider } from "../components/Toast";
@@ -79,7 +78,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               <AppLayout>{children}</AppLayout>
             </ToastProvider>
           </ThemeProvider>
-          <ReactQueryDevtools initialIsOpen={false} />
         </QueryClientProvider>
         <TanStackDevtools
           config={{

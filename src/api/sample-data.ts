@@ -37,11 +37,7 @@ export const createSampleData = createServerFn({ method: "POST" })
   .inputValidator(() => {})
   .handler(async () => {
     // Check if sample data already exists
-    const existing = db
-      .select()
-      .from(projects)
-      .where(eq(projects.name, SAMPLE_PROJECT_NAME))
-      .get();
+    const existing = db.select().from(projects).where(eq(projects.name, SAMPLE_PROJECT_NAME)).get();
 
     if (existing) {
       return { success: false, message: "Sample data already exists" };

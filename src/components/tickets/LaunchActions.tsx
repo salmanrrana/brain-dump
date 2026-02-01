@@ -7,7 +7,7 @@ import type { TicketStatus } from "../../api/tickets";
 // =============================================================================
 
 /** Launch option type identifier */
-export type LaunchType = "claude" | "ralph-native" | "ralph-docker" | "opencode";
+export type LaunchType = "claude" | "ralph-native" | "ralph-docker" | "opencode" | "ralph-opencode";
 
 /** Individual launch option configuration */
 export interface LaunchOption {
@@ -59,14 +59,14 @@ const LAUNCH_OPTIONS: LaunchOption[] = [
   },
   {
     id: "ralph-native",
-    name: "Ralph Native",
+    name: "Ralph (Claude)",
     description: "Autonomous agent",
     icon: Bot,
     iconColor: "#06b6d4", // cyan
   },
   {
     id: "ralph-docker",
-    name: "Ralph Docker",
+    name: "Ralph (Claude) Docker",
     description: "Sandboxed agent",
     icon: Container,
     iconColor: "#64748b", // slate
@@ -76,8 +76,15 @@ const LAUNCH_OPTIONS: LaunchOption[] = [
   {
     id: "opencode",
     name: "OpenCode",
-    description: "Alternative client",
+    description: "Interactive client",
     icon: Code2,
+    iconColor: "#3b82f6", // blue
+  },
+  {
+    id: "ralph-opencode",
+    name: "Ralph (OpenCode)",
+    description: "Autonomous agent",
+    icon: Bot,
     iconColor: "#3b82f6", // blue
   },
 ];

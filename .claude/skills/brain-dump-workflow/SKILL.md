@@ -41,11 +41,9 @@ This moves ticket to `ai_review` and posts a work summary comment.
 IMPORTANT: Do NOT use local `/review` skills, subagents, or code review tools.
 Perform self-review by reading your own diffs, then record findings via MCP.
 
-For each issue found, you MUST invoke the MCP tool:
+For each issue found, invoke the MCP tool:
 
 `submit_review_finding({ ticketId, agent: "code-reviewer", severity, category, description })`
-
-Verify you receive a `findingId` in the response for each submission.
 
 Fix critical/major issues, then invoke:
 
@@ -70,7 +68,6 @@ Include 3-7 manual test steps. Ticket moves to `human_review`.
 - Use local review skills or subagents instead of `submit_review_finding`
 - Describe demo steps in text instead of calling `generate_demo_script`
 - Create git branches manually instead of using `start_ticket_work`
-- Use any local alternative when an MCP tool exists for the step
 
 ## Severity Guide (for Step 4)
 

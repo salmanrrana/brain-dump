@@ -163,7 +163,7 @@ Returns the created ticket with its generated ID.`,
           content: [
             {
               type: "text" as const,
-              text: `Ticket created in "${project.name}"!\n\n${JSON.stringify(ticket, null, 2)}`,
+              text: `Ticket created in "${project.name}"!\n\n${JSON.stringify(ticket)}`,
             },
           ],
         };
@@ -203,8 +203,11 @@ Returns array of tickets sorted by creation date (newest first).`,
       status?: string | undefined;
       limit?: number | undefined;
     }) => {
-      let query =
-        "SELECT t.*, p.name as project_name FROM tickets t JOIN projects p ON t.project_id = p.id WHERE 1=1";
+      // Return summary fields only to minimize token usage
+      let query = `SELECT t.id, t.title, t.status, t.priority, t.epic_id, t.is_blocked,
+        t.branch_name, t.pr_number, t.pr_status, t.created_at, t.updated_at,
+        p.name as project_name
+        FROM tickets t JOIN projects p ON t.project_id = p.id WHERE 1=1`;
       const params: (string | number)[] = [];
 
       if (projectId) {
@@ -219,7 +222,7 @@ Returns array of tickets sorted by creation date (newest first).`,
       query += " ORDER BY t.created_at DESC LIMIT ?";
       params.push(Math.min(limit, 100));
 
-      const tickets = db.prepare(query).all(...params) as DbTicket[];
+      const tickets = db.prepare(query).all(...params);
 
       return {
         content: [
@@ -227,7 +230,7 @@ Returns array of tickets sorted by creation date (newest first).`,
             type: "text" as const,
             text:
               tickets.length > 0
-                ? JSON.stringify(tickets, null, 2)
+                ? JSON.stringify(tickets)
                 : "No tickets found matching the criteria.",
           },
         ],
@@ -276,7 +279,7 @@ Returns the updated ticket.`,
         content: [
           {
             type: "text" as const,
-            text: `Ticket status updated: ${existing.status} -> ${status}\n\n${JSON.stringify(updated, null, 2)}`,
+            text: `Ticket status updated: ${existing.status} -> ${status}\n\n${JSON.stringify(updated)}`,
           },
         ],
       };
@@ -392,7 +395,7 @@ Returns the updated ticket with all acceptance criteria.`,
         content: [
           {
             type: "text" as const,
-            text: `✅ Criterion updated: "${criterion.criterion}"\nStatus: ${statusChange}${verificationNote ? `\nNote: ${verificationNote}` : ""}\n\n${JSON.stringify(updated, null, 2)}`,
+            text: `✅ Criterion updated: "${criterion.criterion}"\nStatus: ${statusChange}${verificationNote ? `\nNote: ${verificationNote}` : ""}\n\n${JSON.stringify(updated)}`,
           },
         ],
       };
@@ -481,7 +484,7 @@ This tool is deprecated and will be removed in a future version.`,
         content: [
           {
             type: "text" as const,
-            text: `⚠️ DEPRECATED: Use update_acceptance_criterion instead.\n\nSubtask updated.\n\n${JSON.stringify(updated, null, 2)}`,
+            text: `⚠️ DEPRECATED: Use update_acceptance_criterion instead.\n\nSubtask updated.\n\n${JSON.stringify(updated)}`,
           },
         ],
       };
@@ -749,7 +752,7 @@ Returns the updated attachment.`,
         content: [
           {
             type: "text" as const,
-            text: `Attachment metadata updated:\n\n${JSON.stringify(attachment, null, 2)}`,
+            text: `Attachment metadata updated:\n\n${JSON.stringify(attachment)}`,
           },
         ],
       };
@@ -801,8 +804,11 @@ Returns array of tickets in the epic, sorted by position.`,
         };
       }
 
+      // Return summary fields only to minimize token usage
       let query = `
-        SELECT t.*, p.name as project_name, e.title as epic_title
+        SELECT t.id, t.title, t.status, t.priority, t.position, t.is_blocked,
+          t.branch_name, t.pr_number, t.pr_status,
+          p.name as project_name, e.title as epic_title
         FROM tickets t
         JOIN projects p ON t.project_id = p.id
         LEFT JOIN epics e ON t.epic_id = e.id
@@ -820,9 +826,9 @@ Returns array of tickets in the epic, sorted by position.`,
       }
 
       query += " ORDER BY t.position ASC LIMIT ?";
-      params.push(Math.min(limit, 500));
+      params.push(Math.min(limit, 100));
 
-      const tickets = db.prepare(query).all(...params) as DbTicket[];
+      const tickets = db.prepare(query).all(...params);
 
       if (tickets.length === 0) {
         return {
@@ -835,17 +841,11 @@ Returns array of tickets in the epic, sorted by position.`,
         };
       }
 
-      // Format response with summary
-      const summary = `Found ${tickets.length} ticket(s) in epic "${epic.title}"`;
-      const ticketList = tickets
-        .map((t, i) => `${i + 1}. [${t.status}] ${t.title} (ID: ${t.id})`)
-        .join("\n");
-
       return {
         content: [
           {
             type: "text" as const,
-            text: `${summary}\n\n${ticketList}\n\n${JSON.stringify(tickets, null, 2)}`,
+            text: `Found ${tickets.length} ticket(s) in epic "${epic.title}"\n\n${JSON.stringify(tickets)}`,
           },
         ],
       };
