@@ -87,3 +87,38 @@ export function numericFlag(flags: ParsedFlags, name: string): number | undefine
   }
   return n;
 }
+
+/**
+ * Get a required flag and validate it against a set of allowed values.
+ */
+export function requireEnumFlag<T extends string>(
+  flags: ParsedFlags,
+  name: string,
+  allowed: readonly T[]
+): T {
+  const val = requireFlag(flags, name);
+  if (!(allowed as readonly string[]).includes(val)) {
+    throw new ValidationError(
+      `Invalid value for --${name}: "${val}". Allowed: ${allowed.join(", ")}`
+    );
+  }
+  return val as T;
+}
+
+/**
+ * Get an optional flag and validate it against a set of allowed values.
+ */
+export function optionalEnumFlag<T extends string>(
+  flags: ParsedFlags,
+  name: string,
+  allowed: readonly T[]
+): T | undefined {
+  const val = optionalFlag(flags, name);
+  if (val === undefined) return undefined;
+  if (!(allowed as readonly string[]).includes(val)) {
+    throw new ValidationError(
+      `Invalid value for --${name}: "${val}". Allowed: ${allowed.join(", ")}`
+    );
+  }
+  return val as T;
+}

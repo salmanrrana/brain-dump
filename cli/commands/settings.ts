@@ -4,7 +4,7 @@
 
 import { getProjectSettings, updateProjectSettings, InvalidActionError } from "../../core/index.ts";
 import type { WorkingMethod } from "../../core/index.ts";
-import { parseFlags, requireFlag, boolFlag } from "../lib/args.ts";
+import { parseFlags, requireFlag, boolFlag, requireEnumFlag } from "../lib/args.ts";
 import { outputResult, outputError, showResourceHelp } from "../lib/output.ts";
 import { getDb } from "../lib/db.ts";
 
@@ -38,7 +38,11 @@ export function handle(action: string, args: string[]): void {
 
       case "update": {
         const projectId = requireFlag(flags, "project");
-        const workingMethod = requireFlag(flags, "working-method") as WorkingMethod;
+        const workingMethod = requireEnumFlag<WorkingMethod>(flags, "working-method", [
+          "auto",
+          "claude-code",
+          "vscode",
+        ]);
         const result = updateProjectSettings(db, projectId, workingMethod, detectEnvironment);
         outputResult(result, pretty);
         break;

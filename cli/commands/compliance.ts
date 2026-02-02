@@ -12,15 +12,38 @@ import {
   InvalidActionError,
 } from "../../core/index.ts";
 import type { ComplianceDependencies, DataClassification, MessageRole } from "../../core/index.ts";
-import { parseFlags, requireFlag, optionalFlag, boolFlag, numericFlag } from "../lib/args.ts";
+import {
+  parseFlags,
+  requireFlag,
+  optionalFlag,
+  boolFlag,
+  numericFlag,
+  optionalEnumFlag,
+  requireEnumFlag,
+} from "../lib/args.ts";
 import { outputResult, outputError, showResourceHelp } from "../lib/output.ts";
 import { getDb } from "../lib/db.ts";
 
 const ACTIONS = ["start", "log", "end", "list", "export", "archive"];
 
+/** Basic secret detection patterns for CLI-logged messages. */
+const SECRET_PATTERNS = [
+  /(?:api[_-]?key|apikey)\s*[:=]\s*\S+/i,
+  /(?:secret|token|password|passwd|pwd)\s*[:=]\s*\S+/i,
+  /(?:bearer|authorization)\s+\S+/i,
+  /(?:aws_access_key_id|aws_secret_access_key)\s*[:=]\s*\S+/i,
+  /ghp_[A-Za-z0-9_]{36,}/,
+  /sk-[A-Za-z0-9]{20,}/,
+  /-----BEGIN (?:RSA |EC )?PRIVATE KEY-----/,
+];
+
+function containsSecrets(content: string): boolean {
+  return SECRET_PATTERNS.some((p) => p.test(content));
+}
+
 const cliDeps: ComplianceDependencies = {
   detectEnvironment: () => "cli",
-  containsSecrets: () => false,
+  containsSecrets,
 };
 
 export function handle(action: string, args: string[]): void {
@@ -42,9 +65,12 @@ export function handle(action: string, args: string[]): void {
         const projectId = optionalFlag(flags, "project");
         const ticketId = optionalFlag(flags, "ticket");
         const userId = optionalFlag(flags, "user");
-        const dataClassification = optionalFlag(flags, "classification") as
-          | DataClassification
-          | undefined;
+        const dataClassification = optionalEnumFlag<DataClassification>(flags, "classification", [
+          "public",
+          "internal",
+          "confidential",
+          "restricted",
+        ]);
 
         const result = startConversation(
           db,
@@ -62,7 +88,12 @@ export function handle(action: string, args: string[]): void {
 
       case "log": {
         const sessionId = requireFlag(flags, "session");
-        const role = requireFlag(flags, "role") as MessageRole;
+        const role = requireEnumFlag<MessageRole>(flags, "role", [
+          "user",
+          "assistant",
+          "system",
+          "tool",
+        ]);
         const content = requireFlag(flags, "content");
         const modelId = optionalFlag(flags, "model");
 

@@ -13,7 +13,7 @@ import {
   InvalidActionError,
 } from "../../core/index.ts";
 import type { RalphSessionState, SessionOutcome } from "../../core/index.ts";
-import { parseFlags, requireFlag, optionalFlag, boolFlag } from "../lib/args.ts";
+import { parseFlags, requireFlag, optionalFlag, boolFlag, requireEnumFlag } from "../lib/args.ts";
 import { outputResult, outputError, showResourceHelp } from "../lib/output.ts";
 import { getDb } from "../lib/db.ts";
 
@@ -43,7 +43,15 @@ export function handle(action: string, args: string[]): void {
 
       case "update": {
         const sessionId = requireFlag(flags, "session");
-        const state = requireFlag(flags, "state") as RalphSessionState;
+        const state = requireEnumFlag<RalphSessionState>(flags, "state", [
+          "idle",
+          "analyzing",
+          "implementing",
+          "testing",
+          "committing",
+          "reviewing",
+          "done",
+        ]);
         const message = optionalFlag(flags, "message");
         const result = updateState(db, {
           sessionId,
@@ -56,7 +64,12 @@ export function handle(action: string, args: string[]): void {
 
       case "complete": {
         const sessionId = requireFlag(flags, "session");
-        const outcome = requireFlag(flags, "outcome") as SessionOutcome;
+        const outcome = requireEnumFlag<SessionOutcome>(flags, "outcome", [
+          "success",
+          "failure",
+          "timeout",
+          "cancelled",
+        ]);
         const errorMessage = optionalFlag(flags, "error");
         const result = completeSession(
           db,

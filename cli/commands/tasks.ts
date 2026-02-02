@@ -9,6 +9,7 @@ import {
   clearTasks,
   getTaskSnapshots,
   InvalidActionError,
+  ValidationError,
 } from "../../core/index.ts";
 import type { TaskInput } from "../../core/index.ts";
 import { parseFlags, requireFlag, optionalFlag, boolFlag, numericFlag } from "../lib/args.ts";
@@ -35,8 +36,14 @@ export function handle(action: string, args: string[]): void {
       case "save": {
         const ticketId = optionalFlag(flags, "ticket");
         const tasksFile = requireFlag(flags, "tasks-file");
-        const tasksJson = readFileSync(tasksFile, "utf-8");
-        const tasks = JSON.parse(tasksJson) as TaskInput[];
+        let tasks: TaskInput[];
+        try {
+          const tasksJson = readFileSync(tasksFile, "utf-8");
+          tasks = JSON.parse(tasksJson) as TaskInput[];
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          throw new ValidationError(`Failed to read tasks file "${tasksFile}": ${msg}`);
+        }
         const snapshot = boolFlag(flags, "snapshot");
         const result = saveTasks(db, tasks, ticketId, snapshot);
         outputResult(result, pretty);

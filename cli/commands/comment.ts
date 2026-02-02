@@ -4,7 +4,7 @@
 
 import { addComment, listComments, InvalidActionError } from "../../core/index.ts";
 import type { CommentAuthor, CommentType } from "../../core/index.ts";
-import { parseFlags, requireFlag, optionalFlag, boolFlag } from "../lib/args.ts";
+import { parseFlags, requireFlag, boolFlag, optionalEnumFlag } from "../lib/args.ts";
 import { outputResult, outputError, showResourceHelp } from "../lib/output.ts";
 import { getDb } from "../lib/db.ts";
 
@@ -28,8 +28,21 @@ export function handle(action: string, args: string[]): void {
       case "add": {
         const ticketId = requireFlag(flags, "ticket");
         const content = requireFlag(flags, "content");
-        const type = optionalFlag(flags, "type") as CommentType | undefined;
-        const author = optionalFlag(flags, "author") as CommentAuthor | undefined;
+        const type = optionalEnumFlag<CommentType>(flags, "type", [
+          "comment",
+          "work_summary",
+          "test_report",
+          "progress",
+        ]);
+        const author = optionalEnumFlag<CommentAuthor>(flags, "author", [
+          "claude",
+          "ralph",
+          "user",
+          "opencode",
+          "cursor",
+          "vscode",
+          "ai",
+        ]);
         const result = addComment(db, { ticketId, content, type, author });
         outputResult(result, pretty);
         break;

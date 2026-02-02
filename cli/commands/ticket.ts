@@ -11,7 +11,15 @@ import {
   InvalidActionError,
 } from "../../core/index.ts";
 import type { Priority, TicketStatus } from "../../core/index.ts";
-import { parseFlags, requireFlag, optionalFlag, boolFlag, numericFlag } from "../lib/args.ts";
+import {
+  parseFlags,
+  requireFlag,
+  optionalFlag,
+  boolFlag,
+  numericFlag,
+  requireEnumFlag,
+  optionalEnumFlag,
+} from "../lib/args.ts";
 import { outputResult, outputError, showResourceHelp } from "../lib/output.ts";
 import { getDb } from "../lib/db.ts";
 
@@ -36,7 +44,7 @@ export function handle(action: string, args: string[]): void {
         const projectId = requireFlag(flags, "project");
         const title = requireFlag(flags, "title");
         const description = optionalFlag(flags, "description");
-        const priority = optionalFlag(flags, "priority") as Priority | undefined;
+        const priority = optionalEnumFlag<Priority>(flags, "priority", ["low", "medium", "high"]);
         const epicId = optionalFlag(flags, "epic");
         const tagsStr = optionalFlag(flags, "tags");
         const tags = tagsStr ? tagsStr.split(",").map((t) => t.trim()) : undefined;
@@ -48,7 +56,14 @@ export function handle(action: string, args: string[]): void {
 
       case "list": {
         const projectId = optionalFlag(flags, "project");
-        const status = optionalFlag(flags, "status") as TicketStatus | undefined;
+        const status = optionalEnumFlag<TicketStatus>(flags, "status", [
+          "backlog",
+          "ready",
+          "in_progress",
+          "ai_review",
+          "human_review",
+          "done",
+        ]);
         const limit = numericFlag(flags, "limit");
 
         const result = listTickets(db, { projectId, status, limit });
@@ -65,7 +80,14 @@ export function handle(action: string, args: string[]): void {
 
       case "update": {
         const ticketId = requireFlag(flags, "ticket");
-        const status = requireFlag(flags, "status") as TicketStatus;
+        const status = requireEnumFlag<TicketStatus>(flags, "status", [
+          "backlog",
+          "ready",
+          "in_progress",
+          "ai_review",
+          "human_review",
+          "done",
+        ]);
         const result = updateTicketStatus(db, ticketId, status);
         outputResult(result, pretty);
         break;

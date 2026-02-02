@@ -12,6 +12,7 @@ import {
   submitFeedback,
   getFindings,
   InvalidActionError,
+  ValidationError,
 } from "../../core/index.ts";
 import type {
   FindingSeverity,
@@ -20,7 +21,15 @@ import type {
   MarkFixedStatus,
   DemoStep,
 } from "../../core/index.ts";
-import { parseFlags, requireFlag, optionalFlag, boolFlag, numericFlag } from "../lib/args.ts";
+import {
+  parseFlags,
+  requireFlag,
+  optionalFlag,
+  boolFlag,
+  numericFlag,
+  requireEnumFlag,
+  optionalEnumFlag,
+} from "../lib/args.ts";
 import { outputResult, outputError, showResourceHelp } from "../lib/output.ts";
 import { getDb } from "../lib/db.ts";
 
@@ -51,8 +60,17 @@ export function handle(action: string, args: string[]): void {
     switch (action) {
       case "submit-finding": {
         const ticketId = requireFlag(flags, "ticket");
-        const severity = requireFlag(flags, "severity") as FindingSeverity;
-        const agent = requireFlag(flags, "agent") as FindingAgent;
+        const severity = requireEnumFlag<FindingSeverity>(flags, "severity", [
+          "critical",
+          "major",
+          "minor",
+          "suggestion",
+        ]);
+        const agent = requireEnumFlag<FindingAgent>(flags, "agent", [
+          "code-reviewer",
+          "silent-failure-hunter",
+          "code-simplifier",
+        ]);
         const category = requireFlag(flags, "category");
         const description = requireFlag(flags, "description");
         const filePath = optionalFlag(flags, "file");
@@ -75,7 +93,11 @@ export function handle(action: string, args: string[]): void {
 
       case "mark-fixed": {
         const findingId = requireFlag(flags, "finding");
-        const status = requireFlag(flags, "status") as MarkFixedStatus;
+        const status = requireEnumFlag<MarkFixedStatus>(flags, "status", [
+          "fixed",
+          "wont_fix",
+          "duplicate",
+        ]);
         const result = markFixed(db, findingId, status);
         outputResult(result, pretty);
         break;
@@ -91,8 +113,14 @@ export function handle(action: string, args: string[]): void {
       case "generate-demo": {
         const ticketId = requireFlag(flags, "ticket");
         const stepsFile = requireFlag(flags, "steps-file");
-        const stepsJson = readFileSync(stepsFile, "utf-8");
-        const steps = JSON.parse(stepsJson) as DemoStep[];
+        let steps: DemoStep[];
+        try {
+          const stepsJson = readFileSync(stepsFile, "utf-8");
+          steps = JSON.parse(stepsJson) as DemoStep[];
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          throw new ValidationError(`Failed to read steps file "${stepsFile}": ${msg}`);
+        }
         const result = generateDemo(db, { ticketId, steps });
         outputResult(result, pretty);
         break;
@@ -116,9 +144,23 @@ export function handle(action: string, args: string[]): void {
 
       case "get-findings": {
         const ticketId = requireFlag(flags, "ticket");
-        const status = optionalFlag(flags, "status") as FindingStatus | undefined;
-        const severity = optionalFlag(flags, "severity") as FindingSeverity | undefined;
-        const agent = optionalFlag(flags, "agent") as FindingAgent | undefined;
+        const status = optionalEnumFlag<FindingStatus>(flags, "status", [
+          "open",
+          "fixed",
+          "wont_fix",
+          "duplicate",
+        ]);
+        const severity = optionalEnumFlag<FindingSeverity>(flags, "severity", [
+          "critical",
+          "major",
+          "minor",
+          "suggestion",
+        ]);
+        const agent = optionalEnumFlag<FindingAgent>(flags, "agent", [
+          "code-reviewer",
+          "silent-failure-hunter",
+          "code-simplifier",
+        ]);
         const result = getFindings(db, ticketId, {
           ...(status !== undefined ? { status } : {}),
           ...(severity !== undefined ? { severity } : {}),

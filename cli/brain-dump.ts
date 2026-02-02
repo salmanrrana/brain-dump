@@ -52,6 +52,7 @@ import * as files from "./commands/files.ts";
 import * as tasks from "./commands/tasks.ts";
 import * as compliance from "./commands/compliance.ts";
 import * as settings from "./commands/settings.ts";
+import { outputError } from "./lib/output.ts";
 
 const RESOURCES = [
   "ticket",
@@ -117,7 +118,11 @@ const action = args[1] ?? "";
 const rest = args.slice(2);
 
 function runSync(handler: (action: string, args: string[]) => void, a: string, r: string[]): void {
-  handler(a, r);
+  try {
+    handler(a, r);
+  } catch (e) {
+    outputError(e);
+  }
 }
 
 function runAsync(
@@ -126,9 +131,7 @@ function runAsync(
   r: string[]
 ): void {
   handler(a, r).catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(`Error: ${message}`);
-    process.exit(1);
+    outputError(error);
   });
 }
 
