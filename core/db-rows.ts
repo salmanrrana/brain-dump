@@ -118,3 +118,66 @@ export interface DbTicketSummaryRow {
   updated_at: string;
   project_name: string;
 }
+
+// ============================================
+// Ralph Session & Event Row Types
+// ============================================
+
+export interface DbRalphSessionRow {
+  id: string;
+  ticket_id: string;
+  project_id: string | null;
+  current_state: string;
+  state_history: string | null;
+  outcome: string | null;
+  error_message: string | null;
+  started_at: string;
+  completed_at: string | null;
+}
+
+/** Extended session row including ticket/project joins */
+export interface DbRalphSessionWithProjectRow extends DbRalphSessionRow {
+  ticket_title: string | null;
+  project_path: string | null;
+}
+
+export interface DbRalphEventRow {
+  id: string;
+  session_id: string;
+  type: string;
+  data: string | null;
+  created_at: string;
+}
+
+// ============================================
+// Telemetry Row Types
+// ============================================
+
+export interface DbTelemetrySessionRow {
+  id: string;
+  ticket_id: string | null;
+  project_id: string | null;
+  environment: string | null;
+  branch_name: string | null;
+  started_at: string;
+  ended_at: string | null;
+  total_prompts: number;
+  total_tool_calls: number;
+  total_duration_ms: number | null;
+  total_tokens: number | null;
+  outcome: string | null;
+}
+
+export interface DbTelemetryEventRow {
+  id: string;
+  session_id: string;
+  ticket_id: string | null;
+  event_type: string;
+  tool_name: string | null;
+  event_data: string | null;
+  duration_ms: number | null;
+  token_count: number | null;
+  is_error: number;
+  correlation_id: string | null;
+  created_at: string;
+}

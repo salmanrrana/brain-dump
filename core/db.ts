@@ -273,6 +273,7 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
       CREATE TABLE ralph_sessions (
         id TEXT PRIMARY KEY,
         ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
         current_state TEXT NOT NULL DEFAULT 'idle',
         state_history TEXT,
         outcome TEXT,
@@ -295,6 +296,13 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
     );
     addColumnIfMissing(db, "ralph_sessions", "state_history", "TEXT", logger);
     addColumnIfMissing(db, "ralph_sessions", "completed_at", "TEXT", logger);
+    addColumnIfMissing(
+      db,
+      "ralph_sessions",
+      "project_id",
+      "TEXT REFERENCES projects(id) ON DELETE SET NULL",
+      logger
+    );
     db.prepare(
       "CREATE INDEX IF NOT EXISTS idx_ralph_sessions_state ON ralph_sessions(current_state)"
     ).run();
@@ -591,6 +599,39 @@ export function createTestDatabase(logger: Logger = silentLogger): InitDatabaseR
     CREATE INDEX IF NOT EXISTS idx_workflow_ticket ON ticket_workflow_state(ticket_id);
     CREATE INDEX IF NOT EXISTS idx_findings_ticket ON review_findings(ticket_id);
     CREATE INDEX IF NOT EXISTS idx_findings_status ON review_findings(status);
+
+    CREATE TABLE IF NOT EXISTS telemetry_sessions (
+      id TEXT PRIMARY KEY,
+      ticket_id TEXT REFERENCES tickets(id) ON DELETE CASCADE,
+      project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+      environment TEXT NOT NULL DEFAULT 'unknown',
+      branch_name TEXT,
+      started_at TEXT NOT NULL DEFAULT (datetime('now')),
+      ended_at TEXT,
+      total_prompts INTEGER DEFAULT 0,
+      total_tool_calls INTEGER DEFAULT 0,
+      total_duration_ms INTEGER,
+      total_tokens INTEGER,
+      outcome TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS telemetry_events (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES telemetry_sessions(id) ON DELETE CASCADE,
+      ticket_id TEXT REFERENCES tickets(id) ON DELETE CASCADE,
+      event_type TEXT NOT NULL,
+      tool_name TEXT,
+      event_data TEXT,
+      duration_ms INTEGER,
+      token_count INTEGER,
+      is_error INTEGER DEFAULT 0,
+      correlation_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_telemetry_sessions_ticket ON telemetry_sessions(ticket_id);
+    CREATE INDEX IF NOT EXISTS idx_telemetry_events_session ON telemetry_events(session_id);
+    CREATE INDEX IF NOT EXISTS idx_telemetry_events_correlation ON telemetry_events(correlation_id);
   `);
 
   // Run the additional migration tables
