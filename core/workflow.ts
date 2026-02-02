@@ -148,7 +148,13 @@ export function startWork(
 
     if (!git.branchExists(branchName, projectPath)) {
       const baseBranch = findBaseBranch(git, projectPath);
-      git.checkout(baseBranch, projectPath);
+      const checkoutBase = git.checkout(baseBranch, projectPath);
+      if (!checkoutBase.success) {
+        throw new GitError(
+          `Failed to checkout base branch '${baseBranch}': ${checkoutBase.error}. Commit or stash changes first.`,
+          `git checkout ${baseBranch}`
+        );
+      }
       const createResult = git.createBranch(branchName, projectPath);
       if (!createResult.success) {
         throw new GitError(
@@ -342,8 +348,9 @@ export function completeWork(
     if (nextTicket) {
       suggestedNextTicket = nextTicket;
     }
-  } catch {
-    // Non-critical — suggestion is best-effort
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : "Unknown error";
+    warnings.push(`Failed to suggest next ticket: ${errMsg}`);
   }
 
   // 7. Build next steps
@@ -540,7 +547,11 @@ function resolveEpicBranch(
     if (git.branchExists(epicState.epic_branch_name, projectPath)) {
       const checkoutResult = git.checkout(epicState.epic_branch_name, projectPath);
       if (!checkoutResult.success) {
-        warnings.push(`Failed to checkout epic branch: ${checkoutResult.error}`);
+        // Checkout failed — fall through to ticket-specific branch instead of lying about epic branch
+        warnings.push(
+          `Epic branch ${epicState.epic_branch_name} exists but checkout failed: ${checkoutResult.error}. Creating ticket-specific branch instead.`
+        );
+        return { branchCreated: false, usingEpicBranch: false, warnings };
       }
 
       // Update current ticket in epic workflow state
@@ -576,7 +587,11 @@ function resolveEpicBranch(
 
   if (!git.branchExists(branchName, projectPath)) {
     const baseBranch = findBaseBranch(git, projectPath);
-    git.checkout(baseBranch, projectPath);
+    const checkoutBase = git.checkout(baseBranch, projectPath);
+    if (!checkoutBase.success) {
+      warnings.push(`Failed to checkout base branch '${baseBranch}': ${checkoutBase.error}`);
+      return { branchCreated: false, usingEpicBranch: false, warnings };
+    }
     const createResult = git.createBranch(branchName, projectPath);
     if (!createResult.success) {
       warnings.push(`Failed to create epic branch: ${createResult.error}`);
@@ -621,16 +636,18 @@ function toTicketWithProject(row: TicketRow): TicketWithProject {
     position: row.position,
     projectId: row.project_id,
     epicId: row.epic_id,
-    tags: row.tags ? safeParseJson(row.tags, []) : [],
-    subtasks: row.subtasks ? safeParseJson(row.subtasks, []) : [],
+    tags: row.tags ? safeParseJson(row.tags, [], "tags") : [],
+    subtasks: row.subtasks ? safeParseJson(row.subtasks, [], "subtasks") : [],
     isBlocked: row.is_blocked === 1,
     blockedReason: row.blocked_reason,
-    linkedFiles: row.linked_files ? safeParseJson(row.linked_files, []) : [],
-    attachments: row.attachments ? safeParseJson(row.attachments, []) : [],
+    linkedFiles: row.linked_files ? safeParseJson(row.linked_files, [], "linked_files") : [],
+    attachments: row.attachments ? safeParseJson(row.attachments, [], "attachments") : [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     completedAt: row.completed_at,
-    linkedCommits: row.linked_commits ? safeParseJson(row.linked_commits, []) : [],
+    linkedCommits: row.linked_commits
+      ? safeParseJson(row.linked_commits, [], "linked_commits")
+      : [],
     branchName: row.branch_name,
     prNumber: row.pr_number,
     prUrl: row.pr_url,
@@ -643,10 +660,14 @@ function toTicketWithProject(row: TicketRow): TicketWithProject {
   };
 }
 
-function safeParseJson<T>(json: string, fallback: T): T {
+function safeParseJson<T>(json: string, fallback: T, fieldName?: string): T {
   try {
     return JSON.parse(json) as T;
-  } catch {
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : "Unknown parse error";
+    console.warn(
+      `[core/workflow] Corrupted JSON in field "${fieldName ?? "unknown"}": ${errMsg}. Returning fallback.`
+    );
     return fallback;
   }
 }

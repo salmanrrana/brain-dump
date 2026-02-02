@@ -14,7 +14,7 @@ import {
   type EnhancedPRDItem,
   type EnhancedPRDDocument,
 } from "../lib/prd-extraction";
-import { startWork, createRealGitOperations } from "../../core/index.ts";
+import { startWork, createRealGitOperations, GitError } from "../../core/index.ts";
 
 const coreGit = createRealGitOperations();
 
@@ -1423,9 +1423,14 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     try {
       startWork(sqlite, ticketId, coreGit);
     } catch (err) {
-      console.warn(`[brain-dump] Workflow start warning: ${(err as Error).message}`);
-      // Fallback: ensure ticket is at least in_progress even if workflow failed
-      db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticketId)).run();
+      // Git errors are expected for non-git projects — fall back to status-only update
+      if (err instanceof GitError) {
+        console.warn(`[brain-dump] Git not available, skipping branch creation: ${err.message}`);
+        db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticketId)).run();
+      } else {
+        // Unexpected errors (TicketNotFoundError, PathNotFoundError, etc.) should propagate
+        throw err;
+      }
     }
 
     // Branch based on workingMethod setting
@@ -1614,9 +1619,13 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       try {
         startWork(sqlite, firstTicket.id, coreGit);
       } catch (err) {
-        console.warn(
-          `[brain-dump] Workflow start warning for first ticket: ${(err as Error).message}`
-        );
+        if (err instanceof GitError) {
+          console.warn(
+            `[brain-dump] Git not available for first ticket, skipping branch creation: ${err.message}`
+          );
+        } else {
+          throw err;
+        }
       }
     }
     // Mark remaining tickets as in_progress (they'll get full workflow when Ralph picks them up)

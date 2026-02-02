@@ -8,7 +8,7 @@
  * Consumers inject `GitOperations` so tests can provide mocks.
  */
 
-import { execSync } from "child_process";
+import { execSync, execFileSync } from "child_process";
 import type { GitCommandResult, GitOperations } from "./types.ts";
 
 // ============================================
@@ -43,7 +43,7 @@ export function generateEpicBranchName(epicId: string, epicTitle: string): strin
 // GitOperations factory (real implementation)
 // ============================================
 
-/** Run a git command via `execSync` and return a structured result. */
+/** Run a git command via `execSync` (shell string) and return a structured result. */
 export function runGitCommand(command: string, cwd: string): GitCommandResult {
   try {
     const output = execSync(command, { cwd, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
@@ -54,21 +54,39 @@ export function runGitCommand(command: string, cwd: string): GitCommandResult {
   }
 }
 
+/** Run git with argument array via `execFileSync` (no shell interpretation — safe from injection). */
+function runGitArgs(args: string[], cwd: string): GitCommandResult {
+  try {
+    const output = execFileSync("git", args, {
+      cwd,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    return { success: true, output: output.trim() };
+  } catch (error) {
+    const err = error as { stderr?: string; message: string };
+    return { success: false, output: "", error: err.stderr?.trim() || err.message };
+  }
+}
+
 /**
- * Create real `GitOperations` backed by `execSync`.
+ * Create real `GitOperations` backed by `execFileSync` (argument arrays).
+ * The `run` method still uses `execSync` for arbitrary commands (e.g., piped git log).
+ * Branch-specific methods use `execFileSync` to avoid shell injection.
  * Use in production code; tests should provide a mock instead.
  */
 export function createRealGitOperations(): GitOperations {
   return {
     run: runGitCommand,
     branchExists(branchName: string, cwd: string): boolean {
-      return runGitCommand(`git show-ref --verify --quiet refs/heads/${branchName}`, cwd).success;
+      return runGitArgs(["show-ref", "--verify", "--quiet", `refs/heads/${branchName}`], cwd)
+        .success;
     },
     checkout(branchName: string, cwd: string): GitCommandResult {
-      return runGitCommand(`git checkout ${branchName}`, cwd);
+      return runGitArgs(["checkout", branchName], cwd);
     },
     createBranch(branchName: string, cwd: string): GitCommandResult {
-      return runGitCommand(`git checkout -b ${branchName}`, cwd);
+      return runGitArgs(["checkout", "-b", branchName], cwd);
     },
   };
 }
