@@ -9,6 +9,7 @@
  */
 import { z } from "zod";
 import { log } from "../lib/logging.js";
+import { mcpError } from "../lib/mcp-response.ts";
 import type Database from "better-sqlite3";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { CoreError } from "../../core/errors.ts";
@@ -18,16 +19,6 @@ import {
   createProject,
   deleteProject,
 } from "../../core/project.ts";
-
-/** Convert a CoreError into an MCP error response. */
-function mcpError(err: unknown): { content: [{ type: "text"; text: string }]; isError: true } {
-  const msg =
-    err instanceof CoreError ? err.message : err instanceof Error ? err.message : String(err);
-  return {
-    content: [{ type: "text" as const, text: msg }],
-    isError: true,
-  };
-}
 
 /**
  * Register project management tools with the MCP server.

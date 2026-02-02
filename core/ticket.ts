@@ -13,53 +13,7 @@ import {
   ProjectNotFoundError,
   ValidationError,
 } from "./errors.ts";
-
-// ============================================
-// Internal DB Row Types
-// ============================================
-
-interface DbTicketRow {
-  id: string;
-  title: string;
-  description: string | null;
-  status: string;
-  priority: string | null;
-  position: number;
-  project_id: string;
-  epic_id: string | null;
-  tags: string | null;
-  subtasks: string | null;
-  is_blocked: number;
-  blocked_reason: string | null;
-  linked_files: string | null;
-  attachments: string | null;
-  created_at: string;
-  updated_at: string;
-  completed_at: string | null;
-  linked_commits: string | null;
-  branch_name: string | null;
-  pr_number: number | null;
-  pr_url: string | null;
-  pr_status: string | null;
-}
-
-interface DbProjectRow {
-  id: string;
-  name: string;
-  path: string;
-  color: string | null;
-  working_method: string | null;
-  created_at: string;
-}
-
-interface DbEpicRow {
-  id: string;
-  title: string;
-  description: string | null;
-  project_id: string;
-  color: string | null;
-  created_at: string;
-}
+import type { DbTicketRow, DbProjectRow, DbEpicRow, DbTicketSummaryRow } from "./db-rows.ts";
 
 // ============================================
 // Internal Helpers
@@ -147,6 +101,27 @@ function getTicketWithProject(db: DbHandle, ticketId: string): TicketWithProject
     { id: row.project_id, name: row.project_name, path: row.project_path },
     row.epic_title
   );
+}
+
+/**
+ * Convert a DB summary row into a TicketSummary.
+ * Used by both listTickets and listTicketsByEpic.
+ */
+function toTicketSummary(row: DbTicketSummaryRow): TicketSummary {
+  return {
+    id: row.id,
+    title: row.title,
+    status: row.status,
+    priority: row.priority,
+    epicId: row.epic_id,
+    isBlocked: row.is_blocked === 1,
+    branchName: row.branch_name,
+    prNumber: row.pr_number,
+    prStatus: row.pr_status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    projectName: row.project_name,
+  };
 }
 
 // ============================================
@@ -307,35 +282,8 @@ export function listTickets(db: DbHandle, filters: ListTicketsFilters = {}): Tic
   query += " ORDER BY t.created_at DESC LIMIT ?";
   params.push(Math.min(limit, 100));
 
-  const rows = db.prepare(query).all(...params) as Array<{
-    id: string;
-    title: string;
-    status: string;
-    priority: string | null;
-    epic_id: string | null;
-    is_blocked: number;
-    branch_name: string | null;
-    pr_number: number | null;
-    pr_status: string | null;
-    created_at: string;
-    updated_at: string;
-    project_name: string;
-  }>;
-
-  return rows.map((r) => ({
-    id: r.id,
-    title: r.title,
-    status: r.status,
-    priority: r.priority,
-    epicId: r.epic_id,
-    isBlocked: r.is_blocked === 1,
-    branchName: r.branch_name,
-    prNumber: r.pr_number,
-    prStatus: r.pr_status,
-    createdAt: r.created_at,
-    updatedAt: r.updated_at,
-    projectName: r.project_name,
-  }));
+  const rows = db.prepare(query).all(...params) as DbTicketSummaryRow[];
+  return rows.map(toTicketSummary);
 }
 
 /**
@@ -611,33 +559,6 @@ export function listTicketsByEpic(
   query += " ORDER BY t.position ASC LIMIT ?";
   params.push(Math.min(limit, 100));
 
-  const rows = db.prepare(query).all(...params) as Array<{
-    id: string;
-    title: string;
-    status: string;
-    priority: string | null;
-    epic_id: string | null;
-    is_blocked: number;
-    branch_name: string | null;
-    pr_number: number | null;
-    pr_status: string | null;
-    created_at: string;
-    updated_at: string;
-    project_name: string;
-  }>;
-
-  return rows.map((r) => ({
-    id: r.id,
-    title: r.title,
-    status: r.status,
-    priority: r.priority,
-    epicId: r.epic_id,
-    isBlocked: r.is_blocked === 1,
-    branchName: r.branch_name,
-    prNumber: r.pr_number,
-    prStatus: r.pr_status,
-    createdAt: r.created_at,
-    updatedAt: r.updated_at,
-    projectName: r.project_name,
-  }));
+  const rows = db.prepare(query).all(...params) as DbTicketSummaryRow[];
+  return rows.map(toTicketSummary);
 }

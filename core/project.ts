@@ -9,19 +9,7 @@ import { randomUUID } from "crypto";
 import { existsSync } from "fs";
 import type { DbHandle, Project, DeleteResult } from "./types.ts";
 import { ProjectNotFoundError, PathNotFoundError, ValidationError } from "./errors.ts";
-
-// ============================================
-// Internal DB Row Types
-// ============================================
-
-interface DbProjectRow {
-  id: string;
-  name: string;
-  path: string;
-  color: string | null;
-  working_method: string | null;
-  created_at: string;
-}
+import type { DbProjectRow } from "./db-rows.ts";
 
 // ============================================
 // Internal Helpers
