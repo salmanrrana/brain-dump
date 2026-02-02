@@ -549,6 +549,48 @@ export function createTestDatabase(logger: Logger = silentLogger): InitDatabaseR
     );
 
     INSERT OR IGNORE INTO settings (id) VALUES ('default');
+
+    CREATE TABLE IF NOT EXISTS ticket_workflow_state (
+      id TEXT PRIMARY KEY,
+      ticket_id TEXT NOT NULL UNIQUE REFERENCES tickets(id) ON DELETE CASCADE,
+      current_phase TEXT NOT NULL DEFAULT 'implementation',
+      review_iteration INTEGER NOT NULL DEFAULT 0,
+      findings_count INTEGER NOT NULL DEFAULT 0,
+      findings_fixed INTEGER NOT NULL DEFAULT 0,
+      demo_generated INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS review_findings (
+      id TEXT PRIMARY KEY,
+      ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      iteration INTEGER NOT NULL,
+      agent TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      category TEXT NOT NULL,
+      description TEXT NOT NULL,
+      file_path TEXT,
+      line_number INTEGER,
+      suggested_fix TEXT,
+      status TEXT NOT NULL DEFAULT 'open',
+      fixed_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS demo_scripts (
+      id TEXT PRIMARY KEY,
+      ticket_id TEXT NOT NULL UNIQUE REFERENCES tickets(id) ON DELETE CASCADE,
+      steps TEXT NOT NULL,
+      generated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      completed_at TEXT,
+      feedback TEXT,
+      passed INTEGER
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_workflow_ticket ON ticket_workflow_state(ticket_id);
+    CREATE INDEX IF NOT EXISTS idx_findings_ticket ON review_findings(ticket_id);
+    CREATE INDEX IF NOT EXISTS idx_findings_status ON review_findings(status);
   `);
 
   // Run the additional migration tables

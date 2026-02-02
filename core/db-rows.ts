@@ -59,6 +59,48 @@ export interface DbCommentRow {
   created_at: string;
 }
 
+// ============================================
+// Review & Demo Row Types
+// ============================================
+
+export interface DbTicketWorkflowStateRow {
+  id: string;
+  ticket_id: string;
+  current_phase: string;
+  review_iteration: number;
+  findings_count: number;
+  findings_fixed: number;
+  demo_generated: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbReviewFindingRow {
+  id: string;
+  ticket_id: string;
+  iteration: number;
+  agent: string;
+  severity: string;
+  category: string;
+  description: string;
+  file_path: string | null;
+  line_number: number | null;
+  suggested_fix: string | null;
+  status: string;
+  fixed_at: string | null;
+  created_at: string;
+}
+
+export interface DbDemoScriptRow {
+  id: string;
+  ticket_id: string;
+  steps: string;
+  generated_at: string;
+  completed_at: string | null;
+  feedback: string | null;
+  passed: number | null;
+}
+
 /**
  * Row shape for the ticket list summary query (used by listTickets and listTicketsByEpic).
  */

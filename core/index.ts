@@ -125,3 +125,24 @@ export type { CreateEpicParams, UpdateEpicParams } from "./epic.ts";
 export { addComment, listComments } from "./comment.ts";
 
 export type { AddCommentParams, CommentAuthor, CommentType } from "./comment.ts";
+
+// Review & demo business logic
+export {
+  submitFinding,
+  markFixed,
+  getFindings,
+  checkComplete,
+  generateDemo,
+  getDemo,
+  updateDemoStep,
+  submitFeedback,
+} from "./review.ts";
+
+export type {
+  SubmitFindingParams,
+  MarkFixedStatus,
+  GetFindingsFilters,
+  GenerateDemoParams,
+  DemoStepStatus,
+  SubmitFeedbackParams,
+} from "./review.ts";
