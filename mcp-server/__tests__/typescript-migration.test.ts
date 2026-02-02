@@ -18,7 +18,6 @@ describe("TypeScript Migration Verification", () => {
       "xdg",
       "logging",
       "lock",
-      "git-utils",
       "secrets",
       "environment",
       "database",
@@ -51,7 +50,7 @@ describe("TypeScript Migration Verification", () => {
       "learnings",
     ];
 
-    it("has TypeScript versions for all 15 lib files", () => {
+    it("has TypeScript versions for all 14 lib files", () => {
       for (const file of expectedLibFiles) {
         const tsPath = path.join(mcpServerDir, "lib", `${file}.ts`);
         expect(fs.existsSync(tsPath), `Missing: lib/${file}.ts`).toBe(true);

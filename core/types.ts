@@ -127,8 +127,9 @@ export interface Comment {
 
 export interface StartWorkResult {
   branch: string;
+  branchCreated: boolean;
+  usingEpicBranch: boolean;
   ticket: TicketWithProject;
-  context: string;
   warnings: string[];
   epicBranch?: string;
 }
@@ -139,14 +140,30 @@ export interface CompleteWorkResult {
   workSummary: string;
   nextSteps: string[];
   suggestedNextTicket?: { id: string; title: string } | null;
+  commitsInfo: string;
+  changedFiles: string[];
+  warnings: string[];
+}
+
+export interface EpicTicketSummary {
+  id: string;
+  title: string;
+  status: string;
+  priority: string | null;
+}
+
+export interface EpicSummary {
+  id: string;
+  title: string;
+  projectName: string;
 }
 
 export interface StartEpicWorkResult {
-  epicId: string;
   branch: string;
-  epic: Epic;
-  tickets: TicketWithProject[];
-  prUrl?: string;
+  branchCreated: boolean;
+  epic: EpicSummary;
+  tickets: EpicTicketSummary[];
+  warnings: string[];
 }
 
 export interface CompleteEpicResult {
@@ -307,22 +324,21 @@ export interface TelemetryEvent {
 
 export interface GitCommandResult {
   success: boolean;
-  stdout: string;
-  stderr: string;
-  exitCode: number;
+  output: string;
+  error?: string;
 }
 
 /**
  * Abstraction over git operations for testability.
- * Core functions accept this interface; real implementation calls `child_process`,
- * while tests can provide a mock.
+ * Core functions accept this interface; real implementation wraps `execSync`,
+ * while tests provide a mock. All methods are synchronous because core uses
+ * `better-sqlite3` (sync) and `execSync` — no async needed.
  */
 export interface GitOperations {
-  exec(command: string, cwd: string): Promise<GitCommandResult>;
-  getCurrentBranch(cwd: string): Promise<string>;
-  branchExists(branch: string, cwd: string): Promise<boolean>;
-  createBranch(branch: string, cwd: string): Promise<void>;
-  checkoutBranch(branch: string, cwd: string): Promise<void>;
+  run(command: string, cwd: string): GitCommandResult;
+  branchExists(branch: string, cwd: string): boolean;
+  checkout(branch: string, cwd: string): GitCommandResult;
+  createBranch(branch: string, cwd: string): GitCommandResult;
 }
 
 // ============================================

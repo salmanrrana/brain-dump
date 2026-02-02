@@ -5,7 +5,7 @@
 import { z } from "zod";
 import { existsSync, readFileSync } from "fs";
 import { log } from "../lib/logging.js";
-import { runGitCommand, shortId } from "../lib/git-utils.js";
+import { runGitCommand, shortId } from "../../core/git-utils.ts";
 import type Database from "better-sqlite3";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 

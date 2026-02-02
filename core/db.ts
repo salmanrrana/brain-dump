@@ -596,7 +596,20 @@ export function createTestDatabase(logger: Logger = silentLogger): InitDatabaseR
       passed INTEGER
     );
 
+    CREATE TABLE IF NOT EXISTS epic_workflow_state (
+      id TEXT PRIMARY KEY,
+      epic_id TEXT NOT NULL UNIQUE REFERENCES epics(id) ON DELETE CASCADE,
+      epic_branch_name TEXT,
+      epic_branch_created_at TEXT,
+      current_ticket_id TEXT REFERENCES tickets(id) ON DELETE SET NULL,
+      total_tickets INTEGER NOT NULL DEFAULT 0,
+      completed_tickets INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_workflow_ticket ON ticket_workflow_state(ticket_id);
+    CREATE INDEX IF NOT EXISTS idx_epic_workflow_epic ON epic_workflow_state(epic_id);
     CREATE INDEX IF NOT EXISTS idx_findings_ticket ON review_findings(ticket_id);
     CREATE INDEX IF NOT EXISTS idx_findings_status ON review_findings(status);
 

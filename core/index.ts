@@ -36,6 +36,8 @@ export type {
   StartWorkResult,
   CompleteWorkResult,
   StartEpicWorkResult,
+  EpicTicketSummary,
+  EpicSummary,
   CompleteEpicResult,
   FindingSeverity,
   FindingStatus,
@@ -211,3 +213,17 @@ export type {
   ListTelemetrySessionsParams,
   TelemetrySessionSummary,
 } from "./telemetry.ts";
+
+// Git utilities
+export {
+  slugify,
+  shortId,
+  generateBranchName,
+  generateEpicBranchName,
+  createRealGitOperations,
+  runGitCommand,
+  findBaseBranch,
+} from "./git-utils.ts";
+
+// Workflow business logic
+export { startWork, completeWork, startEpicWork } from "./workflow.ts";

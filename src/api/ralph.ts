@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { db } from "../lib/db";
+import { db, sqlite } from "../lib/db";
 import { tickets, epics, projects, ralphSessions, type RalphSessionState } from "../lib/schema";
 import { eq, and, inArray, isNull, desc } from "drizzle-orm";
 import { safeJsonParse } from "../lib/utils";
@@ -14,7 +14,9 @@ import {
   type EnhancedPRDItem,
   type EnhancedPRDDocument,
 } from "../lib/prd-extraction";
-import { startTicketWorkflow } from "./start-ticket-workflow";
+import { startWork, createRealGitOperations } from "../../core/index.ts";
+
+const coreGit = createRealGitOperations();
 
 // Import Docker utilities for socket-aware Docker commands
 import { execDockerCommand, getDockerHostEnvValue } from "./docker-utils";
@@ -1418,9 +1420,10 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     chmodSync(scriptPath, 0o700);
 
     // Start ticket workflow: git branch, status update, workflow state, audit comment
-    const workflowResult = await startTicketWorkflow(ticketId, project.path);
-    if (!workflowResult.success) {
-      console.warn(`[brain-dump] Workflow start warning: ${workflowResult.error}`);
+    try {
+      startWork(sqlite, ticketId, coreGit);
+    } catch (err) {
+      console.warn(`[brain-dump] Workflow start warning: ${(err as Error).message}`);
       // Fallback: ensure ticket is at least in_progress even if workflow failed
       db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticketId)).run();
     }
@@ -1608,10 +1611,11 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       (t: (typeof epicTickets)[0]) => t.status === "backlog" || t.status === "ready"
     );
     if (firstTicket) {
-      const workflowResult = await startTicketWorkflow(firstTicket.id, project.path);
-      if (!workflowResult.success) {
+      try {
+        startWork(sqlite, firstTicket.id, coreGit);
+      } catch (err) {
         console.warn(
-          `[brain-dump] Workflow start warning for first ticket: ${workflowResult.error}`
+          `[brain-dump] Workflow start warning for first ticket: ${(err as Error).message}`
         );
       }
     }

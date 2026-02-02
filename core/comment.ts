@@ -14,7 +14,15 @@ import type { DbTicketRow, DbCommentRow } from "./db-rows.ts";
 // Types
 // ============================================
 
-export type CommentAuthor = "claude" | "ralph" | "user" | "opencode" | "cursor" | "vscode" | "ai";
+export type CommentAuthor =
+  | "claude"
+  | "ralph"
+  | "user"
+  | "opencode"
+  | "cursor"
+  | "vscode"
+  | "ai"
+  | "brain-dump";
 export type CommentType = "comment" | "work_summary" | "test_report" | "progress";
 
 // ============================================

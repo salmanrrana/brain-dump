@@ -14,7 +14,7 @@ import {
   shortId,
   generateBranchName,
   generateEpicBranchName,
-} from "../lib/git-utils.js";
+} from "../../core/git-utils.ts";
 import { getActiveTelemetrySession, logMcpCallEvent } from "../lib/telemetry-self-log.js";
 import { loadTicketAttachments, buildAttachmentContextSection } from "../lib/attachment-loader.js";
 import { addComment, fetchTicketComments, buildCommentsSection } from "../lib/comment-utils.js";

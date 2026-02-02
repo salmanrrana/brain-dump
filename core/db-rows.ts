@@ -120,6 +120,22 @@ export interface DbTicketSummaryRow {
 }
 
 // ============================================
+// Epic Workflow State Row Types
+// ============================================
+
+export interface DbEpicWorkflowStateRow {
+  id: string;
+  epic_id: string;
+  epic_branch_name: string | null;
+  epic_branch_created_at: string | null;
+  current_ticket_id: string | null;
+  total_tickets: number;
+  completed_tickets: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================
 // Ralph Session & Event Row Types
 // ============================================
 
