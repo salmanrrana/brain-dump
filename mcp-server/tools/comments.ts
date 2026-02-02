@@ -1,14 +1,21 @@
 /**
  * Ticket comment tools for Brain Dump MCP server.
+ *
+ * These are thin wrappers around core/comment.ts functions.
+ * Business logic lives in the core layer; this file only handles
+ * MCP protocol formatting and Zod input schemas.
+ *
  * @module tools/comments
  */
 import { z } from "zod";
-import { randomUUID } from "crypto";
 import { log } from "../lib/logging.js";
+import { mcpError } from "../lib/mcp-response.ts";
 import { detectAuthor } from "../lib/environment.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type Database from "better-sqlite3";
-import type { DbTicket, DbTicketComment } from "../types.js";
+import { CoreError } from "../../core/errors.ts";
+import { addComment, listComments } from "../../core/comment.ts";
+import type { CommentAuthor, CommentType } from "../../core/comment.ts";
 
 const AUTHORS = ["claude", "ralph", "user", "opencode", "cursor", "vscode", "ai"] as const;
 const COMMENT_TYPES = ["comment", "work_summary", "test_report", "progress"] as const;
@@ -56,52 +63,31 @@ Returns the created comment.`,
       author?: (typeof AUTHORS)[number] | undefined;
       type?: (typeof COMMENT_TYPES)[number] | undefined;
     }) => {
-      // Auto-detect author if not provided
-      const finalAuthor = author || detectAuthor();
-
-      const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId) as
-        | DbTicket
-        | undefined;
-      if (!ticket) {
-        return {
-          content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
-          isError: true,
-        };
-      }
-
-      const id = randomUUID();
-      const now = new Date().toISOString();
-
       try {
-        db.prepare(
-          "INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at) VALUES (?, ?, ?, ?, ?, ?)"
-        ).run(id, ticketId, content.trim(), finalAuthor, type, now);
+        const finalAuthor = (author || detectAuthor()) as CommentAuthor;
 
-        const comment = db
-          .prepare("SELECT * FROM ticket_comments WHERE id = ?")
-          .get(id) as DbTicketComment;
+        const comment = addComment(db, {
+          ticketId,
+          content,
+          author: finalAuthor,
+          type: type as CommentType,
+        });
+
         log.info(`Added ${type} to ticket ${ticketId} by ${finalAuthor}`);
 
         return {
           content: [
             {
-              type: "text",
-              text: `Comment added to ticket "${ticket.title}"!\n\n${JSON.stringify(comment)}`,
+              type: "text" as const,
+              text: `Comment added!\n\n${JSON.stringify(comment)}`,
             },
           ],
         };
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        log.error(`Failed to add comment to ticket "${ticket.title}": ${errorMsg}`);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Failed to add comment: ${errorMsg}`,
-            },
-          ],
-          isError: true,
-        };
+        if (err instanceof CoreError) {
+          log.error(`Failed to add comment to ticket ${ticketId}: ${err.message}`);
+        }
+        return mcpError(err);
       }
     }
   );
@@ -117,31 +103,26 @@ Args:
   ticketId: The ticket ID to get comments for`,
     { ticketId: z.string().describe("Ticket ID") },
     async ({ ticketId }: { ticketId: string }) => {
-      const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId) as
-        | DbTicket
-        | undefined;
-      if (!ticket) {
+      try {
+        const comments = listComments(db, ticketId);
+
         return {
-          content: [{ type: "text", text: `Ticket not found: ${ticketId}` }],
-          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text:
+                comments.length > 0
+                  ? JSON.stringify(comments)
+                  : `No comments found for this ticket.`,
+            },
+          ],
         };
+      } catch (err) {
+        if (err instanceof CoreError) {
+          log.error(`Failed to get comments for ticket ${ticketId}: ${err.message}`);
+        }
+        return mcpError(err);
       }
-
-      const comments = db
-        .prepare("SELECT * FROM ticket_comments WHERE ticket_id = ? ORDER BY created_at DESC")
-        .all(ticketId) as DbTicketComment[];
-
-      return {
-        content: [
-          {
-            type: "text",
-            text:
-              comments.length > 0
-                ? JSON.stringify(comments)
-                : `No comments found for ticket "${ticket.title}".`,
-          },
-        ],
-      };
     }
   );
 }

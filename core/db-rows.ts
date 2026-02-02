@@ -50,6 +50,15 @@ export interface DbTicketRow {
   pr_status: string | null;
 }
 
+export interface DbCommentRow {
+  id: string;
+  ticket_id: string;
+  content: string;
+  author: string;
+  type: string;
+  created_at: string;
+}
+
 /**
  * Row shape for the ticket list summary query (used by listTickets and listTicketsByEpic).
  */

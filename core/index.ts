@@ -115,3 +115,13 @@ export type {
 export { listProjects, findProjectByPath, createProject, deleteProject } from "./project.ts";
 
 export type { CreateProjectParams } from "./project.ts";
+
+// Epic business logic
+export { createEpic, listEpics, updateEpic, deleteEpic } from "./epic.ts";
+
+export type { CreateEpicParams, UpdateEpicParams } from "./epic.ts";
+
+// Comment business logic
+export { addComment, listComments } from "./comment.ts";
+
+export type { AddCommentParams, CommentAuthor, CommentType } from "./comment.ts";

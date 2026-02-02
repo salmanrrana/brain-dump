@@ -1,13 +1,19 @@
 /**
  * Epic management tools for Brain Dump MCP server.
+ *
+ * These are thin wrappers around core/epic.ts functions.
+ * Business logic lives in the core layer; this file only handles
+ * MCP protocol formatting and Zod input schemas.
+ *
  * @module tools/epics
  */
 import { z } from "zod";
-import { randomUUID } from "crypto";
 import { log } from "../lib/logging.js";
+import { mcpError } from "../lib/mcp-response.ts";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type Database from "better-sqlite3";
-import type { DbProject, DbEpic } from "../types.js";
+import { CoreError } from "../../core/errors.ts";
+import { createEpic, listEpics, updateEpic, deleteEpic } from "../../core/epic.ts";
 
 /**
  * Register epic management tools with the MCP server.
@@ -26,31 +32,26 @@ Args:
 Returns array of epics with their IDs and titles.`,
     { projectId: z.string().describe("Project ID") },
     async ({ projectId }: { projectId: string }) => {
-      const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId) as
-        | DbProject
-        | undefined;
-      if (!project) {
+      try {
+        const epics = listEpics(db, projectId);
+
         return {
-          content: [{ type: "text", text: `Project not found: ${projectId}` }],
-          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text:
+                epics.length > 0
+                  ? JSON.stringify(epics)
+                  : `No epics found for project. Use create_epic to add one.`,
+            },
+          ],
         };
+      } catch (err) {
+        if (err instanceof CoreError) {
+          log.error(`Failed to list epics: ${err.message}`);
+        }
+        return mcpError(err);
       }
-
-      const epics = db
-        .prepare("SELECT * FROM epics WHERE project_id = ? ORDER BY title")
-        .all(projectId) as DbEpic[];
-
-      return {
-        content: [
-          {
-            type: "text",
-            text:
-              epics.length > 0
-                ? JSON.stringify(epics)
-                : `No epics found for project "${project.name}". Use create_epic to add one.`,
-          },
-        ],
-      };
     }
   );
 
@@ -83,47 +84,24 @@ Returns the created epic.`,
       description?: string | undefined;
       color?: string | undefined;
     }) => {
-      const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId) as
-        | DbProject
-        | undefined;
-      if (!project) {
-        return {
-          content: [{ type: "text", text: `Project not found: ${projectId}` }],
-          isError: true,
-        };
-      }
-
-      const id = randomUUID();
-      const now = new Date().toISOString();
-
       try {
-        db.prepare(
-          "INSERT INTO epics (id, title, description, project_id, color, created_at) VALUES (?, ?, ?, ?, ?, ?)"
-        ).run(id, title.trim(), description?.trim() || null, projectId, color || null, now);
+        const epic = createEpic(db, { projectId, title, description, color });
 
-        const epic = db.prepare("SELECT * FROM epics WHERE id = ?").get(id) as DbEpic;
-        log.info(`Created epic: ${title} in project ${project.name}`);
+        log.info(`Created epic: ${title}`);
 
         return {
           content: [
             {
-              type: "text",
-              text: `Epic created in "${project.name}"!\n\n${JSON.stringify(epic)}`,
+              type: "text" as const,
+              text: `Epic created!\n\n${JSON.stringify(epic)}`,
             },
           ],
         };
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        log.error(`Failed to create epic "${title}": ${errorMsg}`);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Failed to create epic: ${errorMsg}`,
-            },
-          ],
-          isError: true,
-        };
+        if (err instanceof CoreError) {
+          log.error(`Failed to create epic "${title}": ${err.message}`);
+        }
+        return mcpError(err);
       }
     }
   );
@@ -157,66 +135,24 @@ Returns the updated epic.`,
       description?: string | undefined;
       color?: string | undefined;
     }) => {
-      const epic = db.prepare("SELECT * FROM epics WHERE id = ?").get(epicId) as DbEpic | undefined;
-      if (!epic) {
-        return {
-          content: [{ type: "text", text: `Epic not found: ${epicId}` }],
-          isError: true,
-        };
-      }
+      try {
+        const epic = updateEpic(db, epicId, { title, description, color });
 
-      // Build update query dynamically based on provided fields
-      const updates: string[] = [];
-      const values: (string | null)[] = [];
+        log.info(`Updated epic: ${epic.title}`);
 
-      if (title !== undefined) {
-        updates.push("title = ?");
-        values.push(title.trim());
-      }
-      if (description !== undefined) {
-        updates.push("description = ?");
-        values.push(description.trim() || null);
-      }
-      if (color !== undefined) {
-        updates.push("color = ?");
-        values.push(color || null);
-      }
-
-      if (updates.length === 0) {
         return {
           content: [
             {
-              type: "text",
-              text: "No updates provided. Specify at least one of: title, description, color",
+              type: "text" as const,
+              text: `Epic updated!\n\n${JSON.stringify(epic)}`,
             },
           ],
-          isError: true,
-        };
-      }
-
-      values.push(epicId);
-
-      try {
-        db.prepare(`UPDATE epics SET ${updates.join(", ")} WHERE id = ?`).run(...values);
-
-        const updatedEpic = db.prepare("SELECT * FROM epics WHERE id = ?").get(epicId) as DbEpic;
-        log.info(`Updated epic: ${updatedEpic.title}`);
-
-        return {
-          content: [{ type: "text", text: `Epic updated!\n\n${JSON.stringify(updatedEpic)}` }],
         };
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        log.error(`Failed to update epic: ${errorMsg}`);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Failed to update epic: ${errorMsg}`,
-            },
-          ],
-          isError: true,
-        };
+        if (err instanceof CoreError) {
+          log.error(`Failed to update epic: ${err.message}`);
+        }
+        return mcpError(err);
       }
     }
   );
@@ -248,75 +184,33 @@ Returns:
         .describe("Set to true to actually delete (default: false, dry run)"),
     },
     async ({ epicId, confirm }: { epicId: string; confirm?: boolean | undefined }) => {
-      const epic = db.prepare("SELECT * FROM epics WHERE id = ?").get(epicId) as DbEpic | undefined;
-      if (!epic) {
-        return {
-          content: [{ type: "text", text: `Epic not found: ${epicId}` }],
-          isError: true,
-        };
-      }
+      try {
+        const result = deleteEpic(db, epicId, confirm ?? false);
 
-      // Get tickets that would be unlinked
-      const tickets = db
-        .prepare("SELECT id, title, status FROM tickets WHERE epic_id = ?")
-        .all(epicId) as Array<{ id: string; title: string; status: string }>;
-
-      // Dry run - show what would be affected
-      if (!confirm) {
-        let preview = `⚠️  DRY RUN - Delete Epic Preview\n`;
-        preview += `${"─".repeat(50)}\n\n`;
-        preview += `Epic: "${epic.title}"\n`;
-        preview += `ID: ${epicId}\n\n`;
-        preview += `This will UNLINK ${tickets.length} ticket(s) from this epic:\n`;
-
-        if (tickets.length > 0) {
-          tickets.forEach((t, i) => {
-            preview += `  ${i + 1}. [${t.status}] ${t.title}\n`;
-          });
-          preview += `\n(Tickets will remain in the project, just no longer associated with this epic)\n`;
+        if (result.dryRun) {
+          return {
+            content: [{ type: "text" as const, text: result.warning }],
+          };
         }
 
-        preview += `\n${"─".repeat(50)}\n`;
-        preview += `To confirm deletion, call delete_epic with confirm=true`;
-
-        return {
-          content: [{ type: "text", text: preview }],
-        };
-      }
-
-      // Actually delete (wrapped in transaction for atomicity)
-      const deleteEpic = db.transaction(() => {
-        db.prepare("UPDATE tickets SET epic_id = NULL, updated_at = ? WHERE epic_id = ?").run(
-          new Date().toISOString(),
-          epicId
+        log.info(
+          `Deleted epic: ${result.deleted.title} (unlinked ${result.deleted.childrenDeleted} tickets)`
         );
 
-        db.prepare("DELETE FROM epics WHERE id = ?").run(epicId);
-      });
-
-      try {
-        deleteEpic();
-        log.info(`Deleted epic: ${epic.title} (unlinked ${tickets.length} tickets)`);
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        log.error(`Failed to delete epic "${epic.title}": ${errorMsg}`);
-        const userMessage = errorMsg.includes("SQLITE_BUSY")
-          ? "The database is busy. Please try again in a moment."
-          : errorMsg;
         return {
-          content: [{ type: "text", text: `❌ Failed to delete epic: ${userMessage}` }],
-          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Epic "${result.deleted.title}" deleted successfully. ${result.deleted.childrenDeleted} ticket(s) were unlinked.`,
+            },
+          ],
         };
+      } catch (err) {
+        if (err instanceof CoreError) {
+          log.error(`Failed to delete epic: ${err.message}`);
+        }
+        return mcpError(err);
       }
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: `✅ Epic "${epic.title}" deleted successfully.\n\n${tickets.length} ticket(s) were unlinked from this epic.`,
-          },
-        ],
-      };
     }
   );
 }
