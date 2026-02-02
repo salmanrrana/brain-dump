@@ -350,10 +350,10 @@ describe("startEpicWork", () => {
       .prepare("SELECT * FROM epic_workflow_state WHERE epic_id = ?")
       .get("epic-1") as {
       epic_branch_name: string;
-      total_tickets: number;
+      tickets_total: number;
     };
     expect(state.epic_branch_name).toMatch(/^feature\/epic-epic-1/);
-    expect(state.total_tickets).toBe(1);
+    expect(state.tickets_total).toBe(1);
   });
 
   it("returns existing branch when epic work already started", () => {

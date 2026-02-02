@@ -602,16 +602,43 @@ export function createTestDatabase(logger: Logger = silentLogger): InitDatabaseR
       epic_branch_name TEXT,
       epic_branch_created_at TEXT,
       current_ticket_id TEXT REFERENCES tickets(id) ON DELETE SET NULL,
-      total_tickets INTEGER NOT NULL DEFAULT 0,
-      completed_tickets INTEGER NOT NULL DEFAULT 0,
+      tickets_total INTEGER NOT NULL DEFAULT 0,
+      tickets_done INTEGER NOT NULL DEFAULT 0,
+      learnings TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS claude_tasks (
+      id TEXT PRIMARY KEY NOT NULL,
+      ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      subject TEXT NOT NULL,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      active_form TEXT,
+      position REAL NOT NULL,
+      status_history TEXT,
+      session_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      completed_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS claude_task_snapshots (
+      id TEXT PRIMARY KEY NOT NULL,
+      ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      session_id TEXT,
+      tasks TEXT NOT NULL,
+      reason TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
     CREATE INDEX IF NOT EXISTS idx_workflow_ticket ON ticket_workflow_state(ticket_id);
     CREATE INDEX IF NOT EXISTS idx_epic_workflow_epic ON epic_workflow_state(epic_id);
     CREATE INDEX IF NOT EXISTS idx_findings_ticket ON review_findings(ticket_id);
     CREATE INDEX IF NOT EXISTS idx_findings_status ON review_findings(status);
+    CREATE INDEX IF NOT EXISTS idx_claude_tasks_ticket ON claude_tasks(ticket_id);
+    CREATE INDEX IF NOT EXISTS idx_claude_task_snapshots_ticket ON claude_task_snapshots(ticket_id);
 
     CREATE TABLE IF NOT EXISTS telemetry_sessions (
       id TEXT PRIMARY KEY,

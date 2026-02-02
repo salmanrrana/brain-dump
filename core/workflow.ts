@@ -501,7 +501,7 @@ export function startEpicWork(
   const ticketsTotal = epicTickets.length;
   const ticketsDone = epicTickets.filter((t) => t.status === "done").length;
   db.prepare(
-    "UPDATE epic_workflow_state SET total_tickets = ?, completed_tickets = ?, updated_at = ? WHERE epic_id = ?"
+    "UPDATE epic_workflow_state SET tickets_total = ?, tickets_done = ?, updated_at = ? WHERE epic_id = ?"
   ).run(ticketsTotal, ticketsDone, now, epicId);
 
   return {

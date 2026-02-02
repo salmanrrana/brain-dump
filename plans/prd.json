@@ -115,7 +115,7 @@
     {
       "id": "a32fe775-11fe-4598-914b-4b8c21e485a9",
       "title": "Extract core/session.ts and core/telemetry.ts",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -143,7 +143,7 @@
     {
       "id": "83a55430-7450-4d8a-8304-77633b9380e3",
       "title": "Extract remaining core modules (git, files, compliance, tasks, health, learnings)",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -218,7 +218,7 @@
     {
       "id": "e89b80e3-b972-492b-beac-98391522fa54",
       "title": "Extract core/workflow.ts + absorb start-ticket-workflow.ts",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],

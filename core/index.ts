@@ -214,6 +214,9 @@ export type {
   TelemetrySessionSummary,
 } from "./telemetry.ts";
 
+// JSON utilities
+export { safeJsonParse } from "./json.ts";
+
 // Git utilities
 export {
   slugify,
@@ -227,3 +230,89 @@ export {
 
 // Workflow business logic
 export { startWork, completeWork, startEpicWork } from "./workflow.ts";
+
+// Git linking business logic
+export { linkCommit, linkPr, syncTicketLinks } from "./git.ts";
+
+export type { LinkCommitResult, LinkPrResult, SyncedPR, SyncResult } from "./git.ts";
+
+// File linking business logic
+export { linkFiles, getTicketsForFile } from "./files.ts";
+
+export type { LinkedFileTicket, LinkFilesResult } from "./files.ts";
+
+// Claude tasks business logic
+export { saveTasks, getTasks, clearTasks, getTaskSnapshots, TASK_STATUSES } from "./tasks.ts";
+
+export type {
+  TaskInput,
+  SavedTask,
+  FormattedTask,
+  SaveTasksResult,
+  GetTasksResult,
+  ClearTasksResult,
+  ParsedSnapshot,
+  GetSnapshotsResult,
+} from "./tasks.ts";
+
+export type { TaskStatus as ClaudeTaskStatus } from "./tasks.ts";
+
+// Health & settings business logic
+export {
+  getDatabaseHealth,
+  getEnvironment,
+  getProjectSettings,
+  updateProjectSettings,
+} from "./health.ts";
+
+export type {
+  HealthDependencies,
+  EnvironmentDetector,
+  WorkingMethod,
+  HealthReport,
+  EnvironmentResult,
+  ProjectSettingsResult,
+} from "./health.ts";
+
+// Learning reconciliation business logic
+export { reconcileLearnings, getEpicLearnings } from "./learnings.ts";
+
+export type {
+  LearningEntry,
+  DocUpdateResult,
+  ReconcileLearningsResult,
+  GetEpicLearningsResult,
+} from "./learnings.ts";
+
+// Compliance / conversation logging business logic
+export {
+  startConversation,
+  logMessage,
+  endConversation,
+  listConversations,
+  exportComplianceLogs,
+  archiveOldSessions,
+  DATA_CLASSIFICATIONS,
+  MESSAGE_ROLES,
+} from "./compliance.ts";
+
+export type {
+  MessageRole,
+  ComplianceDependencies,
+  StartConversationParams,
+  ConversationSessionResult,
+  LogMessageParams,
+  LogMessageResult,
+  EndConversationResult,
+  ListConversationsParams,
+  ConversationSessionSummary,
+  ExportParams,
+  ExportedMessage,
+  ExportedSession,
+  IntegrityReport,
+  ComplianceExport,
+  ArchiveParams,
+  ArchivePreview,
+  ArchiveConfirmed,
+  ArchiveResult,
+} from "./compliance.ts";

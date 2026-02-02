@@ -14,19 +14,11 @@ import {
   ValidationError,
 } from "./errors.ts";
 import type { DbTicketRow, DbProjectRow, DbEpicRow, DbTicketSummaryRow } from "./db-rows.ts";
+import { safeJsonParse } from "./json.ts";
 
 // ============================================
 // Internal Helpers
 // ============================================
-
-function safeJsonParse<T>(json: string | null, fallback: T): T {
-  if (!json) return fallback;
-  try {
-    return JSON.parse(json) as T;
-  } catch {
-    return fallback;
-  }
-}
 
 /**
  * Convert a raw DB ticket row into a TicketWithProject.
