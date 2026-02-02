@@ -87,3 +87,31 @@ export {
 } from "./db.ts";
 
 export type { InitDatabaseOptions, Logger } from "./db.ts";
+
+// Ticket business logic
+export {
+  createTicket,
+  listTickets,
+  getTicket,
+  updateTicketStatus,
+  updateAcceptanceCriterion,
+  deleteTicket,
+  updateAttachmentMetadata,
+  listTicketsByEpic,
+} from "./ticket.ts";
+
+export type {
+  CreateTicketParams,
+  ListTicketsFilters,
+  TicketSummary,
+  CriterionStatus,
+  UpdateCriterionResult,
+  UpdateAttachmentMetadataParams,
+  UpdateAttachmentResult,
+  ListTicketsByEpicFilters,
+} from "./ticket.ts";
+
+// Project business logic
+export { listProjects, findProjectByPath, createProject, deleteProject } from "./project.ts";
+
+export type { CreateProjectParams } from "./project.ts";

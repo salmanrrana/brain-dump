@@ -1,13 +1,29 @@
 /**
  * Ticket management tools for Brain Dump MCP server.
+ *
+ * These are thin wrappers around core/ticket.ts functions.
+ * Business logic lives in the core layer; this file only handles
+ * MCP protocol formatting and Zod input schemas.
+ *
  * @module tools/tickets
  */
 import { z } from "zod";
-import { randomUUID } from "crypto";
 import { log } from "../lib/logging.js";
 import type Database from "better-sqlite3";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { DbTicket, DbProject, DbEpic } from "../types.js";
+import { CoreError } from "../../core/errors.ts";
+import {
+  createTicket,
+  listTickets,
+  getTicket,
+  updateTicketStatus,
+  updateAcceptanceCriterion,
+  deleteTicket,
+  updateAttachmentMetadata,
+  listTicketsByEpic,
+} from "../../core/ticket.ts";
+import type { TicketStatus, Priority } from "../../core/types.ts";
+import type { CriterionStatus } from "../../core/ticket.ts";
 
 const STATUSES = ["backlog", "ready", "in_progress", "ai_review", "human_review", "done"] as const;
 const PRIORITIES = ["low", "medium", "high"] as const;
@@ -29,28 +45,14 @@ const ATTACHMENT_TYPES = [
 /** Valid attachment priorities */
 const ATTACHMENT_PRIORITIES = ["primary", "supplementary"] as const;
 
-/** Acceptance criterion stored in ticket subtasks JSON */
-interface AcceptanceCriterion {
-  id: string;
-  criterion?: string | undefined;
-  text?: string | undefined;
-  completed?: boolean | undefined;
-  status?: string | undefined;
-  verifiedBy?: string | undefined;
-  verifiedAt?: string | undefined;
-  verificationNote?: string | undefined;
-}
-
-/** Attachment stored in ticket attachments JSON */
-interface TicketAttachment {
-  id: string;
-  filename: string;
-  type?: string;
-  description?: string;
-  priority?: string;
-  uploadedBy?: string;
-  uploadedAt?: string;
-  linkedCriteria?: string[];
+/** Convert a CoreError into an MCP error response. */
+function mcpError(err: unknown): { content: [{ type: "text"; text: string }]; isError: true } {
+  const msg =
+    err instanceof CoreError ? err.message : err instanceof Error ? err.message : String(err);
+  return {
+    content: [{ type: "text" as const, text: msg }],
+    isError: true,
+  };
 }
 
 /**
@@ -97,83 +99,31 @@ Returns the created ticket with its generated ID.`,
       epicId?: string | undefined;
       tags?: string[] | undefined;
     }) => {
-      const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(projectId) as
-        | DbProject
-        | undefined;
-      if (!project) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Project not found: ${projectId}\n\nUse list_projects to see available projects.`,
-            },
-          ],
-          isError: true,
-        };
-      }
-
-      if (epicId) {
-        const epic = db.prepare("SELECT * FROM epics WHERE id = ?").get(epicId) as
-          | DbEpic
-          | undefined;
-        if (!epic) {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: `Epic not found: ${epicId}\n\nUse list_epics to see available epics.`,
-              },
-            ],
-            isError: true,
-          };
-        }
-      }
-
-      const maxPos = db
-        .prepare(
-          "SELECT MAX(position) as maxPos FROM tickets WHERE project_id = ? AND status = 'backlog'"
-        )
-        .get(projectId) as { maxPos: number | null } | undefined;
-      const position = (maxPos?.maxPos ?? 0) + 1;
-
-      const id = randomUUID();
-      const now = new Date().toISOString();
-
       try {
-        db.prepare(
-          `INSERT INTO tickets (id, title, description, status, priority, position, project_id, epic_id, tags, created_at, updated_at)
-           VALUES (?, ?, ?, 'backlog', ?, ?, ?, ?, ?, ?, ?)`
-        ).run(
-          id,
-          title.trim(),
-          description?.trim() || null,
-          priority || null,
-          position,
+        const ticket = createTicket(db, {
           projectId,
-          epicId || null,
-          tags ? JSON.stringify(tags) : null,
-          now,
-          now
-        );
+          title,
+          description,
+          priority: priority as Priority | undefined,
+          epicId,
+          tags,
+        });
 
-        const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(id) as DbTicket;
-        log.info(`Created ticket: ${title} in project ${project.name}`);
+        log.info(`Created ticket: ${title} in project ${ticket.project.name}`);
 
         return {
           content: [
             {
               type: "text" as const,
-              text: `Ticket created in "${project.name}"!\n\n${JSON.stringify(ticket)}`,
+              text: `Ticket created in "${ticket.project.name}"!\n\n${JSON.stringify(ticket)}`,
             },
           ],
         };
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        log.error(`Failed to create ticket "${title}": ${errorMsg}`);
-        return {
-          content: [{ type: "text" as const, text: `Failed to create ticket: ${errorMsg}` }],
-          isError: true,
-        };
+        if (err instanceof CoreError) {
+          log.error(`Failed to create ticket "${title}": ${err.message}`);
+        }
+        return mcpError(err);
       }
     }
   );
@@ -197,32 +147,17 @@ Returns array of tickets sorted by creation date (newest first).`,
     async ({
       projectId,
       status,
-      limit = 20,
+      limit,
     }: {
       projectId?: string | undefined;
       status?: string | undefined;
       limit?: number | undefined;
     }) => {
-      // Return summary fields only to minimize token usage
-      let query = `SELECT t.id, t.title, t.status, t.priority, t.epic_id, t.is_blocked,
-        t.branch_name, t.pr_number, t.pr_status, t.created_at, t.updated_at,
-        p.name as project_name
-        FROM tickets t JOIN projects p ON t.project_id = p.id WHERE 1=1`;
-      const params: (string | number)[] = [];
-
-      if (projectId) {
-        query += " AND t.project_id = ?";
-        params.push(projectId);
-      }
-      if (status) {
-        query += " AND t.status = ?";
-        params.push(status);
-      }
-
-      query += " ORDER BY t.created_at DESC LIMIT ?";
-      params.push(Math.min(limit, 100));
-
-      const tickets = db.prepare(query).all(...params);
+      const tickets = listTickets(db, {
+        projectId,
+        status: status as TicketStatus | undefined,
+        limit,
+      });
 
       return {
         content: [
@@ -255,34 +190,23 @@ Returns the updated ticket.`,
       status: z.enum(STATUSES).describe("New status"),
     },
     async ({ ticketId, status }: { ticketId: string; status: string }) => {
-      const existing = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId) as
-        | DbTicket
-        | undefined;
-      if (!existing) {
+      try {
+        const oldTicket = getTicket(db, ticketId);
+        const oldStatus = oldTicket.status;
+        const updated = updateTicketStatus(db, ticketId, status as TicketStatus);
+        log.info(`Updated ticket ${ticketId} status: ${oldStatus} -> ${status}`);
+
         return {
-          content: [{ type: "text" as const, text: `Ticket not found: ${ticketId}` }],
-          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Ticket status updated: ${oldStatus} -> ${status}\n\n${JSON.stringify(updated)}`,
+            },
+          ],
         };
+      } catch (err) {
+        return mcpError(err);
       }
-
-      const now = new Date().toISOString();
-      const completedAt = status === "done" ? now : null;
-
-      db.prepare(
-        "UPDATE tickets SET status = ?, updated_at = ?, completed_at = ? WHERE id = ?"
-      ).run(status, now, completedAt, ticketId);
-
-      const updated = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId) as DbTicket;
-      log.info(`Updated ticket ${ticketId} status: ${existing.status} -> ${status}`);
-
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Ticket status updated: ${existing.status} -> ${status}\n\n${JSON.stringify(updated)}`,
-          },
-        ],
-      };
     }
   );
 
@@ -318,87 +242,33 @@ Returns the updated ticket with all acceptance criteria.`,
       status: string;
       verificationNote?: string | undefined;
     }) => {
-      const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId) as
-        | DbTicket
-        | undefined;
-      if (!ticket) {
-        return {
-          content: [{ type: "text" as const, text: `Ticket not found: ${ticketId}` }],
-          isError: true,
-        };
-      }
-
-      // Parse existing acceptance criteria (stored in subtasks column for backward compatibility)
-      let criteria: AcceptanceCriterion[] = [];
       try {
-        criteria = ticket.subtasks ? JSON.parse(ticket.subtasks as string) : [];
-      } catch (e) {
-        const errorMsg = e instanceof Error ? e.message : String(e);
-        return {
-          content: [
-            { type: "text" as const, text: `Failed to parse acceptance criteria: ${errorMsg}` },
-          ],
-          isError: true,
-        };
-      }
+        const result = updateAcceptanceCriterion(
+          db,
+          ticketId,
+          criterionId,
+          status as CriterionStatus,
+          verificationNote
+        );
 
-      // Find the criterion by ID
-      const criterionIndex = criteria.findIndex((c) => c.id === criterionId);
-      if (criterionIndex === -1) {
-        const availableIds = criteria
-          .map((c) => `  - ${c.id}: "${c.criterion || c.text}"`)
-          .join("\n");
+        const statusChange =
+          result.previousStatus === result.newStatus
+            ? `(no change - already ${status})`
+            : `${result.previousStatus} → ${result.newStatus}`;
+
+        log.info(`Updated criterion ${criterionId} in ticket ${ticketId}: ${statusChange}`);
+
         return {
           content: [
             {
               type: "text" as const,
-              text: `Criterion not found: ${criterionId}\n\nAvailable criteria:\n${availableIds || "(none)"}`,
+              text: `✅ Criterion updated: "${result.criterionText}"\nStatus: ${statusChange}${verificationNote ? `\nNote: ${verificationNote}` : ""}\n\n${JSON.stringify(result.ticket)}`,
             },
           ],
-          isError: true,
         };
+      } catch (err) {
+        return mcpError(err);
       }
-
-      // Update the criterion
-      const criterion = criteria[criterionIndex]!;
-      const previousStatus = criterion.status || (criterion.completed ? "passed" : "pending");
-
-      // Update to new format if it was legacy format
-      criterion.criterion = criterion.criterion ?? criterion.text ?? "";
-      criterion.text = undefined;
-      criterion.completed = undefined;
-
-      criterion.status = status;
-      criterion.verifiedBy = "claude"; // MCP calls are from Claude
-      criterion.verifiedAt = new Date().toISOString();
-      if (verificationNote) {
-        criterion.verificationNote = verificationNote;
-      }
-
-      // Save back to database
-      const now = new Date().toISOString();
-      db.prepare("UPDATE tickets SET subtasks = ?, updated_at = ? WHERE id = ?").run(
-        JSON.stringify(criteria),
-        now,
-        ticketId
-      );
-
-      const updated = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId) as DbTicket;
-      const statusChange =
-        previousStatus === status
-          ? `(no change - already ${status})`
-          : `${previousStatus} → ${status}`;
-
-      log.info(`Updated criterion ${criterionId} in ticket ${ticketId}: ${statusChange}`);
-
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `✅ Criterion updated: "${criterion.criterion}"\nStatus: ${statusChange}${verificationNote ? `\nNote: ${verificationNote}` : ""}\n\n${JSON.stringify(updated)}`,
-          },
-        ],
-      };
     }
   );
 
@@ -423,71 +293,23 @@ This tool is deprecated and will be removed in a future version.`,
       subtaskId: string;
       completed: boolean;
     }) => {
-      // Redirect to new tool
-      const status = completed ? "passed" : "pending";
-      const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId) as
-        | DbTicket
-        | undefined;
-      if (!ticket) {
-        return {
-          content: [{ type: "text" as const, text: `Ticket not found: ${ticketId}` }],
-          isError: true,
-        };
-      }
-
-      let criteria: AcceptanceCriterion[] = [];
       try {
-        criteria = ticket.subtasks ? JSON.parse(ticket.subtasks as string) : [];
-      } catch (e) {
-        const errorMsg = e instanceof Error ? e.message : String(e);
-        return {
-          content: [{ type: "text" as const, text: `Failed to parse subtasks: ${errorMsg}` }],
-          isError: true,
-        };
-      }
+        const status: CriterionStatus = completed ? "passed" : "pending";
+        const result = updateAcceptanceCriterion(db, ticketId, subtaskId, status);
 
-      const criterionIndex = criteria.findIndex((c) => c.id === subtaskId);
-      if (criterionIndex === -1) {
-        const availableIds = criteria
-          .map((c) => `  - ${c.id}: "${c.criterion || c.text}"`)
-          .join("\n");
+        log.info(`[DEPRECATED] Updated subtask ${subtaskId} via legacy API`);
+
         return {
           content: [
             {
               type: "text" as const,
-              text: `Subtask not found: ${subtaskId}\n\nAvailable:\n${availableIds || "(none)"}`,
+              text: `⚠️ DEPRECATED: Use update_acceptance_criterion instead.\n\nSubtask updated.\n\n${JSON.stringify(result.ticket)}`,
             },
           ],
-          isError: true,
         };
+      } catch (err) {
+        return mcpError(err);
       }
-
-      const criterion = criteria[criterionIndex]!;
-      criterion.criterion = criterion.criterion ?? criterion.text ?? "";
-      criterion.text = undefined;
-      criterion.completed = undefined;
-      criterion.status = status;
-      criterion.verifiedBy = "claude";
-      criterion.verifiedAt = new Date().toISOString();
-
-      const now = new Date().toISOString();
-      db.prepare("UPDATE tickets SET subtasks = ?, updated_at = ? WHERE id = ?").run(
-        JSON.stringify(criteria),
-        now,
-        ticketId
-      );
-
-      const updated = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId) as DbTicket;
-      log.info(`[DEPRECATED] Updated subtask ${subtaskId} via legacy API`);
-
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `⚠️ DEPRECATED: Use update_acceptance_criterion instead.\n\nSubtask updated.\n\n${JSON.stringify(updated)}`,
-          },
-        ],
-      };
     }
   );
 
@@ -515,106 +337,35 @@ Returns:
         .describe("Set to true to actually delete (default: false, dry run)"),
     },
     async ({ ticketId, confirm }: { ticketId: string; confirm?: boolean }) => {
-      const ticket = db
-        .prepare(
-          `
-        SELECT t.*, p.name as project_name, e.title as epic_title
-        FROM tickets t
-        JOIN projects p ON t.project_id = p.id
-        LEFT JOIN epics e ON t.epic_id = e.id
-        WHERE t.id = ?
-      `
-        )
-        .get(ticketId) as
-        | (DbTicket & { project_name: string; epic_title: string | null })
-        | undefined;
-
-      if (!ticket) {
-        return {
-          content: [{ type: "text" as const, text: `Ticket not found: ${ticketId}` }],
-          isError: true,
-        };
-      }
-
-      // Get comments that would be deleted
-      const comments = db
-        .prepare("SELECT id, author, type, created_at FROM ticket_comments WHERE ticket_id = ?")
-        .all(ticketId) as Array<{
-        id: string;
-        author: string;
-        type: string;
-        created_at: string;
-      }>;
-
-      // Dry run - show what would be deleted
-      if (!confirm) {
-        let preview = `⚠️  DRY RUN - Delete Ticket Preview\n`;
-        preview += `${"─".repeat(50)}\n\n`;
-        preview += `Ticket: "${ticket.title}"\n`;
-        preview += `ID: ${ticketId}\n`;
-        preview += `Status: ${ticket.status}\n`;
-        preview += `Project: ${ticket.project_name}\n`;
-        if (ticket.epic_title) {
-          preview += `Epic: ${ticket.epic_title}\n`;
-        }
-        preview += `\n`;
-
-        if (ticket.description) {
-          const desc = ticket.description as string;
-          preview += `Description:\n${desc.substring(0, 200)}${desc.length > 200 ? "..." : ""}\n\n`;
-        }
-
-        preview += `${"─".repeat(50)}\n`;
-        preview += `This will also delete ${comments.length} comment(s):\n`;
-        if (comments.length > 0) {
-          comments.forEach((c, i) => {
-            const date = new Date(c.created_at).toLocaleDateString();
-            preview += `  ${i + 1}. [${c.type}] by ${c.author} on ${date}\n`;
-          });
-        } else {
-          preview += `  (none)\n`;
-        }
-
-        preview += `\n${"─".repeat(50)}\n`;
-        preview += `To confirm deletion, call delete_ticket with confirm=true`;
-
-        return {
-          content: [{ type: "text" as const, text: preview }],
-        };
-      }
-
-      // Actually delete (wrapped in transaction for atomicity)
-      const deleteTicket = db.transaction(() => {
-        // 1. Delete comments
-        db.prepare("DELETE FROM ticket_comments WHERE ticket_id = ?").run(ticketId);
-
-        // 2. Delete ticket
-        db.prepare("DELETE FROM tickets WHERE id = ?").run(ticketId);
-      });
-
       try {
-        deleteTicket();
-        log.info(`Deleted ticket: ${ticket.title} (${comments.length} comments)`);
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        log.error(`Failed to delete ticket "${ticket.title}": ${errorMsg}`);
-        const userMessage = errorMsg.includes("SQLITE_BUSY")
-          ? "The database is busy. Please try again in a moment."
-          : errorMsg;
-        return {
-          content: [{ type: "text" as const, text: `❌ Failed to delete ticket: ${userMessage}` }],
-          isError: true,
-        };
-      }
+        const result = deleteTicket(db, ticketId, confirm ?? false);
 
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `✅ Ticket "${ticket.title}" deleted successfully.\n\nDeleted ${comments.length} comment(s).`,
-          },
-        ],
-      };
+        if (result.dryRun) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `⚠️  DRY RUN - Delete Ticket Preview\n${"─".repeat(50)}\n\nTicket: "${result.wouldDelete.title}"\nID: ${result.wouldDelete.id}\nComments: ${result.wouldDelete.childCount}\n\n${result.warning}`,
+              },
+            ],
+          };
+        }
+
+        log.info(
+          `Deleted ticket: ${result.deleted.title} (${result.deleted.childrenDeleted} comments)`
+        );
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `✅ Ticket "${result.deleted.title}" deleted successfully.\n\nDeleted ${result.deleted.childrenDeleted} comment(s).`,
+            },
+          ],
+        };
+      } catch (err) {
+        return mcpError(err);
+      }
     }
   );
 
@@ -662,100 +413,24 @@ Returns the updated attachment.`,
         linkedCriteria?: string[] | undefined;
       };
     }) => {
-      const ticket = db.prepare("SELECT * FROM tickets WHERE id = ?").get(ticketId) as
-        | DbTicket
-        | undefined;
-      if (!ticket) {
-        return {
-          content: [{ type: "text" as const, text: `Ticket not found: ${ticketId}` }],
-          isError: true,
-        };
-      }
-
-      // Parse existing attachments
-      let attachments: (string | TicketAttachment)[] = [];
       try {
-        attachments = ticket.attachments ? JSON.parse(ticket.attachments as string) : [];
-      } catch (e) {
-        const errorMsg = e instanceof Error ? e.message : String(e);
-        return {
-          content: [{ type: "text" as const, text: `Failed to parse attachments: ${errorMsg}` }],
-          isError: true,
-        };
-      }
+        const result = updateAttachmentMetadata(db, ticketId, attachmentId, metadata);
 
-      // Normalize attachments (handle legacy string format)
-      const normalizedAttachments: TicketAttachment[] = attachments.map((item, index) => {
-        // Legacy format: just a filename string
-        if (typeof item === "string") {
-          return {
-            id: `legacy-${index}-${item}`,
-            filename: item,
-            type: "reference",
-            priority: "primary",
-            uploadedBy: "human",
-            uploadedAt: new Date().toISOString(),
-          };
-        }
-        // Already in object format
-        return item as TicketAttachment;
-      });
+        log.info(
+          `Updated attachment metadata for ${attachmentId} in ticket ${ticketId} (type=${result.attachment.type}, priority=${result.attachment.priority})`
+        );
 
-      // Find the attachment by ID or filename
-      const attachmentIndex = normalizedAttachments.findIndex(
-        (a) => a.id === attachmentId || a.filename === attachmentId
-      );
-
-      if (attachmentIndex === -1) {
-        const availableAttachments = normalizedAttachments
-          .map((a) => `  - ${a.id}: "${a.filename}" (${a.type})`)
-          .join("\n");
         return {
           content: [
             {
               type: "text" as const,
-              text: `Attachment not found: ${attachmentId}\n\nAvailable attachments:\n${availableAttachments || "(none)"}`,
+              text: `Attachment metadata updated:\n\n${JSON.stringify(result.attachment)}`,
             },
           ],
-          isError: true,
         };
+      } catch (err) {
+        return mcpError(err);
       }
-
-      // Update the attachment metadata
-      const attachment = normalizedAttachments[attachmentIndex]!;
-      if (metadata.type !== undefined) {
-        attachment.type = metadata.type;
-      }
-      if (metadata.description !== undefined) {
-        attachment.description = metadata.description;
-      }
-      if (metadata.priority !== undefined) {
-        attachment.priority = metadata.priority;
-      }
-      if (metadata.linkedCriteria !== undefined) {
-        attachment.linkedCriteria = metadata.linkedCriteria;
-      }
-
-      // Save back to database
-      const now = new Date().toISOString();
-      db.prepare("UPDATE tickets SET attachments = ?, updated_at = ? WHERE id = ?").run(
-        JSON.stringify(normalizedAttachments),
-        now,
-        ticketId
-      );
-
-      log.info(
-        `Updated attachment metadata for ${attachmentId} in ticket ${ticketId} (type=${attachment.type}, priority=${attachment.priority})`
-      );
-
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Attachment metadata updated:\n\n${JSON.stringify(attachment)}`,
-          },
-        ],
-      };
     }
   );
 
@@ -783,72 +458,43 @@ Returns array of tickets in the epic, sorted by position.`,
       epicId,
       projectId,
       status,
-      limit = 100,
+      limit,
     }: {
       epicId: string;
       projectId?: string | undefined;
       status?: string | undefined;
       limit?: number | undefined;
     }) => {
-      // Verify epic exists
-      const epic = db.prepare("SELECT * FROM epics WHERE id = ?").get(epicId) as DbEpic | undefined;
-      if (!epic) {
+      try {
+        const tickets = listTicketsByEpic(db, {
+          epicId,
+          projectId,
+          status: status as TicketStatus | undefined,
+          limit,
+        });
+
+        if (tickets.length === 0) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `No tickets found in the epic${status ? ` with status "${status}"` : ""}.`,
+              },
+            ],
+          };
+        }
+
         return {
           content: [
             {
               type: "text" as const,
-              text: `Epic not found: ${epicId}\n\nUse list_epics to see available epics.`,
-            },
-          ],
-          isError: true,
-        };
-      }
-
-      // Return summary fields only to minimize token usage
-      let query = `
-        SELECT t.id, t.title, t.status, t.priority, t.position, t.is_blocked,
-          t.branch_name, t.pr_number, t.pr_status,
-          p.name as project_name, e.title as epic_title
-        FROM tickets t
-        JOIN projects p ON t.project_id = p.id
-        LEFT JOIN epics e ON t.epic_id = e.id
-        WHERE t.epic_id = ?
-      `;
-      const params: (string | number)[] = [epicId];
-
-      if (projectId) {
-        query += " AND t.project_id = ?";
-        params.push(projectId);
-      }
-      if (status) {
-        query += " AND t.status = ?";
-        params.push(status);
-      }
-
-      query += " ORDER BY t.position ASC LIMIT ?";
-      params.push(Math.min(limit, 100));
-
-      const tickets = db.prepare(query).all(...params);
-
-      if (tickets.length === 0) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `No tickets found in epic "${epic.title}"${projectId ? ` for project` : ""}${status ? ` with status "${status}"` : ""}.`,
+              text: `Found ${tickets.length} ticket(s) in epic\n\n${JSON.stringify(tickets)}`,
             },
           ],
         };
+      } catch (err) {
+        return mcpError(err);
       }
-
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Found ${tickets.length} ticket(s) in epic "${epic.title}"\n\n${JSON.stringify(tickets)}`,
-          },
-        ],
-      };
     }
   );
 }
