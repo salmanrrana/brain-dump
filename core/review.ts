@@ -19,6 +19,7 @@ import type {
   TicketStatus,
 } from "./types.ts";
 import {
+  CoreError,
   TicketNotFoundError,
   FindingNotFoundError,
   InvalidStateError,
@@ -66,7 +67,9 @@ function toDemoScript(row: DbDemoScriptRow): DemoScript {
   try {
     steps = JSON.parse(row.steps || "[]");
   } catch {
-    steps = [];
+    throw new ValidationError(
+      `Demo script ${row.id} has corrupted steps data. Regenerate with generate_demo_script.`
+    );
   }
 
   return {
@@ -92,9 +95,16 @@ function getOrCreateWorkflowState(db: DbHandle, ticketId: string): DbTicketWorkf
       `INSERT INTO ticket_workflow_state (id, ticket_id, current_phase, review_iteration, findings_count, findings_fixed, demo_generated, created_at, updated_at)
        VALUES (?, ?, 'ai_review', 1, 0, 0, 0, ?, ?)`
     ).run(id, ticketId, now, now);
-    state = db
-      .prepare("SELECT * FROM ticket_workflow_state WHERE ticket_id = ?")
-      .get(ticketId) as DbTicketWorkflowStateRow;
+    state = db.prepare("SELECT * FROM ticket_workflow_state WHERE ticket_id = ?").get(ticketId) as
+      | DbTicketWorkflowStateRow
+      | undefined;
+    if (!state) {
+      throw new CoreError(
+        `Failed to create workflow state for ticket ${ticketId}.`,
+        "WORKFLOW_STATE_CREATION_FAILED",
+        { ticketId }
+      );
+    }
   }
 
   return state;
@@ -484,7 +494,9 @@ export function submitFeedback(db: DbHandle, params: SubmitFeedbackParams): Feed
     try {
       steps = JSON.parse(demo.steps || "[]");
     } catch {
-      steps = [];
+      throw new ValidationError(
+        `Demo script for ticket ${ticketId} has corrupted step data. Cannot apply step results.`
+      );
     }
     for (const result of stepResults) {
       const step = steps.find((s) => s.order === result.order);
