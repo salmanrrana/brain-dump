@@ -131,6 +131,39 @@ function getTicketRow(db: DbHandle, ticketId: string): DbTicketRow {
   return row;
 }
 
+function getTicketTitle(db: DbHandle, ticketId: string): string | null {
+  const ticket = db.prepare("SELECT title FROM tickets WHERE id = ?").get(ticketId) as
+    | { title: string }
+    | undefined;
+  return ticket?.title ?? null;
+}
+
+const SESSION_WITH_PROJECT_SQL = `
+  SELECT rs.*, t.title as ticket_title, p.path as project_path
+  FROM ralph_sessions rs
+  JOIN tickets t ON rs.ticket_id = t.id
+  JOIN projects p ON t.project_id = p.id
+  WHERE rs.id = ?`;
+
+function getSessionWithProject(db: DbHandle, sessionId: string): DbRalphSessionWithProjectRow {
+  const row = db.prepare(SESSION_WITH_PROJECT_SQL).get(sessionId) as
+    | DbRalphSessionWithProjectRow
+    | undefined;
+  if (!row) throw new SessionNotFoundError(sessionId);
+  return row;
+}
+
+function requireActiveSession(session: DbRalphSessionWithProjectRow, action: string): void {
+  if (session.completed_at) {
+    throw new InvalidStateError(
+      `session ${session.id}`,
+      `completed (${session.outcome})`,
+      "active",
+      action
+    );
+  }
+}
+
 function parseStateHistory(stateHistoryJson: string | null | undefined): StateHistoryEntry[] {
   if (!stateHistoryJson) return [];
   try {
@@ -284,10 +317,11 @@ export function createSession(db: DbHandle, ticketId: string): CreateSessionResu
   });
 
   // Emit state_change event for UI
-  const eventId = randomUUID();
-  db.prepare(
-    "INSERT INTO ralph_events (id, session_id, type, data, created_at) VALUES (?, ?, 'state_change', ?, ?)"
-  ).run(eventId, id, JSON.stringify({ state: "idle", message: "Session started" }), now);
+  emitEvent(db, {
+    sessionId: id,
+    type: "state_change",
+    data: { state: "idle", message: "Session started" },
+  });
 
   return {
     id,
@@ -315,26 +349,8 @@ export function createSession(db: DbHandle, ticketId: string): CreateSessionResu
 export function updateState(db: DbHandle, params: UpdateStateParams): UpdateStateResult {
   const { sessionId, state, metadata } = params;
 
-  const session = db
-    .prepare(
-      `SELECT rs.*, t.title as ticket_title, p.path as project_path
-       FROM ralph_sessions rs
-       JOIN tickets t ON rs.ticket_id = t.id
-       JOIN projects p ON t.project_id = p.id
-       WHERE rs.id = ?`
-    )
-    .get(sessionId) as DbRalphSessionWithProjectRow | undefined;
-
-  if (!session) throw new SessionNotFoundError(sessionId);
-
-  if (session.completed_at) {
-    throw new InvalidStateError(
-      `session ${sessionId}`,
-      `completed (${session.outcome})`,
-      "active",
-      "update state"
-    );
-  }
+  const session = getSessionWithProject(db, sessionId);
+  requireActiveSession(session, "update state");
 
   const previousState = session.current_state as RalphSessionState;
   const now = new Date().toISOString();
@@ -343,8 +359,6 @@ export function updateState(db: DbHandle, params: UpdateStateParams): UpdateStat
   const entry: StateHistoryEntry = { state, timestamp: now };
   if (metadata) entry.metadata = metadata;
   stateHistory.push(entry);
-
-  const stateNames = stateHistory.map((h) => h.state);
 
   db.prepare("UPDATE ralph_sessions SET current_state = ?, state_history = ? WHERE id = ?").run(
     state,
@@ -358,13 +372,12 @@ export function updateState(db: DbHandle, params: UpdateStateParams): UpdateStat
       sessionId,
       ticketId: session.ticket_id,
       currentState: state,
-      stateHistory: stateNames,
+      stateHistory: stateHistory.map((h) => h.state),
       startedAt: session.started_at,
     });
   }
 
   // Emit state_change event
-  const eventId = randomUUID();
   const eventData: Record<string, unknown> = {
     state,
     previousState,
@@ -372,9 +385,7 @@ export function updateState(db: DbHandle, params: UpdateStateParams): UpdateStat
   };
   if (metadata?.["file"]) eventData.file = metadata["file"];
   if (metadata?.["testResult"]) eventData.testResult = metadata["testResult"];
-  db.prepare(
-    "INSERT INTO ralph_events (id, session_id, type, data, created_at) VALUES (?, ?, 'state_change', ?, ?)"
-  ).run(eventId, sessionId, JSON.stringify(eventData), now);
+  emitEvent(db, { sessionId, type: "state_change", data: eventData });
 
   return {
     session: {
@@ -407,26 +418,8 @@ export function completeSession(
   outcome: SessionOutcome,
   errorMessage?: string
 ): CompleteSessionResult {
-  const session = db
-    .prepare(
-      `SELECT rs.*, t.title as ticket_title, p.path as project_path
-       FROM ralph_sessions rs
-       JOIN tickets t ON rs.ticket_id = t.id
-       JOIN projects p ON t.project_id = p.id
-       WHERE rs.id = ?`
-    )
-    .get(sessionId) as DbRalphSessionWithProjectRow | undefined;
-
-  if (!session) throw new SessionNotFoundError(sessionId);
-
-  if (session.completed_at) {
-    throw new InvalidStateError(
-      `session ${sessionId}`,
-      `completed (${session.outcome})`,
-      "active",
-      "complete session"
-    );
-  }
+  const session = getSessionWithProject(db, sessionId);
+  requireActiveSession(session, "complete session");
 
   const now = new Date().toISOString();
 
@@ -449,19 +442,17 @@ export function completeSession(
   }
 
   // Emit completion event
-  const eventId = randomUUID();
-  const eventData: Record<string, unknown> = {
-    state: "done",
-    outcome,
-    message: outcome === "success" ? "Session completed successfully" : `Session ended: ${outcome}`,
-    ...(errorMessage && { error: errorMessage }),
-  };
-  db.prepare(
-    "INSERT INTO ralph_events (id, session_id, type, data, created_at) VALUES (?, ?, 'state_change', ?, ?)"
-  ).run(eventId, sessionId, JSON.stringify(eventData), now);
-
-  const startedAt = new Date(session.started_at).getTime();
-  const completedAt = new Date(now).getTime();
+  emitEvent(db, {
+    sessionId,
+    type: "state_change",
+    data: {
+      state: "done",
+      outcome,
+      message:
+        outcome === "success" ? "Session completed successfully" : `Session ended: ${outcome}`,
+      ...(errorMessage && { error: errorMessage }),
+    },
+  });
 
   return {
     id: session.id,
@@ -473,7 +464,7 @@ export function completeSession(
     startedAt: session.started_at,
     completedAt: now,
     ticketTitle: session.ticket_title,
-    durationMs: completedAt - startedAt,
+    durationMs: new Date(now).getTime() - new Date(session.started_at).getTime(),
   };
 }
 
@@ -512,16 +503,9 @@ export function getState(
     throw new SessionNotFoundError(sessionId || ticketId!);
   }
 
-  const session = toRalphSession(row);
-
-  // Get ticket title
-  const ticket = db.prepare("SELECT title FROM tickets WHERE id = ?").get(row.ticket_id) as
-    | { title: string }
-    | undefined;
-
   return {
-    ...session,
-    ticketTitle: ticket?.title ?? null,
+    ...toRalphSession(row),
+    ticketTitle: getTicketTitle(db, row.ticket_id),
   };
 }
 
@@ -535,7 +519,7 @@ export function listSessions(
   ticketId: string,
   limit: number = 10
 ): ListSessionsResult {
-  getTicketRow(db, ticketId);
+  const ticket = getTicketRow(db, ticketId);
 
   const rows = db
     .prepare(
@@ -546,23 +530,17 @@ export function listSessions(
     )
     .all(ticketId, limit) as DbRalphSessionRow[];
 
-  const ticket = db.prepare("SELECT title FROM tickets WHERE id = ?").get(ticketId) as
-    | { title: string }
-    | undefined;
-
-  const sessions: SessionSummary[] = rows.map((s) => ({
-    id: s.id,
-    currentState: s.current_state as RalphSessionState,
-    outcome: s.outcome,
-    startedAt: s.started_at,
-    completedAt: s.completed_at,
-    stateCount: parseStateHistory(s.state_history).length,
-  }));
-
   return {
     ticketId,
-    ticketTitle: ticket?.title ?? null,
-    sessions,
+    ticketTitle: ticket.title,
+    sessions: rows.map((s) => ({
+      id: s.id,
+      currentState: s.current_state as RalphSessionState,
+      outcome: s.outcome,
+      startedAt: s.started_at,
+      completedAt: s.completed_at,
+      stateCount: parseStateHistory(s.state_history).length,
+    })),
   };
 }
 

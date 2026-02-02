@@ -34,8 +34,8 @@ export type ToolEventType = (typeof TOOL_EVENTS)[number];
 export interface TicketDetectionResult {
   ticketId: string | null;
   source: string;
-  shortId?: string | null | undefined;
-  error?: string | undefined;
+  shortId?: string | null;
+  error?: string;
 }
 
 export interface StartTelemetrySessionParams {
@@ -171,6 +171,25 @@ export interface TelemetrySessionSummary {
 // Internal Helpers
 // ============================================
 
+function getTelemetrySessionRow(
+  db: DbHandle,
+  sessionId: string
+): { id: string; ticket_id: string | null } {
+  const session = db
+    .prepare("SELECT id, ticket_id FROM telemetry_sessions WHERE id = ?")
+    .get(sessionId) as { id: string; ticket_id: string | null } | undefined;
+  if (!session) throw new SessionNotFoundError(sessionId);
+  return session;
+}
+
+function getTicketTitle(db: DbHandle, ticketId: string | null): string | null {
+  if (!ticketId) return null;
+  const ticket = db.prepare("SELECT title FROM tickets WHERE id = ?").get(ticketId) as
+    | { title: string }
+    | undefined;
+  return ticket?.title ?? null;
+}
+
 /**
  * Detect active ticket from Ralph state file or git branch.
  */
@@ -187,7 +206,7 @@ export function detectActiveTicket(projectPath: string): TicketDetectionResult {
           return { ticketId: state.ticketId, source: "ralph-state" };
         }
       } catch {
-        // Continue to try other detection methods
+        // Ralph state file is corrupted; fall through to git detection
       }
     }
 
@@ -204,13 +223,8 @@ export function detectActiveTicket(projectPath: string): TicketDetectionResult {
       if (match?.[1]) {
         return { ticketId: null, source: "branch-partial", shortId: match[1] };
       }
-    } catch (gitErr: unknown) {
-      const errorObj = gitErr as { code?: string; message?: string };
-      const isExpected =
-        errorObj.code === "ENOENT" || errorObj.message?.includes("not a git repository");
-      if (!isExpected) {
-        // non-standard git error, but we just return "none"
-      }
+    } catch {
+      // Git not available or not a repository; fall through
     }
 
     return { ticketId: null, source: "none" };
@@ -245,7 +259,9 @@ function parseEventData(row: DbTelemetryEventRow): TelemetryEventDetail {
     try {
       eventData = JSON.parse(row.event_data);
     } catch {
-      eventData = { _parseError: true };
+      throw new ValidationError(
+        `Corrupted telemetry event data JSON for event ${row.id}. The event data may be damaged.`
+      );
     }
   }
   return {
@@ -359,34 +375,24 @@ export function startTelemetrySession(
 export function logPrompt(db: DbHandle, params: LogPromptParams): LogPromptResult {
   const { sessionId, prompt, redact = false, tokenCount } = params;
 
-  const session = db
-    .prepare("SELECT id, ticket_id FROM telemetry_sessions WHERE id = ?")
-    .get(sessionId) as { id: string; ticket_id: string | null } | undefined;
-
-  if (!session) throw new SessionNotFoundError(sessionId);
+  const session = getTelemetrySessionRow(db, sessionId);
 
   const id = randomUUID();
   const now = new Date().toISOString();
-
-  let storedPrompt = prompt;
-  let isRedacted = false;
-
-  if (redact) {
-    storedPrompt = createHash("sha256").update(prompt).digest("hex");
-    isRedacted = true;
-  }
-
-  const eventData = {
-    prompt: storedPrompt,
-    promptLength: prompt.length,
-    redacted: isRedacted,
-  };
+  const storedPrompt = redact ? createHash("sha256").update(prompt).digest("hex") : prompt;
 
   db.prepare(
     `INSERT INTO telemetry_events
      (id, session_id, ticket_id, event_type, event_data, token_count, created_at)
      VALUES (?, ?, ?, 'prompt', ?, ?, ?)`
-  ).run(id, sessionId, session.ticket_id, JSON.stringify(eventData), tokenCount || null, now);
+  ).run(
+    id,
+    sessionId,
+    session.ticket_id,
+    JSON.stringify({ prompt: storedPrompt, promptLength: prompt.length, redacted: redact }),
+    tokenCount || null,
+    now
+  );
 
   db.prepare("UPDATE telemetry_sessions SET total_prompts = total_prompts + 1 WHERE id = ?").run(
     sessionId
@@ -395,7 +401,7 @@ export function logPrompt(db: DbHandle, params: LogPromptParams): LogPromptResul
   return {
     eventId: id,
     promptLength: prompt.length,
-    redacted: isRedacted,
+    redacted: redact,
   };
 }
 
@@ -420,21 +426,14 @@ export function logTool(db: DbHandle, params: LogToolParams): LogToolResult {
     error,
   } = params;
 
-  const session = db
-    .prepare("SELECT id, ticket_id FROM telemetry_sessions WHERE id = ?")
-    .get(sessionId) as { id: string; ticket_id: string | null } | undefined;
-
-  if (!session) throw new SessionNotFoundError(sessionId);
+  const session = getTelemetrySessionRow(db, sessionId);
 
   const id = randomUUID();
   const now = new Date().toISOString();
-
   const corrId = correlationId || (event === "start" ? randomUUID() : null);
   const eventType = event === "start" ? "tool_start" : "tool_end";
 
-  const eventData: Record<string, unknown> = {
-    toolName,
-  };
+  const eventData: Record<string, unknown> = { toolName };
   if (toolParams) eventData.paramsSummary = summarizeParams(toolParams);
   if (result) eventData.resultSummary = result.substring(0, 500);
   if (success !== undefined) eventData.success = success;
@@ -457,7 +456,6 @@ export function logTool(db: DbHandle, params: LogToolParams): LogToolResult {
     now
   );
 
-  // Update session stats on tool_end
   if (event === "end") {
     db.prepare(
       "UPDATE telemetry_sessions SET total_tool_calls = total_tool_calls + 1 WHERE id = ?"
@@ -487,29 +485,29 @@ export function logContext(db: DbHandle, params: LogContextParams): string {
     imageCount = 0,
   } = params;
 
-  const session = db
-    .prepare("SELECT id, ticket_id FROM telemetry_sessions WHERE id = ?")
-    .get(sessionId) as { id: string; ticket_id: string | null } | undefined;
-
-  if (!session) throw new SessionNotFoundError(sessionId);
+  const session = getTelemetrySessionRow(db, sessionId);
 
   const id = randomUUID();
   const now = new Date().toISOString();
-
-  const eventData = {
-    hasDescription,
-    hasAcceptanceCriteria,
-    criteriaCount,
-    commentCount,
-    attachmentCount,
-    imageCount,
-  };
 
   db.prepare(
     `INSERT INTO telemetry_events
      (id, session_id, ticket_id, event_type, event_data, created_at)
      VALUES (?, ?, ?, 'context_loaded', ?, ?)`
-  ).run(id, sessionId, session.ticket_id, JSON.stringify(eventData), now);
+  ).run(
+    id,
+    sessionId,
+    session.ticket_id,
+    JSON.stringify({
+      hasDescription,
+      hasAcceptanceCriteria,
+      criteriaCount,
+      commentCount,
+      attachmentCount,
+      imageCount,
+    }),
+    now
+  );
 
   return id;
 }
@@ -617,33 +615,23 @@ export function getTelemetrySession(
     throw new SessionNotFoundError(sessionId || ticketId!);
   }
 
-  let events: TelemetryEventDetail[] = [];
-  if (includeEvents) {
-    const rawEvents = db
-      .prepare(
-        `SELECT * FROM telemetry_events
-         WHERE session_id = ?
-         ORDER BY created_at ASC
-         LIMIT ?`
-      )
-      .all(session.id, eventLimit) as DbTelemetryEventRow[];
-
-    events = rawEvents.map(parseEventData);
-  }
-
-  // Get ticket title
-  let ticketTitle: string | null = null;
-  if (session.ticket_id) {
-    const ticket = db.prepare("SELECT title FROM tickets WHERE id = ?").get(session.ticket_id) as
-      | { title: string }
-      | undefined;
-    ticketTitle = ticket?.title ?? null;
-  }
+  const events: TelemetryEventDetail[] = includeEvents
+    ? (
+        db
+          .prepare(
+            `SELECT * FROM telemetry_events
+           WHERE session_id = ?
+           ORDER BY created_at ASC
+           LIMIT ?`
+          )
+          .all(session.id, eventLimit) as DbTelemetryEventRow[]
+      ).map(parseEventData)
+    : [];
 
   return {
     id: session.id,
     ticketId: session.ticket_id,
-    ticketTitle,
+    ticketTitle: getTicketTitle(db, session.ticket_id),
     projectId: session.project_id,
     environment: session.environment,
     branchName: session.branch_name,
@@ -689,26 +677,16 @@ export function listTelemetrySessions(
 
   const sessions = db.prepare(query).all(...queryParams) as DbTelemetrySessionRow[];
 
-  return sessions.map((s) => {
-    let ticketTitle: string | null = null;
-    if (s.ticket_id) {
-      const ticket = db.prepare("SELECT title FROM tickets WHERE id = ?").get(s.ticket_id) as
-        | { title: string }
-        | undefined;
-      ticketTitle = ticket?.title ?? null;
-    }
-
-    return {
-      id: s.id,
-      ticketId: s.ticket_id,
-      ticketTitle,
-      environment: s.environment,
-      startedAt: s.started_at,
-      endedAt: s.ended_at,
-      totalPrompts: s.total_prompts,
-      totalToolCalls: s.total_tool_calls,
-      durationMin: s.total_duration_ms ? Math.round(s.total_duration_ms / 60000) : null,
-      outcome: s.outcome,
-    };
-  });
+  return sessions.map((s) => ({
+    id: s.id,
+    ticketId: s.ticket_id,
+    ticketTitle: getTicketTitle(db, s.ticket_id),
+    environment: s.environment,
+    startedAt: s.started_at,
+    endedAt: s.ended_at,
+    totalPrompts: s.total_prompts,
+    totalToolCalls: s.total_tool_calls,
+    durationMin: s.total_duration_ms ? Math.round(s.total_duration_ms / 60000) : null,
+    outcome: s.outcome,
+  }));
 }
