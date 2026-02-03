@@ -10,7 +10,7 @@ You are running the AI review workflow for a ticket in `ai_review` status. This 
 
 ## Prerequisites
 
-- Ticket must be in `ai_review` status (set by `complete_ticket_work`)
+- Ticket must be in `ai_review` status (set by `workflow` tool `complete-work`)
 - Implementation work must be complete
 - Validation must pass (`pnpm check`)
 
@@ -21,16 +21,16 @@ You are running the AI review workflow for a ticket in `ai_review` status. This 
 First, confirm the ticket is in `ai_review` status:
 
 ```
-list_tickets({ projectId: "<project-id>", status: "ai_review" })
+ticket tool, action: "list", projectId: "<project-id>", status: "ai_review"
 ```
 
 Or get the active Ralph session which includes ticket state:
 
 ```
-get_session_state({ ticketId: "<ticket-id>" })
+session tool, action: "get", ticketId: "<ticket-id>"
 ```
 
-If the ticket is not in `ai_review`, call `complete_ticket_work` first.
+If the ticket is not in `ai_review`, call `workflow` tool `complete-work` first.
 
 ### Step 2: Run Review Agents in Parallel
 
@@ -52,10 +52,10 @@ Task 3: pr-review-toolkit:code-simplifier
 
 ### Step 3: Submit Findings via MCP
 
-For EVERY issue found, call `submit_review_finding`:
+For EVERY issue found, call the `review` tool with `action: "submit-finding"`:
 
 ```
-submit_review_finding({
+review tool, action: "submit-finding",
   ticketId: "<ticket-id>",
   agent: "code-reviewer",
   severity: "major",  // critical, major, minor, suggestion
@@ -64,7 +64,6 @@ submit_review_finding({
   filePath: "src/api/tickets.ts",
   lineNumber: 42,
   suggestedFix: "Add Zod schema validation"
-})
 ```
 
 Severity levels:
@@ -77,7 +76,7 @@ Severity levels:
 ### Step 4: Get Findings Summary
 
 ```
-get_review_findings({ ticketId: "<ticket-id>" })
+review tool, action: "get-findings", ticketId: "<ticket-id>"
 ```
 
 ### Step 5: Fix Critical and Major Issues
@@ -88,18 +87,17 @@ For each critical/major finding:
 2. Run validation: `pnpm check`
 3. Mark as fixed:
    ```
-   mark_finding_fixed({
+   review tool, action: "mark-fixed",
      findingId: "<finding-id>",
      status: "fixed",
      fixDescription: "Added Zod validation schema"
-   })
    ```
 4. Commit: `git commit -m "fix(<ticket-id>): <description>"`
 
 ### Step 6: Verify Review Complete
 
 ```
-check_review_complete({ ticketId: "<ticket-id>" })
+review tool, action: "check-complete", ticketId: "<ticket-id>"
 ```
 
 Must return `canProceedToHumanReview: true` before continuing.
@@ -109,14 +107,13 @@ Must return `canProceedToHumanReview: true` before continuing.
 When all critical/major findings are fixed:
 
 ```
-generate_demo_script({
+review tool, action: "generate-demo",
   ticketId: "<ticket-id>",
   steps: [
     { order: 1, description: "Open http://localhost:4242", expectedOutcome: "App loads", type: "manual" },
     { order: 2, description: "Navigate to tickets page", expectedOutcome: "Ticket list visible", type: "visual" },
     { order: 3, description: "Click on ticket", expectedOutcome: "Modal opens with details", type: "manual" }
   ]
-})
 ```
 
 Step types:

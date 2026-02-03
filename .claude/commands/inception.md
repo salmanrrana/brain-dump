@@ -16,6 +16,7 @@ Interview the user comprehensively about their project idea using the **AskUserQ
 **ALWAYS use the AskUserQuestion tool** for your questions. Structure every question with 2-4 thoughtful options plus the automatic "Other" option for custom answers.
 
 Example question format:
+
 ```
 Question: "What type of application is this?"
 Options:
@@ -34,6 +35,7 @@ If the user provided context: $ARGUMENTS
 ### Phase 1: Foundation (use AskUserQuestion for each)
 
 Ask about:
+
 - **Application type**: Web app, mobile, CLI, desktop, API, etc.
 - **Primary purpose**: What problem does it solve? (offer common patterns)
 - **Target users**: Developers, consumers, enterprise, internal team, etc.
@@ -42,12 +44,14 @@ Ask about:
 ### Phase 2: Technical Deep Dive (use AskUserQuestion for each)
 
 **Tech Stack:**
+
 - Frontend framework preference
 - Backend language/framework
 - Database type (SQL, NoSQL, none)
 - Hosting/deployment target
 
 **Architecture:**
+
 - Monolith vs microservices vs serverless
 - Real-time requirements (WebSockets, SSE, polling, none)
 - Authentication approach (OAuth, JWT, session, magic links, none)
@@ -56,10 +60,12 @@ Ask about:
 ### Phase 3: Features & UX (use AskUserQuestion for each)
 
 **Core Features:**
+
 - Ask about 3-5 main features with options based on the app type
 - For each feature, drill down on specifics
 
 **User Experience:**
+
 - Visual style (minimal, modern, playful, corporate, etc.)
 - Mobile responsiveness requirements
 - Accessibility level (basic, WCAG AA, WCAG AAA)
@@ -75,6 +81,7 @@ Ask about:
 ### Phase 5: Confirmation
 
 Summarize everything learned and confirm:
+
 - Project name
 - Directory location (offer default from settings if available)
 
@@ -87,6 +94,7 @@ Make questions **non-obvious and insightful**:
 
 **Good question:**
 "How will your app handle data persistence?"
+
 - PostgreSQL (relational, complex queries)
 - MongoDB (flexible schema, document-based)
 - SQLite (simple, file-based, good for local-first)
@@ -97,6 +105,7 @@ Make questions **non-obvious and insightful**:
 
 **Good question:**
 "What's your frontend philosophy?"
+
 - React with Next.js (SSR, full-featured)
 - Vue with Nuxt (approachable, batteries-included)
 - Svelte/SvelteKit (minimal, performant)
@@ -107,6 +116,7 @@ Make questions **non-obvious and insightful**:
 Once all questions are answered:
 
 1. **Create the project directory:**
+
    ```bash
    mkdir -p {directory}/{project-name}
    cd {directory}/{project-name}
@@ -128,6 +138,6 @@ Once all questions are answered:
 
 4. **Initialize git** and make initial commit
 
-5. **Register in Brain Dump** using `create_project` MCP tool
+5. **Register in Brain Dump** using `project` tool with `action: "create"`
 
 6. **Tell user** the project is ready and suggest running `/breakdown` next

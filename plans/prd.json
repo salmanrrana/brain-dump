@@ -167,7 +167,7 @@
     {
       "id": "781b0dee-94c7-4e85-ae85-9bc9af8e154d",
       "title": "Build CLI commands",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],

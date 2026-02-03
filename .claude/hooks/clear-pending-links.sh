@@ -1,8 +1,8 @@
 #!/bin/bash
 # clear-pending-links.sh
-# PostToolUse hook for sync_ticket_links
+# PostToolUse hook for workflow (action: sync-links)
 #
-# Clears the pending links file after sync_ticket_links successfully runs.
+# Clears the pending links file after workflow sync-links successfully runs.
 
 set -e
 
@@ -11,8 +11,15 @@ INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // ""')
 TOOL_RESULT=$(echo "$INPUT" | jq -r '.tool_result // ""')
 
-# Only care about sync_ticket_links MCP calls
-if [[ "$TOOL_NAME" != "mcp__brain-dump__sync_ticket_links" ]]; then
+# Only care about workflow MCP calls with action: sync-links
+if [[ "$TOOL_NAME" != "mcp__brain-dump__workflow" ]]; then
+  exit 0
+fi
+
+# Check that this is the sync-links action
+TOOL_INPUT_JSON=$(echo "$INPUT" | jq -r '.tool_input // "{}"')
+ACTION=$(echo "$TOOL_INPUT_JSON" | jq -r '.action // ""')
+if [[ "$ACTION" != "sync-links" ]]; then
   exit 0
 fi
 

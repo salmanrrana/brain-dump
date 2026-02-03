@@ -22,7 +22,7 @@ pnpm dev    # http://localhost:4242
 # 3. Write code, add tests, make commits
 # → Tasks are captured automatically as you work
 
-# 4. When done, Claude calls complete_ticket_work
+# 4. When done, Claude calls workflow tool "complete-work"
 # → Ticket moves to AI review automatically
 
 # 5. AI review agents check your code
@@ -68,7 +68,7 @@ pnpm dev    # http://localhost:4242
 
 ### Phase 1: Start Work
 
-**Command**: `start_ticket_work(ticketId)`
+**Command**: `workflow` tool, `action: "start-work"`, `ticketId`
 
 What happens:
 
@@ -108,7 +108,7 @@ If any fail, AI cannot complete the ticket.
 
 ### Phase 3: Complete Implementation
 
-**Command**: `complete_ticket_work(ticketId, "summary")`
+**Command**: `workflow` tool, `action: "complete-work"`, `ticketId`, `summary`
 
 What happens:
 
@@ -133,7 +133,7 @@ Three review agents run:
 
 **What happens:**
 
-- Findings are submitted: `submit_review_finding(ticketId, finding)`
+- Findings are submitted: `review` tool, `action: "submit-finding"`, `ticketId`, finding params
 - Critical/major findings MUST be fixed
 - Minor/suggestion findings are optional
 
@@ -163,7 +163,7 @@ Three review agents run:
 
 ### Phase 5: Generate Demo
 
-**Command**: `generate_demo_script(ticketId, steps)`
+**Command**: `review` tool, `action: "generate-demo"`, `ticketId`, `steps`
 
 Requirements to call this:
 
@@ -213,7 +213,7 @@ What happens:
 
 ### Phase 7: Reconcile Learnings (Optional)
 
-**Command**: `reconcile_learnings(ticketId, learnings)`
+**Command**: `epic` tool, `action: "reconcile-learnings"`, `ticketId`, `learnings`
 
 After ticket completion, extract insights:
 
@@ -333,16 +333,16 @@ brain-dump doctor
 
 These tools enforce the workflow in all environments:
 
-| Tool                    | Purpose                  | Preconditions               |
-| ----------------------- | ------------------------ | --------------------------- |
-| `start_ticket_work`     | Begin work               | No other ticket in_progress |
-| `complete_ticket_work`  | Finish implementation    | Validation passed           |
-| `submit_review_finding` | Report issue from review | Ticket in ai_review         |
-| `mark_finding_fixed`    | Mark issue resolved      | Finding exists              |
-| `check_review_complete` | Check if review passed   | Findings submitted          |
-| `generate_demo_script`  | Create test instructions | No critical/major findings  |
-| `submit_demo_feedback`  | Record human feedback    | Demo script exists          |
-| `reconcile_learnings`   | Update project docs      | Ticket in done              |
+| Tool + Action                | Purpose                  | Preconditions               |
+| ---------------------------- | ------------------------ | --------------------------- |
+| `workflow` `start-work`      | Begin work               | No other ticket in_progress |
+| `workflow` `complete-work`   | Finish implementation    | Validation passed           |
+| `review` `submit-finding`    | Report issue from review | Ticket in ai_review         |
+| `review` `mark-fixed`        | Mark issue resolved      | Finding exists              |
+| `review` `check-complete`    | Check if review passed   | Findings submitted          |
+| `review` `generate-demo`     | Create test instructions | No critical/major findings  |
+| `review` `submit-feedback`   | Record human feedback    | Demo script exists          |
+| `epic` `reconcile-learnings` | Update project docs      | Ticket in done              |
 
 ## Telemetry & Observability
 
@@ -449,7 +449,7 @@ You tried to submit a finding for a ticket not in AI review.
 
 **Fix:**
 
-- Call `complete_ticket_work` first
+- Call `workflow` tool `complete-work` first
 - This moves the ticket to `ai_review`
 - Then submit findings
 
@@ -471,7 +471,7 @@ You tried to complete work but tests don't pass.
 - Run `pnpm test` to see which tests fail
 - Fix the code
 - Re-commit
-- Try `complete_ticket_work` again
+- Try `workflow` `complete-work` again
 
 ## Configuration
 
@@ -523,9 +523,9 @@ Ralph is an agent that works your backlog automatically:
 Ralph:
 
 1. Picks the next unfinished ticket
-2. Calls `start_ticket_work`
+2. Calls `workflow` `start-work`
 3. Implements and tests
-4. Calls `complete_ticket_work`
+4. Calls `workflow` `complete-work`
 5. Runs AI review
 6. Generates demo
 7. Repeats until all tickets are in `human_review` or `done`
@@ -602,7 +602,7 @@ When the review agents find issues:
 4. **Fix** - Make minimal fix, no refactoring
 5. **Test** - Run full test suite
 6. **Commit** - Commit with message "fix(review): {issue}"
-7. **Mark fixed** - Call `mark_finding_fixed`
+7. **Mark fixed** - Call `review` `mark-fixed`
 
 ### Keeping Learning Artifacts Fresh
 

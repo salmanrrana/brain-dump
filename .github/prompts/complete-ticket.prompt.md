@@ -16,10 +16,10 @@ Finalize work on the current ticket and update Brain Dump.
 2. Summarize the work done in this session
 3. Run tests if available (`pnpm test` or `npm test`)
 4. Commit any uncommitted changes
-5. Use `complete_ticket_work(ticketId, summary)` to:
+5. Use `workflow "complete-work"(ticketId, summary)` to:
    - Move ticket to "ai_review" status
    - Get commit history for PR
-6. Add a work summary comment with `add_ticket_comment`:
+6. Add a work summary comment with `comment "add"`:
    - Files changed
    - Key changes made
    - Test results

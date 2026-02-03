@@ -14,13 +14,13 @@ local review skills, text descriptions), no record of your work appears in Brain
 
 ## Essential MCP Tools
 
-1. `start_ticket_work` — creates branch, starts tracking (NOT `git checkout -b`)
-2. `create_ralph_session` — creates session for state tracking
-3. `complete_ticket_work` — moves to review phase
-4. `submit_review_finding` — logs review issues (NOT local `/review` skills)
-5. `check_review_complete` — verifies review done
-6. `generate_demo_script` — creates human test steps (NOT text descriptions)
-7. `complete_ralph_session` — completes the session
+1. `workflow "start-work"` — creates branch, starts tracking (NOT `git checkout -b`)
+2. `session "create"` — creates session for state tracking
+3. `workflow "complete-work"` — moves to review phase
+4. `review "submit-finding"` — logs review issues (NOT local `/review` skills)
+5. `review "check-complete"` — verifies review done
+6. `review "generate-demo"` — creates human test steps (NOT text descriptions)
+7. `session "complete"` — completes the session
 
 ## Quality Gates
 
@@ -29,7 +29,7 @@ Run before completing: `pnpm type-check && pnpm lint && pnpm test`
 ## Rules
 
 - NEVER skip MCP tool calls in the workflow
-- NEVER set ticket to "done" (only humans approve via `submit_demo_feedback`)
+- NEVER set ticket to "done" (only humans approve via `review "submit-feedback"`)
 - STOP after generating demo script
 - Always commit with format: `feat(<ticket-id>): <description>`
 

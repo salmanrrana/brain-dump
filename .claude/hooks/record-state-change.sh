@@ -11,13 +11,23 @@ set -e
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name')
 
-# Only care about session state tools
-case "$TOOL_NAME" in
-  mcp__brain-dump__update_session_state|mcp__brain-dump__create_ralph_session|mcp__brain-dump__complete_ralph_session)
-    # This is a session tool - log it
+# Only care about the consolidated session tool
+if [[ "$TOOL_NAME" != "mcp__brain-dump__session" ]]; then
+  echo "$INPUT" | jq '.tool_result // empty'
+  exit 0
+fi
+
+# Check the action to determine what kind of session operation
+TOOL_INPUT_JSON=$(echo "$INPUT" | jq -r '.tool_input // "{}"')
+ACTION=$(echo "$TOOL_INPUT_JSON" | jq -r '.action // ""')
+
+# Only log session state-related actions
+case "$ACTION" in
+  create|update-state|complete)
+    # This is a session state action - log it
     ;;
   *)
-    # Not a session tool - just pass through
+    # Not a state action - just pass through
     echo "$INPUT" | jq '.tool_result // empty'
     exit 0
     ;;
@@ -27,23 +37,23 @@ esac
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 
 # Extract state info
-STATE=$(echo "$INPUT" | jq -r '.tool_input.state // "session"')
-SESSION_ID=$(echo "$INPUT" | jq -r '.tool_input.sessionId // .tool_input.ticketId // "unknown"')
+STATE=$(echo "$TOOL_INPUT_JSON" | jq -r '.state // "session"')
+SESSION_ID=$(echo "$TOOL_INPUT_JSON" | jq -r '.sessionId // .ticketId // "unknown"')
 TIMESTAMP=$(date -Iseconds)
 
 # Log to state change log
 LOG_FILE="$PROJECT_DIR/.claude/ralph-state.log"
 mkdir -p "$(dirname "$LOG_FILE")"
 
-case "$TOOL_NAME" in
-  *create_ralph_session)
+case "$ACTION" in
+  create)
     echo "[$TIMESTAMP] SESSION CREATED: ticket=$SESSION_ID" >> "$LOG_FILE"
     ;;
-  *update_session_state)
+  update-state)
     echo "[$TIMESTAMP] STATE CHANGED: session=$SESSION_ID state=$STATE" >> "$LOG_FILE"
     ;;
-  *complete_ralph_session)
-    OUTCOME=$(echo "$INPUT" | jq -r '.tool_input.outcome // "unknown"')
+  complete)
+    OUTCOME=$(echo "$TOOL_INPUT_JSON" | jq -r '.outcome // "unknown"')
     echo "[$TIMESTAMP] SESSION COMPLETED: session=$SESSION_ID outcome=$OUTCOME" >> "$LOG_FILE"
     ;;
 esac

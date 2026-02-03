@@ -6,10 +6,10 @@ Common errors and recovery steps for the Brain Dump workflow.
 
 **Problem**: You tried to write/edit code but you're not in a state that allows code writing.
 
-**Fix**: Call `update_session_state` with the correct state:
+**Fix**: Call `session "update-state"` with the correct state:
 
 ```
-update_session_state({
+session "update-state"({
   sessionId: "<session-id>",
   state: "implementing"
 })
@@ -23,11 +23,11 @@ Then retry your Write/Edit operation. Only `implementing`, `testing`, and `commi
 
 **Fix**:
 
-1. Call `complete_ticket_work` if not already in `ai_review`
+1. Call `workflow "complete-work"` if not already in `ai_review`
 2. Perform review (self-review or use review agents)
-3. Submit findings via `submit_review_finding`
+3. Submit findings via `review "submit-finding"`
 4. Fix critical/major issues
-5. Run `check_review_complete({ ticketId })` -- must return `canProceedToHumanReview: true`
+5. Run `review "check-complete"({ ticketId })` -- must return `canProceedToHumanReview: true`
 6. Now you can push
 
 ## "Cannot proceed - open critical findings"
@@ -38,21 +38,21 @@ Then retry your Write/Edit operation. Only `implementing`, `testing`, and `commi
 
 1. Get open findings: `get_review_findings({ ticketId, severity: "critical" })`
 2. Fix each finding in code
-3. Mark fixed: `mark_finding_fixed({ findingId, status: "fixed" })`
-4. Verify: `check_review_complete({ ticketId })` must return `canProceedToHumanReview: true`
+3. Mark fixed: `review "mark-fixed"({ findingId, status: "fixed" })`
+4. Verify: `review "check-complete"({ ticketId })` must return `canProceedToHumanReview: true`
 5. Now you can generate the demo
 
 ## "Ticket must be in ai_review to submit findings"
 
 **Problem**: You tried to submit a review finding for a ticket not in `ai_review` status.
 
-**Fix**: Call `complete_ticket_work({ ticketId, summary })` first to move the ticket to `ai_review`.
+**Fix**: Call `workflow "complete-work"({ ticketId, summary })` first to move the ticket to `ai_review`.
 
 ## "Cannot start ticket - previous ticket still in review"
 
 **Problem**: A previous ticket is in `human_review` status awaiting human approval.
 
-**Fix**: Wait for the human reviewer to approve or reject the previous ticket via `submit_demo_feedback`. Then start your new ticket.
+**Fix**: Wait for the human reviewer to approve or reject the previous ticket via `review "submit-feedback"`. Then start your new ticket.
 
 ## "Marker file is stale - fresh review needed"
 
@@ -74,30 +74,30 @@ Then retry your Write/Edit operation. Only `implementing`, `testing`, and `commi
 
 ```
 Are you at the start?
-|-- YES: Call start_ticket_work({ ticketId })
+|-- YES: Call workflow "start-work"({ ticketId })
 |-- NO: Continue...
 
 Can you write code right now?
 |-- YES (no enforcement errors): You're in the correct state
-|-- NO (blocked): Call update_session_state({ state: "implementing" })
+|-- NO (blocked): Call session "update-state"({ state: "implementing" })
 
 Have you finished implementing and committed?
-|-- YES: Call complete_ticket_work({ ticketId, summary })
+|-- YES: Call workflow "complete-work"({ ticketId, summary })
 |-- NO: Keep implementing
 
 Are you in ai_review status?
 |-- YES: Continue to review phase
-|-- NO: Call complete_ticket_work first
+|-- NO: Call workflow "complete-work" first
 
 Have you fixed all critical/major findings?
-|-- YES: Call check_review_complete({ ticketId })
-|-- NO: Fix them and mark_finding_fixed
+|-- YES: Call review "check-complete"({ ticketId })
+|-- NO: Fix them and review "mark-fixed"
 
-Does check_review_complete return canProceedToHumanReview: true?
-|-- YES: Call generate_demo_script({ ticketId, steps })
+Does review "check-complete" return canProceedToHumanReview: true?
+|-- YES: Call review "generate-demo"({ ticketId, steps })
 |-- NO: Still have open critical/major findings
 
-Did generate_demo_script succeed?
+Did review "generate-demo" succeed?
 |-- YES: STOP. Wait for human approval.
 |-- NO: Check error message and fix the issue.
 ```

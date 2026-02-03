@@ -17,8 +17,8 @@ You are extracting learnings from completed ticket work and updating project doc
 ### Step 1: Get Ticket Context
 
 ```
-get_ticket_comments({ ticketId: "<ticket-id>" })
-get_review_findings({ ticketId: "<ticket-id>" })
+comment tool, action: "list", ticketId: "<ticket-id>"
+review tool, action: "get-findings", ticketId: "<ticket-id>"
 ```
 
 Review:
@@ -50,7 +50,7 @@ For each learning, consider:
 ### Step 4: Submit Learnings
 
 ```
-reconcile_learnings({
+epic tool, action: "reconcile-learnings",
   ticketId: "<ticket-id>",
   learnings: [
     {
@@ -117,7 +117,7 @@ git commit -m "docs: Reconcile learnings from ticket <ticket-id>"
   suggestedUpdate: {
     file: "CLAUDE.md",
     section: "MCP Tool Implementation",
-    content: "Add: Use `add_ticket_comment` for all workflow state changes"
+    content: "Add: Use `comment` tool `action: \"add\"` for all workflow state changes"
   }
 }
 ```
@@ -149,7 +149,7 @@ git commit -m "docs: Reconcile learnings from ticket <ticket-id>"
 ```
 {
   type: "tool-usage",
-  description: "start_ticket_work auto-creates epic branch if ticket has epic",
+  description: "workflow start-work auto-creates epic branch if ticket has epic",
   suggestedUpdate: null
 }
 ```
@@ -188,9 +188,9 @@ The main learnings from this ticket:
 
 1. **Pattern**: Use comment-utils.js for all ticket comment creation
 2. **Anti-pattern**: Don't hardcode author names - use constants
-3. **Tool-usage**: Always call sync_ticket_links after committing
+3. **Tool-usage**: Always call workflow sync-links after committing
 
-[Calls reconcile_learnings with updateDocs: true]
+[Calls epic tool reconcile-learnings with updateDocs: true]
 
 I've updated CLAUDE.md with the new patterns and recorded the learnings
 in the epic workflow state.

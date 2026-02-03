@@ -3,7 +3,7 @@
 # SessionStart hook
 #
 # Checks for pending commit/PR links that weren't synced in previous sessions
-# and reminds Claude to run sync_ticket_links() to catch up.
+# and reminds Claude to run the workflow tool with action "sync-links" to catch up.
 
 set -e
 
@@ -35,7 +35,7 @@ echo "║  📌 PENDING LINKS DETECTED                                    ║"
 echo "╠══════════════════════════════════════════════════════════════╣"
 echo "║  Found $PENDING_COUNT commit(s)/PR(s) that may not be linked yet."
 echo "║                                                              ║"
-echo "║  ⚠️  ACTION: Run sync_ticket_links() to link them.            ║"
+echo "║  ⚠️  ACTION: Call workflow tool, action: \"sync-links\"          ║"
 echo "╠══════════════════════════════════════════════════════════════╣"
 
 # Show details of pending links

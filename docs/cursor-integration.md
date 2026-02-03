@@ -92,10 +92,10 @@ The MCP server is configured in `~/.cursor/mcp.json`:
 
 This provides access to all Brain Dump MCP tools:
 
-- `start_ticket_work` - Begin work on a ticket
-- `complete_ticket_work` - Complete implementation
-- `submit_review_finding` - Report review issues
-- `generate_demo_script` - Create demo steps
+- `workflow` tool, `action: "start-work"` - Begin work on a ticket
+- `workflow` tool, `action: "complete-work"` - Complete implementation
+- `review` tool, `action: "submit-finding"` - Report review issues
+- `review` tool, `action: "generate-demo"` - Create demo steps
 - And many more...
 
 ## Workflow Rules
@@ -119,13 +119,13 @@ Skills provide structured guidance for common tasks.
 ### Starting Ticket Work
 
 ```
-Use start_ticket_work to begin working on ticket <ticket-id>
+Use the workflow tool with action "start-work" to begin working on ticket <ticket-id>
 ```
 
 ### Completing Work
 
 ```
-Use complete_ticket_work to finish the implementation with a summary
+Use the workflow tool with action "complete-work" to finish the implementation with a summary
 ```
 
 ### Running Reviews

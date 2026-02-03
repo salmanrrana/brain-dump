@@ -9,9 +9,9 @@ When working on Brain Dump tickets, follow this quality workflow to ensure consi
 
 ## Required Workflow
 
-1. **Start work**: Call `mcp__brain-dump__start_ticket_work({ ticketId })` when beginning a ticket
-2. **Create session**: Call `mcp__brain-dump__create_ralph_session({ ticketId })` to enable state tracking
-3. **Update state**: Use `mcp__brain-dump__update_session_state({ sessionId, state })` as you progress:
+1. **Start work**: Call `mcp__brain-dump__workflow` with `action: "start-work"` and `ticketId` when beginning a ticket
+2. **Create session**: Call `mcp__brain-dump__session` with `action: "create"` and `ticketId` to enable state tracking
+3. **Update state**: Use `mcp__brain-dump__session` with `action: "update-state"` and `sessionId`, `state` as you progress:
    - `analyzing` - Reading and understanding requirements
    - `implementing` - Writing or modifying code
    - `testing` - Running tests
@@ -19,7 +19,7 @@ When working on Brain Dump tickets, follow this quality workflow to ensure consi
    - `reviewing` - Final self-review
 4. **Implement changes**: Write code, following patterns in CLAUDE.md
 5. **Validate**: Run `pnpm check` (type-check, lint, test)
-6. **Complete**: Call `mcp__brain-dump__complete_ticket_work({ ticketId, summary })`
+6. **Complete**: Call `mcp__brain-dump__workflow` with `action: "complete-work"`, `ticketId`, and `summary`
 
 ## Status Flow
 
@@ -36,31 +36,31 @@ ready → in_progress → ai_review → human_review → done
 
 After implementation, run the review pipeline:
 
-1. Call `mcp__brain-dump__submit_review_finding()` for each issue found
+1. Call `mcp__brain-dump__review` with `action: "submit-finding"` for each issue found
 2. Fix critical/major issues
-3. Call `mcp__brain-dump__mark_finding_fixed()` for each fix
-4. Call `mcp__brain-dump__check_review_complete()` to verify all issues resolved
+3. Call `mcp__brain-dump__review` with `action: "mark-fixed"` for each fix
+4. Call `mcp__brain-dump__review` with `action: "check-complete"` to verify all issues resolved
 
 ## Demo Generation
 
 When AI review passes:
 
-1. Call `mcp__brain-dump__generate_demo_script({ ticketId, steps: [...] })`
+1. Call `mcp__brain-dump__review` with `action: "generate-demo"`, `ticketId`, and `steps: [...]`
 2. Ticket moves to `human_review`
 3. **STOP** - Wait for human approval
 
 ## MCP Tools
 
-All Brain Dump MCP tools use the `mcp__brain-dump__` prefix:
+All Brain Dump MCP tools use the `mcp__brain-dump__` prefix with an `action` parameter:
 
-- `start_ticket_work` - Begin work on a ticket
-- `complete_ticket_work` - Complete implementation
-- `create_ralph_session` - Create state tracking session
-- `update_session_state` - Update work state
-- `submit_review_finding` - Report review issues
-- `mark_finding_fixed` - Mark issue as resolved
-- `generate_demo_script` - Create demo steps
-- `add_ticket_comment` - Add work notes
+- `workflow` (action: `start-work`) - Begin work on a ticket
+- `workflow` (action: `complete-work`) - Complete implementation
+- `session` (action: `create`) - Create state tracking session
+- `session` (action: `update-state`) - Update work state
+- `review` (action: `submit-finding`) - Report review issues
+- `review` (action: `mark-fixed`) - Mark issue as resolved
+- `review` (action: `generate-demo`) - Create demo steps
+- `comment` (action: `add`) - Add work notes
 
 ## Quality Gates
 

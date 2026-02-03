@@ -5,7 +5,7 @@
 # When a Cursor session ends, this hook:
 # 1. Reads the session ID from telemetry-session.json
 # 2. Flushes any remaining events from the queue
-# 3. Outputs notification for Cursor to call end_telemetry_session
+# 3. Outputs notification for Cursor to call telemetry "end"
 # 4. Cleans up session files
 #
 # Cursor hook differences from Claude Code:
@@ -59,7 +59,7 @@ echo "╠═══════════════════════�
 echo "║  Session ID: $SESSION_ID"
 echo "║  Queued events: $QUEUED_EVENTS"
 echo "║                                                              ║"
-echo "║  ⚠️  Call end_telemetry_session({ sessionId: \"$SESSION_ID\" })"
+echo "║  ⚠️  Call telemetry \"end\"({ sessionId: \"$SESSION_ID\" })"
 echo "║      to finalize and flush telemetry.                        ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""

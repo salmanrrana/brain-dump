@@ -8,13 +8,13 @@ Your kanban board is the single source of truth. Every ticket, every status chan
 
 ## TL;DR — Quick Reference
 
-| Action         | How                                              |
-| -------------- | ------------------------------------------------ |
-| Create project | Settings → "Add Project" → Select folder         |
-| Create ticket  | Click "+" in any column                          |
-| Start work     | Click "Start with Claude" on ticket              |
-| Move ticket    | Drag to new column                               |
-| Complete work  | `complete_ticket_work(ticketId)` or drag to Done |
+| Action         | How                                        |
+| -------------- | ------------------------------------------ |
+| Create project | Settings → "Add Project" → Select folder   |
+| Create ticket  | Click "+" in any column                    |
+| Start work     | Click "Start with Claude" on ticket        |
+| Move ticket    | Drag to new column                         |
+| Complete work  | `workflow "complete-work"` or drag to Done |
 
 **Status flow:** `backlog` → `ready` → `in_progress` → `review` → `done`
 
@@ -40,7 +40,7 @@ Here's what happens when you work a ticket from start to finish:
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  3. START WORK                                                              │
 │     └─ Click "Start with Claude"                                            │
-│     └─ MCP: start_ticket_work("ticket-id")                                  │
+│     └─ MCP: workflow "start-work", ticketId: "ticket-id"                     │
 │     └─ Branch created: feature/abc-user-auth                                │
 │     └─ Status: in_progress                                                  │
 │     └─ Comment auto-added: "Starting work on: Add user authentication"      │
@@ -51,7 +51,7 @@ Here's what happens when you work a ticket from start to finish:
 │     └─ Commits linked to ticket automatically                               │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  5. COMPLETE                                                                │
-│     └─ MCP: complete_ticket_work("ticket-id", "Added OAuth + email login")  │
+│     └─ MCP: workflow "complete-work", ticketId: "ticket-id", summary: "Added OAuth + email login"  │
 │     └─ Status: review                                                       │
 │     └─ Work summary comment added                                           │
 │     └─ PRD updated: passes = true                                           │
@@ -305,7 +305,9 @@ Drop after 3.0 → position = 4.0
 ### Creating Tickets
 
 ```typescript
-create_ticket({
+// ticket tool, action: "create"
+ticket({
+  action: "create",
   projectId: "uuid",
   title: "Add login form",
   description: "## Overview\n...",
@@ -319,9 +321,9 @@ create_ticket({
 
 ```mermaid
 flowchart LR
-    A["start_ticket_work"] --> B["Creates branch<br/>Sets in_progress<br/>Posts comment"]
-    C["complete_ticket_work"] --> D["Sets review<br/>Updates PRD<br/>Suggests next"]
-    E["add_ticket_comment"] --> F["Logs activity<br/>Work summaries<br/>Test reports"]
+    A["workflow<br/>start-work"] --> B["Creates branch<br/>Sets in_progress<br/>Posts comment"]
+    C["workflow<br/>complete-work"] --> D["Sets review<br/>Updates PRD<br/>Suggests next"]
+    E["comment<br/>add"] --> F["Logs activity<br/>Work summaries<br/>Test reports"]
 
     style A fill:#6366f1,color:#fff
     style C fill:#22c55e,color:#fff
@@ -331,17 +333,11 @@ flowchart LR
 ### Querying
 
 ```typescript
-// List tickets with filters
-list_tickets({
-  projectId: "uuid",
-  status: "in_progress",
-  limit: 20,
-});
+// ticket tool, action: "list"
+ticket({ action: "list", projectId: "uuid", status: "in_progress", limit: 20 });
 
-// Find tickets linked to a file
-get_tickets_for_file({
-  filePath: "src/api/auth.ts",
-});
+// ticket tool, action: "get-files"
+ticket({ action: "get-files", filePath: "src/api/auth.ts" });
 ```
 
 ---
@@ -401,11 +397,8 @@ flowchart TD
 **Fix:**
 
 ```typescript
-// Manually update status
-update_ticket_status({
-  ticketId: "your-ticket-id",
-  status: "ready", // or desired status
-});
+// ticket tool, action: "update-status"
+ticket({ action: "update-status", ticketId: "your-ticket-id", status: "ready" });
 ```
 
 ### Comments not appearing
@@ -416,7 +409,7 @@ update_ticket_status({
 
 1. Refresh the page
 2. Click on another ticket and back
-3. Check that the comment was actually created: `get_ticket_comments({ ticketId: "..." })`
+3. Check that the comment was actually created: `comment tool, action: "list", ticketId: "..."`
 
 ---
 

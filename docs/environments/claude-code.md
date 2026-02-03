@@ -50,7 +50,7 @@ brain-dump doctor
 5. **Complete implementation**
 
    ```
-   > complete_ticket_work(ticketId, "summary of changes")
+   > workflow tool, action: "complete-work", ticketId, "summary of changes"
    ```
 
 6. **Run AI review**
@@ -82,9 +82,9 @@ Hooks provide intelligent guidance:
 You: "I'll write the file now"
 
 Hook: "BLOCKED - You are in 'analyzing' state but tried to write code.
-       Call update_session_state('implementing') first."
+       Call session 'update-state' with state: 'implementing' first."
 
-You: Call update_session_state('implementing')
+You: Call session "update-state" with state: "implementing"
      Retry writing the file → Success ✓
 ```
 
@@ -150,8 +150,8 @@ Brain Dump installs 6 hooks to your Claude Code configuration:
 
 ```
 You try: Edit file
-Hook: "You're in 'analyzing' state. Call update_session_state('implementing') first."
-You call: update_session_state('implementing')
+Hook: "You're in 'analyzing' state. Call session 'update-state' with state: 'implementing' first."
+You call: session "update-state" with state: "implementing"
 You retry: Edit file → Success
 ```
 
@@ -188,8 +188,8 @@ Hook: Captures them → They appear in ticket detail
 $ git commit -m "feat(abc-123): Add validation"
 
 Hook outputs:
-mcp__brain-dump__link_commit_to_ticket(...)
-mcp__brain-dump__link_pr_to_ticket(...)
+workflow tool, action: "link-commit", ...
+workflow tool, action: "link-pr", ...
 
 UI shows: "Commit abc12ef" linked in ticket
 ```
@@ -200,7 +200,7 @@ UI shows: "Commit abc12ef" linked in ticket
 
 **Does:** Detects active ticket from `.claude/ralph-state.json`
 
-**Prompts:** "Call `start_telemetry_session` to begin telemetry capture"
+**Prompts:** "Call `telemetry "start"` to begin telemetry capture"
 
 **Why:** Background tracking of your tool usage and prompts
 
@@ -211,7 +211,7 @@ UI shows: "Commit abc12ef" linked in ticket
 **Does:**
 
 1. Flushes any pending telemetry events
-2. Calls `end_telemetry_session` MCP tool
+2. Calls `telemetry "end"` MCP tool
 3. Cleans up temp files
 
 **Why:** Finalizes the telemetry record in database
@@ -294,14 +294,14 @@ All skills work via slash commands:
 
 ## Troubleshooting
 
-### "STATE ENFORCEMENT: You must call update_session_state first"
+### "STATE ENFORCEMENT: You must call session update-state first"
 
 **Cause:** You tried to write/edit code but Claude Code hooks detected you're not in the right state
 
 **Fix:**
 
 1. Read the message carefully - it tells you exactly what to call
-2. Call the MCP tool it suggests: `update_session_state({ sessionId: "...", state: "implementing" })`
+2. Call the MCP tool it suggests: `session` tool, `action: "update-state"`, `sessionId: "..."`, `state: "implementing"`
 3. Retry your operation
 
 This is intentional - it ensures your work is properly tracked.
@@ -315,7 +315,7 @@ This is intentional - it ensures your work is properly tracked.
 1. Run `pnpm test` to see which tests fail
 2. Fix the code
 3. Commit: `git commit -m "fix: ..."`
-4. Retry `complete_ticket_work`
+4. Retry `workflow "complete-work"`
 
 ### "Cannot proceed - open critical findings"
 

@@ -95,7 +95,7 @@ echo "Starting Claude for next ticket: $NEXT_TICKET_ID"
 echo ""
 
 # Run Claude with a prompt to start the next ticket
-claude --prompt "The previous ticket's PR was just created. Please run: start_ticket_work(\"$NEXT_TICKET_ID\")"
+claude --prompt "The previous ticket's PR was just created. Please call the workflow tool with action 'start-work' and ticketId '$NEXT_TICKET_ID'"
 SCRIPT
 chmod +x "$SPAWN_SCRIPT"
 

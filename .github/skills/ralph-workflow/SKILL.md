@@ -41,7 +41,7 @@ plans/progress.txt - Notes from previous iterations
 Use the MCP tool to create branch and set up tracking:
 
 ```javascript
-start_ticket_work({ ticketId: "story-id" });
+workflow "start-work"({ ticketId: "story-id" });
 ```
 
 This automatically:
@@ -60,14 +60,14 @@ From `prd.json`, find a user story where `passes: false`:
 ### 4. Create Session for Tracking
 
 ```javascript
-create_ralph_session({ ticketId: "story-id" });
-update_session_state({ sessionId: "...", state: "analyzing" });
+session "create"({ ticketId: "story-id" });
+session "update-state"({ sessionId: "...", state: "analyzing" });
 ```
 
 ### 5. Implement Feature
 
 ```javascript
-update_session_state({ sessionId: "...", state: "implementing" });
+session "update-state"({ sessionId: "...", state: "implementing" });
 ```
 
 - Write the code
@@ -78,7 +78,7 @@ update_session_state({ sessionId: "...", state: "implementing" });
 ### 6. Commit Changes
 
 ```javascript
-update_session_state({ sessionId: "...", state: "committing" });
+session "update-state"({ sessionId: "...", state: "committing" });
 ```
 
 ```bash
@@ -88,10 +88,10 @@ git commit -m "feat(<ticket-id>): <description>"
 
 ### 7. Complete Implementation (Move to AI Review)
 
-**IMPORTANT**: Do NOT directly set status to "done". Use `complete_ticket_work`:
+**IMPORTANT**: Do NOT directly set status to "done". Use `workflow "complete-work"`:
 
 ```javascript
-complete_ticket_work({
+workflow "complete-work"({
   ticketId: "story-id",
   summary: "Implemented login form with validation and API integration",
 });
@@ -106,11 +106,11 @@ This:
 
 ### 8. Run AI Review Agents
 
-After `complete_ticket_work`, run the review pipeline:
+After `workflow "complete-work"`, run the review pipeline:
 
 ```javascript
 // Submit findings from each agent
-submit_review_finding({
+review "submit-finding"({
   ticketId: "story-id",
   agent: "code-reviewer",
   severity: "major",
@@ -131,7 +131,7 @@ If any critical or major findings:
 
 ```javascript
 // Fix the issue, then mark as fixed
-mark_finding_fixed({
+review "mark-fixed"({
   findingId: "finding-id",
   status: "fixed",
   fixDescription: "Added null check before accessing property",
@@ -141,7 +141,7 @@ mark_finding_fixed({
 ### 10. Check Review Complete
 
 ```javascript
-check_review_complete({ ticketId: "story-id" });
+review "check-complete"({ ticketId: "story-id" });
 // Returns { complete: true/false, openCritical: 0, openMajor: 0, ... }
 ```
 
@@ -150,7 +150,7 @@ check_review_complete({ ticketId: "story-id" });
 Once all critical/major findings are fixed:
 
 ```javascript
-generate_demo_script({
+review "generate-demo"({
   ticketId: "story-id",
   steps: [
     {
@@ -177,7 +177,7 @@ This moves ticket to `human_review` status.
 
 - Review the demo script
 - Run through the steps
-- Provide approval via `submit_demo_feedback`
+- Provide approval via `review "submit-feedback"`
 
 If approved → ticket moves to `done`
 If rejected → stays in `human_review` with feedback
@@ -252,7 +252,7 @@ Otherwise, the next iteration picks the next task.
 
 1. **One task per iteration** - Keeps context focused
 2. **Always test** - Run tests before completing
-3. **Use complete_ticket_work** - Never directly set status to "done"
+3. **Use workflow "complete-work"** - Never directly set status to "done"
 4. **Run all review agents** - Fix critical/major before demo
 5. **Stop at human_review** - Wait for human approval
 6. **Document issues** - Add blockers to progress.txt

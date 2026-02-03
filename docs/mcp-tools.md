@@ -1,426 +1,722 @@
 # MCP Tools Reference
 
-Brain Dump's MCP server provides tools for managing projects, tickets, epics, workflows, and AI telemetry. All tools are available in Claude Code, VS Code (Copilot), and OpenCode.
+Brain Dump's MCP server exposes **9 tools** with **65 total actions**. Every tool uses an `action` parameter to dispatch operations. All tools are available in Claude Code, VS Code (Copilot), Cursor, and OpenCode.
 
 ## Quick Reference
 
-| Category                      | Tools                                                                                                                           |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| [Projects](#project-tools)    | `list_projects`, `find_project_by_path`, `create_project`, `delete_project`                                                     |
-| [Tickets](#ticket-tools)      | `create_ticket`, `list_tickets`, `list_tickets_by_epic`, `update_ticket_status`, `update_acceptance_criterion`, `delete_ticket` |
-| [Epics](#epic-tools)          | `list_epics`, `create_epic`, `update_epic`, `delete_epic`                                                                       |
-| [Comments](#comment-tools)    | `add_ticket_comment`, `get_ticket_comments`                                                                                     |
-| [Workflow](#workflow-tools)   | `start_ticket_work`, `complete_ticket_work`                                                                                     |
-| [Git](#git-tools)             | `link_commit_to_ticket`, `link_pr_to_ticket`, `sync_ticket_links`                                                               |
-| [Files](#file-tools)          | `link_files_to_ticket`, `get_tickets_for_file`                                                                                  |
-| [Health](#health-tools)       | `get_database_health`, `get_environment`, `get_project_settings`, `update_project_settings`                                     |
-| [Telemetry](#telemetry-tools) | `start_telemetry_session`, `log_prompt_event`, `log_tool_event`, `end_telemetry_session`                                        |
+| Tool                              | Actions | Description                                |
+| --------------------------------- | ------- | ------------------------------------------ |
+| [workflow](#workflow-6-actions)   | 6       | Ticket/epic lifecycle, git linking         |
+| [ticket](#ticket-10-actions)      | 10      | CRUD, status, criteria, attachments, files |
+| [session](#session-12-actions)    | 12      | Ralph sessions, events, claude-tasks       |
+| [review](#review-8-actions)       | 8       | Findings, demos, human feedback            |
+| [telemetry](#telemetry-7-actions) | 7       | AI interaction metrics                     |
+| [comment](#comment-2-actions)     | 2       | Ticket comments and work summaries         |
+| [epic](#epic-6-actions)           | 6       | Epic CRUD, learnings                       |
+| [project](#project-4-actions)     | 4       | Project CRUD                               |
+| [admin](#admin-10-actions)        | 10      | Health, settings, compliance logging       |
 
 ---
 
-## Project Tools
+## workflow (6 actions)
 
-### list_projects
+Manage ticket and epic work lifecycle, plus git linking.
 
-List all registered projects.
+### start-work
 
-```
-list_projects()
-```
+Start working on a ticket. Creates a git branch, sets status to `in_progress`, posts a "Starting work" comment.
 
-**Returns:** Array of projects with ID, name, and path.
+| Param      | Type   | Required |
+| ---------- | ------ | -------- |
+| `ticketId` | string | yes      |
 
-### find_project_by_path
+### complete-work
 
-Find a project by filesystem path. Useful for auto-detecting which project you're working in.
+Complete implementation and move ticket to `ai_review`. Posts a work summary comment and updates the PRD.
 
-```
-find_project_by_path(path: string)
-```
+| Param      | Type   | Required |
+| ---------- | ------ | -------- |
+| `ticketId` | string | yes      |
+| `summary`  | string | no       |
 
-| Param  | Type   | Description                            |
-| ------ | ------ | -------------------------------------- |
-| `path` | string | Absolute filesystem path to search for |
+### start-epic
 
-### create_project
+Start working on an epic. Creates an epic-level branch shared by all tickets.
 
-Register a new project in Brain Dump.
+| Param      | Type    | Required |
+| ---------- | ------- | -------- |
+| `epicId`   | string  | yes      |
+| `createPr` | boolean | no       |
 
-```
-create_project(name: string, path: string, color?: string)
-```
+### link-commit
 
-| Param   | Type    | Description                          |
-| ------- | ------- | ------------------------------------ |
-| `name`  | string  | Display name for the project         |
-| `path`  | string  | Absolute path to project root        |
-| `color` | string? | Optional hex color (e.g., `#3b82f6`) |
+Link a git commit to a ticket.
 
-### delete_project
+| Param           | Type   | Required          |
+| --------------- | ------ | ----------------- |
+| `ticketId`      | string | yes               |
+| `commitHash`    | string | yes               |
+| `commitMessage` | string | no (auto-fetched) |
 
-Delete a project and ALL its data (epics, tickets, comments).
+### link-pr
 
-```
-delete_project(projectId: string, confirm?: boolean)
-```
+Link a GitHub PR to a ticket. Triggers PR status sync for all project tickets.
 
-| Param       | Type     | Description                                         |
-| ----------- | -------- | --------------------------------------------------- |
-| `projectId` | string   | Project ID to delete                                |
-| `confirm`   | boolean? | Set to `true` to actually delete (default: dry run) |
+| Param      | Type                                      | Required            |
+| ---------- | ----------------------------------------- | ------------------- |
+| `ticketId` | string                                    | yes                 |
+| `prNumber` | number                                    | yes                 |
+| `prUrl`    | string                                    | no (auto-generated) |
+| `prStatus` | `draft` \| `open` \| `merged` \| `closed` | no                  |
 
-**Safety:** By default, performs a dry run showing what would be deleted.
+### sync-links
+
+Auto-discover and link commits and PRs for the active ticket.
+
+| Param         | Type   | Required             |
+| ------------- | ------ | -------------------- |
+| `projectPath` | string | no (defaults to cwd) |
 
 ---
 
-## Ticket Tools
+## ticket (10 actions)
 
-### create_ticket
+Manage tickets: CRUD, status updates, acceptance criteria, attachments, and file linking.
+
+### create
 
 Create a new ticket in the Backlog column.
 
-```
-create_ticket(projectId: string, title: string, description?: string, priority?: string, epicId?: string, tags?: string[])
-```
+| Param         | Type                        | Required |
+| ------------- | --------------------------- | -------- |
+| `projectId`   | string                      | yes      |
+| `title`       | string                      | yes      |
+| `description` | string                      | no       |
+| `priority`    | `low` \| `medium` \| `high` | no       |
+| `epicId`      | string                      | no       |
+| `tags`        | string[]                    | no       |
 
-| Param         | Type      | Description                               |
-| ------------- | --------- | ----------------------------------------- |
-| `projectId`   | string    | Project ID                                |
-| `title`       | string    | Short, descriptive title                  |
-| `description` | string?   | Detailed description (markdown supported) |
-| `priority`    | string?   | `low`, `medium`, or `high`                |
-| `epicId`      | string?   | Epic ID to group the ticket               |
-| `tags`        | string[]? | Tags for categorization                   |
-
-### list_tickets
+### list
 
 List tickets with optional filters.
 
-```
-list_tickets(projectId?: string, status?: string, limit?: number)
-```
+| Param       | Type   | Required         |
+| ----------- | ------ | ---------------- |
+| `projectId` | string | no               |
+| `status`    | string | no               |
+| `limit`     | number | no (default: 20) |
 
-| Param       | Type    | Description                         |
-| ----------- | ------- | ----------------------------------- |
-| `projectId` | string? | Filter by project                   |
-| `status`    | string? | Filter by status                    |
-| `limit`     | number? | Max tickets to return (default: 20) |
+### get
 
-**Valid statuses:** `backlog`, `ready`, `in_progress`, `review`, `ai_review`, `human_review`, `done`
+Get a single ticket by ID with full details.
 
-### list_tickets_by_epic
+| Param      | Type   | Required |
+| ---------- | ------ | -------- |
+| `ticketId` | string | yes      |
 
-List all tickets in a specific epic. Convenience tool for searching tickets within an epic without querying all tickets.
-
-```
-list_tickets_by_epic(epicId: string, projectId?: string, status?: string, limit?: number)
-```
-
-| Param       | Type    | Description                          |
-| ----------- | ------- | ------------------------------------ |
-| `epicId`    | string  | Epic ID to search                    |
-| `projectId` | string? | Filter by project                    |
-| `status`    | string? | Filter by status                     |
-| `limit`     | number? | Max tickets to return (default: 100) |
-
-**Valid statuses:** `backlog`, `ready`, `in_progress`, `review`, `ai_review`, `human_review`, `done`
-
-**Returns:** Array of tickets in the epic, sorted by position. Includes epic context.
-
-**Example:**
-
-```
-list_tickets_by_epic("abc-epic-123", null, "backlog", 50)
-```
-
-Returns all backlog tickets in the epic, limited to 50 results.
-
-### update_ticket_status
+### update-status
 
 Move a ticket between columns.
 
-```
-update_ticket_status(ticketId: string, status: string)
-```
+| Param      | Type                                                                             | Required |
+| ---------- | -------------------------------------------------------------------------------- | -------- |
+| `ticketId` | string                                                                           | yes      |
+| `status`   | `backlog` \| `ready` \| `in_progress` \| `ai_review` \| `human_review` \| `done` | yes      |
 
-| Param      | Type   | Description         |
-| ---------- | ------ | ------------------- |
-| `ticketId` | string | Ticket ID to update |
-| `status`   | string | New status value    |
+### delete
 
-**Status flow:** `backlog` → `ready` → `in_progress` → `review` → `done`
+Delete a ticket and all its comments. Dry run by default.
 
-### update_ticket_subtask
+| Param      | Type    | Required            |
+| ---------- | ------- | ------------------- |
+| `ticketId` | string  | yes                 |
+| `confirm`  | boolean | no (default: false) |
 
-Update a subtask's completion status within a ticket.
+### update-criterion
 
-```
-update_ticket_subtask(ticketId: string, subtaskId: string, completed: boolean)
-```
+Update an acceptance criterion's status.
 
-| Param       | Type    | Description                      |
-| ----------- | ------- | -------------------------------- |
-| `ticketId`  | string  | Ticket ID containing the subtask |
-| `subtaskId` | string  | Subtask ID to update             |
-| `completed` | boolean | Whether the subtask is completed |
+| Param              | Type                                           | Required |
+| ------------------ | ---------------------------------------------- | -------- |
+| `ticketId`         | string                                         | yes      |
+| `criterionId`      | string                                         | yes      |
+| `criterionStatus`  | `pending` \| `passed` \| `failed` \| `skipped` | yes      |
+| `verificationNote` | string                                         | no       |
 
-**Example:**
+### update-attachment
 
-```
-update_ticket_subtask("abc-123", "subtask-456", true)
-```
+Update metadata for a ticket attachment.
 
-**Returns:** Updated ticket with all subtasks showing the new completion status.
+| Param                   | Type                         | Required |
+| ----------------------- | ---------------------------- | -------- |
+| `ticketId`              | string                       | yes      |
+| `attachmentId`          | string                       | yes      |
+| `attachmentType`        | string                       | no       |
+| `attachmentDescription` | string                       | no       |
+| `attachmentPriority`    | `primary` \| `supplementary` | no       |
+| `linkedCriteria`        | string[]                     | no       |
 
-### delete_ticket
+### list-by-epic
 
-Delete a ticket and all its comments.
+List all tickets in a specific epic.
 
-```
-delete_ticket(ticketId: string, confirm?: boolean)
-```
+| Param       | Type   | Required          |
+| ----------- | ------ | ----------------- |
+| `epicId`    | string | yes               |
+| `projectId` | string | no                |
+| `status`    | string | no                |
+| `limit`     | number | no (default: 100) |
 
-| Param      | Type     | Description                                         |
-| ---------- | -------- | --------------------------------------------------- |
-| `ticketId` | string   | Ticket ID to delete                                 |
-| `confirm`  | boolean? | Set to `true` to actually delete (default: dry run) |
-
----
-
-## Epic Tools
-
-### list_epics
-
-List all epics for a project.
-
-```
-list_epics(projectId: string)
-```
-
-### create_epic
-
-Create a new epic to group related tickets.
-
-```
-create_epic(projectId: string, title: string, description?: string, color?: string)
-```
-
-| Param         | Type    | Description          |
-| ------------- | ------- | -------------------- |
-| `projectId`   | string  | Project ID           |
-| `title`       | string  | Epic title           |
-| `description` | string? | Optional description |
-| `color`       | string? | Optional hex color   |
-
-### update_epic
-
-Update an epic's title, description, or color.
-
-```
-update_epic(epicId: string, title?: string, description?: string, color?: string)
-```
-
-### delete_epic
-
-Delete an epic. Tickets are unlinked but not deleted.
-
-```
-delete_epic(epicId: string, confirm?: boolean)
-```
-
----
-
-## Comment Tools
-
-### add_ticket_comment
-
-Add a comment, work summary, or test report to a ticket.
-
-```
-add_ticket_comment(ticketId: string, content: string, author: string, type?: string)
-```
-
-| Param      | Type    | Description                                             |
-| ---------- | ------- | ------------------------------------------------------- |
-| `ticketId` | string  | Ticket ID                                               |
-| `content`  | string  | Comment text (markdown supported)                       |
-| `author`   | string  | `claude`, `ralph`, `user`, or `opencode`                |
-| `type`     | string? | `comment`, `work_summary`, `test_report`, or `progress` |
-
-### get_ticket_comments
-
-Get all comments for a ticket, newest first.
-
-```
-get_ticket_comments(ticketId: string)
-```
-
----
-
-## Workflow Tools
-
-These are the most commonly used tools for day-to-day work.
-
-### start_ticket_work
-
-Start working on a ticket. This is the recommended way to begin implementation.
-
-```
-start_ticket_work(ticketId: string)
-```
-
-**What it does:**
-
-1. Creates a git branch: `feature/{ticket-short-id}-{slug}`
-2. Sets ticket status to `in_progress`
-3. Auto-posts a "Starting work" comment
-4. Returns ticket details with description and acceptance criteria
-
-**Example response:**
-
-```
-## Started Work on Ticket
-
-**Branch:** `feature/abc1234-add-user-login` (created)
-**Project:** My App
-**Path:** /home/user/my-app
-
----
-
-## Ticket: Add user login
-
-**Priority:** high
-
-### Description
-Implement user login with email and password...
-
-### Acceptance Criteria
-- Email validation
-- Password hashing
-- Session management
-```
-
-### complete_ticket_work
-
-Complete work on a ticket and move it to review.
-
-```
-complete_ticket_work(ticketId: string, summary?: string)
-```
-
-| Param      | Type    | Description                           |
-| ---------- | ------- | ------------------------------------- |
-| `ticketId` | string  | Ticket ID to complete                 |
-| `summary`  | string? | Work summary describing what was done |
-
-**What it does:**
-
-1. Sets ticket status to `review`
-2. Auto-posts a formatted work summary comment
-3. Updates PRD file (sets `passes: true`)
-4. Suggests the next strategic ticket
-5. Returns context reset guidance
-
----
-
-## Git Tools
-
-### link_commit_to_ticket
-
-Link a git commit to a ticket for tracking.
-
-```
-link_commit_to_ticket(ticketId: string, commitHash: string, message?: string)
-```
-
-| Param        | Type    | Description                                   |
-| ------------ | ------- | --------------------------------------------- |
-| `ticketId`   | string  | Ticket ID                                     |
-| `commitHash` | string  | Git commit hash (full or short)               |
-| `message`    | string? | Commit message (auto-fetched if not provided) |
-
----
-
-## File Tools
-
-### link_files_to_ticket
+### link-files
 
 Associate files with a ticket for context tracking.
 
-```
-link_files_to_ticket(ticketId: string, files: string[])
-```
+| Param      | Type     | Required |
+| ---------- | -------- | -------- |
+| `ticketId` | string   | yes      |
+| `files`    | string[] | yes      |
 
-| Param      | Type     | Description                                |
-| ---------- | -------- | ------------------------------------------ |
-| `ticketId` | string   | Ticket ID                                  |
-| `files`    | string[] | Array of file paths (relative or absolute) |
+### get-files
 
-### get_tickets_for_file
+Find tickets related to a file. Supports partial path matching.
 
-Find tickets related to a specific file.
-
-```
-get_tickets_for_file(filePath: string, projectId?: string)
-```
-
-Useful for getting context when working on a file. Supports partial path matching.
+| Param       | Type   | Required |
+| ----------- | ------ | -------- |
+| `filePath`  | string | yes      |
+| `projectId` | string | no       |
 
 ---
 
-## Health Tools
+## session (12 actions)
 
-### get_database_health
+Manage Ralph sessions, events, and Claude task lists.
 
-Get comprehensive database health report.
+### create
 
-```
-get_database_health()
-```
+Create a new Ralph session for a ticket. Starts in `idle` state.
 
-**Returns:**
+| Param      | Type   | Required |
+| ---------- | ------ | -------- |
+| `ticketId` | string | yes      |
 
-- Database status (`healthy`, `warning`, `error`)
-- Database path and size
-- Last backup timestamp
-- Integrity check result
-- Lock file status
-- Any detected issues
+### update-state
 
-### get_environment
+Transition the session through work phases: `idle` → `analyzing` → `implementing` → `testing` → `committing` → `reviewing` → `done`.
 
-Detect which environment is calling the MCP server.
+| Param           | Type   | Required |
+| --------------- | ------ | -------- |
+| `sessionId`     | string | yes      |
+| `state`         | string | yes      |
+| `stateMetadata` | object | no       |
 
-```
-get_environment()
-```
+### complete
 
-**Returns:**
+Complete a Ralph session with an outcome.
 
-- `environment`: `claude-code`, `vscode`, or `unknown`
-- `workspacePath`: Current working directory
-- `detectedProject`: Auto-detected project info
+| Param          | Type                                               | Required |
+| -------------- | -------------------------------------------------- | -------- |
+| `sessionId`    | string                                             | yes      |
+| `outcome`      | `success` \| `failure` \| `timeout` \| `cancelled` | yes      |
+| `errorMessage` | string                                             | no       |
 
-### get_project_settings
+### get
+
+Get the current state of a session.
+
+| Param       | Type   | Required                 |
+| ----------- | ------ | ------------------------ |
+| `sessionId` | string | either this or ticketId  |
+| `ticketId`  | string | either this or sessionId |
+
+### list
+
+List all Ralph sessions for a ticket.
+
+| Param      | Type   | Required         |
+| ---------- | ------ | ---------------- |
+| `ticketId` | string | yes              |
+| `limit`    | number | no (default: 10) |
+
+### emit-event
+
+Emit a real-time event for UI streaming during Ralph sessions.
+
+| Param       | Type                                                                                                 | Required |
+| ----------- | ---------------------------------------------------------------------------------------------------- | -------- |
+| `sessionId` | string                                                                                               | yes      |
+| `eventType` | `thinking` \| `tool_start` \| `tool_end` \| `file_change` \| `progress` \| `state_change` \| `error` | yes      |
+| `eventData` | object                                                                                               | no       |
+
+### get-events
+
+Get events for a Ralph session.
+
+| Param       | Type         | Required         |
+| ----------- | ------------ | ---------------- |
+| `sessionId` | string       | yes              |
+| `since`     | string (ISO) | no               |
+| `limit`     | number       | no (default: 50) |
+
+### clear-events
+
+Clear events for a completed session.
+
+| Param       | Type   | Required |
+| ----------- | ------ | -------- |
+| `sessionId` | string | yes      |
+
+### save-tasks
+
+Save Claude's task list to a ticket.
+
+| Param            | Type    | Required           |
+| ---------------- | ------- | ------------------ |
+| `ticketId`       | string  | no (auto-detected) |
+| `tasks`          | array   | yes                |
+| `createSnapshot` | boolean | no                 |
+
+Each task: `{ subject: string, status: "pending" | "in_progress" | "completed", activeForm?: string, description?: string }`
+
+### get-tasks
+
+Retrieve Claude's tasks for a ticket.
+
+| Param            | Type    | Required           |
+| ---------------- | ------- | ------------------ |
+| `ticketId`       | string  | no (auto-detected) |
+| `includeHistory` | boolean | no                 |
+
+### clear-tasks
+
+Clear all Claude tasks for a ticket. Creates a snapshot before clearing.
+
+| Param      | Type   | Required           |
+| ---------- | ------ | ------------------ |
+| `ticketId` | string | no (auto-detected) |
+
+### get-task-snapshots
+
+Get historical snapshots of Claude's task list.
+
+| Param      | Type   | Required         |
+| ---------- | ------ | ---------------- |
+| `ticketId` | string | yes              |
+| `limit`    | number | no (default: 10) |
+
+---
+
+## review (8 actions)
+
+Manage code review findings, demos, and human feedback.
+
+### submit-finding
+
+Submit a finding from a code review. Ticket must be in `ai_review` status.
+
+| Param          | Type                                                            | Required |
+| -------------- | --------------------------------------------------------------- | -------- |
+| `ticketId`     | string                                                          | yes      |
+| `agent`        | `code-reviewer` \| `silent-failure-hunter` \| `code-simplifier` | yes      |
+| `severity`     | `critical` \| `major` \| `minor` \| `suggestion`                | yes      |
+| `category`     | string                                                          | yes      |
+| `description`  | string                                                          | yes      |
+| `filePath`     | string                                                          | no       |
+| `lineNumber`   | number                                                          | no       |
+| `suggestedFix` | string                                                          | no       |
+
+### mark-fixed
+
+Mark a review finding as fixed, won't fix, or duplicate.
+
+| Param            | Type                                 | Required |
+| ---------------- | ------------------------------------ | -------- |
+| `findingId`      | string                               | yes      |
+| `fixStatus`      | `fixed` \| `wont_fix` \| `duplicate` | yes      |
+| `fixDescription` | string                               | no       |
+
+### get-findings
+
+Get review findings for a ticket with optional filtering.
+
+| Param      | Type                                             | Required |
+| ---------- | ------------------------------------------------ | -------- |
+| `ticketId` | string                                           | yes      |
+| `status`   | `open` \| `fixed` \| `wont_fix` \| `duplicate`   | no       |
+| `severity` | `critical` \| `major` \| `minor` \| `suggestion` | no       |
+| `agent`    | string                                           | no       |
+
+### check-complete
+
+Check if all critical/major findings are resolved.
+
+| Param      | Type   | Required |
+| ---------- | ------ | -------- |
+| `ticketId` | string | yes      |
+
+Returns `{ canProceedToHumanReview: true/false }`.
+
+### generate-demo
+
+Generate a demo script for human review. Moves ticket to `human_review`.
+
+| Param      | Type   | Required |
+| ---------- | ------ | -------- |
+| `ticketId` | string | yes      |
+| `steps`    | array  | yes      |
+
+Each step: `{ order: number, description: string, expectedOutcome: string, type: "manual" | "visual" | "automated" }`
+
+### get-demo
+
+Get the demo script for a ticket.
+
+| Param      | Type   | Required |
+| ---------- | ------ | -------- |
+| `ticketId` | string | yes      |
+
+### update-demo-step
+
+Update a single demo step's status during human review.
+
+| Param          | Type                                           | Required |
+| -------------- | ---------------------------------------------- | -------- |
+| `demoScriptId` | string                                         | yes      |
+| `stepOrder`    | number                                         | yes      |
+| `stepStatus`   | `pending` \| `passed` \| `failed` \| `skipped` | yes      |
+| `notes`        | string                                         | no       |
+
+### submit-feedback
+
+Submit final demo feedback from human reviewer.
+
+| Param         | Type    | Required |
+| ------------- | ------- | -------- |
+| `ticketId`    | string  | yes      |
+| `passed`      | boolean | yes      |
+| `feedback`    | string  | yes      |
+| `stepResults` | array   | no       |
+
+---
+
+## telemetry (7 actions)
+
+Capture AI interaction metrics for observability and audit trails.
+
+### start
+
+Start a telemetry session for AI work on a ticket.
+
+| Param         | Type   | Required           |
+| ------------- | ------ | ------------------ |
+| `ticketId`    | string | no (auto-detected) |
+| `projectPath` | string | no                 |
+| `environment` | string | no                 |
+
+### log-prompt
+
+Log a user prompt to the telemetry session.
+
+| Param        | Type    | Required |
+| ------------ | ------- | -------- |
+| `sessionId`  | string  | yes      |
+| `prompt`     | string  | yes      |
+| `redact`     | boolean | no       |
+| `tokenCount` | number  | no       |
+
+### log-tool
+
+Log a tool call to the telemetry session.
+
+| Param           | Type             | Required |
+| --------------- | ---------------- | -------- |
+| `sessionId`     | string           | yes      |
+| `event`         | `start` \| `end` | yes      |
+| `toolName`      | string           | yes      |
+| `correlationId` | string           | no       |
+| `params`        | object           | no       |
+| `result`        | string           | no       |
+| `success`       | boolean          | no       |
+| `durationMs`    | number           | no       |
+| `error`         | string           | no       |
+
+### log-context
+
+Log what context was loaded when starting ticket work.
+
+| Param                   | Type    | Required |
+| ----------------------- | ------- | -------- |
+| `sessionId`             | string  | yes      |
+| `hasDescription`        | boolean | yes      |
+| `hasAcceptanceCriteria` | boolean | yes      |
+| `criteriaCount`         | number  | no       |
+| `commentCount`          | number  | no       |
+| `attachmentCount`       | number  | no       |
+| `imageCount`            | number  | no       |
+
+### end
+
+End a telemetry session and compute final statistics.
+
+| Param         | Type                                               | Required |
+| ------------- | -------------------------------------------------- | -------- |
+| `sessionId`   | string                                             | yes      |
+| `outcome`     | `success` \| `failure` \| `timeout` \| `cancelled` | no       |
+| `totalTokens` | number                                             | no       |
+
+### get
+
+Get telemetry data for a session.
+
+| Param           | Type    | Required                 |
+| --------------- | ------- | ------------------------ |
+| `sessionId`     | string  | either this or ticketId  |
+| `ticketId`      | string  | either this or sessionId |
+| `includeEvents` | boolean | no (default: true)       |
+| `eventLimit`    | number  | no (default: 100)        |
+
+### list
+
+List telemetry sessions with optional filters.
+
+| Param       | Type         | Required         |
+| ----------- | ------------ | ---------------- |
+| `ticketId`  | string       | no               |
+| `projectId` | string       | no               |
+| `since`     | string (ISO) | no               |
+| `limit`     | number       | no (default: 20) |
+
+---
+
+## comment (2 actions)
+
+Manage ticket comments and work summaries.
+
+### add
+
+Add a comment, work summary, or test report to a ticket.
+
+| Param         | Type                                                                        | Required |
+| ------------- | --------------------------------------------------------------------------- | -------- |
+| `ticketId`    | string                                                                      | yes      |
+| `content`     | string                                                                      | yes      |
+| `author`      | `claude` \| `ralph` \| `user` \| `opencode` \| `cursor` \| `vscode` \| `ai` | no       |
+| `commentType` | `comment` \| `work_summary` \| `test_report` \| `progress`                  | no       |
+
+### list
+
+Get all comments for a ticket, newest first.
+
+| Param      | Type   | Required |
+| ---------- | ------ | -------- |
+| `ticketId` | string | yes      |
+
+---
+
+## epic (6 actions)
+
+Manage epics and cross-ticket learnings.
+
+### create
+
+Create a new epic to group related tickets.
+
+| Param         | Type   | Required |
+| ------------- | ------ | -------- |
+| `projectId`   | string | yes      |
+| `title`       | string | yes      |
+| `description` | string | no       |
+| `color`       | string | no       |
+
+### list
+
+List all epics for a project.
+
+| Param       | Type   | Required |
+| ----------- | ------ | -------- |
+| `projectId` | string | yes      |
+
+### update
+
+Update an epic's title, description, or color.
+
+| Param         | Type   | Required |
+| ------------- | ------ | -------- |
+| `epicId`      | string | yes      |
+| `title`       | string | no       |
+| `description` | string | no       |
+| `color`       | string | no       |
+
+### delete
+
+Delete an epic. Tickets are unlinked but not deleted. Dry run by default.
+
+| Param     | Type    | Required            |
+| --------- | ------- | ------------------- |
+| `epicId`  | string  | yes                 |
+| `confirm` | boolean | no (default: false) |
+
+### reconcile-learnings
+
+Extract and reconcile learnings from a completed ticket.
+
+| Param        | Type    | Required |
+| ------------ | ------- | -------- |
+| `ticketId`   | string  | yes      |
+| `learnings`  | array   | yes      |
+| `updateDocs` | boolean | no       |
+
+Each learning: `{ type: "pattern" | "anti-pattern" | "tool-usage" | "workflow", description: string, suggestedUpdate?: { file, section, content } }`
+
+### get-learnings
+
+Get all accumulated learnings for an epic.
+
+| Param    | Type   | Required |
+| -------- | ------ | -------- |
+| `epicId` | string | yes      |
+
+---
+
+## project (4 actions)
+
+Manage project registrations.
+
+### list
+
+List all registered projects.
+
+No additional params required.
+
+### find-by-path
+
+Find a project by filesystem path.
+
+| Param  | Type   | Required |
+| ------ | ------ | -------- |
+| `path` | string | yes      |
+
+### create
+
+Register a new project.
+
+| Param   | Type   | Required |
+| ------- | ------ | -------- |
+| `name`  | string | yes      |
+| `path`  | string | yes      |
+| `color` | string | no       |
+
+### delete
+
+Delete a project and ALL its data. Dry run by default.
+
+| Param       | Type    | Required            |
+| ----------- | ------- | ------------------- |
+| `projectId` | string  | yes                 |
+| `confirm`   | boolean | no (default: false) |
+
+---
+
+## admin (10 actions)
+
+Database health, project settings, and compliance logging.
+
+### health
+
+Get comprehensive database health report: status, size, backups, integrity.
+
+No additional params required.
+
+### environment
+
+Detect which environment is calling the MCP server (`claude-code`, `vscode`, or `unknown`).
+
+No additional params required.
+
+### settings
 
 Get project settings including working method preference.
 
-```
-get_project_settings(projectId: string)
-```
+| Param       | Type   | Required |
+| ----------- | ------ | -------- |
+| `projectId` | string | yes      |
 
-### update_project_settings
+### update-settings
 
 Update project working method preference.
 
-```
-update_project_settings(projectId: string, workingMethod: string)
-```
+| Param           | Type                                | Required |
+| --------------- | ----------------------------------- | -------- |
+| `projectId`     | string                              | yes      |
+| `workingMethod` | `auto` \| `claude-code` \| `vscode` | yes      |
 
-| Param           | Type   | Description                        |
-| --------------- | ------ | ---------------------------------- |
-| `projectId`     | string | Project ID                         |
-| `workingMethod` | string | `auto`, `claude-code`, or `vscode` |
+### start-conversation
+
+Start a compliance logging session.
+
+| Param                | Type                                                     | Required |
+| -------------------- | -------------------------------------------------------- | -------- |
+| `projectId`          | string                                                   | no       |
+| `ticketId`           | string                                                   | no       |
+| `userId`             | string                                                   | no       |
+| `dataClassification` | `public` \| `internal` \| `confidential` \| `restricted` | no       |
+| `metadata`           | object                                                   | no       |
+
+### log-message
+
+Log a message with tamper detection and secret scanning.
+
+| Param        | Type                                        | Required |
+| ------------ | ------------------------------------------- | -------- |
+| `sessionId`  | string                                      | yes      |
+| `role`       | `user` \| `assistant` \| `system` \| `tool` | yes      |
+| `content`    | string                                      | yes      |
+| `toolCalls`  | array                                       | no       |
+| `tokenCount` | number                                      | no       |
+| `modelId`    | string                                      | no       |
+
+### end-conversation
+
+End a compliance session. No more messages can be logged.
+
+| Param       | Type   | Required |
+| ----------- | ------ | -------- |
+| `sessionId` | string | yes      |
+
+### list-conversations
+
+Query compliance sessions with filters.
+
+| Param           | Type         | Required         |
+| --------------- | ------------ | ---------------- |
+| `projectId`     | string       | no               |
+| `ticketId`      | string       | no               |
+| `environment`   | string       | no               |
+| `startDate`     | string (ISO) | no               |
+| `endDate`       | string (ISO) | no               |
+| `includeActive` | boolean      | no               |
+| `limit`         | number       | no (default: 50) |
+
+### export-logs
+
+Generate JSON export for compliance auditors. Access is logged.
+
+| Param             | Type         | Required |
+| ----------------- | ------------ | -------- |
+| `startDate`       | string (ISO) | yes      |
+| `endDate`         | string (ISO) | yes      |
+| `sessionId`       | string       | no       |
+| `projectId`       | string       | no       |
+| `includeContent`  | boolean      | no       |
+| `verifyIntegrity` | boolean      | no       |
+
+### archive-sessions
+
+Delete sessions older than retention period. Dry run by default. Legal hold sessions are never deleted.
+
+| Param           | Type    | Required            |
+| --------------- | ------- | ------------------- |
+| `retentionDays` | number  | no (default: 90)    |
+| `confirm`       | boolean | no (default: false) |
 
 ---
 
@@ -429,26 +725,36 @@ update_project_settings(projectId: string, workingMethod: string)
 ### Starting a New Project
 
 ```
-1. create_project("My App", "/home/user/my-app")
-2. create_epic(projectId, "MVP Features")
-3. create_ticket(projectId, "Add user login", "...", "high", epicId)
+project  action: "create"       name: "My App"  path: "/home/user/my-app"
+epic     action: "create"       projectId: "..."  title: "MVP Features"
+ticket   action: "create"       projectId: "..."  title: "Add user login"  priority: "high"  epicId: "..."
 ```
 
 ### Working on a Ticket
 
 ```
-1. list_tickets(projectId, "ready")     # Find tickets ready to work on
-2. start_ticket_work(ticketId)          # Creates branch, sets status
+1. ticket    action: "list"          projectId: "..."  status: "ready"
+2. workflow  action: "start-work"    ticketId: "..."
 3. [implement the feature]
-4. link_commit_to_ticket(ticketId, "abc123")
-5. complete_ticket_work(ticketId, "Added login with OAuth support")
+4. workflow  action: "sync-links"
+5. workflow  action: "complete-work"  ticketId: "..."  summary: "Added login with OAuth"
+```
+
+### AI Review Cycle
+
+```
+1. review  action: "submit-finding"  ticketId: "..."  agent: "code-reviewer"  severity: "major"  ...
+2. [fix the issue]
+3. review  action: "mark-fixed"      findingId: "..."  fixStatus: "fixed"
+4. review  action: "check-complete"  ticketId: "..."
+5. review  action: "generate-demo"   ticketId: "..."  steps: [...]
 ```
 
 ### Tracking Progress
 
 ```
-add_ticket_comment(ticketId, "Halfway done, API endpoints complete", "claude", "progress")
-get_ticket_comments(ticketId)
+comment  action: "add"   ticketId: "..."  content: "API endpoints complete"  author: "claude"  commentType: "progress"
+comment  action: "list"  ticketId: "..."
 ```
 
 ---
@@ -476,113 +782,9 @@ All tools return structured responses:
 
 Common errors:
 
-- `Project not found` - Use `list_projects` to find valid IDs
-- `Ticket not found` - Use `list_tickets` to find valid IDs
-- `Database is busy` - Wait a moment and retry
-
----
-
-## Telemetry Tools
-
-AI telemetry tools capture full interaction data when Claude works on tickets - prompts, tool calls, timing, and more. This is essential for audit trails, debugging, cost tracking, and understanding AI work patterns.
-
-### start_telemetry_session
-
-Start a telemetry session for AI work on a ticket.
-
-```
-start_telemetry_session(ticketId?: string, projectPath?: string, environment?: string)
-```
-
-| Param         | Type    | Description                                           |
-| ------------- | ------- | ----------------------------------------------------- |
-| `ticketId`    | string? | Ticket ID (auto-detected from Ralph state if omitted) |
-| `projectPath` | string? | Project path (auto-detected if omitted)               |
-| `environment` | string? | Environment name (auto-detected if omitted)           |
-
-**Returns:** Session ID for use in subsequent telemetry calls.
-
-### log_prompt_event
-
-Log a user prompt to the telemetry session.
-
-```
-log_prompt_event(sessionId: string, prompt: string, redact?: boolean, tokenCount?: number)
-```
-
-| Param        | Type     | Description                         |
-| ------------ | -------- | ----------------------------------- |
-| `sessionId`  | string   | The telemetry session ID            |
-| `prompt`     | string   | The full prompt text                |
-| `redact`     | boolean? | Hash the prompt for privacy         |
-| `tokenCount` | number?  | Optional token count for the prompt |
-
-### log_tool_event
-
-Log a tool call to the telemetry session.
-
-```
-log_tool_event(sessionId: string, event: string, toolName: string, correlationId?: string, params?: object, result?: string, success?: boolean, durationMs?: number, error?: string)
-```
-
-| Param           | Type     | Description                                 |
-| --------------- | -------- | ------------------------------------------- |
-| `sessionId`     | string   | The telemetry session ID                    |
-| `event`         | string   | `start` or `end`                            |
-| `toolName`      | string   | Name of the tool (e.g., `Edit`, `Bash`)     |
-| `correlationId` | string?  | ID to pair start/end events                 |
-| `params`        | object?  | Parameter summary (sanitized)               |
-| `result`        | string?  | Result summary (for `end` events)           |
-| `success`       | boolean? | Whether the tool call succeeded             |
-| `durationMs`    | number?  | Duration in milliseconds (for `end` events) |
-| `error`         | string?  | Error message if failed                     |
-
-### log_context_event
-
-Log what context was loaded when starting ticket work.
-
-```
-log_context_event(sessionId: string, hasDescription: boolean, hasAcceptanceCriteria: boolean, criteriaCount: number, commentCount: number, attachmentCount: number, imageCount: number)
-```
-
-Creates an audit trail of what information the AI received when starting work.
-
-### end_telemetry_session
-
-End a telemetry session and compute final statistics.
-
-```
-end_telemetry_session(sessionId: string, outcome?: string, totalTokens?: number)
-```
-
-| Param         | Type    | Description                                     |
-| ------------- | ------- | ----------------------------------------------- |
-| `sessionId`   | string  | The telemetry session ID                        |
-| `outcome`     | string? | `success`, `failure`, `timeout`, or `cancelled` |
-| `totalTokens` | number? | Total token count for the session               |
-
-### get_telemetry_session
-
-Get telemetry data for a session.
-
-```
-get_telemetry_session(sessionId?: string, ticketId?: string, includeEvents?: boolean, eventLimit?: number)
-```
-
-| Param           | Type     | Description                           |
-| --------------- | -------- | ------------------------------------- |
-| `sessionId`     | string?  | The telemetry session ID              |
-| `ticketId`      | string?  | Get recent session for a ticket       |
-| `includeEvents` | boolean? | Include event details (default: true) |
-| `eventLimit`    | number?  | Max events to return (default: 100)   |
-
-### list_telemetry_sessions
-
-List telemetry sessions with optional filters.
-
-```
-list_telemetry_sessions(ticketId?: string, projectId?: string, since?: string, limit?: number)
-```
+- `Project not found` — Use `project` tool, `action: "list"` to find valid IDs
+- `Ticket not found` — Use `ticket` tool, `action: "list"` to find valid IDs
+- `Database is busy` — Wait a moment and retry
 
 ---
 
@@ -590,7 +792,7 @@ list_telemetry_sessions(ticketId?: string, projectId?: string, since?: string, l
 
 Brain Dump includes optional Claude Code hooks that automatically capture telemetry:
 
-| Hook             | File                         | Action                                            |
+| Hook             | Type                         | Action                                            |
 | ---------------- | ---------------------------- | ------------------------------------------------- |
 | SessionStart     | `start-telemetry-session.sh` | Detects active ticket, prompts to start telemetry |
 | UserPromptSubmit | `log-prompt-telemetry.sh`    | Logs user prompts                                 |
@@ -598,11 +800,11 @@ Brain Dump includes optional Claude Code hooks that automatically capture teleme
 | PostToolUse      | `log-tool-telemetry.sh`      | Logs tool_end events with duration                |
 | Stop             | `end-telemetry-session.sh`   | Prompts to end telemetry session                  |
 
-To enable telemetry hooks, run `scripts/setup-claude-code.sh` after updating.
+To enable telemetry hooks, run `scripts/setup-claude-code.sh`.
 
-### Privacy Considerations
+### Privacy
 
-- Prompts may contain sensitive data - enable `redact: true` to hash prompts
+- Prompts may contain sensitive data — enable `redact: true` to hash prompts
 - Tool parameters are sanitized to avoid storing full file contents
 - Telemetry respects existing retention settings
-- Use `get_telemetry_session` to audit what data was captured
+- Use `telemetry` tool, `action: "get"` to audit captured data

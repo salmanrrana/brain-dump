@@ -10,11 +10,13 @@
 import { z } from "zod";
 import { log } from "../lib/logging.js";
 import { mcpError } from "../lib/mcp-response.ts";
-import { requireParam } from "../lib/mcp-format.ts";
+import { requireParam, formatResult } from "../lib/mcp-format.ts";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type Database from "better-sqlite3";
 import { CoreError } from "../../core/errors.ts";
 import { startWork, completeWork, startEpicWork } from "../../core/workflow.ts";
+import { linkCommit, linkPr, syncTicketLinks } from "../../core/git.ts";
+import type { PrStatus } from "../../core/types.ts";
 import { createRealGitOperations, shortId } from "../../core/git-utils.ts";
 import type { StartWorkResult, CompleteWorkResult, StartEpicWorkResult } from "../../core/types.ts";
 
@@ -30,7 +32,15 @@ import {
   buildAttachmentsSection,
 } from "../lib/ticket-context-builder.js";
 
-const ACTIONS = ["start-work", "complete-work", "start-epic"] as const;
+const ACTIONS = [
+  "start-work",
+  "complete-work",
+  "start-epic",
+  "link-commit",
+  "link-pr",
+  "sync-links",
+] as const;
+const PR_STATUSES = ["draft", "open", "merged", "closed"] as const;
 
 /**
  * Register the consolidated workflow tool with the MCP server.
@@ -62,18 +72,44 @@ Start working on an epic. Creates shared git branch for all tickets in the epic.
 Required params: epicId
 Optional params: createPr
 
+### link-commit
+Link a git commit to a ticket. Tracks which commits belong to which ticket.
+Required params: ticketId, commitHash
+Optional params: commitMessage
+
+### link-pr
+Link a GitHub PR to a ticket. Also triggers PR status sync for all tickets in the project.
+Required params: ticketId, prNumber
+Optional params: prUrl, prStatus
+
+### sync-links
+Auto-discover and link commits and PRs to the active ticket from Ralph state or branch name.
+Optional params: projectPath
+
 ## Parameters
 - action: (required) The operation to perform
-- ticketId: Ticket ID. Required for: start-work, complete-work
+- ticketId: Ticket ID. Required for: start-work, complete-work, link-commit, link-pr
 - epicId: Epic ID. Required for: start-epic
 - summary: Work summary. Optional for: complete-work
-- createPr: Create a draft PR immediately (default: false). Optional for: start-epic`,
+- createPr: Create a draft PR immediately (default: false). Optional for: start-epic
+- commitHash: Git commit hash. Required for: link-commit
+- commitMessage: Commit message. Optional for: link-commit
+- prNumber: GitHub PR number. Required for: link-pr
+- prUrl: Full PR URL. Optional for: link-pr
+- prStatus: PR status (draft, open, merged, closed). Optional for: link-pr
+- projectPath: Project path for auto-detection. Optional for: sync-links`,
     {
       action: z.enum(ACTIONS).describe("The operation to perform"),
       ticketId: z.string().optional().describe("Ticket ID"),
       epicId: z.string().optional().describe("Epic ID"),
       summary: z.string().optional().describe("Work summary"),
       createPr: z.boolean().optional().describe("Create draft PR (default: false)"),
+      commitHash: z.string().optional().describe("Git commit hash"),
+      commitMessage: z.string().optional().describe("Commit message"),
+      prNumber: z.number().optional().describe("GitHub PR number"),
+      prUrl: z.string().optional().describe("Full PR URL"),
+      prStatus: z.enum(PR_STATUSES).optional().describe("PR status"),
+      projectPath: z.string().optional().describe("Project path for auto-detection"),
     },
     async (params: {
       action: (typeof ACTIONS)[number];
@@ -81,6 +117,12 @@ Optional params: createPr
       epicId?: string | undefined;
       summary?: string | undefined;
       createPr?: boolean | undefined;
+      commitHash?: string | undefined;
+      commitMessage?: string | undefined;
+      prNumber?: number | undefined;
+      prUrl?: string | undefined;
+      prStatus?: (typeof PR_STATUSES)[number] | undefined;
+      projectPath?: string | undefined;
     }) => {
       try {
         switch (params.action) {
@@ -94,6 +136,78 @@ Optional params: createPr
 
           case "start-epic": {
             return handleStartEpic(db, git, params);
+          }
+
+          case "link-commit": {
+            const ticketId = requireParam(params.ticketId, "ticketId", "link-commit");
+            const commitHash = requireParam(params.commitHash, "commitHash", "link-commit");
+
+            const result = linkCommit(db, ticketId, commitHash, params.commitMessage);
+
+            if (result.alreadyLinked) {
+              log.info(`Commit ${commitHash} already linked to ticket ${ticketId}`);
+              return formatResult(
+                result,
+                `Commit already linked to ticket "${result.ticketTitle}".`
+              );
+            }
+
+            log.info(`Linked commit ${commitHash} to ticket ${ticketId}`);
+            return formatResult(
+              result,
+              `Commit linked to ticket "${result.ticketTitle}". Total commits: ${result.totalCommits}`
+            );
+          }
+
+          case "link-pr": {
+            const ticketId = requireParam(params.ticketId, "ticketId", "link-pr");
+            const prNumber = requireParam(params.prNumber, "prNumber", "link-pr");
+
+            const result = linkPr(
+              db,
+              ticketId,
+              prNumber,
+              params.prUrl,
+              params.prStatus as PrStatus | undefined
+            );
+
+            let syncInfo = "";
+            if (result.syncedPrs.length > 0) {
+              syncInfo = `\nPR status synced for ${result.syncedPrs.length} ticket(s).`;
+            }
+
+            log.info(`Linked PR #${prNumber} to ticket ${ticketId}`);
+            return formatResult(
+              result,
+              `PR #${prNumber} linked to ticket "${result.ticketTitle}".${syncInfo}`
+            );
+          }
+
+          case "sync-links": {
+            const result = syncTicketLinks(db, params.projectPath);
+
+            const parts: string[] = [];
+            if (result.commitsLinked.length > 0) {
+              parts.push(`Linked ${result.commitsLinked.length} new commit(s)`);
+            }
+            if (result.commitsSkipped.length > 0) {
+              parts.push(`${result.commitsSkipped.length} commit(s) already linked`);
+            }
+            if (result.prLinked) {
+              parts.push(`Linked PR #${result.prLinked.number}`);
+            }
+            if (result.prSkipped) {
+              parts.push(`PR #${result.prSkipped.number} already linked`);
+            }
+            if (parts.length === 0) {
+              parts.push("No new links to add");
+            }
+
+            log.info(`Synced links for ticket ${result.ticketId}: ${parts.join(", ")}`);
+            return formatResult(
+              result,
+              `Sync complete for "${result.ticketTitle}" (source: ${result.source}).\n${parts.join("\n")}`
+            );
           }
         }
       } catch (err) {

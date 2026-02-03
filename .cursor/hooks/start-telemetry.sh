@@ -65,7 +65,7 @@ if [[ -n "$TICKET_ID" ]]; then
   echo "╠══════════════════════════════════════════════════════════════╣"
   echo "║  Ticket: $TICKET_ID"
   echo "║                                                              ║"
-  echo "║  ⚠️  Call start_telemetry_session({ ticketId: \"$TICKET_ID\" })"
+  echo "║  ⚠️  Call telemetry \"start\"({ ticketId: \"$TICKET_ID\" })"
   echo "║      to begin tracking this session.                         ║"
   echo "╚══════════════════════════════════════════════════════════════╝"
   echo ""
@@ -76,7 +76,7 @@ else
   echo "║  📊 TELEMETRY: No active ticket detected                     ║"
   echo "╠══════════════════════════════════════════════════════════════╣"
   echo "║  To track this session for a ticket, call:                   ║"
-  echo "║  start_telemetry_session({ ticketId: \"<ticket-id>\" })       ║"
+  echo "║  telemetry \"start\"({ ticketId: \"<ticket-id>\" })              ║"
   echo "╚══════════════════════════════════════════════════════════════╝"
   echo ""
 fi

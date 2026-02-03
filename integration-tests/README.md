@@ -35,7 +35,7 @@ pnpm test:integration:watch
 
 ### 2. Git Integration (4 tests)
 
-- Create feature branch on start_ticket_work
+- Create feature branch on workflow "start-work"
 - Checkout existing branch if already created
 - Capture commits made during session
 - Use correct branch naming convention

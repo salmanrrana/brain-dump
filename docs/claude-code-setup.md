@@ -82,23 +82,23 @@ Claude auto-detects your project and updates Brain Dump in real-time.
 
 ## Available MCP Tools
 
-| Tool                    | Description                                |
-| ----------------------- | ------------------------------------------ |
-| `list_projects`         | List all registered projects               |
-| `find_project_by_path`  | Auto-detect project from current directory |
-| `create_project`        | Register a new project                     |
-| `create_ticket`         | Create a ticket                            |
-| `list_tickets`          | List tickets with filters                  |
-| `update_ticket_status`  | Move ticket between columns                |
-| `list_epics`            | List epics for a project                   |
-| `create_epic`           | Create a new epic                          |
-| `add_ticket_comment`    | Add comments or work summaries             |
-| `get_ticket_comments`   | Get all comments for a ticket              |
-| `start_ticket_work`     | Start work (creates git branch)            |
-| `complete_ticket_work`  | Complete work and move to review           |
-| `link_commit_to_ticket` | Link git commits                           |
-| `link_files_to_ticket`  | Associate files with a ticket              |
-| `get_tickets_for_file`  | Find tickets related to a file             |
+| Tool + Action                | Description                                |
+| ---------------------------- | ------------------------------------------ |
+| `project` `"list"`           | List all registered projects               |
+| `project` `"find-by-path"`   | Auto-detect project from current directory |
+| `project` `"create"`         | Register a new project                     |
+| `ticket` `"create"`          | Create a ticket                            |
+| `ticket` `"list"`            | List tickets with filters                  |
+| `ticket` `"update-status"`   | Move ticket between columns                |
+| `epic` `"list"`              | List epics for a project                   |
+| `epic` `"create"`            | Create a new epic                          |
+| `comment` `"add"`            | Add comments or work summaries             |
+| `comment` `"list"`           | Get all comments for a ticket              |
+| `workflow` `"start-work"`    | Start work (creates git branch)            |
+| `workflow` `"complete-work"` | Complete work and move to review           |
+| `workflow` `"link-commit"`   | Link git commits                           |
+| `ticket` `"link-files"`      | Associate files with a ticket              |
+| `ticket` `"get-files"`       | Find tickets related to a file             |
 
 ## Available Commands
 

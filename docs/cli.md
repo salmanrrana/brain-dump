@@ -4,10 +4,10 @@ Brain Dump includes a command-line tool for database utilities like backup, rest
 
 > **Note:** For ticket management, use Brain Dump's MCP tools instead:
 >
-> - `start_ticket_work` - Create branch + set status to in_progress
-> - `complete_ticket_work` - Move to review + suggest next ticket
-> - `update_ticket_status` - Change ticket status directly
-> - `add_ticket_comment` - Add work summaries or notes
+> - `workflow` tool, `action: "start-work"` - Create branch + set status to in_progress
+> - `workflow` tool, `action: "complete-work"` - Move to review + suggest next ticket
+> - `ticket` tool, `action: "update-status"` - Change ticket status directly
+> - `comment` tool, `action: "add"` - Add work summaries or notes
 
 ## Quick Reference
 

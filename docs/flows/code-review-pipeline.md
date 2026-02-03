@@ -285,7 +285,7 @@ Review agents can post findings to your tickets:
 
 ```mermaid
 flowchart LR
-    A["Code Reviewer"] --> B["add_ticket_comment"]
+    A["Code Reviewer"] --> B["comment tool<br/>action: add"]
     B --> C["Post findings<br/>to ticket"]
     C --> D["Visible in<br/>Brain Dump UI"]
 

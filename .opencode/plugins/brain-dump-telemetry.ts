@@ -91,7 +91,8 @@ export default async (context: any) => {
      */
     "session.created": async () => {
       try {
-        const result = await callMcpTool(client, "mcp__brain-dump__start_telemetry_session", {
+        const result = await callMcpTool(client, "mcp__brain-dump__telemetry", {
+          action: "start",
           projectPath: project?.path || process.cwd(),
           environment: "opencode",
         });
@@ -112,7 +113,8 @@ export default async (context: any) => {
       if (!sessionId) return;
 
       try {
-        await callMcpTool(client, "mcp__brain-dump__end_telemetry_session", {
+        await callMcpTool(client, "mcp__brain-dump__telemetry", {
+          action: "end",
           sessionId,
           outcome: "success",
         });
@@ -131,7 +133,8 @@ export default async (context: any) => {
       if (!sessionId) return;
 
       try {
-        await callMcpTool(client, "mcp__brain-dump__end_telemetry_session", {
+        await callMcpTool(client, "mcp__brain-dump__telemetry", {
+          action: "end",
           sessionId,
           outcome: "failure",
           errorMessage: error?.message || "Unknown error",
@@ -162,7 +165,8 @@ export default async (context: any) => {
         toolCorrelations.set(input.tool, { startTime, correlationId });
 
         // Log tool start event
-        await callMcpTool(client, "mcp__brain-dump__log_tool_event", {
+        await callMcpTool(client, "mcp__brain-dump__telemetry", {
+          action: "log-tool",
           sessionId,
           event: "start",
           toolName: input.tool,
@@ -189,7 +193,8 @@ export default async (context: any) => {
         toolCorrelations.delete(input.tool);
 
         // Log tool end event
-        await callMcpTool(client, "mcp__brain-dump__log_tool_event", {
+        await callMcpTool(client, "mcp__brain-dump__telemetry", {
+          action: "log-tool",
           sessionId,
           event: "end",
           toolName: input.tool,
@@ -218,7 +223,8 @@ export default async (context: any) => {
         toolCorrelations.delete(input.tool);
 
         // Log tool failure event
-        await callMcpTool(client, "mcp__brain-dump__log_tool_event", {
+        await callMcpTool(client, "mcp__brain-dump__telemetry", {
+          action: "log-tool",
           sessionId,
           event: "end",
           toolName: input.tool,
@@ -248,7 +254,8 @@ export default async (context: any) => {
         const promptLength = prompt.length;
 
         // Log prompt event
-        await callMcpTool(client, "mcp__brain-dump__log_prompt_event", {
+        await callMcpTool(client, "mcp__brain-dump__telemetry", {
+          action: "log-prompt",
           sessionId,
           prompt,
           redact: false, // Can be configured via settings

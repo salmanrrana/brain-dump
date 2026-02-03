@@ -58,7 +58,7 @@ When using Claude Code, three review agents run in parallel:
 For each issue found during review:
 
 ```
-submit_review_finding({
+review "submit-finding"({
   ticketId: "<ticket-id>",
   agent: "code-reviewer",       // or "silent-failure-hunter" or "code-simplifier"
   severity: "major",            // critical | major | minor | suggestion
@@ -77,14 +77,14 @@ For each critical/major finding:
 1. Make the code fix
 2. Run `pnpm type-check && pnpm lint && pnpm test`
 3. Commit: `fix(<ticket-id>): <description>`
-4. Mark fixed: `mark_finding_fixed({ findingId: "<id>", status: "fixed", fixDescription: "..." })`
+4. Mark fixed: `review "mark-fixed"({ findingId: "<id>", status: "fixed", fixDescription: "..." })`
 
 ## Verifying Completion
 
 After all critical/major issues are fixed:
 
 ```
-check_review_complete({ ticketId: "<ticket-id>" })
+review "check-complete"({ ticketId: "<ticket-id>" })
 // Must return: { canProceedToHumanReview: true }
 ```
 

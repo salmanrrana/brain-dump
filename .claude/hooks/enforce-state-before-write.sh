@@ -47,6 +47,6 @@ fi
 cat <<EOF
 {
   "decision": "block",
-  "message": "STATE ENFORCEMENT: You are in '$CURRENT_STATE' state but tried to write/edit code.\n\nTo write code, you MUST first call:\n\n  update_session_state({ sessionId: \"$SESSION_ID\", state: \"implementing\" })\n\nAfter updating your state, retry this operation.\n\nValid states for writing code: implementing, testing, committing"
+  "message": "STATE ENFORCEMENT: You are in '$CURRENT_STATE' state but tried to write/edit code.\n\nTo write code, you MUST first call the session tool:\n\n  action: \"update-state\", sessionId: \"$SESSION_ID\", state: \"implementing\"\n\nAfter updating your state, retry this operation.\n\nValid states for writing code: implementing, testing, committing"
 }
 EOF

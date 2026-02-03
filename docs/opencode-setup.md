@@ -108,18 +108,18 @@ Brain Dump's MCP server provides:
 
 ```bash
 # Project Management
-find_project_by_path()    # Identify current project
-list_projects()           # Show all projects
+project tool, action: "find-by-path"    # Identify current project
+project tool, action: "list"            # Show all projects
 
 # Ticket Operations
-list_tickets()            # Show tickets with status
-create_ticket()           # Create new ticket
-update_ticket_status()    # Change ticket state
-add_ticket_comment()      # Add comments/updates
+ticket tool, action: "list"             # Show tickets with status
+ticket tool, action: "create"           # Create new ticket
+ticket tool, action: "update-status"    # Change ticket state
+comment tool, action: "add"             # Add comments/updates
 
 # Workflow Tools
-start_ticket_work(ticketId)     # Create branch + set in_progress
-complete_ticket_work(ticketId, summary)  # Mark done + update PRD
+workflow tool, action: "start-work", ticketId: "..."     # Create branch + set in_progress
+workflow tool, action: "complete-work", ticketId: "...", summary: "..."  # Mark done + update PRD
 ```
 
 ## Configuration Files

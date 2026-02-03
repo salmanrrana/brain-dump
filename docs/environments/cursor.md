@@ -43,7 +43,7 @@ brain-dump doctor
 4. **Complete implementation**
 
    ```
-   complete_ticket_work(ticketId, "summary")
+   workflow tool, action: "complete-work", ticketId, "summary"
    ```
 
 5. **Run AI review, fix findings, generate demo**
@@ -113,7 +113,7 @@ Just like Claude Code, Cursor hooks enforce state transitions:
 
 ```
 You: Write code while in 'analyzing' state
-Hook: Blocks → "Call update_session_state('implementing') first"
+Hook: Blocks → "Call session 'update-state' with state: 'implementing' first"
 You: Call the MCP tool
 You: Retry → Success
 ```
@@ -155,17 +155,17 @@ All the same commands as Claude Code:
 Plus MCP tools:
 
 ```
-start_ticket_work(ticketId)
-complete_ticket_work(ticketId, "summary")
-submit_review_finding(...)
-mark_finding_fixed(...)
-generate_demo_script(...)
-submit_demo_feedback(...)
+workflow tool, action: "start-work", ticketId
+workflow tool, action: "complete-work", ticketId, "summary"
+review tool, action: "submit-finding", ...
+review tool, action: "mark-fixed", ...
+review tool, action: "generate-demo", ...
+review tool, action: "submit-feedback", ...
 ```
 
 ## Troubleshooting
 
-### "STATE ENFORCEMENT: You must call update_session_state first"
+### "STATE ENFORCEMENT: You must call session update-state first"
 
 Same as Claude Code:
 
@@ -257,13 +257,13 @@ If hooks aren't working, you can use the CLI directly:
 
 ```bash
 # Link a commit manually
-mcp__brain-dump__link_commit_to_ticket abc-123 abc12ef
+workflow tool, action: "link-commit", ticketId: "abc-123", commitHash: "abc12ef"
 
 # Create a progress comment
-mcp__brain-dump__add_ticket_comment abc-123 "Completed validation"
+comment tool, action: "add", ticketId: "abc-123", content: "Completed validation"
 
 # Move to next phase
-mcp__brain-dump__update_ticket_status abc-123 ai_review
+ticket tool, action: "update-status", ticketId: "abc-123", status: "ai_review"
 ```
 
 This ensures you're never blocked even if hooks malfunction.

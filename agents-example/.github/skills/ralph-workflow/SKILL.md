@@ -26,6 +26,7 @@ plans/progress.txt - Notes from previous iterations
 ### 2. Set Up Git Branch
 
 Before any code changes:
+
 ```bash
 git fetch origin
 git checkout -b ralph/<ticket-id>-<description> origin/dev
@@ -35,13 +36,14 @@ git checkout -b ralph/<ticket-id>-<description> origin/dev
 ### 3. Pick ONE Task
 
 From `prd.json`, find a user story where `passes: false`:
+
 - Prioritize by priority field (high > medium > low)
 - Only work on ONE task per iteration
 
 ### 4. Post Progress Update
 
 ```javascript
-add_ticket_comment({
+comment "add"({
   ticketId: "story-id",
   content: "Starting work on user authentication. Will implement login form and API endpoint.",
   author: "ralph",
@@ -70,6 +72,7 @@ Edit `plans/prd.json` to set `passes: true` for the completed story.
 ### 8. Update Progress File
 
 Append to `plans/progress.txt`:
+
 ```
 ## Iteration N - [timestamp]
 - Completed: <ticket title>
@@ -80,9 +83,9 @@ Append to `plans/progress.txt`:
 ### 9. Update Ticket Status
 
 ```javascript
-update_ticket_status("ticket-id", "done")
+ticket "update-status"({ ticketId: "ticket-id", status: "done" })
 
-add_ticket_comment({
+comment "add"({
   ticketId: "ticket-id",
   content: "## Work Summary\n**Changes:**\n- ...\n**Tests:**\n- All passing",
   author: "ralph",
@@ -93,6 +96,7 @@ add_ticket_comment({
 ### 10. Check Completion
 
 If ALL stories have `passes: true`:
+
 - Push branch: `git push -u origin <branch-name>`
 - Create PR using `gh pr create`
 - Output: `PRD_COMPLETE`
@@ -125,14 +129,17 @@ Otherwise, the next iteration picks the next task.
 
 ```markdown
 # Ralph Progress Log
+
 # Use this to leave notes for the next iteration
 
 ## Iteration 1 - 2024-01-01 10:00
+
 - Completed: Add login form
 - Changes: Created LoginForm.tsx, added validation
 - Notes: Auth API returns different error format than expected
 
 ## Iteration 2 - 2024-01-01 10:30
+
 - Completed: Add auth API integration
 - Changes: Updated auth.ts, added error handling
 - Notes: All tests passing

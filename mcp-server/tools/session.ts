@@ -26,6 +26,14 @@ import {
   VALID_OUTCOMES,
   VALID_EVENT_TYPES,
 } from "../../core/session.ts";
+import {
+  saveTasks,
+  getTasks,
+  clearTasks,
+  getTaskSnapshots,
+  TASK_STATUSES,
+} from "../../core/tasks.ts";
+import type { TaskInput } from "../../core/tasks.ts";
 import type { RalphSessionState, RalphEventType } from "../../core/types.ts";
 import type { SessionOutcome } from "../../core/session.ts";
 
@@ -38,6 +46,10 @@ const ACTIONS = [
   "emit-event",
   "get-events",
   "clear-events",
+  "save-tasks",
+  "get-tasks",
+  "clear-tasks",
+  "get-task-snapshots",
 ] as const;
 
 const STATES = VALID_STATES as unknown as readonly [string, ...string[]];
@@ -92,9 +104,26 @@ Optional params: since, limit
 Clear all events for a Ralph session.
 Required params: sessionId
 
+### save-tasks
+Save Claude's task list for a ticket. Replaces entire task list, preserves status history.
+Optional params: ticketId (auto-detected from Ralph state), tasks (required), createSnapshot
+
+### get-tasks
+Retrieve Claude's tasks for a ticket.
+Optional params: ticketId (auto-detected), includeHistory
+
+### clear-tasks
+Clear all Claude tasks for a ticket. Creates snapshot before clearing.
+Optional params: ticketId (auto-detected)
+
+### get-task-snapshots
+Get historical snapshots of Claude's task list.
+Required params: ticketId
+Optional params: limit
+
 ## Parameters
 - action: (required) The operation to perform
-- ticketId: Ticket ID. Required for: create, list. Optional for: get
+- ticketId: Ticket ID. Required for: create, list, get-task-snapshots. Optional for: get, save-tasks, get-tasks, clear-tasks
 - sessionId: Ralph session ID. Required for: update-state, complete, emit-event, get-events, clear-events. Optional for: get
 - state: Session state. Required for: update-state
 - metadata: State transition context (JSON object). Optional for: update-state
@@ -103,7 +132,10 @@ Required params: sessionId
 - eventType: Event type. Required for: emit-event
 - eventData: Event data (JSON object). Optional for: emit-event
 - since: ISO timestamp to get events after. Optional for: get-events
-- limit: Max results. Optional for: list, get-events`,
+- limit: Max results. Optional for: list, get-events, get-task-snapshots
+- tasks: Array of task objects with subject, status, activeForm?, description?. Required for: save-tasks
+- createSnapshot: Create an audit snapshot. Optional for: save-tasks
+- includeHistory: Include status change history. Optional for: get-tasks`,
     {
       action: z.enum(ACTIONS).describe("The operation to perform"),
       ticketId: z.string().optional().describe("Ticket ID"),
@@ -116,6 +148,20 @@ Required params: sessionId
       eventData: z.record(z.unknown()).optional().describe("Event data"),
       since: z.string().optional().describe("ISO timestamp for event filtering"),
       limit: z.number().optional().describe("Max results"),
+      tasks: z
+        .array(
+          z.object({
+            id: z.string().optional(),
+            subject: z.string(),
+            status: z.enum(TASK_STATUSES as unknown as readonly [string, ...string[]]),
+            activeForm: z.string().optional(),
+            description: z.string().optional(),
+          })
+        )
+        .optional()
+        .describe("Array of task objects"),
+      createSnapshot: z.boolean().optional().describe("Create audit snapshot"),
+      includeHistory: z.boolean().optional().describe("Include status change history"),
     },
     async (params: {
       action: (typeof ACTIONS)[number];
@@ -129,6 +175,10 @@ Required params: sessionId
       eventData?: Record<string, unknown> | undefined;
       since?: string | undefined;
       limit?: number | undefined;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod optional shapes differ from TaskInput under exactOptionalPropertyTypes
+      tasks?: any[] | undefined;
+      createSnapshot?: boolean | undefined;
+      includeHistory?: boolean | undefined;
     }) => {
       try {
         switch (params.action) {
@@ -218,6 +268,60 @@ Required params: sessionId
             const sessionId = requireParam(params.sessionId, "sessionId", "clear-events");
             const count = clearEvents(db, sessionId);
             return formatResult(`Cleared ${count} event(s) for session ${sessionId}.`);
+          }
+
+          case "save-tasks": {
+            if (!params.tasks || params.tasks.length === 0) {
+              return mcpError(
+                new Error("tasks parameter is required for save-tasks. Provide at least one task.")
+              );
+            }
+
+            const result = saveTasks(
+              db,
+              params.tasks as TaskInput[],
+              params.ticketId,
+              params.createSnapshot
+            );
+            log.info(`Saved ${result.tasks.length} task(s) for ticket ${result.ticketId}`);
+            return formatResult(
+              result,
+              `Saved ${result.tasks.length} task(s) for "${result.ticketTitle}".${result.snapshotCreated ? " Snapshot created." : ""}`
+            );
+          }
+
+          case "get-tasks": {
+            const result = getTasks(db, params.ticketId, params.includeHistory);
+
+            if (result.tasks.length === 0) {
+              return formatEmpty("Claude tasks for this ticket");
+            }
+            return formatResult(
+              result,
+              `Found ${result.tasks.length} task(s) for "${result.ticketTitle}"`
+            );
+          }
+
+          case "clear-tasks": {
+            const result = clearTasks(db, params.ticketId);
+            log.info(`Cleared ${result.cleared} task(s) for ticket ${result.ticketId}`);
+            return formatResult(
+              result,
+              `Cleared ${result.cleared} task(s) for "${result.ticketTitle}". Snapshot: ${result.snapshotId}`
+            );
+          }
+
+          case "get-task-snapshots": {
+            const ticketId = requireParam(params.ticketId, "ticketId", "get-task-snapshots");
+            const result = getTaskSnapshots(db, ticketId, params.limit);
+
+            if (result.snapshots.length === 0) {
+              return formatEmpty("task snapshots for this ticket");
+            }
+            return formatResult(
+              result,
+              `Found ${result.snapshots.length} snapshot(s) for "${result.ticketTitle}"`
+            );
           }
         }
       } catch (err) {

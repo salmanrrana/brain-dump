@@ -13,7 +13,7 @@ Use the Brain Dump MCP tools to start working on a ticket.
 ## Instructions
 
 1. If no ticket ID provided, use `list_tickets` to show available tickets
-2. Use `start_ticket_work(ticketId)` to:
+2. Use `workflow "start-work"({ ticketId })` to:
    - Create a feature branch
    - Set ticket status to "in_progress"
    - Get full ticket context

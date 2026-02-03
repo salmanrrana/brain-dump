@@ -49,7 +49,7 @@ echo "╠═══════════════════════�
 echo "║  Session: $SESSION_ID"
 echo "║  Queued events: $QUEUED_COUNT"
 echo "║                                                              ║"
-echo "║  ⚠️  Call end_telemetry_session({ sessionId: \"$SESSION_ID\" })"
+echo "║  ⚠️  Call telemetry \"end\"({ sessionId: \"$SESSION_ID\" })"
 echo "║      to finalize and flush telemetry data.                   ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""

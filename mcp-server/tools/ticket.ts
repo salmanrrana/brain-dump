@@ -24,6 +24,7 @@ import {
   updateAttachmentMetadata,
   listTicketsByEpic,
 } from "../../core/ticket.ts";
+import { linkFiles, getTicketsForFile } from "../../core/files.ts";
 import type { TicketStatus, Priority } from "../../core/types.ts";
 import type { CriterionStatus } from "../../core/ticket.ts";
 
@@ -36,6 +37,8 @@ const ACTIONS = [
   "update-criterion",
   "update-attachment",
   "list-by-epic",
+  "link-files",
+  "get-files",
 ] as const;
 
 const STATUSES = ["backlog", "ready", "in_progress", "ai_review", "human_review", "done"] as const;
@@ -102,10 +105,19 @@ List all tickets in a specific epic, sorted by position.
 Required params: epicId
 Optional params: projectId, status, limit
 
+### link-files
+Link file paths to a ticket for context tracking.
+Required params: ticketId, files
+
+### get-files
+Find tickets that have a specific file linked. Supports partial path matching.
+Required params: filePath
+Optional params: projectId
+
 ## Parameters
 - action: (required) The operation to perform
-- ticketId: Ticket ID. Required for: get, update-status, delete, update-criterion, update-attachment
-- projectId: Project ID. Required for: create. Optional for: list, list-by-epic
+- ticketId: Ticket ID. Required for: get, update-status, delete, update-criterion, update-attachment, link-files
+- projectId: Project ID. Required for: create. Optional for: list, list-by-epic, get-files
 - title: Ticket title. Required for: create
 - description: Detailed description (markdown). Optional for: create
 - priority: Priority level (low, medium, high). Optional for: create
@@ -145,6 +157,8 @@ Optional params: projectId, status, limit
         .optional()
         .describe("Attachment importance"),
       linkedCriteria: z.array(z.string()).optional().describe("Linked criterion IDs"),
+      files: z.array(z.string()).optional().describe("File paths to link"),
+      filePath: z.string().optional().describe("File path to search for"),
     },
     async (params: {
       action: (typeof ACTIONS)[number];
@@ -166,6 +180,8 @@ Optional params: projectId, status, limit
       attachmentDescription?: string | undefined;
       attachmentPriority?: (typeof ATTACHMENT_PRIORITIES)[number] | undefined;
       linkedCriteria?: string[] | undefined;
+      files?: string[] | undefined;
+      filePath?: string | undefined;
     }) => {
       try {
         switch (params.action) {
@@ -291,6 +307,37 @@ Optional params: projectId, status, limit
               return formatEmpty("tickets in epic", { status: params.status });
             }
             return formatResult(tickets, `Found ${tickets.length} ticket(s) in epic`);
+          }
+
+          case "link-files": {
+            const ticketId = requireParam(params.ticketId, "ticketId", "link-files");
+            if (!params.files || params.files.length === 0) {
+              return mcpError(
+                new Error(
+                  "files parameter is required for link-files. Provide at least one file path."
+                )
+              );
+            }
+
+            const result = linkFiles(db, ticketId, params.files);
+            log.info(`Linked ${result.added} file(s) to ticket ${ticketId}`);
+            return formatResult(
+              result,
+              `Linked ${result.added} new file(s) to "${result.ticketTitle}". ${result.alreadyLinked} already linked. Total: ${result.linkedFiles.length}`
+            );
+          }
+
+          case "get-files": {
+            const filePath = requireParam(params.filePath, "filePath", "get-files");
+            const tickets = getTicketsForFile(db, filePath, params.projectId);
+
+            if (tickets.length === 0) {
+              return formatEmpty("tickets linked to this file");
+            }
+            return formatResult(
+              tickets,
+              `Found ${tickets.length} ticket(s) linked to "${filePath}"`
+            );
           }
         }
       } catch (err) {

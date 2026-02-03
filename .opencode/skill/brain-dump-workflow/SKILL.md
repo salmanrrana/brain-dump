@@ -16,7 +16,7 @@ Every ticket MUST go through these steps using MCP tools. Never skip any.
 
 ### Step 1: Start Work
 
-Call `start_ticket_work({ ticketId: "<id>" })` BEFORE writing any code.
+Call `workflow "start-work"({ ticketId: "<id>" })` BEFORE writing any code.
 
 This creates a git branch, sets status to `in_progress`, and posts a "Starting work" comment.
 
@@ -32,7 +32,7 @@ Commit with format: `feat(<ticket-short-id>): <description>`
 
 ### Step 3: Complete Implementation
 
-Call `complete_ticket_work({ ticketId: "<id>", summary: "<what you did>" })`
+Call `workflow "complete-work"({ ticketId: "<id>", summary: "<what you did>" })`
 
 This moves ticket to `ai_review` and posts a work summary comment.
 
@@ -43,19 +43,19 @@ Perform self-review by reading your own diffs, then record findings via MCP.
 
 For each issue found, you MUST invoke the MCP tool:
 
-`submit_review_finding({ ticketId, agent: "code-reviewer", severity, category, description })`
+`review "submit-finding"({ ticketId, agent: "code-reviewer", severity, category, description })`
 
 Verify you receive a `findingId` in the response for each submission.
 
 Fix critical/major issues, then invoke:
 
-`mark_finding_fixed({ findingId, status: "fixed" })`
+`review "mark-fixed"({ findingId, status: "fixed" })`
 
-Verify: `check_review_complete({ ticketId })` — response must contain `canProceedToHumanReview: true`
+Verify: `review "check-complete"({ ticketId })` — response must contain `canProceedToHumanReview: true`
 
 ### Step 5: Generate Demo + STOP
 
-Call `generate_demo_script({ ticketId, steps: [{ order, description, expectedOutcome, type }] })`
+Call `review "generate-demo"({ ticketId, steps: [{ order, description, expectedOutcome, type }] })`
 
 Include 3-7 manual test steps. Ticket moves to `human_review`.
 
@@ -66,10 +66,10 @@ Include 3-7 manual test steps. Ticket moves to `human_review`.
 - Skip any step above
 - Set ticket status to "done" directly
 - Continue working after generating demo
-- Write code before calling `start_ticket_work`
-- Use local review skills or subagents instead of `submit_review_finding`
-- Describe demo steps in text instead of calling `generate_demo_script`
-- Create git branches manually instead of using `start_ticket_work`
+- Write code before calling `workflow "start-work"`
+- Use local review skills or subagents instead of `review "submit-finding"`
+- Describe demo steps in text instead of calling `review "generate-demo"`
+- Create git branches manually instead of using `workflow "start-work"`
 - Use any local alternative when an MCP tool exists for the step
 
 ## Severity Guide (for Step 4)

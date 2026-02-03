@@ -12,14 +12,14 @@ You are generating a demo script for a ticket that has passed AI review and is r
 
 - Ticket must be in `ai_review` status
 - All critical and major findings must be fixed
-- `check_review_complete({ ticketId })` must return `canProceedToHumanReview: true`
+- `review` tool `check-complete` with `ticketId` must return `canProceedToHumanReview: true`
 
 ## Steps
 
 ### Step 1: Verify Ticket is Ready
 
 ```
-check_review_complete({ ticketId: "<ticket-id>" })
+review tool, action: "check-complete", ticketId: "<ticket-id>"
 ```
 
 If not ready:
@@ -33,7 +33,7 @@ If not ready:
 Read the ticket description and acceptance criteria:
 
 ```
-# Get ticket details from start_ticket_work response or database
+# Get ticket details from workflow "start-work" response or database
 ```
 
 List the key functionality that needs to be demonstrated.
@@ -57,7 +57,7 @@ Each step should have:
 ### Step 4: Generate Demo Script
 
 ```
-generate_demo_script({
+review tool, action: "generate-demo",
   ticketId: "<ticket-id>",
   steps: [
     {
@@ -91,7 +91,6 @@ generate_demo_script({
       type: "manual"
     }
   ]
-})
 ```
 
 ### Step 5: Confirm Transition
@@ -110,7 +109,7 @@ After generating the demo:
 2. Navigate to the ticket
 3. Run through demo steps
 4. Mark each step passed/failed
-5. Submit feedback via `submit_demo_feedback`
+5. Submit feedback via `review` tool `submit-feedback`
 
 ## Demo Step Guidelines
 
@@ -158,18 +157,17 @@ The ticket is now in `human_review`. Possible outcomes:
 1. **Approved**: Human calls:
 
    ```
-   submit_demo_feedback({
+   review tool, action: "submit-feedback",
      ticketId: "<ticket-id>",
      passed: true,
      feedback: "All steps verified successfully"
-   })
    ```
 
    → ticket moves to `done`
 
 2. **Rejected**: Human calls:
    ```
-   submit_demo_feedback({
+   review tool, action: "submit-feedback",
      ticketId: "<ticket-id>",
      passed: false,
      feedback: "Step 3 failed - modal did not open",
@@ -178,7 +176,6 @@ The ticket is now in `human_review`. Possible outcomes:
        { order: 2, passed: true },
        { order: 3, passed: false, notes: "Button unresponsive" }
      ]
-   })
    ```
    → ticket stays in `human_review` with feedback for you to address
 

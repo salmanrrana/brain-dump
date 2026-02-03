@@ -1,6 +1,6 @@
 #!/bin/bash
 # spawn-next-ticket.sh
-# PostToolUse hook for complete_ticket_work
+# PostToolUse hook for workflow (action: complete-work)
 #
 # After a ticket is completed, this hook can optionally spawn a new terminal
 # with Claude already running, ready to work on the next ticket.
@@ -16,8 +16,16 @@ set -e
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name')
 
-# Only care about complete_ticket_work
-if [[ "$TOOL_NAME" != "mcp__brain-dump__complete_ticket_work" ]]; then
+# Only care about workflow tool with action: complete-work
+if [[ "$TOOL_NAME" != "mcp__brain-dump__workflow" ]]; then
+  echo "$INPUT" | jq '.tool_result // empty'
+  exit 0
+fi
+
+# Check that this is the complete-work action
+TOOL_INPUT_JSON=$(echo "$INPUT" | jq -r '.tool_input // "{}"')
+ACTION=$(echo "$TOOL_INPUT_JSON" | jq -r '.action // ""')
+if [[ "$ACTION" != "complete-work" ]]; then
   echo "$INPUT" | jq '.tool_result // empty'
   exit 0
 fi
@@ -37,8 +45,12 @@ PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 TOOL_RESULT=$(echo "$INPUT" | jq -r '.tool_result // ""')
 
 # Look for the next ticket pattern in the result
-# Pattern: To start: `start_ticket_work("ticket-id")`
-NEXT_TICKET_ID=$(echo "$TOOL_RESULT" | grep -oE 'start_ticket_work\("[^"]+"\)' | head -1 | sed 's/start_ticket_work("//;s/")//' || echo "")
+# Pattern: workflow tool with action "start-work" and ticketId
+NEXT_TICKET_ID=$(echo "$TOOL_RESULT" | grep -oE '"ticketId":\s*"[^"]+"' | head -1 | sed 's/"ticketId":\s*"//;s/"$//' || echo "")
+# Fallback: try the old pattern for backward compatibility
+if [[ -z "$NEXT_TICKET_ID" ]]; then
+  NEXT_TICKET_ID=$(echo "$TOOL_RESULT" | grep -oE 'start_ticket_work\("[^"]+"\)' | head -1 | sed 's/start_ticket_work("//;s/")//' || echo "")
+fi
 
 if [[ -z "$NEXT_TICKET_ID" ]]; then
   # No next ticket suggested, just pass through
@@ -62,7 +74,7 @@ echo "Starting Claude for ticket: $NEXT_TICKET_ID"
 echo ""
 
 # Run Claude with a prompt to start the next ticket
-claude --prompt "Please run: start_ticket_work(\"$NEXT_TICKET_ID\")"
+claude --prompt "Please call the workflow tool with action 'start-work' and ticketId '$NEXT_TICKET_ID'"
 SCRIPT
 chmod +x "$SPAWN_SCRIPT"
 

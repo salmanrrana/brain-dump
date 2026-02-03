@@ -55,19 +55,18 @@ When using Claude Code, three review agents run in parallel:
 
 ## Submitting Findings
 
-For each issue found during review:
+For each issue found during review, call the **review** tool:
 
 ```
-submit_review_finding({
-  ticketId: "<ticket-id>",
-  agent: "code-reviewer",       // or "silent-failure-hunter" or "code-simplifier"
-  severity: "major",            // critical | major | minor | suggestion
-  category: "error-handling",   // type-safety | error-handling | performance | code-quality | testing
-  description: "Clear description of the issue",
-  filePath: "src/api/example.ts",
-  lineNumber: 42,
-  suggestedFix: "How to fix it"
-})
+action: "submit-finding"
+ticketId: "<ticket-id>"
+agent: "code-reviewer"       // or "silent-failure-hunter" or "code-simplifier"
+severity: "major"            // critical | major | minor | suggestion
+category: "error-handling"   // type-safety | error-handling | performance | code-quality | testing
+description: "Clear description of the issue"
+filePath: "src/api/example.ts"
+lineNumber: 42
+suggestedFix: "How to fix it"
 ```
 
 ## Fixing Findings
@@ -77,14 +76,22 @@ For each critical/major finding:
 1. Make the code fix
 2. Run `pnpm type-check && pnpm lint && pnpm test`
 3. Commit: `fix(<ticket-id>): <description>`
-4. Mark fixed: `mark_finding_fixed({ findingId: "<id>", status: "fixed", fixDescription: "..." })`
+4. Mark fixed by calling the **review** tool:
+
+```
+action: "mark-fixed"
+findingId: "<finding-id>"
+fixStatus: "fixed"
+fixDescription: "..."
+```
 
 ## Verifying Completion
 
-After all critical/major issues are fixed:
+After all critical/major issues are fixed, call the **review** tool:
 
 ```
-check_review_complete({ ticketId: "<ticket-id>" })
+action: "check-complete"
+ticketId: "<ticket-id>"
 // Must return: { canProceedToHumanReview: true }
 ```
 

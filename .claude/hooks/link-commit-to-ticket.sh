@@ -61,7 +61,7 @@ if [[ -z "$TICKET_ID" ]]; then
   if [[ -n "$SHORT_ID" ]]; then
     echo "[$(date -Iseconds)] Found short ID from branch: $SHORT_ID" >> "$LOG_FILE"
     # Note: We can't easily look up the full ticket ID without DB access
-    # The MCP tool link_commit_to_ticket needs the full UUID
+    # The workflow "link-commit" action needs the full UUID
   fi
 fi
 
@@ -105,8 +105,8 @@ echo "║  Commit: $COMMIT_HASH"
 echo "║  Message: $COMMIT_MSG"
 echo "║  Ticket: $TICKET_ID"
 echo "╠══════════════════════════════════════════════════════════════╣"
-echo "║  ⚠️  ACTION REQUIRED: Run sync_ticket_links() to link this   ║"
-echo "║      commit to the ticket automatically.                     ║"
+echo "║  ⚠️  ACTION REQUIRED: Call the workflow tool with action        ║"
+echo "║      \"sync-links\" to link this commit to the ticket.        ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
 
@@ -117,7 +117,7 @@ if [[ -n "$BRANCH" ]]; then
   if [[ -n "$PR_NUMBER" ]]; then
     echo "╔══════════════════════════════════════════════════════════════╗"
     echo "║  📋 PR #$PR_NUMBER exists for this branch"
-    echo "║  ⚠️  Run sync_ticket_links() to link PR automatically        ║"
+    echo "║  ⚠️  Call workflow tool, action: \"sync-links\" to link PR      ║"
     echo "╚══════════════════════════════════════════════════════════════╝"
     echo ""
   fi

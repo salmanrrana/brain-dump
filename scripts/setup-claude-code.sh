@@ -266,7 +266,7 @@ else
         ]
       },
       {
-        "matcher": "mcp__brain-dump__start_ticket_work",
+        "matcher": "mcp__brain-dump__workflow",
         "hooks": [
           {
             "type": "command",
@@ -284,7 +284,7 @@ else
         ]
       },
       {
-        "matcher": "mcp__brain-dump__update_session_state",
+        "matcher": "mcp__brain-dump__session",
         "hooks": [
           {
             "type": "command",
@@ -293,7 +293,7 @@ else
         ]
       },
       {
-        "matcher": "mcp__brain-dump__create_ralph_session",
+        "matcher": "mcp__brain-dump__session",
         "hooks": [
           {
             "type": "command",
@@ -302,7 +302,7 @@ else
         ]
       },
       {
-        "matcher": "mcp__brain-dump__complete_ralph_session",
+        "matcher": "mcp__brain-dump__session",
         "hooks": [
           {
             "type": "command",
@@ -311,7 +311,7 @@ else
         ]
       },
       {
-        "matcher": "mcp__brain-dump__complete_ticket_work",
+        "matcher": "mcp__brain-dump__workflow",
         "hooks": [
           {
             "type": "command",

@@ -193,23 +193,23 @@ Once configured, these tools are automatically available:
 
 - `list_projects` - See your projects
 - `list_tickets` - See tickets in project
-- `start_ticket_work` - Begin working on ticket
-- `complete_ticket_work` - Mark ticket for review
+- `workflow "start-work"` - Begin working on ticket
+- `workflow "complete-work"` - Mark ticket for review
 - `list_epics` - See project epics
 
 ### Review & Quality
 
-- `submit_review_finding` - Post review findings
-- `mark_finding_fixed` - Mark issue resolved
-- `check_review_complete` - Verify all critical issues fixed
-- `generate_demo_script` - Create demo for human review
+- `review "submit-finding"` - Post review findings
+- `review "mark-fixed"` - Mark issue resolved
+- `review "check-complete"` - Verify all critical issues fixed
+- `review "generate-demo"` - Create demo for human review
 
 ### Telemetry
 
-- `start_telemetry_session` - Begin tracking
-- `log_tool_event` - Record tool usage
-- `log_prompt_event` - Record prompts
-- `end_telemetry_session` - Finalize tracking
+- `telemetry "start"` - Begin tracking
+- `telemetry "log-tool"` - Record tool usage
+- `telemetry "log-prompt"` - Record prompts
+- `telemetry "end"` - Finalize tracking
 
 ## Telemetry Data Flow
 
@@ -221,7 +221,7 @@ Once configured, these tools are automatically available:
               ↓
 ┌─────────────────────────────────────┐
 │ Telemetry Plugin Activates          │
-│ - Calls start_telemetry_session     │
+│ - Calls telemetry "start"            │
 │ - Stores session ID                 │
 └─────────────────────────────────────┘
               ↓
@@ -239,7 +239,7 @@ Once configured, these tools are automatically available:
               ↓
 ┌─────────────────────────────────────┐
 │ Telemetry Finalized                 │
-│ - Calls end_telemetry_session       │
+│ - Calls telemetry "end"             │
 │ - All events flushed to database    │
 └─────────────────────────────────────┘
 ```
@@ -343,7 +343,7 @@ opencode mcp debug brain-dump
 
 ```typescript
 // OpenCode asks Claude to start working on a ticket
-// Claude calls: start_ticket_work({ ticketId: "abc-123" })
+// Claude calls: workflow "start-work"({ ticketId: "abc-123" })
 // Plugin telemetry automatically captures:
 // - Tool call start
 // - Tool parameters

@@ -79,7 +79,7 @@ All access to conversation logs is tracked:
 
 Six MCP tools are available for conversation logging:
 
-### start_conversation_session
+### admin tool, action: "start-conversation"
 
 Creates a new conversation session for compliance logging.
 
@@ -92,7 +92,7 @@ Parameters:
 - dataClassification (optional): public | internal | confidential | restricted
 ```
 
-### log_conversation_message
+### admin tool, action: "log-message"
 
 Records a message with tamper detection and secret scanning.
 
@@ -106,7 +106,7 @@ Parameters:
 - modelId (optional): Model identifier
 ```
 
-### end_conversation_session
+### admin tool, action: "end-conversation"
 
 Marks a session as complete, preventing further message logging.
 
@@ -115,7 +115,7 @@ Parameters:
 - sessionId (required): Session to end
 ```
 
-### list_conversation_sessions
+### admin tool, action: "list-conversations"
 
 Queries sessions with flexible filtering.
 
@@ -130,7 +130,7 @@ Parameters:
 - limit (optional): Max results (default: 50, max: 200)
 ```
 
-### export_compliance_logs
+### admin tool, action: "export-logs"
 
 Generates JSON export for auditors with integrity verification.
 
@@ -144,7 +144,7 @@ Parameters:
 - verifyIntegrity (optional): Verify HMAC hashes (default: true)
 ```
 
-### archive_old_sessions
+### admin tool, action: "archive-sessions"
 
 Implements retention policy by deleting old sessions.
 
@@ -181,7 +181,7 @@ WHERE id = 'session-id';
 
 ### Archiving
 
-Use the `archive_old_sessions` MCP tool:
+Use the `admin` tool with `action: "archive-sessions"`:
 
 1. **Dry-run first** (default): See what would be deleted
 2. **Confirm to delete**: Set `confirm: true` to actually delete
@@ -235,12 +235,7 @@ SELECT * FROM conversation_sessions
 WHERE user_id = 'user-id';
 
 -- Export via MCP tool
-export_compliance_logs({
-  startDate: "2024-01-01",
-  endDate: "2024-12-31",
-  includeContent: true,
-  verifyIntegrity: true
-})
+admin tool, action: "export-logs", startDate: "2024-01-01", endDate: "2024-12-31", includeContent: true, verifyIntegrity: true
 ```
 
 ### Right to Erasure
@@ -253,7 +248,7 @@ SELECT id, legal_hold FROM conversation_sessions
 WHERE user_id = 'user-id' AND legal_hold = 1;
 
 -- Archive non-held sessions
--- Use archive_old_sessions MCP tool or:
+-- Use admin "archive-sessions" MCP tool or:
 DELETE FROM conversation_sessions
 WHERE user_id = 'user-id' AND legal_hold = 0;
 ```
@@ -368,8 +363,8 @@ SET conversation_retention_days = 180;
 
 Sessions are automatically created and ended by workflow tools:
 
-1. **start_ticket_work**: Creates a conversation session linked to ticket
-2. **complete_ticket_work**: Ends all active sessions for the ticket
+1. **workflow "start-work"**: Creates a conversation session linked to ticket
+2. **workflow "complete-work"**: Ends all active sessions for the ticket
 
 This ensures all ticket work is logged without manual intervention.
 
@@ -401,7 +396,7 @@ The system auto-detects the development environment:
 ### High Disk Usage
 
 1. Review retention settings (shorter retention = less storage)
-2. Run archive_old_sessions to clean up old data
+2. Run `admin "archive-sessions"` to clean up old data
 3. Consider excluding large tool outputs from logging
 
 ## Best Practices

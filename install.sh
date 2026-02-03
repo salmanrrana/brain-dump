@@ -881,19 +881,15 @@ config.mcp["brain-dump"] = {
     environment: { BRAIN_DUMP_PATH: brainDumpDir, OPENCODE: "1" }
 };
 config.tools = Object.assign(config.tools || {}, {
-    "brain-dump_start_ticket_work": true,
-    "brain-dump_complete_ticket_work": true,
-    "brain-dump_submit_review_finding": true,
-    "brain-dump_mark_finding_fixed": true,
-    "brain-dump_check_review_complete": true,
-    "brain-dump_generate_demo_script": true,
-    "brain-dump_add_ticket_comment": true,
-    "brain-dump_create_ralph_session": true,
-    "brain-dump_update_session_state": true,
-    "brain-dump_complete_ralph_session": true,
-    "brain-dump_emit_ralph_event": true,
-    "brain-dump_list_tickets": true,
-    "brain-dump_list_projects": true,
+    "brain-dump_workflow": true,
+    "brain-dump_ticket": true,
+    "brain-dump_session": true,
+    "brain-dump_review": true,
+    "brain-dump_telemetry": true,
+    "brain-dump_comment": true,
+    "brain-dump_epic": true,
+    "brain-dump_project": true,
+    "brain-dump_admin": true,
     "brain-dump_*": false
 });
 config.permission = config.permission || {};
@@ -927,19 +923,15 @@ fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
     }
   },
   "tools": {
-    "brain-dump_start_ticket_work": true,
-    "brain-dump_complete_ticket_work": true,
-    "brain-dump_submit_review_finding": true,
-    "brain-dump_mark_finding_fixed": true,
-    "brain-dump_check_review_complete": true,
-    "brain-dump_generate_demo_script": true,
-    "brain-dump_add_ticket_comment": true,
-    "brain-dump_create_ralph_session": true,
-    "brain-dump_update_session_state": true,
-    "brain-dump_complete_ralph_session": true,
-    "brain-dump_emit_ralph_event": true,
-    "brain-dump_list_tickets": true,
-    "brain-dump_list_projects": true,
+    "brain-dump_workflow": true,
+    "brain-dump_ticket": true,
+    "brain-dump_session": true,
+    "brain-dump_review": true,
+    "brain-dump_telemetry": true,
+    "brain-dump_comment": true,
+    "brain-dump_epic": true,
+    "brain-dump_project": true,
+    "brain-dump_admin": true,
     "brain-dump_*": false
   },
   "permission": {
@@ -1000,19 +992,15 @@ EOF
     }
   },
   "tools": {
-    "brain-dump_start_ticket_work": true,
-    "brain-dump_complete_ticket_work": true,
-    "brain-dump_submit_review_finding": true,
-    "brain-dump_mark_finding_fixed": true,
-    "brain-dump_check_review_complete": true,
-    "brain-dump_generate_demo_script": true,
-    "brain-dump_add_ticket_comment": true,
-    "brain-dump_create_ralph_session": true,
-    "brain-dump_update_session_state": true,
-    "brain-dump_complete_ralph_session": true,
-    "brain-dump_emit_ralph_event": true,
-    "brain-dump_list_tickets": true,
-    "brain-dump_list_projects": true,
+    "brain-dump_workflow": true,
+    "brain-dump_ticket": true,
+    "brain-dump_session": true,
+    "brain-dump_review": true,
+    "brain-dump_telemetry": true,
+    "brain-dump_comment": true,
+    "brain-dump_epic": true,
+    "brain-dump_project": true,
+    "brain-dump_admin": true,
     "brain-dump_*": false
   },
   "permission": {

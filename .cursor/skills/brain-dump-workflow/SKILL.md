@@ -23,14 +23,14 @@ When you begin working on a ticket:
 
 ```
 // 1. Start the ticket work (creates git branch, updates status)
-mcp__brain-dump__start_ticket_work({ ticketId: "<ticket-id>" })
+mcp__brain-dump__workflow "start-work"({ ticketId: "<ticket-id>" })
 
 // 2. Create a session for state tracking
-mcp__brain-dump__create_ralph_session({ ticketId: "<ticket-id>" })
+mcp__brain-dump__session "create"({ ticketId: "<ticket-id>" })
 // Returns: { sessionId: "..." }
 
 // 3. Update state as you progress
-mcp__brain-dump__update_session_state({
+mcp__brain-dump__session "update-state"({
   sessionId: "<session-id>",
   state: "analyzing",
   metadata: { message: "Reading ticket requirements" }
@@ -52,7 +52,7 @@ Update your state as you work through phases:
 Example:
 
 ```
-mcp__brain-dump__update_session_state({
+mcp__brain-dump__session "update-state"({
   sessionId: "<session-id>",
   state: "implementing",
   metadata: { message: "Adding new API endpoint" }
@@ -68,7 +68,7 @@ When implementation is done:
 // pnpm type-check && pnpm lint && pnpm test
 
 // 2. Complete the ticket work
-mcp__brain-dump__complete_ticket_work({
+mcp__brain-dump__workflow "complete-work"({
   ticketId: "<ticket-id>",
   summary: "Added new API endpoint with validation and tests"
 })
@@ -81,7 +81,7 @@ During AI review, run code review agents:
 
 ```
 // Submit findings from review
-mcp__brain-dump__submit_review_finding({
+mcp__brain-dump__review "submit-finding"({
   ticketId: "<ticket-id>",
   agent: "code-reviewer",
   severity: "major",
@@ -90,14 +90,14 @@ mcp__brain-dump__submit_review_finding({
 })
 
 // After fixing, mark as fixed
-mcp__brain-dump__mark_finding_fixed({
+mcp__brain-dump__review "mark-fixed"({
   findingId: "<finding-id>",
   status: "fixed",
   fixDescription: "Added null check at line 45"
 })
 
 // Check if all critical/major issues are resolved
-mcp__brain-dump__check_review_complete({ ticketId: "<ticket-id>" })
+mcp__brain-dump__review "check-complete"({ ticketId: "<ticket-id>" })
 // Returns: { canProceedToHumanReview: true/false }
 ```
 
@@ -106,7 +106,7 @@ mcp__brain-dump__check_review_complete({ ticketId: "<ticket-id>" })
 When AI review passes (all critical/major findings fixed):
 
 ```
-mcp__brain-dump__generate_demo_script({
+mcp__brain-dump__review "generate-demo"({
   ticketId: "<ticket-id>",
   steps: [
     { order: 1, description: "Navigate to /settings", expectedOutcome: "Settings page loads", type: "manual" },
@@ -124,7 +124,7 @@ After generating the demo script, **STOP**. Do not attempt to auto-approve the t
 The human reviewer will:
 
 1. Follow the demo steps
-2. Call `mcp__brain-dump__submit_demo_feedback()` with their verdict
+2. Call `mcp__brain-dump__review "submit-feedback"()` with their verdict
 3. The ticket moves to `done` only after human approval
 
 ## Telemetry
@@ -139,13 +139,13 @@ This provides full audit trails for enterprise compliance.
 
 ## Quick Reference
 
-| Action         | MCP Tool                                                                      |
-| -------------- | ----------------------------------------------------------------------------- |
-| Start ticket   | `start_ticket_work({ ticketId })`                                             |
-| Create session | `create_ralph_session({ ticketId })`                                          |
-| Update state   | `update_session_state({ sessionId, state })`                                  |
-| Complete work  | `complete_ticket_work({ ticketId, summary })`                                 |
-| Submit finding | `submit_review_finding({ ticketId, agent, severity, category, description })` |
-| Fix finding    | `mark_finding_fixed({ findingId, status })`                                   |
-| Check review   | `check_review_complete({ ticketId })`                                         |
-| Generate demo  | `generate_demo_script({ ticketId, steps })`                                   |
+| Action         | MCP Tool                                                                        |
+| -------------- | ------------------------------------------------------------------------------- |
+| Start ticket   | `workflow "start-work"({ ticketId })`                                           |
+| Create session | `session "create"({ ticketId })`                                                |
+| Update state   | `session "update-state"({ sessionId, state })`                                  |
+| Complete work  | `workflow "complete-work"({ ticketId, summary })`                               |
+| Submit finding | `review "submit-finding"({ ticketId, agent, severity, category, description })` |
+| Fix finding    | `review "mark-fixed"({ findingId, status })`                                    |
+| Check review   | `review "check-complete"({ ticketId })`                                         |
+| Generate demo  | `review "generate-demo"({ ticketId, steps })`                                   |

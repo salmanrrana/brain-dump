@@ -176,24 +176,24 @@ With the MCP server configured, these tools are available in any chat:
 
 ### Project Management
 
-- `list_projects` - List all registered projects
-- `find_project_by_path` - Find project by directory
-- `create_project` - Register a new project
+- `project` tool, `action: "list"` - List all registered projects
+- `project` tool, `action: "find-by-path"` - Find project by directory
+- `project` tool, `action: "create"` - Register a new project
 
 ### Ticket Operations
 
-- `list_tickets` - List tickets (with filters)
-- `create_ticket` - Create a new ticket
-- `update_ticket_status` - Update status
-- `start_ticket_work` - Start work (creates branch)
-- `complete_ticket_work` - Complete work
+- `ticket` tool, `action: "list"` - List tickets (with filters)
+- `ticket` tool, `action: "create"` - Create a new ticket
+- `ticket` tool, `action: "update-status"` - Update status
+- `workflow` tool, `action: "start-work"` - Start work (creates branch)
+- `workflow` tool, `action: "complete-work"` - Complete work
 
 ### Progress Tracking
 
-- `add_ticket_comment` - Add comments or work summaries
-- `get_ticket_comments` - Get ticket comments
-- `link_commit_to_ticket` - Link commits
-- `link_files_to_ticket` - Link files
+- `comment` tool, `action: "add"` - Add comments or work summaries
+- `comment` tool, `action: "list"` - Get ticket comments
+- `workflow` tool, `action: "link-commit"` - Link commits
+- `ticket` tool, `action: "link-files"` - Link files
 
 ## Troubleshooting
 

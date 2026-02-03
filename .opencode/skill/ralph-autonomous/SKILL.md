@@ -69,7 +69,7 @@ function selectTicket(tickets: Ticket[]): Ticket {
 
 ```bash
 # 1. Initialize ticket work
-start_ticket_work(selectedTicketId)
+workflow "start-work"(selectedTicketId)
 
 # 2. Implementation phase
 # - Read existing code patterns
@@ -82,7 +82,7 @@ pnpm type-check                   # Must pass
 pnpm lint                        # Should pass
 
 # 4. Complete ticket
-complete_ticket_work(ticketId, summary)
+workflow "complete-work"(ticketId, summary)
 ```
 
 ## Intelligent Decision Making
@@ -91,7 +91,7 @@ complete_ticket_work(ticketId, summary)
 
 ```bash
 # Log the issue
-add_ticket_comment(ticketId,
+comment "add"(ticketId,
   "Blocked: [specific issue]. Will continue with next ticket.",
   "ralph",
   "blocker")
@@ -165,25 +165,25 @@ Ralph automatically logs:
 
 ```bash
 # Start of session
-add_ticket_comment("session-start",
+comment "add"("session-start",
   `Ralph session started. Available tickets: ${count}`,
   "ralph",
   "session")
 
 # Ticket decisions
-add_ticket_comment(ticketId,
+comment "add"(ticketId,
   `Selected ticket: ${ticket.title}. Reason: ${reason}`,
   "ralph",
   "decision")
 
 # Implementation progress
-add_ticket_comment(ticketId,
+comment "add"(ticketId,
   `Completed: ${component}. Next: ${next_step}`,
   "ralph",
   "progress")
 
 # Blockers and issues
-add_ticket_comment(ticketId,
+comment "add"(ticketId,
   `Issue: ${problem}. Solution: ${approach}`,
   "ralph",
   "issue-resolution")
@@ -201,7 +201,7 @@ echo "Next session context: ${next_priorities}" >> plans/progress.txt
 
 ### Pre-Completion Checklist
 
-Before calling `complete_ticket_work()`:
+Before calling `workflow "complete-work"()`:
 
 ```typescript
 const completion_checklist = {
@@ -291,7 +291,7 @@ Ralph provides updates without being asked:
 All decision-making is documented:
 
 ```bash
-add_ticket_comment(ticketId,
+comment "add"(ticketId,
   `Decision: Chose approach X over Y because:
   1. Performance: 50% faster
   2. Maintainability: Less code
@@ -310,7 +310,7 @@ When all tickets are complete:
 echo "PRD_COMPLETE"  # Signal completion
 
 # Generate summary
-add_ticket_comment("project-complete",
+comment "add"("project-complete",
   `All ${total_tickets} tickets completed.
   Total time: ${elapsed_time}.
   Key achievements: ${highlights}`,
