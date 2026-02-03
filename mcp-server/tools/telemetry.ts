@@ -1,1048 +1,302 @@
 /**
- * Telemetry tools for Brain Dump MCP server.
- * Captures AI interaction telemetry during ticket work sessions.
+ * Consolidated telemetry resource tool for Brain Dump MCP server.
+ *
+ * Merges 7 individual telemetry tools into 1 action-dispatched tool.
+ * Business logic lives in core/telemetry.ts.
+ *
  * @module tools/telemetry
  */
 import { z } from "zod";
-import { randomUUID } from "crypto";
-import { existsSync, readFileSync } from "fs";
-import { join } from "path";
-import { execFileSync } from "child_process";
 import { log } from "../lib/logging.js";
+import { mcpError } from "../lib/mcp-response.ts";
+import { requireParam, formatResult, formatEmpty } from "../lib/mcp-format.ts";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type Database from "better-sqlite3";
+import { CoreError } from "../../core/errors.ts";
+import {
+  startTelemetrySession,
+  logPrompt,
+  logTool,
+  logContext,
+  endTelemetrySession,
+  getTelemetrySession,
+  listTelemetrySessions,
+  TELEMETRY_OUTCOMES,
+  TOOL_EVENTS,
+} from "../../core/telemetry.ts";
+import type { TelemetryOutcome, ToolEventType } from "../../core/telemetry.ts";
 
-// ============================================
-// Constants
-// ============================================
-
-const SESSION_OUTCOMES = ["success", "failure", "timeout", "cancelled"] as const;
-const TOOL_EVENTS = ["start", "end"] as const;
-
-// ============================================
-// Type Definitions
-// ============================================
-
-/** Result of ticket detection */
-interface TicketDetectionResult {
-  ticketId: string | null;
-  source: string;
-  shortId?: string | null | undefined;
-  error?: string | undefined;
-}
-
-/** Ralph state file structure */
-interface RalphState {
-  ticketId?: string;
-}
-
-/** DB row for telemetry_sessions table */
-interface DbTelemetrySessionRow {
-  id: string;
-  ticket_id: string | null;
-  project_id: string | null;
-  environment: string | null;
-  branch_name: string | null;
-  started_at: string;
-  ended_at: string | null;
-  total_prompts: number;
-  total_tool_calls: number;
-  total_duration_ms: number | null;
-  total_tokens: number | null;
-  outcome: string | null;
-}
-
-/** Minimal session row for verification */
-interface SessionBasicRow {
-  id: string;
-  ticket_id: string | null;
-}
-
-/** Ticket row for joining with telemetry */
-interface TicketInfoRow {
-  project_id: string;
-  title: string;
-  branch_name: string | null;
-}
-
-/** Ticket title row */
-interface TicketTitleRow {
-  title: string;
-}
-
-/** Telemetry event DB row */
-interface DbTelemetryEventRow {
-  id: string;
-  session_id: string;
-  ticket_id: string | null;
-  event_type: string;
-  tool_name: string | null;
-  event_data: string | null;
-  duration_ms: number | null;
-  is_error: number;
-  correlation_id: string | null;
-  created_at: string;
-  eventData?: Record<string, unknown> | null;
-}
-
-// ============================================
-// Helper Functions
-// ============================================
+const ACTIONS = ["start", "log-prompt", "log-tool", "log-context", "end", "get", "list"] as const;
+const OUTCOMES = TELEMETRY_OUTCOMES as unknown as readonly [string, ...string[]];
+const EVENTS = TOOL_EVENTS as unknown as readonly [string, ...string[]];
 
 /**
- * Detect active ticket from Ralph state file or git branch.
+ * Register the consolidated telemetry tool with the MCP server.
  */
-function detectActiveTicket(projectPath: string): TicketDetectionResult {
-  try {
-    // First, try Ralph state file
-    const ralphStatePath = join(projectPath, ".claude", "ralph-state.json");
-    if (existsSync(ralphStatePath)) {
-      try {
-        const state = JSON.parse(readFileSync(ralphStatePath, "utf-8")) as RalphState;
-        if (state.ticketId) {
-          return { ticketId: state.ticketId, source: "ralph-state" };
-        }
-      } catch (parseErr) {
-        const errorMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
-        log.warn(`Failed to parse ralph-state.json: ${errorMsg}`);
-        // Continue to try other detection methods
-      }
-    }
-
-    // Try to get ticket from branch name using execFileSync (safe, no shell injection)
-    try {
-      const branch = execFileSync("git", ["branch", "--show-current"], {
-        cwd: projectPath,
-        encoding: "utf-8",
-        timeout: 5000,
-      }).trim();
-
-      // Branch format: feature/{short-id}-{slug}
-      const match = branch.match(/^feature\/([a-f0-9]{8})-/);
-      if (match) {
-        // We have the short ID, but need the full UUID
-        // This is a limitation - we'd need DB access to resolve it
-        return { ticketId: null, source: "branch-partial", shortId: match[1] };
-      }
-    } catch (gitErr: unknown) {
-      // Only log if it's not an expected "not a git repo" error
-      const errorObj = gitErr as { code?: string; message?: string };
-      const isExpected =
-        errorObj.code === "ENOENT" || errorObj.message?.includes("not a git repository");
-      if (!isExpected) {
-        const errorMsg = gitErr instanceof Error ? gitErr.message : String(gitErr);
-        log.warn(`Git detection failed: ${errorMsg}`);
-      }
-    }
-
-    return { ticketId: null, source: "none" };
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return { ticketId: null, source: "error", error: errorMsg };
-  }
-}
-
-/**
- * Summarize tool parameters to avoid storing sensitive content.
- */
-function summarizeParams(params: Record<string, unknown>): string {
-  const summary: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(params)) {
-    if (typeof value === "string") {
-      // Truncate strings and note length
-      summary[key] = value.length > 100 ? `[${value.length} chars]` : value;
-    } else if (Array.isArray(value)) {
-      summary[key] = `[array, ${value.length} items]`;
-    } else if (typeof value === "object" && value !== null) {
-      summary[key] = `[object, ${Object.keys(value).length} keys]`;
-    } else {
-      summary[key] = value;
-    }
-  }
-  return JSON.stringify(summary);
-}
-
-// ============================================
-// Tool Registration
-// ============================================
-
-/**
- * Register telemetry tools with the MCP server.
- */
-export function registerTelemetryTools(
+export function registerTelemetryTool(
   server: McpServer,
   db: Database.Database,
   detectEnvironment: () => string
 ): void {
-  // ============================================
-  // start_telemetry_session
-  // ============================================
   server.tool(
-    "start_telemetry_session",
-    `Start a telemetry session for AI work on a ticket.
+    "telemetry",
+    `Manage telemetry sessions in Brain Dump. Telemetry captures AI interaction metrics.
 
-This tool is typically called automatically by the SessionStart hook when
-Claude starts working on a ticket. It creates a new telemetry session to
-track all prompts, tool calls, and other interactions.
+## Actions
 
-Args:
-  ticketId: Optional ticket ID (auto-detected from Ralph state or branch if not provided)
-  projectPath: Optional project path (uses current directory if not provided)
-  environment: Optional environment name (auto-detected if not provided)
+### start
+Start a telemetry session for AI work on a ticket.
+Optional params: ticketId, projectPath, environment
 
-Returns:
-  The created session with its ID for use in subsequent telemetry calls.`,
+### log-prompt
+Log a user prompt to the telemetry session.
+Required params: sessionId, prompt
+Optional params: redact, tokenCount
+
+### log-tool
+Log a tool call to the telemetry session.
+Required params: sessionId, toolEvent, toolName
+Optional params: correlationId, toolParams, toolResult, success, durationMs, error
+
+### log-context
+Log what context was loaded when AI started work on a ticket.
+Required params: sessionId, hasDescription, hasAcceptanceCriteria
+Optional params: criteriaCount, commentCount, attachmentCount, imageCount
+
+### end
+End a telemetry session and compute final statistics.
+Required params: sessionId
+Optional params: outcome, totalTokens
+
+### get
+Get telemetry data for a session.
+Optional params: sessionId, ticketId, includeEvents, eventLimit
+
+### list
+List telemetry sessions with optional filters.
+Optional params: ticketId, projectId, since, limit
+
+## Parameters
+- action: (required) The operation to perform
+- sessionId: Telemetry session ID. Required for: log-prompt, log-tool, log-context, end. Optional for: get
+- ticketId: Ticket ID. Optional for: start, get, list
+- projectPath: Project path. Optional for: start
+- environment: Environment name. Optional for: start
+- prompt: Prompt text. Required for: log-prompt
+- redact: Hash prompt for privacy. Optional for: log-prompt
+- tokenCount: Token count. Optional for: log-prompt
+- toolEvent: Tool event type (start or end). Required for: log-tool
+- toolName: Tool name. Required for: log-tool
+- correlationId: Correlation ID for pairing start/end. Optional for: log-tool
+- toolParams: Parameter summary. Optional for: log-tool
+- toolResult: Result summary. Optional for: log-tool
+- success: Whether tool call succeeded. Optional for: log-tool
+- durationMs: Duration in ms. Optional for: log-tool
+- error: Error message. Optional for: log-tool
+- hasDescription: Whether ticket had description. Required for: log-context
+- hasAcceptanceCriteria: Whether ticket had criteria. Required for: log-context
+- criteriaCount: Number of criteria. Optional for: log-context
+- commentCount: Number of comments. Optional for: log-context
+- attachmentCount: Number of attachments. Optional for: log-context
+- imageCount: Number of images. Optional for: log-context
+- outcome: Session outcome. Optional for: end
+- totalTokens: Total token count. Optional for: end
+- includeEvents: Include event details. Optional for: get
+- eventLimit: Max events. Optional for: get
+- projectId: Filter by project. Optional for: list
+- since: Sessions after this date. Optional for: list
+- limit: Max results. Optional for: list`,
     {
-      ticketId: z.string().optional().describe("The ticket ID (auto-detected if not provided)"),
-      projectPath: z.string().optional().describe("Project path (auto-detected if not provided)"),
-      environment: z
-        .string()
-        .optional()
-        .describe("Environment name (auto-detected if not provided)"),
+      action: z.enum(ACTIONS).describe("The operation to perform"),
+      sessionId: z.string().optional().describe("Telemetry session ID"),
+      ticketId: z.string().optional().describe("Ticket ID"),
+      projectPath: z.string().optional().describe("Project path"),
+      environment: z.string().optional().describe("Environment name"),
+      prompt: z.string().optional().describe("Prompt text"),
+      redact: z.boolean().optional().describe("Hash prompt for privacy"),
+      tokenCount: z.number().optional().describe("Token count"),
+      toolEvent: z.enum(EVENTS).optional().describe("Tool event type (start or end)"),
+      toolName: z.string().optional().describe("Tool name"),
+      correlationId: z.string().optional().describe("Correlation ID"),
+      toolParams: z.record(z.unknown()).optional().describe("Parameter summary"),
+      toolResult: z.string().optional().describe("Result summary"),
+      success: z.boolean().optional().describe("Whether tool call succeeded"),
+      durationMs: z.number().optional().describe("Duration in ms"),
+      error: z.string().optional().describe("Error message"),
+      hasDescription: z.boolean().optional().describe("Whether ticket had description"),
+      hasAcceptanceCriteria: z.boolean().optional().describe("Whether ticket had criteria"),
+      criteriaCount: z.number().optional().describe("Number of criteria"),
+      commentCount: z.number().optional().describe("Number of comments"),
+      attachmentCount: z.number().optional().describe("Number of attachments"),
+      imageCount: z.number().optional().describe("Number of images"),
+      outcome: z.enum(OUTCOMES).optional().describe("Session outcome"),
+      totalTokens: z.number().optional().describe("Total token count"),
+      includeEvents: z.boolean().optional().describe("Include event details"),
+      eventLimit: z.number().optional().describe("Max events"),
+      projectId: z.string().optional().describe("Filter by project"),
+      since: z.string().optional().describe("Sessions after this date"),
+      limit: z.number().optional().describe("Max results"),
     },
-    async ({
-      ticketId,
-      projectPath,
-      environment,
-    }: {
+    async (params: {
+      action: (typeof ACTIONS)[number];
+      sessionId?: string | undefined;
       ticketId?: string | undefined;
       projectPath?: string | undefined;
       environment?: string | undefined;
-    }) => {
-      const id = randomUUID();
-      const now = new Date().toISOString();
-
-      // Detect environment if not provided
-      const detectedEnv = environment || detectEnvironment();
-
-      // Try to detect ticket if not provided
-      let resolvedTicketId: string | null | undefined = ticketId;
-      let detectionSource = "provided";
-
-      if (!resolvedTicketId && projectPath) {
-        const detection = detectActiveTicket(projectPath);
-        resolvedTicketId = detection.ticketId;
-        detectionSource = detection.source;
-      }
-
-      // Get project ID from ticket if we have one
-      let projectId: string | null = null;
-      let branchName: string | null = null;
-      let ticketTitle: string | null = null;
-
-      if (resolvedTicketId) {
-        const ticket = db
-          .prepare(
-            `SELECT t.project_id, t.title, t.branch_name
-             FROM tickets t
-             WHERE t.id = ?`
-          )
-          .get(resolvedTicketId) as TicketInfoRow | undefined;
-
-        if (ticket) {
-          projectId = ticket.project_id;
-          branchName = ticket.branch_name;
-          ticketTitle = ticket.title;
-        }
-      }
-
-      try {
-        db.prepare(
-          `INSERT INTO telemetry_sessions
-           (id, ticket_id, project_id, environment, branch_name, started_at)
-           VALUES (?, ?, ?, ?, ?, ?)`
-        ).run(id, resolvedTicketId || null, projectId, detectedEnv, branchName, now);
-
-        // Log session start event
-        const eventId = randomUUID();
-        db.prepare(
-          `INSERT INTO telemetry_events
-           (id, session_id, ticket_id, event_type, event_data, created_at)
-           VALUES (?, ?, ?, 'session_start', ?, ?)`
-        ).run(
-          eventId,
-          id,
-          resolvedTicketId || null,
-          JSON.stringify({
-            environment: detectedEnv,
-            ticketDetection: detectionSource,
-            branchName,
-          }),
-          now
-        );
-
-        log.info(`Started telemetry session ${id} for ticket ${resolvedTicketId || "unknown"}`);
-
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `## Telemetry Session Started
-
-**Session ID:** ${id}
-**Ticket:** ${ticketTitle || resolvedTicketId || "Not detected"}
-**Environment:** ${detectedEnv}
-**Detection:** ${detectionSource}
-${branchName ? `**Branch:** ${branchName}` : ""}
-**Started:** ${now}
-
-Use this session ID for subsequent telemetry calls:
-- \`log_prompt_event\` - Log user prompts
-- \`log_tool_event\` - Log tool calls
-- \`end_telemetry_session\` - Complete the session`,
-            },
-          ],
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        log.error(`Failed to start telemetry session: ${errorMsg}`);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Failed to start telemetry session: ${errorMsg}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // ============================================
-  // log_prompt_event
-  // ============================================
-  server.tool(
-    "log_prompt_event",
-    `Log a user prompt to the telemetry session.
-
-This is called by the UserPromptSubmit hook to capture what prompts
-the user sends to the AI during ticket work.
-
-Args:
-  sessionId: The telemetry session ID
-  prompt: The full prompt text
-  redact: If true, hash the prompt instead of storing it plainly (for privacy)
-  tokenCount: Optional token count for the prompt
-
-Returns:
-  Confirmation of the logged event.`,
-    {
-      sessionId: z.string().describe("The telemetry session ID"),
-      prompt: z.string().describe("The full prompt text"),
-      redact: z.boolean().optional().default(false).describe("Hash the prompt for privacy"),
-      tokenCount: z.number().optional().describe("Token count for the prompt"),
-    },
-    async ({
-      sessionId,
-      prompt,
-      redact = false,
-      tokenCount,
-    }: {
-      sessionId: string;
-      prompt: string;
+      prompt?: string | undefined;
       redact?: boolean | undefined;
       tokenCount?: number | undefined;
-    }) => {
-      // Verify session exists
-      const session = db
-        .prepare("SELECT id, ticket_id FROM telemetry_sessions WHERE id = ?")
-        .get(sessionId) as SessionBasicRow | undefined;
-
-      if (!session) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Telemetry session not found: ${sessionId}. Use start_telemetry_session first.`,
-            },
-          ],
-          isError: true,
-        };
-      }
-
-      const id = randomUUID();
-      const now = new Date().toISOString();
-
-      // Optionally redact the prompt
-      let storedPrompt = prompt;
-      let isRedacted = false;
-
-      if (redact) {
-        const { createHash } = await import("crypto");
-        storedPrompt = createHash("sha256").update(prompt).digest("hex");
-        isRedacted = true;
-      }
-
-      const eventData = {
-        prompt: storedPrompt,
-        promptLength: prompt.length,
-        redacted: isRedacted,
-      };
-
-      try {
-        db.prepare(
-          `INSERT INTO telemetry_events
-           (id, session_id, ticket_id, event_type, event_data, token_count, created_at)
-           VALUES (?, ?, ?, 'prompt', ?, ?, ?)`
-        ).run(id, sessionId, session.ticket_id, JSON.stringify(eventData), tokenCount || null, now);
-
-        // Update session stats
-        db.prepare(
-          "UPDATE telemetry_sessions SET total_prompts = total_prompts + 1 WHERE id = ?"
-        ).run(sessionId);
-
-        log.info(`Logged prompt event for session ${sessionId.substring(0, 8)}...`);
-
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Prompt logged successfully (${prompt.length} chars${isRedacted ? ", redacted" : ""})`,
-            },
-          ],
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        log.error(`Failed to log prompt event: ${errorMsg}`);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Failed to log prompt event: ${errorMsg}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // ============================================
-  // log_tool_event
-  // ============================================
-  server.tool(
-    "log_tool_event",
-    `Log a tool call to the telemetry session.
-
-This is called by PreToolUse and PostToolUse hooks to capture
-what tools the AI uses, their parameters, and results.
-
-Args:
-  sessionId: The telemetry session ID
-  event: 'start' or 'end' - whether tool is starting or completed
-  toolName: Name of the tool (e.g., 'Edit', 'Bash', 'mcp__brain-dump__create_ticket')
-  correlationId: Unique ID to pair start/end events (required for 'end' events)
-  params: Optional parameter summary (sanitized, not full content)
-  result: Optional result summary (for 'end' events)
-  success: Whether the tool call succeeded (for 'end' events)
-  durationMs: Duration in milliseconds (for 'end' events)
-  error: Error message if failed (for 'end' events)
-
-Returns:
-  The correlation ID for pairing start/end events.`,
-    {
-      sessionId: z.string().describe("The telemetry session ID"),
-      event: z.enum(TOOL_EVENTS).describe("Whether tool is starting or completed"),
-      toolName: z.string().describe("Name of the tool"),
-      correlationId: z.string().optional().describe("Unique ID to pair start/end events"),
-      params: z.record(z.unknown()).optional().describe("Parameter summary (sanitized)"),
-      result: z.string().optional().describe("Result summary"),
-      success: z.boolean().optional().describe("Whether tool call succeeded"),
-      durationMs: z.number().optional().describe("Duration in milliseconds"),
-      error: z.string().optional().describe("Error message if failed"),
-    },
-    async ({
-      sessionId,
-      event,
-      toolName,
-      correlationId,
-      params,
-      result,
-      success,
-      durationMs,
-      error,
-    }: {
-      sessionId: string;
-      event: (typeof TOOL_EVENTS)[number];
-      toolName: string;
+      toolEvent?: string | undefined;
+      toolName?: string | undefined;
       correlationId?: string | undefined;
-      params?: Record<string, unknown> | undefined;
-      result?: string | undefined;
+      toolParams?: Record<string, unknown> | undefined;
+      toolResult?: string | undefined;
       success?: boolean | undefined;
       durationMs?: number | undefined;
       error?: string | undefined;
-    }) => {
-      // Verify session exists
-      const session = db
-        .prepare("SELECT id, ticket_id FROM telemetry_sessions WHERE id = ?")
-        .get(sessionId) as SessionBasicRow | undefined;
-
-      if (!session) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Telemetry session not found: ${sessionId}. Use start_telemetry_session first.`,
-            },
-          ],
-          isError: true,
-        };
-      }
-
-      const id = randomUUID();
-      const now = new Date().toISOString();
-
-      // For start events, generate a correlation ID if not provided
-      const corrId = correlationId || (event === "start" ? randomUUID() : null);
-
-      const eventType = event === "start" ? "tool_start" : "tool_end";
-
-      // Build event data - sanitize params to avoid storing sensitive content
-      const eventData: Record<string, unknown> = {
-        toolName,
-        ...(params && { paramsSummary: summarizeParams(params) }),
-        ...(result && { resultSummary: result.substring(0, 500) }),
-        ...(success !== undefined && { success }),
-        ...(error && { error }),
-      };
-
-      try {
-        db.prepare(
-          `INSERT INTO telemetry_events
-           (id, session_id, ticket_id, event_type, tool_name, event_data, duration_ms, is_error, correlation_id, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        ).run(
-          id,
-          sessionId,
-          session.ticket_id,
-          eventType,
-          toolName,
-          JSON.stringify(eventData),
-          durationMs || null,
-          error ? 1 : 0,
-          corrId,
-          now
-        );
-
-        // Update session stats on tool_end
-        if (event === "end") {
-          db.prepare(
-            "UPDATE telemetry_sessions SET total_tool_calls = total_tool_calls + 1 WHERE id = ?"
-          ).run(sessionId);
-        }
-
-        log.info(
-          `Logged ${eventType} event: ${toolName} for session ${sessionId.substring(0, 8)}...`
-        );
-
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text:
-                event === "start"
-                  ? `Tool start logged: ${toolName} (correlation: ${corrId})`
-                  : `Tool end logged: ${toolName} (${success ? "success" : "failed"}${durationMs ? `, ${durationMs}ms` : ""})`,
-            },
-          ],
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        log.error(`Failed to log tool event: ${errorMsg}`);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Failed to log tool event: ${errorMsg}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // ============================================
-  // log_context_event
-  // ============================================
-  server.tool(
-    "log_context_event",
-    `Log what context was loaded when AI started work on a ticket.
-
-This is called by start_ticket_work to record what context the AI received,
-creating an audit trail of the information provided.
-
-Args:
-  sessionId: The telemetry session ID
-  hasDescription: Whether ticket had a description
-  hasAcceptanceCriteria: Whether ticket had acceptance criteria
-  criteriaCount: Number of acceptance criteria
-  commentCount: Number of comments loaded
-  attachmentCount: Number of attachments loaded
-  imageCount: Number of images loaded
-
-Returns:
-  Confirmation of the logged event.`,
-    {
-      sessionId: z.string().describe("The telemetry session ID"),
-      hasDescription: z.boolean().describe("Whether ticket had a description"),
-      hasAcceptanceCriteria: z.boolean().describe("Whether ticket had acceptance criteria"),
-      criteriaCount: z.number().default(0).describe("Number of acceptance criteria"),
-      commentCount: z.number().default(0).describe("Number of comments loaded"),
-      attachmentCount: z.number().default(0).describe("Number of attachments loaded"),
-      imageCount: z.number().default(0).describe("Number of images loaded"),
-    },
-    async ({
-      sessionId,
-      hasDescription,
-      hasAcceptanceCriteria,
-      criteriaCount,
-      commentCount,
-      attachmentCount,
-      imageCount,
-    }: {
-      sessionId: string;
-      hasDescription: boolean;
-      hasAcceptanceCriteria: boolean;
+      hasDescription?: boolean | undefined;
+      hasAcceptanceCriteria?: boolean | undefined;
       criteriaCount?: number | undefined;
       commentCount?: number | undefined;
       attachmentCount?: number | undefined;
       imageCount?: number | undefined;
-    }) => {
-      // Verify session exists
-      const session = db
-        .prepare("SELECT id, ticket_id FROM telemetry_sessions WHERE id = ?")
-        .get(sessionId) as SessionBasicRow | undefined;
-
-      if (!session) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Telemetry session not found: ${sessionId}. Use start_telemetry_session first.`,
-            },
-          ],
-          isError: true,
-        };
-      }
-
-      const id = randomUUID();
-      const now = new Date().toISOString();
-
-      const effectiveCriteriaCount = criteriaCount ?? 0;
-      const effectiveCommentCount = commentCount ?? 0;
-      const effectiveAttachmentCount = attachmentCount ?? 0;
-      const effectiveImageCount = imageCount ?? 0;
-
-      const eventData = {
-        hasDescription,
-        hasAcceptanceCriteria,
-        criteriaCount: effectiveCriteriaCount,
-        commentCount: effectiveCommentCount,
-        attachmentCount: effectiveAttachmentCount,
-        imageCount: effectiveImageCount,
-      };
-
-      try {
-        db.prepare(
-          `INSERT INTO telemetry_events
-           (id, session_id, ticket_id, event_type, event_data, created_at)
-           VALUES (?, ?, ?, 'context_loaded', ?, ?)`
-        ).run(id, sessionId, session.ticket_id, JSON.stringify(eventData), now);
-
-        log.info(`Logged context_loaded event for session ${sessionId.substring(0, 8)}...`);
-
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Context loaded event logged: ${effectiveCriteriaCount} criteria, ${effectiveCommentCount} comments, ${effectiveImageCount} images`,
-            },
-          ],
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        log.error(`Failed to log context event: ${errorMsg}`);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Failed to log context event: ${errorMsg}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // ============================================
-  // end_telemetry_session
-  // ============================================
-  server.tool(
-    "end_telemetry_session",
-    `End a telemetry session and compute final statistics.
-
-This is called by the Stop hook when the Claude session ends.
-It marks the session as complete and computes summary statistics.
-
-Args:
-  sessionId: The telemetry session ID
-  outcome: Optional outcome ('success', 'failure', 'timeout', 'cancelled')
-  totalTokens: Optional total token count for the session
-
-Returns:
-  Session summary with statistics.`,
-    {
-      sessionId: z.string().describe("The telemetry session ID"),
-      outcome: z.enum(SESSION_OUTCOMES).optional().describe("Session outcome"),
-      totalTokens: z.number().optional().describe("Total token count"),
-    },
-    async ({
-      sessionId,
-      outcome,
-      totalTokens,
-    }: {
-      sessionId: string;
-      outcome?: (typeof SESSION_OUTCOMES)[number] | undefined;
+      outcome?: string | undefined;
       totalTokens?: number | undefined;
-    }) => {
-      // Get session
-      const session = db.prepare("SELECT * FROM telemetry_sessions WHERE id = ?").get(sessionId) as
-        | DbTelemetrySessionRow
-        | undefined;
-
-      if (!session) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Telemetry session not found: ${sessionId}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-
-      if (session.ended_at) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Session ${sessionId} already ended at ${session.ended_at}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-
-      const now = new Date().toISOString();
-      const startTime = new Date(session.started_at).getTime();
-      const endTime = new Date(now).getTime();
-      const totalDurationMs = endTime - startTime;
-
-      try {
-        // Log session end event
-        const eventId = randomUUID();
-        db.prepare(
-          `INSERT INTO telemetry_events
-           (id, session_id, ticket_id, event_type, event_data, created_at)
-           VALUES (?, ?, ?, 'session_end', ?, ?)`
-        ).run(
-          eventId,
-          sessionId,
-          session.ticket_id,
-          JSON.stringify({
-            outcome,
-            totalDurationMs,
-            totalPrompts: session.total_prompts,
-            totalToolCalls: session.total_tool_calls,
-            totalTokens,
-          }),
-          now
-        );
-
-        // Update session
-        db.prepare(
-          `UPDATE telemetry_sessions
-           SET ended_at = ?, total_duration_ms = ?, total_tokens = ?, outcome = ?
-           WHERE id = ?`
-        ).run(now, totalDurationMs, totalTokens || null, outcome || null, sessionId);
-
-        const durationMin = Math.round(totalDurationMs / 60000);
-
-        log.info(
-          `Ended telemetry session ${sessionId}: ${session.total_prompts} prompts, ${session.total_tool_calls} tools, ${durationMin}min`
-        );
-
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `## Telemetry Session Ended
-
-**Session ID:** ${sessionId.substring(0, 8)}...
-**Duration:** ${durationMin} minutes
-**Outcome:** ${outcome || "not specified"}
-
-### Statistics
-- **Prompts:** ${session.total_prompts}
-- **Tool Calls:** ${session.total_tool_calls}
-${totalTokens ? `- **Total Tokens:** ${totalTokens}` : ""}`,
-            },
-          ],
-        };
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        log.error(`Failed to end telemetry session: ${errorMsg}`);
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `Failed to end telemetry session: ${errorMsg}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-  );
-
-  // ============================================
-  // get_telemetry_session
-  // ============================================
-  server.tool(
-    "get_telemetry_session",
-    `Get telemetry data for a session.
-
-Retrieves session details and events for analysis or debugging.
-
-Args:
-  sessionId: The telemetry session ID (optional if ticketId provided)
-  ticketId: Get the most recent session for a ticket (optional)
-  includeEvents: Whether to include event details (default: true)
-  eventLimit: Maximum events to return (default: 100)
-
-Returns:
-  Session data with events.`,
-    {
-      sessionId: z.string().optional().describe("The telemetry session ID"),
-      ticketId: z.string().optional().describe("Get recent session for a ticket"),
-      includeEvents: z.boolean().optional().default(true).describe("Include event details"),
-      eventLimit: z.number().optional().default(100).describe("Maximum events to return"),
-    },
-    async ({
-      sessionId,
-      ticketId,
-      includeEvents = true,
-      eventLimit = 100,
-    }: {
-      sessionId?: string | undefined;
-      ticketId?: string | undefined;
       includeEvents?: boolean | undefined;
       eventLimit?: number | undefined;
-    }) => {
-      if (!sessionId && !ticketId) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: "Either sessionId or ticketId must be provided.",
-            },
-          ],
-          isError: true,
-        };
-      }
-
-      let session: DbTelemetrySessionRow | undefined;
-      if (sessionId) {
-        session = db.prepare("SELECT * FROM telemetry_sessions WHERE id = ?").get(sessionId) as
-          | DbTelemetrySessionRow
-          | undefined;
-      } else {
-        session = db
-          .prepare(
-            `SELECT * FROM telemetry_sessions
-             WHERE ticket_id = ?
-             ORDER BY started_at DESC
-             LIMIT 1`
-          )
-          .get(ticketId) as DbTelemetrySessionRow | undefined;
-      }
-
-      if (!session) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: `No telemetry session found for: ${sessionId || ticketId}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-
-      let events: DbTelemetryEventRow[] = [];
-      if (includeEvents) {
-        const rawEvents = db
-          .prepare(
-            `SELECT * FROM telemetry_events
-             WHERE session_id = ?
-             ORDER BY created_at ASC
-             LIMIT ?`
-          )
-          .all(session.id, eventLimit) as DbTelemetryEventRow[];
-
-        // Parse event data with error handling for corrupted JSON
-        events = rawEvents.map((e) => {
-          let eventData: Record<string, unknown> | null = null;
-          if (e.event_data) {
-            try {
-              eventData = JSON.parse(e.event_data);
-            } catch (parseErr) {
-              const errorMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
-              log.warn(`Failed to parse event data for event ${e.id}: ${errorMsg}`);
-              eventData = { _parseError: true };
-            }
-          }
-          return { ...e, eventData };
-        });
-      }
-
-      // Get ticket title if linked
-      let ticketTitle: string | null = null;
-      if (session.ticket_id) {
-        const ticket = db
-          .prepare("SELECT title FROM tickets WHERE id = ?")
-          .get(session.ticket_id) as TicketTitleRow | undefined;
-        ticketTitle = ticket?.title ?? null;
-      }
-
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(
-              {
-                session: {
-                  id: session.id,
-                  ticketId: session.ticket_id,
-                  ticketTitle,
-                  environment: session.environment,
-                  branchName: session.branch_name,
-                  startedAt: session.started_at,
-                  endedAt: session.ended_at,
-                  totalPrompts: session.total_prompts,
-                  totalToolCalls: session.total_tool_calls,
-                  totalDurationMs: session.total_duration_ms,
-                  totalTokens: session.total_tokens,
-                  outcome: session.outcome,
-                },
-                eventCount: events.length,
-                events: includeEvents ? events : "omitted",
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      };
-    }
-  );
-
-  // ============================================
-  // list_telemetry_sessions
-  // ============================================
-  server.tool(
-    "list_telemetry_sessions",
-    `List telemetry sessions with optional filters.
-
-Args:
-  ticketId: Filter by ticket ID
-  projectId: Filter by project ID
-  since: Only sessions started after this date (ISO format)
-  limit: Maximum sessions to return (default: 20)
-
-Returns:
-  Array of session summaries.`,
-    {
-      ticketId: z.string().optional().describe("Filter by ticket ID"),
-      projectId: z.string().optional().describe("Filter by project ID"),
-      since: z.string().optional().describe("Sessions started after this date"),
-      limit: z.number().optional().default(20).describe("Maximum sessions to return"),
-    },
-    async ({
-      ticketId,
-      projectId,
-      since,
-      limit = 20,
-    }: {
-      ticketId?: string | undefined;
       projectId?: string | undefined;
       since?: string | undefined;
       limit?: number | undefined;
     }) => {
-      let query = "SELECT * FROM telemetry_sessions WHERE 1=1";
-      const params: (string | number)[] = [];
-
-      if (ticketId) {
-        query += " AND ticket_id = ?";
-        params.push(ticketId);
-      }
-      if (projectId) {
-        query += " AND project_id = ?";
-        params.push(projectId);
-      }
-      if (since) {
-        query += " AND started_at >= ?";
-        params.push(since);
-      }
-
-      query += " ORDER BY started_at DESC LIMIT ?";
-      params.push(limit);
-
-      const sessions = db.prepare(query).all(...params) as DbTelemetrySessionRow[];
-
-      // Enrich with ticket titles
-      const enriched = sessions.map((s) => {
-        let sessionTicketTitle: string | null = null;
-        if (s.ticket_id) {
-          const ticket = db.prepare("SELECT title FROM tickets WHERE id = ?").get(s.ticket_id) as
-            | TicketTitleRow
-            | undefined;
-          sessionTicketTitle = ticket?.title ?? null;
-        }
-
-        return {
-          id: s.id,
-          ticketId: s.ticket_id,
-          ticketTitle: sessionTicketTitle,
-          environment: s.environment,
-          startedAt: s.started_at,
-          endedAt: s.ended_at,
-          totalPrompts: s.total_prompts,
-          totalToolCalls: s.total_tool_calls,
-          durationMin: s.total_duration_ms ? Math.round(s.total_duration_ms / 60000) : null,
-          outcome: s.outcome,
-        };
-      });
-
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(
+      try {
+        switch (params.action) {
+          case "start": {
+            const result = startTelemetrySession(
+              db,
               {
-                sessionCount: enriched.length,
-                sessions: enriched,
+                ...(params.ticketId !== undefined ? { ticketId: params.ticketId } : {}),
+                ...(params.projectPath !== undefined ? { projectPath: params.projectPath } : {}),
+                ...(params.environment !== undefined ? { environment: params.environment } : {}),
               },
-              null,
-              2
-            ),
-          },
-        ],
-      };
+              detectEnvironment
+            );
+            log.info(`Started telemetry session ${result.id}`);
+            return formatResult(result, "Telemetry session started!");
+          }
+
+          case "log-prompt": {
+            const sessionId = requireParam(params.sessionId, "sessionId", "log-prompt");
+            const prompt = requireParam(params.prompt, "prompt", "log-prompt");
+
+            const result = logPrompt(db, {
+              sessionId,
+              prompt,
+              ...(params.redact !== undefined ? { redact: params.redact } : {}),
+              ...(params.tokenCount !== undefined ? { tokenCount: params.tokenCount } : {}),
+            });
+            return formatResult(result);
+          }
+
+          case "log-tool": {
+            const sessionId = requireParam(params.sessionId, "sessionId", "log-tool");
+            const toolEvent = requireParam(params.toolEvent, "toolEvent", "log-tool");
+            const toolName = requireParam(params.toolName, "toolName", "log-tool");
+
+            const result = logTool(db, {
+              sessionId,
+              event: toolEvent as ToolEventType,
+              toolName,
+              ...(params.correlationId !== undefined
+                ? { correlationId: params.correlationId }
+                : {}),
+              ...(params.toolParams !== undefined ? { params: params.toolParams } : {}),
+              ...(params.toolResult !== undefined ? { result: params.toolResult } : {}),
+              ...(params.success !== undefined ? { success: params.success } : {}),
+              ...(params.durationMs !== undefined ? { durationMs: params.durationMs } : {}),
+              ...(params.error !== undefined ? { error: params.error } : {}),
+            });
+            return formatResult(result);
+          }
+
+          case "log-context": {
+            const sessionId = requireParam(params.sessionId, "sessionId", "log-context");
+            const hasDescription = requireParam(
+              params.hasDescription,
+              "hasDescription",
+              "log-context"
+            );
+            const hasAcceptanceCriteria = requireParam(
+              params.hasAcceptanceCriteria,
+              "hasAcceptanceCriteria",
+              "log-context"
+            );
+
+            const eventId = logContext(db, {
+              sessionId,
+              hasDescription,
+              hasAcceptanceCriteria,
+              ...(params.criteriaCount !== undefined
+                ? { criteriaCount: params.criteriaCount }
+                : {}),
+              ...(params.commentCount !== undefined ? { commentCount: params.commentCount } : {}),
+              ...(params.attachmentCount !== undefined
+                ? { attachmentCount: params.attachmentCount }
+                : {}),
+              ...(params.imageCount !== undefined ? { imageCount: params.imageCount } : {}),
+            });
+            return formatResult({ eventId }, "Context event logged.");
+          }
+
+          case "end": {
+            const sessionId = requireParam(params.sessionId, "sessionId", "end");
+
+            const result = endTelemetrySession(db, {
+              sessionId,
+              ...(params.outcome !== undefined
+                ? { outcome: params.outcome as TelemetryOutcome }
+                : {}),
+              ...(params.totalTokens !== undefined ? { totalTokens: params.totalTokens } : {}),
+            });
+
+            log.info(`Ended telemetry session ${sessionId}`);
+            return formatResult(result, "Telemetry session ended.");
+          }
+
+          case "get": {
+            const result = getTelemetrySession(db, {
+              ...(params.sessionId !== undefined ? { sessionId: params.sessionId } : {}),
+              ...(params.ticketId !== undefined ? { ticketId: params.ticketId } : {}),
+              ...(params.includeEvents !== undefined
+                ? { includeEvents: params.includeEvents }
+                : {}),
+              ...(params.eventLimit !== undefined ? { eventLimit: params.eventLimit } : {}),
+            });
+            return formatResult(result);
+          }
+
+          case "list": {
+            const sessions = listTelemetrySessions(db, {
+              ...(params.ticketId !== undefined ? { ticketId: params.ticketId } : {}),
+              ...(params.projectId !== undefined ? { projectId: params.projectId } : {}),
+              ...(params.since !== undefined ? { since: params.since } : {}),
+              ...(params.limit !== undefined ? { limit: params.limit } : {}),
+            });
+
+            if (sessions.length === 0) {
+              return formatEmpty("telemetry sessions", {
+                ticketId: params.ticketId,
+                projectId: params.projectId,
+              });
+            }
+            return formatResult(sessions);
+          }
+        }
+      } catch (err) {
+        if (err instanceof CoreError) {
+          log.error(`telemetry/${params.action} failed: ${err.message}`);
+        }
+        return mcpError(err);
+      }
     }
   );
 }

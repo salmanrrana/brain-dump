@@ -32,22 +32,15 @@ describe("TypeScript Migration Verification", () => {
     ];
 
     const expectedToolFiles = [
-      "projects",
-      "tickets",
-      "epics",
-      "comments",
+      "project",
+      "ticket",
+      "epic",
+      "comment",
       "workflow",
-      "git",
-      "files",
-      "health",
-      "events",
-      "sessions",
-      "conversations",
+      "review",
+      "session",
       "telemetry",
-      "claude-tasks",
-      "review-findings",
-      "demo",
-      "learnings",
+      "admin",
     ];
 
     it("has TypeScript versions for all 14 lib files", () => {
@@ -57,7 +50,7 @@ describe("TypeScript Migration Verification", () => {
       }
     });
 
-    it("has TypeScript versions for all 16 tool files", () => {
+    it("has TypeScript versions for all 9 consolidated tool files", () => {
       for (const file of expectedToolFiles) {
         const tsPath = path.join(mcpServerDir, "tools", `${file}.ts`);
         expect(fs.existsSync(tsPath), `Missing: tools/${file}.ts`).toBe(true);
@@ -112,29 +105,22 @@ describe("TypeScript Migration Verification", () => {
   describe("Tool Registration Exports", () => {
     it("all tool files export a register function", async () => {
       const toolFiles = [
-        "projects",
-        "tickets",
-        "epics",
-        "comments",
+        "project",
+        "ticket",
+        "epic",
+        "comment",
         "workflow",
-        "git",
-        "files",
-        "health",
-        "events",
-        "sessions",
-        "conversations",
+        "review",
+        "session",
         "telemetry",
-        "claude-tasks",
-        "review-findings",
-        "demo",
-        "learnings",
+        "admin",
       ];
 
       for (const file of toolFiles) {
         const tsPath = path.join(mcpServerDir, "tools", `${file}.ts`);
         const content = fs.readFileSync(tsPath, "utf-8");
-        const hasExport = /^export function register\w+Tools/m.test(content);
-        expect(hasExport, `tools/${file}.ts missing register*Tools export`).toBe(true);
+        const hasExport = /^export function register\w+Tool/m.test(content);
+        expect(hasExport, `tools/${file}.ts missing register*Tool export`).toBe(true);
       }
     });
   });

@@ -20,23 +20,16 @@ import { performDailyBackupSync } from "./lib/backup.js";
 import { detectEnvironment, getEnvironmentInfo } from "./lib/environment.js";
 import { getLockFilePath } from "./lib/xdg.js";
 
-// Tool registration modules
-import { registerProjectTools } from "./tools/projects.js";
-import { registerTicketTools } from "./tools/tickets.js";
-import { registerEpicTools } from "./tools/epics.js";
-import { registerCommentTools } from "./tools/comments.js";
-import { registerWorkflowTools } from "./tools/workflow.js";
-import { registerGitTools } from "./tools/git.js";
-import { registerFileTools } from "./tools/files.js";
-import { registerHealthTools } from "./tools/health.js";
-import { registerEventTools } from "./tools/events.js";
-import { registerSessionTools } from "./tools/sessions.js";
-import { registerConversationTools } from "./tools/conversations.js";
-import { registerTelemetryTools } from "./tools/telemetry.js";
-import { registerClaudeTasksTools } from "./tools/claude-tasks.js";
-import { registerReviewFindingsTools } from "./tools/review-findings.js";
-import { registerDemoTools } from "./tools/demo.js";
-import { registerLearningsTools } from "./tools/learnings.js";
+// Tool registration modules (9 consolidated resource tools)
+import { registerProjectTool } from "./tools/project.js";
+import { registerTicketTool } from "./tools/ticket.js";
+import { registerEpicTool } from "./tools/epic.js";
+import { registerCommentTool } from "./tools/comment.js";
+import { registerWorkflowTool } from "./tools/workflow.js";
+import { registerReviewTool } from "./tools/review.js";
+import { registerSessionTool } from "./tools/session.js";
+import { registerTelemetryTool } from "./tools/telemetry.js";
+import { registerAdminTool } from "./tools/admin.js";
 
 // =============================================================================
 // DATABASE INITIALIZATION
@@ -106,23 +99,16 @@ const server = new McpServer({
   version: "1.0.0",
 });
 
-// Register all tool modules
-registerProjectTools(server, db);
-registerTicketTools(server, db);
-registerEpicTools(server, db);
-registerCommentTools(server, db);
-registerWorkflowTools(server, db, detectEnvironment);
-registerGitTools(server, db);
-registerFileTools(server, db);
-registerHealthTools(server, db, detectEnvironment, getEnvironmentInfo);
-registerEventTools(server, db);
-registerSessionTools(server, db);
-registerConversationTools(server, db, detectEnvironment);
-registerTelemetryTools(server, db, detectEnvironment);
-registerClaudeTasksTools(server, db);
-registerReviewFindingsTools(server, db);
-registerDemoTools(server, db);
-registerLearningsTools(server, db);
+// Register 9 consolidated resource tools
+registerProjectTool(server, db);
+registerTicketTool(server, db);
+registerEpicTool(server, db);
+registerCommentTool(server, db);
+registerWorkflowTool(server, db, detectEnvironment);
+registerReviewTool(server, db);
+registerSessionTool(server, db);
+registerTelemetryTool(server, db, detectEnvironment);
+registerAdminTool(server, db, detectEnvironment, getEnvironmentInfo);
 
 // =============================================================================
 // CONNECT AND START
