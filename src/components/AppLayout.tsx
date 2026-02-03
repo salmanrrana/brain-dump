@@ -525,11 +525,16 @@ export default function AppLayout({ children }: AppLayoutProps) {
         });
 
         if (!workflowResult.success) {
-          // Workflow init failed - don't launch Ralph
-          return;
+          // Git checkout failed — warn but still launch Ralph on current branch
+          showToast(
+            "info",
+            `Branch setup skipped: ${workflowResult.error || "Unknown error"}. Launching Ralph on the current branch.`
+          );
+        } else if (workflowResult.warnings?.length) {
+          workflowResult.warnings.forEach((w) => showToast("info", w));
         }
 
-        // Launch Ralph with workflow initialized
+        // Launch Ralph regardless — it handles git in its own session
         launchRalphMutation.mutate({
           epicId,
           preferredTerminal: settings?.terminalEmulator ?? null,
@@ -537,12 +542,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
           aiBackend: "claude",
         });
         closeProjectsPanel();
-      } catch {
-        // Error getting context or initializing workflow - don't launch
-        // Error would be shown to user via other means if needed
+      } catch (err) {
+        showToast(
+          "error",
+          `Failed to launch Ralph: ${err instanceof Error ? err.message : "Unknown error"}`
+        );
       }
     },
-    [launchRalphMutation, settings, closeProjectsPanel]
+    [launchRalphMutation, settings, closeProjectsPanel, showToast]
   );
 
   // Epic ticket counts - currently not computed to avoid showing misleading "0"
@@ -906,6 +913,7 @@ function Sidebar({ onItemClick }: SidebarProps = {}) {
   const { sessions: activeSessions } = useActiveRalphSessions();
   const { settings } = useSettings();
   const launchRalphMutation = useLaunchRalphForEpic();
+  const { showToast } = useToast();
 
   // Check Docker availability first (cached, re-checks every 60s)
   const { available: dockerAvailable } = useDockerAvailable();
@@ -1008,11 +1016,16 @@ function Sidebar({ onItemClick }: SidebarProps = {}) {
         });
 
         if (!workflowResult.success) {
-          // Workflow init failed - don't launch Ralph
-          return;
+          // Git checkout failed — warn but still launch Ralph on current branch
+          showToast(
+            "info",
+            `Branch setup skipped: ${workflowResult.error || "Unknown error"}. Launching Ralph on the current branch.`
+          );
+        } else if (workflowResult.warnings?.length) {
+          workflowResult.warnings.forEach((w) => showToast("info", w));
         }
 
-        // Launch Ralph with workflow initialized
+        // Launch Ralph regardless — it handles git in its own session
         launchRalphMutation.mutate({
           epicId,
           preferredTerminal: settings?.terminalEmulator ?? null,
@@ -1020,12 +1033,14 @@ function Sidebar({ onItemClick }: SidebarProps = {}) {
           aiBackend: "claude",
         });
         onItemClick?.();
-      } catch {
-        // Error getting context or initializing workflow - don't launch
-        // Error would be shown to user via other means if needed
+      } catch (err) {
+        showToast(
+          "error",
+          `Failed to launch Ralph: ${err instanceof Error ? err.message : "Unknown error"}`
+        );
       }
     },
-    [launchRalphMutation, settings, onItemClick]
+    [launchRalphMutation, settings, onItemClick, showToast]
   );
 
   return (

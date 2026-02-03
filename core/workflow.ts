@@ -150,10 +150,13 @@ export function startWork(
       const baseBranch = findBaseBranch(git, projectPath);
       const checkoutBase = git.checkout(baseBranch, projectPath);
       if (!checkoutBase.success) {
-        throw new GitError(
-          `Failed to checkout base branch '${baseBranch}': ${checkoutBase.error}. Commit or stash changes first.`,
-          `git checkout ${baseBranch}`
-        );
+        const hasUncommitted =
+          checkoutBase.error?.includes("local changes") ||
+          checkoutBase.error?.includes("would be overwritten");
+        const hint = hasUncommitted
+          ? `Cannot switch to '${baseBranch}' — uncommitted changes would be lost. Please ensure your project is on the '${baseBranch}' branch with a clean working tree before launching, or commit/stash your changes first.`
+          : `Failed to checkout '${baseBranch}': ${checkoutBase.error}. Please ensure your project is on the '${baseBranch}' branch before launching.`;
+        throw new GitError(hint, `git checkout ${baseBranch}`);
       }
       const createResult = git.createBranch(branchName, projectPath);
       if (!createResult.success) {
@@ -421,10 +424,13 @@ export function startEpicWork(
     if (git.branchExists(epicState.epic_branch_name, projectPath)) {
       const checkoutResult = git.checkout(epicState.epic_branch_name, projectPath);
       if (!checkoutResult.success) {
-        throw new GitError(
-          `Failed to checkout existing epic branch ${epicState.epic_branch_name}: ${checkoutResult.error}`,
-          `git checkout ${epicState.epic_branch_name}`
-        );
+        const hasUncommitted =
+          checkoutResult.error?.includes("local changes") ||
+          checkoutResult.error?.includes("would be overwritten");
+        const hint = hasUncommitted
+          ? `Cannot switch to epic branch '${epicState.epic_branch_name}' — uncommitted changes would be lost. Please commit or stash your changes first, then retry.`
+          : `Failed to checkout epic branch '${epicState.epic_branch_name}': ${checkoutResult.error}. Please ensure your project is on this branch or the base branch before launching.`;
+        throw new GitError(hint, `git checkout ${epicState.epic_branch_name}`);
       }
 
       const epicTickets = db
@@ -457,10 +463,13 @@ export function startEpicWork(
     const baseBranch = findBaseBranch(git, projectPath);
     const checkoutBase = git.checkout(baseBranch, projectPath);
     if (!checkoutBase.success) {
-      throw new GitError(
-        `Failed to checkout base branch '${baseBranch}': ${checkoutBase.error}. Commit or stash changes first.`,
-        `git checkout ${baseBranch}`
-      );
+      const hasUncommitted =
+        checkoutBase.error?.includes("local changes") ||
+        checkoutBase.error?.includes("would be overwritten");
+      const hint = hasUncommitted
+        ? `Cannot switch to '${baseBranch}' — uncommitted changes would be lost. Please ensure your project is on the '${baseBranch}' branch with a clean working tree before launching, or commit/stash your changes first.`
+        : `Failed to checkout '${baseBranch}': ${checkoutBase.error}. Please ensure your project is on the '${baseBranch}' branch before launching.`;
+      throw new GitError(hint, `git checkout ${baseBranch}`);
     }
     const createResult = git.createBranch(branchName, projectPath);
     if (!createResult.success) {
@@ -473,10 +482,13 @@ export function startEpicWork(
   } else {
     const checkoutResult = git.checkout(branchName, projectPath);
     if (!checkoutResult.success) {
-      throw new GitError(
-        `Failed to checkout epic branch ${branchName}: ${checkoutResult.error}`,
-        `git checkout ${branchName}`
-      );
+      const hasUncommitted =
+        checkoutResult.error?.includes("local changes") ||
+        checkoutResult.error?.includes("would be overwritten");
+      const hint = hasUncommitted
+        ? `Cannot switch to epic branch '${branchName}' — uncommitted changes would be lost. Please commit or stash your changes first, then retry.`
+        : `Failed to checkout epic branch '${branchName}': ${checkoutResult.error}. Please ensure your project is on this branch or the base branch before launching.`;
+      throw new GitError(hint, `git checkout ${branchName}`);
     }
   }
 

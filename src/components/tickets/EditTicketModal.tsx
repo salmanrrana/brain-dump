@@ -402,7 +402,10 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
             data: { ticketId: ticket.id, projectPath: contextResult.projectPath },
           });
           if (!workflowResult.success) {
-            showToast("error", `Workflow init failed: ${workflowResult.error || "Unknown error"}`);
+            showToast(
+              "info",
+              `Branch setup skipped: ${workflowResult.error || "Unknown error"}. Launching on the current branch.`
+            );
           } else if (workflowResult.warnings?.length) {
             workflowResult.warnings.forEach((warning) => showToast("info", warning));
           }
@@ -434,7 +437,10 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
             data: { ticketId: ticket.id, projectPath: contextResult.projectPath },
           });
           if (!workflowResult.success) {
-            showToast("error", `Workflow init failed: ${workflowResult.error || "Unknown error"}`);
+            showToast(
+              "info",
+              `Branch setup skipped: ${workflowResult.error || "Unknown error"}. Launching on the current branch.`
+            );
           } else if (workflowResult.warnings?.length) {
             workflowResult.warnings.forEach((warning) => showToast("info", warning));
           }
