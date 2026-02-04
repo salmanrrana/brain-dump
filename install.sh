@@ -496,40 +496,37 @@ EOF
         return 0
     fi
 
-    # Check if brain-dump already configured
+    # Update or add brain-dump config (always update to ensure latest paths)
     if grep -q '"brain-dump"' "$CLAUDE_CONFIG"; then
-        print_success "brain-dump MCP server already configured"
-        SKIPPED+=("MCP server (already configured)")
-        return 0
+        print_info "Updating brain-dump MCP server config..."
+    else
+        print_info "Adding brain-dump to existing ~/.claude.json..."
     fi
 
-    # Attempt to add to existing config using a temp file
-    print_info "Adding brain-dump to existing ~/.claude.json..."
-
     if grep -q '"mcpServers"' "$CLAUDE_CONFIG"; then
-        # mcpServers exists, need to add to it
-        # Create a backup first
+        # mcpServers exists, update/add brain-dump entry
         cp "$CLAUDE_CONFIG" "$CLAUDE_CONFIG.backup"
 
-        # Try to use node/jq to merge, or provide manual instructions
         if command_exists node; then
             local node_error
-            node_error=$(node -e "
-const fs = require('fs');
-const config = JSON.parse(fs.readFileSync('$CLAUDE_CONFIG', 'utf8'));
+            node_error=$(CLAUDE_CONFIG="$CLAUDE_CONFIG" MCP_SERVER_PATH="$MCP_SERVER_PATH" node -e '
+const fs = require("fs");
+const configFile = process.env.CLAUDE_CONFIG;
+const serverPath = process.env.MCP_SERVER_PATH;
+
+const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
 config.mcpServers = config.mcpServers || {};
-config.mcpServers['brain-dump'] = {
-    command: 'node',
-    args: ['$MCP_SERVER_PATH']
+config.mcpServers["brain-dump"] = {
+    command: "node",
+    args: [serverPath]
 };
-fs.writeFileSync('$CLAUDE_CONFIG', JSON.stringify(config, null, 2));
-console.log('Config updated successfully');
-" 2>&1) && {
-                print_success "Added brain-dump to ~/.claude.json"
+fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
+console.log("Config updated successfully");
+' 2>&1) && {
+                print_success "brain-dump MCP server configured"
                 INSTALLED+=("MCP server config")
                 return 0
             }
-            # Show the actual error if node command failed
             if [ -n "$node_error" ]; then
                 print_warning "JSON merge failed: $node_error"
             fi
@@ -1298,31 +1295,31 @@ EOF
         return 0
     fi
 
-    # Check 4: Is brain-dump already configured?
+    # brain-dump entry exists or needs to be added — either way, update/add it
     if grep -q '"brain-dump"' "$MCP_CONFIG_FILE"; then
-        print_success "brain-dump MCP server already configured in VS Code"
-        SKIPPED+=("VS Code MCP server (already configured)")
-        return 0
+        print_info "Updating brain-dump MCP server config in VS Code..."
+    else
+        print_info "Adding brain-dump to existing mcp.json..."
     fi
-
-    # File exists with servers section but no brain-dump - try to add it
-    print_info "Adding brain-dump to existing mcp.json..."
 
     if command_exists node; then
         local node_error
-        node_error=$(node -e "
-const fs = require('fs');
-const config = JSON.parse(fs.readFileSync('$MCP_CONFIG_FILE', 'utf8'));
+        node_error=$(MCP_CONFIG_FILE="$MCP_CONFIG_FILE" MCP_SERVER_PATH="$MCP_SERVER_PATH" node -e '
+const fs = require("fs");
+const configFile = process.env.MCP_CONFIG_FILE;
+const serverPath = process.env.MCP_SERVER_PATH;
+
+const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
 config.servers = config.servers || {};
-config.servers['brain-dump'] = {
-    type: 'stdio',
-    command: 'node',
-    args: ['$MCP_SERVER_PATH']
+config.servers["brain-dump"] = {
+    type: "stdio",
+    command: "node",
+    args: [serverPath]
 };
-fs.writeFileSync('$MCP_CONFIG_FILE', JSON.stringify(config, null, 2));
-console.log('Config updated successfully');
-" 2>&1) && {
-            print_success "Added brain-dump to VS Code mcp.json"
+fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
+console.log("Config updated successfully");
+' 2>&1) && {
+            print_success "brain-dump MCP server configured in VS Code"
             INSTALLED+=("VS Code MCP server")
             return 0
         }

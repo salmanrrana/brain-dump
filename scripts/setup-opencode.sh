@@ -84,27 +84,28 @@ if [ -f "$OPENCODE_JSON" ]; then
   echo -e "${YELLOW}Existing opencode.json found.${NC}"
 
   if grep -q '"brain-dump"' "$OPENCODE_JSON"; then
-    echo -e "${GREEN}✓ Brain Dump MCP server already configured${NC}"
-    MCP_CONFIGURED=1
+    echo "Brain Dump entry found. Updating to latest config..."
   else
     echo "Adding brain-dump server to existing config..."
-    # Try to merge using node
-    if command -v node >/dev/null 2>&1; then
-      # Helper function to print manual setup instructions
-      print_manual_setup() {
-        echo -e "${YELLOW}Please manually add the brain-dump server to your opencode.json:${NC}"
-        echo ""
-        echo '  "mcp": {'
-        echo '    "brain-dump": {'
-        echo '      "type": "local",'
-        echo "      \"command\": [\"node\", \"$BRAIN_DUMP_DIR/mcp-server/dist/index.js\"],"
-        echo '      "enabled": true'
-        echo '    }'
-        echo '  }'
-      }
+  fi
 
-      NODE_ERROR_FILE=$(mktemp)
-      if OPENCODE_JSON="$OPENCODE_JSON" BRAIN_DUMP_DIR="$BRAIN_DUMP_DIR" node -e '
+  # Always update/add to ensure config is current
+  # Helper function to print manual setup instructions
+  print_manual_setup() {
+    echo -e "${YELLOW}Please manually add the brain-dump server to your opencode.json:${NC}"
+    echo ""
+    echo '  "mcp": {'
+    echo '    "brain-dump": {'
+    echo '      "type": "local",'
+    echo "      \"command\": [\"node\", \"$BRAIN_DUMP_DIR/mcp-server/dist/index.js\"],"
+    echo '      "enabled": true'
+    echo '    }'
+    echo '  }'
+  }
+
+  if command -v node >/dev/null 2>&1; then
+    NODE_ERROR_FILE=$(mktemp)
+    if OPENCODE_JSON="$OPENCODE_JSON" BRAIN_DUMP_DIR="$BRAIN_DUMP_DIR" node -e '
 const fs = require("fs");
 const configFile = process.env.OPENCODE_JSON;
 const brainDumpDir = process.env.BRAIN_DUMP_DIR;
@@ -138,21 +139,20 @@ try {
     process.exit(1);
 }
 ' 2>"$NODE_ERROR_FILE"; then
-        echo -e "${GREEN}✓ Added brain-dump server to opencode.json${NC}"
-        MCP_CONFIGURED=1
-        rm -f "$NODE_ERROR_FILE"
-      else
-        echo -e "${RED}✗ Failed to update opencode.json${NC}"
-        if [ -s "$NODE_ERROR_FILE" ]; then
-          echo -e "${YELLOW}Error details: $(cat "$NODE_ERROR_FILE")${NC}"
-        fi
-        rm -f "$NODE_ERROR_FILE"
-        print_manual_setup
-      fi
+      echo -e "${GREEN}✓ Brain Dump MCP server configured${NC}"
+      MCP_CONFIGURED=1
+      rm -f "$NODE_ERROR_FILE"
     else
-      echo -e "${RED}✗ Node.js is required but not found${NC}"
+      echo -e "${RED}✗ Failed to update opencode.json${NC}"
+      if [ -s "$NODE_ERROR_FILE" ]; then
+        echo -e "${YELLOW}Error details: $(cat "$NODE_ERROR_FILE")${NC}"
+      fi
+      rm -f "$NODE_ERROR_FILE"
       print_manual_setup
     fi
+  else
+    echo -e "${RED}✗ Node.js is required but not found${NC}"
+    print_manual_setup
   fi
 else
   echo "Creating new opencode.json..."
