@@ -576,23 +576,26 @@ install_claude_plugins() {
         return 0
     fi
 
+    # Get list of already-installed plugins once (avoids slow re-installs)
+    local installed_list
+    installed_list=$(claude plugin list 2>/dev/null || true)
+
     local plugins_installed=0
+    local PLUGINS=("pr-review-toolkit" "code-simplifier")
 
-    print_info "Installing pr-review-toolkit..."
-    if claude plugin install pr-review-toolkit 2>/dev/null; then
-        print_success "pr-review-toolkit installed"
-        plugins_installed=$((plugins_installed + 1))
-    else
-        print_warning "pr-review-toolkit already installed or unavailable"
-    fi
-
-    print_info "Installing code-simplifier..."
-    if claude plugin install code-simplifier 2>/dev/null; then
-        print_success "code-simplifier installed"
-        plugins_installed=$((plugins_installed + 1))
-    else
-        print_warning "code-simplifier already installed or unavailable"
-    fi
+    for plugin in "${PLUGINS[@]}"; do
+        if echo "$installed_list" | grep -q "$plugin"; then
+            print_success "$plugin already installed"
+        else
+            print_info "Installing $plugin..."
+            if claude plugin install "$plugin" 2>&1; then
+                print_success "$plugin installed"
+                plugins_installed=$((plugins_installed + 1))
+            else
+                print_warning "$plugin installation failed"
+            fi
+        fi
+    done
 
     if [ $plugins_installed -gt 0 ]; then
         INSTALLED+=("Claude plugins ($plugins_installed)")
