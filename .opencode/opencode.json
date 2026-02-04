@@ -3,10 +3,10 @@
   "mcp": {
     "brain-dump": {
       "type": "local",
-      "command": ["npx", "tsx", "/Users/salman.rana/code/brain-dump/mcp-server/index.ts"],
+      "command": ["node", "mcp-server/dist/index.js"],
       "enabled": true,
       "environment": {
-        "BRAIN_DUMP_PATH": "/Users/salman.rana/code/brain-dump",
+        "BRAIN_DUMP_PATH": ".",
         "OPENCODE": "1"
       }
     }
