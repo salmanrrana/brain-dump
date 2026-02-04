@@ -8,7 +8,7 @@
 #   ./install.sh --vscode         # Install with VS Code integration
 #   ./install.sh --cursor         # Install with Cursor integration
 #   ./install.sh --claude --sandbox # Install with Claude Code + sandbox
-#   ./install.sh --all            # Install all IDEs + sandbox
+#   ./install.sh --all            # Install all IDEs (sandbox off by default)
 #   ./install.sh --help           # Show help
 #
 # After cloning, just run:
@@ -464,13 +464,18 @@ configure_mcp_server() {
 
     CLAUDE_CONFIG="$HOME/.claude.json"
     BRAIN_DUMP_DIR="$(pwd)"
-    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/index.ts"
+    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/dist/index.js"
 
-    # Check if MCP server file exists
+    # Check if MCP server file exists (build may not have run yet)
     if [ ! -f "$MCP_SERVER_PATH" ]; then
-        print_warning "MCP server file not found at $MCP_SERVER_PATH"
-        SKIPPED+=("MCP server (file not found)")
-        return 0
+        print_info "MCP server not yet built, building now..."
+        if (cd "$BRAIN_DUMP_DIR/mcp-server" && node build.mjs 2>/dev/null); then
+            print_success "MCP server built"
+        else
+            print_warning "MCP server build failed. Run 'cd mcp-server && pnpm build' manually."
+            SKIPPED+=("MCP server (build failed)")
+            return 0
+        fi
     fi
 
     # Handle ~/.claude.json
@@ -480,8 +485,8 @@ configure_mcp_server() {
 {
   "mcpServers": {
     "brain-dump": {
-      "command": "npx",
-      "args": ["tsx", "$MCP_SERVER_PATH"]
+      "command": "node",
+      "args": ["$MCP_SERVER_PATH"]
     }
   }
 }
@@ -514,8 +519,8 @@ const fs = require('fs');
 const config = JSON.parse(fs.readFileSync('$CLAUDE_CONFIG', 'utf8'));
 config.mcpServers = config.mcpServers || {};
 config.mcpServers['brain-dump'] = {
-    command: 'npx',
-    args: ['tsx', '$MCP_SERVER_PATH']
+    command: 'node',
+    args: ['$MCP_SERVER_PATH']
 };
 fs.writeFileSync('$CLAUDE_CONFIG', JSON.stringify(config, null, 2));
 console.log('Config updated successfully');
@@ -534,8 +539,8 @@ console.log('Config updated successfully');
         print_warning "Could not auto-merge. Please add this to your mcpServers in ~/.claude.json:"
         echo ""
         echo "    \"brain-dump\": {"
-        echo "      \"command\": \"npx\","
-        echo "      \"args\": [\"tsx\", \"$MCP_SERVER_PATH\"]"
+        echo "      \"command\": \"node\","
+        echo "      \"args\": [\"$MCP_SERVER_PATH\"]"
         echo "    }"
         echo ""
         SKIPPED+=("MCP server (manual merge required)")
@@ -548,8 +553,8 @@ console.log('Config updated successfully');
 {
   "mcpServers": {
     "brain-dump": {
-      "command": "npx",
-      "args": ["tsx", "$MCP_SERVER_PATH"]
+      "command": "node",
+      "args": ["$MCP_SERVER_PATH"]
     }
   }
 }
@@ -843,7 +848,7 @@ setup_opencode() {
     print_step "Configuring OpenCode for Brain Dump (global installation)"
 
     BRAIN_DUMP_DIR="$(pwd)"
-    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/index.ts"
+    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/dist/index.js"
 
     # Global OpenCode config directories (works from any project)
     OPENCODE_GLOBAL="$HOME/.config/opencode"
@@ -876,7 +881,7 @@ const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
 config.mcp = config.mcp || {};
 config.mcp["brain-dump"] = {
     type: "local",
-    command: ["npx", "tsx", brainDumpDir + "/mcp-server/index.ts"],
+    command: ["node", brainDumpDir + "/mcp-server/dist/index.js"],
     enabled: true,
     environment: { BRAIN_DUMP_PATH: brainDumpDir, OPENCODE: "1" }
 };
@@ -914,7 +919,7 @@ fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
   "mcp": {
     "brain-dump": {
       "type": "local",
-      "command": ["npx", "tsx", "$BRAIN_DUMP_DIR/mcp-server/index.ts"],
+      "command": ["node", "$BRAIN_DUMP_DIR/mcp-server/dist/index.js"],
       "enabled": true,
       "environment": {
         "BRAIN_DUMP_PATH": "$BRAIN_DUMP_DIR",
@@ -983,7 +988,7 @@ EOF
   "mcp": {
     "brain-dump": {
       "type": "local",
-      "command": ["npx", "tsx", "$BRAIN_DUMP_DIR/mcp-server/index.ts"],
+      "command": ["node", "$BRAIN_DUMP_DIR/mcp-server/dist/index.js"],
       "enabled": true,
       "environment": {
         "BRAIN_DUMP_PATH": "$BRAIN_DUMP_DIR",
@@ -1245,7 +1250,7 @@ configure_vscode_mcp() {
     fi
 
     BRAIN_DUMP_DIR="$(pwd)"
-    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/index.ts"
+    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/dist/index.js"
     MCP_CONFIG_FILE="$VSCODE_TARGET/mcp.json"
 
     # Helper function to create fresh MCP config
@@ -1255,8 +1260,8 @@ configure_vscode_mcp() {
   "servers": {
     "brain-dump": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["tsx", "$MCP_SERVER_PATH"]
+      "command": "node",
+      "args": ["$MCP_SERVER_PATH"]
     }
   }
 }
@@ -1308,8 +1313,8 @@ const config = JSON.parse(fs.readFileSync('$MCP_CONFIG_FILE', 'utf8'));
 config.servers = config.servers || {};
 config.servers['brain-dump'] = {
     type: 'stdio',
-    command: 'npx',
-    args: ['tsx', '$MCP_SERVER_PATH']
+    command: 'node',
+    args: ['$MCP_SERVER_PATH']
 };
 fs.writeFileSync('$MCP_CONFIG_FILE', JSON.stringify(config, null, 2));
 console.log('Config updated successfully');
@@ -1329,8 +1334,8 @@ console.log('Config updated successfully');
     echo ""
     echo '  "brain-dump": {'
     echo '    "type": "stdio",'
-    echo '    "command": "npx",'
-    echo "    \"args\": [\"tsx\", \"$MCP_SERVER_PATH\"]"
+    echo '    "command": "node",'
+    echo "    \"args\": [\"$MCP_SERVER_PATH\"]"
     echo '  }'
     echo ""
     SKIPPED+=("VS Code MCP server (manual merge required)")
@@ -1850,7 +1855,7 @@ show_help() {
     echo "  --vscode    Set up VS Code integration (MCP server + agents + skills + prompts)"
     echo "  --cursor    Set up Cursor integration (MCP server + subagents + skills + commands)"
     echo "  --opencode  Set up OpenCode integration (MCP server + agents + skills)"
-    echo "  --all       Set up all IDE integrations + sandbox"
+    echo "  --all       Set up all IDE integrations (Claude Code, VS Code, Cursor, OpenCode)"
     echo ""
     echo "  If no IDE flag is provided, you'll be prompted to choose."
     echo ""
@@ -1871,7 +1876,7 @@ show_help() {
     echo "  ./install.sh --vscode            # VS Code only"
     echo "  ./install.sh --cursor            # Cursor only"
     echo "  ./install.sh --opencode          # OpenCode only"
-    echo "  ./install.sh --all               # All IDEs + sandbox"
+    echo "  ./install.sh --all               # All IDEs (sandbox off by default)"
     echo "  ./install.sh                     # Interactive prompt"
     echo ""
     echo "This script will:"
