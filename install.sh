@@ -1817,7 +1817,7 @@ print_summary() {
     fi
 
     if [ "$SETUP_OPENCODE" = true ]; then
-        echo "  4. Start OpenCode from any project directory: ${CYAN}opencode${NC}"
+        echo -e "  4. Start OpenCode from any project directory: ${CYAN}opencode${NC}"
         echo "     Brain Dump MCP tools are installed globally (~/.config/opencode/)"
         echo "  5. Use Tab to switch between Ralph and Build agents"
         echo "  6. Use @ticket-worker, @planner, @code-reviewer as needed"
