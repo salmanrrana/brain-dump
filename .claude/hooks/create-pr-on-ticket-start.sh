@@ -1,6 +1,6 @@
 #!/bin/bash
 # create-pr-on-ticket-start.sh
-# PostToolUse hook for mcp__brain-dump__start_ticket_work
+# PostToolUse hook for mcp__brain-dump__workflow (action: start-work)
 #
 # After a ticket work session starts, this hook automatically:
 # 1. Creates an empty WIP commit
@@ -17,8 +17,15 @@ INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // ""')
 TOOL_RESULT=$(echo "$INPUT" | jq -r '.tool_result // ""')
 
-# Only care about start_ticket_work MCP calls
-if [[ "$TOOL_NAME" != "mcp__brain-dump__start_ticket_work" ]]; then
+# Only care about workflow MCP calls with action: start-work
+if [[ "$TOOL_NAME" != "mcp__brain-dump__workflow" ]]; then
+  exit 0
+fi
+
+# Check that this is the start-work action
+TOOL_INPUT_JSON=$(echo "$INPUT" | jq -r '.tool_input // "{}"')
+ACTION=$(echo "$TOOL_INPUT_JSON" | jq -r '.action // ""')
+if [[ "$ACTION" != "start-work" ]]; then
   exit 0
 fi
 
@@ -125,6 +132,6 @@ echo "The PR has been linked to the ticket. All commits will be tracked."
 echo ""
 
 # Note: We can't call MCP tools from hooks, but Claude will see this output
-# and can call link_pr_to_ticket if needed. The PR info is also visible in GitHub.
+# and can call workflow tool (action: "link-pr") if needed. The PR info is also visible in GitHub.
 
 exit 0

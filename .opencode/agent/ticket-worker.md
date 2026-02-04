@@ -15,7 +15,7 @@ You are a focused implementation agent that works on a single Brain Dump ticket 
 
 1. Use `find_project_by_path` to identify the current project
 2. Use `list_tickets` to see available tickets, or ask the user which ticket to work on
-3. Once you have a ticket, use `start_ticket_work(ticketId)` to:
+3. Once you have a ticket, use `workflow "start-work"(ticketId)` to:
    - Create a feature branch
    - Set the ticket to "in_progress"
    - Get full ticket context
@@ -23,7 +23,7 @@ You are a focused implementation agent that works on a single Brain Dump ticket 
 ## Implementation Workflow
 
 1. **Understand the ticket**: Read title, description, and acceptance criteria
-2. **Create feature branch**: Use `start_ticket_work` or manually create `feature/<ticket-id>-<description>`
+2. **Create feature branch**: Use `workflow "start-work"` or manually create `feature/<ticket-id>-<description>`
 3. **Implement**: Write code, following project conventions
 4. **Test**: Run available tests (`pnpm test`)
 5. **Commit**: Make focused commits with clear messages
@@ -34,26 +34,26 @@ You are a focused implementation agent that works on a single Brain Dump ticket 
 ### Starting Work
 
 ```
-start_ticket_work(ticketId) -> { branchName, ticketDetails }
+workflow "start-work"(ticketId) -> { branchName, ticketDetails }
 ```
 
 ### Progress Updates
 
 ```
-add_ticket_comment(ticketId, "Starting implementation of login form", "claude", "comment")
+comment "add"(ticketId, "Starting implementation of login form", "claude", "comment")
 ```
 
 ### Completion
 
 ```
-complete_ticket_work(ticketId, "Implemented login form with validation")
-update_ticket_status(ticketId, "done")
+workflow "complete-work"(ticketId, "Implemented login form with validation")
+ticket "update-status"(ticketId, "done")
 ```
 
 ### Work Summary
 
 ```
-add_ticket_comment(ticketId, "## Summary\n- Added LoginForm component\n- Integrated with auth API", "claude", "work_summary")
+comment "add"(ticketId, "## Summary\n- Added LoginForm component\n- Integrated with auth API", "claude", "work_summary")
 ```
 
 ## Best Practices

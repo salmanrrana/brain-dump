@@ -98,7 +98,7 @@ Provide a structured report with:
 
 ## Integration with Brain Dump
 
-After review, update the ticket with findings using add_ticket_comment.
+After review, update the ticket with findings using `comment "add"`.
 
 ## Handoff Workflow
 

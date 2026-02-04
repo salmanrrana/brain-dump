@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { db } from "../lib/db";
+import { db, sqlite } from "../lib/db";
 import { tickets, epics, projects, ralphSessions, type RalphSessionState } from "../lib/schema";
 import { eq, and, inArray, isNull, desc } from "drizzle-orm";
 import { safeJsonParse } from "../lib/utils";
@@ -14,7 +14,9 @@ import {
   type EnhancedPRDItem,
   type EnhancedPRDDocument,
 } from "../lib/prd-extraction";
-import { startTicketWorkflow } from "./start-ticket-workflow";
+import { startWork, createRealGitOperations, GitError } from "../../core/index.ts";
+
+const coreGit = createRealGitOperations();
 
 // Import Docker utilities for socket-aware Docker commands
 import { execDockerCommand, getDockerHostEnvValue } from "./docker-utils";
@@ -35,10 +37,15 @@ Every step below that says "invoke" means you MUST LITERALLY call the Brain Dump
 and receive a response. These are NOT conceptual steps. If you skip an MCP tool call,
 the ticket will have NO record of your work in Brain Dump.
 
+All Brain Dump MCP tools use an \`action\` parameter to specify the operation:
+- \`workflow\` tool — start-work, complete-work, start-epic, link-commit, link-pr, sync-links
+- \`session\` tool — create-session, update-state, complete-session, emit-event, save-tasks, etc.
+- \`review\` tool — submit-finding, mark-fixed, check-complete, generate-demo, submit-feedback, etc.
+
 Do NOT substitute local alternatives:
-- Do NOT use \`git checkout -b\` instead of \`start_ticket_work\`
-- Do NOT use local \`/review\` skills or subagents instead of \`submit_review_finding\`
-- Do NOT describe demo steps in text instead of calling \`generate_demo_script\`
+- Do NOT use \`git checkout -b\` instead of \`workflow({ action: "start-work", ... })\`
+- Do NOT use local \`/review\` skills or subagents instead of \`review({ action: "submit-finding", ... })\`
+- Do NOT describe demo steps in text instead of calling \`review({ action: "generate-demo", ... })\`
 - Do NOT manually update ticket status instead of using workflow MCP tools
 
 ## MANDATORY 4-PHASE WORKFLOW
@@ -47,13 +54,13 @@ Do NOT substitute local alternatives:
 1. **Read PRD** - Check \`plans/prd.json\` for incomplete tickets (\`passes: false\`)
 2. **Read Progress** - Run \`tail -100 plans/progress.txt\` for recent context
 3. **Pick ONE ticket** - Based on priority, dependencies, foundation work
-4. **Start work** - You MUST invoke the MCP tool: \`start_ticket_work({ ticketId: "<ticketId>" })\`
+4. **Start work** - You MUST invoke: \`workflow({ action: "start-work", ticketId: "<ticketId>" })\`
    Verify you received a response containing \`branchName\`. Do NOT create branches manually with git.
-5. **Create session** - You MUST invoke the MCP tool: \`create_ralph_session({ ticketId: "<ticketId>" })\`
+5. **Create session** - You MUST invoke: \`session({ action: "create-session", ticketId: "<ticketId>" })\`
    Verify you received a response containing \`sessionId\`.
 6. **Implement** - Write code, run tests (\`pnpm test\`)
 7. **Commit** - \`git commit -m "feat(<ticket-id>): <description>"\`
-8. **Complete implementation** - You MUST invoke the MCP tool: \`complete_ticket_work({ ticketId: "<ticketId>", summary: "<what you did>" })\`
+8. **Complete implementation** - You MUST invoke: \`workflow({ action: "complete-work", ticketId: "<ticketId>", summary: "<what you did>" })\`
    Verify you received a response confirming the ticket moved to \`ai_review\`.
 
 ### Phase 2: AI Review (via MCP tools — NOT local review skills)
@@ -62,21 +69,21 @@ Perform self-review by reading your own diffs, then record findings directly via
 
 9. **Self-review your changes** - Read through your diffs and identify issues (type safety, error handling, code quality, simplification opportunities)
 10. **Record each finding via MCP** - For EACH issue found, you MUST invoke:
-    \`submit_review_finding({ ticketId: "<ticketId>", agent: "code-reviewer", severity: "<severity>", category: "<category>", description: "<description>" })\`
+    \`review({ action: "submit-finding", ticketId: "<ticketId>", agent: "code-reviewer", severity: "<severity>", category: "<category>", description: "<description>" })\`
     Verify you received a response containing \`findingId\`.
-11. **Fix critical/major issues** - Then for each fixed issue, invoke: \`mark_finding_fixed({ findingId: "<id>", status: "fixed", fixDescription: "..." })\`
-12. **Verify review complete** - You MUST invoke: \`check_review_complete({ ticketId: "<ticketId>" })\`
+11. **Fix critical/major issues** - Then for each fixed issue, invoke: \`review({ action: "mark-fixed", findingId: "<id>", status: "fixed", fixDescription: "..." })\`
+12. **Verify review complete** - You MUST invoke: \`review({ action: "check-complete", ticketId: "<ticketId>" })\`
     The response MUST contain \`canProceedToHumanReview: true\`. If false, fix remaining issues and re-check.
 
 ### Phase 3: Demo Generation
-13. **Generate demo via MCP** - You MUST invoke: \`generate_demo_script({ ticketId: "<ticketId>", steps: [...] })\`
+13. **Generate demo via MCP** - You MUST invoke: \`review({ action: "generate-demo", ticketId: "<ticketId>", steps: [...] })\`
     Must have at least 3 manual test steps. Do NOT just describe demo steps in text.
     Verify you received a response confirming the demo was created and ticket moved to \`human_review\`.
 
 ### Phase 4: STOP AND WAIT FOR HUMAN
 14. **Output completion** - Show ticket moved to human_review, awaiting human approval
-15. **Complete session** - You MUST invoke: \`complete_ralph_session({ sessionId: "<sessionId>", outcome: "success" })\`
-16. **STOP** - Do not proceed further. Human reviewer will call \`submit_demo_feedback\` to approve/reject.
+15. **Complete session** - You MUST invoke: \`session({ action: "complete-session", sessionId: "<sessionId>", outcome: "success" })\`
+16. **STOP** - Do not proceed further. Human reviewer will call \`review({ action: "submit-feedback" })\` to approve/reject.
 
 If all tickets are in human_review or done, output: \`PRD_COMPLETE\`
 `;
@@ -89,7 +96,7 @@ const VERIFICATION_CHECKLIST = `
 ## Verification Checklist
 
 ### Before Completing Phase 1
-Run these checks before calling \`complete_ticket_work\`:
+Run these checks before calling \`workflow({ action: "complete-work" })\`:
 - \`pnpm type-check\` - must pass with no errors
 - \`pnpm lint\` - must pass with no errors
 - \`pnpm test\` - all tests must pass
@@ -98,14 +105,14 @@ Run these checks before calling \`complete_ticket_work\`:
 
 ### Before Proceeding Past Phase 2
 - Self-review completed for code quality, error handling, and simplification concerns
-- All findings submitted with \`submit_review_finding\` (at least specify critical/major issues)
-- All critical/major findings fixed and marked with \`mark_finding_fixed\`
-- \`check_review_complete\` returns \`canProceedToHumanReview: true\`
+- All findings submitted with \`review({ action: "submit-finding" })\` (at least specify critical/major issues)
+- All critical/major findings fixed and marked with \`review({ action: "mark-fixed" })\`
+- \`review({ action: "check-complete" })\` returns \`canProceedToHumanReview: true\`
 
-### Before Calling complete_ralph_session
-- \`generate_demo_script\` called with at least 3 manual test steps
+### Before Calling session({ action: "complete-session" })
+- \`review({ action: "generate-demo" })\` called with at least 3 manual test steps
 - Ticket status is \`human_review\`
-- Human reviewer will call \`submit_demo_feedback\` (not you)
+- Human reviewer will call \`review({ action: "submit-feedback" })\` (not you)
 `;
 
 /**
@@ -119,8 +126,8 @@ const WORKFLOW_RULES = `
 - All quality checks must pass: \`pnpm type-check && pnpm lint && pnpm test\`
 - Keep changes minimal and focused
 - Phase gates are enforced - cannot skip phases or proceed without required responses
-- Do not call \`submit_demo_feedback\` - only humans approve tickets
-- Do not move ticket to \`done\` - only humans can approve via \`submit_demo_feedback\`
+- Do not call \`review({ action: "submit-feedback" })\` - only humans approve tickets
+- Do not move ticket to \`done\` - only humans can approve via \`review({ action: "submit-feedback" })\`
 - If stuck, note progress in \`plans/progress.txt\` and move to next ticket
 `;
 
@@ -227,23 +234,23 @@ ${WORKFLOW_RULES}
 ${VERIFICATION_CHECKLIST}
 ## Session State Tracking
 
-Use session tools to track your progress through work phases. The UI displays your current state.
+Use the \`session\` MCP tool to track your progress through work phases. The UI displays your current state.
 
 ### Session Lifecycle
 
 1. **Create session** when starting a ticket:
    \`\`\`
-   create_ralph_session({ ticketId: "<ticketId>" })
+   session({ action: "create-session", ticketId: "<ticketId>" })
    \`\`\`
 
 2. **Update state** as you transition through phases:
    \`\`\`
-   update_session_state({ sessionId: "<sessionId>", state: "analyzing", metadata: { message: "Reading spec..." } })
+   session({ action: "update-state", sessionId: "<sessionId>", state: "analyzing", metadata: { message: "Reading spec..." } })
    \`\`\`
 
 3. **Complete session** when done:
    \`\`\`
-   complete_ralph_session({ sessionId: "<sessionId>", outcome: "success" })
+   session({ action: "complete-session", sessionId: "<sessionId>", outcome: "success" })
    \`\`\`
 
 ### Valid States (in typical order)
@@ -259,44 +266,44 @@ Use session tools to track your progress through work phases. The UI displays yo
 ### Example Workflow
 \`\`\`
 # 1. Start work
-start_ticket_work({ ticketId: "abc-123" })
+workflow({ action: "start-work", ticketId: "abc-123" })
 
 # 2. Create session for state tracking
-create_ralph_session({ ticketId: "abc-123" })
+session({ action: "create-session", ticketId: "abc-123" })
 # Returns: { sessionId: "xyz-789", ... }
 
 # 3. Update state as you work (Phase 1: Implementation)
-update_session_state({ sessionId: "xyz-789", state: "analyzing" })
+session({ action: "update-state", sessionId: "xyz-789", state: "analyzing" })
 # ... read and understand the task ...
 
-update_session_state({ sessionId: "xyz-789", state: "implementing" })
+session({ action: "update-state", sessionId: "xyz-789", state: "implementing" })
 # ... write code ...
 
-update_session_state({ sessionId: "xyz-789", state: "testing" })
+session({ action: "update-state", sessionId: "xyz-789", state: "testing" })
 # ... run tests ...
 
-update_session_state({ sessionId: "xyz-789", state: "committing" })
+session({ action: "update-state", sessionId: "xyz-789", state: "committing" })
 # git commit -m "feat(abc-123): Add new API endpoint"
 
 # 4. Complete implementation - moves to ai_review
-complete_ticket_work({ ticketId: "abc-123", summary: "Added new API endpoint" })
+workflow({ action: "complete-work", ticketId: "abc-123", summary: "Added new API endpoint" })
 
 # 5. AI Review (Phase 2)
-update_session_state({ sessionId: "xyz-789", state: "reviewing" })
+session({ action: "update-state", sessionId: "xyz-789", state: "reviewing" })
 # ... run review agents, get findings ...
-submit_review_finding({ ticketId: "abc-123", agent: "code-reviewer", severity: "major", ... })
+review({ action: "submit-finding", ticketId: "abc-123", agent: "code-reviewer", severity: "major", ... })
 # ... fix the issue ...
-mark_finding_fixed({ findingId: "...", status: "fixed" })
-check_review_complete({ ticketId: "abc-123" })
+review({ action: "mark-fixed", findingId: "...", status: "fixed" })
+review({ action: "check-complete", ticketId: "abc-123" })
 # Returns: { canProceedToHumanReview: true }
 
 # 6. Generate demo (Phase 3)
-generate_demo_script({ ticketId: "abc-123", steps: [...] })
+review({ action: "generate-demo", ticketId: "abc-123", steps: [...] })
 # Ticket now in human_review
 
 # 7. STOP - Complete session, DO NOT proceed further
-complete_ralph_session({ sessionId: "xyz-789", outcome: "success" })
-# Human will review and call submit_demo_feedback
+session({ action: "complete-session", sessionId: "xyz-789", outcome: "success" })
+# Human will review and call review({ action: "submit-feedback" })
 \`\`\`
 
 ## ⛔ WHAT NOT TO DO (Workflow Violations)
@@ -304,31 +311,31 @@ complete_ralph_session({ sessionId: "xyz-789", outcome: "success" })
 These actions are explicitly forbidden and indicate workflow failure:
 
 1. **DO NOT use local alternatives instead of MCP tools**
-   - ✗ Using \`git checkout -b\` or \`git branch\` instead of \`start_ticket_work\`
-   - ✗ Using local \`/review\` skills, subagents, or code review tools instead of \`submit_review_finding\`
-   - ✗ Describing demo steps in text instead of calling \`generate_demo_script\`
+   - ✗ Using \`git checkout -b\` or \`git branch\` instead of \`workflow({ action: "start-work" })\`
+   - ✗ Using local \`/review\` skills, subagents, or code review tools instead of \`review({ action: "submit-finding" })\`
+   - ✗ Describing demo steps in text instead of calling \`review({ action: "generate-demo" })\`
    - ✗ Manually setting ticket status instead of using workflow MCP tools
    - Every "invoke" step in the workflow above is a LITERAL MCP tool call
 
 2. **DO NOT skip Phase 2 (AI Review)**
-   - ✗ Calling complete_ticket_work then immediately generating demo without review
-   - ✗ Not submitting any review findings via MCP (you must call submit_review_finding for each issue)
+   - ✗ Calling \`workflow({ action: "complete-work" })\` then immediately generating demo without review
+   - ✗ Not submitting any review findings via MCP (you must call \`review({ action: "submit-finding" })\` for each issue)
    - ✗ Trying to move ticket to human_review without submitting findings via MCP
 
 3. **DO NOT skip Phase 3 (Demo Generation)**
-   - ✗ Moving ticket to human_review without calling generate_demo_script MCP tool
+   - ✗ Moving ticket to human_review without calling \`review({ action: "generate-demo" })\`
    - ✗ Assuming code review is sufficient without manual test steps
    - ✗ Generating demo with fewer than 3 steps
 
 4. **DO NOT auto-complete to done**
-   - ✗ Calling submit_demo_feedback yourself
+   - ✗ Calling \`review({ action: "submit-feedback" })\` yourself
    - ✗ Setting ticket status to 'done' directly
    - ✗ Moving a ticket to 'done' in any way
-   - Only humans can approve tickets by calling submit_demo_feedback
+   - Only humans can approve tickets by calling \`review({ action: "submit-feedback" })\`
 
 5. **DO NOT bypass workflow gates**
-   - ✗ Trying to proceed to Phase 3 without check_review_complete MCP response
-   - ✗ Skipping mark_finding_fixed for findings you submit
+   - ✗ Trying to proceed to Phase 3 without \`review({ action: "check-complete" })\` MCP response
+   - ✗ Skipping \`review({ action: "mark-fixed" })\` for findings you submit
    - ✗ Treating the workflow as optional or context-dependent
 
 6. **DO NOT violate the STOP at Phase 4**
@@ -338,7 +345,7 @@ These actions are explicitly forbidden and indicate workflow failure:
 
 ## Real-time Progress Reporting
 
-In addition to session states, use emit_ralph_event for detailed progress:
+In addition to session states, use \`session({ action: "emit-event" })\` for detailed progress:
 
 | Event Type    | When to Use | Example |
 |---------------|-------------|---------|
@@ -348,7 +355,7 @@ In addition to session states, use emit_ralph_event for detailed progress:
 | progress      | General updates | Halfway through implementation |
 | error         | When errors occur | Test failed, need to debug |
 
-Note: The session state tools (update_session_state) automatically emit state_change events, so you don't need to call emit_ralph_event for state transitions
+Note: The \`session({ action: "update-state" })\` calls automatically emit state_change events, so you don't need to call emit-event for state transitions
 
 ## State Enforcement (Hooks)
 
@@ -363,17 +370,17 @@ This project uses hooks to ENFORCE state transitions. If you try to write or edi
 ### When Blocked
 If you see a "STATE ENFORCEMENT" message:
 1. **Read the message carefully** - it contains the exact tool call you need
-2. **Call the specified MCP tool** - e.g., \`update_session_state({ sessionId: "...", state: "implementing" })\`
+2. **Call the specified MCP tool** - e.g., \`session({ action: "update-state", sessionId: "...", state: "implementing" })\`
 3. **Retry your original operation** - it will now succeed
 
 ### Example Flow
 \`\`\`
 # You try to write a file while in 'analyzing' state
 [BLOCKED] STATE ENFORCEMENT: You are in 'analyzing' state but tried to write/edit code.
-          You MUST first call: update_session_state({ sessionId: "xyz-789", state: "implementing" })
+          You MUST first call: session({ action: "update-state", sessionId: "xyz-789", state: "implementing" })
 
 # You call the MCP tool as instructed
-update_session_state({ sessionId: "xyz-789", state: "implementing" })
+session({ action: "update-state", sessionId: "xyz-789", state: "implementing" })
 # Returns: State Updated - analyzing → implementing
 
 # You retry your write operation
@@ -463,14 +470,17 @@ ${VERIFICATION_CHECKLIST}
 
 ## MCP Tools (MUST be invoked literally — NOT local alternatives)
 
-- \`start_ticket_work(ticketId)\` - Creates branch, starts tracking (do NOT use git checkout -b)
-- \`create_ralph_session(ticketId)\` - Creates session for state tracking
-- \`complete_ticket_work(ticketId, summary)\` - Moves to ai_review, posts summary
-- \`submit_review_finding(ticketId, agent, severity, category, description)\` - Records review issue (do NOT use local /review skills)
-- \`mark_finding_fixed(findingId, status)\` - Marks finding as resolved
-- \`check_review_complete(ticketId)\` - Verifies all critical/major findings fixed
-- \`generate_demo_script(ticketId, steps)\` - Creates demo for human review (do NOT describe in text)
-- \`complete_ralph_session(sessionId, outcome)\` - Completes the session
+All tools use an \`action\` parameter. Key tools for the workflow:
+
+- \`workflow({ action: "start-work", ticketId })\` - Creates branch, starts tracking (do NOT use git checkout -b)
+- \`session({ action: "create-session", ticketId })\` - Creates session for state tracking
+- \`session({ action: "update-state", sessionId, state })\` - Updates session state for UI tracking
+- \`workflow({ action: "complete-work", ticketId, summary })\` - Moves to ai_review, posts summary
+- \`review({ action: "submit-finding", ticketId, agent, severity, category, description })\` - Records review issue (do NOT use local /review skills)
+- \`review({ action: "mark-fixed", findingId, status })\` - Marks finding as resolved
+- \`review({ action: "check-complete", ticketId })\` - Verifies all critical/major findings fixed
+- \`review({ action: "generate-demo", ticketId, steps })\` - Creates demo for human review (do NOT describe in text)
+- \`session({ action: "complete-session", sessionId, outcome })\` - Completes the session
 
 ---
 
@@ -1418,11 +1428,17 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     chmodSync(scriptPath, 0o700);
 
     // Start ticket workflow: git branch, status update, workflow state, audit comment
-    const workflowResult = await startTicketWorkflow(ticketId, project.path);
-    if (!workflowResult.success) {
-      console.warn(`[brain-dump] Workflow start warning: ${workflowResult.error}`);
-      // Fallback: ensure ticket is at least in_progress even if workflow failed
-      db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticketId)).run();
+    try {
+      startWork(sqlite, ticketId, coreGit);
+    } catch (err) {
+      // Git errors are expected for non-git projects — fall back to status-only update
+      if (err instanceof GitError) {
+        console.warn(`[brain-dump] Git not available, skipping branch creation: ${err.message}`);
+        db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticketId)).run();
+      } else {
+        // Unexpected errors (TicketNotFoundError, PathNotFoundError, etc.) should propagate
+        throw err;
+      }
     }
 
     // Branch based on workingMethod setting
@@ -1601,18 +1617,23 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     chmodSync(scriptPath, 0o700);
 
     // Start workflow for the first ticket (creates/checks out branch, sets up workflow state)
-    // For epic launches, Ralph handles individual tickets via MCP start_ticket_work during iteration.
+    // For epic launches, Ralph handles individual tickets via MCP workflow({ action: "start-work" }) during iteration.
     // Here we start the workflow for the first backlog/ready ticket to create the epic branch,
     // and mark others as in_progress for the PRD.
     const firstTicket = epicTickets.find(
       (t: (typeof epicTickets)[0]) => t.status === "backlog" || t.status === "ready"
     );
     if (firstTicket) {
-      const workflowResult = await startTicketWorkflow(firstTicket.id, project.path);
-      if (!workflowResult.success) {
-        console.warn(
-          `[brain-dump] Workflow start warning for first ticket: ${workflowResult.error}`
-        );
+      try {
+        startWork(sqlite, firstTicket.id, coreGit);
+      } catch (err) {
+        if (err instanceof GitError) {
+          console.warn(
+            `[brain-dump] Git not available for first ticket, skipping branch creation: ${err.message}`
+          );
+        } else {
+          throw err;
+        }
       }
     }
     // Mark remaining tickets as in_progress (they'll get full workflow when Ralph picks them up)

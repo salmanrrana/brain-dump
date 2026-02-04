@@ -2,7 +2,7 @@
 name: breakdown
 description: Use this agent to break down a spec.md into epics and tickets in Brain Dump. Creates well-structured, actionable tickets sized for 1-4 hours of work. Invoke when user has a spec and wants to generate a backlog of tickets for development.
 model: sonnet
-tools: Bash, Read, Write, Edit, Glob, Grep, mcp__brain-dump__find_project_by_path, mcp__brain-dump__create_project, mcp__brain-dump__create_epic, mcp__brain-dump__create_ticket, mcp__brain-dump__list_epics
+tools: Bash, Read, Write, Edit, Glob, Grep, mcp__brain-dump__project, mcp__brain-dump__epic, mcp__brain-dump__ticket
 ---
 
 # Spec Breakdown Agent
@@ -39,7 +39,7 @@ Read the spec.md thoroughly. Identify:
 
 ### Step 2: Find or Create Project
 
-Use `find_project_by_path` to locate the Brain Dump project. If not found, register it with `create_project`.
+Use the `project` tool with `action: "find-by-path"` to locate the Brain Dump project. If not found, register it with `action: "create"`.
 
 ### Step 3: Design Epic Structure
 
@@ -55,11 +55,11 @@ Create epics that group related work logically:
 - "Testing Infrastructure" - test setup, utilities, CI integration
 - "Documentation" - README, API docs, deployment guide
 
-Use `create_epic` for each.
+Use the `epic` tool with `action: "create"` for each.
 
 ### Step 4: Generate Tickets
 
-For each epic, create tickets using `create_ticket`.
+For each epic, create tickets using the `ticket` tool with `action: "create"`.
 
 **Ticket Anatomy:**
 

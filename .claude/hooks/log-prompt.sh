@@ -4,7 +4,7 @@
 #
 # Captures user prompts submitted during AI sessions.
 # - Reads session ID from telemetry-session.json
-# - Outputs notification for Claude to call log_prompt_event
+# - Outputs notification for Claude to call telemetry "log-prompt"
 
 set -e
 

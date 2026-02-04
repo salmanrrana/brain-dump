@@ -17,8 +17,8 @@ You are running a comprehensive "Tracer Review" across an entire epic. This prov
 ### Step 1: Get Epic Context
 
 ```
-list_epics({ projectId: "<project-id>" })
-list_tickets_by_epic({ epicId: "<epic-id>" })
+epic tool, action: "list", projectId: "<project-id>"
+ticket tool, action: "list-by-epic", epicId: "<epic-id>"
 ```
 
 Verify:
@@ -83,14 +83,13 @@ Task 7: senior-engineer
 For significant cross-ticket issues:
 
 ```
-submit_review_finding({
+review tool, action: "submit-finding",
   ticketId: "<any-ticket-in-epic>",
   agent: "senior-engineer",
   severity: "major",
   category: "architecture",
   description: "Inconsistent error handling patterns across epic",
   suggestedFix: "Standardize on error boundary pattern from ticket X"
-})
 ```
 
 ### Step 5: Generate Epic Summary

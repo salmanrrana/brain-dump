@@ -13,8 +13,8 @@ You are starting work on the next available task from the Brain Dump kanban boar
 1. **Find the project and next ticket:**
 
    ```
-   find_project_by_path({ path: "<current-directory>" })
-   list_tickets({ projectId: "<project-id>", status: "ready", limit: 5 })
+   project tool, action: "find-by-path", path: "<current-directory>"
+   ticket tool, action: "list", projectId: "<project-id>", status: "ready", limit: 5
    ```
 
 2. **Select ticket based on priority:**
@@ -25,7 +25,7 @@ You are starting work on the next available task from the Brain Dump kanban boar
 3. **Start work on the ticket:**
 
    ```
-   start_ticket_work({ ticketId: "<ticket-id>" })
+   workflow tool, action: "start-work", ticketId: "<ticket-id>"
    ```
 
    - The tool will check preconditions and block if needed
@@ -48,7 +48,7 @@ You are starting work on the next available task from the Brain Dump kanban boar
 
 7. **Complete implementation:**
    ```
-   complete_ticket_work({ ticketId: "<ticket-id>", summary: "..." })
+   workflow tool, action: "complete-work", ticketId: "<ticket-id>", summary: "..."
    ```
 
 ## Important
@@ -64,12 +64,12 @@ You are starting work on the next available task from the Brain Dump kanban boar
 ```
 backlog → ready → in_progress → ai_review → human_review → done
                                 ↑
-                             You are here after complete_ticket_work
+                             You are here after workflow "complete-work"
 ```
 
 ## When Blocked
 
-If `start_ticket_work` returns a blocking message:
+If `workflow` tool `start-work` returns a blocking message:
 
 - **Previous ticket in human_review**: Wait for human approval or escalate
 - **Validation failed**: Fix issues first

@@ -44,7 +44,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   const [isStartingRalph, setIsStartingRalph] = useState(false);
   // Auto-clears to null after 5 seconds for notification clearing
   const [ralphNotification, setRalphNotification] = useAutoClearState<{
-    type: "success" | "error";
+    type: "success" | "error" | "info";
     message: string;
     launchMethod?: "vscode" | "terminal";
     contextFile?: string;
@@ -204,15 +204,16 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
         });
 
         if (!workflowResult.success) {
+          // Git checkout failed — warn but continue on current branch
           setRalphNotification({
-            type: "error",
-            message: `Workflow init failed: ${workflowResult.error || "Unknown error"}`,
+            type: "info",
+            message: `Branch setup skipped: ${workflowResult.error || "Unknown error"}. Launching on the current branch.`,
           });
-          setIsStartingRalph(false);
-          return;
         } else if (workflowResult.warnings?.length) {
-          // Warnings are informational - continue with launch
-          // (Warnings would be shown via toast in a real implementation)
+          setRalphNotification({
+            type: "info",
+            message: workflowResult.warnings.join(". "),
+          });
         }
 
         // Launch Ralph
@@ -431,7 +432,9 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
             className={`mx-4 mb-0 p-3 rounded-lg text-sm ${
               ralphNotification.type === "success"
                 ? "bg-[var(--success-muted)] text-[var(--success-text)] border border-[var(--success)]/50"
-                : "bg-[var(--accent-danger)]/20 text-[var(--accent-danger)] border border-[var(--accent-danger)]/50"
+                : ralphNotification.type === "info"
+                  ? "bg-[var(--bg-tertiary)] text-[var(--text-secondary)] border border-[var(--border-primary)]"
+                  : "bg-[var(--accent-danger)]/20 text-[var(--accent-danger)] border border-[var(--accent-danger)]/50"
             }`}
           >
             <div className="flex items-start gap-2">

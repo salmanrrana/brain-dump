@@ -76,7 +76,7 @@ Only refine code that has been recently modified or touched in the current sessi
 After simplification, add a comment to the ticket:
 
 ```javascript
-add_ticket_comment({
+comment "add"({
   ticketId: "ticket-id",
   content:
     "## Code Simplified\n\n- Removed X lines of duplicate code\n- Simplified Y complex functions\n- Improved readability of Z",

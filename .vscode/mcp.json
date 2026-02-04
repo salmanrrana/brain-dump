@@ -2,8 +2,8 @@
   "servers": {
     "brain-dump": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["tsx", "${workspaceFolder}/mcp-server/index.ts"]
+      "command": "node",
+      "args": ["${workspaceFolder}/mcp-server/dist/index.js"]
     }
   }
 }

@@ -8,7 +8,7 @@
 #   ./install.sh --vscode         # Install with VS Code integration
 #   ./install.sh --cursor         # Install with Cursor integration
 #   ./install.sh --claude --sandbox # Install with Claude Code + sandbox
-#   ./install.sh --all            # Install all IDEs + sandbox
+#   ./install.sh --all            # Install all IDEs (sandbox off by default)
 #   ./install.sh --help           # Show help
 #
 # After cloning, just run:
@@ -464,13 +464,18 @@ configure_mcp_server() {
 
     CLAUDE_CONFIG="$HOME/.claude.json"
     BRAIN_DUMP_DIR="$(pwd)"
-    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/index.ts"
+    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/dist/index.js"
 
-    # Check if MCP server file exists
+    # Check if MCP server file exists (build may not have run yet)
     if [ ! -f "$MCP_SERVER_PATH" ]; then
-        print_warning "MCP server file not found at $MCP_SERVER_PATH"
-        SKIPPED+=("MCP server (file not found)")
-        return 0
+        print_info "MCP server not yet built, building now..."
+        if (cd "$BRAIN_DUMP_DIR/mcp-server" && node build.mjs 2>/dev/null); then
+            print_success "MCP server built"
+        else
+            print_warning "MCP server build failed. Run 'cd mcp-server && pnpm build' manually."
+            SKIPPED+=("MCP server (build failed)")
+            return 0
+        fi
     fi
 
     # Handle ~/.claude.json
@@ -480,8 +485,8 @@ configure_mcp_server() {
 {
   "mcpServers": {
     "brain-dump": {
-      "command": "npx",
-      "args": ["tsx", "$MCP_SERVER_PATH"]
+      "command": "node",
+      "args": ["$MCP_SERVER_PATH"]
     }
   }
 }
@@ -491,40 +496,37 @@ EOF
         return 0
     fi
 
-    # Check if brain-dump already configured
+    # Update or add brain-dump config (always update to ensure latest paths)
     if grep -q '"brain-dump"' "$CLAUDE_CONFIG"; then
-        print_success "brain-dump MCP server already configured"
-        SKIPPED+=("MCP server (already configured)")
-        return 0
+        print_info "Updating brain-dump MCP server config..."
+    else
+        print_info "Adding brain-dump to existing ~/.claude.json..."
     fi
 
-    # Attempt to add to existing config using a temp file
-    print_info "Adding brain-dump to existing ~/.claude.json..."
-
     if grep -q '"mcpServers"' "$CLAUDE_CONFIG"; then
-        # mcpServers exists, need to add to it
-        # Create a backup first
+        # mcpServers exists, update/add brain-dump entry
         cp "$CLAUDE_CONFIG" "$CLAUDE_CONFIG.backup"
 
-        # Try to use node/jq to merge, or provide manual instructions
         if command_exists node; then
             local node_error
-            node_error=$(node -e "
-const fs = require('fs');
-const config = JSON.parse(fs.readFileSync('$CLAUDE_CONFIG', 'utf8'));
+            node_error=$(CLAUDE_CONFIG="$CLAUDE_CONFIG" MCP_SERVER_PATH="$MCP_SERVER_PATH" node -e '
+const fs = require("fs");
+const configFile = process.env.CLAUDE_CONFIG;
+const serverPath = process.env.MCP_SERVER_PATH;
+
+const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
 config.mcpServers = config.mcpServers || {};
-config.mcpServers['brain-dump'] = {
-    command: 'npx',
-    args: ['tsx', '$MCP_SERVER_PATH']
+config.mcpServers["brain-dump"] = {
+    command: "node",
+    args: [serverPath]
 };
-fs.writeFileSync('$CLAUDE_CONFIG', JSON.stringify(config, null, 2));
-console.log('Config updated successfully');
-" 2>&1) && {
-                print_success "Added brain-dump to ~/.claude.json"
+fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
+console.log("Config updated successfully");
+' 2>&1) && {
+                print_success "brain-dump MCP server configured"
                 INSTALLED+=("MCP server config")
                 return 0
             }
-            # Show the actual error if node command failed
             if [ -n "$node_error" ]; then
                 print_warning "JSON merge failed: $node_error"
             fi
@@ -534,8 +536,8 @@ console.log('Config updated successfully');
         print_warning "Could not auto-merge. Please add this to your mcpServers in ~/.claude.json:"
         echo ""
         echo "    \"brain-dump\": {"
-        echo "      \"command\": \"npx\","
-        echo "      \"args\": [\"tsx\", \"$MCP_SERVER_PATH\"]"
+        echo "      \"command\": \"node\","
+        echo "      \"args\": [\"$MCP_SERVER_PATH\"]"
         echo "    }"
         echo ""
         SKIPPED+=("MCP server (manual merge required)")
@@ -548,8 +550,8 @@ console.log('Config updated successfully');
 {
   "mcpServers": {
     "brain-dump": {
-      "command": "npx",
-      "args": ["tsx", "$MCP_SERVER_PATH"]
+      "command": "node",
+      "args": ["$MCP_SERVER_PATH"]
     }
   }
 }
@@ -571,23 +573,26 @@ install_claude_plugins() {
         return 0
     fi
 
+    # Get list of already-installed plugins once (avoids slow re-installs)
+    local installed_list
+    installed_list=$(claude plugin list 2>/dev/null || true)
+
     local plugins_installed=0
+    local PLUGINS=("pr-review-toolkit" "code-simplifier")
 
-    print_info "Installing pr-review-toolkit..."
-    if claude plugin install pr-review-toolkit 2>/dev/null; then
-        print_success "pr-review-toolkit installed"
-        plugins_installed=$((plugins_installed + 1))
-    else
-        print_warning "pr-review-toolkit already installed or unavailable"
-    fi
-
-    print_info "Installing code-simplifier..."
-    if claude plugin install code-simplifier 2>/dev/null; then
-        print_success "code-simplifier installed"
-        plugins_installed=$((plugins_installed + 1))
-    else
-        print_warning "code-simplifier already installed or unavailable"
-    fi
+    for plugin in "${PLUGINS[@]}"; do
+        if echo "$installed_list" | grep -q "$plugin"; then
+            print_success "$plugin already installed"
+        else
+            print_info "Installing $plugin..."
+            if claude plugin install "$plugin" 2>&1; then
+                print_success "$plugin installed"
+                plugins_installed=$((plugins_installed + 1))
+            else
+                print_warning "$plugin installation failed"
+            fi
+        fi
+    done
 
     if [ $plugins_installed -gt 0 ]; then
         INSTALLED+=("Claude plugins ($plugins_installed)")
@@ -843,7 +848,7 @@ setup_opencode() {
     print_step "Configuring OpenCode for Brain Dump (global installation)"
 
     BRAIN_DUMP_DIR="$(pwd)"
-    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/index.ts"
+    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/dist/index.js"
 
     # Global OpenCode config directories (works from any project)
     OPENCODE_GLOBAL="$HOME/.config/opencode"
@@ -876,24 +881,20 @@ const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
 config.mcp = config.mcp || {};
 config.mcp["brain-dump"] = {
     type: "local",
-    command: ["npx", "tsx", brainDumpDir + "/mcp-server/index.ts"],
+    command: ["node", brainDumpDir + "/mcp-server/dist/index.js"],
     enabled: true,
     environment: { BRAIN_DUMP_PATH: brainDumpDir, OPENCODE: "1" }
 };
 config.tools = Object.assign(config.tools || {}, {
-    "brain-dump_start_ticket_work": true,
-    "brain-dump_complete_ticket_work": true,
-    "brain-dump_submit_review_finding": true,
-    "brain-dump_mark_finding_fixed": true,
-    "brain-dump_check_review_complete": true,
-    "brain-dump_generate_demo_script": true,
-    "brain-dump_add_ticket_comment": true,
-    "brain-dump_create_ralph_session": true,
-    "brain-dump_update_session_state": true,
-    "brain-dump_complete_ralph_session": true,
-    "brain-dump_emit_ralph_event": true,
-    "brain-dump_list_tickets": true,
-    "brain-dump_list_projects": true,
+    "brain-dump_workflow": true,
+    "brain-dump_ticket": true,
+    "brain-dump_session": true,
+    "brain-dump_review": true,
+    "brain-dump_telemetry": true,
+    "brain-dump_comment": true,
+    "brain-dump_epic": true,
+    "brain-dump_project": true,
+    "brain-dump_admin": true,
     "brain-dump_*": false
 });
 config.permission = config.permission || {};
@@ -918,7 +919,7 @@ fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
   "mcp": {
     "brain-dump": {
       "type": "local",
-      "command": ["npx", "tsx", "$BRAIN_DUMP_DIR/mcp-server/index.ts"],
+      "command": ["node", "$BRAIN_DUMP_DIR/mcp-server/dist/index.js"],
       "enabled": true,
       "environment": {
         "BRAIN_DUMP_PATH": "$BRAIN_DUMP_DIR",
@@ -927,19 +928,15 @@ fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
     }
   },
   "tools": {
-    "brain-dump_start_ticket_work": true,
-    "brain-dump_complete_ticket_work": true,
-    "brain-dump_submit_review_finding": true,
-    "brain-dump_mark_finding_fixed": true,
-    "brain-dump_check_review_complete": true,
-    "brain-dump_generate_demo_script": true,
-    "brain-dump_add_ticket_comment": true,
-    "brain-dump_create_ralph_session": true,
-    "brain-dump_update_session_state": true,
-    "brain-dump_complete_ralph_session": true,
-    "brain-dump_emit_ralph_event": true,
-    "brain-dump_list_tickets": true,
-    "brain-dump_list_projects": true,
+    "brain-dump_workflow": true,
+    "brain-dump_ticket": true,
+    "brain-dump_session": true,
+    "brain-dump_review": true,
+    "brain-dump_telemetry": true,
+    "brain-dump_comment": true,
+    "brain-dump_epic": true,
+    "brain-dump_project": true,
+    "brain-dump_admin": true,
     "brain-dump_*": false
   },
   "permission": {
@@ -991,7 +988,7 @@ EOF
   "mcp": {
     "brain-dump": {
       "type": "local",
-      "command": ["npx", "tsx", "$BRAIN_DUMP_DIR/mcp-server/index.ts"],
+      "command": ["node", "$BRAIN_DUMP_DIR/mcp-server/dist/index.js"],
       "enabled": true,
       "environment": {
         "BRAIN_DUMP_PATH": "$BRAIN_DUMP_DIR",
@@ -1000,19 +997,15 @@ EOF
     }
   },
   "tools": {
-    "brain-dump_start_ticket_work": true,
-    "brain-dump_complete_ticket_work": true,
-    "brain-dump_submit_review_finding": true,
-    "brain-dump_mark_finding_fixed": true,
-    "brain-dump_check_review_complete": true,
-    "brain-dump_generate_demo_script": true,
-    "brain-dump_add_ticket_comment": true,
-    "brain-dump_create_ralph_session": true,
-    "brain-dump_update_session_state": true,
-    "brain-dump_complete_ralph_session": true,
-    "brain-dump_emit_ralph_event": true,
-    "brain-dump_list_tickets": true,
-    "brain-dump_list_projects": true,
+    "brain-dump_workflow": true,
+    "brain-dump_ticket": true,
+    "brain-dump_session": true,
+    "brain-dump_review": true,
+    "brain-dump_telemetry": true,
+    "brain-dump_comment": true,
+    "brain-dump_epic": true,
+    "brain-dump_project": true,
+    "brain-dump_admin": true,
     "brain-dump_*": false
   },
   "permission": {
@@ -1257,7 +1250,7 @@ configure_vscode_mcp() {
     fi
 
     BRAIN_DUMP_DIR="$(pwd)"
-    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/index.ts"
+    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/dist/index.js"
     MCP_CONFIG_FILE="$VSCODE_TARGET/mcp.json"
 
     # Helper function to create fresh MCP config
@@ -1267,8 +1260,8 @@ configure_vscode_mcp() {
   "servers": {
     "brain-dump": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["tsx", "$MCP_SERVER_PATH"]
+      "command": "node",
+      "args": ["$MCP_SERVER_PATH"]
     }
   }
 }
@@ -1302,31 +1295,31 @@ EOF
         return 0
     fi
 
-    # Check 4: Is brain-dump already configured?
+    # brain-dump entry exists or needs to be added — either way, update/add it
     if grep -q '"brain-dump"' "$MCP_CONFIG_FILE"; then
-        print_success "brain-dump MCP server already configured in VS Code"
-        SKIPPED+=("VS Code MCP server (already configured)")
-        return 0
+        print_info "Updating brain-dump MCP server config in VS Code..."
+    else
+        print_info "Adding brain-dump to existing mcp.json..."
     fi
-
-    # File exists with servers section but no brain-dump - try to add it
-    print_info "Adding brain-dump to existing mcp.json..."
 
     if command_exists node; then
         local node_error
-        node_error=$(node -e "
-const fs = require('fs');
-const config = JSON.parse(fs.readFileSync('$MCP_CONFIG_FILE', 'utf8'));
+        node_error=$(MCP_CONFIG_FILE="$MCP_CONFIG_FILE" MCP_SERVER_PATH="$MCP_SERVER_PATH" node -e '
+const fs = require("fs");
+const configFile = process.env.MCP_CONFIG_FILE;
+const serverPath = process.env.MCP_SERVER_PATH;
+
+const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
 config.servers = config.servers || {};
-config.servers['brain-dump'] = {
-    type: 'stdio',
-    command: 'npx',
-    args: ['tsx', '$MCP_SERVER_PATH']
+config.servers["brain-dump"] = {
+    type: "stdio",
+    command: "node",
+    args: [serverPath]
 };
-fs.writeFileSync('$MCP_CONFIG_FILE', JSON.stringify(config, null, 2));
-console.log('Config updated successfully');
-" 2>&1) && {
-            print_success "Added brain-dump to VS Code mcp.json"
+fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
+console.log("Config updated successfully");
+' 2>&1) && {
+            print_success "brain-dump MCP server configured in VS Code"
             INSTALLED+=("VS Code MCP server")
             return 0
         }
@@ -1341,8 +1334,8 @@ console.log('Config updated successfully');
     echo ""
     echo '  "brain-dump": {'
     echo '    "type": "stdio",'
-    echo '    "command": "npx",'
-    echo "    \"args\": [\"tsx\", \"$MCP_SERVER_PATH\"]"
+    echo '    "command": "node",'
+    echo "    \"args\": [\"$MCP_SERVER_PATH\"]"
     echo '  }'
     echo ""
     SKIPPED+=("VS Code MCP server (manual merge required)")
@@ -1821,7 +1814,7 @@ print_summary() {
     fi
 
     if [ "$SETUP_OPENCODE" = true ]; then
-        echo "  4. Start OpenCode from any project directory: ${CYAN}opencode${NC}"
+        echo -e "  4. Start OpenCode from any project directory: ${CYAN}opencode${NC}"
         echo "     Brain Dump MCP tools are installed globally (~/.config/opencode/)"
         echo "  5. Use Tab to switch between Ralph and Build agents"
         echo "  6. Use @ticket-worker, @planner, @code-reviewer as needed"
@@ -1862,7 +1855,7 @@ show_help() {
     echo "  --vscode    Set up VS Code integration (MCP server + agents + skills + prompts)"
     echo "  --cursor    Set up Cursor integration (MCP server + subagents + skills + commands)"
     echo "  --opencode  Set up OpenCode integration (MCP server + agents + skills)"
-    echo "  --all       Set up all IDE integrations + sandbox"
+    echo "  --all       Set up all IDE integrations (Claude Code, VS Code, Cursor, OpenCode)"
     echo ""
     echo "  If no IDE flag is provided, you'll be prompted to choose."
     echo ""
@@ -1883,7 +1876,7 @@ show_help() {
     echo "  ./install.sh --vscode            # VS Code only"
     echo "  ./install.sh --cursor            # Cursor only"
     echo "  ./install.sh --opencode          # OpenCode only"
-    echo "  ./install.sh --all               # All IDEs + sandbox"
+    echo "  ./install.sh --all               # All IDEs (sandbox off by default)"
     echo "  ./install.sh                     # Interactive prompt"
     echo ""
     echo "This script will:"

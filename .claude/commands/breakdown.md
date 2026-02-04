@@ -30,7 +30,7 @@ Read and understand the entire specification. Identify:
 
 ### Step 2: Find the Project in Brain Dump
 
-Use the MCP tool `find_project_by_path` to get the project ID. If not found, use `create_project` to register it first.
+Use the `project` tool with `action: "find-by-path"` to get the project ID. If not found, use `action: "create"` to register it first.
 
 ### Step 3: Create Epics
 
@@ -44,7 +44,7 @@ Group related work into epics. Common epic patterns:
 - "Testing & QA" - Test infrastructure
 - "Documentation" - README, API docs
 
-Use Brain Dump MCP tool `create_epic` for each epic with:
+Use the `epic` tool with `action: "create"` for each epic with:
 
 - projectId: The project ID from step 2
 - title: Epic title
@@ -59,7 +59,7 @@ For each epic, create granular, actionable tickets. Each ticket should:
 - Be properly prioritized (high/medium/low)
 - Include acceptance criteria in the description
 
-Use Brain Dump MCP tool `create_ticket` for each ticket with:
+Use the `ticket` tool with `action: "create"` for each ticket with:
 
 - projectId: The project ID
 - epicId: The epic ID this ticket belongs to

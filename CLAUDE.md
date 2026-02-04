@@ -78,14 +78,23 @@ Legacy migration from `~/.brain-dump/` is automatic on first run.
 
 ### MCP Server
 
-The `mcp-server/index.ts` is a standalone TypeScript MCP server (runs with `tsx`) that provides tools for Claude to manage tickets from any project. It connects to the same SQLite database and includes:
+The `mcp-server/` directory is a standalone TypeScript MCP server (runs with `tsx`) that provides **9 action-dispatched tools** (65 total actions) for Claude to manage tickets from any project. It connects to the same SQLite database.
 
-- Project/ticket/epic CRUD operations
-- Git integration (branch creation, commit linking)
-- Database health monitoring
-- Universal Quality Workflow state management
-- Conversation logging and telemetry capture
-- Review findings and demo management
+Architecture: `core/` (pure functions) → `mcp-server/tools/` (MCP layer) → skills (progressive disclosure).
+
+| Tool        | Actions | Purpose                            |
+| ----------- | ------- | ---------------------------------- |
+| `workflow`  | 6       | Ticket/epic lifecycle, git linking |
+| `ticket`    | 10      | CRUD, status, criteria, files      |
+| `session`   | 12      | Ralph sessions, events, tasks      |
+| `review`    | 8       | Findings, demos, feedback          |
+| `telemetry` | 7       | AI interaction metrics             |
+| `comment`   | 2       | Ticket comments                    |
+| `epic`      | 6       | Epic CRUD, learnings               |
+| `project`   | 4       | Project CRUD                       |
+| `admin`     | 10      | Health, settings, compliance       |
+
+See [docs/mcp-tools.md](docs/mcp-tools.md) for the full reference.
 
 ### Ralph Workflow
 
@@ -109,11 +118,11 @@ backlog → ready → in_progress → ai_review → human_review → done
 
 ### Quick Reference
 
-1. `start_ticket_work({ ticketId })` → before writing code
+1. `workflow` tool, `action: "start-work"`, `ticketId` → before writing code
 2. Implement + `pnpm check`
-3. `complete_ticket_work({ ticketId, summary })` → after committing
-4. Self-review + `submit_review_finding()` → for each issue
-5. `generate_demo_script({ ticketId, steps })` → then STOP
+3. `workflow` tool, `action: "complete-work"`, `ticketId`, `summary` → after committing
+4. Self-review + `review` tool, `action: "submit-finding"` → for each issue
+5. `review` tool, `action: "generate-demo"`, `ticketId`, `steps` → then STOP
 
 ### Skills (Workflow Shortcuts)
 
@@ -151,10 +160,10 @@ This project uses Claude Code hooks to enforce Ralph's workflow. Hooks provide g
 │              │                                                  │
 │              ▼                                                  │
 │   PreToolUse Hook: "BLOCKED - You are in 'analyzing' state      │
-│   but tried to write code. Call update_session_state FIRST."    │
+│   but tried to write code. Call session update-state FIRST."    │
 │              │                                                  │
 │              ▼                                                  │
-│   Claude: *calls update_session_state('implementing')*          │
+│   Claude: *calls session tool, action: "update-state"*          │
 │   Claude: *retries Write* ✅                                    │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -183,9 +192,9 @@ When a Ralph session is active, `.claude/ralph-state.json` contains:
 
 This file is:
 
-- Created by `create_ralph_session`
-- Updated by `update_session_state`
-- Removed by `complete_ralph_session`
+- Created by `session` tool, `action: "create"`
+- Updated by `session` tool, `action: "update-state"`
+- Removed by `session` tool, `action: "complete"`
 
 #### When NOT in Ralph Mode
 
@@ -212,7 +221,7 @@ Brain Dump supports multiple development environments:
 #### If You See a STATE ENFORCEMENT Message
 
 1. **Read the message** - it contains the exact MCP tool call needed
-2. **Call the specified tool** - e.g., `update_session_state({ sessionId: "...", state: "implementing" })`
+2. **Call the specified tool** - e.g., `session` tool with `action: "update-state"`, `sessionId: "..."`, `state: "implementing"`
 3. **Retry your original operation** - it will now succeed
 
 Do NOT try to work around state enforcement - it ensures work is properly tracked in the Brain Dump UI.
@@ -221,15 +230,15 @@ Do NOT try to work around state enforcement - it ensures work is properly tracke
 
 The following hooks provide an automated workflow for code review and PR creation:
 
-| Hook              | File                            | Purpose                                                    |
-| ----------------- | ------------------------------- | ---------------------------------------------------------- |
-| Auto-PR creation  | `create-pr-on-ticket-start.sh`  | Creates draft PR immediately when `start_ticket_work` runs |
-| Commit tracking   | `link-commit-to-ticket.sh`      | Outputs commit/PR link commands after each git commit      |
-| Pre-push review   | `enforce-review-before-push.sh` | Blocks `git push`/`gh pr create` until review is completed |
-| Post-ticket spawn | `spawn-next-ticket.sh`          | Spawns next ticket after `complete_ticket_work`            |
-| Post-PR spawn     | `spawn-after-pr.sh`             | Spawns next ticket after successful PR creation            |
+| Hook              | File                            | Purpose                                                        |
+| ----------------- | ------------------------------- | -------------------------------------------------------------- |
+| Auto-PR creation  | `create-pr-on-ticket-start.sh`  | Creates draft PR immediately when `workflow` `start-work` runs |
+| Commit tracking   | `link-commit-to-ticket.sh`      | Outputs commit/PR link commands after each git commit          |
+| Pre-push review   | `enforce-review-before-push.sh` | Blocks `git push`/`gh pr create` until review is completed     |
+| Post-ticket spawn | `spawn-next-ticket.sh`          | Spawns next ticket after `workflow` `complete-work`            |
+| Post-PR spawn     | `spawn-after-pr.sh`             | Spawns next ticket after successful PR creation                |
 
-**Auto-PR Creation**: When `start_ticket_work` is called, the hook automatically:
+**Auto-PR Creation**: When `workflow` tool `action: "start-work"` is called, the hook automatically:
 
 1. Creates an empty WIP commit on the new branch
 2. Pushes the branch to remote
@@ -242,7 +251,7 @@ The following hooks provide an automated workflow for code review and PR creatio
 2. MCP commands to link the commit to the active ticket
 3. MCP commands to link the PR if one exists for the branch
 
-**PR Status Sync**: When `link_pr_to_ticket` is called, the MCP tool automatically syncs PR statuses for all tickets in the project. This updates any PRs that have been merged or closed since they were linked.
+**PR Status Sync**: When `workflow` tool `action: "link-pr"` is called, the MCP tool automatically syncs PR statuses for all tickets in the project. This updates any PRs that have been merged or closed since they were linked.
 
 **To enable these hooks**, run `scripts/setup-claude-code.sh` which installs hooks globally to `~/.claude/hooks/` and configures `~/.claude/settings.json`:
 
@@ -271,7 +280,7 @@ The following hooks provide an automated workflow for code review and PR creatio
     ],
     "PostToolUse": [
       {
-        "matcher": "mcp__brain-dump__start_ticket_work",
+        "matcher": "mcp__brain-dump__workflow",
         "hooks": [
           {
             "type": "command",
@@ -320,7 +329,7 @@ export AUTO_SPAWN_NEXT_TICKET=1
 
 The hooks will:
 
-1. Parse the next ticket ID from `complete_ticket_work` output or PRD file
+1. Parse the next ticket ID from `workflow` `complete-work` output or PRD file
 2. Spawn a new terminal (Ghostty, iTerm2, or Terminal.app on macOS; Ghostty, Kitty, or GNOME Terminal on Linux)
 3. Start Claude with a prompt to begin the next ticket
 
@@ -344,11 +353,11 @@ Claude Code telemetry hooks automatically capture AI work sessions for observabi
 **How it works:**
 
 1. When you start a Claude Code session, `start-telemetry-session` detects the active ticket from `.claude/ralph-state.json`
-2. You call `start_telemetry_session({ ticketId })` MCP tool (hook prompts you)
+2. You call `telemetry` tool, `action: "start"`, `ticketId` (hook prompts you)
 3. All subsequent tool calls are captured: PreToolUse records start event, PostToolUse/PostToolUseFailure record end
 4. Events are written to `.claude/telemetry-queue.jsonl` (JSONL format for streaming)
 5. Correlation IDs pair start/end events for duration tracking
-6. When Claude exits, `end-telemetry-session` prompts to call `end_telemetry_session()` to finalize
+6. When Claude exits, `end-telemetry-session` prompts to call `telemetry` tool, `action: "end"` to finalize
 7. Events are flushed to database for analytics and audit trails
 
 **Queue files:**
@@ -604,7 +613,7 @@ After implementing ANY feature, you MUST complete these steps:
 ### Before Marking Complete
 
 - [ ] All acceptance criteria from ticket met
-- [ ] Work summary added via `add_ticket_comment` (for Ralph sessions)
+- [ ] Work summary added via `comment` tool, `action: "add"` (for Ralph sessions)
 - [ ] Session completed with appropriate outcome (for Ralph sessions)
 - [ ] Committed with proper message format: `feat(<ticket-id>): <description>`
 
@@ -660,22 +669,22 @@ Brain Dump includes enterprise-grade conversation logging for compliance auditin
 
 ### Features
 
-- **Automatic session tracking**: Sessions created/ended automatically with `start_ticket_work`/`complete_ticket_work`
+- **Automatic session tracking**: Sessions created/ended automatically with `workflow` `start-work`/`complete-work`
 - **Tamper detection**: HMAC-SHA256 content hashing on all messages
 - **Secret detection**: Automatic scanning for 20+ credential patterns
 - **Retention policies**: Configurable 7-365 day retention with legal hold support
 - **Audit trail**: All access to logs is recorded
 
-### MCP Tools
+### MCP Tools (via `admin` tool)
 
-| Tool                         | Purpose                                     |
-| ---------------------------- | ------------------------------------------- |
-| `start_conversation_session` | Create a new session for compliance logging |
-| `log_conversation_message`   | Record a message with tamper detection      |
-| `end_conversation_session`   | Mark session as complete                    |
-| `list_conversation_sessions` | Query sessions with filters                 |
-| `export_compliance_logs`     | Generate JSON export for auditors           |
-| `archive_old_sessions`       | Delete old sessions (respects legal hold)   |
+| Action               | Purpose                                     |
+| -------------------- | ------------------------------------------- |
+| `start-conversation` | Create a new session for compliance logging |
+| `log-message`        | Record a message with tamper detection      |
+| `end-conversation`   | Mark session as complete                    |
+| `list-conversations` | Query sessions with filters                 |
+| `export-logs`        | Generate JSON export for auditors           |
+| `archive-sessions`   | Delete old sessions (respects legal hold)   |
 
 ### Settings
 

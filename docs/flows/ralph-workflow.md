@@ -8,13 +8,13 @@ Start Ralph, walk away, come back to completed PRs. No babysitting required.
 
 ## TL;DR — Quick Reference
 
-| Action                 | Command/Tool                                     |
-| ---------------------- | ------------------------------------------------ |
-| Start Ralph on ticket  | Click "Start with Ralph" in UI                   |
-| Start Ralph on epic    | Click "Start with Ralph" on epic card            |
-| Check Ralph's progress | View `plans/progress.txt`                        |
-| Stop Ralph safely      | Close terminal or `Ctrl+C`                       |
-| Cancel mid-ticket      | `complete_ralph_session(sessionId, "cancelled")` |
+| Action                 | Command/Tool                                                 |
+| ---------------------- | ------------------------------------------------------------ |
+| Start Ralph on ticket  | Click "Start with Ralph" in UI                               |
+| Start Ralph on epic    | Click "Start with Ralph" on epic card                        |
+| Check Ralph's progress | View `plans/progress.txt`                                    |
+| Stop Ralph safely      | Close terminal or `Ctrl+C`                                   |
+| Cancel mid-ticket      | `session` tool, `action: "complete"`, `outcome: "cancelled"` |
 
 **States that allow writing code:** `implementing`, `testing`, `committing`
 
@@ -35,17 +35,17 @@ Here's exactly what happens when you click "Start Ralph" and walk away:
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  T1: 6:05 PM — Iteration 1: "Add login form" (high priority)                │
 │                                                                              │
-│      ✓ create_ralph_session → state: idle                                   │
-│      ✓ start_ticket_work → branch: feature/abc-login-form                   │
-│      ✓ update_session_state → analyzing (reading specs)                     │
-│      ✓ update_session_state → implementing (writing code)                   │
+│      ✓ session "create" → state: idle                                       │
+│      ✓ workflow "start-work" → branch: feature/abc-login-form               │
+│      ✓ session "update-state" → analyzing (reading specs)                   │
+│      ✓ session "update-state" → implementing (writing code)                 │
 │      ✓ Write LoginForm.tsx, auth.ts                                         │
-│      ✓ update_session_state → testing                                       │
+│      ✓ session "update-state" → testing                                     │
 │      ✓ Run pnpm test → All tests pass                                       │
-│      ✓ update_session_state → committing                                    │
+│      ✓ session "update-state" → committing                                  │
 │      ✓ git commit -m "feat(abc): add login form with validation"            │
-│      ✓ complete_ticket_work → PRD updated (1/3 passes: true)                │
-│      ✓ complete_ralph_session → state file deleted                          │
+│      ✓ workflow "complete-work" → PRD updated (1/3 passes: true)            │
+│      ✓ session "complete" → state file deleted                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  T2: 6:25 PM — Iteration 2: "Add logout button" (medium priority)           │
 │                                                                              │
@@ -99,12 +99,12 @@ flowchart TB
         F -->|Yes| G["Pick highest priority"]
         F -->|No| H["All done! 🎉"]
 
-        G --> I["start_ticket_work<br/>→ Create branch"]
-        I --> J["create_ralph_session<br/>→ Track state"]
+        G --> I["workflow start-work<br/>→ Create branch"]
+        I --> J["session create<br/>→ Track state"]
         J --> K["Implement & test"]
         K --> L["Commit changes"]
-        L --> M["complete_ticket_work<br/>→ Update PRD"]
-        M --> N["complete_ralph_session"]
+        L --> M["workflow complete-work<br/>→ Update PRD"]
+        M --> N["session complete"]
         N --> E
     end
 
@@ -124,14 +124,14 @@ Ralph tracks state to ensure proper workflow order. This prevents the AI from sk
 
 ```mermaid
 stateDiagram-v2
-    [*] --> idle: create_ralph_session
+    [*] --> idle: session "create"
     idle --> analyzing: Read spec
     analyzing --> implementing: Start coding
     implementing --> testing: Run tests
     testing --> implementing: Tests failed
     testing --> committing: Tests passed
     committing --> reviewing: Self-review
-    reviewing --> done: complete_ralph_session
+    reviewing --> done: session "complete"
     done --> [*]
 
     note right of implementing: ✅ Can write code
@@ -170,7 +170,7 @@ sequenceDiagram
 
     Note over Claude: Reads helpful error message
 
-    Claude->>MCP: update_session_state("implementing")
+    Claude->>MCP: session "update-state" → implementing
     MCP->>State: Update state file
     State-->>MCP: Updated
 
@@ -186,10 +186,9 @@ sequenceDiagram
 STATE ENFORCEMENT: You are in 'analyzing' state but tried to write code.
 
 Call this MCP tool first:
-  update_session_state({
+  session tool, action: "update-state",
     sessionId: "abc-123",
     state: "implementing"
-  })
 
 Then retry your Write operation.
 ```
@@ -244,14 +243,11 @@ If Ralph is in the middle of a ticket and you want to cancel cleanly:
 
 ```typescript
 // Get the current session ID
-get_session_state({ ticketId: "your-ticket-id" });
+// session tool, action: "get", ticketId: "your-ticket-id"
 // Returns: { sessionId: "abc-123", currentState: "implementing", ... }
 
 // Cancel the session
-complete_ralph_session({
-  sessionId: "abc-123",
-  outcome: "cancelled",
-});
+// session tool, action: "complete", sessionId: "abc-123", outcome: "cancelled"
 ```
 
 This marks the session as cancelled and removes the state file, so hooks stop enforcing.
@@ -349,35 +345,35 @@ flowchart TD
 ### Session Management
 
 ```typescript
-// Start tracking work
-create_ralph_session({ ticketId: "uuid" });
+// Start tracking work — session tool, action: "create"
+session({ action: "create", ticketId: "uuid" });
 // Returns: { sessionId: "abc", state: "idle" }
 
-// Transition state (required before writing code)
-update_session_state({
+// Transition state (required before writing code) — session tool, action: "update-state"
+session({
+  action: "update-state",
   sessionId: "abc",
   state: "implementing",
   metadata: { message: "Starting LoginForm component" },
 });
 
-// Complete session
-complete_ralph_session({
-  sessionId: "abc",
-  outcome: "success", // or "failure", "timeout", "cancelled"
-});
+// Complete session — session tool, action: "complete"
+session({ action: "complete", sessionId: "abc", outcome: "success" });
+// outcome: "success", "failure", "timeout", or "cancelled"
 ```
 
 ### Workflow Tools
 
 ```typescript
-// Start working on ticket (creates branch, sets status)
-start_ticket_work({ ticketId: "uuid" });
+// Start working on ticket (creates branch, sets status) — workflow tool, action: "start-work"
+workflow({ action: "start-work", ticketId: "uuid" });
 // Creates branch: feature/abc-login-form
 // Sets status: in_progress
 // Returns: acceptance criteria, linked files
 
-// Complete ticket (updates PRD, suggests next)
-complete_ticket_work({
+// Complete ticket (updates PRD, suggests next) — workflow tool, action: "complete-work"
+workflow({
+  action: "complete-work",
   ticketId: "uuid",
   summary: "Implemented login form with validation",
 });
@@ -395,13 +391,12 @@ complete_ticket_work({
 Ralph emits events for UI display:
 
 ```typescript
-emit_ralph_event({
+// session tool, action: "emit-event"
+session({
+  action: "emit-event",
   sessionId: "abc",
   type: "state_change",
-  data: {
-    state: "implementing",
-    message: "Writing LoginForm component",
-  },
+  data: { state: "implementing", message: "Writing LoginForm component" },
 });
 ```
 
@@ -498,7 +493,7 @@ Optional feature for continuous workflow across terminal sessions:
 
 ```mermaid
 flowchart LR
-    A["complete_ticket_work"] --> B["PostToolUse hook"]
+    A["workflow<br/>complete-work"] --> B["PostToolUse hook"]
     B --> C{"AUTO_SPAWN<br/>enabled?"}
     C -->|No| D["Done"]
     C -->|Yes| E["Parse next ticket ID"]
@@ -526,7 +521,7 @@ This spawns a fresh terminal for each ticket, avoiding context pollution.
 
 **Fix:**
 
-1. Check if `complete_ticket_work` was called: `cat plans/prd.json | grep passes`
+1. Check if `workflow "complete-work"` was called: `cat plans/prd.json | grep passes`
 2. If not, manually update: Edit `plans/prd.json` and set `passes: true`
 3. Restart Ralph
 
@@ -537,7 +532,7 @@ This spawns a fresh terminal for each ticket, avoiding context pollution.
 **Fix:**
 
 1. Check current state: `cat .claude/ralph-state.json`
-2. Call `update_session_state` with the correct state
+2. Call `session "update-state"` with the correct state
 3. Retry your operation
 
 ### Ralph crashed and left stale state
@@ -561,7 +556,7 @@ rm .claude/ralph-state.json
 
 1. Check ticket status in Brain Dump UI
 2. Manually move tickets to "Review" or "Done" status
-3. Or run `complete_ticket_work` for each ticket
+3. Or run `workflow "complete-work"` for each ticket
 
 ### Docker container won't start
 

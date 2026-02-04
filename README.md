@@ -61,7 +61,7 @@ Open [localhost:4242](http://localhost:4242). Done.
 | `brain-dump check`         | Quick integrity check      |
 | `brain-dump check --full`  | Full database health check |
 
-> **Note:** For ticket management, use MCP tools (`start_ticket_work`, `complete_ticket_work`, etc.)
+> **Note:** For ticket management, use MCP tools (`workflow "start-work"`, `workflow "complete-work"`, etc.)
 
 [Full CLI reference →](docs/cli.md)
 
@@ -86,15 +86,15 @@ Open [localhost:4242](http://localhost:4242). Done.
 
 ### Key MCP Tools
 
-| Tool                    | Purpose                                   |
-| ----------------------- | ----------------------------------------- |
-| `start_ticket_work`     | Create branch + set status to in_progress |
-| `complete_ticket_work`  | Move to review + suggest next ticket      |
-| `create_ticket`         | Create new ticket                         |
-| `list_tickets`          | List tickets (filter by status, project)  |
-| `list_tickets_by_epic`  | List all tickets in an epic               |
-| `add_ticket_comment`    | Add work summaries or notes               |
-| `link_commit_to_ticket` | Track git history                         |
+| Tool                       | Purpose                                   |
+| -------------------------- | ----------------------------------------- |
+| `workflow "start-work"`    | Create branch + set status to in_progress |
+| `workflow "complete-work"` | Move to review + suggest next ticket      |
+| `create_ticket`            | Create new ticket                         |
+| `list_tickets`             | List tickets (filter by status, project)  |
+| `list_tickets_by_epic`     | List all tickets in an epic               |
+| `comment "add"`            | Add work summaries or notes               |
+| `workflow "link-commit"`   | Track git history                         |
 
 [Full MCP reference →](docs/mcp-tools.md)
 
@@ -181,7 +181,7 @@ brain-dump done        # Move to review
 brain-dump complete    # Move to done (skip review)
 ```
 
-Or use MCP: `complete_ticket_work` adds a work summary and suggests the next ticket.
+Or use MCP: `workflow "complete-work"` adds a work summary and suggests the next ticket.
 
 ### Universal Quality Workflow
 

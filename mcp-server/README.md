@@ -22,75 +22,50 @@ pnpm test:watch
 ## Architecture
 
 - **Entry point**: `index.ts` - Server initialization and tool registration
-- **Tools**: `tools/*.ts` - MCP tool implementations (16 modules, 55+ tools)
-- **Library**: `lib/*.ts` - Utilities and database access (15 modules)
+- **Core**: `core/*.ts` - Business logic modules (extracted for reuse by CLI)
+- **Tools**: `tools/*.ts` - 9 action-dispatched MCP tools
+- **Library**: `lib/*.ts` - Utilities and database access
 - **Types**: `types.ts` - Shared TypeScript definitions
 
-## Tools Overview
+## Tools Overview (9 tools, 65 actions)
 
-### Projects (4 tools)
+Each tool accepts an `action` parameter that dispatches to the appropriate handler.
 
-list_projects, create_project, find_project_by_path, update_project
+### workflow (6 actions)
 
-### Tickets (9 tools)
+start-work, complete-work, start-epic, link-commit, link-pr, sync-links
 
-create_ticket, update_ticket, list_tickets, get_ticket, delete_ticket, search_tickets, list_tickets_by_status, add_tags_to_ticket, remove_tags_from_ticket
+### ticket (10 actions)
 
-### Epics (5 tools)
+create, list, get, update-status, delete, update-criterion, list-by-epic, link-files, get-files, update-attachment
 
-create_epic, list_epics, update_epic, delete_epic, list_tickets_by_epic
+### session (12 actions)
 
-### Comments (2 tools)
+create, update-state, complete, get, list, emit-event, get-events, clear-events, save-tasks, get-tasks, clear-tasks, get-task-snapshots
 
-add_ticket_comment, list_ticket_comments
+### review (8 actions)
 
-### Workflow (6 tools)
+submit-finding, mark-fixed, check-complete, generate-demo, get-demo, submit-feedback, get-findings, update-step
 
-start_ticket_work, complete_ticket_work, update_session_state, create_ralph_session, complete_ralph_session, update_ticket_status
+### telemetry (7 actions)
 
-### Git (3 tools)
+start, log-tool, log-prompt, log-context, end, get, list
 
-create_branch, link_commit_to_ticket, link_pr_to_ticket
+### comment (2 actions)
 
-### Files (3 tools)
+add, list
 
-attach_file_to_ticket, list_ticket_attachments, read_ticket_attachment
+### epic (6 actions)
 
-### Health (1 tool)
+create, list, update, delete, reconcile-learnings, get-learnings
 
-check_database_health
+### project (4 actions)
 
-### Events (2 tools)
+create, list, find-by-path, get-settings, update-settings
 
-record_event, list_session_events
+### admin (10 actions)
 
-### Sessions (3 tools)
-
-create_session, end_session, list_sessions
-
-### Conversations (6 tools)
-
-start_conversation_session, log_conversation_message, end_conversation_session, list_conversation_sessions, export_compliance_logs, archive_old_sessions
-
-### Telemetry (4 tools)
-
-start_telemetry_session, log_telemetry_event, end_telemetry_session, flush_telemetry_queue
-
-### Claude Tasks (3 tools)
-
-record_claude_task, list_claude_tasks, get_claude_task
-
-### Review Findings (3 tools)
-
-submit_review_finding, list_review_findings, resolve_finding
-
-### Demo (2 tools)
-
-generate_demo_script, record_demo_feedback
-
-### Learnings (2 tools)
-
-extract_learnings, apply_learnings
+health, environment, start-conversation, log-message, end-conversation, list-conversations, export-logs, archive-sessions, get-settings, update-settings
 
 ## Adding New Tools
 

@@ -123,7 +123,7 @@ Implements a specific Brain Dump ticket with full context. Use when you want to 
 
 **Key features:**
 
-- Uses `start_ticket_work` to create branch and set status
+- Uses `workflow "start-work"` to create branch and set status
 - Full ticket context (title, description, acceptance criteria)
 - Interactive implementation with progress updates
 - Links commits and files to tickets automatically
@@ -302,32 +302,32 @@ With the MCP server configured, these tools are available in any Agent chat:
 
 ### Project Management
 
-- `list_projects` - List all registered projects
-- `find_project_by_path` - Find project by directory path
-- `create_project` - Register a new project
+- `project` tool, `action: "list"` - List all registered projects
+- `project` tool, `action: "find-by-path"` - Find project by directory path
+- `project` tool, `action: "create"` - Register a new project
 
 ### Ticket Operations
 
-- `list_tickets` - List tickets (with filters: status, project, limit)
-- `create_ticket` - Create a new ticket
-- `update_ticket_status` - Update ticket status (backlog → ready → in_progress → review → done)
-- `start_ticket_work` - Start work (creates git branch, sets status)
-- `complete_ticket_work` - Complete work and move to review
+- `ticket` tool, `action: "list"` - List tickets (with filters: status, project, limit)
+- `ticket` tool, `action: "create"` - Create a new ticket
+- `ticket` tool, `action: "update-status"` - Update ticket status (backlog → ready → in_progress → review → done)
+- `workflow` tool, `action: "start-work"` - Start work (creates git branch, sets status)
+- `workflow` tool, `action: "complete-work"` - Complete work and move to review
 
 ### Epic Management
 
-- `list_epics` - List epics for a project
-- `create_epic` - Create a new epic
-- `update_epic` - Update epic title, description, or color
-- `delete_epic` - Delete an epic (unlinks tickets)
+- `epic` tool, `action: "list"` - List epics for a project
+- `epic` tool, `action: "create"` - Create a new epic
+- `epic` tool, `action: "update"` - Update epic title, description, or color
+- `epic` tool, `action: "delete"` - Delete an epic (unlinks tickets)
 
 ### Progress Tracking
 
-- `add_ticket_comment` - Add comments or work summaries
-- `get_ticket_comments` - Get all comments for a ticket
-- `link_commit_to_ticket` - Link git commits to tickets
-- `link_files_to_ticket` - Associate files with a ticket
-- `get_tickets_for_file` - Find tickets related to a file
+- `comment` tool, `action: "add"` - Add comments or work summaries
+- `comment` tool, `action: "list"` - Get all comments for a ticket
+- `workflow` tool, `action: "link-commit"` - Link git commits to tickets
+- `ticket` tool, `action: "link-files"` - Associate files with a ticket
+- `ticket` tool, `action: "get-files"` - Find tickets related to a file
 
 ### Usage Examples
 

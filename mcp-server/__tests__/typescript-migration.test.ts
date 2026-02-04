@@ -18,7 +18,6 @@ describe("TypeScript Migration Verification", () => {
       "xdg",
       "logging",
       "lock",
-      "git-utils",
       "secrets",
       "environment",
       "database",
@@ -33,32 +32,25 @@ describe("TypeScript Migration Verification", () => {
     ];
 
     const expectedToolFiles = [
-      "projects",
-      "tickets",
-      "epics",
-      "comments",
+      "project",
+      "ticket",
+      "epic",
+      "comment",
       "workflow",
-      "git",
-      "files",
-      "health",
-      "events",
-      "sessions",
-      "conversations",
+      "review",
+      "session",
       "telemetry",
-      "claude-tasks",
-      "review-findings",
-      "demo",
-      "learnings",
+      "admin",
     ];
 
-    it("has TypeScript versions for all 15 lib files", () => {
+    it("has TypeScript versions for all 14 lib files", () => {
       for (const file of expectedLibFiles) {
         const tsPath = path.join(mcpServerDir, "lib", `${file}.ts`);
         expect(fs.existsSync(tsPath), `Missing: lib/${file}.ts`).toBe(true);
       }
     });
 
-    it("has TypeScript versions for all 16 tool files", () => {
+    it("has TypeScript versions for all 9 consolidated tool files", () => {
       for (const file of expectedToolFiles) {
         const tsPath = path.join(mcpServerDir, "tools", `${file}.ts`);
         expect(fs.existsSync(tsPath), `Missing: tools/${file}.ts`).toBe(true);
@@ -75,10 +67,10 @@ describe("TypeScript Migration Verification", () => {
       expect(fs.existsSync(typesTs)).toBe(true);
     });
 
-    it("entry point uses tsx shebang", () => {
+    it("entry point has no shebang (added by esbuild banner)", () => {
       const indexTs = path.join(mcpServerDir, "index.ts");
       const content = fs.readFileSync(indexTs, "utf-8");
-      expect(content.startsWith("#!/usr/bin/env tsx")).toBe(true);
+      expect(content.startsWith("#!")).toBe(false);
     });
   });
 
@@ -102,40 +94,34 @@ describe("TypeScript Migration Verification", () => {
       expect(pkg.devDependencies).toHaveProperty("@types/node");
     });
 
-    it("has tsx-based start script", () => {
+    it("has node-based start script pointing to built output", () => {
       const pkgPath = path.join(mcpServerDir, "package.json");
       const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
 
-      expect(pkg.scripts.start).toBe("tsx index.ts");
+      expect(pkg.scripts.start).toBe("node dist/index.js");
+      expect(pkg.scripts.build).toBe("node build.mjs");
     });
   });
 
   describe("Tool Registration Exports", () => {
     it("all tool files export a register function", async () => {
       const toolFiles = [
-        "projects",
-        "tickets",
-        "epics",
-        "comments",
+        "project",
+        "ticket",
+        "epic",
+        "comment",
         "workflow",
-        "git",
-        "files",
-        "health",
-        "events",
-        "sessions",
-        "conversations",
+        "review",
+        "session",
         "telemetry",
-        "claude-tasks",
-        "review-findings",
-        "demo",
-        "learnings",
+        "admin",
       ];
 
       for (const file of toolFiles) {
         const tsPath = path.join(mcpServerDir, "tools", `${file}.ts`);
         const content = fs.readFileSync(tsPath, "utf-8");
-        const hasExport = /^export function register\w+Tools/m.test(content);
-        expect(hasExport, `tools/${file}.ts missing register*Tools export`).toBe(true);
+        const hasExport = /^export function register\w+Tool/m.test(content);
+        expect(hasExport, `tools/${file}.ts missing register*Tool export`).toBe(true);
       }
     });
   });

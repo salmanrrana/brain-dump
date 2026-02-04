@@ -5,7 +5,7 @@
 # When a Claude Code session ends, this hook:
 # 1. Reads the session ID from telemetry-session.json
 # 2. Flushes any remaining events from the queue
-# 3. Outputs notification for Claude to call end_telemetry_session
+# 3. Outputs notification for Claude to call telemetry "end"
 # 4. Cleans up session files
 
 set -e
@@ -54,7 +54,7 @@ echo "╠═══════════════════════�
 echo "║  Session ID: $SESSION_ID"
 echo "║  Queued events: $QUEUED_EVENTS"
 echo "║                                                              ║"
-echo "║  ⚠️  Call end_telemetry_session({ sessionId: \"$SESSION_ID\" })"
+echo "║  ⚠️  Call telemetry tool, action: \"end\", sessionId: \"$SESSION_ID\""
 echo "║      to finalize and flush telemetry.                        ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""

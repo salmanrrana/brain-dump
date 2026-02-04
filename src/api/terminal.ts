@@ -1,6 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { detectTerminal, isTerminalAvailable, buildTerminalCommand } from "./terminal-utils";
-import { startTicketWorkflow } from "./start-ticket-workflow";
+import { sqlite } from "../lib/db";
+import { startWork, createRealGitOperations, CoreError } from "../../core/index.ts";
+
+const coreGit = createRealGitOperations();
 
 // Check if OpenCode CLI is installed
 async function isOpenCodeInstalled(): Promise<{ installed: boolean; error?: string }> {
@@ -263,14 +266,15 @@ export const launchClaudeInTerminal = createServerFn({ method: "POST" })
     }
 
     // Start ticket workflow: git branch, status update, workflow state, audit comment
-    const workflowResult = await startTicketWorkflow(ticketId, projectPath);
-    if (!workflowResult.success) {
-      warnings.push(
-        workflowResult.error ||
-          "Failed to start ticket workflow. You may need to update status manually."
-      );
-    } else {
+    try {
+      const workflowResult = startWork(sqlite, ticketId, coreGit);
       warnings.push(...workflowResult.warnings);
+    } catch (err) {
+      warnings.push(
+        err instanceof CoreError
+          ? err.message
+          : "Failed to start ticket workflow. You may need to update status manually."
+      );
     }
 
     // Save current ticket ID to state file for CLI tool
@@ -486,14 +490,15 @@ export const launchOpenCodeInTerminal = createServerFn({ method: "POST" })
     }
 
     // Start ticket workflow: git branch, status update, workflow state, audit comment
-    const workflowResult = await startTicketWorkflow(ticketId, projectPath);
-    if (!workflowResult.success) {
-      warnings.push(
-        workflowResult.error ||
-          "Failed to start ticket workflow. You may need to update status manually."
-      );
-    } else {
+    try {
+      const workflowResult = startWork(sqlite, ticketId, coreGit);
       warnings.push(...workflowResult.warnings);
+    } catch (err) {
+      warnings.push(
+        err instanceof CoreError
+          ? err.message
+          : "Failed to start ticket workflow. You may need to update status manually."
+      );
     }
 
     // Save current ticket ID to state file for CLI tool

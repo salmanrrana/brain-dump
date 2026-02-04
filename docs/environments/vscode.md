@@ -38,7 +38,7 @@ brain-dump doctor
 3. **In Copilot Chat, call MCP tools**
 
    ```
-   @brain-dump start_ticket_work ticketId
+   @brain-dump workflow start-work ticketId
    ```
 
 4. **Code and test normally**
@@ -49,7 +49,7 @@ brain-dump doctor
 5. **Use MCP tools in Copilot Chat**
 
    ```
-   @brain-dump complete_ticket_work ticketId "summary"
+   @brain-dump workflow complete-work ticketId "summary"
 
    @brain-dump /review-ticket
 
@@ -80,18 +80,18 @@ When working on tickets in this project:
 
 ## Starting Work
 
-1. Always call `start_ticket_work` before writing code
+1. Always call `workflow "start-work"` before writing code
 2. This creates a branch and sets status to in_progress
 
 ## During Development
 
 - Commit frequently with `feat(<ticket-id>): ...` format
-- Call `link_commit_to_ticket` after each commit
+- Call `workflow "link-commit"` after each commit
 
 ## Completing Work
 
 1. Ensure validation passes: `pnpm type-check`, `pnpm lint`, `pnpm test`
-2. Call `complete_ticket_work` with summary
+2. Call `workflow "complete-work"` with summary
 3. Run `/review-ticket` to trigger AI review
    ...
 ```
@@ -103,7 +103,7 @@ These instructions help guide your work, but they're **not enforced** - you can 
 MCP tools have preconditions that provide **soft enforcement**:
 
 ```typescript
-// Example: generate_demo_script
+// Example: review tool, action: "generate-demo"
 if (ticket.status !== "ai_review") {
   return {
     isError: true,
@@ -132,7 +132,7 @@ This means:
 ### Phase 1: Start Work
 
 ```
-You: @brain-dump start_ticket_work ticketId
+You: @brain-dump workflow start-work ticketId
 
 MCP tool:
 ✓ Creates git branch: feature/{ticket-id}
@@ -151,7 +151,7 @@ Write code, make commits, run tests:
 # ...
 
 # Commit (manually call MCP tool in chat)
-@brain-dump link_commit_to_ticket ticketId abc12ef
+@brain-dump workflow link-commit ticketId abc12ef
 
 # Run tests
 pnpm test
@@ -160,7 +160,7 @@ pnpm test
 ### Phase 3: Complete & Review
 
 ```
-You: @brain-dump complete_ticket_work ticketId "Added validation layer"
+You: @brain-dump workflow complete-work ticketId "Added validation layer"
 
 MCP tool:
 ✓ Requires validation passed
@@ -199,9 +199,9 @@ You: Go to Brain Dump UI
 Invoke via `@brain-dump` mention:
 
 ```
-@brain-dump start_ticket_work abc-123
-@brain-dump complete_ticket_work abc-123 "summary"
-@brain-dump link_commit_to_ticket abc-123 abc12ef
+@brain-dump workflow start-work abc-123
+@brain-dump workflow complete-work abc-123 "summary"
+@brain-dump workflow link-commit abc-123 abc12ef
 @brain-dump /review-ticket
 @brain-dump /demo
 @brain-dump /next-task
@@ -261,25 +261,25 @@ npx tsx /path/to/brain-dump/mcp-server/index.ts
 # Then restart VS Code
 ```
 
-### "I forgot to call start_ticket_work"
+### "I forgot to call workflow start-work"
 
 **No problem!** You can still call it mid-ticket:
 
 ```
-@brain-dump start_ticket_work abc-123
+@brain-dump workflow start-work abc-123
 ```
 
 This creates the branch and sets status. Your commits won't be linked unless you also call:
 
 ```
-@brain-dump link_commit_to_ticket abc-123 abc12ef
+@brain-dump workflow link-commit abc-123 abc12ef
 ```
 
 For each commit.
 
 ### "I want to manually link commits"
 
-If you forgot to call `link_commit_to_ticket`:
+If you forgot to call `workflow "link-commit"`:
 
 ```bash
 # Get commit hash
@@ -287,7 +287,7 @@ git log --oneline -n 1
 # abc12ef My commit message
 
 # In Copilot Chat:
-@brain-dump link_commit_to_ticket abc-123 abc12ef
+@brain-dump workflow link-commit abc-123 abc12ef
 ```
 
 This retroactively links the commit.
@@ -302,12 +302,12 @@ The instructions in `.github/copilot-instructions.md` guide your workflow. Revie
 cat .github/copilot-instructions.md
 ```
 
-### Always Call start_ticket_work
+### Always Call workflow start-work
 
 Even though it's not enforced, always call it:
 
 ```
-@brain-dump start_ticket_work abc-123
+@brain-dump workflow start-work abc-123
 ```
 
 This ensures:
@@ -322,7 +322,7 @@ Commit linking connects your git history to tickets:
 
 ```bash
 # After committing:
-@brain-dump link_commit_to_ticket abc-123 abc12ef
+@brain-dump workflow link-commit abc-123 abc12ef
 ```
 
 Or do it batch style:
@@ -332,9 +332,9 @@ Or do it batch style:
 git log origin/main..HEAD --pretty=format:"%h"
 
 # Link them all
-@brain-dump link_commit_to_ticket abc-123 abc12ef
-@brain-dump link_commit_to_ticket abc-123 def45gh
-@brain-dump link_commit_to_ticket abc-123 ghi67jk
+@brain-dump workflow link-commit abc-123 abc12ef
+@brain-dump workflow link-commit abc-123 def45gh
+@brain-dump workflow link-commit abc-123 ghi67jk
 ```
 
 ### Use Copilot's Full Context
@@ -356,7 +356,7 @@ pnpm check    # runs type-check, lint, test
 Only then call:
 
 ```
-@brain-dump complete_ticket_work abc-123 "Added validation layer"
+@brain-dump workflow complete-work abc-123 "Added validation layer"
 ```
 
 ## Comparison: VS Code vs Claude Code vs Cursor

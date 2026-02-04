@@ -33,7 +33,7 @@ brain-dump doctor
 2. **In OpenCode, use @brain-dump agent**
 
    ```
-   @brain-dump start_ticket_work ticketId
+   @brain-dump workflow start-work ticketId
    ```
 
 3. **Code normally**
@@ -43,7 +43,7 @@ brain-dump doctor
 
 4. **Complete workflow**
    ```
-   @brain-dump complete_ticket_work ticketId "summary"
+   @brain-dump workflow complete-work ticketId "summary"
    @brain-dump /review-ticket
    @brain-dump /demo
    ```
@@ -59,12 +59,13 @@ export const BrainDumpTelemetry: Plugin = async ({ client, project }) => {
   return {
     "session.created": async (input) => {
       // Handle session start
-      await client.callTool("mcp__brain-dump__start_telemetry_session", {});
+      await client.callTool("mcp__brain-dump__telemetry", { action: "start" });
     },
 
     "tool.execute.before": async (input, output) => {
       // Handle tool start
-      await client.callTool("mcp__brain-dump__log_tool_event", {
+      await client.callTool("mcp__brain-dump__telemetry", {
+        action: "log-tool",
         event: "start",
         toolName: input.tool,
       });
@@ -110,9 +111,9 @@ Single ticket implementation with guidance.
 
 Works on one ticket:
 
-1. Call start_ticket_work
+1. Call workflow "start-work"
 2. Implement the feature
-3. Call complete_ticket_work
+3. Call workflow "complete-work"
 4. Run AI review
 
 ## @ralph
@@ -129,7 +130,7 @@ This helps guide workflow in your specific project.
 ### Phase 1: Start Work
 
 ```
-You: @brain-dump start_ticket_work abc-123
+You: @brain-dump workflow start-work abc-123
 
 Plugin: Detects session start → Telemetry begins
 
@@ -160,7 +161,7 @@ All of this flows to Brain Dump database for telemetry.
 ### Phase 3: Complete & Review
 
 ```
-You: @brain-dump complete_ticket_work abc-123 "Added auth"
+You: @brain-dump workflow complete-work abc-123 "Added auth"
 
 MCP tool:
 ✓ Requires validation passed
@@ -188,9 +189,9 @@ You: Go to Brain Dump UI
 ### MCP Tools
 
 ```
-@brain-dump start_ticket_work abc-123
-@brain-dump complete_ticket_work abc-123 "summary"
-@brain-dump link_commit_to_ticket abc-123 abc12ef
+@brain-dump workflow start-work abc-123
+@brain-dump workflow complete-work abc-123 "summary"
+@brain-dump workflow link-commit abc-123 abc12ef
 @brain-dump /review-ticket
 @brain-dump /demo
 @brain-dump /next-task
@@ -283,12 +284,12 @@ Since the plugin captures everything automatically:
 - Session lifecycle is automatic
 - Focus on your work, not tracking
 
-### Still Call start_ticket_work
+### Still Call workflow start-work
 
 Even though plugin handles telemetry, always call:
 
 ```
-@brain-dump start_ticket_work abc-123
+@brain-dump workflow start-work abc-123
 ```
 
 This ensures:
@@ -312,7 +313,7 @@ Implements a single ticket with these steps:
 2. Design solution (think first)
 3. Write code with tests
 4. Run full validation
-5. Call complete_ticket_work
+5. Call workflow "complete-work"
 6. Fix any AI review findings
 7. Generate demo
 

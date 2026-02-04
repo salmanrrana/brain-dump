@@ -84,27 +84,28 @@ if [ -f "$OPENCODE_JSON" ]; then
   echo -e "${YELLOW}Existing opencode.json found.${NC}"
 
   if grep -q '"brain-dump"' "$OPENCODE_JSON"; then
-    echo -e "${GREEN}✓ Brain Dump MCP server already configured${NC}"
-    MCP_CONFIGURED=1
+    echo "Brain Dump entry found. Updating to latest config..."
   else
     echo "Adding brain-dump server to existing config..."
-    # Try to merge using node
-    if command -v node >/dev/null 2>&1; then
-      # Helper function to print manual setup instructions
-      print_manual_setup() {
-        echo -e "${YELLOW}Please manually add the brain-dump server to your opencode.json:${NC}"
-        echo ""
-        echo '  "mcp": {'
-        echo '    "brain-dump": {'
-        echo '      "type": "local",'
-        echo "      \"command\": [\"npx\", \"tsx\", \"$BRAIN_DUMP_DIR/mcp-server/index.ts\"],"
-        echo '      "enabled": true'
-        echo '    }'
-        echo '  }'
-      }
+  fi
 
-      NODE_ERROR_FILE=$(mktemp)
-      if OPENCODE_JSON="$OPENCODE_JSON" BRAIN_DUMP_DIR="$BRAIN_DUMP_DIR" node -e '
+  # Always update/add to ensure config is current
+  # Helper function to print manual setup instructions
+  print_manual_setup() {
+    echo -e "${YELLOW}Please manually add the brain-dump server to your opencode.json:${NC}"
+    echo ""
+    echo '  "mcp": {'
+    echo '    "brain-dump": {'
+    echo '      "type": "local",'
+    echo "      \"command\": [\"node\", \"$BRAIN_DUMP_DIR/mcp-server/dist/index.js\"],"
+    echo '      "enabled": true'
+    echo '    }'
+    echo '  }'
+  }
+
+  if command -v node >/dev/null 2>&1; then
+    NODE_ERROR_FILE=$(mktemp)
+    if OPENCODE_JSON="$OPENCODE_JSON" BRAIN_DUMP_DIR="$BRAIN_DUMP_DIR" node -e '
 const fs = require("fs");
 const configFile = process.env.OPENCODE_JSON;
 const brainDumpDir = process.env.BRAIN_DUMP_DIR;
@@ -114,24 +115,20 @@ try {
     config.mcp = config.mcp || {};
     config.mcp["brain-dump"] = {
         type: "local",
-        command: ["npx", "tsx", brainDumpDir + "/mcp-server/index.ts"],
+        command: ["node", brainDumpDir + "/mcp-server/dist/index.js"],
         enabled: true,
         environment: { BRAIN_DUMP_PATH: brainDumpDir, OPENCODE: "1" }
     };
     config.tools = Object.assign(config.tools || {}, {
-        "brain-dump_start_ticket_work": true,
-        "brain-dump_complete_ticket_work": true,
-        "brain-dump_submit_review_finding": true,
-        "brain-dump_mark_finding_fixed": true,
-        "brain-dump_check_review_complete": true,
-        "brain-dump_generate_demo_script": true,
-        "brain-dump_add_ticket_comment": true,
-        "brain-dump_create_ralph_session": true,
-        "brain-dump_update_session_state": true,
-        "brain-dump_complete_ralph_session": true,
-        "brain-dump_emit_ralph_event": true,
-        "brain-dump_list_tickets": true,
-        "brain-dump_list_projects": true,
+        "brain-dump_workflow": true,
+        "brain-dump_ticket": true,
+        "brain-dump_session": true,
+        "brain-dump_review": true,
+        "brain-dump_telemetry": true,
+        "brain-dump_comment": true,
+        "brain-dump_epic": true,
+        "brain-dump_project": true,
+        "brain-dump_admin": true,
         "brain-dump_*": false
     });
     config.permission = config.permission || {};
@@ -142,21 +139,20 @@ try {
     process.exit(1);
 }
 ' 2>"$NODE_ERROR_FILE"; then
-        echo -e "${GREEN}✓ Added brain-dump server to opencode.json${NC}"
-        MCP_CONFIGURED=1
-        rm -f "$NODE_ERROR_FILE"
-      else
-        echo -e "${RED}✗ Failed to update opencode.json${NC}"
-        if [ -s "$NODE_ERROR_FILE" ]; then
-          echo -e "${YELLOW}Error details: $(cat "$NODE_ERROR_FILE")${NC}"
-        fi
-        rm -f "$NODE_ERROR_FILE"
-        print_manual_setup
-      fi
+      echo -e "${GREEN}✓ Brain Dump MCP server configured${NC}"
+      MCP_CONFIGURED=1
+      rm -f "$NODE_ERROR_FILE"
     else
-      echo -e "${RED}✗ Node.js is required but not found${NC}"
+      echo -e "${RED}✗ Failed to update opencode.json${NC}"
+      if [ -s "$NODE_ERROR_FILE" ]; then
+        echo -e "${YELLOW}Error details: $(cat "$NODE_ERROR_FILE")${NC}"
+      fi
+      rm -f "$NODE_ERROR_FILE"
       print_manual_setup
     fi
+  else
+    echo -e "${RED}✗ Node.js is required but not found${NC}"
+    print_manual_setup
   fi
 else
   echo "Creating new opencode.json..."
@@ -166,7 +162,7 @@ else
   "mcp": {
     "brain-dump": {
       "type": "local",
-      "command": ["npx", "tsx", "$BRAIN_DUMP_DIR/mcp-server/index.ts"],
+      "command": ["node", "$BRAIN_DUMP_DIR/mcp-server/dist/index.js"],
       "enabled": true,
       "environment": {
         "BRAIN_DUMP_PATH": "$BRAIN_DUMP_DIR",
@@ -175,19 +171,15 @@ else
     }
   },
   "tools": {
-    "brain-dump_start_ticket_work": true,
-    "brain-dump_complete_ticket_work": true,
-    "brain-dump_submit_review_finding": true,
-    "brain-dump_mark_finding_fixed": true,
-    "brain-dump_check_review_complete": true,
-    "brain-dump_generate_demo_script": true,
-    "brain-dump_add_ticket_comment": true,
-    "brain-dump_create_ralph_session": true,
-    "brain-dump_update_session_state": true,
-    "brain-dump_complete_ralph_session": true,
-    "brain-dump_emit_ralph_event": true,
-    "brain-dump_list_tickets": true,
-    "brain-dump_list_projects": true,
+    "brain-dump_workflow": true,
+    "brain-dump_ticket": true,
+    "brain-dump_session": true,
+    "brain-dump_review": true,
+    "brain-dump_telemetry": true,
+    "brain-dump_comment": true,
+    "brain-dump_epic": true,
+    "brain-dump_project": true,
+    "brain-dump_admin": true,
     "brain-dump_*": false
   },
   "permission": {
@@ -369,27 +361,27 @@ echo ""
 
 echo -e "${BLUE}What's been configured:${NC}"
 echo ""
-echo "  ${GREEN}MCP Server:${NC}"
+echo -e "  ${GREEN}MCP Server:${NC}"
 echo "    • brain-dump (ticket management tools, ~11 whitelisted)"
 echo ""
-echo "  ${GREEN}Skill:${NC}"
+echo -e "  ${GREEN}Skill:${NC}"
 echo "    • brain-dump-workflow (mandatory 5-step quality workflow)"
 echo ""
-echo "  ${GREEN}Agent:${NC}"
+echo -e "  ${GREEN}Agent:${NC}"
 echo "    • ralph (autonomous ticket implementation)"
 echo ""
-echo "  ${GREEN}Safety Plugins:${NC}"
+echo -e "  ${GREEN}Safety Plugins:${NC}"
 echo "    • brain-dump-review-guard - Prevent push without review"
 echo "    • brain-dump-review-marker - Mark code review completion"
 echo "    • brain-dump-telemetry - Track AI work sessions"
 echo ""
-echo "  ${GREEN}Documentation:${NC}"
+echo -e "  ${GREEN}Documentation:${NC}"
 echo "    • AGENTS.md - Workflow quick reference"
 echo ""
 
 echo -e "${BLUE}Next steps:${NC}"
 echo "  1. Restart OpenCode to load new configurations"
 echo "  2. The brain-dump-workflow skill teaches the AI the full workflow"
-echo "  3. Run: ${YELLOW}brain-dump doctor${NC} to verify installation"
+echo -e "  3. Run: ${YELLOW}brain-dump doctor${NC} to verify installation"
 echo "  4. Start working on a ticket with Brain Dump"
 echo ""

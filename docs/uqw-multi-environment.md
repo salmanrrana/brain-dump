@@ -59,12 +59,11 @@ Claude Code provides **interactive state enforcement** - when you violate state 
     Current state: 'analyzing'
 
     Call this MCP tool first:
-    update_session_state({
-      sessionId: 'xyz-789',
-      state: 'implementing'
-    })"
+    session tool, action: "update-state",
+      sessionId: "xyz-789",
+      state: "implementing""
 
-✅ YOU RESPOND: Calls update_session_state, then retries Write
+✅ YOU RESPOND: Calls session "update-state", then retries Write
 ```
 
 The flow is **feedback-driven**: the AI sees the error, understands the constraint, fixes it, and retries.
@@ -87,9 +86,9 @@ The flow is **feedback-driven**: the AI sees the error, understands the constrai
 
 **Hook 3: `.claude/hooks/create-pr-on-ticket-start.sh`**
 
-- **Purpose**: Auto-create draft PR when `start_ticket_work` completes
+- **Purpose**: Auto-create draft PR when `workflow "start-work"` completes
 - **Workflow**: Parses output → Creates empty WIP commit → Pushes → Creates draft PR
-- **Trigger**: PostToolUse on `mcp__brain-dump__start_ticket_work`
+- **Trigger**: PostToolUse on `mcp__brain-dump__workflow` (action: `start-work`)
 - **Result**: PR is created and linked to ticket immediately
 
 ### Auto-Telemetry Capture
@@ -98,28 +97,26 @@ Claude Code hooks automatically capture telemetry using MCP tools:
 
 ```bash
 # SessionStart hook
-start_telemetry_session({ ticketId: "..." })
+telemetry tool, action: "start", ticketId: "..."
 
 # PreToolUse hook for Bash
-log_tool_event({
+telemetry tool, action: "log-tool",
   sessionId: "...",
   event: "start",
   toolName: "Bash",
   correlationId: "..."
-})
 
 # PostToolUse hook for Bash
-log_tool_event({
+telemetry tool, action: "log-tool",
   sessionId: "...",
   event: "end",
   toolName: "Bash",
   correlationId: "...",
   success: true,
   durationMs: 250
-})
 
 # Stop hook
-end_telemetry_session({ sessionId: "..." })
+telemetry tool, action: "end", sessionId: "..."
 ```
 
 ### Claude Code Advantages
@@ -176,12 +173,11 @@ OpenCode provides **exception-based state enforcement** - when you violate state
     Current state: 'analyzing'
 
     Call this MCP tool:
-    update_session_state({
-      sessionId: 'xyz-789',
-      state: 'implementing'
-    })"
+    session tool, action: "update-state",
+      sessionId: "xyz-789",
+      state: "implementing""
 
-✅ YOU RESPOND: Calls update_session_state, then retries Write
+✅ YOU RESPOND: Calls session "update-state", then retries Write
 ```
 
 The key difference: **OpenCode doesn't catch exceptions** - the error stops execution. The AI must:
@@ -205,7 +201,7 @@ This is why **AGENTS.md guidance is critical** - without interactive hook feedba
 
 **Plugin 2: `brain-dump-auto-pr.ts`**
 
-- **Purpose**: Auto-create draft PR after `start_ticket_work` completes
+- **Purpose**: Auto-create draft PR after `workflow "start-work"` completes
 - **Hook**: `tool.execute.after` (after MCP tool)
 - **Workflow**: Parse output → Create WIP commit → Push → Create draft PR
 - **Communication**: Output to console with `[Brain Dump]` prefix
@@ -221,7 +217,7 @@ This is why **AGENTS.md guidance is critical** - without interactive hook feedba
 **Plugin 4: `brain-dump-review-marker.ts`**
 
 - **Purpose**: Create `.claude/.review-completed` marker after review completes
-- **Hook**: `tool.execute.after` (after `check_review_complete`)
+- **Hook**: `tool.execute.after` (after `review "check-complete"`)
 - **Action**: Parse output → Create marker file with ISO timestamp
 - **Used By**: `brain-dump-review-guard.ts` checks this marker
 
@@ -257,7 +253,7 @@ This error means you tried to write/edit code while in the wrong state.
 **How to fix**:
 
 1. Call this MCP tool:
-   update_session_state({ sessionId: "YOUR-SESSION-ID", state: "implementing" })
+   session tool, action: "update-state", sessionId: "YOUR-SESSION-ID", state: "implementing"
 2. Retry your Write/Edit operation
 3. It should now succeed
 ```
@@ -333,7 +329,7 @@ Despite using different enforcement mechanisms, **all environments share the sam
 
 This file is:
 
-- **Written by**: `create_ralph_session`, `update_session_state` (MCP tools)
+- **Written by**: `session "create"`, `session "update-state"` (MCP tools)
 - **Read by**: Hooks (Claude Code) and plugins (OpenCode)
 - **Format**: JSON, machine and human readable
 - **Location**: Project root `.claude/` directory (not git-tracked)
@@ -342,15 +338,15 @@ This file is:
 
 All environments call the same MCP tools:
 
-- `start_ticket_work()` - Creates branch, initializes state
-- `update_session_state()` - Moves through workflow states
-- `complete_ticket_work()` - Validates and moves to ai_review
-- `submit_review_finding()` - Records code review issues
-- `mark_finding_fixed()` - Marks issues as resolved
-- `check_review_complete()` - Verifies all critical/major findings fixed
-- `generate_demo_script()` - Creates manual test steps
-- `submit_demo_feedback()` - Human approves (only humans can call this)
-- `complete_ralph_session()` - Finalizes session
+- `workflow "start-work"` - Creates branch, initializes state
+- `session "update-state"` - Moves through workflow states
+- `workflow "complete-work"` - Validates and moves to ai_review
+- `review "submit-finding"` - Records code review issues
+- `review "mark-fixed"` - Marks issues as resolved
+- `review "check-complete"` - Verifies all critical/major findings fixed
+- `review "generate-demo"` - Creates manual test steps
+- `review "submit-feedback"` - Human approves (only humans can call this)
+- `session "complete"` - Finalizes session
 
 ### Shared Database Schema
 
@@ -401,30 +397,30 @@ The mandatory AI review phase is identical across all environments:
 
 ### Phase 1: Implementation (AI writes code)
 
-1. Call `start_ticket_work(ticketId)`
+1. Call `workflow` tool, `action: "start-work"`, `ticketId`
    - Creates git branch
    - Sets status to `in_progress`
    - Returns branch name
 
-2. Call `create_ralph_session(ticketId)`
+2. Call `session` tool, `action: "create"`, `ticketId`
    - Initializes `.claude/ralph-state.json`
    - Sets state to `idle`
    - Returns sessionId
 
-3. Call `update_session_state(sessionId, "analyzing")`
+3. Call `session` tool, `action: "update-state"`, `sessionId`, `state: "analyzing"`
    - Transition to analyzing state
    - Read ticket requirements
 
-4. Call `update_session_state(sessionId, "implementing")`
+4. Call `session` tool, `action: "update-state"`, `sessionId`, `state: "implementing"`
    - Transition to implementing state
    - (Hooks/plugins now allow Write/Edit)
    - Write code, run tests, debug
 
-5. Call `update_session_state(sessionId, "committing")`
+5. Call `session` tool, `action: "update-state"`, `sessionId`, `state: "committing"`
    - Transition to committing state
    - Create git commits
 
-6. Call `complete_ticket_work(ticketId, summary)`
+6. Call `workflow` tool, `action: "complete-work"`, `ticketId`, `summary`
    - Validates: `pnpm type-check && pnpm lint && pnpm test`
    - Sets status to `ai_review`
    - Creates work summary comment
@@ -432,24 +428,24 @@ The mandatory AI review phase is identical across all environments:
 
 ### Phase 2: AI Review (AI reviews own code)
 
-7. Call `submit_review_finding()` for each issue found
+7. Call `review` tool, `action: "submit-finding"` for each issue found
    - Use 3 agents: code-reviewer, silent-failure-hunter, code-simplifier
    - Specify: severity (critical/major/minor/suggestion), category, description
 
-8. Call `mark_finding_fixed()` for each critical/major issue fixed
+8. Call `review` tool, `action: "mark-fixed"` for each critical/major issue fixed
    - Update code to fix the issue
    - Verify with tests
    - Mark as fixed with description
 
-9. Call `check_review_complete()`
+9. Call `review` tool, `action: "check-complete"`
    - Validates all critical/major findings are fixed
    - Returns: `{ complete: true, openCritical: 0, openMajor: 0 }`
    - If false: go back to step 7 (more iterations)
 
 ### Phase 3: Demo Generation (AI creates test steps)
 
-10. Call `generate_demo_script(ticketId, steps)`
-    - Only allowed if review is complete (check_review_complete returned true)
+10. Call `review` tool, `action: "generate-demo"`, `ticketId`, `steps`
+    - Only allowed if review is complete (`review "check-complete"` returned true)
     - Include at least 3 manual test steps
     - Sets status to `human_review`
 
@@ -459,7 +455,7 @@ The mandatory AI review phase is identical across all environments:
     - Ticket is now in `human_review` status
     - Wait for human to review and test
 
-12. Human calls `submit_demo_feedback(ticketId, passed, feedback)`
+12. Human calls `review` tool, `action: "submit-feedback"`, `ticketId`, `passed`, `feedback`
     - If approved (passed: true) → ticket moves to `done`
     - If rejected (passed: false) → stays in `human_review`, AI can fix and re-submit demo
 
@@ -480,10 +476,9 @@ The mandatory AI review phase is identical across all environments:
 **Fix**:
 
 ```
-update_session_state({
+session tool, action: "update-state",
   sessionId: "SESSION-ID-FROM-ERROR",
   state: "implementing"
-})
 ```
 
 Then retry your Write/Edit operation.
@@ -495,9 +490,9 @@ Then retry your Write/Edit operation.
 **Fix**:
 
 1. Run: `/review` (or call review agents manually)
-2. Submit findings: `submit_review_finding({...})`
-3. Fix critical/major findings: `mark_finding_fixed({...})`
-4. Verify complete: `check_review_complete({ ticketId })`
+2. Submit findings: `review` tool, `action: "submit-finding"`, ...
+3. Fix critical/major findings: `review` tool, `action: "mark-fixed"`, ...
+4. Verify complete: `review` tool, `action: "check-complete"`, `ticketId`
 5. Retry push - should now succeed
 
 #### "Cannot generate demo - open critical findings"
@@ -506,11 +501,11 @@ Then retry your Write/Edit operation.
 
 **Fix**:
 
-1. Get findings: `get_review_findings({ ticketId, severity: "critical|major" })`
+1. Get findings: `review` tool, `action: "get-findings"`, `ticketId`, `severity: "critical|major"`
 2. Fix each issue in code
-3. Call: `mark_finding_fixed({ findingId, status: "fixed" })`
-4. Call: `check_review_complete({ ticketId })` - should return complete: true
-5. Then call `generate_demo_script()`
+3. Call: `review` tool, `action: "mark-fixed"`, `findingId`, `status: "fixed"`
+4. Call: `review` tool, `action: "check-complete"`, `ticketId` - should return complete: true
+5. Then call `review` tool, `action: "generate-demo"`
 
 #### "Cannot start ticket - previous ticket still in review"
 
@@ -520,12 +515,11 @@ Then retry your Write/Edit operation.
 Get the demo script and submit feedback to unblock:
 
 ```
-demo = get_demo_script({ ticketId: "BLOCKED-TICKET" })
-submit_demo_feedback({
+review tool, action: "get-demo", ticketId: "BLOCKED-TICKET"
+review tool, action: "submit-feedback",
   ticketId: "BLOCKED-TICKET",
   passed: true,
   feedback: "Approved"
-})
 ```
 
 Then start your new ticket.
@@ -558,7 +552,7 @@ Then start your new ticket.
 
 **Fix**:
 
-1. Create new session: `create_ralph_session({ ticketId })`
+1. Create new session: `session` tool, `action: "create"`, `ticketId`
    - This will recreate the state file with valid JSON
 2. If session exists, manually fix JSON or delete and recreate
 
@@ -586,13 +580,13 @@ Then start your new ticket.
 
 **Error message**: "STATE ENFORCEMENT: You are in '{state}' state but tried to write/edit code."
 
-**How to fix**: Call `update_session_state({ sessionId, state: "implementing" })`
+**How to fix**: Call `session` tool, `action: "update-state"`, `sessionId`, `state: "implementing"`
 
 ### Plugin 2: Auto-PR Creation (`brain-dump-auto-pr.ts`)
 
-**What it does**: Auto-creates draft GitHub PR after `start_ticket_work` completes
+**What it does**: Auto-creates draft GitHub PR after `workflow "start-work"` completes
 
-**When it triggers**: After `mcp__brain-dump__start_ticket_work` MCP tool succeeds
+**When it triggers**: After `mcp__brain-dump__workflow` (action: `start-work`) MCP tool succeeds
 
 **Workflow**:
 
@@ -620,8 +614,8 @@ Then start your new ticket.
 
 **Output**: Console message with:
 
-- `link_commit_to_ticket({ ticketId, commitHash })`
-- `link_pr_to_ticket({ ticketId, prNumber })` (if PR exists)
+- `workflow` tool, `action: "link-commit"`, `ticketId`, `commitHash`
+- `workflow` tool, `action: "link-pr"`, `ticketId`, `prNumber` (if PR exists)
 
 **Fail-safe**: Fails silently if not in Ralph mode
 
@@ -629,7 +623,7 @@ Then start your new ticket.
 
 **What it does**: Auto-creates `.claude/.review-completed` marker after review completes
 
-**When it triggers**: After `mcp__brain-dump__check_review_complete` succeeds
+**When it triggers**: After `mcp__brain-dump__review` (action: `check-complete`) succeeds
 
 **Conditions for creating marker**:
 
@@ -669,7 +663,7 @@ OpenCode requires comprehensive AGENTS.md documentation because plugins provide 
 
 1. **Ralph Session Overview**
    - What is a Ralph session
-   - When it starts (after `start_ticket_work`)
+   - When it starts (after `workflow "start-work"`)
    - How to tell if you're in Ralph mode (check for `.claude/ralph-state.json`)
 
 2. **State Machine**
@@ -680,19 +674,19 @@ OpenCode requires comprehensive AGENTS.md documentation because plugins provide 
 3. **State Enforcement Rules**
    - Why Write/Edit only allowed in certain states
    - What to do if you see "STATE ENFORCEMENT" error
-   - Example: "You are in 'analyzing' state" → call update_session_state
+   - Example: "You are in 'analyzing' state" → call `session "update-state"`
 
 4. **Workflow Entry Point**
-   - Always start with: `start_ticket_work(ticketId)`
+   - Always start with: `workflow` tool, `action: "start-work"`, `ticketId`
    - Creates branch, initializes Ralph session
    - Returns branch name to work on
 
 5. **Complete AI Review Workflow**
-   - After implementation, call: `complete_ticket_work(ticketId, summary)`
-   - Submit findings: `submit_review_finding({...})`
+   - After implementation, call: `workflow` tool, `action: "complete-work"`, `ticketId`, `summary`
+   - Submit findings: `review` tool, `action: "submit-finding"`, ...
    - Fix critical/major issues
-   - Call: `check_review_complete({ ticketId })`
-   - Generate demo: `generate_demo_script(ticketId, steps)`
+   - Call: `review` tool, `action: "check-complete"`, `ticketId`
+   - Generate demo: `review` tool, `action: "generate-demo"`, `ticketId`, `steps`
    - **STOP** - Wait for human approval
 
 6. **Self-Review Checklist** (for OpenCode - no external agents available)

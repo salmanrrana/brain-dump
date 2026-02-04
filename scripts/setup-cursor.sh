@@ -56,42 +56,45 @@ mkdir -p "$CURSOR_CONFIG_DIR"
 if [ -f "$MCP_CONFIG_FILE" ]; then
     echo "Existing mcp.json found. Checking for brain-dump server..."
     if grep -q '"brain-dump"' "$MCP_CONFIG_FILE"; then
-        echo -e "${GREEN}Brain Dump MCP server already configured.${NC}"
+        echo "Brain Dump entry found. Updating to latest config..."
     else
         echo "Adding brain-dump server to existing config..."
-        # Try to merge using node
-        if command -v node >/dev/null 2>&1; then
-            node_error=$(node -e "
-const fs = require('fs');
-const config = JSON.parse(fs.readFileSync('$MCP_CONFIG_FILE', 'utf8'));
+    fi
+    # Always update/add to ensure config is current
+    if command -v node >/dev/null 2>&1; then
+        node_error=$(BRAIN_DUMP_DIR="$BRAIN_DUMP_DIR" MCP_CONFIG_FILE="$MCP_CONFIG_FILE" node -e '
+const fs = require("fs");
+const configFile = process.env.MCP_CONFIG_FILE;
+const brainDumpDir = process.env.BRAIN_DUMP_DIR;
+
+const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
 config.mcpServers = config.mcpServers || {};
-config.mcpServers['brain-dump'] = {
-    command: 'npx',
-    args: ['tsx', '$BRAIN_DUMP_DIR/mcp-server/index.ts'],
-    env: { CURSOR: '1' }
+config.mcpServers["brain-dump"] = {
+    command: "node",
+    args: [brainDumpDir + "/mcp-server/dist/index.js"],
+    env: { CURSOR: "1" }
 };
-fs.writeFileSync('$MCP_CONFIG_FILE', JSON.stringify(config, null, 2));
-console.log('Config updated successfully');
-" 2>&1) && echo -e "${GREEN}Added brain-dump to mcp.json${NC}" || {
-                if [ -n "$node_error" ]; then
-                    echo -e "${YELLOW}JSON merge failed: $node_error${NC}"
-                fi
-                echo -e "${RED}Please manually add the brain-dump server to your mcp.json:${NC}"
-                echo ""
-                echo '  "brain-dump": {'
-                echo '    "command": "npx",'
-                echo "    \"args\": [\"tsx\", \"$BRAIN_DUMP_DIR/mcp-server/index.ts\"],"
-                echo '    "env": { "CURSOR": "1" }'
-                echo '  }'
-            }
-        else
+fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
+console.log("Config updated successfully");
+' 2>&1) && echo -e "${GREEN}Brain Dump MCP server configured.${NC}" || {
+            if [ -n "$node_error" ]; then
+                echo -e "${YELLOW}JSON merge failed: $node_error${NC}"
+            fi
             echo -e "${RED}Please manually add the brain-dump server to your mcp.json:${NC}"
             echo ""
             echo '  "brain-dump": {'
-            echo '    "command": "npx",'
-            echo "    \"args\": [\"tsx\", \"$BRAIN_DUMP_DIR/mcp-server/index.ts\"]"
+            echo '    "command": "node",'
+            echo "    \"args\": [\"$BRAIN_DUMP_DIR/mcp-server/dist/index.js\"],"
+            echo '    "env": { "CURSOR": "1" }'
             echo '  }'
-        fi
+        }
+    else
+        echo -e "${RED}Please manually add the brain-dump server to your mcp.json:${NC}"
+        echo ""
+        echo '  "brain-dump": {'
+        echo '    "command": "node",'
+        echo "    \"args\": [\"$BRAIN_DUMP_DIR/mcp-server/dist/index.js\"]"
+        echo '  }'
     fi
 else
     echo "Creating new mcp.json..."
@@ -99,8 +102,8 @@ else
 {
   "mcpServers": {
     "brain-dump": {
-      "command": "npx",
-      "args": ["tsx", "$BRAIN_DUMP_DIR/mcp-server/index.ts"],
+      "command": "node",
+      "args": ["$BRAIN_DUMP_DIR/mcp-server/dist/index.js"],
       "env": {
         "CURSOR": "1"
       }
@@ -337,10 +340,10 @@ echo -e "${GREEN}╚════════════════════
 echo ""
 echo -e "${BLUE}What's been configured:${NC}"
 echo ""
-echo "  ${GREEN}MCP Server:${NC}"
+echo -e "  ${GREEN}MCP Server:${NC}"
 echo "    • brain-dump (ticket management tools)"
 echo ""
-echo "  ${GREEN}Subagents (~/.cursor/agents/):${NC}"
+echo -e "  ${GREEN}Subagents (~/.cursor/agents/):${NC}"
 echo "    • ralph - Autonomous coding agent"
 echo "    • ticket-worker - Interactive ticket implementation"
 echo "    • planner - Create implementation plans and tickets"
@@ -353,20 +356,20 @@ echo "    • react-best-practices - React/Next.js patterns"
 echo "    • cruft-detector - Find unnecessary code"
 echo "    • senior-engineer - Synthesize review findings"
 echo ""
-echo "  ${GREEN}Skills (~/.cursor/skills/):${NC}"
+echo -e "  ${GREEN}Skills (~/.cursor/skills/):${NC}"
 echo "    • brain-dump-tickets - Ticket management workflows"
 echo "    • ralph-workflow - Autonomous workflow patterns"
 echo "    • review - Code review pipeline"
 echo "    • review-aggregation - Combine review findings"
 echo "    • tanstack-* - TanStack library patterns (errors, forms, mutations, query, types)"
 echo ""
-echo "  ${GREEN}Commands (~/.cursor/commands/):${NC}"
+echo -e "  ${GREEN}Commands (~/.cursor/commands/):${NC}"
 echo "    • /review - Run initial code review (3 agents)"
 echo "    • /extended-review - Run extended review (4 agents)"
 echo "    • /inception - Start new project"
 echo "    • /breakdown - Break down features"
 echo ""
-echo "  ${GREEN}Telemetry Hooks (~/.cursor/hooks/):${NC}"
+echo -e "  ${GREEN}Telemetry Hooks (~/.cursor/hooks/):${NC}"
 echo "    • start-telemetry.sh - Track session start"
 echo "    • end-telemetry.sh - Track session end"
 echo "    • log-tool.sh - Track tool usage"
@@ -384,16 +387,16 @@ echo ""
 echo -e "${BLUE}Using Brain Dump in Cursor:${NC}"
 echo "  After restarting Cursor, you can:"
 echo ""
-echo "  ${GREEN}Use Subagents:${NC}"
+echo -e "  ${GREEN}Use Subagents:${NC}"
 echo "    Type @ralph to start autonomous ticket work"
 echo "    Type @ticket-worker to work on a specific ticket"
 echo "    Type @planner to create tickets from requirements"
 echo ""
-echo "  ${GREEN}Use Commands:${NC}"
+echo -e "  ${GREEN}Use Commands:${NC}"
 echo "    Type /review to run code review pipeline"
 echo "    Type /inception to start a new project"
 echo ""
-echo "  ${GREEN}Use MCP Tools:${NC}"
+echo -e "  ${GREEN}Use MCP Tools:${NC}"
 echo "    Ask Agent to 'list my projects' or 'create a ticket'"
 echo "    Agent will automatically use brain-dump MCP tools"
 echo ""

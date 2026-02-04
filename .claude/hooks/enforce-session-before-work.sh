@@ -60,9 +60,9 @@ fi
 
 GUIDANCE=""
 if [[ -n "$TICKET_ID" ]]; then
-  GUIDANCE="create_ralph_session({ ticketId: \"$TICKET_ID\" })"
+  GUIDANCE="session tool, action: \"create\", ticketId: \"$TICKET_ID\""
 else
-  GUIDANCE="create_ralph_session({ ticketId: \"<your-ticket-id>\" })"
+  GUIDANCE="session tool, action: \"create\", ticketId: \"<your-ticket-id>\""
 fi
 
 cat <<EOF

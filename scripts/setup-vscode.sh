@@ -125,7 +125,34 @@ MCP_CONFIG_FILE="$VSCODE_TARGET/mcp.json"
 if [ -f "$MCP_CONFIG_FILE" ]; then
     echo "Existing mcp.json found. Checking for brain-dump server..."
     if grep -q '"brain-dump"' "$MCP_CONFIG_FILE"; then
-        echo -e "${GREEN}Brain Dump MCP server already configured.${NC}"
+        echo "Brain Dump entry found. Updating to latest config..."
+        # Always update to ensure config is current (e.g. npx tsx → node dist/index.js)
+        if command -v node >/dev/null 2>&1; then
+            node_error=$(MCP_CONFIG_FILE="$MCP_CONFIG_FILE" BRAIN_DUMP_DIR="$BRAIN_DUMP_DIR" node -e '
+const fs = require("fs");
+const configFile = process.env.MCP_CONFIG_FILE;
+const brainDumpDir = process.env.BRAIN_DUMP_DIR;
+
+try {
+    const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
+    config.servers = config.servers || {};
+    config.servers["brain-dump"] = {
+        type: "stdio",
+        command: "node",
+        args: [brainDumpDir + "/mcp-server/dist/index.js"]
+    };
+    fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
+    console.log("Config updated successfully");
+} catch (err) {
+    console.error("Error: " + err.message);
+    process.exit(1);
+}
+' 2>&1) && echo -e "${GREEN}Brain Dump MCP server updated.${NC}" || {
+                echo -e "${YELLOW}Update failed: $node_error${NC}"
+            }
+        else
+            echo -e "${GREEN}Brain Dump MCP server already configured.${NC}"
+        fi
     else
         echo "Adding brain-dump server to existing config..."
         # Try to merge using node (using env vars to prevent command injection)
@@ -140,8 +167,8 @@ try {
     config.servers = config.servers || {};
     config.servers["brain-dump"] = {
         type: "stdio",
-        command: "npx",
-        args: ["tsx", brainDumpDir + "/mcp-server/index.ts"]
+        command: "node",
+        args: [brainDumpDir + "/mcp-server/dist/index.js"]
     };
     fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
     console.log("Config updated successfully");
@@ -155,8 +182,8 @@ try {
                 echo ""
                 echo '  "brain-dump": {'
                 echo '    "type": "stdio",'
-                echo '    "command": "npx",'
-                echo "    \"args\": [\"tsx\", \"$BRAIN_DUMP_DIR/mcp-server/index.ts\"]"
+                echo '    "command": "node",'
+                echo "    \"args\": [\"$BRAIN_DUMP_DIR/mcp-server/dist/index.js\"]"
                 echo '  }'
             }
         else
@@ -164,8 +191,8 @@ try {
             echo ""
             echo '  "brain-dump": {'
             echo '    "type": "stdio",'
-            echo '    "command": "npx",'
-            echo "    \"args\": [\"tsx\", \"$BRAIN_DUMP_DIR/mcp-server/index.ts\"]"
+            echo '    "command": "node",'
+            echo "    \"args\": [\"$BRAIN_DUMP_DIR/mcp-server/dist/index.js\"]"
             echo '  }'
         fi
     fi
@@ -176,8 +203,8 @@ else
   "servers": {
     "brain-dump": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["tsx", "$BRAIN_DUMP_DIR/mcp-server/index.ts"]
+      "command": "node",
+      "args": ["$BRAIN_DUMP_DIR/mcp-server/dist/index.js"]
     }
   }
 }
@@ -409,10 +436,10 @@ echo -e "${BLUE}Code Review in VS Code:${NC}"
 echo "  Unlike Claude Code (which uses hooks), VS Code requires manual invocation."
 echo "  After completing a coding task, use one of these methods:"
 echo ""
-echo "  ${GREEN}Initial Review:${NC}"
+echo -e "  ${GREEN}Initial Review:${NC}"
 echo "    /auto-review or @code-reviewer → @silent-failure-hunter → @code-simplifier"
 echo ""
-echo "  ${GREEN}Extended Review (deeper analysis):${NC}"
+echo -e "  ${GREEN}Extended Review (deeper analysis):${NC}"
 echo "    @context7-library-compliance → @react-best-practices"
 echo "    → @cruft-detector → @senior-engineer"
 echo ""
