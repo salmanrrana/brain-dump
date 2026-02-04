@@ -25,6 +25,14 @@ import {
 } from "../../core/review.ts";
 import type { MarkFixedStatus, DemoStepStatus } from "../../core/review.ts";
 import type { FindingAgent, FindingSeverity, FindingStatus } from "../../core/types.ts";
+import { addComment } from "../../core/comment.ts";
+
+const SEVERITY_ICONS: Record<string, string> = {
+  critical: "🔴",
+  major: "🟠",
+  minor: "🟡",
+  suggestion: "💡",
+};
 
 const ACTIONS = [
   "submit-finding",
@@ -207,6 +215,18 @@ Optional params: stepResults
               ...(params.suggestedFix !== undefined ? { suggestedFix: params.suggestedFix } : {}),
             });
 
+            // Add audit comment to ticket
+            const icon = SEVERITY_ICONS[severity] ?? "📋";
+            let commentContent = `Review finding: ${icon} [${severity}] ${category}\n\n${description}`;
+            if (params.filePath) {
+              commentContent += `\n\nFile: ${params.filePath}`;
+              if (params.lineNumber) commentContent += `:${params.lineNumber}`;
+            }
+            if (params.suggestedFix) {
+              commentContent += `\n\nSuggested fix:\n${params.suggestedFix}`;
+            }
+            addComment(db, { ticketId, content: commentContent, type: "progress" });
+
             log.info(`Submitted ${severity} finding for ticket ${ticketId} by ${agent}`);
             return formatResult(finding, `Finding submitted (${severity})`);
           }
@@ -216,6 +236,20 @@ Optional params: stepResults
             const fixStatus = requireParam(params.fixStatus, "fixStatus", "mark-fixed");
 
             const finding = markFixed(db, findingId, fixStatus as MarkFixedStatus);
+
+            // Add audit comment to ticket
+            const statusLabel =
+              fixStatus === "fixed"
+                ? "✅ Finding marked as fixed"
+                : fixStatus === "wont_fix"
+                  ? "⚠️ Finding marked as won't fix"
+                  : "↔️ Finding marked as duplicate";
+            let fixComment = `${statusLabel}\nCategory: ${finding.category}\nSeverity: ${finding.severity}`;
+            if (params.fixDescription) {
+              fixComment += `\n\nFix description:\n${params.fixDescription}`;
+            }
+            addComment(db, { ticketId: finding.ticketId, content: fixComment, type: "progress" });
+
             log.info(`Marked finding ${findingId} as ${fixStatus}`);
             return formatResult(finding, `Finding marked as ${fixStatus}`);
           }
@@ -254,6 +288,14 @@ Optional params: stepResults
             const steps = requireParam(params.steps, "steps", "generate-demo");
 
             const demo = generateDemo(db, { ticketId, steps });
+
+            // Add audit comment to ticket
+            addComment(db, {
+              ticketId,
+              content: `Demo script generated with ${steps.length} steps. Ticket is now ready for human review.`,
+              type: "progress",
+            });
+
             log.info(`Generated demo script for ticket ${ticketId} with ${steps.length} steps`);
             return formatResult(demo, "Demo script generated! Ticket moved to human_review.");
           }

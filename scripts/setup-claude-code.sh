@@ -45,44 +45,18 @@ echo ""
 echo -e "${BLUE}Step 1: Configure MCP Server${NC}"
 echo "─────────────────────────────"
 
-if [ -f "$CLAUDE_CONFIG" ]; then
-    echo -e "${YELLOW}Existing ~/.claude.json found.${NC}"
-
-    if grep -q '"brain-dump"' "$CLAUDE_CONFIG"; then
-        echo -e "${GREEN}✓ Brain Dump MCP server already configured${NC}"
-        # Also check if it points to dist or index.js and update if needed
-        if grep -q 'mcp-server/dist/index.js\|mcp-server/index.js' "$CLAUDE_CONFIG"; then
-            echo -e "${YELLOW}Updating MCP server path to TypeScript (index.ts with tsx)...${NC}"
-            if command -v node >/dev/null 2>&1; then
-                node -e "
-const fs = require('fs');
-const config = JSON.parse(fs.readFileSync('$CLAUDE_CONFIG', 'utf8'));
-if (config.mcpServers && config.mcpServers['brain-dump']) {
-    config.mcpServers['brain-dump'].command = 'npx';
-    config.mcpServers['brain-dump'].args = ['tsx', '$BRAIN_DUMP_DIR/mcp-server/index.ts'];
-    fs.writeFileSync('$CLAUDE_CONFIG', JSON.stringify(config, null, 2));
-}
-"
-                echo -e "${GREEN}✓ MCP server path updated to TypeScript${NC}"
-            fi
-        fi
-    else
-        echo -e "${YELLOW}Brain Dump MCP server not found in ~/.claude.json${NC}"
-        echo -e "${YELLOW}Please use: claude mcp add brain-dump -- npx tsx $BRAIN_DUMP_DIR/mcp-server/index.ts${NC}"
+if command -v claude &> /dev/null; then
+    # Check if brain-dump MCP is already configured
+    if claude mcp get brain-dump &>/dev/null; then
+        echo -e "${YELLOW}Existing brain-dump MCP server found. Removing to reconfigure...${NC}"
+        claude mcp remove brain-dump 2>/dev/null || true
     fi
+    echo "Adding brain-dump MCP server via CLI..."
+    claude mcp add --transport stdio brain-dump -- node "$BRAIN_DUMP_DIR/mcp-server/dist/index.js"
+    echo -e "${GREEN}✓ Brain Dump MCP server configured${NC}"
 else
-    echo "Creating ~/.claude.json..."
-    cat > "$CLAUDE_CONFIG" << EOF
-{
-  "mcpServers": {
-    "brain-dump": {
-      "command": "npx",
-      "args": ["tsx", "$BRAIN_DUMP_DIR/mcp-server/index.ts"]
-    }
-  }
-}
-EOF
-    echo -e "${GREEN}✓ Created $CLAUDE_CONFIG${NC}"
+    echo -e "${YELLOW}Claude CLI not found. Please add MCP server manually:${NC}"
+    echo "  claude mcp add --transport stdio brain-dump -- node $BRAIN_DUMP_DIR/mcp-server/dist/index.js"
 fi
 
 echo ""
@@ -197,6 +171,22 @@ if [ -f "$CLAUDE_SETTINGS" ]; then
             echo -e "${GREEN}Hook paths already use global paths${NC}"
         fi
 
+        # Migrate old individual MCP tool matchers to consolidated tool names
+        if grep -q 'mcp__brain-dump__start_ticket_work\|mcp__brain-dump__complete_ticket_work\|mcp__brain-dump__update_session_state\|mcp__brain-dump__create_ralph_session\|mcp__brain-dump__complete_ralph_session\|mcp__brain-dump__sync_ticket_links' "$CLAUDE_SETTINGS"; then
+            echo -e "${YELLOW}Migrating old MCP tool matchers to consolidated tool names...${NC}"
+            sed -i.bak \
+                -e 's|mcp__brain-dump__start_ticket_work|mcp__brain-dump__workflow|g' \
+                -e 's|mcp__brain-dump__complete_ticket_work|mcp__brain-dump__workflow|g' \
+                -e 's|mcp__brain-dump__update_session_state|mcp__brain-dump__session|g' \
+                -e 's|mcp__brain-dump__create_ralph_session|mcp__brain-dump__session|g' \
+                -e 's|mcp__brain-dump__complete_ralph_session|mcp__brain-dump__session|g' \
+                -e 's|mcp__brain-dump__sync_ticket_links|mcp__brain-dump__workflow|g' \
+                "$CLAUDE_SETTINGS"
+            rm -f "$CLAUDE_SETTINGS.bak"
+            echo -e "${GREEN}MCP tool matchers updated to consolidated names${NC}"
+            echo -e "${YELLOW}Note: Duplicate matchers may exist. Identical handlers are deduplicated by Claude Code.${NC}"
+        fi
+
         # Ensure telemetry hooks are configured (idempotent merge)
         echo ""
         echo -e "${YELLOW}Verifying telemetry hooks are configured...${NC}"
@@ -293,24 +283,6 @@ else
         ]
       },
       {
-        "matcher": "mcp__brain-dump__session",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\$HOME/.claude/hooks/record-state-change.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__brain-dump__session",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\$HOME/.claude/hooks/record-state-change.sh"
-          }
-        ]
-      },
-      {
         "matcher": "mcp__brain-dump__workflow",
         "hooks": [
           {
@@ -320,7 +292,7 @@ else
         ]
       },
       {
-        "matcher": "mcp__brain-dump__sync_ticket_links",
+        "matcher": "mcp__brain-dump__workflow",
         "hooks": [
           {
             "type": "command",

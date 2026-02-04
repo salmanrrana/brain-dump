@@ -97,7 +97,7 @@ if [ -f "$OPENCODE_JSON" ]; then
         echo '  "mcp": {'
         echo '    "brain-dump": {'
         echo '      "type": "local",'
-        echo "      \"command\": [\"npx\", \"tsx\", \"$BRAIN_DUMP_DIR/mcp-server/index.ts\"],"
+        echo "      \"command\": [\"node\", \"$BRAIN_DUMP_DIR/mcp-server/dist/index.js\"],"
         echo '      "enabled": true'
         echo '    }'
         echo '  }'
@@ -114,7 +114,7 @@ try {
     config.mcp = config.mcp || {};
     config.mcp["brain-dump"] = {
         type: "local",
-        command: ["npx", "tsx", brainDumpDir + "/mcp-server/index.ts"],
+        command: ["node", brainDumpDir + "/mcp-server/dist/index.js"],
         enabled: true,
         environment: { BRAIN_DUMP_PATH: brainDumpDir, OPENCODE: "1" }
     };
@@ -162,7 +162,7 @@ else
   "mcp": {
     "brain-dump": {
       "type": "local",
-      "command": ["npx", "tsx", "$BRAIN_DUMP_DIR/mcp-server/index.ts"],
+      "command": ["node", "$BRAIN_DUMP_DIR/mcp-server/dist/index.js"],
       "enabled": true,
       "environment": {
         "BRAIN_DUMP_PATH": "$BRAIN_DUMP_DIR",

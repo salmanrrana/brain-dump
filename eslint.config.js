@@ -6,7 +6,7 @@ import prettier from "eslint-config-prettier";
 import globals from "globals";
 
 export default tseslint.config(
-  { ignores: ["dist", "node_modules", ".vinxi", ".output", "vendor", ".claude", ".opencode"] },
+  { ignores: ["**/dist", "node_modules", ".vinxi", ".output", "vendor", ".claude", ".opencode"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -29,7 +29,7 @@ export default tseslint.config(
   },
   // MCP server files use Node.js globals
   {
-    files: ["mcp-server/**/*.js"],
+    files: ["mcp-server/**/*.{js,mjs}"],
     languageOptions: {
       globals: {
         ...globals.node,

@@ -140,8 +140,8 @@ try {
     config.servers = config.servers || {};
     config.servers["brain-dump"] = {
         type: "stdio",
-        command: "npx",
-        args: ["tsx", brainDumpDir + "/mcp-server/index.ts"]
+        command: "node",
+        args: [brainDumpDir + "/mcp-server/dist/index.js"]
     };
     fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
     console.log("Config updated successfully");
@@ -155,8 +155,8 @@ try {
                 echo ""
                 echo '  "brain-dump": {'
                 echo '    "type": "stdio",'
-                echo '    "command": "npx",'
-                echo "    \"args\": [\"tsx\", \"$BRAIN_DUMP_DIR/mcp-server/index.ts\"]"
+                echo '    "command": "node",'
+                echo "    \"args\": [\"$BRAIN_DUMP_DIR/mcp-server/dist/index.js\"]"
                 echo '  }'
             }
         else
@@ -164,8 +164,8 @@ try {
             echo ""
             echo '  "brain-dump": {'
             echo '    "type": "stdio",'
-            echo '    "command": "npx",'
-            echo "    \"args\": [\"tsx\", \"$BRAIN_DUMP_DIR/mcp-server/index.ts\"]"
+            echo '    "command": "node",'
+            echo "    \"args\": [\"$BRAIN_DUMP_DIR/mcp-server/dist/index.js\"]"
             echo '  }'
         fi
     fi
@@ -176,8 +176,8 @@ else
   "servers": {
     "brain-dump": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["tsx", "$BRAIN_DUMP_DIR/mcp-server/index.ts"]
+      "command": "node",
+      "args": ["$BRAIN_DUMP_DIR/mcp-server/dist/index.js"]
     }
   }
 }

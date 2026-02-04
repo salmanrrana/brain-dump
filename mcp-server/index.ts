@@ -1,5 +1,3 @@
-#!/usr/bin/env tsx
-
 /**
  * Brain Dump MCP Server
  *

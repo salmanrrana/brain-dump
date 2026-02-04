@@ -67,10 +67,10 @@ describe("TypeScript Migration Verification", () => {
       expect(fs.existsSync(typesTs)).toBe(true);
     });
 
-    it("entry point uses tsx shebang", () => {
+    it("entry point has no shebang (added by esbuild banner)", () => {
       const indexTs = path.join(mcpServerDir, "index.ts");
       const content = fs.readFileSync(indexTs, "utf-8");
-      expect(content.startsWith("#!/usr/bin/env tsx")).toBe(true);
+      expect(content.startsWith("#!")).toBe(false);
     });
   });
 
@@ -94,11 +94,12 @@ describe("TypeScript Migration Verification", () => {
       expect(pkg.devDependencies).toHaveProperty("@types/node");
     });
 
-    it("has tsx-based start script", () => {
+    it("has node-based start script pointing to built output", () => {
       const pkgPath = path.join(mcpServerDir, "package.json");
       const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
 
-      expect(pkg.scripts.start).toBe("tsx index.ts");
+      expect(pkg.scripts.start).toBe("node dist/index.js");
+      expect(pkg.scripts.build).toBe("node build.mjs");
     });
   });
 
