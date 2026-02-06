@@ -334,3 +334,60 @@ Awaiting human demo approval for ticket 984dcf9b before proceeding to next ticke
 
 ---
 
+
+### 2026-02-06 - Ralph Session: Ticket 25410b78 Complete
+- **Ticket:** Documentation: Copilot CLI integration guide and CLAUDE.md updates
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Rewrote docs/environments/copilot-cli.md from 92 lines to 485 lines
+  - All 7 required sections: Quick Start, How Copilot CLI Differs, Workflow, Using MCP Tools, Hook Configuration, Auto-Approve Tools, Troubleshooting
+  - Comprehensive provider comparison table (8 features x 5 environments)
+  - Detailed hook scripts reference with all 7 scripts and event mappings
+  - State enforcement explanation with example block messages
+  - Auto-approve commands with persistence tips
+  - Updated CLAUDE.md Multi-Environment Support table (added Copilot CLI row)
+  - Updated CLAUDE.md Cross-Environment Support table (added Copilot CLI row)
+  - Environment.ts docstring already included Copilot CLI from earlier ticket
+  - All quality checks pass: type-check, lint, 1596 tests passed
+- **AI Review Findings:**
+  - MINOR (won't fix): hooks.json uses tilde vs $HOME — cosmetic, standard in docs
+  - SUGGESTION (won't fix): Distinguish repo-level vs global hooks — future improvement
+- **Review Complete:** canProceedToHumanReview: true (no critical/major findings)
+- **Demo Script:** 6 manual test steps for verification
+- **Commit:** 84347f3 feat(25410b78): Add comprehensive Copilot CLI documentation and update CLAUDE.md tables
+- **Next:** Human must approve via submit_demo_feedback
+
+---
+
+### 2026-02-06 - Ralph Session: Ticket 7fdb68b9 Complete
+- **Ticket:** Scripts: Update install.sh and uninstall.sh for Copilot CLI
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Updated install.sh: added Copilot CLI detection (command -v copilot || ~/.copilot/config.json), install function delegating to setup-copilot-cli.sh, invocation block, and supported environments list
+  - Updated uninstall.sh: added uninstall_copilot_cli() with MCP config cleanup (node -e JSON), agent removal (11 agents), hook script removal (7 scripts), hooks.json cleanup, telemetry temp file cleanup, correlation file cleanup, and shared skills preservation (preserves ~/.copilot/skills/ when VS Code is also installed)
+  - All quality checks pass: type-check, lint, 1596 tests passed
+- **AI Review Findings:**
+  - MINOR: find usage in bash scripts — consistent with existing patterns (won't fix)
+  - MINOR: hooks.json full removal vs selective — consistent with Cursor pattern (won't fix)
+  - SUGGESTION: Hook removal summary message placement — acceptable as-is (won't fix)
+- **Review Complete:** canProceedToHumanReview: true (no critical/major findings)
+- **Demo Script:** 6 manual test steps for verification
+- **Next:** Human must approve via submit_demo_feedback
+
+---
+
+### 2026-02-06 - Ralph Session: Ticket 31718383 Complete
+- **Ticket:** Overview: Copilot CLI Provider Implementation Plan
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - This is the epic overview/rollup ticket — all 4 child implementation tickets already complete
+  - Ran full end-to-end verification checklist from the overview:
+    1. pnpm type-check: PASS (no errors)
+    2. pnpm test: PASS (1596 passed, 15 skipped)
+    3. pnpm lint: PASS (0 errors, 11 warnings)
+    4. setup-copilot-cli.sh exists and is executable (801 lines)
+    5. install.sh detects Copilot CLI (COPILOT_CLI_AVAILABLE detection)
+    6. environment.ts correctly detects copilot-cli environment (verified in test suite)
+  - All 5 child tickets in human_review: a0a4c6e1, 9534f6a2, 7fdb68b9, 25410b78, 31718383
+  - Updated PRD to mark overview ticket as passes: true
+  - Epic is PRD_COMPLETE — all tickets have passes: true
