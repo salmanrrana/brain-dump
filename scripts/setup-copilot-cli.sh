@@ -236,6 +236,13 @@ echo -e "${YELLOW}Config:${NC} $HOOKS_CONFIG"
 
 mkdir -p "$HOOKS_TARGET"
 
+# Check for jq dependency (required by all hook scripts)
+if ! command -v jq >/dev/null 2>&1; then
+    echo -e "${YELLOW}Warning: jq not found. Hooks require jq for JSON parsing.${NC}"
+    echo -e "${YELLOW}Install jq: https://jqlang.github.io/jq/download/${NC}"
+    echo ""
+fi
+
 # --- Hook 1: start-telemetry.sh (sessionStart) ---
 cat > "$HOOKS_TARGET/start-telemetry.sh" << 'HOOK_EOF'
 #!/bin/bash
