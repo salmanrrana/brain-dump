@@ -110,6 +110,7 @@ All environments get the same MCP tools, agents, and workflows.
 | **VS Code**     | `./install.sh --vscode`   | Copilot Chat + extensions      |
 | **OpenCode**    | `./install.sh --opencode` | Open-source AI coding          |
 | **Cursor**      | `./install.sh --cursor`   | Modern AI-first IDE experience |
+| **Copilot CLI** | `./install.sh --copilot`  | GitHub Copilot in the terminal |
 | **All**         | `./install.sh --all`      | Try everything                 |
 
 <details>
@@ -141,6 +142,14 @@ All environments get the same MCP tools, agents, and workflows.
 - Skills and commands available globally across all projects
 - Uses `~/.cursor/mcp.json` for MCP config
 - [Full setup guide →](docs/cursor-setup.md)
+
+### Copilot CLI
+
+- Agents available: `@ralph`, `@ticket-worker`, `@planner`, `@code-reviewer`
+- Global hooks enforce workflow state and capture telemetry
+- Uses `~/.copilot/mcp-config.json` for MCP config
+- Skills shared with VS Code (`~/.copilot/skills/`)
+- Run `copilot --allow-tool 'brain-dump(*)'` to auto-approve Brain Dump tools
 </details>
 
 ---
