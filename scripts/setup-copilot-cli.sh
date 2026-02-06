@@ -464,7 +464,7 @@ TOOL_NAME=$(echo "$TOOL_NAME_RAW" | tr '[:upper:]' '[:lower:]')
 
 # Only care about write/edit/create tools
 if [[ "$TOOL_NAME" != "write" && "$TOOL_NAME" != "edit" && "$TOOL_NAME" != "create" ]]; then
-    echo '{"decision": "allow"}'
+    echo '{"permissionDecision": "allow"}'
     exit 0
 fi
 
@@ -474,7 +474,7 @@ STATE_FILE="$PROJECT_DIR/.claude/ralph-state.json"
 
 if [[ ! -f "$STATE_FILE" ]]; then
     # Not in Ralph mode — allow normal operation
-    echo '{"decision": "allow"}'
+    echo '{"permissionDecision": "allow"}'
     exit 0
 fi
 
@@ -482,15 +482,15 @@ CURRENT_STATE=$(jq -r '.currentState // "unknown"' "$STATE_FILE" 2>/dev/null || 
 SESSION_ID=$(jq -r '.sessionId // "unknown"' "$STATE_FILE" 2>/dev/null || echo "unknown")
 
 if [[ "$CURRENT_STATE" == "implementing" || "$CURRENT_STATE" == "testing" || "$CURRENT_STATE" == "committing" ]]; then
-    echo '{"decision": "allow"}'
+    echo '{"permissionDecision": "allow"}'
     exit 0
 fi
 
 # Block with guidance
 cat <<BLOCK_EOF
 {
-  "decision": "block",
-  "message": "STATE ENFORCEMENT: You are in '$CURRENT_STATE' state but tried to write/edit code.\n\nTo write code, call the session tool:\n  action: \"update-state\", sessionId: \"$SESSION_ID\", state: \"implementing\"\n\nValid states for writing code: implementing, testing, committing"
+  "permissionDecision": "deny",
+  "reason": "STATE ENFORCEMENT: You are in '$CURRENT_STATE' state but tried to write/edit code.\n\nTo write code, call the session tool:\n  action: \"update-state\", sessionId: \"$SESSION_ID\", state: \"implementing\"\n\nValid states for writing code: implementing, testing, committing"
 }
 BLOCK_EOF
 HOOK_EOF
@@ -698,23 +698,23 @@ cat > "$HOOKS_CONFIG" << HOOKS_JSON_EOF
   "version": 1,
   "hooks": {
     "sessionStart": [
-      { "bash": "$HOME/.copilot/hooks/start-telemetry.sh" }
+      { "type": "command", "bash": "$HOME/.copilot/hooks/start-telemetry.sh" }
     ],
     "preToolUse": [
-      { "bash": "$HOME/.copilot/hooks/log-tool-start.sh" },
-      { "bash": "$HOME/.copilot/hooks/enforce-state-before-write.sh" }
+      { "type": "command", "bash": "$HOME/.copilot/hooks/log-tool-start.sh" },
+      { "type": "command", "bash": "$HOME/.copilot/hooks/enforce-state-before-write.sh" }
     ],
     "postToolUse": [
-      { "bash": "$HOME/.copilot/hooks/log-tool-end.sh" }
+      { "type": "command", "bash": "$HOME/.copilot/hooks/log-tool-end.sh" }
     ],
     "sessionEnd": [
-      { "bash": "$HOME/.copilot/hooks/end-telemetry.sh" }
+      { "type": "command", "bash": "$HOME/.copilot/hooks/end-telemetry.sh" }
     ],
     "userPromptSubmitted": [
-      { "bash": "$HOME/.copilot/hooks/log-prompt.sh" }
+      { "type": "command", "bash": "$HOME/.copilot/hooks/log-prompt.sh" }
     ],
     "errorOccurred": [
-      { "bash": "$HOME/.copilot/hooks/log-tool-failure.sh" }
+      { "type": "command", "bash": "$HOME/.copilot/hooks/log-tool-failure.sh" }
     ]
   }
 }

@@ -158,6 +158,84 @@ describe("scripts/uninstall.sh (universal auto-detect)", () => {
   });
 });
 
+describe("setup-copilot-cli.sh hooks.json format", () => {
+  const script = readScript("scripts/setup-copilot-cli.sh");
+
+  it("generates hooks.json with 'type: command' in every hook entry", () => {
+    // Every hook entry in the generated hooks.json must include "type": "command"
+    // per the Copilot CLI hooks specification
+    const hookEvents = [
+      "sessionStart",
+      "preToolUse",
+      "postToolUse",
+      "sessionEnd",
+      "userPromptSubmitted",
+      "errorOccurred",
+    ];
+    for (const event of hookEvents) {
+      expect(script, `hooks.json ${event} section found`).toContain(`"${event}"`);
+    }
+
+    // Count occurrences of "bash": in the hooks.json section
+    const hooksJsonSection = script.slice(
+      script.indexOf("HOOKS_JSON_EOF"),
+      script.indexOf("HOOKS_JSON_EOF", script.indexOf("HOOKS_JSON_EOF") + 1)
+    );
+    const bashEntries = (hooksJsonSection.match(/"bash":/g) || []).length;
+    const typeCommandEntries = (hooksJsonSection.match(/"type": "command"/g) || []).length;
+
+    expect(typeCommandEntries).toBeGreaterThan(0);
+    expect(typeCommandEntries).toBe(bashEntries);
+  });
+
+  it("enforce-state hook uses permissionDecision format (not decision)", () => {
+    // Copilot CLI uses permissionDecision, not Claude Code's decision format
+    const startIdx = script.indexOf("enforce-state-before-write.sh (preToolUse)");
+    // Find the closing HOOK_EOF for this heredoc (skip the opening 'HOOK_EOF')
+    const heredocStart = script.indexOf("HOOK_EOF", startIdx);
+    const heredocEnd = script.indexOf("\nHOOK_EOF", heredocStart + 1);
+    const enforceSection = script.slice(startIdx, heredocEnd);
+    expect(enforceSection).toContain("permissionDecision");
+    expect(enforceSection).not.toContain('"decision":');
+  });
+});
+
+describe("project-level hooks format (.github/hooks/)", () => {
+  const hooksDir = resolve(ROOT, ".github/hooks");
+
+  it("brain-dump.json exists", () => {
+    expect(existsSync(resolve(hooksDir, "brain-dump.json"))).toBe(true);
+  });
+
+  it("brain-dump.json has version 1", () => {
+    const config = JSON.parse(readScript(".github/hooks/brain-dump.json"));
+    expect(config.version).toBe(1);
+  });
+
+  it("brain-dump.json hook entries use 'type: command' format", () => {
+    const config = JSON.parse(readScript(".github/hooks/brain-dump.json"));
+    for (const [event, hooks] of Object.entries(config.hooks)) {
+      for (const hook of hooks as Array<Record<string, unknown>>) {
+        expect(hook.type, `${event} hook missing type: "command"`).toBe("command");
+        expect(hook.bash, `${event} hook missing bash path`).toBeDefined();
+      }
+    }
+  });
+});
+
+describe("copilot pre-tool-use hook script", () => {
+  it("hooks/copilot/pre-tool-use.sh exists", () => {
+    expect(existsSync(resolve(ROOT, "hooks/copilot/pre-tool-use.sh"))).toBe(true);
+  });
+
+  it("uses permissionDecision format (Copilot CLI protocol)", () => {
+    const hook = readScript("hooks/copilot/pre-tool-use.sh");
+    expect(hook).toContain("permissionDecision");
+    // Should not use Claude Code's "decision" format
+    expect(hook).not.toContain('"decision":');
+  });
+});
+
 describe("install/uninstall flag parity", () => {
   const installScript = readScript("install.sh");
   const uninstallScript = readScript("uninstall.sh");
