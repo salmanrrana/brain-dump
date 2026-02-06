@@ -74,13 +74,40 @@ backlog → ready → in_progress → review → done
 - `epicId`: Group with related tickets
 - `tags`: Array of categorization tags
 
+### Acceptance Criteria
+
+**Always include acceptance criteria** in the `description` field as a markdown checklist. These appear as checkable items in the Brain Dump UI and are used to verify ticket completion.
+
+Format criteria as `- [ ] Criterion text` within the description:
+
+```markdown
+## Description
+
+Implement login/logout functionality with JWT tokens.
+
+## Acceptance Criteria
+
+- [ ] Login form validates email and password
+- [ ] JWT token stored securely in httpOnly cookie
+- [ ] Logout clears session and redirects to home
+- [ ] Invalid credentials show user-friendly error message
+- [ ] Rate limiting prevents brute force attempts
+```
+
 ### Example
 
 ```javascript
 create_ticket({
   projectId: "abc-123",
   title: "Add user authentication",
-  description: "Implement login/logout functionality with JWT tokens",
+  description: `## Description
+Implement login/logout functionality with JWT tokens.
+
+## Acceptance Criteria
+- [ ] Login form validates email and password
+- [ ] JWT token stored securely in httpOnly cookie
+- [ ] Logout clears session and redirects to home
+- [ ] Invalid credentials show user-friendly error message`,
   priority: "high",
   tags: ["backend", "auth", "security"],
 });

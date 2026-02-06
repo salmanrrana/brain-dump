@@ -6,6 +6,7 @@
 # - Cursor (.cursor/)
 # - OpenCode (~/.config/opencode/)
 # - VS Code (.vscode/ + .github/)
+# - Copilot CLI (~/.copilot/)
 #
 # Usage:
 #   ./scripts/install.sh              # Install all detected environments
@@ -47,6 +48,7 @@ CLAUDE_CODE_AVAILABLE=0
 CURSOR_AVAILABLE=0
 OPENCODE_AVAILABLE=0
 VSCODE_AVAILABLE=0
+COPILOT_CLI_AVAILABLE=0
 
 # Detect Claude Code
 if command -v claude &>/dev/null 2>&1; then
@@ -78,6 +80,14 @@ if command -v code &>/dev/null 2>&1; then
   echo -e "${GREEN}✓${NC} VS Code detected"
 else
   echo -e "${YELLOW}○${NC} VS Code not found"
+fi
+
+# Detect Copilot CLI
+if command -v copilot &>/dev/null 2>&1 || [ -f "$HOME/.copilot/config.json" ] 2>/dev/null; then
+  COPILOT_CLI_AVAILABLE=1
+  echo -e "${GREEN}✓${NC} Copilot CLI detected"
+else
+  echo -e "${YELLOW}○${NC} Copilot CLI not found"
 fi
 
 echo ""
@@ -150,6 +160,22 @@ install_vscode() {
   echo ""
 }
 
+install_copilot_cli() {
+  echo -e "${BLUE}Installing Copilot CLI configuration...${NC}"
+
+  if [ -f "$BRAIN_DUMP_DIR/scripts/setup-copilot-cli.sh" ]; then
+    if ! bash "$BRAIN_DUMP_DIR/scripts/setup-copilot-cli.sh"; then
+      echo -e "${RED}✗ Copilot CLI installation failed${NC}"
+      exit 1
+    fi
+    echo -e "${GREEN}✓ Copilot CLI installation complete${NC}"
+  else
+    echo -e "${RED}✗ setup-copilot-cli.sh not found${NC}"
+    exit 1
+  fi
+  echo ""
+}
+
 # ─────────────────────────────────────────────────────────────────
 # Main Installation
 # ─────────────────────────────────────────────────────────────────
@@ -179,6 +205,11 @@ if [ $VSCODE_AVAILABLE -eq 1 ]; then
   INSTALL_COUNT=$((INSTALL_COUNT + 1))
 fi
 
+if [ $COPILOT_CLI_AVAILABLE -eq 1 ]; then
+  install_copilot_cli
+  INSTALL_COUNT=$((INSTALL_COUNT + 1))
+fi
+
 # ─────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────
@@ -191,6 +222,7 @@ if [ $INSTALL_COUNT -eq 0 ]; then
   echo "  • Cursor (https://cursor.com)"
   echo "  • OpenCode (https://opencode.ai)"
   echo "  • VS Code + Copilot"
+  echo "  • Copilot CLI (https://githubnext.com/projects/copilot-cli)"
   echo ""
   echo "Install one of these tools and try again."
   exit 1

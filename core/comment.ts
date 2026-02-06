@@ -21,6 +21,7 @@ export type CommentAuthor =
   | "opencode"
   | "cursor"
   | "vscode"
+  | "copilot"
   | "ai"
   | "brain-dump";
 export type CommentType = "comment" | "work_summary" | "test_report" | "progress";

@@ -138,6 +138,7 @@ backlog → ready → in_progress → ai_review → human_review → done
 | ----------- | --------- | ----------------------------- | ------------------ |
 | Claude Code | ✅ Full   | ✅ Hooks enforce state        | ✅ Hooks capture   |
 | Cursor      | ✅ Full   | ✅ Hooks enforce state        | ✅ Hooks capture   |
+| Copilot CLI | ✅ Full   | ✅ Global hooks enforce state | ✅ Hooks capture   |
 | OpenCode    | ✅ Full   | ❌ MCP enforces preconditions | ✅ Plugin captures |
 | VS Code     | ✅ Full   | ❌ MCP enforces preconditions | ✅ MCP captures    |
 
@@ -204,12 +205,13 @@ When no `.claude/ralph-state.json` exists, hooks allow all operations. This ensu
 
 Brain Dump supports multiple development environments:
 
-| Environment   | State Tracking | Hook Enforcement | Notes                                       |
-| ------------- | -------------- | ---------------- | ------------------------------------------- |
-| Claude Code   | ✅ Full        | ✅ Full          | Hooks guide behavior through feedback       |
-| OpenCode      | ✅ Full        | ❌ None          | State tracked via MCP, guidance via prompts |
-| VS Code + MCP | ✅ Full        | ❌ None          | State tracked via MCP, guidance via prompts |
-| Cursor        | ✅ Full        | ❌ None          | State tracked via MCP, guidance via prompts |
+| Environment   | State Tracking | Hook Enforcement | Notes                                               |
+| ------------- | -------------- | ---------------- | --------------------------------------------------- |
+| Claude Code   | ✅ Full        | ✅ Full          | Hooks guide behavior through feedback               |
+| Copilot CLI   | ✅ Full        | ✅ Global        | Global hooks in ~/.copilot/ enforce across projects |
+| OpenCode      | ✅ Full        | ❌ None          | State tracked via MCP, guidance via prompts         |
+| VS Code + MCP | ✅ Full        | ❌ None          | State tracked via MCP, guidance via prompts         |
+| Cursor        | ✅ Full        | ❌ None          | State tracked via MCP, guidance via prompts         |
 
 **How it works:**
 

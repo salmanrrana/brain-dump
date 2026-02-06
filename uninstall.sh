@@ -7,6 +7,7 @@
 #   ./uninstall.sh --vscode     # Remove VS Code integration only
 #   ./uninstall.sh --claude     # Remove Claude Code integration only
 #   ./uninstall.sh --cursor     # Remove Cursor integration only
+#   ./uninstall.sh --copilot    # Remove Copilot CLI integration only
 #   ./uninstall.sh --sandbox    # Remove Claude Code sandbox configuration
 #   ./uninstall.sh --devcontainer # Remove devcontainer Docker volumes
 #   ./uninstall.sh --all        # Remove everything (including data)
@@ -340,6 +341,181 @@ try {
     fi
 }
 
+# Remove OpenCode integration
+remove_opencode() {
+    print_step "Removing OpenCode integration"
+
+    OPENCODE_GLOBAL="$HOME/.config/opencode"
+    OPENCODE_JSON="$OPENCODE_GLOBAL/opencode.json"
+    OPENCODE_AGENTS="$OPENCODE_GLOBAL/agents"
+
+    # Remove brain-dump from OpenCode MCP config
+    if [ -f "$OPENCODE_JSON" ] && grep -q '"brain-dump"' "$OPENCODE_JSON"; then
+        if command -v node >/dev/null 2>&1; then
+            node -e "
+const fs = require('fs');
+try {
+    const config = JSON.parse(fs.readFileSync('$OPENCODE_JSON', 'utf8'));
+    if (config.mcp && config.mcp['brain-dump']) {
+        delete config.mcp['brain-dump'];
+        if (Object.keys(config.mcp).length === 0) delete config.mcp;
+        const remaining = Object.keys(config).filter(k => k !== '\$schema');
+        if (remaining.length === 0) {
+            fs.unlinkSync('$OPENCODE_JSON');
+        } else {
+            fs.writeFileSync('$OPENCODE_JSON', JSON.stringify(config, null, 2));
+        }
+        console.log('removed');
+    }
+} catch (e) {
+    console.error(e.message);
+}
+" 2>/dev/null && print_success "Removed brain-dump from OpenCode MCP config" && REMOVED+=("OpenCode MCP server")
+        else
+            print_warning "Could not remove brain-dump from opencode.json (node not found)"
+            SKIPPED+=("OpenCode MCP config (manual removal needed)")
+        fi
+    else
+        print_info "brain-dump not in OpenCode MCP config"
+    fi
+
+    # Remove Brain Dump agents
+    local agents_removed=0
+    if [ -d "$OPENCODE_AGENTS" ]; then
+        for agent in code-reviewer-fallback code-simplifier-fallback; do
+            if [ -f "$OPENCODE_AGENTS/${agent}.md" ]; then
+                rm -f "$OPENCODE_AGENTS/${agent}.md"
+                agents_removed=$((agents_removed + 1))
+            fi
+        done
+        if [ $agents_removed -gt 0 ]; then
+            print_success "Removed $agents_removed OpenCode agents"
+            REMOVED+=("OpenCode agents ($agents_removed)")
+        fi
+    fi
+
+    # Remove AGENTS.md
+    if [ -f "$OPENCODE_GLOBAL/AGENTS.md" ]; then
+        rm -f "$OPENCODE_GLOBAL/AGENTS.md"
+        print_success "Removed OpenCode AGENTS.md"
+        REMOVED+=("OpenCode documentation")
+    fi
+
+    # Remove local .opencode config
+    if [ -f ".opencode/opencode.json" ] && grep -q '"brain-dump"' ".opencode/opencode.json"; then
+        print_info "Local .opencode/opencode.json has brain-dump config (project-level, not removing)"
+        SKIPPED+=("OpenCode local config (project-level)")
+    fi
+}
+
+# Remove Copilot CLI integration
+remove_copilot_cli() {
+    print_step "Removing Copilot CLI integration"
+
+    COPILOT_DIR="$HOME/.copilot"
+    HOOKS_DIR="$COPILOT_DIR/hooks"
+    AGENTS_DIR="$COPILOT_DIR/agents"
+    SKILLS_DIR="$COPILOT_DIR/skills"
+    MCP_CONFIG="$COPILOT_DIR/mcp-config.json"
+    HOOKS_CONFIG="$COPILOT_DIR/hooks.json"
+
+    # Remove brain-dump from MCP config
+    if [ -f "$MCP_CONFIG" ] && grep -q '"brain-dump"' "$MCP_CONFIG"; then
+        if command -v node >/dev/null 2>&1; then
+            node -e "
+const fs = require('fs');
+try {
+    const config = JSON.parse(fs.readFileSync('$MCP_CONFIG', 'utf8'));
+    if (config.mcpServers && config.mcpServers['brain-dump']) {
+        delete config.mcpServers['brain-dump'];
+        if (Object.keys(config.mcpServers).length === 0) {
+            fs.unlinkSync('$MCP_CONFIG');
+        } else {
+            fs.writeFileSync('$MCP_CONFIG', JSON.stringify(config, null, 2));
+        }
+        console.log('removed');
+    }
+} catch (e) {
+    console.error(e.message);
+}
+" 2>/dev/null && print_success "Removed brain-dump from Copilot CLI MCP config" && REMOVED+=("Copilot CLI MCP server")
+        else
+            print_warning "Could not remove brain-dump from mcp-config.json (node not found)"
+            print_info "Manually edit: $MCP_CONFIG"
+            SKIPPED+=("Copilot CLI MCP config (manual removal needed)")
+        fi
+    else
+        print_info "brain-dump not in Copilot CLI MCP config"
+    fi
+
+    # Remove Brain Dump agents
+    local agents_removed=0
+    if [ -d "$AGENTS_DIR" ]; then
+        for agent in ralph ticket-worker planner inception code-reviewer silent-failure-hunter code-simplifier context7-library-compliance react-best-practices cruft-detector senior-engineer; do
+            if [ -f "$AGENTS_DIR/${agent}.agent.md" ]; then
+                rm -f "$AGENTS_DIR/${agent}.agent.md"
+                agents_removed=$((agents_removed + 1))
+            fi
+        done
+        if [ $agents_removed -gt 0 ]; then
+            print_success "Removed $agents_removed agents"
+            REMOVED+=("Copilot CLI agents ($agents_removed)")
+        else
+            print_info "No agents to remove"
+        fi
+    fi
+
+    # Remove hook scripts
+    local hooks_removed=0
+    if [ -d "$HOOKS_DIR" ]; then
+        for hook in start-telemetry.sh end-telemetry.sh log-prompt.sh log-tool-start.sh log-tool-end.sh log-tool-failure.sh enforce-state-before-write.sh; do
+            if [ -f "$HOOKS_DIR/$hook" ]; then
+                rm -f "$HOOKS_DIR/$hook"
+                hooks_removed=$((hooks_removed + 1))
+            fi
+        done
+        if [ $hooks_removed -gt 0 ]; then
+            print_success "Removed $hooks_removed hook scripts"
+            REMOVED+=("Copilot CLI hooks ($hooks_removed)")
+        fi
+    fi
+
+    # Clean up hooks.json
+    if [ -f "$HOOKS_CONFIG" ] && grep -q "start-telemetry" "$HOOKS_CONFIG"; then
+        rm -f "$HOOKS_CONFIG"
+        print_success "Removed hooks.json"
+        REMOVED+=("Copilot CLI hooks config")
+    fi
+
+    # Remove telemetry temp files
+    for temp_file in telemetry-session.json telemetry-queue.jsonl telemetry.log; do
+        [ -f "$COPILOT_DIR/$temp_file" ] && rm -f "$COPILOT_DIR/$temp_file"
+    done
+
+    # Remove correlation files
+    rm -f "$COPILOT_DIR"/tool-correlation-*.queue "$COPILOT_DIR"/tool-correlation-*.lock "$COPILOT_DIR"/tool-correlation-*.data 2>/dev/null || true
+
+    # Remove skills only if VS Code is NOT also installed (shared directory)
+    if [ -d "$SKILLS_DIR" ]; then
+        if command -v code >/dev/null 2>&1; then
+            print_info "Preserving ~/.copilot/skills/ (shared with VS Code)"
+            SKIPPED+=("Copilot CLI skills (shared with VS Code)")
+        else
+            local skills_removed=0
+            for skill in brain-dump-tickets ralph-workflow brain-dump-workflow review review-aggregation tanstack-errors tanstack-forms tanstack-mutations tanstack-query tanstack-types; do
+                if [ -d "$SKILLS_DIR/$skill" ]; then
+                    rm -rf "$SKILLS_DIR/$skill"
+                    skills_removed=$((skills_removed + 1))
+                fi
+            done
+            if [ $skills_removed -gt 0 ]; then
+                print_success "Removed $skills_removed skills"
+                REMOVED+=("Copilot CLI skills ($skills_removed)")
+            fi
+        fi
+    fi
+}
+
 # Remove Claude Code sandbox configuration
 remove_sandbox() {
     print_step "Removing Claude Code sandbox configuration"
@@ -628,6 +804,8 @@ show_help() {
     echo "  --vscode       Remove VS Code integration only"
     echo "  --claude       Remove Claude Code integration only"
     echo "  --cursor       Remove Cursor integration only"
+    echo "  --opencode     Remove OpenCode integration only"
+    echo "  --copilot      Remove Copilot CLI integration only"
     echo "  --sandbox      Remove Claude Code sandbox configuration"
     echo "  --devcontainer Remove devcontainer Docker volumes (not user data)"
     echo "  --docker       Remove Docker sandbox artifacts only"
@@ -641,6 +819,8 @@ show_help() {
     echo "  VS Code:       MCP config, agents, skills, prompts"
     echo "  Claude Code:   MCP config in ~/.claude.json"
     echo "  Cursor:        MCP config, subagents, skills, commands in ~/.cursor/"
+    echo "  OpenCode:      MCP config, agents in ~/.config/opencode/"
+    echo "  Copilot CLI:   MCP config, agents, skills, hooks in ~/.copilot/"
     echo "  Sandbox:       Sandbox config in ~/.claude/settings.json"
     echo "  Devcontainer:  Docker volumes (pnpm store, bash history, claude config)"
     echo "                 Does NOT remove your Brain Dump data (bind-mounted)"
@@ -654,6 +834,8 @@ main() {
     REMOVE_VSCODE=false
     REMOVE_CLAUDE=false
     REMOVE_CURSOR=false
+    REMOVE_OPENCODE=false
+    REMOVE_COPILOT=false
     REMOVE_SANDBOX=false
     REMOVE_DEVCONTAINER=false
     REMOVE_DOCKER=false
@@ -666,6 +848,8 @@ main() {
         REMOVE_VSCODE=true
         REMOVE_CLAUDE=true
         REMOVE_CURSOR=true
+        REMOVE_OPENCODE=true
+        REMOVE_COPILOT=true
         REMOVE_CLI=true
     else
         for arg in "$@"; do
@@ -683,6 +867,12 @@ main() {
                 --cursor)
                     REMOVE_CURSOR=true
                     ;;
+                --opencode)
+                    REMOVE_OPENCODE=true
+                    ;;
+                --copilot)
+                    REMOVE_COPILOT=true
+                    ;;
                 --sandbox)
                     REMOVE_SANDBOX=true
                     ;;
@@ -699,6 +889,8 @@ main() {
                     REMOVE_VSCODE=true
                     REMOVE_CLAUDE=true
                     REMOVE_CURSOR=true
+                    REMOVE_OPENCODE=true
+                    REMOVE_COPILOT=true
                     REMOVE_SANDBOX=true
                     REMOVE_DEVCONTAINER=true
                     REMOVE_DOCKER=true
@@ -717,6 +909,8 @@ main() {
     [ "$REMOVE_VSCODE" = true ] && remove_vscode
     [ "$REMOVE_CLAUDE" = true ] && remove_claude
     [ "$REMOVE_CURSOR" = true ] && remove_cursor
+    [ "$REMOVE_OPENCODE" = true ] && remove_opencode
+    [ "$REMOVE_COPILOT" = true ] && remove_copilot_cli
     [ "$REMOVE_SANDBOX" = true ] && remove_sandbox
     [ "$REMOVE_DEVCONTAINER" = true ] && remove_devcontainer
     [ "$REMOVE_DOCKER" = true ] && remove_docker

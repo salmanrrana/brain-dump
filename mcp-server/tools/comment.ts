@@ -18,7 +18,16 @@ import { addComment, listComments } from "../../core/comment.ts";
 import type { CommentAuthor, CommentType } from "../../core/comment.ts";
 
 const ACTIONS = ["add", "list"] as const;
-const AUTHORS = ["claude", "ralph", "user", "opencode", "cursor", "vscode", "ai"] as const;
+const AUTHORS = [
+  "claude",
+  "ralph",
+  "user",
+  "opencode",
+  "cursor",
+  "vscode",
+  "copilot",
+  "ai",
+] as const;
 const COMMENT_TYPES = ["comment", "work_summary", "test_report", "progress"] as const;
 
 /**

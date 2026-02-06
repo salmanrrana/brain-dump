@@ -9,271 +9,151 @@
   ],
   "userStories": [
     {
-      "id": "8cd08bfe-617c-4edd-a39b-99f1a6f6b3cf",
-      "title": "Create core/ foundation (errors, types, db)",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "All error classes defined with codes matching spec error table",
-        "All result types defined for every core function",
-        "Database initializer works standalone (not tied to MCP server)",
-        "`pnpm type-check` passes"
-      ],
-      "references": [
-        "mcp-server/lib/database.ts",
-        "plans/specs/core-extraction-and-cli.md"
-      ],
-      "description": "Create the foundational `core/` directory with shared types, typed error classes, and database initialization.\n\n**Files to create:**\n- `core/errors.ts` - All typed error classes (TicketNotFoundError, InvalidStateError, etc.)\n- `core/types.ts` - All shared TypeScript interfaces (StartWorkResult, ReviewFinding, TicketWithProject, etc.)\n- `core/db.ts` - Database initialization extracted from `mcp-server/lib/database.ts`, works standalone\n\n**Acceptance criteria:**\n- [ ] All error classes defined with codes matching spec error table\n- [ ] All result types defined for every core function\n- [ ] Database initializer works standalone (not tied to MCP server)\n- [ ] `pnpm type-check` passes\n\n**Spec:** `plans/specs/core-extraction-and-cli.md` - Ticket 1",
-      "priority": "high",
-      "tags": [
-        "core",
-        "foundation"
-      ]
-    },
-    {
-      "id": "2254cf38-d428-41c2-b28a-e75fa8aae8bc",
-      "title": "Extract core/ticket.ts and core/project.ts",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "All functions extracted with typed inputs/outputs",
-        "Throw typed errors instead of returning MCP error objects",
-        "Unit tests for each function using real SQLite in-memory database",
-        "MCP tool handlers updated to call core functions (thin wrappers)",
-        "Existing MCP behavior unchanged (regression test)"
-      ],
-      "references": [
-        "mcp-server/tools/tickets.ts",
-        "mcp-server/tools/projects.ts",
-        "plans/specs/core-extraction-and-cli.md"
-      ],
-      "description": "Extract ticket and project business logic from MCP handlers into core functions.\n\n**Extract from:** `mcp-server/tools/tickets.ts` (28KB), `mcp-server/tools/projects.ts` (11KB)\n\n**Functions to extract:**\n- `createTicket(db, params)` → `TicketWithProject`\n- `listTickets(db, filters)` → `TicketWithProject[]`\n- `getTicket(db, ticketId)` → `TicketWithProject`\n- `updateTicketStatus(db, ticketId, status)` → `TicketWithProject`\n- `updateAcceptanceCriterion(db, ticketId, criterionId, status, note?)` → `Ticket`\n- `deleteTicket(db, ticketId, confirm)` → `DeleteResult`\n- `createProject(db, params)` → `Project`\n- `listProjects(db)` → `Project[]`\n- `findProjectByPath(db, path)` → `Project | null`\n- `deleteProject(db, projectId, confirm)` → `DeleteResult`\n\n**Acceptance criteria:**\n- [ ] All functions extracted with typed inputs/outputs\n- [ ] Throw typed errors instead of returning MCP error objects\n- [ ] Unit tests for each function using real SQLite in-memory database\n- [ ] MCP tool handlers updated to call core functions (thin wrappers)\n- [ ] Existing MCP behavior unchanged (regression test)\n\n**Depends on:** Ticket 1 (core foundation)\n**Spec:** `plans/specs/core-extraction-and-cli.md` - Ticket 2",
-      "priority": "high",
-      "tags": [
-        "core",
-        "extraction"
-      ]
-    },
-    {
-      "id": "ef8fdcc9-5fd4-4f36-a769-565229aea73e",
-      "title": "Extract core/epic.ts and core/comment.ts",
+      "id": "a0a4c6e1-375d-4a91-8946-2441a4a64d12",
+      "title": "MCP Server: Add Copilot CLI environment detection",
       "passes": true,
-      "overview": "",
-      "types": [],
+      "overview": "**Epic**: Add GitHub Copilot CLI as Brain Dump Provider\n**Branch/PR**: All work in this epic shares ONE branch and ONE PR. Commit to the shared epic branch.\nBrain Dump's MCP server detects which AI environment is calling it via environment variables. We need to add Copilot CLI as a recognized environment so the server can properly attribute actions, auto-detect authors for comments, and include the right environment info.",
+      "types": [
+        {
+          "name": "Environment",
+          "code": "type Environment = \"claude-code\" | \"opencode\" | \"copilot-cli\" | \"cursor\" | \"vscode\" | \"unknown\";"
+        }
+      ],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Same extraction pattern as ticket/project",
-        "Unit tests with in-memory SQLite",
-        "MCP wrappers updated to call core functions"
+        "`COPILOT_CLI=1` env var causes `detectEnvironment()` to return `\"copilot-cli\"`",
+        "`detectAuthor()` returns `\"copilot\"` when Copilot CLI environment detected",
+        "`\"copilot\"` is a valid author for the comment tool",
+        "Copilot CLI detection has correct priority (after OpenCode, before Cursor)",
+        "`pnpm type-check` passes",
+        "`pnpm test` passes",
+        "`pnpm lint` passes"
       ],
       "references": [
-        "mcp-server/tools/epics.ts",
-        "mcp-server/tools/comments.ts",
-        "plans/specs/core-extraction-and-cli.md"
+        "mcp-server/lib/environment.ts",
+        "mcp-server/tools/comment.ts",
+        "mcp-server/__tests__/cross-environment.test.ts"
       ],
-      "description": "Extract epic and comment business logic from MCP handlers into core functions.\n\n**Extract from:** `mcp-server/tools/epics.ts` (10KB), `mcp-server/tools/comments.ts` (5KB)\n\n**Functions to extract:**\n- `createEpic(db, params)` → `Epic`\n- `listEpics(db, projectId)` → `Epic[]`\n- `updateEpic(db, epicId, params)` → `Epic`\n- `deleteEpic(db, epicId, confirm)` → `DeleteResult`\n- `addComment(db, ticketId, params)` → `Comment`\n- `listComments(db, ticketId)` → `Comment[]`\n\n**Acceptance criteria:**\n- [ ] Same extraction pattern as ticket/project\n- [ ] Unit tests with in-memory SQLite\n- [ ] MCP wrappers updated to call core functions\n\n**Depends on:** Ticket 1 (core foundation)\n**Spec:** `plans/specs/core-extraction-and-cli.md` - Ticket 3",
+      "description": "## Context\n\n**Epic**: Add GitHub Copilot CLI as Brain Dump Provider\n**Branch/PR**: All work in this epic shares ONE branch and ONE PR. Commit to the shared epic branch.\n\nBrain Dump's MCP server detects which AI environment is calling it via environment variables. We need to add Copilot CLI as a recognized environment so the server can properly attribute actions, auto-detect authors for comments, and include the right environment info.\n\n## What to Do\n\n### 1. Update `mcp-server/lib/environment.ts`\n\n**Add to type union** (line 14):\n```typescript\ntype Environment = \"claude-code\" | \"opencode\" | \"copilot-cli\" | \"cursor\" | \"vscode\" | \"unknown\";\n```\n\n**Add flag and patterns** (after line 40):\n```typescript\nconst COPILOT_CLI_FLAG = \"COPILOT_CLI\";\nconst COPILOT_CLI_ENV_PATTERNS = [\n  \"COPILOT_TRACE_ID\",\n  \"COPILOT_SESSION\",\n  \"COPILOT_CLI_VERSION\",\n];\n```\n\n**Add detection function** (after `hasCursorEnvironment`, ~line 115):\n```typescript\nfunction hasCopilotCliEnvironment(): boolean {\n  if (process.env[COPILOT_CLI_FLAG]) return true;\n  for (const envVar of COPILOT_CLI_ENV_PATTERNS) {\n    if (process.env[envVar]) return true;\n  }\n  return false;\n}\n```\n\n**Update `detectEnvironment()`** — insert Copilot CLI after OpenCode, before Cursor (priority: Claude Code > OpenCode > Copilot CLI > Cursor > VS Code):\n```typescript\nif (hasCopilotCliEnvironment()) return \"copilot-cli\";\n```\n\n**Update `detectAuthor()`** — add case in switch:\n```typescript\ncase \"copilot-cli\":\n  baseTool = \"copilot\";\n  break;\n```\n\n**Update `getEnvironmentInfo()`** — add env var collection:\n```typescript\nfor (const envVar of COPILOT_CLI_ENV_PATTERNS) {\n  if (process.env[envVar]) envVarsDetected.push(envVar);\n}\nif (process.env[COPILOT_CLI_FLAG]) envVarsDetected.push(COPILOT_CLI_FLAG);\n```\n\n### 2. Update `mcp-server/tools/comment.ts` (line 21)\n\nAdd `\"copilot\"` to the AUTHORS array:\n```typescript\nconst AUTHORS = [\"claude\", \"ralph\", \"user\", \"opencode\", \"cursor\", \"vscode\", \"copilot\", \"ai\"] as const;\n```\n\n### 3. Update `mcp-server/__tests__/cross-environment.test.ts`\n\nAdd test cases for Copilot CLI environment detection, following existing test patterns.\n\n## Acceptance Criteria\n\n- [ ] `COPILOT_CLI=1` env var causes `detectEnvironment()` to return `\"copilot-cli\"`\n- [ ] `detectAuthor()` returns `\"copilot\"` when Copilot CLI environment detected\n- [ ] `\"copilot\"` is a valid author for the comment tool\n- [ ] Copilot CLI detection has correct priority (after OpenCode, before Cursor)\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm test` passes\n- [ ] `pnpm lint` passes",
       "priority": "high",
       "tags": [
-        "core",
-        "extraction"
+        "copilot-cli",
+        "mcp-server",
+        "backend"
       ]
     },
     {
-      "id": "ae4be249-3772-46e0-ad31-ed45937ab974",
-      "title": "Extract core/review.ts",
+      "id": "9534f6a2-2a43-4152-807f-8e12fcdbcbb5",
+      "title": "Setup Script: Create setup-copilot-cli.sh with MCP, agents, skills, and hooks",
       "passes": true,
-      "overview": "",
+      "overview": "**Epic**: Add GitHub Copilot CLI as Brain Dump Provider\n**Branch/PR**: All work in this epic shares ONE branch and ONE PR. Commit to the shared epic branch.\nThis is the main setup script that configures Copilot CLI to use Brain Dump globally. Follow the exact pattern established by `scripts/setup-cursor.sh` (~410 lines).",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "State validation (ticket must be in ai_review for findings)",
-        "Review iteration auto-increment logic preserved",
-        "Demo generation validates all critical/major findings fixed",
-        "Unit tests for each function"
+        "Script runs without errors on a system with `~/.copilot/` directory",
+        "MCP config created/merged correctly in `~/.copilot/mcp-config.json`",
+        "All 11 agents copied to `~/.copilot/agents/`",
+        "Skills copied to `~/.copilot/skills/` (handles VS Code overlap gracefully)",
+        "`~/.copilot/hooks.json` created with all 6 event types",
+        "Hook scripts created and made executable in `~/.copilot/hooks/`",
+        "Summary section prints clear instructions",
+        "Script is idempotent (safe to run multiple times)"
       ],
       "references": [
-        "mcp-server/tools/review-findings.ts",
-        "mcp-server/tools/demo.ts",
-        "plans/specs/core-extraction-and-cli.md"
+        "setup-cursor.sh:124-151",
+        "setup-cursor.sh:160-209",
+        "setup-cursor.sh:251-303"
       ],
-      "description": "Extract review findings and demo script business logic from MCP handlers into core functions.\n\n**Extract from:** `mcp-server/tools/review-findings.ts` (18KB), `mcp-server/tools/demo.ts` (18KB)\n\n**Functions to extract:**\n- `submitFinding(db, params)` → `ReviewFinding`\n- `markFixed(db, findingId, status, description?)` → `ReviewFinding`\n- `getFindings(db, ticketId, filters?)` → `ReviewFinding[]`\n- `checkComplete(db, ticketId)` → `ReviewCompletionStatus`\n- `generateDemo(db, ticketId, steps)` → `DemoScript`\n- `getDemo(db, ticketId)` → `DemoScript | null`\n- `updateDemoStep(db, demoScriptId, stepOrder, status, notes?)` → `DemoScript`\n- `submitFeedback(db, ticketId, passed, feedback, stepResults?)` → `FeedbackResult`\n\n**Acceptance criteria:**\n- [ ] State validation (ticket must be in ai_review for findings)\n- [ ] Review iteration auto-increment logic preserved\n- [ ] Demo generation validates all critical/major findings fixed\n- [ ] Unit tests for each function\n\n**Depends on:** Ticket 1 (core foundation)\n**Spec:** `plans/specs/core-extraction-and-cli.md` - Ticket 5",
+      "description": "## Context\n\n**Epic**: Add GitHub Copilot CLI as Brain Dump Provider\n**Branch/PR**: All work in this epic shares ONE branch and ONE PR. Commit to the shared epic branch.\n\nThis is the main setup script that configures Copilot CLI to use Brain Dump globally. Follow the exact pattern established by `scripts/setup-cursor.sh` (~410 lines).\n\n## What to Do\n\n### Create `scripts/setup-copilot-cli.sh`\n\nThe script has 5 steps:\n\n### Step 1: Configure MCP Server (`~/.copilot/mcp-config.json`)\n\nCopilot CLI uses a different MCP config format than other providers:\n```json\n{\n  \"mcpServers\": {\n    \"brain-dump\": {\n      \"type\": \"local\",\n      \"command\": \"node\",\n      \"args\": [\"/path/to/brain-dump/mcp-server/dist/index.js\"],\n      \"env\": { \"COPILOT_CLI\": \"1\" },\n      \"tools\": [\"*\"]\n    }\n  }\n}\n```\n\nKey differences from other providers:\n- Uses `type: \"local\"` (not `\"stdio\"`)\n- Has a `tools: [\"*\"]` array (allow-list of which MCP tools to expose)\n- Sets `COPILOT_CLI=1` env var for server-side detection\n\nUse the `node -e` JSON merge pattern from `setup-cursor.sh` (lines 64-98) to handle existing configs.\n\n### Step 2: Configure Agents (`~/.copilot/agents/`)\n\nCopy `.github/agents/*.agent.md` → `~/.copilot/agents/`. Keep the `.agent.md` extension (Copilot CLI uses the same agent format as VS Code). Follow the copy-with-diff-check pattern from `setup-cursor.sh` lines 124-151.\n\nThese are the 11 agents: ralph, ticket-worker, planner, inception, code-reviewer, silent-failure-hunter, code-simplifier, context7-library-compliance, react-best-practices, cruft-detector, senior-engineer.\n\n### Step 3: Configure Skills (`~/.copilot/skills/`)\n\nCopy from `.github/skills/` and `.claude/skills/` to `~/.copilot/skills/`. This location is shared with VS Code setup — use the idempotent pattern from `setup-cursor.sh` lines 160-209.\n\n### Step 4: Configure Hooks (`~/.copilot/hooks/`)\n\n**What are hooks?** Hooks are event-driven bash scripts that run automatically when specific things happen during a Copilot CLI session. They enable:\n- **Telemetry**: Automatically track what tools are used, how long sessions last, and capture user prompts for audit trails\n- **State enforcement**: Block code-writing tools if the Ralph workflow state machine hasn't been advanced to the right phase (e.g., can't write code until you've called `session update-state implementing`)\n\n**How Copilot CLI hooks work**: Copilot CLI reads a `hooks.json` config file that maps event names to bash scripts. When an event fires, the script receives JSON input on stdin and can output JSON to approve/block the action.\n\n**Events we use**:\n| Event | Script | What it does |\n|-------|--------|-------------|\n| `sessionStart` | `start-telemetry.sh` | Detects active ticket from `.claude/ralph-state.json`, prompts to start telemetry session |\n| `sessionEnd` | `end-telemetry.sh` | Flushes telemetry queue to database, cleans up temp files |\n| `userPromptSubmitted` | `log-prompt.sh` | Records user prompts to `.copilot/telemetry-queue.jsonl` |\n| `preToolUse` | `log-tool-start.sh` | Records tool start event with correlation ID for duration tracking |\n| `preToolUse` | `enforce-state-before-write.sh` | Blocks Write/Edit tools if Ralph state isn't 'implementing', 'testing', or 'committing' |\n| `postToolUse` | `log-tool-end.sh` | Pairs with start event, records completion and duration |\n| `errorOccurred` | `log-tool-failure.sh` | Records tool failures with error details |\n\n**Hook config format** (`~/.copilot/hooks.json`):\n```json\n{\n  \"version\": 1,\n  \"hooks\": {\n    \"sessionStart\": [{ \"bash\": \"~/.copilot/hooks/start-telemetry.sh\" }],\n    \"preToolUse\": [\n      { \"bash\": \"~/.copilot/hooks/log-tool-start.sh\" },\n      { \"bash\": \"~/.copilot/hooks/enforce-state-before-write.sh\" }\n    ],\n    \"postToolUse\": [{ \"bash\": \"~/.copilot/hooks/log-tool-end.sh\" }],\n    \"sessionEnd\": [{ \"bash\": \"~/.copilot/hooks/end-telemetry.sh\" }],\n    \"userPromptSubmitted\": [{ \"bash\": \"~/.copilot/hooks/log-prompt.sh\" }],\n    \"errorOccurred\": [{ \"bash\": \"~/.copilot/hooks/log-tool-failure.sh\" }]\n  }\n}\n```\n\n**Hook scripts**: Written inline in the setup script using heredocs (same pattern as `setup-cursor.sh` lines 251-303 which writes telemetry hooks). Each script:\n- Reads JSON from stdin: `INPUT=$(cat)`\n- Parses with jq using dual-format fallbacks: `jq -r '.tool_name // .tool // \"\"'`\n- Writes telemetry events to `~/.copilot/telemetry-queue.jsonl`\n- State enforcement reads `.claude/ralph-state.json` from project root via `git rev-parse --show-toplevel`\n- Returns `{\"decision\": \"allow\"}` or `{\"decision\": \"block\", \"message\": \"...\"}` for enforcement hooks\n\n**Adapt from**: `.claude/hooks/` scripts (enforce-state-before-write.sh, log-tool-start.sh, log-tool-end.sh, log-prompt.sh, start-telemetry-session.sh, end-telemetry-session.sh, log-tool-failure.sh)\n\n### Step 5: Summary\n\nPrint what was configured, file locations, and next steps including the auto-approve tip:\n```\ncopilot --allow-tool 'brain-dump(*)'\n```\n\n## Acceptance Criteria\n\n- [ ] Script runs without errors on a system with `~/.copilot/` directory\n- [ ] MCP config created/merged correctly in `~/.copilot/mcp-config.json`\n- [ ] All 11 agents copied to `~/.copilot/agents/`\n- [ ] Skills copied to `~/.copilot/skills/` (handles VS Code overlap gracefully)\n- [ ] `~/.copilot/hooks.json` created with all 6 event types\n- [ ] Hook scripts created and made executable in `~/.copilot/hooks/`\n- [ ] Summary section prints clear instructions\n- [ ] Script is idempotent (safe to run multiple times)",
       "priority": "high",
       "tags": [
-        "core",
-        "extraction",
-        "review"
+        "copilot-cli",
+        "scripts",
+        "hooks"
       ]
     },
     {
-      "id": "a32fe775-11fe-4598-914b-4b8c21e485a9",
-      "title": "Extract core/session.ts and core/telemetry.ts",
+      "id": "7fdb68b9-95b9-4bfc-8e4d-34327214777d",
+      "title": "Scripts: Update install.sh and uninstall.sh for Copilot CLI",
       "passes": true,
-      "overview": "",
+      "overview": "**Epic**: Add GitHub Copilot CLI as Brain Dump Provider\n**Branch/PR**: All work in this epic shares ONE branch and ONE PR. Commit to the shared epic branch.\nThe universal install/uninstall scripts need to detect Copilot CLI and invoke the setup/cleanup.",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "State machine transitions validated (idle → analyzing → implementing → ...)",
-        "Ralph state file (`.claude/ralph-state.json`) management in core",
-        "Telemetry correlation ID logic preserved",
-        "Unit tests for state transitions"
+        "`scripts/install.sh` detects Copilot CLI via `command -v copilot` or `~/.copilot/config.json`",
+        "`scripts/install.sh` calls `setup-copilot-cli.sh` when Copilot CLI detected",
+        "`scripts/uninstall.sh` cleanly removes all Brain Dump artifacts from `~/.copilot/`",
+        "Uninstall preserves `~/.copilot/skills/` if VS Code is also installed",
+        "Uninstall handles missing files gracefully (no errors if already clean)",
+        "Both scripts maintain the established patterns (colors, messaging, error handling)"
       ],
-      "references": [
-        "mcp-server/tools/sessions.ts",
-        "mcp-server/tools/events.ts",
-        "mcp-server/tools/telemetry.ts",
-        "plans/specs/core-extraction-and-cli.md"
-      ],
-      "description": "Extract Ralph session management, events, and telemetry from MCP handlers into core functions.\n\n**Extract from:** `mcp-server/tools/sessions.ts` (24KB), `mcp-server/tools/events.ts` (10KB), `mcp-server/tools/telemetry.ts` (33KB)\n\n**Functions to extract:**\n- Session: createSession, updateState, completeSession, getState, listSessions\n- Events: emitEvent, getEvents, clearEvents\n- Telemetry: startSession, logTool, logPrompt, logContext, endSession, getSession, listSessions\n\n**Acceptance criteria:**\n- [ ] State machine transitions validated (idle → analyzing → implementing → ...)\n- [ ] Ralph state file (`.claude/ralph-state.json`) management in core\n- [ ] Telemetry correlation ID logic preserved\n- [ ] Unit tests for state transitions\n\n**Depends on:** Ticket 1 (core foundation)\n**Spec:** `plans/specs/core-extraction-and-cli.md` - Ticket 6",
+      "references": [],
+      "description": "## Context\n\n**Epic**: Add GitHub Copilot CLI as Brain Dump Provider\n**Branch/PR**: All work in this epic shares ONE branch and ONE PR. Commit to the shared epic branch.\n\nThe universal install/uninstall scripts need to detect Copilot CLI and invoke the setup/cleanup.\n\n## What to Do\n\n### 1. Update `scripts/install.sh`\n\n**Add detection** (after VS Code detection, ~line 80):\n```bash\nCOPILOT_CLI_AVAILABLE=0\n\n# Detect Copilot CLI\nif command -v copilot &>/dev/null 2>&1 || [ -f \"$HOME/.copilot/config.json\" ] 2>/dev/null; then\n  COPILOT_CLI_AVAILABLE=1\n  echo -e \"${GREEN}✓${NC} Copilot CLI detected\"\nelse\n  echo -e \"${YELLOW}○${NC} Copilot CLI not found\"\nfi\n```\n\n**Add install function** (following the pattern at lines 89-103):\n```bash\ninstall_copilot_cli() {\n  echo -e \"${BLUE}Installing Copilot CLI configuration...${NC}\"\n  if [ -f \"$BRAIN_DUMP_DIR/scripts/setup-copilot-cli.sh\" ]; then\n    if ! bash \"$BRAIN_DUMP_DIR/scripts/setup-copilot-cli.sh\"; then\n      echo -e \"${RED}✗ Copilot CLI installation failed${NC}\"\n      exit 1\n    fi\n    echo -e \"${GREEN}✓ Copilot CLI installation complete${NC}\"\n  else\n    echo -e \"${RED}✗ setup-copilot-cli.sh not found${NC}\"\n    exit 1\n  fi\n  echo \"\"\n}\n```\n\n**Add invocation** (after VS Code block, ~line 180):\n```bash\nif [ $COPILOT_CLI_AVAILABLE -eq 1 ]; then\n  install_copilot_cli\n  INSTALL_COUNT=$((INSTALL_COUNT + 1))\nfi\n```\n\n**Update \"Brain Dump supports:\" list** (~line 190) to include Copilot CLI.\n\n### 2. Update `scripts/uninstall.sh`\n\n**Add `uninstall_copilot_cli()` function** (following the pattern of `uninstall_cursor` at lines 105-153):\n\nShould clean up:\n- Remove `brain-dump` entry from `~/.copilot/mcp-config.json` (using node -e JSON manipulation)\n- Remove Brain Dump agents from `~/.copilot/agents/` (same 11 agents)\n- Remove Brain Dump hook scripts from `~/.copilot/hooks/`\n- Clean up `~/.copilot/hooks.json` (remove Brain Dump entries)\n- Remove telemetry temp files (`~/.copilot/telemetry-queue.jsonl`, `~/.copilot/telemetry-session.json`, `~/.copilot/telemetry.log`)\n- Remove correlation files (`~/.copilot/tool-correlation-*.txt`)\n- **DO NOT remove `~/.copilot/skills/`** — shared with VS Code. Only remove specific Brain Dump skills if VS Code is NOT also installed.\n\n**Add detection and invocation** (after VS Code block, ~line 379):\n```bash\nif command -v copilot &>/dev/null 2>&1 || [ -f \"$HOME/.copilot/config.json\" ] 2>/dev/null; then\n  uninstall_copilot_cli\n  REMOVE_COUNT=$((REMOVE_COUNT + 1))\nfi\n```\n\n**Update summary notes** to mention `~/.copilot/hooks.json`.\n\n## Acceptance Criteria\n\n- [ ] `scripts/install.sh` detects Copilot CLI via `command -v copilot` or `~/.copilot/config.json`\n- [ ] `scripts/install.sh` calls `setup-copilot-cli.sh` when Copilot CLI detected\n- [ ] `scripts/uninstall.sh` cleanly removes all Brain Dump artifacts from `~/.copilot/`\n- [ ] Uninstall preserves `~/.copilot/skills/` if VS Code is also installed\n- [ ] Uninstall handles missing files gracefully (no errors if already clean)\n- [ ] Both scripts maintain the established patterns (colors, messaging, error handling)",
       "priority": "medium",
       "tags": [
-        "core",
-        "extraction",
-        "session"
+        "copilot-cli",
+        "scripts",
+        "install"
       ]
     },
     {
-      "id": "83a55430-7450-4d8a-8304-77633b9380e3",
-      "title": "Extract remaining core modules (git, files, compliance, tasks, health, learnings)",
+      "id": "25410b78-ddca-4221-8bf5-8eca691ffb9b",
+      "title": "Documentation: Copilot CLI integration guide and CLAUDE.md updates",
       "passes": true,
-      "overview": "",
+      "overview": "**Epic**: Add GitHub Copilot CLI as Brain Dump Provider\n**Branch/PR**: All work in this epic shares ONE branch and ONE PR. Commit to the shared epic branch.",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "All functions extracted with typed inputs/outputs",
-        "Unit tests for each module",
-        "MCP wrappers updated to call core functions"
+        "`docs/environments/copilot-cli.md` exists with all 7 sections",
+        "CLAUDE.md tables updated with Copilot CLI rows",
+        "Documentation references correct file paths and config formats",
+        "Auto-approve instructions are accurate",
+        "Hook explanation is clear for users unfamiliar with the concept"
       ],
-      "references": [
-        "mcp-server/tools/git.ts",
-        "plans/specs/core-extraction-and-cli.md"
-      ],
-      "description": "Extract all remaining MCP tool logic into core modules.\n\n**Extract from:** `mcp-server/tools/git.ts`, `files.ts`, `conversations.ts`, `claude-tasks.ts`, `health.ts`, `learnings.ts`\n\n**Creates:**\n- `core/git.ts` - linkCommit, linkPr, syncLinks\n- `core/files.ts` - linkFiles, getTicketsForFile\n- `core/compliance.ts` - conversation session CRUD, export, archival\n- `core/tasks.ts` - saveTasks, getTasks, clearTasks, getSnapshots\n- `core/health.ts` - getHealth, getEnvironment, getSettings, updateSettings\n- `core/learnings.ts` - reconcileLearnings, getEpicLearnings\n\n**Acceptance criteria:**\n- [ ] All functions extracted with typed inputs/outputs\n- [ ] Unit tests for each module\n- [ ] MCP wrappers updated to call core functions\n\n**Depends on:** Ticket 1 (core foundation)\n**Spec:** `plans/specs/core-extraction-and-cli.md` - Ticket 7",
+      "references": [],
+      "description": "## Context\n\n**Epic**: Add GitHub Copilot CLI as Brain Dump Provider\n**Branch/PR**: All work in this epic shares ONE branch and ONE PR. Commit to the shared epic branch.\n\n## What to Do\n\n### 1. Create `docs/environments/copilot-cli.md`\n\nFollow the structure of `docs/environments/vscode.md`. Sections:\n\n1. **Quick Start** — Installation command (`./scripts/install.sh` or `./scripts/setup-copilot-cli.sh`), what gets configured\n2. **How Copilot CLI Differs** — Comparison table vs other providers:\n   | Feature | Claude Code | Cursor | Copilot CLI | VS Code | OpenCode |\n   |---------|-------------|--------|-------------|---------|----------|\n   | Hook enforcement | User-scoped | User-scoped | Global | None | Plugin |\n   | Telemetry | Hooks | Hooks | Hooks | Manual | Plugin |\n   | Agent format | .md | .md | .agent.md | .agent.md | .md |\n3. **Workflow** — The 4 phases (start-work → implement → complete-work/review → demo)\n4. **Using MCP Tools** — How to invoke Brain Dump tools in Copilot CLI\n5. **Hook Configuration** — Explain the `~/.copilot/hooks.json` format, what each hook does, how to customize\n6. **Auto-Approve Tools** — `copilot --allow-tool 'brain-dump(*)'` and other patterns\n7. **Troubleshooting** — Common issues (MCP server not connecting, hooks not firing, etc.)\n\n### 2. Update `CLAUDE.md`\n\n**Update Multi-Environment Support table** (add Copilot CLI row):\n```\n| Copilot CLI  | ✅ Full   | ✅ Global hooks enforce state  | ✅ Hooks capture   |\n```\n\n**Update Cross-Environment Support table** in Hook-Based State Enforcement section:\n```\n| Copilot CLI   | ✅ Full        | ✅ Global          | Global hooks in ~/.copilot/ enforce across projects |\n```\n\n**Update the file header comment** in environment.ts docstring to mention Copilot CLI.\n\n## Acceptance Criteria\n\n- [ ] `docs/environments/copilot-cli.md` exists with all 7 sections\n- [ ] CLAUDE.md tables updated with Copilot CLI rows\n- [ ] Documentation references correct file paths and config formats\n- [ ] Auto-approve instructions are accurate\n- [ ] Hook explanation is clear for users unfamiliar with the concept",
       "priority": "medium",
       "tags": [
-        "core",
-        "extraction"
+        "copilot-cli",
+        "documentation"
       ]
     },
     {
-      "id": "781b0dee-94c7-4e85-ae85-9bc9af8e154d",
-      "title": "Build CLI commands",
+      "id": "31718383-aa62-4e08-b1cf-0ce7c111b833",
+      "title": "Overview: Copilot CLI Provider Implementation Plan",
       "passes": true,
-      "overview": "",
-      "types": [],
+      "overview": "Add GitHub Copilot CLI (`copilot` command) as Brain Dump's 5th supported development environment, following the same universal quality workflow patterns established for Claude Code, Cursor, OpenCode, and VS Code. **All work in this epic shares ONE branch and ONE PR.**",
+      "types": [
+        {
+          "name": "Environment",
+          "code": "type Environment = \\\"claude-code\\\" | \\\"opencode\\\" | \\\"copilot-cli\\\" | \\\"cursor\\\" | \\\"vscode\\\" | \\\"unknown\\\";"
+        }
+      ],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Every command works end-to-end",
-        "JSON output parseable by jq",
-        "--pretty flag produces human-readable output",
-        "--help for every resource and action",
-        "Exit code 0 on success, 1 on error",
-        "Integration tests: run CLI commands against real SQLite",
-        "Existing brain-dump backup/check/doctor commands still work"
+        "Implement as described",
+        "Verify functionality works as expected"
       ],
       "references": [
-        "plans/specs/core-extraction-and-cli.md"
+        "mcp-server/lib/environment.ts",
+        "mcp-server/tools/comment.ts",
+        "mcp-server/__tests__/cross-environment.test.ts",
+        "setup-cursor.sh:64-98",
+        "setup-cursor.sh:124-151",
+        "setup-cursor.sh:160-209",
+        "uninstall_cursor:105-153"
       ],
-      "description": "Build all CLI commands that wrap core functions. Extends existing `brain-dump` CLI.\n\n**Creates:** `cli/commands/*.ts`, `cli/lib/output.ts`, `cli/lib/args.ts`\n\n**CLI structure:** `brain-dump <resource> <action> [--flags]`\n- JSON output by default (for AI consumption)\n- `--pretty` flag for human-readable output\n- Exit code 0 on success, 1 on error\n\n**Full command list:**\n- workflow: start-work, complete-work, start-epic\n- ticket: create, list, get, update, delete\n- epic: create, list, update, delete\n- comment: add, list\n- review: submit-finding, mark-fixed, check-complete, generate-demo, get-demo, submit-feedback, get-findings\n- session: create, update, complete, get, list\n- git: link-commit, link-pr, sync\n- admin: backup, restore, check, doctor, health (existing, reorganized)\n\n**Acceptance criteria:**\n- [ ] Every command works end-to-end\n- [ ] JSON output parseable by jq\n- [ ] --pretty flag produces human-readable output\n- [ ] --help for every resource and action\n- [ ] Exit code 0 on success, 1 on error\n- [ ] Integration tests: run CLI commands against real SQLite\n- [ ] Existing brain-dump backup/check/doctor commands still work\n\n**Depends on:** Tickets 1-7 (all core extractions)\n**Spec:** `plans/specs/core-extraction-and-cli.md` - Ticket 8",
+      "description": "## Overview\n\nAdd GitHub Copilot CLI (`copilot` command) as Brain Dump's 5th supported development environment, following the same universal quality workflow patterns established for Claude Code, Cursor, OpenCode, and VS Code. **All work in this epic shares ONE branch and ONE PR.**\n\n## Branch & PR Strategy\n\n- **Branch**: `feature/copilot-cli-provider` (created from `main`)\n- **PR**: Single PR titled \\\"feat: Add GitHub Copilot CLI as Brain Dump provider\\\"\n- Every ticket in this epic commits to the same branch\n- The PR accumulates all changes and is reviewed as one cohesive feature\n\n---\n\n## Provider Comparison Table\n\n| Component | Claude Code | Cursor | VS Code | OpenCode | Copilot CLI (New) |\n|-----------|-------------|--------|---------|----------|-------------------|\n| Setup script | `scripts/setup-claude-code.sh` | `scripts/setup-cursor.sh` | `scripts/setup-vscode.sh` | `scripts/setup-opencode.sh` | `scripts/setup-copilot-cli.sh` |\n| MCP config location | `~/.claude.json` (via CLI) | `~/.cursor/mcp.json` | `~/Library/.../Code/User/mcp.json` | `~/.config/opencode/opencode.json` | `~/.copilot/mcp-config.json` |\n| MCP format | stdio via `claude mcp add` | `mcpServers.{name}` | `servers.{name}.type: \\\"stdio\\\"` | `mcp.{name}.type: \\\"local\\\"` | `mcpServers.{name}.type: \\\"local\\\"` |\n| Agents location | `~/.claude/agents/` | `~/.cursor/agents/` | VS Code User `prompts/` | `~/.config/opencode/agents/` | `~/.copilot/agents/` |\n| Skills location | `~/.claude/skills/` | `~/.cursor/skills/` | `~/.copilot/skills/` (shared) | `~/.config/opencode/skills/` | `~/.copilot/skills/` (shared with VS Code) |\n| Hooks | `~/.claude/hooks/*.sh` user-scoped | `~/.cursor/hooks/*.sh` user-scoped | None | TypeScript plugins | `~/.copilot/hooks/*.sh` global |\n| Env var flag | Detected via env patterns | `CURSOR=1` | VS Code env patterns | `OPENCODE=1` | `COPILOT_CLI=1` |\n| Detection | `command -v claude` | `~/.cursor/` or app | `command -v code` | `command -v opencode` | `command -v copilot` or `~/.copilot/` |\n\n---\n\n## Architecture Decision Record\n\n### ADR-1: Hooks Strategy — Global (`~/.copilot/`)\nCopilot CLI supports both repo-scoped hooks (`.github/hooks/`) and global hooks (`~/.copilot/`). We chose **global** so state enforcement and telemetry work across ALL repos, not just the brain-dump repo. This matches the pattern used by Claude Code (`~/.claude/hooks/`) and Cursor (`~/.cursor/hooks/`).\n\n### ADR-2: Hook Format — Defensive Dual-Format\nCopilot CLI's exact hook input JSON schema isn't fully documented yet. Our scripts handle both Copilot CLI and Claude Code JSON formats using jq fallbacks:\n```bash\nTOOL_NAME=$(echo \\\"$INPUT\\\" | jq -r '.tool_name // .tool // \\\"\\\"')\n```\nThis ensures hooks work even if the input format differs from what we expect, and makes the scripts portable across environments.\n\n### ADR-3: Skills — Shared Location\n`~/.copilot/skills/` is shared between VS Code setup and Copilot CLI setup. Both write the same content from `.github/skills/` and `.claude/skills/`. The idempotent copy pattern (check exists → diff → update if different) handles overlap gracefully.\n\n### ADR-4: Environment Detection\n`COPILOT_CLI=1` env var set explicitly in MCP config, plus scanning for `COPILOT_*` ambient env vars. Priority order: Claude Code > OpenCode > Copilot CLI > Cursor > VS Code.\n\n---\n\n## Files to Create\n\n### 1. `scripts/setup-copilot-cli.sh` (~400 lines)\n\n**Pattern**: Follow `scripts/setup-cursor.sh` exactly. The script has 5 steps:\n\n**Step 1: Configure MCP Server (`~/.copilot/mcp-config.json`)**\n\nCopilot CLI uses a different MCP config format than other providers:\n```json\n{\n  \\\"mcpServers\\\": {\n    \\\"brain-dump\\\": {\n      \\\"type\\\": \\\"local\\\",\n      \\\"command\\\": \\\"node\\\",\n      \\\"args\\\": [\\\"/path/to/brain-dump/mcp-server/dist/index.js\\\"],\n      \\\"env\\\": { \\\"COPILOT_CLI\\\": \\\"1\\\" },\n      \\\"tools\\\": [\\\"*\\\"]\n    }\n  }\n}\n```\n\nKey differences: uses `type: \\\"local\\\"` (not `\\\"stdio\\\"`), has `tools: [\\\"*\\\"]` array, sets `COPILOT_CLI=1`.\nUse `node -e` JSON merge pattern from `setup-cursor.sh` lines 64-98.\n\n**Step 2: Configure Agents (`~/.copilot/agents/`)**\n\nCopy `.github/agents/*.agent.md` → `~/.copilot/agents/`. Keep `.agent.md` extension (same format as VS Code). Follow copy-with-diff-check pattern from `setup-cursor.sh` lines 124-151.\n\n11 agents: ralph, ticket-worker, planner, inception, code-reviewer, silent-failure-hunter, code-simplifier, context7-library-compliance, react-best-practices, cruft-detector, senior-engineer.\n\n**Step 3: Configure Skills (`~/.copilot/skills/`)**\n\nCopy from `.github/skills/` and `.claude/skills/` → `~/.copilot/skills/`. Shared with VS Code — use idempotent pattern from `setup-cursor.sh` lines 160-209.\n\n**Step 4: Configure Hooks (`~/.copilot/hooks/`)**\n\nCreate `~/.copilot/hooks.json` config and write hook scripts inline via heredocs.\n\nHook config format:\n```json\n{\n  \\\"version\\\": 1,\n  \\\"hooks\\\": {\n    \\\"sessionStart\\\": [{ \\\"bash\\\": \\\"~/.copilot/hooks/start-telemetry.sh\\\" }],\n    \\\"preToolUse\\\": [\n      { \\\"bash\\\": \\\"~/.copilot/hooks/log-tool-start.sh\\\" },\n      { \\\"bash\\\": \\\"~/.copilot/hooks/enforce-state-before-write.sh\\\" }\n    ],\n    \\\"postToolUse\\\": [{ \\\"bash\\\": \\\"~/.copilot/hooks/log-tool-end.sh\\\" }],\n    \\\"sessionEnd\\\": [{ \\\"bash\\\": \\\"~/.copilot/hooks/end-telemetry.sh\\\" }],\n    \\\"userPromptSubmitted\\\": [{ \\\"bash\\\": \\\"~/.copilot/hooks/log-prompt.sh\\\" }],\n    \\\"errorOccurred\\\": [{ \\\"bash\\\": \\\"~/.copilot/hooks/log-tool-failure.sh\\\" }]\n  }\n}\n```\n\n**Step 5: Summary** — print what was configured, locations, auto-approve tip.\n\n### 2. Hook Scripts (written inline in setup script via heredocs)\n\n| Script | Adapted From | Purpose |\n|--------|-------------|---------|\n| `start-telemetry.sh` | `.claude/hooks/start-telemetry-session.sh` | Detect active ticket from `.claude/ralph-state.json`, prompt telemetry start |\n| `end-telemetry.sh` | `.claude/hooks/end-telemetry-session.sh` | Flush telemetry queue to database, clean up temp files |\n| `log-prompt.sh` | `.claude/hooks/log-prompt.sh` | Record user prompts to `~/.copilot/telemetry-queue.jsonl` |\n| `log-tool-start.sh` | `.claude/hooks/log-tool-start.sh` | Record tool start event with correlation ID for duration tracking |\n| `log-tool-end.sh` | `.claude/hooks/log-tool-end.sh` | Pair with start event, record completion and duration |\n| `log-tool-failure.sh` | `.claude/hooks/log-tool-failure.sh` | Record tool failures with error details |\n| `enforce-state-before-write.sh` | `.claude/hooks/enforce-state-before-write.sh` | Block Write/Edit if Ralph state isn't implementing/testing/committing |\n\nEach script: reads JSON from stdin (`INPUT=$(cat)`), parses with jq dual-format fallbacks, writes to `~/.copilot/telemetry-queue.jsonl`, state enforcement reads `.claude/ralph-state.json` from project root via `git rev-parse --show-toplevel`, returns `{\\\"decision\\\": \\\"allow\\\"}` or `{\\\"decision\\\": \\\"block\\\", \\\"message\\\": \\\"...\\\"}`.\n\n### 3. `docs/environments/copilot-cli.md`\n\nFollowing structure of `docs/environments/vscode.md`:\n1. Quick Start — installation, what gets configured\n2. How Copilot CLI Differs — comparison table vs other providers\n3. Workflow — 4 phases (start-work → implement → complete-work/review → demo)\n4. Using MCP Tools — invoking Brain Dump tools\n5. Hook Configuration — `~/.copilot/hooks.json` format, customization\n6. Auto-Approve Tools — `copilot --allow-tool 'brain-dump(*)'`\n7. Troubleshooting — common issues\n\n---\n\n## Files to Modify\n\n### 4. `mcp-server/lib/environment.ts`\n\n**Add to type union** (line 14):\n```typescript\ntype Environment = \\\"claude-code\\\" | \\\"opencode\\\" | \\\"copilot-cli\\\" | \\\"cursor\\\" | \\\"vscode\\\" | \\\"unknown\\\";\n```\n\n**Add flag and patterns** (after line 40):\n```typescript\nconst COPILOT_CLI_FLAG = \\\"COPILOT_CLI\\\";\nconst COPILOT_CLI_ENV_PATTERNS = [\n  \\\"COPILOT_TRACE_ID\\\",\n  \\\"COPILOT_SESSION\\\",\n  \\\"COPILOT_CLI_VERSION\\\",\n];\n```\n\n**Add detection function** (after `hasCursorEnvironment`, ~line 115):\n```typescript\nfunction hasCopilotCliEnvironment(): boolean {\n  if (process.env[COPILOT_CLI_FLAG]) return true;\n  for (const envVar of COPILOT_CLI_ENV_PATTERNS) {\n    if (process.env[envVar]) return true;\n  }\n  return false;\n}\n```\n\n**Update `detectEnvironment()`** — insert after OpenCode, before Cursor:\n```typescript\nif (hasCopilotCliEnvironment()) return \\\"copilot-cli\\\";\n```\n\n**Update `detectAuthor()`** — add case:\n```typescript\ncase \\\"copilot-cli\\\":\n  baseTool = \\\"copilot\\\";\n  break;\n```\n\n**Update `getEnvironmentInfo()`** — add env var collection:\n```typescript\nfor (const envVar of COPILOT_CLI_ENV_PATTERNS) {\n  if (process.env[envVar]) envVarsDetected.push(envVar);\n}\nif (process.env[COPILOT_CLI_FLAG]) envVarsDetected.push(COPILOT_CLI_FLAG);\n```\n\n### 5. `mcp-server/tools/comment.ts` (line 21)\n\n```typescript\nconst AUTHORS = [\\\"claude\\\", \\\"ralph\\\", \\\"user\\\", \\\"opencode\\\", \\\"cursor\\\", \\\"vscode\\\", \\\"copilot\\\", \\\"ai\\\"] as const;\n```\n\n### 6. `scripts/install.sh`\n\n**Add detection** (after VS Code, ~line 80):\n```bash\nCOPILOT_CLI_AVAILABLE=0\nif command -v copilot &>/dev/null 2>&1 || [ -f \\\"$HOME/.copilot/config.json\\\" ] 2>/dev/null; then\n  COPILOT_CLI_AVAILABLE=1\n  echo -e \\\"${GREEN}✓${NC} Copilot CLI detected\\\"\nelse\n  echo -e \\\"${YELLOW}○${NC} Copilot CLI not found\\\"\nfi\n```\n\n**Add `install_copilot_cli()` function** (same pattern as lines 89-103).\n\n**Add invocation** (after VS Code, ~line 180):\n```bash\nif [ $COPILOT_CLI_AVAILABLE -eq 1 ]; then\n  install_copilot_cli\n  INSTALL_COUNT=$((INSTALL_COUNT + 1))\nfi\n```\n\n**Update \\\"Brain Dump supports:\\\" list** to include Copilot CLI.\n\n### 7. `scripts/uninstall.sh`\n\n**Add `uninstall_copilot_cli()` function** (pattern of `uninstall_cursor` lines 105-153):\n- Remove `brain-dump` from `~/.copilot/mcp-config.json` (node -e JSON manipulation)\n- Remove agents from `~/.copilot/agents/` (11 agents)\n- Remove hook scripts from `~/.copilot/hooks/`\n- Clean up `~/.copilot/hooks.json`\n- Remove telemetry temp files\n- **DO NOT remove `~/.copilot/skills/`** — shared with VS Code\n\n**Add detection and invocation** (after VS Code, ~line 379).\n\n### 8. `CLAUDE.md`\n\n**Update Multi-Environment Support table**:\n```\n| Copilot CLI  | ✅ Full   | ✅ Global hooks enforce state  | ✅ Hooks capture   |\n```\n\n**Update Cross-Environment Support table**:\n```\n| Copilot CLI   | ✅ Full        | ✅ Global          | Global hooks in ~/.copilot/ enforce across projects |\n```\n\n### 9. `mcp-server/__tests__/cross-environment.test.ts`\n\nAdd test cases for Copilot CLI environment detection following existing patterns.\n\n---\n\n## Implementation Order\n\n```\nPhase 1: MCP Server (foundational — enables detection)\n  Ticket 2: mcp-server/lib/environment.ts + comment.ts + tests\n\nPhase 2: Setup Script (depends on Phase 1 for env var)\n  Ticket 3: scripts/setup-copilot-cli.sh + hook scripts\n\nPhase 3: Install/Uninstall (depends on Phase 2)\n  Ticket 4: scripts/install.sh + scripts/uninstall.sh\n\nPhase 4: Documentation (can parallel with Phase 3)\n  Ticket 5: docs/environments/copilot-cli.md + CLAUDE.md\n```\n\n---\n\n## Risk Assessment\n\n| Risk | Impact | Mitigation |\n|------|--------|------------|\n| Copilot CLI hook input format unknown | High — hooks may not work | Defensive dual-format scripts with jq fallbacks; add debug logging |\n| Shared `~/.copilot/skills/` with VS Code | Low — both write same content | Idempotent copy pattern handles this |\n| Copilot CLI environment detection false positives | Low — explicit flag | `COPILOT_CLI=1` set via MCP config env, not ambient detection |\n| Uninstall removes skills needed by VS Code | Medium — breaks VS Code | Uninstall checks if VS Code is also installed before removing shared resources |\n| Hook scripts need project root path | Medium — may not have env var | Fall back to `git rev-parse --show-toplevel` |\n\n---\n\n## Copilot CLI Technical Reference\n\n- **Config dir**: `~/.copilot/` (overridable via `XDG_CONFIG_HOME`)\n- **MCP config**: `~/.copilot/mcp-config.json`\n- **MCP format**: `{ \\\"mcpServers\\\": { \\\"name\\\": { \\\"type\\\": \\\"local\\\", \\\"command\\\": \\\"...\\\", \\\"args\\\": [...], \\\"env\\\": {}, \\\"tools\\\": [\\\"*\\\"] } } }`\n- **Agents**: `~/.copilot/agents/*.agent.md` (user-level), `.github/agents/*.agent.md` (repo-level)\n- **Skills**: `~/.copilot/skills/*/SKILL.md` (personal), `.github/skills/` (project)\n- **Hooks**: `~/.copilot/hooks.json` version 1 format\n- **Hook events**: sessionStart, sessionEnd, userPromptSubmitted, preToolUse, postToolUse, errorOccurred\n- **Custom instructions**: `.github/copilot-instructions.md`, `AGENTS.md`\n- **Auto-approve**: `copilot --allow-tool 'brain-dump(*)'`\n- **Auto-approve all**: `copilot --allow-all-tools` or `copilot --yolo`\n\n## Verification\n\nAfter all tickets complete:\n1. `pnpm type-check` — environment.ts compiles\n2. `pnpm test` — cross-environment tests pass\n3. `pnpm lint` — code quality\n4. `bash scripts/setup-copilot-cli.sh` — creates configs correctly\n5. `bash scripts/install.sh` — detects Copilot CLI\n6. MCP server with `COPILOT_CLI=1` returns `\\\"copilot-cli\\\"` from `detectEnvironment()`",
       "priority": "high",
       "tags": [
-        "cli"
-      ]
-    },
-    {
-      "id": "22c7e965-6ab5-4a06-8c7a-47cf93469c2f",
-      "title": "Consolidate MCP server (55 → 8 resource tools)",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "8 resource tools registered",
-        "All existing MCP functionality preserved",
-        "OpenCode config updated (8 tools instead of 13)",
-        "Integration tests: call each tool via MCP protocol",
-        "Context reduction verified (count tool schema tokens before/after)"
-      ],
-      "references": [
-        "plans/specs/core-extraction-and-cli.md"
-      ],
-      "description": "Rewrite MCP server to use 8 resource-based tools instead of 55 individual tools. Each tool accepts an `action` parameter and dispatches to core functions.\n\n**8 resource tools:**\n1. `ticket` - create, list, get, update, delete, update-criterion\n2. `epic` - create, list, update, delete\n3. `comment` - add, list\n4. `workflow` - start-work, complete-work, start-epic\n5. `review` - submit-finding, mark-fixed, check-complete, generate-demo, get-demo, submit-feedback, get-findings\n6. `session` - create, update, complete, get, list, emit-event, get-events, clear-events\n7. `telemetry` - start, log-tool, log-prompt, log-context, end, get, list\n8. `admin` - health, environment, settings, update-settings\n\n**Each tool:** validates action → validates action-specific params with Zod → calls core function → formats result as MCP content → catches CoreError for isError responses\n\n**Acceptance criteria:**\n- [ ] 8 resource tools registered\n- [ ] All existing MCP functionality preserved\n- [ ] OpenCode config updated (8 tools instead of 13)\n- [ ] Integration tests: call each tool via MCP protocol\n- [ ] Context reduction verified (count tool schema tokens before/after)\n\n**Depends on:** Tickets 1-7 (all core extractions)\n**Spec:** `plans/specs/core-extraction-and-cli.md` - Ticket 9",
-      "priority": "high",
-      "tags": [
-        "mcp",
-        "consolidation"
-      ]
-    },
-    {
-      "id": "e89b80e3-b972-492b-beac-98391522fa54",
-      "title": "Extract core/workflow.ts + absorb start-ticket-workflow.ts",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "All 3 functions extracted with typed inputs/outputs",
-        "`src/api/start-ticket-workflow.ts` DELETED — replaced by core/workflow.ts",
-        "`src/api/ralph.ts` updated to import startWork/startEpicWork from core",
-        "Git helpers in core/git-utils.ts (single copy, no duplication)",
-        "Git operations abstracted behind interface for testability",
-        "Unit tests for state transitions and error cases",
-        "Integration tests for full startWork → completeWork flow",
-        "UI Ralph launch still works after wiring change (manual verification)"
-      ],
-      "references": [
-        "mcp-server/tools/workflow.ts",
-        "src/api/start-ticket-workflow.ts",
-        "mcp-server/lib/git-utils.ts",
-        "src/api/ralph.ts",
-        "plans/specs/core-extraction-and-cli.md"
-      ],
-      "description": "Extract workflow business logic into core. This is the most critical ticket because it must absorb the existing shared function AND wire up the UI path.\n\n**Extract from:**\n- `mcp-server/tools/workflow.ts` (49KB)\n- `src/api/start-ticket-workflow.ts` (400 lines — ABSORB then DELETE)\n- `mcp-server/lib/git-utils.ts` (move to `core/git-utils.ts`)\n\n**Functions:**\n- `startWork(db, ticketId)` → `StartWorkResult`\n- `completeWork(db, ticketId, summary?)` → `CompleteWorkResult`\n- `startEpicWork(db, epicId, createPr?)` → `StartEpicWorkResult`\n\n**Critical wiring:**\n- `src/api/start-ticket-workflow.ts` is already called by BOTH the UI (`launchRalphForTicket` in `src/api/ralph.ts`) AND the MCP server. It has duplicated git utils (copy-pasted from mcp-server). Must be absorbed into `core/workflow.ts`.\n- After extraction: `src/api/ralph.ts` imports from core, MCP wrapper imports from core, CLI imports from core. One copy of the logic.\n\n**Acceptance criteria:**\n- [ ] All 3 functions extracted with typed inputs/outputs\n- [ ] `src/api/start-ticket-workflow.ts` DELETED — replaced by core/workflow.ts\n- [ ] `src/api/ralph.ts` updated to import startWork/startEpicWork from core\n- [ ] Git helpers in core/git-utils.ts (single copy, no duplication)\n- [ ] Git operations abstracted behind interface for testability\n- [ ] Unit tests for state transitions and error cases\n- [ ] Integration tests for full startWork → completeWork flow\n- [ ] UI Ralph launch still works after wiring change (manual verification)\n\n**Depends on:** Ticket 1 (core foundation)\n**Spec:** `plans/specs/core-extraction-and-cli.md` - Ticket 4 + Section 7.1-7.2",
-      "priority": "high",
-      "tags": [
-        "core",
-        "extraction",
-        "workflow",
-        "critical"
-      ]
-    },
-    {
-      "id": "747e2c0a-fd5f-4b61-bf0d-37bb0e96a170",
-      "title": "Wire up end-to-end integration (hooks, skills, configs, prompts)",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "UI → Ralph Launch (Claude Code) → terminal opens → workflow completes",
-        "UI → Ralph Launch (OpenCode) → terminal opens → workflow completes",
-        "Direct CLI workflow (start → complete → review → demo)",
-        "Hook integration (PR auto-create, commit linking, next-ticket spawn)",
-        "Kanban drag-drop still works (unaffected path)"
-      ],
-      "references": [
-        "plans/specs/core-extraction-and-cli.md"
-      ],
-      "description": "Capstone ticket: plug everything together so the full system works end-to-end. See spec Section 7 for complete trace.\n\n**Hook matchers (settings.json) — 6 matchers to update:**\n- `start_ticket_work` → new CLI/MCP matcher\n- `complete_ticket_work` → new CLI/MCP matcher\n- `update_session_state` → new CLI/MCP matcher\n- `create_ralph_session` → new CLI/MCP matcher\n- `complete_ralph_session` → new CLI/MCP matcher\n- `sync_ticket_links` → new CLI/MCP matcher\n\n**Hook scripts — 8 scripts need updates:**\n- create-pr-on-ticket-start.sh, spawn-next-ticket.sh, record-state-change.sh, clear-pending-links.sh (trigger matchers)\n- link-commit-to-ticket.sh, check-pending-links.sh, start-telemetry-session.sh, end-telemetry-session.sh (output text)\n\n**getRalphPrompt() in src/api/ralph.ts:**\n- Update all 8+ MCP tool name references to CLI commands\n- Make environment-aware (CLI for Claude Code/OpenCode, MCP for VS Code)\n\n**Skills:** brain-dump-workflow, /next-task, /review-ticket, /demo, /reconcile-learnings\n\n**Provider configs:** OpenCode (AGENTS.md + opencode.json), Cursor, VS Code\n\n**Setup scripts:** setup-claude-code.sh, setup-opencode.sh, setup-cursor.sh, setup-vscode.sh\n\n**CLAUDE.md:** Update architecture docs, MCP references, hook documentation\n\n**End-to-end verification (ALL must pass):**\n- [ ] UI → Ralph Launch (Claude Code) → terminal opens → workflow completes\n- [ ] UI → Ralph Launch (OpenCode) → terminal opens → workflow completes\n- [ ] Direct CLI workflow (start → complete → review → demo)\n- [ ] Hook integration (PR auto-create, commit linking, next-ticket spawn)\n- [ ] Kanban drag-drop still works (unaffected path)\n\n**Depends on:** Tickets 8-9 (CLI + MCP consolidation)\n**Spec:** `plans/specs/core-extraction-and-cli.md` - Ticket 10 + Section 7",
-      "priority": "high",
-      "tags": [
-        "integration",
-        "hooks",
-        "skills",
-        "critical"
+        "overview",
+        "copilot-cli",
+        "architecture"
       ]
     }
   ],
@@ -415,12 +295,12 @@
       "Updated tool documentation if interface changed",
       "Added Zod schema for input validation",
       "All acceptance criteria from ticket met",
-      "Work summary added via `add_ticket_comment` (for Ralph sessions)",
+      "Work summary added via `comment` tool, `action: \"add\"` (for Ralph sessions)",
       "Session completed with appropriate outcome (for Ralph sessions)",
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-02-02T06:03:02.891Z",
-  "epicTitle": "Core Extraction + CLI + MCP Consolidation",
-  "epicDescription": "All 10 tickets in this epic share ONE branch and ONE PR. Nothing merges to main until the entire epic is complete and tested end-to-end.\n\n**Branch:** `feature/epic-630de809-core-extraction-cli-mcp-consolidation`\n**PR:** Single draft PR created when the first ticket starts work\n\nDO NOT create per-ticket branches. When `start_ticket_work` is called for any ticket in this epic, it MUST use the epic branch (not a ticket-specific branch). The epic workflow state tracks which ticket is currently active on the shared branch.\n\n**Spec:** `plans/specs/core-extraction-and-cli.md`"
+  "generatedAt": "2026-02-06T09:18:20.294Z",
+  "epicTitle": "Add GitHub Copilot CLI as Brain Dump Provider",
+  "epicDescription": "Add GitHub Copilot CLI (`copilot` command) as the 5th supported development environment in Brain Dump, following the same universal quality workflow patterns established for Claude Code, Cursor, OpenCode, and VS Code.\n\n## Scope\n\nAll work in this epic lives under **one branch** and **one PR**. Each ticket builds on the previous, and the final result is a single cohesive feature addition.\n\n## What This Enables\n\n- Copilot CLI users get full access to Brain Dump MCP tools (workflow, tickets, sessions, review, telemetry)\n- Global agents (Ralph, code-reviewer, etc.) available in all Copilot CLI projects\n- Global skills (brain-dump-workflow, tanstack-*, etc.) auto-loaded\n- Global hooks for telemetry capture and Ralph state enforcement\n- Install/uninstall scripts for one-command setup\n- Comprehensive documentation\n\n## Architecture\n\n- **MCP config**: `~/.copilot/mcp-config.json` with `type: \"local\"` format\n- **Agents**: `~/.copilot/agents/*.agent.md`\n- **Skills**: `~/.copilot/skills/` (shared with VS Code)\n- **Hooks**: `~/.copilot/hooks/` (global, with `hooks.json` config)\n- **Env detection**: `COPILOT_CLI=1` flag + `COPILOT_*` pattern scanning"
 }
