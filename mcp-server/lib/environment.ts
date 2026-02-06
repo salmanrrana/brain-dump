@@ -3,6 +3,7 @@
  * Detects whether the MCP server is being invoked from:
  * - Claude Code (Anthropic's CLI)
  * - OpenCode (open source AI coding agent)
+ * - Copilot CLI (GitHub's CLI AI agent)
  * - VS Code (with MCP extension)
  * - Cursor (with MCP extension)
  * - Unknown environment
@@ -11,7 +12,7 @@
 import fs from "fs";
 import path from "path";
 
-type Environment = "claude-code" | "opencode" | "cursor" | "vscode" | "unknown";
+type Environment = "claude-code" | "opencode" | "copilot-cli" | "cursor" | "vscode" | "unknown";
 
 const VSCODE_ENV_PATTERNS = [
   "VSCODE_GIT_ASKPASS_NODE",
@@ -37,6 +38,7 @@ const CLAUDE_CODE_ENV_PATTERNS = [
 
 // Simple flags to indicate which tool is calling (set via MCP config)
 const OPENCODE_FLAG = "OPENCODE";
+const COPILOT_CLI_FLAG = "COPILOT_CLI";
 const CURSOR_FLAG = "CURSOR";
 
 /**
@@ -50,6 +52,12 @@ const OPENCODE_ENV_PATTERNS = [
   "OPENCODE_SERVER_PASSWORD",
   "OPENCODE_SERVER_USERNAME",
 ];
+
+/**
+ * Copilot CLI environment variable patterns.
+ * GitHub Copilot CLI uses COPILOT_* prefixed environment variables.
+ */
+const COPILOT_CLI_ENV_PATTERNS = ["COPILOT_TRACE_ID", "COPILOT_SESSION", "COPILOT_CLI_VERSION"];
 
 /**
  * Cursor environment variable patterns.
@@ -115,12 +123,29 @@ function hasCursorEnvironment(): boolean {
 }
 
 /**
- * Detect the current environment (claude-code, opencode, vscode, cursor, or unknown).
- * Claude Code takes priority, then OpenCode, then Cursor, then VS Code.
+ * Check if any Copilot CLI environment variables are present.
+ * GitHub Copilot CLI uses COPILOT_* prefixed environment variables.
+ * Also checks for explicit COPILOT_CLI flag set via MCP config.
+ */
+function hasCopilotCliEnvironment(): boolean {
+  // Check explicit flag (set via MCP config env section)
+  if (process.env[COPILOT_CLI_FLAG]) return true;
+
+  // Check known Copilot CLI environment variables
+  for (const envVar of COPILOT_CLI_ENV_PATTERNS) {
+    if (process.env[envVar]) return true;
+  }
+  return false;
+}
+
+/**
+ * Detect the current environment (claude-code, opencode, copilot-cli, cursor, vscode, or unknown).
+ * Claude Code takes priority, then OpenCode, then Copilot CLI, then Cursor, then VS Code.
  */
 export function detectEnvironment(): Environment {
   if (hasClaudeCodeEnvironment()) return "claude-code";
   if (hasOpenCodeEnvironment()) return "opencode";
+  if (hasCopilotCliEnvironment()) return "copilot-cli";
   if (hasCursorEnvironment()) return "cursor";
   if (hasVSCodeEnvironment()) return "vscode";
   return "unknown";
@@ -154,6 +179,9 @@ export function detectAuthor(): string {
       break;
     case "opencode":
       baseTool = "opencode";
+      break;
+    case "copilot-cli":
+      baseTool = "copilot";
       break;
     case "cursor":
       baseTool = "cursor";
@@ -200,6 +228,12 @@ export function getEnvironmentInfo(): EnvironmentInfo {
       envVarsDetected.push(key);
     }
   }
+
+  // Collect Copilot CLI env vars
+  for (const envVar of COPILOT_CLI_ENV_PATTERNS) {
+    if (process.env[envVar]) envVarsDetected.push(envVar);
+  }
+  if (process.env[COPILOT_CLI_FLAG]) envVarsDetected.push(COPILOT_CLI_FLAG);
 
   for (const envVar of VSCODE_ENV_PATTERNS) {
     if (envVar === "TERM_PROGRAM") {
