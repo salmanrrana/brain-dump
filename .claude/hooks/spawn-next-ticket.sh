@@ -51,6 +51,10 @@ NEXT_TICKET_ID=$(echo "$TOOL_RESULT" | grep -oE '"ticketId":\s*"[^"]+"' | head -
 if [[ -z "$NEXT_TICKET_ID" ]]; then
   NEXT_TICKET_ID=$(echo "$TOOL_RESULT" | grep -oE 'start_ticket_work\("[^"]+"\)' | head -1 | sed 's/start_ticket_work("//;s/")//' || echo "")
 fi
+# Fallback: parse "Suggested Next Ticket" section from complete-work markdown output
+if [[ -z "$NEXT_TICKET_ID" ]]; then
+  NEXT_TICKET_ID=$(echo "$TOOL_RESULT" | sed -n '/Suggested Next Ticket/,$p' | grep -oE '`[0-9a-fA-F-]{8,}`' | head -1 | tr -d '`' || echo "")
+fi
 
 if [[ -z "$NEXT_TICKET_ID" ]]; then
   # No next ticket suggested, just pass through

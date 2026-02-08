@@ -49,7 +49,7 @@ Verify you receive a `findingId` in the response for each submission.
 
 Fix critical/major issues, then invoke:
 
-`review "mark-fixed"({ findingId, status: "fixed" })`
+`review "mark-fixed"({ findingId, fixStatus: "fixed" })`
 
 Verify: `review "check-complete"({ ticketId })` — response must contain `canProceedToHumanReview: true`
 

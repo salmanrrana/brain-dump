@@ -503,7 +503,7 @@ Then retry your Write/Edit operation.
 
 1. Get findings: `review` tool, `action: "get-findings"`, `ticketId`, `severity: "critical|major"`
 2. Fix each issue in code
-3. Call: `review` tool, `action: "mark-fixed"`, `findingId`, `status: "fixed"`
+3. Call: `review` tool, `action: "mark-fixed"`, `findingId`, `fixStatus: "fixed"`
 4. Call: `review` tool, `action: "check-complete"`, `ticketId` - should return complete: true
 5. Then call `review` tool, `action: "generate-demo"`
 

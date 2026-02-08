@@ -1,6 +1,14 @@
 import { z } from "zod";
 
-export const workingMethodSchema = z.enum(["auto", "claude-code", "vscode", "opencode"]);
+export const workingMethodSchema = z.enum([
+  "auto",
+  "claude-code",
+  "vscode",
+  "opencode",
+  "cursor",
+  "copilot-cli",
+  "codex",
+]);
 
 // Must match DOCKER_RUNTIME_TYPES from src/api/settings.ts
 export const dockerRuntimeSchema = z.enum([

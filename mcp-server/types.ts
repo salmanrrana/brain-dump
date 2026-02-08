@@ -13,7 +13,14 @@ export interface DbProject {
   name: string;
   path: string;
   color?: string | null;
-  workingMethod?: "auto" | "claude-code" | "vscode" | "opencode";
+  workingMethod?:
+    | "auto"
+    | "claude-code"
+    | "vscode"
+    | "opencode"
+    | "cursor"
+    | "copilot-cli"
+    | "codex";
   createdAt: string;
 }
 
@@ -306,7 +313,14 @@ export interface DbSettings {
   autoCreatePr: boolean;
   prTargetBranch: string;
   defaultProjectsDirectory?: string | null;
-  defaultWorkingMethod: "auto" | "claude-code" | "vscode" | "opencode";
+  defaultWorkingMethod:
+    | "auto"
+    | "claude-code"
+    | "vscode"
+    | "opencode"
+    | "cursor"
+    | "copilot-cli"
+    | "codex";
   dockerRuntime?: DockerRuntime | null;
   dockerSocketPath?: string | null;
   conversationRetentionDays: number;

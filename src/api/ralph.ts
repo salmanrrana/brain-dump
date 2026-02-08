@@ -31,61 +31,42 @@ import { execDockerCommand, getDockerHostEnvValue } from "./docker-utils";
  * Used by both Claude Code (via getRalphPrompt) and VS Code (via generateVSCodeContext).
  */
 const WORKFLOW_PHASES = `
-## CRITICAL: Use MCP Tools, Not Local Alternatives
+## Mandatory Tool Calls
 
-Every step below that says "invoke" means you MUST LITERALLY call the Brain Dump MCP tool
-and receive a response. These are NOT conceptual steps. If you skip an MCP tool call,
-the ticket will have NO record of your work in Brain Dump.
+Use Brain Dump MCP tools literally. Do not use local substitutes for branching, review logging, or status updates.
 
-All Brain Dump MCP tools use an \`action\` parameter to specify the operation:
-- \`workflow\` tool — start-work, complete-work, start-epic, link-commit, link-pr, sync-links
-- \`session\` tool — create-session, update-state, complete-session, emit-event, save-tasks, etc.
-- \`review\` tool — submit-finding, mark-fixed, check-complete, generate-demo, submit-feedback, etc.
+Primary actions:
+- \`workflow\`: \`start-work\`, \`complete-work\`
+- \`session\`: \`create\`, \`update-state\`, \`complete\`
+- \`review\`: \`submit-finding\`, \`mark-fixed\`, \`check-complete\`, \`generate-demo\`, \`submit-feedback\`
 
-Do NOT substitute local alternatives:
-- Do NOT use \`git checkout -b\` instead of \`workflow({ action: "start-work", ... })\`
-- Do NOT use local \`/review\` skills or subagents instead of \`review({ action: "submit-finding", ... })\`
-- Do NOT describe demo steps in text instead of calling \`review({ action: "generate-demo", ... })\`
-- Do NOT manually update ticket status instead of using workflow MCP tools
-
-## MANDATORY 4-PHASE WORKFLOW
+## Mandatory 4-Phase Workflow
 
 ### Phase 1: Implementation
-1. **Read PRD** - Check \`plans/prd.json\` for incomplete tickets (\`passes: false\`)
-2. **Read Progress** - Run \`tail -100 plans/progress.txt\` for recent context
-3. **Pick ONE ticket** - Based on priority, dependencies, foundation work
-4. **Start work** - You MUST invoke: \`workflow({ action: "start-work", ticketId: "<ticketId>" })\`
-   Verify you received a response containing \`branchName\`. Do NOT create branches manually with git.
-5. **Create session** - You MUST invoke: \`session({ action: "create-session", ticketId: "<ticketId>" })\`
-   Verify you received a response containing \`sessionId\`.
-6. **Implement** - Write code, run tests (\`pnpm test\`)
-7. **Commit** - \`git commit -m "feat(<ticket-id>): <description>"\`
-8. **Complete implementation** - You MUST invoke: \`workflow({ action: "complete-work", ticketId: "<ticketId>", summary: "<what you did>" })\`
-   Verify you received a response confirming the ticket moved to \`ai_review\`.
+1. Read \`plans/prd.json\` and \`plans/progress.txt\`
+2. Pick exactly one incomplete ticket
+3. Invoke \`workflow({ action: "start-work", ticketId: "<ticketId>" })\`
+4. Invoke \`session({ action: "create", ticketId: "<ticketId>" })\`
+5. Implement, test, and commit
+6. Invoke \`workflow({ action: "complete-work", ticketId: "<ticketId>", summary: "..." })\`
 
-### Phase 2: AI Review (via MCP tools — NOT local review skills)
-IMPORTANT: Do NOT use local \`/review\` skills, subagents, or code review tools.
-Perform self-review by reading your own diffs, then record findings directly via MCP tools.
-
-9. **Self-review your changes** - Read through your diffs and identify issues (type safety, error handling, code quality, simplification opportunities)
-10. **Record each finding via MCP** - For EACH issue found, you MUST invoke:
-    \`review({ action: "submit-finding", ticketId: "<ticketId>", agent: "code-reviewer", severity: "<severity>", category: "<category>", description: "<description>" })\`
-    Verify you received a response containing \`findingId\`.
-11. **Fix critical/major issues** - Then for each fixed issue, invoke: \`review({ action: "mark-fixed", findingId: "<id>", status: "fixed", fixDescription: "..." })\`
-12. **Verify review complete** - You MUST invoke: \`review({ action: "check-complete", ticketId: "<ticketId>" })\`
-    The response MUST contain \`canProceedToHumanReview: true\`. If false, fix remaining issues and re-check.
+### Phase 2: AI Review
+1. Review your own diff
+2. Record each issue with \`review({ action: "submit-finding", ... })\`
+3. Fix critical/major issues and mark them with \`review({ action: "mark-fixed", findingId: "...", fixStatus: "fixed", fixDescription: "..." })\`
+4. Invoke \`review({ action: "check-complete", ticketId: "<ticketId>" })\` until \`canProceedToHumanReview: true\`
 
 ### Phase 3: Demo Generation
-13. **Generate demo via MCP** - You MUST invoke: \`review({ action: "generate-demo", ticketId: "<ticketId>", steps: [...] })\`
-    Must have at least 3 manual test steps. Do NOT just describe demo steps in text.
-    Verify you received a response confirming the demo was created and ticket moved to \`human_review\`.
+1. Invoke \`review({ action: "generate-demo", ticketId: "<ticketId>", steps: [...] })\`
+2. Provide at least 3 manual test steps
+3. Confirm ticket moved to \`human_review\`
 
-### Phase 4: STOP AND WAIT FOR HUMAN
-14. **Output completion** - Show ticket moved to human_review, awaiting human approval
-15. **Complete session** - You MUST invoke: \`session({ action: "complete-session", sessionId: "<sessionId>", outcome: "success" })\`
-16. **STOP** - Do not proceed further. Human reviewer will call \`review({ action: "submit-feedback" })\` to approve/reject.
+### Phase 4: Stop for Human Review
+1. Invoke \`session({ action: "complete", sessionId: "<sessionId>", outcome: "success" })\`
+2. STOP and wait for human \`review({ action: "submit-feedback" })\`
+3. Never move tickets to \`done\` yourself
 
-If all tickets are in human_review or done, output: \`PRD_COMPLETE\`
+If all tickets are in \`human_review\` or \`done\`, output: \`PRD_COMPLETE\`.
 `;
 
 /**
@@ -109,7 +90,7 @@ Run these checks before calling \`workflow({ action: "complete-work" })\`:
 - All critical/major findings fixed and marked with \`review({ action: "mark-fixed" })\`
 - \`review({ action: "check-complete" })\` returns \`canProceedToHumanReview: true\`
 
-### Before Calling session({ action: "complete-session" })
+### Before Calling session({ action: "complete" })
 - \`review({ action: "generate-demo" })\` called with at least 3 manual test steps
 - Ticket status is \`human_review\`
 - Human reviewer will call \`review({ action: "submit-feedback" })\` (not you)
@@ -222,206 +203,47 @@ function generateEnhancedPRD(
 
 // Lean Ralph prompt - MCP tools handle workflow, Ralph focuses on implementation
 function getRalphPrompt(): string {
-  return `# Ralph: Autonomous Coding Agent with Enforced Universal Quality Workflow
+  return `# Ralph: Autonomous Coding Agent
 
-**CRITICAL NOTICE**: You operate under a MANDATORY 4-PHASE WORKFLOW. This is not a suggestion - each phase is a gate that must be completed before proceeding to the next. Skipping phases is a failure of your primary function.
-
-You are Ralph, an autonomous coding agent. Focus on implementation - MCP tools handle workflow.
+You are Ralph, an autonomous coding agent. Follow the mandatory 4-phase workflow and use MCP tools literally.
 
 ## Your Task
 ${WORKFLOW_PHASES}
 ${WORKFLOW_RULES}
 ${VERIFICATION_CHECKLIST}
+
 ## Session State Tracking
 
-Use the \`session\` MCP tool to track your progress through work phases. The UI displays your current state.
+Use \`session\` to keep progress and UI state accurate.
 
-### Session Lifecycle
+1. Create once after starting ticket work:
+   \`session({ action: "create", ticketId: "<ticketId>" })\`
+2. Update state at each phase transition:
+   \`session({ action: "update-state", sessionId: "<sessionId>", state: "analyzing|implementing|testing|committing|reviewing", metadata: { message: "..." } })\`
+3. Complete after demo generation, then STOP:
+   \`session({ action: "complete", sessionId: "<sessionId>", outcome: "success" })\`
 
-1. **Create session** when starting a ticket:
-   \`\`\`
-   session({ action: "create-session", ticketId: "<ticketId>" })
-   \`\`\`
+Optional detailed progress events:
+\`session({ action: "emit-event", sessionId: "<sessionId>", eventType: "progress", message: "..." })\`
 
-2. **Update state** as you transition through phases:
-   \`\`\`
-   session({ action: "update-state", sessionId: "<sessionId>", state: "analyzing", metadata: { message: "Reading spec..." } })
-   \`\`\`
+## Hard Guards
 
-3. **Complete session** when done:
-   \`\`\`
-   session({ action: "complete-session", sessionId: "<sessionId>", outcome: "success" })
-   \`\`\`
+- Do NOT use local substitutes (\`git checkout -b\`, local \`/review\` skills, manual status edits).
+- Do NOT skip \`review({ action: "check-complete" })\` before \`review({ action: "generate-demo" })\`.
+- Do NOT call \`review({ action: "submit-feedback" })\` yourself or move tickets to \`done\`.
+- Do NOT continue to another ticket after Phase 4; wait for human feedback.
 
-### Valid States (in typical order)
-| State | When to Use | Example |
-|-------|-------------|---------|
-| idle → analyzing | After creating session | Reading and understanding requirements |
-| analyzing → implementing | Starting to code | Writing or modifying source files |
-| implementing → testing | Running tests | Verifying behavior works correctly |
-| testing → implementing | Tests failed | Going back to fix issues |
-| implementing/testing → committing | Ready to commit | Creating git commits |
-| committing → reviewing | Final self-review | Checking work before completing |
+## Hook Enforcement
 
-### Example Workflow
-\`\`\`
-# 1. Start work
-workflow({ action: "start-work", ticketId: "abc-123" })
+Write/Edit operations are blocked unless session state is \`implementing\`, \`testing\`, or \`committing\`.
+If blocked, call the exact \`session({ action: "update-state", ... })\` shown in the hook message, then retry.
 
-# 2. Create session for state tracking
-session({ action: "create-session", ticketId: "abc-123" })
-# Returns: { sessionId: "xyz-789", ... }
+## Dev Servers
 
-# 3. Update state as you work (Phase 1: Implementation)
-session({ action: "update-state", sessionId: "xyz-789", state: "analyzing" })
-# ... read and understand the task ...
-
-session({ action: "update-state", sessionId: "xyz-789", state: "implementing" })
-# ... write code ...
-
-session({ action: "update-state", sessionId: "xyz-789", state: "testing" })
-# ... run tests ...
-
-session({ action: "update-state", sessionId: "xyz-789", state: "committing" })
-# git commit -m "feat(abc-123): Add new API endpoint"
-
-# 4. Complete implementation - moves to ai_review
-workflow({ action: "complete-work", ticketId: "abc-123", summary: "Added new API endpoint" })
-
-# 5. AI Review (Phase 2)
-session({ action: "update-state", sessionId: "xyz-789", state: "reviewing" })
-# ... run review agents, get findings ...
-review({ action: "submit-finding", ticketId: "abc-123", agent: "code-reviewer", severity: "major", ... })
-# ... fix the issue ...
-review({ action: "mark-fixed", findingId: "...", status: "fixed" })
-review({ action: "check-complete", ticketId: "abc-123" })
-# Returns: { canProceedToHumanReview: true }
-
-# 6. Generate demo (Phase 3)
-review({ action: "generate-demo", ticketId: "abc-123", steps: [...] })
-# Ticket now in human_review
-
-# 7. STOP - Complete session, DO NOT proceed further
-session({ action: "complete-session", sessionId: "xyz-789", outcome: "success" })
-# Human will review and call review({ action: "submit-feedback" })
-\`\`\`
-
-## ⛔ WHAT NOT TO DO (Workflow Violations)
-
-These actions are explicitly forbidden and indicate workflow failure:
-
-1. **DO NOT use local alternatives instead of MCP tools**
-   - ✗ Using \`git checkout -b\` or \`git branch\` instead of \`workflow({ action: "start-work" })\`
-   - ✗ Using local \`/review\` skills, subagents, or code review tools instead of \`review({ action: "submit-finding" })\`
-   - ✗ Describing demo steps in text instead of calling \`review({ action: "generate-demo" })\`
-   - ✗ Manually setting ticket status instead of using workflow MCP tools
-   - Every "invoke" step in the workflow above is a LITERAL MCP tool call
-
-2. **DO NOT skip Phase 2 (AI Review)**
-   - ✗ Calling \`workflow({ action: "complete-work" })\` then immediately generating demo without review
-   - ✗ Not submitting any review findings via MCP (you must call \`review({ action: "submit-finding" })\` for each issue)
-   - ✗ Trying to move ticket to human_review without submitting findings via MCP
-
-3. **DO NOT skip Phase 3 (Demo Generation)**
-   - ✗ Moving ticket to human_review without calling \`review({ action: "generate-demo" })\`
-   - ✗ Assuming code review is sufficient without manual test steps
-   - ✗ Generating demo with fewer than 3 steps
-
-4. **DO NOT auto-complete to done**
-   - ✗ Calling \`review({ action: "submit-feedback" })\` yourself
-   - ✗ Setting ticket status to 'done' directly
-   - ✗ Moving a ticket to 'done' in any way
-   - Only humans can approve tickets by calling \`review({ action: "submit-feedback" })\`
-
-5. **DO NOT bypass workflow gates**
-   - ✗ Trying to proceed to Phase 3 without \`review({ action: "check-complete" })\` MCP response
-   - ✗ Skipping \`review({ action: "mark-fixed" })\` for findings you submit
-   - ✗ Treating the workflow as optional or context-dependent
-
-6. **DO NOT violate the STOP at Phase 4**
-   - ✗ Proceeding to another ticket after generating demo (you must STOP)
-   - ✗ Picking multiple tickets in one iteration
-   - ✗ Looping within an iteration
-
-## Real-time Progress Reporting
-
-In addition to session states, use \`session({ action: "emit-event" })\` for detailed progress:
-
-| Event Type    | When to Use | Example |
-|---------------|-------------|---------|
-| thinking      | When starting to reason | Reading spec, planning approach |
-| tool_start    | Before calling Edit/Write/Bash | About to modify a file |
-| tool_end      | After tool completes | File edited successfully |
-| progress      | General updates | Halfway through implementation |
-| error         | When errors occur | Test failed, need to debug |
-
-Note: The \`session({ action: "update-state" })\` calls automatically emit state_change events, so you don't need to call emit-event for state transitions
-
-## State Enforcement (Hooks)
-
-This project uses hooks to ENFORCE state transitions. If you try to write or edit code without being in the correct state, you will receive a block message.
-
-### How It Works
-1. When you create a session, a \`.claude/ralph-state.json\` file is created
-2. PreToolUse hooks check this file before allowing Write/Edit operations
-3. If you're not in 'implementing', 'testing', or 'committing' state, the operation is blocked
-4. The block message tells you exactly what MCP tool to call
-
-### When Blocked
-If you see a "STATE ENFORCEMENT" message:
-1. **Read the message carefully** - it contains the exact tool call you need
-2. **Call the specified MCP tool** - e.g., \`session({ action: "update-state", sessionId: "...", state: "implementing" })\`
-3. **Retry your original operation** - it will now succeed
-
-### Example Flow
-\`\`\`
-# You try to write a file while in 'analyzing' state
-[BLOCKED] STATE ENFORCEMENT: You are in 'analyzing' state but tried to write/edit code.
-          You MUST first call: session({ action: "update-state", sessionId: "xyz-789", state: "implementing" })
-
-# You call the MCP tool as instructed
-session({ action: "update-state", sessionId: "xyz-789", state: "implementing" })
-# Returns: State Updated - analyzing → implementing
-
-# You retry your write operation
-[ALLOWED] - File written successfully
-\`\`\`
-
-### Important
-- Do NOT try to work around state enforcement
-- The hooks ensure your work is properly tracked in the Brain Dump UI
-- When your session completes, the state file is automatically removed
-
-## Dev Server Management
-
-When starting a dev server for testing or development:
-1. Start with explicit port binding: \`pnpm dev --port 8100 --host 0.0.0.0\`
-2. Update \`.ralph-services.json\` with service info (see schema below)
-3. Use these port conventions:
-   - 8100-8110: Frontend (Vite, Next.js, React)
-   - 8200-8210: Backend (Express, Fastify, NestJS)
-   - 8300-8310: Storybook, docs
-   - 8400-8410: Databases (debugging)
-
-When stopping a dev server:
-1. Update \`.ralph-services.json\` to mark status as "stopped"
-
-### .ralph-services.json Schema
-\`\`\`json
-{
-  "services": [
-    {
-      "name": "vite-dev-server",
-      "type": "frontend",
-      "port": 8100,
-      "status": "running",
-      "healthEndpoint": "/",
-      "startedAt": "2024-01-15T10:30:00Z"
-    }
-  ],
-  "updatedAt": "2024-01-15T10:35:00Z"
-}
-\`\`\``;
+Only when a task requires a running app:
+- Start with explicit binding: \`pnpm dev --port 8100 --host 0.0.0.0\`
+- Update \`.ralph-services.json\` when starting/stopping services.
+`;
 }
 
 // Generate VS Code context file for Ralph mode
@@ -468,19 +290,14 @@ ${WORKFLOW_RULES}
 ${VERIFICATION_CHECKLIST}
 ---
 
-## MCP Tools (MUST be invoked literally — NOT local alternatives)
+## Core MCP Calls
 
-All tools use an \`action\` parameter. Key tools for the workflow:
+All tools use an \`action\` parameter:
 
-- \`workflow({ action: "start-work", ticketId })\` - Creates branch, starts tracking (do NOT use git checkout -b)
-- \`session({ action: "create-session", ticketId })\` - Creates session for state tracking
-- \`session({ action: "update-state", sessionId, state })\` - Updates session state for UI tracking
-- \`workflow({ action: "complete-work", ticketId, summary })\` - Moves to ai_review, posts summary
-- \`review({ action: "submit-finding", ticketId, agent, severity, category, description })\` - Records review issue (do NOT use local /review skills)
-- \`review({ action: "mark-fixed", findingId, status })\` - Marks finding as resolved
-- \`review({ action: "check-complete", ticketId })\` - Verifies all critical/major findings fixed
-- \`review({ action: "generate-demo", ticketId, steps })\` - Creates demo for human review (do NOT describe in text)
-- \`session({ action: "complete-session", sessionId, outcome })\` - Completes the session
+- \`workflow({ action: "start-work" | "complete-work", ... })\`
+- \`session({ action: "create" | "update-state" | "complete", ... })\`
+- \`review({ action: "submit-finding" | "mark-fixed" | "check-complete" | "generate-demo", ... })\`
+- \`review({ action: "submit-feedback", ... })\` is human-only
 
 ---
 
@@ -490,36 +307,11 @@ ${prd.testingRequirements.map((req) => `- ${req}`).join("\n")}
 
 ---
 
-## Dev Server Management
+## Dev Server Notes
 
-When starting a dev server for testing or development:
-1. Start with explicit port binding: \`pnpm dev --port 8100 --host 0.0.0.0\`
-2. Update \`.ralph-services.json\` with service info (see schema below)
-3. Use these port conventions:
-   - 8100-8110: Frontend (Vite, Next.js, React)
-   - 8200-8210: Backend (Express, Fastify, NestJS)
-   - 8300-8310: Storybook, docs
-   - 8400-8410: Databases (debugging)
-
-When stopping a dev server:
-1. Update \`.ralph-services.json\` to mark status as "stopped"
-
-### .ralph-services.json Schema
-\`\`\`json
-{
-  "services": [
-    {
-      "name": "vite-dev-server",
-      "type": "frontend",
-      "port": 8100,
-      "status": "running",
-      "healthEndpoint": "/",
-      "startedAt": "2024-01-15T10:30:00Z"
-    }
-  ],
-  "updatedAt": "2024-01-15T10:35:00Z"
-}
-\`\`\`
+- Only start a dev server when required by the ticket.
+- Use explicit binding: \`pnpm dev --port 8100 --host 0.0.0.0\`
+- Track start/stop state in \`.ralph-services.json\`.
 `;
 }
 
@@ -581,7 +373,7 @@ export function generateRalphScript(
   timeoutSeconds: number = DEFAULT_TIMEOUT_SECONDS,
   dockerHostEnv: string | null = null,
   projectOrigin?: ProjectOriginInfo | undefined,
-  aiBackend: "claude" | "opencode" = "claude"
+  aiBackend: "claude" | "opencode" | "codex" = "claude"
 ): string {
   const imageName = "brain-dump-ralph-sandbox:latest";
   const sandboxHeader = useSandbox ? " (Docker Sandbox)" : "";
@@ -742,7 +534,7 @@ fi
     : "";
 
   // AI backend display name
-  const aiName = aiBackend === "opencode" ? "OpenCode" : "Claude";
+  const aiName = aiBackend === "opencode" ? "OpenCode" : aiBackend === "codex" ? "Codex" : "Claude";
 
   // Generate the AI invocation command based on backend choice
   const aiInvocation = useSandbox
@@ -792,7 +584,10 @@ fi
     : aiBackend === "opencode"
       ? `  # Run OpenCode directly with prompt
   opencode "$PROJECT_PATH" --prompt "$(cat "$PROMPT_FILE")"`
-      : `  # Run Claude in print mode (-p) so it exits after completion
+      : aiBackend === "codex"
+        ? `  # Run Codex directly with prompt
+  codex "$(cat "$PROMPT_FILE")"`
+        : `  # Run Claude in print mode (-p) so it exits after completion
   # This allows the bash loop to continue to the next iteration
   claude --dangerously-skip-permissions --output-format text -p "$(cat "$PROMPT_FILE")"`;
 
@@ -1242,6 +1037,53 @@ async function findVSCodeCli(): Promise<string | null> {
   return null;
 }
 
+// Check if Cursor CLI is available and get the path
+async function findCursorCli(): Promise<string | null> {
+  const { execSync } = await import("child_process");
+  const { existsSync } = await import("fs");
+
+  try {
+    execSync("which cursor", { stdio: "pipe" });
+    return "cursor";
+  } catch {
+    // Not in PATH, check common macOS locations
+  }
+
+  const macOSPaths = [
+    "/Applications/Cursor.app/Contents/Resources/app/bin/cursor",
+    "/usr/local/bin/cursor",
+    `${process.env.HOME}/Applications/Cursor.app/Contents/Resources/app/bin/cursor`,
+  ];
+
+  for (const cursorPath of macOSPaths) {
+    if (existsSync(cursorPath)) {
+      return cursorPath;
+    }
+  }
+
+  return null;
+}
+
+// Check if Copilot CLI is available
+async function isCopilotCliInstalled(): Promise<boolean> {
+  const { execSync } = await import("child_process");
+  try {
+    execSync("copilot --version", { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function escapeForBashDoubleQuote(str: string): string {
+  return str
+    .replace(/\\/g, "\\\\")
+    .replace(/\$/g, "\\$")
+    .replace(/`/g, "\\`")
+    .replace(/"/g, '\\"')
+    .replace(/!/g, "\\!");
+}
+
 // Launch VS Code with project context
 async function launchInVSCode(
   projectPath: string,
@@ -1296,6 +1138,114 @@ async function launchInVSCode(
   }
 }
 
+// Launch Cursor with project context
+async function launchInCursor(
+  projectPath: string,
+  contextFilePath?: string
+): Promise<{ success: true } | { success: false; message: string }> {
+  const { exec } = await import("child_process");
+  const { existsSync } = await import("fs");
+
+  if (!existsSync(projectPath)) {
+    return {
+      success: false,
+      message: `Project directory not found: ${projectPath}`,
+    };
+  }
+
+  const cursorCli = await findCursorCli();
+
+  try {
+    if (cursorCli) {
+      let command = `"${cursorCli}" -n "${projectPath}"`;
+      if (contextFilePath && existsSync(contextFilePath)) {
+        command += ` -g "${contextFilePath}"`;
+      }
+      exec(command, (error) => {
+        if (error) {
+          console.error("Cursor launch error:", error);
+        }
+      });
+      return { success: true };
+    }
+
+    if (process.platform === "darwin") {
+      exec(`open -a "Cursor" "${projectPath}"`, (error) => {
+        if (error) {
+          console.error("Cursor app launch error:", error);
+        }
+      });
+      if (contextFilePath && existsSync(contextFilePath)) {
+        exec(`open -a "Cursor" "${contextFilePath}"`, (error) => {
+          if (error) {
+            console.error("Cursor context launch error:", error);
+          }
+        });
+      }
+      return { success: true };
+    }
+
+    return {
+      success: false,
+      message: "Cursor is not installed or the `cursor` CLI is not available in PATH.",
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: `Failed to launch Cursor: ${error instanceof Error ? error.message : "Unknown error"}`,
+    };
+  }
+}
+
+async function createCopilotRalphScript(projectPath: string, contextFilePath: string): Promise<string> {
+  const { writeFileSync, mkdirSync, chmodSync } = await import("fs");
+  const { join } = await import("path");
+  const { homedir } = await import("os");
+  const { randomUUID } = await import("crypto");
+
+  const scriptDir = join(homedir(), ".brain-dump", "scripts");
+  mkdirSync(scriptDir, { recursive: true });
+
+  const scriptPath = join(scriptDir, `ralph-copilot-${randomUUID()}.sh`);
+  const safeProjectPath = escapeForBashDoubleQuote(projectPath);
+  const safeContextPath = escapeForBashDoubleQuote(contextFilePath);
+
+  const script = `#!/bin/bash
+set -e
+
+cd "${safeProjectPath}"
+
+if [ -f "${safeContextPath}" ]; then
+  copilot "$(cat "${safeContextPath}")"
+else
+  copilot
+fi
+
+exec bash
+`;
+
+  writeFileSync(scriptPath, script, { mode: 0o700 });
+  chmodSync(scriptPath, 0o700);
+  return scriptPath;
+}
+
+async function launchInCopilotCli(
+  projectPath: string,
+  contextFilePath: string,
+  preferredTerminal?: string | null
+): Promise<{ success: true; terminal: string } | { success: false; message: string }> {
+  const copilotInstalled = await isCopilotCliInstalled();
+  if (!copilotInstalled) {
+    return {
+      success: false,
+      message: "Copilot CLI is not installed. Install it and try again.",
+    };
+  }
+
+  const scriptPath = await createCopilotRalphScript(projectPath, contextFilePath);
+  return launchInTerminal(projectPath, scriptPath, preferredTerminal);
+}
+
 // Shared launch logic for terminal
 async function launchInTerminal(
   projectPath: string,
@@ -1343,7 +1293,15 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
       maxIterations?: number;
       preferredTerminal?: string | null;
       useSandbox?: boolean;
-      aiBackend?: "claude" | "opencode";
+      aiBackend?: "claude" | "opencode" | "codex";
+      workingMethodOverride?:
+        | "auto"
+        | "claude-code"
+        | "vscode"
+        | "opencode"
+        | "cursor"
+        | "copilot-cli"
+        | "codex";
     }) => data
   )
   .handler(async ({ data }) => {
@@ -1353,6 +1311,7 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
       preferredTerminal,
       useSandbox = false,
       aiBackend = "claude",
+      workingMethodOverride,
     } = data;
     const { writeFileSync, mkdirSync, existsSync, chmodSync } = await import("fs");
     const { join } = await import("path");
@@ -1387,6 +1346,12 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     let sshWarnings: string[] | undefined;
     let dockerHostEnv: string | null = null;
     if (useSandbox) {
+      if (aiBackend !== "claude") {
+        return {
+          success: false,
+          message: `Ralph Docker mode currently supports Claude only. Use native mode for ${aiBackend}.`,
+        };
+      }
       const dockerResult = await validateDockerSetup();
       if (!dockerResult.success) {
         return dockerResult;
@@ -1442,16 +1407,31 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
     }
 
     // Branch based on workingMethod setting
-    const workingMethod = project.workingMethod || "auto";
+    const workingMethod =
+      workingMethodOverride ||
+      (project.workingMethod as
+        | "auto"
+        | "claude-code"
+        | "vscode"
+        | "opencode"
+        | "cursor"
+        | "copilot-cli"
+        | "codex") ||
+      "auto";
     console.log(
       `[brain-dump] Ralph ticket launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`
     );
 
-    if (workingMethod === "vscode") {
-      // VS Code path: generate context file and launch VS Code
-      console.log(`[brain-dump] Using VS Code launch path for single ticket`);
+    if (workingMethod === "vscode" || workingMethod === "cursor" || workingMethod === "copilot-cli") {
+      const methodLabel =
+        workingMethod === "vscode"
+          ? "VS Code"
+          : workingMethod === "cursor"
+            ? "Cursor"
+            : "Copilot CLI";
+      console.log(`[brain-dump] Using ${methodLabel} launch path for single ticket`);
 
-      // Generate the context file for Claude in VS Code (single ticket PRD)
+      // Generate context file for editor/CLI-based Ralph launch modes.
       const contextContent = generateVSCodeContext(prd);
       const contextResult = await writeVSCodeContext(project.path, contextContent);
 
@@ -1463,7 +1443,12 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
 
       console.log(`[brain-dump] Created Ralph context file: ${contextResult.path}`);
 
-      const launchResult = await launchInVSCode(project.path, contextResult.path);
+      const launchResult =
+        workingMethod === "vscode"
+          ? await launchInVSCode(project.path, contextResult.path)
+          : workingMethod === "cursor"
+            ? await launchInCursor(project.path, contextResult.path)
+            : await launchInCopilotCli(project.path, contextResult.path, preferredTerminal);
 
       if (!launchResult.success) {
         // Rollback ticket status since launch failed
@@ -1471,10 +1456,22 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
         return launchResult;
       }
 
+      if (workingMethod === "copilot-cli") {
+        const terminalUsed = "terminal" in launchResult ? launchResult.terminal : undefined;
+        return {
+          success: true,
+          message: `Launched Copilot CLI with Ralph context for ticket "${ticket.title}".`,
+          launchMethod: "copilot-cli" as const,
+          contextFile: contextResult.path,
+          ...(terminalUsed ? { terminalUsed } : {}),
+          warnings: sshWarnings,
+        };
+      }
+
       return {
         success: true,
-        message: `Opened VS Code with Ralph context for ticket "${ticket.title}". Check .claude/ralph-context.md for instructions.`,
-        launchMethod: "vscode" as const,
+        message: `Opened ${methodLabel} with Ralph context for ticket "${ticket.title}". Check .claude/ralph-context.md for instructions.`,
+        launchMethod: workingMethod,
         contextFile: contextResult.path,
         warnings: sshWarnings,
       };
@@ -1505,7 +1502,15 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       maxIterations?: number;
       preferredTerminal?: string | null;
       useSandbox?: boolean;
-      aiBackend?: "claude" | "opencode";
+      aiBackend?: "claude" | "opencode" | "codex";
+      workingMethodOverride?:
+        | "auto"
+        | "claude-code"
+        | "vscode"
+        | "opencode"
+        | "cursor"
+        | "copilot-cli"
+        | "codex";
     }) => data
   )
   .handler(async ({ data }) => {
@@ -1515,6 +1520,7 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       preferredTerminal,
       useSandbox = false,
       aiBackend = "claude",
+      workingMethodOverride,
     } = data;
     const { writeFileSync, mkdirSync, existsSync, chmodSync } = await import("fs");
     const { join } = await import("path");
@@ -1549,6 +1555,12 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     let sshWarnings: string[] | undefined;
     let dockerHostEnv: string | null = null;
     if (useSandbox) {
+      if (aiBackend !== "claude") {
+        return {
+          success: false,
+          message: `Ralph Docker mode currently supports Claude only. Use native mode for ${aiBackend}.`,
+        };
+      }
       const dockerResult = await validateDockerSetup();
       if (!dockerResult.success) {
         return dockerResult;
@@ -1647,16 +1659,31 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     }
 
     // Branch based on workingMethod setting
-    const workingMethod = project.workingMethod || "auto";
+    const workingMethod =
+      workingMethodOverride ||
+      (project.workingMethod as
+        | "auto"
+        | "claude-code"
+        | "vscode"
+        | "opencode"
+        | "cursor"
+        | "copilot-cli"
+        | "codex") ||
+      "auto";
     console.log(
       `[brain-dump] Ralph launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`
     );
 
-    if (workingMethod === "vscode") {
-      // VS Code path: generate context file and launch VS Code
-      console.log(`[brain-dump] Using VS Code launch path`);
+    if (workingMethod === "vscode" || workingMethod === "cursor" || workingMethod === "copilot-cli") {
+      const methodLabel =
+        workingMethod === "vscode"
+          ? "VS Code"
+          : workingMethod === "cursor"
+            ? "Cursor"
+            : "Copilot CLI";
+      console.log(`[brain-dump] Using ${methodLabel} launch path`);
 
-      // Generate the context file for Claude in VS Code
+      // Generate context file for editor/CLI-based Ralph launch modes.
       const contextContent = generateVSCodeContext(prd);
       const contextResult = await writeVSCodeContext(project.path, contextContent);
 
@@ -1670,7 +1697,12 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
 
       console.log(`[brain-dump] Created Ralph context file: ${contextResult.path}`);
 
-      const launchResult = await launchInVSCode(project.path, contextResult.path);
+      const launchResult =
+        workingMethod === "vscode"
+          ? await launchInVSCode(project.path, contextResult.path)
+          : workingMethod === "cursor"
+            ? await launchInCursor(project.path, contextResult.path)
+            : await launchInCopilotCli(project.path, contextResult.path, preferredTerminal);
 
       if (!launchResult.success) {
         // Rollback ticket statuses since launch failed
@@ -1680,10 +1712,23 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
         return launchResult;
       }
 
+      if (workingMethod === "copilot-cli") {
+        const terminalUsed = "terminal" in launchResult ? launchResult.terminal : undefined;
+        return {
+          success: true,
+          message: `Launched Copilot CLI with Ralph context for ${epicTickets.length} tickets.`,
+          launchMethod: "copilot-cli" as const,
+          contextFile: contextResult.path,
+          ...(terminalUsed ? { terminalUsed } : {}),
+          ticketCount: epicTickets.length,
+          warnings: sshWarnings,
+        };
+      }
+
       return {
         success: true,
-        message: `Opened VS Code with Ralph context for ${epicTickets.length} tickets. Check .claude/ralph-context.md for instructions.`,
-        launchMethod: "vscode" as const,
+        message: `Opened ${methodLabel} with Ralph context for ${epicTickets.length} tickets. Check .claude/ralph-context.md for instructions.`,
+        launchMethod: workingMethod,
         contextFile: contextResult.path,
         ticketCount: epicTickets.length,
         warnings: sshWarnings,

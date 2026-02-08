@@ -8,6 +8,7 @@
 #   ./install.sh --vscode         # Install with VS Code integration
 #   ./install.sh --cursor         # Install with Cursor integration
 #   ./install.sh --copilot        # Install with Copilot CLI integration
+#   ./install.sh --codex          # Install with Codex integration
 #   ./install.sh --claude --sandbox # Install with Claude Code + sandbox
 #   ./install.sh --all            # Install all IDEs (sandbox off by default)
 #   ./install.sh --help           # Show help
@@ -1713,6 +1714,35 @@ setup_copilot_cli() {
     fi
 }
 
+# Setup Codex integration using the setup script
+setup_codex() {
+    print_step "Setting up Codex integration"
+
+    local setup_script="scripts/setup-codex.sh"
+
+    if [ ! -f "$setup_script" ]; then
+        print_warning "Codex setup script not found: $setup_script"
+        SKIPPED+=("Codex setup (script not found)")
+        return 1
+    fi
+
+    if [ ! -x "$setup_script" ]; then
+        print_info "Making setup script executable..."
+        chmod +x "$setup_script"
+    fi
+
+    print_info "Running Codex setup script..."
+    if bash "$setup_script"; then
+        print_success "Codex integration configured"
+        INSTALLED+=("Codex integration")
+        return 0
+    else
+        print_error "Codex setup script failed"
+        FAILED+=("Codex integration")
+        return 1
+    fi
+}
+
 # Prompt user to select IDE(s)
 prompt_ide_selection() {
     echo ""
@@ -1723,10 +1753,11 @@ prompt_ide_selection() {
     echo "  3) Cursor"
     echo "  4) OpenCode"
     echo "  5) Copilot CLI"
-    echo "  6) All IDEs (Claude Code + VS Code + Cursor + OpenCode + Copilot CLI)"
-    echo "  7) Skip IDE setup (just install Brain Dump)"
+    echo "  6) Codex"
+    echo "  7) All IDEs (Claude Code + VS Code + Cursor + OpenCode + Copilot CLI + Codex)"
+    echo "  8) Skip IDE setup (just install Brain Dump)"
     echo ""
-    read -r -p "Enter choice [1-7]: " choice
+    read -r -p "Enter choice [1-8]: " choice
 
     case $choice in
         1)
@@ -1735,6 +1766,7 @@ prompt_ide_selection() {
             SETUP_CURSOR=false
             SETUP_OPENCODE=false
             SETUP_COPILOT=false
+            SETUP_CODEX=false
             ;;
         2)
             SETUP_CLAUDE=false
@@ -1742,6 +1774,7 @@ prompt_ide_selection() {
             SETUP_CURSOR=false
             SETUP_OPENCODE=false
             SETUP_COPILOT=false
+            SETUP_CODEX=false
             ;;
         3)
             SETUP_CLAUDE=false
@@ -1749,6 +1782,7 @@ prompt_ide_selection() {
             SETUP_CURSOR=true
             SETUP_OPENCODE=false
             SETUP_COPILOT=false
+            SETUP_CODEX=false
             ;;
         4)
             SETUP_CLAUDE=false
@@ -1756,6 +1790,7 @@ prompt_ide_selection() {
             SETUP_CURSOR=false
             SETUP_OPENCODE=true
             SETUP_COPILOT=false
+            SETUP_CODEX=false
             ;;
         5)
             SETUP_CLAUDE=false
@@ -1763,20 +1798,31 @@ prompt_ide_selection() {
             SETUP_CURSOR=false
             SETUP_OPENCODE=false
             SETUP_COPILOT=true
+            SETUP_CODEX=false
             ;;
         6)
-            SETUP_CLAUDE=true
-            SETUP_VSCODE=true
-            SETUP_CURSOR=true
-            SETUP_OPENCODE=true
-            SETUP_COPILOT=true
-            ;;
-        7)
             SETUP_CLAUDE=false
             SETUP_VSCODE=false
             SETUP_CURSOR=false
             SETUP_OPENCODE=false
             SETUP_COPILOT=false
+            SETUP_CODEX=true
+            ;;
+        7)
+            SETUP_CLAUDE=true
+            SETUP_VSCODE=true
+            SETUP_CURSOR=true
+            SETUP_OPENCODE=true
+            SETUP_COPILOT=true
+            SETUP_CODEX=true
+            ;;
+        8)
+            SETUP_CLAUDE=false
+            SETUP_VSCODE=false
+            SETUP_CURSOR=false
+            SETUP_OPENCODE=false
+            SETUP_COPILOT=false
+            SETUP_CODEX=false
             ;;
         *)
             print_warning "Invalid choice, defaulting to Claude Code"
@@ -1785,6 +1831,7 @@ prompt_ide_selection() {
             SETUP_CURSOR=false
             SETUP_OPENCODE=false
             SETUP_COPILOT=false
+            SETUP_CODEX=false
             ;;
     esac
 }
@@ -1876,6 +1923,12 @@ print_summary() {
         echo "  6. Hooks automatically track telemetry and enforce workflow"
     fi
 
+    if [ "$SETUP_CODEX" = true ]; then
+        echo -e "  4. Start Codex: ${CYAN}codex${NC}"
+        echo "  5. Brain Dump MCP tools are loaded from ~/.codex/config.toml"
+        echo "  6. Launch ticket work from Brain Dump using Codex"
+    fi
+
     echo ""
 
     echo -e "${BLUE}Data locations:${NC}"
@@ -1889,8 +1942,9 @@ print_summary() {
     [ "$SETUP_CURSOR" = true ] && ide_count=$((ide_count + 1))
     [ "$SETUP_OPENCODE" = true ] && ide_count=$((ide_count + 1))
     [ "$SETUP_COPILOT" = true ] && ide_count=$((ide_count + 1))
+    [ "$SETUP_CODEX" = true ] && ide_count=$((ide_count + 1))
 
-    if [ $ide_count -lt 5 ]; then
+    if [ $ide_count -lt 6 ]; then
         echo -e "${BLUE}Want more IDEs?${NC} Run: ${CYAN}./install.sh --all${NC} for all integrations"
         echo ""
     fi
@@ -1908,7 +1962,8 @@ show_help() {
     echo "  --cursor    Set up Cursor integration (MCP server + subagents + skills + commands)"
     echo "  --opencode  Set up OpenCode integration (MCP server + agents + skills)"
     echo "  --copilot   Set up Copilot CLI integration (MCP server + agents + skills + hooks)"
-    echo "  --all       Set up all IDE integrations (Claude Code, VS Code, Cursor, OpenCode, Copilot CLI)"
+    echo "  --codex     Set up Codex integration (MCP server in ~/.codex/config.toml)"
+    echo "  --all       Set up all IDE integrations (Claude Code, VS Code, Cursor, OpenCode, Copilot CLI, Codex)"
     echo ""
     echo "  If no IDE flag is provided, you'll be prompted to choose."
     echo ""
@@ -1930,6 +1985,7 @@ show_help() {
     echo "  ./install.sh --cursor            # Cursor only"
     echo "  ./install.sh --opencode          # OpenCode only"
     echo "  ./install.sh --copilot           # Copilot CLI only"
+    echo "  ./install.sh --codex             # Codex only"
     echo "  ./install.sh --all               # All IDEs (sandbox off by default)"
     echo "  ./install.sh                     # Interactive prompt"
     echo ""
@@ -1953,6 +2009,7 @@ main() {
     SETUP_CURSOR=false
     SETUP_OPENCODE=false
     SETUP_COPILOT=false
+    SETUP_CODEX=false
     SETUP_DOCKER=false
     SETUP_SANDBOX=false
     SETUP_DEVCONTAINER=false
@@ -1988,12 +2045,17 @@ main() {
                 SETUP_COPILOT=true
                 IDE_FLAG_PROVIDED=true
                 ;;
+            --codex)
+                SETUP_CODEX=true
+                IDE_FLAG_PROVIDED=true
+                ;;
             --all)
                 SETUP_CLAUDE=true
                 SETUP_VSCODE=true
                 SETUP_CURSOR=true
                 SETUP_OPENCODE=true
                 SETUP_COPILOT=true
+                SETUP_CODEX=true
                 IDE_FLAG_PROVIDED=true
                 ;;
             --docker)
@@ -2113,10 +2175,15 @@ main() {
         setup_copilot_cli || true
     fi
 
+    # Codex setup
+    if [ "$SETUP_CODEX" = true ]; then
+        setup_codex || true
+    fi
+
     # If no IDE selected, just note it
-    if [ "$SETUP_CLAUDE" = false ] && [ "$SETUP_VSCODE" = false ] && [ "$SETUP_CURSOR" = false ] && [ "$SETUP_OPENCODE" = false ] && [ "$SETUP_COPILOT" = false ]; then
+    if [ "$SETUP_CLAUDE" = false ] && [ "$SETUP_VSCODE" = false ] && [ "$SETUP_CURSOR" = false ] && [ "$SETUP_OPENCODE" = false ] && [ "$SETUP_COPILOT" = false ] && [ "$SETUP_CODEX" = false ]; then
         print_step "Skipping IDE integration"
-        print_info "Run again with --claude, --vscode, --cursor, or --opencode to set up IDE integration"
+        print_info "Run again with --claude, --vscode, --cursor, --opencode, --copilot, or --codex to set up IDE integration"
         SKIPPED+=("IDE integration (not selected)")
     fi
 

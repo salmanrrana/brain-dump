@@ -77,7 +77,7 @@ For each critical/major finding:
 1. Make the code fix
 2. Run `pnpm type-check && pnpm lint && pnpm test`
 3. Commit: `fix(<ticket-id>): <description>`
-4. Mark fixed: `review "mark-fixed"({ findingId: "<id>", status: "fixed", fixDescription: "..." })`
+4. Mark fixed: `review "mark-fixed"({ findingId: "<id>", fixStatus: "fixed", fixDescription: "..." })`
 
 ## Verifying Completion
 

@@ -112,7 +112,14 @@ export function GeneralTab({
                     value={field.state.value}
                     onChange={(e) =>
                       field.handleChange(
-                        e.target.value as "auto" | "claude-code" | "vscode" | "opencode"
+                        e.target.value as
+                          | "auto"
+                          | "claude-code"
+                          | "vscode"
+                          | "opencode"
+                          | "cursor"
+                          | "copilot-cli"
+                          | "codex"
                       )
                     }
                     onBlur={field.handleBlur}
@@ -122,6 +129,9 @@ export function GeneralTab({
                     <option value="claude-code">Claude Code (Recommended)</option>
                     <option value="vscode">VS Code</option>
                     <option value="opencode">OpenCode</option>
+                    <option value="cursor">Cursor</option>
+                    <option value="copilot-cli">Copilot CLI</option>
+                    <option value="codex">Codex</option>
                   </select>
                   <ChevronDown size={16} className={inputStyles.selectArrow} />
                 </div>

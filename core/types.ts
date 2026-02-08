@@ -68,7 +68,15 @@ export interface Project {
   name: string;
   path: string;
   color: string | null;
-  workingMethod: "auto" | "claude-code" | "vscode" | "opencode" | null;
+  workingMethod:
+    | "auto"
+    | "claude-code"
+    | "vscode"
+    | "opencode"
+    | "cursor"
+    | "copilot-cli"
+    | "codex"
+    | null;
   createdAt: string;
 }
 
@@ -442,7 +450,14 @@ export interface DatabaseHealth {
 }
 
 export interface EnvironmentInfo {
-  environment: "claude-code" | "vscode" | "opencode" | "cursor" | "unknown";
+  environment:
+    | "claude-code"
+    | "vscode"
+    | "opencode"
+    | "cursor"
+    | "copilot-cli"
+    | "codex"
+    | "unknown";
   workspacePath: string | null;
   detectedProject: Project | null;
   envVarsDetected: string[];
@@ -451,7 +466,14 @@ export interface EnvironmentInfo {
 export interface ProjectSettings {
   projectId: string;
   projectName: string;
-  workingMethod: "auto" | "claude-code" | "vscode" | "opencode";
+  workingMethod:
+    | "auto"
+    | "claude-code"
+    | "vscode"
+    | "opencode"
+    | "cursor"
+    | "copilot-cli"
+    | "codex";
   effectiveEnvironment: string;
   detectedEnvironment: string;
 }

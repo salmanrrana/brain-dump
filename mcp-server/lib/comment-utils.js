@@ -8,7 +8,7 @@ import { log } from "./logging.js";
 import { detectAuthor } from "./environment.js";
 
 /**
- * Maximum number of comments to include in start_ticket_work context.
+ * Maximum number of comments to include in workflow start-work context.
  * If there are more comments, only the most recent ones are included.
  */
 export const MAX_COMMENTS_IN_CONTEXT = 10;

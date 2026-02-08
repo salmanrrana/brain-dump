@@ -89,7 +89,7 @@ For each critical/major finding:
    ```
    review tool, action: "mark-fixed",
      findingId: "<finding-id>",
-     status: "fixed",
+     fixStatus: "fixed",
      fixDescription: "Added Zod validation schema"
    ```
 4. Commit: `git commit -m "fix(<ticket-id>): <description>"`

@@ -4,7 +4,14 @@ import { useState, useCallback, useRef } from "react";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import { getTicket } from "../api/tickets";
 import { getTicketContext } from "../api/context";
-import { launchClaudeInTerminal, launchOpenCodeInTerminal } from "../api/terminal";
+import {
+  launchClaudeInTerminal,
+  launchCodexInTerminal,
+  launchVSCodeInTerminal,
+  launchCursorInTerminal,
+  launchCopilotInTerminal,
+  launchOpenCodeInTerminal,
+} from "../api/terminal";
 import { ActivitySection } from "../components/tickets/ActivitySection";
 import { TicketDetailHeader } from "../components/tickets/TicketDetailHeader";
 import { EditTicketModal } from "../components/tickets/EditTicketModal";
@@ -361,6 +368,152 @@ function TicketDetailPage() {
           } else {
             showToast("error", launchResult.message);
           }
+        } else if (type === "codex") {
+          // Launch Codex in terminal
+          const launchResult = await launchCodexInTerminal({
+            data: {
+              ticketId: ticket.id,
+              context: contextResult.context,
+              projectPath: contextResult.projectPath,
+              launchMode: "auto",
+              preferredTerminal: settings?.terminalEmulator ?? null,
+              projectName: contextResult.projectName,
+              epicName: contextResult.epicName,
+              ticketTitle: contextResult.ticketTitle,
+            },
+          });
+
+          // Show warnings if any
+          if (launchResult.warnings) {
+            launchResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          if (launchResult.success) {
+            showToast("success", `Codex launched in ${launchResult.terminalUsed}`);
+            void refetch();
+          } else {
+            showToast("error", launchResult.message);
+          }
+        } else if (type === "codex-cli") {
+          const launchResult = await launchCodexInTerminal({
+            data: {
+              ticketId: ticket.id,
+              context: contextResult.context,
+              projectPath: contextResult.projectPath,
+              launchMode: "cli",
+              preferredTerminal: settings?.terminalEmulator ?? null,
+              projectName: contextResult.projectName,
+              epicName: contextResult.epicName,
+              ticketTitle: contextResult.ticketTitle,
+            },
+          });
+
+          if (launchResult.warnings) {
+            launchResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          if (launchResult.success) {
+            showToast("success", "Codex CLI launched");
+            void refetch();
+          } else {
+            showToast("error", launchResult.message);
+          }
+        } else if (type === "codex-app") {
+          const launchResult = await launchCodexInTerminal({
+            data: {
+              ticketId: ticket.id,
+              context: contextResult.context,
+              projectPath: contextResult.projectPath,
+              launchMode: "app",
+              preferredTerminal: settings?.terminalEmulator ?? null,
+              projectName: contextResult.projectName,
+              epicName: contextResult.epicName,
+              ticketTitle: contextResult.ticketTitle,
+            },
+          });
+
+          if (launchResult.warnings) {
+            launchResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          if (launchResult.success) {
+            showToast("success", "Codex App launched");
+            void refetch();
+          } else {
+            showToast("error", launchResult.message);
+          }
+        } else if (type === "vscode") {
+          const launchResult = await launchVSCodeInTerminal({
+            data: {
+              ticketId: ticket.id,
+              context: contextResult.context,
+              projectPath: contextResult.projectPath,
+              preferredTerminal: settings?.terminalEmulator ?? null,
+              projectName: contextResult.projectName,
+              epicName: contextResult.epicName,
+              ticketTitle: contextResult.ticketTitle,
+            },
+          });
+
+          if (launchResult.warnings) {
+            launchResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          if (launchResult.success) {
+            showToast("success", "VS Code launched");
+            void refetch();
+          } else {
+            showToast("error", launchResult.message);
+          }
+        } else if (type === "cursor") {
+          const launchResult = await launchCursorInTerminal({
+            data: {
+              ticketId: ticket.id,
+              context: contextResult.context,
+              projectPath: contextResult.projectPath,
+              preferredTerminal: settings?.terminalEmulator ?? null,
+              projectName: contextResult.projectName,
+              epicName: contextResult.epicName,
+              ticketTitle: contextResult.ticketTitle,
+            },
+          });
+
+          if (launchResult.warnings) {
+            launchResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          if (launchResult.success) {
+            showToast(
+              "success",
+              `Cursor launched${launchResult.terminalUsed ? ` (${launchResult.terminalUsed})` : ""}`
+            );
+            void refetch();
+          } else {
+            showToast("error", launchResult.message);
+          }
+        } else if (type === "copilot") {
+          const launchResult = await launchCopilotInTerminal({
+            data: {
+              ticketId: ticket.id,
+              context: contextResult.context,
+              projectPath: contextResult.projectPath,
+              preferredTerminal: settings?.terminalEmulator ?? null,
+              projectName: contextResult.projectName,
+              epicName: contextResult.epicName,
+              ticketTitle: contextResult.ticketTitle,
+            },
+          });
+
+          if (launchResult.warnings) {
+            launchResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          if (launchResult.success) {
+            showToast("success", `Copilot CLI launched in ${launchResult.terminalUsed}`);
+            void refetch();
+          } else {
+            showToast("error", launchResult.message);
+          }
         } else if (type === "opencode") {
           // Launch OpenCode in terminal
           const launchResult = await launchOpenCodeInTerminal({
@@ -406,8 +559,101 @@ function TicketDetailPage() {
           } else {
             showToast("error", result.message);
           }
+        } else if (type === "ralph-opencode") {
+          const result = await launchRalphMutation.mutateAsync({
+            ticketId: ticket.id,
+            preferredTerminal: settings?.terminalEmulator ?? null,
+            useSandbox: false,
+            aiBackend: "opencode",
+          });
+
+          if ("warnings" in result && result.warnings) {
+            (result.warnings as string[]).forEach((warning) => showToast("info", warning));
+          }
+
+          if (result.success) {
+            showToast("success", result.message);
+            void refetch();
+          } else {
+            showToast("error", result.message);
+          }
+        } else if (type === "ralph-codex") {
+          const result = await launchRalphMutation.mutateAsync({
+            ticketId: ticket.id,
+            preferredTerminal: settings?.terminalEmulator ?? null,
+            useSandbox: false,
+            aiBackend: "codex",
+          });
+
+          if ("warnings" in result && result.warnings) {
+            (result.warnings as string[]).forEach((warning) => showToast("info", warning));
+          }
+
+          if (result.success) {
+            showToast("success", result.message);
+            void refetch();
+          } else {
+            showToast("error", result.message);
+          }
+        } else if (type === "ralph-vscode") {
+          const result = await launchRalphMutation.mutateAsync({
+            ticketId: ticket.id,
+            preferredTerminal: settings?.terminalEmulator ?? null,
+            useSandbox: false,
+            aiBackend: "claude",
+            workingMethodOverride: "vscode",
+          });
+
+          if ("warnings" in result && result.warnings) {
+            (result.warnings as string[]).forEach((warning) => showToast("info", warning));
+          }
+
+          if (result.success) {
+            showToast("success", result.message);
+            void refetch();
+          } else {
+            showToast("error", result.message);
+          }
+        } else if (type === "ralph-cursor") {
+          const result = await launchRalphMutation.mutateAsync({
+            ticketId: ticket.id,
+            preferredTerminal: settings?.terminalEmulator ?? null,
+            useSandbox: false,
+            aiBackend: "claude",
+            workingMethodOverride: "cursor",
+          });
+
+          if ("warnings" in result && result.warnings) {
+            (result.warnings as string[]).forEach((warning) => showToast("info", warning));
+          }
+
+          if (result.success) {
+            showToast("success", result.message);
+            void refetch();
+          } else {
+            showToast("error", result.message);
+          }
+        } else if (type === "ralph-copilot") {
+          const result = await launchRalphMutation.mutateAsync({
+            ticketId: ticket.id,
+            preferredTerminal: settings?.terminalEmulator ?? null,
+            useSandbox: false,
+            aiBackend: "claude",
+            workingMethodOverride: "copilot-cli",
+          });
+
+          if ("warnings" in result && result.warnings) {
+            (result.warnings as string[]).forEach((warning) => showToast("info", warning));
+          }
+
+          if (result.success) {
+            showToast("success", result.message);
+            void refetch();
+          } else {
+            showToast("error", result.message);
+          }
         }
-        // ralph-docker is disabled in LaunchActions, so no handler needed
+        // Docker launch mode removed from LaunchActions; no docker handler needed here
       } catch (err) {
         const message = err instanceof Error ? err.message : "An unexpected error occurred";
         showToast("error", `Failed to launch: ${message}`);

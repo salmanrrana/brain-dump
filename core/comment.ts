@@ -22,6 +22,7 @@ export type CommentAuthor =
   | "cursor"
   | "vscode"
   | "copilot"
+  | "codex"
   | "ai"
   | "brain-dump";
 export type CommentType = "comment" | "work_summary" | "test_report" | "progress";

@@ -19,6 +19,9 @@ const WORKING_METHOD_OPTIONS = [
   { value: "claude-code", label: "Claude Code" },
   { value: "vscode", label: "VS Code" },
   { value: "opencode", label: "OpenCode" },
+  { value: "cursor", label: "Cursor" },
+  { value: "copilot-cli", label: "Copilot CLI" },
+  { value: "codex", label: "Codex" },
 ];
 
 interface ProjectModalProps {
@@ -77,7 +80,10 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
         workingMethod === "auto" ||
         workingMethod === "claude-code" ||
         workingMethod === "vscode" ||
-        workingMethod === "opencode"
+        workingMethod === "opencode" ||
+        workingMethod === "cursor" ||
+        workingMethod === "copilot-cli" ||
+        workingMethod === "codex"
       ) {
         updates.workingMethod = workingMethod;
       }

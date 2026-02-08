@@ -7,7 +7,7 @@ export const projects = sqliteTable("projects", {
   name: text("name").notNull(),
   path: text("path").notNull().unique(),
   color: text("color"),
-  workingMethod: text("working_method").default("auto"), // 'claude-code', 'vscode', 'opencode', 'auto'
+  workingMethod: text("working_method").default("auto"), // 'auto' | 'claude-code' | 'vscode' | 'opencode' | 'cursor' | 'copilot-cli' | 'codex'
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),
@@ -99,7 +99,7 @@ export const settings = sqliteTable("settings", {
   autoCreatePr: integer("auto_create_pr", { mode: "boolean" }).default(true), // Auto-create PR when done
   prTargetBranch: text("pr_target_branch").default("dev"), // Target branch for PRs
   defaultProjectsDirectory: text("default_projects_directory"), // Where to create new projects
-  defaultWorkingMethod: text("default_working_method").default("auto"), // Default environment for new projects: 'auto', 'claude-code', 'vscode', 'opencode'
+  defaultWorkingMethod: text("default_working_method").default("auto"), // Default environment for new projects: 'auto' | 'claude-code' | 'vscode' | 'opencode' | 'cursor' | 'copilot-cli' | 'codex'
   // Docker runtime settings
   dockerRuntime: text("docker_runtime"), // 'auto' | 'lima' | 'colima' | 'rancher' | 'docker-desktop' | 'podman' - null = auto-detect
   dockerSocketPath: text("docker_socket_path"), // Custom socket path override (null = use detected path)

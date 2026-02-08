@@ -27,6 +27,9 @@ const WORKING_METHOD_OPTIONS = [
   { value: "claude-code", label: "Claude Code" },
   { value: "vscode", label: "VS Code" },
   { value: "opencode", label: "OpenCode" },
+  { value: "cursor", label: "Cursor" },
+  { value: "copilot-cli", label: "Copilot CLI" },
+  { value: "codex", label: "Codex" },
 ] as const;
 
 type WorkingMethod = (typeof WORKING_METHOD_OPTIONS)[number]["value"];

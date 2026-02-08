@@ -9,7 +9,7 @@ function readScript(path: string): string {
 }
 
 // All providers that should have install/uninstall parity
-const ALL_PROVIDERS = ["claude", "vscode", "cursor", "opencode", "copilot"];
+const ALL_PROVIDERS = ["claude", "vscode", "cursor", "opencode", "copilot", "codex"];
 
 describe("install.sh (root)", () => {
   const script = readScript("install.sh");
@@ -41,6 +41,7 @@ describe("install.sh (root)", () => {
     expect(script).toContain("Cursor");
     expect(script).toContain("OpenCode");
     expect(script).toContain("Copilot CLI");
+    expect(script).toContain("Codex");
   });
 
   it("delegates copilot setup to scripts/setup-copilot-cli.sh", () => {
@@ -99,7 +100,11 @@ describe("uninstall.sh (root)", () => {
 });
 
 describe("setup scripts exist for all providers", () => {
-  const expectedSetupScripts = ["scripts/setup-copilot-cli.sh", "scripts/setup-cursor.sh"];
+  const expectedSetupScripts = [
+    "scripts/setup-copilot-cli.sh",
+    "scripts/setup-cursor.sh",
+    "scripts/setup-codex.sh",
+  ];
 
   for (const scriptPath of expectedSetupScripts) {
     it(`${scriptPath} exists`, () => {
@@ -117,11 +122,16 @@ describe("README.md environment table", () => {
     expect(readme).toContain("./install.sh --opencode");
     expect(readme).toContain("./install.sh --cursor");
     expect(readme).toContain("./install.sh --copilot");
+    expect(readme).toContain("./install.sh --codex");
     expect(readme).toContain("./install.sh --all");
   });
 
   it("has Copilot CLI in the environment details section", () => {
     expect(readme).toContain("### Copilot CLI");
+  });
+
+  it("has Codex in the environment details section", () => {
+    expect(readme).toContain("### Codex");
   });
 });
 
@@ -132,12 +142,24 @@ describe("scripts/install.sh (universal auto-detect)", () => {
     expect(script).toContain("COPILOT_CLI_AVAILABLE");
   });
 
+  it("detects Codex", () => {
+    expect(script).toContain("CODEX_AVAILABLE");
+  });
+
   it("has an install function for copilot CLI", () => {
     expect(script).toContain("install_copilot_cli");
   });
 
+  it("has an install function for Codex", () => {
+    expect(script).toContain("install_codex");
+  });
+
   it("references setup-copilot-cli.sh", () => {
     expect(script).toContain("setup-copilot-cli.sh");
+  });
+
+  it("references setup-codex.sh", () => {
+    expect(script).toContain("setup-codex.sh");
   });
 });
 

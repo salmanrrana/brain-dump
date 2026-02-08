@@ -92,7 +92,7 @@ mcp__brain-dump__review "submit-finding"({
 // After fixing, mark as fixed
 mcp__brain-dump__review "mark-fixed"({
   findingId: "<finding-id>",
-  status: "fixed",
+  fixStatus: "fixed",
   fixDescription: "Added null check at line 45"
 })
 
@@ -146,6 +146,6 @@ This provides full audit trails for enterprise compliance.
 | Update state   | `session "update-state"({ sessionId, state })`                                  |
 | Complete work  | `workflow "complete-work"({ ticketId, summary })`                               |
 | Submit finding | `review "submit-finding"({ ticketId, agent, severity, category, description })` |
-| Fix finding    | `review "mark-fixed"({ findingId, status })`                                    |
+| Fix finding    | `review "mark-fixed"({ findingId, fixStatus })`                                 |
 | Check review   | `review "check-complete"({ ticketId })`                                         |
 | Generate demo  | `review "generate-demo"({ ticketId, steps })`                                   |

@@ -7,6 +7,7 @@
 # - OpenCode (~/.config/opencode/)
 # - VS Code (.vscode/ + .github/)
 # - Copilot CLI (~/.copilot/)
+# - Codex (~/.codex/)
 #
 # Usage:
 #   ./scripts/install.sh              # Install all detected environments
@@ -49,6 +50,7 @@ CURSOR_AVAILABLE=0
 OPENCODE_AVAILABLE=0
 VSCODE_AVAILABLE=0
 COPILOT_CLI_AVAILABLE=0
+CODEX_AVAILABLE=0
 
 # Detect Claude Code
 if command -v claude &>/dev/null 2>&1; then
@@ -88,6 +90,14 @@ if command -v copilot &>/dev/null 2>&1 || [ -f "$HOME/.copilot/config.json" ] 2>
   echo -e "${GREEN}✓${NC} Copilot CLI detected"
 else
   echo -e "${YELLOW}○${NC} Copilot CLI not found"
+fi
+
+# Detect Codex
+if command -v codex &>/dev/null 2>&1 || [ -d "$HOME/.codex" ] 2>/dev/null; then
+  CODEX_AVAILABLE=1
+  echo -e "${GREEN}✓${NC} Codex detected"
+else
+  echo -e "${YELLOW}○${NC} Codex not found"
 fi
 
 echo ""
@@ -176,6 +186,22 @@ install_copilot_cli() {
   echo ""
 }
 
+install_codex() {
+  echo -e "${BLUE}Installing Codex configuration...${NC}"
+
+  if [ -f "$BRAIN_DUMP_DIR/scripts/setup-codex.sh" ]; then
+    if ! bash "$BRAIN_DUMP_DIR/scripts/setup-codex.sh"; then
+      echo -e "${RED}✗ Codex installation failed${NC}"
+      exit 1
+    fi
+    echo -e "${GREEN}✓ Codex installation complete${NC}"
+  else
+    echo -e "${RED}✗ setup-codex.sh not found${NC}"
+    exit 1
+  fi
+  echo ""
+}
+
 # ─────────────────────────────────────────────────────────────────
 # Main Installation
 # ─────────────────────────────────────────────────────────────────
@@ -210,6 +236,11 @@ if [ $COPILOT_CLI_AVAILABLE -eq 1 ]; then
   INSTALL_COUNT=$((INSTALL_COUNT + 1))
 fi
 
+if [ $CODEX_AVAILABLE -eq 1 ]; then
+  install_codex
+  INSTALL_COUNT=$((INSTALL_COUNT + 1))
+fi
+
 # ─────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────
@@ -223,6 +254,7 @@ if [ $INSTALL_COUNT -eq 0 ]; then
   echo "  • OpenCode (https://opencode.ai)"
   echo "  • VS Code + Copilot"
   echo "  • Copilot CLI (https://githubnext.com/projects/copilot-cli)"
+  echo "  • Codex (https://developers.openai.com/codex/app)"
   echo ""
   echo "Install one of these tools and try again."
   exit 1
