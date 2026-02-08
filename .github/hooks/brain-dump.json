@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "hooks/copilot/pre-tool-use.sh"
+      }
+    ]
+  }
+}

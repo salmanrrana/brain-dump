@@ -4,6 +4,13 @@
 # Safely removes Brain Dump configuration from all environments
 # without breaking other configurations.
 #
+# Supported environments:
+# - Claude Code (.claude/)
+# - Cursor (.cursor/)
+# - OpenCode (~/.config/opencode/)
+# - VS Code (.vscode/ + .github/)
+# - Copilot CLI (~/.copilot/)
+#
 # Usage:
 #   ./scripts/uninstall.sh              # Uninstall from all environments
 #   ./scripts/uninstall.sh --help       # Show help
@@ -352,6 +359,159 @@ uninstall_vscode() {
 }
 
 # ─────────────────────────────────────────────────────────────────
+# Copilot CLI Uninstall
+# ─────────────────────────────────────────────────────────────────
+
+uninstall_copilot_cli() {
+  echo -e "${BLUE}Uninstalling Copilot CLI configuration...${NC}"
+
+  COPILOT_DIR="$HOME/.copilot"
+  HOOKS_DIR="$COPILOT_DIR/hooks"
+  AGENTS_DIR="$COPILOT_DIR/agents"
+  SKILLS_DIR="$COPILOT_DIR/skills"
+  MCP_CONFIG="$COPILOT_DIR/mcp-config.json"
+  HOOKS_CONFIG="$COPILOT_DIR/hooks.json"
+
+  local failed=0
+
+  # Remove brain-dump from MCP config
+  if [ -f "$MCP_CONFIG" ]; then
+    if grep -q '"brain-dump"' "$MCP_CONFIG"; then
+      if command -v node >/dev/null 2>&1; then
+        node_result=$(MCP_CONFIG="$MCP_CONFIG" node -e '
+const fs = require("fs");
+const configFile = process.env.MCP_CONFIG;
+
+try {
+    const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
+    if (config.mcpServers && config.mcpServers["brain-dump"]) {
+        delete config.mcpServers["brain-dump"];
+        if (Object.keys(config.mcpServers).length === 0) {
+            delete config.mcpServers;
+        }
+        const remainingKeys = Object.keys(config);
+        if (remainingKeys.length === 0) {
+            fs.unlinkSync(configFile);
+            console.log("removed");
+        } else {
+            fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
+            console.log("updated");
+        }
+    } else {
+        console.log("not_found");
+    }
+} catch (err) {
+    console.error("error:" + err.message);
+    process.exit(1);
+}
+' 2>&1)
+        case "$node_result" in
+          removed)
+            echo -e "${GREEN}✓ Removed mcp-config.json (was only brain-dump config)${NC}"
+            ;;
+          updated)
+            echo -e "${GREEN}✓ Removed brain-dump from mcp-config.json${NC}"
+            ;;
+          not_found)
+            echo -e "${YELLOW}brain-dump not found in mcp-config.json${NC}"
+            ;;
+          error:*)
+            echo -e "${RED}✗ Could not update mcp-config.json: ${node_result#error:}${NC}"
+            echo -e "${YELLOW}Please manually remove brain-dump MCP entry from $MCP_CONFIG${NC}"
+            failed=1
+            ;;
+          *)
+            echo -e "${RED}✗ Unexpected response during config cleanup: $node_result${NC}"
+            echo -e "${YELLOW}Please verify brain-dump was removed from $MCP_CONFIG${NC}"
+            failed=1
+            ;;
+        esac
+      else
+        echo -e "${YELLOW}Note:${NC} Please manually remove brain-dump MCP entry from $MCP_CONFIG"
+      fi
+    fi
+  fi
+
+  # Remove Brain Dump agents
+  if [ -d "$AGENTS_DIR" ]; then
+    for agent in ralph.agent.md ticket-worker.agent.md planner.agent.md inception.agent.md \
+                 code-reviewer.agent.md silent-failure-hunter.agent.md code-simplifier.agent.md \
+                 context7-library-compliance.agent.md react-best-practices.agent.md \
+                 cruft-detector.agent.md senior-engineer.agent.md; do
+      if [ -f "$AGENTS_DIR/$agent" ]; then
+        rm "$AGENTS_DIR/$agent" 2>/dev/null && echo -e "${GREEN}✓ Removed $agent${NC}" || failed=1
+      fi
+    done
+  fi
+
+  # Remove hook scripts
+  if [ -d "$HOOKS_DIR" ]; then
+    for hook in start-telemetry.sh end-telemetry.sh log-prompt.sh \
+                log-tool-start.sh log-tool-end.sh log-tool-failure.sh \
+                enforce-state-before-write.sh; do
+      hook_path="$HOOKS_DIR/$hook"
+      if [ -f "$hook_path" ]; then
+        if ! rm "$hook_path"; then
+          echo -e "${RED}✗ Failed to remove $hook (permission denied or file locked)${NC}"
+          failed=1
+        fi
+      fi
+    done
+    echo -e "${GREEN}✓ Hook scripts removed${NC}"
+  fi
+
+  # Clean up hooks.json
+  if [ -f "$HOOKS_CONFIG" ]; then
+    if grep -q "start-telemetry" "$HOOKS_CONFIG"; then
+      rm "$HOOKS_CONFIG" 2>/dev/null && echo -e "${GREEN}✓ Removed hooks.json${NC}" || {
+        echo -e "${YELLOW}Note:${NC} Manually remove Brain Dump hooks from $HOOKS_CONFIG"
+        failed=1
+      }
+    fi
+  fi
+
+  # Remove telemetry temp files
+  for temp_file in telemetry-session.json telemetry-queue.jsonl telemetry.log; do
+    if [ -f "$COPILOT_DIR/$temp_file" ]; then
+      if ! rm "$COPILOT_DIR/$temp_file"; then
+        echo -e "${YELLOW}⚠ Could not remove $temp_file${NC}"
+        failed=1
+      fi
+    fi
+  done
+
+  # Remove correlation files
+  find "$COPILOT_DIR" -maxdepth 1 -name "tool-correlation-*.queue" -delete 2>/dev/null || true
+  find "$COPILOT_DIR" -maxdepth 1 -name "tool-correlation-*.lock" -delete 2>/dev/null || true
+  find "$COPILOT_DIR" -maxdepth 1 -name "tool-correlation-*.data" -delete 2>/dev/null || true
+
+  # Remove skills ONLY if VS Code is NOT also installed (shared directory)
+  if [ -d "$SKILLS_DIR" ]; then
+    if command -v code &>/dev/null 2>&1; then
+      echo -e "${YELLOW}Note:${NC} Preserving ~/.copilot/skills/ (shared with VS Code)"
+    else
+      for skill in brain-dump-tickets ralph-workflow auto-review brain-dump-workflow \
+                   review review-aggregation tanstack-errors tanstack-forms \
+                   tanstack-mutations tanstack-query tanstack-types; do
+        if [ -d "$SKILLS_DIR/$skill" ]; then
+          rm -rf "$SKILLS_DIR/$skill" 2>/dev/null && echo -e "${GREEN}✓ Removed $skill skill${NC}" || failed=1
+        fi
+      done
+      # Also remove standalone skill files
+      find "$SKILLS_DIR" -maxdepth 1 -name "*.skill.md" -delete 2>/dev/null || true
+    fi
+  fi
+
+  if [ $failed -eq 0 ]; then
+    echo -e "${GREEN}✓ Copilot CLI uninstallation complete${NC}"
+  else
+    echo -e "${YELLOW}⚠ Some Copilot CLI files could not be removed. Check permissions.${NC}"
+  fi
+
+  echo ""
+}
+
+# ─────────────────────────────────────────────────────────────────
 # Main Uninstallation
 # ─────────────────────────────────────────────────────────────────
 
@@ -381,6 +541,11 @@ if command -v code &>/dev/null 2>&1; then
   REMOVE_COUNT=$((REMOVE_COUNT + 1))
 fi
 
+if command -v copilot &>/dev/null 2>&1 || [ -f "$HOME/.copilot/config.json" ] 2>/dev/null; then
+  uninstall_copilot_cli
+  REMOVE_COUNT=$((REMOVE_COUNT + 1))
+fi
+
 # ─────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────
@@ -405,6 +570,7 @@ echo ""
 echo -e "${YELLOW}Note:${NC} Some configuration entries may need manual cleanup from:"
 echo "  • ~/.claude/settings.json"
 echo "  • ~/.cursor/hooks.json"
+echo "  • ~/.copilot/hooks.json"
 echo ""
 echo -e "${BLUE}To reinstall Brain Dump:${NC}"
 echo "  ./scripts/install.sh"

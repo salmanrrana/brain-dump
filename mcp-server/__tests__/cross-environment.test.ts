@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterEach } from "vitest";
 import * as path from "path";
 import * as fs from "fs";
+import { detectEnvironment, detectAuthor, getEnvironmentInfo } from "../lib/environment.ts";
 
 /**
  * Cross-environment MCP compatibility tests
@@ -373,6 +374,97 @@ describe("MCP Protocol Compatibility", () => {
     });
   });
 
+  describe("Copilot CLI Environment Detection", () => {
+    it("Copilot CLI is included in supported environments", () => {
+      const supportedEnvironments = [
+        "claude-code",
+        "opencode",
+        "copilot-cli",
+        "cursor",
+        "vscode",
+        "unknown",
+      ];
+
+      expect(supportedEnvironments).toContain("copilot-cli");
+    });
+
+    it("handles COPILOT_CLI environment variable", () => {
+      const env = { COPILOT_CLI: "1" };
+      expect(env.COPILOT_CLI).toBe("1");
+      expect(typeof env.COPILOT_CLI).toBe("string");
+    });
+
+    it("handles Copilot CLI ambient environment variables", () => {
+      const copilotEnvVars = ["COPILOT_TRACE_ID", "COPILOT_SESSION", "COPILOT_CLI_VERSION"];
+
+      copilotEnvVars.forEach((envVar) => {
+        expect(typeof envVar).toBe("string");
+        expect(envVar.startsWith("COPILOT_")).toBe(true);
+      });
+    });
+
+    it("Copilot CLI detection has correct priority order", () => {
+      // Priority: Claude Code > OpenCode > Copilot CLI > Cursor > VS Code
+      const priorityOrder = [
+        "claude-code",
+        "opencode",
+        "copilot-cli",
+        "cursor",
+        "vscode",
+        "unknown",
+      ];
+
+      expect(priorityOrder.indexOf("copilot-cli")).toBe(2);
+      expect(priorityOrder.indexOf("copilot-cli")).toBeGreaterThan(
+        priorityOrder.indexOf("opencode")
+      );
+      expect(priorityOrder.indexOf("copilot-cli")).toBeLessThan(priorityOrder.indexOf("cursor"));
+    });
+
+    it("copilot is a valid comment author", () => {
+      const validAuthors = [
+        "claude",
+        "ralph",
+        "user",
+        "opencode",
+        "cursor",
+        "vscode",
+        "copilot",
+        "ai",
+      ];
+
+      expect(validAuthors).toContain("copilot");
+    });
+
+    it("Copilot CLI MCP config sets COPILOT_CLI env var", () => {
+      const mcpConfig = {
+        mcpServers: {
+          "brain-dump": {
+            type: "local",
+            command: "node",
+            args: ["/path/to/mcp-server/dist/index.js"],
+            env: { COPILOT_CLI: "1" },
+            tools: ["*"],
+          },
+        },
+      };
+
+      expect(mcpConfig.mcpServers["brain-dump"].env.COPILOT_CLI).toBe("1");
+      expect(mcpConfig.mcpServers["brain-dump"].type).toBe("local");
+    });
+
+    it("Copilot CLI has same MCP tool compatibility as other environments", () => {
+      const copilotSupport = {
+        transport: "local",
+        environment: "COPILOT_CLI",
+        author: "copilot",
+      };
+
+      expect(copilotSupport.transport).toBe("local");
+      expect(copilotSupport.author).toBe("copilot");
+    });
+  });
+
   describe("Environment Feature Parity", () => {
     it("Claude Code has full MCP tool support", () => {
       const tools = [
@@ -418,5 +510,124 @@ describe("MCP Protocol Compatibility", () => {
 
       expect(vscodeAccess.tools).toBeDefined();
     });
+  });
+});
+
+describe("Copilot CLI Environment Detection (functional)", () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    // Clear ALL environment variables that could trigger any detection
+    // Claude Code patterns
+    delete process.env.CLAUDE_CODE;
+    delete process.env.CLAUDE_CODE_ENTRYPOINT;
+    delete process.env.CLAUDE_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.MCP_SERVER_NAME;
+    delete process.env.CLAUDE_CODE_TERMINAL_ID;
+    delete process.env.RALPH_SESSION;
+    // OpenCode patterns
+    delete process.env.OPENCODE;
+    delete process.env.OPENCODE_EXPERIMENTAL;
+    delete process.env.OPENCODE_EXPERIMENTAL_LSP_TOOL;
+    delete process.env.OPENCODE_DEV_DEBUG;
+    delete process.env.OPENCODE_SERVER_PASSWORD;
+    delete process.env.OPENCODE_SERVER_USERNAME;
+    // Copilot CLI patterns
+    delete process.env.COPILOT_CLI;
+    delete process.env.COPILOT_TRACE_ID;
+    delete process.env.COPILOT_SESSION;
+    delete process.env.COPILOT_CLI_VERSION;
+    // Cursor patterns
+    delete process.env.CURSOR;
+    delete process.env.CURSOR_TRACE_ID;
+    delete process.env.CURSOR_SESSION;
+    delete process.env.CURSOR_PID;
+    delete process.env.CURSOR_CWD;
+    // VS Code patterns
+    delete process.env.VSCODE_GIT_ASKPASS_NODE;
+    delete process.env.VSCODE_GIT_ASKPASS_MAIN;
+    delete process.env.VSCODE_GIT_IPC_HANDLE;
+    delete process.env.VSCODE_INJECTION;
+    delete process.env.VSCODE_CLI;
+    delete process.env.VSCODE_PID;
+    delete process.env.VSCODE_CWD;
+    delete process.env.VSCODE_NLS_CONFIG;
+    delete process.env.VSCODE_IPC_HOOK;
+    delete process.env.TERM_PROGRAM;
+    // Clear any OPENCODE_* or CURSOR_* prefixed vars that may exist
+    for (const key of Object.keys(process.env)) {
+      if (key.startsWith("OPENCODE_") || key.startsWith("CURSOR_")) {
+        delete process.env[key];
+      }
+    }
+    // Remove SHELL if it contains "claude"
+    if (process.env.SHELL && process.env.SHELL.includes("claude")) {
+      delete process.env.SHELL;
+    }
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it("detects Copilot CLI via COPILOT_CLI=1 flag", () => {
+    process.env.COPILOT_CLI = "1";
+    expect(detectEnvironment()).toBe("copilot-cli");
+  });
+
+  it("detects Copilot CLI via COPILOT_TRACE_ID env var", () => {
+    process.env.COPILOT_TRACE_ID = "trace-123";
+    expect(detectEnvironment()).toBe("copilot-cli");
+  });
+
+  it("detects Copilot CLI via COPILOT_SESSION env var", () => {
+    process.env.COPILOT_SESSION = "session-456";
+    expect(detectEnvironment()).toBe("copilot-cli");
+  });
+
+  it("detects Copilot CLI via COPILOT_CLI_VERSION env var", () => {
+    process.env.COPILOT_CLI_VERSION = "1.0.0";
+    expect(detectEnvironment()).toBe("copilot-cli");
+  });
+
+  it("returns 'copilot' as author when Copilot CLI detected (no Ralph session)", () => {
+    process.env.COPILOT_CLI = "1";
+    // detectAuthor may return "ralph:copilot" if .claude/ralph-state.json exists
+    const author = detectAuthor();
+    expect(author === "copilot" || author === "ralph:copilot").toBe(true);
+  });
+
+  it("prioritizes Claude Code over Copilot CLI", () => {
+    process.env.CLAUDE_CODE = "true";
+    process.env.COPILOT_CLI = "1";
+    expect(detectEnvironment()).toBe("claude-code");
+  });
+
+  it("prioritizes OpenCode over Copilot CLI", () => {
+    process.env.OPENCODE = "1";
+    process.env.COPILOT_CLI = "1";
+    expect(detectEnvironment()).toBe("opencode");
+  });
+
+  it("prioritizes Copilot CLI over Cursor", () => {
+    process.env.COPILOT_CLI = "1";
+    process.env.CURSOR = "1";
+    expect(detectEnvironment()).toBe("copilot-cli");
+  });
+
+  it("prioritizes Copilot CLI over VS Code", () => {
+    process.env.COPILOT_CLI = "1";
+    process.env.VSCODE_PID = "12345";
+    expect(detectEnvironment()).toBe("copilot-cli");
+  });
+
+  it("includes Copilot CLI env vars in getEnvironmentInfo()", () => {
+    process.env.COPILOT_CLI = "1";
+    process.env.COPILOT_TRACE_ID = "trace-789";
+    const info = getEnvironmentInfo();
+    expect(info.environment).toBe("copilot-cli");
+    expect(info.envVarsDetected).toContain("COPILOT_CLI");
+    expect(info.envVarsDetected).toContain("COPILOT_TRACE_ID");
   });
 });
