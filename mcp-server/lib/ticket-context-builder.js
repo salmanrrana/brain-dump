@@ -159,7 +159,7 @@ ${acceptanceCriteria.map(c => `- ${c}`).join("\n")}
 
   contextText += `---
 
-Focus on implementation. When done, call \`complete_ticket_work\` with your summary.`;
+Focus on implementation. When done, call \`workflow({ action: "complete-work", ticketId: "<ticketId>", summary: "..." })\`.`;
 
   return {
     type: "text",
@@ -168,7 +168,7 @@ Focus on implementation. When done, call \`complete_ticket_work\` with your summ
 }
 
 /**
- * Build the complete content array for start_ticket_work response.
+ * Build the complete content array for workflow start-work response.
  * Combines the main context block with any attachment blocks.
  *
  * @param {BuildTicketContextParams} params - Context building parameters

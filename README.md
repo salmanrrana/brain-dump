@@ -4,7 +4,7 @@
 >
 > Brain Dump is under active development and continuously evolving. Features may change, break, or be removed without notice. Not all configurations are fully supported. Use at your own risk and [report issues](https://github.com/salmanrrana/brain-dump/issues) to help us improve!
 
-**Your backlog, worked by AI.** A kanban board where clicking a ticket launches Claude, OpenCode, Copilot, or Cursor with full context — or let Ralph, the autonomous agent, implement tickets while you're away.
+**Your backlog, worked by AI.** A kanban board where clicking a ticket launches Claude, Codex, OpenCode, Copilot, or Cursor with full context — or let Ralph, the autonomous agent, implement tickets while you're away.
 
 ![Kanban board](docs/screenshots/kanban-board.png)
 
@@ -33,7 +33,7 @@ Open [localhost:4242](http://localhost:4242). Done.
 | **One-click context**  | Click a ticket → AI opens with full context (description, acceptance criteria, linked files)  |
 | **Quality Workflow**   | AI review → Fix loop → Human demo approval. Same quality in all environments.                 |
 | **Ralph Mode**         | Autonomous agent works your backlog while you sleep                                           |
-| **Multi-environment**  | Works in Claude Code, Cursor, VS Code, OpenCode with same tools and workflows                 |
+| **Multi-environment**  | Works in Claude Code, Codex, Cursor, VS Code, OpenCode, Copilot CLI with same tools/workflows |
 | **MCP-powered**        | AI can update tickets, link commits, manage your board directly                               |
 | **Telemetry & audits** | Tracks AI work sessions, tool usage, decisions made. View detailed telemetry in ticket detail |
 | **Local-first**        | SQLite on your machine. Your data stays yours.                                                |
@@ -111,6 +111,7 @@ All environments get the same MCP tools, agents, and workflows.
 | **OpenCode**    | `./install.sh --opencode` | Open-source AI coding          |
 | **Cursor**      | `./install.sh --cursor`   | Modern AI-first IDE experience |
 | **Copilot CLI** | `./install.sh --copilot`  | GitHub Copilot in the terminal |
+| **Codex**       | `./install.sh --codex`    | OpenAI Codex in terminal/app   |
 | **All**         | `./install.sh --all`      | Try everything                 |
 
 <details>
@@ -150,6 +151,13 @@ All environments get the same MCP tools, agents, and workflows.
 - Uses `~/.copilot/mcp-config.json` for MCP config
 - Skills shared with VS Code (`~/.copilot/skills/`)
 - Run `copilot --allow-tool 'brain-dump(*)'` to auto-approve Brain Dump tools
+
+### Codex
+
+- Use `Start with Codex` in ticket launch actions
+- Uses `~/.codex/config.toml` for MCP config
+- Supports AGENTS.md, rules, and skills-based workflow guidance
+- [Full setup guide →](docs/environments/codex.md)
 </details>
 
 ---
@@ -208,7 +216,7 @@ ready → in_progress → ai_review → human_review → done
 4. **Demo** - AI generates step-by-step test instructions
 5. **Human approval** - You run the demo and approve or request changes
 
-All automatic via MCP tools. Same workflow in Claude Code, Cursor, VS Code, and OpenCode.
+All automatic via MCP tools. Same workflow in Claude Code, Codex, Cursor, VS Code, OpenCode, and Copilot CLI.
 
 [Detailed workflow guide →](docs/universal-workflow.md)
 

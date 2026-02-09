@@ -4,6 +4,7 @@
  * - Claude Code (Anthropic's CLI)
  * - OpenCode (open source AI coding agent)
  * - Copilot CLI (GitHub's CLI AI agent)
+ * - Codex (OpenAI Codex CLI/App)
  * - VS Code (with MCP extension)
  * - Cursor (with MCP extension)
  * - Unknown environment
@@ -12,7 +13,14 @@
 import fs from "fs";
 import path from "path";
 
-type Environment = "claude-code" | "opencode" | "copilot-cli" | "cursor" | "vscode" | "unknown";
+type Environment =
+  | "claude-code"
+  | "opencode"
+  | "copilot-cli"
+  | "codex"
+  | "cursor"
+  | "vscode"
+  | "unknown";
 
 const VSCODE_ENV_PATTERNS = [
   "VSCODE_GIT_ASKPASS_NODE",
@@ -40,6 +48,7 @@ const CLAUDE_CODE_ENV_PATTERNS = [
 const OPENCODE_FLAG = "OPENCODE";
 const COPILOT_CLI_FLAG = "COPILOT_CLI";
 const CURSOR_FLAG = "CURSOR";
+const CODEX_FLAG = "CODEX";
 
 /**
  * Known OpenCode environment variable patterns.
@@ -64,6 +73,18 @@ const COPILOT_CLI_ENV_PATTERNS = ["COPILOT_TRACE_ID", "COPILOT_SESSION", "COPILO
  * Cursor uses CURSOR_* prefixed environment variables.
  */
 const CURSOR_ENV_PATTERNS = ["CURSOR_TRACE_ID", "CURSOR_SESSION", "CURSOR_PID", "CURSOR_CWD"];
+
+/**
+ * Codex environment variable patterns.
+ * Codex commonly exposes CODEX_* variables and CODEX_HOME.
+ */
+const CODEX_ENV_PATTERNS = [
+  "CODEX_HOME",
+  "CODEX_SANDBOX_NETWORK_DISABLED",
+  "CODEX_EXECUTOR",
+  "CODEX_PROFILE",
+  "CODEX_APPROVAL_POLICY",
+];
 
 function hasVSCodeEnvironment(): boolean {
   for (const envVar of VSCODE_ENV_PATTERNS) {
@@ -139,13 +160,32 @@ function hasCopilotCliEnvironment(): boolean {
 }
 
 /**
- * Detect the current environment (claude-code, opencode, copilot-cli, cursor, vscode, or unknown).
- * Claude Code takes priority, then OpenCode, then Copilot CLI, then Cursor, then VS Code.
+ * Check if any Codex environment variables are present.
+ * Also checks for explicit CODEX flag set via MCP config.
+ */
+function hasCodexEnvironment(): boolean {
+  if (process.env[CODEX_FLAG]) return true;
+
+  for (const envVar of CODEX_ENV_PATTERNS) {
+    if (process.env[envVar]) return true;
+  }
+
+  for (const key of Object.keys(process.env)) {
+    if (key.startsWith("CODEX_")) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Detect the current environment (claude-code, opencode, copilot-cli, codex, cursor, vscode, or unknown).
+ * Claude Code takes priority, then OpenCode, then Copilot CLI, then Codex, then Cursor, then VS Code.
  */
 export function detectEnvironment(): Environment {
   if (hasClaudeCodeEnvironment()) return "claude-code";
   if (hasOpenCodeEnvironment()) return "opencode";
   if (hasCopilotCliEnvironment()) return "copilot-cli";
+  if (hasCodexEnvironment()) return "codex";
   if (hasCursorEnvironment()) return "cursor";
   if (hasVSCodeEnvironment()) return "vscode";
   return "unknown";
@@ -185,6 +225,9 @@ export function detectAuthor(): string {
       break;
     case "cursor":
       baseTool = "cursor";
+      break;
+    case "codex":
+      baseTool = "codex";
       break;
     case "vscode":
       baseTool = "vscode";
@@ -234,6 +277,28 @@ export function getEnvironmentInfo(): EnvironmentInfo {
     if (process.env[envVar]) envVarsDetected.push(envVar);
   }
   if (process.env[COPILOT_CLI_FLAG]) envVarsDetected.push(COPILOT_CLI_FLAG);
+
+  // Collect Cursor env vars
+  for (const envVar of CURSOR_ENV_PATTERNS) {
+    if (process.env[envVar]) envVarsDetected.push(envVar);
+  }
+  for (const key of Object.keys(process.env)) {
+    if (key.startsWith("CURSOR_") && !CURSOR_ENV_PATTERNS.includes(key)) {
+      envVarsDetected.push(key);
+    }
+  }
+  if (process.env[CURSOR_FLAG]) envVarsDetected.push(CURSOR_FLAG);
+
+  // Collect Codex env vars
+  for (const envVar of CODEX_ENV_PATTERNS) {
+    if (process.env[envVar]) envVarsDetected.push(envVar);
+  }
+  for (const key of Object.keys(process.env)) {
+    if (key.startsWith("CODEX_") && !CODEX_ENV_PATTERNS.includes(key)) {
+      envVarsDetected.push(key);
+    }
+  }
+  if (process.env[CODEX_FLAG]) envVarsDetected.push(CODEX_FLAG);
 
   for (const envVar of VSCODE_ENV_PATTERNS) {
     if (envVar === "TERM_PROGRAM") {

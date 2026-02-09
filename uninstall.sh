@@ -8,6 +8,7 @@
 #   ./uninstall.sh --claude     # Remove Claude Code integration only
 #   ./uninstall.sh --cursor     # Remove Cursor integration only
 #   ./uninstall.sh --copilot    # Remove Copilot CLI integration only
+#   ./uninstall.sh --codex      # Remove Codex integration only
 #   ./uninstall.sh --sandbox    # Remove Claude Code sandbox configuration
 #   ./uninstall.sh --devcontainer # Remove devcontainer Docker volumes
 #   ./uninstall.sh --all        # Remove everything (including data)
@@ -438,6 +439,30 @@ try {
 } catch (e) {
     console.error(e.message);
 }
+
+# Remove Codex integration
+remove_codex() {
+    print_step "Removing Codex integration"
+
+    CODEX_DIR="$HOME/.codex"
+    CODEX_CONFIG="$CODEX_DIR/config.toml"
+
+    if [ -f "$CODEX_CONFIG" ] && grep -q '\[mcp_servers\.brain-dump\]' "$CODEX_CONFIG"; then
+        if command -v perl >/dev/null 2>&1; then
+            # Remove the brain-dump MCP table block only, keep the rest of config intact.
+            perl -0777 -i.bak -pe 's/\n?#\s*Brain Dump MCP server\s*\n\[mcp_servers\.brain-dump\]\n(?:[^\[]*\n)*//g; s/\n?\[mcp_servers\.brain-dump\]\n(?:[^\[]*\n)*//g' "$CODEX_CONFIG" || true
+            rm -f "$CODEX_CONFIG.bak"
+            print_success "Removed brain-dump MCP server from ~/.codex/config.toml"
+            REMOVED+=("Codex MCP server")
+        else
+            print_warning "Could not edit ~/.codex/config.toml automatically (perl not found)"
+            print_info "Manually remove the [mcp_servers.brain-dump] block from: $CODEX_CONFIG"
+            SKIPPED+=("Codex MCP config (manual removal needed)")
+        fi
+    else
+        print_info "brain-dump not found in ~/.codex/config.toml"
+    fi
+}
 " 2>/dev/null && print_success "Removed brain-dump from Copilot CLI MCP config" && REMOVED+=("Copilot CLI MCP server")
         else
             print_warning "Could not remove brain-dump from mcp-config.json (node not found)"
@@ -806,6 +831,7 @@ show_help() {
     echo "  --cursor       Remove Cursor integration only"
     echo "  --opencode     Remove OpenCode integration only"
     echo "  --copilot      Remove Copilot CLI integration only"
+    echo "  --codex        Remove Codex integration only"
     echo "  --sandbox      Remove Claude Code sandbox configuration"
     echo "  --devcontainer Remove devcontainer Docker volumes (not user data)"
     echo "  --docker       Remove Docker sandbox artifacts only"
@@ -821,6 +847,7 @@ show_help() {
     echo "  Cursor:        MCP config, subagents, skills, commands in ~/.cursor/"
     echo "  OpenCode:      MCP config, agents in ~/.config/opencode/"
     echo "  Copilot CLI:   MCP config, agents, skills, hooks in ~/.copilot/"
+    echo "  Codex:         MCP config in ~/.codex/config.toml"
     echo "  Sandbox:       Sandbox config in ~/.claude/settings.json"
     echo "  Devcontainer:  Docker volumes (pnpm store, bash history, claude config)"
     echo "                 Does NOT remove your Brain Dump data (bind-mounted)"
@@ -836,6 +863,7 @@ main() {
     REMOVE_CURSOR=false
     REMOVE_OPENCODE=false
     REMOVE_COPILOT=false
+    REMOVE_CODEX=false
     REMOVE_SANDBOX=false
     REMOVE_DEVCONTAINER=false
     REMOVE_DOCKER=false
@@ -850,6 +878,7 @@ main() {
         REMOVE_CURSOR=true
         REMOVE_OPENCODE=true
         REMOVE_COPILOT=true
+        REMOVE_CODEX=true
         REMOVE_CLI=true
     else
         for arg in "$@"; do
@@ -873,6 +902,9 @@ main() {
                 --copilot)
                     REMOVE_COPILOT=true
                     ;;
+                --codex)
+                    REMOVE_CODEX=true
+                    ;;
                 --sandbox)
                     REMOVE_SANDBOX=true
                     ;;
@@ -891,6 +923,7 @@ main() {
                     REMOVE_CURSOR=true
                     REMOVE_OPENCODE=true
                     REMOVE_COPILOT=true
+                    REMOVE_CODEX=true
                     REMOVE_SANDBOX=true
                     REMOVE_DEVCONTAINER=true
                     REMOVE_DOCKER=true
@@ -911,6 +944,7 @@ main() {
     [ "$REMOVE_CURSOR" = true ] && remove_cursor
     [ "$REMOVE_OPENCODE" = true ] && remove_opencode
     [ "$REMOVE_COPILOT" = true ] && remove_copilot_cli
+    [ "$REMOVE_CODEX" = true ] && remove_codex
     [ "$REMOVE_SANDBOX" = true ] && remove_sandbox
     [ "$REMOVE_DEVCONTAINER" = true ] && remove_devcontainer
     [ "$REMOVE_DOCKER" = true ] && remove_docker

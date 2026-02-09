@@ -127,20 +127,11 @@ export const getTicketContext = createServerFn({ method: "GET" })
     contextParts.push("");
 
     // Git workflow instructions
-    const branchSlug = ticket.title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 30);
     contextParts.push("## Git Workflow");
-    contextParts.push("Before making changes, create a feature branch:");
-    contextParts.push("```bash");
-    contextParts.push("git fetch origin");
     contextParts.push(
-      `git checkout -b claude/${ticket.id}-${branchSlug} origin/dev  # or origin/main if no dev branch`
+      `Start work by invoking \`workflow({ action: "start-work", ticketId: "${ticket.id}" })\` to create/check out the branch.`
     );
-    contextParts.push("```");
-    contextParts.push("");
+    contextParts.push("Do NOT create branches manually with git commands.");
     contextParts.push("Make commits with the format: `feat(" + ticket.id + "): <description>`");
     contextParts.push("");
     contextParts.push(
@@ -158,17 +149,20 @@ export const getTicketContext = createServerFn({ method: "GET" })
     contextParts.push("");
     contextParts.push("Steps (each is a LITERAL MCP tool invocation):");
     contextParts.push(
-      `1. \`start_ticket_work({ ticketId: "${ticket.id}" })\` → creates branch, starts tracking`
-    );
-    contextParts.push("2. Write code → run `pnpm type-check && pnpm lint && pnpm test` → commit");
-    contextParts.push(
-      `3. \`complete_ticket_work({ ticketId: "${ticket.id}", summary: "..." })\` → moves to ai_review`
+      `1. \`workflow({ action: "start-work", ticketId: "${ticket.id}" })\` → creates branch, starts tracking`
     );
     contextParts.push(
-      "4. Self-review → `submit_review_finding()` for each issue (NOT local /review skills) → fix → `check_review_complete()`"
+      `2. \`session({ action: "create", ticketId: "${ticket.id}" })\` → creates session for state tracking`
+    );
+    contextParts.push("3. Write code → run `pnpm type-check && pnpm lint && pnpm test` → commit");
+    contextParts.push(
+      `4. \`workflow({ action: "complete-work", ticketId: "${ticket.id}", summary: "..." })\` → moves to ai_review`
     );
     contextParts.push(
-      `5. \`generate_demo_script({ ticketId: "${ticket.id}", steps: [...] })\` → then STOP`
+      '5. Self-review → `review({ action: "submit-finding", ... })` for each issue → fix → `review({ action: "mark-fixed", ... })` → verify `review({ action: "check-complete", ticketId: "..." })`'
+    );
+    contextParts.push(
+      `6. \`review({ action: "generate-demo", ticketId: "${ticket.id}", steps: [...] })\` → then STOP for human approval`
     );
     contextParts.push("");
     contextParts.push(

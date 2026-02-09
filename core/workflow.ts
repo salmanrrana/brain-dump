@@ -359,11 +359,11 @@ export function completeWork(
   // 7. Build next steps
   const nextSteps = [
     "Run review agents (code-reviewer, silent-failure-hunter, code-simplifier)",
-    "Submit findings with submit_review_finding",
-    "Fix critical/major findings and mark_finding_fixed",
-    "Verify with check_review_complete",
-    "Generate demo script with generate_demo_script",
-    "STOP — ticket requires human approval via submit_demo_feedback",
+    'Submit findings with review({ action: "submit-finding", ... })',
+    'Fix critical/major findings with review({ action: "mark-fixed", fixStatus: "fixed", ... })',
+    'Verify with review({ action: "check-complete", ... })',
+    'Generate demo script with review({ action: "generate-demo", ... })',
+    'STOP — ticket requires human approval via review({ action: "submit-feedback", ... })',
   ];
 
   return {

@@ -1,5 +1,5 @@
 import { type FC, useState, useCallback } from "react";
-import { Sparkles, Bot, Container, Code2, Loader2 } from "lucide-react";
+import { Sparkles, Bot, Code2, Terminal, Loader2, Monitor, Github } from "lucide-react";
 import type { TicketStatus } from "../../api/tickets";
 
 // =============================================================================
@@ -7,7 +7,21 @@ import type { TicketStatus } from "../../api/tickets";
 // =============================================================================
 
 /** Launch option type identifier */
-export type LaunchType = "claude" | "ralph-native" | "ralph-docker" | "opencode" | "ralph-opencode";
+export type LaunchType =
+  | "claude"
+  | "codex"
+  | "codex-cli"
+  | "codex-app"
+  | "vscode"
+  | "cursor"
+  | "copilot"
+  | "ralph-native"
+  | "ralph-codex"
+  | "ralph-vscode"
+  | "ralph-cursor"
+  | "ralph-copilot"
+  | "opencode"
+  | "ralph-opencode";
 
 /** Individual launch option configuration */
 export interface LaunchOption {
@@ -58,6 +72,48 @@ const LAUNCH_OPTIONS: LaunchOption[] = [
     recommended: true,
   },
   {
+    id: "codex",
+    name: "Codex Auto",
+    description: "CLI first, app fallback",
+    icon: Terminal,
+    iconColor: "#22c55e", // green
+  },
+  {
+    id: "codex-cli",
+    name: "Codex CLI",
+    description: "Terminal-based Codex session",
+    icon: Terminal,
+    iconColor: "#22c55e", // green
+  },
+  {
+    id: "codex-app",
+    name: "Codex App",
+    description: "Open Codex desktop app",
+    icon: Monitor,
+    iconColor: "#22c55e", // green
+  },
+  {
+    id: "vscode",
+    name: "VS Code",
+    description: "Open editor with task context",
+    icon: Code2,
+    iconColor: "#3b82f6", // blue
+  },
+  {
+    id: "cursor",
+    name: "Cursor",
+    description: "Open editor with task context",
+    icon: Monitor,
+    iconColor: "#f59e0b", // amber
+  },
+  {
+    id: "copilot",
+    name: "Copilot CLI",
+    description: "Interactive AI assistance",
+    icon: Github,
+    iconColor: "#94a3b8", // slate
+  },
+  {
     id: "ralph-native",
     name: "Ralph (Claude)",
     description: "Autonomous agent",
@@ -65,13 +121,32 @@ const LAUNCH_OPTIONS: LaunchOption[] = [
     iconColor: "#06b6d4", // cyan
   },
   {
-    id: "ralph-docker",
-    name: "Ralph (Claude) Docker",
-    description: "Sandboxed agent",
-    icon: Container,
-    iconColor: "#64748b", // slate
-    disabled: true,
-    disabledReason: "Coming soon",
+    id: "ralph-codex",
+    name: "Ralph (Codex)",
+    description: "Autonomous agent",
+    icon: Bot,
+    iconColor: "#22c55e", // green
+  },
+  {
+    id: "ralph-vscode",
+    name: "Ralph (VS Code)",
+    description: "Autonomous context in VS Code",
+    icon: Code2,
+    iconColor: "#3b82f6", // blue
+  },
+  {
+    id: "ralph-cursor",
+    name: "Ralph (Cursor)",
+    description: "Autonomous context in Cursor",
+    icon: Monitor,
+    iconColor: "#f59e0b", // amber
+  },
+  {
+    id: "ralph-copilot",
+    name: "Ralph (Copilot CLI)",
+    description: "Autonomous context in Copilot CLI",
+    icon: Github,
+    iconColor: "#94a3b8", // slate
   },
   {
     id: "opencode",
@@ -201,7 +276,7 @@ const LaunchOptionCard: FC<LaunchOptionCardProps> = ({ option, onClick, isLoadin
  * - **Grid layout**: 2x2 grid of option cards
  * - **Recommended highlight**: Claude is highlighted as recommended
  * - **Loading states**: Shows spinner on the launching option
- * - **Disabled states**: Handles disabled options (e.g., Docker coming soon)
+ * - **Disabled states**: Handles temporarily unavailable launch options
  * - **Workable state check**: Only shown when ticket is in a workable state
  *
  * @example

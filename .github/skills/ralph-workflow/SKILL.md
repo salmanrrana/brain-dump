@@ -133,7 +133,7 @@ If any critical or major findings:
 // Fix the issue, then mark as fixed
 review "mark-fixed"({
   findingId: "finding-id",
-  status: "fixed",
+  fixStatus: "fixed",
   fixDescription: "Added null check before accessing property",
 });
 ```

@@ -19,7 +19,15 @@ export type AttachmentType =
 
 export type ContentType = "image" | "text" | "reference";
 export type AttachmentPriority = "primary" | "supplementary";
-export type Uploader = "human" | "claude" | "ralph" | "opencode" | "cursor" | "windsurf";
+export type Uploader =
+  | "human"
+  | "claude"
+  | "ralph"
+  | "opencode"
+  | "cursor"
+  | "copilot"
+  | "codex"
+  | "windsurf";
 
 /**
  * Valid attachment types for AI context.

@@ -1,11 +1,22 @@
 import { useState, useRef, useCallback } from "react";
-import { X, ChevronDown, Bot, Loader2, Save, Container, Code2 } from "lucide-react";
+import {
+  X,
+  ChevronDown,
+  Bot,
+  Loader2,
+  Save,
+  Code2,
+  Terminal,
+  Monitor,
+  Github,
+} from "lucide-react";
 import { useForm } from "@tanstack/react-form-start";
 import {
   useCreateEpic,
   useUpdateEpic,
   useDeleteEpic,
   useSettings,
+  useTickets,
   useLaunchRalphForEpic,
   useModalKeyboard,
   useClickOutside,
@@ -17,7 +28,15 @@ import { COLOR_OPTIONS } from "../lib/constants";
 import { epicFormOpts } from "./epics/epic-form-opts";
 import { epicFormSchema } from "./epics/epic-form-schema";
 import { startEpicWorkflowFn } from "../api/workflow-server-fns";
-import { getEpicContext } from "../api/context";
+import { getEpicContext, getTicketContext } from "../api/context";
+import {
+  launchClaudeInTerminal,
+  launchCodexInTerminal,
+  launchVSCodeInTerminal,
+  launchCursorInTerminal,
+  launchCopilotInTerminal,
+  launchOpenCodeInTerminal,
+} from "../api/terminal";
 
 interface Epic {
   id: string;
@@ -46,7 +65,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   const [ralphNotification, setRalphNotification] = useAutoClearState<{
     type: "success" | "error" | "info";
     message: string;
-    launchMethod?: "vscode" | "terminal";
+    launchMethod?: "vscode" | "cursor" | "copilot-cli" | "terminal";
     contextFile?: string;
   }>();
   const [showActionMenu, setShowActionMenu] = useState(false);
@@ -63,6 +82,10 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   // Settings and Ralph hooks
   const { settings } = useSettings();
   const launchRalphMutation = useLaunchRalphForEpic();
+  const { tickets } = useTickets(
+    epic ? { projectId, epicId: epic.id } : {},
+    { enabled: Boolean(epic?.id) }
+  );
 
   // TanStack Form for epic data
   const form = useForm({
@@ -177,14 +200,23 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
 
   // Handle Start Ralph for entire epic
   // useSandbox param allows explicit choice at launch time, overriding settings default
-  // aiBackend param allows choosing between Claude and OpenCode
+  // aiBackend param allows choosing between Claude, Codex, and OpenCode
   const handleStartRalph = useCallback(
     async ({
       useSandbox,
       aiBackend,
+      workingMethodOverride,
     }: {
       useSandbox: boolean;
-      aiBackend: "claude" | "opencode";
+      aiBackend: "claude" | "opencode" | "codex";
+      workingMethodOverride?:
+        | "auto"
+        | "claude-code"
+        | "vscode"
+        | "opencode"
+        | "cursor"
+        | "copilot-cli"
+        | "codex";
     }) => {
       if (!epic) return;
 
@@ -223,6 +255,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
           preferredTerminal: settings?.terminalEmulator ?? null,
           useSandbox,
           aiBackend,
+          workingMethodOverride,
         });
 
         if (result.success) {
@@ -234,7 +267,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
           const notification: {
             type: "success";
             message: string;
-            launchMethod?: "vscode" | "terminal";
+            launchMethod?: "vscode" | "cursor" | "copilot-cli" | "terminal";
             contextFile?: string;
           } = {
             type: "success",
@@ -264,6 +297,99 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
       }
     },
     [epic, settings?.terminalEmulator, launchRalphMutation, onSave, setRalphNotification]
+  );
+
+  // Handle interactive launch for the next non-done ticket in this epic.
+  const handleStartInteractive = useCallback(
+    async (
+      provider:
+        | "claude"
+        | "codex"
+        | "codex-cli"
+        | "codex-app"
+        | "vscode"
+        | "cursor"
+        | "copilot"
+        | "opencode"
+    ) => {
+      if (!epic) return;
+
+      const launchableTicket = tickets.find((ticket) => ticket.status !== "done");
+      if (!launchableTicket) {
+        setRalphNotification({
+          type: "error",
+          message: "No launchable tickets in this epic (all tickets are done).",
+        });
+        return;
+      }
+
+      setIsStartingRalph(true);
+      setRalphNotification(null);
+      setShowActionMenu(false);
+
+      try {
+        const contextResult = await getTicketContext({ data: launchableTicket.id });
+        const payload = {
+          ticketId: launchableTicket.id,
+          context: contextResult.context,
+          projectPath: contextResult.projectPath,
+          preferredTerminal: settings?.terminalEmulator ?? null,
+          projectName: contextResult.projectName,
+          epicName: contextResult.epicName,
+          ticketTitle: contextResult.ticketTitle,
+        };
+
+        const launchResult = await (async () => {
+          switch (provider) {
+            case "claude":
+              return launchClaudeInTerminal({ data: payload });
+            case "codex":
+              return launchCodexInTerminal({ data: { ...payload, launchMode: "auto" } });
+            case "codex-cli":
+              return launchCodexInTerminal({ data: { ...payload, launchMode: "cli" } });
+            case "codex-app":
+              return launchCodexInTerminal({ data: { ...payload, launchMode: "app" } });
+            case "vscode":
+              return launchVSCodeInTerminal({ data: payload });
+            case "cursor":
+              return launchCursorInTerminal({ data: payload });
+            case "copilot":
+              return launchCopilotInTerminal({ data: payload });
+            case "opencode":
+              return launchOpenCodeInTerminal({ data: payload });
+          }
+        })();
+
+        if (launchResult.warnings?.length) {
+          setRalphNotification({
+            type: "info",
+            message: launchResult.warnings.join(". "),
+          });
+        }
+
+        if (launchResult.success) {
+          setRalphNotification({
+            type: "success",
+            message: `${launchResult.message} (Ticket: ${launchableTicket.title})`,
+          });
+          setTimeout(() => onSave(), 500);
+        } else {
+          setRalphNotification({
+            type: "error",
+            message: launchResult.message,
+          });
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Failed to launch provider";
+        setRalphNotification({
+          type: "error",
+          message: errorMessage,
+        });
+      } finally {
+        setIsStartingRalph(false);
+      }
+    },
+    [epic, onSave, setRalphNotification, settings?.terminalEmulator, tickets]
   );
 
   return (
@@ -442,7 +568,9 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
               <div className="flex-1 min-w-0">
                 <span>{ralphNotification.message}</span>
                 {/* Editor-specific instructions (VS Code, OpenCode, etc.) */}
-                {ralphNotification.launchMethod === "vscode" && ralphNotification.contextFile && (
+                {ralphNotification.launchMethod &&
+                  ralphNotification.launchMethod !== "terminal" &&
+                  ralphNotification.contextFile && (
                   <div className="mt-2 text-xs text-[var(--success)]/80">
                     <p className="font-medium">Next steps:</p>
                     <ol className="list-decimal list-inside mt-1 space-y-0.5">
@@ -511,54 +639,151 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
               )}
             </div>
 
-            {/* Dropdown Menu - compact version */}
+            {/* Dropdown Menu */}
             {showActionMenu && isEditing && (
-              <div className="absolute right-0 top-full mt-1 w-52 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg shadow-xl z-[60] overflow-hidden">
-                {/* Ralph Section Header */}
-                <div className="flex items-center gap-2 px-3 py-2 bg-[var(--bg-primary)] border-b border-[var(--border-primary)]">
-                  <Bot size={14} className="text-[var(--accent-ai)]" />
-                  <span className="text-xs font-semibold text-[var(--accent-ai)]">Start Ralph</span>
+              <div className="absolute right-0 bottom-full mb-2 w-[46rem] max-w-[95vw] bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg shadow-xl z-[60] overflow-hidden">
+                <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[var(--border-primary)]">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-[var(--bg-primary)] border-b border-[var(--border-primary)]">
+                      <Terminal size={14} className="text-[var(--success)]" />
+                      <span className="text-xs font-semibold text-[var(--success)] uppercase tracking-wider">
+                        Interactive
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 p-3">
+                      <button
+                        onClick={() => void handleStartInteractive("claude")}
+                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                      >
+                        <Terminal size={14} className="text-[var(--success)] flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">Claude</span>
+                      </button>
+                      <button
+                        onClick={() => void handleStartInteractive("codex")}
+                        title="Try Codex CLI first, then Codex App if CLI is unavailable."
+                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                      >
+                        <Terminal size={14} className="text-[var(--success)] flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">Codex Auto</span>
+                      </button>
+                      <button
+                        onClick={() => void handleStartInteractive("codex-cli")}
+                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                      >
+                        <Terminal size={14} className="text-[var(--success)] flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">Codex CLI</span>
+                      </button>
+                      <button
+                        onClick={() => void handleStartInteractive("codex-app")}
+                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                      >
+                        <Code2 size={14} className="text-[var(--success)] flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">Codex App</span>
+                      </button>
+                      <button
+                        onClick={() => void handleStartInteractive("vscode")}
+                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                      >
+                        <Code2 size={14} className="text-[var(--accent-primary)] flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">VS Code</span>
+                      </button>
+                      <button
+                        onClick={() => void handleStartInteractive("cursor")}
+                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                      >
+                        <Monitor size={14} className="text-[var(--warning)] flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">Cursor</span>
+                      </button>
+                      <button
+                        onClick={() => void handleStartInteractive("copilot")}
+                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                      >
+                        <Github size={14} className="text-[var(--text-secondary)] flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">Copilot CLI</span>
+                      </button>
+                      <button
+                        onClick={() => void handleStartInteractive("opencode")}
+                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                      >
+                        <Code2 size={14} className="text-[var(--info)] flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">OpenCode</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-[var(--bg-primary)] border-b border-[var(--border-primary)]">
+                      <Bot size={14} className="text-[var(--accent-ai)]" />
+                      <span className="text-xs font-semibold text-[var(--accent-ai)] uppercase tracking-wider">
+                        Ralph
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 p-3">
+                      <button
+                        onClick={() => void handleStartRalph({ useSandbox: false, aiBackend: "claude" })}
+                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                      >
+                        <Bot size={14} className="text-[var(--accent-ai)] flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">Claude</span>
+                      </button>
+                      <button
+                        onClick={() => void handleStartRalph({ useSandbox: false, aiBackend: "codex" })}
+                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                      >
+                        <Terminal size={14} className="text-[var(--success)] flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">Codex</span>
+                      </button>
+                      <button
+                        onClick={() =>
+                          void handleStartRalph({
+                            useSandbox: false,
+                            aiBackend: "claude",
+                            workingMethodOverride: "vscode",
+                          })
+                        }
+                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                      >
+                        <Code2 size={14} className="text-[var(--accent-primary)] flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">VS Code</span>
+                      </button>
+                      <button
+                        onClick={() =>
+                          void handleStartRalph({
+                            useSandbox: false,
+                            aiBackend: "claude",
+                            workingMethodOverride: "cursor",
+                          })
+                        }
+                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                      >
+                        <Monitor size={14} className="text-[var(--warning)] flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">Cursor</span>
+                      </button>
+                      <button
+                        onClick={() =>
+                          void handleStartRalph({
+                            useSandbox: false,
+                            aiBackend: "claude",
+                            workingMethodOverride: "copilot-cli",
+                          })
+                        }
+                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                      >
+                        <Github size={14} className="text-[var(--text-secondary)] flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">Copilot CLI</span>
+                      </button>
+                      <button
+                        onClick={() =>
+                          void handleStartRalph({ useSandbox: false, aiBackend: "opencode" })
+                        }
+                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                      >
+                        <Code2 size={14} className="text-[var(--accent-ai)] flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">OpenCode</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-
-                {/* Ralph with Claude */}
-                <button
-                  onClick={() => void handleStartRalph({ useSandbox: false, aiBackend: "claude" })}
-                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[var(--bg-hover)] transition-colors text-left"
-                >
-                  <Bot size={14} className="text-[var(--accent-ai)] flex-shrink-0" />
-                  <span className="text-sm text-[var(--text-primary)]">Claude</span>
-                </button>
-
-                {/* Ralph with Claude - Docker */}
-                <button
-                  disabled
-                  className="w-full flex items-center gap-2 px-3 py-2 transition-colors text-left border-t border-[var(--border-primary)] opacity-40 cursor-not-allowed"
-                >
-                  <Container size={14} className="text-[var(--text-tertiary)] flex-shrink-0" />
-                  <span className="text-sm text-[var(--text-secondary)]">Claude (Docker)</span>
-                  <span className="text-[10px] text-[var(--text-tertiary)] ml-auto">WIP</span>
-                </button>
-
-                {/* Ralph with OpenCode */}
-                <button
-                  onClick={() =>
-                    void handleStartRalph({ useSandbox: false, aiBackend: "opencode" })
-                  }
-                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[var(--bg-hover)] transition-colors text-left border-t border-[var(--border-primary)]"
-                >
-                  <Code2 size={14} className="text-[var(--accent-ai)] flex-shrink-0" />
-                  <span className="text-sm text-[var(--text-primary)]">OpenCode</span>
-                </button>
-
-                {/* Ralph with OpenCode - Docker */}
-                <button
-                  disabled
-                  className="w-full flex items-center gap-2 px-3 py-2 transition-colors text-left border-t border-[var(--border-primary)] opacity-40 cursor-not-allowed"
-                >
-                  <Container size={14} className="text-[var(--text-tertiary)] flex-shrink-0" />
-                  <span className="text-sm text-[var(--text-secondary)]">OpenCode (Docker)</span>
-                  <span className="text-[10px] text-[var(--text-tertiary)] ml-auto">WIP</span>
-                </button>
               </div>
             )}
           </div>

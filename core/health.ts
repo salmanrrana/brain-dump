@@ -53,7 +53,14 @@ interface CountRow {
 // Public Types
 // ============================================
 
-export type WorkingMethod = "auto" | "claude-code" | "vscode";
+export type WorkingMethod =
+  | "auto"
+  | "claude-code"
+  | "vscode"
+  | "opencode"
+  | "cursor"
+  | "copilot-cli"
+  | "codex";
 
 export interface HealthReport {
   status: "healthy" | "warning" | "error";
@@ -107,7 +114,16 @@ function getProjectOrThrow(db: DbHandle, projectId: string): DbProjectRow {
 
 function resolveEffectiveEnvironment(workingMethod: string, detectedEnvironment: string): string {
   if (workingMethod === "auto") return detectedEnvironment;
-  if (workingMethod === "claude-code" || workingMethod === "vscode") return workingMethod;
+  if (
+    workingMethod === "claude-code" ||
+    workingMethod === "vscode" ||
+    workingMethod === "opencode" ||
+    workingMethod === "cursor" ||
+    workingMethod === "copilot-cli" ||
+    workingMethod === "codex"
+  ) {
+    return workingMethod;
+  }
   return detectedEnvironment;
 }
 

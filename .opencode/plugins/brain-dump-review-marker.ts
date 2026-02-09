@@ -6,7 +6,7 @@
  * allow/block git push operations.
  *
  * Workflow:
- * 1. Detects completion of mcp__brain-dump__check_review_complete
+ * 1. Detects completion of review check-complete calls
  * 2. Parses output to determine if review is complete
  * 3. If review complete, creates/touches `.claude/.review-completed` marker file
  * 4. Marker file contains ISO timestamp for staleness checking
@@ -20,13 +20,77 @@ import { mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 
 /**
- * Checks if check_review_complete output indicates review is complete
+ * Checks if review check-complete output indicates review is complete
  * Parses JSON and validates structured fields to determine if all critical/major findings are resolved
  */
+function extractJsonObject(text: string): Record<string, unknown> | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  // Most MCP tool outputs are plain JSON strings.
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // Fall through to substring extraction.
+  }
+
+  // Some wrappers prepend text before JSON payload.
+  const start = trimmed.indexOf("{");
+  const end = trimmed.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    try {
+      const parsed = JSON.parse(trimmed.slice(start, end + 1));
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+function extractReviewPayload(output: any): Record<string, unknown> | null {
+  if (output && typeof output === "object" && !Array.isArray(output)) {
+    // Direct structured payload
+    if (
+      "complete" in output ||
+      "canProceedToHumanReview" in output ||
+      "openCritical" in output ||
+      "openMajor" in output
+    ) {
+      return output as Record<string, unknown>;
+    }
+
+    // MCP-style response with content blocks
+    const content = (output as { content?: unknown }).content;
+    if (Array.isArray(content)) {
+      for (const block of content) {
+        if (block && typeof block === "object" && "text" in block) {
+          const text = (block as { text?: unknown }).text;
+          if (typeof text === "string") {
+            const parsed = extractJsonObject(text);
+            if (parsed) return parsed;
+          }
+        }
+      }
+    }
+  }
+
+  if (typeof output === "string") {
+    return extractJsonObject(output);
+  }
+
+  return null;
+}
+
 function isReviewComplete(output: any): boolean {
   try {
-    // Parse output as JSON if it's a string
-    let data = typeof output === "string" ? JSON.parse(output) : output;
+    const data = extractReviewPayload(output);
 
     // Validate we have an object to work with
     if (!data || typeof data !== "object") {
@@ -77,14 +141,19 @@ export default async (context: any) => {
 
   return {
     /**
-     * Called after mcp__brain-dump__check_review_complete completes
-     * Creates marker file if review is complete
+     * Called after review check-complete executes.
+     * Creates marker file if review is complete.
      */
     "tool.execute.after": async (input: any, output: any) => {
       const toolName = input.tool || "";
+      const action =
+        input.params?.action || input.input?.action || input.arguments?.action || "";
 
-      // Only handle check_review_complete
-      if (toolName !== "mcp__brain-dump__check_review_complete") {
+      // Support both consolidated and legacy review tool naming.
+      const isConsolidatedCheckComplete =
+        toolName === "mcp__brain-dump__review" && action === "check-complete";
+      const isLegacyCheckComplete = toolName === "mcp__brain-dump__check_review_complete";
+      if (!isConsolidatedCheckComplete && !isLegacyCheckComplete) {
         return;
       }
 

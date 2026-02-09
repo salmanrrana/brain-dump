@@ -28,7 +28,15 @@ export type AttachmentPriority = "primary" | "supplementary";
 /**
  * Who uploaded the attachment.
  */
-export type AttachmentUploader = "human" | "claude" | "ralph" | "opencode" | "cursor" | "windsurf";
+export type AttachmentUploader =
+  | "human"
+  | "claude"
+  | "ralph"
+  | "opencode"
+  | "cursor"
+  | "copilot"
+  | "codex"
+  | "windsurf";
 
 /**
  * Structured attachment metadata.

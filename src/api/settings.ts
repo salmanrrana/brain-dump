@@ -23,7 +23,14 @@ export interface UpdateSettingsInput {
   autoCreatePr?: boolean;
   prTargetBranch?: string;
   defaultProjectsDirectory?: string | null;
-  defaultWorkingMethod?: "auto" | "claude-code" | "vscode" | "opencode";
+  defaultWorkingMethod?:
+    | "auto"
+    | "claude-code"
+    | "vscode"
+    | "opencode"
+    | "cursor"
+    | "copilot-cli"
+    | "codex";
   // Docker runtime settings
   dockerRuntime?: DockerRuntimeSetting | null; // null = auto-detect
   dockerSocketPath?: string | null; // Custom socket path override
@@ -78,7 +85,15 @@ export const updateSettings = createServerFn({ method: "POST" })
     }
     // Validate working method if provided
     if (input.defaultWorkingMethod !== undefined) {
-      const validMethods = ["auto", "claude-code", "vscode", "opencode"];
+      const validMethods = [
+        "auto",
+        "claude-code",
+        "vscode",
+        "opencode",
+        "cursor",
+        "copilot-cli",
+        "codex",
+      ];
       if (!validMethods.includes(input.defaultWorkingMethod)) {
         throw new Error(`Invalid working method: ${input.defaultWorkingMethod}`);
       }

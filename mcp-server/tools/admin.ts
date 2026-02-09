@@ -48,7 +48,15 @@ const ACTIONS = [
   "export-logs",
   "archive-sessions",
 ] as const;
-const WORKING_METHODS = ["auto", "claude-code", "vscode"] as const;
+const WORKING_METHODS = [
+  "auto",
+  "claude-code",
+  "vscode",
+  "opencode",
+  "cursor",
+  "copilot-cli",
+  "codex",
+] as const;
 const CLASSIFICATIONS = DATA_CLASSIFICATIONS as unknown as readonly [string, ...string[]];
 const ROLES = MESSAGE_ROLES as unknown as readonly [string, ...string[]];
 
@@ -120,7 +128,7 @@ Optional params: retentionDays, confirm
 ## Parameters
 - action: (required) The operation to perform
 - projectId: Project ID. Required for: settings, update-settings. Optional for: start-conversation, list-conversations, export-logs
-- workingMethod: Working method (auto, claude-code, vscode). Required for: update-settings
+- workingMethod: Working method (auto, claude-code, vscode, opencode, cursor, copilot-cli, codex). Required for: update-settings
 - sessionId: Conversation session ID. Required for: log-message, end-conversation. Optional for: export-logs
 - ticketId: Ticket ID. Optional for: start-conversation, list-conversations
 - userId: User identifier. Optional for: start-conversation

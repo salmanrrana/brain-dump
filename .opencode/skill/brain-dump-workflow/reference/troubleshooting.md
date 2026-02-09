@@ -36,9 +36,9 @@ Then retry your Write/Edit operation. Only `implementing`, `testing`, and `commi
 
 **Fix**:
 
-1. Get open findings: `get_review_findings({ ticketId, severity: "critical" })`
+1. Get open findings: `review "get-findings"({ ticketId, severity: "critical" })`
 2. Fix each finding in code
-3. Mark fixed: `review "mark-fixed"({ findingId, status: "fixed" })`
+3. Mark fixed: `review "mark-fixed"({ findingId, fixStatus: "fixed" })`
 4. Verify: `review "check-complete"({ ticketId })` must return `canProceedToHumanReview: true`
 5. Now you can generate the demo
 

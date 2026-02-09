@@ -448,6 +448,35 @@ function handleDoctorAction(): void {
 
   console.log();
 
+  // Codex
+  console.log("Codex");
+  console.log("-".repeat(50));
+
+  const codexDir = join(home, ".codex");
+  const codexConfigToml = join(codexDir, "config.toml");
+  if (existsSync(codexDir)) {
+    console.log("  ✓ Codex detected at ~/.codex");
+    if (existsSync(codexConfigToml)) {
+      try {
+        const configToml = readFileSync(codexConfigToml, "utf-8");
+        if (configToml.includes("[mcp_servers.brain-dump]")) {
+          console.log("  ✓ MCP server configured (config.toml)");
+        } else {
+          console.log("  o MCP server: Not configured");
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.log(`  ! Could not read config.toml: ${errorMsg}`);
+      }
+    } else {
+      console.log("  o config.toml not found");
+    }
+  } else {
+    console.log("  o Not detected (Codex not installed or not configured)");
+  }
+
+  console.log();
+
   // Database
   console.log("Database");
   console.log("-".repeat(50));

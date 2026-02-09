@@ -17,7 +17,14 @@ export interface UpdateProjectInput {
   name?: string;
   path?: string;
   color?: string;
-  workingMethod?: "auto" | "claude-code" | "vscode" | "opencode";
+  workingMethod?:
+    | "auto"
+    | "claude-code"
+    | "vscode"
+    | "opencode"
+    | "cursor"
+    | "copilot-cli"
+    | "codex";
 }
 
 // Get all projects

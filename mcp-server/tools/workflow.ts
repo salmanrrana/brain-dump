@@ -1,8 +1,9 @@
 /**
  * Consolidated workflow resource tool for Brain Dump MCP server.
  *
- * Merges 3 workflow tools (start_ticket_work, start_epic_work, complete_ticket_work)
- * into 1 action-dispatched tool. Business logic lives in core/workflow.ts.
+ * Consolidates workflow operations into one action-dispatched tool.
+ * Legacy tool names (start_ticket_work/complete_ticket_work) are still used in telemetry labels.
+ * Business logic lives in core/workflow.ts.
  * MCP layer adds presentation: attachments, context building, telemetry, conversation sessions.
  *
  * @module tools/workflow
@@ -496,7 +497,8 @@ Run all 3 review agents in parallel to identify issues:
 ### Step 2: Submit Findings
 For each issue found, call:
 \`\`\`
-submit_review_finding({
+review({
+  action: "submit-finding",
   ticketId: "${ticketId}",
   agent: "code-reviewer",
   severity: "critical" | "major" | "minor" | "suggestion",
@@ -510,18 +512,19 @@ submit_review_finding({
 ### Step 3: Fix and Mark Fixed
 Fix critical/major findings, then:
 \`\`\`
-mark_finding_fixed({ findingId: "...", status: "fixed", fixDescription: "How it was fixed" })
+review({ action: "mark-fixed", findingId: "...", fixStatus: "fixed", fixDescription: "How it was fixed" })
 \`\`\`
 
 ### Step 4: Verify Review Complete
 \`\`\`
-check_review_complete({ ticketId: "${ticketId}" })
+review({ action: "check-complete", ticketId: "${ticketId}" })
 \`\`\`
 Must return \`canProceedToHumanReview: true\` (all critical/major fixed)
 
 ### Step 5: Generate Demo Script
 \`\`\`
-generate_demo_script({
+review({
+  action: "generate-demo",
   ticketId: "${ticketId}",
   steps: [
     { order: 1, description: "What to test", expectedOutcome: "What should happen", type: "manual" }
@@ -531,7 +534,7 @@ generate_demo_script({
 This moves ticket to **human_review**.
 
 ### Step 6: STOP
-**DO NOT proceed further.** The ticket requires human approval via \`submit_demo_feedback\`.`);
+**DO NOT proceed further.** The ticket requires human approval via \`review({ action: "submit-feedback", ... })\`.`);
 
   // Changed files for reference
   if (result.changedFiles.length > 0) {
@@ -657,7 +660,7 @@ ${ticketList}
 ---
 
 All tickets in this epic will now use the epic branch \`${result.branch}\`.
-Use \`start_ticket_work\` to begin work on any ticket.`,
+Use \`workflow({ action: "start-work", ticketId: "..." })\` to begin work on any ticket.`,
       },
     ],
   };
