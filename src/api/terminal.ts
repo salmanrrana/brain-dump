@@ -405,42 +405,102 @@ async function runFirstSuccessfulCommand(
   return { success: false, error: lastError };
 }
 
-// Create a temp script to launch Claude - avoids complex escaping issues
-async function createLaunchScript(projectPath: string, context: string): Promise<string> {
-  const { writeFileSync, mkdirSync, chmodSync } = await import("fs");
+async function copyToSystemClipboard(text: string): Promise<void> {
+  const { exec } = await import("child_process");
+  const { promisify } = await import("util");
+  const execAsync = promisify(exec);
+  const { writeFileSync, unlinkSync } = await import("fs");
   const { join } = await import("path");
-  const { homedir } = await import("os");
+  const { tmpdir } = await import("os");
   const { randomUUID } = await import("crypto");
 
-  // Validate project path
-  validateProjectPath(projectPath);
+  const tmpFile = join(tmpdir(), `brain-dump-clipboard-${randomUUID()}.txt`);
+  writeFileSync(tmpFile, text, "utf8");
 
-  // Clean up old scripts first
-  await cleanupOldScripts();
+  try {
+    if (process.platform === "darwin") {
+      await execAsync(`cat "${tmpFile}" | pbcopy`);
+      return;
+    }
+    if (process.platform === "linux") {
+      // Try wl-copy first (Wayland), then xclip (X11).
+      const result = await runFirstSuccessfulCommand([
+        `cat "${tmpFile}" | wl-copy`,
+        `cat "${tmpFile}" | xclip -selection clipboard`,
+      ]);
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return;
+    }
 
-  const scriptDir = join(homedir(), ".brain-dump", "scripts");
-  mkdirSync(scriptDir, { recursive: true });
+    throw new Error("Clipboard support is not available on this platform.");
+  } finally {
+    try {
+      unlinkSync(tmpFile);
+    } catch {
+      // Best effort cleanup.
+    }
+  }
+}
 
-  const scriptPath = join(scriptDir, `launch-${randomUUID()}.sh`);
+async function seedCodexAppConversation(context: string): Promise<{ success: true } | { success: false; message: string }> {
+  if (process.platform !== "darwin") {
+    return {
+      success: false,
+      message: "Codex App conversation seeding is currently supported on macOS only.",
+    };
+  }
 
-  // Extract ticket title from context (first line after "# Task: ")
-  const titleMatch = context.match(/^# Task: (.+)$/m);
-  const ticketTitle = titleMatch?.[1] ?? "Unknown Task";
+  const { exec } = await import("child_process");
+  const { promisify } = await import("util");
+  const execAsync = promisify(exec);
 
-  // Safely escape all user-provided content
+  try {
+    await copyToSystemClipboard(context);
+  } catch (error) {
+    return {
+      success: false,
+      message: `Could not copy context to clipboard: ${error instanceof Error ? error.message : "Unknown error"}`,
+    };
+  }
+
+  // Best effort: open Codex, create a new thread, paste context, and send.
+  // This requires Accessibility permissions for System Events.
+  const script = [
+    'tell application "Codex" to activate',
+    "delay 0.45",
+    'tell application "System Events"',
+    '  keystroke "n" using command down',
+    "  delay 0.2",
+    '  keystroke "v" using command down',
+    "  delay 0.1",
+    "  key code 36",
+    "end tell",
+  ]
+    .map((line) => `-e '${line}'`)
+    .join(" ");
+
+  try {
+    await execAsync(`osascript ${script}`);
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      message: `Could not auto-send prompt to Codex App: ${error instanceof Error ? error.message : "Unknown error"}`,
+    };
+  }
+}
+
+export function generateClaudeLaunchScript(
+  projectPath: string,
+  context: string,
+  ticketTitle: string
+): string {
   const safeProjectPath = escapeForBashDoubleQuote(projectPath);
   const safeTicketTitle = escapeForBashDoubleQuote(ticketTitle);
 
-  // Create a script that:
-  // 1. Changes to the project directory
-  // 2. Saves context to a file in the project (so Claude has read permission)
-  // 3. Shows brief visual confirmation
-  // 4. Launches Claude with the prompt, showing all output normally
-  // 5. Keeps the shell open after Claude exits
-  // Note: Context is written using heredoc with a unique delimiter that won't appear in user content
-  const script = `#!/bin/bash
-set -e  # Exit on error
-
+  return `#!/bin/bash
 cd "${safeProjectPath}"
 
 # Save context to a hidden file in the project directory
@@ -470,6 +530,150 @@ echo ""
 echo -e "\\033[0;32m✅ Claude session ended.\\033[0m"
 exec bash
 `;
+}
+
+export function generateOpenCodeLaunchScript(
+  projectPath: string,
+  context: string,
+  ticketTitle: string
+): string {
+  const safeProjectPath = escapeForBashDoubleQuote(projectPath);
+  const safeTicketTitle = escapeForBashDoubleQuote(ticketTitle);
+
+  return `#!/bin/bash
+
+cd "${safeProjectPath}"
+
+# Save context to a hidden file in the project directory
+CONTEXT_FILE="${safeProjectPath}/.brain-dump-context.md"
+cat > "$CONTEXT_FILE" << 'BRAIN_DUMP_CONTEXT_EOF_7f3a9b2c'
+${context}
+BRAIN_DUMP_CONTEXT_EOF_7f3a9b2c
+
+# Brief visual confirmation (blue for OpenCode)
+echo ""
+echo -e "\\033[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo -e "\\033[0;34m💻 Brain Dump - Starting with OpenCode\\033[0m"
+echo -e "\\033[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo -e "\\033[1;33m📋 Task:\\033[0m ${safeTicketTitle}"
+echo -e "\\033[1;33m📁 Project:\\033[0m ${safeProjectPath}"
+echo -e "\\033[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo ""
+
+# Launch OpenCode with the project path and initial prompt
+# OpenCode uses the user's default/last-used model preference
+opencode "${safeProjectPath}" --prompt "$(cat "$CONTEXT_FILE")"
+
+# Cleanup context file
+rm -f "$CONTEXT_FILE"
+
+echo ""
+echo -e "\\033[0;34m✅ OpenCode session ended.\\033[0m"
+exec bash
+`;
+}
+
+export function generateCodexLaunchScript(
+  projectPath: string,
+  context: string,
+  ticketTitle: string
+): string {
+  const safeProjectPath = escapeForBashDoubleQuote(projectPath);
+  const safeTicketTitle = escapeForBashDoubleQuote(ticketTitle);
+
+  return `#!/bin/bash
+
+cd "${safeProjectPath}"
+
+# Save context to a hidden file in the project directory
+CONTEXT_FILE="${safeProjectPath}/.brain-dump-context.md"
+cat > "$CONTEXT_FILE" << 'BRAIN_DUMP_CONTEXT_EOF_7f3a9b2c'
+${context}
+BRAIN_DUMP_CONTEXT_EOF_7f3a9b2c
+
+# Brief visual confirmation (green for Codex)
+echo ""
+echo -e "\\033[0;32m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo -e "\\033[0;32m🧠 Brain Dump - Starting with Codex\\033[0m"
+echo -e "\\033[0;32m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo -e "\\033[1;33m📋 Task:\\033[0m ${safeTicketTitle}"
+echo -e "\\033[1;33m📁 Project:\\033[0m ${safeProjectPath}"
+echo -e "\\033[0;32m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo ""
+
+# Launch Codex with the prompt content
+codex "$(cat "$CONTEXT_FILE")"
+
+# Cleanup context file
+rm -f "$CONTEXT_FILE"
+
+echo ""
+echo -e "\\033[0;32m✅ Codex session ended.\\033[0m"
+exec bash
+`;
+}
+
+export function generateCopilotLaunchScript(
+  projectPath: string,
+  context: string,
+  ticketTitle: string
+): string {
+  const safeProjectPath = escapeForBashDoubleQuote(projectPath);
+  const safeTicketTitle = escapeForBashDoubleQuote(ticketTitle);
+
+  return `#!/bin/bash
+
+cd "${safeProjectPath}"
+
+CONTEXT_FILE="${safeProjectPath}/.brain-dump-context.md"
+cat > "$CONTEXT_FILE" << 'BRAIN_DUMP_CONTEXT_EOF_7f3a9b2c'
+${context}
+BRAIN_DUMP_CONTEXT_EOF_7f3a9b2c
+
+echo ""
+echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo -e "\\033[0;36m🤖 Brain Dump - Starting with Copilot CLI\\033[0m"
+echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo -e "\\033[1;33m📋 Task:\\033[0m ${safeTicketTitle}"
+echo -e "\\033[1;33m📁 Project:\\033[0m ${safeProjectPath}"
+echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo ""
+
+# Copilot CLI programmatic mode requires -p/--prompt.
+if ! copilot -p "$(cat "$CONTEXT_FILE")"; then
+  copilot || true
+fi
+
+rm -f "$CONTEXT_FILE"
+
+echo ""
+echo -e "\\033[0;36m✅ Copilot CLI session ended.\\033[0m"
+exec bash
+`;
+}
+// Create a temp script to launch Claude - avoids complex escaping issues
+async function createLaunchScript(projectPath: string, context: string): Promise<string> {
+  const { writeFileSync, mkdirSync, chmodSync } = await import("fs");
+  const { join } = await import("path");
+  const { homedir } = await import("os");
+  const { randomUUID } = await import("crypto");
+
+  // Validate project path
+  validateProjectPath(projectPath);
+
+  // Clean up old scripts first
+  await cleanupOldScripts();
+
+  const scriptDir = join(homedir(), ".brain-dump", "scripts");
+  mkdirSync(scriptDir, { recursive: true });
+
+  const scriptPath = join(scriptDir, `launch-${randomUUID()}.sh`);
+
+  // Extract ticket title from context (first line after "# Task: ")
+  const titleMatch = context.match(/^# Task: (.+)$/m);
+  const ticketTitle = titleMatch?.[1] ?? "Unknown Task";
+
+  const script = generateClaudeLaunchScript(projectPath, context, ticketTitle);
 
   // Use 0o700 - owner read/write/execute only (no group/world access)
   writeFileSync(scriptPath, script, { mode: 0o700 });
@@ -652,48 +856,7 @@ async function createOpenCodeLaunchScript(projectPath: string, context: string):
   const titleMatch = context.match(/^# Task: (.+)$/m);
   const ticketTitle = titleMatch?.[1] ?? "Unknown Task";
 
-  // Safely escape all user-provided content
-  const safeProjectPath = escapeForBashDoubleQuote(projectPath);
-  const safeTicketTitle = escapeForBashDoubleQuote(ticketTitle);
-
-  // Create a script that:
-  // 1. Changes to the project directory
-  // 2. Saves context to a file in the project
-  // 3. Shows brief visual confirmation (OpenCode branding)
-  // 4. Launches OpenCode with the prompt
-  // 5. Keeps the shell open after OpenCode exits
-  const script = `#!/bin/bash
-set -e  # Exit on error
-
-cd "${safeProjectPath}"
-
-# Save context to a hidden file in the project directory
-CONTEXT_FILE="${safeProjectPath}/.brain-dump-context.md"
-cat > "$CONTEXT_FILE" << 'BRAIN_DUMP_CONTEXT_EOF_7f3a9b2c'
-${context}
-BRAIN_DUMP_CONTEXT_EOF_7f3a9b2c
-
-# Brief visual confirmation (blue for OpenCode)
-echo ""
-echo -e "\\033[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-echo -e "\\033[0;34m💻 Brain Dump - Starting with OpenCode\\033[0m"
-echo -e "\\033[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-echo -e "\\033[1;33m📋 Task:\\033[0m ${safeTicketTitle}"
-echo -e "\\033[1;33m📁 Project:\\033[0m ${safeProjectPath}"
-echo -e "\\033[0;34m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-echo ""
-
-# Launch OpenCode with the project path and initial prompt
-# OpenCode uses the user's default/last-used model preference
-opencode "${safeProjectPath}" --prompt "$(cat "$CONTEXT_FILE")"
-
-# Cleanup context file
-rm -f "$CONTEXT_FILE"
-
-echo ""
-echo -e "\\033[0;34m✅ OpenCode session ended.\\033[0m"
-exec bash
-`;
+  const script = generateOpenCodeLaunchScript(projectPath, context, ticketTitle);
 
   // Use 0o700 - owner read/write/execute only
   writeFileSync(scriptPath, script, { mode: 0o700 });
@@ -871,41 +1034,7 @@ async function createCodexLaunchScript(projectPath: string, context: string): Pr
   const scriptPath = join(scriptDir, `launch-codex-${randomUUID()}.sh`);
   const titleMatch = context.match(/^# Task: (.+)$/m);
   const ticketTitle = titleMatch?.[1] ?? "Unknown Task";
-
-  const safeProjectPath = escapeForBashDoubleQuote(projectPath);
-  const safeTicketTitle = escapeForBashDoubleQuote(ticketTitle);
-
-  const script = `#!/bin/bash
-set -e  # Exit on error
-
-cd "${safeProjectPath}"
-
-# Save context to a hidden file in the project directory
-CONTEXT_FILE="${safeProjectPath}/.brain-dump-context.md"
-cat > "$CONTEXT_FILE" << 'BRAIN_DUMP_CONTEXT_EOF_7f3a9b2c'
-${context}
-BRAIN_DUMP_CONTEXT_EOF_7f3a9b2c
-
-# Brief visual confirmation (green for Codex)
-echo ""
-echo -e "\\033[0;32m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-echo -e "\\033[0;32m🧠 Brain Dump - Starting with Codex\\033[0m"
-echo -e "\\033[0;32m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-echo -e "\\033[1;33m📋 Task:\\033[0m ${safeTicketTitle}"
-echo -e "\\033[1;33m📁 Project:\\033[0m ${safeProjectPath}"
-echo -e "\\033[0;32m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-echo ""
-
-# Launch Codex with the prompt content
-codex "$(cat "$CONTEXT_FILE")"
-
-# Cleanup context file
-rm -f "$CONTEXT_FILE"
-
-echo ""
-echo -e "\\033[0;32m✅ Codex session ended.\\033[0m"
-exec bash
-`;
+  const script = generateCodexLaunchScript(projectPath, context, ticketTitle);
 
   writeFileSync(scriptPath, script, { mode: 0o700 });
   chmodSync(scriptPath, 0o700);
@@ -929,37 +1058,7 @@ async function createCopilotLaunchScript(projectPath: string, context: string): 
   const scriptPath = join(scriptDir, `launch-copilot-${randomUUID()}.sh`);
   const titleMatch = context.match(/^# Task: (.+)$/m);
   const ticketTitle = titleMatch?.[1] ?? "Unknown Task";
-
-  const safeProjectPath = escapeForBashDoubleQuote(projectPath);
-  const safeTicketTitle = escapeForBashDoubleQuote(ticketTitle);
-
-  const script = `#!/bin/bash
-set -e  # Exit on error
-
-cd "${safeProjectPath}"
-
-CONTEXT_FILE="${safeProjectPath}/.brain-dump-context.md"
-cat > "$CONTEXT_FILE" << 'BRAIN_DUMP_CONTEXT_EOF_7f3a9b2c'
-${context}
-BRAIN_DUMP_CONTEXT_EOF_7f3a9b2c
-
-echo ""
-echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-echo -e "\\033[0;36m🤖 Brain Dump - Starting with Copilot CLI\\033[0m"
-echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-echo -e "\\033[1;33m📋 Task:\\033[0m ${safeTicketTitle}"
-echo -e "\\033[1;33m📁 Project:\\033[0m ${safeProjectPath}"
-echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-echo ""
-
-copilot "$(cat "$CONTEXT_FILE")"
-
-rm -f "$CONTEXT_FILE"
-
-echo ""
-echo -e "\\033[0;36m✅ Copilot CLI session ended.\\033[0m"
-exec bash
-`;
+  const script = generateCopilotLaunchScript(projectPath, context, ticketTitle);
 
   writeFileSync(scriptPath, script, { mode: 0o700 });
   chmodSync(scriptPath, 0o700);
@@ -1130,10 +1229,15 @@ export const launchCodexInTerminal = createServerFn({ method: "POST" })
         );
       }
 
+      const seedResult = await seedCodexAppConversation(context);
+      if (!seedResult.success) {
+        warnings.push(seedResult.message);
+      }
+
       return {
         success: true,
         method: "app",
-        message: `Opened Codex App. Context saved to ${contextFile}.`,
+        message: `Opened Codex App. Context file: ${contextFile}`,
         terminalUsed: "Codex App",
         ...(warnings.length > 0 && { warnings }),
       };
@@ -1490,7 +1594,6 @@ export const launchVSCodeInTerminal = createServerFn({ method: "POST" })
       };
     }
   });
-
 // Get current working ticket (for CLI tool)
 export const getCurrentTicket = createServerFn({ method: "GET" })
   .inputValidator(() => {})

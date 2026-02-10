@@ -15,6 +15,59 @@ interface LaunchInceptionResult {
   warnings?: string[];
 }
 
+export function generateProjectInceptionLaunchScript(promptFile: string): string {
+  return `#!/bin/bash
+
+echo ""
+echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo -e "\\033[0;32m🧠 Brain Dump - Project Inception\\033[0m"
+echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo -e "\\033[1;33m🚀 Starting new project from scratch...\\033[0m"
+echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo ""
+
+# Launch Claude with the prompt
+claude "${promptFile}"
+
+# Cleanup prompt file
+rm -f "${promptFile}"
+
+echo ""
+echo -e "\\033[0;32m✅ Inception session ended.\\033[0m"
+exec bash
+`;
+}
+
+export function generateSpecBreakdownLaunchScript(
+  projectPath: string,
+  projectName: string,
+  promptFile: string
+): string {
+  return `#!/bin/bash
+
+cd "${projectPath}"
+
+echo ""
+echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo -e "\\033[0;32m🧠 Brain Dump - Spec Breakdown\\033[0m"
+echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo -e "\\033[1;33m📋 Project:\\033[0m ${projectName}"
+echo -e "\\033[1;33m📁 Path:\\033[0m ${projectPath}"
+echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo ""
+
+# Launch Claude with the prompt
+claude "${promptFile}"
+
+# Cleanup prompt file
+rm -f "${promptFile}"
+
+echo ""
+echo -e "\\033[0;32m✅ Spec Breakdown session ended.\\033[0m"
+exec bash
+`;
+}
+
 // ============================================================================
 // PROJECT INCEPTION PROMPT
 // ============================================================================
@@ -343,27 +396,7 @@ export const launchProjectInception = createServerFn({ method: "POST" })
     const scriptPath = join(scriptDir, `inception-${promptId}.sh`);
     const workDir = defaultProjectsDir || homedir();
 
-    const script = `#!/bin/bash
-set -e
-
-echo ""
-echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-echo -e "\\033[0;32m🧠 Brain Dump - Project Inception\\033[0m"
-echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-echo -e "\\033[1;33m🚀 Starting new project from scratch...\\033[0m"
-echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-echo ""
-
-# Launch Claude with the prompt
-claude "${promptFile}"
-
-# Cleanup prompt file
-rm -f "${promptFile}"
-
-echo ""
-echo -e "\\033[0;32m✅ Inception session ended.\\033[0m"
-exec bash
-`;
+    const script = generateProjectInceptionLaunchScript(promptFile);
 
     writeFileSync(scriptPath, script, { mode: 0o700 });
     chmodSync(scriptPath, 0o700);
@@ -455,30 +488,7 @@ export const launchSpecBreakdown = createServerFn({ method: "POST" })
     // Create launch script
     const scriptPath = join(scriptDir, `breakdown-${promptId}.sh`);
 
-    const script = `#!/bin/bash
-set -e
-
-cd "${projectPath}"
-
-echo ""
-echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-echo -e "\\033[0;32m🧠 Brain Dump - Spec Breakdown\\033[0m"
-echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-echo -e "\\033[1;33m📋 Project:\\033[0m ${projectName}"
-echo -e "\\033[1;33m📁 Path:\\033[0m ${projectPath}"
-echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
-echo ""
-
-# Launch Claude with the prompt
-claude "${promptFile}"
-
-# Cleanup prompt file
-rm -f "${promptFile}"
-
-echo ""
-echo -e "\\033[0;32m✅ Spec Breakdown session ended.\\033[0m"
-exec bash
-`;
+    const script = generateSpecBreakdownLaunchScript(projectPath, projectName, promptFile);
 
     writeFileSync(scriptPath, script, { mode: 0o700 });
     chmodSync(scriptPath, 0o700);
