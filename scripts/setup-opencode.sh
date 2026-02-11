@@ -53,6 +53,28 @@ OPENCODE_AGENTS="$OPENCODE_CONFIG/agents"
 OPENCODE_JSON="$OPENCODE_CONFIG/opencode.json"
 
 # ─────────────────────────────────────────────────────────────────
+# Step 0: Build MCP Server
+# ─────────────────────────────────────────────────────────────────
+
+echo -e "${BLUE}Step 0: Build MCP Server${NC}"
+echo "─────────────────────────"
+
+if [ -f "$BRAIN_DUMP_DIR/mcp-server/build.mjs" ]; then
+    echo "Building MCP server from TypeScript source..."
+    if (cd "$BRAIN_DUMP_DIR/mcp-server" && pnpm install --frozen-lockfile 2>/dev/null || pnpm install && pnpm build) 2>&1 | tail -3; then
+        echo -e "${GREEN}✓ MCP server built successfully${NC}"
+    else
+        echo -e "${RED}✗ MCP server build failed${NC}"
+        exit 1
+    fi
+else
+    echo -e "${RED}✗ build.mjs not found in mcp-server/${NC}"
+    exit 1
+fi
+
+echo ""
+
+# ─────────────────────────────────────────────────────────────────
 # Step 1: Create OpenCode directories
 # ─────────────────────────────────────────────────────────────────
 

@@ -113,6 +113,34 @@ describe("setup scripts exist for all providers", () => {
   }
 });
 
+describe("setup-claude-code.sh hook merge behavior", () => {
+  it("adds hooks into existing settings.json when hooks key is missing", () => {
+    const script = readScript("scripts/setup-claude-code.sh");
+    expect(script).toContain(
+      "No hooks section found. Adding Brain Dump hooks to existing settings.json"
+    );
+    expect(script).toContain("config.hooks = {");
+  });
+});
+
+describe("Linux/sudo install hardening", () => {
+  it("install.sh resolves PNPM_HOME from pnpm global bin", () => {
+    const script = readScript("install.sh");
+    expect(script).toContain("pnpm bin --global");
+  });
+
+  it("install.sh warns when running under sudo", () => {
+    const script = readScript("install.sh");
+    expect(script).toContain("Detected sudo/root execution");
+  });
+
+  it("setup-codex.sh handles sudo by targeting the invoking user home", () => {
+    const script = readScript("scripts/setup-codex.sh");
+    expect(script).toContain("SUDO_USER");
+    expect(script).toContain("TARGET_HOME");
+  });
+});
+
 describe("README.md environment table", () => {
   const readme = readScript("README.md");
 

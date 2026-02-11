@@ -3,10 +3,10 @@
   "mcp": {
     "brain-dump": {
       "type": "local",
-      "command": ["node", "mcp-server/dist/index.js"],
+      "command": ["node", "/home/xtra/code/personal_projects/brain-dump/mcp-server/dist/index.js"],
       "enabled": true,
       "environment": {
-        "BRAIN_DUMP_PATH": ".",
+        "BRAIN_DUMP_PATH": "/home/xtra/code/personal_projects/brain-dump",
         "OPENCODE": "1"
       }
     }
