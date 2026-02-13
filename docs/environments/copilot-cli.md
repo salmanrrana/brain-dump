@@ -70,7 +70,7 @@ ls ~/.copilot/hooks/               # Hook scripts
 5. **Auto-approve Brain Dump tools** to avoid repeated prompts:
 
    ```bash
-   copilot --allow-tool 'brain-dump(*)'
+   copilot --allow-tool 'brain-dump'
    ```
 
 ## 2. How Copilot CLI Differs
@@ -310,7 +310,7 @@ By default, Copilot CLI asks for permission before using MCP tools. You can redu
 ### Approve Brain Dump Tools Only
 
 ```bash
-copilot --allow-tool 'brain-dump(*)'
+copilot --allow-tool 'brain-dump'
 ```
 
 This approves all Brain Dump MCP tool invocations while still prompting for other tools (file writes, bash commands, etc.).
@@ -335,7 +335,7 @@ These flags apply to the current session only. To make them persistent, add them
 
 ```bash
 # In ~/.bashrc or ~/.zshrc
-alias copilot-bd='copilot --allow-tool "brain-dump(*)"'
+alias copilot-bd='copilot --allow-tool "brain-dump"'
 ```
 
 ## 7. Troubleshooting

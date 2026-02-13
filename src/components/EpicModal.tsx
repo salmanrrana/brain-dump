@@ -245,7 +245,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
           preferredTerminal: settings?.terminalEmulator ?? null,
           useSandbox,
           aiBackend,
-          workingMethodOverride,
+          ...(workingMethodOverride !== undefined ? { workingMethodOverride } : {}),
         });
 
         if (result.success) {

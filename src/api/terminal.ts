@@ -955,11 +955,20 @@ echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━
 echo ""
 
 COPILOT_PROMPT="$(cat "$CONTEXT_FILE")"
+COPILOT_HELP="$(copilot --help 2>/dev/null || true)"
 set +e
-if copilot --help 2>/dev/null | grep -q -- "--allow-tool"; then
-  copilot --allow-tool 'brain-dump(*)' "$COPILOT_PROMPT"
+if echo "$COPILOT_HELP" | grep -q -- "--allow-tool"; then
+  if echo "$COPILOT_HELP" | grep -qE -- "(^|[[:space:]])-p,|--prompt"; then
+    copilot --allow-tool 'brain-dump' -p "$COPILOT_PROMPT"
+  else
+    copilot --allow-tool 'brain-dump' "$COPILOT_PROMPT"
+  fi
 else
-  copilot "$COPILOT_PROMPT"
+  if echo "$COPILOT_HELP" | grep -qE -- "(^|[[:space:]])-p,|--prompt"; then
+    copilot -p "$COPILOT_PROMPT"
+  else
+    copilot "$COPILOT_PROMPT"
+  fi
 fi
 COPILOT_EXIT=$?
 set -e
@@ -969,7 +978,7 @@ if [ $COPILOT_EXIT -ne 0 ]; then
   echo -e "\\033[0;33m⚠ Copilot CLI exited with code $COPILOT_EXIT\\033[0m"
   echo "Common fixes:"
   echo "  - Run: copilot auth login"
-  echo "  - Run: copilot --allow-tool 'brain-dump(*)'"
+  echo "  - Run: copilot --allow-tool 'brain-dump'"
   echo "  - Verify MCP setup: brain-dump doctor"
 fi
 
