@@ -1011,6 +1011,43 @@ main() {
     detect_os
     print_info "Detected OS: $OS"
 
+    # Show prominent backup warning when --all is used (and backups exist)
+    if [ "$REMOVE_DATA" = true ] && [ "$KEEP_BACKUP" = false ]; then
+        get_data_paths
+        local backup_dir
+        backup_dir="$(get_backup_dir)"
+
+        if [ -d "$backup_dir" ]; then
+            local backup_count
+            local backup_size
+            backup_count=$(find "$backup_dir" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')
+            backup_size=$(du -sh "$backup_dir" 2>/dev/null | cut -f1)
+
+            echo ""
+            echo -e "${RED}╔══════════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${RED}║${NC}  ${YELLOW}WARNING: --all will permanently delete your backups!${NC}    ${RED}║${NC}"
+            echo -e "${RED}║${NC}                                                            ${RED}║${NC}"
+            echo -e "${RED}║${NC}  This includes ALL database backups in:                    ${RED}║${NC}"
+            echo -e "${RED}║${NC}    ${CYAN}$backup_dir${NC}"
+            echo -e "${RED}║${NC}                                                            ${RED}║${NC}"
+            echo -e "${RED}║${NC}  To keep backups, use: ${GREEN}./uninstall.sh --keep-backup${NC}        ${RED}║${NC}"
+            echo -e "${RED}╚══════════════════════════════════════════════════════════════╝${NC}"
+
+            if [ "$backup_count" -gt 0 ] 2>/dev/null; then
+                echo ""
+                echo -e "  Found ${YELLOW}${backup_count} backup(s)${NC} (${backup_size} total)"
+            fi
+
+            echo ""
+            echo -e "Type ${RED}DELETE${NC} to confirm backup removal, or press Enter to switch to --keep-backup mode:"
+            read -r confirm_delete
+            if [ "$confirm_delete" != "DELETE" ]; then
+                print_info "Switching to --keep-backup mode (backups will be preserved)"
+                KEEP_BACKUP=true
+            fi
+        fi
+    fi
+
     [ "$REMOVE_VSCODE" = true ] && remove_vscode
     [ "$REMOVE_CLAUDE" = true ] && remove_claude
     [ "$REMOVE_CURSOR" = true ] && remove_cursor
