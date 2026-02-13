@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { X, ChevronDown, Bot, Loader2, Save, Code2, Terminal, Monitor, Github } from "lucide-react";
+import { X, ChevronDown, Bot, Loader2, Save, Code2, Terminal, Monitor, Github, Download } from "lucide-react";
 import { useForm } from "@tanstack/react-form-start";
 import {
   useCreateEpic,
@@ -14,6 +14,7 @@ import {
 } from "../lib/hooks";
 import { useToast } from "./Toast";
 import ErrorAlert from "./ErrorAlert";
+import ExportModal from "./transfer/ExportModal";
 import { COLOR_OPTIONS } from "../lib/constants";
 import { epicFormOpts } from "./epics/epic-form-opts";
 import { epicFormSchema } from "./epics/epic-form-schema";
@@ -59,6 +60,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
     contextFile?: string;
   }>();
   const [showActionMenu, setShowActionMenu] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const actionMenuRef = useRef<HTMLDivElement>(null);
 
   // Toast
@@ -778,11 +780,34 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                     </div>
                   </div>
                 </div>
+
+                {/* Export section */}
+                <div className="border-t border-[var(--border-primary)] p-3">
+                  <button
+                    onClick={() => {
+                      setShowActionMenu(false);
+                      setShowExportModal(true);
+                    }}
+                    className="flex items-center gap-2 w-full rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                  >
+                    <Download size={14} className="text-[var(--text-secondary)] flex-shrink-0" />
+                    <span className="text-sm text-[var(--text-primary)]">Export Epic</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
         </div>
       </div>
+      {epic && showExportModal && (
+        <ExportModal
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          mode="epic"
+          targetId={epic.id}
+          targetName={epic.title}
+        />
+      )}
     </div>
   );
 }

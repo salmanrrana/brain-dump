@@ -7,7 +7,17 @@ import {
   useMemo,
   type KeyboardEvent,
 } from "react";
-import { X, Search, Plus, Folder, ChevronRight, ChevronDown, Bot, Pencil } from "lucide-react";
+import {
+  X,
+  Search,
+  Plus,
+  Folder,
+  ChevronRight,
+  ChevronDown,
+  Bot,
+  Pencil,
+  Upload,
+} from "lucide-react";
 import { useClickOutside, type Epic } from "../../lib/hooks";
 import { EpicListItem } from "./EpicListItem";
 import { EpicDrillInView } from "./EpicDrillInView";
@@ -55,6 +65,8 @@ export interface ProjectsPanelProps {
   onEditEpic?: (projectId: string, epic: Epic) => void;
   /** Handler when Ralph is launched for an epic */
   onLaunchRalphForEpic?: (epicId: string) => void;
+  /** Handler when "Import" is clicked */
+  onImport?: () => void;
   /** Map of epicId -> ticket count */
   epicTicketCounts?: Map<string, number>;
   /** Set of epic IDs with active AI */
@@ -127,6 +139,7 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
   onAddEpic,
   onEditEpic,
   onLaunchRalphForEpic,
+  onImport,
   epicTicketCounts,
   epicsWithActiveAI,
   loading = false,
@@ -770,17 +783,28 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
           )}
         </div>
 
-        {/* Footer with Add Project button */}
+        {/* Footer with Add Project and Import buttons */}
         <footer style={footerStyles}>
-          <button
-            type="button"
-            style={addButtonStyles}
-            onClick={onAddProject}
-            className="hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
-          >
-            <Plus size={16} aria-hidden="true" />
-            Add Project
-          </button>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-2)" }}>
+            <button
+              type="button"
+              style={addButtonStyles}
+              onClick={onAddProject}
+              className="hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+            >
+              <Plus size={16} aria-hidden="true" />
+              Add Project
+            </button>
+            <button
+              type="button"
+              style={addButtonStyles}
+              onClick={onImport}
+              className="hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+            >
+              <Upload size={16} aria-hidden="true" />
+              Import .braindump
+            </button>
+          </div>
         </footer>
       </div>
     </>

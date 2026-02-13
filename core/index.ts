@@ -18,6 +18,9 @@ export {
   ValidationError,
   GitError,
   PathNotFoundError,
+  TransferError,
+  InvalidArchiveError,
+  ArchiveTooLargeError,
 } from "./errors.ts";
 
 // Types
@@ -316,3 +319,33 @@ export type {
   ArchiveConfirmed,
   ArchiveResult,
 } from "./compliance.ts";
+
+// Transfer (export/import) types
+export { MANIFEST_VERSION, MAX_ARCHIVE_SIZE_BYTES } from "./transfer-types.ts";
+
+export type {
+  ConflictResolution,
+  ExportedEpic,
+  ExportedTicket,
+  ExportedComment,
+  ExportedReviewFinding,
+  ExportedDemoScript,
+  ExportedWorkflowState,
+  ExportedEpicWorkflowState,
+  ExportedAttachmentFile,
+  BrainDumpManifest,
+  ExportResult,
+  ImportParams,
+  ImportResult,
+  ManifestPreview,
+} from "./transfer-types.ts";
+
+// Transfer business logic
+export { gatherEpicExportData, gatherProjectExportData, importData } from "./transfer.ts";
+
+// Transfer zip adapter
+export {
+  createBrainDumpArchive,
+  extractBrainDumpArchive,
+  previewBrainDumpArchive,
+} from "./transfer-zip.ts";

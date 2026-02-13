@@ -19,6 +19,7 @@
  *   tasks        Save, get, clear Claude task lists
  *   compliance   Conversation logging for compliance auditing
  *   settings     Get and update project settings
+ *   transfer     Export and import .braindump archives
  *   admin        Backup, restore, check, doctor, health
  *
  * Backward-compatible shortcuts:
@@ -26,6 +27,8 @@
  *   brain-dump restore [--latest]    → admin restore
  *   brain-dump check [--full]        → admin check
  *   brain-dump doctor                → admin doctor
+ *   brain-dump export --epic <id>    → transfer export-epic
+ *   brain-dump import --file <path>  → transfer import
  *
  * Flags:
  *   --pretty     Human-readable output (default: JSON)
@@ -52,6 +55,7 @@ import * as files from "./commands/files.ts";
 import * as tasks from "./commands/tasks.ts";
 import * as compliance from "./commands/compliance.ts";
 import * as settings from "./commands/settings.ts";
+import * as transfer from "./commands/transfer.ts";
 import { outputError } from "./lib/output.ts";
 
 const RESOURCES = [
@@ -67,6 +71,7 @@ const RESOURCES = [
   "tasks",
   "compliance",
   "settings",
+  "transfer",
   "admin",
 ];
 
@@ -90,6 +95,7 @@ Resources:
   tasks        Save, get, clear Claude task lists
   compliance   Conversation logging for compliance auditing
   settings     Get and update project settings
+  transfer     Export and import .braindump archives
   admin        Backup, restore, check, doctor, health
 
 Backward-compatible shortcuts:
@@ -97,6 +103,8 @@ Backward-compatible shortcuts:
   brain-dump restore [--latest]    Same as: brain-dump admin restore [--latest]
   brain-dump check [--full]        Same as: brain-dump admin check [--full]
   brain-dump doctor                Same as: brain-dump admin doctor
+  brain-dump export --epic <id>    Same as: brain-dump transfer export-epic --epic <id>
+  brain-dump import --file <path>  Same as: brain-dump transfer import --file <path>
 
 Flags:
   --pretty     Human-readable output (default: JSON)
@@ -178,11 +186,26 @@ switch (resource) {
   case "settings":
     runSync(settings.handle, action, rest);
     break;
+  case "transfer":
+    runAsync(transfer.handle, action, rest);
+    break;
   case "admin":
     runAsync(admin.handle, action, rest);
     break;
 
-  // ── Backward compatibility (top-level admin commands) ───────
+  // ── Backward compatibility (top-level commands) ─────────────
+  case "export":
+    // brain-dump export --epic <id>  → transfer export-epic
+    // brain-dump export --project <id> → transfer export-project
+    if (backwardArgs().some((a) => a === "--project")) {
+      runAsync(transfer.handle, "export-project", backwardArgs());
+    } else {
+      runAsync(transfer.handle, "export-epic", backwardArgs());
+    }
+    break;
+  case "import":
+    runAsync(transfer.handle, "import", backwardArgs());
+    break;
   case "backup":
     runAsync(admin.handle, "backup", backwardArgs());
     break;

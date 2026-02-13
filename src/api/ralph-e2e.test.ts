@@ -445,6 +445,9 @@ describe("Ralph E2E Integration Tests", () => {
     execSync("git add .", { cwd: testDir, stdio: "pipe" });
     execSync('git commit -m "Initial commit"', { cwd: testDir, stdio: "pipe" });
 
+    // Explicitly set and checkout main branch for consistent test environment
+    execSync("git branch -M main", { cwd: testDir, stdio: "pipe" });
+
     // Create plans directory with PRD
     mkdirSync(join(testDir, "plans"), { recursive: true });
 
