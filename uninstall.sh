@@ -909,7 +909,8 @@ show_help() {
     echo "                 Does NOT remove your Brain Dump data (bind-mounted)"
     echo "  Docker:        ralph-net network, sandbox image, running containers"
     echo "  CLI:           Global 'brain-dump' command (pnpm unlink)"
-    echo "  Data (--all):  Database, attachments, backups, ~/.brain-dump/scripts"
+    echo "  Data (--all):  Database, attachments, backups (permanent!), ~/.brain-dump/scripts"
+    echo "  Backups:       Database backups in state directory (use --keep-backup to preserve)"
 }
 
 # Main
