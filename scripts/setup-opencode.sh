@@ -126,7 +126,12 @@ if [ -f "$OPENCODE_JSON" ]; then
   }
 
   if command -v node >/dev/null 2>&1; then
-    NODE_ERROR_FILE=$(mktemp)
+    NODE_ERROR_FILE=$(mktemp "${TMPDIR:-/tmp}/opencode-setup.XXXXXX" 2>/dev/null || mktemp -t opencode-setup.XXXXXX 2>/dev/null || true)
+    if [ -z "$NODE_ERROR_FILE" ]; then
+      echo -e "${RED}✗ Failed to create temporary error log file${NC}"
+      print_manual_setup
+      exit 1
+    fi
     if OPENCODE_JSON="$OPENCODE_JSON" BRAIN_DUMP_DIR="$BRAIN_DUMP_DIR" node -e '
 const fs = require("fs");
 const configFile = process.env.OPENCODE_JSON;

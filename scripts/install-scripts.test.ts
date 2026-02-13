@@ -113,6 +113,23 @@ describe("setup scripts exist for all providers", () => {
   }
 });
 
+describe("mktemp portability hardening", () => {
+  it("setup-opencode.sh uses portable mktemp template syntax", () => {
+    const script = readScript("scripts/setup-opencode.sh");
+    expect(script).toContain('mktemp "${TMPDIR:-/tmp}/opencode-setup.XXXXXX"');
+  });
+
+  it("link-commit hook uses portable mktemp template syntax", () => {
+    const script = readScript(".claude/hooks/link-commit-to-ticket.sh");
+    expect(script).toContain('mktemp "${TMPDIR:-/tmp}/pending-links.XXXXXX"');
+  });
+
+  it("merge-telemetry-hooks uses portable mktemp template syntax", () => {
+    const script = readScript(".claude/hooks/merge-telemetry-hooks.sh");
+    expect(script).toContain('mktemp "${TMPDIR:-/tmp}/claude-settings.XXXXXX"');
+  });
+});
+
 describe("setup-claude-code.sh hook merge behavior", () => {
   it("adds hooks into existing settings.json when hooks key is missing", () => {
     const script = readScript("scripts/setup-claude-code.sh");

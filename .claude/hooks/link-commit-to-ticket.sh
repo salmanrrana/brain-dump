@@ -86,7 +86,11 @@ fi
 
 # Add this commit to pending links (using jq if available, otherwise append manually)
 if command -v jq &> /dev/null; then
-  TEMP_FILE=$(mktemp)
+  TEMP_FILE=$(mktemp "${TMPDIR:-/tmp}/pending-links.XXXXXX" 2>/dev/null || mktemp -t pending-links.XXXXXX 2>/dev/null || true)
+  if [[ -z "$TEMP_FILE" ]]; then
+    echo "[$(date -Iseconds)] Failed to create temp file for pending-links update" >> "$LOG_FILE"
+    exit 1
+  fi
   jq --arg type "commit" \
      --arg ticketId "$TICKET_ID" \
      --arg commitHash "$COMMIT_HASH" \

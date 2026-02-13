@@ -58,7 +58,11 @@ check_hook_exists() {
 HOOKS_ADDED=0
 
 # Create a temporary file for the updated settings
-TEMP_SETTINGS=$(mktemp)
+TEMP_SETTINGS=$(mktemp "${TMPDIR:-/tmp}/claude-settings.XXXXXX" 2>/dev/null || mktemp -t claude-settings.XXXXXX 2>/dev/null || true)
+if [[ -z "$TEMP_SETTINGS" ]]; then
+  echo -e "${RED}Error: Failed to create temporary settings file.${NC}" >&2
+  exit 1
+fi
 cp "$CLAUDE_SETTINGS" "$TEMP_SETTINGS"
 
 # Add each telemetry hook only if it doesn't already exist
