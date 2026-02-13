@@ -6,7 +6,11 @@
  */
 
 import { createServerFn } from "@tanstack/react-start";
-import { sqlite } from "../lib/db";
+import { db, sqlite } from "../lib/db";
+import { projects } from "../lib/schema";
+import { eq } from "drizzle-orm";
+import { randomUUID } from "crypto";
+import { existsSync } from "fs";
 import {
   gatherEpicExportData,
   gatherProjectExportData,
@@ -43,6 +47,26 @@ export interface ImportInput {
   targetProjectId: string;
   resetStatuses?: boolean;
   conflictResolution?: ConflictResolution;
+}
+
+export interface CreateAndImportInput {
+  projectName: string;
+  projectPath: string;
+  projectColor?: string;
+  base64Data: string;
+  resetStatuses?: boolean;
+  conflictResolution?: ConflictResolution;
+}
+
+export interface CreateAndImportResponse {
+  success: true;
+  projectId: string;
+  result: ImportResult;
+}
+
+export interface CreateAndImportErrorResponse {
+  success: false;
+  error: string;
 }
 
 export interface ImportResponse {
@@ -212,6 +236,68 @@ export const performImportFn = createServerFn({ method: "POST" })
         });
 
         return { success: true, result };
+      } catch (err) {
+        return {
+          success: false,
+          error:
+            err instanceof CoreError ? err.message : `Unexpected error: ${(err as Error).message}`,
+        };
+      }
+    }
+  );
+
+export const createProjectAndImportFn = createServerFn({ method: "POST" })
+  .inputValidator((data: CreateAndImportInput) => {
+    if (!data.projectName?.trim()) throw new Error("Project name is required");
+    if (!data.projectPath?.trim()) throw new Error("Project path is required");
+    if (!data.base64Data) throw new Error("File data is required");
+    return data;
+  })
+  .handler(
+    async ({
+      data,
+    }: {
+      data: CreateAndImportInput;
+    }): Promise<CreateAndImportResponse | CreateAndImportErrorResponse> => {
+      try {
+        const trimmedPath = data.projectPath.trim();
+        if (!existsSync(trimmedPath)) {
+          throw new Error(`Directory does not exist: ${trimmedPath}`);
+        }
+
+        const zipBuffer = Buffer.from(data.base64Data, "base64");
+        if (zipBuffer.length > MAX_ARCHIVE_SIZE_BYTES) {
+          throw new ArchiveTooLargeError(zipBuffer.length, MAX_ARCHIVE_SIZE_BYTES);
+        }
+
+        // Create the project first
+        const projectId = randomUUID();
+        db.insert(projects)
+          .values({
+            id: projectId,
+            name: data.projectName.trim(),
+            path: trimmedPath,
+            color: data.projectColor ?? null,
+          })
+          .run();
+
+        // Verify it was created
+        const created = db.select().from(projects).where(eq(projects.id, projectId)).get();
+        if (!created) throw new Error("Failed to create project");
+
+        // Now import into the new project
+        const { manifest, attachmentBuffers } = await extractBrainDumpArchive(zipBuffer);
+
+        const result = importData({
+          db: sqlite,
+          manifest,
+          attachmentBuffers,
+          targetProjectId: projectId,
+          resetStatuses: data.resetStatuses ?? false,
+          conflictResolution: data.conflictResolution ?? "create-new",
+        });
+
+        return { success: true, projectId, result };
       } catch (err) {
         return {
           success: false,

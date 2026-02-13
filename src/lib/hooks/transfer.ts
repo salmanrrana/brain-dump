@@ -12,6 +12,7 @@ import {
   exportProjectFn,
   previewImportFn,
   performImportFn,
+  createProjectAndImportFn,
   type ExportResponse,
   type ExportErrorResponse,
   type PreviewResponse,
@@ -19,6 +20,9 @@ import {
   type ImportResponse,
   type ImportErrorResponse,
   type ImportInput,
+  type CreateAndImportInput,
+  type CreateAndImportResponse,
+  type CreateAndImportErrorResponse,
 } from "../../api/transfer";
 import { downloadBase64File } from "../download";
 import { queryKeys } from "../query-keys";
@@ -85,6 +89,25 @@ export function usePerformImport() {
       const result = (await performImportFn({ data: input })) as
         | ImportResponse
         | ImportErrorResponse;
+      if (!result.success) throw new Error(result.error);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTags });
+    },
+  });
+}
+
+export function useCreateProjectAndImport() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: CreateAndImportInput) => {
+      const result = (await createProjectAndImportFn({ data: input })) as
+        | CreateAndImportResponse
+        | CreateAndImportErrorResponse;
       if (!result.success) throw new Error(result.error);
       return result;
     },
