@@ -160,6 +160,11 @@ export {
 export { useDashboardAnalytics } from "./analytics";
 
 // =============================================================================
+// TRANSFER HOOKS (Export/Import .braindump archives)
+// =============================================================================
+export { useExportEpic, useExportProject, usePreviewImport, usePerformImport } from "./transfer";
+
+// =============================================================================
 // QUERY KEYS (Re-exported for backward compatibility)
 // =============================================================================
 export { queryKeys } from "../query-keys";
