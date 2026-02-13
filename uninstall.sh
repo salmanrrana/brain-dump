@@ -12,6 +12,7 @@
 #   ./uninstall.sh --sandbox    # Remove Claude Code sandbox configuration
 #   ./uninstall.sh --devcontainer # Remove devcontainer Docker volumes
 #   ./uninstall.sh --all        # Remove everything (including data)
+#   ./uninstall.sh --keep-backup # Remove everything but keep backups
 #   ./uninstall.sh --help       # Show help
 
 set -e
@@ -584,20 +585,55 @@ try {
     fi
 }
 
+# Get the backup directory path for the current OS
+get_backup_dir() {
+    case "$OS" in
+        linux)
+            echo "$STATE_DIR/backups"
+            ;;
+        macos|windows)
+            echo "$DATA_DIR/backups"
+            ;;
+    esac
+}
+
 # Remove data (database, attachments, backups)
 remove_data() {
     print_step "Removing Brain Dump data"
 
     get_data_paths
+    local backup_dir
+    backup_dir="$(get_backup_dir)"
+
+    if [ "$KEEP_BACKUP" = true ]; then
+        print_info "Keep-backup mode: preserving backups directory"
+    fi
 
     if [ -d "$DATA_DIR" ]; then
-        print_warning "This will delete your database, attachments, and backups!"
+        if [ "$KEEP_BACKUP" = true ]; then
+            print_warning "This will delete your database and attachments (backups will be preserved)."
+        else
+            print_warning "This will delete your database, attachments, and backups!"
+        fi
         echo -e "  Location: ${YELLOW}$DATA_DIR${NC}"
         echo ""
         read -r -p "Are you sure? (y/N): " confirm
         if [[ "$confirm" =~ ^[Yy]$ ]]; then
-            rm -rf "$DATA_DIR"
-            print_success "Removed data directory"
+            if [ "$KEEP_BACKUP" = true ] && [ "$OS" != "linux" ] && [ -d "$backup_dir" ]; then
+                # macOS/Windows: backups are inside DATA_DIR, so move them out first
+                local tmp_backup
+                tmp_backup="$(mktemp -d)"
+                cp -a "$backup_dir" "$tmp_backup/backups"
+                rm -rf "$DATA_DIR"
+                mkdir -p "$DATA_DIR"
+                mv "$tmp_backup/backups" "$backup_dir"
+                rmdir "$tmp_backup"
+                print_success "Removed data directory (backups preserved)"
+                PRESERVED_BACKUP_DIR="$backup_dir"
+            else
+                rm -rf "$DATA_DIR"
+                print_success "Removed data directory"
+            fi
             REMOVED+=("Brain Dump data")
         else
             print_info "Keeping data directory"
@@ -609,8 +645,21 @@ remove_data() {
 
     # Linux also has state directory
     if [ "$OS" = "linux" ] && [ -d "$STATE_DIR" ]; then
-        rm -rf "$STATE_DIR"
-        print_success "Removed state directory"
+        if [ "$KEEP_BACKUP" = true ] && [ -d "$backup_dir" ]; then
+            # Selectively remove everything in STATE_DIR except backups/
+            for item in "$STATE_DIR"/*; do
+                [ -e "$item" ] || continue
+                if [ "$(basename "$item")" = "backups" ]; then
+                    continue
+                fi
+                rm -rf "$item"
+            done
+            print_success "Removed state directory contents (backups preserved)"
+            PRESERVED_BACKUP_DIR="$backup_dir"
+        else
+            rm -rf "$STATE_DIR"
+            print_success "Removed state directory"
+        fi
     fi
 }
 
@@ -815,6 +864,12 @@ print_summary() {
         echo ""
     fi
 
+    if [ -n "$PRESERVED_BACKUP_DIR" ]; then
+        echo -e "${GREEN}Preserved:${NC}"
+        echo "  ✓ Backups directory: ${CYAN}$PRESERVED_BACKUP_DIR${NC}"
+        echo ""
+    fi
+
     echo -e "${BLUE}Note:${NC} The brain-dump source code remains in this directory."
     echo "  To reinstall: ${CYAN}./install.sh${NC}"
 }
@@ -836,7 +891,8 @@ show_help() {
     echo "  --devcontainer Remove devcontainer Docker volumes (not user data)"
     echo "  --docker       Remove Docker sandbox artifacts only"
     echo "  --cli          Remove brain-dump CLI from global path"
-    echo "  --all          Remove everything (including database, data, CLI, and Docker)"
+    echo "  --all          Remove everything (including database, backups, and all data)"
+    echo "  --keep-backup  Remove everything but preserve database backups"
     echo "  --help         Show this help message"
     echo ""
     echo "Without options, removes IDE integrations and CLI but keeps data and Docker."
@@ -853,7 +909,8 @@ show_help() {
     echo "                 Does NOT remove your Brain Dump data (bind-mounted)"
     echo "  Docker:        ralph-net network, sandbox image, running containers"
     echo "  CLI:           Global 'brain-dump' command (pnpm unlink)"
-    echo "  Data (--all):  Database, attachments, backups, ~/.brain-dump/scripts"
+    echo "  Data (--all):  Database, attachments, backups (permanent!), ~/.brain-dump/scripts"
+    echo "  Backups:       Database backups in state directory (use --keep-backup to preserve)"
 }
 
 # Main
@@ -869,6 +926,8 @@ main() {
     REMOVE_DOCKER=false
     REMOVE_CLI=false
     REMOVE_DATA=false
+    KEEP_BACKUP=false
+    PRESERVED_BACKUP_DIR=""
 
     # Parse arguments
     if [ $# -eq 0 ]; then
@@ -930,6 +989,20 @@ main() {
                     REMOVE_CLI=true
                     REMOVE_DATA=true
                     ;;
+                --keep-backup)
+                    REMOVE_VSCODE=true
+                    REMOVE_CLAUDE=true
+                    REMOVE_CURSOR=true
+                    REMOVE_OPENCODE=true
+                    REMOVE_COPILOT=true
+                    REMOVE_CODEX=true
+                    REMOVE_SANDBOX=true
+                    REMOVE_DEVCONTAINER=true
+                    REMOVE_DOCKER=true
+                    REMOVE_CLI=true
+                    REMOVE_DATA=true
+                    KEEP_BACKUP=true
+                    ;;
             esac
         done
     fi
@@ -938,6 +1011,43 @@ main() {
 
     detect_os
     print_info "Detected OS: $OS"
+
+    # Show prominent backup warning when --all is used (and backups exist)
+    if [ "$REMOVE_DATA" = true ] && [ "$KEEP_BACKUP" = false ]; then
+        get_data_paths
+        local backup_dir
+        backup_dir="$(get_backup_dir)"
+
+        if [ -d "$backup_dir" ]; then
+            local backup_count
+            local backup_size
+            backup_count=$(find "$backup_dir" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')
+            backup_size=$(du -sh "$backup_dir" 2>/dev/null | cut -f1)
+
+            echo ""
+            echo -e "${RED}╔══════════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${RED}║${NC}  ${YELLOW}WARNING: --all will permanently delete your backups!${NC}    ${RED}║${NC}"
+            echo -e "${RED}║${NC}                                                            ${RED}║${NC}"
+            echo -e "${RED}║${NC}  This includes ALL database backups in:                    ${RED}║${NC}"
+            echo -e "${RED}║${NC}    ${CYAN}$backup_dir${NC}"
+            echo -e "${RED}║${NC}                                                            ${RED}║${NC}"
+            echo -e "${RED}║${NC}  To keep backups, use: ${GREEN}./uninstall.sh --keep-backup${NC}        ${RED}║${NC}"
+            echo -e "${RED}╚══════════════════════════════════════════════════════════════╝${NC}"
+
+            if [ "$backup_count" -gt 0 ] 2>/dev/null; then
+                echo ""
+                echo -e "  Found ${YELLOW}${backup_count} backup(s)${NC} (${backup_size} total)"
+            fi
+
+            echo ""
+            echo -e "Type ${RED}DELETE${NC} to confirm backup removal, or press Enter to switch to --keep-backup mode:"
+            read -r confirm_delete
+            if [ "$confirm_delete" != "DELETE" ]; then
+                print_info "Switching to --keep-backup mode (backups will be preserved)"
+                KEEP_BACKUP=true
+            fi
+        fi
+    fi
 
     [ "$REMOVE_VSCODE" = true ] && remove_vscode
     [ "$REMOVE_CLAUDE" = true ] && remove_claude

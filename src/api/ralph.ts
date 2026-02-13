@@ -776,6 +776,7 @@ rotate_progress_file() {
 # Run rotation before starting
 rotate_progress_file
 ${timeoutTrapHandler}
+
 echo ""
 echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
 echo -e "\\033[0;32m🧠 Brain Dump - Ralph Mode${sandboxHeader}\\033[0m"
@@ -821,11 +822,20 @@ RALPH_PROMPT_EOF
 
   # Retry loop for Claude invocation (handles transient "No messages returned" errors)
   AI_EXIT_CODE=1
+  AI_INTERRUPTED=false
   for RETRY in $(seq 1 $MAX_RETRIES); do
     set +e
 ${aiInvocation}
     AI_EXIT_CODE=$?
     set -e
+
+    if [ $AI_EXIT_CODE -eq 130 ] || [ $AI_EXIT_CODE -eq 143 ]; then
+      echo ""
+      echo -e "\\033[0;33m⏹️  ${aiName} interrupted by user. Skipping retries for this iteration.\\033[0m"
+      echo "[$(date -Iseconds)] INTERRUPTED: ${aiName} exited with code $AI_EXIT_CODE" >> "$PROGRESS_FILE"
+      AI_INTERRUPTED=true
+      break
+    fi
 
     if [ $AI_EXIT_CODE -eq 0 ]; then
       break
@@ -847,6 +857,13 @@ ${aiInvocation}
   echo -e "\\033[0;36m  Iteration $i complete at $(date '+%H:%M:%S')\\033[0m"
   echo -e "\\033[0;36m  Exit code: $AI_EXIT_CODE\\033[0m"
   echo -e "\\033[0;36m───────────────────────────────────────────────────────────\\033[0m"
+
+  if [ "$AI_INTERRUPTED" = "true" ]; then
+    CONSECUTIVE_FAILURES=0
+    echo -e "\\033[0;33m⏭️  Continuing to next iteration after user interrupt.\\033[0m"
+    sleep 1
+    continue
+  fi
 
   # Track consecutive failures to detect persistent issues
   if [ $AI_EXIT_CODE -ne 0 ]; then
