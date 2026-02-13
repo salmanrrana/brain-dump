@@ -413,12 +413,44 @@ fi
 `
     : "";
 
-  // Different prompt file location and Claude invocation for sandbox vs native
-  // For native mode, use mktemp -t for cross-platform compatibility (works on both macOS and Linux)
-  // Add error handling to fail fast if temp file creation fails
+  // Different prompt file location for sandbox vs native.
+  // Native mode uses a portable mktemp strategy that works on GNU/Linux and BSD/macOS.
   const promptFileSetup = useSandbox
     ? `PROMPT_FILE="$PROJECT_PATH/.ralph-prompt.md"`
-    : `PROMPT_FILE=$(mktemp -t ralph-prompt) || { echo -e "\\033[0;31m❌ Failed to create temp file\\033[0m"; exit 1; }`;
+    : `PROMPT_FILE=""
+  PROMPT_FILE=$(mktemp "\${TMPDIR:-/tmp}/ralph-prompt.XXXXXX" 2>/dev/null || true)
+  if [ -z "$PROMPT_FILE" ]; then
+    PROMPT_FILE=$(mktemp -t ralph-prompt.XXXXXX 2>/dev/null || true)
+  fi
+  if [ -z "$PROMPT_FILE" ]; then
+    echo -e "\\033[0;31m❌ Failed to create temp file\\033[0m"
+    exit 1
+  fi`;
+
+  // Validate required local AI CLI is installed for native mode.
+  const aiPreflightCheck = useSandbox
+    ? ""
+    : aiBackend === "opencode"
+      ? `
+if ! command -v opencode >/dev/null 2>&1; then
+  echo -e "\\033[0;31m❌ OpenCode CLI not found in PATH\\033[0m"
+  echo "Install OpenCode: https://opencode.ai"
+  exit 1
+fi
+`
+      : aiBackend === "codex"
+        ? `
+if ! command -v codex >/dev/null 2>&1; then
+  echo -e "\\033[0;31m❌ Codex CLI not found in PATH\\033[0m"
+  exit 1
+fi
+`
+        : `
+if ! command -v claude >/dev/null 2>&1; then
+  echo -e "\\033[0;31m❌ Claude CLI not found in PATH\\033[0m"
+  exit 1
+fi
+`;
 
   // SSH setup for Docker sandbox mode
   // This allows git push from inside container using host's SSH keys
@@ -701,7 +733,7 @@ NO_PROGRESS_COUNT=0
 MAX_NO_PROGRESS=3
 
 cd "$PROJECT_PATH"
-${dockerHostSetup}${dockerImageCheck}${sshAgentSetup}
+${dockerHostSetup}${dockerImageCheck}${sshAgentSetup}${aiPreflightCheck}
 # Ensure plans directory exists
 mkdir -p "$PROJECT_PATH/plans"
 
