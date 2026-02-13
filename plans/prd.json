@@ -98,7 +98,7 @@
     {
       "id": "dca04300-404b-438b-848f-2eabfcdc0991",
       "title": "Create Projects home page (`/`)",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],

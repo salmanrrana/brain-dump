@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback } from "react";
-import { Plus } from "lucide-react";
-import { useProjectsWithAIActivity, useModal, type ProjectBase } from "../lib/hooks";
+import { Plus, AlertCircle } from "lucide-react";
+import { useProjectsWithAIActivity } from "../lib/hooks";
+import { useAppState } from "../components/AppLayout";
 import ProjectCard from "../components/projects/ProjectCard";
 
 export const Route = createFileRoute("/")({
@@ -10,12 +11,14 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const navigate = useNavigate();
-  const { projects, loading } = useProjectsWithAIActivity();
-  const { openProject } = useModal();
+  const { projects, loading, error, refetch } = useProjectsWithAIActivity();
+  const { openProjectModal } = useAppState();
 
   const handleSelectProject = useCallback(
     (projectId: string) => {
-      navigate({ to: `/projects/${projectId}` });
+      // TODO: Navigate to /projects/$projectId once that route is implemented
+      // For now, navigate to board filtered by project
+      navigate({ to: `/board`, search: { project: projectId } });
     },
     [navigate]
   );
@@ -27,29 +30,33 @@ function Home() {
     [navigate]
   );
 
-  const handleAddProject = useCallback(() => {
-    openProject();
-  }, [openProject]);
-
-  const handleEditProject = useCallback(
-    (project: ProjectBase) => {
-      openProject(project);
-    },
-    [openProject]
-  );
-
   if (loading) {
     return (
       <div style={pageContainerStyles}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            height: "100%",
-          }}
-        >
+        <div style={centeredContainerStyles}>
           <p style={{ color: "var(--text-secondary)" }}>Loading projects...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={pageContainerStyles}>
+        <div style={centeredContainerStyles}>
+          <div style={errorContainerStyles}>
+            <AlertCircle size={24} style={{ color: "var(--text-destructive)" }} />
+            <p style={errorTitleStyles}>Failed to load projects</p>
+            <p style={errorDescriptionStyles}>{error}</p>
+            <button
+              type="button"
+              style={accentButtonStyles}
+              onClick={() => refetch()}
+              className="hover:bg-[var(--accent-primary)] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+            >
+              Try Again
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -57,13 +64,12 @@ function Home() {
 
   return (
     <div style={pageContainerStyles}>
-      {/* Header */}
       <header style={headerStyles}>
         <h1 style={titleStyles}>Projects</h1>
         <button
           type="button"
-          style={newProjectButtonStyles}
-          onClick={handleAddProject}
+          style={accentButtonStyles}
+          onClick={() => openProjectModal()}
           className="hover:bg-[var(--accent-primary)] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
         >
           <Plus size={18} aria-hidden="true" />
@@ -71,7 +77,6 @@ function Home() {
         </button>
       </header>
 
-      {/* Projects Grid or Empty State */}
       {projects.length === 0 ? (
         <div style={emptyStateStyles}>
           <div style={emptyContentStyles}>
@@ -81,8 +86,8 @@ function Home() {
             </p>
             <button
               type="button"
-              style={emptyActionButtonStyles}
-              onClick={handleAddProject}
+              style={accentButtonStyles}
+              onClick={() => openProjectModal()}
               className="hover:bg-[var(--accent-primary)] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
             >
               Add Project
@@ -97,7 +102,7 @@ function Home() {
               project={project}
               onClick={() => handleSelectProject(project.id)}
               onViewAllTickets={() => handleViewAllTickets(project.id)}
-              onEditProject={() => handleEditProject(project)}
+              onEditProject={() => openProjectModal(project)}
             />
           ))}
         </div>
@@ -106,12 +111,22 @@ function Home() {
   );
 }
 
+// ---------------------------------------------------------------------------
 // Styles
+// ---------------------------------------------------------------------------
+
 const pageContainerStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   height: "100%",
   background: "var(--bg-primary)",
+};
+
+const centeredContainerStyles: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  height: "100%",
 };
 
 const headerStyles: React.CSSProperties = {
@@ -130,8 +145,8 @@ const titleStyles: React.CSSProperties = {
   margin: 0,
 };
 
-const newProjectButtonStyles: React.CSSProperties = {
-  display: "flex",
+const accentButtonStyles: React.CSSProperties = {
+  display: "inline-flex",
   alignItems: "center",
   gap: "var(--spacing-2)",
   padding: "var(--spacing-2) var(--spacing-4)",
@@ -182,17 +197,25 @@ const emptyDescriptionStyles: React.CSSProperties = {
   marginBottom: "var(--spacing-4)",
 };
 
-const emptyActionButtonStyles: React.CSSProperties = {
-  display: "inline-flex",
+const errorContainerStyles: React.CSSProperties = {
+  textAlign: "center",
+  maxWidth: "400px",
+  display: "flex",
+  flexDirection: "column",
   alignItems: "center",
-  gap: "var(--spacing-2)",
-  padding: "var(--spacing-2) var(--spacing-4)",
-  background: "var(--accent-primary)",
-  color: "white",
-  border: "none",
-  borderRadius: "var(--radius-md)",
+  gap: "var(--spacing-3)",
+};
+
+const errorTitleStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-lg)",
+  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+  color: "var(--text-destructive)",
+  margin: 0,
+};
+
+const errorDescriptionStyles: React.CSSProperties = {
   fontSize: "var(--font-size-sm)",
-  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-  cursor: "pointer",
-  transition: "all var(--transition-fast)",
+  color: "var(--text-secondary)",
+  margin: 0,
+  marginBottom: "var(--spacing-2)",
 };

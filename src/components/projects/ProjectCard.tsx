@@ -1,6 +1,9 @@
-import { type FC, type CSSProperties } from "react";
+import type { CSSProperties } from "react";
 import { ChevronRight } from "lucide-react";
 import type { ProjectWithAIActivity } from "../../lib/hooks/projects";
+import { createBrowserLogger } from "../../lib/browser-logger";
+
+const logger = createBrowserLogger("components:ProjectCard");
 
 export interface ProjectCardProps {
   project: ProjectWithAIActivity;
@@ -25,141 +28,40 @@ function injectGlowKeyframes(): void {
     style.textContent = GLOW_KEYFRAMES;
     document.head.appendChild(style);
     glowKeyframesInjected = true;
-  } catch {
-    // Animation unavailable but component still functional
+  } catch (error) {
+    logger.error(
+      "Failed to inject glow keyframes - animation will be unavailable",
+      error instanceof Error ? error : new Error(String(error))
+    );
+    // Component still renders but without animation
   }
 }
 
 // Inject keyframes on first mount
 injectGlowKeyframes();
 
+function truncatePath(path: string, maxLength: number): string {
+  if (path.length <= maxLength) return path;
+  return `${path.slice(0, maxLength - 3)}...`;
+}
+
 /**
  * ProjectCard - Card component for displaying a project in the grid.
  * Shows project name, path, epic count, ticket stats, and AI activity glow.
  */
-export const ProjectCard: FC<ProjectCardProps> = ({
+function ProjectCard({
   project,
   onClick,
   onViewAllTickets,
   onEditProject,
-}) => {
-  // Note: Actual ticket counts per epic would come from a separate query
-  // For now we just display epic count
+}: ProjectCardProps): React.JSX.Element {
+  const displayPath = truncatePath(project.path, 50);
 
-  // Truncate path for display
-  const displayPath = project.path.length > 50 ? `${project.path.slice(0, 47)}...` : project.path;
-
-  // Card styles
   const cardStyles: CSSProperties = {
-    padding: "var(--spacing-4)",
-    background: "var(--bg-secondary)",
-    border: "1px solid var(--border-primary)",
-    borderRadius: "var(--radius-lg)",
-    cursor: "pointer",
-    transition: "all var(--transition-normal)",
-    position: "relative",
-    overflow: "hidden",
+    ...baseCardStyles,
     ...(project.hasActiveAI && {
       animation: "project-card-glow 2s infinite",
     }),
-  };
-
-  const headerStyles: CSSProperties = {
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: "var(--spacing-2)",
-    marginBottom: "var(--spacing-3)",
-  };
-
-  const titleStyles: CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: "var(--spacing-2)",
-    flex: 1,
-    minWidth: 0,
-  };
-
-  const colorDotStyles: CSSProperties = {
-    width: "12px",
-    height: "12px",
-    borderRadius: "var(--radius-full)",
-    background: project.color || "var(--text-tertiary)",
-    flexShrink: 0,
-  };
-
-  const projectNameStyles: CSSProperties = {
-    fontSize: "var(--font-size-lg)",
-    fontWeight: "var(--font-weight-semibold)" as CSSProperties["fontWeight"],
-    color: "var(--text-primary)",
-    margin: 0,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  };
-
-  const chevronStyles: CSSProperties = {
-    width: "20px",
-    height: "20px",
-    color: "var(--text-secondary)",
-    flexShrink: 0,
-  };
-
-  const pathStyles: CSSProperties = {
-    fontSize: "var(--font-size-xs)",
-    color: "var(--text-tertiary)",
-    margin: 0,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    marginBottom: "var(--spacing-3)",
-  };
-
-  const statsStyles: CSSProperties = {
-    display: "flex",
-    gap: "var(--spacing-4)",
-    marginBottom: "var(--spacing-3)",
-    fontSize: "var(--font-size-sm)",
-  };
-
-  const statItemStyles: CSSProperties = {
-    display: "flex",
-    flexDirection: "column",
-  };
-
-  const statLabelStyles: CSSProperties = {
-    color: "var(--text-tertiary)",
-    fontSize: "var(--font-size-xs)",
-    margin: 0,
-  };
-
-  const statValueStyles: CSSProperties = {
-    color: "var(--text-primary)",
-    fontWeight: "var(--font-weight-semibold)" as CSSProperties["fontWeight"],
-    margin: 0,
-  };
-
-  const actionsStyles: CSSProperties = {
-    display: "flex",
-    gap: "var(--spacing-2)",
-  };
-
-  const actionButtonStyles: CSSProperties = {
-    flex: 1,
-    padding: "var(--spacing-2) var(--spacing-3)",
-    background: "var(--bg-tertiary)",
-    border: "1px solid var(--border-primary)",
-    borderRadius: "var(--radius-md)",
-    color: "var(--text-secondary)",
-    fontSize: "var(--font-size-xs)",
-    fontWeight: "var(--font-weight-medium)" as CSSProperties["fontWeight"],
-    cursor: "pointer",
-    transition: "all var(--transition-fast)",
-  };
-
-  const editButtonStyles: CSSProperties = {
-    ...actionButtonStyles,
-    flex: "0 0 auto",
   };
 
   return (
@@ -169,6 +71,7 @@ export const ProjectCard: FC<ProjectCardProps> = ({
       onClick={onClick}
       role="button"
       tabIndex={0}
+      aria-label={`Open project ${project.name}`}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -176,21 +79,24 @@ export const ProjectCard: FC<ProjectCardProps> = ({
         }
       }}
     >
-      {/* Header with name and chevron */}
       <div style={headerStyles}>
-        <div style={titleStyles}>
-          <span style={colorDotStyles} aria-hidden="true" />
+        <div style={titleContainerStyles}>
+          <span
+            style={{
+              ...colorDotStyles,
+              background: project.color || "var(--text-tertiary)",
+            }}
+            aria-hidden="true"
+          />
           <h3 style={projectNameStyles}>{project.name}</h3>
         </div>
         <ChevronRight size={20} style={chevronStyles} aria-hidden="true" />
       </div>
 
-      {/* Path */}
       <p style={pathStyles} title={project.path}>
         {displayPath}
       </p>
 
-      {/* Stats */}
       <div style={statsStyles}>
         <div style={statItemStyles}>
           <p style={statLabelStyles}>Epics</p>
@@ -204,8 +110,7 @@ export const ProjectCard: FC<ProjectCardProps> = ({
         )}
       </div>
 
-      {/* Actions */}
-      <div style={actionsStyles}>
+      <div style={actionsContainerStyles}>
         <button
           type="button"
           style={actionButtonStyles}
@@ -228,11 +133,123 @@ export const ProjectCard: FC<ProjectCardProps> = ({
           title="Edit project"
           aria-label={`Edit ${project.name}`}
         >
-          ⚙️
+          Settings
         </button>
       </div>
     </div>
   );
-};
+}
 
 export default ProjectCard;
+
+// ---------------------------------------------------------------------------
+// Styles (module-level for referential stability)
+// ---------------------------------------------------------------------------
+
+const baseCardStyles: CSSProperties = {
+  padding: "var(--spacing-4)",
+  background: "var(--bg-secondary)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-lg)",
+  cursor: "pointer",
+  transition: "all var(--transition-normal)",
+  position: "relative",
+  overflow: "hidden",
+};
+
+const headerStyles: CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: "var(--spacing-2)",
+  marginBottom: "var(--spacing-3)",
+};
+
+const titleContainerStyles: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "var(--spacing-2)",
+  flex: 1,
+  minWidth: 0,
+};
+
+const colorDotStyles: CSSProperties = {
+  width: "12px",
+  height: "12px",
+  borderRadius: "var(--radius-full)",
+  flexShrink: 0,
+};
+
+const projectNameStyles: CSSProperties = {
+  fontSize: "var(--font-size-lg)",
+  fontWeight: "var(--font-weight-semibold)" as CSSProperties["fontWeight"],
+  color: "var(--text-primary)",
+  margin: 0,
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const chevronStyles: CSSProperties = {
+  width: "20px",
+  height: "20px",
+  color: "var(--text-secondary)",
+  flexShrink: 0,
+};
+
+const pathStyles: CSSProperties = {
+  fontSize: "var(--font-size-xs)",
+  color: "var(--text-tertiary)",
+  margin: 0,
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  marginBottom: "var(--spacing-3)",
+};
+
+const statsStyles: CSSProperties = {
+  display: "flex",
+  gap: "var(--spacing-4)",
+  marginBottom: "var(--spacing-3)",
+  fontSize: "var(--font-size-sm)",
+};
+
+const statItemStyles: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+};
+
+const statLabelStyles: CSSProperties = {
+  color: "var(--text-tertiary)",
+  fontSize: "var(--font-size-xs)",
+  margin: 0,
+};
+
+const statValueStyles: CSSProperties = {
+  color: "var(--text-primary)",
+  fontWeight: "var(--font-weight-semibold)" as CSSProperties["fontWeight"],
+  margin: 0,
+};
+
+const actionsContainerStyles: CSSProperties = {
+  display: "flex",
+  gap: "var(--spacing-2)",
+};
+
+const actionButtonStyles: CSSProperties = {
+  flex: 1,
+  padding: "var(--spacing-2) var(--spacing-3)",
+  background: "var(--bg-tertiary)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-md)",
+  color: "var(--text-secondary)",
+  fontSize: "var(--font-size-xs)",
+  fontWeight: "var(--font-weight-medium)" as CSSProperties["fontWeight"],
+  cursor: "pointer",
+  transition: "all var(--transition-fast)",
+};
+
+const editButtonStyles: CSSProperties = {
+  ...actionButtonStyles,
+  flex: "0 0 auto",
+};
