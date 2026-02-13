@@ -95,11 +95,14 @@ describe("IconSidebar", () => {
       expect(settingsButton).not.toHaveAttribute("aria-current");
     });
 
-    it("defaults to /board when no activePath provided", () => {
-      render(<IconSidebar {...defaultProps} activePath="/board" />);
+    it("does not highlight any route item when activePath does not match", () => {
+      render(<IconSidebar {...defaultProps} />);
 
+      const dashboardButton = screen.getByRole("button", { name: "Dashboard" });
       const boardButton = screen.getByRole("button", { name: "Board" });
-      expect(boardButton).toHaveAttribute("aria-current", "page");
+
+      expect(dashboardButton).not.toHaveAttribute("aria-current");
+      expect(boardButton).not.toHaveAttribute("aria-current");
     });
   });
 

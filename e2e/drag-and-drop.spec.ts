@@ -12,7 +12,7 @@ import { test, expect, type Page } from "@playwright/test";
 
 test.describe("Kanban Board Drag and Drop", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/board");
     // Wait for the app to fully load
     await expect(page.locator("aside")).toBeVisible();
     await expect(page.locator("h3:has-text('Backlog')")).toBeVisible({ timeout: 10000 });

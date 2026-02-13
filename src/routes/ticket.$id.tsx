@@ -4,6 +4,7 @@ import { useState, useCallback, useRef } from "react";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import { getTicket } from "../api/tickets";
 import { getTicketContext } from "../api/context";
+import { useToast } from "../components/Toast";
 import {
   launchClaudeInTerminal,
   launchCodexInTerminal,
@@ -33,7 +34,6 @@ import {
   type Ticket,
   type Epic,
 } from "../lib/hooks";
-import { useToast } from "../components/Toast";
 
 export const Route = createFileRoute("/ticket/$id")({
   component: TicketDetailPage,
@@ -51,15 +51,20 @@ export const Route = createFileRoute("/ticket/$id")({
 function TicketDetailError({ error }: { error: Error }) {
   const router = useRouter();
   const canGoBack = useCanGoBack();
+  const { showToast } = useToast();
   console.error("Ticket detail error:", error);
 
-  const handleBackNavigation = () => {
-    if (canGoBack) {
-      router.history.back();
-    } else {
-      void router.navigate({ to: "/board" });
+  const handleBackNavigation = useCallback(async () => {
+    try {
+      if (canGoBack) {
+        router.history.back();
+      } else {
+        await router.navigate({ to: "/board" });
+      }
+    } catch {
+      showToast("error", "Unable to navigate. Please reload the page.");
     }
-  };
+  }, [canGoBack, router, showToast]);
 
   return (
     <div style={errorContainerStyles}>
@@ -321,15 +326,19 @@ function TicketDetailPage() {
 
   // Handle back navigation - preserves filter state by using browser history
   // Uses TanStack Router's useCanGoBack hook to check if back navigation is possible
-  // If no history (direct URL navigation), falls back to home
-  const handleBackNavigation = useCallback(() => {
-    if (canGoBack) {
-      router.history.back();
-    } else {
-      // No history - navigate to board
-      void router.navigate({ to: "/board" });
+  // If no history (direct URL navigation), falls back to board
+  const handleBackNavigation = useCallback(async () => {
+    try {
+      if (canGoBack) {
+        router.history.back();
+      } else {
+        // No history - navigate to board
+        await router.navigate({ to: "/board" });
+      }
+    } catch {
+      showToast("error", "Failed to navigate back. Please try again.");
     }
-  }, [canGoBack, router]);
+  }, [canGoBack, router, showToast]);
 
   // Handle launch action - launches Claude, OpenCode, or Ralph
   const handleLaunch = useCallback(

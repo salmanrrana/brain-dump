@@ -70,7 +70,7 @@
     {
       "id": "511591a8-de3a-48f4-957c-6e35bd4fb552",
       "title": "Update internal navigations from `/` to `/board`",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
