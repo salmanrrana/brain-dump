@@ -129,7 +129,7 @@
     {
       "id": "f137d657-4a41-4a3b-9721-05fa3d493a52",
       "title": "Create Project detail page (`/projects/$projectId`)",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],

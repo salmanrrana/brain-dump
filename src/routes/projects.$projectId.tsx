@@ -1,9 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import { ArrowLeft, Plus, AlertCircle } from "lucide-react";
 import { useProjects, useTickets } from "../lib/hooks";
 import { useAppState } from "../components/AppLayout";
+import { createBrowserLogger } from "../lib/browser-logger";
 import EpicListItem from "../components/navigation/EpicListItem";
+
+const logger = createBrowserLogger("routes:project-detail");
 
 export const Route = createFileRoute("/projects/$projectId")({
   component: ProjectDetail,
@@ -12,16 +15,11 @@ export const Route = createFileRoute("/projects/$projectId")({
 function ProjectDetail() {
   const { projectId } = Route.useParams();
   const navigate = useNavigate();
-  const { projects } = useProjects();
+  const { projects, loading, error } = useProjects();
   const { tickets } = useTickets({ projectId });
   const { openEpicModal } = useAppState();
 
-  // Find the project
-  const project = useMemo(() => {
-    return projects.find((p) => p.id === projectId);
-  }, [projects, projectId]);
-
-  // Compute ticket counts per epic
+  // Must call hooks before any early returns
   const ticketCountByEpic = useMemo(() => {
     const counts = new Map<string, number>();
     for (const ticket of tickets) {
@@ -32,36 +30,40 @@ function ProjectDetail() {
     return counts;
   }, [tickets]);
 
-  const handleBack = useCallback(() => {
-    navigate({ to: "/" });
-  }, [navigate]);
+  if (loading) {
+    return (
+      <div style={containerStyles}>
+        <div style={centeredContainerStyles}>
+          <p style={{ color: "var(--text-secondary)" }}>Loading project...</p>
+        </div>
+      </div>
+    );
+  }
 
-  const handleSelectEpic = useCallback(
-    (epicId: string) => {
-      navigate({ to: "/board", search: { project: projectId, epic: epicId } });
-    },
-    [navigate, projectId]
-  );
+  if (error) {
+    return (
+      <div style={containerStyles}>
+        <div style={centeredContainerStyles}>
+          <div style={errorContainerStyles}>
+            <AlertCircle size={24} style={{ color: "var(--text-destructive)" }} />
+            <p style={errorTitleStyles}>Failed to load project</p>
+            <p style={errorDescriptionStyles}>{error}</p>
+            <button
+              type="button"
+              style={accentButtonStyles}
+              onClick={() => navigate({ to: "/" })}
+              className="hover:bg-[var(--accent-primary)] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+            >
+              Back to Projects
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  const handleViewAllTickets = useCallback(() => {
-    navigate({ to: "/board", search: { project: projectId } });
-  }, [navigate, projectId]);
+  const project = projects.find((p) => p.id === projectId);
 
-  const handleEditEpic = useCallback(
-    (epicId: string) => {
-      const epic = project?.epics.find((e) => e.id === epicId);
-      if (epic) {
-        openEpicModal(projectId, epic);
-      }
-    },
-    [project, projectId, openEpicModal]
-  );
-
-  const handleAddEpic = useCallback(() => {
-    openEpicModal(projectId);
-  }, [projectId, openEpicModal]);
-
-  // 404 if project not found
   if (!project) {
     return (
       <div style={containerStyles}>
@@ -73,7 +75,7 @@ function ProjectDetail() {
             <button
               type="button"
               style={accentButtonStyles}
-              onClick={handleBack}
+              onClick={() => navigate({ to: "/" })}
               className="hover:bg-[var(--accent-primary)] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
             >
               Back to Projects
@@ -86,12 +88,11 @@ function ProjectDetail() {
 
   return (
     <div style={containerStyles}>
-      {/* Header */}
       <header style={headerStyles}>
         <button
           type="button"
           style={backButtonStyles}
-          onClick={handleBack}
+          onClick={() => navigate({ to: "/" })}
           aria-label="Back to projects"
           className="hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
         >
@@ -115,14 +116,13 @@ function ProjectDetail() {
         <button
           type="button"
           style={accentButtonStyles}
-          onClick={handleViewAllTickets}
+          onClick={() => navigate({ to: "/board", search: { project: projectId } })}
           className="hover:bg-[var(--accent-primary)] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
         >
           View All Tickets
         </button>
       </header>
 
-      {/* Epics list */}
       {project.epics.length === 0 ? (
         <div style={emptyStateStyles}>
           <div style={emptyContentStyles}>
@@ -131,7 +131,7 @@ function ProjectDetail() {
             <button
               type="button"
               style={accentButtonStyles}
-              onClick={handleAddEpic}
+              onClick={() => openEpicModal(projectId)}
               className="hover:bg-[var(--accent-primary)] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
             >
               <Plus size={18} aria-hidden="true" />
@@ -147,11 +147,13 @@ function ProjectDetail() {
                 key={epic.id}
                 epic={epic}
                 ticketCount={ticketCountByEpic.get(epic.id)}
-                onSelect={() => handleSelectEpic(epic.id)}
-                onEdit={() => handleEditEpic(epic.id)}
+                onSelect={() =>
+                  navigate({ to: "/board", search: { project: projectId, epic: epic.id } })
+                }
+                onEdit={() => openEpicModal(projectId, epic)}
                 onLaunchRalph={() => {
                   // TODO: Implement Ralph launch for epic
-                  console.log("Ralph launch not yet implemented for epic:", epic.id);
+                  logger.info(`Ralph launch not yet implemented for epic: ${epic.id}`);
                 }}
               />
             ))}
@@ -161,7 +163,7 @@ function ProjectDetail() {
             <button
               type="button"
               style={addEpicButtonStyles}
-              onClick={handleAddEpic}
+              onClick={() => openEpicModal(projectId)}
               className="hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
             >
               <Plus size={16} aria-hidden="true" />
@@ -174,7 +176,6 @@ function ProjectDetail() {
   );
 }
 
-// Styles
 const containerStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
