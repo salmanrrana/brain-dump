@@ -138,3 +138,32 @@ export class PathNotFoundError extends CoreError {
     this.name = "PathNotFoundError";
   }
 }
+
+// ============================================
+// Transfer Errors (Export/Import)
+// ============================================
+
+export class TransferError extends CoreError {
+  constructor(message: string, code = "TRANSFER_ERROR", details?: Record<string, unknown>) {
+    super(message, code, details);
+    this.name = "TransferError";
+  }
+}
+
+export class InvalidArchiveError extends TransferError {
+  constructor(message: string) {
+    super(message, "INVALID_ARCHIVE", { reason: message });
+    this.name = "InvalidArchiveError";
+  }
+}
+
+export class ArchiveTooLargeError extends TransferError {
+  constructor(sizeBytes: number, maxBytes: number) {
+    super(
+      `Archive size ${(sizeBytes / 1024 / 1024).toFixed(1)}MB exceeds the ${(maxBytes / 1024 / 1024).toFixed(0)}MB limit. Remove large attachments and try again.`,
+      "ARCHIVE_TOO_LARGE",
+      { sizeBytes, maxBytes }
+    );
+    this.name = "ArchiveTooLargeError";
+  }
+}
