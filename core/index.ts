@@ -339,3 +339,13 @@ export type {
   ImportResult,
   ManifestPreview,
 } from "./transfer-types.ts";
+
+// Transfer business logic
+export { gatherEpicExportData, gatherProjectExportData, importData } from "./transfer.ts";
+
+// Transfer zip adapter
+export {
+  createBrainDumpArchive,
+  extractBrainDumpArchive,
+  previewBrainDumpArchive,
+} from "./transfer-zip.ts";
