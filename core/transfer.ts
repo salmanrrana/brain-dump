@@ -8,7 +8,7 @@
  */
 
 import { randomUUID } from "crypto";
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { userInfo } from "os";
 
@@ -58,14 +58,7 @@ function getUsername(): string {
   }
 }
 
-function getAppVersion(): string {
-  try {
-    const pkg = JSON.parse(readFileSync(join(__dirname, "..", "package.json"), "utf-8"));
-    return pkg.version || "0.0.0";
-  } catch {
-    return "0.0.0";
-  }
-}
+const APP_VERSION = "1.0.0";
 
 function getAttachmentsDir(): string {
   return join(getDataDir(), "attachments");
@@ -285,7 +278,7 @@ export function gatherEpicExportData(db: DbHandle, epicId: string): ExportResult
     exportType: "epic",
     exportedAt: new Date().toISOString(),
     exportedBy: getUsername(),
-    appVersion: getAppVersion(),
+    appVersion: APP_VERSION,
     sourceProject: { name: project.name },
     epics: [exportedEpic],
     tickets,
@@ -364,7 +357,7 @@ export function gatherProjectExportData(db: DbHandle, projectId: string): Export
     exportType: "project",
     exportedAt: new Date().toISOString(),
     exportedBy: getUsername(),
-    appVersion: getAppVersion(),
+    appVersion: APP_VERSION,
     sourceProject: { name: project.name },
     epics,
     tickets,
