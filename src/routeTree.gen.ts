@@ -13,6 +13,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as BoardRouteImport } from './routes/board'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TicketIdRouteImport } from './routes/ticket.$id'
+import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
 
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
@@ -34,17 +35,24 @@ const TicketIdRoute = TicketIdRouteImport.update({
   path: '/ticket/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
+  id: '/projects/$projectId',
+  path: '/projects/$projectId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/board': typeof BoardRoute
   '/dashboard': typeof DashboardRoute
+  '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/ticket/$id': typeof TicketIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/board': typeof BoardRoute
   '/dashboard': typeof DashboardRoute
+  '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/ticket/$id': typeof TicketIdRoute
 }
 export interface FileRoutesById {
@@ -52,20 +60,33 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/board': typeof BoardRoute
   '/dashboard': typeof DashboardRoute
+  '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/ticket/$id': typeof TicketIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/board' | '/dashboard' | '/ticket/$id'
+  fullPaths:
+    | '/'
+    | '/board'
+    | '/dashboard'
+    | '/projects/$projectId'
+    | '/ticket/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/board' | '/dashboard' | '/ticket/$id'
-  id: '__root__' | '/' | '/board' | '/dashboard' | '/ticket/$id'
+  to: '/' | '/board' | '/dashboard' | '/projects/$projectId' | '/ticket/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/board'
+    | '/dashboard'
+    | '/projects/$projectId'
+    | '/ticket/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BoardRoute: typeof BoardRoute
   DashboardRoute: typeof DashboardRoute
+  ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
   TicketIdRoute: typeof TicketIdRoute
 }
 
@@ -99,6 +120,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TicketIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/projects/$projectId': {
+      id: '/projects/$projectId'
+      path: '/projects/$projectId'
+      fullPath: '/projects/$projectId'
+      preLoaderRoute: typeof ProjectsProjectIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -106,6 +134,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BoardRoute: BoardRoute,
   DashboardRoute: DashboardRoute,
+  ProjectsProjectIdRoute: ProjectsProjectIdRoute,
   TicketIdRoute: TicketIdRoute,
 }
 export const routeTree = rootRouteImport

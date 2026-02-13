@@ -16,9 +16,7 @@ function Home() {
 
   const handleSelectProject = useCallback(
     (projectId: string) => {
-      // TODO: Navigate to /projects/$projectId once that route is implemented
-      // For now, navigate to board filtered by project
-      navigate({ to: `/board`, search: { project: projectId } });
+      navigate({ to: "/projects/$projectId", params: { projectId } });
     },
     [navigate]
   );
