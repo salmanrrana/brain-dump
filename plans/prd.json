@@ -9,179 +9,10 @@
   ],
   "userStories": [
     {
-      "id": "6de39d35-b1bf-4cee-919c-f6adf267d6fe",
-      "title": "Phase 1: Foundation - Types, Errors & jszip Dependency",
+      "id": "9200b1ca-0027-4131-a95b-5519e79e55c0",
+      "title": "Overview: Projects Home Page — Full Plan & Coordination",
       "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`jszip` added to package.json dependencies",
-        "`core/transfer-types.ts` created with all interfaces",
-        "Error classes added to `core/errors.ts`",
-        "`core/index.ts` updated with exports",
-        "`pnpm type-check` passes"
-      ],
-      "references": [],
-      "description": "## Reference\nSee full plan in overview ticket: `c884a905-6009-406e-a14d-0783bc078586`\n\n## Branch & PR\nThis ticket shares a branch and PR with all other tickets in this epic. Use `workflow start-epic` on the epic to create the shared branch before starting work.\n\n## Scope\n\n### 1.1 Add jszip dependency\n```bash\npnpm add jszip\n```\n- Single dependency handles both zip read and write\n- Ships with TypeScript types built-in\n\n### 1.2 Create `core/transfer-types.ts`\nAll manifest interfaces:\n- `BrainDumpManifest` - top-level manifest structure (version, exportType, exportedAt, exportedBy, appVersion, sourceProject, etc.)\n- `ExportedEpic` - epic metadata (title, description, color, position)\n- `ExportedTicket` - full ticket detail, tags parsed, git/PR fields stripped\n- `ExportedComment` - ticket comments\n- `ExportedReviewFinding` - review findings\n- `ExportedDemoScript` - demo scripts with steps\n- `ExportedWorkflowState` - ticket workflow state\n- `ExportedEpicWorkflowState` - epic workflow state (learnings)\n- `ExportedAttachmentFile` - attachment metadata (archivePath, originalTicketId, filename)\n\nParam/result types:\n- `ExportResult` - manifest + attachment buffers map\n- `ImportParams` - filePath, targetProjectId, resetStatuses, conflictResolution\n- `ImportResult` - counts, id map, warnings\n- `ConflictResolution` - `\"create-new\" | \"replace\" | \"merge\"`\n\n### 1.3 Add error classes to `core/errors.ts`\n- `TransferError` (base for export/import errors)\n- `InvalidArchiveError` (corrupt zip, bad manifest version)\n- `ArchiveTooLargeError` (exceeds 100MB limit)\n\n### 1.4 Update `core/index.ts`\n- Export all new types and functions from transfer modules\n\n## Acceptance Criteria\n- [ ] `jszip` added to package.json dependencies\n- [ ] `core/transfer-types.ts` created with all interfaces\n- [ ] Error classes added to `core/errors.ts`\n- [ ] `core/index.ts` updated with exports\n- [ ] `pnpm type-check` passes",
-      "priority": "high",
-      "tags": [
-        "phase-1",
-        "foundation"
-      ]
-    },
-    {
-      "id": "a7e383a8-0f17-4459-b0db-6686c16d00a5",
-      "title": "Phase 2: Core Export & Import Logic",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`gatherEpicExportData` gathers all related data for an epic",
-        "`gatherProjectExportData` gathers all epics + orphan tickets",
-        "Exported data strips git/PR fields and excludes telemetry/sessions",
-        "`importData` creates fresh UUIDs and remaps all foreign keys",
-        "`importData` adds `shared-by:{username}` tag to every imported ticket",
-        "`importData` adds provenance comment to every imported ticket",
-        "All three conflict resolution modes work (create-new, replace, merge)",
-        "Position calculation avoids conflicts with existing tickets",
-        "100MB size limit enforced on export",
-        "Missing attachments produce warnings, not failures",
-        "Zip round-trip preserves manifest and attachment integrity",
-        "`pnpm type-check` passes"
-      ],
-      "references": [],
-      "description": "## Reference\nSee full plan in overview ticket: `c884a905-6009-406e-a14d-0783bc078586`\n\n## Branch & PR\nThis ticket shares a branch and PR with all other tickets in this epic.\n\n## Scope\n\n### 2.1 Create `core/transfer.ts` - Pure export/import business logic\n\n**Export functions** (no zip dependency - works with manifest + buffer map):\n\n`gatherEpicExportData(db, { epicId })` → `ExportResult`\n- Query epic + project for metadata\n- Query all tickets for the epic\n- For each ticket: query comments, review findings, demo scripts, workflow state\n- Query epic workflow state (learnings)\n- Read attachment files from disk into buffers\n- Strip git/PR fields, parse JSON columns, auto-detect username\n- Check total size against 100MB limit\n\n`gatherProjectExportData(db, { projectId })` → `ExportResult`\n- Same as above but for ALL epics + orphan tickets in the project\n\n**Import function:**\n\n`importData(db, params: ImportParams)` → `ImportResult`\n- Generate fresh UUIDs, build old→new ID map\n- Detect epic name conflicts, apply `conflictResolution` strategy\n- In a single transaction:\n  - Insert epics (mapped to target project)\n  - Insert tickets (remap epicId, append `shared-by:{username}` tag, clear git fields, recalculate positions)\n  - Insert comments (remap ticketId) + add provenance comment per ticket\n  - Insert review findings (remap ticketId)\n  - Insert demo scripts (remap ticketId)\n  - Insert workflow states (remap ticketId/epicId)\n- Extract attachment files to `{attachmentsDir}/{newTicketId}/{filename}`\n- Return counts + id map + warnings\n\n**Reuse existing functions:**\n- `core/db.ts` → `getDataDir()` for attachment paths\n- `core/json.ts` → `safeJsonParse()` for JSON column handling\n- `core/git-utils.ts` → `slugify()` for filename generation\n\n### 2.2 Create `core/transfer-zip.ts` - Thin zip adapter\n\n- `createBrainDumpArchive(data: ExportResult)` → `Promise<Buffer>`\n- `extractBrainDumpArchive(zipBuffer: Buffer)` → `Promise<{ manifest, attachmentBuffers }>`\n- `previewBrainDumpArchive(zipBuffer: Buffer)` → `Promise<ManifestPreview>` (reads only manifest.json, skips attachments)\n\n## Acceptance Criteria\n- [ ] `gatherEpicExportData` gathers all related data for an epic\n- [ ] `gatherProjectExportData` gathers all epics + orphan tickets\n- [ ] Exported data strips git/PR fields and excludes telemetry/sessions\n- [ ] `importData` creates fresh UUIDs and remaps all foreign keys\n- [ ] `importData` adds `shared-by:{username}` tag to every imported ticket\n- [ ] `importData` adds provenance comment to every imported ticket\n- [ ] All three conflict resolution modes work (create-new, replace, merge)\n- [ ] Position calculation avoids conflicts with existing tickets\n- [ ] 100MB size limit enforced on export\n- [ ] Missing attachments produce warnings, not failures\n- [ ] Zip round-trip preserves manifest and attachment integrity\n- [ ] `pnpm type-check` passes",
-      "priority": "high",
-      "tags": [
-        "phase-2",
-        "core"
-      ]
-    },
-    {
-      "id": "938f6875-1aef-4a88-a9eb-9bf635360988",
-      "title": "Phase 4: CLI Transfer Commands",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`pnpm brain-dump transfer export-epic --epic <id>` writes .braindump file",
-        "`pnpm brain-dump transfer export-project --project <id>` writes .braindump file",
-        "`pnpm brain-dump transfer import --file <path> --target-project <id>` imports data",
-        "`--pretty` flag produces human-readable output",
-        "`--reset-statuses` flag resets all imported ticket statuses to backlog",
-        "`--conflict` flag supports all three resolution modes",
-        "Backward-compat shortcuts (`brain-dump export`, `brain-dump import`) work",
-        "`pnpm type-check` passes"
-      ],
-      "references": [],
-      "description": "## Reference\nSee full plan in overview ticket: `c884a905-6009-406e-a14d-0783bc078586`\n\n## Branch & PR\nThis ticket shares a branch and PR with all other tickets in this epic.\n\n## Scope\n\n### 4.1 Create `cli/commands/transfer.ts`\n\nActions: `export-epic`, `export-project`, `import`\n\nFlags:\n- `--epic <id>` / `--project <id>` / `--target-project <id>`\n- `--file <path>` (for import)\n- `--output <path>` (for export)\n- `--reset-statuses` (import: reset all to backlog)\n- `--conflict <create-new|replace|merge>` (import: how to handle existing epics)\n- `--pretty` (human-readable output)\n\nUses `runAsync` since jszip operations are async.\n\n### 4.2 Update `cli/brain-dump.ts`\n- Add `import * as transfer from \"./commands/transfer.ts\"`\n- Add `\"transfer\"` to `RESOURCES` array\n- Add `case \"transfer\": runAsync(transfer.handle, action, rest)` to switch\n- Add backward-compat shortcuts: `brain-dump export` and `brain-dump import`\n\n## Acceptance Criteria\n- [ ] `pnpm brain-dump transfer export-epic --epic <id>` writes .braindump file\n- [ ] `pnpm brain-dump transfer export-project --project <id>` writes .braindump file\n- [ ] `pnpm brain-dump transfer import --file <path> --target-project <id>` imports data\n- [ ] `--pretty` flag produces human-readable output\n- [ ] `--reset-statuses` flag resets all imported ticket statuses to backlog\n- [ ] `--conflict` flag supports all three resolution modes\n- [ ] Backward-compat shortcuts (`brain-dump export`, `brain-dump import`) work\n- [ ] `pnpm type-check` passes",
-      "priority": "medium",
-      "tags": [
-        "phase-4",
-        "cli"
-      ]
-    },
-    {
-      "id": "be53f60b-fc07-4d82-b7f1-bfc60f8329de",
-      "title": "Phase 5: Server Functions & React Query Hooks",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "4 server functions created and properly typed",
-        "Server functions use base64 encoding for zip data transfer",
-        "React Query mutations handle loading/error/success states",
-        "`useExportEpic` triggers browser download on success",
-        "`usePerformImport` invalidates relevant query caches on success",
-        "Browser download utility works for base64-encoded zip files",
-        "Transfer hooks re-exported from `src/lib/hooks/index.ts`",
-        "`pnpm type-check` passes"
-      ],
-      "references": [
-        "src/api/transfer.ts",
-        "src/lib/db.ts",
-        "src/lib/hooks/transfer.ts",
-        "src/lib/download.ts",
-        "src/lib/hooks/index.ts"
-      ],
-      "description": "## Reference\nSee full plan in overview ticket: `c884a905-6009-406e-a14d-0783bc078586`\n\n## Branch & PR\nThis ticket shares a branch and PR with all other tickets in this epic.\n\n## Scope\n\n### 5.1 Create `src/api/transfer.ts` - TanStack Start server functions\n\n4 server functions:\n- `exportEpic(epicId)` → `{ filename, data: base64, manifest summary }`\n- `exportProject(projectId)` → same shape\n- `previewImport(base64Data)` → manifest preview (epic names, counts, exporter info)\n- `performImport({ fileData, targetProjectId, resetStatuses, conflictResolution })` → `ImportResult`\n\nThe UI uses base64 encoding to transfer zip data between browser and server. Server functions pass `sqlite` (raw better-sqlite3 instance from `src/lib/db.ts`) to core functions.\n\n### 5.2 Create `src/lib/hooks/transfer.ts` - React Query mutations\n\n- `useExportEpic()` - mutation, triggers browser download on success\n- `useExportProject()` - mutation, triggers browser download on success\n- `usePreviewImport()` - mutation, returns manifest preview for UI\n- `usePerformImport()` - mutation, invalidates `queryKeys.allTickets`, `queryKeys.projects`, `queryKeys.allTags` on success\n\n### 5.3 Create `src/lib/download.ts` - Browser download utility\n\n- `downloadBase64File(base64Data, filename, mimeType)` - creates Blob, triggers `<a>` click download\n\n### 5.4 Update `src/lib/hooks/index.ts`\n- Add transfer hooks section with re-exports\n\n## Acceptance Criteria\n- [ ] 4 server functions created and properly typed\n- [ ] Server functions use base64 encoding for zip data transfer\n- [ ] React Query mutations handle loading/error/success states\n- [ ] `useExportEpic` triggers browser download on success\n- [ ] `usePerformImport` invalidates relevant query caches on success\n- [ ] Browser download utility works for base64-encoded zip files\n- [ ] Transfer hooks re-exported from `src/lib/hooks/index.ts`\n- [ ] `pnpm type-check` passes",
-      "priority": "medium",
-      "tags": [
-        "phase-5",
-        "frontend",
-        "api"
-      ]
-    },
-    {
-      "id": "f4df95f6-9d43-4d54-bcb7-74e99c0e98b4",
-      "title": "Phase 6: UI - Export & Import Modals",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "ExportModal shows summary and triggers download",
-        "ImportModal has 3-step wizard flow (file select → preview → result)",
-        "Drag-and-drop file selection works",
-        "Manifest preview displays all counts correctly",
-        "Conflict resolution UI shown only when epic name conflicts exist",
-        "\"Export\" option added to EpicModal action dropdown",
-        "\"Import\" button added to sidebar navigation",
-        "Project-level export accessible from project context",
-        "Loading/error states handled in both modals",
-        "`pnpm type-check` and `pnpm lint` pass"
-      ],
-      "references": [
-        "src/components/transfer/ExportModal.tsx",
-        "src/components/transfer/ImportModal.tsx",
-        "src/components/EpicModal.tsx"
-      ],
-      "description": "## Reference\nSee full plan in overview ticket: `c884a905-6009-406e-a14d-0783bc078586`\n\n## Branch & PR\nThis ticket shares a branch and PR with all other tickets in this epic.\n\n## Scope\n\n### 6.1 Create `src/components/transfer/ExportModal.tsx`\n\nSimple confirmation modal shown when user clicks export:\n- Shows what will be exported (epic name, ticket count, attachment count)\n- Loading state while generating\n- Triggers browser download on success\n- Toast notification\n\n### 6.2 Create `src/components/transfer/ImportModal.tsx`\n\nMulti-step wizard modal:\n\n**Step 1 - File Selection:**\n- Drag-and-drop zone or file picker button\n- Accept only `.braindump` files\n- Read file, call `previewImport` to parse manifest\n\n**Step 2 - Preview & Options:**\n- Show: exporter name, source project, epic names, ticket/comment/finding/attachment counts\n- Project picker dropdown (required - which project to import into)\n- \"Reset all statuses to backlog\" toggle (default: off)\n- Conflict resolution radio (shown only if epic name conflict detected):\n  - \"Create as new epic\" (default, safe)\n  - \"Replace existing epic\" (with confirmation warning)\n  - \"Merge into existing epic\"\n\n**Step 3 - Result:**\n- Success: \"Imported X tickets into Y project\" with counts breakdown\n- Navigate to project or close\n\n### 6.3 Update `src/components/EpicModal.tsx`\n- Add \"Export\" option to the existing action dropdown menu (alongside Ralph launch options)\n- Opens ExportModal with the epic's ID\n\n### 6.4 Add Import button to sidebar/navigation\n- Add an \"Import\" button near the project list area\n- Uses Upload icon from lucide-react\n- Opens ImportModal\n\n### 6.5 Add Project-level export\n- Add \"Export Project\" to project context menu or ProjectModal\n- Opens ExportModal in project mode\n\n## Acceptance Criteria\n- [ ] ExportModal shows summary and triggers download\n- [ ] ImportModal has 3-step wizard flow (file select → preview → result)\n- [ ] Drag-and-drop file selection works\n- [ ] Manifest preview displays all counts correctly\n- [ ] Conflict resolution UI shown only when epic name conflicts exist\n- [ ] \"Export\" option added to EpicModal action dropdown\n- [ ] \"Import\" button added to sidebar navigation\n- [ ] Project-level export accessible from project context\n- [ ] Loading/error states handled in both modals\n- [ ] `pnpm type-check` and `pnpm lint` pass",
-      "priority": "medium",
-      "tags": [
-        "phase-6",
-        "frontend",
-        "ui"
-      ]
-    },
-    {
-      "id": "b7b0d4ec-5f43-4219-bf0f-e6171625875c",
-      "title": "Phase 7: Tests - Core Logic & Zip Round-trip",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "All core export tests pass",
-        "All core import tests pass (including all 3 conflict resolution modes)",
-        "Zip round-trip tests pass",
-        "Edge case tests pass (empty epic, missing attachments, size limit)",
-        "`pnpm test` passes with all new tests",
-        "`pnpm check` passes (type-check + lint + all tests)"
-      ],
-      "references": [],
-      "description": "## Reference\nSee full plan in overview ticket: `c884a905-6009-406e-a14d-0783bc078586`\n\n## Branch & PR\nThis ticket shares a branch and PR with all other tickets in this epic.\n\n## Scope\n\n### 7.1 Create `core/__tests__/transfer.test.ts` - Core logic tests\n\nUsing `createTestDatabase()` from `core/db.ts`:\n\n- Export epic with tickets, comments, findings, demos → verify manifest structure\n- Export project with multiple epics + orphan tickets\n- Import into fresh project → verify all entities created with new IDs\n- Import with `resetStatuses: true` → verify all tickets in backlog\n- Import adds `shared-by:{username}` tag to every ticket\n- Import adds provenance comment to every ticket\n- Re-import with `conflictResolution: \"create-new\"` → creates separate epic\n- Re-import with `conflictResolution: \"replace\"` → old tickets removed, new inserted\n- Re-import with `conflictResolution: \"merge\"` → matching tickets updated, new added\n- Exported data excludes telemetry/sessions/conversation logs\n- Exported data excludes git/PR fields\n- Position calculation doesn't conflict with existing tickets\n- Archive size limit enforcement (>100MB rejected)\n- Missing attachment on disk → warning, not failure\n\n### 7.2 Create `core/__tests__/transfer-zip.test.ts` - Zip round-trip tests\n\n- Create export data → zip → extract → verify manifest matches\n- Attachments survive round-trip (binary integrity)\n- Invalid/corrupt zip rejected with clear error\n- Invalid manifest version rejected\n- Preview reads only manifest (fast, skips attachments)\n\n## Acceptance Criteria\n- [ ] All core export tests pass\n- [ ] All core import tests pass (including all 3 conflict resolution modes)\n- [ ] Zip round-trip tests pass\n- [ ] Edge case tests pass (empty epic, missing attachments, size limit)\n- [ ] `pnpm test` passes with all new tests\n- [ ] `pnpm check` passes (type-check + lint + all tests)",
-      "priority": "medium",
-      "tags": [
-        "phase-7",
-        "testing"
-      ]
-    },
-    {
-      "id": "a267d7a5-9ae2-4f9f-8f9f-7d52681ed13c",
-      "title": "Overview: Export & Import Implementation Plan",
-      "passes": false,
-      "overview": "Brain Dump is local-first with no built-in team collaboration. This feature enables async team sharing by letting users **export** an epic (or full project) as a portable `.braindump` file and **import** it into another Brain Dump instance. The export is a complete context bundle - everything an AI or human needs to pick up the work, minus operational noise (telemetry, sessions).\nKey user requirements:\n- Include comments, review findings, demos, attachments/images\n- Auto-tag imported tickets with `shared-by:{username}` for attribution and filtering\n- Handle re-imports (same epic name already exists) by letting user choose: create new, replace, or merge\n- 100MB archive size limit\n- Full end-to-end: core logic + CLI + UI\n---",
+      "overview": "**Epic:** Projects Home Page\n**Branch/PR:** All tickets in this epic share a single branch and PR. Use `workflow` `start-epic` to create the shared branch before starting work on any ticket.\n---\nCurrently Brain Dump drops users directly onto a kanban board showing all tickets — which gets overwhelming as projects grow. This change introduces a clean **Projects home page** as the landing page, with drill-down into epics, providing a structured entry: **Projects → Epics → Filtered Kanban Board**.",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
@@ -190,63 +21,172 @@
         "Verify functionality works as expected"
       ],
       "references": [
-        "src/api/transfer.ts",
-        "src/lib/db.ts",
-        "src/lib/hooks/transfer.ts",
-        "src/lib/download.ts",
-        "src/lib/hooks/index.ts",
-        "src/components/transfer/ExportModal.tsx",
-        "src/components/transfer/ImportModal.tsx",
-        "src/components/EpicModal.tsx"
+        "src/routes/board.tsx",
+        "src/routes/index.tsx",
+        "src/routes/dashboard.tsx",
+        "src/routes/ticket.$id.tsx",
+        "src/components/AppLayout.tsx",
+        "src/lib/hooks/projects.ts",
+        "src/components/projects/ProjectCard.tsx",
+        "src/routes/projects.$projectId.tsx",
+        "src/components/navigation/EpicListItem.tsx",
+        "src/components/navigation/IconSidebar.tsx",
+        "src/components/layout/AppHeader.tsx",
+        "src/components/navigation/EpicDrillInView.tsx",
+        "src/lib/filter-hooks.ts"
       ],
-      "description": "# Epic/Project Export & Import (.braindump)\n\n## Context\n\nBrain Dump is local-first with no built-in team collaboration. This feature enables async team sharing by letting users **export** an epic (or full project) as a portable `.braindump` file and **import** it into another Brain Dump instance. The export is a complete context bundle - everything an AI or human needs to pick up the work, minus operational noise (telemetry, sessions).\n\nKey user requirements:\n- Include comments, review findings, demos, attachments/images\n- Auto-tag imported tickets with `shared-by:{username}` for attribution and filtering\n- Handle re-imports (same epic name already exists) by letting user choose: create new, replace, or merge\n- 100MB archive size limit\n- Full end-to-end: core logic + CLI + UI\n\n---\n\n## Manifest Format (.braindump = zip)\n\n```\nmy-epic.braindump (zip archive)\n├── manifest.json       # All structured data + metadata\n└── attachments/        # Binary files\n    └── {ticketId}/\n        └── filename.png\n```\n\n`manifest.json` structure:\n```typescript\n{\n  version: 1,\n  exportType: \"epic\" | \"project\",\n  exportedAt: string,         // ISO 8601\n  exportedBy: string,         // os.userInfo().username\n  appVersion: string,         // from package.json\n  sourceProject: { name: string },\n  epics: ExportedEpic[],\n  tickets: ExportedTicket[],  // full detail, tags parsed, git/PR fields stripped\n  comments: ExportedComment[],\n  reviewFindings: ExportedReviewFinding[],\n  demoScripts: ExportedDemoScript[],\n  workflowStates: ExportedWorkflowState[],\n  epicWorkflowStates: ExportedEpicWorkflowState[],\n  attachmentFiles: { archivePath, originalTicketId, filename }[]\n}\n```\n\n**Included**: epic metadata, tickets (full), acceptance criteria, comments, review findings, demo scripts, workflow states, epic learnings, attachment binaries\n**Excluded**: telemetry, Ralph sessions/events, conversation logs, Claude tasks/snapshots, git branch/PR/commit fields, linkedFiles (machine-specific paths), internal UUIDs (regenerated on import)\n\n---\n\n## Edge Cases\n\n| Case | Handling |\n|------|----------|\n| **Re-import (same epic name exists)** | Detect conflict, prompt user to choose: Create New / Replace / Merge |\n| **Replace mode** | Delete existing epic's tickets + related data, import fresh. Needs confirmation. |\n| **Merge mode** | Match tickets by title. New tickets added, existing updated with imported version. |\n| **Create New mode** | Import as separate epic with \" (from {username})\" suffix. Safe default. |\n| **Circular sharing** (A→B→A) | `shared-by:` tags accumulate, import comments provide audit trail |\n| **Archive >100MB** | Fail export with clear error, suggest removing large attachments |\n| **Missing attachment on disk** | Warn in export result but continue (don't fail the whole export) |\n| **Corrupt/invalid zip** | `InvalidArchiveError` with clear message |\n| **Future manifest version** | Reject with \"incompatible version\" error, suggest upgrading Brain Dump |\n| **Empty epic** (no tickets) | Allow export - creates archive with just epic metadata |\n| **Orphan tickets** (project export) | Include tickets with no epicId, import them as unassigned in target project |\n| **Tag stacking** on re-import | Accumulate `shared-by:` tags (don't deduplicate - shows full provenance) |\n| **Position conflicts** | Append imported tickets after highest existing position in the column |\n| **Duplicate import** (same file twice) | Fresh UUIDs each time, so no ID conflicts. User gets duplicates (merge mode handles this) |\n\n---\n\n## Implementation Plan\n\n### Phase 1: Foundation (core types + dependency)\n\n**1.1 Add jszip dependency**\n```bash\npnpm add jszip\n```\n- Single dependency handles both zip read and write\n- Ships with TypeScript types built-in\n\n**1.2 Create `core/transfer-types.ts`**\n- All manifest interfaces: `BrainDumpManifest`, `ExportedEpic`, `ExportedTicket`, `ExportedComment`, `ExportedReviewFinding`, `ExportedDemoScript`, `ExportedWorkflowState`, `ExportedEpicWorkflowState`, `ExportedAttachmentFile`\n- Param/result types: `ExportResult`, `ImportParams`, `ImportResult`, `ConflictResolution`\n\n**1.3 Add error classes to `core/errors.ts`**\n- `TransferError` (base for export/import errors)\n- `InvalidArchiveError` (corrupt zip, bad manifest version)\n- `ArchiveTooLargeError` (exceeds 100MB limit)\n\n**1.4 Update `core/index.ts`**\n- Export all new types and functions from transfer modules\n\n### Phase 2: Core Logic\n\n**2.1 Create `core/transfer.ts`** - Pure export/import business logic\n\nExport functions (no zip dependency - works with manifest + buffer map):\n- `gatherEpicExportData(db, { epicId })` → `ExportResult`\n  - Query epic + project for metadata\n  - Query all tickets for the epic\n  - For each ticket: query comments, review findings, demo scripts, workflow state\n  - Query epic workflow state (learnings)\n  - Read attachment files from disk into buffers\n  - Strip git/PR fields, parse JSON columns, auto-detect username\n  - Check total size against 100MB limit\n- `gatherProjectExportData(db, { projectId })` → `ExportResult`\n  - Same as above but for ALL epics + orphan tickets in the project\n\nImport function:\n- `importData(db, params: ImportParams)` → `ImportResult`\n  - Generate fresh UUIDs, build old→new ID map\n  - Detect epic name conflicts, apply `conflictResolution` strategy\n  - In a single transaction:\n    - Insert epics (mapped to target project)\n    - Insert tickets (remap epicId, append `shared-by:{username}` tag, clear git fields, recalculate positions)\n    - Insert comments (remap ticketId) + add provenance comment per ticket\n    - Insert review findings (remap ticketId)\n    - Insert demo scripts (remap ticketId)\n    - Insert workflow states (remap ticketId/epicId)\n  - Extract attachment files to `{attachmentsDir}/{newTicketId}/{filename}`\n  - Return counts + id map + warnings\n\nReuse existing functions:\n- `core/db.ts` → `getDataDir()` for attachment paths\n- `core/json.ts` → `safeJsonParse()` for JSON column handling\n- `core/git-utils.ts` → `slugify()` for filename generation\n\n**2.2 Create `core/transfer-zip.ts`** - Thin zip adapter\n\n- `createBrainDumpArchive(data: ExportResult)` → `Promise<Buffer>`\n- `extractBrainDumpArchive(zipBuffer: Buffer)` → `Promise<{ manifest, attachmentBuffers }>`\n- `previewBrainDumpArchive(zipBuffer: Buffer)` → `Promise<ManifestPreview>` (reads only manifest.json, skips attachments)\n\n### Phase 3: CLI\n\n**3.1 Create `cli/commands/transfer.ts`**\n\nActions: `export-epic`, `export-project`, `import`\n\nFlags:\n- `--epic <id>` / `--project <id>` / `--target-project <id>`\n- `--file <path>` (for import)\n- `--output <path>` (for export)\n- `--reset-statuses` (import: reset all to backlog)\n- `--conflict <create-new|replace|merge>` (import: how to handle existing epics)\n- `--pretty` (human-readable output)\n\nUses `runAsync` since jszip operations are async.\n\n**3.2 Update `cli/brain-dump.ts`**\n- Add `import * as transfer from \"./commands/transfer.ts\"`\n- Add `\"transfer\"` to `RESOURCES` array\n- Add `case \"transfer\": runAsync(transfer.handle, action, rest)` to switch\n- Add backward-compat shortcuts: `brain-dump export` and `brain-dump import`\n\n### Phase 4: Server Functions + Hooks\n\n**4.1 Create `src/api/transfer.ts`** - TanStack Start server functions\n\n4 server functions:\n- `exportEpic(epicId)` → `{ filename, data: base64, manifest summary }`\n- `exportProject(projectId)` → same shape\n- `previewImport(base64Data)` → manifest preview (epic names, counts, exporter info)\n- `performImport({ fileData, targetProjectId, resetStatuses, conflictResolution })` → `ImportResult`\n\nThe UI uses base64 encoding to transfer zip data between browser and server. Server functions pass `sqlite` (raw better-sqlite3 instance from `src/lib/db.ts`) to core functions.\n\n**4.2 Create `src/lib/hooks/transfer.ts`** - React Query mutations\n\n- `useExportEpic()` - mutation, triggers browser download on success\n- `useExportProject()` - mutation, triggers browser download on success\n- `usePreviewImport()` - mutation, returns manifest preview for UI\n- `usePerformImport()` - mutation, invalidates `queryKeys.allTickets`, `queryKeys.projects`, `queryKeys.allTags` on success\n\n**4.3 Create `src/lib/download.ts`** - Browser download utility\n\n- `downloadBase64File(base64Data, filename, mimeType)` - creates Blob, triggers `<a>` click download\n\n**4.4 Update `src/lib/hooks/index.ts`**\n- Add transfer hooks section with re-exports\n\n### Phase 5: UI Components\n\n**5.1 Create `src/components/transfer/ExportModal.tsx`**\n\nSimple confirmation modal shown when user clicks export:\n- Shows what will be exported (epic name, ticket count, attachment count)\n- Loading state while generating\n- Triggers browser download on success\n- Toast notification\n\n**5.2 Create `src/components/transfer/ImportModal.tsx`**\n\nMulti-step wizard modal:\n\n**Step 1 - File Selection:**\n- Drag-and-drop zone or file picker button\n- Accept only `.braindump` files\n- Read file, call `previewImport` to parse manifest\n\n**Step 2 - Preview & Options:**\n- Show: exporter name, source project, epic names, ticket/comment/finding/attachment counts\n- Project picker dropdown (required - which project to import into)\n- \"Reset all statuses to backlog\" toggle (default: off)\n- Conflict resolution radio (shown only if epic name conflict detected):\n  - \"Create as new epic\" (default, safe)\n  - \"Replace existing epic\" (with confirmation warning)\n  - \"Merge into existing epic\"\n\n**Step 3 - Result:**\n- Success: \"Imported X tickets into Y project\" with counts breakdown\n- Navigate to project or close\n\n**5.3 Update `src/components/EpicModal.tsx`**\n- Add \"Export\" option to the existing action dropdown menu (alongside Ralph launch options)\n- Opens ExportModal with the epic's ID\n\n**5.4 Add Import button to sidebar/navigation**\n- Add an \"Import\" button near the project list area\n- Uses Upload icon from lucide-react\n- Opens ImportModal\n\n**5.5 Add Project-level export**\n- Add \"Export Project\" to project context menu or ProjectModal\n- Opens ExportModal in project mode\n\n### Phase 6: Testing\n\n**6.1 Create `core/__tests__/transfer.test.ts`** - Core logic tests\n\nUsing `createTestDatabase()` from `core/db.ts`:\n\n- Export epic with tickets, comments, findings, demos → verify manifest structure\n- Export project with multiple epics + orphan tickets\n- Import into fresh project → verify all entities created with new IDs\n- Import with `resetStatuses: true` → verify all tickets in backlog\n- Import adds `shared-by:{username}` tag to every ticket\n- Import adds provenance comment to every ticket\n- Re-import with `conflictResolution: \"create-new\"` → creates separate epic\n- Re-import with `conflictResolution: \"replace\"` → old tickets removed, new inserted\n- Re-import with `conflictResolution: \"merge\"` → matching tickets updated, new added\n- Exported data excludes telemetry/sessions/conversation logs\n- Exported data excludes git/PR fields\n- Position calculation doesn't conflict with existing tickets\n- Archive size limit enforcement (>100MB rejected)\n- Missing attachment on disk → warning, not failure\n\n**6.2 Create `core/__tests__/transfer-zip.test.ts`** - Zip round-trip tests\n\n- Create export data → zip → extract → verify manifest matches\n- Attachments survive round-trip (binary integrity)\n- Invalid/corrupt zip rejected with clear error\n- Invalid manifest version rejected\n- Preview reads only manifest (fast, skips attachments)\n\n---\n\n## Files Summary\n\n### New Files (10)\n\n| File | Purpose |\n|------|---------|\n| `core/transfer-types.ts` | Manifest + param/result type definitions |\n| `core/transfer.ts` | Pure export/import business logic |\n| `core/transfer-zip.ts` | JSZip wrapper (create/extract/preview) |\n| `core/__tests__/transfer.test.ts` | Core logic tests |\n| `core/__tests__/transfer-zip.test.ts` | Zip round-trip tests |\n| `cli/commands/transfer.ts` | CLI command handler |\n| `src/api/transfer.ts` | TanStack Start server functions |\n| `src/lib/hooks/transfer.ts` | React Query mutations |\n| `src/lib/download.ts` | Browser file download utility |\n| `src/components/transfer/ExportModal.tsx` | Export confirmation + download modal |\n| `src/components/transfer/ImportModal.tsx` | Import wizard modal |\n\n### Modified Files (5)\n\n| File | Change |\n|------|--------|\n| `package.json` | Add `jszip` dependency |\n| `core/errors.ts` | Add `TransferError`, `InvalidArchiveError`, `ArchiveTooLargeError` |\n| `core/index.ts` | Export transfer module |\n| `cli/brain-dump.ts` | Add `transfer` resource + backward-compat shortcuts |\n| `src/lib/hooks/index.ts` | Re-export transfer hooks |\n| `src/components/EpicModal.tsx` | Add export button to action dropdown |\n\n---\n\n## Verification Plan\n\nAfter implementation, verify the full end-to-end flow:\n\n1. **Core tests**: `pnpm test core/__tests__/transfer.test.ts core/__tests__/transfer-zip.test.ts`\n2. **Type check**: `pnpm type-check`\n3. **Lint**: `pnpm lint`\n4. **CLI test**: `pnpm brain-dump transfer export-epic --epic <id> --pretty` then `pnpm brain-dump transfer import --file <path> --target-project <id> --pretty`\n5. **UI test** (manual at localhost:4242):\n   - Open an epic → action menu → Export → file downloads\n   - Click Import in sidebar → select the downloaded file → preview shows correctly → pick project → import → tickets appear on kanban board\n   - Verify `shared-by:` tags visible on imported ticket cards\n   - Filter by `shared-by:` tag → only imported tickets shown\n   - Re-import same file → conflict dialog appears → test all 3 resolution modes\n6. **Full check**: `pnpm check` (type-check + lint + all tests)\n\n---\n\n## Branch & PR Strategy\n\n**All tickets in this epic will be implemented on a single shared branch and submitted as one PR.** Use `workflow start-epic` to create the shared branch before starting the first ticket.",
+      "description": "# Overview: Projects Home Page\n\n**Epic:** Projects Home Page\n**Branch/PR:** All tickets in this epic share a single branch and PR. Use `workflow` `start-epic` to create the shared branch before starting work on any ticket.\n\n---\n\n# Plan: Projects Home Page\n\n## Context\n\nCurrently Brain Dump drops users directly onto a kanban board showing all tickets — which gets overwhelming as projects grow. This change introduces a clean **Projects home page** as the landing page, with drill-down into epics, providing a structured entry: **Projects → Epics → Filtered Kanban Board**.\n\n## Route Changes\n\n| Before | After |\n|--------|-------|\n| `/` → Kanban board | `/` → Projects home page |\n| _(none)_ | `/board` → Kanban board (moved from `/`) |\n| _(none)_ | `/projects/$projectId` → Project detail (epic list) |\n\nThe sidebar \"Projects\" icon (shortcut 3) **keeps** its current behavior (opens slide-out ProjectsPanel). The \"Board\" icon (shortcut 2) updates to point to `/board`. \n\n## Steps\n\n### 1. Move kanban board from `/` to `/board`\n\n- **Create** `src/routes/board.tsx` — copy entire contents of current `src/routes/index.tsx`, change route path to `/board`\n- **Update** `src/routes/index.tsx` — replace with new Projects home (step 3)\n\n### 2. Update internal navigations from `/` to `/board`\n\nThese files navigate to `/` expecting the board — update to `/board`:\n\n| File | Line | Change |\n|------|------|--------|\n| `src/routes/dashboard.tsx` | 112 | `navigate({ to: \"/board\" })` |\n| `src/routes/ticket.$id.tsx` | 60, 330 | `router.navigate({ to: \"/board\" })` |\n| `src/components/AppLayout.tsx` | 367 | `navigate({ to: \"/board\" })` |\n\n### 3. Create Projects home page (`/`)\n\n**New file:** `src/routes/index.tsx`\n\n- Uses `useProjectsWithAIActivity()` hook (already exists in `src/lib/hooks/projects.ts`)\n- Renders a responsive grid of project cards\n- Each card shows: project name, path (truncated), epic count, ticket stats, AI activity glow\n- Click a card → navigate to `/projects/$projectId`\n- Empty state with \"Add Project\" CTA\n- Header with \"Projects\" title + \"New Project\" button (reuse existing `ProjectModal`)\n\n**New file:** `src/components/projects/ProjectCard.tsx`\n\n- Card component for the grid\n- Props: project data (ProjectWithAIActivity), onClick, onEdit\n- Shows color accent from `project.color`\n- AI glow animation when `hasActiveAI` (reuse existing keyframes from ProjectsPanel)\n- \"View All Tickets\" secondary action → navigate to `/board?project=X`\n\n### 4. Create Project detail page (`/projects/$projectId`)\n\n**New file:** `src/routes/projects.$projectId.tsx`\n\n- Fetches project from `useProjects()` by matching `projectId` param\n- Shows project header (name, path, color) with back navigation to `/`\n- Lists epics using existing `EpicListItem` component from `src/components/navigation/EpicListItem.tsx`\n- Click epic → navigate to `/board?project=X&epic=Y` (uses existing URL filter system)\n- \"View All Tickets\" button → navigate to `/board?project=X`\n- \"Add Epic\" button (reuse existing epic creation modal)\n- Empty state: \"No epics yet — create your first epic to organize your tickets\"\n- Epic ticket counts via `useTickets` or a lightweight count query\n\n### 5. Update sidebar navigation\n\n**Modify** `src/components/navigation/IconSidebar.tsx`:\n- Change Board nav item path from `\"/\"` to `\"/board\"`\n- Add new \"Home\" nav item at position 0 with path `\"/\"`  and a Home icon\n- Update shortcut keys: Home=1, Dashboard=2, Board=3, Projects=4(panel), Settings=5\n\n**OR** simpler approach — keep 4 items, just update Board path:\n- Dashboard (1) → `/dashboard`\n- Board (2) → `/board`\n- Projects (3) → slide-out panel (unchanged)\n- Settings (4) → modal (unchanged)\n\nUsers reach the home page by clicking the app logo/brand or navigating to `/` directly. The sidebar doesn't need a dedicated home item if the header has one.\n\n### 6. Add home navigation affordance\n\nAdd a clickable logo/brand element in the header (`src/components/layout/AppHeader.tsx`) that navigates to `/` (projects home). This gives users a consistent way back to the projects overview.\n\n## Key Files\n\n| File | Action | Purpose |\n|------|--------|---------|\n| `src/routes/board.tsx` | Create | New board route (moved from index) |\n| `src/routes/index.tsx` | Rewrite | New projects home page |\n| `src/routes/projects.$projectId.tsx` | Create | Project detail with epic list |\n| `src/components/projects/ProjectCard.tsx` | Create | Project card for grid |\n| `src/components/navigation/IconSidebar.tsx` | Modify | Update Board path to `/board` |\n| `src/components/layout/AppHeader.tsx` | Modify | Add home link on logo/brand |\n| `src/routes/dashboard.tsx` | Modify | Update nav to `/board` |\n| `src/routes/ticket.$id.tsx` | Modify | Update nav to `/board` |\n| `src/components/AppLayout.tsx` | Modify | Update nav to `/board` |\n\n## Reusable Existing Code\n\n- **`useProjectsWithAIActivity()`** — `src/lib/hooks/projects.ts` — projects + AI glow data\n- **`useProjects()`** — `src/lib/hooks/projects.ts` — projects with epics\n- **`EpicListItem`** — `src/components/navigation/EpicListItem.tsx` — compact epic row with actions\n- **`EpicDrillInView`** — `src/components/navigation/EpicDrillInView.tsx` — epic list with search/back nav (reference for layout)\n- **`ProjectModal`** — existing modal for creating/editing projects\n- **`EpicModal`** — existing modal for creating/editing epics\n- **URL filter system** — `useFiltersWithUrl()` in `src/lib/filter-hooks.ts` — board already reads `?project=X&epic=Y`\n- **AI glow keyframes** — from ProjectsPanel CSS\n\n## Verification\n\n1. `pnpm type-check` — no type errors\n2. `pnpm lint` — no lint errors\n3. `pnpm test` — existing tests pass\n4. Manual testing:\n   - Navigate to `/` → see project cards\n   - Click project → see epic list at `/projects/:id`\n   - Click epic → board opens at `/board?project=X&epic=Y` with filtered tickets\n   - Click \"View All Tickets\" → board opens at `/board?project=X`\n   - Sidebar Board icon → goes to `/board`\n   - Sidebar Projects icon → opens slide-out panel (unchanged)\n   - Dashboard \"back\" nav → goes to `/board`\n   - Browser back/forward works across all transitions\n   - Empty state renders when no projects exist\n   - Empty epic state renders when project has no epics",
       "priority": "high",
       "tags": [
         "overview",
-        "reference",
-        "do-not-implement"
+        "planning"
       ]
     },
     {
-      "id": "47e1bdf4-cf19-ae06-cd9d-e4c04b6f126e",
-      "title": "Redesign sidebar import button for better discoverability",
-      "passes": true,
+      "id": "73fab3e7-a1a9-464d-a96a-323778157cca",
+      "title": "Move kanban board from `/` to `/board`",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Import button has visible label text (not just an icon)",
-        "Button is visually distinct and clearly communicates its purpose",
-        "Maintains visual harmony with the Add Project button",
-        "Responsive - works well at different panel widths"
+        "`src/routes/board.tsx` exists and renders the kanban board at `/board`",
+        "Navigating to `/board` shows the full kanban board with all existing functionality",
+        "`pnpm type-check` passes",
+        "`pnpm lint` passes"
       ],
-      "references": [],
-      "description": "The current import .braindump button in the ProjectsPanel sidebar footer is a tiny icon-only button (Upload icon) with flex: 0, squeezed next to the \"Add Project\" button. It is easy to miss and looks like an afterthought.\n\n## Current State\n- Icon-only button with no label text\n- Only discoverable via hover tooltip (\"Import .braindump archive\")\n- Visually cramped next to Add Project\n\n## Acceptance Criteria\n- [ ] Import button has visible label text (not just an icon)\n- [ ] Button is visually distinct and clearly communicates its purpose\n- [ ] Maintains visual harmony with the Add Project button\n- [ ] Responsive - works well at different panel widths\n\n## Technical Notes\n- File: src/components/navigation/ProjectsPanel.tsx (lines 788-796)\n- The footer section uses flex layout with addButtonStyles\n- Consider: full-width button below Add Project, or a more prominent icon+label layout",
-      "priority": "medium",
-      "tags": []
+      "references": [
+        "src/routes/board.tsx",
+        "src/routes/index.tsx"
+      ],
+      "description": "## Shared Branch/PR\n\nAll tickets in epic \"Projects Home Page\" share a single branch and PR. Use `workflow` `start-epic` on the epic to create the shared branch before starting work.\n\n## What\n\nMove the existing kanban board route from `/` to `/board` so `/` can become the new Projects home page.\n\n## Steps\n\n1. **Create** `src/routes/board.tsx` — copy entire contents of current `src/routes/index.tsx`, change route path to `/board`\n2. Leave `src/routes/index.tsx` as a stub (will be replaced by the Projects home page ticket)\n\n## Acceptance Criteria\n\n- [ ] `src/routes/board.tsx` exists and renders the kanban board at `/board`\n- [ ] Navigating to `/board` shows the full kanban board with all existing functionality\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm lint` passes",
+      "priority": "high",
+      "tags": [
+        "routing",
+        "refactor"
+      ]
     },
     {
-      "id": "607e2442-67f0-2666-daa8-51d0c1174570",
-      "title": "Add Import .braindump option to Create Project modal",
-      "passes": true,
+      "id": "511591a8-de3a-48f4-957c-6e35bd4fb552",
+      "title": "Update internal navigations from `/` to `/board`",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Create Project modal has two modes: New and Import",
-        "Import mode shows drag-and-drop zone for .braindump files",
-        "After file selection, preview shows archive contents (epic count, ticket count, etc.)",
-        "User can customize project name and color before importing",
-        "Conflict resolution options shown when applicable",
-        "Successful import creates project and navigates to it",
-        "Existing standalone ImportModal still works for importing into an EXISTING project"
+        "All navigations that previously went to `/` (expecting the board) now go to `/board`",
+        "Dashboard \"back\" navigation goes to `/board`",
+        "Ticket detail \"back to board\" goes to `/board`",
+        "AppLayout fallback navigation goes to `/board`",
+        "`pnpm type-check` passes",
+        "`pnpm lint` passes"
       ],
-      "references": [],
-      "description": "The Create Project modal is the natural discovery point for importing a project. Users should be able to either create a new project from scratch OR import one from a .braindump archive, right from the same modal.\n\n## Current State\n- CreateProjectModal only supports creating new projects (name + path + color)\n- Import is only accessible via a small icon button in the sidebar footer\n- Users who want to import may not even know the feature exists\n\n## Proposed UX\n- Add a tab or toggle at the top of the Create Project modal: \"New Project\" | \"Import .braindump\"\n- The Import tab reuses the existing ImportModal file selection (drag and drop zone, file picker)\n- After selecting a file, show the preview with project name auto-filled from the archive\n- User can still pick color and override the project name\n- On import, a new project is created with the imported data\n\n## Acceptance Criteria\n- [ ] Create Project modal has two modes: New and Import\n- [ ] Import mode shows drag-and-drop zone for .braindump files\n- [ ] After file selection, preview shows archive contents (epic count, ticket count, etc.)\n- [ ] User can customize project name and color before importing\n- [ ] Conflict resolution options shown when applicable\n- [ ] Successful import creates project and navigates to it\n- [ ] Existing standalone ImportModal still works for importing into an EXISTING project\n\n## Technical Notes\n- Files: src/components/projects/CreateProjectModal.tsx, src/components/transfer/ImportModal.tsx\n- Reuse processFile, preview logic, and import mutation from ImportModal\n- Consider extracting shared import logic into a hook or shared component\n- The standalone ImportModal remains for importing into existing projects (e.g. from epic context menu)",
+      "references": [
+        "src/routes/dashboard.tsx",
+        "src/routes/ticket.$id.tsx",
+        "src/components/AppLayout.tsx"
+      ],
+      "description": "## Shared Branch/PR\n\nAll tickets in epic \"Projects Home Page\" share a single branch and PR. Use `workflow` `start-epic` on the epic to create the shared branch before starting work.\n\n## What\n\nSeveral files navigate to `/` expecting the kanban board. Update all of them to point to `/board`.\n\n## Files to Update\n\n| File | Line | Change |\n|------|------|--------|\n| `src/routes/dashboard.tsx` | ~112 | `navigate({ to: \"/board\" })` |\n| `src/routes/ticket.$id.tsx` | ~60, ~330 | `router.navigate({ to: \"/board\" })` |\n| `src/components/AppLayout.tsx` | ~367 | `navigate({ to: \"/board\" })` |\n\n## Acceptance Criteria\n\n- [ ] All navigations that previously went to `/` (expecting the board) now go to `/board`\n- [ ] Dashboard \"back\" navigation goes to `/board`\n- [ ] Ticket detail \"back to board\" goes to `/board`\n- [ ] AppLayout fallback navigation goes to `/board`\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm lint` passes",
+      "priority": "high",
+      "tags": [
+        "routing",
+        "refactor"
+      ]
+    },
+    {
+      "id": "dca04300-404b-438b-848f-2eabfcdc0991",
+      "title": "Create Projects home page (`/`)",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`/` renders a responsive grid of project cards",
+        "Each card shows project name, path, epic count, ticket stats",
+        "AI activity glow appears on cards with active sessions",
+        "Clicking a card navigates to `/projects/$projectId`",
+        "Empty state renders with \"Add Project\" CTA when no projects exist",
+        "\"New Project\" button opens ProjectModal",
+        "`pnpm type-check` passes",
+        "`pnpm lint` passes"
+      ],
+      "references": [
+        "src/routes/index.tsx",
+        "src/lib/hooks/projects.ts",
+        "src/components/projects/ProjectCard.tsx"
+      ],
+      "description": "## Shared Branch/PR\n\nAll tickets in epic \"Projects Home Page\" share a single branch and PR. Use `workflow` `start-epic` on the epic to create the shared branch before starting work.\n\n## What\n\nBuild the new Projects home page that replaces the kanban board at `/`. This is the main landing page showing all projects as a responsive card grid.\n\n## New Files\n\n### `src/routes/index.tsx`\n- Uses `useProjectsWithAIActivity()` hook (already exists in `src/lib/hooks/projects.ts`)\n- Renders a responsive grid of project cards\n- Each card shows: project name, path (truncated), epic count, ticket stats, AI activity glow\n- Click a card → navigate to `/projects/$projectId`\n- Empty state with \"Add Project\" CTA\n- Header with \"Projects\" title + \"New Project\" button (reuse existing `ProjectModal`)\n\n### `src/components/projects/ProjectCard.tsx`\n- Card component for the grid\n- Props: project data (ProjectWithAIActivity), onClick, onEdit\n- Shows color accent from `project.color`\n- AI glow animation when `hasActiveAI` (reuse existing keyframes from ProjectsPanel)\n- \"View All Tickets\" secondary action → navigate to `/board?project=X`\n\n## Reusable Code\n- `useProjectsWithAIActivity()` — `src/lib/hooks/projects.ts`\n- `ProjectModal` — existing modal for creating/editing projects\n- AI glow keyframes — from ProjectsPanel CSS\n\n## Acceptance Criteria\n\n- [ ] `/` renders a responsive grid of project cards\n- [ ] Each card shows project name, path, epic count, ticket stats\n- [ ] AI activity glow appears on cards with active sessions\n- [ ] Clicking a card navigates to `/projects/$projectId`\n- [ ] Empty state renders with \"Add Project\" CTA when no projects exist\n- [ ] \"New Project\" button opens ProjectModal\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm lint` passes",
+      "priority": "high",
+      "tags": [
+        "feature",
+        "ui",
+        "routing"
+      ]
+    },
+    {
+      "id": "f137d657-4a41-4a3b-9721-05fa3d493a52",
+      "title": "Create Project detail page (`/projects/$projectId`)",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`/projects/:id` renders project header with name, path, color",
+        "Back navigation returns to `/` (projects home)",
+        "Epics are listed with ticket counts",
+        "Clicking an epic navigates to `/board?project=X&epic=Y`",
+        "\"View All Tickets\" navigates to `/board?project=X`",
+        "\"Add Epic\" button opens EpicModal",
+        "Empty state renders when project has no epics",
+        "404/redirect when project ID doesn't exist",
+        "`pnpm type-check` passes",
+        "`pnpm lint` passes"
+      ],
+      "references": [
+        "src/routes/projects.$projectId.tsx",
+        "src/components/navigation/EpicListItem.tsx",
+        "src/lib/hooks/projects.ts",
+        "src/components/navigation/EpicDrillInView.tsx",
+        "src/lib/filter-hooks.ts"
+      ],
+      "description": "## Shared Branch/PR\n\nAll tickets in epic \"Projects Home Page\" share a single branch and PR. Use `workflow` `start-epic` on the epic to create the shared branch before starting work.\n\n## What\n\nBuild the project detail page that shows a project's epics and provides drill-down navigation to the filtered kanban board.\n\n## New File\n\n### `src/routes/projects.$projectId.tsx`\n- Fetches project from `useProjects()` by matching `projectId` param\n- Shows project header (name, path, color) with back navigation to `/`\n- Lists epics using existing `EpicListItem` component from `src/components/navigation/EpicListItem.tsx`\n- Click epic → navigate to `/board?project=X&epic=Y` (uses existing URL filter system)\n- \"View All Tickets\" button → navigate to `/board?project=X`\n- \"Add Epic\" button (reuse existing epic creation modal)\n- Empty state: \"No epics yet — create your first epic to organize your tickets\"\n- Epic ticket counts via `useTickets` or a lightweight count query\n\n## Reusable Code\n- `useProjects()` — `src/lib/hooks/projects.ts`\n- `EpicListItem` — `src/components/navigation/EpicListItem.tsx`\n- `EpicDrillInView` — `src/components/navigation/EpicDrillInView.tsx` (reference for layout)\n- `EpicModal` — existing modal for creating/editing epics\n- URL filter system — `useFiltersWithUrl()` in `src/lib/filter-hooks.ts`\n\n## Acceptance Criteria\n\n- [ ] `/projects/:id` renders project header with name, path, color\n- [ ] Back navigation returns to `/` (projects home)\n- [ ] Epics are listed with ticket counts\n- [ ] Clicking an epic navigates to `/board?project=X&epic=Y`\n- [ ] \"View All Tickets\" navigates to `/board?project=X`\n- [ ] \"Add Epic\" button opens EpicModal\n- [ ] Empty state renders when project has no epics\n- [ ] 404/redirect when project ID doesn't exist\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm lint` passes",
+      "priority": "high",
+      "tags": [
+        "feature",
+        "ui",
+        "routing"
+      ]
+    },
+    {
+      "id": "c31f8560-4a3a-4aca-bd31-6643f12101a3",
+      "title": "Update sidebar navigation and add home affordance",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Sidebar Board icon navigates to `/board`",
+        "Sidebar Projects icon still opens slide-out panel (unchanged)",
+        "Header logo/brand navigates to `/` (projects home)",
+        "Keyboard shortcuts still work correctly",
+        "`pnpm type-check` passes",
+        "`pnpm lint` passes"
+      ],
+      "references": [
+        "src/components/navigation/IconSidebar.tsx",
+        "src/components/layout/AppHeader.tsx"
+      ],
+      "description": "## Shared Branch/PR\n\nAll tickets in epic \"Projects Home Page\" share a single branch and PR. Use `workflow` `start-epic` on the epic to create the shared branch before starting work.\n\n## What\n\nUpdate the sidebar and header to reflect the new routing structure. The Board icon should point to `/board` and users need a way to navigate back to the Projects home page.\n\n## Changes\n\n### `src/components/navigation/IconSidebar.tsx`\n- Change Board nav item path from `\"/\"` to `\"/board\"`\n- Keep existing sidebar items: Dashboard (1), Board (2), Projects (3, slide-out panel), Settings (4, modal)\n\n### `src/components/layout/AppHeader.tsx`\n- Add a clickable logo/brand element that navigates to `/` (projects home)\n- This gives users a consistent way back to the projects overview from anywhere\n\n## Acceptance Criteria\n\n- [ ] Sidebar Board icon navigates to `/board`\n- [ ] Sidebar Projects icon still opens slide-out panel (unchanged)\n- [ ] Header logo/brand navigates to `/` (projects home)\n- [ ] Keyboard shortcuts still work correctly\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm lint` passes",
       "priority": "medium",
-      "tags": []
+      "tags": [
+        "ui",
+        "navigation"
+      ]
     }
   ],
   "projectContext": {
@@ -392,7 +332,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-02-13T21:46:09.747Z",
-  "epicTitle": "Epic/Project Export & Import (.braindump)",
-  "epicDescription": "Enable async team sharing by letting users export an epic (or full project) as a portable `.braindump` file and import it into another Brain Dump instance. The export is a complete context bundle - everything an AI or human needs to pick up the work, minus operational noise (telemetry, sessions).\n\nKey deliverables:\n- Core export/import logic with zip packaging\n- MCP tool (transfer) with 3 actions\n- CLI commands (export-epic, export-project, import)\n- UI components (ExportModal, ImportModal)\n- Conflict resolution (create-new, replace, merge)\n- shared-by:{username} attribution tagging\n- 100MB archive size limit\n\nAll tickets in this epic share a single branch and PR."
+  "generatedAt": "2026-02-13T22:51:32.954Z",
+  "epicTitle": "Projects Home Page",
+  "epicDescription": "Introduce a structured Projects home page as the landing page with drill-down into epics. Navigation flow: Projects → Epics → Filtered Kanban Board. All tickets in this epic share a single branch and PR."
 }
