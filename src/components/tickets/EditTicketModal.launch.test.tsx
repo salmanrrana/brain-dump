@@ -3,12 +3,13 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { EditTicketModal } from "./EditTicketModal";
 
-const mockShowToast = vi.fn();
-const mockLaunchCodexInTerminal = vi.fn();
-const mockGetTicketContext = vi.fn();
+const mockShowToast = vi.hoisted(() => vi.fn());
+const mockLaunchCodexInTerminal = vi.hoisted(() => vi.fn());
+const mockGetTicketContext = vi.hoisted(() => vi.fn());
 
 vi.mock("../../lib/hooks", () => ({
   useClickOutside: vi.fn(),
+  useModalKeyboard: vi.fn(),
   useProjects: vi.fn(() => ({
     projects: [
       {

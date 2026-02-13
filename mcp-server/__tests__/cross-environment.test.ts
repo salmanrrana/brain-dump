@@ -17,7 +17,7 @@ import { detectEnvironment, detectAuthor, getEnvironmentInfo } from "../lib/envi
  */
 
 describe("MCP Protocol Compatibility", () => {
-  const projectRoot = "/Users/salman.rana/code/brain-dump";
+  const projectRoot = path.resolve(__dirname, "../../");
   const mcpServerPath = path.join(projectRoot, "mcp-server/index.ts");
 
   beforeAll(() => {

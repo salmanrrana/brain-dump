@@ -11,7 +11,7 @@
     {
       "id": "6de39d35-b1bf-4cee-919c-f6adf267d6fe",
       "title": "Phase 1: Foundation - Types, Errors & jszip Dependency",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -34,7 +34,7 @@
     {
       "id": "a7e383a8-0f17-4459-b0db-6686c16d00a5",
       "title": "Phase 2: Core Export & Import Logic",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -64,7 +64,7 @@
     {
       "id": "938f6875-1aef-4a88-a9eb-9bf635360988",
       "title": "Phase 4: CLI Transfer Commands",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -90,7 +90,7 @@
     {
       "id": "be53f60b-fc07-4d82-b7f1-bfc60f8329de",
       "title": "Phase 5: Server Functions & React Query Hooks",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -123,7 +123,7 @@
     {
       "id": "f4df95f6-9d43-4d54-bcb7-74e99c0e98b4",
       "title": "Phase 6: UI - Export & Import Modals",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -156,7 +156,7 @@
     {
       "id": "b7b0d4ec-5f43-4219-bf0f-e6171625875c",
       "title": "Phase 7: Tests - Core Logic & Zip Round-trip",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -180,7 +180,7 @@
     {
       "id": "a267d7a5-9ae2-4f9f-8f9f-7d52681ed13c",
       "title": "Overview: Export & Import Implementation Plan",
-      "passes": true,
+      "passes": false,
       "overview": "Brain Dump is local-first with no built-in team collaboration. This feature enables async team sharing by letting users **export** an epic (or full project) as a portable `.braindump` file and **import** it into another Brain Dump instance. The export is a complete context bundle - everything an AI or human needs to pick up the work, minus operational noise (telemetry, sessions).\nKey user requirements:\n- Include comments, review findings, demos, attachments/images\n- Auto-tag imported tickets with `shared-by:{username}` for attribution and filtering\n- Handle re-imports (same epic name already exists) by letting user choose: create new, replace, or merge\n- 100MB archive size limit\n- Full end-to-end: core logic + CLI + UI\n---",
       "types": [],
       "designDecisions": [],
@@ -206,6 +206,47 @@
         "reference",
         "do-not-implement"
       ]
+    },
+    {
+      "id": "47e1bdf4-cf19-ae06-cd9d-e4c04b6f126e",
+      "title": "Redesign sidebar import button for better discoverability",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Import button has visible label text (not just an icon)",
+        "Button is visually distinct and clearly communicates its purpose",
+        "Maintains visual harmony with the Add Project button",
+        "Responsive - works well at different panel widths"
+      ],
+      "references": [],
+      "description": "The current import .braindump button in the ProjectsPanel sidebar footer is a tiny icon-only button (Upload icon) with flex: 0, squeezed next to the \"Add Project\" button. It is easy to miss and looks like an afterthought.\n\n## Current State\n- Icon-only button with no label text\n- Only discoverable via hover tooltip (\"Import .braindump archive\")\n- Visually cramped next to Add Project\n\n## Acceptance Criteria\n- [ ] Import button has visible label text (not just an icon)\n- [ ] Button is visually distinct and clearly communicates its purpose\n- [ ] Maintains visual harmony with the Add Project button\n- [ ] Responsive - works well at different panel widths\n\n## Technical Notes\n- File: src/components/navigation/ProjectsPanel.tsx (lines 788-796)\n- The footer section uses flex layout with addButtonStyles\n- Consider: full-width button below Add Project, or a more prominent icon+label layout",
+      "priority": "medium",
+      "tags": []
+    },
+    {
+      "id": "607e2442-67f0-2666-daa8-51d0c1174570",
+      "title": "Add Import .braindump option to Create Project modal",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Create Project modal has two modes: New and Import",
+        "Import mode shows drag-and-drop zone for .braindump files",
+        "After file selection, preview shows archive contents (epic count, ticket count, etc.)",
+        "User can customize project name and color before importing",
+        "Conflict resolution options shown when applicable",
+        "Successful import creates project and navigates to it",
+        "Existing standalone ImportModal still works for importing into an EXISTING project"
+      ],
+      "references": [],
+      "description": "The Create Project modal is the natural discovery point for importing a project. Users should be able to either create a new project from scratch OR import one from a .braindump archive, right from the same modal.\n\n## Current State\n- CreateProjectModal only supports creating new projects (name + path + color)\n- Import is only accessible via a small icon button in the sidebar footer\n- Users who want to import may not even know the feature exists\n\n## Proposed UX\n- Add a tab or toggle at the top of the Create Project modal: \"New Project\" | \"Import .braindump\"\n- The Import tab reuses the existing ImportModal file selection (drag and drop zone, file picker)\n- After selecting a file, show the preview with project name auto-filled from the archive\n- User can still pick color and override the project name\n- On import, a new project is created with the imported data\n\n## Acceptance Criteria\n- [ ] Create Project modal has two modes: New and Import\n- [ ] Import mode shows drag-and-drop zone for .braindump files\n- [ ] After file selection, preview shows archive contents (epic count, ticket count, etc.)\n- [ ] User can customize project name and color before importing\n- [ ] Conflict resolution options shown when applicable\n- [ ] Successful import creates project and navigates to it\n- [ ] Existing standalone ImportModal still works for importing into an EXISTING project\n\n## Technical Notes\n- Files: src/components/projects/CreateProjectModal.tsx, src/components/transfer/ImportModal.tsx\n- Reuse processFile, preview logic, and import mutation from ImportModal\n- Consider extracting shared import logic into a hook or shared component\n- The standalone ImportModal remains for importing into existing projects (e.g. from epic context menu)",
+      "priority": "medium",
+      "tags": []
     }
   ],
   "projectContext": {
@@ -351,7 +392,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-02-13T20:26:49.100Z",
+  "generatedAt": "2026-02-13T21:46:09.747Z",
   "epicTitle": "Epic/Project Export & Import (.braindump)",
   "epicDescription": "Enable async team sharing by letting users export an epic (or full project) as a portable `.braindump` file and import it into another Brain Dump instance. The export is a complete context bundle - everything an AI or human needs to pick up the work, minus operational noise (telemetry, sessions).\n\nKey deliverables:\n- Core export/import logic with zip packaging\n- MCP tool (transfer) with 3 actions\n- CLI commands (export-epic, export-project, import)\n- UI components (ExportModal, ImportModal)\n- Conflict resolution (create-new, replace, merge)\n- shared-by:{username} attribution tagging\n- 100MB archive size limit\n\nAll tickets in this epic share a single branch and PR."
 }
