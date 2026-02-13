@@ -15,24 +15,26 @@ import { BoardHeader } from "../components/board";
 import { getStatusLabel } from "../lib/constants";
 import { KanbanBoard } from "../components/board/KanbanBoard";
 import { getTicket } from "../api/tickets";
+import { createBrowserLogger } from "../lib/browser-logger";
 
 export const Route = createFileRoute("/board")({
   component: Board,
 });
 
 function Board() {
+  const logger = createBrowserLogger("routes:board");
   const {
     viewMode,
     filters: appFilters,
     ticketRefreshKey,
     selectedTicketIdFromSearch,
     clearSelectedTicketFromSearch,
+    clearAllFilters,
   } = useAppState();
   const { projects } = useProjects();
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const { showToast } = useToast();
 
-  // Build filters based on selection
   const filters = useMemo(() => {
     const f: { projectId?: string; epicId?: string; tags?: string[] } = {};
     if (appFilters.projectId) f.projectId = appFilters.projectId;
@@ -81,10 +83,24 @@ function Board() {
 
     const fetchAndSelectTicket = async () => {
       try {
-        const ticket = await getTicket({ data: selectedTicketIdFromSearch });
-        setSelectedTicket(ticket as Ticket);
+        const response = await getTicket({ data: selectedTicketIdFromSearch });
+
+        // Validate response has required fields
+        if (
+          !response ||
+          typeof response !== "object" ||
+          !("id" in response) ||
+          !("title" in response)
+        ) {
+          throw new Error("Invalid ticket response: missing required fields");
+        }
+
+        setSelectedTicket(response as Ticket);
       } catch (error) {
-        console.error("Failed to fetch ticket from search:", error);
+        logger.error(
+          `Failed to fetch ticket from search: ticketId=${selectedTicketIdFromSearch}`,
+          error instanceof Error ? error : new Error(String(error))
+        );
         showToast(
           "error",
           `Failed to open ticket: ${error instanceof Error ? error.message : "Unknown error"}`
@@ -97,10 +113,7 @@ function Board() {
     void fetchAndSelectTicket();
   }, [selectedTicketIdFromSearch, clearSelectedTicketFromSearch, showToast]);
 
-  // Get all epics from projects for the list view
-  const allEpics = useMemo(() => {
-    return projects.flatMap((p) => p.epics);
-  }, [projects]);
+  const allEpics = projects.flatMap((p) => p.epics);
 
   const handleTicketClick = (ticket: Ticket) => {
     setSelectedTicket(ticket);
@@ -114,9 +127,6 @@ function Board() {
     refetch();
     setSelectedTicket(null);
   };
-
-  // Get clearAllFilters from app state (which uses the URL-synced useFilters hook)
-  const { clearAllFilters } = useAppState();
 
   if (loading) {
     return (

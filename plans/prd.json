@@ -45,7 +45,7 @@
     {
       "id": "73fab3e7-a1a9-464d-a96a-323778157cca",
       "title": "Move kanban board from `/` to `/board`",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
