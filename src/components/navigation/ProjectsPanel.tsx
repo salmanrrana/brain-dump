@@ -7,7 +7,17 @@ import {
   useMemo,
   type KeyboardEvent,
 } from "react";
-import { X, Search, Plus, Folder, ChevronRight, ChevronDown, Bot, Pencil, Upload } from "lucide-react";
+import {
+  X,
+  Search,
+  Plus,
+  Folder,
+  ChevronRight,
+  ChevronDown,
+  Bot,
+  Pencil,
+  Upload,
+} from "lucide-react";
 import { useClickOutside, type Epic } from "../../lib/hooks";
 import { EpicListItem } from "./EpicListItem";
 import { EpicDrillInView } from "./EpicDrillInView";
@@ -775,10 +785,10 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
 
         {/* Footer with Add Project and Import buttons */}
         <footer style={footerStyles}>
-          <div style={{ display: "flex", gap: "var(--spacing-2)" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-2)" }}>
             <button
               type="button"
-              style={{ ...addButtonStyles, flex: 1 }}
+              style={addButtonStyles}
               onClick={onAddProject}
               className="hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
             >
@@ -787,12 +797,12 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
             </button>
             <button
               type="button"
-              style={{ ...addButtonStyles, flex: 0 }}
+              style={addButtonStyles}
               onClick={onImport}
               className="hover:border-[var(--accent-primary)] hover:text-[var(--accent-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
-              title="Import .braindump archive"
             >
               <Upload size={16} aria-hidden="true" />
+              Import .braindump
             </button>
           </div>
         </footer>
