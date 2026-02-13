@@ -113,6 +113,51 @@ describe("setup scripts exist for all providers", () => {
   }
 });
 
+describe("mktemp portability hardening", () => {
+  it("setup-opencode.sh uses portable mktemp template syntax", () => {
+    const script = readScript("scripts/setup-opencode.sh");
+    expect(script).toContain('mktemp "${TMPDIR:-/tmp}/opencode-setup.XXXXXX"');
+  });
+
+  it("link-commit hook uses portable mktemp template syntax", () => {
+    const script = readScript(".claude/hooks/link-commit-to-ticket.sh");
+    expect(script).toContain('mktemp "${TMPDIR:-/tmp}/pending-links.XXXXXX"');
+  });
+
+  it("merge-telemetry-hooks uses portable mktemp template syntax", () => {
+    const script = readScript(".claude/hooks/merge-telemetry-hooks.sh");
+    expect(script).toContain('mktemp "${TMPDIR:-/tmp}/claude-settings.XXXXXX"');
+  });
+});
+
+describe("setup-claude-code.sh hook merge behavior", () => {
+  it("adds hooks into existing settings.json when hooks key is missing", () => {
+    const script = readScript("scripts/setup-claude-code.sh");
+    expect(script).toContain(
+      "No hooks section found. Adding Brain Dump hooks to existing settings.json"
+    );
+    expect(script).toContain("config.hooks = {");
+  });
+});
+
+describe("Linux/sudo install hardening", () => {
+  it("install.sh resolves PNPM_HOME from pnpm global bin", () => {
+    const script = readScript("install.sh");
+    expect(script).toContain("pnpm bin --global");
+  });
+
+  it("install.sh warns when running under sudo", () => {
+    const script = readScript("install.sh");
+    expect(script).toContain("Detected sudo/root execution");
+  });
+
+  it("setup-codex.sh handles sudo by targeting the invoking user home", () => {
+    const script = readScript("scripts/setup-codex.sh");
+    expect(script).toContain("SUDO_USER");
+    expect(script).toContain("TARGET_HOME");
+  });
+});
+
 describe("README.md environment table", () => {
   const readme = readScript("README.md");
 

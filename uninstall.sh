@@ -439,30 +439,6 @@ try {
 } catch (e) {
     console.error(e.message);
 }
-
-# Remove Codex integration
-remove_codex() {
-    print_step "Removing Codex integration"
-
-    CODEX_DIR="$HOME/.codex"
-    CODEX_CONFIG="$CODEX_DIR/config.toml"
-
-    if [ -f "$CODEX_CONFIG" ] && grep -q '\[mcp_servers\.brain-dump\]' "$CODEX_CONFIG"; then
-        if command -v perl >/dev/null 2>&1; then
-            # Remove the brain-dump MCP table block only, keep the rest of config intact.
-            perl -0777 -i.bak -pe 's/\n?#\s*Brain Dump MCP server\s*\n\[mcp_servers\.brain-dump\]\n(?:[^\[]*\n)*//g; s/\n?\[mcp_servers\.brain-dump\]\n(?:[^\[]*\n)*//g' "$CODEX_CONFIG" || true
-            rm -f "$CODEX_CONFIG.bak"
-            print_success "Removed brain-dump MCP server from ~/.codex/config.toml"
-            REMOVED+=("Codex MCP server")
-        else
-            print_warning "Could not edit ~/.codex/config.toml automatically (perl not found)"
-            print_info "Manually remove the [mcp_servers.brain-dump] block from: $CODEX_CONFIG"
-            SKIPPED+=("Codex MCP config (manual removal needed)")
-        fi
-    else
-        print_info "brain-dump not found in ~/.codex/config.toml"
-    fi
-}
 " 2>/dev/null && print_success "Removed brain-dump from Copilot CLI MCP config" && REMOVED+=("Copilot CLI MCP server")
         else
             print_warning "Could not remove brain-dump from mcp-config.json (node not found)"
@@ -538,6 +514,30 @@ remove_codex() {
                 REMOVED+=("Copilot CLI skills ($skills_removed)")
             fi
         fi
+    fi
+}
+
+# Remove Codex integration
+remove_codex() {
+    print_step "Removing Codex integration"
+
+    CODEX_DIR="$HOME/.codex"
+    CODEX_CONFIG="$CODEX_DIR/config.toml"
+
+    if [ -f "$CODEX_CONFIG" ] && grep -q '\[mcp_servers\.brain-dump\]' "$CODEX_CONFIG"; then
+        if command -v perl >/dev/null 2>&1; then
+            # Remove the brain-dump MCP table block only, keep the rest of config intact.
+            perl -0777 -i.bak -pe 's/\n?#\s*Brain Dump MCP server\s*\n\[mcp_servers\.brain-dump\]\n(?:[^\[]*\n)*//g; s/\n?\[mcp_servers\.brain-dump\]\n(?:[^\[]*\n)*//g' "$CODEX_CONFIG" || true
+            rm -f "$CODEX_CONFIG.bak"
+            print_success "Removed brain-dump MCP server from ~/.codex/config.toml"
+            REMOVED+=("Codex MCP server")
+        else
+            print_warning "Could not edit ~/.codex/config.toml automatically (perl not found)"
+            print_info "Manually remove the [mcp_servers.brain-dump] block from: $CODEX_CONFIG"
+            SKIPPED+=("Codex MCP config (manual removal needed)")
+        fi
+    else
+        print_info "brain-dump not found in ~/.codex/config.toml"
     fi
 }
 

@@ -110,7 +110,8 @@ async function isCodexAppInstalled(): Promise<InstallCheck> {
     } catch {
       return {
         installed: false,
-        error: "Codex App is not installed. Install it from: https://developers.openai.com/codex/app",
+        error:
+          "Codex App is not installed. Install it from: https://developers.openai.com/codex/app",
       };
     }
   }
@@ -130,7 +131,8 @@ async function isCodexInstalled(): Promise<InstallCheck> {
 
   return {
     installed: false,
-    error: "Codex is not installed. Install Codex App/CLI from: https://developers.openai.com/codex/app",
+    error:
+      "Codex is not installed. Install Codex App/CLI from: https://developers.openai.com/codex/app",
   };
 }
 
@@ -439,7 +441,7 @@ async function createLaunchScript(projectPath: string, context: string): Promise
   // 5. Keeps the shell open after Claude exits
   // Note: Context is written using heredoc with a unique delimiter that won't appear in user content
   const script = `#!/bin/bash
-set -e  # Exit on error
+set -e  # Exit on unexpected script failures
 
 cd "${safeProjectPath}"
 
@@ -952,7 +954,33 @@ echo -e "\\033[1;33m📁 Project:\\033[0m ${safeProjectPath}"
 echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
 echo ""
 
-copilot "$(cat "$CONTEXT_FILE")"
+COPILOT_PROMPT="$(cat "$CONTEXT_FILE")"
+COPILOT_HELP="$(copilot --help 2>/dev/null || true)"
+set +e
+if echo "$COPILOT_HELP" | grep -q -- "--allow-tool"; then
+  if echo "$COPILOT_HELP" | grep -qE -- "(^|[[:space:]])-p,|--prompt"; then
+    copilot --allow-tool 'brain-dump' -p "$COPILOT_PROMPT"
+  else
+    copilot --allow-tool 'brain-dump' "$COPILOT_PROMPT"
+  fi
+else
+  if echo "$COPILOT_HELP" | grep -qE -- "(^|[[:space:]])-p,|--prompt"; then
+    copilot -p "$COPILOT_PROMPT"
+  else
+    copilot "$COPILOT_PROMPT"
+  fi
+fi
+COPILOT_EXIT=$?
+set -e
+
+if [ $COPILOT_EXIT -ne 0 ]; then
+  echo ""
+  echo -e "\\033[0;33m⚠ Copilot CLI exited with code $COPILOT_EXIT\\033[0m"
+  echo "Common fixes:"
+  echo "  - Run: copilot auth login"
+  echo "  - Run: copilot --allow-tool 'brain-dump'"
+  echo "  - Verify MCP setup: brain-dump doctor"
+fi
 
 rm -f "$CONTEXT_FILE"
 
@@ -1054,7 +1082,8 @@ export const launchCodexInTerminal = createServerFn({ method: "POST" })
       );
     }
 
-    const shouldUseCli = launchMode === "cli" || (launchMode === "auto" && codexCheck.mode === "cli");
+    const shouldUseCli =
+      launchMode === "cli" || (launchMode === "auto" && codexCheck.mode === "cli");
 
     // Use Codex CLI in a terminal.
     if (shouldUseCli) {
@@ -1187,7 +1216,8 @@ export const launchCopilotInTerminal = createServerFn({ method: "POST" })
         success: false,
         method: "clipboard",
         message:
-          copilotCheck.error || "Copilot CLI is not installed. Context copied to clipboard instead.",
+          copilotCheck.error ||
+          "Copilot CLI is not installed. Context copied to clipboard instead.",
       };
     }
 
@@ -1313,7 +1343,8 @@ export const launchCursorInTerminal = createServerFn({ method: "POST" })
       return {
         success: false,
         method: "clipboard",
-        message: cursorCheck.error || "Cursor is not installed. Context copied to clipboard instead.",
+        message:
+          cursorCheck.error || "Cursor is not installed. Context copied to clipboard instead.",
       };
     }
 
@@ -1417,7 +1448,8 @@ export const launchVSCodeInTerminal = createServerFn({ method: "POST" })
       return {
         success: false,
         method: "clipboard",
-        message: vscodeCheck.error || "VS Code is not installed. Context copied to clipboard instead.",
+        message:
+          vscodeCheck.error || "VS Code is not installed. Context copied to clipboard instead.",
       };
     }
 

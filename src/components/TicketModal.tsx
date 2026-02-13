@@ -547,89 +547,95 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
   }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification, form]);
 
   // Handle Start Codex - supports auto, CLI-only, or App-only launch modes
-  const handleStartCodex = useCallback(async (launchMode: "auto" | "cli" | "app" = "auto") => {
-    setIsStartingWork(true);
-    setStartWorkNotification(null);
-    setShowStartWorkMenu(false);
-
-    try {
-      const contextResult = await getTicketContext({ data: ticket.id });
-      const codexLabel =
-        launchMode === "cli" ? "Codex CLI" : launchMode === "app" ? "Codex App" : "Codex";
-      let clipboardHint = `Context copied to clipboard. Open Codex App for "${contextResult.projectPath}" or run: cd "${contextResult.projectPath}" && codex`;
-      if (launchMode === "app") {
-        clipboardHint = `Context copied to clipboard. Open Codex App for "${contextResult.projectPath}" and paste the task context.`;
-      } else if (launchMode === "cli") {
-        clipboardHint = `Context copied to clipboard. Run: cd "${contextResult.projectPath}" && codex`;
-      }
-
-      const launchResult = await launchCodexInTerminal({
-        data: {
-          ticketId: ticket.id,
-          context: contextResult.context,
-          projectPath: contextResult.projectPath,
-          launchMode,
-          preferredTerminal: settings?.terminalEmulator ?? null,
-          projectName: contextResult.projectName,
-          epicName: contextResult.epicName,
-          ticketTitle: contextResult.ticketTitle,
-        },
-      });
-
-      if (launchResult.warnings) {
-        launchResult.warnings.forEach((warning) => showToast("info", warning));
-      }
-
-      if (launchResult.success && launchResult.method !== "clipboard") {
-        form.setFieldValue("status", "in_progress");
-        setStartWorkNotification({
-          type: "success",
-          message: launchResult.terminalUsed
-            ? `${codexLabel} launched in ${launchResult.terminalUsed}! Ticket moved to In Progress.`
-            : `${codexLabel} launched. Ticket moved to In Progress.`,
-        });
-        setTimeout(() => onUpdate(), 500);
-      } else if (!launchResult.success) {
-        showToast("error", launchResult.message);
-        await navigator.clipboard.writeText(contextResult.context);
-        setStartWorkNotification({
-          type: "success",
-          message: clipboardHint,
-        });
-      } else {
-        await navigator.clipboard.writeText(contextResult.context);
-        setStartWorkNotification({
-          type: "success",
-          message: launchResult.message,
-        });
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "An unexpected error occurred";
-      showToast("error", `Failed to launch ${launchMode === "cli" ? "Codex CLI" : launchMode === "app" ? "Codex App" : "Codex"}: ${message}`);
+  const handleStartCodex = useCallback(
+    async (launchMode: "auto" | "cli" | "app" = "auto") => {
+      setIsStartingWork(true);
+      setStartWorkNotification(null);
+      setShowStartWorkMenu(false);
 
       try {
         const contextResult = await getTicketContext({ data: ticket.id });
-        await navigator.clipboard.writeText(contextResult.context);
-        let fallbackMessage = `Context copied! Open Codex App for "${contextResult.projectPath}" or run: cd "${contextResult.projectPath}" && codex`;
+        const codexLabel =
+          launchMode === "cli" ? "Codex CLI" : launchMode === "app" ? "Codex App" : "Codex";
+        let clipboardHint = `Context copied to clipboard. Open Codex App for "${contextResult.projectPath}" or run: cd "${contextResult.projectPath}" && codex`;
         if (launchMode === "app") {
-          fallbackMessage = `Context copied! Open Codex App for "${contextResult.projectPath}" and paste the task context.`;
+          clipboardHint = `Context copied to clipboard. Open Codex App for "${contextResult.projectPath}" and paste the task context.`;
         } else if (launchMode === "cli") {
-          fallbackMessage = `Context copied! Run: cd "${contextResult.projectPath}" && codex`;
+          clipboardHint = `Context copied to clipboard. Run: cd "${contextResult.projectPath}" && codex`;
         }
-        setStartWorkNotification({
-          type: "success",
-          message: fallbackMessage,
+
+        const launchResult = await launchCodexInTerminal({
+          data: {
+            ticketId: ticket.id,
+            context: contextResult.context,
+            projectPath: contextResult.projectPath,
+            launchMode,
+            preferredTerminal: settings?.terminalEmulator ?? null,
+            projectName: contextResult.projectName,
+            epicName: contextResult.epicName,
+            ticketTitle: contextResult.ticketTitle,
+          },
         });
-      } catch (fallbackError) {
-        setStartWorkNotification({
-          type: "error",
-          message: `Failed to start ${launchMode === "cli" ? "Codex CLI" : launchMode === "app" ? "Codex App" : "Codex"}: ${fallbackError instanceof Error ? fallbackError.message : "Could not copy context to clipboard"}`,
-        });
+
+        if (launchResult.warnings) {
+          launchResult.warnings.forEach((warning) => showToast("info", warning));
+        }
+
+        if (launchResult.success && launchResult.method !== "clipboard") {
+          form.setFieldValue("status", "in_progress");
+          setStartWorkNotification({
+            type: "success",
+            message: launchResult.terminalUsed
+              ? `${codexLabel} launched in ${launchResult.terminalUsed}! Ticket moved to In Progress.`
+              : `${codexLabel} launched. Ticket moved to In Progress.`,
+          });
+          setTimeout(() => onUpdate(), 500);
+        } else if (!launchResult.success) {
+          showToast("error", launchResult.message);
+          await navigator.clipboard.writeText(contextResult.context);
+          setStartWorkNotification({
+            type: "success",
+            message: clipboardHint,
+          });
+        } else {
+          await navigator.clipboard.writeText(contextResult.context);
+          setStartWorkNotification({
+            type: "success",
+            message: launchResult.message,
+          });
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "An unexpected error occurred";
+        showToast(
+          "error",
+          `Failed to launch ${launchMode === "cli" ? "Codex CLI" : launchMode === "app" ? "Codex App" : "Codex"}: ${message}`
+        );
+
+        try {
+          const contextResult = await getTicketContext({ data: ticket.id });
+          await navigator.clipboard.writeText(contextResult.context);
+          let fallbackMessage = `Context copied! Open Codex App for "${contextResult.projectPath}" or run: cd "${contextResult.projectPath}" && codex`;
+          if (launchMode === "app") {
+            fallbackMessage = `Context copied! Open Codex App for "${contextResult.projectPath}" and paste the task context.`;
+          } else if (launchMode === "cli") {
+            fallbackMessage = `Context copied! Run: cd "${contextResult.projectPath}" && codex`;
+          }
+          setStartWorkNotification({
+            type: "success",
+            message: fallbackMessage,
+          });
+        } catch (fallbackError) {
+          setStartWorkNotification({
+            type: "error",
+            message: `Failed to start ${launchMode === "cli" ? "Codex CLI" : launchMode === "app" ? "Codex App" : "Codex"}: ${fallbackError instanceof Error ? fallbackError.message : "Could not copy context to clipboard"}`,
+          });
+        }
+      } finally {
+        setIsStartingWork(false);
       }
-    } finally {
-      setIsStartingWork(false);
-    }
-  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification, form]);
+    },
+    [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification, form]
+  );
 
   // Handle Start VS Code - open VS Code with project + context
   const handleStartVSCode = useCallback(async () => {
@@ -868,7 +874,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
           preferredTerminal: settings?.terminalEmulator ?? null,
           useSandbox,
           aiBackend,
-          workingMethodOverride,
+          ...(workingMethodOverride !== undefined ? { workingMethodOverride } : {}),
         });
 
         // Show any warnings (e.g., preferred terminal not available)
@@ -2106,14 +2112,18 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                     </div>
                     <div className="grid grid-cols-2 gap-2 p-3">
                       <button
-                        onClick={() => void handleStartRalph({ useSandbox: false, aiBackend: "claude" })}
+                        onClick={() =>
+                          void handleStartRalph({ useSandbox: false, aiBackend: "claude" })
+                        }
                         className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
                       >
                         <Bot size={14} className="text-[var(--accent-ai)] flex-shrink-0" />
                         <span className="text-sm text-[var(--text-primary)]">Claude</span>
                       </button>
                       <button
-                        onClick={() => void handleStartRalph({ useSandbox: false, aiBackend: "codex" })}
+                        onClick={() =>
+                          void handleStartRalph({ useSandbox: false, aiBackend: "codex" })
+                        }
                         className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
                       >
                         <Terminal size={14} className="text-[var(--success)] flex-shrink-0" />

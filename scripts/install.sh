@@ -203,6 +203,27 @@ install_codex() {
 }
 
 # ─────────────────────────────────────────────────────────────────
+# Build MCP Server (required before any environment install)
+# ─────────────────────────────────────────────────────────────────
+
+echo -e "${BLUE}Building MCP server...${NC}"
+echo ""
+
+if [ -f "$BRAIN_DUMP_DIR/mcp-server/build.mjs" ]; then
+    if (cd "$BRAIN_DUMP_DIR/mcp-server" && pnpm install --frozen-lockfile 2>/dev/null || pnpm install && pnpm build) 2>&1 | tail -3; then
+        echo -e "${GREEN}✓ MCP server built${NC}"
+    else
+        echo -e "${RED}✗ MCP server build failed. Install pnpm and Node.js first.${NC}"
+        exit 1
+    fi
+else
+    echo -e "${RED}✗ mcp-server/build.mjs not found${NC}"
+    exit 1
+fi
+
+echo ""
+
+# ─────────────────────────────────────────────────────────────────
 # Main Installation
 # ─────────────────────────────────────────────────────────────────
 

@@ -112,6 +112,24 @@ describe("Ralph Docker Sandbox", () => {
       expect(script).not.toContain("EXTRA_MOUNTS");
       expect(script).not.toContain("docker run");
       expect(script).toContain("claude --dangerously-skip-permissions");
+      expect(script).toContain('mktemp "${TMPDIR:-/tmp}/ralph-prompt.XXXXXX"');
+      expect(script).toContain("command -v claude");
+    });
+
+    it("generates native OpenCode invocation with CLI preflight", () => {
+      const script = generateRalphScript(
+        testProjectPath,
+        5,
+        false, // native mode
+        { memory: "2g", cpus: "1.5", pidsLimit: 256 },
+        3600,
+        null,
+        undefined,
+        "opencode"
+      );
+
+      expect(script).toContain("command -v opencode");
+      expect(script).toContain('opencode "$PROJECT_PATH" --prompt "$(cat "$PROMPT_FILE")"');
     });
 
     it("includes SSH agent forwarding setup", () => {

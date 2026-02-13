@@ -150,7 +150,7 @@ All environments get the same MCP tools, agents, and workflows.
 - Global hooks enforce workflow state and capture telemetry
 - Uses `~/.copilot/mcp-config.json` for MCP config
 - Skills shared with VS Code (`~/.copilot/skills/`)
-- Run `copilot --allow-tool 'brain-dump(*)'` to auto-approve Brain Dump tools
+- Run `copilot --allow-tool 'brain-dump'` to auto-approve Brain Dump tools
 
 ### Codex
 

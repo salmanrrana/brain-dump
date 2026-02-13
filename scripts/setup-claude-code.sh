@@ -42,6 +42,23 @@ SOURCE_HOOKS="$BRAIN_DUMP_DIR/.claude/hooks"
 SOURCE_SKILLS="$BRAIN_DUMP_DIR/.claude/skills"
 
 echo ""
+echo -e "${BLUE}Step 0: Build MCP Server${NC}"
+echo "─────────────────────────"
+
+if [ -f "$BRAIN_DUMP_DIR/mcp-server/build.mjs" ]; then
+    echo "Building MCP server from TypeScript source..."
+    if (cd "$BRAIN_DUMP_DIR/mcp-server" && pnpm install --frozen-lockfile 2>/dev/null || pnpm install && pnpm build) 2>&1 | tail -3; then
+        echo -e "${GREEN}✓ MCP server built successfully${NC}"
+    else
+        echo -e "${RED}✗ MCP server build failed${NC}"
+        exit 1
+    fi
+else
+    echo -e "${RED}✗ build.mjs not found in mcp-server/${NC}"
+    exit 1
+fi
+
+echo ""
 echo -e "${BLUE}Step 1: Configure MCP Server${NC}"
 echo "─────────────────────────────"
 
@@ -66,20 +83,20 @@ echo "────────────────────────�
 # Check if claude CLI is available
 if command -v claude &> /dev/null; then
     echo "Installing pr-review-toolkit plugin..."
-    claude plugins install pr-review-toolkit 2>/dev/null || echo -e "${YELLOW}pr-review-toolkit already installed or install failed${NC}"
+    claude plugin install pr-review-toolkit 2>/dev/null || echo -e "${YELLOW}pr-review-toolkit already installed or install failed${NC}"
 
     echo "Installing code-simplifier plugin..."
-    claude plugins install code-simplifier 2>/dev/null || echo -e "${YELLOW}code-simplifier already installed or install failed${NC}"
+    claude plugin install code-simplifier 2>/dev/null || echo -e "${YELLOW}code-simplifier already installed or install failed${NC}"
 
     echo "Installing context7 plugin..."
-    claude plugins install context7 2>/dev/null || echo -e "${YELLOW}context7 already installed or install failed${NC}"
+    claude plugin install context7 2>/dev/null || echo -e "${YELLOW}context7 already installed or install failed${NC}"
 
     echo -e "${GREEN}Plugins configured.${NC}"
 else
     echo -e "${YELLOW}Claude CLI not found. Please install plugins manually:${NC}"
-    echo "  claude plugins install pr-review-toolkit"
-    echo "  claude plugins install code-simplifier"
-    echo "  claude plugins install context7"
+    echo "  claude plugin install pr-review-toolkit"
+    echo "  claude plugin install code-simplifier"
+    echo "  claude plugin install context7"
 fi
 
 echo ""
@@ -196,7 +213,97 @@ if [ -f "$CLAUDE_SETTINGS" ]; then
             echo -e "${YELLOW}Warning: merge-telemetry-hooks.sh not found. Telemetry hooks may not be configured.${NC}"
         fi
     else
-        echo -e "${YELLOW}No hooks section found. Please add hooks manually or backup and recreate.${NC}"
+        echo -e "${YELLOW}No hooks section found. Adding Brain Dump hooks to existing settings.json...${NC}"
+
+        if command -v node &> /dev/null; then
+            if CLAUDE_SETTINGS="$CLAUDE_SETTINGS" node << 'EOF'
+const fs = require("fs");
+
+const settingsPath = process.env.CLAUDE_SETTINGS;
+const raw = fs.readFileSync(settingsPath, "utf8");
+const config = JSON.parse(raw);
+
+config.hooks = {
+  SessionStart: [
+    {
+      hooks: [
+        { type: "command", command: "$HOME/.claude/hooks/start-telemetry-session.sh" },
+        { type: "command", command: "$HOME/.claude/hooks/check-pending-links.sh" }
+      ]
+    }
+  ],
+  PreToolUse: [
+    {
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/log-tool-start.sh" }]
+    },
+    {
+      matcher: "Write",
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/enforce-state-before-write.sh" }]
+    },
+    {
+      matcher: "Edit",
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/enforce-state-before-write.sh" }]
+    }
+  ],
+  PostToolUse: [
+    {
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/log-tool-end.sh" }]
+    },
+    {
+      matcher: "mcp__brain-dump__workflow",
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/create-pr-on-ticket-start.sh" }]
+    },
+    {
+      matcher: "Bash(git commit:*)",
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/link-commit-to-ticket.sh" }]
+    },
+    {
+      matcher: "mcp__brain-dump__session",
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/record-state-change.sh" }]
+    },
+    {
+      matcher: "mcp__brain-dump__workflow",
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/spawn-next-ticket.sh" }]
+    },
+    {
+      matcher: "mcp__brain-dump__workflow",
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/clear-pending-links.sh" }]
+    },
+    {
+      matcher: "TodoWrite",
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/capture-claude-tasks.sh" }]
+    }
+  ],
+  PostToolUseFailure: [
+    {
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/log-tool-failure.sh" }]
+    }
+  ],
+  UserPromptSubmit: [
+    {
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/log-prompt.sh" }]
+    }
+  ],
+  Stop: [
+    {
+      hooks: [
+        { type: "command", command: "$HOME/.claude/hooks/end-telemetry-session.sh" },
+        { type: "command", command: "$HOME/.claude/hooks/check-for-code-changes.sh" }
+      ]
+    }
+  ]
+};
+
+fs.writeFileSync(settingsPath, JSON.stringify(config, null, 2) + "\n");
+EOF
+            then
+                echo -e "${GREEN}Hooks section added to existing settings.json${NC}"
+            else
+                echo -e "${YELLOW}Failed to merge hooks automatically. Please back up settings.json and re-run setup.${NC}"
+            fi
+        else
+            echo -e "${YELLOW}Node.js not available to merge hooks automatically. Please install Node.js and re-run setup.${NC}"
+        fi
     fi
 else
     echo "Creating ~/.claude/settings.json with hooks configuration..."

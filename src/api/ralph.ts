@@ -413,12 +413,44 @@ fi
 `
     : "";
 
-  // Different prompt file location and Claude invocation for sandbox vs native
-  // For native mode, use mktemp -t for cross-platform compatibility (works on both macOS and Linux)
-  // Add error handling to fail fast if temp file creation fails
+  // Different prompt file location for sandbox vs native.
+  // Native mode uses a portable mktemp strategy that works on GNU/Linux and BSD/macOS.
   const promptFileSetup = useSandbox
     ? `PROMPT_FILE="$PROJECT_PATH/.ralph-prompt.md"`
-    : `PROMPT_FILE=$(mktemp -t ralph-prompt) || { echo -e "\\033[0;31m❌ Failed to create temp file\\033[0m"; exit 1; }`;
+    : `PROMPT_FILE=""
+  PROMPT_FILE=$(mktemp "\${TMPDIR:-/tmp}/ralph-prompt.XXXXXX" 2>/dev/null || true)
+  if [ -z "$PROMPT_FILE" ]; then
+    PROMPT_FILE=$(mktemp -t ralph-prompt.XXXXXX 2>/dev/null || true)
+  fi
+  if [ -z "$PROMPT_FILE" ]; then
+    echo -e "\\033[0;31m❌ Failed to create temp file\\033[0m"
+    exit 1
+  fi`;
+
+  // Validate required local AI CLI is installed for native mode.
+  const aiPreflightCheck = useSandbox
+    ? ""
+    : aiBackend === "opencode"
+      ? `
+if ! command -v opencode >/dev/null 2>&1; then
+  echo -e "\\033[0;31m❌ OpenCode CLI not found in PATH\\033[0m"
+  echo "Install OpenCode: https://opencode.ai"
+  exit 1
+fi
+`
+      : aiBackend === "codex"
+        ? `
+if ! command -v codex >/dev/null 2>&1; then
+  echo -e "\\033[0;31m❌ Codex CLI not found in PATH\\033[0m"
+  exit 1
+fi
+`
+        : `
+if ! command -v claude >/dev/null 2>&1; then
+  echo -e "\\033[0;31m❌ Claude CLI not found in PATH\\033[0m"
+  exit 1
+fi
+`;
 
   // SSH setup for Docker sandbox mode
   // This allows git push from inside container using host's SSH keys
@@ -701,7 +733,7 @@ NO_PROGRESS_COUNT=0
 MAX_NO_PROGRESS=3
 
 cd "$PROJECT_PATH"
-${dockerHostSetup}${dockerImageCheck}${sshAgentSetup}
+${dockerHostSetup}${dockerImageCheck}${sshAgentSetup}${aiPreflightCheck}
 # Ensure plans directory exists
 mkdir -p "$PROJECT_PATH/plans"
 
@@ -1197,7 +1229,10 @@ async function launchInCursor(
   }
 }
 
-async function createCopilotRalphScript(projectPath: string, contextFilePath: string): Promise<string> {
+async function createCopilotRalphScript(
+  projectPath: string,
+  contextFilePath: string
+): Promise<string> {
   const { writeFileSync, mkdirSync, chmodSync } = await import("fs");
   const { join } = await import("path");
   const { homedir } = await import("os");
@@ -1215,10 +1250,63 @@ set -e
 
 cd "${safeProjectPath}"
 
+echo ""
+echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo -e "\\033[0;36m🤖 Brain Dump - Starting Ralph with Copilot CLI\\033[0m"
+echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo -e "\\033[1;33m📁 Project:\\033[0m ${safeProjectPath}"
+echo -e "\\033[1;33m📄 Context:\\033[0m ${safeContextPath}"
+echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo ""
+
+if ! command -v copilot >/dev/null 2>&1; then
+  echo -e "\\033[0;31m❌ Copilot CLI not found in PATH\\033[0m"
+  echo "Install GitHub Copilot CLI and retry."
+  exec bash
+fi
+
 if [ -f "${safeContextPath}" ]; then
-  copilot "$(cat "${safeContextPath}")"
+  COPILOT_PROMPT="$(cat "${safeContextPath}")"
+  COPILOT_HELP="$(copilot --help 2>/dev/null || true)"
+  set +e
+  if echo "$COPILOT_HELP" | grep -q -- "--allow-tool"; then
+    if echo "$COPILOT_HELP" | grep -qE -- "(^|[[:space:]])-p,|--prompt"; then
+      copilot --allow-tool 'brain-dump' -p "$COPILOT_PROMPT"
+    else
+      copilot --allow-tool 'brain-dump' "$COPILOT_PROMPT"
+    fi
+  else
+    if echo "$COPILOT_HELP" | grep -qE -- "(^|[[:space:]])-p,|--prompt"; then
+      copilot -p "$COPILOT_PROMPT"
+    else
+      copilot "$COPILOT_PROMPT"
+    fi
+  fi
+  COPILOT_EXIT=$?
+  set -e
+  if [ $COPILOT_EXIT -ne 0 ]; then
+    echo ""
+    echo -e "\\033[0;33m⚠ Copilot CLI exited with code $COPILOT_EXIT\\033[0m"
+    echo "Common fixes:"
+    echo "  - Run: copilot auth login"
+    echo "  - Run: copilot --allow-tool 'brain-dump'"
+    echo "  - Verify MCP setup: brain-dump doctor"
+  fi
 else
-  copilot
+  COPILOT_HELP="$(copilot --help 2>/dev/null || true)"
+  set +e
+  if echo "$COPILOT_HELP" | grep -q -- "--allow-tool"; then
+    copilot --allow-tool 'brain-dump'
+  else
+    copilot
+  fi
+  COPILOT_EXIT=$?
+  set -e
+  if [ $COPILOT_EXIT -ne 0 ]; then
+    echo ""
+    echo -e "\\033[0;33m⚠ Copilot CLI exited with code $COPILOT_EXIT\\033[0m"
+    echo "Try: copilot auth login"
+  fi
 fi
 
 exec bash
@@ -1422,7 +1510,11 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
       `[brain-dump] Ralph ticket launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`
     );
 
-    if (workingMethod === "vscode" || workingMethod === "cursor" || workingMethod === "copilot-cli") {
+    if (
+      workingMethod === "vscode" ||
+      workingMethod === "cursor" ||
+      workingMethod === "copilot-cli"
+    ) {
       const methodLabel =
         workingMethod === "vscode"
           ? "VS Code"
@@ -1458,9 +1550,10 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
 
       if (workingMethod === "copilot-cli") {
         const terminalUsed = "terminal" in launchResult ? launchResult.terminal : undefined;
+        const terminalLabel = terminalUsed ?? "your terminal";
         return {
           success: true,
-          message: `Launched Copilot CLI with Ralph context for ticket "${ticket.title}".`,
+          message: `Opening Copilot CLI in ${terminalLabel} for ticket "${ticket.title}". If no window appears, check that ${terminalLabel} is running.`,
           launchMethod: "copilot-cli" as const,
           contextFile: contextResult.path,
           ...(terminalUsed ? { terminalUsed } : {}),
@@ -1674,7 +1767,11 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       `[brain-dump] Ralph launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`
     );
 
-    if (workingMethod === "vscode" || workingMethod === "cursor" || workingMethod === "copilot-cli") {
+    if (
+      workingMethod === "vscode" ||
+      workingMethod === "cursor" ||
+      workingMethod === "copilot-cli"
+    ) {
       const methodLabel =
         workingMethod === "vscode"
           ? "VS Code"
@@ -1714,9 +1811,10 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
 
       if (workingMethod === "copilot-cli") {
         const terminalUsed = "terminal" in launchResult ? launchResult.terminal : undefined;
+        const terminalLabel = terminalUsed ?? "your terminal";
         return {
           success: true,
-          message: `Launched Copilot CLI with Ralph context for ${epicTickets.length} tickets.`,
+          message: `Opening Copilot CLI in ${terminalLabel} for ${epicTickets.length} tickets. If no window appears, check that ${terminalLabel} is running.`,
           launchMethod: "copilot-cli" as const,
           contextFile: contextResult.path,
           ...(terminalUsed ? { terminalUsed } : {}),

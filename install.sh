@@ -279,12 +279,19 @@ install_cli() {
         print_info "Setting up pnpm global bin directory..."
         pnpm setup 2>/dev/null || true
 
-        # Source the updated PATH for this session
-        if [ -f "$HOME/.zshrc" ]; then
-            export PNPM_HOME="$HOME/Library/pnpm"
+        # Try to resolve pnpm's configured global bin dir first.
+        local pnpm_global_bin
+        pnpm_global_bin=$(pnpm bin --global 2>/dev/null || true)
+        if [ -n "$pnpm_global_bin" ]; then
+            export PNPM_HOME="$pnpm_global_bin"
             export PATH="$PNPM_HOME:$PATH"
-        elif [ -f "$HOME/.bashrc" ]; then
-            export PNPM_HOME="$HOME/.local/share/pnpm"
+        else
+            # Fallback by OS when pnpm can't report yet.
+            if [ "$OS" = "macos" ]; then
+                export PNPM_HOME="$HOME/Library/pnpm"
+            else
+                export PNPM_HOME="$HOME/.local/share/pnpm"
+            fi
             export PATH="$PNPM_HOME:$PATH"
         fi
     fi
@@ -325,11 +332,19 @@ install_mcp_dependencies() {
     print_info "Installing MCP server dependencies in mcp-server/..."
     if (cd "$MCP_SERVER_DIR" && pnpm install); then
         print_success "MCP server dependencies installed"
-        INSTALLED+=("MCP server dependencies")
-        return 0
     else
         print_error "MCP server dependency installation failed"
         FAILED+=("MCP server dependencies")
+        return 1
+    fi
+
+    print_info "Building MCP server..."
+    if (cd "$MCP_SERVER_DIR" && pnpm build); then
+        print_success "MCP server built"
+        INSTALLED+=("MCP server (deps + build)")
+    else
+        print_error "MCP server build failed"
+        FAILED+=("MCP server build")
         return 1
     fi
 }
@@ -2077,6 +2092,11 @@ main() {
 
     detect_os
     print_info "Detected OS: $OS"
+
+    if [ "${EUID:-$(id -u)}" -eq 0 ] && [ -n "${SUDO_USER:-}" ]; then
+        print_warning "Detected sudo/root execution"
+        print_info "For user-scoped config files (like ~/.codex), run without sudo when possible"
+    fi
 
     # Get the directory where the script is located
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -1,15 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import {
-  X,
-  ChevronDown,
-  Bot,
-  Loader2,
-  Save,
-  Code2,
-  Terminal,
-  Monitor,
-  Github,
-} from "lucide-react";
+import { X, ChevronDown, Bot, Loader2, Save, Code2, Terminal, Monitor, Github } from "lucide-react";
 import { useForm } from "@tanstack/react-form-start";
 import {
   useCreateEpic,
@@ -82,10 +72,9 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   // Settings and Ralph hooks
   const { settings } = useSettings();
   const launchRalphMutation = useLaunchRalphForEpic();
-  const { tickets } = useTickets(
-    epic ? { projectId, epicId: epic.id } : {},
-    { enabled: Boolean(epic?.id) }
-  );
+  const { tickets } = useTickets(epic ? { projectId, epicId: epic.id } : {}, {
+    enabled: Boolean(epic?.id),
+  });
 
   // TanStack Form for epic data
   const form = useForm({
@@ -222,6 +211,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
 
       setIsStartingRalph(true);
       setRalphNotification(null);
+      setShowActionMenu(false);
 
       try {
         // Get epic context (including project path for workflow initialization)
@@ -255,7 +245,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
           preferredTerminal: settings?.terminalEmulator ?? null,
           useSandbox,
           aiBackend,
-          workingMethodOverride,
+          ...(workingMethodOverride !== undefined ? { workingMethodOverride } : {}),
         });
 
         if (result.success) {
@@ -571,18 +561,18 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                 {ralphNotification.launchMethod &&
                   ralphNotification.launchMethod !== "terminal" &&
                   ralphNotification.contextFile && (
-                  <div className="mt-2 text-xs text-[var(--success)]/80">
-                    <p className="font-medium">Next steps:</p>
-                    <ol className="list-decimal list-inside mt-1 space-y-0.5">
-                      <li>Open the Ralph context file in your editor</li>
-                      <li>Start a new chat with your AI assistant</li>
-                      <li>Ask the AI to read and follow the instructions</li>
-                    </ol>
-                    <p className="mt-1.5 text-[var(--success-text)]/60 font-mono truncate">
-                      {ralphNotification.contextFile.replace(/^.*\/\.claude\//, ".claude/")}
-                    </p>
-                  </div>
-                )}
+                    <div className="mt-2 text-xs text-[var(--success)]/80">
+                      <p className="font-medium">Next steps:</p>
+                      <ol className="list-decimal list-inside mt-1 space-y-0.5">
+                        <li>Open the Ralph context file in your editor</li>
+                        <li>Start a new chat with your AI assistant</li>
+                        <li>Ask the AI to read and follow the instructions</li>
+                      </ol>
+                      <p className="mt-1.5 text-[var(--success-text)]/60 font-mono truncate">
+                        {ralphNotification.contextFile.replace(/^.*\/\.claude\//, ".claude/")}
+                      </p>
+                    </div>
+                  )}
               </div>
               <button
                 onClick={() => setRalphNotification(null)}
@@ -720,14 +710,18 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                     </div>
                     <div className="grid grid-cols-2 gap-2 p-3">
                       <button
-                        onClick={() => void handleStartRalph({ useSandbox: false, aiBackend: "claude" })}
+                        onClick={() =>
+                          void handleStartRalph({ useSandbox: false, aiBackend: "claude" })
+                        }
                         className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
                       >
                         <Bot size={14} className="text-[var(--accent-ai)] flex-shrink-0" />
                         <span className="text-sm text-[var(--text-primary)]">Claude</span>
                       </button>
                       <button
-                        onClick={() => void handleStartRalph({ useSandbox: false, aiBackend: "codex" })}
+                        onClick={() =>
+                          void handleStartRalph({ useSandbox: false, aiBackend: "codex" })
+                        }
                         className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
                       >
                         <Terminal size={14} className="text-[var(--success)] flex-shrink-0" />
