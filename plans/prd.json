@@ -11,7 +11,7 @@
     {
       "id": "9200b1ca-0027-4131-a95b-5519e79e55c0",
       "title": "Overview: Projects Home Page — Full Plan & Coordination",
-      "passes": false,
+      "passes": true,
       "overview": "**Epic:** Projects Home Page\n**Branch/PR:** All tickets in this epic share a single branch and PR. Use `workflow` `start-epic` to create the shared branch before starting work on any ticket.\n---\nCurrently Brain Dump drops users directly onto a kanban board showing all tickets — which gets overwhelming as projects grow. This change introduces a clean **Projects home page** as the landing page, with drill-down into epics, providing a structured entry: **Projects → Epics → Filtered Kanban Board**.",
       "types": [],
       "designDecisions": [],
@@ -164,7 +164,7 @@
     {
       "id": "c31f8560-4a3a-4aca-bd31-6643f12101a3",
       "title": "Update sidebar navigation and add home affordance",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
