@@ -372,6 +372,7 @@ function initRalphSessions() {
       CREATE TABLE ralph_sessions (
         id TEXT PRIMARY KEY NOT NULL,
         ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
         current_state TEXT NOT NULL DEFAULT 'idle',
         state_history TEXT,
         outcome TEXT,
@@ -383,6 +384,19 @@ function initRalphSessions() {
     sqlite.exec(`CREATE INDEX idx_ralph_sessions_ticket ON ralph_sessions (ticket_id)`);
     sqlite.exec(`CREATE INDEX idx_ralph_sessions_state ON ralph_sessions (current_state)`);
     console.log("ralph_sessions table created successfully");
+  } else {
+    const columns = sqlite.prepare("PRAGMA table_info(ralph_sessions)").all() as Array<{
+      name: string;
+    }>;
+    const columnNames = columns.map((col) => col.name);
+
+    if (!columnNames.includes("project_id")) {
+      console.log("Adding project_id column to ralph_sessions...");
+      sqlite.exec(
+        "ALTER TABLE ralph_sessions ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL"
+      );
+      console.log("Added project_id column to ralph_sessions");
+    }
   }
 }
 

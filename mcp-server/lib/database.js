@@ -203,6 +203,7 @@ export function runMigrations(db) {
         CREATE TABLE ralph_sessions (
           id TEXT PRIMARY KEY,
           ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+          project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
           current_state TEXT NOT NULL DEFAULT 'idle',
           state_history TEXT,
           outcome TEXT,
@@ -230,6 +231,10 @@ export function runMigrations(db) {
       if (!columnNames.includes("completed_at")) {
         db.prepare("ALTER TABLE ralph_sessions ADD COLUMN completed_at TEXT").run();
         log.info("Added completed_at column to ralph_sessions table");
+      }
+      if (!columnNames.includes("project_id")) {
+        db.prepare("ALTER TABLE ralph_sessions ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL").run();
+        log.info("Added project_id column to ralph_sessions table");
       }
 
       // Create index on current_state if it doesn't exist

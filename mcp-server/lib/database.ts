@@ -7,13 +7,7 @@ import Database from "better-sqlite3";
 import { existsSync, copyFileSync, mkdirSync, readdirSync, writeFileSync, statSync } from "fs";
 import { join } from "path";
 import { log } from "./logging.js";
-import {
-  getDbPath,
-  getLegacyDir,
-  getDataDir,
-  getStateDir,
-  ensureDirectoriesSync,
-} from "./xdg.js";
+import { getDbPath, getLegacyDir, getDataDir, getStateDir, ensureDirectoriesSync } from "./xdg.js";
 
 const MIGRATED_MARKER = ".migrated";
 
@@ -49,7 +43,7 @@ export function verifyDatabaseIntegrity(dbPath: string): boolean {
     const testDb = new Database(dbPath, { readonly: true });
     const result = testDb.pragma("integrity_check") as Array<{ integrity_check: string }>;
     testDb.close();
-    return result.length === 1 && (result[0]?.integrity_check === "ok");
+    return result.length === 1 && result[0]?.integrity_check === "ok";
   } catch {
     return false;
   }
@@ -204,7 +198,8 @@ export function runMigrations(db: Database.Database): void {
       .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ralph_events'")
       .all() as Array<{ name: string }>;
     if (tables.length === 0) {
-      db.prepare(`
+      db.prepare(
+        `
         CREATE TABLE ralph_events (
           id TEXT PRIMARY KEY,
           session_id TEXT NOT NULL,
@@ -212,7 +207,8 @@ export function runMigrations(db: Database.Database): void {
           data TEXT,
           created_at TEXT NOT NULL DEFAULT (datetime('now'))
         )
-      `).run();
+      `
+      ).run();
       db.prepare("CREATE INDEX idx_ralph_events_session ON ralph_events(session_id)").run();
       db.prepare("CREATE INDEX idx_ralph_events_created ON ralph_events(created_at)").run();
       log.info("Created ralph_events table for real-time UI streaming");
@@ -228,10 +224,12 @@ export function runMigrations(db: Database.Database): void {
       .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='ralph_sessions'")
       .all() as Array<{ name: string }>;
     if (tables.length === 0) {
-      db.prepare(`
+      db.prepare(
+        `
         CREATE TABLE ralph_sessions (
           id TEXT PRIMARY KEY,
           ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+          project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
           current_state TEXT NOT NULL DEFAULT 'idle',
           state_history TEXT,
           outcome TEXT,
@@ -239,7 +237,8 @@ export function runMigrations(db: Database.Database): void {
           started_at TEXT NOT NULL DEFAULT (datetime('now')),
           completed_at TEXT
         )
-      `).run();
+      `
+      ).run();
       db.prepare("CREATE INDEX idx_ralph_sessions_ticket ON ralph_sessions(ticket_id)").run();
       db.prepare("CREATE INDEX idx_ralph_sessions_state ON ralph_sessions(current_state)").run();
       log.info("Created ralph_sessions table for state machine observability");
@@ -249,7 +248,9 @@ export function runMigrations(db: Database.Database): void {
       const columnNames = columns.map((c) => c.name);
 
       if (!columnNames.includes("current_state")) {
-        db.prepare("ALTER TABLE ralph_sessions ADD COLUMN current_state TEXT NOT NULL DEFAULT 'idle'").run();
+        db.prepare(
+          "ALTER TABLE ralph_sessions ADD COLUMN current_state TEXT NOT NULL DEFAULT 'idle'"
+        ).run();
         log.info("Added current_state column to ralph_sessions table");
       }
       if (!columnNames.includes("state_history")) {
@@ -260,10 +261,18 @@ export function runMigrations(db: Database.Database): void {
         db.prepare("ALTER TABLE ralph_sessions ADD COLUMN completed_at TEXT").run();
         log.info("Added completed_at column to ralph_sessions table");
       }
+      if (!columnNames.includes("project_id")) {
+        db.prepare(
+          "ALTER TABLE ralph_sessions ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL"
+        ).run();
+        log.info("Added project_id column to ralph_sessions table");
+      }
 
       // Create index on current_state if it doesn't exist
       try {
-        db.prepare("CREATE INDEX IF NOT EXISTS idx_ralph_sessions_state ON ralph_sessions(current_state)").run();
+        db.prepare(
+          "CREATE INDEX IF NOT EXISTS idx_ralph_sessions_state ON ralph_sessions(current_state)"
+        ).run();
       } catch (err) {
         // Index may already exist with a different name, or table structure differs
         const error = err as { message?: string };
@@ -288,7 +297,8 @@ export function runMigrations(db: Database.Database): void {
       .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='conversation_sessions'")
       .all() as Array<{ name: string }>;
     if (tables.length === 0) {
-      db.prepare(`
+      db.prepare(
+        `
         CREATE TABLE conversation_sessions (
           id TEXT PRIMARY KEY NOT NULL,
           project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
@@ -302,11 +312,20 @@ export function runMigrations(db: Database.Database): void {
           ended_at TEXT,
           created_at TEXT NOT NULL DEFAULT (datetime('now'))
         )
-      `).run();
-      db.prepare("CREATE INDEX idx_conversation_sessions_project ON conversation_sessions(project_id)").run();
-      db.prepare("CREATE INDEX idx_conversation_sessions_ticket ON conversation_sessions(ticket_id)").run();
-      db.prepare("CREATE INDEX idx_conversation_sessions_user ON conversation_sessions(user_id)").run();
-      db.prepare("CREATE INDEX idx_conversation_sessions_started ON conversation_sessions(started_at)").run();
+      `
+      ).run();
+      db.prepare(
+        "CREATE INDEX idx_conversation_sessions_project ON conversation_sessions(project_id)"
+      ).run();
+      db.prepare(
+        "CREATE INDEX idx_conversation_sessions_ticket ON conversation_sessions(ticket_id)"
+      ).run();
+      db.prepare(
+        "CREATE INDEX idx_conversation_sessions_user ON conversation_sessions(user_id)"
+      ).run();
+      db.prepare(
+        "CREATE INDEX idx_conversation_sessions_started ON conversation_sessions(started_at)"
+      ).run();
       log.info("Created conversation_sessions table for enterprise compliance logging");
     }
   } catch (err) {
@@ -320,7 +339,8 @@ export function runMigrations(db: Database.Database): void {
       .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='conversation_messages'")
       .all() as Array<{ name: string }>;
     if (tables.length === 0) {
-      db.prepare(`
+      db.prepare(
+        `
         CREATE TABLE conversation_messages (
           id TEXT PRIMARY KEY NOT NULL,
           session_id TEXT NOT NULL REFERENCES conversation_sessions(id) ON DELETE CASCADE,
@@ -334,12 +354,17 @@ export function runMigrations(db: Database.Database): void {
           contains_potential_secrets INTEGER DEFAULT 0,
           created_at TEXT NOT NULL DEFAULT (datetime('now'))
         )
-      `).run();
-      db.prepare("CREATE INDEX idx_conversation_messages_session ON conversation_messages(session_id)").run();
+      `
+      ).run();
+      db.prepare(
+        "CREATE INDEX idx_conversation_messages_session ON conversation_messages(session_id)"
+      ).run();
       db.prepare(
         "CREATE INDEX idx_conversation_messages_session_seq ON conversation_messages(session_id, sequence_number)"
       ).run();
-      db.prepare("CREATE INDEX idx_conversation_messages_created ON conversation_messages(created_at)").run();
+      db.prepare(
+        "CREATE INDEX idx_conversation_messages_created ON conversation_messages(created_at)"
+      ).run();
       log.info("Created conversation_messages table for message logging with tamper detection");
     }
   } catch (err) {
@@ -353,7 +378,8 @@ export function runMigrations(db: Database.Database): void {
       .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='audit_log_access'")
       .all() as Array<{ name: string }>;
     if (tables.length === 0) {
-      db.prepare(`
+      db.prepare(
+        `
         CREATE TABLE audit_log_access (
           id TEXT PRIMARY KEY NOT NULL,
           accessor_id TEXT NOT NULL,
@@ -363,9 +389,12 @@ export function runMigrations(db: Database.Database): void {
           result TEXT NOT NULL,
           accessed_at TEXT NOT NULL DEFAULT (datetime('now'))
         )
-      `).run();
+      `
+      ).run();
       db.prepare("CREATE INDEX idx_audit_log_accessor ON audit_log_access(accessor_id)").run();
-      db.prepare("CREATE INDEX idx_audit_log_target ON audit_log_access(target_type, target_id)").run();
+      db.prepare(
+        "CREATE INDEX idx_audit_log_target ON audit_log_access(target_type, target_id)"
+      ).run();
       db.prepare("CREATE INDEX idx_audit_log_accessed ON audit_log_access(accessed_at)").run();
       log.info("Created audit_log_access table for compliance audit trail");
     }
@@ -380,11 +409,15 @@ export function runMigrations(db: Database.Database): void {
     const settingsColumnNames = settingsColumns.map((c) => c.name);
 
     if (!settingsColumnNames.includes("conversation_retention_days")) {
-      db.prepare("ALTER TABLE settings ADD COLUMN conversation_retention_days INTEGER DEFAULT 90").run();
+      db.prepare(
+        "ALTER TABLE settings ADD COLUMN conversation_retention_days INTEGER DEFAULT 90"
+      ).run();
       log.info("Added conversation_retention_days column to settings table");
     }
     if (!settingsColumnNames.includes("conversation_logging_enabled")) {
-      db.prepare("ALTER TABLE settings ADD COLUMN conversation_logging_enabled INTEGER DEFAULT 1").run();
+      db.prepare(
+        "ALTER TABLE settings ADD COLUMN conversation_logging_enabled INTEGER DEFAULT 1"
+      ).run();
       log.info("Added conversation_logging_enabled column to settings table");
     }
   } catch (err) {

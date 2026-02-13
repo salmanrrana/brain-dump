@@ -1217,7 +1217,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="relative bg-[var(--bg-secondary)] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+        className="relative bg-[var(--bg-secondary)] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-visible flex flex-col"
         style={{
           boxShadow: "var(--shadow-modal)",
         }}
@@ -2030,7 +2030,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
 
             {/* Dropdown Menu */}
             {showStartWorkMenu && (
-              <div className="absolute left-0 bottom-full mb-2 w-[46rem] max-w-[95vw] bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg shadow-xl z-10 overflow-hidden">
+              <div className="absolute left-0 bottom-full mb-2 w-[46rem] max-w-[95vw] bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg shadow-xl z-[80] overflow-hidden">
                 <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[var(--border-primary)]">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 px-3 py-2 bg-[var(--bg-secondary)]/50 border-b border-[var(--border-primary)]">
