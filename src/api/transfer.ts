@@ -8,7 +8,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { db, sqlite } from "../lib/db";
 import { projects } from "../lib/schema";
-import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { existsSync } from "fs";
 import {
@@ -270,32 +269,30 @@ export const createProjectAndImportFn = createServerFn({ method: "POST" })
           throw new ArchiveTooLargeError(zipBuffer.length, MAX_ARCHIVE_SIZE_BYTES);
         }
 
-        // Create the project first
-        const projectId = randomUUID();
-        db.insert(projects)
-          .values({
-            id: projectId,
-            name: data.projectName.trim(),
-            path: trimmedPath,
-            color: data.projectColor ?? null,
-          })
-          .run();
-
-        // Verify it was created
-        const created = db.select().from(projects).where(eq(projects.id, projectId)).get();
-        if (!created) throw new Error("Failed to create project");
-
-        // Now import into the new project
+        // Extract archive first (async) before entering synchronous transaction
         const { manifest, attachmentBuffers } = await extractBrainDumpArchive(zipBuffer);
 
-        const result = importData({
-          db: sqlite,
-          manifest,
-          attachmentBuffers,
-          targetProjectId: projectId,
-          resetStatuses: data.resetStatuses ?? false,
-          conflictResolution: data.conflictResolution ?? "create-new",
-        });
+        // All DB work in a transaction so project is rolled back if import fails
+        const projectId = randomUUID();
+        const result = sqlite.transaction(() => {
+          db.insert(projects)
+            .values({
+              id: projectId,
+              name: data.projectName.trim(),
+              path: trimmedPath,
+              color: data.projectColor ?? null,
+            })
+            .run();
+
+          return importData({
+            db: sqlite,
+            manifest,
+            attachmentBuffers,
+            targetProjectId: projectId,
+            resetStatuses: data.resetStatuses ?? false,
+            conflictResolution: data.conflictResolution ?? "create-new",
+          });
+        })();
 
         return { success: true, projectId, result };
       } catch (err) {

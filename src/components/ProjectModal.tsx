@@ -101,7 +101,11 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
 
       const reader = new FileReader();
       reader.onload = (e) => {
-        const arrayBuffer = e.target?.result as ArrayBuffer;
+        const arrayBuffer = e.target?.result;
+        if (!(arrayBuffer instanceof ArrayBuffer)) {
+          showToast("error", "Failed to read file contents. Please try again.");
+          return;
+        }
         const bytes = new Uint8Array(arrayBuffer);
         let binary = "";
         for (let i = 0; i < bytes.length; i++) {
@@ -125,6 +129,9 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
             showToast("error", err instanceof Error ? err.message : "Failed to read archive");
           },
         });
+      };
+      reader.onerror = () => {
+        showToast("error", `Failed to read file "${file.name}". Please try again.`);
       };
       reader.readAsArrayBuffer(file);
     },
@@ -209,13 +216,11 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
         },
         {
           onSuccess: (result) => {
-            if (result.success) {
-              showToast(
-                "success",
-                `Created "${trimmedName}" with ${result.result.ticketCount} imported tickets`
-              );
-              onSave();
-            }
+            showToast(
+              "success",
+              `Created "${trimmedName}" with ${result.result.ticketCount} imported tickets`
+            );
+            onSave();
           },
           onError: (err) => {
             showToast("error", err instanceof Error ? err.message : "Import failed");

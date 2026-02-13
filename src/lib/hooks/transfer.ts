@@ -41,9 +41,7 @@ export function useExportEpic() {
       return result;
     },
     onSuccess: (data) => {
-      if (data.success) {
-        downloadBase64File(data.base64Data, data.filename, "application/zip");
-      }
+      downloadBase64File(data.base64Data, data.filename, "application/zip");
     },
   });
 }
@@ -58,9 +56,7 @@ export function useExportProject() {
       return result;
     },
     onSuccess: (data) => {
-      if (data.success) {
-        downloadBase64File(data.base64Data, data.filename, "application/zip");
-      }
+      downloadBase64File(data.base64Data, data.filename, "application/zip");
     },
   });
 }
