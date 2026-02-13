@@ -47,7 +47,7 @@ export interface IconSidebarProps {
  */
 const defaultNavItems: NavItemConfig[] = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard", shortcutKey: "1" },
-  { icon: Kanban, label: "Board", path: "/", shortcutKey: "2" },
+  { icon: Kanban, label: "Board", path: "/board", shortcutKey: "2" },
   { icon: Folder, label: "Projects", action: "openProjectsPanel", shortcutKey: "3" },
   { icon: Settings, label: "Settings", action: "openSettings", shortcutKey: "4" },
 ];

@@ -364,7 +364,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   }, [navigate]);
 
   const handleNavigateBoard = useCallback(() => {
-    navigate({ to: "/" }).catch((err) => {
+    navigate({ to: "/board" }).catch((err) => {
       console.error("Navigation to board failed:", err);
     });
   }, [navigate]);
@@ -691,10 +691,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         )}
 
         {/* Import Modal */}
-        <ImportModal
-          isOpen={isImportModalOpen}
-          onClose={() => setIsImportModalOpen(false)}
-        />
+        <ImportModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} />
       </div>
     </AppContext.Provider>
   );
@@ -896,7 +893,6 @@ function AppHeader() {
         onClose={() => setIsInceptionModalOpen(false)}
         onSkipAI={openNewTicketModal}
       />
-
     </header>
   );
 }

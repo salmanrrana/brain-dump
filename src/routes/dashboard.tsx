@@ -109,7 +109,7 @@ function Dashboard() {
 
   // Handle stat card clicks - navigate to board and scroll to relevant column
   const handleStatClick = (filter: StatFilter) => {
-    navigate({ to: "/" });
+    navigate({ to: "/board" });
     // Scroll to the relevant column after navigation
     // Use setTimeout to ensure navigation completes first
     setTimeout(() => {

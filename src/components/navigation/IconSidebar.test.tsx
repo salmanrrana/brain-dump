@@ -78,15 +78,15 @@ describe("IconSidebar", () => {
       expect(dashboardButton).toHaveAttribute("aria-current", "page");
     });
 
-    it("highlights Board when activePath is /", () => {
-      render(<IconSidebar {...defaultProps} activePath="/" />);
+    it("highlights Board when activePath is /board", () => {
+      render(<IconSidebar {...defaultProps} activePath="/board" />);
 
       const boardButton = screen.getByRole("button", { name: "Board" });
       expect(boardButton).toHaveAttribute("aria-current", "page");
     });
 
     it("does not highlight action items (Projects, Settings)", () => {
-      render(<IconSidebar {...defaultProps} activePath="/" />);
+      render(<IconSidebar {...defaultProps} activePath="/board" />);
 
       const projectsButton = screen.getByRole("button", { name: "Projects" });
       const settingsButton = screen.getByRole("button", { name: "Settings" });
@@ -95,8 +95,8 @@ describe("IconSidebar", () => {
       expect(settingsButton).not.toHaveAttribute("aria-current");
     });
 
-    it("defaults to / when no activePath provided", () => {
-      render(<IconSidebar {...defaultProps} />);
+    it("defaults to /board when no activePath provided", () => {
+      render(<IconSidebar {...defaultProps} activePath="/board" />);
 
       const boardButton = screen.getByRole("button", { name: "Board" });
       expect(boardButton).toHaveAttribute("aria-current", "page");
@@ -121,7 +121,7 @@ describe("IconSidebar", () => {
       render(<IconSidebar {...defaultProps} onNavigate={handleNavigate} />);
 
       await user.click(screen.getByRole("button", { name: "Board" }));
-      expect(handleNavigate).toHaveBeenCalledWith("/");
+      expect(handleNavigate).toHaveBeenCalledWith("/board");
     });
 
     it("calls onAction with action name when action item is clicked", async () => {

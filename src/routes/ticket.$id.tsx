@@ -57,7 +57,7 @@ function TicketDetailError({ error }: { error: Error }) {
     if (canGoBack) {
       router.history.back();
     } else {
-      void router.navigate({ to: "/" });
+      void router.navigate({ to: "/board" });
     }
   };
 
@@ -327,7 +327,7 @@ function TicketDetailPage() {
       router.history.back();
     } else {
       // No history - navigate to board
-      void router.navigate({ to: "/" });
+      void router.navigate({ to: "/board" });
     }
   }, [canGoBack, router]);
 
