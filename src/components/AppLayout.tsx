@@ -22,6 +22,7 @@ import DeleteConfirmationModal, { type DeletePreview } from "./DeleteConfirmatio
 import { NewTicketDropdown } from "./navigation/NewTicketDropdown";
 import { InceptionModal } from "./inception/InceptionModal";
 import { ShortcutsModal } from "./ui/ShortcutsModal";
+import ImportModal from "./transfer/ImportModal";
 import { useToast } from "./Toast";
 import { getStatusColor, getPriorityStyle } from "../lib/constants";
 import {
@@ -201,6 +202,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProjectsPanelOpen, setIsProjectsPanelOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // Get invalidate queries helper
   const { invalidateAll } = useInvalidateQueries();
@@ -602,6 +604,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
           onAddEpic={handleAddEpicFromPanel}
           onEditEpic={handleEditEpicFromPanel}
           onLaunchRalphForEpic={handleLaunchRalphForEpic}
+          onImport={() => {
+            closeProjectsPanel();
+            setIsImportModalOpen(true);
+          }}
           epicTicketCounts={epicTicketCounts}
           epicsWithActiveAI={epicsWithActiveAI}
         />
@@ -683,6 +689,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
             error={deleteEpicError}
           />
         )}
+
+        {/* Import Modal */}
+        <ImportModal
+          isOpen={isImportModalOpen}
+          onClose={() => setIsImportModalOpen(false)}
+        />
       </div>
     </AppContext.Provider>
   );
@@ -884,6 +896,7 @@ function AppHeader() {
         onClose={() => setIsInceptionModalOpen(false)}
         onSkipAI={openNewTicketModal}
       />
+
     </header>
   );
 }
