@@ -88,4 +88,10 @@ export const queryKeys = {
 
   // Workflow State
   workflowState: (ticketId: string) => ["workflowState", ticketId] as const,
+
+  // Development Hub
+  techStack: (projectPath: string) => ["techStack", projectPath] as const,
+  editors: ["editors"] as const,
+  devCommands: (projectPath: string) => ["devCommands", projectPath] as const,
+  gitInfo: (projectPath: string) => ["gitInfo", projectPath] as const,
 };

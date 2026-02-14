@@ -394,3 +394,84 @@ export function useDeleteEpic() {
 
 // Re-export ActiveRalphSession for backward compatibility
 export type { ActiveRalphSession };
+
+// =============================================================================
+// DEV HUB HOOKS (Tech Stack, Editors, Dev Commands, Git Info)
+// =============================================================================
+
+import {
+  detectTechStack,
+  detectInstalledEditors,
+  detectDevCommands,
+  launchEditor,
+  launchDevServer,
+} from "../../api/dev-tools";
+import { getGitProjectInfo } from "../../api/git-info";
+
+/**
+ * Fetch tech stack info for a project
+ * @param projectPath - The project filesystem path
+ */
+export function useTechStack(projectPath: string) {
+  return useQuery({
+    queryKey: queryKeys.techStack(projectPath),
+    queryFn: () => detectTechStack({ data: projectPath }),
+    staleTime: 5 * 60 * 1000, // Cache 5 minutes
+    enabled: !!projectPath,
+  });
+}
+
+/**
+ * Fetch installed editors on the system
+ */
+export function useInstalledEditors() {
+  return useQuery({
+    queryKey: queryKeys.editors,
+    queryFn: () => detectInstalledEditors(),
+    staleTime: 60 * 60 * 1000, // Cache 1 hour (rarely changes)
+  });
+}
+
+/**
+ * Fetch dev commands for a project
+ * @param projectPath - The project filesystem path
+ */
+export function useDevCommands(projectPath: string) {
+  return useQuery({
+    queryKey: queryKeys.devCommands(projectPath),
+    queryFn: () => detectDevCommands({ data: projectPath }),
+    staleTime: 5 * 60 * 1000, // Cache 5 minutes
+    enabled: !!projectPath,
+  });
+}
+
+/**
+ * Fetch git project info (commits, branch, etc.)
+ * @param projectPath - The project filesystem path
+ */
+export function useGitProjectInfo(projectPath: string) {
+  return useQuery({
+    queryKey: queryKeys.gitInfo(projectPath),
+    queryFn: () => getGitProjectInfo({ data: projectPath }),
+    refetchInterval: 30 * 1000, // Refresh every 30s
+    enabled: !!projectPath,
+  });
+}
+
+/**
+ * Mutation to launch an editor
+ */
+export function useLaunchEditor() {
+  return useMutation({
+    mutationFn: (data: { projectPath: string; editor: string }) => launchEditor({ data }),
+  });
+}
+
+/**
+ * Mutation to launch a dev server
+ */
+export function useLaunchDevServer() {
+  return useMutation({
+    mutationFn: (data: { projectPath: string; command: string }) => launchDevServer({ data }),
+  });
+}
