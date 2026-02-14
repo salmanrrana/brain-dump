@@ -1,9 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useCallback } from "react";
-import { Plus, AlertCircle } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { Plus, AlertCircle, Search, X } from "lucide-react";
+import type { CSSProperties } from "react";
 import { useProjectsWithAIActivity } from "../lib/hooks";
 import { useAppState } from "../components/AppLayout";
-import ProjectCard from "../components/projects/ProjectCard";
+import ProjectListItem from "../components/projects/ProjectListItem";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -13,6 +14,12 @@ function Home() {
   const navigate = useNavigate();
   const { projects, loading, error, refetch } = useProjectsWithAIActivity();
   const { openProjectModal } = useAppState();
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredProjects = useMemo(
+    () => projects.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase())),
+    [projects, searchQuery]
+  );
 
   const handleSelectProject = useCallback(
     (projectId: string) => {
@@ -21,11 +28,11 @@ function Home() {
     [navigate]
   );
 
-  const handleViewAllTickets = useCallback(
-    (projectId: string) => {
-      navigate({ to: `/board`, search: { project: projectId } });
+  const handleEditProject = useCallback(
+    (project: (typeof projects)[0]) => {
+      openProjectModal(project);
     },
-    [navigate]
+    [openProjectModal]
   );
 
   if (loading) {
@@ -93,17 +100,56 @@ function Home() {
           </div>
         </div>
       ) : (
-        <div style={gridStyles}>
-          {projects.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              onClick={() => handleSelectProject(project.id)}
-              onViewAllTickets={() => handleViewAllTickets(project.id)}
-              onEditProject={() => openProjectModal(project)}
-            />
-          ))}
-        </div>
+        <>
+          <div style={searchContainerStyles}>
+            <div style={searchWrapperStyles}>
+              <Search size={16} style={{ color: "var(--text-tertiary)" }} aria-hidden="true" />
+              <input
+                type="text"
+                placeholder="Search projects..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={searchInputStyles}
+                aria-label="Search projects by name"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  style={clearButtonStyles}
+                  aria-label="Clear search"
+                  className="hover:text-[var(--text-primary)]"
+                >
+                  <X size={16} aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div style={listContainerStyles}>
+            {filteredProjects.length === 0 ? (
+              <div style={noResultsContainerStyles}>
+                <p style={noResultsTitleStyles}>No projects match "{searchQuery}"</p>
+                <p style={noResultsDescriptionStyles}>
+                  Try adjusting your search or create a new project.
+                </p>
+              </div>
+            ) : (
+              <div style={projectListStyles}>
+                {filteredProjects.map((project) => (
+                  <ProjectListItem
+                    key={project.id}
+                    project={project}
+                    ticketCount={project.ticketCount}
+                    epicCount={project.epics.length}
+                    onClick={() => handleSelectProject(project.id)}
+                    onSettings={() => handleEditProject(project)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
@@ -158,13 +204,85 @@ const accentButtonStyles: React.CSSProperties = {
   transition: "all var(--transition-fast)",
 };
 
-const gridStyles: React.CSSProperties = {
+const searchContainerStyles: CSSProperties = {
+  padding: "var(--spacing-4) var(--spacing-8)",
+  borderBottom: "1px solid var(--border-primary)",
+  backgroundColor: "var(--bg-secondary)",
+  display: "flex",
+  justifyContent: "center",
+};
+
+const searchWrapperStyles: CSSProperties = {
+  position: "relative",
+  display: "flex",
+  alignItems: "center",
+  maxWidth: "600px",
+  width: "100%",
+  gap: "var(--spacing-2)",
+};
+
+const searchInputStyles: React.CSSProperties = {
+  flex: 1,
+  padding: "var(--spacing-2) var(--spacing-3) var(--spacing-2) var(--spacing-3)",
+  background: "var(--bg-primary)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-lg)",
+  fontSize: "var(--font-size-sm)",
+  color: "var(--text-primary)",
+  outline: "none",
+  transition: "all var(--transition-fast)",
+};
+
+const clearButtonStyles: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "24px",
+  height: "24px",
+  background: "transparent",
+  border: "none",
+  cursor: "pointer",
+  color: "var(--text-tertiary)",
+  transition: "color var(--transition-fast)",
+};
+
+const listContainerStyles: CSSProperties = {
   flex: 1,
   overflowY: "auto",
-  padding: "var(--spacing-8)",
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-  gap: "var(--spacing-6)",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  padding: "var(--spacing-6) var(--spacing-8)",
+};
+
+const projectListStyles: CSSProperties = {
+  width: "100%",
+  maxWidth: "900px",
+  display: "flex",
+  flexDirection: "column",
+  gap: "var(--spacing-1)",
+};
+
+const noResultsContainerStyles: CSSProperties = {
+  textAlign: "center",
+  maxWidth: "400px",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: "var(--spacing-3)",
+};
+
+const noResultsTitleStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-lg)",
+  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+  color: "var(--text-primary)",
+  margin: 0,
+};
+
+const noResultsDescriptionStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-sm)",
+  color: "var(--text-secondary)",
+  margin: 0,
 };
 
 const emptyStateStyles: React.CSSProperties = {
