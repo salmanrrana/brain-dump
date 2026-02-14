@@ -7,6 +7,14 @@ import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getProjects, createProject, updateProject, deleteProject } from "../../api/projects";
 import { getEpicsByProject, createEpic, updateEpic, deleteEpic } from "../../api/epics";
+import {
+  detectTechStack,
+  detectInstalledEditors,
+  detectDevCommands,
+  launchEditor,
+  launchDevServer,
+} from "../../api/dev-tools";
+import { getGitProjectInfo } from "../../api/git-info";
 import { createBrowserLogger } from "../browser-logger";
 import { queryKeys } from "../query-keys";
 import { useActiveRalphSessions, type ActiveRalphSession } from "./ralph";
@@ -398,15 +406,6 @@ export type { ActiveRalphSession };
 // =============================================================================
 // DEV HUB HOOKS (Tech Stack, Editors, Dev Commands, Git Info)
 // =============================================================================
-
-import {
-  detectTechStack,
-  detectInstalledEditors,
-  detectDevCommands,
-  launchEditor,
-  launchDevServer,
-} from "../../api/dev-tools";
-import { getGitProjectInfo } from "../../api/git-info";
 
 /**
  * Fetch tech stack info for a project

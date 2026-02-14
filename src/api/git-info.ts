@@ -5,6 +5,11 @@ import { createLogger } from "../lib/logger";
 
 const logger = createLogger("git-info");
 
+/** Extract a human-readable message from an unknown error value. */
+function toErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 // Type Definitions
 export interface Commit {
   hash: string;
@@ -113,8 +118,7 @@ export const getGitProjectInfo = createServerFn({ method: "GET" })
         result.hasUncommittedChanges = statusResult.output.length > 0;
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.error("getGitProjectInfo error", new Error(message));
+      logger.error("getGitProjectInfo error", new Error(toErrorMessage(err)));
     }
 
     return result;

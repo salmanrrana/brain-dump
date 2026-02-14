@@ -9,339 +9,722 @@
   ],
   "userStories": [
     {
-      "id": "9200b1ca-0027-4131-a95b-5519e79e55c0",
-      "title": "Overview: Projects Home Page — Full Plan & Coordination",
+      "id": "5fe46e52-07f0-48b4-8812-0fe92732a54a",
+      "title": "OVERVIEW: Project Detail Page → Development Hub Implementation",
       "passes": false,
-      "overview": "**Epic:** Projects Home Page\n**Branch/PR:** All tickets in this epic share a single branch and PR. Use `workflow` `start-epic` to create the shared branch before starting work on any ticket.\n---\nCurrently Brain Dump drops users directly onto a kanban board showing all tickets — which gets overwhelming as projects grow. This change introduces a clean **Projects home page** as the landing page, with drill-down into epics, providing a structured entry: **Projects → Epics → Filtered Kanban Board**.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "references": [
-        "src/routes/board.tsx",
-        "src/routes/index.tsx",
-        "src/routes/dashboard.tsx",
-        "src/routes/ticket.$id.tsx",
-        "src/components/AppLayout.tsx",
-        "src/lib/hooks/projects.ts",
-        "src/components/projects/ProjectCard.tsx",
-        "src/routes/projects.$projectId.tsx",
-        "src/components/navigation/EpicListItem.tsx",
-        "src/components/navigation/IconSidebar.tsx",
-        "src/components/layout/AppHeader.tsx",
-        "src/components/navigation/EpicDrillInView.tsx",
-        "src/lib/filter-hooks.ts"
-      ],
-      "description": "# Overview: Projects Home Page\n\n**Epic:** Projects Home Page\n**Branch/PR:** All tickets in this epic share a single branch and PR. Use `workflow` `start-epic` to create the shared branch before starting work on any ticket.\n\n---\n\n# Plan: Projects Home Page\n\n## Context\n\nCurrently Brain Dump drops users directly onto a kanban board showing all tickets — which gets overwhelming as projects grow. This change introduces a clean **Projects home page** as the landing page, with drill-down into epics, providing a structured entry: **Projects → Epics → Filtered Kanban Board**.\n\n## Route Changes\n\n| Before | After |\n|--------|-------|\n| `/` → Kanban board | `/` → Projects home page |\n| _(none)_ | `/board` → Kanban board (moved from `/`) |\n| _(none)_ | `/projects/$projectId` → Project detail (epic list) |\n\nThe sidebar \"Projects\" icon (shortcut 3) **keeps** its current behavior (opens slide-out ProjectsPanel). The \"Board\" icon (shortcut 2) updates to point to `/board`. \n\n## Steps\n\n### 1. Move kanban board from `/` to `/board`\n\n- **Create** `src/routes/board.tsx` — copy entire contents of current `src/routes/index.tsx`, change route path to `/board`\n- **Update** `src/routes/index.tsx` — replace with new Projects home (step 3)\n\n### 2. Update internal navigations from `/` to `/board`\n\nThese files navigate to `/` expecting the board — update to `/board`:\n\n| File | Line | Change |\n|------|------|--------|\n| `src/routes/dashboard.tsx` | 112 | `navigate({ to: \"/board\" })` |\n| `src/routes/ticket.$id.tsx` | 60, 330 | `router.navigate({ to: \"/board\" })` |\n| `src/components/AppLayout.tsx` | 367 | `navigate({ to: \"/board\" })` |\n\n### 3. Create Projects home page (`/`)\n\n**New file:** `src/routes/index.tsx`\n\n- Uses `useProjectsWithAIActivity()` hook (already exists in `src/lib/hooks/projects.ts`)\n- Renders a responsive grid of project cards\n- Each card shows: project name, path (truncated), epic count, ticket stats, AI activity glow\n- Click a card → navigate to `/projects/$projectId`\n- Empty state with \"Add Project\" CTA\n- Header with \"Projects\" title + \"New Project\" button (reuse existing `ProjectModal`)\n\n**New file:** `src/components/projects/ProjectCard.tsx`\n\n- Card component for the grid\n- Props: project data (ProjectWithAIActivity), onClick, onEdit\n- Shows color accent from `project.color`\n- AI glow animation when `hasActiveAI` (reuse existing keyframes from ProjectsPanel)\n- \"View All Tickets\" secondary action → navigate to `/board?project=X`\n\n### 4. Create Project detail page (`/projects/$projectId`)\n\n**New file:** `src/routes/projects.$projectId.tsx`\n\n- Fetches project from `useProjects()` by matching `projectId` param\n- Shows project header (name, path, color) with back navigation to `/`\n- Lists epics using existing `EpicListItem` component from `src/components/navigation/EpicListItem.tsx`\n- Click epic → navigate to `/board?project=X&epic=Y` (uses existing URL filter system)\n- \"View All Tickets\" button → navigate to `/board?project=X`\n- \"Add Epic\" button (reuse existing epic creation modal)\n- Empty state: \"No epics yet — create your first epic to organize your tickets\"\n- Epic ticket counts via `useTickets` or a lightweight count query\n\n### 5. Update sidebar navigation\n\n**Modify** `src/components/navigation/IconSidebar.tsx`:\n- Change Board nav item path from `\"/\"` to `\"/board\"`\n- Add new \"Home\" nav item at position 0 with path `\"/\"`  and a Home icon\n- Update shortcut keys: Home=1, Dashboard=2, Board=3, Projects=4(panel), Settings=5\n\n**OR** simpler approach — keep 4 items, just update Board path:\n- Dashboard (1) → `/dashboard`\n- Board (2) → `/board`\n- Projects (3) → slide-out panel (unchanged)\n- Settings (4) → modal (unchanged)\n\nUsers reach the home page by clicking the app logo/brand or navigating to `/` directly. The sidebar doesn't need a dedicated home item if the header has one.\n\n### 6. Add home navigation affordance\n\nAdd a clickable logo/brand element in the header (`src/components/layout/AppHeader.tsx`) that navigates to `/` (projects home). This gives users a consistent way back to the projects overview.\n\n## Key Files\n\n| File | Action | Purpose |\n|------|--------|---------|\n| `src/routes/board.tsx` | Create | New board route (moved from index) |\n| `src/routes/index.tsx` | Rewrite | New projects home page |\n| `src/routes/projects.$projectId.tsx` | Create | Project detail with epic list |\n| `src/components/projects/ProjectCard.tsx` | Create | Project card for grid |\n| `src/components/navigation/IconSidebar.tsx` | Modify | Update Board path to `/board` |\n| `src/components/layout/AppHeader.tsx` | Modify | Add home link on logo/brand |\n| `src/routes/dashboard.tsx` | Modify | Update nav to `/board` |\n| `src/routes/ticket.$id.tsx` | Modify | Update nav to `/board` |\n| `src/components/AppLayout.tsx` | Modify | Update nav to `/board` |\n\n## Reusable Existing Code\n\n- **`useProjectsWithAIActivity()`** — `src/lib/hooks/projects.ts` — projects + AI glow data\n- **`useProjects()`** — `src/lib/hooks/projects.ts` — projects with epics\n- **`EpicListItem`** — `src/components/navigation/EpicListItem.tsx` — compact epic row with actions\n- **`EpicDrillInView`** — `src/components/navigation/EpicDrillInView.tsx` — epic list with search/back nav (reference for layout)\n- **`ProjectModal`** — existing modal for creating/editing projects\n- **`EpicModal`** — existing modal for creating/editing epics\n- **URL filter system** — `useFiltersWithUrl()` in `src/lib/filter-hooks.ts` — board already reads `?project=X&epic=Y`\n- **AI glow keyframes** — from ProjectsPanel CSS\n\n## Verification\n\n1. `pnpm type-check` — no type errors\n2. `pnpm lint` — no lint errors\n3. `pnpm test` — existing tests pass\n4. Manual testing:\n   - Navigate to `/` → see project cards\n   - Click project → see epic list at `/projects/:id`\n   - Click epic → board opens at `/board?project=X&epic=Y` with filtered tickets\n   - Click \"View All Tickets\" → board opens at `/board?project=X`\n   - Sidebar Board icon → goes to `/board`\n   - Sidebar Projects icon → opens slide-out panel (unchanged)\n   - Dashboard \"back\" nav → goes to `/board`\n   - Browser back/forward works across all transitions\n   - Empty state renders when no projects exist\n   - Empty epic state renders when project has no epics",
-      "priority": "high",
-      "tags": [
-        "overview",
-        "planning"
-      ]
-    },
-    {
-      "id": "73fab3e7-a1a9-464d-a96a-323778157cca",
-      "title": "Move kanban board from `/` to `/board`",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`src/routes/board.tsx` exists and renders the kanban board at `/board`",
-        "Navigating to `/board` shows the full kanban board with all existing functionality",
-        "`pnpm type-check` passes",
-        "`pnpm lint` passes"
-      ],
-      "references": [
-        "src/routes/board.tsx",
-        "src/routes/index.tsx"
-      ],
-      "description": "## Shared Branch/PR\n\nAll tickets in epic \"Projects Home Page\" share a single branch and PR. Use `workflow` `start-epic` on the epic to create the shared branch before starting work.\n\n## What\n\nMove the existing kanban board route from `/` to `/board` so `/` can become the new Projects home page.\n\n## Steps\n\n1. **Create** `src/routes/board.tsx` — copy entire contents of current `src/routes/index.tsx`, change route path to `/board`\n2. Leave `src/routes/index.tsx` as a stub (will be replaced by the Projects home page ticket)\n\n## Acceptance Criteria\n\n- [ ] `src/routes/board.tsx` exists and renders the kanban board at `/board`\n- [ ] Navigating to `/board` shows the full kanban board with all existing functionality\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm lint` passes",
-      "priority": "high",
-      "tags": [
-        "routing",
-        "refactor"
-      ]
-    },
-    {
-      "id": "511591a8-de3a-48f4-957c-6e35bd4fb552",
-      "title": "Update internal navigations from `/` to `/board`",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "All navigations that previously went to `/` (expecting the board) now go to `/board`",
-        "Dashboard \"back\" navigation goes to `/board`",
-        "Ticket detail \"back to board\" goes to `/board`",
-        "AppLayout fallback navigation goes to `/board`",
-        "`pnpm type-check` passes",
-        "`pnpm lint` passes"
-      ],
-      "references": [
-        "src/routes/dashboard.tsx",
-        "src/routes/ticket.$id.tsx",
-        "src/components/AppLayout.tsx"
-      ],
-      "description": "## Shared Branch/PR\n\nAll tickets in epic \"Projects Home Page\" share a single branch and PR. Use `workflow` `start-epic` on the epic to create the shared branch before starting work.\n\n## What\n\nSeveral files navigate to `/` expecting the kanban board. Update all of them to point to `/board`.\n\n## Files to Update\n\n| File | Line | Change |\n|------|------|--------|\n| `src/routes/dashboard.tsx` | ~112 | `navigate({ to: \"/board\" })` |\n| `src/routes/ticket.$id.tsx` | ~60, ~330 | `router.navigate({ to: \"/board\" })` |\n| `src/components/AppLayout.tsx` | ~367 | `navigate({ to: \"/board\" })` |\n\n## Acceptance Criteria\n\n- [ ] All navigations that previously went to `/` (expecting the board) now go to `/board`\n- [ ] Dashboard \"back\" navigation goes to `/board`\n- [ ] Ticket detail \"back to board\" goes to `/board`\n- [ ] AppLayout fallback navigation goes to `/board`\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm lint` passes",
-      "priority": "high",
-      "tags": [
-        "routing",
-        "refactor"
-      ]
-    },
-    {
-      "id": "dca04300-404b-438b-848f-2eabfcdc0991",
-      "title": "Create Projects home page (`/`)",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`/` renders a responsive grid of project cards",
-        "Each card shows project name, path, epic count, ticket stats",
-        "AI activity glow appears on cards with active sessions",
-        "Clicking a card navigates to `/projects/$projectId`",
-        "Empty state renders with \"Add Project\" CTA when no projects exist",
-        "\"New Project\" button opens ProjectModal",
-        "`pnpm type-check` passes",
-        "`pnpm lint` passes"
-      ],
-      "references": [
-        "src/routes/index.tsx",
-        "src/lib/hooks/projects.ts",
-        "src/components/projects/ProjectCard.tsx"
-      ],
-      "description": "## Shared Branch/PR\n\nAll tickets in epic \"Projects Home Page\" share a single branch and PR. Use `workflow` `start-epic` on the epic to create the shared branch before starting work.\n\n## What\n\nBuild the new Projects home page that replaces the kanban board at `/`. This is the main landing page showing all projects as a responsive card grid.\n\n## New Files\n\n### `src/routes/index.tsx`\n- Uses `useProjectsWithAIActivity()` hook (already exists in `src/lib/hooks/projects.ts`)\n- Renders a responsive grid of project cards\n- Each card shows: project name, path (truncated), epic count, ticket stats, AI activity glow\n- Click a card → navigate to `/projects/$projectId`\n- Empty state with \"Add Project\" CTA\n- Header with \"Projects\" title + \"New Project\" button (reuse existing `ProjectModal`)\n\n### `src/components/projects/ProjectCard.tsx`\n- Card component for the grid\n- Props: project data (ProjectWithAIActivity), onClick, onEdit\n- Shows color accent from `project.color`\n- AI glow animation when `hasActiveAI` (reuse existing keyframes from ProjectsPanel)\n- \"View All Tickets\" secondary action → navigate to `/board?project=X`\n\n## Reusable Code\n- `useProjectsWithAIActivity()` — `src/lib/hooks/projects.ts`\n- `ProjectModal` — existing modal for creating/editing projects\n- AI glow keyframes — from ProjectsPanel CSS\n\n## Acceptance Criteria\n\n- [ ] `/` renders a responsive grid of project cards\n- [ ] Each card shows project name, path, epic count, ticket stats\n- [ ] AI activity glow appears on cards with active sessions\n- [ ] Clicking a card navigates to `/projects/$projectId`\n- [ ] Empty state renders with \"Add Project\" CTA when no projects exist\n- [ ] \"New Project\" button opens ProjectModal\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm lint` passes",
-      "priority": "high",
-      "tags": [
-        "feature",
-        "ui",
-        "routing"
-      ]
-    },
-    {
-      "id": "f137d657-4a41-4a3b-9721-05fa3d493a52",
-      "title": "Create Project detail page (`/projects/$projectId`)",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`/projects/:id` renders project header with name, path, color",
-        "Back navigation returns to `/` (projects home)",
-        "Epics are listed with ticket counts",
-        "Clicking an epic navigates to `/board?project=X&epic=Y`",
-        "\"View All Tickets\" navigates to `/board?project=X`",
-        "\"Add Epic\" button opens EpicModal",
-        "Empty state renders when project has no epics",
-        "404/redirect when project ID doesn't exist",
-        "`pnpm type-check` passes",
-        "`pnpm lint` passes"
-      ],
-      "references": [
-        "src/routes/projects.$projectId.tsx",
-        "src/components/navigation/EpicListItem.tsx",
-        "src/lib/hooks/projects.ts",
-        "src/components/navigation/EpicDrillInView.tsx",
-        "src/lib/filter-hooks.ts"
-      ],
-      "description": "## Shared Branch/PR\n\nAll tickets in epic \"Projects Home Page\" share a single branch and PR. Use `workflow` `start-epic` on the epic to create the shared branch before starting work.\n\n## What\n\nBuild the project detail page that shows a project's epics and provides drill-down navigation to the filtered kanban board.\n\n## New File\n\n### `src/routes/projects.$projectId.tsx`\n- Fetches project from `useProjects()` by matching `projectId` param\n- Shows project header (name, path, color) with back navigation to `/`\n- Lists epics using existing `EpicListItem` component from `src/components/navigation/EpicListItem.tsx`\n- Click epic → navigate to `/board?project=X&epic=Y` (uses existing URL filter system)\n- \"View All Tickets\" button → navigate to `/board?project=X`\n- \"Add Epic\" button (reuse existing epic creation modal)\n- Empty state: \"No epics yet — create your first epic to organize your tickets\"\n- Epic ticket counts via `useTickets` or a lightweight count query\n\n## Reusable Code\n- `useProjects()` — `src/lib/hooks/projects.ts`\n- `EpicListItem` — `src/components/navigation/EpicListItem.tsx`\n- `EpicDrillInView` — `src/components/navigation/EpicDrillInView.tsx` (reference for layout)\n- `EpicModal` — existing modal for creating/editing epics\n- URL filter system — `useFiltersWithUrl()` in `src/lib/filter-hooks.ts`\n\n## Acceptance Criteria\n\n- [ ] `/projects/:id` renders project header with name, path, color\n- [ ] Back navigation returns to `/` (projects home)\n- [ ] Epics are listed with ticket counts\n- [ ] Clicking an epic navigates to `/board?project=X&epic=Y`\n- [ ] \"View All Tickets\" navigates to `/board?project=X`\n- [ ] \"Add Epic\" button opens EpicModal\n- [ ] Empty state renders when project has no epics\n- [ ] 404/redirect when project ID doesn't exist\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm lint` passes",
-      "priority": "high",
-      "tags": [
-        "feature",
-        "ui",
-        "routing"
-      ]
-    },
-    {
-      "id": "c31f8560-4a3a-4aca-bd31-6643f12101a3",
-      "title": "Update sidebar navigation and add home affordance",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Sidebar Board icon navigates to `/board`",
-        "Sidebar Projects icon still opens slide-out panel (unchanged)",
-        "Header logo/brand navigates to `/` (projects home)",
-        "Keyboard shortcuts still work correctly",
-        "`pnpm type-check` passes",
-        "`pnpm lint` passes"
-      ],
-      "references": [
-        "src/components/navigation/IconSidebar.tsx",
-        "src/components/layout/AppHeader.tsx"
-      ],
-      "description": "## Shared Branch/PR\n\nAll tickets in epic \"Projects Home Page\" share a single branch and PR. Use `workflow` `start-epic` on the epic to create the shared branch before starting work.\n\n## What\n\nUpdate the sidebar and header to reflect the new routing structure. The Board icon should point to `/board` and users need a way to navigate back to the Projects home page.\n\n## Changes\n\n### `src/components/navigation/IconSidebar.tsx`\n- Change Board nav item path from `\"/\"` to `\"/board\"`\n- Keep existing sidebar items: Dashboard (1), Board (2), Projects (3, slide-out panel), Settings (4, modal)\n\n### `src/components/layout/AppHeader.tsx`\n- Add a clickable logo/brand element that navigates to `/` (projects home)\n- This gives users a consistent way back to the projects overview from anywhere\n\n## Acceptance Criteria\n\n- [ ] Sidebar Board icon navigates to `/board`\n- [ ] Sidebar Projects icon still opens slide-out panel (unchanged)\n- [ ] Header logo/brand navigates to `/` (projects home)\n- [ ] Keyboard shortcuts still work correctly\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm lint` passes",
-      "priority": "medium",
-      "tags": [
-        "ui",
-        "navigation"
-      ]
-    },
-    {
-      "id": "bcfa7f67-d7c9-45a2-b92b-b90094c7c1ba",
-      "title": "OVERVIEW 2: Minimalist List-Based Projects Homepage Redesign",
-      "passes": false,
-      "overview": "**Branch**: `feature/epic-040adfc0-projects-home-page` (continue on existing branch)\nThe current `/` (home) route displays projects in a card grid layout with borders, hover states, and chunky visual elements. This redesign introduces a more mature, elegant, minimalist approach:\n- **List-based layout** instead of grid cards (vertically stacked, no borders)\n- **Search bar** at the top to filter projects\n- **Inline metadata badges** under each project name (ticket counts, epic counts, AI status)\n- **Subtle hover effects** to indicate clickability\n- **Easy \"Add Project\" button** accessible in the header\n- **Settings icon** per-project for quick access to edit/delete\n**Goals**: Reduce visual noise, improve scannability, feel more professional and refined.\n---",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "references": [
-        "src/lib/hooks/projects.ts",
-        "src/components/projects/ProjectListItem.tsx",
-        "src/routes/index.tsx",
-        "src/lib/hooks/projects.ts:103",
-        "src/lib/hooks/tickets.ts"
-      ],
-      "description": "# OVERVIEW 2: Minimalist List-Based Projects Homepage Redesign\n\n**Branch**: `feature/epic-040adfc0-projects-home-page` (continue on existing branch)\n\n## Context\n\nThe current `/` (home) route displays projects in a card grid layout with borders, hover states, and chunky visual elements. This redesign introduces a more mature, elegant, minimalist approach:\n\n- **List-based layout** instead of grid cards (vertically stacked, no borders)\n- **Search bar** at the top to filter projects\n- **Inline metadata badges** under each project name (ticket counts, epic counts, AI status)\n- **Subtle hover effects** to indicate clickability\n- **Easy \"Add Project\" button** accessible in the header\n- **Settings icon** per-project for quick access to edit/delete\n\n**Goals**: Reduce visual noise, improve scannability, feel more professional and refined.\n\n---\n\n## Implementation Tickets\n\n### Ticket 1: Extend Data Fetching to Include Ticket Counts\n- Extend `useProjectsWithAIActivity()` in `src/lib/hooks/projects.ts`\n- Add ticket count aggregation per project using `useMemo`\n\n### Ticket 2: Create ProjectListItem Component\n- New file: `src/components/projects/ProjectListItem.tsx`\n- Minimalist list item with color dot, name, metadata badges, hover actions\n- `MetadataBadge` subcomponent for inline ticket/epic/AI counts\n\n### Ticket 3: Redesign Homepage with Search and List Layout\n- Replace grid layout with centered vertical list in `src/routes/index.tsx`\n- Add search input for client-side project filtering\n- Wire up `ProjectListItem` and new data hooks\n- Update all container/layout styles\n\n---\n\n## Files to Modify\n\n1. `src/lib/hooks/projects.ts` — extend hook with ticket counts\n2. `src/components/projects/ProjectListItem.tsx` — NEW component\n3. `src/routes/index.tsx` — redesigned homepage\n\n## Existing Utilities to Reuse\n\n- `useProjectsWithAIActivity()` — `src/lib/hooks/projects.ts:103`\n- `useTickets()` — `src/lib/hooks/tickets.ts`\n- `openProjectModal()` — from AppLayout context\n- CSS variables — `--bg-hover`, `--text-tertiary`, `--spacing-*`, `--radius-*`, `--transition-fast`\n\n## Verification Steps\n\n1. Visual check at `localhost:4242/`\n2. `pnpm type-check` passes\n3. `pnpm test` passes\n4. Keyboard navigation works\n5. Search filters correctly\n6. Empty states display properly",
-      "priority": "high",
-      "tags": [
-        "overview",
-        "redesign",
-        "homepage"
-      ]
-    },
-    {
-      "id": "dc8f3a3b-c327-437c-b852-b7f2ed33be59",
-      "title": "Extend data fetching to include ticket counts per project",
-      "passes": true,
-      "overview": "The `useProjectsWithAIActivity()` hook returns projects with AI activity indicators but has no ticket count aggregation. The new minimalist homepage needs ticket counts displayed as inline metadata badges.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`useProjectsWithAIActivity()` returns ticket counts per project",
-        "Counts update reactively when tickets change",
-        "`pnpm type-check` passes",
-        "`pnpm test` passes"
-      ],
-      "references": [
-        "src/lib/hooks/projects.ts",
-        "projects.$projectId.tsx:23-31"
-      ],
-      "description": "# Extend Data Fetching to Include Ticket Counts Per Project\n\n**Branch**: `feature/epic-040adfc0-projects-home-page` (continue on existing branch)\n**Reference**: See OVERVIEW 2 ticket in this epic for the full redesign plan.\n\n## Context\n\nThe `useProjectsWithAIActivity()` hook returns projects with AI activity indicators but has no ticket count aggregation. The new minimalist homepage needs ticket counts displayed as inline metadata badges.\n\n## Implementation\n\n**File**: `src/lib/hooks/projects.ts`\n\n1. Import `useTickets()` from `hooks/tickets`\n2. Fetch all tickets once via existing hook\n3. Aggregate counts by project using `useMemo`:\n\n```typescript\nconst ticketCountByProject = useMemo(() => {\n  const counts = new Map<string, number>();\n  for (const ticket of tickets) {\n    counts.set(ticket.projectId, (counts.get(ticket.projectId) ?? 0) + 1);\n  }\n  return counts;\n}, [tickets]);\n```\n\n4. Return `ticketCountByProject` alongside existing return values\n\n## Pattern Reference\n\nFollow the same `useMemo` aggregation pattern used in `projects.$projectId.tsx` lines 23-31 (`ticketCountByEpic`).\n\n## Acceptance Criteria\n\n- [ ] `useProjectsWithAIActivity()` returns ticket counts per project\n- [ ] Counts update reactively when tickets change\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm test` passes",
-      "priority": "high",
-      "tags": [
-        "hooks",
-        "data-fetching"
-      ]
-    },
-    {
-      "id": "e647e66b-953d-4b46-bab5-dde0491741b0",
-      "title": "Create ProjectListItem component with metadata badges",
-      "passes": true,
-      "overview": "The homepage redesign replaces `ProjectCard` grid items with minimalist `ProjectListItem` components. Each item shows a color dot, project name, inline metadata badges, and hover-revealed settings action.",
+      "overview": "The user wants to transform the project detail page (`/projects/$projectId`) from a simple epic list into a **development hub** - a central place where engineers can:\n- Launch their project in editors (VS Code, Cursor, Vim/Neovim)\n- Open terminals in the project directory\n- Start dev servers with auto-detected commands\n- See tech stack info (languages, frameworks, dependencies)\n- View git activity (last commit, recent history)\n- Access README/documentation\n**Current state:** The page shows project header + epic list + \"Add Epic\" button. Minimal, functional, but no project context or quick actions.\n**Goal:** Add rich context and quick-launch actions without burying the epics list.",
       "types": [
         {
-          "name": "ProjectListItemProps",
-          "code": "interface ProjectListItemProps {\n  project: ProjectWithAIActivity;\n  ticketCount: number;\n  epicCount: number;\n  onClick: () => void;\n  onSettings: (e: React.MouseEvent) => void;\n}"
+          "name": "TechStackInfo",
+          "code": "export interface TechStackInfo {\n  languages: Array<{ name: string; icon: string; version?: string }>;\n  frameworks: Array<{ name: string; icon: string; version?: string }>;\n  totalDependencies: number;\n}"
+        },
+        {
+          "name": "EditorInfo",
+          "code": "export interface EditorInfo {\n  name: \"vscode\" | \"cursor\" | \"vim\" | \"neovim\";\n  installed: boolean;\n  launchCommand: string;\n  displayName: string;\n}"
+        },
+        {
+          "name": "DevCommand",
+          "code": "export interface DevCommand {\n  name: string;\n  command: string;\n  description?: string;\n  source: \"package.json\" | \"makefile\" | \"docker-compose\";\n}"
+        },
+        {
+          "name": "GitProjectInfo",
+          "code": "export interface GitProjectInfo {\n  lastCommit: {\n    hash: string;\n    message: string;\n    author: string;\n    date: string;\n  } | null;\n  recentCommits: Array<{...}>;\n  branch: string | null;\n  hasUncommittedChanges: boolean;\n}"
+        }
+      ],
+      "designDecisions": [],
+      "implementationGuide": [
+        {
+          "step": 1,
+          "description": "Tech Stack Detection (`src/api/dev-tools.ts`)",
+          "files": [],
+          "codeTemplate": "export interface TechStackInfo {\n  languages: Array<{ name: string; icon: string; version?: string }>;\n  frameworks: Array<{ name: string; icon: string; version?: string }>;\n  totalDependencies: number;\n}\n\nexport const detectTechStack = createServerFn({ method: \"GET\" })\n  .inputValidator((projectPath: string) => projectPath)\n  .handler(async ({ data: projectPath }): Promise<TechStackInfo>)"
+        },
+        {
+          "step": 2,
+          "description": "Editor Detection (`src/api/dev-tools.ts`)",
+          "files": [
+            "src/api/terminal.ts",
+            "terminal-utils.ts"
+          ],
+          "codeTemplate": "export interface EditorInfo {\n  name: \"vscode\" | \"cursor\" | \"vim\" | \"neovim\";\n  installed: boolean;\n  launchCommand: string;\n  displayName: string;\n}\n\nexport const detectInstalledEditors = createServerFn({ method: \"GET\" })\n  .handler(async (): Promise<EditorInfo[]>)"
+        },
+        {
+          "step": 3,
+          "description": "Dev Server Detection (`src/api/dev-tools.ts`)",
+          "files": [],
+          "codeTemplate": "export interface DevCommand {\n  name: string;\n  command: string;\n  description?: string;\n  source: \"package.json\" | \"makefile\" | \"docker-compose\";\n}\n\nexport const detectDevCommands = createServerFn({ method: \"GET\" })\n  .inputValidator((projectPath: string) => projectPath)\n  .handler(async ({ data: projectPath }): Promise<DevCommand[]>)"
+        },
+        {
+          "step": 4,
+          "description": "Git Information (`src/api/git-info.ts`)",
+          "files": [
+            "core/git-utils.ts",
+            "core/git.ts"
+          ],
+          "codeTemplate": "export interface GitProjectInfo {\n  lastCommit: {\n    hash: string;\n    message: string;\n    author: string;\n    date: string;\n  } | null;\n  recentCommits: Array<{...}>;\n  branch: string | null;\n  hasUncommittedChanges: boolean;\n}\n\nexport const getGitProjectInfo = createServerFn({ method: \"GET\" })\n  .inputValidator((projectPath: string) => projectPath)\n  .handler(async ({ data: projectPath }): Promise<GitProjectInfo>)"
+        },
+        {
+          "step": 5,
+          "description": "Launch Actions (`src/api/dev-tools.ts`)",
+          "files": [
+            "terminal-utils.ts"
+          ],
+          "codeTemplate": "export const launchDevServer = createServerFn({ method: \"POST\" })\n  .inputValidator((data: { projectPath: string; command: string }) => data)\n  .handler(async ({ data }): Promise<{ success: boolean; message: string }>)"
+        },
+        {
+          "step": 6,
+          "description": "React Hooks (`src/lib/hooks/projects.ts`)",
+          "files": [],
+          "codeTemplate": "export function useTechStack(projectPath: string) {\n  return useQuery({\n    queryKey: queryKeys.techStack(projectPath),\n    queryFn: () => detectTechStack(projectPath),\n    staleTime: 5 * 60 * 1000, // Cache 5 minutes\n  });\n}\n\nexport function useInstalledEditors() {\n  return useQuery({\n    queryKey: queryKeys.editors,\n    queryFn: () => detectInstalledEditors(),\n    staleTime: 60 * 60 * 1000, // Cache 1 hour (rarely changes)\n  });\n}\n\nexport function useDevCommands(projectPath: string) {\n  return useQuery({\n    queryKey: queryKeys.devCommands(projectPath),\n    queryFn: () => detectDevCommands(projectPath),\n    staleTime: 5 * 60 * 1000,\n  });\n}\n\nexport function useGitProjectInfo(projectPath: string) {\n  return useQuery({\n    queryKey: queryKeys.gitInfo(projectPath),\n    queryFn: () => getGitProjectInfo(projectPath),\n    refetchInterval: 30 * 1000, // Refresh every 30s\n  });\n}\n\nexport function useLaunchEditor() {\n  return useMutation({\n    mutationFn: (data: { projectPath: string; editor: string }) => launchEditor(data),\n  });\n}\n\nexport function useLaunchDevServer() {\n  return useMutation({\n    mutationFn: (data: { projectPath: string; command: string }) => launchDevServer(data),\n  });\n}"
+        },
+        {
+          "step": 7,
+          "description": "Query Keys (`src/lib/query-keys.ts`)",
+          "files": [],
+          "codeTemplate": "export const queryKeys = {\n  // ... existing keys\n\n  // Development hub\n  techStack: (projectPath: string) => [\"techStack\", projectPath] as const,\n  editors: [\"editors\"] as const,\n  devCommands: (projectPath: string) => [\"devCommands\", projectPath] as const,\n  gitInfo: (projectPath: string) => [\"gitInfo\", projectPath] as const,\n};"
+        },
+        {
+          "step": 8,
+          "description": "UI Components",
+          "files": [
+            "CreateProjectModal.tsx"
+          ],
+          "codeTemplate": "┌─────────────────────────────────────┐\n│ 📊 Git Activity                     │\n├─────────────────────────────────────┤\n│ Latest: feat: add dev hub           │\n│ 2 hours ago by John Doe             │\n│                                     │\n│ Recent Commits:                     │\n│ • abc1234 feat: add dev hub         │\n│ • def5678 fix: button styling       │\n│ • ghi9012 docs: update README       │\n│                                     │\n│ [View Git History →]                │\n└─────────────────────────────────────┘"
+        },
+        {
+          "step": 9,
+          "description": "Modified Project Detail Page",
+          "files": [
+            "src/routes/projects.$projectId.tsx",
+            "src/api/dev-tools.ts",
+            "src/api/git-info.ts",
+            "src/lib/hooks/projects.ts",
+            "src/lib/query-keys.ts",
+            "src/components/projects/TechStackCard.tsx",
+            "src/components/projects/GitHistoryCard.tsx",
+            "src/components/projects/EditorLauncher.tsx",
+            "src/components/projects/DevServerPicker.tsx",
+            "src/components/projects/DevHubToolbar.tsx"
+          ],
+          "codeTemplate": "const cardsGridStyles: React.CSSProperties = {\n  display: \"grid\",\n  gridTemplateColumns: \"repeat(auto-fit, minmax(320px, 1fr))\",\n  gap: \"var(--spacing-4)\",\n  padding: \"var(--spacing-4)\",\n  borderBottom: \"1px solid var(--border-primary)\",\n};"
+        },
+        {
+          "step": 9,
+          "description": "Modified Project Detail Page",
+          "files": [
+            "src/routes/projects.$projectId.tsx",
+            "src/api/dev-tools.ts",
+            "src/api/git-info.ts",
+            "src/lib/hooks/projects.ts",
+            "src/lib/query-keys.ts",
+            "src/components/projects/TechStackCard.tsx",
+            "src/components/projects/GitHistoryCard.tsx",
+            "src/components/projects/EditorLauncher.tsx",
+            "src/components/projects/DevServerPicker.tsx",
+            "src/components/projects/DevHubToolbar.tsx"
+          ],
+          "codeTemplate": "const cardsGridStyles: React.CSSProperties = {\n  display: \"grid\",\n  gridTemplateColumns: \"repeat(auto-fit, minmax(320px, 1fr))\",\n  gap: \"var(--spacing-4)\",\n  padding: \"var(--spacing-4)\",\n  borderBottom: \"1px solid var(--border-primary)\",\n};"
+        },
+        {
+          "step": 9,
+          "description": "Modified Project Detail Page",
+          "files": [
+            "src/routes/projects.$projectId.tsx",
+            "src/api/dev-tools.ts",
+            "src/api/git-info.ts",
+            "src/lib/hooks/projects.ts",
+            "src/lib/query-keys.ts",
+            "src/components/projects/TechStackCard.tsx",
+            "src/components/projects/GitHistoryCard.tsx",
+            "src/components/projects/EditorLauncher.tsx",
+            "src/components/projects/DevServerPicker.tsx",
+            "src/components/projects/DevHubToolbar.tsx"
+          ],
+          "codeTemplate": "const cardsGridStyles: React.CSSProperties = {\n  display: \"grid\",\n  gridTemplateColumns: \"repeat(auto-fit, minmax(320px, 1fr))\",\n  gap: \"var(--spacing-4)\",\n  padding: \"var(--spacing-4)\",\n  borderBottom: \"1px solid var(--border-primary)\",\n};"
+        }
+      ],
+      "acceptanceCriteria": [
+        "**Navigate** to project detail page",
+        "**View** tech stack automatically detected and displayed",
+        "**View** git history with recent commits",
+        "**Open** project in their preferred editor (VS Code / Cursor / Vim / Neovim)",
+        "**Launch** new terminal in project directory with one click",
+        "**Start** dev server with auto-detected command and select from options",
+        "**Access** README/documentation from toolbar",
+        "**See** all tech stack, git, and epic information together on one page",
+        "**Never** need to manually navigate filesystem or guess commands",
+        "Toolbar buttons are always visible (top of page)",
+        "Cards load asynchronously without blocking page",
+        "Skeleton loading states show while data fetches",
+        "Error messages are helpful and offer recovery steps",
+        "Responsive design: Desktop 2-column, Mobile single-column",
+        "All buttons have proper hover states and are keyboard-navigable",
+        "No duplicate windows or processes launched",
+        "All links are tracked to Brain Dump tickets (same PR, same branch)",
+        "Each ticket has clear scope (backend OR UI component)",
+        "No interdependencies between tickets (can work in parallel)",
+        "All test cases in verification section pass",
+        "Code review passes without issues",
+        "No performance regressions",
+        "Editor launches within 2 seconds",
+        "Terminal opens in correct directory",
+        "Dev server starts without hanging",
+        "No orphaned processes left running",
+        "Graceful fallbacks for missing editors/terminals",
+        "Error messages guide user to fix (install editor, configure scripts, etc.)"
+      ],
+      "references": [
+        "src/api/dev-tools.ts",
+        "src/api/git-info.ts",
+        "src/components/projects/DevHubToolbar.tsx",
+        "src/components/projects/EditorLauncher.tsx",
+        "src/components/projects/DevServerPicker.tsx",
+        "src/components/projects/TechStackCard.tsx",
+        "src/components/projects/GitHistoryCard.tsx",
+        "src/routes/projects.$projectId.tsx",
+        "src/lib/hooks/projects.ts",
+        "src/lib/query-keys.ts",
+        "src/api/terminal.ts",
+        "src/api/terminal-utils.ts"
+      ],
+      "description": "# Project Detail Page → Development Hub\n\n## Context\n\nThe user wants to transform the project detail page (`/projects/$projectId`) from a simple epic list into a **development hub** - a central place where engineers can:\n- Launch their project in editors (VS Code, Cursor, Vim/Neovim)\n- Open terminals in the project directory\n- Start dev servers with auto-detected commands\n- See tech stack info (languages, frameworks, dependencies)\n- View git activity (last commit, recent history)\n- Access README/documentation\n\n**Current state:** The page shows project header + epic list + \"Add Epic\" button. Minimal, functional, but no project context or quick actions.\n\n**Goal:** Add rich context and quick-launch actions without burying the epics list.\n\n## User Requirements (from brainstorming)\n\n✅ **Top toolbar** with action buttons above project info\n✅ **Editor launch**: Auto-detect VS Code, Cursor, Vim/Neovim → open project\n✅ **Terminal launch**: Open new terminal window in project directory\n✅ **Dev server**: Auto-detect dev commands (package.json scripts, Makefile), let user pick\n✅ **Tech stack display**: Auto-detect from package.json, go.mod, Cargo.toml, etc.\n✅ **Git info**: Last commit date/time from main/master\n✅ **Recent commits**: View git history\n✅ **Open README**: Launch docs/README\n❌ **Skip for now**: npm audit / outdated dependencies (too complex)\n\n## Architecture Overview\n\n### New Files to Create\n\n**Server Functions (API):**\n- `src/api/dev-tools.ts` - Tech stack, editor, and dev command detection + launch\n- `src/api/git-info.ts` - Git operations for project page (last commit, recent history)\n\n**React Components:**\n- `src/components/projects/DevHubToolbar.tsx` - Top toolbar with all action buttons\n- `src/components/projects/EditorLauncher.tsx` - Dropdown button for editor selection\n- `src/components/projects/DevServerPicker.tsx` - Modal for dev command selection\n- `src/components/projects/TechStackCard.tsx` - Tech stack display (languages, frameworks, deps)\n- `src/components/projects/GitHistoryCard.tsx` - Git activity card (last commit, recent commits)\n\n**Modified Files:**\n- `src/routes/projects.$projectId.tsx` - Add toolbar + cards + keep epics list\n- `src/lib/hooks/projects.ts` - Add hooks for tech stack, editors, git info, etc.\n- `src/lib/query-keys.ts` - Add new query keys\n\n### Layout Design\n\n```\n┌─────────────────────────────────────────────────────────────┐\n│ [←] [●] ProjectName                       [View All Tickets] │  ← Existing header\n├─────────────────────────────────────────────────────────────┤\n│ [Editor ▼] [Terminal] [Dev Server] [README]                 │  ← NEW: DevHubToolbar\n├─────────────────────────────────────────────────────────────┤\n│ ┌──────────────────┐  ┌────────────────────────────────┐   │\n│ │ 🏗️ Tech Stack    │  │ 📊 Git Activity               │   │  ← NEW: Info cards\n│ │ TS, React, Vite  │  │ Last commit: 2h ago           │   │\n│ │ 42 deps          │  │ Recent commits list...        │   │\n│ └──────────────────┘  └────────────────────────────────┘   │\n├─────────────────────────────────────────────────────────────┤\n│ Epics (existing epic list)                                  │  ← Existing content\n│ • Epic 1                                                    │\n│ • Epic 2                                                    │\n└─────────────────────────────────────────────────────────────┘\n```\n\n**Responsive:**\n- Desktop (>768px): Two-column grid for cards\n- Mobile: Stack vertically\n\n## Implementation Details\n\n### 1. Tech Stack Detection (`src/api/dev-tools.ts`)\n\n**Detection strategy:**\n```typescript\nexport interface TechStackInfo {\n  languages: Array<{ name: string; icon: string; version?: string }>;\n  frameworks: Array<{ name: string; icon: string; version?: string }>;\n  totalDependencies: number;\n}\n\nexport const detectTechStack = createServerFn({ method: \"GET\" })\n  .inputValidator((projectPath: string) => projectPath)\n  .handler(async ({ data: projectPath }): Promise<TechStackInfo>)\n```\n\n**File checks:**\n- `package.json` → Node.js/TypeScript, extract React/Vue/Next.js/Vite/etc. from dependencies\n- `go.mod` → Go, parse dependencies\n- `Cargo.toml` → Rust, parse dependencies\n- `pyproject.toml` or `requirements.txt` → Python, check for Django/FastAPI\n- `pom.xml` or `build.gradle` → Java\n\n**Parsing logic:**\n- Read manifest file with `fs.readFileSync` + `JSON.parse` (or string parsing for TOML/YAML)\n- Extract language from file existence\n- Parse dependencies: prioritize frameworks (React, Next.js, Express, etc.)\n- Count total dependencies\n- Return top 3-5 frameworks + total count\n\n**Icon mapping:**\n- TypeScript → \"TS\"\n- JavaScript → \"JS\"\n- React → \"⚛️\"\n- Go → \"🐹\"\n- Rust → \"🦀\"\n- Python → \"🐍\"\n\n### 2. Editor Detection (`src/api/dev-tools.ts`)\n\n**Reuse existing functions:**\n- From `src/api/terminal.ts`: `isVSCodeInstalled()`, `isCursorInstalled()`\n- Add new: `isVimInstalled()`, `isNeovimInstalled()` (check `vim --version`, `nvim --version`)\n\n```typescript\nexport interface EditorInfo {\n  name: \"vscode\" | \"cursor\" | \"vim\" | \"neovim\";\n  installed: boolean;\n  launchCommand: string;\n  displayName: string;\n}\n\nexport const detectInstalledEditors = createServerFn({ method: \"GET\" })\n  .handler(async (): Promise<EditorInfo[]>)\n```\n\n**Launch commands:**\n| Editor | Command |\n|--------|---------|\n| VS Code | `code \"${projectPath}\"` |\n| Cursor | `cursor \"${projectPath}\"` or `open -a Cursor \"${projectPath}\"` |\n| Neovim | Launch terminal with `nvim \"${projectPath}\"` |\n| Vim | Launch terminal with `vim \"${projectPath}\"` |\n\n**For Vim/Neovim:** Reuse `detectTerminal()` and `buildTerminalCommand()` from `terminal-utils.ts`\n\n### 3. Dev Server Detection (`src/api/dev-tools.ts`)\n\n```typescript\nexport interface DevCommand {\n  name: string;\n  command: string;\n  description?: string;\n  source: \"package.json\" | \"makefile\" | \"docker-compose\";\n}\n\nexport const detectDevCommands = createServerFn({ method: \"GET\" })\n  .inputValidator((projectPath: string) => projectPath)\n  .handler(async ({ data: projectPath }): Promise<DevCommand[]>)\n```\n\n**Detection sources:**\n1. **package.json** → Parse `scripts` object, look for `dev`, `start`, `serve`\n2. **Makefile** → Parse targets (regex: `^(dev|serve|run|start):`)\n3. **docker-compose.yml** → Check for `services:` section → `docker-compose up`\n\n**Priority order:** dev > start > serve > others\n\n### 4. Git Information (`src/api/git-info.ts`)\n\n**Reuse existing patterns:**\n- Import `runGitCommand` from `core/git-utils.ts`\n- Follow same pattern as `core/git.ts` for commit parsing\n\n```typescript\nexport interface GitProjectInfo {\n  lastCommit: {\n    hash: string;\n    message: string;\n    author: string;\n    date: string;\n  } | null;\n  recentCommits: Array<{...}>;\n  branch: string | null;\n  hasUncommittedChanges: boolean;\n}\n\nexport const getGitProjectInfo = createServerFn({ method: \"GET\" })\n  .inputValidator((projectPath: string) => projectPath)\n  .handler(async ({ data: projectPath }): Promise<GitProjectInfo>)\n```\n\n**Git commands:**\n- Last commit: `git log -1 --format=\"%H|%s|%an|%ai\"`\n- Recent commits: `git log -10 --format=\"%H|%s|%an|%ai\"`\n- Uncommitted changes: `git status --porcelain`\n\n**Graceful degradation:** Return `null` values if not a git repo\n\n### 5. Launch Actions (`src/api/dev-tools.ts`)\n\n**Launch Editor:**\n```typescript\nexport const launchEditor = createServerFn({ method: \"POST\" })\n  .inputValidator((data: { projectPath: string; editor: string }) => data)\n  .handler(async ({ data }): Promise<{ success: boolean; message: string }>)\n```\n\n**Launch Dev Server:**\n```typescript\nexport const launchDevServer = createServerFn({ method: \"POST\" })\n  .inputValidator((data: { projectPath: string; command: string }) => data)\n  .handler(async ({ data }): Promise<{ success: boolean; message: string }>)\n```\n\n**Reuse terminal launching:**\n- Use `detectTerminal()` from `terminal-utils.ts`\n- Use `buildTerminalCommand()` pattern\n- Create temp script that runs the dev command\n- Launch terminal with script\n\n### 6. React Hooks (`src/lib/hooks/projects.ts`)\n\n**Add to existing file:**\n\n```typescript\nexport function useTechStack(projectPath: string) {\n  return useQuery({\n    queryKey: queryKeys.techStack(projectPath),\n    queryFn: () => detectTechStack(projectPath),\n    staleTime: 5 * 60 * 1000, // Cache 5 minutes\n  });\n}\n\nexport function useInstalledEditors() {\n  return useQuery({\n    queryKey: queryKeys.editors,\n    queryFn: () => detectInstalledEditors(),\n    staleTime: 60 * 60 * 1000, // Cache 1 hour (rarely changes)\n  });\n}\n\nexport function useDevCommands(projectPath: string) {\n  return useQuery({\n    queryKey: queryKeys.devCommands(projectPath),\n    queryFn: () => detectDevCommands(projectPath),\n    staleTime: 5 * 60 * 1000,\n  });\n}\n\nexport function useGitProjectInfo(projectPath: string) {\n  return useQuery({\n    queryKey: queryKeys.gitInfo(projectPath),\n    queryFn: () => getGitProjectInfo(projectPath),\n    refetchInterval: 30 * 1000, // Refresh every 30s\n  });\n}\n\nexport function useLaunchEditor() {\n  return useMutation({\n    mutationFn: (data: { projectPath: string; editor: string }) => launchEditor(data),\n  });\n}\n\nexport function useLaunchDevServer() {\n  return useMutation({\n    mutationFn: (data: { projectPath: string; command: string }) => launchDevServer(data),\n  });\n}\n```\n\n### 7. Query Keys (`src/lib/query-keys.ts`)\n\n**Add to existing object:**\n\n```typescript\nexport const queryKeys = {\n  // ... existing keys\n\n  // Development hub\n  techStack: (projectPath: string) => [\"techStack\", projectPath] as const,\n  editors: [\"editors\"] as const,\n  devCommands: (projectPath: string) => [\"devCommands\", projectPath] as const,\n  gitInfo: (projectPath: string) => [\"gitInfo\", projectPath] as const,\n};\n```\n\n### 8. UI Components\n\n#### DevHubToolbar\n\n**Props:** `{ projectPath: string; projectId: string }`\n\n**Buttons (left to right):**\n1. **\"Open in Editor\"** → EditorLauncher dropdown\n2. **\"New Terminal\"** → Launch terminal in project dir (reuse terminal launch)\n3. **\"Start Dev Server\"** → Open DevServerPicker modal\n4. **\"View README\"** → Open README.md if exists (or disable if not)\n\n**Styling:**\n- Background: `var(--bg-secondary)`\n- Border-bottom: `1px solid var(--border-primary)`\n- Padding: `var(--spacing-3) var(--spacing-4)`\n- Gap: `var(--spacing-3)`\n- Use `accentButtonStyles` for buttons\n\n#### EditorLauncher (Dropdown)\n\n**Behavior:**\n- Loading → Spinner\n- No editors → \"Install Editor\" (disabled, with tooltip)\n- One editor → Direct button: \"Open in VS Code\"\n- Multiple → Dropdown: \"Open in Editor ▼\"\n\n**Dropdown:**\n- Position: Absolute, below button\n- Max-height: 200px with scroll\n- Items: Icon + name, click to launch\n\n#### DevServerPicker (Modal)\n\n**Trigger:** \"Start Dev Server\" button\n\n**Content:**\n- Title: \"Start Development Server\"\n- Radio button list of detected commands\n- Terminal preference dropdown (optional)\n- Buttons: [Cancel] [Launch Server]\n\n**Styling:**\n- Follow existing modal pattern from `CreateProjectModal.tsx`\n- Use `var(--bg-modal)`, `var(--shadow-modal)`\n\n#### TechStackCard\n\n**Layout:**\n```\n┌─────────────────────────────┐\n│ 🏗️ Tech Stack              │\n├─────────────────────────────┤\n│ Languages:                  │\n│ [TS] TypeScript             │\n│                             │\n│ Frameworks:                 │\n│ [⚛️] React 19.0.0           │\n│ [⚡] Vite 6.0.0             │\n│                             │\n│ 42 total dependencies       │\n└─────────────────────────────┘\n```\n\n**Styling:**\n- Background: `var(--bg-secondary)`\n- Border: `1px solid var(--border-primary)`\n- Border-radius: `var(--radius-md)`\n- Padding: `var(--spacing-4)`\n- Font-size: `var(--font-size-sm)`\n\n**Loading state:** Skeleton with pulsing background\n\n**Error state:** \"No manifest files detected\"\n\n#### GitHistoryCard\n\n**Layout:**\n```\n┌─────────────────────────────────────┐\n│ 📊 Git Activity                     │\n├─────────────────────────────────────┤\n│ Latest: feat: add dev hub           │\n│ 2 hours ago by John Doe             │\n│                                     │\n│ Recent Commits:                     │\n│ • abc1234 feat: add dev hub         │\n│ • def5678 fix: button styling       │\n│ • ghi9012 docs: update README       │\n│                                     │\n│ [View Git History →]                │\n└─────────────────────────────────────┘\n```\n\n**Commit items:**\n- Hash (8 chars) + message (truncate at 50 chars)\n- Click to copy hash\n\n**\"View Git History\" button:** Opens terminal with `git log`\n\n**Loading state:** Skeleton\n\n**Error state:** \"Git not initialized\" → Show \"Initialize Git\" button\n\n### 9. Modified Project Detail Page\n\n**Update `src/routes/projects.$projectId.tsx`:**\n\n```typescript\n// Add new imports\nimport DevHubToolbar from \"../components/projects/DevHubToolbar\";\nimport TechStackCard from \"../components/projects/TechStackCard\";\nimport GitHistoryCard from \"../components/projects/GitHistoryCard\";\n\n// Inside ProjectDetail component, after header:\nreturn (\n  <div style={containerStyles}>\n    <header style={headerStyles}>\n      {/* Existing header content */}\n    </header>\n\n    {/* NEW: Development Hub Toolbar */}\n    <DevHubToolbar projectPath={project.path} projectId={projectId} />\n\n    {/* NEW: Context Cards (2-column grid on desktop) */}\n    <div style={cardsGridStyles}>\n      <TechStackCard projectPath={project.path} />\n      <GitHistoryCard projectPath={project.path} />\n    </div>\n\n    {/* EXISTING: Epic list */}\n    {project.epics.length === 0 ? (\n      // ... empty state\n    ) : (\n      // ... epic list\n    )}\n  </div>\n);\n```\n\n**New styles:**\n\n```typescript\nconst cardsGridStyles: React.CSSProperties = {\n  display: \"grid\",\n  gridTemplateColumns: \"repeat(auto-fit, minmax(320px, 1fr))\",\n  gap: \"var(--spacing-4)\",\n  padding: \"var(--spacing-4)\",\n  borderBottom: \"1px solid var(--border-primary)\",\n};\n```\n\n## Error Handling & Edge Cases\n\n| Scenario | Handling |\n|----------|----------|\n| Project path doesn't exist | Show error alert, disable all actions |\n| No package.json or similar | Show \"No tech stack detected\" |\n| No editors installed | Show disabled \"Install Editor\" button with tooltip |\n| No dev commands found | Show \"Configure scripts\" hint |\n| Git not initialized | Show \"Initialize Git\" button |\n| Git command fails | Show \"Git unavailable\" in card |\n| Terminal detection fails | Fall back to clipboard copy or error toast |\n| Editor launch fails | Show toast notification with error |\n\n**All cards use skeleton loading states while fetching**\n\n## Implementation Sequence\n\n### Phase 1: Backend (Server Functions)\n1. Create `src/api/dev-tools.ts`\n   - `detectTechStack`\n   - `detectInstalledEditors`\n   - `detectDevCommands`\n   - `launchEditor`\n   - `launchDevServer`\n\n2. Create `src/api/git-info.ts`\n   - `getGitProjectInfo`\n\n3. Add hooks to `src/lib/hooks/projects.ts`\n\n4. Update `src/lib/query-keys.ts`\n\n### Phase 2: UI Components\n1. Create `src/components/projects/TechStackCard.tsx`\n2. Create `src/components/projects/GitHistoryCard.tsx`\n3. Create `src/components/projects/EditorLauncher.tsx`\n4. Create `src/components/projects/DevServerPicker.tsx`\n5. Create `src/components/projects/DevHubToolbar.tsx`\n\n### Phase 3: Integration\n1. Modify `src/routes/projects.$projectId.tsx`\n   - Add DevHubToolbar below header\n   - Add two-column grid for cards\n   - Keep existing epic list below\n\n2. Test end-to-end flow\n3. Add error handling & loading states\n4. Polish responsive layout\n\n## Verification (End-to-End Test)\n\nAfter implementation:\n\n1. **Tech Stack Detection:**\n   - Create test project with `package.json` → Should show TypeScript, React, etc.\n   - Create test project with `go.mod` → Should show Go\n   - No manifest files → Should show \"No tech stack detected\"\n\n2. **Editor Launch:**\n   - Click \"Open in Editor\" → Should detect installed editors\n   - Select VS Code → Should open project in VS Code\n   - No editors → Button disabled with tooltip\n\n3. **Terminal Launch:**\n   - Click \"New Terminal\" → Should open terminal in project dir\n\n4. **Dev Server:**\n   - Click \"Start Dev Server\" → Modal shows detected commands\n   - Select command → Terminal launches with dev server running\n\n5. **Git Info:**\n   - Project with git → Shows last commit, recent commits\n   - No git → Shows \"Initialize Git\" button\n\n6. **Responsive Layout:**\n   - Desktop → Cards side-by-side\n   - Mobile → Cards stacked\n\n7. **Run Quality Checks:**\n   - `pnpm type-check` → No errors\n   - `pnpm lint` → No errors\n   - `pnpm test` → All pass\n\n## Critical Files\n\n**New files to create:**\n- `src/api/dev-tools.ts`\n- `src/api/git-info.ts`\n- `src/components/projects/DevHubToolbar.tsx`\n- `src/components/projects/EditorLauncher.tsx`\n- `src/components/projects/DevServerPicker.tsx`\n- `src/components/projects/TechStackCard.tsx`\n- `src/components/projects/GitHistoryCard.tsx`\n\n**Files to modify:**\n- `src/routes/projects.$projectId.tsx` (add toolbar + cards)\n- `src/lib/hooks/projects.ts` (add hooks)\n- `src/lib/query-keys.ts` (add query keys)\n\n**Existing patterns to reuse:**\n- Terminal launching: `src/api/terminal.ts`, `src/api/terminal-utils.ts`\n- Git operations: `core/git.ts`, `core/git-utils.ts`\n- Button styles: `accentButtonStyles` from `projects.$projectId.tsx`\n- Modal pattern: `CreateProjectModal.tsx`\n\n---\n\n## Complete End-to-End User Flow\n\n### User Journey: Engineer Opening a Project\n\n**Start:** Engineer navigates to `/projects/$projectId`\n\n#### Step 1: Page Loads\n1. Project header displays with back button and project name\n2. DevHubToolbar renders below header with 4 buttons: [Open in Editor ▼] [New Terminal] [Start Dev Server] [View README]\n3. TechStackCard loads in background, shows skeleton while fetching\n4. GitHistoryCard loads in background, shows skeleton while fetching\n5. Epic list displays below cards (existing functionality preserved)\n\n#### Step 2: Engineer Wants to Open Project in Editor\n1. Engineer clicks \"Open in Editor\" button\n2. EditorLauncher dropdown appears showing:\n   - \"VS Code\" (with checkmark if installed)\n   - \"Cursor\" (grayed out if not installed)\n   - \"Neovim\" (with checkmark if installed)\n   - \"Vim\" (grayed out if not installed)\n3. Engineer selects \"VS Code\"\n4. `launchEditor` server function executes:\n   - Spawns process: `code \"${projectPath}\"`\n   - Returns `{ success: true, message: \"VS Code opened\" }`\n5. Toast notification appears: \"✓ VS Code opened\"\n6. VS Code window opens with project folder loaded\n7. Dropdown closes\n\n**Edge cases handled:**\n- No editors installed → All options grayed out, tooltip says \"Install an editor\"\n- Only one editor installed → Button says \"Open in VS Code\" (no dropdown)\n- Editor launch fails → Toast shows error message with recovery hint\n\n#### Step 3: Engineer Opens a New Terminal\n1. Engineer clicks \"New Terminal\" button\n2. `launchDevServer` called with terminal detection:\n   - Detects terminal: Ghostty (Linux), iTerm2 (macOS), etc.\n   - Gets project path\n   - Launches new terminal window with `cd \"${projectPath}\"`\n3. New terminal window opens focused on project directory\n4. Toast shows: \"✓ Terminal opened in project directory\"\n\n**Edge cases handled:**\n- Terminal detection fails → Toast: \"Could not detect terminal. Copy project path to clipboard?\"\n- Project path invalid → Toast: \"Project path does not exist\"\n\n#### Step 4: Engineer Starts Dev Server\n1. Engineer clicks \"Start Dev Server\" button\n2. DevServerPicker modal opens\n3. Modal shows:\n   - Title: \"Start Development Server\"\n   - Detected commands in radio buttons:\n     - ○ \"pnpm dev\" (from package.json)\n     - ○ \"pnpm build && pnpm start\" (from package.json)\n     - ○ \"make dev\" (from Makefile)\n   - \"Select terminal:\" dropdown (defaults to detected terminal)\n   - Buttons: [Cancel] [Launch Server]\n4. Engineer selects \"pnpm dev\"\n5. Engineer clicks \"Launch Server\"\n6. `launchDevServer` executes:\n   - Creates temp script: `/tmp/launch-dev-${timestamp}.sh`\n   - Script contains: `cd \"${projectPath}\" && pnpm dev`\n   - Launches terminal with: `gnome-terminal -- bash /tmp/launch-dev-${timestamp}.sh`\n   - Returns `{ success: true, message: \"Dev server started in new terminal\" }`\n7. New terminal window opens and runs `pnpm dev`\n8. Modal closes\n9. Toast: \"✓ Dev server launching...\"\n\n**Edge cases handled:**\n- No dev commands detected → Modal shows: \"No development scripts found. Add 'dev' to package.json scripts.\"\n- Command fails to execute → Toast shows error with suggestion to manually run command\n- Terminal launch fails → Toast offers to copy command to clipboard\n\n#### Step 5: Engineer Views Tech Stack Info\n1. TechStackCard has finished loading (after 2-3 seconds)\n2. Card displays:\n   - 🏗️ Tech Stack (header)\n   - Languages: [TS] TypeScript\n   - Frameworks: [⚛️] React 19.0.0, [⚡] Vite 6.0.0\n   - 42 total dependencies\n3. If engineer hovers over dependency count, tooltip shows: \"Total npm dependencies\"\n\n**Edge cases handled:**\n- No manifest files → Card shows: \"No tech stack detected. No package.json, go.mod, or Cargo.toml found.\"\n- Git repo exists but empty → Shows languages only, \"0 dependencies\"\n- Parsing fails → Shows: \"Could not detect tech stack\"\n\n#### Step 6: Engineer Views Git Activity\n1. GitHistoryCard has finished loading (after 2-3 seconds)\n2. Card displays:\n   - 📊 Git Activity (header)\n   - Latest commit: \"feat: add dev hub\"\n   - \"2 hours ago by John Doe\" (formatted human-readable timestamp)\n   - Recent commits list (last 10):\n     - • abc1234 feat: add dev hub\n     - • def5678 fix: button styling\n     - • ghi9012 docs: update README\n   - [View Git History →] button at bottom\n3. Engineer clicks on commit hash \"abc1234\" → Hash copied to clipboard\n4. Toast: \"✓ Commit hash copied to clipboard\"\n\n**Edge cases handled:**\n- Git not initialized → Card shows: \"Git not initialized. [Initialize Git]\" button\n- Git command fails → Card shows: \"Could not fetch git history\"\n- No commits yet → Shows: \"No commits yet\"\n- Uncommitted changes exist → Tooltip on card: \"📦 3 uncommitted changes\"\n\n#### Step 7: Engineer Views Full Git History\n1. Engineer clicks \"[View Git History →]\" button in GitHistoryCard\n2. Terminal opens with: `git log --oneline --all`\n3. Full git history displays in terminal\n\n#### Step 8: Engineer Clicks \"View README\"\n1. Engineer clicks \"View README\" button in toolbar\n2. System checks: Does `README.md` exist in project root?\n   - YES: Opens file in VS Code / default editor\n   - NO: Toast shows: \"No README found. Looking for: README.md, docs/README.md, or CONTRIBUTING.md\"\n\n**Edge cases handled:**\n- Multiple README files exist → Uses priority: README.md > docs/README.md > CONTRIBUTING.md\n- Editor launch fails → Toast offers to open in browser (if it's a web project)\n\n#### Step 9: Engineer Works on Tickets in Epic\n1. Below tech stack & git cards, engineer sees epic list (existing functionality)\n2. Epic shows: \"Project Detail Page → Development Hub\"\n3. Engineer clicks epic to expand and see tickets\n4. All tickets link to the same branch and PR (via Brain Dump tracking)\n\n---\n\n## Complete End-to-End Success Criteria\n\n### User Can Complete Full Workflow\n- [ ] **Navigate** to project detail page\n- [ ] **View** tech stack automatically detected and displayed\n- [ ] **View** git history with recent commits\n- [ ] **Open** project in their preferred editor (VS Code / Cursor / Vim / Neovim)\n- [ ] **Launch** new terminal in project directory with one click\n- [ ] **Start** dev server with auto-detected command and select from options\n- [ ] **Access** README/documentation from toolbar\n- [ ] **See** all tech stack, git, and epic information together on one page\n- [ ] **Never** need to manually navigate filesystem or guess commands\n\n### UI/UX Requirements\n- [ ] Toolbar buttons are always visible (top of page)\n- [ ] Cards load asynchronously without blocking page\n- [ ] Skeleton loading states show while data fetches\n- [ ] Error messages are helpful and offer recovery steps\n- [ ] Responsive design: Desktop 2-column, Mobile single-column\n- [ ] All buttons have proper hover states and are keyboard-navigable\n- [ ] No duplicate windows or processes launched\n\n### Developer Experience\n- [ ] All links are tracked to Brain Dump tickets (same PR, same branch)\n- [ ] Each ticket has clear scope (backend OR UI component)\n- [ ] No interdependencies between tickets (can work in parallel)\n- [ ] All test cases in verification section pass\n- [ ] Code review passes without issues\n- [ ] No performance regressions\n\n### Launch Reliability\n- [ ] Editor launches within 2 seconds\n- [ ] Terminal opens in correct directory\n- [ ] Dev server starts without hanging\n- [ ] No orphaned processes left running\n- [ ] Graceful fallbacks for missing editors/terminals\n- [ ] Error messages guide user to fix (install editor, configure scripts, etc.)",
+      "priority": "high",
+      "tags": [
+        "overview",
+        "backend",
+        "frontend",
+        "integration"
+      ]
+    },
+    {
+      "id": "80722270-0b29-4a10-a93e-0d4ef745087e",
+      "title": "Backend: Create dev-tools.ts server functions (tech stack, editors, dev commands)",
+      "passes": true,
+      "overview": "",
+      "types": [
+        {
+          "name": "TechStackInfo",
+          "code": "export interface TechStackInfo {\n  languages: Array<{ name: string; icon: string; version?: string }>;\n  frameworks: Array<{ name: string; icon: string; version?: string }>;\n  totalDependencies: number;\n}"
+        },
+        {
+          "name": "EditorInfo",
+          "code": "export interface EditorInfo {\n  name: \"vscode\" | \"cursor\" | \"vim\" | \"neovim\";\n  installed: boolean;\n  launchCommand: string;\n  displayName: string;\n}"
+        },
+        {
+          "name": "DevCommand",
+          "code": "export interface DevCommand {\n  name: string;\n  command: string;\n  description?: string;\n  source: \"package.json\" | \"makefile\" | \"docker-compose\";\n}"
+        }
+      ],
+      "designDecisions": [],
+      "implementationGuide": [
+        {
+          "step": 1,
+          "description": "Tech Stack Detection: `detectTechStack`",
+          "files": []
+        },
+        {
+          "step": 2,
+          "description": "Editor Detection: `detectInstalledEditors`",
+          "files": [
+            "src/api/terminal.ts"
+          ]
+        },
+        {
+          "step": 3,
+          "description": "Dev Command Detection: `detectDevCommands`",
+          "files": []
+        },
+        {
+          "step": 4,
+          "description": "Editor Launch: `launchEditor`",
+          "files": [
+            "terminal-utils.ts"
+          ]
+        },
+        {
+          "step": 5,
+          "description": "Dev Server Launch: `launchDevServer`",
+          "files": [
+            "terminal-utils.ts"
+          ]
+        },
+        {
+          "step": 5,
+          "description": "Dev Server Launch: `launchDevServer`",
+          "files": [
+            "terminal-utils.ts"
+          ]
+        }
+      ],
+      "acceptanceCriteria": [
+        "`detectTechStack` correctly identifies package.json + extracts React, Vite, TypeScript versions",
+        "`detectTechStack` correctly identifies go.mod projects",
+        "`detectTechStack` correctly counts total dependencies",
+        "`detectInstalledEditors` returns only installed editors",
+        "`detectDevCommands` finds dev scripts in package.json",
+        "`detectDevCommands` finds dev targets in Makefile",
+        "`launchEditor` successfully opens VS Code (if installed)",
+        "`launchDevServer` successfully launches terminal with dev command",
+        "All functions have proper error handling with helpful messages",
+        "No hardcoded assumptions about OS (handle Linux, macOS, Windows)",
+        "Code follows Brain Dump DO/DON'T guidelines (use Drizzle patterns, proper error types)",
+        "TypeScript compiles with no errors (`pnpm type-check`)",
+        "No linting errors (`pnpm lint`)"
+      ],
+      "references": [
+        "src/api/dev-tools.ts",
+        "src/api/terminal.ts"
+      ],
+      "description": "**Part of Epic:** Project Detail Page → Development Hub (same branch, same PR)\n\n## Objective\nImplement `src/api/dev-tools.ts` with all server functions needed for tech stack detection, editor detection, dev command detection, and launching editors/servers.\n\n## Implementation Details\n\n### 1. Tech Stack Detection: `detectTechStack`\n- **Input:** projectPath (string)\n- **Output:** TechStackInfo with languages, frameworks, totalDependencies\n- **File checks:**\n  - `package.json` → Extract Node.js, TypeScript, React, Vue, Next.js, Vite, etc. from dependencies\n  - `go.mod` → Extract Go + dependencies\n  - `Cargo.toml` → Extract Rust + dependencies\n  - `pyproject.toml` or `requirements.txt` → Extract Python\n  - `pom.xml` or `build.gradle` → Extract Java\n- **Parsing logic:**\n  - Read manifest files with fs.readFileSync + JSON.parse\n  - Extract frameworks from dependencies (prioritize: React, Vue, Next.js, Express, etc.)\n  - Count total dependencies\n  - Return top 3-5 frameworks + total count\n- **Icon mapping:**\n  - TypeScript → \"TS\", JavaScript → \"JS\", React → \"⚛️\", Go → \"🐹\", Rust → \"🦀\", Python → \"🐍\"\n\n### 2. Editor Detection: `detectInstalledEditors`\n- **Input:** None (checks system for installed editors)\n- **Output:** Array of EditorInfo objects\n- **Editor checks:**\n  - VS Code: `which code` or check registry (Windows)\n  - Cursor: `which cursor` or `open -a Cursor` (macOS)\n  - Neovim: `nvim --version`\n  - Vim: `vim --version`\n- **Reuse:** `isVSCodeInstalled()`, `isCursorInstalled()` from `src/api/terminal.ts`\n- **Return fields:** name, installed, launchCommand, displayName\n\n### 3. Dev Command Detection: `detectDevCommands`\n- **Input:** projectPath (string)\n- **Output:** Array of DevCommand objects\n- **Detection sources:**\n  1. **package.json scripts** → Look for `dev`, `start`, `serve` (in priority order)\n  2. **Makefile targets** → Parse regex `^(dev|serve|run|start):`\n  3. **docker-compose.yml** → Check for services section\n- **Return fields:** name, command, description (optional), source\n\n### 4. Editor Launch: `launchEditor`\n- **Input:** { projectPath, editor }\n- **Output:** { success: boolean, message: string }\n- **Launch commands:**\n  - VS Code: `code \"${projectPath}\"`\n  - Cursor: `cursor \"${projectPath}\"` or `open -a Cursor \"${projectPath}\"`\n  - Neovim: Launch terminal with `nvim \"${projectPath}\"`\n  - Vim: Launch terminal with `vim \"${projectPath}\"`\n- **Error handling:** Wrap in try-catch, return helpful error messages\n- **For Vim/Neovim:** Reuse `detectTerminal()` and `buildTerminalCommand()` from `terminal-utils.ts`\n\n### 5. Dev Server Launch: `launchDevServer`\n- **Input:** { projectPath, command }\n- **Output:** { success: boolean, message: string }\n- **Implementation:**\n  - Use `detectTerminal()` from `terminal-utils.ts`\n  - Create temp script: `/tmp/launch-dev-${timestamp}.sh`\n  - Script contains: `cd \"${projectPath}\" && ${command}`\n  - Launch terminal with script\n- **Error handling:** Graceful fallback if terminal detection fails\n\n## Type Definitions\n```typescript\nexport interface TechStackInfo {\n  languages: Array<{ name: string; icon: string; version?: string }>;\n  frameworks: Array<{ name: string; icon: string; version?: string }>;\n  totalDependencies: number;\n}\n\nexport interface EditorInfo {\n  name: \"vscode\" | \"cursor\" | \"vim\" | \"neovim\";\n  installed: boolean;\n  launchCommand: string;\n  displayName: string;\n}\n\nexport interface DevCommand {\n  name: string;\n  command: string;\n  description?: string;\n  source: \"package.json\" | \"makefile\" | \"docker-compose\";\n}\n```\n\n## Acceptance Criteria\n- [ ] `detectTechStack` correctly identifies package.json + extracts React, Vite, TypeScript versions\n- [ ] `detectTechStack` correctly identifies go.mod projects\n- [ ] `detectTechStack` correctly counts total dependencies\n- [ ] `detectInstalledEditors` returns only installed editors\n- [ ] `detectDevCommands` finds dev scripts in package.json\n- [ ] `detectDevCommands` finds dev targets in Makefile\n- [ ] `launchEditor` successfully opens VS Code (if installed)\n- [ ] `launchDevServer` successfully launches terminal with dev command\n- [ ] All functions have proper error handling with helpful messages\n- [ ] No hardcoded assumptions about OS (handle Linux, macOS, Windows)\n- [ ] Code follows Brain Dump DO/DON'T guidelines (use Drizzle patterns, proper error types)\n- [ ] TypeScript compiles with no errors (`pnpm type-check`)\n- [ ] No linting errors (`pnpm lint`)",
+      "priority": "high",
+      "tags": [
+        "backend",
+        "api",
+        "dev-tools"
+      ]
+    },
+    {
+      "id": "642ce41e-9ae3-4ac6-9052-cf4d5abb3cb5",
+      "title": "Backend: Create git-info.ts server function (git history, commits)",
+      "passes": false,
+      "overview": "",
+      "types": [
+        {
+          "name": "GitProjectInfo",
+          "code": "export interface GitProjectInfo {\n  lastCommit: {\n    hash: string;           // Full commit hash\n    message: string;        // Commit message (first line)\n    author: string;         // Author name\n    date: string;           // ISO date string\n  } | null;\n  recentCommits: Array<{\n    hash: string;\n    message: string;\n    author: string;\n    date: string;\n  }>;\n  branch: string | null;    // Current branch name\n  hasUncommittedChanges: boolean;\n}"
         }
       ],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Component renders project name, color dot, metadata badges",
-        "Hover reveals settings icon on right side",
-        "Click navigates to project (via onClick prop)",
-        "Settings click opens edit modal (via onSettings prop, stops propagation)",
-        "AI active badge shows glow effect when applicable",
-        "`pnpm type-check` passes"
+        "Project path is not a git repository",
+        "Git is not installed on system",
+        "Git command timeout (long history on large repos)",
+        "Uncommitted changes with special characters/unicode",
+        "Detached HEAD state (return \"detached\" instead of branch name)",
+        "Empty repository (0 commits)",
+        "Windows vs. Unix line endings in commit messages",
+        "`getGitProjectInfo` returns last commit with hash, message, author, date",
+        "`getGitProjectInfo` returns array of last 10 commits",
+        "`getGitProjectInfo` returns current branch name",
+        "`getGitProjectInfo` detects uncommitted changes (even if zero)",
+        "Non-git projects don't throw errors; return null values instead",
+        "Git command failures are logged but don't crash the function",
+        "Dates are formatted as human-readable strings (e.g., \"2 hours ago\")",
+        "Works on Linux, macOS, and Windows",
+        "TypeScript compiles with no errors (`pnpm type-check`)",
+        "No linting errors (`pnpm lint`)",
+        "All error messages are logged to appropriate channel"
       ],
       "references": [
-        "src/components/projects/ProjectListItem.tsx"
+        "src/api/git-info.ts"
       ],
-      "description": "# Create ProjectListItem Component\n\n**Branch**: `feature/epic-040adfc0-projects-home-page` (continue on existing branch)\n**Reference**: See OVERVIEW 2 ticket in this epic for the full redesign plan.\n\n## Context\n\nThe homepage redesign replaces `ProjectCard` grid items with minimalist `ProjectListItem` components. Each item shows a color dot, project name, inline metadata badges, and hover-revealed settings action.\n\n## Implementation\n\n**New file**: `src/components/projects/ProjectListItem.tsx`\n\n### Structure\n\n```tsx\n<div container (hover background change)>\n  <span color-dot />\n  <div content>\n    <h3>Project Name</h3>\n    <div metadata-row>\n      <MetadataBadge icon={FileText} count={N} label=\"tickets\" />\n      <MetadataBadge icon={Folder} count={N} label=\"epics\" />\n      {hasActiveAI && <MetadataBadge icon={Bot} label=\"AI active\" glow />}\n    </div>\n  </div>\n  <div hover-actions (fade in on hover)>\n    <button Settings icon />\n  </div>\n</div>\n```\n\n### MetadataBadge subcomponent\n\nInline within the same file:\n- Icon + count + label\n- `glow` prop for AI badge accent color\n- Font size: `var(--font-size-xs)`, color: `var(--text-tertiary)`\n\n### Styling\n\n- No borders, transparent background\n- Hover: `var(--bg-hover)` background\n- Settings button: absolute positioned right, `opacity: 0` → `opacity: 1` on hover\n- Transition: `var(--transition-fast)`\n- Pattern reference: `ProjectItem.tsx` hover actions (lines 170-181) and `EpicListItem.tsx`\n\n### Props\n\n```typescript\ninterface ProjectListItemProps {\n  project: ProjectWithAIActivity;\n  ticketCount: number;\n  epicCount: number;\n  onClick: () => void;\n  onSettings: (e: React.MouseEvent) => void;\n}\n```\n\n## Acceptance Criteria\n\n- [ ] Component renders project name, color dot, metadata badges\n- [ ] Hover reveals settings icon on right side\n- [ ] Click navigates to project (via onClick prop)\n- [ ] Settings click opens edit modal (via onSettings prop, stops propagation)\n- [ ] AI active badge shows glow effect when applicable\n- [ ] `pnpm type-check` passes",
+      "description": "**Part of Epic:** Project Detail Page → Development Hub (same branch, same PR)\n\n## Objective\nImplement `src/api/git-info.ts` with server function to fetch git project information including last commit, recent commits, current branch, and uncommitted changes status.\n\n## Implementation Details\n\n### Git Information: `getGitProjectInfo`\n- **Input:** projectPath (string)\n- **Output:** GitProjectInfo object\n- **Git commands to execute:**\n  - Last commit: `git log -1 --format=\"%H|%s|%an|%ai\" --no-decorate`\n  - Recent commits: `git log -10 --format=\"%H|%s|%an|%ai\" --no-decorate`\n  - Current branch: `git rev-parse --abbrev-ref HEAD`\n  - Uncommitted changes: `git status --porcelain`\n- **Graceful degradation:**\n  - If git is not initialized: Return null values but don't error\n  - If git command fails: Log error and return partial data\n  - Handle both Linux/macOS and Windows environments\n\n### Type Definition\n```typescript\nexport interface GitProjectInfo {\n  lastCommit: {\n    hash: string;           // Full commit hash\n    message: string;        // Commit message (first line)\n    author: string;         // Author name\n    date: string;           // ISO date string\n  } | null;\n  recentCommits: Array<{\n    hash: string;\n    message: string;\n    author: string;\n    date: string;\n  }>;\n  branch: string | null;    // Current branch name\n  hasUncommittedChanges: boolean;\n}\n```\n\n### Implementation Pattern\n- **Reuse:** `runGitCommand` from `core/git-utils.ts` (or similar git utility)\n- **Follow pattern:** Look at `core/git.ts` for how to parse commit output\n- **Date formatting:** Convert ISO datetime to human-readable format (e.g., \"2 hours ago\", \"3 days ago\") using date-fns or similar\n- **Error handling:**\n  - Catch errors from git commands\n  - Return sensible defaults if git is not initialized\n  - Don't throw errors—allow graceful degradation\n- **No external dependencies:** Use built-in Node.js/TypeScript APIs\n\n### Edge Cases to Handle\n- [ ] Project path is not a git repository\n- [ ] Git is not installed on system\n- [ ] Git command timeout (long history on large repos)\n- [ ] Uncommitted changes with special characters/unicode\n- [ ] Detached HEAD state (return \"detached\" instead of branch name)\n- [ ] Empty repository (0 commits)\n- [ ] Windows vs. Unix line endings in commit messages\n\n## Acceptance Criteria\n- [ ] `getGitProjectInfo` returns last commit with hash, message, author, date\n- [ ] `getGitProjectInfo` returns array of last 10 commits\n- [ ] `getGitProjectInfo` returns current branch name\n- [ ] `getGitProjectInfo` detects uncommitted changes (even if zero)\n- [ ] Non-git projects don't throw errors; return null values instead\n- [ ] Git command failures are logged but don't crash the function\n- [ ] Dates are formatted as human-readable strings (e.g., \"2 hours ago\")\n- [ ] Works on Linux, macOS, and Windows\n- [ ] TypeScript compiles with no errors (`pnpm type-check`)\n- [ ] No linting errors (`pnpm lint`)\n- [ ] All error messages are logged to appropriate channel",
       "priority": "high",
       "tags": [
-        "component",
-        "ui"
+        "backend",
+        "api",
+        "git"
       ]
     },
     {
-      "id": "6300111e-979e-4ada-8ea4-40d96437cc80",
-      "title": "Redesign homepage with search bar and minimalist list layout",
-      "passes": true,
-      "overview": "The homepage currently uses a card grid layout. This ticket replaces it with a centered, single-column list with a search bar for filtering.",
+      "id": "d3bf08c6-d69d-4609-a3b8-a8fca8880062",
+      "title": "Backend: Add hooks and query keys for dev hub",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "All 6 hooks are properly exported",
+        "Query keys are used consistently across hooks",
+        "Cache durations are appropriate (5 min for project-specific, 1 hour for editor list, 30s refetch for git)",
+        "Mutation hooks handle both success and error states",
+        "TypeScript types are properly inferred from server functions",
+        "No hardcoded query keys—all use `queryKeys` object",
+        "TypeScript compiles with no errors (`pnpm type-check`)",
+        "No linting errors (`pnpm lint`)"
+      ],
+      "references": [
+        "src/lib/hooks/projects.ts",
+        "src/lib/query-keys.ts",
+        "src/api/dev-tools.ts",
+        "src/api/git-info.ts"
+      ],
+      "description": "**Part of Epic:** Project Detail Page → Development Hub (same branch, same PR)\n\n## Objective\nAdd React Query hooks to `src/lib/hooks/projects.ts` and query keys to `src/lib/query-keys.ts` for the dev hub feature.\n\n## Implementation Details\n\n### Add to `src/lib/query-keys.ts`\n\n```typescript\nexport const queryKeys = {\n  // ... existing keys\n\n  // Development hub\n  techStack: (projectPath: string) => [\"techStack\", projectPath] as const,\n  editors: [\"editors\"] as const,\n  devCommands: (projectPath: string) => [\"devCommands\", projectPath] as const,\n  gitInfo: (projectPath: string) => [\"gitInfo\", projectPath] as const,\n};\n```\n\n### Add to `src/lib/hooks/projects.ts`\n\n#### useTechStack Hook\n```typescript\nexport function useTechStack(projectPath: string) {\n  return useQuery({\n    queryKey: queryKeys.techStack(projectPath),\n    queryFn: () => detectTechStack(projectPath),\n    staleTime: 5 * 60 * 1000, // Cache 5 minutes\n  });\n}\n```\n\n#### useInstalledEditors Hook\n```typescript\nexport function useInstalledEditors() {\n  return useQuery({\n    queryKey: queryKeys.editors,\n    queryFn: () => detectInstalledEditors(),\n    staleTime: 60 * 60 * 1000, // Cache 1 hour (rarely changes)\n  });\n}\n```\n\n#### useDevCommands Hook\n```typescript\nexport function useDevCommands(projectPath: string) {\n  return useQuery({\n    queryKey: queryKeys.devCommands(projectPath),\n    queryFn: () => detectDevCommands(projectPath),\n    staleTime: 5 * 60 * 1000,\n  });\n}\n```\n\n#### useGitProjectInfo Hook\n```typescript\nexport function useGitProjectInfo(projectPath: string) {\n  return useQuery({\n    queryKey: queryKeys.gitInfo(projectPath),\n    queryFn: () => getGitProjectInfo(projectPath),\n    refetchInterval: 30 * 1000, // Refresh every 30s\n  });\n}\n```\n\n#### useLaunchEditor Mutation Hook\n```typescript\nexport function useLaunchEditor() {\n  return useMutation({\n    mutationFn: (data: { projectPath: string; editor: string }) => launchEditor(data),\n  });\n}\n```\n\n#### useLaunchDevServer Mutation Hook\n```typescript\nexport function useLaunchDevServer() {\n  return useMutation({\n    mutationFn: (data: { projectPath: string; command: string }) => launchDevServer(data),\n  });\n}\n```\n\n## Imports Needed\n- Import hooks from `src/api/dev-tools.ts`: `detectTechStack`, `detectInstalledEditors`, `detectDevCommands`, `launchEditor`, `launchDevServer`\n- Import functions from `src/api/git-info.ts`: `getGitProjectInfo`\n- Use existing `useQuery`, `useMutation` from TanStack Query\n- Use `queryKeys` from `src/lib/query-keys.ts`\n\n## Acceptance Criteria\n- [ ] All 6 hooks are properly exported\n- [ ] Query keys are used consistently across hooks\n- [ ] Cache durations are appropriate (5 min for project-specific, 1 hour for editor list, 30s refetch for git)\n- [ ] Mutation hooks handle both success and error states\n- [ ] TypeScript types are properly inferred from server functions\n- [ ] No hardcoded query keys—all use `queryKeys` object\n- [ ] TypeScript compiles with no errors (`pnpm type-check`)\n- [ ] No linting errors (`pnpm lint`)",
+      "priority": "high",
+      "tags": [
+        "backend",
+        "hooks",
+        "tanstack-query"
+      ]
+    },
+    {
+      "id": "bccaf6f1-b18f-45be-a83d-0bcf8263cf66",
+      "title": "UI: Create TechStackCard component",
+      "passes": false,
+      "overview": "",
+      "types": [
+        {
+          "name": "TechStackCardProps",
+          "code": "interface TechStackCardProps {\n  projectPath: string;\n}"
+        }
+      ],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Card renders with correct styling and layout",
+        "Hook is called correctly with projectPath",
+        "Loading skeleton displays while data fetches",
+        "Success state displays languages, frameworks, and dependency count",
+        "Error state displays helpful message (no crash)",
+        "Icons are displayed correctly (emoji or abbreviations)",
+        "Responsive: Works on mobile (stack vertically) and desktop",
+        "Accessibility: ARIA labels present, keyboard-navigable",
+        "No console errors or warnings",
+        "TypeScript compiles with no errors (`pnpm type-check`)",
+        "No linting errors (`pnpm lint`)",
+        "Component follows Brain Dump patterns (useQuery, error handling)"
+      ],
+      "references": [
+        "src/components/projects/TechStackCard.tsx",
+        "src/lib/hooks/projects.ts"
+      ],
+      "description": "**Part of Epic:** Project Detail Page → Development Hub (same branch, same PR)\n\n## Objective\nCreate `src/components/projects/TechStackCard.tsx` to display detected tech stack (languages, frameworks, dependencies).\n\n## Component Specification\n\n### Props\n```typescript\ninterface TechStackCardProps {\n  projectPath: string;\n}\n```\n\n### Data Flow\n- **Hook:** `useTechStack(projectPath)` from `src/lib/hooks/projects.ts`\n- **Loading:** Show skeleton with pulsing background while fetching\n- **Success:** Display languages, frameworks, and total dependency count\n- **Error:** Show \"No tech stack detected\" message with helpful text\n\n### Layout & Styling\n\n```\n┌─────────────────────────────┐\n│ 🏗️ Tech Stack              │ ← Header with icon\n├─────────────────────────────┤\n│ Languages:                  │\n│ [TS] TypeScript             │\n│                             │\n│ Frameworks:                 │\n│ [⚛️] React 19.0.0           │\n│ [⚡] Vite 6.0.0             │\n│                             │\n│ 42 total dependencies       │\n└─────────────────────────────┘\n```\n\n**Styling:**\n- Background: `var(--bg-secondary)`\n- Border: `1px solid var(--border-primary)`\n- Border-radius: `var(--radius-md)`\n- Padding: `var(--spacing-4)`\n- Font-size: `var(--font-size-sm)`\n- Grid: Each language/framework as a row with icon + text\n- Dependency count at bottom with optional tooltip: \"Total npm dependencies\"\n\n### States\n\n#### Loading State\n- Skeleton card with pulsing animation\n- Placeholder lines for languages and frameworks\n- Text: \"Loading tech stack...\"\n\n#### Success State\n- Display all detected languages with versions\n- Display all detected frameworks with versions\n- Display total dependency count\n- Icons rendered inline (emoji or text like \"TS\", \"JS\")\n\n#### Error State\n- Message: \"No tech stack detected. No package.json, go.mod, or Cargo.toml found.\"\n- Card still visible but grayed out\n- No crash or thrown error\n\n### Accessibility\n- Semantic HTML: `<section>`, `<h2>` for card title\n- ARIA labels for icon-only elements\n- Keyboard navigation: All interactive elements (if any) must be tab-accessible\n- Color not only indicator: Use text + icons, not just color\n\n## Acceptance Criteria\n- [ ] Card renders with correct styling and layout\n- [ ] Hook is called correctly with projectPath\n- [ ] Loading skeleton displays while data fetches\n- [ ] Success state displays languages, frameworks, and dependency count\n- [ ] Error state displays helpful message (no crash)\n- [ ] Icons are displayed correctly (emoji or abbreviations)\n- [ ] Responsive: Works on mobile (stack vertically) and desktop\n- [ ] Accessibility: ARIA labels present, keyboard-navigable\n- [ ] No console errors or warnings\n- [ ] TypeScript compiles with no errors (`pnpm type-check`)\n- [ ] No linting errors (`pnpm lint`)\n- [ ] Component follows Brain Dump patterns (useQuery, error handling)",
+      "priority": "high",
+      "tags": [
+        "frontend",
+        "ui",
+        "component"
+      ]
+    },
+    {
+      "id": "aed01f2f-54fd-4923-8282-3cd74c6ff5d0",
+      "title": "UI: Create GitHistoryCard component",
+      "passes": false,
+      "overview": "",
+      "types": [
+        {
+          "name": "GitHistoryCardProps",
+          "code": "interface GitHistoryCardProps {\n  projectPath: string;\n}"
+        }
+      ],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Card renders with correct styling and layout",
+        "Hook is called correctly with projectPath",
+        "Loading skeleton displays while data fetches",
+        "Success state displays last commit and recent commits list",
+        "Commit hash is clickable and copies to clipboard",
+        "Toast notification appears on copy",
+        "\"View Git History\" button opens terminal with git log",
+        "Error state shows \"Git not initialized\" message",
+        "Uncommitted changes indicator displays correctly",
+        "Timestamps formatted as human-readable strings",
+        "Responsive: Works on mobile and desktop",
+        "Accessibility: ARIA labels, keyboard-navigable",
+        "No console errors or warnings",
+        "TypeScript compiles with no errors (`pnpm type-check`)",
+        "No linting errors (`pnpm lint`)",
+        "Component follows Brain Dump patterns (useQuery, error handling)"
+      ],
+      "references": [
+        "src/components/projects/GitHistoryCard.tsx",
+        "src/lib/hooks/projects.ts"
+      ],
+      "description": "**Part of Epic:** Project Detail Page → Development Hub (same branch, same PR)\n\n## Objective\nCreate `src/components/projects/GitHistoryCard.tsx` to display git activity (last commit, recent commits, branch info).\n\n## Component Specification\n\n### Props\n```typescript\ninterface GitHistoryCardProps {\n  projectPath: string;\n}\n```\n\n### Data Flow\n- **Hook:** `useGitProjectInfo(projectPath)` from `src/lib/hooks/projects.ts`\n- **Loading:** Show skeleton with pulsing background\n- **Success:** Display last commit, recent commits list, branch name\n- **Error:** Show \"Git not initialized\" message with \"Initialize Git\" button option\n- **Refetch:** Auto-refresh every 30 seconds to keep git status up-to-date\n\n### Layout & Styling\n\n```\n┌─────────────────────────────────────┐\n│ 📊 Git Activity                     │\n├─────────────────────────────────────┤\n│ Latest: feat: add dev hub           │\n│ 2 hours ago by John Doe             │\n│                                     │\n│ Recent Commits:                     │\n│ • abc1234 feat: add dev hub         │\n│ • def5678 fix: button styling       │\n│ • ghi9012 docs: update README       │\n│                                     │\n│ [View Git History →]                │\n└─────────────────────────────────────┘\n```\n\n**Styling:**\n- Background: `var(--bg-secondary)`\n- Border: `1px solid var(--border-primary)`\n- Border-radius: `var(--radius-md)`\n- Padding: `var(--spacing-4)`\n- Font-size: `var(--font-size-sm)`\n- Commit hash: Monospace font, 8 chars truncated\n- Commit message: Truncate at 50 chars, add ellipsis if longer\n- Timestamp: Human-readable format (e.g., \"2 hours ago\")\n- Author: Gray text, smaller font\n\n### States\n\n#### Loading State\n- Skeleton card with pulsing animation\n- Placeholder lines for commits\n- Text: \"Loading git history...\"\n\n#### Success State\n- Show latest commit with message, author, timestamp\n- Show list of recent commits (up to 10 or 5, user choice)\n- Each commit as: `• hash message`\n- Hash is clickable → Copy to clipboard with toast confirmation\n- \"View Git History →\" button at bottom\n\n#### Error State: Git Not Initialized\n- Message: \"Git not initialized. [Initialize Git]\" button\n- Button opens terminal with `git init` (or guides user)\n- Card still visible but grayed out\n\n#### Edge Case: Uncommitted Changes\n- Show indicator: \"📦 3 uncommitted changes\" (count or just indicator)\n- Display as tooltip or small badge on card header\n- Don't block display of commits\n\n### Interactions\n\n**Commit Hash Click:**\n- Copy full hash to clipboard\n- Show toast: \"✓ Commit hash copied to clipboard\"\n- Keyboard: Tab to hash, Enter to copy\n\n**View Git History Button:**\n- Click → Opens terminal with `git log --oneline --all`\n- Reuse terminal launching from existing patterns\n- Show toast: \"Opening git history in terminal...\"\n\n### Accessibility\n- Semantic HTML: `<section>`, `<h2>` for card title\n- ARIA labels for buttons\n- Commit hashes marked as `<code>` with proper semantics\n- Color not only indicator: Use icons + text\n- Keyboard: All buttons and clickable hashes must be tab-accessible\n\n## Acceptance Criteria\n- [ ] Card renders with correct styling and layout\n- [ ] Hook is called correctly with projectPath\n- [ ] Loading skeleton displays while data fetches\n- [ ] Success state displays last commit and recent commits list\n- [ ] Commit hash is clickable and copies to clipboard\n- [ ] Toast notification appears on copy\n- [ ] \"View Git History\" button opens terminal with git log\n- [ ] Error state shows \"Git not initialized\" message\n- [ ] Uncommitted changes indicator displays correctly\n- [ ] Timestamps formatted as human-readable strings\n- [ ] Responsive: Works on mobile and desktop\n- [ ] Accessibility: ARIA labels, keyboard-navigable\n- [ ] No console errors or warnings\n- [ ] TypeScript compiles with no errors (`pnpm type-check`)\n- [ ] No linting errors (`pnpm lint`)\n- [ ] Component follows Brain Dump patterns (useQuery, error handling)",
+      "priority": "high",
+      "tags": [
+        "frontend",
+        "ui",
+        "component"
+      ]
+    },
+    {
+      "id": "eada9e08-7b0c-42d7-b276-8ec4ff70ab48",
+      "title": "UI: Create EditorLauncher component (dropdown button)",
+      "passes": false,
+      "overview": "",
+      "types": [
+        {
+          "name": "EditorLauncherProps",
+          "code": "interface EditorLauncherProps {\n  projectPath: string;\n}"
+        }
+      ],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Component renders loading state with spinner",
+        "Loading completes and shows appropriate button/dropdown",
+        "Dropdown shows only installed editors",
+        "Disabled editors are grayed out with clear indication",
+        "Clicking button with 1 editor launches it directly",
+        "Clicking button with 2+ editors shows dropdown",
+        "Selecting editor from dropdown launches it",
+        "Launching editor shows spinner and prevents double-clicks",
+        "Success toast appears after editor launches",
+        "Error toast appears if editor launch fails",
+        "Dropdown closes on escape key",
+        "Dropdown closes on click outside",
+        "All keyboard navigation works (Tab, Arrow keys, Enter, Escape)",
+        "ARIA labels correctly identify component and state",
+        "No console errors or warnings",
+        "TypeScript compiles with no errors (`pnpm type-check`)",
+        "No linting errors (`pnpm lint`)",
+        "Component follows Brain Dump patterns (mutations, error handling)"
+      ],
+      "references": [
+        "src/components/projects/EditorLauncher.tsx",
+        "src/lib/hooks/projects.ts"
+      ],
+      "description": "**Part of Epic:** Project Detail Page → Development Hub (same branch, same PR)\n\n## Objective\nCreate `src/components/projects/EditorLauncher.tsx` to allow users to select and launch their project in an installed editor (VS Code, Cursor, Vim, Neovim).\n\n## Component Specification\n\n### Props\n```typescript\ninterface EditorLauncherProps {\n  projectPath: string;\n}\n```\n\n### Data Flow\n- **Hook:** `useInstalledEditors()` from `src/lib/hooks/projects.ts`\n- **Mutation:** `useLaunchEditor()` for launching selected editor\n- **Loading:** Show spinner while detecting installed editors\n- **Success:** Show dropdown or direct button based on editor count\n- **Error:** Show disabled button with helpful tooltip\n\n### Behavior Logic\n\n**Case 1: No Editors Installed**\n- Button label: \"Install Editor\"\n- Button state: Disabled\n- Tooltip: \"Install VS Code, Cursor, Vim, or Neovim to open project\"\n- On hover: Show helpful message\n\n**Case 2: One Editor Installed**\n- Button label: \"Open in VS Code\" (or whichever editor)\n- Button state: Enabled\n- On click: Launch that editor directly (no dropdown)\n- Show spinner while launching\n\n**Case 3: Multiple Editors Installed**\n- Button label: \"Open in Editor ▼\"\n- Button state: Enabled\n- On click: Show dropdown menu below button\n- Dropdown items: List of installed editors with checkmarks\n- On select: Launch chosen editor\n- Show spinner while launching\n\n### Dropdown Menu\n- **Position:** Absolute, below button\n- **Max-height:** 200px with scrollbar if needed\n- **Width:** Same as button (min 120px)\n- **Items:** \n  - Icon + Editor name\n  - Visual indicator (✓ checkmark) if already checked\n  - Disabled state (grayed out) for uninstalled editors\n- **Behavior:**\n  - Click item → Launch editor\n  - Escape key → Close dropdown\n  - Click outside → Close dropdown\n  - Tab away → Close dropdown\n\n### Layout & Styling\n\n**Button:**\n- Background: `var(--bg-accent)` or use `accentButtonStyles`\n- Text color: Contrast sufficient for WCAG AA\n- Padding: `var(--spacing-2) var(--spacing-3)`\n- Border-radius: `var(--radius-sm)`\n- Hover: Brighten background or add shadow\n- Active/Launching: Show spinner, disable interaction\n\n**Dropdown:**\n- Background: `var(--bg-secondary)`\n- Border: `1px solid var(--border-primary)`\n- Border-radius: `var(--radius-sm)`\n- Shadow: `var(--shadow-dropdown)` or similar\n- Items: Padding `var(--spacing-2) var(--spacing-3)`\n- Item hover: Highlight background\n- Disabled items: Lower opacity, no pointer events\n\n### States\n\n#### Loading State\n- Button shows spinner\n- Text: \"Open in Editor\"\n- Disabled while loading\n\n#### Success State (showing editors)\n- Direct button if 1 editor\n- Dropdown if 2+ editors\n- All installed editors listed with checkmarks\n- Uninstalled grayed out\n\n#### Launching State\n- Button shows spinner\n- Disabled to prevent double-clicks\n- Spinner: Rotate icon or inline loader\n\n#### Error State\n- Toast notification: \"Could not open editor. Check it's installed.\"\n- Button returns to enabled state\n- No crash\n\n### Interactions\n\n**On Editor Select:**\n1. Show spinner on button\n2. Call `useLaunchEditor({ projectPath, editor })`\n3. Wait for mutation response\n4. On success: Show toast \"✓ VS Code opened\", close dropdown, spinner stops\n5. On error: Show error toast, keep dropdown open, spinner stops\n6. After 2 seconds: Dismiss toast\n\n### Accessibility\n- **Keyboard:**\n  - Tab to button\n  - Enter/Space to open dropdown (if multiple editors)\n  - Arrow keys to navigate dropdown items\n  - Enter to select item\n  - Escape to close dropdown\n- **ARIA:**\n  - `role=\"button\"` on dropdown trigger\n  - `aria-expanded=\"true|false\"` when dropdown is open/closed\n  - `aria-haspopup=\"menu\"` on button\n  - `role=\"menuitem\"` on dropdown items\n  - `aria-disabled=\"true\"` on disabled items\n- **Screen readers:** Announce editor names and installation status\n\n## Acceptance Criteria\n- [ ] Component renders loading state with spinner\n- [ ] Loading completes and shows appropriate button/dropdown\n- [ ] Dropdown shows only installed editors\n- [ ] Disabled editors are grayed out with clear indication\n- [ ] Clicking button with 1 editor launches it directly\n- [ ] Clicking button with 2+ editors shows dropdown\n- [ ] Selecting editor from dropdown launches it\n- [ ] Launching editor shows spinner and prevents double-clicks\n- [ ] Success toast appears after editor launches\n- [ ] Error toast appears if editor launch fails\n- [ ] Dropdown closes on escape key\n- [ ] Dropdown closes on click outside\n- [ ] All keyboard navigation works (Tab, Arrow keys, Enter, Escape)\n- [ ] ARIA labels correctly identify component and state\n- [ ] No console errors or warnings\n- [ ] TypeScript compiles with no errors (`pnpm type-check`)\n- [ ] No linting errors (`pnpm lint`)\n- [ ] Component follows Brain Dump patterns (mutations, error handling)",
+      "priority": "high",
+      "tags": [
+        "frontend",
+        "ui",
+        "component"
+      ]
+    },
+    {
+      "id": "8e107160-19f1-48e4-bf2d-7f20d8e33011",
+      "title": "UI: Create DevServerPicker component (modal)",
+      "passes": false,
+      "overview": "",
+      "types": [
+        {
+          "name": "DevServerPickerProps",
+          "code": "interface DevServerPickerProps {\n  isOpen: boolean;\n  onClose: () => void;\n  projectPath: string;\n}"
+        }
+      ],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Modal renders with correct styling and layout",
+        "Hook fetches dev commands and displays them as radio buttons",
+        "Loading skeleton displays while fetching commands",
+        "Only one command can be selected at a time",
+        "Success state displays all detected commands",
+        "\"No commands found\" state shows helpful message",
+        "[Launch Server] button disabled until command selected",
+        "Clicking [Launch Server] shows spinner and launches command",
+        "Success toast appears after launch",
+        "Error toast appears if launch fails",
+        "[Cancel] button closes modal without launching",
+        "[X] button closes modal without launching",
+        "Escape key closes modal",
+        "Focus trap keeps focus within modal while open",
+        "Focus returns to trigger button after modal closes",
+        "Terminal preference dropdown works (if implemented)",
+        "All radio button navigation works (Tab, Arrow keys)",
+        "ARIA labels and roles correct",
+        "Responsive: Works on mobile and desktop",
+        "No console errors or warnings",
+        "TypeScript compiles with no errors (`pnpm type-check`)",
+        "No linting errors (`pnpm lint`)",
+        "Component follows Brain Dump patterns (mutations, error handling)"
+      ],
+      "references": [
+        "src/components/projects/DevServerPicker.tsx"
+      ],
+      "description": "**Part of Epic:** Project Detail Page → Development Hub (same branch, same PR)\n\n## Objective\nCreate `src/components/projects/DevServerPicker.tsx` to allow users to select a detected dev command and launch a development server in a new terminal.\n\n## Component Specification\n\n### Props\n```typescript\ninterface DevServerPickerProps {\n  isOpen: boolean;\n  onClose: () => void;\n  projectPath: string;\n}\n```\n\n### Data Flow\n- **Hook:** `useDevCommands(projectPath)` to fetch detected dev commands\n- **Mutation:** `useLaunchDevServer()` to launch selected command\n- **Loading:** Show skeleton while detecting dev commands\n- **Success:** Display radio button list of commands, user selects and launches\n- **Error:** Show \"No dev commands detected\" message with configuration hint\n\n### Modal Dialog\n\n**Header:**\n- Title: \"Start Development Server\"\n- Close button (X) in top-right corner\n\n**Body:**\n\n```\nTitle: Start Development Server\n\nCommands Found:\n○ pnpm dev\n○ pnpm build && pnpm start\n○ make dev\n\nTerminal Preference: [Select Terminal ▼]\n  (Defaults to detected terminal, e.g., \"GNOME Terminal\")\n\nButtons: [Cancel]  [Launch Server]\n```\n\n**Styling:**\n- Follow existing modal pattern from `CreateProjectModal.tsx`\n- Background: `var(--bg-modal)`\n- Shadow: `var(--shadow-modal)`\n- Width: 400-500px on desktop, 90% on mobile\n- Border-radius: `var(--radius-lg)`\n- Padding: `var(--spacing-4)`\n\n### States\n\n#### Loading State\n- Skeleton lines showing placeholder command items\n- Text: \"Detecting dev commands...\"\n- Buttons disabled\n\n#### Success State: Commands Found\n- Radio button list of detected commands\n- Selected command has filled radio button (●)\n- Terminal preference dropdown (optional, defaults to auto-detected)\n- [Cancel] button\n- [Launch Server] button (enabled only if command selected)\n\n#### Success State: No Commands Found\n- Message: \"No development scripts found. Add 'dev' to package.json scripts.\"\n- Show example: \n  ```json\n  {\n    \"scripts\": {\n      \"dev\": \"vite\"\n    }\n  }\n  ```\n- [Cancel] button only (no launch)\n- Still show terminal preference dropdown\n\n#### Launching State\n- Show spinner on [Launch Server] button\n- Disable all radio buttons and cancel button\n- Text: \"Launching server...\"\n\n#### Error State\n- Toast notification: \"Could not launch dev server. Check command syntax.\"\n- Show error message in modal\n- [Cancel] button (allow user to try again or close)\n- Text: \"Check your dev command in package.json\"\n\n### Interactions\n\n**On Command Select:**\n- User clicks radio button to select command\n- Selection updates local state\n- [Launch Server] button becomes enabled\n\n**On Launch Server:**\n1. Validate that projectPath exists\n2. Show spinner on button\n3. Call `useLaunchDevServer({ projectPath, command })`\n4. On success:\n   - Show toast: \"✓ Dev server launching in new terminal\"\n   - Close modal after 1 second\n5. On error:\n   - Show error toast with helpful message\n   - Keep modal open to allow retry\n   - Show error details (if command not found, suggest checking syntax)\n\n**On Cancel:**\n- Close modal without launching\n- Reset form state\n\n**On Close (X button):**\n- Close modal without launching\n- Reset form state\n\n### Terminal Preference (Optional Enhancement)\n- Dropdown: \"Select Terminal\" or \"Auto-detect\"\n- Options: GNOME Terminal, Konsole, Ghostty, iTerm2, Terminal.app\n- Default: Auto-detected terminal based on system\n- User can override if preferred\n\n### Accessibility\n- **Modal:**\n  - Focus trap: Tab cycles through buttons in modal only\n  - Escape key closes modal\n  - Focus returns to \"Start Dev Server\" button after modal closes\n- **Radio Buttons:**\n  - Tab to radio buttons\n  - Arrow keys switch selection\n  - Space/Enter to confirm\n- **ARIA:**\n  - `role=\"dialog\"` on modal container\n  - `aria-labelledby` pointing to title\n  - `aria-modal=\"true\"` on modal\n  - `role=\"radio\"` on radio button items\n  - `aria-checked=\"true|false\"` for selected state\n- **Screen Readers:** Announce \"X of Y dev commands found\"\n\n## Acceptance Criteria\n- [ ] Modal renders with correct styling and layout\n- [ ] Hook fetches dev commands and displays them as radio buttons\n- [ ] Loading skeleton displays while fetching commands\n- [ ] Only one command can be selected at a time\n- [ ] Success state displays all detected commands\n- [ ] \"No commands found\" state shows helpful message\n- [ ] [Launch Server] button disabled until command selected\n- [ ] Clicking [Launch Server] shows spinner and launches command\n- [ ] Success toast appears after launch\n- [ ] Error toast appears if launch fails\n- [ ] [Cancel] button closes modal without launching\n- [ ] [X] button closes modal without launching\n- [ ] Escape key closes modal\n- [ ] Focus trap keeps focus within modal while open\n- [ ] Focus returns to trigger button after modal closes\n- [ ] Terminal preference dropdown works (if implemented)\n- [ ] All radio button navigation works (Tab, Arrow keys)\n- [ ] ARIA labels and roles correct\n- [ ] Responsive: Works on mobile and desktop\n- [ ] No console errors or warnings\n- [ ] TypeScript compiles with no errors (`pnpm type-check`)\n- [ ] No linting errors (`pnpm lint`)\n- [ ] Component follows Brain Dump patterns (mutations, error handling)",
+      "priority": "high",
+      "tags": [
+        "frontend",
+        "ui",
+        "component"
+      ]
+    },
+    {
+      "id": "443d0d8d-5ac3-4d26-91d5-67cab22df21c",
+      "title": "UI: Create DevHubToolbar component (button bar)",
+      "passes": false,
+      "overview": "",
+      "types": [
+        {
+          "name": "DevHubToolbarProps",
+          "code": "interface DevHubToolbarProps {\n  projectPath: string;\n  projectId: string;\n}"
+        }
+      ],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Toolbar renders with 4 buttons in correct order",
+        "All buttons have proper styling and hover states",
+        "EditorLauncher component embedded and functional",
+        "New Terminal button launches terminal in project directory",
+        "Start Dev Server button opens DevServerPicker modal",
+        "View README button checks for file and opens or shows toast",
+        "Success toasts appear for all actions",
+        "Error toasts appear with helpful messages",
+        "Spinner shows on button while action in progress",
+        "Buttons disabled during action to prevent double-clicks",
+        "Responsive: Buttons stack on mobile",
+        "All keyboard navigation works (Tab, Enter, Space)",
+        "ARIA labels and roles correct",
+        "Tooltips appear on hover",
+        "No console errors or warnings",
+        "TypeScript compiles with no errors (`pnpm type-check`)",
+        "No linting errors (`pnpm lint`)",
+        "Component follows Brain Dump patterns (error handling, accessibility)"
+      ],
+      "references": [
+        "src/components/projects/DevHubToolbar.tsx"
+      ],
+      "description": "**Part of Epic:** Project Detail Page → Development Hub (same branch, same PR)\n\n## Objective\nCreate `src/components/projects/DevHubToolbar.tsx` to display action buttons for opening editors, terminals, dev servers, and README files.\n\n## Component Specification\n\n### Props\n```typescript\ninterface DevHubToolbarProps {\n  projectPath: string;\n  projectId: string;\n}\n```\n\n### Buttons (Left to Right)\n\n#### 1. Open in Editor\n- **Component:** EditorLauncher (embedded)\n- **Props:** `projectPath`\n- **Behavior:** Shows dropdown or direct button based on installed editors\n- **Tooltip:** \"Open project in your preferred code editor\"\n\n#### 2. New Terminal\n- **Label:** \"New Terminal\"\n- **Icon:** Terminal icon (or text)\n- **Behavior:** \n  - Click → Opens new terminal window in project directory\n  - Show spinner while launching\n  - Show toast on success/error\n- **Tooltip:** \"Open terminal in project directory\"\n- **Implementation:**\n  - Reuse `detectTerminal()` from `terminal-utils.ts`\n  - Reuse `buildTerminalCommand()` pattern\n  - Command: `cd \"${projectPath}\"`\n\n#### 3. Start Dev Server\n- **Label:** \"Start Dev Server\"\n- **Icon:** Play/launch icon (or text)\n- **Behavior:**\n  - Click → Opens DevServerPicker modal\n  - Modal manages the rest of the flow\n- **Tooltip:** \"Start development server with auto-detected command\"\n- **Implementation:**\n  - Embed DevServerPicker component\n  - Use state to manage modal open/close\n\n#### 4. View README\n- **Label:** \"View README\"\n- **Icon:** Document/book icon (or text)\n- **Behavior:**\n  - Check if README exists (README.md, docs/README.md, or CONTRIBUTING.md)\n  - If exists: Open in default editor\n  - If not: Show toast \"No README found\"\n- **Tooltip:** \"Open project README or documentation\"\n- **Implementation:**\n  - Server function to check for README existence\n  - Reuse editor launch for opening README file\n\n### Layout\n\n```\n┌─────────────────────────────────────────────────────────┐\n│ [Open in Editor ▼] [New Terminal] [Start Dev Server] [View README] │\n└─────────────────────────────────────────────────────────┘\n```\n\n**Styling:**\n- Background: `var(--bg-secondary)`\n- Border-bottom: `1px solid var(--border-primary)`\n- Padding: `var(--spacing-3) var(--spacing-4)`\n- Gap between buttons: `var(--spacing-3)`\n- Display: Flex, row, wrap on mobile\n- Max-width: Full width with padding\n- Use `accentButtonStyles` for all buttons\n\n**Button Styling:**\n- Text color: `var(--text-primary)`\n- Background: `var(--bg-accent)` or transparent with border\n- Padding: `var(--spacing-2) var(--spacing-3)`\n- Border-radius: `var(--radius-sm)`\n- Hover: Brighten or add shadow\n- Active/Loading: Show spinner, disable interaction\n\n### Responsive Behavior\n- **Desktop (≥768px):** All buttons in single row\n- **Tablet (480-768px):** Buttons may wrap to 2 rows\n- **Mobile (<480px):** Buttons stack or use icon-only mode\n  - Show icons only, labels in tooltips\n  - Or: Full-width buttons stacked vertically\n\n### States\n\n#### Loading State\n- Skeleton lines for all buttons\n- Buttons disabled\n- Text: \"Detecting dev environment...\"\n\n#### Ready State\n- All buttons enabled (except README if no file found)\n- Icons and labels visible\n- Tooltips on hover\n\n#### Launching State\n- Show spinner on clicked button\n- Disable other buttons to prevent simultaneous launches\n- Restore normal state after success/error\n\n#### Error State\n- Toast notification with error message\n- Buttons return to enabled state\n- Offer recovery steps (e.g., \"Install editor\" for editor launch)\n\n### Interactions\n\n**On Button Click:**\n1. Detect which button was clicked\n2. Execute appropriate action:\n   - **Open in Editor:** Launch EditorLauncher\n   - **New Terminal:** Call terminal launch function\n   - **Start Dev Server:** Open DevServerPicker modal\n   - **View README:** Check for file, then open or show toast\n\n**On Action Success:**\n- Show success toast: \"✓ Action completed\"\n- Dismiss after 2-3 seconds\n\n**On Action Error:**\n- Show error toast with recovery hint\n- Button returns to enabled state\n- Example: \"Could not open editor. Install VS Code or Cursor first.\"\n\n### Accessibility\n- **Keyboard:**\n  - Tab to each button\n  - Enter/Space to click button\n  - Focus visible (outline or highlight)\n- **ARIA:**\n  - `aria-label` on all buttons\n  - `aria-disabled=\"true\"` on disabled buttons (if using non-button elements)\n  - `title` attributes for additional context\n- **Screen Readers:** Announce button purpose and current state\n\n## Acceptance Criteria\n- [ ] Toolbar renders with 4 buttons in correct order\n- [ ] All buttons have proper styling and hover states\n- [ ] EditorLauncher component embedded and functional\n- [ ] New Terminal button launches terminal in project directory\n- [ ] Start Dev Server button opens DevServerPicker modal\n- [ ] View README button checks for file and opens or shows toast\n- [ ] Success toasts appear for all actions\n- [ ] Error toasts appear with helpful messages\n- [ ] Spinner shows on button while action in progress\n- [ ] Buttons disabled during action to prevent double-clicks\n- [ ] Responsive: Buttons stack on mobile\n- [ ] All keyboard navigation works (Tab, Enter, Space)\n- [ ] ARIA labels and roles correct\n- [ ] Tooltips appear on hover\n- [ ] No console errors or warnings\n- [ ] TypeScript compiles with no errors (`pnpm type-check`)\n- [ ] No linting errors (`pnpm lint`)\n- [ ] Component follows Brain Dump patterns (error handling, accessibility)",
+      "priority": "high",
+      "tags": [
+        "frontend",
+        "ui",
+        "component"
+      ]
+    },
+    {
+      "id": "b3397f13-8f83-42db-8668-5fb5da812fb4",
+      "title": "Integration: Assemble dev hub on project detail page",
+      "passes": false,
+      "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [
         {
           "step": 1,
-          "description": "Add Search Input",
-          "files": [
-            "SearchBar.tsx"
-          ]
+          "description": "Modify `src/routes/projects.$projectId.tsx`",
+          "files": [],
+          "codeTemplate": "const cardsGridStyles: React.CSSProperties = {\n  display: \"grid\",\n  gridTemplateColumns: \"repeat(auto-fit, minmax(320px, 1fr))\",\n  gap: \"var(--spacing-4)\",\n  padding: \"var(--spacing-4)\",\n  borderBottom: \"1px solid var(--border-primary)\",\n};"
         },
         {
           "step": 2,
-          "description": "Client-Side Filtering",
+          "description": "Layout Verification",
           "files": [],
-          "codeTemplate": "const filteredProjects = useMemo(\n  () => projects.filter(p => \n    p.name.toLowerCase().includes(searchQuery.toLowerCase())\n  ),\n  [projects, searchQuery]\n);"
+          "codeTemplate": "┌─────────────────────────────────────────────────────┐\n│ [←] [●] ProjectName        [View All Tickets]     │  ← Existing header\n├─────────────────────────────────────────────────────┤\n│ [Editor ▼] [Terminal] [Dev Server] [README]        │  ← NEW: DevHubToolbar\n├─────────────────────────────────────────────────────┤\n│ [Tech Stack Card] [Git History Card]               │  ← NEW: Cards grid\n├─────────────────────────────────────────────────────┤\n│ Epics / Tickets (existing epic list)                │  ← Existing content\n└─────────────────────────────────────────────────────┘"
         },
         {
           "step": 3,
-          "description": "Replace Grid with List",
+          "description": "End-to-End Testing",
           "files": []
         },
         {
           "step": 4,
-          "description": "Layout Structure",
-          "files": [],
-          "codeTemplate": "<div pageContainer>\n  <header>\n    <h1>Projects</h1>\n    <button>+ New Project</button>\n  </header>\n  <div searchContainer>\n    <input placeholder=\"Search projects...\" />\n  </div>\n  <div listContainer>\n    {filteredProjects.map(project => (\n      <ProjectListItem ... />\n    ))}\n  </div>\n</div>"
-        },
-        {
-          "step": 5,
-          "description": "Updated Styles",
+          "description": "PR Requirements",
           "files": []
         },
         {
-          "step": 6,
-          "description": "Edge Cases",
-          "files": []
-        },
-        {
-          "step": 6,
-          "description": "Edge Cases",
+          "step": 4,
+          "description": "PR Requirements",
           "files": []
         }
       ],
       "acceptanceCriteria": [
-        "Grid layout replaced with vertical list",
-        "Search input filters projects by name",
-        "Clear button appears when search has text",
-        "Clicking project navigates to project detail",
-        "\"New Project\" button opens create modal",
-        "Settings icon opens edit modal",
-        "Empty state displays properly",
-        "No search results state displays properly",
-        "`pnpm type-check` passes",
-        "`pnpm test` passes",
-        "Keyboard navigation works (Tab, Enter)"
+        "Navigate to `/projects/$projectId`",
+        "Header renders correctly",
+        "DevHubToolbar appears below header",
+        "Cards show skeleton loading states",
+        "Epic list displays below cards",
+        "No layout overlap or visual issues",
+        "TechStackCard finishes loading (2-3 seconds)",
+        "Shows detected languages (TS, JS, Go, Python, etc.)",
+        "Shows detected frameworks (React, Vue, Next.js, etc.)",
+        "Shows total dependency count",
+        "Icons render correctly",
+        "For projects with no manifests: \"No tech stack detected\" message",
+        "GitHistoryCard finishes loading (2-3 seconds)",
+        "Shows last commit with message, author, time",
+        "Shows recent commits list (up to 10)",
+        "Commit hashes are clickable → Copy to clipboard",
+        "Toast appears: \"✓ Commit hash copied\"",
+        "\"View Git History\" button opens terminal with `git log`",
+        "For non-git projects: \"Git not initialized\" message",
+        "EditorLauncher renders in toolbar",
+        "Detects installed editors (VS Code, Cursor, etc.)",
+        "Shows dropdown if multiple editors installed",
+        "Shows direct button if one editor installed",
+        "Click editor → Opens in selected editor",
+        "Toast: \"✓ VS Code opened\"",
+        "For no editors: \"Install Editor\" button (disabled)",
+        "Click \"New Terminal\" button",
+        "New terminal opens in project directory",
+        "Toast: \"✓ Terminal opened in project directory\"",
+        "No errors in console",
+        "Click \"Start Dev Server\" button",
+        "DevServerPicker modal opens",
+        "Shows detected commands from package.json/Makefile",
+        "Can select a command",
+        "Click \"Launch Server\"",
+        "New terminal opens with dev command running",
+        "Toast: \"✓ Dev server launching...\"",
+        "For no commands: \"No dev commands detected\" message",
+        "Click \"View README\" button",
+        "If README exists: Opens in editor",
+        "If no README: Toast \"No README found\"",
+        "Desktop (>768px): Cards in 2-column grid",
+        "Tablet (480-768px): Cards wrap appropriately",
+        "Mobile (<480px): Cards stack vertically, buttons responsive",
+        "No horizontal scrolling",
+        "Text legible on all screen sizes",
+        "Project path doesn't exist → Error message, actions disabled",
+        "Git not initialized → Card shows helpful message",
+        "Editor not installed → Button disabled with tooltip",
+        "Terminal detection fails → Fallback to error toast",
+        "Dev command fails → Error toast with recovery hint",
+        "All errors are logged, no console crashes",
+        "`pnpm type-check` → No errors",
+        "`pnpm lint` → No errors",
+        "`pnpm test` → All tests pass",
+        "No console warnings or errors",
+        "No memory leaks (check DevTools)",
+        "No performance regression (Lighthouse)",
+        "Tech stack detection works for Node.js, Go, Rust, Python projects",
+        "Editor launcher detects and opens VS Code, Cursor, Vim, Neovim",
+        "Terminal launcher opens in correct project directory",
+        "Dev server launcher detects and runs package.json scripts",
+        "Git info displays recent commits with timestamps",
+        "All UI components responsive on mobile and desktop",
+        "Error states show helpful messages",
+        "All tests pass: type-check, lint, unit tests",
+        "All components imported and integrated into project detail page",
+        "Toolbar renders with 4 buttons (Editor, Terminal, Dev Server, README)",
+        "TechStackCard loads and displays tech stack",
+        "GitHistoryCard loads and displays git info",
+        "Epic list still visible and functional below cards",
+        "No layout shifts or overlap issues",
+        "Page loads with skeleton states while data fetches",
+        "Toolbar buttons are always visible (sticky or above fold)",
+        "Cards load asynchronously without blocking page",
+        "All buttons have visible hover states",
+        "Toast notifications appear on success/error",
+        "Error messages are helpful and actionable",
+        "All backend and frontend components complete",
+        "All hooks and query keys properly set up",
+        "All components follow Brain Dump patterns",
+        "TypeScript compiles with no errors",
+        "ESLint passes with no warnings",
+        "All unit tests pass",
+        "Responsive design verified on 3+ screen sizes",
+        "Accessibility verified (keyboard nav, ARIA labels)",
+        "All 10 end-to-end tests listed above pass",
+        "No console errors or warnings",
+        "Verify using the brain-dump project itself:",
+        "TechStackCard shows React, Vite, TypeScript versions",
+        "GitHistoryCard shows recent commits",
+        "EditorLauncher detects VS Code or Cursor",
+        "Terminal launch works",
+        "Dev server launch works (pnpm dev)",
+        "Page loads in <2 seconds total",
+        "Tech stack detection: <1 second",
+        "Git info detection: <1 second",
+        "Editor detection: <500ms (cached)",
+        "No memory leaks",
+        "No unnecessary re-renders"
       ],
       "references": [
-        "src/routes/index.tsx"
+        "src/routes/projects.$projectId.tsx"
       ],
-      "description": "# Redesign Homepage with Search and List Layout\n\n**Branch**: `feature/epic-040adfc0-projects-home-page` (continue on existing branch)\n**Reference**: See OVERVIEW 2 ticket in this epic for the full redesign plan.\n**Depends on**: \"Extend data fetching\" and \"Create ProjectListItem component\" tickets.\n\n## Context\n\nThe homepage currently uses a card grid layout. This ticket replaces it with a centered, single-column list with a search bar for filtering.\n\n## Implementation\n\n**File**: `src/routes/index.tsx`\n\n### 1. Add Search Input\n\n- `useState` for search query\n- Simple `<input>` with search icon (lucide `Search`) and clear button (`X`)\n- Style: reuse patterns from `SearchBar.tsx` (lines 209-219)\n  - `background: var(--bg-primary)`\n  - `border: 1px solid var(--border-primary)`\n  - `border-radius: var(--radius-lg)`\n  - Search icon positioned left, clear button right\n\n### 2. Client-Side Filtering\n\n```typescript\nconst filteredProjects = useMemo(\n  () => projects.filter(p => \n    p.name.toLowerCase().includes(searchQuery.toLowerCase())\n  ),\n  [projects, searchQuery]\n);\n```\n\n### 3. Replace Grid with List\n\n- Remove grid layout (`display: grid`, `grid-template-columns`)\n- Add centered list container: `maxWidth: 900px`, `margin: 0 auto`\n- Replace `ProjectCard` usage with `ProjectListItem`\n- Wire up `ticketCountByProject` from extended hook\n\n### 4. Layout Structure\n\n```tsx\n<div pageContainer>\n  <header>\n    <h1>Projects</h1>\n    <button>+ New Project</button>\n  </header>\n  <div searchContainer>\n    <input placeholder=\"Search projects...\" />\n  </div>\n  <div listContainer>\n    {filteredProjects.map(project => (\n      <ProjectListItem ... />\n    ))}\n  </div>\n</div>\n```\n\n### 5. Updated Styles\n\n- Search container: padded, border-bottom, `var(--bg-secondary)` background\n- Search input wrapper: `maxWidth: 600px`, centered\n- List container: `maxWidth: 900px`, centered, scrollable\n\n### 6. Edge Cases\n\n- Empty state (no projects): show message with \"New Project\" CTA\n- No search matches: show \"No projects match\" message\n- Long names: text truncation with ellipsis\n\n## Acceptance Criteria\n\n- [ ] Grid layout replaced with vertical list\n- [ ] Search input filters projects by name\n- [ ] Clear button appears when search has text\n- [ ] Clicking project navigates to project detail\n- [ ] \"New Project\" button opens create modal\n- [ ] Settings icon opens edit modal\n- [ ] Empty state displays properly\n- [ ] No search results state displays properly\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm test` passes\n- [ ] Keyboard navigation works (Tab, Enter)",
+      "description": "**Part of Epic:** Project Detail Page → Development Hub (same branch, same PR)\n\n## Objective\nIntegrate all dev hub components into `src/routes/projects.$projectId.tsx` and verify complete end-to-end workflow.\n\n## Implementation Details\n\n### 1. Modify `src/routes/projects.$projectId.tsx`\n\n**Add imports:**\n```typescript\nimport DevHubToolbar from \"../components/projects/DevHubToolbar\";\nimport TechStackCard from \"../components/projects/TechStackCard\";\nimport GitHistoryCard from \"../components/projects/GitHistoryCard\";\n```\n\n**Add to component after header:**\n```typescript\n// After existing header JSX, add:\n\n{/* Development Hub Toolbar */}\n<DevHubToolbar projectPath={project.path} projectId={projectId} />\n\n{/* Context Cards (2-column grid on desktop) */}\n<div style={cardsGridStyles}>\n  <TechStackCard projectPath={project.path} />\n  <GitHistoryCard projectPath={project.path} />\n</div>\n\n{/* EXISTING: Epic list below cards */}\n```\n\n**Add styles object:**\n```typescript\nconst cardsGridStyles: React.CSSProperties = {\n  display: \"grid\",\n  gridTemplateColumns: \"repeat(auto-fit, minmax(320px, 1fr))\",\n  gap: \"var(--spacing-4)\",\n  padding: \"var(--spacing-4)\",\n  borderBottom: \"1px solid var(--border-primary)\",\n};\n```\n\n### 2. Layout Verification\n\n**Expected page flow:**\n```\n┌─────────────────────────────────────────────────────┐\n│ [←] [●] ProjectName        [View All Tickets]     │  ← Existing header\n├─────────────────────────────────────────────────────┤\n│ [Editor ▼] [Terminal] [Dev Server] [README]        │  ← NEW: DevHubToolbar\n├─────────────────────────────────────────────────────┤\n│ [Tech Stack Card] [Git History Card]               │  ← NEW: Cards grid\n├─────────────────────────────────────────────────────┤\n│ Epics / Tickets (existing epic list)                │  ← Existing content\n└─────────────────────────────────────────────────────┘\n```\n\n### 3. End-to-End Testing\n\n#### Test 1: Page Load\n- [ ] Navigate to `/projects/$projectId`\n- [ ] Header renders correctly\n- [ ] DevHubToolbar appears below header\n- [ ] Cards show skeleton loading states\n- [ ] Epic list displays below cards\n- [ ] No layout overlap or visual issues\n\n#### Test 2: Tech Stack Detection\n- [ ] TechStackCard finishes loading (2-3 seconds)\n- [ ] Shows detected languages (TS, JS, Go, Python, etc.)\n- [ ] Shows detected frameworks (React, Vue, Next.js, etc.)\n- [ ] Shows total dependency count\n- [ ] Icons render correctly\n- [ ] For projects with no manifests: \"No tech stack detected\" message\n\n#### Test 3: Git Activity\n- [ ] GitHistoryCard finishes loading (2-3 seconds)\n- [ ] Shows last commit with message, author, time\n- [ ] Shows recent commits list (up to 10)\n- [ ] Commit hashes are clickable → Copy to clipboard\n- [ ] Toast appears: \"✓ Commit hash copied\"\n- [ ] \"View Git History\" button opens terminal with `git log`\n- [ ] For non-git projects: \"Git not initialized\" message\n\n#### Test 4: Editor Launch\n- [ ] EditorLauncher renders in toolbar\n- [ ] Detects installed editors (VS Code, Cursor, etc.)\n- [ ] Shows dropdown if multiple editors installed\n- [ ] Shows direct button if one editor installed\n- [ ] Click editor → Opens in selected editor\n- [ ] Toast: \"✓ VS Code opened\"\n- [ ] For no editors: \"Install Editor\" button (disabled)\n\n#### Test 5: Terminal Launch\n- [ ] Click \"New Terminal\" button\n- [ ] New terminal opens in project directory\n- [ ] Toast: \"✓ Terminal opened in project directory\"\n- [ ] No errors in console\n\n#### Test 6: Dev Server Launch\n- [ ] Click \"Start Dev Server\" button\n- [ ] DevServerPicker modal opens\n- [ ] Shows detected commands from package.json/Makefile\n- [ ] Can select a command\n- [ ] Click \"Launch Server\"\n- [ ] New terminal opens with dev command running\n- [ ] Toast: \"✓ Dev server launching...\"\n- [ ] For no commands: \"No dev commands detected\" message\n\n#### Test 7: View README\n- [ ] Click \"View README\" button\n- [ ] If README exists: Opens in editor\n- [ ] If no README: Toast \"No README found\"\n\n#### Test 8: Responsive Layout\n- [ ] Desktop (>768px): Cards in 2-column grid\n- [ ] Tablet (480-768px): Cards wrap appropriately\n- [ ] Mobile (<480px): Cards stack vertically, buttons responsive\n- [ ] No horizontal scrolling\n- [ ] Text legible on all screen sizes\n\n#### Test 9: Error Handling\n- [ ] Project path doesn't exist → Error message, actions disabled\n- [ ] Git not initialized → Card shows helpful message\n- [ ] Editor not installed → Button disabled with tooltip\n- [ ] Terminal detection fails → Fallback to error toast\n- [ ] Dev command fails → Error toast with recovery hint\n- [ ] All errors are logged, no console crashes\n\n#### Test 10: Quality Checks\n- [ ] `pnpm type-check` → No errors\n- [ ] `pnpm lint` → No errors\n- [ ] `pnpm test` → All tests pass\n- [ ] No console warnings or errors\n- [ ] No memory leaks (check DevTools)\n- [ ] No performance regression (Lighthouse)\n\n### 4. PR Requirements\n\n**All changes part of same branch and PR:**\n- All tickets in same epic: \"Project Detail Page → Development Hub\"\n- Single git branch: Feature branch (e.g., `feature/dev-hub`)\n- Single PR with all commits\n- PR description includes complete user flow and acceptance criteria\n- All tests passing\n- All code reviewed and approved\n\n**PR Title:** `feat: Transform project detail page into development hub`\n\n**PR Description Template:**\n```\n## Summary\n- Adds DevHubToolbar with editor, terminal, dev server, and README actions\n- Adds TechStackCard to display detected languages and frameworks\n- Adds GitHistoryCard to show recent commits and git activity\n- Integrates all components into project detail page\n\n## Test Plan\n- [x] Tech stack detection works for Node.js, Go, Rust, Python projects\n- [x] Editor launcher detects and opens VS Code, Cursor, Vim, Neovim\n- [x] Terminal launcher opens in correct project directory\n- [x] Dev server launcher detects and runs package.json scripts\n- [x] Git info displays recent commits with timestamps\n- [x] All UI components responsive on mobile and desktop\n- [x] Error states show helpful messages\n- [x] All tests pass: type-check, lint, unit tests\n```\n\n## Acceptance Criteria\n\n### Functional\n- [ ] All components imported and integrated into project detail page\n- [ ] Toolbar renders with 4 buttons (Editor, Terminal, Dev Server, README)\n- [ ] TechStackCard loads and displays tech stack\n- [ ] GitHistoryCard loads and displays git info\n- [ ] Epic list still visible and functional below cards\n- [ ] No layout shifts or overlap issues\n\n### User Experience\n- [ ] Page loads with skeleton states while data fetches\n- [ ] Toolbar buttons are always visible (sticky or above fold)\n- [ ] Cards load asynchronously without blocking page\n- [ ] All buttons have visible hover states\n- [ ] Toast notifications appear on success/error\n- [ ] Error messages are helpful and actionable\n\n### Engineering Quality\n- [ ] All backend and frontend components complete\n- [ ] All hooks and query keys properly set up\n- [ ] All components follow Brain Dump patterns\n- [ ] TypeScript compiles with no errors\n- [ ] ESLint passes with no warnings\n- [ ] All unit tests pass\n- [ ] Responsive design verified on 3+ screen sizes\n- [ ] Accessibility verified (keyboard nav, ARIA labels)\n\n### Testing\n- [ ] All 10 end-to-end tests listed above pass\n- [ ] No console errors or warnings\n- [ ] Verify using the brain-dump project itself:\n  - [ ] TechStackCard shows React, Vite, TypeScript versions\n  - [ ] GitHistoryCard shows recent commits\n  - [ ] EditorLauncher detects VS Code or Cursor\n  - [ ] Terminal launch works\n  - [ ] Dev server launch works (pnpm dev)\n\n### Performance\n- [ ] Page loads in <2 seconds total\n- [ ] Tech stack detection: <1 second\n- [ ] Git info detection: <1 second\n- [ ] Editor detection: <500ms (cached)\n- [ ] No memory leaks\n- [ ] No unnecessary re-renders\n\n## Blockers\n- None—all backend, components, and hooks completed in previous tickets\n\n## Notes\n- **Same Branch/PR:** All work is part of single epic and PR\n- **No Breaking Changes:** Existing epic list preserved\n- **Graceful Degradation:** All features work even if git, editors, or dev commands not available\n- **User Flow Complete:** Engineer can navigate to project, see tech stack, open in editor, launch terminal, start dev server, view git history—all from one page",
       "priority": "high",
       "tags": [
-        "homepage",
-        "search",
-        "layout",
-        "ui"
+        "integration",
+        "frontend"
       ]
     }
   ],
@@ -488,7 +871,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-02-14T14:03:25.743Z",
-  "epicTitle": "Projects Home Page",
-  "epicDescription": "Introduce a structured Projects home page as the landing page with drill-down into epics. Navigation flow: Projects → Epics → Filtered Kanban Board. All tickets in this epic share a single branch and PR."
+  "generatedAt": "2026-02-14T20:04:11.880Z",
+  "epicTitle": "Project Detail Page → Development Hub",
+  "epicDescription": "Transform the project detail page into a central development hub with editor launch, terminal management, dev server detection, tech stack analysis, and git activity tracking."
 }
