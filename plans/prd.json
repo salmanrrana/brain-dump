@@ -582,7 +582,7 @@
     {
       "id": "b3397f13-8f83-42db-8668-5fb5da812fb4",
       "title": "Integration: Assemble dev hub on project detail page",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],

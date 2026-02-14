@@ -68,9 +68,17 @@ export default function DevServerPicker({ projectPath, isOpen, onClose }: DevSer
     <>
       <div style={backdropStyles} />
       <div style={modalContainerStyles}>
-        <div style={modalStyles} ref={modalRef}>
+        <div
+          style={modalStyles}
+          ref={modalRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="dev-server-picker-title"
+        >
           <div style={headerStyles}>
-            <h2 style={titleStyles}>Start Development Server</h2>
+            <h2 style={titleStyles} id="dev-server-picker-title">
+              Start Development Server
+            </h2>
             <button
               type="button"
               style={closeButtonStyles}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
 import { useInstalledEditors, useLaunchEditor } from "../../lib/hooks";
 import { createBrowserLogger } from "../../lib/browser-logger";
@@ -13,9 +13,34 @@ export default function EditorLauncher({ projectPath }: EditorLauncherProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { data: editors = [], isLoading } = useInstalledEditors();
   const launchEditor = useLaunchEditor();
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const installedEditors = editors.filter((e) => e.installed);
   const hasEditors = installedEditors.length > 0;
+
+  // Close dropdown on Escape or click outside
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleEscape);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
 
   const handleLaunch = async (editor: string) => {
     try {
@@ -72,7 +97,7 @@ export default function EditorLauncher({ projectPath }: EditorLauncherProps) {
   }
 
   return (
-    <div style={containerStyles}>
+    <div style={containerStyles} ref={containerRef}>
       <button
         style={buttonStyles}
         onClick={() => setIsOpen(!isOpen)}

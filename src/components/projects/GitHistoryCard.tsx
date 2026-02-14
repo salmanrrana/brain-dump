@@ -1,4 +1,7 @@
 import { useGitProjectInfo } from "../../lib/hooks";
+import { createBrowserLogger } from "../../lib/browser-logger";
+
+const logger = createBrowserLogger("GitHistoryCard");
 
 interface GitHistoryCardProps {
   projectPath: string;
@@ -7,9 +10,17 @@ interface GitHistoryCardProps {
 export default function GitHistoryCard({ projectPath }: GitHistoryCardProps) {
   const { data, isLoading, error } = useGitProjectInfo(projectPath);
 
-  const handleCopyHash = (hash: string) => {
-    navigator.clipboard.writeText(hash);
-    // Could add toast notification here
+  const handleCopyHash = async (hash: string) => {
+    try {
+      await navigator.clipboard.writeText(hash);
+      // Success - browser will provide visual feedback via pointer cursor
+    } catch (err) {
+      logger.error(
+        `Failed to copy commit hash to clipboard: ${hash}`,
+        err instanceof Error ? err : new Error(String(err))
+      );
+      // Fallback: could show error toast or fallback copy mechanism
+    }
   };
 
   return (
@@ -75,12 +86,6 @@ export default function GitHistoryCard({ projectPath }: GitHistoryCardProps) {
               <span style={changesTextStyles}>Uncommitted changes</span>
             </div>
           )}
-        </div>
-      )}
-
-      {!isLoading && !error && data && !data.lastCommit && (
-        <div style={emptyStateStyles}>
-          <p style={emptyTextStyles}>Git repository not initialized</p>
         </div>
       )}
     </div>
@@ -207,10 +212,6 @@ const changesDotStyles: React.CSSProperties = {
 const changesTextStyles: React.CSSProperties = {
   fontSize: "var(--font-size-xs)",
   color: "var(--text-warning)",
-};
-
-const emptyStateStyles: React.CSSProperties = {
-  padding: "var(--spacing-3)",
 };
 
 const emptyTextStyles: React.CSSProperties = {

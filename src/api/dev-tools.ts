@@ -2,8 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { exec, execFileSync } from "child_process";
+import { promisify } from "util";
 import { detectTerminal, buildTerminalCommand } from "./terminal-utils";
 import { createLogger } from "../lib/logger";
+
+const execAsync = promisify(exec);
 
 const logger = createLogger("dev-tools");
 
@@ -428,8 +431,13 @@ export const launchEditor = createServerFn({ method: "POST" })
           `${editorCmd} "${projectPath}"`,
           projectPath
         );
-        exec(termCmd);
-        return { success: true, message: `${editor} opened in terminal` };
+        try {
+          await execAsync(termCmd);
+          return { success: true, message: `${editor} opened in terminal` };
+        } catch (err) {
+          logger.error(`Failed to launch ${editor}`, new Error(toErrorMessage(err)));
+          return { success: false, message: `Failed to launch ${editor}` };
+        }
       }
 
       // GUI editors launch directly
@@ -447,13 +455,13 @@ export const launchEditor = createServerFn({ method: "POST" })
           return { success: false, message: `Unknown editor: ${editor}` };
       }
 
-      exec(command, (err: unknown) => {
-        if (err) {
-          logger.error(`Failed to launch ${editor}`, new Error(toErrorMessage(err)));
-        }
-      });
-
-      return { success: true, message: `${editor} opened successfully` };
+      try {
+        await execAsync(command);
+        return { success: true, message: `${editor} opened successfully` };
+      } catch (err) {
+        logger.error(`Failed to launch ${editor}`, new Error(toErrorMessage(err)));
+        return { success: false, message: `Failed to launch ${editor}: ${toErrorMessage(err)}` };
+      }
     } catch (err: unknown) {
       const message = toErrorMessage(err);
       logger.error("launchEditor error", new Error(message));
@@ -504,16 +512,19 @@ export const launchDevServer = createServerFn({ method: "POST" })
         projectPath
       );
 
-      exec(terminalCmd, (err: unknown) => {
-        if (err) {
-          logger.error("Failed to launch dev server", new Error(toErrorMessage(err)));
-        }
-      });
-
-      return {
-        success: true,
-        message: `Dev server launching with command: ${command}`,
-      };
+      try {
+        await execAsync(terminalCmd);
+        return {
+          success: true,
+          message: `Dev server launched with command: ${command}`,
+        };
+      } catch (err) {
+        logger.error("Failed to launch dev server", new Error(toErrorMessage(err)));
+        return {
+          success: false,
+          message: `Failed to launch dev server: ${toErrorMessage(err)}`,
+        };
+      }
     } catch (err: unknown) {
       const message = toErrorMessage(err);
       logger.error("launchDevServer error", new Error(message));
