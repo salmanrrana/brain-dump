@@ -1,11 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
-import { exec, execSync } from "child_process";
+import { exec, execFileSync } from "child_process";
 import { detectTerminal, buildTerminalCommand } from "./terminal-utils";
 import { createLogger } from "../lib/logger";
 
 const logger = createLogger("dev-tools");
+
+/** Extract a human-readable message from an unknown error value. */
+function toErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
 // Type Definitions
 export interface TechStackInfo {
@@ -28,13 +33,13 @@ export interface DevCommand {
   source: "package.json" | "makefile" | "docker-compose";
 }
 
-// Helper: Check if command is available on system
+// Helper: Check if command is available on system (safely, no shell injection)
 async function commandExists(command: string): Promise<boolean> {
   try {
     if (process.platform === "win32") {
-      execSync(`where ${command}`, { stdio: "ignore" });
+      execFileSync("where", [command], { stdio: "ignore" });
     } else {
-      execSync(`which ${command}`, { stdio: "ignore" });
+      execFileSync("which", [command], { stdio: "ignore" });
     }
     return true;
   } catch {
@@ -58,8 +63,7 @@ function parsePackageJson(projectPath: string): {
       scripts: parsed.scripts || {},
     };
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.error("Failed to parse package.json", new Error(message));
+    logger.error("Failed to parse package.json", new Error(toErrorMessage(err)));
     return null;
   }
 }
@@ -87,8 +91,7 @@ function parseCargo(projectPath: string): Record<string, string> | null {
 
     return deps;
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.error("Failed to parse Cargo.toml", new Error(message));
+    logger.error("Failed to parse Cargo.toml", new Error(toErrorMessage(err)));
     return null;
   }
 }
@@ -232,8 +235,7 @@ export const detectTechStack = createServerFn({ method: "GET" })
         });
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.error("detectTechStack error", new Error(message));
+      logger.error("detectTechStack error", new Error(toErrorMessage(err)));
     }
 
     return result;
@@ -299,8 +301,7 @@ export const detectInstalledEditors = createServerFn({ method: "GET" }).handler(
         });
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.error("detectInstalledEditors error", new Error(message));
+      logger.error("detectInstalledEditors error", new Error(toErrorMessage(err)));
     }
 
     return editors;
@@ -375,8 +376,7 @@ export const detectDevCommands = createServerFn({ method: "GET" })
             }
           }
         } catch (err: unknown) {
-          const message = err instanceof Error ? err.message : String(err);
-          logger.error("Failed to parse Makefile", new Error(message));
+          logger.error("Failed to parse Makefile", new Error(toErrorMessage(err)));
         }
       }
 
@@ -391,8 +391,7 @@ export const detectDevCommands = createServerFn({ method: "GET" })
         });
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.error("detectDevCommands error", new Error(message));
+      logger.error("detectDevCommands error", new Error(toErrorMessage(err)));
     }
 
     return commands;
@@ -414,57 +413,49 @@ export const launchEditor = createServerFn({ method: "POST" })
 
       let command: string;
 
+      // Terminal-based editors (neovim, vim) need a terminal wrapper
+      if (editor === "neovim" || editor === "vim") {
+        const terminal = await detectTerminal();
+        if (!terminal) {
+          return {
+            success: false,
+            message: "No terminal detected. Please install a terminal emulator.",
+          };
+        }
+        const editorCmd = editor === "neovim" ? "nvim" : "vim";
+        const termCmd = buildTerminalCommand(
+          terminal,
+          `${editorCmd} "${projectPath}"`,
+          projectPath
+        );
+        exec(termCmd);
+        return { success: true, message: `${editor} opened in terminal` };
+      }
+
+      // GUI editors launch directly
       switch (editor) {
         case "vscode":
           command = `code "${projectPath}"`;
           break;
         case "cursor":
-          if (process.platform === "darwin") {
-            command = `open -a Cursor "${projectPath}"`;
-          } else {
-            command = `cursor "${projectPath}"`;
-          }
+          command =
+            process.platform === "darwin"
+              ? `open -a Cursor "${projectPath}"`
+              : `cursor "${projectPath}"`;
           break;
-        case "neovim": {
-          // Launch neovim in a terminal
-          const terminal = await detectTerminal();
-          if (!terminal) {
-            return {
-              success: false,
-              message: "No terminal detected. Please install a terminal emulator.",
-            };
-          }
-          const termCmd = buildTerminalCommand(terminal, `nvim "${projectPath}"`, projectPath);
-          exec(termCmd);
-          return { success: true, message: "Neovim opened in terminal" };
-        }
-        case "vim": {
-          // Launch vim in a terminal
-          const terminal = await detectTerminal();
-          if (!terminal) {
-            return {
-              success: false,
-              message: "No terminal detected. Please install a terminal emulator.",
-            };
-          }
-          const termCmd = buildTerminalCommand(terminal, `vim "${projectPath}"`, projectPath);
-          exec(termCmd);
-          return { success: true, message: "Vim opened in terminal" };
-        }
         default:
           return { success: false, message: `Unknown editor: ${editor}` };
       }
 
       exec(command, (err: unknown) => {
         if (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          logger.error(`Failed to launch ${editor}`, new Error(message));
+          logger.error(`Failed to launch ${editor}`, new Error(toErrorMessage(err)));
         }
       });
 
       return { success: true, message: `${editor} opened successfully` };
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Unknown error";
+      const message = toErrorMessage(err);
       logger.error("launchEditor error", new Error(message));
       return {
         success: false,
@@ -475,7 +466,17 @@ export const launchEditor = createServerFn({ method: "POST" })
 
 // Server Function: Launch Dev Server
 export const launchDevServer = createServerFn({ method: "POST" })
-  .inputValidator((data: { projectPath: string; command: string }) => data)
+  .inputValidator((data: { projectPath: string; command: string }) => {
+    if (!data.projectPath || !data.command) {
+      throw new Error("projectPath and command are required");
+    }
+    // Whitelist validation: command should only contain safe characters and patterns
+    // Allow alphanumeric, spaces, hyphens, underscores, slashes, quotes, ampersands, pipes
+    if (!/^[a-zA-Z0-9\s\-_./'"&|]+$/.test(data.command)) {
+      throw new Error("Invalid command: contains unsafe characters");
+    }
+    return data;
+  })
   .handler(async ({ data }): Promise<{ success: boolean; message: string }> => {
     try {
       const { projectPath, command } = data;
@@ -505,8 +506,7 @@ export const launchDevServer = createServerFn({ method: "POST" })
 
       exec(terminalCmd, (err: unknown) => {
         if (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          logger.error("Failed to launch dev server", new Error(message));
+          logger.error("Failed to launch dev server", new Error(toErrorMessage(err)));
         }
       });
 
@@ -515,7 +515,7 @@ export const launchDevServer = createServerFn({ method: "POST" })
         message: `Dev server launching with command: ${command}`,
       };
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Unknown error";
+      const message = toErrorMessage(err);
       logger.error("launchDevServer error", new Error(message));
       return {
         success: false,
