@@ -1,5 +1,5 @@
+import { useState, useCallback } from "react";
 import { useGitProjectInfo } from "../../lib/hooks";
-import { createBrowserLogger } from "../../lib/browser-logger";
 import {
   cardStyles,
   cardHeaderStyles,
@@ -9,27 +9,23 @@ import {
   skeletonLineStyles,
 } from "./shared-styles";
 
-const logger = createBrowserLogger("GitHistoryCard");
-
 interface GitHistoryCardProps {
   projectPath: string;
 }
 
 export default function GitHistoryCard({ projectPath }: GitHistoryCardProps) {
   const { data, isLoading, error } = useGitProjectInfo(projectPath);
+  const [copiedHash, setCopiedHash] = useState<string | null>(null);
 
-  const handleCopyHash = async (hash: string) => {
+  const handleCopyHash = useCallback(async (hash: string) => {
     try {
       await navigator.clipboard.writeText(hash);
-      // Success - browser will provide visual feedback via pointer cursor
-    } catch (err) {
-      logger.error(
-        `Failed to copy commit hash to clipboard: ${hash}`,
-        err instanceof Error ? err : new Error(String(err))
-      );
-      // Fallback: could show error toast or fallback copy mechanism
+      setCopiedHash(hash);
+      setTimeout(() => setCopiedHash(null), 2000);
+    } catch {
+      // Clipboard API unavailable (e.g. insecure context) - no action needed
     }
-  };
+  }, []);
 
   return (
     <div style={cardStyles}>
@@ -78,7 +74,9 @@ export default function GitHistoryCard({ projectPath }: GitHistoryCardProps) {
                     type="button"
                     className="hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
                   >
-                    <span style={commitHashStyles}>{commit.hash.substring(0, 7)}</span>
+                    <span style={copiedHash === commit.hash ? copiedHashStyles : commitHashStyles}>
+                      {copiedHash === commit.hash ? "Copied!" : commit.hash.substring(0, 7)}
+                    </span>
                     <span style={commitShortMessageStyles} title={commit.message}>
                       {commit.message}
                     </span>
@@ -170,6 +168,13 @@ const commitHashStyles: React.CSSProperties = {
   fontFamily: "monospace",
   color: "var(--text-tertiary)",
   flexShrink: 0,
+};
+
+const copiedHashStyles: React.CSSProperties = {
+  fontFamily: "monospace",
+  color: "var(--accent-primary)",
+  flexShrink: 0,
+  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
 };
 
 const commitShortMessageStyles: React.CSSProperties = {

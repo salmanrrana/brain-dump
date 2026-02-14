@@ -1,14 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { existsSync } from "fs";
+import { join } from "path";
 import { runGitCommand } from "../../core/git-utils";
 import { createLogger } from "../lib/logger";
+import { toErrorMessage } from "./errors";
 
 const logger = createLogger("git-info");
-
-/** Extract a human-readable message from an unknown error value. */
-function toErrorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
 
 // Type Definitions
 export interface Commit {
@@ -42,6 +39,8 @@ function parseCommitLine(line: string): Commit | null {
 function formatDate(dateStr: string): string {
   try {
     const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
@@ -61,7 +60,12 @@ function formatDate(dateStr: string): string {
 
 // Server Function: Get Git Project Info
 export const getGitProjectInfo = createServerFn({ method: "GET" })
-  .inputValidator((projectPath: string) => projectPath)
+  .inputValidator((projectPath: string) => {
+    if (!projectPath || typeof projectPath !== "string") {
+      throw new Error("projectPath is required");
+    }
+    return projectPath;
+  })
   .handler(async ({ data: projectPath }): Promise<GitProjectInfo> => {
     const result: GitProjectInfo = {
       lastCommit: null,
@@ -72,7 +76,7 @@ export const getGitProjectInfo = createServerFn({ method: "GET" })
 
     try {
       // Check if it's a git repository
-      const gitDirExists = existsSync(`${projectPath}/.git`);
+      const gitDirExists = existsSync(join(projectPath, ".git"));
       if (!gitDirExists) {
         logger.info(`Not a git repository: ${projectPath}`);
         return result;
@@ -118,7 +122,9 @@ export const getGitProjectInfo = createServerFn({ method: "GET" })
         result.hasUncommittedChanges = statusResult.output.length > 0;
       }
     } catch (err: unknown) {
-      logger.error("getGitProjectInfo error", new Error(toErrorMessage(err)));
+      const message = toErrorMessage(err);
+      logger.error("getGitProjectInfo error", new Error(message));
+      throw new Error(`Failed to get git project info: ${message}`);
     }
 
     return result;

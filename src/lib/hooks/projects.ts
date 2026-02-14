@@ -3,7 +3,7 @@
  * Includes queries and mutations for project/epic CRUD operations with optimistic updates.
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getProjects, createProject, updateProject, deleteProject } from "../../api/projects";
 import { getEpicsByProject, createEpic, updateEpic, deleteEpic } from "../../api/epics";
@@ -99,8 +99,8 @@ export function useProjects() {
 
       return projectsWithEpics;
     },
-    // Always stale - projects can be created via MCP externally
-    staleTime: 0,
+    staleTime: 30 * 1000, // 30s - balance between freshness and reducing refetches
+    refetchOnMount: "always", // Always refetch on mount to catch external changes
   });
 
   return {
@@ -132,10 +132,12 @@ export function useProjectsWithAIActivity() {
   const isLoading = loading || ticketsLoading;
   const overallError = error || ticketsError;
 
-  // Log ticket loading errors for debugging
-  if (ticketsError) {
-    logger.error("Failed to load ticket counts for projects", new Error(ticketsError));
-  }
+  // Log ticket loading errors for debugging (in useEffect to avoid side effects in render)
+  useEffect(() => {
+    if (ticketsError) {
+      logger.error("Failed to load ticket counts for projects", new Error(ticketsError));
+    }
+  }, [ticketsError]);
 
   const projectsWithActivity = useMemo<ProjectWithAIActivity[]>(() => {
     const sessionCounts = countBy(Object.values(sessions), (s) => s.projectId);
@@ -221,7 +223,7 @@ export function useDeleteProject() {
  */
 export function useProjectDeletePreview(projectId: string) {
   return useQuery({
-    queryKey: ["project", projectId, "delete-preview"] as const,
+    queryKey: queryKeys.projectDeletePreview(projectId),
     queryFn: () => deleteProject({ data: { projectId, confirm: false } }),
   });
 }
@@ -286,7 +288,7 @@ export function useCreateEpic() {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
     },
   });
 }
@@ -345,7 +347,7 @@ export function useUpdateEpic() {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
     },
   });
 }
@@ -394,7 +396,7 @@ export function useDeleteEpic() {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
     },
   });
@@ -428,6 +430,7 @@ export function useInstalledEditors() {
     queryKey: queryKeys.editors,
     queryFn: () => detectInstalledEditors(),
     staleTime: 60 * 60 * 1000, // Cache 1 hour (rarely changes)
+    gcTime: 60 * 60 * 1000, // Keep in garbage collection for 1 hour too
   });
 }
 
@@ -471,6 +474,6 @@ export function useLaunchEditor() {
  */
 export function useLaunchDevServer() {
   return useMutation({
-    mutationFn: (data: { projectPath: string; command: string }) => launchDevServer({ data }),
+    mutationFn: (data: { projectPath: string; commandName: string }) => launchDevServer({ data }),
   });
 }

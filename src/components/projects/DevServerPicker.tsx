@@ -6,9 +6,6 @@ import {
   useClickOutside,
   useModalKeyboard,
 } from "../../lib/hooks";
-import { createBrowserLogger } from "../../lib/browser-logger";
-
-const logger = createBrowserLogger("DevServerPicker");
 
 interface DevServerPickerProps {
   projectPath: string;
@@ -20,29 +17,32 @@ export default function DevServerPicker({ projectPath, isOpen, onClose }: DevSer
   const { data: commands = [], isLoading, error } = useDevCommands(projectPath);
   const launchServer = useLaunchDevServer();
   const modalRef = useRef<HTMLDivElement>(null);
-  const [selectedCommand, setSelectedCommand] = useState<string>("");
+  const [selectedCommandName, setSelectedCommandName] = useState<string>("");
+  const [launchError, setLaunchError] = useState<string | null>(null);
 
   // Use the first command as default if nothing is selected and commands are available
-  const displayedSelectedCommand = selectedCommand || commands[0]?.command || "";
+  const displayedCommandName = selectedCommandName || commands[0]?.name || "";
 
   // Use existing hooks for modal interactions instead of manual event listeners
   useModalKeyboard(modalRef, onClose);
   useClickOutside(modalRef, onClose, isOpen);
 
   const handleLaunch = async () => {
-    if (!displayedSelectedCommand) return;
+    if (!displayedCommandName) return;
+    setLaunchError(null);
 
     try {
-      await launchServer.mutateAsync({
+      const result = await launchServer.mutateAsync({
         projectPath,
-        command: displayedSelectedCommand,
+        commandName: displayedCommandName,
       });
+      if (!result.success) {
+        setLaunchError(result.message);
+        return;
+      }
       onClose();
     } catch (err) {
-      logger.error(
-        "Failed to launch dev server",
-        err instanceof Error ? err : new Error(String(err))
-      );
+      setLaunchError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -94,13 +94,13 @@ export default function DevServerPicker({ projectPath, isOpen, onClose }: DevSer
               <div style={commandListStyles}>
                 <p style={labelStyles}>Select a command:</p>
                 {commands.map((cmd) => (
-                  <label key={cmd.command} style={optionContainerStyles}>
+                  <label key={cmd.name} style={optionContainerStyles}>
                     <input
                       type="radio"
                       name="dev-command"
-                      value={cmd.command}
-                      checked={displayedSelectedCommand === cmd.command}
-                      onChange={(e) => setSelectedCommand(e.target.value)}
+                      value={cmd.name}
+                      checked={displayedCommandName === cmd.name}
+                      onChange={(e) => setSelectedCommandName(e.target.value)}
                       style={radioStyles}
                     />
                     <span style={optionTextStyles}>
@@ -116,6 +116,12 @@ export default function DevServerPicker({ projectPath, isOpen, onClose }: DevSer
             )}
           </div>
 
+          {launchError && (
+            <div style={launchErrorStyles}>
+              <p style={launchErrorTextStyles}>{launchError}</p>
+            </div>
+          )}
+
           <div style={footerStyles}>
             <button
               type="button"
@@ -129,7 +135,7 @@ export default function DevServerPicker({ projectPath, isOpen, onClose }: DevSer
               type="button"
               style={launchButtonStyles}
               onClick={handleLaunch}
-              disabled={!displayedSelectedCommand || launchServer.isPending}
+              disabled={!displayedCommandName || launchServer.isPending}
               className="hover:bg-[var(--accent-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
             >
               {launchServer.isPending ? "Launching..." : "Launch Server"}
@@ -322,4 +328,18 @@ const launchButtonStyles: React.CSSProperties = {
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
   cursor: "pointer",
   transition: "all var(--transition-fast)",
+};
+
+const launchErrorStyles: React.CSSProperties = {
+  padding: "0 var(--spacing-4)",
+};
+
+const launchErrorTextStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-sm)",
+  color: "var(--text-destructive)",
+  margin: 0,
+  padding: "var(--spacing-2) var(--spacing-3)",
+  background: "var(--bg-destructive-subtle)",
+  border: "1px solid var(--border-destructive)",
+  borderRadius: "var(--radius-sm)",
 };

@@ -27,6 +27,7 @@ export const queryKeys = {
   // Projects
   projects: ["projects"] as const,
   projectsWithEpics: ["projects", "with-epics"] as const,
+  projectDeletePreview: (projectId: string) => ["projects", projectId, "delete-preview"] as const,
 
   // Epics
   epics: (projectId: string) => ["epics", projectId] as const,

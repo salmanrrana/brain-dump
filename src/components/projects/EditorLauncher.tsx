@@ -1,9 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { ChevronDown } from "lucide-react";
-import { useInstalledEditors, useLaunchEditor } from "../../lib/hooks";
-import { createBrowserLogger } from "../../lib/browser-logger";
-
-const logger = createBrowserLogger("EditorLauncher");
+import { useInstalledEditors, useLaunchEditor, useClickOutside } from "../../lib/hooks";
 
 interface EditorLauncherProps {
   projectPath: string;
@@ -11,6 +8,7 @@ interface EditorLauncherProps {
 
 export default function EditorLauncher({ projectPath }: EditorLauncherProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { data: editors = [], isLoading } = useInstalledEditors();
   const launchEditor = useLaunchEditor();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -18,42 +16,23 @@ export default function EditorLauncher({ projectPath }: EditorLauncherProps) {
   const installedEditors = editors.filter((e) => e.installed);
   const hasEditors = installedEditors.length > 0;
 
-  // Close dropdown on Escape or click outside
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setIsOpen(false);
-      }
-    };
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener("keydown", handleEscape);
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("keydown", handleEscape);
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isOpen]);
+  // Use existing hooks instead of manual event listeners
+  useClickOutside(containerRef, () => setIsOpen(false), isOpen);
 
   const handleLaunch = async (editor: string) => {
+    setError(null);
     try {
-      await launchEditor.mutateAsync({
+      const result = await launchEditor.mutateAsync({
         projectPath,
         editor,
       });
+      if (!result.success) {
+        setError(result.message);
+        return;
+      }
       setIsOpen(false);
     } catch (err) {
-      logger.error(
-        `Failed to launch ${editor}`,
-        err instanceof Error ? err : new Error(String(err))
-      );
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -79,20 +58,20 @@ export default function EditorLauncher({ projectPath }: EditorLauncherProps) {
   }
 
   if (installedEditors.length === 1) {
-    const editor = installedEditors[0];
-    if (!editor) {
-      return null;
-    }
+    const editor = installedEditors[0]!;
     return (
-      <button
-        style={buttonStyles}
-        onClick={() => handleLaunch(editor.name)}
-        disabled={launchEditor.isPending}
-        type="button"
-        className="hover:bg-[var(--accent-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
-      >
-        {launchEditor.isPending ? "Launching..." : `Open in ${editor.displayName}`}
-      </button>
+      <div>
+        <button
+          style={buttonStyles}
+          onClick={() => handleLaunch(editor.name)}
+          disabled={launchEditor.isPending}
+          type="button"
+          className="hover:bg-[var(--accent-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+        >
+          {launchEditor.isPending ? "Launching..." : `Open in ${editor.displayName}`}
+        </button>
+        {error && <p style={errorMessageStyles}>{error}</p>}
+      </div>
     );
   }
 
@@ -100,17 +79,28 @@ export default function EditorLauncher({ projectPath }: EditorLauncherProps) {
     <div style={containerStyles} ref={containerRef}>
       <button
         style={buttonStyles}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          setIsOpen(!isOpen);
+          setError(null);
+        }}
         disabled={launchEditor.isPending}
         type="button"
+        aria-haspopup="true"
+        aria-expanded={isOpen}
         className="hover:bg-[var(--accent-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
       >
         Open in Editor
-        <ChevronDown size={16} style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0)" }} />
+        <ChevronDown
+          size={16}
+          aria-hidden="true"
+          style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0)" }}
+        />
       </button>
 
+      {error && <p style={errorMessageStyles}>{error}</p>}
+
       {isOpen && (
-        <div style={dropdownStyles}>
+        <div style={dropdownStyles} role="menu" aria-label="Select editor">
           {installedEditors.map((editor) => (
             <button
               key={editor.name}
@@ -118,6 +108,7 @@ export default function EditorLauncher({ projectPath }: EditorLauncherProps) {
               onClick={() => handleLaunch(editor.name)}
               disabled={launchEditor.isPending}
               type="button"
+              role="menuitem"
               className="hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
             >
               {editor.displayName}
@@ -179,4 +170,13 @@ const dropdownItemStyles: React.CSSProperties = {
   color: "var(--text-primary)",
   cursor: "pointer",
   transition: "all var(--transition-fast)",
+};
+
+const errorMessageStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-xs)",
+  color: "var(--text-destructive)",
+  margin: "var(--spacing-1) 0 0",
+  padding: "var(--spacing-1) var(--spacing-2)",
+  background: "var(--bg-destructive-subtle)",
+  borderRadius: "var(--radius-sm)",
 };

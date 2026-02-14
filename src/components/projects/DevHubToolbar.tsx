@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Terminal, Zap, BookOpen } from "lucide-react";
+import { Terminal, Zap } from "lucide-react";
 import EditorLauncher from "./EditorLauncher";
 import DevServerPicker from "./DevServerPicker";
 import { createBrowserLogger } from "../../lib/browser-logger";
@@ -30,13 +30,6 @@ export default function DevHubToolbar({ projectPath }: DevHubToolbarProps) {
     }
   };
 
-  const handleOpenReadme = () => {
-    // For now, log the action. In a full implementation, this would:
-    // 1. Check for README.md, docs/README.md, CONTRIBUTING.md
-    // 2. Open in editor or browser
-    logger.info("Open README action called");
-  };
-
   return (
     <>
       <div style={toolbarStyles}>
@@ -62,16 +55,6 @@ export default function DevHubToolbar({ projectPath }: DevHubToolbarProps) {
           <Zap size={16} />
           Start Dev Server
         </button>
-
-        <button
-          type="button"
-          style={secondaryButtonStyles}
-          onClick={handleOpenReadme}
-          className="hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
-        >
-          <BookOpen size={16} />
-          View README
-        </button>
       </div>
 
       <DevServerPicker
@@ -88,8 +71,6 @@ const toolbarStyles: React.CSSProperties = {
   alignItems: "center",
   gap: "var(--spacing-3)",
   padding: "var(--spacing-3) var(--spacing-4)",
-  borderBottom: "1px solid var(--border-primary)",
-  backgroundColor: "var(--bg-secondary)",
   flexWrap: "wrap",
 };
 

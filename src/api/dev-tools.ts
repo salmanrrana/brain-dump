@@ -1,18 +1,47 @@
 import { createServerFn } from "@tanstack/react-start";
-import { readFileSync, existsSync } from "fs";
-import { join } from "path";
-import { exec, execFileSync } from "child_process";
+import {
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  mkdirSync,
+  chmodSync,
+  readdirSync,
+  unlinkSync,
+  statSync,
+} from "fs";
+import { join, basename } from "path";
+import { tmpdir } from "os";
+import { execFileSync, execFile } from "child_process";
 import { promisify } from "util";
 import { detectTerminal, buildTerminalCommand } from "./terminal-utils";
 import { createLogger } from "../lib/logger";
+import { toErrorMessage } from "./errors";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 const logger = createLogger("dev-tools");
 
-/** Extract a human-readable message from an unknown error value. */
-function toErrorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+/** Clean up temp scripts older than 1 hour in the brain-dump temp directory. */
+function cleanupOldTempScripts(): void {
+  try {
+    const scriptDir = join(tmpdir(), "brain-dump");
+    if (!existsSync(scriptDir)) return;
+    const now = Date.now();
+    const ONE_HOUR = 60 * 60 * 1000;
+    for (const file of readdirSync(scriptDir)) {
+      const filePath = join(scriptDir, file);
+      try {
+        const stat = statSync(filePath);
+        if (now - stat.mtimeMs > ONE_HOUR) {
+          unlinkSync(filePath);
+        }
+      } catch {
+        // Ignore individual file cleanup errors
+      }
+    }
+  } catch {
+    // Ignore cleanup errors entirely
+  }
 }
 
 // Type Definitions
@@ -137,7 +166,12 @@ function getFrameworkIcon(name: string): string {
 
 // Server Function: Detect Tech Stack
 export const detectTechStack = createServerFn({ method: "GET" })
-  .inputValidator((projectPath: string) => projectPath)
+  .inputValidator((projectPath: string) => {
+    if (!projectPath || typeof projectPath !== "string") {
+      throw new Error("projectPath is required");
+    }
+    return projectPath;
+  })
   .handler(async ({ data: projectPath }): Promise<TechStackInfo> => {
     const result: TechStackInfo = {
       languages: [],
@@ -238,7 +272,9 @@ export const detectTechStack = createServerFn({ method: "GET" })
         });
       }
     } catch (err: unknown) {
-      logger.error("detectTechStack error", new Error(toErrorMessage(err)));
+      const message = toErrorMessage(err);
+      logger.error("detectTechStack error", new Error(message));
+      throw new Error(`Failed to detect tech stack: ${message}`);
     }
 
     return result;
@@ -304,16 +340,32 @@ export const detectInstalledEditors = createServerFn({ method: "GET" }).handler(
         });
       }
     } catch (err: unknown) {
-      logger.error("detectInstalledEditors error", new Error(toErrorMessage(err)));
+      const message = toErrorMessage(err);
+      logger.error("detectInstalledEditors error", new Error(message));
+      throw new Error(`Failed to detect installed editors: ${message}`);
     }
 
     return editors;
   }
 );
 
+/** Detect the package manager for a project based on lockfiles */
+function detectPackageManager(projectPath: string): string {
+  if (existsSync(join(projectPath, "pnpm-lock.yaml"))) return "pnpm";
+  if (existsSync(join(projectPath, "yarn.lock"))) return "yarn";
+  if (existsSync(join(projectPath, "bun.lockb")) || existsSync(join(projectPath, "bun.lock")))
+    return "bun";
+  return "npm";
+}
+
 // Server Function: Detect Dev Commands
 export const detectDevCommands = createServerFn({ method: "GET" })
-  .inputValidator((projectPath: string) => projectPath)
+  .inputValidator((projectPath: string) => {
+    if (!projectPath || typeof projectPath !== "string") {
+      throw new Error("projectPath is required");
+    }
+    return projectPath;
+  })
   .handler(async ({ data: projectPath }): Promise<DevCommand[]> => {
     const commands: DevCommand[] = [];
 
@@ -321,13 +373,14 @@ export const detectDevCommands = createServerFn({ method: "GET" })
       // Check package.json scripts
       const pkg = parsePackageJson(projectPath);
       if (pkg?.scripts) {
+        const pm = detectPackageManager(projectPath);
         const scriptPriority = ["dev", "start", "serve", "build", "test"];
 
         for (const scriptName of scriptPriority) {
           if (pkg.scripts[scriptName]) {
             commands.push({
               name: scriptName,
-              command: pkg.scripts[scriptName],
+              command: `${pm} run ${scriptName}`,
               description: `Run npm script: ${scriptName}`,
               source: "package.json",
             });
@@ -335,11 +388,11 @@ export const detectDevCommands = createServerFn({ method: "GET" })
         }
 
         // Add any other scripts not in the priority list
-        for (const [name, cmd] of Object.entries(pkg.scripts)) {
+        for (const [name] of Object.entries(pkg.scripts)) {
           if (!scriptPriority.includes(name)) {
             commands.push({
               name,
-              command: cmd as string,
+              command: `${pm} run ${name}`,
               source: "package.json",
             });
           }
@@ -394,15 +447,28 @@ export const detectDevCommands = createServerFn({ method: "GET" })
         });
       }
     } catch (err: unknown) {
-      logger.error("detectDevCommands error", new Error(toErrorMessage(err)));
+      const message = toErrorMessage(err);
+      logger.error("detectDevCommands error", new Error(message));
+      throw new Error(`Failed to detect dev commands: ${message}`);
     }
 
     return commands;
   });
 
+// Allowed editor values
+const ALLOWED_EDITORS = ["vscode", "cursor", "vim", "neovim"] as const;
+
 // Server Function: Launch Editor
 export const launchEditor = createServerFn({ method: "POST" })
-  .inputValidator((data: { projectPath: string; editor: string }) => data)
+  .inputValidator((data: { projectPath: string; editor: string }) => {
+    if (!data.projectPath) {
+      throw new Error("projectPath is required");
+    }
+    if (!ALLOWED_EDITORS.includes(data.editor as (typeof ALLOWED_EDITORS)[number])) {
+      throw new Error(`Invalid editor: ${data.editor}. Allowed: ${ALLOWED_EDITORS.join(", ")}`);
+    }
+    return data;
+  })
   .handler(async ({ data }): Promise<{ success: boolean; message: string }> => {
     try {
       const { projectPath, editor } = data;
@@ -414,7 +480,8 @@ export const launchEditor = createServerFn({ method: "POST" })
         };
       }
 
-      let command: string;
+      // Clean up old temp scripts opportunistically
+      cleanupOldTempScripts();
 
       // Terminal-based editors (neovim, vim) need a terminal wrapper
       if (editor === "neovim" || editor === "vim") {
@@ -426,12 +493,19 @@ export const launchEditor = createServerFn({ method: "POST" })
           };
         }
         const editorCmd = editor === "neovim" ? "nvim" : "vim";
-        const termCmd = buildTerminalCommand(
-          terminal,
-          `${editorCmd} "${projectPath}"`,
-          projectPath
+        const editorScriptDir = join(tmpdir(), "brain-dump");
+        mkdirSync(editorScriptDir, { recursive: true });
+        const editorScriptFile = join(editorScriptDir, `editor-${Date.now()}.sh`);
+        writeFileSync(
+          editorScriptFile,
+          `#!/usr/bin/env bash\ncd "${projectPath}" && ${editorCmd} .\n`,
+          "utf-8"
         );
+        chmodSync(editorScriptFile, 0o755);
+        const termCmd = buildTerminalCommand(terminal, projectPath, editorScriptFile);
         try {
+          const { exec } = await import("child_process");
+          const execAsync = promisify(exec);
           await execAsync(termCmd);
           return { success: true, message: `${editor} opened in terminal` };
         } catch (err) {
@@ -440,23 +514,20 @@ export const launchEditor = createServerFn({ method: "POST" })
         }
       }
 
-      // GUI editors launch directly
-      switch (editor) {
-        case "vscode":
-          command = `code "${projectPath}"`;
-          break;
-        case "cursor":
-          command =
-            process.platform === "darwin"
-              ? `open -a Cursor "${projectPath}"`
-              : `cursor "${projectPath}"`;
-          break;
-        default:
-          return { success: false, message: `Unknown editor: ${editor}` };
-      }
-
+      // GUI editors use execFile (no shell) to prevent command injection
       try {
-        await execAsync(command);
+        switch (editor) {
+          case "vscode":
+            await execFileAsync("code", [projectPath]);
+            break;
+          case "cursor":
+            if (process.platform === "darwin") {
+              await execFileAsync("open", ["-a", "Cursor", projectPath]);
+            } else {
+              await execFileAsync("cursor", [projectPath]);
+            }
+            break;
+        }
         return { success: true, message: `${editor} opened successfully` };
       } catch (err) {
         logger.error(`Failed to launch ${editor}`, new Error(toErrorMessage(err)));
@@ -474,20 +545,19 @@ export const launchEditor = createServerFn({ method: "POST" })
 
 // Server Function: Launch Dev Server
 export const launchDevServer = createServerFn({ method: "POST" })
-  .inputValidator((data: { projectPath: string; command: string }) => {
-    if (!data.projectPath || !data.command) {
-      throw new Error("projectPath and command are required");
+  .inputValidator((data: { projectPath: string; commandName: string }) => {
+    if (!data.projectPath || !data.commandName) {
+      throw new Error("projectPath and commandName are required");
     }
-    // Whitelist validation: command should only contain safe characters and patterns
-    // Allow alphanumeric, spaces, hyphens, underscores, slashes, quotes, ampersands, pipes
-    if (!/^[a-zA-Z0-9\s\-_./'"&|]+$/.test(data.command)) {
-      throw new Error("Invalid command: contains unsafe characters");
+    // Only allow safe alphanumeric command names (no shell operators)
+    if (!/^[a-zA-Z0-9\-_:.]+$/.test(data.commandName)) {
+      throw new Error("Invalid command name: contains unsafe characters");
     }
     return data;
   })
   .handler(async ({ data }): Promise<{ success: boolean; message: string }> => {
     try {
-      const { projectPath, command } = data;
+      const { projectPath, commandName } = data;
 
       if (!existsSync(projectPath)) {
         return {
@@ -495,6 +565,17 @@ export const launchDevServer = createServerFn({ method: "POST" })
           message: `Project path does not exist: ${projectPath}`,
         };
       }
+
+      // Resolve command from detected commands server-side (not from client input)
+      const detected = await detectDevCommands({ data: projectPath });
+      const match = detected.find((c) => c.name === commandName);
+      if (!match) {
+        return {
+          success: false,
+          message: `Unknown command: "${commandName}". Available: ${detected.map((c) => c.name).join(", ")}`,
+        };
+      }
+      const command = match.command;
 
       // Detect terminal
       const terminal = await detectTerminal();
@@ -505,14 +586,27 @@ export const launchDevServer = createServerFn({ method: "POST" })
         };
       }
 
-      // Build and execute terminal command
-      const terminalCmd = buildTerminalCommand(
-        terminal,
-        `cd "${projectPath}" && ${command}`,
-        projectPath
+      // Clean up old temp scripts opportunistically
+      cleanupOldTempScripts();
+
+      // Write command to a temp script so the terminal can execute it
+      const scriptDir = join(tmpdir(), "brain-dump");
+      mkdirSync(scriptDir, { recursive: true });
+      const scriptName = `dev-server-${basename(projectPath)}-${Date.now()}.sh`;
+      const scriptFile = join(scriptDir, scriptName);
+      writeFileSync(
+        scriptFile,
+        `#!/usr/bin/env bash\ncd "${projectPath}" && ${command}\nexec bash\n`,
+        "utf-8"
       );
+      chmodSync(scriptFile, 0o755);
+
+      // Build and execute terminal command
+      const terminalCmd = buildTerminalCommand(terminal, projectPath, scriptFile);
 
       try {
+        const { exec } = await import("child_process");
+        const execAsync = promisify(exec);
         await execAsync(terminalCmd);
         return {
           success: true,

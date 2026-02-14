@@ -9,6 +9,8 @@ export const cardStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: "var(--spacing-3)",
+  maxHeight: "280px",
+  overflow: "auto",
 };
 
 export const cardHeaderStyles: React.CSSProperties = {
