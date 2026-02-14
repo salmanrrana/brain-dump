@@ -10,6 +10,7 @@ import { getEpicsByProject, createEpic, updateEpic, deleteEpic } from "../../api
 import { createBrowserLogger } from "../browser-logger";
 import { queryKeys } from "../query-keys";
 import { useActiveRalphSessions, type ActiveRalphSession } from "./ralph";
+import { useTickets } from "./tickets";
 
 // Browser-safe logger for hook errors
 const logger = createBrowserLogger("hooks:projects");
@@ -46,7 +47,7 @@ export interface ProjectWithEpics extends Project {
 }
 
 /**
- * Project type with AI activity indicator.
+ * Project type with AI activity indicator and ticket counts.
  * Used by ProjectsPanel and navigation components to show glow effects.
  */
 export interface ProjectWithAIActivity extends ProjectWithEpics {
@@ -54,6 +55,8 @@ export interface ProjectWithAIActivity extends ProjectWithEpics {
   hasActiveAI: boolean;
   /** Number of active sessions in this project */
   activeSessionCount: number;
+  /** Number of tickets in this project */
+  ticketCount: number;
 }
 
 // =============================================================================
@@ -91,20 +94,23 @@ export function useProjects() {
 }
 
 /**
- * Hook for fetching projects with AI activity indicators.
+ * Hook for fetching projects with AI activity indicators and ticket counts.
  * Combines projects data with active Ralph session data to determine
- * which projects have active AI work for glow effects.
+ * which projects have active AI work for glow effects, and aggregates
+ * ticket counts by project.
  *
- * This enables the sidebar to show a pulsing glow indicator on projects
+ * This enables the homepage to show ticket counts as metadata badges
+ * and the sidebar to show a pulsing glow indicator on projects
  * where Ralph is currently working on tickets.
  *
- * @returns Projects enhanced with hasActiveAI and activeSessionCount
+ * @returns Projects enhanced with hasActiveAI, activeSessionCount, and ticketCount
  */
 export function useProjectsWithAIActivity() {
   const { projects, loading, error, refetch } = useProjects();
   const { sessions } = useActiveRalphSessions();
+  const { tickets } = useTickets();
 
-  // Compute which projects have active AI sessions
+  // Compute projects with active AI sessions and ticket counts
   const projectsWithActivity = useMemo<ProjectWithAIActivity[]>(() => {
     // Count sessions per project
     const sessionCountByProject = new Map<string, number>();
@@ -113,15 +119,24 @@ export function useProjectsWithAIActivity() {
       sessionCountByProject.set(session.projectId, count + 1);
     }
 
+    // Count tickets per project
+    const ticketCountByProject = new Map<string, number>();
+    for (const ticket of tickets) {
+      const count = ticketCountByProject.get(ticket.projectId) ?? 0;
+      ticketCountByProject.set(ticket.projectId, count + 1);
+    }
+
     return projects.map((project) => {
       const activeSessionCount = sessionCountByProject.get(project.id) ?? 0;
+      const ticketCount = ticketCountByProject.get(project.id) ?? 0;
       return {
         ...project,
         hasActiveAI: activeSessionCount > 0,
         activeSessionCount,
+        ticketCount,
       };
     });
-  }, [projects, sessions]);
+  }, [projects, sessions, tickets]);
 
   return {
     projects: projectsWithActivity,
