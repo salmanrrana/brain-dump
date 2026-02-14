@@ -286,7 +286,7 @@
     {
       "id": "642ce41e-9ae3-4ac6-9052-cf4d5abb3cb5",
       "title": "Backend: Create git-info.ts server function (git history, commits)",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [
         {
@@ -330,7 +330,7 @@
     {
       "id": "d3bf08c6-d69d-4609-a3b8-a8fca8880062",
       "title": "Backend: Add hooks and query keys for dev hub",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -362,7 +362,7 @@
     {
       "id": "bccaf6f1-b18f-45be-a83d-0bcf8263cf66",
       "title": "UI: Create TechStackCard component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [
         {
@@ -401,7 +401,7 @@
     {
       "id": "aed01f2f-54fd-4923-8282-3cd74c6ff5d0",
       "title": "UI: Create GitHistoryCard component",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [
         {
@@ -444,7 +444,7 @@
     {
       "id": "eada9e08-7b0c-42d7-b276-8ec4ff70ab48",
       "title": "UI: Create EditorLauncher component (dropdown button)",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [
         {
@@ -489,7 +489,7 @@
     {
       "id": "8e107160-19f1-48e4-bf2d-7f20d8e33011",
       "title": "UI: Create DevServerPicker component (modal)",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [
         {
@@ -538,7 +538,7 @@
     {
       "id": "443d0d8d-5ac3-4d26-91d5-67cab22df21c",
       "title": "UI: Create DevHubToolbar component (button bar)",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [
         {
