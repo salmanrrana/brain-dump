@@ -27,13 +27,15 @@ export interface KeyboardShortcutConfig {
   onShowShortcuts?: () => void;
   /** Called when Escape is pressed - closes any open modal */
   onCloseModal?: () => void;
-  /** Called when '1' is pressed - navigate to dashboard */
+  /** Called when '1' is pressed - navigate to home */
+  onNavigateHome?: () => void;
+  /** Called when '2' is pressed - navigate to dashboard */
   onNavigateDashboard?: () => void;
-  /** Called when '2' is pressed - navigate to board */
+  /** Called when '3' is pressed - navigate to board */
   onNavigateBoard?: () => void;
-  /** Called when '3' is pressed - toggle projects panel */
+  /** Called when '4' is pressed - toggle projects panel */
   onToggleProjects?: () => void;
-  /** Called when '4' is pressed - open settings */
+  /** Called when '5' is pressed - open settings */
   onOpenSettings?: () => void;
   /** Whether shortcuts should be disabled (e.g., when a modal is open for most shortcuts) */
   disabled?: boolean;
@@ -62,10 +64,11 @@ export const KEYBOARD_SHORTCUTS: ShortcutDefinition[] = [
   { key: "?", description: "Show shortcuts", category: "global" },
 
   // Navigation shortcuts
-  { key: "1", description: "Dashboard", category: "navigation" },
-  { key: "2", description: "Board", category: "navigation" },
-  { key: "3", description: "Toggle Projects", category: "navigation" },
-  { key: "4", description: "Settings", category: "navigation" },
+  { key: "1", description: "Home", category: "navigation" },
+  { key: "2", description: "Dashboard", category: "navigation" },
+  { key: "3", description: "Board", category: "navigation" },
+  { key: "4", description: "Toggle Projects", category: "navigation" },
+  { key: "5", description: "Settings", category: "navigation" },
 
   // Board navigation shortcuts
   { key: "↑", description: "Move up in column", category: "board" },
@@ -112,6 +115,7 @@ export function useKeyboardShortcuts(
     onFocusSearch,
     onShowShortcuts,
     onCloseModal,
+    onNavigateHome,
     onNavigateDashboard,
     onNavigateBoard,
     onToggleProjects,
@@ -168,29 +172,36 @@ export function useKeyboardShortcuts(
           }
           break;
 
-        // Navigation shortcuts (1-4)
+        // Navigation shortcuts (1-5)
         case "1":
+          if (!disabled && onNavigateHome) {
+            e.preventDefault();
+            onNavigateHome();
+          }
+          break;
+
+        case "2":
           if (!disabled && onNavigateDashboard) {
             e.preventDefault();
             onNavigateDashboard();
           }
           break;
 
-        case "2":
+        case "3":
           if (!disabled && onNavigateBoard) {
             e.preventDefault();
             onNavigateBoard();
           }
           break;
 
-        case "3":
+        case "4":
           if (!disabled && onToggleProjects) {
             e.preventDefault();
             onToggleProjects();
           }
           break;
 
-        case "4":
+        case "5":
           if (!disabled && onOpenSettings) {
             e.preventDefault();
             onOpenSettings();
@@ -206,6 +217,7 @@ export function useKeyboardShortcuts(
       onFocusSearch,
       onShowShortcuts,
       onCloseModal,
+      onNavigateHome,
       onNavigateDashboard,
       onNavigateBoard,
       onToggleProjects,

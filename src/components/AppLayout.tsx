@@ -356,7 +356,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
     searchInput?.focus();
   }, []);
 
-  // Navigation callbacks for keyboard shortcuts (1-4)
+  // Navigation callbacks for keyboard shortcuts (1-5)
+  const handleNavigateHome = useCallback(() => {
+    navigate({ to: "/" }).catch((err) => {
+      console.error("Navigation to home failed:", err);
+    });
+  }, [navigate]);
+
   const handleNavigateDashboard = useCallback(() => {
     navigate({ to: "/dashboard" }).catch((err) => {
       console.error("Navigation to dashboard failed:", err);
@@ -386,6 +392,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     onFocusSearch: handleFocusSearch,
     onShowShortcuts: openShortcuts,
     onCloseModal: closeModal,
+    onNavigateHome: handleNavigateHome,
     onNavigateDashboard: handleNavigateDashboard,
     onNavigateBoard: handleNavigateBoard,
     onToggleProjects: handleToggleProjects,

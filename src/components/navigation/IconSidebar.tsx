@@ -1,6 +1,6 @@
 import { type FC, type ReactNode } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
-import { LayoutDashboard, Kanban, Folder, Settings, type LucideIcon } from "lucide-react";
+import { Home, LayoutDashboard, Kanban, Folder, Settings, type LucideIcon } from "lucide-react";
 import { NavItem } from "./NavItem";
 
 export interface NavItemConfig {
@@ -46,10 +46,11 @@ export interface IconSidebarProps {
  * Each item has an optional shortcutKey for keyboard navigation (1-4).
  */
 const defaultNavItems: NavItemConfig[] = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard", shortcutKey: "1" },
-  { icon: Kanban, label: "Board", path: "/board", shortcutKey: "2" },
-  { icon: Folder, label: "Projects", action: "openProjectsPanel", shortcutKey: "3" },
-  { icon: Settings, label: "Settings", action: "openSettings", shortcutKey: "4" },
+  { icon: Home, label: "Home", path: "/", shortcutKey: "1" },
+  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard", shortcutKey: "2" },
+  { icon: Kanban, label: "Board", path: "/board", shortcutKey: "3" },
+  { icon: Folder, label: "Projects", action: "openProjectsPanel", shortcutKey: "4" },
+  { icon: Settings, label: "Settings", action: "openSettings", shortcutKey: "5" },
 ];
 
 /**
