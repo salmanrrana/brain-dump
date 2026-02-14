@@ -6,23 +6,61 @@
 
 **Your backlog, worked by AI.** A kanban board where clicking a ticket launches Claude, Codex, OpenCode, Copilot, or Cursor with full context — or let Ralph, the autonomous agent, implement tickets while you're away.
 
-![Kanban board](docs/screenshots/kanban-board.png)
-
 ### Real Results, Real Metrics
 
 ![Dashboard](public/dashboard.png)
 
 > _"Set up your backlog. Let Ralph work it."_
 
-## Quick Start
+## Quickstart
+
+### 1. Requirements
+
+- macOS or Linux (WSL works)
+- `git`, `bash`, `curl`
+- Node.js 18+ and `pnpm` (installer will install/upgrade if missing)
+- One AI environment to integrate (`--claude`, `--codex`, `--cursor`, `--vscode`, `--opencode`, `--copilot`)
+
+### 2. Install (recommended)
 
 ```bash
 git clone https://github.com/salmanrrana/brain-dump.git
-cd brain-dump && ./install.sh
+cd brain-dump
+./install.sh --codex
+```
+
+If you want to choose interactively, run:
+
+```bash
+./install.sh
+```
+
+See all options:
+
+```bash
+./install.sh --help
+```
+
+### 3. Run the app
+
+```bash
 pnpm dev
 ```
 
-Open [localhost:4242](http://localhost:4242). Done.
+Open [localhost:4242](http://localhost:4242).
+
+### 4. Verify engineering quality gates
+
+```bash
+pnpm check
+brain-dump doctor
+```
+
+If `brain-dump` is not in your PATH yet, use:
+
+```bash
+pnpm brain-dump doctor
+```
 
 ---
 
@@ -31,7 +69,7 @@ Open [localhost:4242](http://localhost:4242). Done.
 | Feature                | What It Does                                                                                  |
 | ---------------------- | --------------------------------------------------------------------------------------------- |
 | **One-click context**  | Click a ticket → AI opens with full context (description, acceptance criteria, linked files)  |
-| **Quality Workflow**   | AI review → Fix loop → Human demo approval. Same quality in all environments.                 |
+| **Quality Workflow**   | AI review → fix loop → human demo approval. Same quality in all environments.                 |
 | **Ralph Mode**         | Autonomous agent works your backlog while you sleep                                           |
 | **Multi-environment**  | Works in Claude Code, Codex, Cursor, VS Code, OpenCode, Copilot CLI with same tools/workflows |
 | **MCP-powered**        | AI can update tickets, link commits, manage your board directly                               |
@@ -42,61 +80,112 @@ Open [localhost:4242](http://localhost:4242). Done.
 
 ## Quick Reference
 
-### Commands
+### Development Commands
 
-| Command          | Description                         |
-| ---------------- | ----------------------------------- |
-| `pnpm dev`       | Start Brain Dump (localhost:4242)   |
-| `pnpm check`     | Type-check + lint + test            |
-| `pnpm build`     | Build for production                |
-| `pnpm db:studio` | Browse database with Drizzle Studio |
+| Command           | Description                                |
+| ----------------- | ------------------------------------------ |
+| `pnpm dev`        | Start app (current UI) on `localhost:4242` |
+| `pnpm dev:v2`     | Start UI v2 branch app on `localhost:4243` |
+| `pnpm check`      | Type-check + lint + tests (required gate)  |
+| `pnpm test`       | Run unit/integration tests                 |
+| `pnpm test:e2e`   | Run Playwright tests                       |
+| `pnpm db:migrate` | Run database migrations                    |
+| `pnpm db:studio`  | Open Drizzle Studio                        |
+| `pnpm build`      | Build for production                       |
 
-### CLI (Database Utilities)
+### CLI Commands
 
-| Command                    | Description                |
-| -------------------------- | -------------------------- |
-| `brain-dump backup`        | Create database backup     |
-| `brain-dump backup --list` | List available backups     |
-| `brain-dump restore`       | Restore from backup        |
-| `brain-dump check`         | Quick integrity check      |
-| `brain-dump check --full`  | Full database health check |
-
-> **Note:** For ticket management, use MCP tools (`workflow "start-work"`, `workflow "complete-work"`, etc.)
+| Command                    | Description                    |
+| -------------------------- | ------------------------------ |
+| `brain-dump doctor`        | Validate installation + wiring |
+| `brain-dump backup`        | Create database backup         |
+| `brain-dump backup --list` | List backups                   |
+| `brain-dump restore`       | Restore from backup            |
+| `brain-dump check --full`  | Full database health check     |
+| `brain-dump admin health`  | Detailed health report         |
 
 [Full CLI reference →](docs/cli.md)
 
-### Slash Commands
+### Quality Workflow (Required)
 
-| Command      | Description                         |
-| ------------ | ----------------------------------- |
-| `/inception` | Interview-driven project creation   |
-| `/breakdown` | Generate tickets from spec.md       |
-| `/review`    | Run code review pipeline (3 agents) |
-| `/simplify`  | Find refactoring opportunities      |
+Status flow:
 
-### Agents
+```text
+ready → in_progress → ai_review → human_review → done
+                          ↑
+                    [fix loop]
+```
 
-| Agent             | What It Does                                                    |
-| ----------------- | --------------------------------------------------------------- |
-| **ralph**         | Autonomous backlog worker — iterates through tickets until done |
-| **ticket-worker** | Interactive single-ticket implementation                        |
-| **planner**       | Create plans and tickets from requirements                      |
-| **code-reviewer** | Automated quality checks                                        |
-| **inception**     | Start new projects from scratch                                 |
+1. Start work (`workflow` tool, `action: "start-work"`).
+2. Implement and run gates (`pnpm check`).
+3. Complete work (`workflow` tool, `action: "complete-work"`), ticket moves to `ai_review`.
+4. Review agents run (code reviewer + silent failure hunter + code simplifier) and fix loop repeats until critical/major findings are closed.
+5. Generate demo and human approve to move to `done`.
 
-### Key MCP Tools
+[Detailed workflow guide →](docs/universal-workflow.md)
 
-| Tool                       | Purpose                                   |
-| -------------------------- | ----------------------------------------- |
-| `workflow "start-work"`    | Create branch + set status to in_progress |
-| `workflow "complete-work"` | Move to review + suggest next ticket      |
-| `create_ticket`            | Create new ticket                         |
-| `list_tickets`             | List tickets (filter by status, project)  |
-| `list_tickets_by_epic`     | List all tickets in an epic               |
-| `comment "add"`            | Add work summaries or notes               |
-| `workflow "link-commit"`   | Track git history                         |
+### MCP Tools (Action-Dispatched)
+
+Brain Dump exposes 9 MCP tools. Each tool uses an `action` field.
+
+| Tool        | Purpose                                     |
+| ----------- | ------------------------------------------- |
+| `workflow`  | Start/complete work, epic starts, git links |
+| `ticket`    | Ticket CRUD, status, criteria, attachments  |
+| `session`   | Ralph sessions, events, task tracking       |
+| `review`    | Findings, demo scripts, human feedback      |
+| `telemetry` | AI usage/session telemetry                  |
+| `comment`   | Ticket comments/work summaries              |
+| `epic`      | Epic CRUD + learnings                       |
+| `project`   | Project registration/discovery              |
+| `admin`     | Health, settings, compliance ops            |
+
+Examples:
+
+```text
+workflow { action: "start-work", ticketId: "<ticket-id>" }
+workflow { action: "complete-work", ticketId: "<ticket-id>", summary: "..." }
+ticket { action: "list", status: "ready" }
+review { action: "generate-demo", ticketId: "<ticket-id>", steps: [...] }
+```
 
 [Full MCP reference →](docs/mcp-tools.md)
+
+### Slash Commands / Prompt Commands
+
+Common commands available from installed command packs:
+
+| Command                | Description                           |
+| ---------------------- | ------------------------------------- |
+| `/inception`           | Interview-driven project creation     |
+| `/breakdown`           | Generate epics/tickets from `spec.md` |
+| `/next-task`           | Pick best next ticket                 |
+| `/review-ticket`       | Run ticket review pipeline            |
+| `/demo`                | Generate human review demo script     |
+| `/review-epic`         | Run cross-ticket epic review          |
+| `/reconcile-learnings` | Extract and store learnings           |
+| `/extended-review`     | Extended multi-agent review           |
+
+[Workflow skills and commands →](docs/workflow-skills.md)
+
+### Subagents In This Repository
+
+Core workflow agents from `AGENTS.md`:
+
+- `ralph`
+- `ticket-worker`
+- `planner`
+- `code-reviewer`
+- `silent-failure-hunter`
+- `code-simplifier`
+- `inception`
+
+Extended review/specialist agents from `.github/agents/`:
+
+- `cruft-detector`
+- `react-best-practices`
+- `context7-library-compliance`
+- `senior-engineer`
 
 ---
 
@@ -121,20 +210,22 @@ All environments get the same MCP tools, agents, and workflows.
 
 - Click "Start with Claude" on any ticket → Claude opens with full context
 - Click "Start with Ralph" for autonomous mode
-- Uses `~/.claude.json` for MCP config
+- MCP server is configured via `claude mcp add ...`
+- Global commands/hooks/agents live under `~/.claude/`
 - [Full setup guide →](docs/claude-code-setup.md)
 
 ### VS Code (Copilot)
 
 - Agents available in Copilot Chat: `@ralph`, `@ticket-worker`, `@planner`
 - Background Agents for autonomous work
-- Uses `~/.vscode/mcp.json` for MCP config
+- MCP config is stored in VS Code User profile `mcp.json`
 - [Full setup guide →](docs/vscode-setup.md)
 
 ### OpenCode
 
 - Tab to switch agents, `@agent-name` to invoke subagents
-- Uses `.opencode/` directory for config
+- Uses `~/.config/opencode/opencode.json` for MCP config
+- Uses `~/.config/opencode/agents` and `~/.config/opencode/skills`
 - [Full setup guide →](docs/opencode-setup.md)
 
 ### Cursor
@@ -194,11 +285,10 @@ Reads your spec.md and creates epics + tickets in Brain Dump, sized for 1-4 hour
 ### Done? Complete the Ticket
 
 ```bash
-brain-dump done        # Move to review
-brain-dump complete    # Move to done (skip review)
+brain-dump workflow complete-work --ticket <ticket-id> --summary "Implemented X"
 ```
 
-Or use MCP: `workflow "complete-work"` adds a work summary and suggests the next ticket.
+Or use MCP directly: `workflow { action: "complete-work", ticketId: "<ticket-id>", summary: "..." }`
 
 ### Universal Quality Workflow
 
@@ -247,55 +337,6 @@ Understand exactly how Brain Dump works with visual flow diagrams:
 | [Code Review Pipeline](docs/flows/code-review-pipeline.md) | Three-agent review system, hook enforcement, quality gates           |
 
 See the [complete flows index](docs/flows/README.md) for the big picture.
-
----
-
-## UI v2 Development (feature/ui-v2 Branch)
-
-Brain Dump is undergoing a greenfield UI rebuild on the `feature/ui-v2` branch. Both UIs can run simultaneously during development.
-
-### Branch Strategy
-
-| Branch          | Purpose                         | Port |
-| --------------- | ------------------------------- | ---- |
-| `main`          | Current stable UI               | 4242 |
-| `feature/ui-v2` | New UI under active development | 4243 |
-
-### Quick Start (Parallel Development)
-
-```bash
-# Terminal 1: Run old UI
-git checkout main && pnpm dev          # http://localhost:4242
-
-# Terminal 2: Run new UI
-git checkout feature/ui-v2 && pnpm dev:v2   # http://localhost:4243
-```
-
-### What's Shared vs Rebuilt
-
-| Shared (Backend)                      | Rebuilt (Frontend)             |
-| ------------------------------------- | ------------------------------ |
-| `src/api/*` - Server functions        | `src/components-v2/*` - New UI |
-| `src/lib/schema.ts` - Database schema | `src/routes-v2/*` - New routes |
-| `src/lib/db.ts` - Database connection | `src/styles.css` - New styles  |
-| `mcp-server/*` - MCP integration      | `src/lib/theme.ts` - Theme     |
-| `cli/*` - CLI tool                    |                                |
-
-### Development Commands
-
-| Command       | Description                         |
-| ------------- | ----------------------------------- |
-| `pnpm dev`    | Start old UI (localhost:4242)       |
-| `pnpm dev:v2` | Start new UI (localhost:4243)       |
-| `pnpm check`  | Type-check + lint + test (both UIs) |
-
-### Important Notes
-
-- Both UIs share the same SQLite database (WAL mode enables concurrent access)
-- Do NOT try to migrate existing components — start fresh with the new design
-- Reference old code for API patterns only
-
-[Verification documentation →](docs/parallel-development-verification.md)
 
 ---
 
