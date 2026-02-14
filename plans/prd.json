@@ -199,7 +199,7 @@
     {
       "id": "80722270-0b29-4a10-a93e-0d4ef745087e",
       "title": "Backend: Create dev-tools.ts server functions (tech stack, editors, dev commands)",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [
         {
@@ -871,7 +871,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-02-14T20:04:11.880Z",
+  "generatedAt": "2026-02-14T20:37:02.470Z",
   "epicTitle": "Project Detail Page → Development Hub",
   "epicDescription": "Transform the project detail page into a central development hub with editor launch, terminal management, dev server detection, tech stack analysis, and git activity tracking."
 }
