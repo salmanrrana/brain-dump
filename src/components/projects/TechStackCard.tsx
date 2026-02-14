@@ -1,4 +1,12 @@
 import { useTechStack } from "../../lib/hooks";
+import {
+  cardStyles,
+  cardHeaderStyles,
+  cardContentStyles,
+  errorStyles,
+  errorTextStyles,
+  skeletonLineStyles,
+} from "./shared-styles";
 
 interface TechStackCardProps {
   projectPath: string;
@@ -9,10 +17,10 @@ export default function TechStackCard({ projectPath }: TechStackCardProps) {
 
   return (
     <div style={cardStyles}>
-      <h3 style={headerStyles}>🏗️ Tech Stack</h3>
+      <h3 style={cardHeaderStyles}>🏗️ Tech Stack</h3>
 
       {isLoading && (
-        <div style={contentStyles}>
+        <div style={cardContentStyles}>
           <div style={skeletonLineStyles} />
           <div style={skeletonLineStyles} />
           <div style={skeletonLineStyles} />
@@ -26,7 +34,7 @@ export default function TechStackCard({ projectPath }: TechStackCardProps) {
       )}
 
       {!isLoading && !error && data && (
-        <div style={contentStyles}>
+        <div style={cardContentStyles}>
           {data.languages.length > 0 && (
             <div style={sectionStyles}>
               <p style={sectionLabelStyles}>Languages:</p>
@@ -75,29 +83,6 @@ export default function TechStackCard({ projectPath }: TechStackCardProps) {
     </div>
   );
 }
-
-const cardStyles: React.CSSProperties = {
-  background: "var(--bg-secondary)",
-  border: "1px solid var(--border-primary)",
-  borderRadius: "var(--radius-md)",
-  padding: "var(--spacing-4)",
-  display: "flex",
-  flexDirection: "column",
-  gap: "var(--spacing-3)",
-};
-
-const headerStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-md)",
-  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-  color: "var(--text-primary)",
-  margin: 0,
-};
-
-const contentStyles: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "var(--spacing-3)",
-};
 
 const sectionStyles: React.CSSProperties = {
   display: "flex",
@@ -150,26 +135,4 @@ const emptyTextStyles: React.CSSProperties = {
   fontSize: "var(--font-size-sm)",
   color: "var(--text-tertiary)",
   margin: 0,
-};
-
-const errorStyles: React.CSSProperties = {
-  padding: "var(--spacing-2)",
-  background: "var(--bg-destructive-subtle)",
-  border: "1px solid var(--border-destructive)",
-  borderRadius: "var(--radius-sm)",
-};
-
-const errorTextStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-sm)",
-  color: "var(--text-destructive)",
-  margin: 0,
-};
-
-const skeletonLineStyles: React.CSSProperties = {
-  height: "20px",
-  background:
-    "linear-gradient(90deg, var(--bg-tertiary) 25%, var(--bg-hover) 50%, var(--bg-tertiary) 75%)",
-  backgroundSize: "200% 100%",
-  borderRadius: "var(--radius-sm)",
-  animation: "pulse 1.5s ease-in-out infinite",
 };

@@ -1,6 +1,11 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { X } from "lucide-react";
-import { useDevCommands, useLaunchDevServer } from "../../lib/hooks";
+import {
+  useDevCommands,
+  useLaunchDevServer,
+  useClickOutside,
+  useModalKeyboard,
+} from "../../lib/hooks";
 import { createBrowserLogger } from "../../lib/browser-logger";
 
 const logger = createBrowserLogger("DevServerPicker");
@@ -20,30 +25,9 @@ export default function DevServerPicker({ projectPath, isOpen, onClose }: DevSer
   // Use the first command as default if nothing is selected and commands are available
   const displayedSelectedCommand = selectedCommand || commands[0]?.command || "";
 
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) {
-        onClose();
-      }
-    };
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-
-    if (!isOpen) {
-      return;
-    }
-
-    document.addEventListener("keydown", handleEscape);
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("keydown", handleEscape);
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isOpen, onClose]);
+  // Use existing hooks for modal interactions instead of manual event listeners
+  useModalKeyboard(modalRef, onClose);
+  useClickOutside(modalRef, onClose, isOpen);
 
   const handleLaunch = async () => {
     if (!displayedSelectedCommand) return;
