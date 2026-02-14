@@ -357,23 +357,24 @@ export default function AppLayout({ children }: AppLayoutProps) {
   }, []);
 
   // Navigation callbacks for keyboard shortcuts (1-5)
-  const handleNavigateHome = useCallback(() => {
-    navigate({ to: "/" }).catch((err) => {
-      console.error("Navigation to home failed:", err);
-    });
-  }, [navigate]);
+  const createNavigationHandler = useCallback(
+    (to: string) => () => {
+      navigate({ to }).catch((err) => {
+        console.error(`Navigation to ${to} failed:`, err);
+      });
+    },
+    [navigate]
+  );
 
-  const handleNavigateDashboard = useCallback(() => {
-    navigate({ to: "/dashboard" }).catch((err) => {
-      console.error("Navigation to dashboard failed:", err);
-    });
-  }, [navigate]);
-
-  const handleNavigateBoard = useCallback(() => {
-    navigate({ to: "/board" }).catch((err) => {
-      console.error("Navigation to board failed:", err);
-    });
-  }, [navigate]);
+  const handleNavigateHome = useMemo(() => createNavigationHandler("/"), [createNavigationHandler]);
+  const handleNavigateDashboard = useMemo(
+    () => createNavigationHandler("/dashboard"),
+    [createNavigationHandler]
+  );
+  const handleNavigateBoard = useMemo(
+    () => createNavigationHandler("/board"),
+    [createNavigationHandler]
+  );
 
   const handleToggleProjects = useCallback(() => {
     // On mobile, toggle the mobile menu (which shows projects)

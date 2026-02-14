@@ -11,7 +11,7 @@
     {
       "id": "9200b1ca-0027-4131-a95b-5519e79e55c0",
       "title": "Overview: Projects Home Page — Full Plan & Coordination",
-      "passes": true,
+      "passes": false,
       "overview": "**Epic:** Projects Home Page\n**Branch/PR:** All tickets in this epic share a single branch and PR. Use `workflow` `start-epic` to create the shared branch before starting work on any ticket.\n---\nCurrently Brain Dump drops users directly onto a kanban board showing all tickets — which gets overwhelming as projects grow. This change introduces a clean **Projects home page** as the landing page, with drill-down into epics, providing a structured entry: **Projects → Epics → Filtered Kanban Board**.",
       "types": [],
       "designDecisions": [],
@@ -45,7 +45,7 @@
     {
       "id": "73fab3e7-a1a9-464d-a96a-323778157cca",
       "title": "Move kanban board from `/` to `/board`",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -70,7 +70,7 @@
     {
       "id": "511591a8-de3a-48f4-957c-6e35bd4fb552",
       "title": "Update internal navigations from `/` to `/board`",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -98,7 +98,7 @@
     {
       "id": "dca04300-404b-438b-848f-2eabfcdc0991",
       "title": "Create Projects home page (`/`)",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -129,7 +129,7 @@
     {
       "id": "f137d657-4a41-4a3b-9721-05fa3d493a52",
       "title": "Create Project detail page (`/projects/$projectId`)",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -164,7 +164,7 @@
     {
       "id": "c31f8560-4a3a-4aca-bd31-6643f12101a3",
       "title": "Update sidebar navigation and add home affordance",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -186,6 +186,162 @@
       "tags": [
         "ui",
         "navigation"
+      ]
+    },
+    {
+      "id": "bcfa7f67-d7c9-45a2-b92b-b90094c7c1ba",
+      "title": "OVERVIEW 2: Minimalist List-Based Projects Homepage Redesign",
+      "passes": false,
+      "overview": "**Branch**: `feature/epic-040adfc0-projects-home-page` (continue on existing branch)\nThe current `/` (home) route displays projects in a card grid layout with borders, hover states, and chunky visual elements. This redesign introduces a more mature, elegant, minimalist approach:\n- **List-based layout** instead of grid cards (vertically stacked, no borders)\n- **Search bar** at the top to filter projects\n- **Inline metadata badges** under each project name (ticket counts, epic counts, AI status)\n- **Subtle hover effects** to indicate clickability\n- **Easy \"Add Project\" button** accessible in the header\n- **Settings icon** per-project for quick access to edit/delete\n**Goals**: Reduce visual noise, improve scannability, feel more professional and refined.\n---",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [
+        "src/lib/hooks/projects.ts",
+        "src/components/projects/ProjectListItem.tsx",
+        "src/routes/index.tsx",
+        "src/lib/hooks/projects.ts:103",
+        "src/lib/hooks/tickets.ts"
+      ],
+      "description": "# OVERVIEW 2: Minimalist List-Based Projects Homepage Redesign\n\n**Branch**: `feature/epic-040adfc0-projects-home-page` (continue on existing branch)\n\n## Context\n\nThe current `/` (home) route displays projects in a card grid layout with borders, hover states, and chunky visual elements. This redesign introduces a more mature, elegant, minimalist approach:\n\n- **List-based layout** instead of grid cards (vertically stacked, no borders)\n- **Search bar** at the top to filter projects\n- **Inline metadata badges** under each project name (ticket counts, epic counts, AI status)\n- **Subtle hover effects** to indicate clickability\n- **Easy \"Add Project\" button** accessible in the header\n- **Settings icon** per-project for quick access to edit/delete\n\n**Goals**: Reduce visual noise, improve scannability, feel more professional and refined.\n\n---\n\n## Implementation Tickets\n\n### Ticket 1: Extend Data Fetching to Include Ticket Counts\n- Extend `useProjectsWithAIActivity()` in `src/lib/hooks/projects.ts`\n- Add ticket count aggregation per project using `useMemo`\n\n### Ticket 2: Create ProjectListItem Component\n- New file: `src/components/projects/ProjectListItem.tsx`\n- Minimalist list item with color dot, name, metadata badges, hover actions\n- `MetadataBadge` subcomponent for inline ticket/epic/AI counts\n\n### Ticket 3: Redesign Homepage with Search and List Layout\n- Replace grid layout with centered vertical list in `src/routes/index.tsx`\n- Add search input for client-side project filtering\n- Wire up `ProjectListItem` and new data hooks\n- Update all container/layout styles\n\n---\n\n## Files to Modify\n\n1. `src/lib/hooks/projects.ts` — extend hook with ticket counts\n2. `src/components/projects/ProjectListItem.tsx` — NEW component\n3. `src/routes/index.tsx` — redesigned homepage\n\n## Existing Utilities to Reuse\n\n- `useProjectsWithAIActivity()` — `src/lib/hooks/projects.ts:103`\n- `useTickets()` — `src/lib/hooks/tickets.ts`\n- `openProjectModal()` — from AppLayout context\n- CSS variables — `--bg-hover`, `--text-tertiary`, `--spacing-*`, `--radius-*`, `--transition-fast`\n\n## Verification Steps\n\n1. Visual check at `localhost:4242/`\n2. `pnpm type-check` passes\n3. `pnpm test` passes\n4. Keyboard navigation works\n5. Search filters correctly\n6. Empty states display properly",
+      "priority": "high",
+      "tags": [
+        "overview",
+        "redesign",
+        "homepage"
+      ]
+    },
+    {
+      "id": "dc8f3a3b-c327-437c-b852-b7f2ed33be59",
+      "title": "Extend data fetching to include ticket counts per project",
+      "passes": true,
+      "overview": "The `useProjectsWithAIActivity()` hook returns projects with AI activity indicators but has no ticket count aggregation. The new minimalist homepage needs ticket counts displayed as inline metadata badges.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`useProjectsWithAIActivity()` returns ticket counts per project",
+        "Counts update reactively when tickets change",
+        "`pnpm type-check` passes",
+        "`pnpm test` passes"
+      ],
+      "references": [
+        "src/lib/hooks/projects.ts",
+        "projects.$projectId.tsx:23-31"
+      ],
+      "description": "# Extend Data Fetching to Include Ticket Counts Per Project\n\n**Branch**: `feature/epic-040adfc0-projects-home-page` (continue on existing branch)\n**Reference**: See OVERVIEW 2 ticket in this epic for the full redesign plan.\n\n## Context\n\nThe `useProjectsWithAIActivity()` hook returns projects with AI activity indicators but has no ticket count aggregation. The new minimalist homepage needs ticket counts displayed as inline metadata badges.\n\n## Implementation\n\n**File**: `src/lib/hooks/projects.ts`\n\n1. Import `useTickets()` from `hooks/tickets`\n2. Fetch all tickets once via existing hook\n3. Aggregate counts by project using `useMemo`:\n\n```typescript\nconst ticketCountByProject = useMemo(() => {\n  const counts = new Map<string, number>();\n  for (const ticket of tickets) {\n    counts.set(ticket.projectId, (counts.get(ticket.projectId) ?? 0) + 1);\n  }\n  return counts;\n}, [tickets]);\n```\n\n4. Return `ticketCountByProject` alongside existing return values\n\n## Pattern Reference\n\nFollow the same `useMemo` aggregation pattern used in `projects.$projectId.tsx` lines 23-31 (`ticketCountByEpic`).\n\n## Acceptance Criteria\n\n- [ ] `useProjectsWithAIActivity()` returns ticket counts per project\n- [ ] Counts update reactively when tickets change\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm test` passes",
+      "priority": "high",
+      "tags": [
+        "hooks",
+        "data-fetching"
+      ]
+    },
+    {
+      "id": "e647e66b-953d-4b46-bab5-dde0491741b0",
+      "title": "Create ProjectListItem component with metadata badges",
+      "passes": true,
+      "overview": "The homepage redesign replaces `ProjectCard` grid items with minimalist `ProjectListItem` components. Each item shows a color dot, project name, inline metadata badges, and hover-revealed settings action.",
+      "types": [
+        {
+          "name": "ProjectListItemProps",
+          "code": "interface ProjectListItemProps {\n  project: ProjectWithAIActivity;\n  ticketCount: number;\n  epicCount: number;\n  onClick: () => void;\n  onSettings: (e: React.MouseEvent) => void;\n}"
+        }
+      ],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Component renders project name, color dot, metadata badges",
+        "Hover reveals settings icon on right side",
+        "Click navigates to project (via onClick prop)",
+        "Settings click opens edit modal (via onSettings prop, stops propagation)",
+        "AI active badge shows glow effect when applicable",
+        "`pnpm type-check` passes"
+      ],
+      "references": [
+        "src/components/projects/ProjectListItem.tsx"
+      ],
+      "description": "# Create ProjectListItem Component\n\n**Branch**: `feature/epic-040adfc0-projects-home-page` (continue on existing branch)\n**Reference**: See OVERVIEW 2 ticket in this epic for the full redesign plan.\n\n## Context\n\nThe homepage redesign replaces `ProjectCard` grid items with minimalist `ProjectListItem` components. Each item shows a color dot, project name, inline metadata badges, and hover-revealed settings action.\n\n## Implementation\n\n**New file**: `src/components/projects/ProjectListItem.tsx`\n\n### Structure\n\n```tsx\n<div container (hover background change)>\n  <span color-dot />\n  <div content>\n    <h3>Project Name</h3>\n    <div metadata-row>\n      <MetadataBadge icon={FileText} count={N} label=\"tickets\" />\n      <MetadataBadge icon={Folder} count={N} label=\"epics\" />\n      {hasActiveAI && <MetadataBadge icon={Bot} label=\"AI active\" glow />}\n    </div>\n  </div>\n  <div hover-actions (fade in on hover)>\n    <button Settings icon />\n  </div>\n</div>\n```\n\n### MetadataBadge subcomponent\n\nInline within the same file:\n- Icon + count + label\n- `glow` prop for AI badge accent color\n- Font size: `var(--font-size-xs)`, color: `var(--text-tertiary)`\n\n### Styling\n\n- No borders, transparent background\n- Hover: `var(--bg-hover)` background\n- Settings button: absolute positioned right, `opacity: 0` → `opacity: 1` on hover\n- Transition: `var(--transition-fast)`\n- Pattern reference: `ProjectItem.tsx` hover actions (lines 170-181) and `EpicListItem.tsx`\n\n### Props\n\n```typescript\ninterface ProjectListItemProps {\n  project: ProjectWithAIActivity;\n  ticketCount: number;\n  epicCount: number;\n  onClick: () => void;\n  onSettings: (e: React.MouseEvent) => void;\n}\n```\n\n## Acceptance Criteria\n\n- [ ] Component renders project name, color dot, metadata badges\n- [ ] Hover reveals settings icon on right side\n- [ ] Click navigates to project (via onClick prop)\n- [ ] Settings click opens edit modal (via onSettings prop, stops propagation)\n- [ ] AI active badge shows glow effect when applicable\n- [ ] `pnpm type-check` passes",
+      "priority": "high",
+      "tags": [
+        "component",
+        "ui"
+      ]
+    },
+    {
+      "id": "6300111e-979e-4ada-8ea4-40d96437cc80",
+      "title": "Redesign homepage with search bar and minimalist list layout",
+      "passes": true,
+      "overview": "The homepage currently uses a card grid layout. This ticket replaces it with a centered, single-column list with a search bar for filtering.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [
+        {
+          "step": 1,
+          "description": "Add Search Input",
+          "files": [
+            "SearchBar.tsx"
+          ]
+        },
+        {
+          "step": 2,
+          "description": "Client-Side Filtering",
+          "files": [],
+          "codeTemplate": "const filteredProjects = useMemo(\n  () => projects.filter(p => \n    p.name.toLowerCase().includes(searchQuery.toLowerCase())\n  ),\n  [projects, searchQuery]\n);"
+        },
+        {
+          "step": 3,
+          "description": "Replace Grid with List",
+          "files": []
+        },
+        {
+          "step": 4,
+          "description": "Layout Structure",
+          "files": [],
+          "codeTemplate": "<div pageContainer>\n  <header>\n    <h1>Projects</h1>\n    <button>+ New Project</button>\n  </header>\n  <div searchContainer>\n    <input placeholder=\"Search projects...\" />\n  </div>\n  <div listContainer>\n    {filteredProjects.map(project => (\n      <ProjectListItem ... />\n    ))}\n  </div>\n</div>"
+        },
+        {
+          "step": 5,
+          "description": "Updated Styles",
+          "files": []
+        },
+        {
+          "step": 6,
+          "description": "Edge Cases",
+          "files": []
+        },
+        {
+          "step": 6,
+          "description": "Edge Cases",
+          "files": []
+        }
+      ],
+      "acceptanceCriteria": [
+        "Grid layout replaced with vertical list",
+        "Search input filters projects by name",
+        "Clear button appears when search has text",
+        "Clicking project navigates to project detail",
+        "\"New Project\" button opens create modal",
+        "Settings icon opens edit modal",
+        "Empty state displays properly",
+        "No search results state displays properly",
+        "`pnpm type-check` passes",
+        "`pnpm test` passes",
+        "Keyboard navigation works (Tab, Enter)"
+      ],
+      "references": [
+        "src/routes/index.tsx"
+      ],
+      "description": "# Redesign Homepage with Search and List Layout\n\n**Branch**: `feature/epic-040adfc0-projects-home-page` (continue on existing branch)\n**Reference**: See OVERVIEW 2 ticket in this epic for the full redesign plan.\n**Depends on**: \"Extend data fetching\" and \"Create ProjectListItem component\" tickets.\n\n## Context\n\nThe homepage currently uses a card grid layout. This ticket replaces it with a centered, single-column list with a search bar for filtering.\n\n## Implementation\n\n**File**: `src/routes/index.tsx`\n\n### 1. Add Search Input\n\n- `useState` for search query\n- Simple `<input>` with search icon (lucide `Search`) and clear button (`X`)\n- Style: reuse patterns from `SearchBar.tsx` (lines 209-219)\n  - `background: var(--bg-primary)`\n  - `border: 1px solid var(--border-primary)`\n  - `border-radius: var(--radius-lg)`\n  - Search icon positioned left, clear button right\n\n### 2. Client-Side Filtering\n\n```typescript\nconst filteredProjects = useMemo(\n  () => projects.filter(p => \n    p.name.toLowerCase().includes(searchQuery.toLowerCase())\n  ),\n  [projects, searchQuery]\n);\n```\n\n### 3. Replace Grid with List\n\n- Remove grid layout (`display: grid`, `grid-template-columns`)\n- Add centered list container: `maxWidth: 900px`, `margin: 0 auto`\n- Replace `ProjectCard` usage with `ProjectListItem`\n- Wire up `ticketCountByProject` from extended hook\n\n### 4. Layout Structure\n\n```tsx\n<div pageContainer>\n  <header>\n    <h1>Projects</h1>\n    <button>+ New Project</button>\n  </header>\n  <div searchContainer>\n    <input placeholder=\"Search projects...\" />\n  </div>\n  <div listContainer>\n    {filteredProjects.map(project => (\n      <ProjectListItem ... />\n    ))}\n  </div>\n</div>\n```\n\n### 5. Updated Styles\n\n- Search container: padded, border-bottom, `var(--bg-secondary)` background\n- Search input wrapper: `maxWidth: 600px`, centered\n- List container: `maxWidth: 900px`, centered, scrollable\n\n### 6. Edge Cases\n\n- Empty state (no projects): show message with \"New Project\" CTA\n- No search matches: show \"No projects match\" message\n- Long names: text truncation with ellipsis\n\n## Acceptance Criteria\n\n- [ ] Grid layout replaced with vertical list\n- [ ] Search input filters projects by name\n- [ ] Clear button appears when search has text\n- [ ] Clicking project navigates to project detail\n- [ ] \"New Project\" button opens create modal\n- [ ] Settings icon opens edit modal\n- [ ] Empty state displays properly\n- [ ] No search results state displays properly\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm test` passes\n- [ ] Keyboard navigation works (Tab, Enter)",
+      "priority": "high",
+      "tags": [
+        "homepage",
+        "search",
+        "layout",
+        "ui"
       ]
     }
   ],
@@ -332,7 +488,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-02-13T22:51:32.954Z",
+  "generatedAt": "2026-02-14T14:03:25.743Z",
   "epicTitle": "Projects Home Page",
   "epicDescription": "Introduce a structured Projects home page as the landing page with drill-down into epics. Navigation flow: Projects → Epics → Filtered Kanban Board. All tickets in this epic share a single branch and PR."
 }

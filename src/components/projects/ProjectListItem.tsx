@@ -13,7 +13,7 @@ export interface ProjectListItemProps {
   /** Handler when the project is clicked */
   onClick: () => void;
   /** Handler when the settings button is clicked */
-  onSettings: (e: MouseEvent<HTMLButtonElement>) => void;
+  onSettings: () => void;
 }
 
 interface MetadataBadgeProps {
@@ -51,7 +51,7 @@ function ProjectListItem({
 }: ProjectListItemProps): React.JSX.Element {
   function handleSettingsClick(e: MouseEvent<HTMLButtonElement>): void {
     e.stopPropagation();
-    onSettings(e);
+    onSettings();
   }
 
   const handleKeyDown = createEnterSpaceHandler(onClick);
@@ -83,7 +83,7 @@ function ProjectListItem({
       />
 
       <div style={contentStyles}>
-        <h3 style={nameStyles}>{project.name}</h3>
+        <h3 style={nameStyles}>{project.name || "(Unnamed)"}</h3>
 
         <div style={metadataRowStyles}>
           <MetadataBadge icon={FileText} label="tickets" count={ticketCount} />

@@ -43,7 +43,7 @@ export interface IconSidebarProps {
 
 /**
  * Default navigation items for the sidebar.
- * Each item has an optional shortcutKey for keyboard navigation (1-4).
+ * Each item has an optional shortcutKey for keyboard navigation (1-5).
  */
 const defaultNavItems: NavItemConfig[] = [
   { icon: Home, label: "Home", path: "/", shortcutKey: "1" },
@@ -59,12 +59,12 @@ const defaultNavItems: NavItemConfig[] = [
  * Features:
  * - **64px fixed width**: Compact sidebar that doesn't take up much space
  * - **Full viewport height**: Uses 100vh with flex column layout
- * - **4 nav items**: Dashboard, Board, Projects, Settings
+ * - **5 nav items**: Home, Dashboard, Board, Projects, Settings
  * - **Icons from lucide-react**: Consistent icon library
  * - **Active item**: Gradient background + glow effect (via NavItem)
  * - **Background**: Uses --bg-secondary CSS variable
  *
- * The sidebar separates route navigation (Dashboard, Board) from action items
+ * The sidebar separates route navigation (Home, Dashboard, Board) from action items
  * (Projects panel, Settings modal) via the `onNavigate` and `onAction` callbacks.
  */
 export const IconSidebar: FC<IconSidebarProps> = ({
@@ -82,12 +82,22 @@ export const IconSidebar: FC<IconSidebarProps> = ({
     const location = useLocation();
     currentPath = disableRouterIntegration ? (activePathProp ?? "/") : location.pathname;
   } catch (error) {
-    // Router context not available (testing without RouterProvider)
-    // This is expected in tests but indicates a bug if seen in production
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("[IconSidebar] Router context unavailable, using fallback path:", error);
+    // Router context not available - expected in tests without RouterProvider
+    // Check if this is the expected "RouterProvider" context error
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isExpectedContextError =
+      errorMessage.includes("useLocation") || errorMessage.includes("RouterProvider");
+
+    if (isExpectedContextError) {
+      // Expected error - use fallback gracefully
+      currentPath = activePathProp ?? "/";
+    } else {
+      // Unexpected error - log for debugging in production
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[IconSidebar] Unexpected error reading router location:", error);
+      }
+      currentPath = activePathProp ?? "/";
     }
-    currentPath = activePathProp ?? "/";
   }
 
   const sidebarStyles: React.CSSProperties = {
