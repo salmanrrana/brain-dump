@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { db, sqlite } from "../lib/db";
 import { epics, projects, tickets } from "../lib/schema";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { ensureExists } from "../lib/utils";
 
@@ -28,13 +28,14 @@ export const getEpicsByProject = createServerFn({ method: "GET" })
     return projectId;
   })
   .handler(async ({ data: projectId }) => {
-    const project = db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, projectId))
-      .get();
+    const project = db.select().from(projects).where(eq(projects.id, projectId)).get();
     ensureExists(project, "Project", projectId);
-    return db.select().from(epics).where(eq(epics.projectId, projectId)).all();
+    return db
+      .select()
+      .from(epics)
+      .where(eq(epics.projectId, projectId))
+      .orderBy(desc(epics.createdAt))
+      .all();
   });
 
 // Create a new epic
@@ -50,11 +51,7 @@ export const createEpic = createServerFn({ method: "POST" })
   })
   .handler(async ({ data: input }) => {
     // Verify project exists
-    const project = db
-      .select()
-      .from(projects)
-      .where(eq(projects.id, input.projectId))
-      .get();
+    const project = db.select().from(projects).where(eq(projects.id, input.projectId)).get();
     ensureExists(project, "Project", input.projectId);
 
     const id = randomUUID();
@@ -136,61 +133,67 @@ export const deleteEpic = createServerFn({ method: "POST" })
     }
     return input;
   })
-  .handler(async ({ data: { epicId, confirm = false } }): Promise<DeleteEpicPreview | DeleteEpicResult> => {
-    const epicResult = db.select().from(epics).where(eq(epics.id, epicId)).get();
-    const epic = ensureExists(epicResult, "Epic", epicId);
+  .handler(
+    async ({
+      data: { epicId, confirm = false },
+    }): Promise<DeleteEpicPreview | DeleteEpicResult> => {
+      const epicResult = db.select().from(epics).where(eq(epics.id, epicId)).get();
+      const epic = ensureExists(epicResult, "Epic", epicId);
 
-    // Get tickets that would be unlinked (not deleted)
-    const ticketsToUnlink = db
-      .select({
-        id: tickets.id,
-        title: tickets.title,
-        status: tickets.status,
-      })
-      .from(tickets)
-      .where(eq(tickets.epicId, epicId))
-      .all();
+      // Get tickets that would be unlinked (not deleted)
+      const ticketsToUnlink = db
+        .select({
+          id: tickets.id,
+          title: tickets.title,
+          status: tickets.status,
+        })
+        .from(tickets)
+        .where(eq(tickets.epicId, epicId))
+        .all();
 
-    // Dry-run: return preview of what would be affected
-    if (!confirm) {
+      // Dry-run: return preview of what would be affected
+      if (!confirm) {
+        return {
+          preview: true,
+          epic: {
+            id: epic.id,
+            title: epic.title,
+            description: epic.description,
+            projectId: epic.projectId,
+          },
+          ticketsToUnlink,
+        };
+      }
+
+      // Actually delete (tickets get unlinked via FK onDelete: "set null")
+      // Use transaction for atomicity
+      try {
+        sqlite.transaction(() => {
+          // Explicitly unlink tickets (even though FK would handle it)
+          db.update(tickets)
+            .set({ epicId: null, updatedAt: new Date().toISOString() })
+            .where(eq(tickets.epicId, epicId))
+            .run();
+          // Delete the epic
+          db.delete(epics).where(eq(epics.id, epicId)).run();
+        })();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        if (message.includes("SQLITE_BUSY")) {
+          throw new Error(
+            "Failed to delete epic: The database is busy. Please try again in a moment."
+          );
+        }
+        throw new Error(`Failed to delete epic: ${message}`);
+      }
+
       return {
-        preview: true,
+        deleted: true,
         epic: {
           id: epic.id,
           title: epic.title,
-          description: epic.description,
-          projectId: epic.projectId,
         },
-        ticketsToUnlink,
+        ticketsUnlinked: ticketsToUnlink.length,
       };
     }
-
-    // Actually delete (tickets get unlinked via FK onDelete: "set null")
-    // Use transaction for atomicity
-    try {
-      sqlite.transaction(() => {
-        // Explicitly unlink tickets (even though FK would handle it)
-        db.update(tickets)
-          .set({ epicId: null, updatedAt: new Date().toISOString() })
-          .where(eq(tickets.epicId, epicId))
-          .run();
-        // Delete the epic
-        db.delete(epics).where(eq(epics.id, epicId)).run();
-      })();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      if (message.includes("SQLITE_BUSY")) {
-        throw new Error("Failed to delete epic: The database is busy. Please try again in a moment.");
-      }
-      throw new Error(`Failed to delete epic: ${message}`);
-    }
-
-    return {
-      deleted: true,
-      epic: {
-        id: epic.id,
-        title: epic.title,
-      },
-      ticketsUnlinked: ticketsToUnlink.length,
-    };
-  });
+  );

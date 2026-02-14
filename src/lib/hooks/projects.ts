@@ -10,9 +10,20 @@ import { getEpicsByProject, createEpic, updateEpic, deleteEpic } from "../../api
 import { createBrowserLogger } from "../browser-logger";
 import { queryKeys } from "../query-keys";
 import { useActiveRalphSessions, type ActiveRalphSession } from "./ralph";
+import { useTickets } from "./tickets";
 
 // Browser-safe logger for hook errors
 const logger = createBrowserLogger("hooks:projects");
+
+/** Count items by a key extracted from each element. */
+function countBy<T>(items: T[], keyFn: (item: T) => string): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    const key = keyFn(item);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
 
 // =============================================================================
 // TYPES
@@ -46,7 +57,7 @@ export interface ProjectWithEpics extends Project {
 }
 
 /**
- * Project type with AI activity indicator.
+ * Project type with AI activity indicator and ticket counts.
  * Used by ProjectsPanel and navigation components to show glow effects.
  */
 export interface ProjectWithAIActivity extends ProjectWithEpics {
@@ -54,6 +65,8 @@ export interface ProjectWithAIActivity extends ProjectWithEpics {
   hasActiveAI: boolean;
   /** Number of active sessions in this project */
   activeSessionCount: number;
+  /** Number of tickets in this project */
+  ticketCount: number;
 }
 
 // =============================================================================
@@ -91,42 +104,50 @@ export function useProjects() {
 }
 
 /**
- * Hook for fetching projects with AI activity indicators.
+ * Hook for fetching projects with AI activity indicators and ticket counts.
  * Combines projects data with active Ralph session data to determine
- * which projects have active AI work for glow effects.
+ * which projects have active AI work for glow effects, and aggregates
+ * ticket counts by project.
  *
- * This enables the sidebar to show a pulsing glow indicator on projects
+ * This enables the homepage to show ticket counts as metadata badges
+ * and the sidebar to show a pulsing glow indicator on projects
  * where Ralph is currently working on tickets.
  *
- * @returns Projects enhanced with hasActiveAI and activeSessionCount
+ * @returns Projects enhanced with hasActiveAI, activeSessionCount, and ticketCount
  */
 export function useProjectsWithAIActivity() {
   const { projects, loading, error, refetch } = useProjects();
   const { sessions } = useActiveRalphSessions();
+  const { tickets, error: ticketsError, loading: ticketsLoading } = useTickets();
 
-  // Compute which projects have active AI sessions
+  // Determine overall loading/error state considering all queries
+  const isLoading = loading || ticketsLoading;
+  const overallError = error || ticketsError;
+
+  // Log ticket loading errors for debugging
+  if (ticketsError) {
+    logger.error("Failed to load ticket counts for projects", new Error(ticketsError));
+  }
+
   const projectsWithActivity = useMemo<ProjectWithAIActivity[]>(() => {
-    // Count sessions per project
-    const sessionCountByProject = new Map<string, number>();
-    for (const session of Object.values(sessions)) {
-      const count = sessionCountByProject.get(session.projectId) ?? 0;
-      sessionCountByProject.set(session.projectId, count + 1);
-    }
+    const sessionCounts = countBy(Object.values(sessions), (s) => s.projectId);
+    const ticketCounts = countBy(tickets, (t) => t.projectId);
 
     return projects.map((project) => {
-      const activeSessionCount = sessionCountByProject.get(project.id) ?? 0;
+      const activeSessionCount = sessionCounts.get(project.id) ?? 0;
       return {
         ...project,
         hasActiveAI: activeSessionCount > 0,
         activeSessionCount,
+        ticketCount: ticketCounts.get(project.id) ?? 0,
       };
     });
-  }, [projects, sessions]);
+  }, [projects, sessions, tickets]);
 
   return {
     projects: projectsWithActivity,
-    loading,
-    error,
+    loading: isLoading,
+    error: overallError,
     refetch,
   };
 }

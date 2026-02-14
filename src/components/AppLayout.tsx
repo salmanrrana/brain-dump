@@ -7,7 +7,7 @@ import {
   useRef,
   useCallback,
 } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Search, LayoutGrid, List, X, Loader2, Settings, RefreshCw, Menu } from "lucide-react";
 import { IconSidebar } from "./navigation/IconSidebar";
 import { ProjectsPanel } from "./navigation/ProjectsPanel";
@@ -356,18 +356,25 @@ export default function AppLayout({ children }: AppLayoutProps) {
     searchInput?.focus();
   }, []);
 
-  // Navigation callbacks for keyboard shortcuts (1-4)
-  const handleNavigateDashboard = useCallback(() => {
-    navigate({ to: "/dashboard" }).catch((err) => {
-      console.error("Navigation to dashboard failed:", err);
-    });
-  }, [navigate]);
+  // Navigation callbacks for keyboard shortcuts (1-5)
+  const createNavigationHandler = useCallback(
+    (to: string) => () => {
+      navigate({ to }).catch((err) => {
+        console.error(`Navigation to ${to} failed:`, err);
+      });
+    },
+    [navigate]
+  );
 
-  const handleNavigateBoard = useCallback(() => {
-    navigate({ to: "/" }).catch((err) => {
-      console.error("Navigation to board failed:", err);
-    });
-  }, [navigate]);
+  const handleNavigateHome = useMemo(() => createNavigationHandler("/"), [createNavigationHandler]);
+  const handleNavigateDashboard = useMemo(
+    () => createNavigationHandler("/dashboard"),
+    [createNavigationHandler]
+  );
+  const handleNavigateBoard = useMemo(
+    () => createNavigationHandler("/board"),
+    [createNavigationHandler]
+  );
 
   const handleToggleProjects = useCallback(() => {
     // On mobile, toggle the mobile menu (which shows projects)
@@ -386,6 +393,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     onFocusSearch: handleFocusSearch,
     onShowShortcuts: openShortcuts,
     onCloseModal: closeModal,
+    onNavigateHome: handleNavigateHome,
     onNavigateDashboard: handleNavigateDashboard,
     onNavigateBoard: handleNavigateBoard,
     onToggleProjects: handleToggleProjects,
@@ -691,16 +699,16 @@ export default function AppLayout({ children }: AppLayoutProps) {
         )}
 
         {/* Import Modal */}
-        <ImportModal
-          isOpen={isImportModalOpen}
-          onClose={() => setIsImportModalOpen(false)}
-        />
+        <ImportModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} />
       </div>
     </AppContext.Provider>
   );
 }
 
 function AppHeader() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isProjectPage = pathname === "/" || pathname.startsWith("/projects/");
+
   const {
     viewMode,
     setViewMode,
@@ -740,6 +748,8 @@ function AppHeader() {
     clearSearch();
     setShowResults(false);
   };
+
+  if (isProjectPage) return null;
 
   return (
     <header className="h-14 bg-[var(--bg-secondary)] border-b border-[var(--border-primary)] flex items-center px-4 gap-4">
@@ -896,7 +906,6 @@ function AppHeader() {
         onClose={() => setIsInceptionModalOpen(false)}
         onSkipAI={openNewTicketModal}
       />
-
     </header>
   );
 }

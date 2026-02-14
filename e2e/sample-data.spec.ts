@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 test.describe("Sample Data Initialization - E2E", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to app - sample data should be created on first launch
-    await page.goto("/");
+    await page.goto("/board");
 
     // Wait for the sidebar to load
     await expect(page.locator("aside")).toBeVisible({ timeout: 10000 });

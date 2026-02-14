@@ -199,7 +199,7 @@ export const RelatedTickets: FC<RelatedTicketsProps> = ({
       {/* View All Link */}
       {hasMore && (
         <Link
-          to="/"
+          to="/board"
           search={{ epicId }}
           style={viewAllStyles}
           data-testid={`${testId}-view-all`}

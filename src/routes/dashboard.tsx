@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useCallback } from "react";
 import { useTickets, useActiveRalphSessions, useDashboardAnalytics } from "../lib/hooks";
 import { StatsGrid, AnalyticsSection } from "../components/dashboard";
 import type { StatFilter } from "../components/dashboard";
@@ -108,32 +109,46 @@ function Dashboard() {
   const doneCount = tickets.filter((t) => t.status === "done").length;
 
   // Handle stat card clicks - navigate to board and scroll to relevant column
-  const handleStatClick = (filter: StatFilter) => {
-    navigate({ to: "/" });
-    // Scroll to the relevant column after navigation
-    // Use setTimeout to ensure navigation completes first
-    setTimeout(() => {
-      let columnSelector: string;
-      switch (filter) {
-        case "in_progress":
-          columnSelector = '[data-status="in_progress"]';
-          break;
-        case "done":
-          columnSelector = '[data-status="done"]';
-          break;
-        case "ai_active":
-          // For AI active, scroll to in_progress column (where AI sessions are)
-          columnSelector = '[data-status="in_progress"]';
-          break;
-        default:
-          return; // "all" - no scroll needed
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const handleStatClick = useCallback(
+    async (filter: StatFilter) => {
+      try {
+        // Wait for navigation to complete before scrolling
+        await navigate({ to: "/board" });
+
+        // Only scroll if not the "all" filter
+        if (filter === "all") {
+          return;
+        }
+
+        // Scroll to the relevant column
+        let columnSelector: string;
+        switch (filter) {
+          case "in_progress":
+            columnSelector = '[data-status="in_progress"]';
+            break;
+          case "done":
+            columnSelector = '[data-status="done"]';
+            break;
+          case "ai_active":
+            // For AI active, scroll to in_progress column (where AI sessions are)
+            columnSelector = '[data-status="in_progress"]';
+            break;
+          default:
+            return;
+        }
+
+        const column = document.querySelector(columnSelector);
+        if (column) {
+          column.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+        }
+      } catch (error) {
+        // Navigation failed - log to console for debugging
+        console.error("Failed to navigate to board:", error);
       }
-      const column = document.querySelector(columnSelector);
-      if (column) {
-        column.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
-      }
-    }, 100);
-  };
+    },
+    [navigate]
+  );
 
   return (
     <div style={containerStyles}>

@@ -1,4 +1,5 @@
 import { type FC, type ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
 import { Search, Plus } from "lucide-react";
 
 export interface HeaderProps {
@@ -67,6 +68,13 @@ export const Header: FC<HeaderProps> = ({
     color: "var(--text-primary)",
     fontSize: "var(--font-size-lg)",
     fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+  };
+
+  const brandLinkStyles: React.CSSProperties = {
+    ...brandStyles,
+    cursor: "pointer",
+    transition: "color var(--transition-fast)",
+    textDecoration: "none",
   };
 
   const searchAreaStyles: React.CSSProperties = {
@@ -152,9 +160,14 @@ export const Header: FC<HeaderProps> = ({
     <header style={headerStyles} role="banner">
       <div style={logoAreaStyles}>
         {logo ?? (
-          <div style={brandStyles}>
+          <Link
+            to="/"
+            style={brandLinkStyles}
+            title="Back to Projects home"
+            className="hover:text-[var(--accent-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+          >
             <span>Brain Dump</span>
-          </div>
+          </Link>
         )}
       </div>
 

@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Brain Dump E2E Tests", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/board");
     // Wait for the app to load - look for the sidebar
     await expect(page.locator("aside")).toBeVisible();
     // Wait for content to load
@@ -134,16 +134,12 @@ test.describe("Brain Dump E2E Tests", () => {
   test.describe("Sample Data", () => {
     test("should display sample data banner", async ({ page }) => {
       // Look for sample data banner text
-      await expect(
-        page.locator("text=Sample data is loaded")
-      ).toBeVisible();
+      await expect(page.locator("text=Sample data is loaded")).toBeVisible();
     });
 
     test("should show delete sample data button", async ({ page }) => {
       // Verify delete button exists
-      await expect(
-        page.locator("button:has-text('Delete Sample Data')")
-      ).toBeVisible();
+      await expect(page.locator("button:has-text('Delete Sample Data')")).toBeVisible();
     });
   });
 
@@ -189,7 +185,10 @@ test.describe("Brain Dump E2E Tests", () => {
 
       // Project should be highlighted (cyan background)
       await expect(
-        page.locator("div").filter({ hasText: /^Sample Project$/ }).first()
+        page
+          .locator("div")
+          .filter({ hasText: /^Sample Project$/ })
+          .first()
       ).toBeVisible();
 
       // Tickets should still be visible
@@ -199,7 +198,10 @@ test.describe("Brain Dump E2E Tests", () => {
     test("should expand project to show epics", async ({ page }) => {
       // Click the chevron button to expand the project tree
       // The chevron is in a button inside the project row
-      const chevronButton = page.locator("button").filter({ has: page.locator("svg.lucide-chevron-right") }).first();
+      const chevronButton = page
+        .locator("button")
+        .filter({ has: page.locator("svg.lucide-chevron-right") })
+        .first();
       await chevronButton.click();
 
       // Wait a moment for expansion
