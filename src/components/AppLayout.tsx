@@ -7,7 +7,7 @@ import {
   useRef,
   useCallback,
 } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Search, LayoutGrid, List, X, Loader2, Settings, RefreshCw, Menu } from "lucide-react";
 import { IconSidebar } from "./navigation/IconSidebar";
 import { ProjectsPanel } from "./navigation/ProjectsPanel";
@@ -706,6 +706,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
 }
 
 function AppHeader() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isProjectPage = pathname === "/" || pathname.startsWith("/projects/");
+
   const {
     viewMode,
     setViewMode,
@@ -745,6 +748,8 @@ function AppHeader() {
     clearSearch();
     setShowResults(false);
   };
+
+  if (isProjectPage) return null;
 
   return (
     <header className="h-14 bg-[var(--bg-secondary)] border-b border-[var(--border-primary)] flex items-center px-4 gap-4">

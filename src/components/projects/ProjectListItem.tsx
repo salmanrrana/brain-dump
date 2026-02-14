@@ -72,7 +72,7 @@ function ProjectListItem({
       tabIndex={0}
       title={`${project.name || "(Unnamed)"} — ${project.path || "(Unknown path)"}`}
       data-testid={`project-list-item-${project.id}`}
-      className="group hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-primary)]"
+      className="group hover:bg-[var(--bg-hover)] hover:[&_h3]:text-[var(--accent-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-primary)]"
     >
       <span
         style={{
@@ -157,6 +157,7 @@ const nameStyles: CSSProperties = {
   whiteSpace: "nowrap",
   overflow: "hidden",
   textOverflow: "ellipsis",
+  transition: "color var(--transition-fast)",
 };
 
 const metadataRowStyles: CSSProperties = {

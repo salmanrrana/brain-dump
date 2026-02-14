@@ -178,8 +178,6 @@ const headerStyles: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "space-between",
   padding: "var(--spacing-6) var(--spacing-8)",
-  borderBottom: "1px solid var(--border-primary)",
-  backgroundColor: "var(--bg-secondary)",
 };
 
 const titleStyles: React.CSSProperties = {
@@ -206,8 +204,6 @@ const accentButtonStyles: React.CSSProperties = {
 
 const searchContainerStyles: CSSProperties = {
   padding: "var(--spacing-4) var(--spacing-8)",
-  borderBottom: "1px solid var(--border-primary)",
-  backgroundColor: "var(--bg-secondary)",
   display: "flex",
   justifyContent: "center",
 };
