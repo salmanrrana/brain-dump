@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Terminal, Zap } from "lucide-react";
 import EditorLauncher from "./EditorLauncher";
 import DevServerPicker from "./DevServerPicker";
+import { launchTerminal } from "../../api/dev-tools";
 import { createBrowserLogger } from "../../lib/browser-logger";
 
 const logger = createBrowserLogger("DevHubToolbar");
@@ -17,9 +18,10 @@ export default function DevHubToolbar({ projectPath }: DevHubToolbarProps) {
   const handleLaunchTerminal = async () => {
     try {
       setIsLaunchingTerminal(true);
-      // TODO: Implement terminal launch for dev hub
-      // For now, just log the action
-      logger.info(`Launch terminal in: ${projectPath}`);
+      const result = await launchTerminal({ data: { projectPath } });
+      if (!result.success) {
+        logger.error("Failed to launch terminal", new Error(result.message));
+      }
     } catch (err) {
       logger.error(
         "Failed to launch terminal",

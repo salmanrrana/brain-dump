@@ -5,8 +5,6 @@ import type { CSSProperties } from "react";
 import { useProjectsWithAIActivity } from "../lib/hooks";
 import { useAppState } from "../components/AppLayout";
 import ProjectListItem from "../components/projects/ProjectListItem";
-import { LoadingScreen } from "../components/LoadingScreen";
-
 export const Route = createFileRoute("/")({
   component: Home,
 });
@@ -37,13 +35,7 @@ function Home() {
   );
 
   if (loading) {
-    return (
-      <div style={pageContainerStyles}>
-        <div style={centeredContainerStyles}>
-          <LoadingScreen compact />
-        </div>
-      </div>
-    );
+    return <div style={pageContainerStyles} />;
   }
 
   if (error) {
@@ -69,7 +61,7 @@ function Home() {
   }
 
   return (
-    <div style={pageContainerStyles}>
+    <div style={pageContainerStyles} className="route-fade-in">
       <header style={headerStyles}>
         <h1 style={titleStyles}>Projects</h1>
         <button

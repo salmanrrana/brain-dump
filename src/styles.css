@@ -201,6 +201,22 @@ a.nav-item,
 }
 
 /* ============================================
+   ROUTE CONTENT TRANSITIONS
+   ============================================ */
+@keyframes routeFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.route-fade-in {
+  animation: routeFadeIn 900ms ease-out;
+}
+
+/* ============================================
    REDUCED MOTION SUPPORT
    ============================================
    Respects user's prefers-reduced-motion setting for accessibility.
@@ -268,9 +284,14 @@ a.nav-item,
   }
 
   /* Hide LetterGlitch canvas as CSS safety net
-     (component handles reduced motion internally via LoadingScreen) */
+     (component handles reduced motion internally via SplashScreen) */
   .letter-glitch-canvas {
     display: none;
+  }
+
+  /* Disable route fade-in */
+  .route-fade-in {
+    animation: none !important;
   }
 
   /* Skip link transition - make instant */

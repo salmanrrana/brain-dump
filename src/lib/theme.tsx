@@ -190,15 +190,21 @@ export interface ThemeProviderProps {
  * ```
  */
 export function ThemeProvider({ children, initialTheme }: ThemeProviderProps) {
-  // Use lazy initializer to get the initial theme value
-  // On server: returns default theme
-  // On client: returns stored theme or default (avoids double render)
+  // Use lazy initializer to get the initial theme value.
+  // On client: reads the data-theme attribute (set by blocking script in <head>)
+  // which avoids hydration mismatch since both server and client start with the
+  // same DOM state. Falls back to localStorage then default.
   const [theme, setThemeState] = useState<Theme>(() => {
-    // If initialTheme prop is provided (testing mode), use it
     if (initialTheme) {
       return initialTheme;
     }
-    // Try to get stored theme (returns null on server)
+    // Read from DOM attribute first (set by blocking script before hydration)
+    if (typeof document !== "undefined") {
+      const domTheme = document.documentElement.getAttribute("data-theme");
+      if (domTheme && isValidTheme(domTheme)) {
+        return domTheme;
+      }
+    }
     const stored = getStoredTheme();
     return stored ?? DEFAULT_THEME;
   });

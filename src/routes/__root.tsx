@@ -5,9 +5,9 @@ import { TanStackDevtools } from "@tanstack/react-devtools";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import AppLayout from "../components/AppLayout";
-import { LoadingScreen } from "../components/LoadingScreen";
+import { SplashScreen } from "../components/SplashScreen";
 import { ToastProvider } from "../components/Toast";
-import { ThemeProvider } from "../lib/theme";
+import { ThemeProvider, THEME_STORAGE_KEY, THEMES, DEFAULT_THEME } from "../lib/theme";
 
 import appCss from "../styles.css?url";
 
@@ -26,10 +26,6 @@ function createQueryClient() {
 }
 
 export const Route = createRootRoute({
-  pendingComponent: () => <LoadingScreen />,
-  pendingMs: 300,
-  pendingMinMs: 500,
-
   head: () => ({
     meta: [
       {
@@ -49,6 +45,13 @@ export const Route = createRootRoute({
         href: appCss,
       },
     ],
+    scripts: [
+      {
+        // Blocking script to apply theme from localStorage before React hydrates.
+        // Prevents flash of wrong theme (FOWT) on page load.
+        children: `(function(){try{var k="${THEME_STORAGE_KEY}",v=["${THEMES.join('","')}"],t=localStorage.getItem(k);if(t&&v.indexOf(t)!==-1){document.documentElement.setAttribute("data-theme",t)}else{document.documentElement.setAttribute("data-theme","${DEFAULT_THEME}")}}catch(e){}})()`,
+      },
+    ],
   }),
 
   shellComponent: RootDocument,
@@ -66,6 +69,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   // This ensures the focus manager is properly initialized on the client
   // See: https://tanstack.com/query/latest/docs/framework/react/guides/ssr
   const [queryClient] = useState(createQueryClient);
+  const [showSplash, setShowSplash] = useState(true);
 
   return (
     <html lang="en" className="dark">
@@ -80,6 +84,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
             <ToastProvider>
+              {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
               <AppLayout>{children}</AppLayout>
             </ToastProvider>
           </ThemeProvider>

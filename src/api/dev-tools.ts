@@ -628,3 +628,66 @@ export const launchDevServer = createServerFn({ method: "POST" })
       };
     }
   });
+
+// Server Function: Launch Terminal in project directory
+export const launchTerminal = createServerFn({ method: "POST" })
+  .inputValidator((data: { projectPath: string }) => {
+    if (!data.projectPath) {
+      throw new Error("projectPath is required");
+    }
+    return data;
+  })
+  .handler(async ({ data }): Promise<{ success: boolean; message: string }> => {
+    try {
+      const { projectPath } = data;
+
+      if (!existsSync(projectPath)) {
+        return {
+          success: false,
+          message: `Project path does not exist: ${projectPath}`,
+        };
+      }
+
+      const terminal = await detectTerminal();
+      if (!terminal) {
+        return {
+          success: false,
+          message: "No terminal detected. Please install a terminal emulator.",
+        };
+      }
+
+      cleanupOldTempScripts();
+
+      const scriptDir = join(tmpdir(), "brain-dump");
+      mkdirSync(scriptDir, { recursive: true });
+      const scriptName = `terminal-${basename(projectPath)}-${Date.now()}.sh`;
+      const scriptFile = join(scriptDir, scriptName);
+      writeFileSync(scriptFile, `#!/usr/bin/env bash\ncd "${projectPath}"\nexec bash\n`, "utf-8");
+      chmodSync(scriptFile, 0o755);
+
+      const terminalCmd = buildTerminalCommand(terminal, projectPath, scriptFile);
+
+      try {
+        const { exec } = await import("child_process");
+        const execAsync = promisify(exec);
+        await execAsync(terminalCmd);
+        return {
+          success: true,
+          message: `Terminal opened in ${projectPath}`,
+        };
+      } catch (err) {
+        logger.error("Failed to launch terminal", new Error(toErrorMessage(err)));
+        return {
+          success: false,
+          message: `Failed to launch terminal: ${toErrorMessage(err)}`,
+        };
+      }
+    } catch (err: unknown) {
+      const message = toErrorMessage(err);
+      logger.error("launchTerminal error", new Error(message));
+      return {
+        success: false,
+        message: `Failed to launch terminal: ${message}`,
+      };
+    }
+  });
