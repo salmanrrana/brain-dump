@@ -5,6 +5,9 @@ import { useProjects, useTickets } from "../lib/hooks";
 import { useAppState } from "../components/AppLayout";
 import { createBrowserLogger } from "../lib/browser-logger";
 import EpicListItem from "../components/navigation/EpicListItem";
+import DevHubToolbar from "../components/projects/DevHubToolbar";
+import TechStackCard from "../components/projects/TechStackCard";
+import GitHistoryCard from "../components/projects/GitHistoryCard";
 
 const logger = createBrowserLogger("routes:project-detail");
 
@@ -123,6 +126,20 @@ function ProjectDetail() {
         </button>
       </header>
 
+      {/* Development Hub Toolbar and Cards */}
+      <DevHubToolbar projectPath={project.path} />
+
+      {/* Tech Stack and Git Info Cards */}
+      <div style={cardsGridStyles}>
+        <TechStackCard projectPath={project.path} />
+        <GitHistoryCard projectPath={project.path} />
+      </div>
+
+      {/* Epics Section */}
+      <div style={epicsSectionStyles}>
+        <h2 style={epicsSectionHeaderStyles}>Epics</h2>
+      </div>
+
       {project.epics.length === 0 ? (
         <div style={emptyStateStyles}>
           <div style={emptyContentStyles}>
@@ -196,8 +213,6 @@ const headerStyles: React.CSSProperties = {
   alignItems: "center",
   gap: "var(--spacing-4)",
   padding: "var(--spacing-4)",
-  borderBottom: "1px solid var(--border-primary)",
-  backgroundColor: "var(--bg-secondary)",
 };
 
 const backButtonStyles: React.CSSProperties = {
@@ -356,4 +371,24 @@ const errorDescriptionStyles: React.CSSProperties = {
   color: "var(--text-secondary)",
   margin: 0,
   marginBottom: "var(--spacing-2)",
+};
+
+const cardsGridStyles: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+  gap: "var(--spacing-4)",
+  padding: "var(--spacing-3) var(--spacing-4)",
+  backgroundColor: "var(--bg-primary)",
+};
+
+const epicsSectionStyles: React.CSSProperties = {
+  padding: "var(--spacing-3) var(--spacing-4) 0",
+  borderTop: "1px solid var(--border-primary)",
+};
+
+const epicsSectionHeaderStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-md)",
+  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+  color: "var(--text-primary)",
+  margin: 0,
 };

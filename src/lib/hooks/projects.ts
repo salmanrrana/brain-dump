@@ -3,10 +3,18 @@
  * Includes queries and mutations for project/epic CRUD operations with optimistic updates.
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getProjects, createProject, updateProject, deleteProject } from "../../api/projects";
 import { getEpicsByProject, createEpic, updateEpic, deleteEpic } from "../../api/epics";
+import {
+  detectTechStack,
+  detectInstalledEditors,
+  detectDevCommands,
+  launchEditor,
+  launchDevServer,
+} from "../../api/dev-tools";
+import { getGitProjectInfo } from "../../api/git-info";
 import { createBrowserLogger } from "../browser-logger";
 import { queryKeys } from "../query-keys";
 import { useActiveRalphSessions, type ActiveRalphSession } from "./ralph";
@@ -91,8 +99,8 @@ export function useProjects() {
 
       return projectsWithEpics;
     },
-    // Always stale - projects can be created via MCP externally
-    staleTime: 0,
+    staleTime: 30 * 1000, // 30s - balance between freshness and reducing refetches
+    refetchOnMount: "always", // Always refetch on mount to catch external changes
   });
 
   return {
@@ -124,10 +132,12 @@ export function useProjectsWithAIActivity() {
   const isLoading = loading || ticketsLoading;
   const overallError = error || ticketsError;
 
-  // Log ticket loading errors for debugging
-  if (ticketsError) {
-    logger.error("Failed to load ticket counts for projects", new Error(ticketsError));
-  }
+  // Log ticket loading errors for debugging (in useEffect to avoid side effects in render)
+  useEffect(() => {
+    if (ticketsError) {
+      logger.error("Failed to load ticket counts for projects", new Error(ticketsError));
+    }
+  }, [ticketsError]);
 
   const projectsWithActivity = useMemo<ProjectWithAIActivity[]>(() => {
     const sessionCounts = countBy(Object.values(sessions), (s) => s.projectId);
@@ -213,7 +223,7 @@ export function useDeleteProject() {
  */
 export function useProjectDeletePreview(projectId: string) {
   return useQuery({
-    queryKey: ["project", projectId, "delete-preview"] as const,
+    queryKey: queryKeys.projectDeletePreview(projectId),
     queryFn: () => deleteProject({ data: { projectId, confirm: false } }),
   });
 }
@@ -278,7 +288,7 @@ export function useCreateEpic() {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
     },
   });
 }
@@ -337,7 +347,7 @@ export function useUpdateEpic() {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
     },
   });
 }
@@ -386,7 +396,7 @@ export function useDeleteEpic() {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
     },
   });
@@ -394,3 +404,76 @@ export function useDeleteEpic() {
 
 // Re-export ActiveRalphSession for backward compatibility
 export type { ActiveRalphSession };
+
+// =============================================================================
+// DEV HUB HOOKS (Tech Stack, Editors, Dev Commands, Git Info)
+// =============================================================================
+
+/**
+ * Fetch tech stack info for a project
+ * @param projectPath - The project filesystem path
+ */
+export function useTechStack(projectPath: string) {
+  return useQuery({
+    queryKey: queryKeys.techStack(projectPath),
+    queryFn: () => detectTechStack({ data: projectPath }),
+    staleTime: 5 * 60 * 1000, // Cache 5 minutes
+    enabled: !!projectPath,
+  });
+}
+
+/**
+ * Fetch installed editors on the system
+ */
+export function useInstalledEditors() {
+  return useQuery({
+    queryKey: queryKeys.editors,
+    queryFn: () => detectInstalledEditors(),
+    staleTime: 60 * 60 * 1000, // Cache 1 hour (rarely changes)
+    gcTime: 60 * 60 * 1000, // Keep in garbage collection for 1 hour too
+  });
+}
+
+/**
+ * Fetch dev commands for a project
+ * @param projectPath - The project filesystem path
+ */
+export function useDevCommands(projectPath: string) {
+  return useQuery({
+    queryKey: queryKeys.devCommands(projectPath),
+    queryFn: () => detectDevCommands({ data: projectPath }),
+    staleTime: 5 * 60 * 1000, // Cache 5 minutes
+    enabled: !!projectPath,
+  });
+}
+
+/**
+ * Fetch git project info (commits, branch, etc.)
+ * @param projectPath - The project filesystem path
+ */
+export function useGitProjectInfo(projectPath: string) {
+  return useQuery({
+    queryKey: queryKeys.gitInfo(projectPath),
+    queryFn: () => getGitProjectInfo({ data: projectPath }),
+    refetchInterval: 30 * 1000, // Refresh every 30s
+    enabled: !!projectPath,
+  });
+}
+
+/**
+ * Mutation to launch an editor
+ */
+export function useLaunchEditor() {
+  return useMutation({
+    mutationFn: (data: { projectPath: string; editor: string }) => launchEditor({ data }),
+  });
+}
+
+/**
+ * Mutation to launch a dev server
+ */
+export function useLaunchDevServer() {
+  return useMutation({
+    mutationFn: (data: { projectPath: string; commandName: string }) => launchDevServer({ data }),
+  });
+}

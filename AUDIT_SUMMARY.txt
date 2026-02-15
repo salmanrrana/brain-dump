@@ -1,0 +1,209 @@
+================================================================================
+ERROR HANDLING AUDIT - EXECUTIVE SUMMARY
+================================================================================
+
+Date: February 14, 2026
+Auditor: Silent Failure Hunter
+Status: 10 Issues Found - 3 CRITICAL
+
+================================================================================
+CRITICAL FINDINGS
+================================================================================
+
+1. FIRE-AND-FORGET EXEC CALLS (dev-tools.ts:458, 506)
+   
+   Issue: launchEditor() and launchDevServer() return success before async 
+          exec() operations complete.
+   
+   Problem: User sees "Editor opened successfully" but editor never launches.
+            Errors logged to server but never shown to user.
+   
+   Impact: Users cannot see or act on command failures. Debugging becomes
+           impossible - user spends minutes troubleshooting broken feature.
+   
+   Fix Required: Wait for exec() to complete or use execFileNoThrow.
+                 Return error response if command fails.
+   
+   Severity: CRITICAL - Violates project's no-silent-failures policy
+
+
+2. BROKEN PROMISE.ALL (projects.ts:85)
+   
+   Issue: useProjects() hook uses Promise.all() to fetch epics.
+          If ANY single epic fetch fails, entire query fails.
+   
+   Problem: User cannot see ANY projects if one project's epic fetch fails.
+   
+   Impact: Complete loss of access to all projects due to one bad epic.
+           No indication which project caused the problem.
+   
+   Fix Required: Use Promise.allSettled() instead of Promise.all().
+                 Return empty epics array for failed projects.
+                 Log which projects failed.
+   
+   Severity: CRITICAL - Blocks user's ability to use the app
+
+
+3. NO ERROR HANDLING FOR VIM/NEOVIM EXEC (dev-tools.ts:438, 451)
+   
+   Issue: exec() is called with NO error callback at all.
+   
+   Problem: Command fails silently. buildTerminalCommand() can throw.
+   
+   Impact: User clicks "Open in Vim" and nothing happens.
+           No error message. No indication of failure.
+   
+   Fix Required: Add try-catch. Verify command builds successfully.
+                 Add error callback to exec().
+   
+   Severity: CRITICAL - Complete silent failure with zero feedback
+
+================================================================================
+HIGH PRIORITY ISSUES
+================================================================================
+
+4. BUILDTERMINALCOMMAND CAN THROW (dev-tools.ts:437)
+   - Function throws if terminal not whitelisted
+   - No try-catch in calling code
+   - Unhandled exception crashes handler
+   
+   Impact: 500 error with no meaningful error message
+
+
+5. DETECTTECHSTACK ERRORS HIDDEN (dev-tools.ts:234)
+   - Catches errors but logs silently
+   - Returns empty tech stack with no error indication
+   - User thinks feature is broken or doesn't work for their project
+   
+   Impact: Silent failure - no indication of what went wrong
+
+
+6. DETECTDEVCOMMANDS ERRORS HIDDEN (dev-tools.ts:393)
+   - Same as #5 but for dev commands
+   - Returns empty array with no error message
+   
+   Impact: User assumes project has no dev commands
+
+
+7. MUTATION HOOKS HAVE NO ERROR HANDLERS (projects.ts:464, 473)
+   - useLaunchEditor() and useLaunchDevServer() have no onError handlers
+   - Inconsistent with other mutations in the file
+   - Components can't respond to failures
+   
+   Impact: Errors logged in hook but never reach component
+
+
+8. MISSING ERROR CONTEXT IN GIT-INFO (git-info.ts:115)
+   - Generic error message "getGitProjectInfo error"
+   - No indication which git command failed
+   - Returns partial result with no error indication
+   
+   Impact: User doesn't know what went wrong or if it's critical
+
+================================================================================
+MEDIUM PRIORITY ISSUES
+================================================================================
+
+9. SILENT FALLBACK IN FORMATDATE (git-info.ts:52)
+   - Bare catch block returns original date string
+   - No logging if date parsing fails
+   - Masks problems if git output format changes
+   
+   Impact: Invalid dates shown without explanation
+
+10. MISSING ERROR FEEDBACK IN DETECTINSTALLEDITORS
+    - Errors caught but not returned to user
+    - Component sees generic empty list
+    
+    Impact: User doesn't know if editor detection failed
+
+================================================================================
+ROOT CAUSE ANALYSIS
+================================================================================
+
+Pattern: Fire-and-forget async operations
+  - exec() and Promise.all() are not awaited
+  - Errors are logged server-side only
+  - Success returned to user before operation completes
+  - Fundamental disconnect between system state and user perception
+
+Pattern: Silent error handling
+  - Errors caught but not surfaced to user
+  - User sees empty results instead of error messages
+  - No indication that something failed
+  - No way for user to understand or fix the problem
+
+Pattern: Inconsistent error handling
+  - Some mutations have onError handlers, others don't
+  - Some functions return error field, others return empty results
+  - No consistent pattern across the codebase
+
+================================================================================
+POLICY VIOLATIONS
+================================================================================
+
+From CLAUDE.md:
+  "Never silently fail in production code"
+  "Always log errors using appropriate logging functions"
+  "Include relevant context in error messages"
+  "Propagate errors to appropriate handlers"
+  "Never use empty catch blocks"
+
+This audit found violations in all of these areas.
+
+================================================================================
+IMMEDIATE ACTION REQUIRED
+================================================================================
+
+Issues #1, #2, #3 must be fixed immediately. They represent:
+  - Direct policy violations (silent failures)
+  - Severe user experience problems
+  - Complete loss of functionality
+  - Debugging impossibility
+
+Estimated fix time: 2-3 hours
+Impact of not fixing: Users cannot use editor launch, dev server launch, 
+                      or view projects reliably.
+
+================================================================================
+TESTING GAPS
+================================================================================
+
+No tests exist for:
+  - exec() failure scenarios
+  - Partial Promise failures
+  - Error callback handling
+  - Invalid terminal names
+  - Network failures
+
+All server functions should have error path tests.
+
+================================================================================
+RECOMMENDATIONS
+================================================================================
+
+1. Fix critical issues before merging to main
+2. Add error handling tests for all async operations
+3. Standardize error handling patterns across codebase
+4. Use Promise.allSettled() for multiple async operations
+5. Always await async operations or verify they can fail safely
+6. Log errors before returning to user
+7. Include error context in all error messages
+8. Check for execFileNoThrow utility (safer than exec)
+9. Add error fields to all response types
+10. Implement consistent error callback pattern in mutations
+
+================================================================================
+FULL REPORT
+================================================================================
+
+See: ERROR_HANDLING_AUDIT_REPORT.md
+
+For detailed analysis of each issue including:
+  - Line numbers
+  - Hidden errors
+  - User impact
+  - Code examples
+  - Recommended fixes
+
+================================================================================

@@ -27,6 +27,7 @@ export const queryKeys = {
   // Projects
   projects: ["projects"] as const,
   projectsWithEpics: ["projects", "with-epics"] as const,
+  projectDeletePreview: (projectId: string) => ["projects", projectId, "delete-preview"] as const,
 
   // Epics
   epics: (projectId: string) => ["epics", projectId] as const,
@@ -88,4 +89,10 @@ export const queryKeys = {
 
   // Workflow State
   workflowState: (ticketId: string) => ["workflowState", ticketId] as const,
+
+  // Development Hub
+  techStack: (projectPath: string) => ["techStack", projectPath] as const,
+  editors: ["editors"] as const,
+  devCommands: (projectPath: string) => ["devCommands", projectPath] as const,
+  gitInfo: (projectPath: string) => ["gitInfo", projectPath] as const,
 };

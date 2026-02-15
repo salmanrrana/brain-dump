@@ -34,7 +34,11 @@ Task 3: pr-review-toolkit:code-simplifier
    - **Important Issues**: Should fix, but not blocking
    - **Suggestions**: Nice to have improvements
 
-5. If there are critical issues, offer to fix them.
+5. If there are critical issues, offer to fix them. When the user wants fixes applied:
+   - Work through findings by severity: CRITICAL first, then HIGH, MEDIUM, LOW
+   - For large fix sets, suggest committing after each severity level to prevent context loss
+   - After each fix, verify that `pnpm type-check` still passes
+   - Run `pnpm check` after all fixes are applied
 
 6. After completing the review, mark it as done by running:
    ```bash

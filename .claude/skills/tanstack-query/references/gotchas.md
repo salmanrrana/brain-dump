@@ -11,22 +11,22 @@ Parameters are dependencies to the query. When dependencies change, the query au
 ```typescript
 // WRONG approach
 const { refetch } = useQuery({
-  queryKey: ['item'],
+  queryKey: ["item"],
   queryFn: () => fetchItem(id),
-})
+});
 // Trying to call refetch with new id - doesn't work!
-refetch({ id: newId })
+refetch({ id: newId });
 
 // CORRECT approach - parameters as state
-const [selectedId, setSelectedId] = useState(initialId)
+const [selectedId, setSelectedId] = useState(initialId);
 
 const { data } = useQuery({
-  queryKey: ['item', selectedId],
+  queryKey: ["item", selectedId],
   queryFn: () => fetchItem(selectedId),
-})
+});
 
 // When you need different data, update the state
-setSelectedId(newId) // This triggers a new query automatically
+setSelectedId(newId); // This triggers a new query automatically
 ```
 
 **Key insight**: "You don't really want a refetch: You want a new fetch for a different id!"
@@ -39,17 +39,18 @@ Query keys must match exactly. String `'1'` is different from number `1`.
 
 ```typescript
 // These are DIFFERENT query keys!
-queryKey: ['todos', '1']  // string
-queryKey: ['todos', 1]    // number
+queryKey: ["todos", "1"]; // string
+queryKey: ["todos", 1]; // number
 
 // Fix: Be consistent with types
 // Use TypeScript and Query Key Factories to prevent mismatches
 const todoQueries = {
-  detail: (id: number) => queryOptions({
-    queryKey: ['todos', id] as const,
-    queryFn: () => fetchTodo(id),
-  }),
-}
+  detail: (id: number) =>
+    queryOptions({
+      queryKey: ["todos", id] as const,
+      queryFn: () => fetchTodo(id),
+    }),
+};
 ```
 
 ### Cause 2: Unstable QueryClient
@@ -86,13 +87,13 @@ While importing the QueryClient directly works, `useQueryClient()` is preferred 
 
 ```typescript
 // Acceptable but less flexible
-import { queryClient } from './queryClient'
-queryClient.invalidateQueries({ queryKey: ['todos'] })
+import { queryClient } from "./queryClient";
+queryClient.invalidateQueries({ queryKey: ["todos"] });
 
 // Preferred approach
 function MyComponent() {
-  const queryClient = useQueryClient()
-  queryClient.invalidateQueries({ queryKey: ['todos'] })
+  const queryClient = useQueryClient();
+  queryClient.invalidateQueries({ queryKey: ["todos"] });
 }
 ```
 
@@ -105,24 +106,24 @@ The built-in `fetch` doesn't reject on 4xx/5xx status codes:
 ```typescript
 // BAD: fetch doesn't throw on 404/500
 const fetchTodo = async (id: string) => {
-  const response = await fetch(`/api/todos/${id}`)
-  return response.json() // No error even if 404!
-}
+  const response = await fetch(`/api/todos/${id}`);
+  return response.json(); // No error even if 404!
+};
 
 // GOOD: Check response.ok and throw
 const fetchTodo = async (id: string) => {
-  const response = await fetch(`/api/todos/${id}`)
+  const response = await fetch(`/api/todos/${id}`);
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`)
+    throw new Error(`HTTP error! status: ${response.status}`);
   }
-  return response.json()
-}
+  return response.json();
+};
 
 // ALSO GOOD: Use axios (throws by default)
 const fetchTodo = async (id: string) => {
-  const { data } = await axios.get(`/api/todos/${id}`)
-  return data
-}
+  const { data } = await axios.get(`/api/todos/${id}`);
+  return data;
+};
 ```
 
 ### Cause 2: Silent error catching
@@ -133,24 +134,24 @@ If you catch errors for logging without re-throwing, the Promise resolves succes
 // BAD: Error is swallowed
 const fetchTodo = async (id: string) => {
   try {
-    const response = await api.get(`/todos/${id}`)
-    return response.data
+    const response = await api.get(`/todos/${id}`);
+    return response.data;
   } catch (error) {
-    console.error('Failed to fetch:', error)
+    console.error("Failed to fetch:", error);
     // No return or re-throw = resolves with undefined
   }
-}
+};
 
 // GOOD: Re-throw after logging
 const fetchTodo = async (id: string) => {
   try {
-    const response = await api.get(`/todos/${id}`)
-    return response.data
+    const response = await api.get(`/todos/${id}`);
+    return response.data;
   } catch (error) {
-    console.error('Failed to fetch:', error)
-    throw error // Re-throw so RQ knows about the error
+    console.error("Failed to fetch:", error);
+    throw error; // Re-throw so RQ knows about the error
   }
-}
+};
 ```
 
 ## FAQ: Why isn't the queryFn being called?
@@ -162,26 +163,26 @@ When `initialData` is provided and `staleTime` is set, data exists in cache and 
 ```typescript
 // PROBLEMATIC: queryFn may never be called
 const { data } = useQuery({
-  queryKey: ['todos'],
+  queryKey: ["todos"],
   queryFn: fetchTodos,
   initialData: [],
   staleTime: 5 * 60 * 1000, // Data is "fresh" for 5 minutes
-})
+});
 
 // SOLUTION 1: Use placeholderData instead
 const { data } = useQuery({
-  queryKey: ['todos'],
+  queryKey: ["todos"],
   queryFn: fetchTodos,
   placeholderData: [], // Shown while loading, doesn't prevent fetch
-})
+});
 
 // SOLUTION 2: Mark initialData as immediately stale
 const { data } = useQuery({
-  queryKey: ['todos'],
+  queryKey: ["todos"],
   queryFn: fetchTodos,
   initialData: [],
   initialDataUpdatedAt: 0, // Treat as stale immediately
-})
+});
 ```
 
 ## The Bad Parts: Tradeoffs to Consider
@@ -201,16 +202,16 @@ Using TanStack Query for synchronous UI state (toggles, theme, form state) is in
 ```typescript
 // BAD: RQ for client state
 const { data: theme } = useQuery({
-  queryKey: ['theme'],
-  queryFn: () => localStorage.getItem('theme'),
+  queryKey: ["theme"],
+  queryFn: () => localStorage.getItem("theme"),
   staleTime: Infinity,
-})
+});
 
 // GOOD: Use appropriate tools
 // - useState for component state
 // - useContext for shared state
 // - Zustand/Jotai for global client state
-const [theme, setTheme] = useState(() => localStorage.getItem('theme'))
+const [theme, setTheme] = useState(() => localStorage.getItem("theme"));
 ```
 
 ### Learning Curve
@@ -229,12 +230,39 @@ The perception that TanStack Query has a "huge" bundle size is misleading:
 - Actual minified+gzipped size for core features: **under 10kb**
 - Bundle size saved by code you don't write often outweighs the library cost
 
+## FAQ: Why does my cached data disappear?
+
+### Cause: gcTime shorter than staleTime
+
+When `staleTime` is long (e.g., 1 hour) but `gcTime` is default (5 minutes), the cache entry gets garbage collected while still conceptually "fresh":
+
+```typescript
+// BAD: Data cached for 1 hour but GC'd after 5 minutes (default)
+const { data } = useQuery({
+  queryKey: ["editors"],
+  queryFn: detectEditors,
+  staleTime: 60 * 60 * 1000, // 1 hour
+  // gcTime defaults to 5 * 60 * 1000 (5 minutes)
+});
+
+// GOOD: Match gcTime to staleTime for long-lived data
+const { data } = useQuery({
+  queryKey: ["editors"],
+  queryFn: detectEditors,
+  staleTime: 60 * 60 * 1000, // 1 hour
+  gcTime: 60 * 60 * 1000, // Also 1 hour
+});
+```
+
+**Rule of thumb**: If `staleTime` > 5 minutes, set `gcTime` to at least the same value. Otherwise the data gets garbage collected when the component unmounts and must be refetched when it remounts, defeating the purpose of the long `staleTime`.
+
 ## Quick Checklist for Common Issues
 
-| Issue | Check |
-|-------|-------|
-| Data not updating | Query keys matching exactly? QueryClient stable? |
-| No errors showing | fetch checking response.ok? Not swallowing errors? |
-| queryFn not called | Using initialData with staleTime? |
-| Multiple requests | staleTime too low? Multiple components mounting? |
-| Memory leaks | gcTime too high? Disabled garbage collection? |
+| Issue                    | Check                                                   |
+| ------------------------ | ------------------------------------------------------- |
+| Data not updating        | Query keys matching exactly? QueryClient stable?        |
+| No errors showing        | fetch checking response.ok? Not swallowing errors?      |
+| queryFn not called       | Using initialData with staleTime?                       |
+| Multiple requests        | staleTime too low? Multiple components mounting?        |
+| Memory leaks             | gcTime too high? Disabled garbage collection?           |
+| Cached data disappearing | gcTime shorter than staleTime? (default gcTime is 5min) |
