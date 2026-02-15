@@ -267,6 +267,12 @@ a.nav-item,
     animation-iteration-count: infinite !important;
   }
 
+  /* Hide LetterGlitch canvas as CSS safety net
+     (component handles reduced motion internally via LoadingScreen) */
+  .letter-glitch-canvas {
+    display: none;
+  }
+
   /* Skip link transition - make instant */
   .skip-to-content {
     transition: none !important;

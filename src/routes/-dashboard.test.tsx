@@ -74,9 +74,9 @@ describe("Dashboard", () => {
   it("shows loading state while fetching tickets", () => {
     mockUseTickets.mockReturnValue({ tickets: [], loading: true, error: null });
 
-    render(<Dashboard />);
+    const { container } = render(<Dashboard />);
 
-    expect(screen.getByText("Loading dashboard...")).toBeInTheDocument();
+    expect(container.querySelector(".letter-glitch-canvas")).toBeInTheDocument();
   });
 
   it("shows error message when ticket fetch fails", () => {

@@ -5,6 +5,7 @@ import type { CSSProperties } from "react";
 import { useProjectsWithAIActivity } from "../lib/hooks";
 import { useAppState } from "../components/AppLayout";
 import ProjectListItem from "../components/projects/ProjectListItem";
+import { LoadingScreen } from "../components/LoadingScreen";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -39,7 +40,7 @@ function Home() {
     return (
       <div style={pageContainerStyles}>
         <div style={centeredContainerStyles}>
-          <p style={{ color: "var(--text-secondary)" }}>Loading projects...</p>
+          <LoadingScreen compact />
         </div>
       </div>
     );
