@@ -1131,6 +1131,17 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     flags: [prettyFlag],
     examples: ["brain-dump admin health --pretty"],
   },
+
+  // ── top-level power commands ────────────────────────────────
+  {
+    resource: "_top",
+    action: "open",
+    description: "Open Brain Dump UI in the browser",
+    flags: [
+      { name: "port", type: "number", required: false, description: "Port number (default: 4242)" },
+    ],
+    examples: ["brain-dump open", "brain-dump open --port 3000"],
+  },
 ];
 
 // ── Lookup helpers ─────────────────────────────────────────────

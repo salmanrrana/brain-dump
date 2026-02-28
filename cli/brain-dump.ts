@@ -42,6 +42,8 @@
  *   brain-dump backup --list          (backward compat)
  */
 
+import { execFile } from "child_process";
+import { request } from "http";
 import * as admin from "./commands/admin.ts";
 import * as project from "./commands/project.ts";
 import * as ticket from "./commands/ticket.ts";
@@ -127,6 +129,40 @@ function backwardArgs(): string[] {
   return action ? [action, ...rest] : rest;
 }
 
+function handleOpen(): void {
+  const portFlag = rest.find((_, i) => rest[i - 1] === "--port");
+  const port = portFlag ? parseInt(portFlag, 10) : 4242;
+  const url = `http://localhost:${port}/`;
+
+  // Health check before opening
+  const healthReq = request(url, { method: "HEAD", timeout: 2000 }, (res) => {
+    if (res.statusCode && res.statusCode < 500) {
+      openBrowser(url);
+    } else {
+      console.error(`Server responded with status ${res.statusCode}.`);
+      process.exit(1);
+    }
+  });
+  healthReq.on("error", () => {
+    console.error(`Dev server not running at ${url}. Start it with: pnpm dev`);
+    process.exit(1);
+  });
+  healthReq.end();
+}
+
+function openBrowser(url: string): void {
+  const platform = process.platform;
+  const cmd = platform === "darwin" ? "open" : platform === "win32" ? "cmd" : "xdg-open";
+  const cmdArgs = platform === "win32" ? ["/c", "start", url] : [url];
+
+  execFile(cmd, cmdArgs, (err) => {
+    if (err) {
+      console.error(`Failed to open browser: ${err.message}`);
+      console.error(`Open manually: ${url}`);
+    }
+  });
+}
+
 switch (resource) {
   // ── Resource-based routing ──────────────────────────────────
   case "project":
@@ -173,6 +209,11 @@ switch (resource) {
     break;
   case "admin":
     runAsync(admin.handle, action, rest);
+    break;
+
+  // ── Top-level power commands ─────────────────────────────────
+  case "open":
+    handleOpen();
     break;
 
   // ── Backward compatibility (top-level commands) ─────────────
