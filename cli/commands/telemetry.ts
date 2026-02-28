@@ -9,6 +9,7 @@ import {
   listTelemetrySessions,
   logTool,
   logPrompt,
+  logContext,
   InvalidActionError,
 } from "../../core/index.ts";
 import type { TelemetryOutcome, ToolEventType } from "../../core/index.ts";
@@ -16,14 +17,14 @@ import { parseFlags, requireFlag, optionalFlag, boolFlag, numericFlag } from "..
 import { outputResult, outputError, showResourceHelp } from "../lib/output.ts";
 import { getDb } from "../lib/db.ts";
 
-const ACTIONS = ["start", "end", "get", "list", "log-tool", "log-prompt"];
+const ACTIONS = ["start", "end", "get", "list", "log-tool", "log-prompt", "log-context"];
 
 export function handle(action: string, args: string[]): void {
   if (!action || action === "--help" || action === "help") {
     showResourceHelp(
       "telemetry",
       ACTIONS,
-      "Flags:\n  --session <id>       Session ID\n  --ticket <id>        Ticket ID\n  --project <path>     Project path\n  --outcome <out>      success|failure|timeout|cancelled\n  --tokens <n>         Total token count\n  --since <date>       ISO date filter\n  --limit <n>          Max results\n  --tool <name>        Tool name (for log-tool)\n  --event <type>       start|end (for log-tool)\n  --prompt <text>      Prompt text (for log-prompt)\n  --pretty             Human-readable output"
+      "Flags:\n  --session <id>         Session ID\n  --ticket <id>          Ticket ID\n  --project <path>       Project path\n  --outcome <out>        success|failure|timeout|cancelled\n  --tokens <n>           Total token count\n  --since <date>         ISO date filter\n  --limit <n>            Max results\n  --tool <name>          Tool name (for log-tool)\n  --event <type>         start|end (for log-tool)\n  --prompt <text>        Prompt text (for log-prompt)\n  --has-description      Ticket had description (for log-context)\n  --has-criteria         Ticket had acceptance criteria (for log-context)\n  --criteria-count <n>   Number of criteria\n  --comment-count <n>    Number of comments\n  --attachment-count <n> Number of attachments\n  --image-count <n>      Number of images\n  --pretty               Human-readable output"
     );
   }
 
@@ -110,6 +111,27 @@ export function handle(action: string, args: string[]): void {
           sessionId,
           prompt,
           ...(redact ? { redact } : {}),
+        });
+        outputResult(result, pretty);
+        break;
+      }
+
+      case "log-context": {
+        const sessionId = requireFlag(flags, "session");
+        const hasDescription = boolFlag(flags, "has-description");
+        const hasAcceptanceCriteria = boolFlag(flags, "has-criteria");
+        const criteriaCount = numericFlag(flags, "criteria-count");
+        const commentCount = numericFlag(flags, "comment-count");
+        const attachmentCount = numericFlag(flags, "attachment-count");
+        const imageCount = numericFlag(flags, "image-count");
+        const result = logContext(db, {
+          sessionId,
+          hasDescription,
+          hasAcceptanceCriteria,
+          ...(criteriaCount !== undefined ? { criteriaCount } : {}),
+          ...(commentCount !== undefined ? { commentCount } : {}),
+          ...(attachmentCount !== undefined ? { attachmentCount } : {}),
+          ...(imageCount !== undefined ? { imageCount } : {}),
         });
         outputResult(result, pretty);
         break;

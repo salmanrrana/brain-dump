@@ -829,6 +829,49 @@ export const COMMAND_REGISTRY: CommandDef[] = [
       prettyFlag,
     ],
   },
+  {
+    resource: "telemetry",
+    action: "log-context",
+    description: "Log ticket context loaded when AI started work",
+    flags: [
+      sessionFlag,
+      {
+        name: "has-description",
+        type: "boolean",
+        required: false,
+        description: "Ticket had description",
+      },
+      {
+        name: "has-criteria",
+        type: "boolean",
+        required: false,
+        description: "Ticket had acceptance criteria",
+      },
+      {
+        name: "criteria-count",
+        type: "number",
+        required: false,
+        description: "Number of criteria",
+      },
+      {
+        name: "comment-count",
+        type: "number",
+        required: false,
+        description: "Number of comments",
+      },
+      {
+        name: "attachment-count",
+        type: "number",
+        required: false,
+        description: "Number of attachments",
+      },
+      { name: "image-count", type: "number", required: false, description: "Number of images" },
+      prettyFlag,
+    ],
+    examples: [
+      "brain-dump telemetry log-context --session abc --has-description --has-criteria --criteria-count 3",
+    ],
+  },
 
   // ── files ──────────────────────────────────────────────────
   {
