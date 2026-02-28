@@ -57,25 +57,16 @@ import * as compliance from "./commands/compliance.ts";
 import * as settings from "./commands/settings.ts";
 import * as transfer from "./commands/transfer.ts";
 import { outputError } from "./lib/output.ts";
+import { getResources, getResourceDescription } from "./lib/command-registry.ts";
 
-const RESOURCES = [
-  "ticket",
-  "epic",
-  "workflow",
-  "comment",
-  "review",
-  "session",
-  "git",
-  "telemetry",
-  "files",
-  "tasks",
-  "compliance",
-  "settings",
-  "transfer",
-  "admin",
-];
+const RESOURCES = getResources();
 
 function showHelp(): void {
+  const maxLen = Math.max(...RESOURCES.map((r) => r.length));
+  const resourceLines = RESOURCES.map(
+    (r) => `  ${r.padEnd(maxLen + 2)}${getResourceDescription(r)}`
+  ).join("\n");
+
   console.log(`
 Brain Dump CLI - Full resource management and database utilities
 
@@ -83,20 +74,7 @@ Usage:
   brain-dump <resource> <action> [--flags]
 
 Resources:
-  ticket       Create, list, get, update, delete tickets
-  epic         Create, list, update, delete epics
-  workflow     Start work, complete work, start epic
-  comment      Add and list ticket comments
-  review       Submit findings, generate demos, manage reviews
-  session      Create, update, complete Ralph sessions
-  git          Link commits, PRs, sync ticket links
-  telemetry    Start, end, get, list telemetry sessions
-  files        Link files to tickets, find tickets by file
-  tasks        Save, get, clear Claude task lists
-  compliance   Conversation logging for compliance auditing
-  settings     Get and update project settings
-  transfer     Export and import .braindump archives
-  admin        Backup, restore, check, doctor, health
+${resourceLines}
 
 Backward-compatible shortcuts:
   brain-dump backup [--list]       Same as: brain-dump admin backup [--list]
