@@ -315,6 +315,100 @@ export function updateTicketStatus(
   return getTicketWithProject(db, ticketId);
 }
 
+export interface UpdateTicketParams {
+  title?: string | undefined;
+  description?: string | undefined;
+  status?: TicketStatus | undefined;
+  priority?: Priority | undefined;
+  epicId?: string | undefined;
+  tags?: string[] | undefined;
+}
+
+/**
+ * Update multiple ticket fields at once.
+ * Only updates fields that are provided (non-undefined).
+ * Validates epic exists if epicId is given.
+ * @throws TicketNotFoundError if the ticket doesn't exist
+ * @throws EpicNotFoundError if the epic doesn't exist
+ * @throws ValidationError if no fields are provided or values are invalid
+ */
+export function updateTicket(
+  db: DbHandle,
+  ticketId: string,
+  params: UpdateTicketParams
+): TicketWithProject {
+  // Verify ticket exists
+  getTicketRow(db, ticketId);
+
+  const setClauses: string[] = [];
+  const values: (string | number | null)[] = [];
+
+  if (params.title !== undefined) {
+    setClauses.push("title = ?");
+    values.push(params.title.trim());
+  }
+
+  if (params.description !== undefined) {
+    setClauses.push("description = ?");
+    values.push(params.description);
+  }
+
+  if (params.status !== undefined) {
+    if (!VALID_STATUSES.includes(params.status)) {
+      throw new ValidationError(
+        `Invalid status: ${params.status}. Valid: ${VALID_STATUSES.join(", ")}`
+      );
+    }
+    setClauses.push("status = ?");
+    values.push(params.status);
+
+    if (params.status === "done") {
+      setClauses.push("completed_at = ?");
+      values.push(new Date().toISOString());
+    }
+  }
+
+  if (params.priority !== undefined) {
+    if (!VALID_PRIORITIES.includes(params.priority)) {
+      throw new ValidationError(
+        `Invalid priority: ${params.priority}. Valid: ${VALID_PRIORITIES.join(", ")}`
+      );
+    }
+    setClauses.push("priority = ?");
+    values.push(params.priority);
+  }
+
+  if (params.epicId !== undefined) {
+    // Validate epic exists
+    const epic = db.prepare("SELECT id FROM epics WHERE id = ?").get(params.epicId) as
+      | { id: string }
+      | undefined;
+    if (!epic) throw new EpicNotFoundError(params.epicId);
+
+    setClauses.push("epic_id = ?");
+    values.push(params.epicId);
+  }
+
+  if (params.tags !== undefined) {
+    setClauses.push("tags = ?");
+    values.push(JSON.stringify(params.tags));
+  }
+
+  if (setClauses.length === 0) {
+    throw new ValidationError(
+      "No fields to update. Provide at least one of: --title, --description, --status, --priority, --epic, --tags"
+    );
+  }
+
+  setClauses.push("updated_at = ?");
+  values.push(new Date().toISOString());
+  values.push(ticketId);
+
+  db.prepare(`UPDATE tickets SET ${setClauses.join(", ")} WHERE id = ?`).run(...values);
+
+  return getTicketWithProject(db, ticketId);
+}
+
 export type CriterionStatus = "pending" | "passed" | "failed" | "skipped";
 
 export interface UpdateCriterionResult {

@@ -99,6 +99,7 @@ export {
   listTickets,
   getTicket,
   updateTicketStatus,
+  updateTicket,
   updateAcceptanceCriterion,
   deleteTicket,
   updateAttachmentMetadata,
@@ -107,6 +108,7 @@ export {
 
 export type {
   CreateTicketParams,
+  UpdateTicketParams,
   ListTicketsFilters,
   TicketSummary,
   CriterionStatus,
