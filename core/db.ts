@@ -237,248 +237,13 @@ function addColumnIfMissing(
   }
 }
 
-export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void {
-  // Ticket columns
-  addColumnIfMissing(db, "tickets", "linked_commits", "TEXT", logger);
-  addColumnIfMissing(db, "tickets", "branch_name", "TEXT", logger);
-  addColumnIfMissing(db, "tickets", "pr_number", "INTEGER", logger);
-  addColumnIfMissing(db, "tickets", "pr_url", "TEXT", logger);
-  addColumnIfMissing(db, "tickets", "pr_status", "TEXT", logger);
-
-  // Project columns
-  addColumnIfMissing(db, "projects", "working_method", "TEXT DEFAULT 'auto'", logger);
-
-  // Ralph events table
-  if (!tableExists(db, "ralph_events")) {
-    db.prepare(
-      `
-      CREATE TABLE ralph_events (
-        id TEXT PRIMARY KEY,
-        session_id TEXT NOT NULL,
-        type TEXT NOT NULL,
-        data TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now'))
-      )
-    `
-    ).run();
-    db.prepare("CREATE INDEX idx_ralph_events_session ON ralph_events(session_id)").run();
-    db.prepare("CREATE INDEX idx_ralph_events_created ON ralph_events(created_at)").run();
-    logger.info("Created ralph_events table");
+function ensureBaseSchema(db: DbHandle, logger: Logger): void {
+  if (tableExists(db, "projects") && tableExists(db, "tickets") && tableExists(db, "settings")) {
+    return;
   }
 
-  // Ralph sessions table
-  if (!tableExists(db, "ralph_sessions")) {
-    db.prepare(
-      `
-      CREATE TABLE ralph_sessions (
-        id TEXT PRIMARY KEY,
-        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
-        project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
-        current_state TEXT NOT NULL DEFAULT 'idle',
-        state_history TEXT,
-        outcome TEXT,
-        error_message TEXT,
-        started_at TEXT NOT NULL DEFAULT (datetime('now')),
-        completed_at TEXT
-      )
-    `
-    ).run();
-    db.prepare("CREATE INDEX idx_ralph_sessions_ticket ON ralph_sessions(ticket_id)").run();
-    db.prepare("CREATE INDEX idx_ralph_sessions_state ON ralph_sessions(current_state)").run();
-    logger.info("Created ralph_sessions table");
-  } else {
-    addColumnIfMissing(
-      db,
-      "ralph_sessions",
-      "current_state",
-      "TEXT NOT NULL DEFAULT 'idle'",
-      logger
-    );
-    addColumnIfMissing(db, "ralph_sessions", "state_history", "TEXT", logger);
-    addColumnIfMissing(db, "ralph_sessions", "completed_at", "TEXT", logger);
-    addColumnIfMissing(
-      db,
-      "ralph_sessions",
-      "project_id",
-      "TEXT REFERENCES projects(id) ON DELETE SET NULL",
-      logger
-    );
-    db.prepare(
-      "CREATE INDEX IF NOT EXISTS idx_ralph_sessions_state ON ralph_sessions(current_state)"
-    ).run();
-  }
+  logger.info("Missing base schema tables; creating base schema before migrations");
 
-  // Conversation sessions table (enterprise compliance)
-  if (!tableExists(db, "conversation_sessions")) {
-    db.prepare(
-      `
-      CREATE TABLE conversation_sessions (
-        id TEXT PRIMARY KEY NOT NULL,
-        project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
-        ticket_id TEXT REFERENCES tickets(id) ON DELETE SET NULL,
-        user_id TEXT,
-        environment TEXT NOT NULL DEFAULT 'unknown',
-        session_metadata TEXT,
-        data_classification TEXT DEFAULT 'internal',
-        legal_hold INTEGER DEFAULT 0,
-        started_at TEXT NOT NULL DEFAULT (datetime('now')),
-        ended_at TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now'))
-      )
-    `
-    ).run();
-    db.prepare(
-      "CREATE INDEX idx_conversation_sessions_project ON conversation_sessions(project_id)"
-    ).run();
-    db.prepare(
-      "CREATE INDEX idx_conversation_sessions_ticket ON conversation_sessions(ticket_id)"
-    ).run();
-    db.prepare(
-      "CREATE INDEX idx_conversation_sessions_user ON conversation_sessions(user_id)"
-    ).run();
-    db.prepare(
-      "CREATE INDEX idx_conversation_sessions_started ON conversation_sessions(started_at)"
-    ).run();
-    logger.info("Created conversation_sessions table");
-  }
-
-  // Conversation messages table
-  if (!tableExists(db, "conversation_messages")) {
-    db.prepare(
-      `
-      CREATE TABLE conversation_messages (
-        id TEXT PRIMARY KEY NOT NULL,
-        session_id TEXT NOT NULL REFERENCES conversation_sessions(id) ON DELETE CASCADE,
-        role TEXT NOT NULL,
-        content TEXT NOT NULL,
-        content_hash TEXT NOT NULL,
-        tool_calls TEXT,
-        token_count INTEGER,
-        model_id TEXT,
-        sequence_number INTEGER NOT NULL,
-        contains_potential_secrets INTEGER DEFAULT 0,
-        created_at TEXT NOT NULL DEFAULT (datetime('now'))
-      )
-    `
-    ).run();
-    db.prepare(
-      "CREATE INDEX idx_conversation_messages_session ON conversation_messages(session_id)"
-    ).run();
-    db.prepare(
-      "CREATE INDEX idx_conversation_messages_session_seq ON conversation_messages(session_id, sequence_number)"
-    ).run();
-    db.prepare(
-      "CREATE INDEX idx_conversation_messages_created ON conversation_messages(created_at)"
-    ).run();
-    logger.info("Created conversation_messages table");
-  }
-
-  // Audit log access table
-  if (!tableExists(db, "audit_log_access")) {
-    db.prepare(
-      `
-      CREATE TABLE audit_log_access (
-        id TEXT PRIMARY KEY NOT NULL,
-        accessor_id TEXT NOT NULL,
-        target_type TEXT NOT NULL,
-        target_id TEXT NOT NULL,
-        action TEXT NOT NULL,
-        result TEXT NOT NULL,
-        accessed_at TEXT NOT NULL DEFAULT (datetime('now'))
-      )
-    `
-    ).run();
-    db.prepare("CREATE INDEX idx_audit_log_accessor ON audit_log_access(accessor_id)").run();
-    db.prepare(
-      "CREATE INDEX idx_audit_log_target ON audit_log_access(target_type, target_id)"
-    ).run();
-    db.prepare("CREATE INDEX idx_audit_log_accessed ON audit_log_access(accessed_at)").run();
-    logger.info("Created audit_log_access table");
-  }
-
-  // Settings columns for conversation logging
-  addColumnIfMissing(db, "settings", "conversation_retention_days", "INTEGER DEFAULT 90", logger);
-  addColumnIfMissing(db, "settings", "conversation_logging_enabled", "INTEGER DEFAULT 1", logger);
-}
-
-// ============================================
-// Database Initialization
-// ============================================
-
-export interface InitDatabaseOptions {
-  /** Override database path. Use ":memory:" for tests. */
-  dbPath?: string;
-  /** Logger instance. Defaults to silentLogger. */
-  logger?: Logger;
-  /** Skip legacy migration (useful for tests). */
-  skipMigration?: boolean;
-  /** Skip schema migrations (useful when connecting to existing DB). */
-  skipSchemaMigrations?: boolean;
-}
-
-/**
- * Initialize a database connection with WAL mode and run migrations.
- *
- * For production: `initDatabase()` — uses XDG paths, runs legacy migration.
- * For tests: `initDatabase({ dbPath: ":memory:", skipMigration: true })`.
- */
-export function initDatabase(options: InitDatabaseOptions = {}): InitDatabaseResult {
-  const {
-    dbPath: overridePath,
-    logger = silentLogger,
-    skipMigration = false,
-    skipSchemaMigrations = false,
-  } = options;
-
-  if (!skipMigration) {
-    ensureDirectoriesSync();
-
-    const migrationResult = migrateFromLegacySync(logger);
-    if (migrationResult.migrated) {
-      logger.info(migrationResult.message);
-    }
-  }
-
-  let actualDbPath: string;
-
-  if (overridePath) {
-    actualDbPath = overridePath;
-  } else {
-    const xdgDbPath = getDbPath();
-    const legacyDbPath = join(getLegacyDir(), "brain-dump.db");
-
-    if (existsSync(xdgDbPath)) {
-      actualDbPath = xdgDbPath;
-    } else if (existsSync(legacyDbPath) && !isMigrationComplete()) {
-      logger.info(`Using legacy database at ${legacyDbPath}`);
-      actualDbPath = legacyDbPath;
-    } else {
-      // For fresh installs, create a new database at the XDG path
-      ensureDirectoriesSync();
-      actualDbPath = xdgDbPath;
-    }
-  }
-
-  const db = new Database(actualDbPath);
-  db.pragma("journal_mode = WAL");
-  logger.info(`Connected to database: ${actualDbPath}`);
-
-  if (!skipSchemaMigrations) {
-    runMigrations(db, logger);
-  }
-
-  return { db, dbPath: actualDbPath };
-}
-
-/**
- * Create an in-memory database with the base schema for testing.
- * This creates all tables needed by the application.
- */
-export function createTestDatabase(logger: Logger = silentLogger): InitDatabaseResult {
-  const db = new Database(":memory:");
-  db.pragma("journal_mode = WAL");
-
-  // Create base schema (matching src/lib/schema.ts / Drizzle migrations)
   db.exec(`
     CREATE TABLE IF NOT EXISTS projects (
       id TEXT PRIMARY KEY NOT NULL,
@@ -673,6 +438,257 @@ export function createTestDatabase(logger: Logger = silentLogger): InitDatabaseR
     CREATE INDEX IF NOT EXISTS idx_telemetry_events_session ON telemetry_events(session_id);
     CREATE INDEX IF NOT EXISTS idx_telemetry_events_correlation ON telemetry_events(correlation_id);
   `);
+}
+
+export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void {
+  // Ticket columns
+  addColumnIfMissing(db, "tickets", "linked_commits", "TEXT", logger);
+  addColumnIfMissing(db, "tickets", "branch_name", "TEXT", logger);
+  addColumnIfMissing(db, "tickets", "pr_number", "INTEGER", logger);
+  addColumnIfMissing(db, "tickets", "pr_url", "TEXT", logger);
+  addColumnIfMissing(db, "tickets", "pr_status", "TEXT", logger);
+
+  // Project columns
+  addColumnIfMissing(db, "projects", "working_method", "TEXT DEFAULT 'auto'", logger);
+
+  // Ralph events table
+  if (!tableExists(db, "ralph_events")) {
+    db.prepare(
+      `
+      CREATE TABLE ralph_events (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        data TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `
+    ).run();
+    db.prepare("CREATE INDEX idx_ralph_events_session ON ralph_events(session_id)").run();
+    db.prepare("CREATE INDEX idx_ralph_events_created ON ralph_events(created_at)").run();
+    logger.info("Created ralph_events table");
+  }
+
+  // Ralph sessions table
+  if (!tableExists(db, "ralph_sessions")) {
+    db.prepare(
+      `
+      CREATE TABLE ralph_sessions (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+        current_state TEXT NOT NULL DEFAULT 'idle',
+        state_history TEXT,
+        outcome TEXT,
+        error_message TEXT,
+        started_at TEXT NOT NULL DEFAULT (datetime('now')),
+        completed_at TEXT
+      )
+    `
+    ).run();
+    db.prepare("CREATE INDEX idx_ralph_sessions_ticket ON ralph_sessions(ticket_id)").run();
+    db.prepare("CREATE INDEX idx_ralph_sessions_state ON ralph_sessions(current_state)").run();
+    logger.info("Created ralph_sessions table");
+  } else {
+    addColumnIfMissing(
+      db,
+      "ralph_sessions",
+      "current_state",
+      "TEXT NOT NULL DEFAULT 'idle'",
+      logger
+    );
+    addColumnIfMissing(db, "ralph_sessions", "state_history", "TEXT", logger);
+    addColumnIfMissing(db, "ralph_sessions", "completed_at", "TEXT", logger);
+    addColumnIfMissing(
+      db,
+      "ralph_sessions",
+      "project_id",
+      "TEXT REFERENCES projects(id) ON DELETE SET NULL",
+      logger
+    );
+    db.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_ralph_sessions_state ON ralph_sessions(current_state)"
+    ).run();
+  }
+
+  // Conversation sessions table (enterprise compliance)
+  if (!tableExists(db, "conversation_sessions")) {
+    db.prepare(
+      `
+      CREATE TABLE conversation_sessions (
+        id TEXT PRIMARY KEY NOT NULL,
+        project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+        ticket_id TEXT REFERENCES tickets(id) ON DELETE SET NULL,
+        user_id TEXT,
+        environment TEXT NOT NULL DEFAULT 'unknown',
+        session_metadata TEXT,
+        data_classification TEXT DEFAULT 'internal',
+        legal_hold INTEGER DEFAULT 0,
+        started_at TEXT NOT NULL DEFAULT (datetime('now')),
+        ended_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `
+    ).run();
+    db.prepare(
+      "CREATE INDEX idx_conversation_sessions_project ON conversation_sessions(project_id)"
+    ).run();
+    db.prepare(
+      "CREATE INDEX idx_conversation_sessions_ticket ON conversation_sessions(ticket_id)"
+    ).run();
+    db.prepare(
+      "CREATE INDEX idx_conversation_sessions_user ON conversation_sessions(user_id)"
+    ).run();
+    db.prepare(
+      "CREATE INDEX idx_conversation_sessions_started ON conversation_sessions(started_at)"
+    ).run();
+    logger.info("Created conversation_sessions table");
+  }
+
+  // Conversation messages table
+  if (!tableExists(db, "conversation_messages")) {
+    db.prepare(
+      `
+      CREATE TABLE conversation_messages (
+        id TEXT PRIMARY KEY NOT NULL,
+        session_id TEXT NOT NULL REFERENCES conversation_sessions(id) ON DELETE CASCADE,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        content_hash TEXT NOT NULL,
+        tool_calls TEXT,
+        token_count INTEGER,
+        model_id TEXT,
+        sequence_number INTEGER NOT NULL,
+        contains_potential_secrets INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `
+    ).run();
+    db.prepare(
+      "CREATE INDEX idx_conversation_messages_session ON conversation_messages(session_id)"
+    ).run();
+    db.prepare(
+      "CREATE INDEX idx_conversation_messages_session_seq ON conversation_messages(session_id, sequence_number)"
+    ).run();
+    db.prepare(
+      "CREATE INDEX idx_conversation_messages_created ON conversation_messages(created_at)"
+    ).run();
+    logger.info("Created conversation_messages table");
+  }
+
+  // Audit log access table
+  if (!tableExists(db, "audit_log_access")) {
+    db.prepare(
+      `
+      CREATE TABLE audit_log_access (
+        id TEXT PRIMARY KEY NOT NULL,
+        accessor_id TEXT NOT NULL,
+        target_type TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        result TEXT NOT NULL,
+        accessed_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `
+    ).run();
+    db.prepare("CREATE INDEX idx_audit_log_accessor ON audit_log_access(accessor_id)").run();
+    db.prepare(
+      "CREATE INDEX idx_audit_log_target ON audit_log_access(target_type, target_id)"
+    ).run();
+    db.prepare("CREATE INDEX idx_audit_log_accessed ON audit_log_access(accessed_at)").run();
+    logger.info("Created audit_log_access table");
+  }
+
+  // Settings columns added in various migrations
+  addColumnIfMissing(db, "settings", "ralph_timeout", "INTEGER DEFAULT 3600", logger);
+  addColumnIfMissing(db, "settings", "ralph_max_iterations", "INTEGER DEFAULT 10", logger);
+  addColumnIfMissing(db, "settings", "default_working_method", "TEXT DEFAULT 'auto'", logger);
+  addColumnIfMissing(db, "settings", "default_projects_directory", "TEXT", logger);
+  addColumnIfMissing(db, "settings", "docker_runtime", "TEXT", logger);
+  addColumnIfMissing(db, "settings", "docker_socket_path", "TEXT", logger);
+  addColumnIfMissing(db, "settings", "conversation_retention_days", "INTEGER DEFAULT 90", logger);
+  addColumnIfMissing(db, "settings", "conversation_logging_enabled", "INTEGER DEFAULT 1", logger);
+}
+
+// ============================================
+// Database Initialization
+// ============================================
+
+export interface InitDatabaseOptions {
+  /** Override database path. Use ":memory:" for tests. */
+  dbPath?: string;
+  /** Logger instance. Defaults to silentLogger. */
+  logger?: Logger;
+  /** Skip legacy migration (useful for tests). */
+  skipMigration?: boolean;
+  /** Skip schema migrations (useful when connecting to existing DB). */
+  skipSchemaMigrations?: boolean;
+}
+
+/**
+ * Initialize a database connection with WAL mode and run migrations.
+ *
+ * For production: `initDatabase()` — uses XDG paths, runs legacy migration.
+ * For tests: `initDatabase({ dbPath: ":memory:", skipMigration: true })`.
+ */
+export function initDatabase(options: InitDatabaseOptions = {}): InitDatabaseResult {
+  const {
+    dbPath: overridePath,
+    logger = silentLogger,
+    skipMigration = false,
+    skipSchemaMigrations = false,
+  } = options;
+
+  if (!skipMigration) {
+    ensureDirectoriesSync();
+
+    const migrationResult = migrateFromLegacySync(logger);
+    if (migrationResult.migrated) {
+      logger.info(migrationResult.message);
+    }
+  }
+
+  let actualDbPath: string;
+
+  if (overridePath) {
+    actualDbPath = overridePath;
+  } else {
+    const xdgDbPath = getDbPath();
+    const legacyDbPath = join(getLegacyDir(), "brain-dump.db");
+
+    if (existsSync(xdgDbPath)) {
+      actualDbPath = xdgDbPath;
+    } else if (existsSync(legacyDbPath) && !isMigrationComplete()) {
+      logger.info(`Using legacy database at ${legacyDbPath}`);
+      actualDbPath = legacyDbPath;
+    } else {
+      // For fresh installs, create a new database at the XDG path
+      ensureDirectoriesSync();
+      actualDbPath = xdgDbPath;
+    }
+  }
+
+  const db = new Database(actualDbPath);
+  db.pragma("journal_mode = WAL");
+  logger.info(`Connected to database: ${actualDbPath}`);
+
+  if (!skipSchemaMigrations) {
+    ensureBaseSchema(db, logger);
+    runMigrations(db, logger);
+  }
+
+  return { db, dbPath: actualDbPath };
+}
+
+/**
+ * Create an in-memory database with the base schema for testing.
+ * This creates all tables needed by the application.
+ */
+export function createTestDatabase(logger: Logger = silentLogger): InitDatabaseResult {
+  const db = new Database(":memory:");
+  db.pragma("journal_mode = WAL");
+
+  ensureBaseSchema(db, logger);
 
   // Run the additional migration tables
   runMigrations(db, logger);

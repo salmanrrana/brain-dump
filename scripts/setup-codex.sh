@@ -75,6 +75,25 @@ EOF
   fi
   echo -e "${GREEN}✓ Created ~/.codex/config.toml with Brain Dump MCP server${NC}"
 else
+  # Clean up stray brain-dump keys outside the [mcp_servers.brain-dump] section.
+  # These can appear if a previous run was interrupted or the file was manually edited,
+  # and they cause TOML "duplicate key" errors.
+  if grep -q "BRAIN_DUMP_PATH" "$CODEX_CONFIG" && ! grep -q '^\[mcp_servers\.brain-dump\]' "$CODEX_CONFIG"; then
+    # Brain Dump references exist but no proper section header.
+    # Remove only malformed Brain Dump blocks so other MCP servers are untouched.
+    cp "$CODEX_CONFIG" "$CODEX_CONFIG.bak"
+    if perl -0777 -i -pe '
+      s/\n?# Brain Dump MCP server\s*\ncommand = "node"\s*\nargs = \["[^"\n]*mcp-server\/dist\/index\.js"\]\s*\nenv = \{ BRAIN_DUMP_PATH = "[^"\n]*", CODEX = "1" \}\s*\n/\n/gs;
+      s/\n?command = "node"\s*\nargs = \["[^"\n]*mcp-server\/dist\/index\.js"\]\s*\nenv = \{ BRAIN_DUMP_PATH = "[^"\n]*", CODEX = "1" \}\s*\n/\n/gs;
+    ' "$CODEX_CONFIG"; then
+      rm -f "$CODEX_CONFIG.bak"
+      echo -e "${YELLOW}⚠ Cleaned up malformed Brain Dump keys from config.toml${NC}"
+    else
+      mv "$CODEX_CONFIG.bak" "$CODEX_CONFIG" 2>/dev/null || true
+      echo -e "${YELLOW}⚠ Could not clean malformed Brain Dump keys safely${NC}"
+    fi
+  fi
+
   if grep -q '^\[mcp_servers\.brain-dump\]' "$CODEX_CONFIG"; then
     echo -e "${YELLOW}✓ Brain Dump MCP server already configured in ~/.codex/config.toml${NC}"
   else

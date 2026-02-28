@@ -278,8 +278,16 @@ function initSettings() {
         id TEXT PRIMARY KEY DEFAULT 'default' NOT NULL,
         terminal_emulator TEXT,
         ralph_sandbox INTEGER DEFAULT 0,
+        ralph_timeout INTEGER DEFAULT 3600,
+        ralph_max_iterations INTEGER DEFAULT 10,
         auto_create_pr INTEGER DEFAULT 1,
         pr_target_branch TEXT DEFAULT 'dev',
+        default_projects_directory TEXT,
+        default_working_method TEXT DEFAULT 'auto',
+        docker_runtime TEXT,
+        docker_socket_path TEXT,
+        conversation_retention_days INTEGER DEFAULT 90,
+        conversation_logging_enabled INTEGER DEFAULT 1,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
@@ -304,6 +312,24 @@ function initSettings() {
     if (!columns.includes("pr_target_branch")) {
       console.log("Adding pr_target_branch column to settings...");
       sqlite.exec("ALTER TABLE settings ADD COLUMN pr_target_branch TEXT DEFAULT 'dev'");
+    }
+    if (!columns.includes("ralph_timeout")) {
+      sqlite.exec("ALTER TABLE settings ADD COLUMN ralph_timeout INTEGER DEFAULT 3600");
+    }
+    if (!columns.includes("ralph_max_iterations")) {
+      sqlite.exec("ALTER TABLE settings ADD COLUMN ralph_max_iterations INTEGER DEFAULT 10");
+    }
+    if (!columns.includes("default_working_method")) {
+      sqlite.exec("ALTER TABLE settings ADD COLUMN default_working_method TEXT DEFAULT 'auto'");
+    }
+    if (!columns.includes("default_projects_directory")) {
+      sqlite.exec("ALTER TABLE settings ADD COLUMN default_projects_directory TEXT");
+    }
+    if (!columns.includes("docker_runtime")) {
+      sqlite.exec("ALTER TABLE settings ADD COLUMN docker_runtime TEXT");
+    }
+    if (!columns.includes("docker_socket_path")) {
+      sqlite.exec("ALTER TABLE settings ADD COLUMN docker_socket_path TEXT");
     }
   }
 }

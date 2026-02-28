@@ -868,29 +868,30 @@ setup_opencode() {
     MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/dist/index.js"
 
     # Global OpenCode config directories (works from any project)
-    OPENCODE_GLOBAL="$HOME/.config/opencode"
-    OPENCODE_GLOBAL_JSON="$OPENCODE_GLOBAL/opencode.json"
-    OPENCODE_GLOBAL_AGENTS="$OPENCODE_GLOBAL/agents"
-    OPENCODE_GLOBAL_SKILLS="$OPENCODE_GLOBAL/skills"
+    local global_dir="$HOME/.config/opencode"
+    local config_file="$global_dir/opencode.json"
+    local agents_dir="$global_dir/agents"
+    local skills_dir="$global_dir/skills"
 
     # Create global directories
-    for dir in "$OPENCODE_GLOBAL" "$OPENCODE_GLOBAL_AGENTS" "$OPENCODE_GLOBAL_SKILLS"; do
-        mkdir -p "$dir" || { print_error "Failed to create $dir"; return 1; }
-    done
-    print_success "Global directories ready: $OPENCODE_GLOBAL"
+    if ! mkdir -p "$global_dir" "$agents_dir" "$skills_dir"; then
+        print_error "Failed to create OpenCode directories"
+        return 1
+    fi
+    print_success "Global directories ready: $global_dir"
 
     # ── Step 1: Write/merge global opencode.json with absolute MCP path ──
-    if [ -f "$OPENCODE_GLOBAL_JSON" ]; then
+    if [ -f "$config_file" ]; then
         # Merge into existing config (preserve other MCP servers)
-        if grep -q '"brain-dump"' "$OPENCODE_GLOBAL_JSON"; then
+        if grep -q '"brain-dump"' "$config_file"; then
             print_info "Updating existing Brain Dump MCP config with absolute paths..."
         else
             print_info "Adding Brain Dump MCP server to existing config..."
         fi
 
         if command_exists node; then
-            cp "$OPENCODE_GLOBAL_JSON" "$OPENCODE_GLOBAL_JSON.backup"
-            if OPENCODE_JSON="$OPENCODE_GLOBAL_JSON" BRAIN_DUMP_DIR="$BRAIN_DUMP_DIR" node -e '
+            cp "$config_file" "$config_file.backup"
+            if OPENCODE_JSON="$config_file" BRAIN_DUMP_DIR="$BRAIN_DUMP_DIR" node -e '
 const fs = require("fs");
 const configFile = process.env.OPENCODE_JSON;
 const brainDumpDir = process.env.BRAIN_DUMP_DIR;
@@ -919,10 +920,10 @@ config.permission["*"] = "allow";
 fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
 ' 2>/dev/null; then
                 print_success "Updated global opencode.json with Brain Dump MCP server"
-                rm -f "$OPENCODE_GLOBAL_JSON.backup"
+                rm -f "$config_file.backup"
             else
                 print_warning "Failed to merge config, restoring backup"
-                mv "$OPENCODE_GLOBAL_JSON.backup" "$OPENCODE_GLOBAL_JSON" 2>/dev/null || true
+                mv "$config_file.backup" "$config_file" 2>/dev/null || true
             fi
         else
             print_warning "Node.js required to merge existing config"
@@ -930,7 +931,7 @@ fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
         fi
     else
         # Create fresh global config
-        cat > "$OPENCODE_GLOBAL_JSON" << EOF
+        cat > "$config_file" << EOF
 {
   "\$schema": "https://opencode.ai/config.json",
   "mcp": {
@@ -965,7 +966,7 @@ EOF
     fi
 
     # Validate global config
-    if ! grep -q '"brain-dump"' "$OPENCODE_GLOBAL_JSON" 2>/dev/null; then
+    if ! grep -q '"brain-dump"' "$config_file" 2>/dev/null; then
         print_warning "MCP server not found in global opencode.json"
         SKIPPED+=("OpenCode global config (MCP server missing)")
         return 1
@@ -973,65 +974,31 @@ EOF
 
     # ── Step 2: Copy agents to global location ──
     if [ -d ".opencode/agent" ]; then
-        local agents_copied=0
-        for agent_file in .opencode/agent/*.md; do
-            [ -f "$agent_file" ] || continue
-            cp "$agent_file" "$OPENCODE_GLOBAL_AGENTS/" && agents_copied=$((agents_copied + 1))
+        local count=0
+        for file in .opencode/agent/*.md; do
+            [ -f "$file" ] || continue
+            cp "$file" "$agents_dir/" && count=$((count + 1))
         done
-        [ "$agents_copied" -gt 0 ] && print_success "Installed $agents_copied agents to $OPENCODE_GLOBAL_AGENTS"
+        [ "$count" -gt 0 ] && print_success "Installed $count agents to $agents_dir"
     fi
 
     # ── Step 3: Copy skills to global location ──
     if [ -d ".opencode/skill" ]; then
-        local skills_copied=0
-        for skill_dir in .opencode/skill/*/; do
-            [ -d "$skill_dir" ] || continue
-            local skill_name=$(basename "$skill_dir")
-            cp -r "$skill_dir" "$OPENCODE_GLOBAL_SKILLS/" && skills_copied=$((skills_copied + 1))
+        local count=0
+        for dir in .opencode/skill/*/; do
+            [ -d "$dir" ] || continue
+            cp -r "$dir" "$skills_dir/" && count=$((count + 1))
         done
-        [ "$skills_copied" -gt 0 ] && print_success "Installed $skills_copied skills to $OPENCODE_GLOBAL_SKILLS"
+        [ "$count" -gt 0 ] && print_success "Installed $count skills to $skills_dir"
     fi
 
     # ── Step 4: Copy AGENTS.md to global location ──
     if [ -f ".opencode/AGENTS.md" ]; then
-        cp ".opencode/AGENTS.md" "$OPENCODE_GLOBAL/" && print_success "Installed AGENTS.md to $OPENCODE_GLOBAL"
+        cp ".opencode/AGENTS.md" "$global_dir/" && print_success "Installed AGENTS.md to $global_dir"
     fi
 
-    # ── Step 5: Update local .opencode/opencode.json with absolute paths ──
-    if [ -d ".opencode" ]; then
-        cat > ".opencode/opencode.json" << EOF
-{
-  "\$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "brain-dump": {
-      "type": "local",
-      "command": ["node", "$BRAIN_DUMP_DIR/mcp-server/dist/index.js"],
-      "enabled": true,
-      "environment": {
-        "BRAIN_DUMP_PATH": "$BRAIN_DUMP_DIR",
-        "OPENCODE": "1"
-      }
-    }
-  },
-  "tools": {
-    "brain-dump_workflow": true,
-    "brain-dump_ticket": true,
-    "brain-dump_session": true,
-    "brain-dump_review": true,
-    "brain-dump_telemetry": true,
-    "brain-dump_comment": true,
-    "brain-dump_epic": true,
-    "brain-dump_project": true,
-    "brain-dump_admin": true,
-    "brain-dump_*": false
-  },
-  "permission": {
-    "*": "allow"
-  }
-}
-EOF
-        print_success "Updated local .opencode/opencode.json with absolute paths"
-    fi
+    print_info "Using global OpenCode config only: $config_file"
+    print_info "No local .opencode/opencode.json changes are made by installer"
 
     create_opencode_fallbacks
     INSTALLED+=("OpenCode configuration (global)")
@@ -1040,7 +1007,7 @@ EOF
 
 # Create fallback agents for missing OpenCode plugins (global location)
 create_opencode_fallbacks() {
-    local agents_dir="${OPENCODE_GLOBAL_AGENTS:-$HOME/.config/opencode/agents}"
+    local agents_dir="$HOME/.config/opencode/agents"
     mkdir -p "$agents_dir"
 
     # Code reviewer fallback

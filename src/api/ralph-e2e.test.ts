@@ -85,7 +85,7 @@ const SCHEMA_SQL = `
 `;
 
 // ===========================================================================
-// GIT UTILITIES (mirrors mcp-server/lib/git-utils.js)
+// GIT UTILITIES (mirrors core/git-utils.ts)
 // ===========================================================================
 function runGitCommand(
   command: string,
