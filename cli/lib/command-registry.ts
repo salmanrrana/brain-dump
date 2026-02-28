@@ -342,6 +342,37 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     ],
     examples: ["brain-dump epic delete --epic abc --confirm"],
   },
+  {
+    resource: "epic",
+    action: "reconcile-learnings",
+    description: "Extract and store learnings from a completed ticket",
+    flags: [
+      ticketFlag,
+      {
+        name: "learnings-file",
+        type: "string",
+        required: true,
+        description: "Path to JSON file with learning objects",
+      },
+      {
+        name: "update-docs",
+        type: "boolean",
+        required: false,
+        description: "Apply suggested documentation updates",
+      },
+      prettyFlag,
+    ],
+    examples: [
+      "brain-dump epic reconcile-learnings --ticket abc --learnings-file ./learnings.json",
+    ],
+  },
+  {
+    resource: "epic",
+    action: "get-learnings",
+    description: "Get accumulated learnings for an epic",
+    flags: [{ name: "epic", type: "string", required: true, description: "Epic ID" }, prettyFlag],
+    examples: ["brain-dump epic get-learnings --epic abc --pretty"],
+  },
 
   // ── workflow ────────────────────────────────────────────────
   {
