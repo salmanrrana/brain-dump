@@ -648,6 +648,73 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     description: "List sessions for a ticket",
     flags: [ticketFlag, limitFlag, prettyFlag],
   },
+  {
+    resource: "session",
+    action: "update-state",
+    description: "Update session state (MCP naming alias)",
+    flags: [
+      sessionFlag,
+      {
+        name: "state",
+        type: "enum",
+        required: true,
+        description: "Session state",
+        enum: ["idle", "analyzing", "implementing", "testing", "committing", "reviewing", "done"],
+      },
+      { name: "message", type: "string", required: false, description: "State metadata message" },
+      prettyFlag,
+    ],
+    aliases: ["update"],
+  },
+  {
+    resource: "session",
+    action: "emit-event",
+    description: "Emit a real-time event for UI streaming",
+    flags: [
+      sessionFlag,
+      {
+        name: "event-type",
+        type: "enum",
+        required: true,
+        description: "Event type",
+        enum: [
+          "thinking",
+          "tool_start",
+          "tool_end",
+          "file_change",
+          "progress",
+          "state_change",
+          "error",
+        ],
+      },
+      {
+        name: "event-data-file",
+        type: "string",
+        required: false,
+        description: "Path to JSON file with event data",
+      },
+      prettyFlag,
+    ],
+    examples: ["brain-dump session emit-event --session abc --event-type progress"],
+  },
+  {
+    resource: "session",
+    action: "get-events",
+    description: "Get events for a session",
+    flags: [
+      sessionFlag,
+      { name: "since", type: "string", required: false, description: "ISO timestamp filter" },
+      limitFlag,
+      prettyFlag,
+    ],
+    examples: ["brain-dump session get-events --session abc --limit 10 --pretty"],
+  },
+  {
+    resource: "session",
+    action: "clear-events",
+    description: "Clear all events for a session",
+    flags: [sessionFlag, prettyFlag],
+  },
 
   // ── git ────────────────────────────────────────────────────
   {
