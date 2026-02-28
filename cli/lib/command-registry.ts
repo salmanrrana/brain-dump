@@ -530,6 +530,42 @@ export const COMMAND_REGISTRY: CommandDef[] = [
   },
   {
     resource: "review",
+    action: "update-demo-step",
+    description: "Update a demo step status during human review",
+    flags: [
+      {
+        name: "demo-script",
+        type: "string",
+        required: true,
+        description: "Demo script ID",
+      },
+      {
+        name: "step-order",
+        type: "number",
+        required: true,
+        description: "Step order number",
+      },
+      {
+        name: "step-status",
+        type: "enum",
+        required: true,
+        description: "Step status",
+        enum: ["pending", "passed", "failed", "skipped"],
+      },
+      {
+        name: "step-notes",
+        type: "string",
+        required: false,
+        description: "Reviewer notes",
+      },
+      prettyFlag,
+    ],
+    examples: [
+      "brain-dump review update-demo-step --demo-script abc --step-order 1 --step-status passed",
+    ],
+  },
+  {
+    resource: "review",
     action: "get-findings",
     description: "Get review findings for a ticket",
     flags: [
