@@ -73,6 +73,44 @@ const confirmFlag: FlagDef = {
 // ── Registry ───────────────────────────────────────────────────
 
 export const COMMAND_REGISTRY: CommandDef[] = [
+  // ── project ────────────────────────────────────────────────
+  {
+    resource: "project",
+    action: "list",
+    description: "List all registered projects",
+    flags: [prettyFlag],
+    examples: ["brain-dump project list --pretty"],
+  },
+  {
+    resource: "project",
+    action: "find",
+    description: "Find a project by filesystem path",
+    flags: [
+      { name: "path", type: "string", required: true, description: "Filesystem path" },
+      prettyFlag,
+    ],
+    examples: ["brain-dump project find --path /home/user/my-project"],
+  },
+  {
+    resource: "project",
+    action: "create",
+    description: "Register a new project directory",
+    flags: [
+      { name: "name", type: "string", required: true, description: "Project name" },
+      { name: "path", type: "string", required: true, description: "Filesystem path" },
+      { name: "color", type: "string", required: false, description: "Color hex (e.g. #3b82f6)" },
+      prettyFlag,
+    ],
+    examples: ['brain-dump project create --name "My App" --path /home/user/my-app'],
+  },
+  {
+    resource: "project",
+    action: "delete",
+    description: "Delete a project and all associated data (dry-run by default)",
+    flags: [{ ...projectFlag, required: true }, confirmFlag, prettyFlag],
+    examples: ["brain-dump project delete --project abc --confirm"],
+  },
+
   // ── ticket ─────────────────────────────────────────────────
   {
     resource: "ticket",
@@ -820,6 +858,7 @@ export function getCommand(resource: string, action: string): CommandDef | undef
 /** Get a one-line description for a resource (from its first command's resource name). */
 export function getResourceDescription(resource: string): string {
   const descriptions: Record<string, string> = {
+    project: "List, find, create, delete projects",
     ticket: "Create, list, get, update, delete tickets",
     epic: "Create, list, update, delete epics",
     workflow: "Start work, complete work, start epic",

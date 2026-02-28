@@ -43,6 +43,7 @@
  */
 
 import * as admin from "./commands/admin.ts";
+import * as project from "./commands/project.ts";
 import * as ticket from "./commands/ticket.ts";
 import * as epic from "./commands/epic.ts";
 import * as workflow from "./commands/workflow.ts";
@@ -128,6 +129,9 @@ function backwardArgs(): string[] {
 
 switch (resource) {
   // ── Resource-based routing ──────────────────────────────────
+  case "project":
+    runSync(project.handle, action, rest);
+    break;
   case "ticket":
     runSync(ticket.handle, action, rest);
     break;
