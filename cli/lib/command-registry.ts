@@ -1204,6 +1204,13 @@ export const COMMAND_REGISTRY: CommandDef[] = [
       'brain-dump search "bug" --project abc --status in_progress --pretty',
     ],
   },
+  {
+    resource: "_top",
+    action: "context",
+    description: "Full ticket context: details, comments, findings, and criteria",
+    flags: [ticketFlag, prettyFlag],
+    examples: ["brain-dump context --ticket abc123 --pretty", "brain-dump context --ticket abc123"],
+  },
 ];
 
 // ── Lookup helpers ─────────────────────────────────────────────
