@@ -20,6 +20,7 @@ export interface GitProjectInfo {
   recentCommits: Commit[];
   branch: string | null;
   hasUncommittedChanges: boolean;
+  remoteUrl: string | null;
 }
 
 // Helper: Parse git log line
@@ -72,6 +73,7 @@ export const getGitProjectInfo = createServerFn({ method: "GET" })
       recentCommits: [],
       branch: null,
       hasUncommittedChanges: false,
+      remoteUrl: null,
     };
 
     try {
@@ -86,6 +88,16 @@ export const getGitProjectInfo = createServerFn({ method: "GET" })
       const branchResult = runGitCommand("git rev-parse --abbrev-ref HEAD", projectPath);
       if (branchResult.success) {
         result.branch = branchResult.output;
+      }
+
+      // Get remote URL
+      const remoteResult = runGitCommand("git remote get-url origin", projectPath);
+      if (remoteResult.success && remoteResult.output) {
+        const remote = remoteResult.output.trim();
+        const match = remote.match(/github\.com[:/](.+?)(?:\.git)?$/);
+        if (match) {
+          result.remoteUrl = `https://github.com/${match[1]}`;
+        }
       }
 
       // Get last commit

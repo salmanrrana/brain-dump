@@ -54,7 +54,19 @@ export default function GitHistoryCard({ projectPath }: GitHistoryCardProps) {
                 {data.lastCommit.message}
               </p>
               <p style={commitMetaStyles}>
-                {data.lastCommit.date} by {data.lastCommit.author}
+                {data.remoteUrl ? (
+                  <a
+                    href={`${data.remoteUrl}/commit/${data.lastCommit.hash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:underline hover:text-[var(--accent-primary)]"
+                  >
+                    {data.lastCommit.date}
+                  </a>
+                ) : (
+                  data.lastCommit.date
+                )}{" "}
+                by {data.lastCommit.author}
               </p>
             </div>
           ) : (
@@ -66,21 +78,41 @@ export default function GitHistoryCard({ projectPath }: GitHistoryCardProps) {
               <p style={recentTitleStyles}>Recent Commits:</p>
               <div style={commitListStyles}>
                 {data.recentCommits.map((commit) => (
-                  <button
-                    key={commit.hash}
-                    style={commitItemStyles}
-                    onClick={() => handleCopyHash(commit.hash)}
-                    title="Click to copy commit hash"
-                    type="button"
-                    className="hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
-                  >
-                    <span style={copiedHash === commit.hash ? copiedHashStyles : commitHashStyles}>
-                      {copiedHash === commit.hash ? "Copied!" : commit.hash.substring(0, 7)}
-                    </span>
+                  <div key={commit.hash} style={commitItemStyles} className="group relative">
+                    {data.remoteUrl ? (
+                      <a
+                        href={`${data.remoteUrl}/commit/${commit.hash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={commitHashStyles}
+                        className="hover:underline hover:text-[var(--accent-primary)]"
+                        title="View on GitHub"
+                      >
+                        {commit.hash.substring(0, 7)}
+                      </a>
+                    ) : (
+                      <span style={commitHashStyles}>{commit.hash.substring(0, 7)}</span>
+                    )}
+
                     <span style={commitShortMessageStyles} title={commit.message}>
                       {commit.message}
                     </span>
-                  </button>
+
+                    <button
+                      onClick={() => handleCopyHash(commit.hash)}
+                      title="Copy commit hash"
+                      type="button"
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-[var(--bg-hover)] rounded focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)] transition-opacity"
+                    >
+                      {copiedHash === commit.hash ? (
+                        <span style={{ color: "var(--accent-primary)", fontSize: "10px" }}>
+                          Copied!
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: "12px" }}>📋</span>
+                      )}
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -159,22 +191,13 @@ const commitItemStyles: React.CSSProperties = {
   borderRadius: "var(--radius-sm)",
   fontSize: "var(--font-size-xs)",
   color: "var(--text-secondary)",
-  cursor: "pointer",
   transition: "all var(--transition-fast)",
-  textAlign: "left",
 };
 
 const commitHashStyles: React.CSSProperties = {
   fontFamily: "monospace",
   color: "var(--text-tertiary)",
   flexShrink: 0,
-};
-
-const copiedHashStyles: React.CSSProperties = {
-  fontFamily: "monospace",
-  color: "var(--accent-primary)",
-  flexShrink: 0,
-  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
 };
 
 const commitShortMessageStyles: React.CSSProperties = {
