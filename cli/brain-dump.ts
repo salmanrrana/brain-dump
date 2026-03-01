@@ -130,7 +130,8 @@ function backwardArgs(): string[] {
 }
 
 function handleOpen(): void {
-  const portFlag = rest.find((_, i) => rest[i - 1] === "--port");
+  const openArgs = [action, ...rest];
+  const portFlag = openArgs.find((_, i) => openArgs[i - 1] === "--port");
   const port = portFlag ? parseInt(portFlag, 10) : 4242;
   const url = `http://localhost:${port}/`;
 
