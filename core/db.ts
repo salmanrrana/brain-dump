@@ -440,6 +440,59 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
   `);
 }
 
+function initFts5(db: DbHandle, logger: Logger): void {
+  if (tableExists(db, "tickets_fts")) return;
+  if (!tableExists(db, "tickets")) return;
+
+  try {
+    db.exec(`
+      CREATE VIRTUAL TABLE tickets_fts USING fts5(
+        title,
+        description,
+        tags,
+        subtasks,
+        content=tickets,
+        content_rowid=rowid
+      )
+    `);
+
+    db.exec(`
+      INSERT INTO tickets_fts(rowid, title, description, tags, subtasks)
+      SELECT rowid, title, COALESCE(description, ''), COALESCE(tags, ''), COALESCE(subtasks, '')
+      FROM tickets
+    `);
+
+    db.exec(`
+      CREATE TRIGGER IF NOT EXISTS tickets_ai AFTER INSERT ON tickets BEGIN
+        INSERT INTO tickets_fts(rowid, title, description, tags, subtasks)
+        VALUES (NEW.rowid, NEW.title, COALESCE(NEW.description, ''), COALESCE(NEW.tags, ''), COALESCE(NEW.subtasks, ''));
+      END
+    `);
+
+    db.exec(`
+      CREATE TRIGGER IF NOT EXISTS tickets_ad AFTER DELETE ON tickets BEGIN
+        INSERT INTO tickets_fts(tickets_fts, rowid, title, description, tags, subtasks)
+        VALUES ('delete', OLD.rowid, OLD.title, COALESCE(OLD.description, ''), COALESCE(OLD.tags, ''), COALESCE(OLD.subtasks, ''));
+      END
+    `);
+
+    db.exec(`
+      CREATE TRIGGER IF NOT EXISTS tickets_au AFTER UPDATE ON tickets BEGIN
+        INSERT INTO tickets_fts(tickets_fts, rowid, title, description, tags, subtasks)
+        VALUES ('delete', OLD.rowid, OLD.title, COALESCE(OLD.description, ''), COALESCE(OLD.tags, ''), COALESCE(OLD.subtasks, ''));
+        INSERT INTO tickets_fts(rowid, title, description, tags, subtasks)
+        VALUES (NEW.rowid, NEW.title, COALESCE(NEW.description, ''), COALESCE(NEW.tags, ''), COALESCE(NEW.subtasks, ''));
+      END
+    `);
+
+    logger.info("Created FTS5 virtual table and triggers for ticket search");
+  } catch (err) {
+    // FTS5 may not be available in all SQLite builds — skip gracefully
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.warn(`FTS5 initialization skipped: ${msg}`);
+  }
+}
+
 export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void {
   // Ticket columns
   addColumnIfMissing(db, "tickets", "linked_commits", "TEXT", logger);
@@ -608,6 +661,9 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
   addColumnIfMissing(db, "settings", "docker_socket_path", "TEXT", logger);
   addColumnIfMissing(db, "settings", "conversation_retention_days", "INTEGER DEFAULT 90", logger);
   addColumnIfMissing(db, "settings", "conversation_logging_enabled", "INTEGER DEFAULT 1", logger);
+
+  // FTS5 full-text search index
+  initFts5(db, logger);
 }
 
 // ============================================

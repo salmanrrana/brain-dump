@@ -1183,6 +1183,27 @@ export const COMMAND_REGISTRY: CommandDef[] = [
       "brain-dump init --pretty",
     ],
   },
+  {
+    resource: "_top",
+    action: "search",
+    description: "Full-text ticket search with FTS5 and LIKE fallback",
+    flags: [
+      projectFlag,
+      {
+        name: "status",
+        type: "enum",
+        required: false,
+        description: "Filter by ticket status",
+        enum: ["backlog", "ready", "in_progress", "ai_review", "human_review", "done"],
+      },
+      limitFlag,
+      prettyFlag,
+    ],
+    examples: [
+      'brain-dump search "workflow" --pretty',
+      'brain-dump search "bug" --project abc --status in_progress --pretty',
+    ],
+  },
 ];
 
 // ── Lookup helpers ─────────────────────────────────────────────

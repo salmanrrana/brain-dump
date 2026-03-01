@@ -219,6 +219,11 @@ export type {
   TelemetrySessionSummary,
 } from "./telemetry.ts";
 
+// Search business logic
+export { searchTickets } from "./search.ts";
+
+export type { SearchParams, SearchResult } from "./search.ts";
+
 // JSON utilities
 export { safeJsonParse } from "./json.ts";
 
