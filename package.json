@@ -28,6 +28,8 @@
     "test:integration:watch": "vitest --config vitest.integration.config.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "docs:cli": "npx tsx scripts/generate-cli-docs.ts",
+    "docs:cli:check": "npx tsx scripts/generate-cli-docs.ts --check",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",

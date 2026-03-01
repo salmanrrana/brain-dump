@@ -206,23 +206,23 @@ cat ~/.local/state/brain-dump/migration.log
 
 ## CLI Issues
 
-### "Current ticket not set" Error
+### Ticket Context Not Available
 
-**Symptoms**: CLI commands fail with no current ticket.
+**Symptoms**: CLI commands fail because no ticket is specified.
 
-**Cause**: No ticket is being tracked.
+**Cause**: The CLI requires explicit `--ticket <id>` flags (no implicit "current ticket" state).
 
 **Solution**:
 
 ```bash
-# Check current ticket
-pnpm brain-dump current
+# List tickets to find the ID
+pnpm brain-dump ticket list --pretty
 
-# Set a ticket manually
-echo '{"ticketId":"abc-123"}' > ~/.local/state/brain-dump/current-ticket.json
+# Use --ticket flag explicitly
+pnpm brain-dump ticket get --ticket <id> --pretty
 
-# Or clear and start fresh
-pnpm brain-dump clear
+# Start work on a ticket (via workflow)
+pnpm brain-dump workflow start-work --ticket <id>
 ```
 
 ### CLI Not Finding Database

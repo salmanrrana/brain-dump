@@ -228,17 +228,4 @@ Both integrate with Brain Dump's MCP server for ticket management.
 
 ## Hooks Integration
 
-Automatically update ticket status when Claude finishes work. Add to `~/.claude.json`:
-
-```json
-{
-  "hooks": {
-    "PostToolUse": [
-      {
-        "command": "cd /path/to/brain-dump && pnpm brain-dump done",
-        "trigger": "when the task is complete"
-      }
-    ]
-  }
-}
-```
+Ticket status is managed through MCP workflow tools. Use `workflow` tool with `action: "complete-work"` when work is finished. See CLAUDE.md for the full hook configuration including auto-PR creation, commit tracking, and state enforcement.
