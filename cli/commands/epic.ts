@@ -22,11 +22,7 @@ const ACTIONS = ["create", "list", "update", "delete", "reconcile-learnings", "g
 
 export function handle(action: string, args: string[]): void {
   if (!action || action === "--help" || action === "help") {
-    showResourceHelp(
-      "epic",
-      ACTIONS,
-      "Flags:\n  --project <id>          Project ID\n  --epic <id>             Epic ID\n  --ticket <id>           Ticket ID (for reconcile-learnings)\n  --title <text>          Epic title\n  --description <t>       Description\n  --color <hex>           Color (e.g. #3b82f6)\n  --learnings-file <path> JSON file with learning objects\n  --update-docs           Apply suggested doc updates\n  --confirm               Confirm destructive action\n  --pretty                Human-readable output"
-    );
+    showResourceHelp("epic");
   }
 
   const flags = parseFlags(args);

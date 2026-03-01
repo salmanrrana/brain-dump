@@ -17,11 +17,7 @@ const ACTIONS = ["start-work", "complete-work", "start-epic"];
 
 export function handle(action: string, args: string[]): void {
   if (!action || action === "--help" || action === "help") {
-    showResourceHelp(
-      "workflow",
-      ACTIONS,
-      "Flags:\n  --ticket <id>      Ticket ID\n  --epic <id>        Epic ID\n  --summary <text>   Work summary (for complete-work)\n  --create-pr        Create draft PR (for start-epic)\n  --pretty           Human-readable output"
-    );
+    showResourceHelp("workflow");
   }
 
   const flags = parseFlags(args);

@@ -48,11 +48,7 @@ const ACTIONS = [
 
 export function handle(action: string, args: string[]): void {
   if (!action || action === "--help" || action === "help") {
-    showResourceHelp(
-      "review",
-      ACTIONS,
-      "Flags:\n  --ticket <id>         Ticket ID\n  --finding <id>        Finding ID\n  --severity <s>        critical|major|minor|suggestion\n  --agent <a>           code-reviewer|silent-failure-hunter|code-simplifier\n  --category <c>        Category of finding\n  --description <d>     Detailed description\n  --status <s>          fixed|wont_fix|duplicate\n  --file <path>         File path\n  --line <n>            Line number\n  --fix <text>          Suggested fix\n  --steps-file <path>   JSON file with demo steps\n  --demo-script <id>    Demo script ID\n  --step-order <n>      Step order number\n  --step-status <s>     pending|passed|failed|skipped\n  --step-notes <text>   Reviewer notes for step\n  --passed              Demo passed\n  --feedback <text>     Demo feedback\n  --pretty              Human-readable output"
-    );
+    showResourceHelp("review");
   }
 
   const flags = parseFlags(args);

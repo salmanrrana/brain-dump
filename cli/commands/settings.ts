@@ -16,11 +16,7 @@ function detectEnvironment(): string {
 
 export function handle(action: string, args: string[]): void {
   if (!action || action === "--help" || action === "help") {
-    showResourceHelp(
-      "settings",
-      ACTIONS,
-      "Flags:\n  --project <id>          Project ID\n  --working-method <m>    auto|claude-code|vscode\n  --pretty                Human-readable output"
-    );
+    showResourceHelp("settings");
   }
 
   const flags = parseFlags(args);

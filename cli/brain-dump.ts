@@ -66,19 +66,41 @@ import * as search from "./commands/search.ts";
 import * as context from "./commands/context.ts";
 import * as log from "./commands/log.ts";
 import * as completions from "./commands/completions.ts";
-import { outputResult, outputError } from "./lib/output.ts";
-import { getResources, getResourceDescription } from "./lib/command-registry.ts";
+import { outputResult, outputError, showResourceHelp } from "./lib/output.ts";
+import {
+  getResources,
+  getResourceDescription,
+  getCommandsForResource,
+} from "./lib/command-registry.ts";
+import { suggestClosest } from "./lib/suggest.ts";
 import { parseFlags, optionalFlag, boolFlag } from "./lib/args.ts";
 import { findProjectByPath, createProject } from "../core/index.ts";
 import { getDb } from "./lib/db.ts";
 
 const RESOURCES = getResources();
 
+/** All valid resource names (excluding _top pseudo-resource). */
+const RESOURCE_NAMES = RESOURCES.filter((r) => r !== "_top");
+
 function showHelp(): void {
-  const maxLen = Math.max(...RESOURCES.map((r) => r.length));
-  const resourceLines = RESOURCES.map(
+  const maxLen = Math.max(...RESOURCE_NAMES.map((r) => r.length));
+  const resourceLines = RESOURCE_NAMES.map(
     (r) => `  ${r.padEnd(maxLen + 2)}${getResourceDescription(r)}`
   ).join("\n");
+
+  // Generate top-level commands from _top entries in the registry
+  const topCommands = getCommandsForResource("_top");
+  const topParts = topCommands.map((cmd) => {
+    const flagHints = cmd.flags
+      .filter((f) => f.name !== "pretty")
+      .map((f) =>
+        f.required ? `--${f.name} <${f.type === "number" ? "n" : "value"}>` : `[--${f.name}]`
+      )
+      .join(" ");
+    return { left: `  brain-dump ${cmd.action} ${flagHints}`.trimEnd(), desc: cmd.description };
+  });
+  const maxTop = Math.max(...topParts.map((p) => p.left.length));
+  const topLines = topParts.map((p) => `${p.left.padEnd(maxTop + 2)}${p.desc}`).join("\n");
 
   console.log(`
 Brain Dump CLI - Full resource management and database utilities
@@ -90,13 +112,7 @@ Resources:
 ${resourceLines}
 
 Top-level commands:
-  brain-dump open [--port <n>]     Open Brain Dump UI in the browser
-  brain-dump init [--name] [--color]  Register current directory as a project
-  brain-dump status [--project] [--limit]  Project dashboard overview
-  brain-dump search "<query>" [--project] [--status] [--limit]  Full-text ticket search
-  brain-dump context --ticket <id> [--pretty]  Full ticket context (details, comments, findings)
-  brain-dump log [--project] [--ticket] [--limit]  Chronological activity stream
-  brain-dump completions <zsh|bash|fish>  Generate shell completion scripts
+${topLines}
 
 Backward-compatible shortcuts:
   brain-dump backup [--list]       Same as: brain-dump admin backup [--list]
@@ -325,13 +341,52 @@ switch (resource) {
   case "--help":
   case "-h":
   case undefined:
-    showHelp();
+    // brain-dump help <resource> → show resource-specific help
+    if (resource === "help" && action && action !== "--help") {
+      if (RESOURCE_NAMES.includes(action)) {
+        showResourceHelp(action);
+      } else {
+        const suggestion = suggestClosest(action, RESOURCE_NAMES);
+        console.error(`Unknown resource: ${action}`);
+        if (suggestion) {
+          console.error(`\nDid you mean: ${suggestion}?`);
+        }
+        console.error(`\nAvailable resources: ${RESOURCE_NAMES.join(", ")}`);
+        console.error(`Run 'brain-dump help' for usage information.`);
+        process.exit(1);
+      }
+    } else {
+      showHelp();
+    }
     break;
 
   // ── Unknown ─────────────────────────────────────────────────
-  default:
-    console.error(`Unknown resource: ${resource}`);
-    console.error(`Available resources: ${RESOURCES.join(", ")}`);
-    console.error(`\nRun 'brain-dump help' for usage information.`);
+  default: {
+    // Combine all known resource names and top-level command names for suggestions
+    const allKnown = [
+      ...RESOURCE_NAMES,
+      "open",
+      "init",
+      "status",
+      "search",
+      "context",
+      "log",
+      "completions",
+      "backup",
+      "restore",
+      "check",
+      "doctor",
+      "export",
+      "import",
+      "help",
+    ];
+    const suggestion = suggestClosest(resource!, allKnown);
+    console.error(`Unknown command: ${resource}`);
+    if (suggestion) {
+      console.error(`\nDid you mean: ${suggestion}?`);
+    }
+    console.error(`\nAvailable resources: ${RESOURCE_NAMES.join(", ")}`);
+    console.error(`Run 'brain-dump help' for usage information.`);
     process.exit(1);
+  }
 }

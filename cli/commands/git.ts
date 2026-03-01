@@ -18,11 +18,7 @@ const ACTIONS = ["link-commit", "link-pr", "sync"];
 
 export function handle(action: string, args: string[]): void {
   if (!action || action === "--help" || action === "help") {
-    showResourceHelp(
-      "git",
-      ACTIONS,
-      "Flags:\n  --ticket <id>        Ticket ID\n  --hash <hash>        Git commit hash\n  --message <msg>      Commit message\n  --pr <number>        PR number\n  --url <url>          PR URL\n  --status <status>    draft|open|merged|closed\n  --project-path <p>   Project path (for sync)\n  --pretty             Human-readable output"
-    );
+    showResourceHelp("git");
   }
 
   const flags = parseFlags(args);

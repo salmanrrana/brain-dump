@@ -11,11 +11,7 @@ const ACTIONS = ["link", "get-tickets"];
 
 export function handle(action: string, args: string[]): void {
   if (!action || action === "--help" || action === "help") {
-    showResourceHelp(
-      "files",
-      ACTIONS,
-      "Flags:\n  --ticket <id>        Ticket ID\n  --files <csv>        Comma-separated file paths\n  --file <path>        File path (for get-tickets)\n  --project <id>       Project ID (optional filter)\n  --pretty             Human-readable output"
-    );
+    showResourceHelp("files");
   }
 
   const flags = parseFlags(args);

@@ -6,6 +6,8 @@
  */
 
 import { CoreError } from "../../core/index.ts";
+import { getCommandsForResource, getResourceDescription } from "./command-registry.ts";
+import { suggestClosest } from "./suggest.ts";
 
 /**
  * Write a successful result to stdout.
@@ -31,6 +33,7 @@ export function outputResult(data: unknown, pretty: boolean): void {
 
 /**
  * Write an error to stderr and exit with code 1.
+ * For INVALID_ACTION errors, appends a "did you mean?" suggestion.
  */
 export function outputError(error: unknown): never {
   if (error instanceof CoreError) {
@@ -39,6 +42,22 @@ export function outputError(error: unknown): never {
       message: error.message,
     };
     if (error.details) obj.details = error.details;
+
+    // Add "did you mean?" for invalid action errors
+    if (error.code === "INVALID_ACTION" && error.details) {
+      const { action, validActions } = error.details as {
+        action?: string;
+        validActions?: string[];
+      };
+      if (action && Array.isArray(validActions)) {
+        const suggestion = suggestClosest(action, validActions);
+        if (suggestion) {
+          obj.suggestion = suggestion;
+          obj.message = `${error.message}\n\nDid you mean: ${suggestion}?`;
+        }
+      }
+    }
+
     console.error(JSON.stringify(obj, null, 2));
   } else if (error instanceof Error) {
     console.error(JSON.stringify({ error: "UNKNOWN_ERROR", message: error.message }, null, 2));
@@ -134,14 +153,87 @@ export function formatObject(obj: Record<string, unknown>, indent = 0): string {
 }
 
 /**
- * Print help text for a resource and exit.
+ * Print help text for a resource using command registry metadata and exit.
  */
-export function showResourceHelp(resource: string, actions: string[], usage: string): never {
-  console.log(`\nbrain-dump ${resource} <action> [flags]\n`);
-  console.log("Actions:");
-  for (const action of actions) {
-    console.log(`  ${action}`);
+export function showResourceHelp(resource: string): never {
+  const commands = getCommandsForResource(resource);
+  const desc = getResourceDescription(resource);
+
+  console.log(`\nbrain-dump ${resource} <action> [flags]`);
+  if (desc) console.log(`  ${desc}`);
+  console.log("");
+
+  if (commands.length === 0) {
+    console.log("No actions registered for this resource.");
+    process.exit(0);
   }
-  console.log(`\n${usage}`);
+
+  // Actions with descriptions
+  const maxAction = Math.max(...commands.map((c) => c.action.length));
+  console.log("Actions:");
+  for (const cmd of commands) {
+    console.log(`  ${cmd.action.padEnd(maxAction + 2)}${cmd.description}`);
+  }
+
+  // Collect all unique flags across actions
+  const flagMap = new Map<
+    string,
+    { type: string; required: boolean; description: string; enumValues?: string[] }
+  >();
+  for (const cmd of commands) {
+    for (const flag of cmd.flags) {
+      if (!flagMap.has(flag.name)) {
+        flagMap.set(flag.name, {
+          type: flag.type,
+          required: flag.required,
+          description: flag.description,
+          ...(flag.enum ? { enumValues: flag.enum } : {}),
+        });
+      }
+    }
+  }
+
+  if (flagMap.size > 0) {
+    console.log("\nFlags:");
+    const maxFlag = Math.max(...[...flagMap.keys()].map((f) => f.length));
+    for (const [name, info] of flagMap) {
+      const typeHint =
+        info.type === "boolean"
+          ? ""
+          : info.enumValues
+            ? ` <${info.enumValues.join("|")}>`
+            : ` <${info.type === "number" ? "n" : "value"}>`;
+      const pad = `--${name}${typeHint}`.length;
+      const maxPad = maxFlag + 12; // room for -- prefix and type hint
+      console.log(
+        `  ${"--" + name + typeHint}${" ".repeat(Math.max(1, maxPad - pad))}${info.description}`
+      );
+    }
+  }
+
+  // Examples
+  const examples = commands.flatMap((c) => c.examples ?? []);
+  if (examples.length > 0) {
+    console.log("\nExamples:");
+    for (const ex of examples.slice(0, 5)) {
+      console.log(`  ${ex}`);
+    }
+  }
+
   process.exit(0);
+}
+
+/**
+ * Print "did you mean?" suggestion for an unknown action within a resource.
+ */
+export function suggestAction(resource: string, unknownAction: string): string | undefined {
+  const commands = getCommandsForResource(resource);
+  const validActions = commands.map((c) => c.action);
+  // Also include aliases
+  for (const cmd of commands) {
+    if (cmd.aliases) {
+      validActions.push(...cmd.aliases);
+    }
+  }
+  return suggestClosest(unknownAction, validActions);
 }

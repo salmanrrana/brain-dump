@@ -202,27 +202,7 @@ async function handlePreview(args: string[]): Promise<void> {
 
 export async function handle(action: string, args: string[]): Promise<void> {
   if (!action || action === "--help" || action === "help") {
-    showResourceHelp(
-      "transfer",
-      ACTIONS,
-      "Flags:\n" +
-        "  --epic <id>              Epic ID (for export-epic)\n" +
-        "  --project <id>           Project ID (for export-project)\n" +
-        "  --output <path>          Output file path (for export)\n" +
-        "  --file <path>            Input .braindump file (for import/preview)\n" +
-        "  --target-project <id>    Target project ID (for import)\n" +
-        "  --reset-statuses         Reset all imported tickets to backlog\n" +
-        "  --conflict <mode>        Conflict resolution: create-new, replace, merge\n" +
-        "  --pretty                 Human-readable output\n" +
-        "\nExamples:\n" +
-        "  brain-dump transfer export-epic --epic abc --pretty\n" +
-        "  brain-dump transfer export-project --project abc --output my-project.braindump\n" +
-        "  brain-dump transfer import --file export.braindump --target-project def\n" +
-        "  brain-dump transfer preview --file export.braindump --pretty\n" +
-        "\nBackward-compatible shortcuts:\n" +
-        "  brain-dump export --epic abc\n" +
-        "  brain-dump import --file export.braindump --target-project def"
-    );
+    showResourceHelp("transfer");
   }
 
   try {

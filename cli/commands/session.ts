@@ -44,11 +44,7 @@ const ACTIONS = [
 
 export function handle(action: string, args: string[]): void {
   if (!action || action === "--help" || action === "help") {
-    showResourceHelp(
-      "session",
-      ACTIONS,
-      "Flags:\n  --ticket <id>            Ticket ID\n  --session <id>           Session ID\n  --state <state>          idle|analyzing|implementing|testing|committing|reviewing|done\n  --outcome <out>          success|failure|timeout|cancelled\n  --message <text>         State metadata message\n  --error <text>           Error message (for failure outcome)\n  --event-type <type>      thinking|tool_start|tool_end|file_change|progress|state_change|error\n  --event-data-file <path> JSON file with event data\n  --since <iso>            ISO timestamp filter for events\n  --limit <n>              Max results\n  --pretty                 Human-readable output"
-    );
+    showResourceHelp("session");
   }
 
   const flags = parseFlags(args);

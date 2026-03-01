@@ -21,11 +21,7 @@ const ACTIONS = ["start", "end", "get", "list", "log-tool", "log-prompt", "log-c
 
 export function handle(action: string, args: string[]): void {
   if (!action || action === "--help" || action === "help") {
-    showResourceHelp(
-      "telemetry",
-      ACTIONS,
-      "Flags:\n  --session <id>         Session ID\n  --ticket <id>          Ticket ID\n  --project <path>       Project path\n  --outcome <out>        success|failure|timeout|cancelled\n  --tokens <n>           Total token count\n  --since <date>         ISO date filter\n  --limit <n>            Max results\n  --tool <name>          Tool name (for log-tool)\n  --event <type>         start|end (for log-tool)\n  --prompt <text>        Prompt text (for log-prompt)\n  --has-description      Ticket had description (for log-context)\n  --has-criteria         Ticket had acceptance criteria (for log-context)\n  --criteria-count <n>   Number of criteria\n  --comment-count <n>    Number of comments\n  --attachment-count <n> Number of attachments\n  --image-count <n>      Number of images\n  --pretty               Human-readable output"
-    );
+    showResourceHelp("telemetry");
   }
 
   const flags = parseFlags(args);

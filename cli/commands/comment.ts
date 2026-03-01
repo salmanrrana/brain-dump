@@ -12,11 +12,7 @@ const ACTIONS = ["add", "list"];
 
 export function handle(action: string, args: string[]): void {
   if (!action || action === "--help" || action === "help") {
-    showResourceHelp(
-      "comment",
-      ACTIONS,
-      "Flags:\n  --ticket <id>      Ticket ID\n  --content <text>   Comment content\n  --type <type>      comment|work_summary|test_report|progress\n  --author <who>     claude|ralph|user|opencode|cursor|vscode|ai\n  --pretty           Human-readable output"
-    );
+    showResourceHelp("comment");
   }
 
   const flags = parseFlags(args);

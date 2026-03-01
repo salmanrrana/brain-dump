@@ -550,11 +550,7 @@ function handleHealthAction(args: string[]): void {
 
 export async function handle(action: string, args: string[]): Promise<void> {
   if (!action || action === "--help" || action === "help") {
-    showResourceHelp(
-      "admin",
-      ACTIONS,
-      "Examples:\n  brain-dump admin backup --list\n  brain-dump admin check --full\n  brain-dump admin health --pretty"
-    );
+    showResourceHelp("admin");
   }
 
   try {

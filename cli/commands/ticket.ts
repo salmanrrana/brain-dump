@@ -54,32 +54,7 @@ const STATUSES: readonly TicketStatus[] = [
 
 export function handle(action: string, args: string[]): void {
   if (!action || action === "--help" || action === "help") {
-    showResourceHelp(
-      "ticket",
-      ACTIONS,
-      "Flags:\n" +
-        "  --project <id>              Project ID\n" +
-        "  --ticket <id>               Ticket ID\n" +
-        "  --title <text>              Ticket title\n" +
-        "  --status <status>           Ticket status\n" +
-        "  --priority <p>              Priority (low, medium, high)\n" +
-        "  --epic <id>                 Epic ID\n" +
-        "  --description <text>        Description\n" +
-        "  --tags <csv>                Comma-separated tags\n" +
-        "  --criterion <id>            Criterion ID\n" +
-        "  --criterion-status <s>      pending|passed|failed|skipped\n" +
-        "  --note <text>               Verification note\n" +
-        "  --attachment <id>           Attachment ID or filename\n" +
-        "  --attachment-type <type>    Attachment type\n" +
-        "  --attachment-description <t> Attachment description\n" +
-        "  --attachment-priority <p>   primary|supplementary\n" +
-        "  --linked-criteria <csv>     Comma-separated criterion IDs\n" +
-        "  --files <csv>               Comma-separated file paths\n" +
-        "  --file <path>               File path (for get-files)\n" +
-        "  --limit <n>                 Max results\n" +
-        "  --confirm                   Confirm destructive action\n" +
-        "  --pretty                    Human-readable output"
-    );
+    showResourceHelp("ticket");
   }
 
   const flags = parseFlags(args);

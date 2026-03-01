@@ -20,11 +20,7 @@ const ACTIONS = ["save", "get", "clear", "snapshots"];
 
 export function handle(action: string, args: string[]): void {
   if (!action || action === "--help" || action === "help") {
-    showResourceHelp(
-      "tasks",
-      ACTIONS,
-      "Flags:\n  --ticket <id>        Ticket ID\n  --tasks-file <path>  JSON file with tasks array\n  --snapshot           Create audit snapshot\n  --history            Include status history\n  --limit <n>          Max snapshots\n  --pretty             Human-readable output"
-    );
+    showResourceHelp("tasks");
   }
 
   const flags = parseFlags(args);

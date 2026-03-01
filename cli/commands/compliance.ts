@@ -48,11 +48,7 @@ const cliDeps: ComplianceDependencies = {
 
 export function handle(action: string, args: string[]): void {
   if (!action || action === "--help" || action === "help") {
-    showResourceHelp(
-      "compliance",
-      ACTIONS,
-      "Flags:\n  --session <id>            Session ID\n  --project <id>            Project ID\n  --ticket <id>             Ticket ID\n  --user <id>               User ID\n  --classification <c>      public|internal|confidential|restricted\n  --role <role>             user|assistant|system|tool\n  --content <text>          Message content\n  --model <id>              Model ID\n  --env <env>               Environment filter\n  --start <date>            Start date (ISO)\n  --end <date>              End date (ISO)\n  --start-date <date>       Start date for export (ISO)\n  --end-date <date>         End date for export (ISO)\n  --days <n>                Retention days for archive\n  --confirm                 Confirm archive\n  --limit <n>               Max results\n  --pretty                  Human-readable output"
-    );
+    showResourceHelp("compliance");
   }
 
   const flags = parseFlags(args);

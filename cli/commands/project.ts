@@ -17,11 +17,7 @@ const ACTIONS = ["list", "find", "create", "delete"];
 
 export function handle(action: string, args: string[]): void {
   if (!action || action === "--help" || action === "help") {
-    showResourceHelp(
-      "project",
-      ACTIONS,
-      "Flags:\n  --project <id>   Project ID (for delete)\n  --name <text>    Project name\n  --path <path>    Filesystem path\n  --color <hex>    Color (e.g. #3b82f6)\n  --confirm        Confirm destructive action\n  --pretty         Human-readable output"
-    );
+    showResourceHelp("project");
   }
 
   const flags = parseFlags(args);
