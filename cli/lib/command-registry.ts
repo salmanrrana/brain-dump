@@ -1142,6 +1142,26 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     ],
     examples: ["brain-dump open", "brain-dump open --port 3000"],
   },
+  {
+    resource: "_top",
+    action: "init",
+    description: "Register current directory as a Brain Dump project",
+    flags: [
+      {
+        name: "name",
+        type: "string",
+        required: false,
+        description: "Project name (default: package.json name or directory basename)",
+      },
+      { name: "color", type: "string", required: false, description: "Color hex (e.g. #3b82f6)" },
+      prettyFlag,
+    ],
+    examples: [
+      "brain-dump init",
+      'brain-dump init --name "My App" --color "#3b82f6"',
+      "brain-dump init --pretty",
+    ],
+  },
 ];
 
 // ── Lookup helpers ─────────────────────────────────────────────

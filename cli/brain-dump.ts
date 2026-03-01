@@ -43,7 +43,9 @@
  */
 
 import { execFile } from "child_process";
+import { existsSync, readFileSync } from "fs";
 import { request } from "http";
+import { basename, resolve, join } from "path";
 import * as admin from "./commands/admin.ts";
 import * as project from "./commands/project.ts";
 import * as ticket from "./commands/ticket.ts";
@@ -59,8 +61,11 @@ import * as tasks from "./commands/tasks.ts";
 import * as compliance from "./commands/compliance.ts";
 import * as settings from "./commands/settings.ts";
 import * as transfer from "./commands/transfer.ts";
-import { outputError } from "./lib/output.ts";
+import { outputResult, outputError } from "./lib/output.ts";
 import { getResources, getResourceDescription } from "./lib/command-registry.ts";
+import { parseFlags, optionalFlag, boolFlag } from "./lib/args.ts";
+import { findProjectByPath, createProject } from "../core/index.ts";
+import { getDb } from "./lib/db.ts";
 
 const RESOURCES = getResources();
 
@@ -78,6 +83,10 @@ Usage:
 
 Resources:
 ${resourceLines}
+
+Top-level commands:
+  brain-dump open [--port <n>]     Open Brain Dump UI in the browser
+  brain-dump init [--name] [--color]  Register current directory as a project
 
 Backward-compatible shortcuts:
   brain-dump backup [--list]       Same as: brain-dump admin backup [--list]
@@ -164,6 +173,46 @@ function openBrowser(url: string): void {
   });
 }
 
+function handleInit(): void {
+  const initArgs = [action, ...rest].filter(Boolean);
+  const flags = parseFlags(initArgs);
+  const pretty = boolFlag(flags, "pretty");
+  const { db } = getDb();
+  const cwd = resolve(process.cwd());
+
+  try {
+    // Check if already registered
+    const existing = findProjectByPath(db, cwd);
+    if (existing) {
+      outputResult({ ...existing, alreadyRegistered: true }, pretty);
+      return;
+    }
+
+    // Resolve name: --name flag → package.json name → directory basename
+    let name = optionalFlag(flags, "name");
+    if (!name) {
+      const pkgPath = join(cwd, "package.json");
+      if (existsSync(pkgPath)) {
+        try {
+          const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as { name?: string };
+          if (pkg.name) name = pkg.name;
+        } catch {
+          // ignore parse errors, fall through to basename
+        }
+      }
+    }
+    if (!name) {
+      name = basename(cwd);
+    }
+
+    const color = optionalFlag(flags, "color");
+    const result = createProject(db, { name, path: cwd, color });
+    outputResult(result, pretty);
+  } catch (e) {
+    outputError(e);
+  }
+}
+
 switch (resource) {
   // ── Resource-based routing ──────────────────────────────────
   case "project":
@@ -215,6 +264,9 @@ switch (resource) {
   // ── Top-level power commands ─────────────────────────────────
   case "open":
     handleOpen();
+    break;
+  case "init":
+    handleInit();
     break;
 
   // ── Backward compatibility (top-level commands) ─────────────
