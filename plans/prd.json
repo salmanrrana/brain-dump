@@ -9,122 +9,496 @@
   ],
   "userStories": [
     {
-      "id": "17eaa0b5-1e8d-4254-8f4c-75ddb8fc12d9",
-      "title": "Port LetterGlitch component to TypeScript",
+      "id": "d09247c6-9d93-448c-8daa-40147e47371d",
+      "title": "CLI Plan Overview",
       "passes": true,
-      "overview": "Brain Dump currently has plain text loading states (\"Loading projects...\", \"Loading dashboard...\") and no route transition animations. The goal is to use the [LetterGlitch](https://www.reactbits.dev/backgrounds/letter-glitch) canvas animation as the loading/transition screen — both for route transitions and inline loading states. No text overlay, just the pure glitch animation.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Component renders a canvas with randomized glitch characters",
-        "Props are fully typed with TypeScript interface",
-        "Animation cleans up on unmount (cancelAnimationFrame, remove resize listener)",
-        "Vignette overlays work (outerVignette, centerVignette)",
-        "Smooth color transitions work when `smooth={true}`",
-        "`pnpm type-check` passes"
-      ],
-      "references": [
-        "src/components/LetterGlitch.tsx",
-        "src/components/LoadingScreen.tsx",
-        "src/routes/__root.tsx",
-        "src/routes/index.tsx",
-        "src/routes/dashboard.tsx",
-        "src/routes/board.tsx",
-        "src/styles.css",
-        "src/content/Backgrounds/LetterGlitch/LetterGlitch.jsx"
-      ],
-      "description": "# Port LetterGlitch Component to TypeScript\n\n## Full Epic Plan (reference for all tickets)\n\n# LetterGlitch Loading Screen\n\n## Context\n\nBrain Dump currently has plain text loading states (\"Loading projects...\", \"Loading dashboard...\") and no route transition animations. The goal is to use the [LetterGlitch](https://www.reactbits.dev/backgrounds/letter-glitch) canvas animation as the loading/transition screen — both for route transitions and inline loading states. No text overlay, just the pure glitch animation.\n\n## Files to Create\n\n### 1. `src/components/LetterGlitch.tsx` — The core component\n- Port the [react-bits LetterGlitch.jsx](https://github.com/DavidHDev/react-bits) to TypeScript\n- Props: `glitchColors`, `glitchSpeed`, `centerVignette`, `outerVignette`, `smooth`, `characters`, `className`\n- Canvas-based animation using `requestAnimationFrame`\n\n### 2. `src/components/LoadingScreen.tsx` — Theme-aware wrapper\n- **Full-screen mode** (default): absolute fill, used for route transitions\n- **Compact mode** (`compact` prop): fixed height (200px), used for inline loading states\n- Reads `--accent-primary`, `--accent-secondary`, `--accent-ai` CSS variables at mount to build `glitchColors` array dynamically (adapts to all 9 themes)\n- Respects `prefers-reduced-motion`: renders a simple centered spinner (existing `Loader2` from lucide-react) instead of the canvas animation\n- Uses `outerVignette={true}` for the atmospheric edge fade\n- Custom character set: `\"01█▓▒░BRAINDUMP{}[]<>/*#@&\"`\n\n## Files to Modify\n\n### 3. `src/routes/__root.tsx` — Add router-level pendingComponent\n- Import `LoadingScreen`\n- Add `pendingComponent: () => <LoadingScreen />` to the root route config\n- Add `pendingMs: 300` (don't show for instant navigations)\n- Add `pendingMinMs: 500` (avoid flash for near-instant loads)\n\n### 4. `src/routes/index.tsx` — Replace inline loading\n- Replace the `if (loading)` block's simple `<p>Loading projects...</p>` with `<LoadingScreen compact />`\n\n### 5. `src/routes/dashboard.tsx` — Replace inline loading\n- Replace the `if (loading)` block's simple `<p>Loading dashboard...</p>` with `<LoadingScreen compact />`\n\n### 6. `src/routes/board.tsx` — Replace inline loading\n- Replace the `if (loading)` block's simple `<p>Loading tickets...</p>` with `<LoadingScreen compact />`\n\n### 7. `src/styles.css` — Add reduced-motion rule for loading screen\n- Add rule to disable LetterGlitch canvas animation under `@media (prefers-reduced-motion: reduce)` (the component handles this internally, but CSS class can hide the canvas as a safety net)\n\n## Approach Details\n\n**Theme color extraction** (in LoadingScreen.tsx):\n```ts\nconst getThemeGlitchColors = (): string[] => {\n  const style = getComputedStyle(document.documentElement);\n  return [\n    style.getPropertyValue('--accent-primary').trim(),\n    style.getPropertyValue('--accent-secondary').trim(),\n    style.getPropertyValue('--accent-ai').trim(),\n  ].filter(Boolean);\n};\n```\n\n**Reduced motion** (in LoadingScreen.tsx):\n```ts\nconst prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;\n```\nIf true, render a simple flex-centered `<Loader2 className=\"animate-spin\" />` instead of the canvas.\n\n**Route transition z-index**: Use `z-index: 40` (below modals at 50+) so the loading screen doesn't cover open modals.\n\n## Verification\n\n1. `pnpm type-check` — no errors\n2. `pnpm lint` — no errors\n3. `pnpm build` — builds successfully\n4. Manual testing:\n   - Navigate between routes — full-screen glitch appears for ~500ms\n   - Switch themes in Settings — glitch colors match the active theme\n   - Enable \"Reduce motion\" in OS — falls back to simple spinner\n   - Check board/dashboard/home pages load with compact glitch inline\n\n---\n\n## This Ticket's Scope\n\nCreate `src/components/LetterGlitch.tsx`:\n- Port the react-bits LetterGlitch.jsx to TypeScript with proper types\n- Add typed props interface (`LetterGlitchProps`)\n- Canvas-based animation using `requestAnimationFrame` with proper cleanup on unmount\n- Support HiDPI/Retina displays via `devicePixelRatio`\n- Debounced resize handling\n\n### Source Reference\nThe original component is from https://github.com/DavidHDev/react-bits (MIT license), file: `src/content/Backgrounds/LetterGlitch/LetterGlitch.jsx`\n\n### Acceptance Criteria\n- [ ] Component renders a canvas with randomized glitch characters\n- [ ] Props are fully typed with TypeScript interface\n- [ ] Animation cleans up on unmount (cancelAnimationFrame, remove resize listener)\n- [ ] Vignette overlays work (outerVignette, centerVignette)\n- [ ] Smooth color transitions work when `smooth={true}`\n- [ ] `pnpm type-check` passes\n\n### Branch\nAll work for this epic goes on branch `feature/letter-glitch-loading` — shared across all tickets in the epic, single PR.",
-      "priority": "high",
-      "tags": [
-        "component",
-        "animation",
-        "canvas"
-      ]
-    },
-    {
-      "id": "8867c2b0-416f-43ef-a2f1-3c2204f9a425",
-      "title": "Create theme-aware LoadingScreen wrapper",
-      "passes": true,
-      "overview": "This is part of the LetterGlitch Loading Screen epic. All tickets share branch `feature/letter-glitch-loading` and will be part of a single PR.",
+      "overview": "",
       "types": [
         {
-          "name": "LoadingScreenProps",
-          "code": "interface LoadingScreenProps {\n  compact?: boolean;\n  className?: string;\n}"
+          "name": "CommandDef",
+          "code": "interface CommandDef {\n  resource: string;          // \"ticket\", \"project\", etc.\n  action: string;            // \"list\", \"create\", etc.\n  description: string;       // one-liner for help output\n  flags: FlagDef[];          // { name, type, required, description, enum? }\n  examples?: string[];       // \"brain-dump ticket list --pretty\"\n  aliases?: string[];        // alternate action names\n}"
+        },
+        {
+          "name": "FlagDef",
+          "code": "interface FlagDef {\n  name: string;              // \"project\", \"ticket\", etc. (without --)\n  type: \"string\" | \"number\" | \"boolean\" | \"enum\";\n  required: boolean;\n  description: string;\n  enum?: string[];           // valid values for enum type\n}"
         }
       ],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Full-screen mode fills container with proper z-index",
-        "Compact mode renders at fixed height",
-        "Colors adapt when theme is changed in Settings",
-        "Reduced motion fallback shows spinner instead of canvas",
+        "All new commands are additive and do not break existing command syntax.",
+        "All new actions support JSON output and `--pretty`.",
+        "New parity actions return data equivalent in meaning to corresponding MCP actions.",
+        "`brain-dump help` lists all new resources/actions.",
+        "Unknown commands provide suggested alternatives (Phase 3).",
+        "Search works with FTS5 and has LIKE fallback behavior.",
+        "`ticket update` supports title, description, priority, tags, and epic fields.",
+        "`tasks` resource remains the single home for task management (no duplication in `session`).",
+        "CLI tests cover (Phase 0.3, after Phase 1):",
+        "success paths",
+        "validation failures",
+        "dry-run destructive flows",
+        "JSON shape consistency"
+      ],
+      "references": [
+        "src/lib/db.ts"
+      ],
+      "description": "# CLI Robustness Plan v2\n\n## Goal\n\nMake Brain Dump CLI a complete day-to-day interface that is robust, discoverable, and safe, without breaking any existing commands.\n\nPrinciples:\n- Additive only (no removals/renames that break scripts)\n- Resource-first command model with a small top-level power layer\n- Parity-first for high-impact MCP gaps\n- JSON-first output with `--pretty` for humans\n- Strong test coverage to prevent command drift\n\n## Current Gaps (Validated)\n\n- `project` resource missing in CLI.\n- `ticket update` only changes status \u2014 no way to update title, description, priority, tags, or epic from CLI.\n- CLI lacks parity for key MCP actions:\n  - `ticket`: `update-criterion`, `update-attachment`, `list-by-epic`, aliasable file actions\n  - `epic`: `reconcile-learnings`, `get-learnings`\n  - `review`: `update-demo-step`\n  - `session`: events (task actions already covered by `tasks` resource)\n  - `telemetry`: `log-context`\n- Discoverability drift between docs and implemented commands.\n- No consistent command metadata source for help/docs/completions.\n- No dedicated CLI integration test harness.\n\n## Phase 0: Foundation (Do First)\n\n### 0.1 CLI context resolution utilities\nCreate `cli/lib/context.ts`:\n\n- `resolveProjectId({ projectFlag, cwd })`\n  - precedence: explicit `--project` -> project by cwd path -> error\n- `resolveTicketId({ ticketFlag })`\n  - precedence: explicit `--ticket` only for v1 (no hidden mutable state)\n\nRationale: keeps behavior deterministic and avoids surprise \"current ticket\" state.\n\n### 0.2 Command metadata registry (MVP)\nCreate `cli/lib/command-registry.ts` as a single flat array \u2014 minimal but machine-readable.\n\nData structure:\n```typescript\ninterface CommandDef {\n  resource: string;          // \"ticket\", \"project\", etc.\n  action: string;            // \"list\", \"create\", etc.\n  description: string;       // one-liner for help output\n  flags: FlagDef[];          // { name, type, required, description, enum? }\n  examples?: string[];       // \"brain-dump ticket list --pretty\"\n  aliases?: string[];        // alternate action names\n}\n\ninterface FlagDef {\n  name: string;              // \"project\", \"ticket\", etc. (without --)\n  type: \"string\" | \"number\" | \"boolean\" | \"enum\";\n  required: boolean;\n  description: string;\n  enum?: string[];           // valid values for enum type\n}\n```\n\nApproach:\n- Build incrementally: register new Phase 1 commands first, backfill existing commands later\n- Each command file exports its `CommandDef[]` alongside the `handle()` function\n- `command-registry.ts` collects all exports into one array\n- `brain-dump help` reads from the registry instead of hand-written strings\n- Top-level commands (init, open, status, etc.) register as `resource: \"_top\"` or similar\n\nThis stays lightweight \u2014 no decorators, no class hierarchy, just typed data.\n\n### 0.3 CLI test harness (after Phase 1 ships)\nAdd `cli/__tests__/` spawn-based integration tests:\n\n- isolate XDG dirs per test via `BRAIN_DUMP_DATA_DIR` env var\n- run `tsx cli/brain-dump.ts` with real args via `execFile` (no shell)\n- assert exit codes, JSON output shape, and errors\n- add tests retroactively for Phase 1 commands before starting Phase 2\n\nRationale: ship Phase 0.1 + 0.2 + Phase 1 commands first, then lock them down with tests. Tests are most valuable after command shapes stabilize.\n\n## Phase 1: Parity-First Additions (High Impact)\n\n## 1) Add `project` resource\n\nNew file: `cli/commands/project.ts`\n\nCommands:\n```bash\nbrain-dump project list [--pretty]\nbrain-dump project find --path <path> [--pretty]\nbrain-dump project create --name <name> --path <path> [--color <hex>] [--pretty]\nbrain-dump project delete --project <id> [--confirm] [--pretty]\n```\n\nWiring:\n- add import/router/help in `cli/brain-dump.ts`\n\nCore used:\n- `listProjects`, `findProjectByPath`, `createProject`, `deleteProject`\n\n## 2) Expand `ticket` resource parity\n\nModify `cli/commands/ticket.ts`\n\nKeep existing actions and add:\n```bash\nbrain-dump ticket update --ticket <id> [--status <s>] [--title <t>] [--description <d>] [--priority <p>] [--tags <csv>] [--epic <eid>] [--pretty]\nbrain-dump ticket update-status --ticket <id> --status <status> [--pretty]\nbrain-dump ticket update-criterion --ticket <id> --criterion <id> --criterion-status <pending|passed|failed|skipped> [--note <text>] [--pretty]\nbrain-dump ticket update-attachment --ticket <id> --attachment <id|filename> --attachment-type <type> [--attachment-description <text>] [--attachment-priority <primary|supplementary>] [--linked-criteria <csv>] [--pretty]\nbrain-dump ticket list-by-epic --epic <id> [--project <id>] [--status <status>] [--limit <n>] [--pretty]\nbrain-dump ticket link-files --ticket <id> --files <csv> [--pretty]\nbrain-dump ticket get-files --file <path> [--project <id>] [--pretty]\n```\n\nGeneral ticket update (title, description, priority, tags, epic):\n- Requires new `updateTicket()` core function in `core/ticket.ts`\n- Dynamic SQL SET builder: only updates fields that are provided\n- Validates epic exists if `--epic` given\n- Returns updated ticket via `getTicket()`\n- Existing `ticket update` behavior (status-only) is preserved when only `--status` is passed\n- `update-status` is an additive alias for MCP naming consistency\n\nCore used:\n- **New:** `updateTicket` (create in `core/ticket.ts`, export from `core/index.ts`)\n- `updateTicketStatus`\n- `updateAcceptanceCriterion`\n- `updateAttachmentMetadata`\n- `listTicketsByEpic`\n- `linkFiles`\n- `getTicketsForFile`\n\n## 3) Expand `epic` resource parity\n\nModify `cli/commands/epic.ts`\n\nAdd:\n```bash\nbrain-dump epic reconcile-learnings --ticket <id> --learnings-file <path> [--update-docs] [--pretty]\nbrain-dump epic get-learnings --epic <id> [--pretty]\n```\n\nCore/index updates:\n- export `reconcileLearnings`\n- export `getEpicLearnings`\n\n## 4) Expand `review` resource parity\n\nModify `cli/commands/review.ts`\n\nAdd:\n```bash\nbrain-dump review update-demo-step --demo-script <id> --step-order <n> --step-status <pending|passed|failed|skipped> [--step-notes <text>] [--pretty]\n```\n\nCore used:\n- `updateDemoStep`\n\n## 5) Expand `session` resource parity (events only)\n\nModify `cli/commands/session.ts`\n\nAdd event actions only (task actions already live in the `tasks` resource \u2014 no duplication):\n```bash\nbrain-dump session update-state --session <id> --state <state> [--message <text>] [--pretty]\nbrain-dump session emit-event --session <id> --event-type <thinking|tool_start|tool_end|file_change|progress|state_change|error> [--event-data-file <path>] [--pretty]\nbrain-dump session get-events --session <id> [--since <iso>] [--limit <n>] [--pretty]\nbrain-dump session clear-events --session <id> [--pretty]\n```\n\nCompatibility:\n- keep existing `session update` unchanged\n- `update-state` is additive alias for MCP naming consistency\n\nCore used:\n- `updateState`, `emitEvent`, `getEvents`, `clearEvents`\n\n## 6) Expand `telemetry` parity\n\nModify `cli/commands/telemetry.ts`\n\nAdd:\n```bash\nbrain-dump telemetry log-context --session <id> --has-description --has-criteria [--criteria-count <n>] [--comment-count <n>] [--attachment-count <n>] [--image-count <n>] [--pretty]\n```\n\nCore used:\n- `logContext`\n\n## Phase 2: Top-Level Power Commands (Small, High Leverage)\n\nThese remain top-level additions in `cli/brain-dump.ts` (additive only).\n\n## 7) `brain-dump open`\n\n```bash\nbrain-dump open [--port <n>]\n```\n\nBehavior:\n- default port `4242`\n- platform-aware opener: `xdg-open` (Linux), `open` (macOS), `start` (Windows)\n- optional health check to `http://localhost:<port>/` before opening\n- if server not running, print helpful message: \"Dev server not running. Start it with: pnpm dev\"\n\nImplementation: ~15 lines inline in `cli/brain-dump.ts`. No core functions needed.\n\n## 8) `brain-dump init`\n\n```bash\nbrain-dump init [--name <name>] [--color <hex>] [--pretty]\n```\n\nBehavior:\n- resolve cwd\n- check `findProjectByPath(cwd)`\n- if exists: return existing project\n- else create project with:\n  - name: `--name` -> `package.json:name` -> directory basename\n  - path: cwd\n\n## 9) `brain-dump status`\n\n```bash\nbrain-dump status [--project <id>] [--limit <n>] [--pretty]\n```\n\nOutput sections:\n- project summary by ticket status\n- active tickets (`in_progress`, `ai_review`, `human_review`)\n- active Ralph sessions snapshot\n- recent activity/comments\n\nImplementation:\n- new `cli/commands/status.ts` for structured pretty output\n- JSON mode returns a single normalized object payload\n\n## 10) `brain-dump search`\n\n```bash\nbrain-dump search \"<query>\" [--project <id>] [--status <status>] [--limit <n>] [--pretty]\n```\n\nImplementation:\n- new `core/search.ts` with `searchTickets()`\n- FTS5-first query, LIKE fallback if unavailable\n- expose from `core/index.ts`\n- add DB setup in `core/db.ts` for `tickets_fts` + triggers (port from `src/lib/db.ts`)\n\n## 11) `brain-dump context`\n\n```bash\nbrain-dump context --ticket <id> [--pretty]\n```\n\nRead-only ticket deep dive payload:\n- ticket (full detail from `getTicket()`)\n- comments (from `listComments()`)\n- review findings (from `getFindings()`)\n- subtasks/criteria (inline in ticket data)\n\n## 12) `brain-dump log`\n\n```bash\nbrain-dump log [--project <id>] [--ticket <id>] [--limit <n>] [--pretty]\n```\n\nImplementation:\n- new `getActivityLog()` in `core/comment.ts`\n- joined ticket/project comment stream ordered desc\n\n## Phase 3: UX and Maintenance Hardening\n\n## 13) `brain-dump completions`\n\n```bash\nbrain-dump completions zsh\nbrain-dump completions bash\nbrain-dump completions fish\n```\n\nGenerate scripts from `command-registry.ts`.\n\n## 14) Help and unknown-command UX\n\n- Add \"did you mean\" suggestion for unknown resource/action.\n- Ensure all help text comes from command registry metadata.\n\n## 15) Docs sync and drift prevention\n\n- Add a script to generate `docs/cli.md` command tables from registry metadata.\n- Align/remove stale references to unsupported commands in docs.\n\n## File-Level Change Plan\n\nCreate:\n- `cli/commands/project.ts` \u2014 Phase 1, #1\n- `cli/commands/status.ts` \u2014 Phase 2, #9\n- `cli/lib/context.ts` \u2014 Phase 0.1\n- `cli/lib/command-registry.ts` \u2014 Phase 0.2\n- `core/search.ts` \u2014 Phase 2, #10\n- `core/ticket.ts` \u2192 add `updateTicket()` \u2014 Phase 1, #2\n- `cli/__tests__/...` \u2014 Phase 0.3 (after Phase 1 ships)\n\nModify:\n- `cli/brain-dump.ts` \u2014 all phases (routing, help, top-level commands)\n- `cli/commands/ticket.ts` \u2014 Phase 1, #2\n- `cli/commands/epic.ts` \u2014 Phase 1, #3\n- `cli/commands/review.ts` \u2014 Phase 1, #4\n- `cli/commands/session.ts` \u2014 Phase 1, #5\n- `cli/commands/telemetry.ts` \u2014 Phase 1, #6\n- `core/index.ts` \u2014 export new functions\n- `core/comment.ts` \u2014 Phase 2, #12 (`getActivityLog()`)\n- `core/db.ts` \u2014 Phase 2, #10 (FTS5 init)\n- `docs/cli.md` \u2014 Phase 3, #15 (auto-generated)\n\n## Acceptance Criteria\n\n- All new commands are additive and do not break existing command syntax.\n- All new actions support JSON output and `--pretty`.\n- New parity actions return data equivalent in meaning to corresponding MCP actions.\n- `brain-dump help` lists all new resources/actions.\n- Unknown commands provide suggested alternatives (Phase 3).\n- Search works with FTS5 and has LIKE fallback behavior.\n- `ticket update` supports title, description, priority, tags, and epic fields.\n- `tasks` resource remains the single home for task management (no duplication in `session`).\n- CLI tests cover (Phase 0.3, after Phase 1):\n  - success paths\n  - validation failures\n  - dry-run destructive flows\n  - JSON shape consistency\n\n## Verification Plan\n\nPer milestone:\n1. `pnpm type-check`\n2. `pnpm lint`\n3. `pnpm test`\n4. CLI integration test suite pass (from Phase 0.3 onward)\n\nManual smoke:\n```bash\nbrain-dump open\nbrain-dump init --name \"test-project\"\nbrain-dump project list --pretty\nbrain-dump ticket list --project <id> --pretty\nbrain-dump ticket update --ticket <id> --title \"New title\" --priority high --pretty\nbrain-dump status --pretty\nbrain-dump search \"workflow\" --pretty\nbrain-dump log --limit 10 --pretty\nbrain-dump context --ticket <id> --pretty\nbrain-dump session emit-event --session <id> --event-type progress --event-data-file ./event.json --pretty\nbrain-dump telemetry log-context --session <id> --has-description --has-criteria --criteria-count 3 --pretty\n```\n\n## Explicit Non-Goals (This Iteration)\n\n- Removing existing commands or changing semantics in a breaking way\n- Introducing hidden mutable \"current ticket\" state\n- Re-architecting MCP tools to match CLI; CLI should consume existing core APIs\n- Expanding into destructive DB maintenance commands beyond current safe patterns\n- Duplicating `tasks` resource actions into `session` resource",
+      "priority": "high",
+      "tags": [
+        "reference",
+        "cli",
+        "plan"
+      ]
+    },
+    {
+      "id": "dc01fa52-07c9-4db4-af8c-48bdb4825a91",
+      "title": "Phase 0.1: CLI context resolution utilities",
+      "passes": true,
+      "overview": "Create `cli/lib/context.ts` with shared context resolution utilities used by all CLI commands.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`resolveProjectId` resolves from `--project` flag first, then cwd, then errors",
+        "`resolveTicketId` requires explicit `--ticket` flag (no implicit state)",
+        "Both functions have proper TypeScript types and error messages",
         "`pnpm type-check` passes"
       ],
-      "references": [
-        "src/components/LoadingScreen.tsx"
-      ],
-      "description": "# Create Theme-Aware LoadingScreen Wrapper\n\n## Context\nThis is part of the LetterGlitch Loading Screen epic. All tickets share branch `feature/letter-glitch-loading` and will be part of a single PR.\n\n## Scope\n\nCreate `src/components/LoadingScreen.tsx` — a wrapper around `LetterGlitch.tsx` that:\n\n### Full-screen mode (default)\n- Absolute positioned, fills parent container\n- Used as TanStack Router `pendingComponent` for route transitions\n- z-index: 40 (below modals)\n\n### Compact mode (`compact` prop)\n- Fixed height (~200px), fills width\n- Used to replace inline \"Loading...\" text in routes\n\n### Theme integration\n- Reads CSS variables at mount: `--accent-primary`, `--accent-secondary`, `--accent-ai`\n- Builds `glitchColors` array dynamically so it adapts to all 9 themes\n- Uses `getComputedStyle(document.documentElement)` to extract colors\n\n```ts\nconst getThemeGlitchColors = (): string[] => {\n  const style = getComputedStyle(document.documentElement);\n  return [\n    style.getPropertyValue('--accent-primary').trim(),\n    style.getPropertyValue('--accent-secondary').trim(),\n    style.getPropertyValue('--accent-ai').trim(),\n  ].filter(Boolean);\n};\n```\n\n### Reduced motion\n- Check `window.matchMedia('(prefers-reduced-motion: reduce)').matches`\n- If true: render simple centered `<Loader2 className=\"animate-spin\" />` from lucide-react\n- If false: render full LetterGlitch canvas animation\n\n### Configuration\n- `outerVignette={true}` for atmospheric edge fade\n- Custom character set: `\"01█▓▒░BRAINDUMP{}[]<>/*#@&\"`\n- `glitchSpeed={50}` (default)\n- `smooth={true}` for smooth color transitions\n\n### Props Interface\n```ts\ninterface LoadingScreenProps {\n  compact?: boolean;\n  className?: string;\n}\n```\n\n### Acceptance Criteria\n- [ ] Full-screen mode fills container with proper z-index\n- [ ] Compact mode renders at fixed height\n- [ ] Colors adapt when theme is changed in Settings\n- [ ] Reduced motion fallback shows spinner instead of canvas\n- [ ] `pnpm type-check` passes\n\n### Branch\nAll work on `feature/letter-glitch-loading` — single PR for the whole epic.",
+      "references": [],
+      "description": "## Overview\n\nCreate `cli/lib/context.ts` with shared context resolution utilities used by all CLI commands.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## What to Build\n\n### `resolveProjectId({ projectFlag, cwd })`\n- Precedence: explicit `--project` flag \u2192 project by cwd path (via `findProjectByPath`) \u2192 throw error\n- Used by any command that needs a project context\n\n### `resolveTicketId({ ticketFlag })`\n- Precedence: explicit `--ticket` flag only for v1 (no hidden mutable state)\n- Deterministic behavior \u2014 no \"current ticket\" concept\n\n## Files\n\n- **Create:** `cli/lib/context.ts`\n\n## Acceptance Criteria\n\n- [ ] `resolveProjectId` resolves from `--project` flag first, then cwd, then errors\n- [ ] `resolveTicketId` requires explicit `--ticket` flag (no implicit state)\n- [ ] Both functions have proper TypeScript types and error messages\n- [ ] `pnpm type-check` passes",
       "priority": "high",
       "tags": [
-        "component",
-        "theme",
-        "accessibility"
+        "cli",
+        "foundation",
+        "phase-0"
       ]
     },
     {
-      "id": "3aa450f0-83cf-4238-a0a7-29fdc80b7910",
-      "title": "Add route transition pendingComponent to router",
+      "id": "605612e6-9642-498a-8042-8747c256d5d9",
+      "title": "Phase 0.2: Command metadata registry",
       "passes": true,
-      "overview": "This is part of the LetterGlitch Loading Screen epic. All tickets share branch `feature/letter-glitch-loading` and will be part of a single PR.",
-      "types": [],
+      "overview": "Create `cli/lib/command-registry.ts` \u2014 a single flat array of `CommandDef` objects that serves as the machine-readable source of truth for all CLI commands. Used for help output, completions, and docs generation.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
+      "types": [
+        {
+          "name": "CommandDef",
+          "code": "interface CommandDef {\n  resource: string;          // \"ticket\", \"project\", etc.\n  action: string;            // \"list\", \"create\", etc.\n  description: string;       // one-liner for help output\n  flags: FlagDef[];          // { name, type, required, description, enum? }\n  examples?: string[];       // \"brain-dump ticket list --pretty\"\n  aliases?: string[];        // alternate action names\n}"
+        },
+        {
+          "name": "FlagDef",
+          "code": "interface FlagDef {\n  name: string;\n  type: \"string\" | \"number\" | \"boolean\" | \"enum\";\n  required: boolean;\n  description: string;\n  enum?: string[];\n}"
+        }
+      ],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Route transitions show LetterGlitch animation when navigation takes >300ms",
-        "Fast navigations (<300ms) don't flash the loading screen",
-        "Loading screen doesn't cover modals",
-        "`pnpm type-check` and `pnpm build` pass"
+        "`CommandDef` and `FlagDef` interfaces exported",
+        "Registry collects commands from all command files",
+        "`brain-dump help` reads from registry instead of hand-written strings",
+        "`pnpm type-check` passes"
       ],
-      "references": [
-        "src/routes/__root.tsx"
-      ],
-      "description": "# Add Route Transition pendingComponent\n\n## Context\nThis is part of the LetterGlitch Loading Screen epic. All tickets share branch `feature/letter-glitch-loading` and will be part of a single PR.\n\n## Scope\n\nModify `src/routes/__root.tsx` to add the LoadingScreen as TanStack Router's pendingComponent:\n\n```ts\nimport { LoadingScreen } from \"../components/LoadingScreen\";\n\nexport const Route = createRootRoute({\n  // ... existing config ...\n  pendingComponent: () => <LoadingScreen />,\n  pendingMs: 300,    // Don't show for instant navigations\n  pendingMinMs: 500, // Minimum display to avoid flash\n});\n```\n\n### Key Details\n- `pendingMs: 300` — only show loading screen if navigation takes longer than 300ms\n- `pendingMinMs: 500` — once shown, keep it visible for at least 500ms to avoid jarring flash\n- LoadingScreen renders in full-screen mode (no `compact` prop) for route transitions\n- z-index is 40 (below modals at 50+) so it doesn't interfere with open modals\n\n### Acceptance Criteria\n- [ ] Route transitions show LetterGlitch animation when navigation takes >300ms\n- [ ] Fast navigations (<300ms) don't flash the loading screen\n- [ ] Loading screen doesn't cover modals\n- [ ] `pnpm type-check` and `pnpm build` pass\n\n### Branch\nAll work on `feature/letter-glitch-loading` — single PR for the whole epic.",
+      "references": [],
+      "description": "## Overview\n\nCreate `cli/lib/command-registry.ts` \u2014 a single flat array of `CommandDef` objects that serves as the machine-readable source of truth for all CLI commands. Used for help output, completions, and docs generation.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## What to Build\n\n### Interfaces\n```typescript\ninterface CommandDef {\n  resource: string;          // \"ticket\", \"project\", etc.\n  action: string;            // \"list\", \"create\", etc.\n  description: string;       // one-liner for help output\n  flags: FlagDef[];          // { name, type, required, description, enum? }\n  examples?: string[];       // \"brain-dump ticket list --pretty\"\n  aliases?: string[];        // alternate action names\n}\n\ninterface FlagDef {\n  name: string;\n  type: \"string\" | \"number\" | \"boolean\" | \"enum\";\n  required: boolean;\n  description: string;\n  enum?: string[];\n}\n```\n\n### Approach\n- Build incrementally: register Phase 1 commands first, backfill existing later\n- Each command file exports its `CommandDef[]` alongside the `handle()` function\n- `command-registry.ts` collects all exports into one array\n- Top-level commands register as `resource: \"_top\"`\n- No decorators, no class hierarchy \u2014 just typed data\n\n## Files\n\n- **Create:** `cli/lib/command-registry.ts`\n- **Modify:** `cli/brain-dump.ts` (wire `help` to read from registry)\n\n## Acceptance Criteria\n\n- [ ] `CommandDef` and `FlagDef` interfaces exported\n- [ ] Registry collects commands from all command files\n- [ ] `brain-dump help` reads from registry instead of hand-written strings\n- [ ] `pnpm type-check` passes",
       "priority": "high",
       "tags": [
-        "router",
-        "transitions"
+        "cli",
+        "foundation",
+        "phase-0"
       ]
     },
     {
-      "id": "db4256ad-ee0b-4a52-93ee-3ccd89c35e4b",
-      "title": "Replace inline loading states with compact LoadingScreen",
-      "passes": false,
-      "overview": "This is part of the LetterGlitch Loading Screen epic. All tickets share branch `feature/letter-glitch-loading` and will be part of a single PR.",
+      "id": "b2b0b103-80f3-41f7-a100-d447b88d6387",
+      "title": "Phase 1.1: Add `project` CLI resource",
+      "passes": true,
+      "overview": "Create `cli/commands/project.ts` to add the missing `project` resource to the CLI. Currently only available via MCP.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Home page shows compact glitch animation while loading projects",
-        "Dashboard page shows compact glitch animation while loading",
-        "Board page shows compact glitch animation while loading tickets",
-        "Reduced motion OS setting shows spinner fallback in all locations",
-        "`pnpm type-check`, `pnpm lint`, `pnpm build` all pass",
-        "Manual verification in browser at localhost:4242"
+        "All 4 project actions work (list, find, create, delete)",
+        "JSON output by default, `--pretty` for human-readable",
+        "`delete` requires `--confirm` flag (dry-run by default)",
+        "Registered in command registry",
+        "`pnpm type-check` and `pnpm lint` pass"
       ],
-      "references": [
-        "src/routes/index.tsx",
-        "src/routes/dashboard.tsx",
-        "src/routes/board.tsx",
-        "src/styles.css"
+      "references": [],
+      "description": "## Overview\n\nCreate `cli/commands/project.ts` to add the missing `project` resource to the CLI. Currently only available via MCP.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## Commands to Implement\n\n```bash\nbrain-dump project list [--pretty]\nbrain-dump project find --path <path> [--pretty]\nbrain-dump project create --name <name> --path <path> [--color <hex>] [--pretty]\nbrain-dump project delete --project <id> [--confirm] [--pretty]\n```\n\n## Core Functions Used\n\n- `listProjects`\n- `findProjectByPath`\n- `createProject`\n- `deleteProject`\n\n## Files\n\n- **Create:** `cli/commands/project.ts`\n- **Modify:** `cli/brain-dump.ts` (add import, routing, help entry)\n\n## Acceptance Criteria\n\n- [ ] All 4 project actions work (list, find, create, delete)\n- [ ] JSON output by default, `--pretty` for human-readable\n- [ ] `delete` requires `--confirm` flag (dry-run by default)\n- [ ] Registered in command registry\n- [ ] `pnpm type-check` and `pnpm lint` pass",
+      "priority": "high",
+      "tags": [
+        "cli",
+        "parity",
+        "phase-1"
+      ]
+    },
+    {
+      "id": "09ede31f-0f5c-4c71-88aa-e2edfa0db4a5",
+      "title": "Phase 1.2: Expand `ticket` CLI resource parity",
+      "passes": true,
+      "overview": "Expand `cli/commands/ticket.ts` with missing MCP-parity actions and add a general `updateTicket()` core function.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "All 7 new ticket actions work",
+        "`ticket update` supports title, description, priority, tags, and epic fields",
+        "Existing `ticket update --status` behavior unchanged",
+        "`updateTicket()` core function uses dynamic SQL SET builder",
+        "JSON + `--pretty` output for all actions",
+        "`pnpm type-check` and `pnpm lint` pass"
       ],
-      "description": "# Replace Inline Loading States\n\n## Context\nThis is part of the LetterGlitch Loading Screen epic. All tickets share branch `feature/letter-glitch-loading` and will be part of a single PR.\n\n## Scope\n\nReplace simple text-based loading states in 3 route files with `<LoadingScreen compact />`:\n\n### 1. `src/routes/index.tsx`\nReplace the `if (loading)` block that renders `<p>Loading projects...</p>` with `<LoadingScreen compact />`\n\n### 2. `src/routes/dashboard.tsx`\nReplace the `if (loading)` block that renders `<p>Loading dashboard...</p>` with `<LoadingScreen compact />`\n\n### 3. `src/routes/board.tsx`\nReplace the `if (loading)` block that renders `<p>Loading tickets...</p>` with `<LoadingScreen compact />`\n\n### Also: `src/styles.css`\nAdd a CSS safety-net rule for reduced motion:\n```css\n@media (prefers-reduced-motion: reduce) {\n  .letter-glitch-canvas {\n    display: none;\n  }\n}\n```\n(The component handles this internally, but belt-and-suspenders for accessibility.)\n\n### Acceptance Criteria\n- [ ] Home page shows compact glitch animation while loading projects\n- [ ] Dashboard page shows compact glitch animation while loading\n- [ ] Board page shows compact glitch animation while loading tickets\n- [ ] Reduced motion OS setting shows spinner fallback in all locations\n- [ ] `pnpm type-check`, `pnpm lint`, `pnpm build` all pass\n- [ ] Manual verification in browser at localhost:4242\n\n### Branch\nAll work on `feature/letter-glitch-loading` — single PR for the whole epic.",
+      "references": [],
+      "description": "## Overview\n\nExpand `cli/commands/ticket.ts` with missing MCP-parity actions and add a general `updateTicket()` core function.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## New Commands\n\n```bash\nbrain-dump ticket update --ticket <id> [--status <s>] [--title <t>] [--description <d>] [--priority <p>] [--tags <csv>] [--epic <eid>] [--pretty]\nbrain-dump ticket update-status --ticket <id> --status <status> [--pretty]\nbrain-dump ticket update-criterion --ticket <id> --criterion <id> --criterion-status <pending|passed|failed|skipped> [--note <text>] [--pretty]\nbrain-dump ticket update-attachment --ticket <id> --attachment <id|filename> --attachment-type <type> [--attachment-description <text>] [--attachment-priority <primary|supplementary>] [--linked-criteria <csv>] [--pretty]\nbrain-dump ticket list-by-epic --epic <id> [--project <id>] [--status <status>] [--limit <n>] [--pretty]\nbrain-dump ticket link-files --ticket <id> --files <csv> [--pretty]\nbrain-dump ticket get-files --file <path> [--project <id>] [--pretty]\n```\n\n## Core Changes\n\n- **New:** `updateTicket()` in `core/ticket.ts` \u2014 dynamic SQL SET builder, only updates provided fields, validates epic exists if given, returns updated ticket via `getTicket()`\n- **Export** from `core/index.ts`\n\n## Existing Core Used\n\n- `updateTicketStatus`, `updateAcceptanceCriterion`, `updateAttachmentMetadata`\n- `listTicketsByEpic`, `linkFiles`, `getTicketsForFile`\n\n## Key Behaviors\n\n- Existing `ticket update` (status-only) preserved when only `--status` passed\n- `update-status` is an additive alias for MCP naming consistency\n- Tags passed as comma-separated string, parsed to array\n\n## Files\n\n- **Create/modify:** `core/ticket.ts` (add `updateTicket()`)\n- **Modify:** `cli/commands/ticket.ts`, `core/index.ts`\n\n## Acceptance Criteria\n\n- [ ] All 7 new ticket actions work\n- [ ] `ticket update` supports title, description, priority, tags, and epic fields\n- [ ] Existing `ticket update --status` behavior unchanged\n- [ ] `updateTicket()` core function uses dynamic SQL SET builder\n- [ ] JSON + `--pretty` output for all actions\n- [ ] `pnpm type-check` and `pnpm lint` pass",
+      "priority": "high",
+      "tags": [
+        "cli",
+        "parity",
+        "phase-1"
+      ]
+    },
+    {
+      "id": "3f5fd292-715a-45fd-9441-c7225db362e4",
+      "title": "Phase 1.3: Expand `epic` CLI resource parity",
+      "passes": true,
+      "overview": "Add missing `reconcile-learnings` and `get-learnings` actions to `cli/commands/epic.ts`.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Both new epic actions work",
+        "`--learnings-file` reads and parses JSON array from file path",
+        "JSON + `--pretty` output",
+        "Registered in command registry",
+        "`pnpm type-check` and `pnpm lint` pass"
+      ],
+      "references": [],
+      "description": "## Overview\n\nAdd missing `reconcile-learnings` and `get-learnings` actions to `cli/commands/epic.ts`.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## New Commands\n\n```bash\nbrain-dump epic reconcile-learnings --ticket <id> --learnings-file <path> [--update-docs] [--pretty]\nbrain-dump epic get-learnings --epic <id> [--pretty]\n```\n\n## Details\n\n- `reconcile-learnings` reads a JSON file of learning objects from `--learnings-file`\n- `get-learnings` returns accumulated learnings for an epic across completed tickets\n\n## Core Functions Used\n\n- `reconcileLearnings`\n- `getEpicLearnings`\n\n## Files\n\n- **Modify:** `cli/commands/epic.ts`, `core/index.ts` (ensure exports)\n\n## Acceptance Criteria\n\n- [ ] Both new epic actions work\n- [ ] `--learnings-file` reads and parses JSON array from file path\n- [ ] JSON + `--pretty` output\n- [ ] Registered in command registry\n- [ ] `pnpm type-check` and `pnpm lint` pass",
       "priority": "medium",
       "tags": [
-        "routes",
-        "loading",
-        "ui"
+        "cli",
+        "parity",
+        "phase-1"
+      ]
+    },
+    {
+      "id": "8a669472-1af8-4fdf-835b-ac6330d7033c",
+      "title": "Phase 1.4: Expand `review` CLI resource parity",
+      "passes": true,
+      "overview": "Add `update-demo-step` action to `cli/commands/review.ts`.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`update-demo-step` action works",
+        "`--step-status` validates against enum (pending, passed, failed, skipped)",
+        "JSON + `--pretty` output",
+        "Registered in command registry",
+        "`pnpm type-check` and `pnpm lint` pass"
+      ],
+      "references": [],
+      "description": "## Overview\n\nAdd `update-demo-step` action to `cli/commands/review.ts`.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## New Command\n\n```bash\nbrain-dump review update-demo-step --demo-script <id> --step-order <n> --step-status <pending|passed|failed|skipped> [--step-notes <text>] [--pretty]\n```\n\n## Core Functions Used\n\n- `updateDemoStep`\n\n## Files\n\n- **Modify:** `cli/commands/review.ts`\n\n## Acceptance Criteria\n\n- [ ] `update-demo-step` action works\n- [ ] `--step-status` validates against enum (pending, passed, failed, skipped)\n- [ ] JSON + `--pretty` output\n- [ ] Registered in command registry\n- [ ] `pnpm type-check` and `pnpm lint` pass",
+      "priority": "medium",
+      "tags": [
+        "cli",
+        "parity",
+        "phase-1"
+      ]
+    },
+    {
+      "id": "69b33ebf-6bcf-498c-8fa0-737a25c97fa6",
+      "title": "Phase 1.5: Expand `session` CLI resource parity (events)",
+      "passes": true,
+      "overview": "Add event-related actions to `cli/commands/session.ts`. Task actions already live in `tasks` resource \u2014 no duplication.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "All 4 new session event actions work",
+        "`emit-event` reads JSON from `--event-data-file` path",
+        "`--event-type` validates against enum",
+        "Existing `session update` behavior unchanged",
+        "JSON + `--pretty` output",
+        "`pnpm type-check` and `pnpm lint` pass"
+      ],
+      "references": [],
+      "description": "## Overview\n\nAdd event-related actions to `cli/commands/session.ts`. Task actions already live in `tasks` resource \u2014 no duplication.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## New Commands\n\n```bash\nbrain-dump session update-state --session <id> --state <state> [--message <text>] [--pretty]\nbrain-dump session emit-event --session <id> --event-type <thinking|tool_start|tool_end|file_change|progress|state_change|error> [--event-data-file <path>] [--pretty]\nbrain-dump session get-events --session <id> [--since <iso>] [--limit <n>] [--pretty]\nbrain-dump session clear-events --session <id> [--pretty]\n```\n\n## Compatibility\n\n- Keep existing `session update` unchanged\n- `update-state` is an additive alias for MCP naming consistency\n\n## Core Functions Used\n\n- `updateState`, `emitEvent`, `getEvents`, `clearEvents`\n\n## Files\n\n- **Modify:** `cli/commands/session.ts`\n\n## Acceptance Criteria\n\n- [ ] All 4 new session event actions work\n- [ ] `emit-event` reads JSON from `--event-data-file` path\n- [ ] `--event-type` validates against enum\n- [ ] Existing `session update` behavior unchanged\n- [ ] JSON + `--pretty` output\n- [ ] `pnpm type-check` and `pnpm lint` pass",
+      "priority": "medium",
+      "tags": [
+        "cli",
+        "parity",
+        "phase-1"
+      ]
+    },
+    {
+      "id": "90371ebd-5a9e-4e8a-a6fe-4799556c91fc",
+      "title": "Phase 1.6: Expand `telemetry` CLI parity",
+      "passes": true,
+      "overview": "Add `log-context` action to `cli/commands/telemetry.ts`.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`log-context` action works",
+        "Boolean flags `--has-description` and `--has-criteria` parsed correctly",
+        "Optional count flags default appropriately",
+        "JSON + `--pretty` output",
+        "Registered in command registry",
+        "`pnpm type-check` and `pnpm lint` pass"
+      ],
+      "references": [],
+      "description": "## Overview\n\nAdd `log-context` action to `cli/commands/telemetry.ts`.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## New Command\n\n```bash\nbrain-dump telemetry log-context --session <id> --has-description --has-criteria [--criteria-count <n>] [--comment-count <n>] [--attachment-count <n>] [--image-count <n>] [--pretty]\n```\n\n## Core Functions Used\n\n- `logContext`\n\n## Files\n\n- **Modify:** `cli/commands/telemetry.ts`\n\n## Acceptance Criteria\n\n- [ ] `log-context` action works\n- [ ] Boolean flags `--has-description` and `--has-criteria` parsed correctly\n- [ ] Optional count flags default appropriately\n- [ ] JSON + `--pretty` output\n- [ ] Registered in command registry\n- [ ] `pnpm type-check` and `pnpm lint` pass",
+      "priority": "low",
+      "tags": [
+        "cli",
+        "parity",
+        "phase-1"
+      ]
+    },
+    {
+      "id": "b0eed6bd-91dd-406b-b012-0df4041e35b3",
+      "title": "Phase 2.7: `brain-dump open` command",
+      "passes": true,
+      "overview": "Add `brain-dump open` top-level command to open the Brain Dump UI in the browser.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`brain-dump open` opens browser to localhost:4242",
+        "`--port` flag overrides default port",
+        "Helpful error message when server not running",
+        "Platform detection works for Linux/macOS/Windows",
+        "Registered in command registry"
+      ],
+      "references": [],
+      "description": "## Overview\n\nAdd `brain-dump open` top-level command to open the Brain Dump UI in the browser.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## Command\n\n```bash\nbrain-dump open [--port <n>]\n```\n\n## Behavior\n\n- Default port `4242`\n- Platform-aware opener: `xdg-open` (Linux), `open` (macOS), `start` (Windows)\n- Optional health check to `http://localhost:<port>/` before opening\n- If server not running, print helpful message: \"Dev server not running. Start it with: pnpm dev\"\n\n## Implementation\n\n~15 lines inline in `cli/brain-dump.ts`. No core functions needed.\n\n## Files\n\n- **Modify:** `cli/brain-dump.ts`\n\n## Acceptance Criteria\n\n- [ ] `brain-dump open` opens browser to localhost:4242\n- [ ] `--port` flag overrides default port\n- [ ] Helpful error message when server not running\n- [ ] Platform detection works for Linux/macOS/Windows\n- [ ] Registered in command registry",
+      "priority": "medium",
+      "tags": [
+        "cli",
+        "power-command",
+        "phase-2"
+      ]
+    },
+    {
+      "id": "a258a282-585b-4267-a9e1-4cf4b4cac881",
+      "title": "Phase 2.8: `brain-dump init` command",
+      "passes": true,
+      "overview": "Add `brain-dump init` top-level command to register the current directory as a Brain Dump project.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`brain-dump init` creates a project for current directory",
+        "Idempotent \u2014 returns existing project if already registered",
+        "Name resolution: flag \u2192 package.json \u2192 directory basename",
+        "JSON + `--pretty` output",
+        "Registered in command registry"
+      ],
+      "references": [],
+      "description": "## Overview\n\nAdd `brain-dump init` top-level command to register the current directory as a Brain Dump project.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## Command\n\n```bash\nbrain-dump init [--name <name>] [--color <hex>] [--pretty]\n```\n\n## Behavior\n\n- Resolve cwd\n- Check `findProjectByPath(cwd)`\n- If exists: return existing project (idempotent)\n- Else create project with:\n  - name: `--name` \u2192 `package.json:name` \u2192 directory basename\n  - path: cwd\n\n## Files\n\n- **Modify:** `cli/brain-dump.ts`\n\n## Acceptance Criteria\n\n- [ ] `brain-dump init` creates a project for current directory\n- [ ] Idempotent \u2014 returns existing project if already registered\n- [ ] Name resolution: flag \u2192 package.json \u2192 directory basename\n- [ ] JSON + `--pretty` output\n- [ ] Registered in command registry",
+      "priority": "medium",
+      "tags": [
+        "cli",
+        "power-command",
+        "phase-2"
+      ]
+    },
+    {
+      "id": "876ff09a-dfa3-49fd-b86a-1632a1e161f1",
+      "title": "Phase 2.9: `brain-dump status` command",
+      "passes": true,
+      "overview": "Add `brain-dump status` top-level command for a project dashboard view.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`brain-dump status` shows project dashboard",
+        "`--project` flag selects project (or resolves from cwd)",
+        "Pretty output has clear sections with headers",
+        "JSON output is a single normalized object",
+        "Registered in command registry",
+        "`pnpm type-check` and `pnpm lint` pass"
+      ],
+      "references": [],
+      "description": "## Overview\n\nAdd `brain-dump status` top-level command for a project dashboard view.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## Command\n\n```bash\nbrain-dump status [--project <id>] [--limit <n>] [--pretty]\n```\n\n## Output Sections\n\n- Project summary by ticket status (counts per status)\n- Active tickets (`in_progress`, `ai_review`, `human_review`)\n- Active Ralph sessions snapshot\n- Recent activity/comments\n\n## Implementation\n\n- New `cli/commands/status.ts` for structured pretty output\n- JSON mode returns a single normalized object payload\n\n## Files\n\n- **Create:** `cli/commands/status.ts`\n- **Modify:** `cli/brain-dump.ts` (routing)\n\n## Acceptance Criteria\n\n- [ ] `brain-dump status` shows project dashboard\n- [ ] `--project` flag selects project (or resolves from cwd)\n- [ ] Pretty output has clear sections with headers\n- [ ] JSON output is a single normalized object\n- [ ] Registered in command registry\n- [ ] `pnpm type-check` and `pnpm lint` pass",
+      "priority": "medium",
+      "tags": [
+        "cli",
+        "power-command",
+        "phase-2"
+      ]
+    },
+    {
+      "id": "8e5195af-89a7-44e2-a227-503a5fd4376a",
+      "title": "Phase 2.10: `brain-dump search` command",
+      "passes": true,
+      "overview": "Add `brain-dump search` command with FTS5 full-text search and LIKE fallback.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`brain-dump search \"query\"` returns matching tickets",
+        "FTS5 used when available, LIKE fallback otherwise",
+        "`--project`, `--status`, `--limit` filters work",
+        "JSON + `--pretty` output",
+        "`tickets_fts` table and triggers created in `core/db.ts`",
+        "Registered in command registry",
+        "`pnpm type-check` and `pnpm lint` pass"
+      ],
+      "references": [
+        "src/lib/db.ts"
+      ],
+      "description": "## Overview\n\nAdd `brain-dump search` command with FTS5 full-text search and LIKE fallback.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## Command\n\n```bash\nbrain-dump search \"<query>\" [--project <id>] [--status <status>] [--limit <n>] [--pretty]\n```\n\n## Implementation\n\n- New `core/search.ts` with `searchTickets()` function\n- FTS5-first query, LIKE fallback if FTS5 unavailable\n- Expose from `core/index.ts`\n- Add DB setup in `core/db.ts` for `tickets_fts` virtual table + triggers (port from `src/lib/db.ts`)\n\n## Files\n\n- **Create:** `core/search.ts`\n- **Modify:** `core/db.ts` (FTS5 init), `core/index.ts` (export), `cli/brain-dump.ts` (routing)\n\n## Acceptance Criteria\n\n- [ ] `brain-dump search \"query\"` returns matching tickets\n- [ ] FTS5 used when available, LIKE fallback otherwise\n- [ ] `--project`, `--status`, `--limit` filters work\n- [ ] JSON + `--pretty` output\n- [ ] `tickets_fts` table and triggers created in `core/db.ts`\n- [ ] Registered in command registry\n- [ ] `pnpm type-check` and `pnpm lint` pass",
+      "priority": "medium",
+      "tags": [
+        "cli",
+        "power-command",
+        "phase-2"
+      ]
+    },
+    {
+      "id": "f64edbba-d234-4a34-b252-973aae0889b2",
+      "title": "Phase 2.11: `brain-dump context` command",
+      "passes": true,
+      "overview": "Add `brain-dump context` command for a read-only deep dive into a ticket's full context.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`brain-dump context --ticket <id>` returns combined ticket context",
+        "Includes ticket details, comments, findings, and criteria",
+        "JSON + `--pretty` output",
+        "Registered in command registry",
+        "`pnpm type-check` and `pnpm lint` pass"
+      ],
+      "references": [],
+      "description": "## Overview\n\nAdd `brain-dump context` command for a read-only deep dive into a ticket's full context.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## Command\n\n```bash\nbrain-dump context --ticket <id> [--pretty]\n```\n\n## Output Payload\n\n- Ticket full detail (from `getTicket()`)\n- Comments (from `listComments()`)\n- Review findings (from `getFindings()`)\n- Subtasks/criteria (inline in ticket data)\n\n## Files\n\n- **Modify:** `cli/brain-dump.ts` (routing + inline handler or new command file)\n\n## Acceptance Criteria\n\n- [ ] `brain-dump context --ticket <id>` returns combined ticket context\n- [ ] Includes ticket details, comments, findings, and criteria\n- [ ] JSON + `--pretty` output\n- [ ] Registered in command registry\n- [ ] `pnpm type-check` and `pnpm lint` pass",
+      "priority": "medium",
+      "tags": [
+        "cli",
+        "power-command",
+        "phase-2"
+      ]
+    },
+    {
+      "id": "df2e38eb-7730-460a-8792-275aacfcb4a1",
+      "title": "Phase 2.12: `brain-dump log` command",
+      "passes": true,
+      "overview": "Add `brain-dump log` command for a chronological activity stream across tickets.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`brain-dump log` shows recent activity across project",
+        "`--project` and `--ticket` filters work",
+        "`--limit` controls result count",
+        "JSON + `--pretty` output",
+        "Registered in command registry",
+        "`pnpm type-check` and `pnpm lint` pass"
+      ],
+      "references": [],
+      "description": "## Overview\n\nAdd `brain-dump log` command for a chronological activity stream across tickets.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## Command\n\n```bash\nbrain-dump log [--project <id>] [--ticket <id>] [--limit <n>] [--pretty]\n```\n\n## Implementation\n\n- New `getActivityLog()` function in `core/comment.ts`\n- Joined ticket/project comment stream ordered descending by date\n- Export from `core/index.ts`\n\n## Files\n\n- **Modify:** `core/comment.ts` (add `getActivityLog()`), `core/index.ts` (export), `cli/brain-dump.ts` (routing)\n\n## Acceptance Criteria\n\n- [ ] `brain-dump log` shows recent activity across project\n- [ ] `--project` and `--ticket` filters work\n- [ ] `--limit` controls result count\n- [ ] JSON + `--pretty` output\n- [ ] Registered in command registry\n- [ ] `pnpm type-check` and `pnpm lint` pass",
+      "priority": "medium",
+      "tags": [
+        "cli",
+        "power-command",
+        "phase-2"
+      ]
+    },
+    {
+      "id": "fb948288-fe7d-4a76-b0a8-7744e63c2a76",
+      "title": "Phase 3.13: Shell completions generation",
+      "passes": true,
+      "overview": "Add `brain-dump completions` command to generate shell completion scripts from the command registry.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`brain-dump completions zsh` outputs valid zsh completion script",
+        "`brain-dump completions bash` outputs valid bash completion script",
+        "`brain-dump completions fish` outputs valid fish completion script",
+        "Scripts generated from command registry (not hand-written)",
+        "Registered in command registry"
+      ],
+      "references": [],
+      "description": "## Overview\n\nAdd `brain-dump completions` command to generate shell completion scripts from the command registry.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## Commands\n\n```bash\nbrain-dump completions zsh\nbrain-dump completions bash\nbrain-dump completions fish\n```\n\n## Implementation\n\n- Generate completion scripts from `command-registry.ts` data\n- Each shell gets its own output format\n- Users pipe output to their shell config (e.g., `brain-dump completions zsh >> ~/.zshrc`)\n\n## Files\n\n- **Modify:** `cli/brain-dump.ts` (routing + completion generator)\n\n## Acceptance Criteria\n\n- [ ] `brain-dump completions zsh` outputs valid zsh completion script\n- [ ] `brain-dump completions bash` outputs valid bash completion script\n- [ ] `brain-dump completions fish` outputs valid fish completion script\n- [ ] Scripts generated from command registry (not hand-written)\n- [ ] Registered in command registry",
+      "priority": "low",
+      "tags": [
+        "cli",
+        "ux",
+        "phase-3"
+      ]
+    },
+    {
+      "id": "61196f20-ae2a-4ae1-9276-7d7aadc57b5a",
+      "title": "Phase 3.14: Help and unknown-command UX",
+      "passes": true,
+      "overview": "Improve help output and add \"did you mean?\" suggestions for unknown commands.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Unknown commands show \"did you mean\" suggestion with closest match",
+        "All help text generated from command registry",
+        "`brain-dump help` shows all resources and their actions",
+        "`brain-dump help <resource>` shows actions for that resource",
+        "`pnpm type-check` and `pnpm lint` pass"
+      ],
+      "references": [],
+      "description": "## Overview\n\nImprove help output and add \"did you mean?\" suggestions for unknown commands.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## What to Build\n\n- Add \"did you mean\" suggestion for unknown resource/action (e.g., `brain-dump tickt list` \u2192 \"Did you mean: ticket?\")\n- Ensure all help text comes from command registry metadata (no hand-written strings)\n- Levenshtein distance or similar for fuzzy matching\n\n## Files\n\n- **Modify:** `cli/brain-dump.ts` (unknown command handler, help output)\n\n## Acceptance Criteria\n\n- [ ] Unknown commands show \"did you mean\" suggestion with closest match\n- [ ] All help text generated from command registry\n- [ ] `brain-dump help` shows all resources and their actions\n- [ ] `brain-dump help <resource>` shows actions for that resource\n- [ ] `pnpm type-check` and `pnpm lint` pass",
+      "priority": "low",
+      "tags": [
+        "cli",
+        "ux",
+        "phase-3"
+      ]
+    },
+    {
+      "id": "5f3c5271-feea-4b29-ab11-83e12260c96a",
+      "title": "Phase 3.15: Docs sync and drift prevention",
+      "passes": true,
+      "overview": "Add automated docs generation from the command registry to prevent documentation drift.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Script generates `docs/cli.md` from command registry data",
+        "Generated docs include all resources, actions, flags, and examples",
+        "Stale/incorrect command references removed from docs",
+        "Script can be run as part of CI or pre-commit",
+        "`pnpm type-check` and `pnpm lint` pass"
+      ],
+      "references": [],
+      "description": "## Overview\n\nAdd automated docs generation from the command registry to prevent documentation drift.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## What to Build\n\n- Script to generate `docs/cli.md` command tables from registry metadata\n- Align/remove stale references to unsupported commands in existing docs\n- Could be a `brain-dump docs generate` command or standalone script\n\n## Files\n\n- **Create/modify:** Script or command for docs generation\n- **Modify:** `docs/cli.md` (auto-generated output)\n\n## Acceptance Criteria\n\n- [ ] Script generates `docs/cli.md` from command registry data\n- [ ] Generated docs include all resources, actions, flags, and examples\n- [ ] Stale/incorrect command references removed from docs\n- [ ] Script can be run as part of CI or pre-commit\n- [ ] `pnpm type-check` and `pnpm lint` pass",
+      "priority": "low",
+      "tags": [
+        "cli",
+        "docs",
+        "phase-3"
+      ]
+    },
+    {
+      "id": "15088e93-2da4-4bd6-94b0-a79f3a82a264",
+      "title": "Phase 0.3: CLI integration test harness",
+      "passes": true,
+      "overview": "Add spawn-based integration tests for CLI commands. Intentionally done after Phase 1 ships so command shapes are stable before locking them down.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Test harness isolates data directory per test",
+        "Tests use `execFile` (no shell injection risk)",
+        "All Phase 1 commands have success-path tests",
+        "Validation failure tests for required flags",
+        "Dry-run tests for destructive actions",
+        "JSON output shape assertions",
+        "`pnpm test` includes and passes CLI tests"
+      ],
+      "references": [],
+      "description": "## Overview\n\nAdd spawn-based integration tests for CLI commands. Intentionally done after Phase 1 ships so command shapes are stable before locking them down.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## What to Build\n\n### Test Infrastructure (`cli/__tests__/`)\n- Isolate XDG dirs per test via `BRAIN_DUMP_DATA_DIR` env var\n- Run `tsx cli/brain-dump.ts` with real args via `execFile` (no shell)\n- Assert exit codes, JSON output shape, and errors\n\n### Test Coverage\n- Success paths for all Phase 1 commands\n- Validation failures (missing required flags, invalid values)\n- Dry-run destructive flows (`project delete` without `--confirm`)\n- JSON shape consistency (output parses as valid JSON)\n\n## Files\n\n- **Create:** `cli/__tests__/` directory with test files\n\n## Acceptance Criteria\n\n- [ ] Test harness isolates data directory per test\n- [ ] Tests use `execFile` (no shell injection risk)\n- [ ] All Phase 1 commands have success-path tests\n- [ ] Validation failure tests for required flags\n- [ ] Dry-run tests for destructive actions\n- [ ] JSON output shape assertions\n- [ ] `pnpm test` includes and passes CLI tests",
+      "priority": "high",
+      "tags": [
+        "cli",
+        "testing",
+        "phase-0"
       ]
     }
   ],
@@ -271,7 +645,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-02-15T03:36:20.845Z",
-  "epicTitle": "LetterGlitch Loading Screen",
-  "epicDescription": "Replace plain text loading states and add route transition animations using a LetterGlitch canvas effect. Theme-aware, accessible, and applied both as TanStack Router pendingComponent and inline loading replacements.\\n\\nAll tickets in this epic share a single PR branch: `feature/letter-glitch-loading`"
+  "generatedAt": "2026-03-01T00:58:54.610Z",
+  "epicTitle": "CLI Robustness & Parity",
+  "epicDescription": "Make Brain Dump CLI a complete day-to-day interface that is robust, discoverable, and safe. Covers foundation work (context resolution, command registry, test harness), MCP parity additions (project, ticket, epic, review, session, telemetry), top-level power commands (open, init, status, search, context, log), and UX hardening (completions, help, docs sync). All work lives on one shared branch."
 }
