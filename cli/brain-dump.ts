@@ -61,6 +61,7 @@ import * as tasks from "./commands/tasks.ts";
 import * as compliance from "./commands/compliance.ts";
 import * as settings from "./commands/settings.ts";
 import * as transfer from "./commands/transfer.ts";
+import * as status from "./commands/status.ts";
 import { outputResult, outputError } from "./lib/output.ts";
 import { getResources, getResourceDescription } from "./lib/command-registry.ts";
 import { parseFlags, optionalFlag, boolFlag } from "./lib/args.ts";
@@ -87,6 +88,7 @@ ${resourceLines}
 Top-level commands:
   brain-dump open [--port <n>]     Open Brain Dump UI in the browser
   brain-dump init [--name] [--color]  Register current directory as a project
+  brain-dump status [--project] [--limit]  Project dashboard overview
 
 Backward-compatible shortcuts:
   brain-dump backup [--list]       Same as: brain-dump admin backup [--list]
@@ -267,6 +269,9 @@ switch (resource) {
     break;
   case "init":
     handleInit();
+    break;
+  case "status":
+    status.handle(action, rest);
     break;
 
   // ── Backward compatibility (top-level commands) ─────────────

@@ -1144,6 +1144,27 @@ export const COMMAND_REGISTRY: CommandDef[] = [
   },
   {
     resource: "_top",
+    action: "status",
+    description: "Project dashboard: ticket summary, active work, recent activity",
+    flags: [
+      {
+        name: "project",
+        type: "string",
+        required: false,
+        description: "Project ID (or auto-detect from cwd)",
+      },
+      {
+        name: "limit",
+        type: "number",
+        required: false,
+        description: "Max recent activity items (default: 10)",
+      },
+      prettyFlag,
+    ],
+    examples: ["brain-dump status --pretty", "brain-dump status --project abc --limit 5 --pretty"],
+  },
+  {
+    resource: "_top",
     action: "init",
     description: "Register current directory as a Brain Dump project",
     flags: [
