@@ -1132,6 +1132,19 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     examples: ["brain-dump admin health --pretty"],
   },
 
+  // ── completions ───────────────────────────────────────────────
+  {
+    resource: "_top",
+    action: "completions",
+    description: "Generate shell completion scripts",
+    flags: [],
+    examples: [
+      "brain-dump completions zsh",
+      "brain-dump completions bash",
+      "brain-dump completions fish",
+    ],
+  },
+
   // ── top-level power commands ────────────────────────────────
   {
     resource: "_top",
