@@ -49,17 +49,19 @@ pnpm dev
 
 Open [localhost:4242](http://localhost:4242).
 
-### 4. Verify engineering quality gates
+### 4. Verify and explore
 
 ```bash
-pnpm check
-brain-dump doctor
+pnpm check              # Type-check + lint + tests
+brain-dump doctor        # Validate installation + wiring
+brain-dump status --pretty  # See your project dashboard
 ```
 
-If `brain-dump` is not in your PATH yet, use:
+If `brain-dump` is not in your PATH yet, prefix with `pnpm`:
 
 ```bash
 pnpm brain-dump doctor
+pnpm brain-dump status --pretty
 ```
 
 ---
@@ -93,16 +95,70 @@ pnpm brain-dump doctor
 | `pnpm db:studio`  | Open Drizzle Studio                        |
 | `pnpm build`      | Build for production                       |
 
-### CLI Commands
+### CLI Tool
 
-| Command                    | Description                    |
-| -------------------------- | ------------------------------ |
-| `brain-dump doctor`        | Validate installation + wiring |
-| `brain-dump backup`        | Create database backup         |
-| `brain-dump backup --list` | List backups                   |
-| `brain-dump restore`       | Restore from backup            |
-| `brain-dump check --full`  | Full database health check     |
-| `brain-dump admin health`  | Detailed health report         |
+The `brain-dump` CLI provides full resource management from the terminal — 15 resources with 90+ actions, plus quick-access power commands. All commands output JSON by default; add `--pretty` for human-readable output.
+
+#### Power Commands
+
+| Command                              | Description                                                 |
+| ------------------------------------ | ----------------------------------------------------------- |
+| `brain-dump init`                    | Register current directory as a project (auto-detects name) |
+| `brain-dump status --pretty`         | Project dashboard: ticket counts, active work, activity     |
+| `brain-dump search "query" --pretty` | Full-text search across tickets (FTS5)                      |
+| `brain-dump context --ticket <id>`   | Full ticket context: details, criteria, files, comments     |
+| `brain-dump log --pretty`            | Chronological activity stream across tickets                |
+| `brain-dump open`                    | Open the web UI in your browser                             |
+| `brain-dump completions zsh`         | Generate shell completions (zsh/bash/fish)                  |
+| `brain-dump doctor`                  | Validate installation and wiring                            |
+
+#### Resource Commands
+
+Work with any resource using `brain-dump <resource> <action>`:
+
+| Resource     | Actions                                                      |
+| ------------ | ------------------------------------------------------------ |
+| `project`    | `list`, `find`, `create`, `delete`                           |
+| `ticket`     | `create`, `list`, `get`, `update`, `delete`, `link-files`... |
+| `epic`       | `create`, `list`, `update`, `delete`, `get-learnings`...     |
+| `workflow`   | `start-work`, `complete-work`, `start-epic`                  |
+| `comment`    | `add`, `list`                                                |
+| `review`     | `submit-finding`, `generate-demo`, `get-findings`...         |
+| `session`    | `create`, `update-state`, `complete`, `get`, `list`...       |
+| `git`        | `link-commit`, `link-pr`, `sync`                             |
+| `telemetry`  | `start`, `end`, `get`, `list`, `log-tool`...                 |
+| `files`      | `link`, `get-tickets`                                        |
+| `tasks`      | `save`, `get`, `clear`, `snapshots`                          |
+| `compliance` | `start`, `log`, `end`, `list`, `export`, `archive`           |
+| `settings`   | `get`, `update`                                              |
+| `transfer`   | `export-epic`, `export-project`, `import`, `preview`         |
+| `admin`      | `backup`, `restore`, `check`, `doctor`, `health`             |
+
+#### Examples
+
+```bash
+# Register this project and see your dashboard
+brain-dump init
+brain-dump status --pretty
+
+# Search for tickets and get full context
+brain-dump search "auth bug" --pretty
+brain-dump context --ticket abc123 --pretty
+
+# Manage tickets from the terminal
+brain-dump ticket create --project <id> --title "Fix login timeout"
+brain-dump ticket list --status ready --pretty
+brain-dump workflow start-work --ticket <id>
+
+# Link git work to tickets
+brain-dump git link-commit --ticket <id> --hash $(git rev-parse HEAD)
+brain-dump git link-pr --ticket <id> --pr 42
+
+# Activity and admin
+brain-dump log --limit 5 --pretty
+brain-dump admin backup
+brain-dump admin check --full
+```
 
 [Full CLI reference →](docs/cli.md)
 
@@ -288,7 +344,21 @@ Reads your spec.md and creates epics + tickets in Brain Dump, sized for 1-4 hour
 brain-dump workflow complete-work --ticket <ticket-id> --summary "Implemented X"
 ```
 
-Or use MCP directly: `workflow { action: "complete-work", ticketId: "<ticket-id>", summary: "..." }`
+Or via MCP: `workflow { action: "complete-work", ticketId: "<ticket-id>", summary: "..." }`
+
+### Track Everything from the Terminal
+
+The CLI mirrors every MCP tool action, so you can drive your entire workflow without the web UI:
+
+```bash
+brain-dump init                                    # Register project
+brain-dump ticket create --project <id> --title "Add caching"  # Create ticket
+brain-dump workflow start-work --ticket <id>       # Start work (creates branch)
+# ... write code ...
+brain-dump git link-commit --ticket <id> --hash $(git rev-parse HEAD)
+brain-dump workflow complete-work --ticket <id> --summary "Added Redis caching"
+brain-dump log --pretty                            # See activity stream
+```
 
 ### Universal Quality Workflow
 
@@ -321,7 +391,15 @@ All data is local: SQLite database on your machine.
 | macOS | `~/Library/Application Support/brain-dump/` |
 | Linux | `~/.local/share/brain-dump/`                |
 
-Run `brain-dump backup` to create backups. [Data locations & backup procedures →](docs/data-locations.md)
+```bash
+brain-dump admin backup          # Create backup
+brain-dump admin backup --list   # List available backups
+brain-dump admin restore         # Restore from backup
+brain-dump admin check --full    # Full database integrity check
+brain-dump admin health          # Detailed health report
+```
+
+[Data locations & backup procedures →](docs/data-locations.md)
 
 ---
 
@@ -342,18 +420,18 @@ See the [complete flows index](docs/flows/README.md) for the big picture.
 
 ## Learn More
 
-| Topic                 | Link                                                         |
-| --------------------- | ------------------------------------------------------------ |
-| Claude Code setup     | [docs/claude-code-setup.md](docs/claude-code-setup.md)       |
-| VS Code setup         | [docs/vscode-setup.md](docs/vscode-setup.md)                 |
-| Cursor setup          | [docs/cursor-setup.md](docs/cursor-setup.md)                 |
-| OpenCode setup        | [docs/opencode-setup.md](docs/opencode-setup.md)             |
-| MCP Tools reference   | [docs/mcp-tools.md](docs/mcp-tools.md)                       |
-| CLI reference         | [docs/cli.md](docs/cli.md)                                   |
-| Ralph autonomous mode | [docs/flows/ralph-workflow.md](docs/flows/ralph-workflow.md) |
-| Troubleshooting       | [docs/troubleshooting.md](docs/troubleshooting.md)           |
-| Docker sandbox        | [docs/docker-sandbox-guide.md](docs/docker-sandbox-guide.md) |
-| Backup & restore      | [docs/backup-restore.md](docs/backup-restore.md)             |
+| Topic                   | Link                                                         |
+| ----------------------- | ------------------------------------------------------------ |
+| **CLI reference**       | [docs/cli.md](docs/cli.md)                                   |
+| **MCP Tools reference** | [docs/mcp-tools.md](docs/mcp-tools.md)                       |
+| Claude Code setup       | [docs/claude-code-setup.md](docs/claude-code-setup.md)       |
+| VS Code setup           | [docs/vscode-setup.md](docs/vscode-setup.md)                 |
+| Cursor setup            | [docs/cursor-setup.md](docs/cursor-setup.md)                 |
+| OpenCode setup          | [docs/opencode-setup.md](docs/opencode-setup.md)             |
+| Ralph autonomous mode   | [docs/flows/ralph-workflow.md](docs/flows/ralph-workflow.md) |
+| Troubleshooting         | [docs/troubleshooting.md](docs/troubleshooting.md)           |
+| Docker sandbox          | [docs/docker-sandbox-guide.md](docs/docker-sandbox-guide.md) |
+| Backup & restore        | [docs/backup-restore.md](docs/backup-restore.md)             |
 
 ---
 

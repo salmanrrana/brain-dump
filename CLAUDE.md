@@ -27,12 +27,23 @@ pnpm db:migrate             # Run Drizzle migrations
 pnpm db:generate            # Generate migration files from schema changes
 pnpm db:studio              # Open Drizzle Studio for database inspection
 
-# CLI tool (database utilities)
-pnpm brain-dump backup        # Create database backup
-pnpm brain-dump backup --list # List available backups
-pnpm brain-dump restore       # Restore from backup
-pnpm brain-dump check         # Quick integrity check
-pnpm brain-dump check --full  # Full health check
+# CLI tool — full resource management (15 resources, 90+ actions)
+# Power commands (quick access)
+pnpm brain-dump init              # Register current directory as project
+pnpm brain-dump status --pretty   # Project dashboard
+pnpm brain-dump search "query"    # Full-text ticket search (FTS5)
+pnpm brain-dump context --ticket <id>  # Full ticket context
+pnpm brain-dump log --pretty      # Activity stream
+pnpm brain-dump open              # Open web UI in browser
+pnpm brain-dump doctor            # Validate installation
+
+# Resource commands: brain-dump <resource> <action> [flags]
+pnpm brain-dump ticket list --status ready --pretty
+pnpm brain-dump workflow start-work --ticket <id>
+pnpm brain-dump git link-commit --ticket <id> --hash <sha>
+pnpm brain-dump admin backup      # Create database backup
+pnpm brain-dump admin check --full  # Full health check
+# See docs/cli.md for complete reference
 ```
 
 ## Architecture
