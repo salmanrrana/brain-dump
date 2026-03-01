@@ -129,9 +129,15 @@ export { createEpic, listEpics, updateEpic, deleteEpic } from "./epic.ts";
 export type { CreateEpicParams, UpdateEpicParams } from "./epic.ts";
 
 // Comment business logic
-export { addComment, listComments } from "./comment.ts";
+export { addComment, listComments, getActivityLog } from "./comment.ts";
 
-export type { AddCommentParams, CommentAuthor, CommentType } from "./comment.ts";
+export type {
+  AddCommentParams,
+  CommentAuthor,
+  CommentType,
+  ActivityLogEntry,
+  GetActivityLogParams,
+} from "./comment.ts";
 
 // Review & demo business logic
 export {

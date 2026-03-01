@@ -54,6 +54,22 @@ function getTicketRow(db: DbHandle, ticketId: string): DbTicketRow {
 // Public API
 // ============================================
 
+export interface ActivityLogEntry {
+  id: string;
+  ticketId: string;
+  ticketTitle: string;
+  content: string;
+  author: string;
+  type: string;
+  createdAt: string;
+}
+
+export interface GetActivityLogParams {
+  projectId?: string | undefined;
+  ticketId?: string | undefined;
+  limit?: number | undefined;
+}
+
 export interface AddCommentParams {
   ticketId: string;
   content: string;
@@ -95,4 +111,58 @@ export function listComments(db: DbHandle, ticketId: string): Comment[] {
     .all(ticketId) as DbCommentRow[];
 
   return rows.map(toComment);
+}
+
+/**
+ * Get a chronological activity log across tickets.
+ * Joins comments with ticket titles for a unified activity stream.
+ * Supports filtering by project and/or ticket.
+ */
+export function getActivityLog(db: DbHandle, params: GetActivityLogParams): ActivityLogEntry[] {
+  const { projectId, ticketId, limit = 20 } = params;
+
+  const conditions: string[] = [];
+  const values: (string | number)[] = [];
+
+  if (projectId) {
+    conditions.push("t.project_id = ?");
+    values.push(projectId);
+  }
+
+  if (ticketId) {
+    conditions.push("tc.ticket_id = ?");
+    values.push(ticketId);
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  const rows = db
+    .prepare(
+      `SELECT tc.id, tc.ticket_id, t.title AS ticket_title,
+              tc.content, tc.author, tc.type, tc.created_at
+       FROM ticket_comments tc
+       JOIN tickets t ON tc.ticket_id = t.id
+       ${where}
+       ORDER BY tc.created_at DESC, tc.rowid DESC
+       LIMIT ?`
+    )
+    .all(...values, limit) as Array<{
+    id: string;
+    ticket_id: string;
+    ticket_title: string;
+    content: string;
+    author: string;
+    type: string;
+    created_at: string;
+  }>;
+
+  return rows.map((r) => ({
+    id: r.id,
+    ticketId: r.ticket_id,
+    ticketTitle: r.ticket_title,
+    content: r.content,
+    author: r.author,
+    type: r.type,
+    createdAt: r.created_at,
+  }));
 }

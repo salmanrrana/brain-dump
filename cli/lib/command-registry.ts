@@ -1211,6 +1211,32 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     flags: [ticketFlag, prettyFlag],
     examples: ["brain-dump context --ticket abc123 --pretty", "brain-dump context --ticket abc123"],
   },
+  {
+    resource: "_top",
+    action: "log",
+    description: "Chronological activity stream across tickets",
+    flags: [
+      {
+        name: "project",
+        type: "string",
+        required: false,
+        description: "Project ID (or auto-detect from cwd)",
+      },
+      { ...ticketFlag, required: false },
+      {
+        name: "limit",
+        type: "number",
+        required: false,
+        description: "Max entries (default: 20)",
+      },
+      prettyFlag,
+    ],
+    examples: [
+      "brain-dump log --pretty",
+      "brain-dump log --project abc --limit 10 --pretty",
+      "brain-dump log --ticket abc --pretty",
+    ],
+  },
 ];
 
 // ── Lookup helpers ─────────────────────────────────────────────
