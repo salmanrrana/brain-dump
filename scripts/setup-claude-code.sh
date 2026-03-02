@@ -148,6 +148,7 @@ if [ -d "$SOURCE_SKILLS" ]; then
     echo "Installing global skills to ~/.claude/skills/..."
     for skill in "${GLOBAL_SKILLS[@]}"; do
         if [ -d "$SOURCE_SKILLS/$skill" ]; then
+            rm -rf "$GLOBAL_CLAUDE_DIR/skills/$skill"
             cp -r "$SOURCE_SKILLS/$skill" "$GLOBAL_CLAUDE_DIR/skills/$skill"
             echo -e "  ${GREEN}✓${NC} $skill"
         else
