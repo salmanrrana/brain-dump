@@ -134,16 +134,37 @@ else
 fi
 
 echo ""
-echo -e "${BLUE}Step 5: Copy Skills to Global Location${NC}"
-echo "────────────────────────────────────────"
+echo -e "${BLUE}Step 5: Copy Global Skills${NC}"
+echo "───────────────────────────"
 
 mkdir -p "$GLOBAL_CLAUDE_DIR/skills"
 
+# Only install universally-relevant skills globally.
+# Project-specific skills (react-best-practices, tanstack-*, web-design-guidelines)
+# live in each project's .claude/skills/ directory instead.
+GLOBAL_SKILLS=("brain-dump-workflow" "review" "review-aggregation")
+
 if [ -d "$SOURCE_SKILLS" ]; then
-    echo "Copying skills from brain-dump to ~/.claude/skills/..."
-    cp -rv "$SOURCE_SKILLS"/* "$GLOBAL_CLAUDE_DIR/skills/" 2>/dev/null || true
-    echo -e "${GREEN}Skills installed:${NC}"
-    ls -d "$GLOBAL_CLAUDE_DIR/skills"/*/ 2>/dev/null | xargs -I {} basename {} | sed 's/^/  • /'
+    echo "Installing global skills to ~/.claude/skills/..."
+    for skill in "${GLOBAL_SKILLS[@]}"; do
+        if [ -d "$SOURCE_SKILLS/$skill" ]; then
+            cp -r "$SOURCE_SKILLS/$skill" "$GLOBAL_CLAUDE_DIR/skills/$skill"
+            echo -e "  ${GREEN}✓${NC} $skill"
+        else
+            echo -e "  ${YELLOW}⚠${NC} $skill not found in source"
+        fi
+    done
+
+    # Clean up project-specific skills that were previously installed globally
+    PROJECT_SPECIFIC_SKILLS=("react-best-practices" "web-design-guidelines" "tanstack-query" "tanstack-mutations" "tanstack-types" "tanstack-errors" "tanstack-forms")
+    for skill in "${PROJECT_SPECIFIC_SKILLS[@]}"; do
+        if [ -d "$GLOBAL_CLAUDE_DIR/skills/$skill" ]; then
+            rm -rf "$GLOBAL_CLAUDE_DIR/skills/$skill"
+            echo -e "  ${YELLOW}🧹${NC} Removed $skill from global (now project-local)"
+        fi
+    done
+
+    echo -e "${GREEN}Global skills installed. Project-specific skills live in each repo's .claude/skills/${NC}"
 else
     echo -e "${YELLOW}No skills directory found in brain-dump.${NC}"
 fi
@@ -476,9 +497,14 @@ echo "    • Auto-PR creation on ticket start"
 echo "    • Claude task capture (auto-sync TodoWrite to Brain Dump)"
 echo "    • Telemetry capture (session tracking, tool usage, prompts)"
 echo ""
-echo -e "  ${GREEN}Skills (~/.claude/skills/):${NC}"
+echo -e "  ${GREEN}Global Skills (~/.claude/skills/):${NC}"
+echo "    • brain-dump-workflow - Core ticket workflow"
+echo "    • review - Code review pipeline"
 echo "    • review-aggregation - Combine review findings"
-echo "    • tanstack-* - TanStack library patterns"
+echo ""
+echo -e "  ${GREEN}Project-Local Skills (.claude/skills/):${NC}"
+echo "    • react-best-practices, tanstack-*, web-design-guidelines"
+echo "    • These are only available in projects that include them"
 echo ""
 echo -e "${BLUE}Review Pipeline:${NC}"
 echo "  /review runs: code-reviewer → silent-failure-hunter → code-simplifier"
