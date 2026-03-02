@@ -12,12 +12,13 @@ describe("IconSidebar", () => {
   const defaultProps = { disableRouterIntegration: true };
 
   describe("Rendering", () => {
-    it("renders all 5 default nav items", () => {
+    it("renders all 6 default nav items", () => {
       render(<IconSidebar {...defaultProps} />);
 
       expect(screen.getByRole("button", { name: "Home" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Dashboard" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Board" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "List" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Projects" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
     });
@@ -184,6 +185,9 @@ describe("IconSidebar", () => {
       expect(screen.getByRole("button", { name: "Board" })).toHaveFocus();
 
       await user.tab();
+      expect(screen.getByRole("button", { name: "List" })).toHaveFocus();
+
+      await user.tab();
       expect(screen.getByRole("button", { name: "Projects" })).toHaveFocus();
 
       await user.tab();
@@ -210,7 +214,8 @@ describe("IconSidebar", () => {
 
       render(<IconSidebar {...defaultProps} onAction={handleAction} />);
 
-      // Tab to Projects (4th item)
+      // Tab to Projects (5th item)
+      await user.tab();
       await user.tab();
       await user.tab();
       await user.tab();

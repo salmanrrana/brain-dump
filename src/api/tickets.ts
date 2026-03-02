@@ -109,8 +109,9 @@ export const getTickets = createServerFn({ method: "GET" })
       }
 
       // AND filter for tags - ticket must have ALL selected tags
+      // json_valid guard prevents crash on malformed tags data
       for (const tag of filters.tags) {
-        sql += ` AND EXISTS (
+        sql += ` AND json_valid(tickets.tags) AND EXISTS (
           SELECT 1 FROM json_each(tickets.tags)
           WHERE json_each.value = ?
         )`;

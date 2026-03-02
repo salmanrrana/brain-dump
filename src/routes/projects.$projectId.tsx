@@ -6,7 +6,6 @@ import { useAppState } from "../components/AppLayout";
 import { createBrowserLogger } from "../lib/browser-logger";
 import EpicListItem from "../components/navigation/EpicListItem";
 import DevHubToolbar from "../components/projects/DevHubToolbar";
-import TechStackCard from "../components/projects/TechStackCard";
 import GitHistoryCard from "../components/projects/GitHistoryCard";
 
 const logger = createBrowserLogger("routes:project-detail");
@@ -126,55 +125,50 @@ function ProjectDetail() {
         </button>
       </header>
 
-      {/* Development Hub Toolbar and Cards */}
+      {/* Development Hub Toolbar */}
       <DevHubToolbar projectPath={project.path} />
 
-      {/* Tech Stack and Git Info Cards */}
-      <div style={cardsGridStyles}>
-        <TechStackCard projectPath={project.path} />
-        <GitHistoryCard projectPath={project.path} />
-      </div>
-
-      {/* Epics Section */}
-      <div style={epicsSectionStyles}>
-        <h2 style={epicsSectionHeaderStyles}>Epics</h2>
-      </div>
-
-      {project.epics.length === 0 ? (
-        <div style={emptyStateStyles}>
-          <div style={emptyContentStyles}>
-            <p style={emptyTitleStyles}>No epics yet</p>
-            <p style={emptyDescriptionStyles}>Create your first epic to organize your tickets</p>
-            <button
-              type="button"
-              style={accentButtonStyles}
-              onClick={() => openEpicModal(projectId)}
-              className="hover:bg-[var(--accent-primary)] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
-            >
-              <Plus size={18} aria-hidden="true" />
-              Add Epic
-            </button>
+      {/* Two-column layout: Epics | Git Activity */}
+      <div style={columnsContainerStyles}>
+        {/* Left column: Epics */}
+        <div style={columnStyles}>
+          <div style={columnHeaderStyles}>
+            <h2 style={columnTitleStyles}>Epics</h2>
           </div>
-        </div>
-      ) : (
-        <div style={contentStyles}>
-          <div style={epicsListStyles}>
-            {project.epics.map((epic) => (
-              <EpicListItem
-                key={epic.id}
-                epic={epic}
-                ticketCount={ticketCountByEpic.get(epic.id)}
-                onSelect={() =>
-                  navigate({ to: "/board", search: { project: projectId, epic: epic.id } })
-                }
-                onEdit={() => openEpicModal(projectId, epic)}
-                onLaunchRalph={() => {
-                  // TODO: Implement Ralph launch for epic
-                  logger.info(`Ralph launch not yet implemented for epic: ${epic.id}`);
-                }}
-              />
-            ))}
-          </div>
+
+          {project.epics.length === 0 ? (
+            <div style={columnEmptyStyles}>
+              <p style={emptyTitleStyles}>No epics yet</p>
+              <p style={emptyDescriptionStyles}>Create your first epic to organize your tickets</p>
+              <button
+                type="button"
+                style={accentButtonStyles}
+                onClick={() => openEpicModal(projectId)}
+                className="hover:bg-[var(--accent-primary)] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+              >
+                <Plus size={18} aria-hidden="true" />
+                Add Epic
+              </button>
+            </div>
+          ) : (
+            <div style={epicsListStyles}>
+              {project.epics.map((epic) => (
+                <EpicListItem
+                  key={epic.id}
+                  epic={epic}
+                  ticketCount={ticketCountByEpic.get(epic.id)}
+                  onSelect={() =>
+                    navigate({ to: "/board", search: { project: projectId, epic: epic.id } })
+                  }
+                  onEdit={() => openEpicModal(projectId, epic)}
+                  onLaunchRalph={() => {
+                    // TODO: Implement Ralph launch for epic
+                    logger.info(`Ralph launch not yet implemented for epic: ${epic.id}`);
+                  }}
+                />
+              ))}
+            </div>
+          )}
 
           <footer style={footerStyles}>
             <button
@@ -188,7 +182,10 @@ function ProjectDetail() {
             </button>
           </footer>
         </div>
-      )}
+
+        {/* Right column: Git Activity */}
+        <GitHistoryCard projectPath={project.path} />
+      </div>
     </div>
   );
 }
@@ -286,11 +283,48 @@ const accentButtonStyles: React.CSSProperties = {
   flexShrink: 0,
 };
 
-const contentStyles: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
+const columnsContainerStyles: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: "var(--spacing-4)",
   flex: 1,
   overflow: "hidden",
+  padding: "0 var(--spacing-4) var(--spacing-4)",
+};
+
+const columnStyles: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  background: "var(--bg-secondary)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-md)",
+  overflow: "hidden",
+};
+
+const columnHeaderStyles: React.CSSProperties = {
+  position: "sticky",
+  top: 0,
+  zIndex: 1,
+  padding: "var(--spacing-3) var(--spacing-4)",
+  borderBottom: "1px solid var(--border-primary)",
+  background: "var(--bg-secondary)",
+};
+
+const columnTitleStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-md)",
+  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+  color: "var(--text-primary)",
+  margin: 0,
+};
+
+const columnEmptyStyles: React.CSSProperties = {
+  flex: 1,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "var(--spacing-8)",
+  textAlign: "center",
 };
 
 const epicsListStyles: React.CSSProperties = {
@@ -320,19 +354,6 @@ const addEpicButtonStyles: React.CSSProperties = {
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
   cursor: "pointer",
   transition: "all var(--transition-fast)",
-};
-
-const emptyStateStyles: React.CSSProperties = {
-  flex: 1,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "var(--spacing-8)",
-};
-
-const emptyContentStyles: React.CSSProperties = {
-  textAlign: "center",
-  maxWidth: "400px",
 };
 
 const emptyTitleStyles: React.CSSProperties = {
@@ -371,24 +392,4 @@ const errorDescriptionStyles: React.CSSProperties = {
   color: "var(--text-secondary)",
   margin: 0,
   marginBottom: "var(--spacing-2)",
-};
-
-const cardsGridStyles: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-  gap: "var(--spacing-4)",
-  padding: "var(--spacing-3) var(--spacing-4)",
-  backgroundColor: "var(--bg-primary)",
-};
-
-const epicsSectionStyles: React.CSSProperties = {
-  padding: "var(--spacing-3) var(--spacing-4) 0",
-  borderTop: "1px solid var(--border-primary)",
-};
-
-const epicsSectionHeaderStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-md)",
-  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-  color: "var(--text-primary)",
-  margin: 0,
 };

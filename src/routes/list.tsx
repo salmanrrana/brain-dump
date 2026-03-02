@@ -1,36 +1,64 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppState } from "../components/AppLayout";
 import {
   useTickets,
   useProjects,
-  useActiveRalphSessions,
+  useTagsWithMetadata,
   type Ticket,
   type StatusChange,
 } from "../lib/hooks";
 import { useToast } from "../components/Toast";
+import TicketListView from "../components/TicketListView";
+import TagListView from "../components/TagListView";
 import TicketModal from "../components/TicketModal";
-import { BoardHeader } from "../components/board";
 import { getStatusLabel } from "../lib/constants";
-import { KanbanBoard } from "../components/board/KanbanBoard";
 import { getTicket } from "../api/tickets";
 import { createBrowserLogger } from "../lib/browser-logger";
-export const Route = createFileRoute("/board")({
-  component: Board,
+
+export const Route = createFileRoute("/list")({
+  component: ListView,
 });
 
-function Board() {
-  const logger = createBrowserLogger("routes:board");
+type ListSubMode = "tickets" | "tags";
+
+function ListView() {
+  const logger = createBrowserLogger("routes:list");
   const {
     filters: appFilters,
     ticketRefreshKey,
     selectedTicketIdFromSearch,
     clearSelectedTicketFromSearch,
-    clearAllFilters,
   } = useAppState();
+  const navigate = useNavigate();
   const { projects } = useProjects();
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const { showToast } = useToast();
+
+  // Sub-mode from URL param ?view=tags (default: tickets)
+  const searchString = Route.useSearch({
+    select: (s: Record<string, string>) => s.view,
+  });
+  const listSubMode: ListSubMode = searchString === "tags" ? "tags" : "tickets";
+
+  const setListSubMode = useCallback(
+    (mode: ListSubMode) => {
+      void navigate({
+        to: ".",
+        search: (prev: Record<string, string>) => {
+          const next = { ...prev };
+          if (mode === "tags") {
+            next.view = "tags";
+          } else {
+            delete next.view;
+          }
+          return next;
+        },
+        replace: true,
+      });
+    },
+    [navigate]
+  );
 
   const filters = useMemo(() => {
     const f: { projectId?: string; epicId?: string; tags?: string[] } = {};
@@ -40,13 +68,15 @@ function Board() {
     return f;
   }, [appFilters.projectId, appFilters.epicId, appFilters.tags]);
 
+  // Tag metadata: show ALL tags (unfiltered) so the Tags tab works without selecting a project/epic
+  const tagFilters = useMemo(() => ({}), []);
+
   // Handle status changes from external sources (CLI, hooks)
   const handleStatusChange = useCallback(
     (change: StatusChange) => {
       const fromLabel = getStatusLabel(change.fromStatus);
       const toLabel = getStatusLabel(change.toStatus);
 
-      // Special message for auto-completion to AI review
       if (change.toStatus === "ai_review") {
         showToast("success", `"${change.ticketTitle}" is ready for AI review!`);
       } else if (change.toStatus === "human_review") {
@@ -64,8 +94,8 @@ function Board() {
     onStatusChange: handleStatusChange,
   });
 
-  // Fetch active Ralph sessions for status display on cards
-  const { getSession: getRalphSession } = useActiveRalphSessions();
+  // Fetch tag metadata only when in tags sub-mode
+  const { tagsWithMetadata } = useTagsWithMetadata(tagFilters);
 
   // Refetch when ticketRefreshKey changes (e.g., after creating a new ticket)
   useEffect(() => {
@@ -82,7 +112,6 @@ function Board() {
       try {
         const response = await getTicket({ data: selectedTicketIdFromSearch });
 
-        // Validate response has required fields
         if (
           !response ||
           typeof response !== "object" ||
@@ -125,6 +154,23 @@ function Board() {
     setSelectedTicket(null);
   };
 
+  // Tag drill-down: click tag row -> navigate to /board with tag filter, pushing history
+  const handleTagClick = useCallback(
+    (tagName: string) => {
+      const newTags = appFilters.tags.includes(tagName)
+        ? appFilters.tags.filter((t) => t !== tagName)
+        : [...appFilters.tags, tagName];
+
+      const search: Record<string, string | undefined> = {};
+      if (appFilters.projectId) search.project = appFilters.projectId;
+      if (appFilters.epicId) search.epic = appFilters.epicId;
+      if (newTags.length > 0) search.tags = newTags.join(",");
+
+      void navigate({ to: "/board", search, replace: false });
+    },
+    [appFilters, navigate]
+  );
+
   if (loading) {
     return <div className="h-full" />;
   }
@@ -138,23 +184,46 @@ function Board() {
   }
 
   return (
-    <div style={boardContainerStyles} className="route-fade-in">
-      {/* Board Header with filters */}
-      <BoardHeader
-        projectId={appFilters.projectId}
-        epicId={appFilters.epicId}
-        tags={appFilters.tags}
-        onClearFilters={clearAllFilters}
-      />
+    <div style={listContainerStyles} className="route-fade-in">
+      {/* List sub-mode toggle */}
+      <div className="flex items-center gap-1 px-1 pb-3">
+        <div
+          className="flex items-center gap-1 bg-[var(--bg-tertiary)] rounded-lg p-1"
+          role="group"
+          aria-label="List sub-view"
+        >
+          <button
+            onClick={() => setListSubMode("tickets")}
+            className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
+              listSubMode === "tickets"
+                ? "bg-[var(--bg-hover)] text-[var(--accent-primary)] font-medium"
+                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+            }`}
+            aria-pressed={listSubMode === "tickets"}
+          >
+            Tickets
+          </button>
+          <button
+            onClick={() => setListSubMode("tags")}
+            className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
+              listSubMode === "tags"
+                ? "bg-[var(--bg-hover)] text-[var(--accent-primary)] font-medium"
+                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+            }`}
+            aria-pressed={listSubMode === "tags"}
+          >
+            Tags
+          </button>
+        </div>
+      </div>
 
       {/* Main content area */}
       <div style={contentAreaStyles}>
-        <KanbanBoard
-          tickets={tickets}
-          onTicketClick={handleTicketClick}
-          onRefresh={refetch}
-          getRalphSession={getRalphSession}
-        />
+        {listSubMode === "tags" ? (
+          <TagListView tagsWithMetadata={tagsWithMetadata} onTagClick={handleTagClick} />
+        ) : (
+          <TicketListView tickets={tickets} epics={allEpics} onTicketClick={handleTicketClick} />
+        )}
       </div>
 
       {/* Ticket Detail Modal */}
@@ -174,7 +243,7 @@ function Board() {
 // Container Styles
 // ============================================================================
 
-const boardContainerStyles: React.CSSProperties = {
+const listContainerStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   height: "100%",

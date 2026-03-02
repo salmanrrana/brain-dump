@@ -28,6 +28,7 @@ export const getTags = createServerFn({ method: "GET" })
       SELECT DISTINCT json_each.value as tag
       FROM tickets, json_each(tickets.tags)
       WHERE tickets.tags IS NOT NULL AND tickets.tags != '' AND tickets.tags != '[]'
+        AND json_valid(tickets.tags)
     `;
 
     const params: string[] = [];
@@ -80,6 +81,7 @@ export const getTagsWithMetadata = createServerFn({ method: "GET" })
         MAX(tickets.updated_at) as last_used_at
       FROM tickets, json_each(tickets.tags)
       WHERE tickets.tags IS NOT NULL AND tickets.tags != '' AND tickets.tags != '[]'
+        AND json_valid(tickets.tags)
     `;
 
     const params: string[] = [];

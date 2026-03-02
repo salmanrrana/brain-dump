@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useForm } from "@tanstack/react-form-start";
+import { useForm, useStore } from "@tanstack/react-form-start";
 import { useNavigate } from "@tanstack/react-router";
 import {
   useModalKeyboard,
@@ -253,8 +253,13 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     return project?.path ?? null;
   }, [projects, ticket.projectId]);
 
-  // Get current status from form for conditional rendering
-  const currentStatus = form.state.values.status;
+  // Reactive subscriptions to form state — useStore ensures the component
+  // re-renders when these specific values change (useForm alone does NOT
+  // subscribe the component to store changes, so reading form.state.values
+  // directly gives a stale snapshot that never updates the UI).
+  const currentStatus = useStore(form.store, (s) => s.values.status);
+  const formTags = useStore(form.store, (s) => s.values.tags);
+  const formCriteria = useStore(form.store, (s) => s.values.acceptanceCriteria);
 
   // Service discovery - poll when ticket is in progress
   const { runningServices, error: servicesError } = useProjectServices(projectPath, {
@@ -295,9 +300,8 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     }
 
     const inputLower = trimmedInput.toLowerCase();
-    const currentTags = form.state.values.tags;
     const suggestions = existingTags.filter(
-      (tag) => tag.toLowerCase().includes(inputLower) && !currentTags.includes(tag)
+      (tag) => tag.toLowerCase().includes(inputLower) && !formTags.includes(tag)
     );
     const exactMatch = existingTags.some((tag) => tag.toLowerCase() === inputLower);
 
@@ -305,7 +309,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
       tagSuggestions: suggestions,
       showCreateHelper: suggestions.length === 0 && !exactMatch,
     };
-  }, [newTag, existingTags, form.state.values.tags]);
+  }, [newTag, existingTags, formTags]);
 
   // Modal keyboard handling (Escape, focus trap)
   useModalKeyboard(modalRef, onClose, {
@@ -1067,7 +1071,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     }
 
     updateTicketMutation.mutate({ id: ticket.id, updates }, { onSuccess: onUpdate });
-  }, [ticket.id, form.state.values, onUpdate, updateTicketMutation]);
+  }, [ticket.id, form, onUpdate, updateTicketMutation]);
 
   // Tag management functions
   const addTag = useCallback(
@@ -1201,9 +1205,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     [form]
   );
 
-  // Computed values from form state
-  const formTags = form.state.values.tags;
-  const formCriteria = form.state.values.acceptanceCriteria;
+  // Derived from reactive formCriteria (subscribed via useStore above)
   const passedCriteria = formCriteria.filter((c) => c.status === "passed").length;
 
   return (

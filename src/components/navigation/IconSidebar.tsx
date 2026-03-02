@@ -1,6 +1,14 @@
 import { type FC, type ReactNode } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
-import { Home, LayoutDashboard, Kanban, Folder, Settings, type LucideIcon } from "lucide-react";
+import {
+  Home,
+  LayoutDashboard,
+  Kanban,
+  List,
+  Folder,
+  Settings,
+  type LucideIcon,
+} from "lucide-react";
 import { NavItem } from "./NavItem";
 
 export interface NavItemConfig {
@@ -49,8 +57,9 @@ const defaultNavItems: NavItemConfig[] = [
   { icon: Home, label: "Home", path: "/", shortcutKey: "1" },
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard", shortcutKey: "2" },
   { icon: Kanban, label: "Board", path: "/board", shortcutKey: "3" },
-  { icon: Folder, label: "Projects", action: "openProjectsPanel", shortcutKey: "4" },
-  { icon: Settings, label: "Settings", action: "openSettings", shortcutKey: "5" },
+  { icon: List, label: "List", path: "/list", shortcutKey: "4" },
+  { icon: Folder, label: "Projects", action: "openProjectsPanel", shortcutKey: "5" },
+  { icon: Settings, label: "Settings", action: "openSettings", shortcutKey: "6" },
 ];
 
 /**

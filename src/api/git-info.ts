@@ -63,6 +63,120 @@ function formatDate(dateStr: string): string {
   }
 }
 
+// Server Function: Get Paginated Git Commits
+export interface GitCommitsPage {
+  commits: Commit[];
+  hasMore: boolean;
+  nextSkip: number;
+}
+
+export const getGitCommits = createServerFn({ method: "GET" })
+  .inputValidator((input: { projectPath: string; limit: number; skip: number }) => {
+    if (!input.projectPath || typeof input.projectPath !== "string") {
+      throw new Error("projectPath is required");
+    }
+    return input;
+  })
+  .handler(async ({ data: { projectPath, limit, skip } }): Promise<GitCommitsPage> => {
+    try {
+      const gitDirExists = existsSync(join(projectPath, ".git"));
+      if (!gitDirExists) {
+        return { commits: [], hasMore: false, nextSkip: skip };
+      }
+
+      // Fetch one extra to detect if there are more
+      const result = runGitCommand(
+        `git log --skip=${skip} -${limit + 1} --format="%H|%s|%an|%ai"`,
+        projectPath
+      );
+
+      if (!result.success) {
+        return { commits: [], hasMore: false, nextSkip: skip };
+      }
+
+      const lines = result.output.split("\n").filter((l) => l.trim());
+      const hasMore = lines.length > limit;
+      const commits = lines
+        .slice(0, limit)
+        .map((line) => parseCommitLine(line))
+        .filter((c): c is Commit => c !== null)
+        .map((c) => ({ ...c, date: formatDate(c.date) }));
+
+      return { commits, hasMore, nextSkip: skip + limit };
+    } catch (err: unknown) {
+      const message = toErrorMessage(err);
+      logger.error("getGitCommits error", new Error(message));
+      throw new Error(`Unable to read git history: ${message}`);
+    }
+  });
+
+// Type Definitions: Commit File Stats
+export interface CommitFileStat {
+  filename: string;
+  insertions: number;
+  deletions: number;
+  isBinary: boolean;
+}
+
+export interface CommitFileStatsResult {
+  files: CommitFileStat[];
+  totalInsertions: number;
+  totalDeletions: number;
+}
+
+// Server Function: Get Commit File Stats (lazy-loaded on expand)
+export const getCommitFileStats = createServerFn({ method: "GET" })
+  .inputValidator((input: { projectPath: string; hash: string }) => {
+    if (!input.projectPath || typeof input.projectPath !== "string") {
+      throw new Error("projectPath is required");
+    }
+    if (!input.hash || !/^[0-9a-f]{4,40}$/i.test(input.hash)) {
+      throw new Error("Invalid commit hash");
+    }
+    return input;
+  })
+  .handler(async ({ data: { projectPath, hash } }): Promise<CommitFileStatsResult> => {
+    try {
+      const gitDirExists = existsSync(join(projectPath, ".git"));
+      if (!gitDirExists) {
+        return { files: [], totalInsertions: 0, totalDeletions: 0 };
+      }
+
+      const result = runGitCommand(`git show --numstat --format="" ${hash}`, projectPath);
+
+      if (!result.success) {
+        throw new Error(result.error ?? "git show failed");
+      }
+
+      const files: CommitFileStat[] = [];
+      let totalInsertions = 0;
+      let totalDeletions = 0;
+
+      for (const line of result.output.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        const parts = trimmed.split("\t");
+        if (parts.length < 3) continue;
+
+        const [ins, del, filename] = parts;
+        const isBinary = ins === "-" && del === "-";
+        const insertions = isBinary ? 0 : parseInt(ins!, 10) || 0;
+        const deletions = isBinary ? 0 : parseInt(del!, 10) || 0;
+
+        files.push({ filename: filename!, insertions, deletions, isBinary });
+        totalInsertions += insertions;
+        totalDeletions += deletions;
+      }
+
+      return { files, totalInsertions, totalDeletions };
+    } catch (err: unknown) {
+      const message = toErrorMessage(err);
+      logger.error("getCommitFileStats error", new Error(message));
+      throw new Error(`Unable to read commit file stats: ${message}`);
+    }
+  });
+
 // Server Function: Get Git Project Info
 export const getGitProjectInfo = createServerFn({ method: "GET" })
   .inputValidator((projectPath: string) => {
