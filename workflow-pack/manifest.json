@@ -13,17 +13,81 @@
       "capture-claude-tasks.sh",
       "spawn-next-ticket.sh"
     ],
-    "agents": ["code-reviewer.md", "silent-failure-hunter.md", "code-simplifier.md"],
-    "commands": [
-      "next-task.md",
-      "review-ticket.md",
-      "review-epic.md",
-      "demo.md",
-      "reconcile-learnings.md",
-      "review.md",
-      "extended-review.md"
+    "agents": [
+      {
+        "file": "code-reviewer.md",
+        "sha256": "4221c74db4736c78900522609019b1e03002ffbf2daf1bc324f29d1b1c440bbd"
+      },
+      {
+        "file": "silent-failure-hunter.md",
+        "sha256": "d41ec0ab6a2ba3f5801a6bb05d9cbf747ae0a29491b800014b8efc85b9695517"
+      },
+      {
+        "file": "code-simplifier.md",
+        "sha256": "4217730a0254887049dc46c840d474f70e867689690627e416675bfe0f3f86bb"
+      }
     ],
-    "skills": ["brain-dump-workflow/"]
+    "commands": [
+      {
+        "file": "next-task.md",
+        "sha256": "d04015cd6f1784f6b29c0668ba59b5fc20fd0dbea6092f7b5639f37926ce030f"
+      },
+      {
+        "file": "review-ticket.md",
+        "sha256": "0ef86c4bdf124cea2ca22278f6ac610ab9d3efea8de6ff6b01423311a2a0903c"
+      },
+      {
+        "file": "review-epic.md",
+        "sha256": "c7f27fbef043a502b9455b8cc44d4e2ef1050c8c3d998660d853a4cdb124b637"
+      },
+      {
+        "file": "demo.md",
+        "sha256": "cfba81210cb776e1468cccf49aa49bd17c24924a615836f4809fe6c3f99bb932"
+      },
+      {
+        "file": "reconcile-learnings.md",
+        "sha256": "5f1e3f2257d0f3286925ca7e7778110429588961869f31cf0eed09e709a5371f"
+      },
+      {
+        "file": "review.md",
+        "sha256": "c7d988a114555c061ef7b4f785cc2cb9cff4565e9445935d138a4aaa6a5c0fa3"
+      },
+      {
+        "file": "extended-review.md",
+        "sha256": "ed65d5a11574c6156aa5c5ed7cc5deae0ac6f3180f16aaac74c16a3d30289261"
+      }
+    ],
+    "skills": [
+      {
+        "dir": "brain-dump-workflow/",
+        "files": [
+          {
+            "file": "SKILL.md",
+            "sha256": "c981cee72befe0cdc8b9960f4c5fee56579b48ed34b245dad9be0aa8b70585e1"
+          },
+          {
+            "file": "reference/review-guide.md",
+            "sha256": "56d9453aa1713b4bc0a16e5d8c5f7ac296d3a944297e8e202d3329abe2e63a8d"
+          },
+          {
+            "file": "reference/git-linking.md",
+            "sha256": "dcd3564caf7633751b03cb119b91ab74fa5409f9f817efa78903e63ae6424c7a"
+          },
+          {
+            "file": "reference/troubleshooting.md",
+            "sha256": "f8bc062e1450b6646b32fddf1a362488bbc713509ccffb48abee677e4f8704d6"
+          },
+          {
+            "file": "reference/compliance-logging.md",
+            "sha256": "56268cf819be9a01788d4ddafd4d6a75f5a91afc16cd8ebc488de4b5001e4dd8"
+          },
+          {
+            "file": "scripts/run-quality-checks.sh",
+            "sha256": "577faa307b31c5f0a70d6253a97f587a8555abcc7267d44b6b44f20a7df8de1f"
+          }
+        ]
+      }
+    ]
   },
   "legacyPaths": {
     "claude": [
