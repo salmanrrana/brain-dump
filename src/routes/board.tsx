@@ -5,11 +5,13 @@ import {
   useTickets,
   useProjects,
   useActiveRalphSessions,
+  useTagsWithMetadata,
   type Ticket,
   type StatusChange,
 } from "../lib/hooks";
 import { useToast } from "../components/Toast";
 import TicketListView from "../components/TicketListView";
+import TagListView from "../components/TagListView";
 import TicketModal from "../components/TicketModal";
 import { BoardHeader } from "../components/board";
 import { getStatusLabel } from "../lib/constants";
@@ -20,11 +22,22 @@ export const Route = createFileRoute("/board")({
   component: Board,
 });
 
+type ListSubMode = "tickets" | "tags";
+
+function getInitialListSubMode(): ListSubMode {
+  if (typeof window === "undefined") return "tickets";
+  const stored = localStorage.getItem("brain-dump-list-sub-mode");
+  if (stored === "tickets" || stored === "tags") return stored;
+  return "tickets";
+}
+
 function Board() {
   const logger = createBrowserLogger("routes:board");
   const {
     viewMode,
+    setViewMode,
     filters: appFilters,
+    toggleTag,
     ticketRefreshKey,
     selectedTicketIdFromSearch,
     clearSelectedTicketFromSearch,
@@ -33,6 +46,14 @@ function Board() {
   const { projects } = useProjects();
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const { showToast } = useToast();
+  const [listSubMode, setListSubModeState] = useState<ListSubMode>(getInitialListSubMode);
+
+  const setListSubMode = useCallback((mode: ListSubMode) => {
+    setListSubModeState(mode);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("brain-dump-list-sub-mode", mode);
+    }
+  }, []);
 
   const filters = useMemo(() => {
     const f: { projectId?: string; epicId?: string; tags?: string[] } = {};
@@ -41,6 +62,14 @@ function Board() {
     if (appFilters.tags.length > 0) f.tags = appFilters.tags;
     return f;
   }, [appFilters.projectId, appFilters.epicId, appFilters.tags]);
+
+  // Tag metadata filters (project/epic only, no tags filter)
+  const tagFilters = useMemo(() => {
+    const f: { projectId?: string; epicId?: string } = {};
+    if (appFilters.projectId) f.projectId = appFilters.projectId;
+    if (appFilters.epicId) f.epicId = appFilters.epicId;
+    return f;
+  }, [appFilters.projectId, appFilters.epicId]);
 
   // Handle status changes from external sources (CLI, hooks)
   const handleStatusChange = useCallback(
@@ -65,6 +94,9 @@ function Board() {
   const { tickets, loading, error, refetch } = useTickets(filters, {
     onStatusChange: handleStatusChange,
   });
+
+  // Fetch tag metadata only when in tags sub-mode
+  const { tagsWithMetadata } = useTagsWithMetadata(tagFilters);
 
   // Fetch active Ralph sessions for status display on cards
   const { getSession: getRalphSession } = useActiveRalphSessions();
@@ -127,6 +159,15 @@ function Board() {
     setSelectedTicket(null);
   };
 
+  // Tag drill-down: click tag row → switch to kanban with that tag filtered
+  const handleTagClick = useCallback(
+    (tagName: string) => {
+      toggleTag(tagName);
+      setViewMode("kanban");
+    },
+    [toggleTag, setViewMode]
+  );
+
   if (loading) {
     return <div className="h-full" />;
   }
@@ -151,10 +192,48 @@ function Board() {
         />
       )}
 
+      {/* List sub-mode toggle */}
+      {viewMode === "list" && (
+        <div className="flex items-center gap-1 px-1 pb-3">
+          <div
+            className="flex items-center gap-1 bg-[var(--bg-tertiary)] rounded-lg p-1"
+            role="group"
+            aria-label="List sub-view"
+          >
+            <button
+              onClick={() => setListSubMode("tickets")}
+              className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
+                listSubMode === "tickets"
+                  ? "bg-[var(--bg-hover)] text-[var(--accent-primary)] font-medium"
+                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+              }`}
+              aria-pressed={listSubMode === "tickets"}
+            >
+              Tickets
+            </button>
+            <button
+              onClick={() => setListSubMode("tags")}
+              className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
+                listSubMode === "tags"
+                  ? "bg-[var(--bg-hover)] text-[var(--accent-primary)] font-medium"
+                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+              }`}
+              aria-pressed={listSubMode === "tags"}
+            >
+              Tags
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main content area */}
       <div style={contentAreaStyles}>
         {viewMode === "list" ? (
-          <TicketListView tickets={tickets} epics={allEpics} onTicketClick={handleTicketClick} />
+          listSubMode === "tags" ? (
+            <TagListView tagsWithMetadata={tagsWithMetadata} onTagClick={handleTagClick} />
+          ) : (
+            <TicketListView tickets={tickets} epics={allEpics} onTicketClick={handleTicketClick} />
+          )
         ) : (
           <KanbanBoard
             tickets={tickets}
