@@ -8,6 +8,7 @@
  *
  * @module tools/workflow
  */
+import { execFileSync } from "child_process";
 import { z } from "zod";
 import { log } from "../lib/logging.js";
 import { mcpError } from "../lib/mcp-response.ts";
@@ -280,7 +281,7 @@ function handleStartWork(
   // Auto-PR creation when autoPr: true
   let autoPrInfo = "";
   if (params.autoPr) {
-    autoPrInfo = createAutoPr(db, git, ticket, result.branch, parseWarnings);
+    autoPrInfo = createAutoPr(db, ticket, result.branch, parseWarnings);
   }
 
   // Parse acceptance criteria from subtasks
@@ -684,16 +685,37 @@ Use \`workflow({ action: "start-work", ticketId: "..." })\` to begin work on any
 // Auto-PR Helper
 // ============================================
 
+/** Run a command safely using execFileSync (no shell interpretation). */
+function safeExec(
+  command: string,
+  args: string[],
+  cwd: string
+): { success: boolean; output: string; error?: string } {
+  try {
+    const output = execFileSync(command, args, {
+      cwd,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    return { success: true, output: output.trim() };
+  } catch (error) {
+    const err = error as { stderr?: string; message: string };
+    return { success: false, output: "", error: err.stderr?.trim() || err.message };
+  }
+}
+
 /**
  * Create a draft PR for a ticket after starting work.
  * Absorbs the logic from the `create-pr-on-ticket-start.sh` hook.
  *
  * Steps: check gh available → check no existing PR → WIP commit → push → create PR → link PR.
  * All failures are non-fatal (warnings added, empty string returned).
+ *
+ * Uses execFileSync (argument arrays) instead of shell strings to prevent
+ * command injection from ticket titles containing shell metacharacters.
  */
 function createAutoPr(
   db: Database.Database,
-  git: ReturnType<typeof createRealGitOperations>,
   ticket: StartWorkResult["ticket"],
   branchName: string,
   warnings: string[]
@@ -702,7 +724,7 @@ function createAutoPr(
   const ticketShortId = shortId(ticket.id);
 
   // 1. Check if gh CLI is available
-  const ghCheck = git.run("gh --version", projectPath);
+  const ghCheck = safeExec("gh", ["--version"], projectPath);
   if (!ghCheck.success) {
     warnings.push(
       "autoPr: `gh` CLI not found. Skipping auto-PR creation. Install GitHub CLI to enable this feature."
@@ -711,8 +733,9 @@ function createAutoPr(
   }
 
   // 2. Check if a PR already exists for this branch
-  const existingPr = git.run(
-    `gh pr view "${branchName}" --json number,url 2>/dev/null`,
+  const existingPr = safeExec(
+    "gh",
+    ["pr", "view", branchName, "--json", "number,url"],
     projectPath
   );
   if (existingPr.success && existingPr.output) {
@@ -733,8 +756,10 @@ function createAutoPr(
   }
 
   // 3. Create empty WIP commit
-  const commitResult = git.run(
-    `git commit --allow-empty -m "feat(${ticketShortId}): WIP - ${ticket.title}"`,
+  const commitMessage = `feat(${ticketShortId}): WIP - ${ticket.title}`;
+  const commitResult = safeExec(
+    "git",
+    ["commit", "--allow-empty", "-m", commitMessage],
     projectPath
   );
   if (!commitResult.success) {
@@ -743,7 +768,7 @@ function createAutoPr(
   }
 
   // 4. Push branch to remote
-  const pushResult = git.run(`git push -u origin "${branchName}"`, projectPath);
+  const pushResult = safeExec("git", ["push", "-u", "origin", branchName], projectPath);
   if (!pushResult.success) {
     warnings.push(`autoPr: Failed to push branch: ${pushResult.error}`);
     return "";
@@ -751,9 +776,19 @@ function createAutoPr(
 
   // 5. Create draft PR
   const prTitle = `feat(${ticketShortId}): ${ticket.title}`;
-  const prBody = `## Summary\nWork in progress for ticket: ${ticket.id}\n\n**${ticket.title}**\n\n---\n_This PR was auto-created when work started on the ticket._\n_Draft status will be removed when the ticket is complete._`;
-  const prResult = git.run(
-    `gh pr create --draft --title "${prTitle.replace(/"/g, '\\"')}" --body "${prBody.replace(/"/g, '\\"')}"`,
+  const prBody = [
+    "## Summary",
+    `Work in progress for ticket: ${ticket.id}`,
+    "",
+    `**${ticket.title}**`,
+    "",
+    "---",
+    "_This PR was auto-created when work started on the ticket._",
+    "_Draft status will be removed when the ticket is complete._",
+  ].join("\n");
+  const prResult = safeExec(
+    "gh",
+    ["pr", "create", "--draft", "--title", prTitle, "--body", prBody],
     projectPath
   );
 
