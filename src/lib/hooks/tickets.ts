@@ -18,7 +18,7 @@ import {
   type TicketStatus,
 } from "../../api/tickets";
 import { searchTickets, type SearchResult } from "../../api/search";
-import { getTags, type TagFilters } from "../../api/tags";
+import { getTags, getTagsWithMetadata, type TagFilters, type TagMetadata } from "../../api/tags";
 import { createBrowserLogger } from "../browser-logger";
 import { queryKeys } from "../query-keys";
 
@@ -463,5 +463,25 @@ export function useTags(filters: TagFilters = {}) {
   };
 }
 
-// Re-export SearchResult type
-export type { SearchResult };
+// =============================================================================
+// TAGS WITH METADATA HOOK
+// =============================================================================
+
+// Hook for fetching tags with metadata (counts, status breakdown, last used)
+export function useTagsWithMetadata(filters: TagFilters = {}) {
+  const query = useQuery({
+    queryKey: queryKeys.tagsWithMetadata(filters),
+    queryFn: () => getTagsWithMetadata({ data: filters }),
+    staleTime: 0,
+  });
+
+  return {
+    tagsWithMetadata: query.data ?? [],
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+    refetch: query.refetch,
+  };
+}
+
+// Re-export SearchResult and TagMetadata types
+export type { SearchResult, TagMetadata };

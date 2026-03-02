@@ -38,6 +38,7 @@ export const queryKeys = {
 
   // Tags
   tags: (filters: TagFilters) => ["tags", filters] as const,
+  tagsWithMetadata: (filters: TagFilters) => ["tags", "with-metadata", filters] as const,
   allTags: ["tags"] as const,
 
   // Search

@@ -48,9 +48,11 @@ export {
   useTickets,
   useSearch,
   useTags,
+  useTagsWithMetadata,
   type Ticket,
   type StatusChange,
   type SearchResult,
+  type TagMetadata,
 } from "./tickets";
 
 // =============================================================================
