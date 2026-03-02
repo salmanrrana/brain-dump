@@ -253,33 +253,7 @@ function handleStartWork(
   }
 
   // Check for unlinked commits/PRs on the branch (absorbs check-pending-links.sh hook)
-  let unlinkedItemsInfo = "";
-  try {
-    const unlinked = checkUnlinkedItems(db, ticketId, ticket.project.path);
-    if (unlinked.hasUnlinkedItems) {
-      const parts: string[] = [];
-      if (unlinked.unlinkedCommits.length > 0) {
-        parts.push(`**${unlinked.unlinkedCommits.length} unlinked commit(s):**`);
-        for (const c of unlinked.unlinkedCommits.slice(0, 5)) {
-          parts.push(`  - \`${c.hash}\` ${c.message}`);
-        }
-        if (unlinked.unlinkedCommits.length > 5) {
-          parts.push(`  - ... and ${unlinked.unlinkedCommits.length - 5} more`);
-        }
-      }
-      if (unlinked.unlinkedPr) {
-        parts.push(
-          `**Unlinked PR:** #${unlinked.unlinkedPr.number}${unlinked.unlinkedPr.url ? ` (${unlinked.unlinkedPr.url})` : ""}`
-        );
-      }
-      unlinkedItemsInfo = `### Unlinked Items Detected\n${parts.join("\n")}\n\nCall \`workflow({ action: "sync-links" })\` to link them to this ticket.`;
-      log.info(
-        `Found unlinked items for ticket ${ticketId}: ${unlinked.unlinkedCommits.length} commits, PR: ${unlinked.unlinkedPr?.number ?? "none"}`
-      );
-    }
-  } catch {
-    // Non-fatal: don't block start-work if unlinked check fails
-  }
+  const unlinkedItemsInfo = formatUnlinkedItems(db, ticketId, ticket.project.path);
 
   // Parse acceptance criteria from subtasks
   let acceptanceCriteria: string[] = ["Complete the implementation as described"];
@@ -623,6 +597,54 @@ Use \`workflow({ action: "start-work", ticketId: "..." })\` to begin work on any
       },
     ],
   };
+}
+
+// ============================================
+// Unlinked Items Helper
+// ============================================
+
+/**
+ * Check for unlinked commits/PRs on the branch and format a markdown section.
+ * Non-fatal: returns empty string on any error.
+ */
+function formatUnlinkedItems(db: Database.Database, ticketId: string, projectPath: string): string {
+  try {
+    const unlinked = checkUnlinkedItems(db, ticketId, projectPath);
+    if (!unlinked.hasUnlinkedItems) return "";
+
+    const parts: string[] = [];
+
+    if (unlinked.unlinkedCommits.length > 0) {
+      parts.push(`**${unlinked.unlinkedCommits.length} unlinked commit(s):**`);
+      for (const c of unlinked.unlinkedCommits.slice(0, 5)) {
+        parts.push(`  - \`${c.hash}\` ${c.message}`);
+      }
+      if (unlinked.unlinkedCommits.length > 5) {
+        parts.push(`  - ... and ${unlinked.unlinkedCommits.length - 5} more`);
+      }
+    }
+
+    if (unlinked.unlinkedPr) {
+      const urlSuffix = unlinked.unlinkedPr.url ? ` (${unlinked.unlinkedPr.url})` : "";
+      parts.push(`**Unlinked PR:** #${unlinked.unlinkedPr.number}${urlSuffix}`);
+    }
+
+    log.info(
+      `Found unlinked items for ticket ${ticketId}: ${unlinked.unlinkedCommits.length} commits, PR: ${unlinked.unlinkedPr?.number ?? "none"}`
+    );
+
+    return [
+      "### Unlinked Items Detected",
+      parts.join("\n"),
+      "",
+      'Call `workflow({ action: "sync-links" })` to link them to this ticket.',
+    ].join("\n");
+  } catch (err) {
+    log.error(
+      `Failed to check unlinked items for ticket ${ticketId}: ${err instanceof Error ? err.message : String(err)}`
+    );
+    return "";
+  }
 }
 
 // ============================================

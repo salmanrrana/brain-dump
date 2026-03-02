@@ -81,13 +81,18 @@ export interface SyncResult {
 
 export interface UnlinkedItemsResult {
   unlinkedCommits: Array<{ hash: string; message: string }>;
-  unlinkedPr: { number: number; url?: string } | null;
+  unlinkedPr: { number: number; url?: string | undefined } | null;
   hasUnlinkedItems: boolean;
 }
 
 // ============================================
 // Internal Helpers
 // ============================================
+
+/** Check if two commit hashes match (exact or prefix in either direction). */
+function isHashMatch(a: string, b: string): boolean {
+  return a === b || a.startsWith(b) || b.startsWith(a);
+}
 
 function getTicketWithProject(db: DbHandle, ticketId: string): TicketWithProjectRow {
   const ticket = db
@@ -296,9 +301,7 @@ export function linkCommit(
 
   const linkedCommits: Commit[] = safeJsonParse(ticket.linked_commits, []);
 
-  const alreadyLinked = linkedCommits.some(
-    (c) => c.hash === commitHash || c.hash.startsWith(commitHash) || commitHash.startsWith(c.hash)
-  );
+  const alreadyLinked = linkedCommits.some((c) => isHashMatch(c.hash, commitHash));
 
   if (alreadyLinked) {
     return {
@@ -419,11 +422,7 @@ export function checkUnlinkedItems(
   // Check for unlinked commits on branch
   const commits = getRecentCommits(projectPath);
   for (const commit of commits) {
-    const alreadyLinked = existingCommits.some(
-      (c) =>
-        c.hash === commit.hash || c.hash.startsWith(commit.hash) || commit.hash.startsWith(c.hash)
-    );
-    if (!alreadyLinked) {
+    if (!existingCommits.some((c) => isHashMatch(c.hash, commit.hash))) {
       result.unlinkedCommits.push({ hash: shortId(commit.hash), message: commit.message });
     }
   }
@@ -441,10 +440,7 @@ export function checkUnlinkedItems(
         try {
           const prData = JSON.parse(prResult.output) as { number?: number; url?: string };
           if (prData.number) {
-            result.unlinkedPr = {
-              number: prData.number,
-              ...(prData.url ? { url: prData.url } : {}),
-            };
+            result.unlinkedPr = { number: prData.number, url: prData.url };
           }
         } catch {
           // PR query parse failed, non-fatal
@@ -493,10 +489,7 @@ export function syncTicketLinks(db: DbHandle, projectPath?: string): SyncResult 
   const now = new Date().toISOString();
 
   for (const commit of commits) {
-    const alreadyLinked = existingCommits.some(
-      (c) =>
-        c.hash === commit.hash || c.hash.startsWith(commit.hash) || commit.hash.startsWith(c.hash)
-    );
+    const alreadyLinked = existingCommits.some((c) => isHashMatch(c.hash, commit.hash));
 
     if (alreadyLinked) {
       result.commitsSkipped.push({ hash: shortId(commit.hash), message: commit.message });

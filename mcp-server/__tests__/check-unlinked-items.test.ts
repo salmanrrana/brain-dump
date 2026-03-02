@@ -45,16 +45,11 @@ beforeEach(() => {
   projectPath = join(tempDir, "project");
   mkdirSync(projectPath, { recursive: true });
 
-  // Init git repo
   git("init");
   git("config", "user.email", "test@test.com");
   git("config", "user.name", "Test");
-
-  // Create initial commit on main
   git("commit", "--allow-empty", "-m", "initial commit");
   git("branch", "-M", "main");
-
-  // Create feature branch
   git("checkout", "-b", "feature/test-branch");
 
   const dbPath = join(tempDir, "brain-dump.db");
@@ -72,7 +67,6 @@ describe("checkUnlinkedItems", () => {
   it("reports unlinked commits on the branch", () => {
     const { ticketId } = createProjectAndTicket();
 
-    // Create commits on the feature branch
     git("commit", "--allow-empty", "-m", "feat: first change");
     git("commit", "--allow-empty", "-m", "feat: second change");
 
@@ -99,7 +93,6 @@ describe("checkUnlinkedItems", () => {
   it("skips already-linked commits", () => {
     const { ticketId } = createProjectAndTicket();
 
-    // Create commits
     git("commit", "--allow-empty", "-m", "feat: linked change");
     const hash = git("rev-parse", "HEAD").trim();
     git("commit", "--allow-empty", "-m", "feat: unlinked change");
