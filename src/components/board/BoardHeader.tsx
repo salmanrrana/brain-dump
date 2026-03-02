@@ -42,7 +42,10 @@ export const BoardHeader: FC<BoardHeaderProps> = ({
 
   // Fetch data for dropdowns
   const { projects } = useProjects();
-  const { tags: availableTags } = useTags();
+  const { tags: availableTags } = useTags({
+    ...(projectId ? { projectId } : {}),
+    ...(epicId ? { epicId } : {}),
+  });
 
   // Dropdown open states
   const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);

@@ -13,7 +13,7 @@ export const getTags = createServerFn({ method: "GET" })
     let sql = `
       SELECT DISTINCT json_each.value as tag
       FROM tickets, json_each(tickets.tags)
-      WHERE tickets.tags IS NOT NULL
+      WHERE tickets.tags IS NOT NULL AND tickets.tags != '' AND tickets.tags != '[]'
     `;
 
     const params: string[] = [];
