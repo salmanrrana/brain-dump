@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppState } from "../components/AppLayout";
 import {
@@ -37,12 +37,12 @@ function Board() {
     viewMode,
     setViewMode,
     filters: appFilters,
-    toggleTag,
     ticketRefreshKey,
     selectedTicketIdFromSearch,
     clearSelectedTicketFromSearch,
     clearAllFilters,
   } = useAppState();
+  const navigate = useNavigate();
   const { projects } = useProjects();
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const { showToast } = useToast();
@@ -159,13 +159,23 @@ function Board() {
     setSelectedTicket(null);
   };
 
-  // Tag drill-down: click tag row → switch to kanban with that tag filtered
+  // Tag drill-down: click tag row → push history entry, switch to kanban with tag filtered.
+  // Uses navigate() directly with replace: false so browser back returns to the tags list.
   const handleTagClick = useCallback(
     (tagName: string) => {
-      toggleTag(tagName);
+      const newTags = appFilters.tags.includes(tagName)
+        ? appFilters.tags.filter((t) => t !== tagName)
+        : [...appFilters.tags, tagName];
+
+      const search: Record<string, string | undefined> = {};
+      if (appFilters.projectId) search.project = appFilters.projectId;
+      if (appFilters.epicId) search.epic = appFilters.epicId;
+      if (newTags.length > 0) search.tags = newTags.join(",");
+
+      void navigate({ to: ".", search, replace: false });
       setViewMode("kanban");
     },
-    [toggleTag, setViewMode]
+    [appFilters, navigate, setViewMode]
   );
 
   if (loading) {
