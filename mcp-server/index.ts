@@ -17,6 +17,7 @@ import { acquireLock, releaseLock, readLockFile } from "./lib/lock.js";
 import { performDailyBackupSync } from "./lib/backup.js";
 import { detectEnvironment, getEnvironmentInfo } from "./lib/environment.js";
 import { getLockFilePath } from "./lib/xdg.js";
+import { registerInstructionPrompts } from "./prompts/instructions.js";
 
 // Tool registration modules (9 consolidated resource tools)
 import { registerProjectTool } from "./tools/project.js";
@@ -107,6 +108,7 @@ registerReviewTool(server, db);
 registerSessionTool(server, db);
 registerTelemetryTool(server, db, detectEnvironment);
 registerAdminTool(server, db, detectEnvironment, getEnvironmentInfo);
+registerInstructionPrompts(server);
 
 // =============================================================================
 // CONNECT AND START
