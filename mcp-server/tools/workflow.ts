@@ -62,6 +62,7 @@ export function registerWorkflowTool(
 ### start-work
 Start working on a ticket. Creates git branch, sets status to in_progress, returns ticket context.
 Required params: ticketId
+Optional params: autoPr
 
 ### complete-work
 Complete implementation and move ticket to ai_review. Posts work summary, updates PRD.
@@ -90,6 +91,7 @@ Optional params: projectPath
 ## Parameters
 - action: (required) The operation to perform
 - ticketId: Ticket ID. Required for: start-work, complete-work, link-commit, link-pr
+- autoPr: Create draft PR automatically when starting work (default: false). Optional for: start-work
 - epicId: Epic ID. Required for: start-epic
 - summary: Work summary. Optional for: complete-work
 - createPr: Create a draft PR immediately (default: false). Optional for: start-epic
@@ -102,6 +104,7 @@ Optional params: projectPath
     {
       action: z.enum(ACTIONS).describe("The operation to perform"),
       ticketId: z.string().optional().describe("Ticket ID"),
+      autoPr: z.boolean().optional().describe("Create draft PR automatically (default: false)"),
       epicId: z.string().optional().describe("Epic ID"),
       summary: z.string().optional().describe("Work summary"),
       createPr: z.boolean().optional().describe("Create draft PR (default: false)"),
@@ -115,6 +118,7 @@ Optional params: projectPath
     async (params: {
       action: (typeof ACTIONS)[number];
       ticketId?: string | undefined;
+      autoPr?: boolean | undefined;
       epicId?: string | undefined;
       summary?: string | undefined;
       createPr?: boolean | undefined;
@@ -233,7 +237,7 @@ function handleStartWork(
   db: Database.Database,
   git: ReturnType<typeof createRealGitOperations>,
   detectEnvironment: () => string,
-  params: { ticketId?: string | undefined }
+  params: { ticketId?: string | undefined; autoPr?: boolean | undefined }
 ) {
   const ticketId = requireParam(params.ticketId, "ticketId", "start-work");
 
@@ -272,6 +276,12 @@ function handleStartWork(
 
   const ticket = result.ticket;
   const parseWarnings: string[] = [];
+
+  // Auto-PR creation when autoPr: true
+  let autoPrInfo = "";
+  if (params.autoPr) {
+    autoPrInfo = createAutoPr(db, git, ticket, result.branch, parseWarnings);
+  }
 
   // Parse acceptance criteria from subtasks
   let acceptanceCriteria: string[] = ["Complete the implementation as described"];
@@ -318,9 +328,13 @@ function handleStartWork(
   // Create conversation session for compliance logging
   const environment = detectEnvironment();
   const sessionResult = createConversationSession(db, ticketId, ticket.projectId, environment);
-  const sessionInfo = sessionResult.success
+  let sessionInfo = sessionResult.success
     ? `**Conversation Session:** \`${sessionResult.sessionId}\` (auto-created for compliance logging)`
     : `**Warning:** Compliance logging failed: ${sessionResult.error}. Work may not be logged for audit.`;
+
+  if (autoPrInfo) {
+    sessionInfo += `\n${autoPrInfo}`;
+  }
 
   // Build epic info if available
   let epicInfo: { title: string; branchName: string; prUrl?: string | undefined } | undefined;
@@ -664,4 +678,111 @@ Use \`workflow({ action: "start-work", ticketId: "..." })\` to begin work on any
       },
     ],
   };
+}
+
+// ============================================
+// Auto-PR Helper
+// ============================================
+
+/**
+ * Create a draft PR for a ticket after starting work.
+ * Absorbs the logic from the `create-pr-on-ticket-start.sh` hook.
+ *
+ * Steps: check gh available → check no existing PR → WIP commit → push → create PR → link PR.
+ * All failures are non-fatal (warnings added, empty string returned).
+ */
+function createAutoPr(
+  db: Database.Database,
+  git: ReturnType<typeof createRealGitOperations>,
+  ticket: StartWorkResult["ticket"],
+  branchName: string,
+  warnings: string[]
+): string {
+  const projectPath = ticket.project.path;
+  const ticketShortId = shortId(ticket.id);
+
+  // 1. Check if gh CLI is available
+  const ghCheck = git.run("gh --version", projectPath);
+  if (!ghCheck.success) {
+    warnings.push(
+      "autoPr: `gh` CLI not found. Skipping auto-PR creation. Install GitHub CLI to enable this feature."
+    );
+    return "";
+  }
+
+  // 2. Check if a PR already exists for this branch
+  const existingPr = git.run(
+    `gh pr view "${branchName}" --json number,url 2>/dev/null`,
+    projectPath
+  );
+  if (existingPr.success && existingPr.output) {
+    try {
+      const prData = JSON.parse(existingPr.output) as { number?: number; url?: string };
+      if (prData.number) {
+        // Link existing PR to ticket
+        try {
+          linkPr(db, ticket.id, prData.number, prData.url, "draft");
+        } catch {
+          // Non-fatal
+        }
+        return `**Existing PR:** #${prData.number} (${prData.url || "no URL"}) — linked to ticket`;
+      }
+    } catch {
+      // Parse failed, proceed to create new PR
+    }
+  }
+
+  // 3. Create empty WIP commit
+  const commitResult = git.run(
+    `git commit --allow-empty -m "feat(${ticketShortId}): WIP - ${ticket.title}"`,
+    projectPath
+  );
+  if (!commitResult.success) {
+    warnings.push(`autoPr: Failed to create WIP commit: ${commitResult.error}`);
+    return "";
+  }
+
+  // 4. Push branch to remote
+  const pushResult = git.run(`git push -u origin "${branchName}"`, projectPath);
+  if (!pushResult.success) {
+    warnings.push(`autoPr: Failed to push branch: ${pushResult.error}`);
+    return "";
+  }
+
+  // 5. Create draft PR
+  const prTitle = `feat(${ticketShortId}): ${ticket.title}`;
+  const prBody = `## Summary\nWork in progress for ticket: ${ticket.id}\n\n**${ticket.title}**\n\n---\n_This PR was auto-created when work started on the ticket._\n_Draft status will be removed when the ticket is complete._`;
+  const prResult = git.run(
+    `gh pr create --draft --title "${prTitle.replace(/"/g, '\\"')}" --body "${prBody.replace(/"/g, '\\"')}"`,
+    projectPath
+  );
+
+  if (!prResult.success) {
+    warnings.push(`autoPr: Failed to create draft PR: ${prResult.error}`);
+    return "";
+  }
+
+  // 6. Extract PR number and URL from output
+  const prUrl = prResult.output.trim().split("\n").pop() || "";
+  const prNumberMatch = prUrl.match(/\/pull\/(\d+)/);
+  if (!prNumberMatch) {
+    warnings.push(
+      `autoPr: PR created but could not parse PR number from output: ${prResult.output}`
+    );
+    return "";
+  }
+
+  const prNumber = parseInt(prNumberMatch[1]!, 10);
+
+  // 7. Link PR to ticket via core function
+  try {
+    linkPr(db, ticket.id, prNumber, prUrl, "draft");
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : "Unknown error";
+    warnings.push(`autoPr: PR #${prNumber} created but failed to link: ${errMsg}`);
+    return `**Draft PR Created:** #${prNumber} (${prUrl}) — link failed, use \`workflow({ action: "link-pr", ticketId: "${ticket.id}", prNumber: ${prNumber} })\` to link manually`;
+  }
+
+  log.info(`Auto-created draft PR #${prNumber} for ticket ${ticket.id}: ${prUrl}`);
+  return `**Draft PR Created:** #${prNumber} (${prUrl}) — linked to ticket`;
 }
