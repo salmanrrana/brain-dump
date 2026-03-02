@@ -63,12 +63,7 @@ The hooks are configured in `~/.cursor/hooks.json`:
 }
 ```
 
-**Note:** Telemetry hooks are no longer needed — the MCP server handles telemetry self-instrumentation internally.
-
-```json
-// Legacy telemetry hooks (removed — absorbed into MCP self-telemetry):
-// sessionStart, sessionEnd, postToolUseFailure, beforeSubmitPrompt
-```
+**Note:** Telemetry hooks (sessionStart, sessionEnd, postToolUseFailure, beforeSubmitPrompt) are no longer needed — the MCP server handles telemetry self-instrumentation internally.
 
 ## Claude Code Hook Compatibility
 
