@@ -20,10 +20,9 @@ import { startWork, completeWork, startEpicWork } from "../../core/workflow.ts";
 import { linkCommit, linkPr, syncTicketLinks } from "../../core/git.ts";
 import type { PrStatus } from "../../core/types.ts";
 import { createRealGitOperations, shortId } from "../../core/git-utils.ts";
-import type { StartWorkResult, CompleteWorkResult, StartEpicWorkResult } from "../../core/types.ts";
+import type { StartWorkResult, StartEpicWorkResult } from "../../core/types.ts";
 
 // MCP-layer presentation imports
-import { getActiveTelemetrySession, logMcpCallEvent } from "../lib/telemetry-self-log.js";
 import { loadTicketAttachments, buildAttachmentContextSection } from "../lib/attachment-loader.js";
 import { fetchTicketComments, buildCommentsSection } from "../lib/comment-utils.js";
 import { updatePrdForTicket } from "../lib/prd-utils.js";
@@ -242,38 +241,7 @@ function handleStartWork(
 ) {
   const ticketId = requireParam(params.ticketId, "ticketId", "start-work");
 
-  // Telemetry self-logging (for non-hook environments)
-  const telemetrySession = getActiveTelemetrySession(db, ticketId);
-  let correlationId: string | null = null;
-  const startTime = Date.now();
-  if (telemetrySession) {
-    correlationId = logMcpCallEvent(db, {
-      sessionId: telemetrySession.id,
-      ticketId: telemetrySession.ticket_id,
-      event: "start",
-      toolName: "start_ticket_work",
-      params: { ticketId },
-    });
-  }
-
-  let result: StartWorkResult;
-  try {
-    result = startWork(db, ticketId, git);
-  } catch (err) {
-    if (telemetrySession && correlationId) {
-      logMcpCallEvent(db, {
-        sessionId: telemetrySession.id,
-        ticketId: telemetrySession.ticket_id,
-        event: "end",
-        toolName: "start_ticket_work",
-        correlationId,
-        success: false,
-        durationMs: Date.now() - startTime,
-        error: err instanceof Error ? err.message : "Unknown error",
-      });
-    }
-    throw err;
-  }
+  const result = startWork(db, ticketId, git);
 
   const ticket = result.ticket;
   const parseWarnings: string[] = [];
@@ -374,19 +342,6 @@ function handleStartWork(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- buildTicketContextContent returns local ContentBlock[] with type:string, but MCP SDK expects literal type:"text"
   const content = buildTicketContextContent(contextParams, attachmentBlocks) as any;
 
-  // Log successful completion to telemetry
-  if (telemetrySession && correlationId) {
-    logMcpCallEvent(db, {
-      sessionId: telemetrySession.id,
-      ticketId: telemetrySession.ticket_id,
-      event: "end",
-      toolName: "start_ticket_work",
-      correlationId,
-      success: true,
-      durationMs: Date.now() - startTime,
-    });
-  }
-
   log.info(`Started work on ticket ${ticketId}: branch ${result.branch}`);
   return { content };
 }
@@ -403,38 +358,7 @@ function handleCompleteWork(
 ) {
   const ticketId = requireParam(params.ticketId, "ticketId", "complete-work");
 
-  // Telemetry self-logging
-  const telemetrySession = getActiveTelemetrySession(db, ticketId);
-  let correlationId: string | null = null;
-  const startTime = Date.now();
-  if (telemetrySession) {
-    correlationId = logMcpCallEvent(db, {
-      sessionId: telemetrySession.id,
-      ticketId: telemetrySession.ticket_id,
-      event: "start",
-      toolName: "complete_ticket_work",
-      params: { ticketId, summary: params.summary ? "[provided]" : undefined },
-    });
-  }
-
-  let result: CompleteWorkResult;
-  try {
-    result = completeWork(db, ticketId, git, params.summary);
-  } catch (err) {
-    if (telemetrySession && correlationId) {
-      logMcpCallEvent(db, {
-        sessionId: telemetrySession.id,
-        ticketId: telemetrySession.ticket_id,
-        event: "end",
-        toolName: "complete_ticket_work",
-        correlationId,
-        success: false,
-        durationMs: Date.now() - startTime,
-        error: err instanceof Error ? err.message : "Unknown error",
-      });
-    }
-    throw err;
-  }
+  const result = completeWork(db, ticketId, git, params.summary);
 
   // Get project path for PRD update
   const ticketRow = db
@@ -581,19 +505,6 @@ ${prDescription}
   sections.push(`---\nstatus: ai_review\nenvironment: ${environment}`);
 
   const responseText = sections.join("\n\n---\n\n");
-
-  // Log successful completion to telemetry
-  if (telemetrySession && correlationId) {
-    logMcpCallEvent(db, {
-      sessionId: telemetrySession.id,
-      ticketId: telemetrySession.ticket_id,
-      event: "end",
-      toolName: "complete_ticket_work",
-      correlationId,
-      success: true,
-      durationMs: Date.now() - startTime,
-    });
-  }
 
   log.info(`Completed implementation on ticket ${ticketId}, moved to ai_review`);
   return {

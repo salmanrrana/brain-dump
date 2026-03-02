@@ -18,6 +18,7 @@ import { performDailyBackupSync } from "./lib/backup.js";
 import { detectEnvironment, getEnvironmentInfo } from "./lib/environment.js";
 import { getLockFilePath } from "./lib/xdg.js";
 import { registerInstructionPrompts } from "./prompts/instructions.js";
+import { instrumentServer, endActiveSession } from "./lib/telemetry-self-log.js";
 
 // Tool registration modules (9 consolidated resource tools)
 import { registerProjectTool } from "./tools/project.js";
@@ -64,6 +65,7 @@ try {
 // =============================================================================
 function setupGracefulShutdown(): void {
   const cleanup = (): void => {
+    endActiveSession(db);
     releaseLock();
     db?.close();
   };
@@ -97,6 +99,9 @@ const server = new McpServer({
   name: "brain-dump",
   version: "1.0.0",
 });
+
+// Instrument all tools with self-telemetry before registration
+instrumentServer(server, db, detectEnvironment);
 
 // Register 9 consolidated resource tools
 registerProjectTool(server, db);
