@@ -304,6 +304,14 @@ config.hooks = {
     {
       matcher: "Edit",
       hooks: [{ type: "command", command: "$HOME/.claude/hooks/enforce-state-before-write.sh" }]
+    },
+    {
+      matcher: "Bash(git push:*)",
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/enforce-review-before-push.sh" }]
+    },
+    {
+      matcher: "Bash(gh pr create:*)",
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/enforce-review-before-push.sh" }]
     }
   ],
   PostToolUse: [
@@ -316,13 +324,25 @@ config.hooks = {
       hooks: [{ type: "command", command: "$HOME/.claude/hooks/spawn-next-ticket.sh" }]
     },
     {
+      matcher: "Bash(gh pr create:*)",
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/spawn-after-pr.sh" }]
+    },
+    {
       matcher: "TodoWrite",
       hooks: [{ type: "command", command: "$HOME/.claude/hooks/capture-claude-tasks.sh" }]
+    }
+  ],
+  SubagentStop: [
+    {
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/chain-extended-review.sh" }]
     }
   ],
   Stop: [
     {
       hooks: [{ type: "command", command: "$HOME/.claude/hooks/check-for-code-changes.sh" }]
+    },
+    {
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/mark-review-completed.sh" }]
     }
   ]
 };
@@ -362,6 +382,24 @@ else
             "command": "\$HOME/.claude/hooks/enforce-state-before-write.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash(git push:*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/enforce-review-before-push.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash(gh pr create:*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/enforce-review-before-push.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -384,11 +422,30 @@ else
         ]
       },
       {
+        "matcher": "Bash(gh pr create:*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/spawn-after-pr.sh"
+          }
+        ]
+      },
+      {
         "matcher": "TodoWrite",
         "hooks": [
           {
             "type": "command",
             "command": "\$HOME/.claude/hooks/capture-claude-tasks.sh"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/chain-extended-review.sh"
           }
         ]
       }
@@ -399,6 +456,14 @@ else
           {
             "type": "command",
             "command": "\$HOME/.claude/hooks/check-for-code-changes.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/mark-review-completed.sh"
           }
         ]
       }

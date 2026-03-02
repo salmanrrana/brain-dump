@@ -251,15 +251,11 @@ Hooks are event-driven bash scripts that run automatically during Copilot CLI se
 
 ### Hook Scripts Reference
 
-| Script                          | Event                 | Purpose                                                                                                                        |
-| ------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `start-telemetry.sh`            | `sessionStart`        | Detects active ticket from `.claude/ralph-state.json`, prompts you to start a telemetry session                                |
-| `end-telemetry.sh`              | `sessionEnd`          | Prompts you to flush the telemetry queue and end the session                                                                   |
-| `log-prompt.sh`                 | `userPromptSubmitted` | Records prompt metadata (length, not content) to the telemetry queue                                                           |
-| `log-tool-start.sh`             | `preToolUse`          | Records tool start event with a correlation ID for duration tracking                                                           |
-| `log-tool-end.sh`               | `postToolUse`         | Pairs with start event, calculates duration, records tool completion                                                           |
-| `log-tool-failure.sh`           | `errorOccurred`       | Records tool failures with error details and duration                                                                          |
-| `enforce-state-before-write.sh` | `preToolUse`          | **Enforcement hook** — blocks Write/Edit/Create tools unless Ralph session state is `implementing`, `testing`, or `committing` |
+| Script                          | Event        | Purpose                                                                                                                        |
+| ------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `enforce-state-before-write.sh` | `preToolUse` | **Enforcement hook** — blocks Write/Edit/Create tools unless Ralph session state is `implementing`, `testing`, or `committing` |
+
+**Note:** Telemetry hooks (start-telemetry, end-telemetry, log-prompt, log-tool-start, log-tool-end, log-tool-failure) have been absorbed into the MCP server's self-instrumentation and are no longer needed as external hooks.
 
 ### State Enforcement
 

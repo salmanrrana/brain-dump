@@ -84,40 +84,16 @@ The flow is **feedback-driven**: the AI sees the error, understands the constrai
 - **Trigger**: PreToolUse on Bash tool with `git push` or `gh pr create` commands
 - **Feedback**: Guides AI to run `/review` command
 
-**Hook 3: `.claude/hooks/create-pr-on-ticket-start.sh`**
+**Auto-PR Creation (MCP, not hook)**
 
-- **Purpose**: Auto-create draft PR when `workflow "start-work"` completes
-- **Workflow**: Parses output → Creates empty WIP commit → Pushes → Creates draft PR
-- **Trigger**: PostToolUse on `mcp__brain-dump__workflow` (action: `start-work`)
+- **Purpose**: Auto-create draft PR when `workflow "start-work"` is called with `autoPr: true`
+- **Workflow**: Creates empty WIP commit → Pushes → Creates draft PR via `gh`
+- **Trigger**: Built into `workflow` MCP tool (no external hook needed)
 - **Result**: PR is created and linked to ticket immediately
 
-### Auto-Telemetry Capture
+### MCP Self-Telemetry
 
-Claude Code hooks automatically capture telemetry using MCP tools:
-
-```bash
-# SessionStart hook
-telemetry tool, action: "start", ticketId: "..."
-
-# PreToolUse hook for Bash
-telemetry tool, action: "log-tool",
-  sessionId: "...",
-  event: "start",
-  toolName: "Bash",
-  correlationId: "..."
-
-# PostToolUse hook for Bash
-telemetry tool, action: "log-tool",
-  sessionId: "...",
-  event: "end",
-  toolName: "Bash",
-  correlationId: "...",
-  success: true,
-  durationMs: 250
-
-# Stop hook
-telemetry tool, action: "end", sessionId: "..."
-```
+Telemetry is handled by the MCP server's self-instrumentation — no external hooks needed. The server wraps every tool call with start/end event logging, auto-creates sessions when a ticket is active, and auto-ends sessions on shutdown. This works identically across all environments that connect to the MCP server.
 
 ### Claude Code Advantages
 

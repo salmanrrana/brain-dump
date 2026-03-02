@@ -58,14 +58,16 @@ The hooks are configured in `~/.cursor/hooks.json`:
 {
   "version": 1,
   "hooks": {
-    "sessionStart": [{ "command": "~/.cursor/hooks/start-telemetry.sh" }],
-    "sessionEnd": [{ "command": "~/.cursor/hooks/end-telemetry.sh" }],
-    "preToolUse": [{ "command": "~/.cursor/hooks/log-tool.sh" }],
-    "postToolUse": [{ "command": "~/.cursor/hooks/log-tool.sh" }],
-    "postToolUseFailure": [{ "command": "~/.cursor/hooks/log-tool-failure.sh" }],
-    "beforeSubmitPrompt": [{ "command": "~/.cursor/hooks/log-prompt.sh" }]
+    "preToolUse": [{ "command": "~/.cursor/hooks/enforce-state-before-write.sh" }]
   }
 }
+```
+
+**Note:** Telemetry hooks are no longer needed — the MCP server handles telemetry self-instrumentation internally.
+
+```json
+// Legacy telemetry hooks (removed — absorbed into MCP self-telemetry):
+// sessionStart, sessionEnd, postToolUseFailure, beforeSubmitPrompt
 ```
 
 ## Claude Code Hook Compatibility
