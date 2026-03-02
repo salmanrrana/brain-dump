@@ -1,4 +1,4 @@
-import { type FC, useState, useRef, useCallback, useMemo } from "react";
+import { type FC, useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { ChevronDown, X, Check } from "lucide-react";
 import { useClickOutside, useProjects, useTags, useFiltersWithUrl } from "../../lib/hooks";
 
@@ -52,6 +52,26 @@ export const BoardHeader: FC<BoardHeaderProps> = ({
   const [epicDropdownOpen, setEpicDropdownOpen] = useState(false);
   const [tagsDropdownOpen, setTagsDropdownOpen] = useState(false);
 
+  // Tag search state
+  const [tagSearch, setTagSearch] = useState("");
+  const tagSearchInputRef = useRef<HTMLInputElement>(null);
+
+  // Filter tags by search query
+  const filteredTags = useMemo(
+    () =>
+      tagSearch.trim()
+        ? availableTags.filter((tag) => tag.toLowerCase().includes(tagSearch.toLowerCase()))
+        : availableTags,
+    [availableTags, tagSearch]
+  );
+
+  // Auto-focus search input when dropdown opens
+  useEffect(() => {
+    if (tagsDropdownOpen) {
+      requestAnimationFrame(() => tagSearchInputRef.current?.focus());
+    }
+  }, [tagsDropdownOpen]);
+
   // Refs for click outside detection
   const projectDropdownRef = useRef<HTMLDivElement>(null);
   const epicDropdownRef = useRef<HTMLDivElement>(null);
@@ -60,7 +80,14 @@ export const BoardHeader: FC<BoardHeaderProps> = ({
   // Close dropdowns on click outside
   useClickOutside(projectDropdownRef, () => setProjectDropdownOpen(false), projectDropdownOpen);
   useClickOutside(epicDropdownRef, () => setEpicDropdownOpen(false), epicDropdownOpen);
-  useClickOutside(tagsDropdownRef, () => setTagsDropdownOpen(false), tagsDropdownOpen);
+  useClickOutside(
+    tagsDropdownRef,
+    () => {
+      setTagsDropdownOpen(false);
+      setTagSearch("");
+    },
+    tagsDropdownOpen
+  );
 
   // Get selected project and its epics
   const selectedProject = useMemo(
@@ -235,7 +262,11 @@ export const BoardHeader: FC<BoardHeaderProps> = ({
                 ...filterChipStyles,
                 ...(tags.length > 0 ? activeFilterChipStyles : {}),
               }}
-              onClick={() => setTagsDropdownOpen(!tagsDropdownOpen)}
+              onClick={() => {
+                const willClose = tagsDropdownOpen;
+                setTagsDropdownOpen(!tagsDropdownOpen);
+                if (willClose) setTagSearch("");
+              }}
               aria-expanded={tagsDropdownOpen}
               aria-haspopup="listbox"
             >
@@ -250,10 +281,25 @@ export const BoardHeader: FC<BoardHeaderProps> = ({
             </button>
             {tagsDropdownOpen && (
               <div style={dropdownMenuStyles} role="listbox" aria-multiselectable="true">
+                {/* Search input */}
+                <div style={searchInputContainerStyles}>
+                  <input
+                    ref={tagSearchInputRef}
+                    type="text"
+                    placeholder="Search tags..."
+                    value={tagSearch}
+                    onChange={(e) => setTagSearch(e.target.value)}
+                    style={searchInputStyles}
+                    aria-label="Search tags"
+                    onKeyDown={(e) => e.stopPropagation()}
+                  />
+                </div>
                 {availableTags.length === 0 ? (
                   <div style={emptyDropdownStyles}>No tags available</div>
+                ) : filteredTags.length === 0 ? (
+                  <div style={emptyDropdownStyles}>No matching tags</div>
                 ) : (
-                  availableTags.map((tag) => (
+                  filteredTags.map((tag) => (
                     <button
                       key={tag}
                       type="button"
@@ -366,6 +412,22 @@ const dropdownMenuStyles: React.CSSProperties = {
   borderRadius: "var(--radius-md)",
   boxShadow: "var(--shadow-lg)",
   zIndex: 100,
+};
+
+const searchInputContainerStyles: React.CSSProperties = {
+  padding: "var(--spacing-2)",
+  borderBottom: "1px solid var(--border-primary)",
+};
+
+const searchInputStyles: React.CSSProperties = {
+  width: "100%",
+  padding: "var(--spacing-2)",
+  fontSize: "var(--font-size-sm)",
+  color: "var(--text-primary)",
+  background: "var(--bg-tertiary)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-sm)",
+  outline: "none",
 };
 
 const dropdownItemStyles: React.CSSProperties = {
