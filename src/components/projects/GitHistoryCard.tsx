@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useGitProjectInfo } from "../../lib/hooks";
 import {
   cardStyles,
@@ -13,19 +13,56 @@ interface GitHistoryCardProps {
   projectPath: string;
 }
 
+function CommitLink({
+  url,
+  children,
+  title,
+}: {
+  url: string | null;
+  children: React.ReactNode;
+  title?: string;
+}) {
+  if (url) {
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="hover:underline hover:text-[var(--accent-primary)]"
+        title={title}
+      >
+        {children}
+      </a>
+    );
+  }
+  return <>{children}</>;
+}
+
 export default function GitHistoryCard({ projectPath }: GitHistoryCardProps) {
   const { data, isLoading, error } = useGitProjectInfo(projectPath);
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
+  const timeoutRef = useRef<number | null>(null);
 
-  const handleCopyHash = useCallback(async (hash: string) => {
-    try {
-      await navigator.clipboard.writeText(hash);
-      setCopiedHash(hash);
-      setTimeout(() => setCopiedHash(null), 2000);
-    } catch {
-      // Clipboard API unavailable (e.g. insecure context) - no action needed
-    }
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
   }, []);
+
+  function handleCopyHash(hash: string) {
+    navigator.clipboard
+      .writeText(hash)
+      .then(() => {
+        setCopiedHash(hash);
+        timeoutRef.current = window.setTimeout(() => setCopiedHash(null), 2000);
+      })
+      .catch(() => {
+        setCopiedHash(hash);
+        timeoutRef.current = window.setTimeout(() => setCopiedHash(null), 2000);
+      });
+  }
 
   return (
     <div style={cardStyles}>
@@ -54,18 +91,12 @@ export default function GitHistoryCard({ projectPath }: GitHistoryCardProps) {
                 {data.lastCommit.message}
               </p>
               <p style={commitMetaStyles}>
-                {data.remoteUrl ? (
-                  <a
-                    href={`${data.remoteUrl}/commit/${data.lastCommit.hash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:underline hover:text-[var(--accent-primary)]"
-                  >
-                    {data.lastCommit.date}
-                  </a>
-                ) : (
-                  data.lastCommit.date
-                )}{" "}
+                <CommitLink
+                  url={data.remoteUrl ? `${data.remoteUrl}/commit/${data.lastCommit.hash}` : null}
+                  title="View on GitHub"
+                >
+                  {data.lastCommit.date}
+                </CommitLink>{" "}
                 by {data.lastCommit.author}
               </p>
             </div>
@@ -79,20 +110,12 @@ export default function GitHistoryCard({ projectPath }: GitHistoryCardProps) {
               <div style={commitListStyles}>
                 {data.recentCommits.map((commit) => (
                   <div key={commit.hash} style={commitItemStyles} className="group relative">
-                    {data.remoteUrl ? (
-                      <a
-                        href={`${data.remoteUrl}/commit/${commit.hash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={commitHashStyles}
-                        className="hover:underline hover:text-[var(--accent-primary)]"
-                        title="View on GitHub"
-                      >
-                        {commit.hash.substring(0, 7)}
-                      </a>
-                    ) : (
+                    <CommitLink
+                      url={data.remoteUrl ? `${data.remoteUrl}/commit/${commit.hash}` : null}
+                      title="View on GitHub"
+                    >
                       <span style={commitHashStyles}>{commit.hash.substring(0, 7)}</span>
-                    )}
+                    </CommitLink>
 
                     <span style={commitShortMessageStyles} title={commit.message}>
                       {commit.message}
