@@ -1,5 +1,5 @@
 // Shared style constants for dev hub components
-// Reduces duplication across TechStackCard, GitHistoryCard, and DevServerPicker
+// Reduces duplication across GitHistoryCard and DevServerPicker
 
 export const cardStyles: React.CSSProperties = {
   background: "var(--bg-secondary)",

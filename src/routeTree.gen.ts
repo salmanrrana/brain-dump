@@ -9,12 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ListRouteImport } from './routes/list'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as BoardRouteImport } from './routes/board'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TicketIdRouteImport } from './routes/ticket.$id'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
 
+const ListRoute = ListRouteImport.update({
+  id: '/list',
+  path: '/list',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -45,6 +51,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/board': typeof BoardRoute
   '/dashboard': typeof DashboardRoute
+  '/list': typeof ListRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/ticket/$id': typeof TicketIdRoute
 }
@@ -52,6 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/board': typeof BoardRoute
   '/dashboard': typeof DashboardRoute
+  '/list': typeof ListRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/ticket/$id': typeof TicketIdRoute
 }
@@ -60,6 +68,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/board': typeof BoardRoute
   '/dashboard': typeof DashboardRoute
+  '/list': typeof ListRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/ticket/$id': typeof TicketIdRoute
 }
@@ -69,15 +78,23 @@ export interface FileRouteTypes {
     | '/'
     | '/board'
     | '/dashboard'
+    | '/list'
     | '/projects/$projectId'
     | '/ticket/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/board' | '/dashboard' | '/projects/$projectId' | '/ticket/$id'
+  to:
+    | '/'
+    | '/board'
+    | '/dashboard'
+    | '/list'
+    | '/projects/$projectId'
+    | '/ticket/$id'
   id:
     | '__root__'
     | '/'
     | '/board'
     | '/dashboard'
+    | '/list'
     | '/projects/$projectId'
     | '/ticket/$id'
   fileRoutesById: FileRoutesById
@@ -86,12 +103,20 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BoardRoute: typeof BoardRoute
   DashboardRoute: typeof DashboardRoute
+  ListRoute: typeof ListRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
   TicketIdRoute: typeof TicketIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/list': {
+      id: '/list'
+      path: '/list'
+      fullPath: '/list'
+      preLoaderRoute: typeof ListRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
@@ -134,6 +159,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BoardRoute: BoardRoute,
   DashboardRoute: DashboardRoute,
+  ListRoute: ListRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRoute,
   TicketIdRoute: TicketIdRoute,
 }

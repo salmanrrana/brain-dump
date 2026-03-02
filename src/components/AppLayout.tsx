@@ -62,10 +62,6 @@ interface AppState {
   clearTagFilters: () => void;
   clearAllFilters: () => void;
 
-  // View
-  viewMode: "kanban" | "list";
-  setViewMode: (mode: "kanban" | "list") => void;
-
   // Modals
   modal: ModalState;
   openNewTicketModal: () => void;
@@ -115,14 +111,6 @@ export function useAppState() {
 
 interface AppLayoutProps {
   children: ReactNode;
-}
-
-// Get initial view mode from localStorage
-function getInitialViewMode(): "kanban" | "list" {
-  if (typeof window === "undefined") return "kanban";
-  const stored = localStorage.getItem("brain-dump-view-mode");
-  if (stored === "list" || stored === "kanban") return stored;
-  return "kanban";
 }
 
 /**
@@ -196,7 +184,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
   } = useSampleData(handleSampleDataDeleted);
 
   // Remaining state that doesn't fit into hooks
-  const [viewMode, setViewModeState] = useState<"kanban" | "list">(getInitialViewMode);
   const [ticketRefreshKey, setTicketRefreshKey] = useState(0);
   const [selectedTicketIdFromSearch, setSelectedTicketIdFromSearch] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -218,14 +205,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const allEpics = useMemo(() => {
     return projects.flatMap((p) => p.epics);
   }, [projects]);
-
-  // Persist view mode to localStorage
-  const setViewMode = useCallback((mode: "kanban" | "list") => {
-    setViewModeState(mode);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("brain-dump-view-mode", mode);
-    }
-  }, []);
 
   // Modal handlers that integrate with project refetch
   const handleTicketCreated = useCallback(() => {
@@ -375,6 +354,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
     () => createNavigationHandler("/board"),
     [createNavigationHandler]
   );
+  const handleNavigateList = useMemo(
+    () => createNavigationHandler("/list"),
+    [createNavigationHandler]
+  );
 
   const handleToggleProjects = useCallback(() => {
     // On mobile, toggle the mobile menu (which shows projects)
@@ -396,6 +379,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     onNavigateHome: handleNavigateHome,
     onNavigateDashboard: handleNavigateDashboard,
     onNavigateBoard: handleNavigateBoard,
+    onNavigateList: handleNavigateList,
     onToggleProjects: handleToggleProjects,
     onOpenSettings: openSettings,
     disabled: isAnyModalOpen,
@@ -410,10 +394,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
     toggleTag,
     clearTagFilters: clearTags,
     clearAllFilters: clearAll,
-
-    // View
-    viewMode,
-    setViewMode,
 
     // Modals
     modal,
@@ -706,12 +686,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
 }
 
 function AppHeader() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
+  const routerState = useRouterState({ select: (s) => s.location });
+  const pathname = routerState.pathname;
   const isProjectPage = pathname === "/" || pathname.startsWith("/projects/");
+  const isListView = pathname === "/list";
 
   const {
-    viewMode,
-    setViewMode,
     openNewTicketModal,
     openSettingsModal,
     filters,
@@ -850,26 +831,38 @@ function AppHeader() {
         aria-label="View mode"
       >
         <button
-          onClick={() => setViewMode("kanban")}
+          onClick={() => {
+            const search: Record<string, string | undefined> = {};
+            if (filters.projectId) search.project = filters.projectId;
+            if (filters.epicId) search.epic = filters.epicId;
+            if (filters.tags.length > 0) search.tags = filters.tags.join(",");
+            void navigate({ to: "/board", search });
+          }}
           className={`p-2 rounded-md transition-colors ${
-            viewMode === "kanban"
+            !isListView
               ? "bg-[var(--bg-hover)] text-[var(--accent-primary)]"
               : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
           }`}
           aria-label="Kanban view"
-          aria-pressed={viewMode === "kanban"}
+          aria-pressed={!isListView}
         >
           <LayoutGrid size={18} aria-hidden="true" />
         </button>
         <button
-          onClick={() => setViewMode("list")}
+          onClick={() => {
+            const search: Record<string, string | undefined> = {};
+            if (filters.projectId) search.project = filters.projectId;
+            if (filters.epicId) search.epic = filters.epicId;
+            if (filters.tags.length > 0) search.tags = filters.tags.join(",");
+            void navigate({ to: "/list", search });
+          }}
           className={`p-2 rounded-md transition-colors ${
-            viewMode === "list"
+            isListView
               ? "bg-[var(--bg-hover)] text-[var(--accent-primary)]"
               : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
           }`}
           aria-label="List view"
-          aria-pressed={viewMode === "list"}
+          aria-pressed={isListView}
         >
           <List size={18} aria-hidden="true" />
         </button>

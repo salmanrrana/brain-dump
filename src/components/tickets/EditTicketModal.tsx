@@ -97,6 +97,32 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
   const [blockedReason, setBlockedReason] = useState(ticket.blockedReason ?? "");
   const [subtasks, setSubtasks] = useState<Subtask[]>(initialSubtasks);
 
+  // Sync form state when ticket changes (defensive against stale state without remount)
+  useEffect(() => {
+    setTitle(ticket.title);
+    setDescription(ticket.description ?? "");
+    setProjectId(ticket.projectId);
+    setPriority(ticket.priority ?? "");
+    setEpicId(ticket.epicId ?? "");
+    setTags(safeJsonParse<string[]>(ticket.tags, []));
+    setStatus(ticket.status as TicketStatus);
+    setIsBlocked(ticket.isBlocked ?? false);
+    setBlockedReason(ticket.blockedReason ?? "");
+    setSubtasks(safeJsonParse<Subtask[]>(ticket.subtasks, []));
+  }, [
+    ticket.id,
+    ticket.tags,
+    ticket.subtasks,
+    ticket.title,
+    ticket.description,
+    ticket.projectId,
+    ticket.priority,
+    ticket.epicId,
+    ticket.status,
+    ticket.isBlocked,
+    ticket.blockedReason,
+  ]);
+
   // Validation state - tracks which fields user has interacted with
   const [touched, setTouched] = useState<{ title: boolean }>({
     title: false,
@@ -236,7 +262,7 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
     if (epicId !== (ticket.epicId ?? "")) {
       updates.epicId = epicId || null;
     }
-    if (JSON.stringify(tags) !== (ticket.tags ?? "[]")) {
+    if (JSON.stringify(tags) !== JSON.stringify(safeJsonParse<string[]>(ticket.tags, []))) {
       updates.tags = tags;
     }
     if (isBlocked !== (ticket.isBlocked ?? false)) {
@@ -245,7 +271,9 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
     if (blockedReason !== (ticket.blockedReason ?? "")) {
       updates.blockedReason = blockedReason || null;
     }
-    if (JSON.stringify(subtasks) !== (ticket.subtasks ?? "[]")) {
+    if (
+      JSON.stringify(subtasks) !== JSON.stringify(safeJsonParse<Subtask[]>(ticket.subtasks, []))
+    ) {
       updates.subtasks = subtasks;
     }
 
@@ -499,7 +527,10 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
           }
 
           if (launchResult.success) {
-            showToast("success", `Cursor launched${launchResult.terminalUsed ? ` (${launchResult.terminalUsed})` : ""}`);
+            showToast(
+              "success",
+              `Cursor launched${launchResult.terminalUsed ? ` (${launchResult.terminalUsed})` : ""}`
+            );
             setStatus("in_progress");
             onSuccess?.();
             onClose();

@@ -160,20 +160,29 @@ describe("useKeyboardShortcuts", () => {
       expect(onNavigateBoard).toHaveBeenCalledTimes(1);
     });
 
-    it("should call onToggleProjects when '4' is pressed", () => {
+    it("should call onNavigateList when '4' is pressed", () => {
+      const onNavigateList = vi.fn();
+      renderHook(() => useKeyboardShortcuts({ onNavigateList }));
+
+      fireKeyDown("4");
+
+      expect(onNavigateList).toHaveBeenCalledTimes(1);
+    });
+
+    it("should call onToggleProjects when '5' is pressed", () => {
       const onToggleProjects = vi.fn();
       renderHook(() => useKeyboardShortcuts({ onToggleProjects }));
 
-      fireKeyDown("4");
+      fireKeyDown("5");
 
       expect(onToggleProjects).toHaveBeenCalledTimes(1);
     });
 
-    it("should call onOpenSettings when '5' is pressed", () => {
+    it("should call onOpenSettings when '6' is pressed", () => {
       const onOpenSettings = vi.fn();
       renderHook(() => useKeyboardShortcuts({ onOpenSettings }));
 
-      fireKeyDown("5");
+      fireKeyDown("6");
 
       expect(onOpenSettings).toHaveBeenCalledTimes(1);
     });
@@ -405,15 +414,22 @@ describe("KEYBOARD_SHORTCUTS constant", () => {
     expect(shortcut?.description.toLowerCase()).toContain("board");
   });
 
-  it("should include '4' shortcut for Projects toggle", () => {
+  it("should include '4' shortcut for List navigation", () => {
     const shortcut = KEYBOARD_SHORTCUTS.find((s) => s.key === "4");
+    expect(shortcut).toBeDefined();
+    expect(shortcut?.category).toBe("navigation");
+    expect(shortcut?.description.toLowerCase()).toContain("list");
+  });
+
+  it("should include '5' shortcut for Projects toggle", () => {
+    const shortcut = KEYBOARD_SHORTCUTS.find((s) => s.key === "5");
     expect(shortcut).toBeDefined();
     expect(shortcut?.category).toBe("navigation");
     expect(shortcut?.description.toLowerCase()).toContain("project");
   });
 
-  it("should include '5' shortcut for Settings", () => {
-    const shortcut = KEYBOARD_SHORTCUTS.find((s) => s.key === "5");
+  it("should include '6' shortcut for Settings", () => {
+    const shortcut = KEYBOARD_SHORTCUTS.find((s) => s.key === "6");
     expect(shortcut).toBeDefined();
     expect(shortcut?.category).toBe("navigation");
     expect(shortcut?.description.toLowerCase()).toContain("setting");

@@ -48,9 +48,11 @@ export {
   useTickets,
   useSearch,
   useTags,
+  useTagsWithMetadata,
   type Ticket,
   type StatusChange,
   type SearchResult,
+  type TagMetadata,
 } from "./tickets";
 
 // =============================================================================
@@ -66,10 +68,11 @@ export {
   useCreateEpic,
   useUpdateEpic,
   useDeleteEpic,
-  useTechStack,
   useInstalledEditors,
   useDevCommands,
   useGitProjectInfo,
+  useGitCommitsInfinite,
+  useCommitFileStats,
   useLaunchEditor,
   useLaunchDevServer,
   type Epic,

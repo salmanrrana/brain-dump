@@ -4,17 +4,17 @@
  */
 
 import { useEffect, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getProjects, createProject, updateProject, deleteProject } from "../../api/projects";
 import { getEpicsByProject, createEpic, updateEpic, deleteEpic } from "../../api/epics";
 import {
-  detectTechStack,
   detectInstalledEditors,
   detectDevCommands,
   launchEditor,
   launchDevServer,
 } from "../../api/dev-tools";
-import { getGitProjectInfo } from "../../api/git-info";
+import { getGitProjectInfo, getGitCommits, getCommitFileStats } from "../../api/git-info";
+import type { GitCommitsPage, CommitFileStatsResult } from "../../api/git-info";
 import { createBrowserLogger } from "../browser-logger";
 import { queryKeys } from "../query-keys";
 import { useActiveRalphSessions, type ActiveRalphSession } from "./ralph";
@@ -410,19 +410,6 @@ export type { ActiveRalphSession };
 // =============================================================================
 
 /**
- * Fetch tech stack info for a project
- * @param projectPath - The project filesystem path
- */
-export function useTechStack(projectPath: string) {
-  return useQuery({
-    queryKey: queryKeys.techStack(projectPath),
-    queryFn: () => detectTechStack({ data: projectPath }),
-    staleTime: 5 * 60 * 1000, // Cache 5 minutes
-    enabled: !!projectPath,
-  });
-}
-
-/**
  * Fetch installed editors on the system
  */
 export function useInstalledEditors() {
@@ -457,6 +444,42 @@ export function useGitProjectInfo(projectPath: string) {
     queryFn: () => getGitProjectInfo({ data: projectPath }),
     refetchInterval: 30 * 1000, // Refresh every 30s
     enabled: !!projectPath,
+  });
+}
+
+const GIT_COMMITS_PAGE_SIZE = 20;
+
+/**
+ * Fetch paginated git commits with infinite scrolling.
+ * @param projectPath - The project filesystem path
+ */
+export function useGitCommitsInfinite(projectPath: string) {
+  return useInfiniteQuery<GitCommitsPage, Error>({
+    queryKey: queryKeys.gitCommits(projectPath),
+    queryFn: ({ pageParam }) =>
+      getGitCommits({
+        data: { projectPath, limit: GIT_COMMITS_PAGE_SIZE, skip: pageParam as number },
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextSkip : undefined),
+    enabled: !!projectPath,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Fetch file stats for a single commit (lazy-loaded when a row is expanded).
+ * @param projectPath - The project filesystem path
+ * @param hash - The commit hash to fetch stats for
+ * @param enabled - Only fetch when the row is expanded
+ */
+export function useCommitFileStats(projectPath: string, hash: string, enabled: boolean) {
+  return useQuery<CommitFileStatsResult, Error>({
+    queryKey: queryKeys.gitCommitFileStats(projectPath, hash),
+    queryFn: () => getCommitFileStats({ data: { projectPath, hash } }),
+    enabled: enabled && !!projectPath && !!hash,
+    staleTime: 5 * 60 * 1000, // 5 min — commit stats are immutable
+    gcTime: 10 * 60 * 1000, // 10 min
   });
 }
 

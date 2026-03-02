@@ -33,9 +33,11 @@ export interface KeyboardShortcutConfig {
   onNavigateDashboard?: () => void;
   /** Called when '3' is pressed - navigate to board */
   onNavigateBoard?: () => void;
-  /** Called when '4' is pressed - toggle projects panel */
+  /** Called when '4' is pressed - navigate to list */
+  onNavigateList?: () => void;
+  /** Called when '5' is pressed - toggle projects panel */
   onToggleProjects?: () => void;
-  /** Called when '5' is pressed - open settings */
+  /** Called when '6' is pressed - open settings */
   onOpenSettings?: () => void;
   /** Whether shortcuts should be disabled (e.g., when a modal is open for most shortcuts) */
   disabled?: boolean;
@@ -67,8 +69,9 @@ export const KEYBOARD_SHORTCUTS: ShortcutDefinition[] = [
   { key: "1", description: "Home", category: "navigation" },
   { key: "2", description: "Dashboard", category: "navigation" },
   { key: "3", description: "Board", category: "navigation" },
-  { key: "4", description: "Toggle Projects", category: "navigation" },
-  { key: "5", description: "Settings", category: "navigation" },
+  { key: "4", description: "List", category: "navigation" },
+  { key: "5", description: "Toggle Projects", category: "navigation" },
+  { key: "6", description: "Settings", category: "navigation" },
 
   // Board navigation shortcuts
   { key: "↑", description: "Move up in column", category: "board" },
@@ -118,6 +121,7 @@ export function useKeyboardShortcuts(
     onNavigateHome,
     onNavigateDashboard,
     onNavigateBoard,
+    onNavigateList,
     onToggleProjects,
     onOpenSettings,
     disabled = false,
@@ -195,13 +199,20 @@ export function useKeyboardShortcuts(
           break;
 
         case "4":
+          if (!disabled && onNavigateList) {
+            e.preventDefault();
+            onNavigateList();
+          }
+          break;
+
+        case "5":
           if (!disabled && onToggleProjects) {
             e.preventDefault();
             onToggleProjects();
           }
           break;
 
-        case "5":
+        case "6":
           if (!disabled && onOpenSettings) {
             e.preventDefault();
             onOpenSettings();
@@ -220,6 +231,7 @@ export function useKeyboardShortcuts(
       onNavigateHome,
       onNavigateDashboard,
       onNavigateBoard,
+      onNavigateList,
       onToggleProjects,
       onOpenSettings,
     ]
