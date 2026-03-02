@@ -79,6 +79,12 @@ export interface SyncResult {
   prSkipped: { number: number; reason: string } | null;
 }
 
+export interface UnlinkedItemsResult {
+  unlinkedCommits: Array<{ hash: string; message: string }>;
+  unlinkedPr: { number: number; url?: string } | null;
+  hasUnlinkedItems: boolean;
+}
+
 // ============================================
 // Internal Helpers
 // ============================================
@@ -386,6 +392,69 @@ export function linkPr(
     prStatus: finalStatus,
     syncedPrs,
   };
+}
+
+/**
+ * Check for unlinked commits and PRs on the current branch for a ticket.
+ * Read-only — does not link anything, just reports what isn't yet linked.
+ *
+ * Used by `workflow start-work` to absorb the `check-pending-links.sh` hook:
+ * instead of a SessionStart hook reading a temp file, `start-work` directly
+ * checks the branch for unlinked items and reports them in the response.
+ */
+export function checkUnlinkedItems(
+  db: DbHandle,
+  ticketId: string,
+  projectPath: string
+): UnlinkedItemsResult {
+  const result: UnlinkedItemsResult = {
+    unlinkedCommits: [],
+    unlinkedPr: null,
+    hasUnlinkedItems: false,
+  };
+
+  const ticket = getTicketWithProject(db, ticketId);
+  const existingCommits: Commit[] = safeJsonParse(ticket.linked_commits, []);
+
+  // Check for unlinked commits on branch
+  const commits = getRecentCommits(projectPath);
+  for (const commit of commits) {
+    const alreadyLinked = existingCommits.some(
+      (c) =>
+        c.hash === commit.hash || c.hash.startsWith(commit.hash) || commit.hash.startsWith(c.hash)
+    );
+    if (!alreadyLinked) {
+      result.unlinkedCommits.push({ hash: shortId(commit.hash), message: commit.message });
+    }
+  }
+
+  // Check for unlinked PR on branch
+  if (!ticket.pr_number) {
+    const branchResult = runGitCommand("git branch --show-current", projectPath);
+    if (branchResult.success && branchResult.output) {
+      const branch = branchResult.output.trim();
+      const prResult = runGitCommand(
+        `gh pr view "${branch}" --json number,url 2>/dev/null`,
+        projectPath
+      );
+      if (prResult.success && prResult.output) {
+        try {
+          const prData = JSON.parse(prResult.output) as { number?: number; url?: string };
+          if (prData.number) {
+            result.unlinkedPr = {
+              number: prData.number,
+              ...(prData.url ? { url: prData.url } : {}),
+            };
+          }
+        } catch {
+          // PR query parse failed, non-fatal
+        }
+      }
+    }
+  }
+
+  result.hasUnlinkedItems = result.unlinkedCommits.length > 0 || result.unlinkedPr !== null;
+  return result;
 }
 
 /**

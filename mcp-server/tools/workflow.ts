@@ -17,7 +17,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type Database from "better-sqlite3";
 import { CoreError } from "../../core/errors.ts";
 import { startWork, completeWork, startEpicWork } from "../../core/workflow.ts";
-import { linkCommit, linkPr, syncTicketLinks } from "../../core/git.ts";
+import { linkCommit, linkPr, syncTicketLinks, checkUnlinkedItems } from "../../core/git.ts";
 import type { PrStatus } from "../../core/types.ts";
 import { createRealGitOperations, shortId } from "../../core/git-utils.ts";
 import type { StartWorkResult, StartEpicWorkResult } from "../../core/types.ts";
@@ -252,6 +252,35 @@ function handleStartWork(
     autoPrInfo = createAutoPr(db, ticket, result.branch, parseWarnings);
   }
 
+  // Check for unlinked commits/PRs on the branch (absorbs check-pending-links.sh hook)
+  let unlinkedItemsInfo = "";
+  try {
+    const unlinked = checkUnlinkedItems(db, ticketId, ticket.project.path);
+    if (unlinked.hasUnlinkedItems) {
+      const parts: string[] = [];
+      if (unlinked.unlinkedCommits.length > 0) {
+        parts.push(`**${unlinked.unlinkedCommits.length} unlinked commit(s):**`);
+        for (const c of unlinked.unlinkedCommits.slice(0, 5)) {
+          parts.push(`  - \`${c.hash}\` ${c.message}`);
+        }
+        if (unlinked.unlinkedCommits.length > 5) {
+          parts.push(`  - ... and ${unlinked.unlinkedCommits.length - 5} more`);
+        }
+      }
+      if (unlinked.unlinkedPr) {
+        parts.push(
+          `**Unlinked PR:** #${unlinked.unlinkedPr.number}${unlinked.unlinkedPr.url ? ` (${unlinked.unlinkedPr.url})` : ""}`
+        );
+      }
+      unlinkedItemsInfo = `### Unlinked Items Detected\n${parts.join("\n")}\n\nCall \`workflow({ action: "sync-links" })\` to link them to this ticket.`;
+      log.info(
+        `Found unlinked items for ticket ${ticketId}: ${unlinked.unlinkedCommits.length} commits, PR: ${unlinked.unlinkedPr?.number ?? "none"}`
+      );
+    }
+  } catch {
+    // Non-fatal: don't block start-work if unlinked check fails
+  }
+
   // Parse acceptance criteria from subtasks
   let acceptanceCriteria: string[] = ["Complete the implementation as described"];
   if (ticket.subtasks && ticket.subtasks.length > 0) {
@@ -303,6 +332,10 @@ function handleStartWork(
 
   if (autoPrInfo) {
     sessionInfo += `\n${autoPrInfo}`;
+  }
+
+  if (unlinkedItemsInfo) {
+    sessionInfo += `\n\n${unlinkedItemsInfo}`;
   }
 
   // Build epic info if available
