@@ -15,6 +15,7 @@ import {
 } from "./errors.ts";
 import type { DbTicketRow, DbProjectRow, DbEpicRow, DbTicketSummaryRow } from "./db-rows.ts";
 import { safeJsonParse } from "./json.ts";
+import { autoTagFromMentions } from "./platform-mention-parser.ts";
 
 // ============================================
 // Internal Helpers
@@ -207,6 +208,9 @@ export function createTicket(db: DbHandle, params: CreateTicketParams): TicketWi
   const id = randomUUID();
   const now = new Date().toISOString();
 
+  // Auto-tag from platform mentions in title/description (additive, no duplicates)
+  const finalTags = autoTagFromMentions(title, description ?? null, tags ?? []);
+
   db.prepare(
     `INSERT INTO tickets (id, title, description, status, priority, position, project_id, epic_id, tags, created_at, updated_at)
      VALUES (?, ?, ?, 'backlog', ?, ?, ?, ?, ?, ?, ?)`
@@ -218,7 +222,7 @@ export function createTicket(db: DbHandle, params: CreateTicketParams): TicketWi
     position,
     projectId,
     epicId || null,
-    tags ? JSON.stringify(tags) : null,
+    finalTags.length > 0 ? JSON.stringify(finalTags) : null,
     now,
     now
   );
