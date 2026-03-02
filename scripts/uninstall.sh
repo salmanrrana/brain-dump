@@ -62,10 +62,13 @@ uninstall_claude_code() {
 
   if [ -d "$HOOKS_DIR" ]; then
     local failed=0
-    # Remove Brain Dump telemetry hooks
-    for hook in start-telemetry-session.sh end-telemetry-session.sh \
-                log-tool-telemetry.sh log-prompt-telemetry.sh \
-                log-tool-start.sh log-tool-end.sh log-prompt.sh; do
+    # Remove all Brain Dump hooks (10 hooks + support files)
+    for hook in enforce-state-before-write.sh enforce-review-before-push.sh \
+                link-commit-to-ticket.sh check-for-code-changes.sh \
+                capture-claude-tasks.sh chain-extended-review.sh \
+                spawn-next-ticket.sh spawn-after-pr.sh \
+                mark-review-completed.sh detect-libraries.sh \
+                save-tasks-to-db.cjs auto-review.config.json auto-review.md; do
       hook_path="$HOOKS_DIR/$hook"
       if [ -f "$hook_path" ]; then
         if ! rm "$hook_path"; then
@@ -75,8 +78,22 @@ uninstall_claude_code() {
       fi
     done
 
+    # Also clean up any legacy hooks that may remain from older installs
+    for hook in start-telemetry-session.sh end-telemetry-session.sh \
+                log-tool-telemetry.sh log-prompt-telemetry.sh \
+                log-tool-start.sh log-tool-end.sh log-prompt.sh \
+                log-prompt-telemetry.sh log-tool-failure.sh \
+                record-state-change.sh check-pending-links.sh \
+                clear-pending-links.sh create-pr-on-ticket-start.sh \
+                enforce-session-before-work.sh merge-telemetry-hooks.sh; do
+      hook_path="$HOOKS_DIR/$hook"
+      if [ -f "$hook_path" ]; then
+        rm "$hook_path" 2>/dev/null || true
+      fi
+    done
+
     # Remove temporary files
-    for temp_file in telemetry-session.json telemetry-queue.jsonl telemetry.log; do
+    for temp_file in telemetry-session.json telemetry-queue.jsonl telemetry.log ralph-state.json; do
       if [ -f "$HOME/.claude/$temp_file" ]; then
         if ! rm "$HOME/.claude/$temp_file"; then
           echo -e "${YELLOW}⚠ Could not remove $temp_file${NC}"
@@ -85,7 +102,7 @@ uninstall_claude_code() {
       fi
     done
 
-    # Remove correlation files
+    # Remove correlation files (legacy)
     find "$HOME/.claude" -maxdepth 1 -name "tool-correlation-*.txt" -delete 2>/dev/null || true
 
     if [ $failed -eq 0 ]; then
