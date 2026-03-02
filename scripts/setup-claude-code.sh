@@ -5,8 +5,9 @@
 # This script:
 # 1. Configures the Brain Dump MCP server in ~/.claude.json
 # 2. Installs required plugins (pr-review-toolkit, code-simplifier, context7)
-# 3. Copies agents, commands, hooks, and skills to ~/.claude/
+# 3. Copies commands, hooks, and skills to ~/.claude/
 # 4. Configures hooks in ~/.claude/settings.json
+# Note: Agent personas are inlined into commands (no separate agent files needed)
 #
 # After running, Brain Dump tools and auto-review will be available in all Claude Code sessions.
 
@@ -36,7 +37,6 @@ CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 GLOBAL_CLAUDE_DIR="$HOME/.claude"
 
 # Source directories in brain-dump
-SOURCE_AGENTS="$BRAIN_DUMP_DIR/.claude/agents"
 SOURCE_COMMANDS="$BRAIN_DUMP_DIR/.claude/commands"
 SOURCE_HOOKS="$BRAIN_DUMP_DIR/.claude/hooks"
 SOURCE_SKILLS="$BRAIN_DUMP_DIR/.claude/skills"
@@ -100,22 +100,7 @@ else
 fi
 
 echo ""
-echo -e "${BLUE}Step 3: Copy Agents to Global Location${NC}"
-echo "────────────────────────────────────────"
-
-mkdir -p "$GLOBAL_CLAUDE_DIR/agents"
-
-if [ -d "$SOURCE_AGENTS" ]; then
-    echo "Copying agents from brain-dump to ~/.claude/agents/..."
-    cp -v "$SOURCE_AGENTS"/*.md "$GLOBAL_CLAUDE_DIR/agents/" 2>/dev/null || true
-    echo -e "${GREEN}Agents installed:${NC}"
-    ls "$GLOBAL_CLAUDE_DIR/agents"/*.md 2>/dev/null | xargs -I {} basename {} | sed 's/^/  • /'
-else
-    echo -e "${YELLOW}No agents directory found in brain-dump.${NC}"
-fi
-
-echo ""
-echo -e "${BLUE}Step 4: Copy Commands to Global Location${NC}"
+echo -e "${BLUE}Step 3: Copy Commands to Global Location${NC}"
 echo "──────────────────────────────────────────"
 
 mkdir -p "$GLOBAL_CLAUDE_DIR/commands"
@@ -130,7 +115,7 @@ else
 fi
 
 echo ""
-echo -e "${BLUE}Step 5: Copy Hooks to Global Location${NC}"
+echo -e "${BLUE}Step 4: Copy Hooks to Global Location${NC}"
 echo "───────────────────────────────────────"
 
 mkdir -p "$GLOBAL_CLAUDE_DIR/hooks"
@@ -149,7 +134,7 @@ else
 fi
 
 echo ""
-echo -e "${BLUE}Step 6: Copy Skills to Global Location${NC}"
+echo -e "${BLUE}Step 5: Copy Skills to Global Location${NC}"
 echo "────────────────────────────────────────"
 
 mkdir -p "$GLOBAL_CLAUDE_DIR/skills"
@@ -164,7 +149,7 @@ else
 fi
 
 echo ""
-echo -e "${BLUE}Step 7: Configure Hooks in Settings${NC}"
+echo -e "${BLUE}Step 6: Configure Hooks in Settings${NC}"
 echo "──────────────────────────────────────"
 
 # Create or update ~/.claude/settings.json with hooks configuration
@@ -472,16 +457,11 @@ echo "    • pr-review-toolkit (code review agents)"
 echo "    • code-simplifier (code refinement)"
 echo "    • context7 (library documentation)"
 echo ""
-echo -e "  ${GREEN}Agents (~/.claude/agents/):${NC}"
-echo "    • inception - Start new projects"
-echo "    • breakdown - Break features into tickets"
-echo "    (Review agents inlined into /extended-review command)"
-echo ""
 echo -e "  ${GREEN}Commands (~/.claude/commands/):${NC}"
 echo "    • /review - Run initial code review (3 agents)"
-echo "    • /extended-review - Run extended review (4 agents)"
-echo "    • /inception - Start new project"
-echo "    • /breakdown - Break down features"
+echo "    • /extended-review - Run extended review (4 inlined agent personas)"
+echo "    • /inception - Start new project (agent persona inlined)"
+echo "    • /breakdown - Break down features (agent persona inlined)"
 echo "    • /next-task - Pick up next ticket with precondition checking"
 echo "    • /review-ticket - Run AI review on current ticket"
 echo "    • /review-epic - Run comprehensive Tracer Review on epic"
@@ -502,7 +482,8 @@ echo "    • tanstack-* - TanStack library patterns"
 echo ""
 echo -e "${BLUE}Review Pipeline:${NC}"
 echo "  /review runs: code-reviewer → silent-failure-hunter → code-simplifier"
-echo "  /extended-review runs: context7 → react-best-practices → cruft-detector → senior-engineer (personas inlined in command)"
+echo "  /extended-review runs: context7 → react-best-practices → cruft-detector → senior-engineer"
+echo "  All agent personas are inlined into their respective commands (no separate agent files)"
 echo ""
 echo -e "${BLUE}Next steps:${NC}"
 echo "  1. Restart any running Claude Code sessions"
