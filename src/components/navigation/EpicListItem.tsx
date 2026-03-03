@@ -1,5 +1,6 @@
 import { type FC, useState, type MouseEvent } from "react";
-import { Pencil, Bot } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Pencil, Bot, ExternalLink } from "lucide-react";
 import { createEnterSpaceHandler } from "../../lib/keyboard-utils";
 import type { Epic } from "../../lib/hooks";
 
@@ -183,6 +184,16 @@ export const EpicListItem: FC<EpicListItemProps> = ({
         >
           <Pencil size={12} aria-hidden="true" />
         </button>
+        <Link
+          to="/epic/$id"
+          params={{ id: epic.id }}
+          style={actionButtonStyles}
+          aria-label={`View ${epic.title} details`}
+          className="hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          onClick={(e: MouseEvent<HTMLAnchorElement>) => e.stopPropagation()}
+        >
+          <ExternalLink size={12} aria-hidden="true" />
+        </Link>
         <button
           type="button"
           style={actionButtonStyles}

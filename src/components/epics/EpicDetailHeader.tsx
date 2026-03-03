@@ -97,6 +97,11 @@ export function EpicDetailHeader({
 
       try {
         const contextResult = await getTicketContext({ data: launchableTicket.id });
+        if (!contextResult) {
+          showToast("error", "Failed to get ticket context");
+          return;
+        }
+
         const payload = {
           ticketId: launchableTicket.id,
           context: contextResult.context,
@@ -128,7 +133,7 @@ export function EpicDetailHeader({
           }
         })();
 
-        if (launchResult.success) {
+        if (launchResult?.success) {
           showToast("success", `${launchResult.message} (Ticket: ${launchableTicket.title})`);
         } else {
           showToast("error", launchResult.message);
