@@ -4,6 +4,9 @@ import { epics, projects, tickets, epicWorkflowState } from "../lib/schema";
 import { desc, eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { ensureExists } from "../lib/utils";
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("epics-api");
 
 export interface EpicLearningEntry {
   ticketId: string;
@@ -310,15 +313,19 @@ export const getEpicDetail = createServerFn({ method: "GET" })
       if (workflowStateResult.learnings) {
         try {
           parsedLearnings = JSON.parse(workflowStateResult.learnings);
-        } catch {
+        } catch (err) {
+          log.error(
+            `Failed to parse epic learnings JSON for epic ${epicId}`,
+            err instanceof Error ? err : new Error(String(err))
+          );
           parsedLearnings = [];
         }
       }
 
       workflowState = {
         id: workflowStateResult.id,
-        ticketsTotal: (workflowStateResult.ticketsTotal ?? 0) as number,
-        ticketsDone: (workflowStateResult.ticketsDone ?? 0) as number,
+        ticketsTotal: workflowStateResult.ticketsTotal ?? 0,
+        ticketsDone: workflowStateResult.ticketsDone ?? 0,
         currentTicketId: workflowStateResult.currentTicketId,
         learnings: parsedLearnings,
         epicBranchName: workflowStateResult.epicBranchName,

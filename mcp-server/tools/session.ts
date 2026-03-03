@@ -64,78 +64,20 @@ export function registerSessionTool(server: McpServer, db: Database.Database): v
     "session",
     `Manage Ralph sessions and events in Brain Dump. Sessions track AI work state for progress visibility.
 
-## Actions
+States: idle → analyzing → implementing → testing → committing → reviewing → done
 
-### create
-Create a new Ralph session for a ticket. Starts in 'idle' state.
-Required params: ticketId
-
-### update-state
-Update the current state of a Ralph session for UI progress tracking.
-Valid states: idle, analyzing, implementing, testing, committing, reviewing, done
-Required params: sessionId, state
-Optional params: metadata
-
-### complete
-Complete a Ralph session with an outcome.
-Required params: sessionId, outcome
-Optional params: errorMessage
-
-### get
-Get the current state of a Ralph session.
-Optional params: sessionId, ticketId (provide one)
-
-### list
-List all Ralph sessions for a ticket.
-Required params: ticketId
-Optional params: limit
-
-### emit-event
-Emit an event for real-time UI streaming.
-Required params: sessionId, eventType
-Optional params: eventData
-
-### get-events
-Get events for a Ralph session.
-Required params: sessionId
-Optional params: since, limit
-
-### clear-events
-Clear all events for a Ralph session.
-Required params: sessionId
-
-### save-tasks
-Save Claude's task list for a ticket. Replaces entire task list, preserves status history.
-Optional params: ticketId (auto-detected from Ralph state), tasks (required), createSnapshot
-
-### get-tasks
-Retrieve Claude's tasks for a ticket.
-Optional params: ticketId (auto-detected), includeHistory
-
-### clear-tasks
-Clear all Claude tasks for a ticket. Creates snapshot before clearing.
-Optional params: ticketId (auto-detected)
-
-### get-task-snapshots
-Get historical snapshots of Claude's task list.
-Required params: ticketId
-Optional params: limit
-
-## Parameters
-- action: (required) The operation to perform
-- ticketId: Ticket ID. Required for: create, list, get-task-snapshots. Optional for: get, save-tasks, get-tasks, clear-tasks
-- sessionId: Ralph session ID. Required for: update-state, complete, emit-event, get-events, clear-events. Optional for: get
-- state: Session state. Required for: update-state
-- metadata: State transition context (JSON object). Optional for: update-state
-- outcome: Session outcome (success, failure, timeout, cancelled). Required for: complete
-- errorMessage: Error details. Optional for: complete
-- eventType: Event type. Required for: emit-event
-- eventData: Event data (JSON object). Optional for: emit-event
-- since: ISO timestamp to get events after. Optional for: get-events
-- limit: Max results. Optional for: list, get-events, get-task-snapshots
-- tasks: Array of task objects with subject, status, activeForm?, description?. Required for: save-tasks
-- createSnapshot: Create an audit snapshot. Optional for: save-tasks
-- includeHistory: Include status change history. Optional for: get-tasks`,
+### create - Create a new Ralph session for a ticket (starts in 'idle')
+### update-state - Update session state for UI progress tracking
+### complete - Complete a Ralph session with an outcome (success, failure, timeout, cancelled)
+### get - Get current session state (provide sessionId or ticketId)
+### list - List all Ralph sessions for a ticket
+### emit-event - Emit an event for real-time UI streaming
+### get-events - Get events for a session
+### clear-events - Clear all events for a session
+### save-tasks - Save Claude's task list (replaces entire list, preserves status history). ticketId auto-detected.
+### get-tasks - Retrieve Claude's tasks for a ticket. ticketId auto-detected.
+### clear-tasks - Clear all Claude tasks (creates snapshot before clearing). ticketId auto-detected.
+### get-task-snapshots - Get historical task list snapshots`,
     {
       action: z.enum(ACTIONS).describe("The operation to perform"),
       ticketId: z.string().optional().describe("Ticket ID"),

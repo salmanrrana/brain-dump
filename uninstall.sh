@@ -114,9 +114,9 @@ remove_vscode() {
         return 0
     fi
 
-    # Remove agents
+    # Remove agents (current: ralph, ticket-worker, planner; legacy: code-reviewer, etc.)
     local agents_removed=0
-    for agent in code-reviewer code-simplifier inception planner ralph silent-failure-hunter ticket-worker; do
+    for agent in ralph ticket-worker planner code-reviewer code-simplifier inception silent-failure-hunter context7-library-compliance react-best-practices cruft-detector senior-engineer; do
         if [ -f "$VSCODE_USER_DIR/prompts/${agent}.agent.md" ]; then
             rm -f "$VSCODE_USER_DIR/prompts/${agent}.agent.md"
             agents_removed=$((agents_removed + 1))
@@ -129,9 +129,9 @@ remove_vscode() {
         print_info "No agents to remove"
     fi
 
-    # Remove prompts
+    # Remove prompts (current: auto-review; legacy: start-ticket, etc.)
     local prompts_removed=0
-    for prompt in start-ticket complete-ticket create-tickets auto-review; do
+    for prompt in auto-review start-ticket complete-ticket create-tickets; do
         if [ -f "$VSCODE_USER_DIR/prompts/${prompt}.prompt.md" ]; then
             rm -f "$VSCODE_USER_DIR/prompts/${prompt}.prompt.md"
             prompts_removed=$((prompts_removed + 1))
@@ -144,11 +144,18 @@ remove_vscode() {
         print_info "No prompts to remove"
     fi
 
-    # Remove skills
+    # Remove skills (current: brain-dump-workflow, review, review-aggregation; legacy: brain-dump-tickets, etc.)
     local skills_removed=0
-    for skill in brain-dump-tickets ralph-workflow auto-review; do
+    for skill in brain-dump-workflow review review-aggregation brain-dump-tickets ralph-workflow auto-review tanstack-errors tanstack-forms tanstack-mutations tanstack-query tanstack-types react-best-practices web-design-guidelines; do
         if [ -d "$COPILOT_SKILLS_DIR/$skill" ]; then
             rm -rf "$COPILOT_SKILLS_DIR/$skill"
+            skills_removed=$((skills_removed + 1))
+        fi
+    done
+    # Also clean up standalone skill files
+    for stale_file in "$COPILOT_SKILLS_DIR"/*.skill.md; do
+        if [ -f "$stale_file" ]; then
+            rm -f "$stale_file"
             skills_removed=$((skills_removed + 1))
         fi
     done
@@ -279,7 +286,7 @@ try {
         print_info "brain-dump not in Cursor MCP config"
     fi
 
-    # Remove subagents
+    # Remove subagents (current: ralph, ticket-worker, planner; legacy: code-reviewer, etc.)
     local agents_removed=0
     if [ -d "$AGENTS_DIR" ]; then
         for agent in ralph ticket-worker planner code-reviewer silent-failure-hunter code-simplifier inception context7-library-compliance react-best-practices cruft-detector senior-engineer; do
@@ -298,19 +305,26 @@ try {
         print_info "Cursor agents directory not found"
     fi
 
-    # Remove skills
+    # Remove skills (current: brain-dump-workflow, review, review-aggregation; legacy: brain-dump-tickets, etc.)
     local skills_removed=0
     if [ -d "$SKILLS_DIR" ]; then
-        for skill in brain-dump-tickets ralph-workflow review review-aggregation tanstack-errors tanstack-forms tanstack-mutations tanstack-query tanstack-types; do
+        for skill in brain-dump-workflow review review-aggregation brain-dump-tickets ralph-workflow tanstack-errors tanstack-forms tanstack-mutations tanstack-query tanstack-types react-best-practices web-design-guidelines; do
             if [ -d "$SKILLS_DIR/$skill" ]; then
                 rm -rf "$SKILLS_DIR/$skill"
+                skills_removed=$((skills_removed + 1))
+            fi
+        done
+        # Also clean up standalone skill files
+        for stale_file in "$SKILLS_DIR"/*.skill.md; do
+            if [ -f "$stale_file" ]; then
+                rm -f "$stale_file"
                 skills_removed=$((skills_removed + 1))
             fi
         done
         if [ $skills_removed -gt 0 ]; then
             print_success "Removed $skills_removed skills"
             REMOVED+=("Cursor skills ($skills_removed)")
-        else                                                                                                                   
+        else
             print_info "No skills to remove"
         fi
     else
@@ -381,10 +395,10 @@ try {
         print_info "brain-dump not in OpenCode MCP config"
     fi
 
-    # Remove Brain Dump agents
+    # Remove Brain Dump agents (current: ralph; legacy: fallbacks + ticket-worker, planner)
     local agents_removed=0
     if [ -d "$OPENCODE_AGENTS" ]; then
-        for agent in code-reviewer-fallback code-simplifier-fallback; do
+        for agent in ralph ticket-worker planner code-reviewer-fallback code-simplifier-fallback; do
             if [ -f "$OPENCODE_AGENTS/${agent}.md" ]; then
                 rm -f "$OPENCODE_AGENTS/${agent}.md"
                 agents_removed=$((agents_removed + 1))
@@ -393,6 +407,38 @@ try {
         if [ $agents_removed -gt 0 ]; then
             print_success "Removed $agents_removed OpenCode agents"
             REMOVED+=("OpenCode agents ($agents_removed)")
+        fi
+    fi
+
+    # Remove skills
+    local opencode_skills_dir="$OPENCODE_GLOBAL/skills"
+    if [ -d "$opencode_skills_dir" ]; then
+        local skills_removed=0
+        for skill in brain-dump-workflow; do
+            if [ -d "$opencode_skills_dir/$skill" ]; then
+                rm -rf "$opencode_skills_dir/$skill"
+                skills_removed=$((skills_removed + 1))
+            fi
+        done
+        if [ $skills_removed -gt 0 ]; then
+            print_success "Removed $skills_removed OpenCode skills"
+            REMOVED+=("OpenCode skills ($skills_removed)")
+        fi
+    fi
+
+    # Remove plugins (current: review-guard, review-marker; legacy: telemetry)
+    local opencode_plugins_dir="$OPENCODE_GLOBAL/plugins"
+    if [ -d "$opencode_plugins_dir" ]; then
+        local plugins_removed=0
+        for plugin in brain-dump-review-guard.ts brain-dump-review-marker.ts brain-dump-telemetry.ts; do
+            if [ -f "$opencode_plugins_dir/$plugin" ]; then
+                rm -f "$opencode_plugins_dir/$plugin"
+                plugins_removed=$((plugins_removed + 1))
+            fi
+        done
+        if [ $plugins_removed -gt 0 ]; then
+            print_success "Removed $plugins_removed OpenCode plugins"
+            REMOVED+=("OpenCode plugins ($plugins_removed)")
         fi
     fi
 
@@ -450,7 +496,7 @@ try {
         print_info "brain-dump not in Copilot CLI MCP config"
     fi
 
-    # Remove Brain Dump agents
+    # Remove Brain Dump agents (current: ralph, ticket-worker, planner; legacy: code-reviewer, etc.)
     local agents_removed=0
     if [ -d "$AGENTS_DIR" ]; then
         for agent in ralph ticket-worker planner inception code-reviewer silent-failure-hunter code-simplifier context7-library-compliance react-best-practices cruft-detector senior-engineer; do
@@ -467,10 +513,10 @@ try {
         fi
     fi
 
-    # Remove hook scripts
+    # Remove hook scripts (current: enforce-state-before-write; legacy: telemetry hooks)
     local hooks_removed=0
     if [ -d "$HOOKS_DIR" ]; then
-        for hook in start-telemetry.sh end-telemetry.sh log-prompt.sh log-tool-start.sh log-tool-end.sh log-tool-failure.sh enforce-state-before-write.sh; do
+        for hook in enforce-state-before-write.sh start-telemetry.sh end-telemetry.sh log-prompt.sh log-tool-start.sh log-tool-end.sh log-tool-failure.sh; do
             if [ -f "$HOOKS_DIR/$hook" ]; then
                 rm -f "$HOOKS_DIR/$hook"
                 hooks_removed=$((hooks_removed + 1))
@@ -480,21 +526,23 @@ try {
             print_success "Removed $hooks_removed hook scripts"
             REMOVED+=("Copilot CLI hooks ($hooks_removed)")
         fi
+        # Remove hooks dir if empty
+        rmdir "$HOOKS_DIR" 2>/dev/null || true
     fi
 
-    # Clean up hooks.json
-    if [ -f "$HOOKS_CONFIG" ] && grep -q "start-telemetry" "$HOOKS_CONFIG"; then
+    # Clean up hooks.json (current or legacy)
+    if [ -f "$HOOKS_CONFIG" ]; then
         rm -f "$HOOKS_CONFIG"
         print_success "Removed hooks.json"
         REMOVED+=("Copilot CLI hooks config")
     fi
 
-    # Remove telemetry temp files
+    # Remove telemetry temp files (legacy)
     for temp_file in telemetry-session.json telemetry-queue.jsonl telemetry.log; do
         [ -f "$COPILOT_DIR/$temp_file" ] && rm -f "$COPILOT_DIR/$temp_file"
     done
 
-    # Remove correlation files
+    # Remove correlation files (legacy)
     rm -f "$COPILOT_DIR"/tool-correlation-*.queue "$COPILOT_DIR"/tool-correlation-*.lock "$COPILOT_DIR"/tool-correlation-*.data 2>/dev/null || true
 
     # Remove skills only if VS Code is NOT also installed (shared directory)
@@ -504,9 +552,16 @@ try {
             SKIPPED+=("Copilot CLI skills (shared with VS Code)")
         else
             local skills_removed=0
-            for skill in brain-dump-tickets ralph-workflow brain-dump-workflow review review-aggregation tanstack-errors tanstack-forms tanstack-mutations tanstack-query tanstack-types; do
+            for skill in brain-dump-workflow review review-aggregation brain-dump-tickets ralph-workflow tanstack-errors tanstack-forms tanstack-mutations tanstack-query tanstack-types react-best-practices web-design-guidelines; do
                 if [ -d "$SKILLS_DIR/$skill" ]; then
                     rm -rf "$SKILLS_DIR/$skill"
+                    skills_removed=$((skills_removed + 1))
+                fi
+            done
+            # Also clean up standalone skill files
+            for stale_file in "$SKILLS_DIR"/*.skill.md; do
+                if [ -f "$stale_file" ]; then
+                    rm -f "$stale_file"
                     skills_removed=$((skills_removed + 1))
                 fi
             done
@@ -901,7 +956,7 @@ show_help() {
     echo "  VS Code:       MCP config, agents, skills, prompts"
     echo "  Claude Code:   MCP config in ~/.claude.json"
     echo "  Cursor:        MCP config, subagents, skills, commands in ~/.cursor/"
-    echo "  OpenCode:      MCP config, agents in ~/.config/opencode/"
+    echo "  OpenCode:      MCP config, agents, skill, plugins in ~/.config/opencode/"
     echo "  Copilot CLI:   MCP config, agents, skills, hooks in ~/.copilot/"
     echo "  Codex:         MCP config in ~/.codex/config.toml"
     echo "  Sandbox:       Sandbox config in ~/.claude/settings.json"

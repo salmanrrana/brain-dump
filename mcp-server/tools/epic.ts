@@ -33,49 +33,14 @@ const LEARNING_TYPES = ["pattern", "anti-pattern", "tool-usage", "workflow"] as 
 export function registerEpicTool(server: McpServer, db: Database.Database): void {
   server.tool(
     "epic",
-    `Manage epics and learnings in Brain Dump. Epics group related tickets together.
+    `Manage epics and learnings in Brain Dump. Epics group related tickets.
 
-## Actions
-
-### create
-Create a new epic to group related tickets.
-Required params: projectId, title
-Optional params: description, color
-
-### list
-List all epics for a project.
-Required params: projectId
-
-### update
-Update an epic's title, description, or color.
-Required params: epicId
-Optional params: title, description, color
-
-### delete
-Delete an epic (unlinks tickets but does NOT delete them). DRY RUN by default.
-Required params: epicId
-Optional params: confirm
-
-### reconcile-learnings
-Extract and reconcile learnings from a completed ticket. Stores learnings in epic workflow state.
-Required params: ticketId, learnings
-Optional params: updateDocs
-
-### get-learnings
-Get all accumulated learnings for an epic across completed tickets.
-Required params: epicId
-
-## Parameters
-- action: (required) The operation to perform
-- projectId: Project ID. Required for: create, list
-- epicId: Epic ID. Required for: update, delete, get-learnings
-- ticketId: Ticket ID. Required for: reconcile-learnings
-- title: Epic title. Required for: create. Optional for: update
-- description: Epic description. Optional for: create, update
-- color: Hex color. Optional for: create, update
-- confirm: Confirm deletion. Optional for: delete
-- learnings: Array of learning objects. Required for: reconcile-learnings
-- updateDocs: Apply suggested documentation updates. Optional for: reconcile-learnings`,
+### create - Create a new epic to group related tickets
+### list - List all epics for a project
+### update - Update an epic's title, description, or color
+### delete - Delete epic (unlinks tickets, does NOT delete them). DRY RUN by default; set confirm=true.
+### reconcile-learnings - Extract and store learnings from a completed ticket
+### get-learnings - Get all accumulated learnings for an epic across completed tickets`,
     {
       action: z.enum(ACTIONS).describe("The operation to perform"),
       projectId: z.string().optional().describe("Project ID. Required for: create, list"),

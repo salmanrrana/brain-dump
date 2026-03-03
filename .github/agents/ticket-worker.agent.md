@@ -2,7 +2,7 @@
 name: Ticket Worker
 description: Implements a specific Brain Dump ticket with full context. Use when you want to work on a single ticket interactively rather than autonomously.
 tools: ["execute", "read", "edit", "search", "web"]
-model: Claude Sonnet 4
+model: Claude Opus 4.6
 handoffs:
   - label: Review Code
     agent: code-reviewer

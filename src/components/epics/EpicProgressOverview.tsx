@@ -37,7 +37,6 @@ export function EpicProgressOverview({
         status,
         width,
         count,
-        color: config?.className.split(" ")[0]?.replace("bg-", "bg-") ?? "bg-slate-700",
         bgColor: config?.className.split(" ")[0] ?? "bg-slate-700",
       };
     })
@@ -45,7 +44,6 @@ export function EpicProgressOverview({
     status: string;
     width: number;
     count: number;
-    color: string;
     bgColor: string;
   }>;
 

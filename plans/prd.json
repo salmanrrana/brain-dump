@@ -9,496 +9,257 @@
   ],
   "userStories": [
     {
-      "id": "d09247c6-9d93-448c-8daa-40147e47371d",
-      "title": "CLI Plan Overview",
+      "id": "6e76bf6e-891f-4e5a-af0e-90385c55c5a9",
+      "title": "Epic Overview — Full Implementation Plan",
+      "passes": false,
+      "overview": "Currently, epics are managed through modals (`EpicModal.tsx`) and sidebar list items. There's no dedicated page to view an epic's full picture — description, progress, tickets, learnings, and git info. The ticket detail page (`ticket.$id.tsx`) serves as a proven template for this pattern.\nThe `epicWorkflowState` table already tracks rich data (ticketsTotal, ticketsDone, currentTicketId, learnings, branch/PR info) that isn't surfaced anywhere in a consolidated view.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [
+        "src/routes/epic.$id.tsx",
+        "src/components/epics/EpicDetailHeader.tsx",
+        "src/lib/constants.ts",
+        "src/components/epics/EpicProgressOverview.tsx",
+        "src/components/epics/EpicTicketsList.tsx",
+        "src/components/epics/EpicLearnings.tsx",
+        "src/api/epics.ts",
+        "src/lib/query-keys.ts",
+        "src/lib/hooks/projects.ts",
+        "src/lib/hooks/index.ts",
+        "src/components/epics/index.ts",
+        "src/components/navigation/EpicListItem.tsx",
+        "src/api/context.ts",
+        "src/lib/utils"
+      ],
+      "description": "# Epic Detail Page — Full Implementation Plan\n\n**Shared feature branch:** All tickets in this epic share a single feature branch.\n\n## Context\n\nCurrently, epics are managed through modals (`EpicModal.tsx`) and sidebar list items. There's no dedicated page to view an epic's full picture — description, progress, tickets, learnings, and git info. The ticket detail page (`ticket.$id.tsx`) serves as a proven template for this pattern.\n\nThe `epicWorkflowState` table already tracks rich data (ticketsTotal, ticketsDone, currentTicketId, learnings, branch/PR info) that isn't surfaced anywhere in a consolidated view.\n\n## Page Layout\n\n```\n┌─────────────────────────────────────────────────────────────┐\n│ <- Back                                                     │\n├─────────────────────────────────────────────────────────────┤\n│ [color dot] Epic Title                     [Edit] [Launch▾] │\n│ Project: Name  ·  12 tickets  ·  75% complete               │\n│ Branch: feature/epic-abc  ·  PR #42 (draft)                 │\n├─────────────────────────────────────────────────────────────┤\n│ Progress                                                     │\n│ [████████████████████░░░░░░░] 75%                           │\n│ ● Backlog 1  ● Ready 2  ● In Progress 1  ● Done 9          │\n│ Currently working on: \"Add auth middleware\"                  │\n├──────────────────────────┬──────────────────────────────────┤\n│ Description              │ Tickets                          │\n│ (markdown, reuses        │ ▸ In Progress (1)                │\n│  TicketDescription)      │   ○ Ticket A - High [PR #5]      │\n│                          │ ▸ Ready (2)                       │\n│                          │   ○ Ticket B - Medium             │\n│                          │   ○ Ticket C - Low                │\n│                          │ ▸ Done (9) [collapsed]            │\n├──────────────────────────┴──────────────────────────────────┤\n│ Learnings (collapsible)                                      │\n│ From \"Add Auth\" (3 learnings):                              │\n│   [pattern] Use middleware for auth checks                   │\n│   [anti-pattern] Don't store tokens in localStorage          │\n├─────────────────────────────────────────────────────────────┤\n│ Created: Jan 15, 2026                                       │\n└─────────────────────────────────────────────────────────────┘\n```\n\n## Files to Create\n\n### 1. `src/routes/epic.$id.tsx` — Route component\n- Follow `ticket.$id.tsx` pattern: `createFileRoute(\"/epic/$id\")`, error component, loading skeleton\n- Fetch data with `useEpicDetail(id)` hook\n- Back navigation with `useCanGoBack()`\n- Edit via existing `EpicModal`\n- Launch actions: full dropdown (Claude, Codex, VS Code, Ralph, etc.) reusing `handleStartInteractive` pattern from `EpicModal` — launches the next non-done ticket\n\n### 2. `src/components/epics/EpicDetailHeader.tsx` — Header\n- Epic title, color dot, edit button, launch dropdown\n- Badge row: project name, ticket count, completion percentage\n- Git row: branch name (copyable), PR link with status badge\n- Reuses `STATUS_BADGE_CONFIG` from `src/lib/constants.ts` for PR status\n\n### 3. `src/components/epics/EpicProgressOverview.tsx` — Progress section\n- Multi-segment progress bar color-coded by status\n- Status chips with per-status ticket counts\n- \"Currently working on\" indicator when `currentTicketId` is set\n- Uses colors from `STATUS_BADGE_CONFIG`\n\n### 4. `src/components/epics/EpicTicketsList.tsx` — Tickets grouped by status\n- Tickets grouped by status (in_progress first, done last)\n- Each ticket: title (links to `/ticket/$id`), priority badge, blocked indicator, PR status\n- Status groups are collapsible, \"done\" group collapsed by default\n- Empty state when no tickets\n\n### 5. `src/components/epics/EpicLearnings.tsx` — Learnings section\n- Collapsible panel\n- Grouped by source ticket\n- Type badges: pattern (green), anti-pattern (red), tool-usage (blue), workflow (purple)\n- Empty state: \"No learnings yet\"\n\n## Files to Modify\n\n### 6. `src/api/epics.ts` — Add `getEpicDetail` server function\n- Single composite fetch: epic + project + tickets (partial fields) + epicWorkflowState + learnings\n- Returns `EpicDetailResult` type with everything the page needs\n- Computes `ticketsByStatus` breakdown server-side\n- Falls back to ticket array counts when `epicWorkflowState` doesn't exist\n\n### 7. `src/lib/query-keys.ts` — Add epic detail key\n```ts\nepicDetail: (epicId: string) => [\"epic\", epicId] as const,\n```\n\n### 8. `src/lib/hooks/projects.ts` — Add `useEpicDetail` hook\n- Wraps `getEpicDetail` with `useQuery`\n- `staleTime: 0` (can be updated externally via MCP)\n\n### 9. `src/lib/hooks/index.ts` — Re-export `useEpicDetail`\n\n### 10. `src/components/epics/index.ts` — Export new components\n\n### 11. `src/components/navigation/EpicListItem.tsx` — Add detail page link\n- Keep current click behavior (filters the board)\n- Add a secondary icon/button to navigate to `/epic/$id`\n\n## Key Reuse\n\n| Existing Code | Reuse For |\n|---|---|\n| `TicketDescription` component | Render epic markdown description as-is |\n| `EpicModal` component | Edit epic (title, description, color) — already fully built |\n| `STATUS_BADGE_CONFIG` / `PRIORITY_BADGE_CONFIG` | Status/priority badge styling |\n| `handleStartInteractive` pattern from `EpicModal` | Launch AI on next non-done ticket |\n| `useCanGoBack` / back nav pattern from `ticket.$id.tsx` | Back button |\n| `getEpicContext` / `getTicketContext` from `src/api/context.ts` | Context for launching |\n| `ensureExists` from `src/lib/utils` | Server function error handling |\n\n## Data Flow\n\n```\n/epic/{id} → useEpicDetail(id) → getEpicDetail server fn\n                                    ├─ SELECT epic WHERE id = ?\n                                    ├─ SELECT project WHERE id = epic.projectId\n                                    ├─ SELECT tickets (partial) WHERE epicId = ?\n                                    ├─ SELECT epicWorkflowState WHERE epicId = ?\n                                    └─ JSON.parse(learnings)\n                                  → EpicDetailResult distributed to components\n```\n\n## Navigation Integration\n\n- Sidebar epic click **keeps current behavior** (filters the board)\n- Add a secondary icon/button on `EpicListItem` to navigate to `/epic/$id`\n- Ticket detail page's epic badge could link to `/epic/$id`\n- No new sidebar nav item needed\n\n## Verification\n\n1. `pnpm type-check` — no errors\n2. `pnpm lint` — no errors\n3. `pnpm test` — all pass\n4. Manual browser testing at `localhost:4242`:\n   - Navigate to `/epic/{id}` directly\n   - Click detail icon on epic list item → lands on detail page\n   - Verify progress bar matches actual ticket statuses\n   - Click ticket in list → navigates to ticket detail\n   - Edit epic via Edit button → modal opens, saves correctly\n   - Launch actions work (launches next non-done ticket)\n   - Back button works (browser history and fallback)\n   - Loading skeleton displays briefly\n   - Error page shows for invalid epic IDs\n   - Learnings section shows/hides correctly",
+      "priority": "high",
+      "tags": [
+        "plan",
+        "reference",
+        "epic-detail-page",
+        "github:#42",
+        "github:#5"
+      ]
+    },
+    {
+      "id": "f154bf77-5daa-4b07-b48b-48bee5207a7f",
+      "title": "Backend: getEpicDetail server function + useEpicDetail hook",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`getEpicDetail` returns all data needed for the Epic Detail page in one call",
+        "Returns proper error (via `ensureExists`) for non-existent epic IDs",
+        "`ticketsByStatus` correctly counts tickets per status",
+        "Missing `epicWorkflowState` returns null (not error)",
+        "Learnings JSON parse failure returns empty array (not error)",
+        "`useEpicDetail` hook works with React Query",
+        "`pnpm type-check` passes",
+        "`pnpm lint` passes"
+      ],
+      "references": [
+        "src/api/epics.ts",
+        "src/lib/schema.ts",
+        "src/lib/utils",
+        "src/lib/query-keys.ts",
+        "src/lib/hooks/projects.ts",
+        "src/api/epics",
+        "src/lib/hooks/index.ts"
+      ],
+      "description": "**Shared feature branch** — Part of the Epic Detail Page epic. All tickets share one branch.\n\n## Goal\nCreate the backend data layer that powers the Epic Detail page — a single composite server function and corresponding React Query hook.\n\n## Files to Modify\n\n### `src/api/epics.ts` — Add `getEpicDetail` server function\n- New `EpicDetailResult` interface containing: epic, project, tickets (partial fields), ticketsByStatus breakdown, workflowState, learnings\n- Single server function that fetches everything in one call (no client-side waterfall)\n- Import `epicWorkflowState` from `src/lib/schema.ts`\n- Import `tickets`, `projects` from schema\n- Compute `ticketsByStatus` record server-side by iterating tickets\n- Gracefully handle missing `epicWorkflowState` row (fall back to computed values from ticket array)\n- Parse learnings JSON from workflow state with try/catch fallback to empty array\n- Use `ensureExists` from `src/lib/utils` for epic and project lookups\n- Ticket fields to select: id, title, status, priority, isBlocked, blockedReason, branchName, prNumber, prUrl, prStatus\n\n### `src/lib/query-keys.ts` — Add query key\n```ts\nepicDetail: (epicId: string) => [\"epic\", epicId] as const,\n```\n\n### `src/lib/hooks/projects.ts` — Add `useEpicDetail` hook\n- Import `getEpicDetail` from `src/api/epics`\n- `staleTime: 0` to match ticket detail pattern (data can be updated externally via MCP)\n- Return `{ data, loading, error, refetch }`\n\n### `src/lib/hooks/index.ts` — Re-export\n- Add `useEpicDetail` and `EpicDetailResult` type to the barrel exports\n\n## Acceptance Criteria\n- [ ] `getEpicDetail` returns all data needed for the Epic Detail page in one call\n- [ ] Returns proper error (via `ensureExists`) for non-existent epic IDs\n- [ ] `ticketsByStatus` correctly counts tickets per status\n- [ ] Missing `epicWorkflowState` returns null (not error)\n- [ ] Learnings JSON parse failure returns empty array (not error)\n- [ ] `useEpicDetail` hook works with React Query\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm lint` passes\n\n## Branch Strategy\n**All tickets in this epic work on the same branch:**  (branched from `feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar`). Do NOT create a new branch — commit directly to this existing branch so all changes can be tested together before merging to feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar",
+      "priority": "high",
+      "tags": [
+        "backend",
+        "api",
+        "epic-detail-page"
+      ]
+    },
+    {
+      "id": "6f3de09c-2323-42d1-9901-df760a1c91b1",
+      "title": "Component: EpicProgressOverview — progress bar and status breakdown",
       "passes": true,
       "overview": "",
       "types": [
         {
-          "name": "CommandDef",
-          "code": "interface CommandDef {\n  resource: string;          // \"ticket\", \"project\", etc.\n  action: string;            // \"list\", \"create\", etc.\n  description: string;       // one-liner for help output\n  flags: FlagDef[];          // { name, type, required, description, enum? }\n  examples?: string[];       // \"brain-dump ticket list --pretty\"\n  aliases?: string[];        // alternate action names\n}"
-        },
-        {
-          "name": "FlagDef",
-          "code": "interface FlagDef {\n  name: string;              // \"project\", \"ticket\", etc. (without --)\n  type: \"string\" | \"number\" | \"boolean\" | \"enum\";\n  required: boolean;\n  description: string;\n  enum?: string[];           // valid values for enum type\n}"
+          "name": "EpicProgressOverviewProps",
+          "code": "interface EpicProgressOverviewProps {\n  ticketsByStatus: Record<string, number>;\n  ticketsTotal: number;\n  ticketsDone: number;\n  currentTicketId: string | null;\n  currentTicketTitle?: string;\n}"
         }
       ],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "All new commands are additive and do not break existing command syntax.",
-        "All new actions support JSON output and `--pretty`.",
-        "New parity actions return data equivalent in meaning to corresponding MCP actions.",
-        "`brain-dump help` lists all new resources/actions.",
-        "Unknown commands provide suggested alternatives (Phase 3).",
-        "Search works with FTS5 and has LIKE fallback behavior.",
-        "`ticket update` supports title, description, priority, tags, and epic fields.",
-        "`tasks` resource remains the single home for task management (no duplication in `session`).",
-        "CLI tests cover (Phase 0.3, after Phase 1):",
-        "success paths",
-        "validation failures",
-        "dry-run destructive flows",
-        "JSON shape consistency"
-      ],
-      "references": [
-        "src/lib/db.ts"
-      ],
-      "description": "# CLI Robustness Plan v2\n\n## Goal\n\nMake Brain Dump CLI a complete day-to-day interface that is robust, discoverable, and safe, without breaking any existing commands.\n\nPrinciples:\n- Additive only (no removals/renames that break scripts)\n- Resource-first command model with a small top-level power layer\n- Parity-first for high-impact MCP gaps\n- JSON-first output with `--pretty` for humans\n- Strong test coverage to prevent command drift\n\n## Current Gaps (Validated)\n\n- `project` resource missing in CLI.\n- `ticket update` only changes status \u2014 no way to update title, description, priority, tags, or epic from CLI.\n- CLI lacks parity for key MCP actions:\n  - `ticket`: `update-criterion`, `update-attachment`, `list-by-epic`, aliasable file actions\n  - `epic`: `reconcile-learnings`, `get-learnings`\n  - `review`: `update-demo-step`\n  - `session`: events (task actions already covered by `tasks` resource)\n  - `telemetry`: `log-context`\n- Discoverability drift between docs and implemented commands.\n- No consistent command metadata source for help/docs/completions.\n- No dedicated CLI integration test harness.\n\n## Phase 0: Foundation (Do First)\n\n### 0.1 CLI context resolution utilities\nCreate `cli/lib/context.ts`:\n\n- `resolveProjectId({ projectFlag, cwd })`\n  - precedence: explicit `--project` -> project by cwd path -> error\n- `resolveTicketId({ ticketFlag })`\n  - precedence: explicit `--ticket` only for v1 (no hidden mutable state)\n\nRationale: keeps behavior deterministic and avoids surprise \"current ticket\" state.\n\n### 0.2 Command metadata registry (MVP)\nCreate `cli/lib/command-registry.ts` as a single flat array \u2014 minimal but machine-readable.\n\nData structure:\n```typescript\ninterface CommandDef {\n  resource: string;          // \"ticket\", \"project\", etc.\n  action: string;            // \"list\", \"create\", etc.\n  description: string;       // one-liner for help output\n  flags: FlagDef[];          // { name, type, required, description, enum? }\n  examples?: string[];       // \"brain-dump ticket list --pretty\"\n  aliases?: string[];        // alternate action names\n}\n\ninterface FlagDef {\n  name: string;              // \"project\", \"ticket\", etc. (without --)\n  type: \"string\" | \"number\" | \"boolean\" | \"enum\";\n  required: boolean;\n  description: string;\n  enum?: string[];           // valid values for enum type\n}\n```\n\nApproach:\n- Build incrementally: register new Phase 1 commands first, backfill existing commands later\n- Each command file exports its `CommandDef[]` alongside the `handle()` function\n- `command-registry.ts` collects all exports into one array\n- `brain-dump help` reads from the registry instead of hand-written strings\n- Top-level commands (init, open, status, etc.) register as `resource: \"_top\"` or similar\n\nThis stays lightweight \u2014 no decorators, no class hierarchy, just typed data.\n\n### 0.3 CLI test harness (after Phase 1 ships)\nAdd `cli/__tests__/` spawn-based integration tests:\n\n- isolate XDG dirs per test via `BRAIN_DUMP_DATA_DIR` env var\n- run `tsx cli/brain-dump.ts` with real args via `execFile` (no shell)\n- assert exit codes, JSON output shape, and errors\n- add tests retroactively for Phase 1 commands before starting Phase 2\n\nRationale: ship Phase 0.1 + 0.2 + Phase 1 commands first, then lock them down with tests. Tests are most valuable after command shapes stabilize.\n\n## Phase 1: Parity-First Additions (High Impact)\n\n## 1) Add `project` resource\n\nNew file: `cli/commands/project.ts`\n\nCommands:\n```bash\nbrain-dump project list [--pretty]\nbrain-dump project find --path <path> [--pretty]\nbrain-dump project create --name <name> --path <path> [--color <hex>] [--pretty]\nbrain-dump project delete --project <id> [--confirm] [--pretty]\n```\n\nWiring:\n- add import/router/help in `cli/brain-dump.ts`\n\nCore used:\n- `listProjects`, `findProjectByPath`, `createProject`, `deleteProject`\n\n## 2) Expand `ticket` resource parity\n\nModify `cli/commands/ticket.ts`\n\nKeep existing actions and add:\n```bash\nbrain-dump ticket update --ticket <id> [--status <s>] [--title <t>] [--description <d>] [--priority <p>] [--tags <csv>] [--epic <eid>] [--pretty]\nbrain-dump ticket update-status --ticket <id> --status <status> [--pretty]\nbrain-dump ticket update-criterion --ticket <id> --criterion <id> --criterion-status <pending|passed|failed|skipped> [--note <text>] [--pretty]\nbrain-dump ticket update-attachment --ticket <id> --attachment <id|filename> --attachment-type <type> [--attachment-description <text>] [--attachment-priority <primary|supplementary>] [--linked-criteria <csv>] [--pretty]\nbrain-dump ticket list-by-epic --epic <id> [--project <id>] [--status <status>] [--limit <n>] [--pretty]\nbrain-dump ticket link-files --ticket <id> --files <csv> [--pretty]\nbrain-dump ticket get-files --file <path> [--project <id>] [--pretty]\n```\n\nGeneral ticket update (title, description, priority, tags, epic):\n- Requires new `updateTicket()` core function in `core/ticket.ts`\n- Dynamic SQL SET builder: only updates fields that are provided\n- Validates epic exists if `--epic` given\n- Returns updated ticket via `getTicket()`\n- Existing `ticket update` behavior (status-only) is preserved when only `--status` is passed\n- `update-status` is an additive alias for MCP naming consistency\n\nCore used:\n- **New:** `updateTicket` (create in `core/ticket.ts`, export from `core/index.ts`)\n- `updateTicketStatus`\n- `updateAcceptanceCriterion`\n- `updateAttachmentMetadata`\n- `listTicketsByEpic`\n- `linkFiles`\n- `getTicketsForFile`\n\n## 3) Expand `epic` resource parity\n\nModify `cli/commands/epic.ts`\n\nAdd:\n```bash\nbrain-dump epic reconcile-learnings --ticket <id> --learnings-file <path> [--update-docs] [--pretty]\nbrain-dump epic get-learnings --epic <id> [--pretty]\n```\n\nCore/index updates:\n- export `reconcileLearnings`\n- export `getEpicLearnings`\n\n## 4) Expand `review` resource parity\n\nModify `cli/commands/review.ts`\n\nAdd:\n```bash\nbrain-dump review update-demo-step --demo-script <id> --step-order <n> --step-status <pending|passed|failed|skipped> [--step-notes <text>] [--pretty]\n```\n\nCore used:\n- `updateDemoStep`\n\n## 5) Expand `session` resource parity (events only)\n\nModify `cli/commands/session.ts`\n\nAdd event actions only (task actions already live in the `tasks` resource \u2014 no duplication):\n```bash\nbrain-dump session update-state --session <id> --state <state> [--message <text>] [--pretty]\nbrain-dump session emit-event --session <id> --event-type <thinking|tool_start|tool_end|file_change|progress|state_change|error> [--event-data-file <path>] [--pretty]\nbrain-dump session get-events --session <id> [--since <iso>] [--limit <n>] [--pretty]\nbrain-dump session clear-events --session <id> [--pretty]\n```\n\nCompatibility:\n- keep existing `session update` unchanged\n- `update-state` is additive alias for MCP naming consistency\n\nCore used:\n- `updateState`, `emitEvent`, `getEvents`, `clearEvents`\n\n## 6) Expand `telemetry` parity\n\nModify `cli/commands/telemetry.ts`\n\nAdd:\n```bash\nbrain-dump telemetry log-context --session <id> --has-description --has-criteria [--criteria-count <n>] [--comment-count <n>] [--attachment-count <n>] [--image-count <n>] [--pretty]\n```\n\nCore used:\n- `logContext`\n\n## Phase 2: Top-Level Power Commands (Small, High Leverage)\n\nThese remain top-level additions in `cli/brain-dump.ts` (additive only).\n\n## 7) `brain-dump open`\n\n```bash\nbrain-dump open [--port <n>]\n```\n\nBehavior:\n- default port `4242`\n- platform-aware opener: `xdg-open` (Linux), `open` (macOS), `start` (Windows)\n- optional health check to `http://localhost:<port>/` before opening\n- if server not running, print helpful message: \"Dev server not running. Start it with: pnpm dev\"\n\nImplementation: ~15 lines inline in `cli/brain-dump.ts`. No core functions needed.\n\n## 8) `brain-dump init`\n\n```bash\nbrain-dump init [--name <name>] [--color <hex>] [--pretty]\n```\n\nBehavior:\n- resolve cwd\n- check `findProjectByPath(cwd)`\n- if exists: return existing project\n- else create project with:\n  - name: `--name` -> `package.json:name` -> directory basename\n  - path: cwd\n\n## 9) `brain-dump status`\n\n```bash\nbrain-dump status [--project <id>] [--limit <n>] [--pretty]\n```\n\nOutput sections:\n- project summary by ticket status\n- active tickets (`in_progress`, `ai_review`, `human_review`)\n- active Ralph sessions snapshot\n- recent activity/comments\n\nImplementation:\n- new `cli/commands/status.ts` for structured pretty output\n- JSON mode returns a single normalized object payload\n\n## 10) `brain-dump search`\n\n```bash\nbrain-dump search \"<query>\" [--project <id>] [--status <status>] [--limit <n>] [--pretty]\n```\n\nImplementation:\n- new `core/search.ts` with `searchTickets()`\n- FTS5-first query, LIKE fallback if unavailable\n- expose from `core/index.ts`\n- add DB setup in `core/db.ts` for `tickets_fts` + triggers (port from `src/lib/db.ts`)\n\n## 11) `brain-dump context`\n\n```bash\nbrain-dump context --ticket <id> [--pretty]\n```\n\nRead-only ticket deep dive payload:\n- ticket (full detail from `getTicket()`)\n- comments (from `listComments()`)\n- review findings (from `getFindings()`)\n- subtasks/criteria (inline in ticket data)\n\n## 12) `brain-dump log`\n\n```bash\nbrain-dump log [--project <id>] [--ticket <id>] [--limit <n>] [--pretty]\n```\n\nImplementation:\n- new `getActivityLog()` in `core/comment.ts`\n- joined ticket/project comment stream ordered desc\n\n## Phase 3: UX and Maintenance Hardening\n\n## 13) `brain-dump completions`\n\n```bash\nbrain-dump completions zsh\nbrain-dump completions bash\nbrain-dump completions fish\n```\n\nGenerate scripts from `command-registry.ts`.\n\n## 14) Help and unknown-command UX\n\n- Add \"did you mean\" suggestion for unknown resource/action.\n- Ensure all help text comes from command registry metadata.\n\n## 15) Docs sync and drift prevention\n\n- Add a script to generate `docs/cli.md` command tables from registry metadata.\n- Align/remove stale references to unsupported commands in docs.\n\n## File-Level Change Plan\n\nCreate:\n- `cli/commands/project.ts` \u2014 Phase 1, #1\n- `cli/commands/status.ts` \u2014 Phase 2, #9\n- `cli/lib/context.ts` \u2014 Phase 0.1\n- `cli/lib/command-registry.ts` \u2014 Phase 0.2\n- `core/search.ts` \u2014 Phase 2, #10\n- `core/ticket.ts` \u2192 add `updateTicket()` \u2014 Phase 1, #2\n- `cli/__tests__/...` \u2014 Phase 0.3 (after Phase 1 ships)\n\nModify:\n- `cli/brain-dump.ts` \u2014 all phases (routing, help, top-level commands)\n- `cli/commands/ticket.ts` \u2014 Phase 1, #2\n- `cli/commands/epic.ts` \u2014 Phase 1, #3\n- `cli/commands/review.ts` \u2014 Phase 1, #4\n- `cli/commands/session.ts` \u2014 Phase 1, #5\n- `cli/commands/telemetry.ts` \u2014 Phase 1, #6\n- `core/index.ts` \u2014 export new functions\n- `core/comment.ts` \u2014 Phase 2, #12 (`getActivityLog()`)\n- `core/db.ts` \u2014 Phase 2, #10 (FTS5 init)\n- `docs/cli.md` \u2014 Phase 3, #15 (auto-generated)\n\n## Acceptance Criteria\n\n- All new commands are additive and do not break existing command syntax.\n- All new actions support JSON output and `--pretty`.\n- New parity actions return data equivalent in meaning to corresponding MCP actions.\n- `brain-dump help` lists all new resources/actions.\n- Unknown commands provide suggested alternatives (Phase 3).\n- Search works with FTS5 and has LIKE fallback behavior.\n- `ticket update` supports title, description, priority, tags, and epic fields.\n- `tasks` resource remains the single home for task management (no duplication in `session`).\n- CLI tests cover (Phase 0.3, after Phase 1):\n  - success paths\n  - validation failures\n  - dry-run destructive flows\n  - JSON shape consistency\n\n## Verification Plan\n\nPer milestone:\n1. `pnpm type-check`\n2. `pnpm lint`\n3. `pnpm test`\n4. CLI integration test suite pass (from Phase 0.3 onward)\n\nManual smoke:\n```bash\nbrain-dump open\nbrain-dump init --name \"test-project\"\nbrain-dump project list --pretty\nbrain-dump ticket list --project <id> --pretty\nbrain-dump ticket update --ticket <id> --title \"New title\" --priority high --pretty\nbrain-dump status --pretty\nbrain-dump search \"workflow\" --pretty\nbrain-dump log --limit 10 --pretty\nbrain-dump context --ticket <id> --pretty\nbrain-dump session emit-event --session <id> --event-type progress --event-data-file ./event.json --pretty\nbrain-dump telemetry log-context --session <id> --has-description --has-criteria --criteria-count 3 --pretty\n```\n\n## Explicit Non-Goals (This Iteration)\n\n- Removing existing commands or changing semantics in a breaking way\n- Introducing hidden mutable \"current ticket\" state\n- Re-architecting MCP tools to match CLI; CLI should consume existing core APIs\n- Expanding into destructive DB maintenance commands beyond current safe patterns\n- Duplicating `tasks` resource actions into `session` resource",
-      "priority": "high",
-      "tags": [
-        "reference",
-        "cli",
-        "plan"
-      ]
-    },
-    {
-      "id": "dc01fa52-07c9-4db4-af8c-48bdb4825a91",
-      "title": "Phase 0.1: CLI context resolution utilities",
-      "passes": true,
-      "overview": "Create `cli/lib/context.ts` with shared context resolution utilities used by all CLI commands.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`resolveProjectId` resolves from `--project` flag first, then cwd, then errors",
-        "`resolveTicketId` requires explicit `--ticket` flag (no implicit state)",
-        "Both functions have proper TypeScript types and error messages",
+        "Progress bar renders with correct proportions per status",
+        "Status chips show correct counts",
+        "Percentage displays correctly",
+        "Current ticket indicator shows when applicable",
+        "Empty state when no tickets",
+        "Uses existing `STATUS_BADGE_CONFIG` colors",
         "`pnpm type-check` passes"
       ],
-      "references": [],
-      "description": "## Overview\n\nCreate `cli/lib/context.ts` with shared context resolution utilities used by all CLI commands.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## What to Build\n\n### `resolveProjectId({ projectFlag, cwd })`\n- Precedence: explicit `--project` flag \u2192 project by cwd path (via `findProjectByPath`) \u2192 throw error\n- Used by any command that needs a project context\n\n### `resolveTicketId({ ticketFlag })`\n- Precedence: explicit `--ticket` flag only for v1 (no hidden mutable state)\n- Deterministic behavior \u2014 no \"current ticket\" concept\n\n## Files\n\n- **Create:** `cli/lib/context.ts`\n\n## Acceptance Criteria\n\n- [ ] `resolveProjectId` resolves from `--project` flag first, then cwd, then errors\n- [ ] `resolveTicketId` requires explicit `--ticket` flag (no implicit state)\n- [ ] Both functions have proper TypeScript types and error messages\n- [ ] `pnpm type-check` passes",
-      "priority": "high",
+      "references": [
+        "src/components/epics/EpicProgressOverview.tsx",
+        "src/lib/constants.ts"
+      ],
+      "description": "**Shared feature branch** — Part of the Epic Detail Page epic. All tickets share one branch.\n\n## Goal\nCreate the `EpicProgressOverview` component that shows a visual progress bar and per-status ticket breakdown.\n\n## File to Create\n\n### `src/components/epics/EpicProgressOverview.tsx`\n\n**Props:**\n```ts\ninterface EpicProgressOverviewProps {\n  ticketsByStatus: Record<string, number>;\n  ticketsTotal: number;\n  ticketsDone: number;\n  currentTicketId: string | null;\n  currentTicketTitle?: string;\n}\n```\n\n**Features:**\n- Multi-segment progress bar where each segment is color-coded by status\n- Use colors from `STATUS_BADGE_CONFIG` in `src/lib/constants.ts`\n- Status order: backlog → ready → in_progress → ai_review → human_review → done\n- Status chips below the bar showing count per status (only show statuses with count > 0)\n- Percentage label (ticketsDone / ticketsTotal)\n- \"Currently working on: [ticket title]\" indicator when `currentTicketId` is set\n- Handle edge case: ticketsTotal === 0 (show \"No tickets\" empty state)\n- CSS variables for styling consistency (`var(--spacing-*)`, `var(--bg-*)`, etc.)\n\n**Depends on:** Backend ticket (needs `EpicDetailResult` type)\n\n## Acceptance Criteria\n- [ ] Progress bar renders with correct proportions per status\n- [ ] Status chips show correct counts\n- [ ] Percentage displays correctly\n- [ ] Current ticket indicator shows when applicable\n- [ ] Empty state when no tickets\n- [ ] Uses existing `STATUS_BADGE_CONFIG` colors\n- [ ] `pnpm type-check` passes\n\n## Branch Strategy\n**All tickets in this epic work on the same branch:**  (branched from `feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar`). Do NOT create a new branch — commit directly to this existing branch so all changes can be tested together before merging to feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar",
+      "priority": "medium",
       "tags": [
-        "cli",
-        "foundation",
-        "phase-0"
+        "frontend",
+        "component",
+        "epic-detail-page"
       ]
     },
     {
-      "id": "605612e6-9642-498a-8042-8747c256d5d9",
-      "title": "Phase 0.2: Command metadata registry",
-      "passes": true,
-      "overview": "Create `cli/lib/command-registry.ts` \u2014 a single flat array of `CommandDef` objects that serves as the machine-readable source of truth for all CLI commands. Used for help output, completions, and docs generation.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
+      "id": "f36655f0-aff5-44d7-9fe9-ce53a1add5b4",
+      "title": "Component: EpicTicketsList — tickets grouped by status",
+      "passes": false,
+      "overview": "",
       "types": [
         {
-          "name": "CommandDef",
-          "code": "interface CommandDef {\n  resource: string;          // \"ticket\", \"project\", etc.\n  action: string;            // \"list\", \"create\", etc.\n  description: string;       // one-liner for help output\n  flags: FlagDef[];          // { name, type, required, description, enum? }\n  examples?: string[];       // \"brain-dump ticket list --pretty\"\n  aliases?: string[];        // alternate action names\n}"
-        },
-        {
-          "name": "FlagDef",
-          "code": "interface FlagDef {\n  name: string;\n  type: \"string\" | \"number\" | \"boolean\" | \"enum\";\n  required: boolean;\n  description: string;\n  enum?: string[];\n}"
+          "name": "EpicTicketsListProps",
+          "code": "interface EpicTicketsListProps {\n  tickets: Array<{\n    id: string;\n    title: string;\n    status: string;\n    priority: string | null;\n    isBlocked: boolean | null;\n    blockedReason: string | null;\n    prNumber: number | null;\n    prStatus: string | null;\n  }>;\n}"
         }
       ],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "`CommandDef` and `FlagDef` interfaces exported",
-        "Registry collects commands from all command files",
-        "`brain-dump help` reads from registry instead of hand-written strings",
+        "Tickets correctly grouped by status",
+        "Groups appear in priority order (active statuses first)",
+        "\"Done\" group collapsed by default",
+        "Click ticket title navigates to `/ticket/$id`",
+        "Priority badges display correctly",
+        "Blocked tickets show indicator",
+        "PR status shows when applicable",
+        "Empty state renders when no tickets",
         "`pnpm type-check` passes"
       ],
-      "references": [],
-      "description": "## Overview\n\nCreate `cli/lib/command-registry.ts` \u2014 a single flat array of `CommandDef` objects that serves as the machine-readable source of truth for all CLI commands. Used for help output, completions, and docs generation.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## What to Build\n\n### Interfaces\n```typescript\ninterface CommandDef {\n  resource: string;          // \"ticket\", \"project\", etc.\n  action: string;            // \"list\", \"create\", etc.\n  description: string;       // one-liner for help output\n  flags: FlagDef[];          // { name, type, required, description, enum? }\n  examples?: string[];       // \"brain-dump ticket list --pretty\"\n  aliases?: string[];        // alternate action names\n}\n\ninterface FlagDef {\n  name: string;\n  type: \"string\" | \"number\" | \"boolean\" | \"enum\";\n  required: boolean;\n  description: string;\n  enum?: string[];\n}\n```\n\n### Approach\n- Build incrementally: register Phase 1 commands first, backfill existing later\n- Each command file exports its `CommandDef[]` alongside the `handle()` function\n- `command-registry.ts` collects all exports into one array\n- Top-level commands register as `resource: \"_top\"`\n- No decorators, no class hierarchy \u2014 just typed data\n\n## Files\n\n- **Create:** `cli/lib/command-registry.ts`\n- **Modify:** `cli/brain-dump.ts` (wire `help` to read from registry)\n\n## Acceptance Criteria\n\n- [ ] `CommandDef` and `FlagDef` interfaces exported\n- [ ] Registry collects commands from all command files\n- [ ] `brain-dump help` reads from registry instead of hand-written strings\n- [ ] `pnpm type-check` passes",
-      "priority": "high",
-      "tags": [
-        "cli",
-        "foundation",
-        "phase-0"
-      ]
-    },
-    {
-      "id": "b2b0b103-80f3-41f7-a100-d447b88d6387",
-      "title": "Phase 1.1: Add `project` CLI resource",
-      "passes": true,
-      "overview": "Create `cli/commands/project.ts` to add the missing `project` resource to the CLI. Currently only available via MCP.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "All 4 project actions work (list, find, create, delete)",
-        "JSON output by default, `--pretty` for human-readable",
-        "`delete` requires `--confirm` flag (dry-run by default)",
-        "Registered in command registry",
-        "`pnpm type-check` and `pnpm lint` pass"
+      "references": [
+        "src/components/epics/EpicTicketsList.tsx",
+        "src/lib/constants.ts"
       ],
-      "references": [],
-      "description": "## Overview\n\nCreate `cli/commands/project.ts` to add the missing `project` resource to the CLI. Currently only available via MCP.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## Commands to Implement\n\n```bash\nbrain-dump project list [--pretty]\nbrain-dump project find --path <path> [--pretty]\nbrain-dump project create --name <name> --path <path> [--color <hex>] [--pretty]\nbrain-dump project delete --project <id> [--confirm] [--pretty]\n```\n\n## Core Functions Used\n\n- `listProjects`\n- `findProjectByPath`\n- `createProject`\n- `deleteProject`\n\n## Files\n\n- **Create:** `cli/commands/project.ts`\n- **Modify:** `cli/brain-dump.ts` (add import, routing, help entry)\n\n## Acceptance Criteria\n\n- [ ] All 4 project actions work (list, find, create, delete)\n- [ ] JSON output by default, `--pretty` for human-readable\n- [ ] `delete` requires `--confirm` flag (dry-run by default)\n- [ ] Registered in command registry\n- [ ] `pnpm type-check` and `pnpm lint` pass",
-      "priority": "high",
-      "tags": [
-        "cli",
-        "parity",
-        "phase-1"
-      ]
-    },
-    {
-      "id": "09ede31f-0f5c-4c71-88aa-e2edfa0db4a5",
-      "title": "Phase 1.2: Expand `ticket` CLI resource parity",
-      "passes": true,
-      "overview": "Expand `cli/commands/ticket.ts` with missing MCP-parity actions and add a general `updateTicket()` core function.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "All 7 new ticket actions work",
-        "`ticket update` supports title, description, priority, tags, and epic fields",
-        "Existing `ticket update --status` behavior unchanged",
-        "`updateTicket()` core function uses dynamic SQL SET builder",
-        "JSON + `--pretty` output for all actions",
-        "`pnpm type-check` and `pnpm lint` pass"
-      ],
-      "references": [],
-      "description": "## Overview\n\nExpand `cli/commands/ticket.ts` with missing MCP-parity actions and add a general `updateTicket()` core function.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## New Commands\n\n```bash\nbrain-dump ticket update --ticket <id> [--status <s>] [--title <t>] [--description <d>] [--priority <p>] [--tags <csv>] [--epic <eid>] [--pretty]\nbrain-dump ticket update-status --ticket <id> --status <status> [--pretty]\nbrain-dump ticket update-criterion --ticket <id> --criterion <id> --criterion-status <pending|passed|failed|skipped> [--note <text>] [--pretty]\nbrain-dump ticket update-attachment --ticket <id> --attachment <id|filename> --attachment-type <type> [--attachment-description <text>] [--attachment-priority <primary|supplementary>] [--linked-criteria <csv>] [--pretty]\nbrain-dump ticket list-by-epic --epic <id> [--project <id>] [--status <status>] [--limit <n>] [--pretty]\nbrain-dump ticket link-files --ticket <id> --files <csv> [--pretty]\nbrain-dump ticket get-files --file <path> [--project <id>] [--pretty]\n```\n\n## Core Changes\n\n- **New:** `updateTicket()` in `core/ticket.ts` \u2014 dynamic SQL SET builder, only updates provided fields, validates epic exists if given, returns updated ticket via `getTicket()`\n- **Export** from `core/index.ts`\n\n## Existing Core Used\n\n- `updateTicketStatus`, `updateAcceptanceCriterion`, `updateAttachmentMetadata`\n- `listTicketsByEpic`, `linkFiles`, `getTicketsForFile`\n\n## Key Behaviors\n\n- Existing `ticket update` (status-only) preserved when only `--status` passed\n- `update-status` is an additive alias for MCP naming consistency\n- Tags passed as comma-separated string, parsed to array\n\n## Files\n\n- **Create/modify:** `core/ticket.ts` (add `updateTicket()`)\n- **Modify:** `cli/commands/ticket.ts`, `core/index.ts`\n\n## Acceptance Criteria\n\n- [ ] All 7 new ticket actions work\n- [ ] `ticket update` supports title, description, priority, tags, and epic fields\n- [ ] Existing `ticket update --status` behavior unchanged\n- [ ] `updateTicket()` core function uses dynamic SQL SET builder\n- [ ] JSON + `--pretty` output for all actions\n- [ ] `pnpm type-check` and `pnpm lint` pass",
-      "priority": "high",
-      "tags": [
-        "cli",
-        "parity",
-        "phase-1"
-      ]
-    },
-    {
-      "id": "3f5fd292-715a-45fd-9441-c7225db362e4",
-      "title": "Phase 1.3: Expand `epic` CLI resource parity",
-      "passes": true,
-      "overview": "Add missing `reconcile-learnings` and `get-learnings` actions to `cli/commands/epic.ts`.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Both new epic actions work",
-        "`--learnings-file` reads and parses JSON array from file path",
-        "JSON + `--pretty` output",
-        "Registered in command registry",
-        "`pnpm type-check` and `pnpm lint` pass"
-      ],
-      "references": [],
-      "description": "## Overview\n\nAdd missing `reconcile-learnings` and `get-learnings` actions to `cli/commands/epic.ts`.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## New Commands\n\n```bash\nbrain-dump epic reconcile-learnings --ticket <id> --learnings-file <path> [--update-docs] [--pretty]\nbrain-dump epic get-learnings --epic <id> [--pretty]\n```\n\n## Details\n\n- `reconcile-learnings` reads a JSON file of learning objects from `--learnings-file`\n- `get-learnings` returns accumulated learnings for an epic across completed tickets\n\n## Core Functions Used\n\n- `reconcileLearnings`\n- `getEpicLearnings`\n\n## Files\n\n- **Modify:** `cli/commands/epic.ts`, `core/index.ts` (ensure exports)\n\n## Acceptance Criteria\n\n- [ ] Both new epic actions work\n- [ ] `--learnings-file` reads and parses JSON array from file path\n- [ ] JSON + `--pretty` output\n- [ ] Registered in command registry\n- [ ] `pnpm type-check` and `pnpm lint` pass",
+      "description": "**Shared feature branch** — Part of the Epic Detail Page epic. All tickets share one branch.\n\n## Goal\nCreate the `EpicTicketsList` component that shows all tickets in the epic, grouped by status with collapsible sections.\n\n## File to Create\n\n### `src/components/epics/EpicTicketsList.tsx`\n\n**Props:**\n```ts\ninterface EpicTicketsListProps {\n  tickets: Array<{\n    id: string;\n    title: string;\n    status: string;\n    priority: string | null;\n    isBlocked: boolean | null;\n    blockedReason: string | null;\n    prNumber: number | null;\n    prStatus: string | null;\n  }>;\n}\n```\n\n**Features:**\n- Group tickets by status in order: in_progress, ai_review, human_review, ready, backlog, done\n- Each group has a collapsible header showing status label + count (e.g., \"In Progress (3)\")\n- \"Done\" group is collapsed by default, all others expanded\n- Each ticket row shows:\n  - Title as a `Link` to `/ticket/$id` (TanStack Router)\n  - Priority badge using `PRIORITY_BADGE_CONFIG` from `src/lib/constants.ts`\n  - Blocked indicator (icon + tooltip with reason) when `isBlocked` is true\n  - PR status badge when `prNumber` is set\n- Status group headers use colors from `STATUS_BADGE_CONFIG`\n- Empty state: \"No tickets in this epic yet\"\n- Use ChevronDown/ChevronRight from lucide-react for collapse toggles\n\n**Depends on:** Backend ticket (needs ticket data shape)\n\n## Acceptance Criteria\n- [ ] Tickets correctly grouped by status\n- [ ] Groups appear in priority order (active statuses first)\n- [ ] \"Done\" group collapsed by default\n- [ ] Click ticket title navigates to `/ticket/$id`\n- [ ] Priority badges display correctly\n- [ ] Blocked tickets show indicator\n- [ ] PR status shows when applicable\n- [ ] Empty state renders when no tickets\n- [ ] `pnpm type-check` passes\n\n## Branch Strategy\n**All tickets in this epic work on the same branch:**  (branched from `feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar`). Do NOT create a new branch — commit directly to this existing branch so all changes can be tested together before merging to feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar",
       "priority": "medium",
       "tags": [
-        "cli",
-        "parity",
-        "phase-1"
+        "frontend",
+        "component",
+        "epic-detail-page"
       ]
     },
     {
-      "id": "8a669472-1af8-4fdf-835b-ac6330d7033c",
-      "title": "Phase 1.4: Expand `review` CLI resource parity",
-      "passes": true,
-      "overview": "Add `update-demo-step` action to `cli/commands/review.ts`.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`update-demo-step` action works",
-        "`--step-status` validates against enum (pending, passed, failed, skipped)",
-        "JSON + `--pretty` output",
-        "Registered in command registry",
-        "`pnpm type-check` and `pnpm lint` pass"
+      "id": "5ac007ea-6353-4c2b-871a-02da5d5374a3",
+      "title": "Component: EpicLearnings — collapsible learnings panel",
+      "passes": false,
+      "overview": "",
+      "types": [
+        {
+          "name": "LearningEntry",
+          "code": "interface LearningEntry {\n  ticketId: string;\n  ticketTitle: string;\n  learnings: Array<{\n    type: \"pattern\" | \"anti-pattern\" | \"tool-usage\" | \"workflow\";\n    description: string;\n    suggestedUpdate?: {\n      file: string;\n      section: string;\n      content: string;\n    };\n  }>;\n  appliedAt: string;\n}"
+        },
+        {
+          "name": "EpicLearningsProps",
+          "code": "interface EpicLearningsProps {\n  learnings: LearningEntry[];\n}"
+        }
       ],
-      "references": [],
-      "description": "## Overview\n\nAdd `update-demo-step` action to `cli/commands/review.ts`.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## New Command\n\n```bash\nbrain-dump review update-demo-step --demo-script <id> --step-order <n> --step-status <pending|passed|failed|skipped> [--step-notes <text>] [--pretty]\n```\n\n## Core Functions Used\n\n- `updateDemoStep`\n\n## Files\n\n- **Modify:** `cli/commands/review.ts`\n\n## Acceptance Criteria\n\n- [ ] `update-demo-step` action works\n- [ ] `--step-status` validates against enum (pending, passed, failed, skipped)\n- [ ] JSON + `--pretty` output\n- [ ] Registered in command registry\n- [ ] `pnpm type-check` and `pnpm lint` pass",
-      "priority": "medium",
-      "tags": [
-        "cli",
-        "parity",
-        "phase-1"
-      ]
-    },
-    {
-      "id": "69b33ebf-6bcf-498c-8fa0-737a25c97fa6",
-      "title": "Phase 1.5: Expand `session` CLI resource parity (events)",
-      "passes": true,
-      "overview": "Add event-related actions to `cli/commands/session.ts`. Task actions already live in `tasks` resource \u2014 no duplication.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
-      "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "All 4 new session event actions work",
-        "`emit-event` reads JSON from `--event-data-file` path",
-        "`--event-type` validates against enum",
-        "Existing `session update` behavior unchanged",
-        "JSON + `--pretty` output",
-        "`pnpm type-check` and `pnpm lint` pass"
-      ],
-      "references": [],
-      "description": "## Overview\n\nAdd event-related actions to `cli/commands/session.ts`. Task actions already live in `tasks` resource \u2014 no duplication.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## New Commands\n\n```bash\nbrain-dump session update-state --session <id> --state <state> [--message <text>] [--pretty]\nbrain-dump session emit-event --session <id> --event-type <thinking|tool_start|tool_end|file_change|progress|state_change|error> [--event-data-file <path>] [--pretty]\nbrain-dump session get-events --session <id> [--since <iso>] [--limit <n>] [--pretty]\nbrain-dump session clear-events --session <id> [--pretty]\n```\n\n## Compatibility\n\n- Keep existing `session update` unchanged\n- `update-state` is an additive alias for MCP naming consistency\n\n## Core Functions Used\n\n- `updateState`, `emitEvent`, `getEvents`, `clearEvents`\n\n## Files\n\n- **Modify:** `cli/commands/session.ts`\n\n## Acceptance Criteria\n\n- [ ] All 4 new session event actions work\n- [ ] `emit-event` reads JSON from `--event-data-file` path\n- [ ] `--event-type` validates against enum\n- [ ] Existing `session update` behavior unchanged\n- [ ] JSON + `--pretty` output\n- [ ] `pnpm type-check` and `pnpm lint` pass",
-      "priority": "medium",
-      "tags": [
-        "cli",
-        "parity",
-        "phase-1"
-      ]
-    },
-    {
-      "id": "90371ebd-5a9e-4e8a-a6fe-4799556c91fc",
-      "title": "Phase 1.6: Expand `telemetry` CLI parity",
-      "passes": true,
-      "overview": "Add `log-context` action to `cli/commands/telemetry.ts`.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`log-context` action works",
-        "Boolean flags `--has-description` and `--has-criteria` parsed correctly",
-        "Optional count flags default appropriately",
-        "JSON + `--pretty` output",
-        "Registered in command registry",
-        "`pnpm type-check` and `pnpm lint` pass"
-      ],
-      "references": [],
-      "description": "## Overview\n\nAdd `log-context` action to `cli/commands/telemetry.ts`.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## New Command\n\n```bash\nbrain-dump telemetry log-context --session <id> --has-description --has-criteria [--criteria-count <n>] [--comment-count <n>] [--attachment-count <n>] [--image-count <n>] [--pretty]\n```\n\n## Core Functions Used\n\n- `logContext`\n\n## Files\n\n- **Modify:** `cli/commands/telemetry.ts`\n\n## Acceptance Criteria\n\n- [ ] `log-context` action works\n- [ ] Boolean flags `--has-description` and `--has-criteria` parsed correctly\n- [ ] Optional count flags default appropriately\n- [ ] JSON + `--pretty` output\n- [ ] Registered in command registry\n- [ ] `pnpm type-check` and `pnpm lint` pass",
-      "priority": "low",
-      "tags": [
-        "cli",
-        "parity",
-        "phase-1"
-      ]
-    },
-    {
-      "id": "b0eed6bd-91dd-406b-b012-0df4041e35b3",
-      "title": "Phase 2.7: `brain-dump open` command",
-      "passes": true,
-      "overview": "Add `brain-dump open` top-level command to open the Brain Dump UI in the browser.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`brain-dump open` opens browser to localhost:4242",
-        "`--port` flag overrides default port",
-        "Helpful error message when server not running",
-        "Platform detection works for Linux/macOS/Windows",
-        "Registered in command registry"
-      ],
-      "references": [],
-      "description": "## Overview\n\nAdd `brain-dump open` top-level command to open the Brain Dump UI in the browser.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## Command\n\n```bash\nbrain-dump open [--port <n>]\n```\n\n## Behavior\n\n- Default port `4242`\n- Platform-aware opener: `xdg-open` (Linux), `open` (macOS), `start` (Windows)\n- Optional health check to `http://localhost:<port>/` before opening\n- If server not running, print helpful message: \"Dev server not running. Start it with: pnpm dev\"\n\n## Implementation\n\n~15 lines inline in `cli/brain-dump.ts`. No core functions needed.\n\n## Files\n\n- **Modify:** `cli/brain-dump.ts`\n\n## Acceptance Criteria\n\n- [ ] `brain-dump open` opens browser to localhost:4242\n- [ ] `--port` flag overrides default port\n- [ ] Helpful error message when server not running\n- [ ] Platform detection works for Linux/macOS/Windows\n- [ ] Registered in command registry",
-      "priority": "medium",
-      "tags": [
-        "cli",
-        "power-command",
-        "phase-2"
-      ]
-    },
-    {
-      "id": "a258a282-585b-4267-a9e1-4cf4b4cac881",
-      "title": "Phase 2.8: `brain-dump init` command",
-      "passes": true,
-      "overview": "Add `brain-dump init` top-level command to register the current directory as a Brain Dump project.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`brain-dump init` creates a project for current directory",
-        "Idempotent \u2014 returns existing project if already registered",
-        "Name resolution: flag \u2192 package.json \u2192 directory basename",
-        "JSON + `--pretty` output",
-        "Registered in command registry"
-      ],
-      "references": [],
-      "description": "## Overview\n\nAdd `brain-dump init` top-level command to register the current directory as a Brain Dump project.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## Command\n\n```bash\nbrain-dump init [--name <name>] [--color <hex>] [--pretty]\n```\n\n## Behavior\n\n- Resolve cwd\n- Check `findProjectByPath(cwd)`\n- If exists: return existing project (idempotent)\n- Else create project with:\n  - name: `--name` \u2192 `package.json:name` \u2192 directory basename\n  - path: cwd\n\n## Files\n\n- **Modify:** `cli/brain-dump.ts`\n\n## Acceptance Criteria\n\n- [ ] `brain-dump init` creates a project for current directory\n- [ ] Idempotent \u2014 returns existing project if already registered\n- [ ] Name resolution: flag \u2192 package.json \u2192 directory basename\n- [ ] JSON + `--pretty` output\n- [ ] Registered in command registry",
-      "priority": "medium",
-      "tags": [
-        "cli",
-        "power-command",
-        "phase-2"
-      ]
-    },
-    {
-      "id": "876ff09a-dfa3-49fd-b86a-1632a1e161f1",
-      "title": "Phase 2.9: `brain-dump status` command",
-      "passes": true,
-      "overview": "Add `brain-dump status` top-level command for a project dashboard view.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`brain-dump status` shows project dashboard",
-        "`--project` flag selects project (or resolves from cwd)",
-        "Pretty output has clear sections with headers",
-        "JSON output is a single normalized object",
-        "Registered in command registry",
-        "`pnpm type-check` and `pnpm lint` pass"
-      ],
-      "references": [],
-      "description": "## Overview\n\nAdd `brain-dump status` top-level command for a project dashboard view.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## Command\n\n```bash\nbrain-dump status [--project <id>] [--limit <n>] [--pretty]\n```\n\n## Output Sections\n\n- Project summary by ticket status (counts per status)\n- Active tickets (`in_progress`, `ai_review`, `human_review`)\n- Active Ralph sessions snapshot\n- Recent activity/comments\n\n## Implementation\n\n- New `cli/commands/status.ts` for structured pretty output\n- JSON mode returns a single normalized object payload\n\n## Files\n\n- **Create:** `cli/commands/status.ts`\n- **Modify:** `cli/brain-dump.ts` (routing)\n\n## Acceptance Criteria\n\n- [ ] `brain-dump status` shows project dashboard\n- [ ] `--project` flag selects project (or resolves from cwd)\n- [ ] Pretty output has clear sections with headers\n- [ ] JSON output is a single normalized object\n- [ ] Registered in command registry\n- [ ] `pnpm type-check` and `pnpm lint` pass",
-      "priority": "medium",
-      "tags": [
-        "cli",
-        "power-command",
-        "phase-2"
-      ]
-    },
-    {
-      "id": "8e5195af-89a7-44e2-a227-503a5fd4376a",
-      "title": "Phase 2.10: `brain-dump search` command",
-      "passes": true,
-      "overview": "Add `brain-dump search` command with FTS5 full-text search and LIKE fallback.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`brain-dump search \"query\"` returns matching tickets",
-        "FTS5 used when available, LIKE fallback otherwise",
-        "`--project`, `--status`, `--limit` filters work",
-        "JSON + `--pretty` output",
-        "`tickets_fts` table and triggers created in `core/db.ts`",
-        "Registered in command registry",
-        "`pnpm type-check` and `pnpm lint` pass"
+        "Collapsible panel toggles open/closed",
+        "Learnings grouped by source ticket",
+        "Type badges render with correct colors",
+        "Suggested updates show file/section when present",
+        "Empty state renders when no learnings",
+        "`pnpm type-check` passes"
       ],
       "references": [
-        "src/lib/db.ts"
+        "src/components/epics/EpicLearnings.tsx",
+        "src/lib/schema.ts"
       ],
-      "description": "## Overview\n\nAdd `brain-dump search` command with FTS5 full-text search and LIKE fallback.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## Command\n\n```bash\nbrain-dump search \"<query>\" [--project <id>] [--status <status>] [--limit <n>] [--pretty]\n```\n\n## Implementation\n\n- New `core/search.ts` with `searchTickets()` function\n- FTS5-first query, LIKE fallback if FTS5 unavailable\n- Expose from `core/index.ts`\n- Add DB setup in `core/db.ts` for `tickets_fts` virtual table + triggers (port from `src/lib/db.ts`)\n\n## Files\n\n- **Create:** `core/search.ts`\n- **Modify:** `core/db.ts` (FTS5 init), `core/index.ts` (export), `cli/brain-dump.ts` (routing)\n\n## Acceptance Criteria\n\n- [ ] `brain-dump search \"query\"` returns matching tickets\n- [ ] FTS5 used when available, LIKE fallback otherwise\n- [ ] `--project`, `--status`, `--limit` filters work\n- [ ] JSON + `--pretty` output\n- [ ] `tickets_fts` table and triggers created in `core/db.ts`\n- [ ] Registered in command registry\n- [ ] `pnpm type-check` and `pnpm lint` pass",
+      "description": "**Shared feature branch** — Part of the Epic Detail Page epic. All tickets share one branch.\n\n## Goal\nCreate the `EpicLearnings` component that displays accumulated learnings from completed tickets in a collapsible panel.\n\n## File to Create\n\n### `src/components/epics/EpicLearnings.tsx`\n\n**Props:**\n```ts\ninterface LearningEntry {\n  ticketId: string;\n  ticketTitle: string;\n  learnings: Array<{\n    type: \"pattern\" | \"anti-pattern\" | \"tool-usage\" | \"workflow\";\n    description: string;\n    suggestedUpdate?: {\n      file: string;\n      section: string;\n      content: string;\n    };\n  }>;\n  appliedAt: string;\n}\n\ninterface EpicLearningsProps {\n  learnings: LearningEntry[];\n}\n```\n\n**Features:**\n- Collapsible section with ChevronDown/ChevronUp toggle (collapsed by default)\n- Section header: \"Learnings\" with count badge\n- Grouped by source ticket (ticketId/ticketTitle)\n- Each learning shows:\n  - Type badge with color: pattern (green), anti-pattern (red), tool-usage (blue), workflow (purple)\n  - Description text\n  - Optional suggested update info (file + section) in a subtle sub-line\n- Empty state: \"No learnings captured yet. Complete tickets in this epic to accumulate learnings.\"\n- Use CSS variables for styling consistency\n\n**Reference:** Learnings data structure from `src/lib/schema.ts` `WorkflowLearning` type and `core/learnings.ts`\n\n## Acceptance Criteria\n- [ ] Collapsible panel toggles open/closed\n- [ ] Learnings grouped by source ticket\n- [ ] Type badges render with correct colors\n- [ ] Suggested updates show file/section when present\n- [ ] Empty state renders when no learnings\n- [ ] `pnpm type-check` passes\n\n## Branch Strategy\n**All tickets in this epic work on the same branch:**  (branched from `feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar`). Do NOT create a new branch — commit directly to this existing branch so all changes can be tested together before merging to feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar",
       "priority": "medium",
       "tags": [
-        "cli",
-        "power-command",
-        "phase-2"
+        "frontend",
+        "component",
+        "epic-detail-page"
       ]
     },
     {
-      "id": "f64edbba-d234-4a34-b252-973aae0889b2",
-      "title": "Phase 2.11: `brain-dump context` command",
-      "passes": true,
-      "overview": "Add `brain-dump context` command for a read-only deep dive into a ticket's full context.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
+      "id": "429fb536-2775-45e9-b34d-ef6b404dcf65",
+      "title": "Component: EpicDetailHeader — header with badges, git info, launch actions",
+      "passes": false,
+      "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "`brain-dump context --ticket <id>` returns combined ticket context",
-        "Includes ticket details, comments, findings, and criteria",
-        "JSON + `--pretty` output",
-        "Registered in command registry",
-        "`pnpm type-check` and `pnpm lint` pass"
+        "Title displays with color dot",
+        "Badge row shows project, ticket count, completion %",
+        "Git row shows branch and PR when available",
+        "Edit button triggers onEdit callback",
+        "Launch dropdown opens with full Interactive + Ralph sections",
+        "Launch actions work (launch next non-done ticket)",
+        "Copy branch name to clipboard works",
+        "`pnpm type-check` passes"
       ],
-      "references": [],
-      "description": "## Overview\n\nAdd `brain-dump context` command for a read-only deep dive into a ticket's full context.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## Command\n\n```bash\nbrain-dump context --ticket <id> [--pretty]\n```\n\n## Output Payload\n\n- Ticket full detail (from `getTicket()`)\n- Comments (from `listComments()`)\n- Review findings (from `getFindings()`)\n- Subtasks/criteria (inline in ticket data)\n\n## Files\n\n- **Modify:** `cli/brain-dump.ts` (routing + inline handler or new command file)\n\n## Acceptance Criteria\n\n- [ ] `brain-dump context --ticket <id>` returns combined ticket context\n- [ ] Includes ticket details, comments, findings, and criteria\n- [ ] JSON + `--pretty` output\n- [ ] Registered in command registry\n- [ ] `pnpm type-check` and `pnpm lint` pass",
+      "references": [
+        "src/components/epics/EpicDetailHeader.tsx",
+        "src/components/tickets/TicketDetailHeader.tsx",
+        "src/components/EpicModal.tsx",
+        "src/lib/constants.ts",
+        "src/components/EpicModal.tsx:295-385",
+        "src/components/EpicModal.tsx:195-292"
+      ],
+      "description": "**Shared feature branch** — Part of the Epic Detail Page epic. All tickets share one branch.\n\n## Goal\nCreate the `EpicDetailHeader` component showing the epic title, metadata badges, git/PR info, and action buttons (edit + launch).\n\n## File to Create\n\n### `src/components/epics/EpicDetailHeader.tsx`\n\n**Layout:**\n```\n[color dot] Epic Title                          [Edit] [Launch ▾]\nProject: Name  ·  12 tickets  ·  75% complete\nBranch: feature/epic-abc  ·  PR #42 (draft)\n```\n\n**Features:**\n- **Title row:** Epic color dot, h1 title, Edit button, Launch split-button dropdown\n- **Badge row:** Project name badge, ticket count badge, completion percentage badge\n- **Git row** (conditional, only when workflowState exists):\n  - Branch name with copy-to-clipboard (reuse clipboard pattern from `TicketDetailHeader`)\n  - PR link with status badge (draft/open/merged/closed) when `prNumber` is set\n- **Edit button:** Opens existing `EpicModal` component (passed via `onEdit` callback)\n- **Launch dropdown:** Full launch menu matching `EpicModal`'s action menu structure:\n  - Interactive section: Claude, Codex (auto/cli/app), VS Code, Cursor, Copilot CLI, OpenCode\n  - Ralph section: Claude, Codex, VS Code, Cursor, Copilot CLI, OpenCode\n  - Each launches the next non-done ticket in the epic (same `handleStartInteractive` / `handleStartRalph` pattern from `EpicModal.tsx`)\n\n**Pattern references:**\n- `src/components/tickets/TicketDetailHeader.tsx` — badge row, git info, clipboard copy\n- `src/components/EpicModal.tsx` lines 295-385 — `handleStartInteractive` launch logic\n- `src/components/EpicModal.tsx` lines 195-292 — `handleStartRalph` launch logic\n- `src/lib/constants.ts` — `STATUS_BADGE_CONFIG` for PR status styling\n\n## Acceptance Criteria\n- [ ] Title displays with color dot\n- [ ] Badge row shows project, ticket count, completion %\n- [ ] Git row shows branch and PR when available\n- [ ] Edit button triggers onEdit callback\n- [ ] Launch dropdown opens with full Interactive + Ralph sections\n- [ ] Launch actions work (launch next non-done ticket)\n- [ ] Copy branch name to clipboard works\n- [ ] `pnpm type-check` passes\n\n## Branch Strategy\n**All tickets in this epic work on the same branch:**  (branched from `feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar`). Do NOT create a new branch — commit directly to this existing branch so all changes can be tested together before merging to feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar",
       "priority": "medium",
       "tags": [
-        "cli",
-        "power-command",
-        "phase-2"
+        "frontend",
+        "component",
+        "epic-detail-page",
+        "github:#42"
       ]
     },
     {
-      "id": "df2e38eb-7730-460a-8792-275aacfcb4a1",
-      "title": "Phase 2.12: `brain-dump log` command",
-      "passes": true,
-      "overview": "Add `brain-dump log` command for a chronological activity stream across tickets.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
+      "id": "2b35003b-2ea1-4f8a-9a80-84c00e8a530f",
+      "title": "Route + Integration: epic.$id.tsx page and navigation links",
+      "passes": false,
+      "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "`brain-dump log` shows recent activity across project",
-        "`--project` and `--ticket` filters work",
-        "`--limit` controls result count",
-        "JSON + `--pretty` output",
-        "Registered in command registry",
-        "`pnpm type-check` and `pnpm lint` pass"
+        "Route `/epic/{id}` renders the full epic detail page",
+        "Loading skeleton shows during data fetch",
+        "Error page shows for invalid epic IDs",
+        "Back button navigates correctly (history or fallback)",
+        "All sections render with correct data",
+        "Edit modal opens and saves correctly",
+        "Launch actions work end-to-end",
+        "EpicListItem has secondary link to detail page",
+        "Barrel exports updated",
+        "`pnpm type-check` passes",
+        "`pnpm lint` passes",
+        "`pnpm test` passes",
+        "Manual browser verification at localhost:4242"
       ],
-      "references": [],
-      "description": "## Overview\n\nAdd `brain-dump log` command for a chronological activity stream across tickets.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## Command\n\n```bash\nbrain-dump log [--project <id>] [--ticket <id>] [--limit <n>] [--pretty]\n```\n\n## Implementation\n\n- New `getActivityLog()` function in `core/comment.ts`\n- Joined ticket/project comment stream ordered descending by date\n- Export from `core/index.ts`\n\n## Files\n\n- **Modify:** `core/comment.ts` (add `getActivityLog()`), `core/index.ts` (export), `cli/brain-dump.ts` (routing)\n\n## Acceptance Criteria\n\n- [ ] `brain-dump log` shows recent activity across project\n- [ ] `--project` and `--ticket` filters work\n- [ ] `--limit` controls result count\n- [ ] JSON + `--pretty` output\n- [ ] Registered in command registry\n- [ ] `pnpm type-check` and `pnpm lint` pass",
-      "priority": "medium",
-      "tags": [
-        "cli",
-        "power-command",
-        "phase-2"
-      ]
-    },
-    {
-      "id": "fb948288-fe7d-4a76-b0a8-7744e63c2a76",
-      "title": "Phase 3.13: Shell completions generation",
-      "passes": true,
-      "overview": "Add `brain-dump completions` command to generate shell completion scripts from the command registry.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`brain-dump completions zsh` outputs valid zsh completion script",
-        "`brain-dump completions bash` outputs valid bash completion script",
-        "`brain-dump completions fish` outputs valid fish completion script",
-        "Scripts generated from command registry (not hand-written)",
-        "Registered in command registry"
+      "references": [
+        "src/routes/epic.$id.tsx",
+        "src/routes/ticket.$id.tsx",
+        "src/components/tickets/",
+        "src/components/navigation/EpicListItem.tsx",
+        "src/components/epics/index.ts"
       ],
-      "references": [],
-      "description": "## Overview\n\nAdd `brain-dump completions` command to generate shell completion scripts from the command registry.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## Commands\n\n```bash\nbrain-dump completions zsh\nbrain-dump completions bash\nbrain-dump completions fish\n```\n\n## Implementation\n\n- Generate completion scripts from `command-registry.ts` data\n- Each shell gets its own output format\n- Users pipe output to their shell config (e.g., `brain-dump completions zsh >> ~/.zshrc`)\n\n## Files\n\n- **Modify:** `cli/brain-dump.ts` (routing + completion generator)\n\n## Acceptance Criteria\n\n- [ ] `brain-dump completions zsh` outputs valid zsh completion script\n- [ ] `brain-dump completions bash` outputs valid bash completion script\n- [ ] `brain-dump completions fish` outputs valid fish completion script\n- [ ] Scripts generated from command registry (not hand-written)\n- [ ] Registered in command registry",
-      "priority": "low",
-      "tags": [
-        "cli",
-        "ux",
-        "phase-3"
-      ]
-    },
-    {
-      "id": "61196f20-ae2a-4ae1-9276-7d7aadc57b5a",
-      "title": "Phase 3.14: Help and unknown-command UX",
-      "passes": true,
-      "overview": "Improve help output and add \"did you mean?\" suggestions for unknown commands.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Unknown commands show \"did you mean\" suggestion with closest match",
-        "All help text generated from command registry",
-        "`brain-dump help` shows all resources and their actions",
-        "`brain-dump help <resource>` shows actions for that resource",
-        "`pnpm type-check` and `pnpm lint` pass"
-      ],
-      "references": [],
-      "description": "## Overview\n\nImprove help output and add \"did you mean?\" suggestions for unknown commands.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## What to Build\n\n- Add \"did you mean\" suggestion for unknown resource/action (e.g., `brain-dump tickt list` \u2192 \"Did you mean: ticket?\")\n- Ensure all help text comes from command registry metadata (no hand-written strings)\n- Levenshtein distance or similar for fuzzy matching\n\n## Files\n\n- **Modify:** `cli/brain-dump.ts` (unknown command handler, help output)\n\n## Acceptance Criteria\n\n- [ ] Unknown commands show \"did you mean\" suggestion with closest match\n- [ ] All help text generated from command registry\n- [ ] `brain-dump help` shows all resources and their actions\n- [ ] `brain-dump help <resource>` shows actions for that resource\n- [ ] `pnpm type-check` and `pnpm lint` pass",
-      "priority": "low",
-      "tags": [
-        "cli",
-        "ux",
-        "phase-3"
-      ]
-    },
-    {
-      "id": "5f3c5271-feea-4b29-ab11-83e12260c96a",
-      "title": "Phase 3.15: Docs sync and drift prevention",
-      "passes": true,
-      "overview": "Add automated docs generation from the command registry to prevent documentation drift.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Script generates `docs/cli.md` from command registry data",
-        "Generated docs include all resources, actions, flags, and examples",
-        "Stale/incorrect command references removed from docs",
-        "Script can be run as part of CI or pre-commit",
-        "`pnpm type-check` and `pnpm lint` pass"
-      ],
-      "references": [],
-      "description": "## Overview\n\nAdd automated docs generation from the command registry to prevent documentation drift.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## What to Build\n\n- Script to generate `docs/cli.md` command tables from registry metadata\n- Align/remove stale references to unsupported commands in existing docs\n- Could be a `brain-dump docs generate` command or standalone script\n\n## Files\n\n- **Create/modify:** Script or command for docs generation\n- **Modify:** `docs/cli.md` (auto-generated output)\n\n## Acceptance Criteria\n\n- [ ] Script generates `docs/cli.md` from command registry data\n- [ ] Generated docs include all resources, actions, flags, and examples\n- [ ] Stale/incorrect command references removed from docs\n- [ ] Script can be run as part of CI or pre-commit\n- [ ] `pnpm type-check` and `pnpm lint` pass",
-      "priority": "low",
-      "tags": [
-        "cli",
-        "docs",
-        "phase-3"
-      ]
-    },
-    {
-      "id": "15088e93-2da4-4bd6-94b0-a79f3a82a264",
-      "title": "Phase 0.3: CLI integration test harness",
-      "passes": true,
-      "overview": "Add spawn-based integration tests for CLI commands. Intentionally done after Phase 1 ships so command shapes are stable before locking them down.\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Test harness isolates data directory per test",
-        "Tests use `execFile` (no shell injection risk)",
-        "All Phase 1 commands have success-path tests",
-        "Validation failure tests for required flags",
-        "Dry-run tests for destructive actions",
-        "JSON output shape assertions",
-        "`pnpm test` includes and passes CLI tests"
-      ],
-      "references": [],
-      "description": "## Overview\n\nAdd spawn-based integration tests for CLI commands. Intentionally done after Phase 1 ships so command shapes are stable before locking them down.\n\n**Reference:** See \"CLI Plan Overview\" ticket (d09247c6) for the full plan.\n\n## What to Build\n\n### Test Infrastructure (`cli/__tests__/`)\n- Isolate XDG dirs per test via `BRAIN_DUMP_DATA_DIR` env var\n- Run `tsx cli/brain-dump.ts` with real args via `execFile` (no shell)\n- Assert exit codes, JSON output shape, and errors\n\n### Test Coverage\n- Success paths for all Phase 1 commands\n- Validation failures (missing required flags, invalid values)\n- Dry-run destructive flows (`project delete` without `--confirm`)\n- JSON shape consistency (output parses as valid JSON)\n\n## Files\n\n- **Create:** `cli/__tests__/` directory with test files\n\n## Acceptance Criteria\n\n- [ ] Test harness isolates data directory per test\n- [ ] Tests use `execFile` (no shell injection risk)\n- [ ] All Phase 1 commands have success-path tests\n- [ ] Validation failure tests for required flags\n- [ ] Dry-run tests for destructive actions\n- [ ] JSON output shape assertions\n- [ ] `pnpm test` includes and passes CLI tests",
+      "description": "**Shared feature branch** — Part of the Epic Detail Page epic. All tickets share one branch.\n\n## Goal\nCreate the main route page that assembles all epic detail components, and add navigation links from the sidebar and ticket detail page.\n\n## Files to Create\n\n### `src/routes/epic.$id.tsx` — Main route\n\nFollow `src/routes/ticket.$id.tsx` pattern exactly:\n\n**Route definition:**\n```ts\nexport const Route = createFileRoute(\"/epic/$id\")({\n  component: EpicDetailPage,\n  errorComponent: EpicDetailError,\n});\n```\n\n**Error component:** `EpicDetailError` — shows \"Epic Not Found\" with back navigation (same pattern as `TicketDetailError`)\n\n**Loading skeleton:** `EpicDetailSkeleton` — placeholder UI with pulse animation mimicking the page layout\n\n**Main component:** `EpicDetailPage` — assembles:\n1. Back navigation (useCanGoBack + router.history.back or fallback to /board)\n2. `EpicDetailHeader` — title, badges, git info, launch actions\n3. `EpicProgressOverview` — progress bar and status breakdown\n4. Content grid (2 columns):\n   - Left: `TicketDescription` (reused from `src/components/tickets/`) with `epic.description`\n   - Right: `EpicTicketsList` with tickets array\n5. `EpicLearnings` — collapsible learnings panel\n6. Footer with created date\n7. `EpicModal` (rendered conditionally for edit)\n\n**Data fetching:**\n- `useEpicDetail(id)` for all epic data\n- `useTickets({ epicId: id })` for launch actions (finding next non-done ticket)\n- `useSettings()` for terminal preferences\n- `useLaunchRalphForEpic()` for Ralph launches\n\n**State:**\n- `showEditModal` boolean\n- Launch state (isLaunching, notification — same pattern as EpicModal)\n\n**Cache invalidation:** After edit (onSave from EpicModal), invalidate `queryKeys.epicDetail(id)` and `queryKeys.projectsWithEpics`\n\n## Files to Modify\n\n### `src/components/navigation/EpicListItem.tsx` — Add detail link\n- Keep current `onSelect` click behavior (filters the board)\n- Add a secondary icon button (e.g., `ExternalLink` or `ArrowRight` from lucide-react) that navigates to `/epic/$id`\n- Use TanStack Router's `Link` component or `useNavigate`\n\n### `src/components/epics/index.ts` — Export new components\n- Add exports for: `EpicDetailHeader`, `EpicProgressOverview`, `EpicTicketsList`, `EpicLearnings`\n\n**Depends on:** All previous component tickets in this epic\n\n## Acceptance Criteria\n- [ ] Route `/epic/{id}` renders the full epic detail page\n- [ ] Loading skeleton shows during data fetch\n- [ ] Error page shows for invalid epic IDs\n- [ ] Back button navigates correctly (history or fallback)\n- [ ] All sections render with correct data\n- [ ] Edit modal opens and saves correctly\n- [ ] Launch actions work end-to-end\n- [ ] EpicListItem has secondary link to detail page\n- [ ] Barrel exports updated\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm lint` passes\n- [ ] `pnpm test` passes\n- [ ] Manual browser verification at localhost:4242\n\n## Branch Strategy\n**All tickets in this epic work on the same branch:**  (branched from `feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar`). Do NOT create a new branch — commit directly to this existing branch so all changes can be tested together before merging to feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar",
       "priority": "high",
       "tags": [
-        "cli",
-        "testing",
-        "phase-0"
+        "frontend",
+        "route",
+        "integration",
+        "epic-detail-page"
       ]
     }
   ],
@@ -645,7 +406,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-03-01T00:58:54.610Z",
-  "epicTitle": "CLI Robustness & Parity",
-  "epicDescription": "Make Brain Dump CLI a complete day-to-day interface that is robust, discoverable, and safe. Covers foundation work (context resolution, command registry, test harness), MCP parity additions (project, ticket, epic, review, session, telemetry), top-level power commands (open, init, status, search, context, log), and UX hardening (completions, help, docs sync). All work lives on one shared branch."
+  "generatedAt": "2026-03-03T07:03:17.053Z",
+  "epicTitle": "Epic Detail Page",
+  "epicDescription": "Add a dedicated Epic Detail page (`/epic/$id`) that provides a comprehensive view of an epic — its description, progress breakdown, associated tickets, learnings, and git/PR info. Currently epics are only viewable through modals and sidebar items with no consolidated detail view.\\n\\nAll tickets in this epic share a single feature branch."
 }

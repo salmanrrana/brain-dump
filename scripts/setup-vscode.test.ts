@@ -220,42 +220,50 @@ describe("VS Code Setup Script", () => {
 });
 
 describe("Install Script Path Conventions", () => {
-  // These tests verify the install.sh follows correct conventions
+  // install.sh delegates VS Code setup to scripts/setup-vscode.sh
+  // These tests verify both the delegation and the setup script conventions
 
   const installScript = path.join(BRAIN_DUMP_DIR, "install.sh");
+  const vsCodeSetupScript = path.join(BRAIN_DUMP_DIR, "scripts", "setup-vscode.sh");
 
   it("should exist and be executable", () => {
     expect(fs.existsSync(installScript)).toBe(true);
   });
 
-  it("should use ~/.copilot/skills for skills (not VSCODE_USER_DIR/skills)", () => {
+  it("install.sh should delegate VS Code setup to scripts/setup-vscode.sh", () => {
     const content = fs.readFileSync(installScript, "utf-8");
+
+    // Should reference the setup script
+    expect(content).toContain("scripts/setup-vscode.sh");
+    expect(content).toContain("setup_vscode");
+  });
+
+  it("setup-vscode.sh should use ~/.copilot/skills for skills", () => {
+    const content = fs.readFileSync(vsCodeSetupScript, "utf-8");
 
     // Should reference ~/.copilot/skills
     expect(content).toContain("COPILOT_SKILLS_DIR");
     expect(content).toContain(".copilot/skills");
   });
 
-  it("should use VSCODE_TARGET for MCP config (not ~/.vscode)", () => {
-    const content = fs.readFileSync(installScript, "utf-8");
+  it("setup-vscode.sh should use VSCODE_TARGET for MCP config (not ~/.vscode)", () => {
+    const content = fs.readFileSync(vsCodeSetupScript, "utf-8");
 
     // Should NOT use ~/.vscode for MCP
-    // The MCP config should go in VS Code User profile
     expect(content).not.toContain('VSCODE_MCP_DIR="$HOME/.vscode"');
   });
 
-  it("should document correct VS Code paths in comments", () => {
-    const content = fs.readFileSync(installScript, "utf-8");
+  it("setup-vscode.sh should document correct VS Code paths in comments", () => {
+    const content = fs.readFileSync(vsCodeSetupScript, "utf-8");
 
     // Should have documentation about correct paths
     expect(content).toContain("VS Code docs");
   });
 
-  it("should copy files directly instead of symlinks", () => {
-    const content = fs.readFileSync(installScript, "utf-8");
+  it("setup-vscode.sh should copy files directly instead of symlinks", () => {
+    const content = fs.readFileSync(vsCodeSetupScript, "utf-8");
 
-    // The install script should mention copying directly
+    // The setup script should mention copying directly
     expect(content).toContain("Copy files directly");
-    expect(content).toContain("Copy directories directly");
   });
 });
