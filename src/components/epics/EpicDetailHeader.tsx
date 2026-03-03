@@ -136,7 +136,7 @@ export function EpicDetailHeader({
         if (launchResult?.success) {
           showToast("success", `${launchResult.message} (Ticket: ${launchableTicket.title})`);
         } else {
-          showToast("error", launchResult.message);
+          showToast("error", launchResult?.message ?? "Launch failed");
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Failed to launch provider";
