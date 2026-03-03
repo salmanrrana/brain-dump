@@ -134,7 +134,7 @@ UI shows: Commit linked in ticket detail
 
 ## Hooks Explained
 
-Brain Dump installs 6 hooks to your Claude Code configuration:
+Brain Dump installs 10 hooks to your Claude Code configuration (telemetry is handled by MCP self-instrumentation, not hooks):
 
 ### `enforce-state-before-write.sh` (PreToolUse)
 
@@ -194,35 +194,9 @@ workflow tool, action: "link-pr", ...
 UI shows: "Commit abc12ef" linked in ticket
 ```
 
-### `start-telemetry-session.sh` (SessionStart)
+### Telemetry (MCP Self-Instrumentation)
 
-**When:** Claude Code session starts
-
-**Does:** Detects active ticket from `.claude/ralph-state.json`
-
-**Prompts:** "Call `telemetry "start"` to begin telemetry capture"
-
-**Why:** Background tracking of your tool usage and prompts
-
-### `end-telemetry-session.sh` (Stop)
-
-**When:** Claude Code session ends (you exit)
-
-**Does:**
-
-1. Flushes any pending telemetry events
-2. Calls `telemetry "end"` MCP tool
-3. Cleans up temp files
-
-**Why:** Finalizes the telemetry record in database
-
-### `log-prompt.sh` (UserPromptSubmit)
-
-**When:** You submit a prompt to Claude
-
-**Does:** Records your prompt (can be hashed for privacy)
-
-**Why:** Complete audit trail of what you asked Claude to do
+Telemetry is handled by the MCP server itself — no external hooks needed. The server instruments its own tool calls with start/end events, durations, and correlation IDs. Sessions auto-create when an active ticket is detected and auto-end on shutdown.
 
 ## Commands
 

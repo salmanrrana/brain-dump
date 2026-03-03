@@ -788,19 +788,11 @@ Common errors:
 
 ---
 
-## Telemetry Hooks
+## MCP Self-Telemetry
 
-Brain Dump includes optional Claude Code hooks that automatically capture telemetry:
+Telemetry is handled entirely by the MCP server's self-instrumentation — no external hooks needed.
 
-| Hook             | Type                         | Action                                            |
-| ---------------- | ---------------------------- | ------------------------------------------------- |
-| SessionStart     | `start-telemetry-session.sh` | Detects active ticket, prompts to start telemetry |
-| UserPromptSubmit | `log-prompt-telemetry.sh`    | Logs user prompts                                 |
-| PreToolUse       | `log-tool-telemetry.sh`      | Logs tool_start events                            |
-| PostToolUse      | `log-tool-telemetry.sh`      | Logs tool_end events with duration                |
-| Stop             | `end-telemetry-session.sh`   | Prompts to end telemetry session                  |
-
-To enable telemetry hooks, run `scripts/setup-claude-code.sh`.
+On each MCP tool invocation, the server logs a start event, executes the tool, then logs an end event with duration. Telemetry sessions auto-create when an active ticket is detected and auto-end on server shutdown.
 
 ### Privacy
 

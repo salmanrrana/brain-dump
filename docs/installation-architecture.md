@@ -87,21 +87,21 @@ flowchart TB
         S8["review-aggregation/"]
     end
 
-    Skills --> Agents["Copy Agents → ~/.claude/agents/"]
-    Agents --> Commands["Copy Commands → ~/.claude/commands/"]
+    Skills --> Commands["Copy Commands → ~/.claude/commands/"]
     Commands --> Done["Claude Code setup complete"]
 ```
 
 **Files created/modified:**
 
-| Location                  | File(s)                 | Purpose                                  |
-| ------------------------- | ----------------------- | ---------------------------------------- |
-| `~/.claude.json`          | MCP server registration | Tells Claude where the MCP server is     |
-| `~/.claude/settings.json` | Hook configuration      | Maps hooks to tool events                |
-| `~/.claude/hooks/`        | 24 shell scripts        | State enforcement, telemetry, automation |
-| `~/.claude/skills/`       | 8 skill directories     | Workflow guidance, TanStack patterns     |
-| `~/.claude/agents/`       | Agent definitions       | Ralph, review agents                     |
-| `~/.claude/commands/`     | Slash commands          | /next-task, /review-ticket, /demo, etc.  |
+| Location                  | File(s)                    | Purpose                                         |
+| ------------------------- | -------------------------- | ----------------------------------------------- |
+| `~/.claude.json`          | MCP server registration    | Tells Claude where the MCP server is            |
+| `~/.claude/settings.json` | Hook configuration         | Maps hooks to tool events                       |
+| `~/.claude/hooks/`        | 10 shell scripts + helpers | State enforcement, review gating, automation    |
+| `~/.claude/skills/`       | 3 skill directories        | brain-dump-workflow, review, review-aggregation |
+| `~/.claude/commands/`     | Slash commands             | /next-task, /review-ticket, /demo, etc.         |
+
+**Note:** Agent personas are inlined into commands (no separate `~/.claude/agents/` directory). Project-specific skills (react-best-practices, tanstack-\*, web-design-guidelines) live in each project's `.claude/skills/` directory. Telemetry is handled by MCP self-instrumentation (no telemetry hooks).
 
 ### VS Code (`scripts/setup-vscode.sh`)
 
@@ -244,46 +244,26 @@ graph TB
         CC_Settings["settings.json<br/>(hook event mappings)"]
         CC_JSON["~/.claude.json<br/>(MCP server registration)"]
 
-        subgraph CC_Hooks ["hooks/ (24 scripts)"]
+        subgraph CC_Hooks ["hooks/ (10 scripts)"]
             direction LR
             CCH1["enforce-state-before-write.sh"]
-            CCH2["enforce-session-before-work.sh"]
-            CCH3["enforce-review-before-push.sh"]
-            CCH4["create-pr-on-ticket-start.sh"]
-            CCH5["link-commit-to-ticket.sh"]
-            CCH6["spawn-next-ticket.sh"]
-            CCH7["spawn-after-pr.sh"]
-            CCH8["check-for-code-changes.sh"]
-            CCH9["mark-review-completed.sh"]
-            CCH10["start-telemetry-session.sh"]
-            CCH11["end-telemetry-session.sh"]
-            CCH12["log-tool-start.sh"]
-            CCH13["log-tool-end.sh"]
-            CCH14["log-tool-failure.sh"]
-            CCH15["log-prompt.sh"]
-            CCH16["log-prompt-telemetry.sh"]
-            CCH17["log-tool-telemetry.sh"]
-            CCH18["capture-claude-tasks.sh"]
-            CCH19["save-tasks-to-db.cjs"]
-            CCH20["record-state-change.sh"]
-            CCH21["detect-libraries.sh"]
-            CCH22["chain-extended-review.sh"]
-            CCH23["check-pending-links.sh"]
-            CCH24["clear-pending-links.sh"]
+            CCH2["enforce-review-before-push.sh"]
+            CCH3["link-commit-to-ticket.sh"]
+            CCH4["spawn-next-ticket.sh"]
+            CCH5["spawn-after-pr.sh"]
+            CCH6["check-for-code-changes.sh"]
+            CCH7["mark-review-completed.sh"]
+            CCH8["capture-claude-tasks.sh"]
+            CCH9["chain-extended-review.sh"]
+            CCH10["detect-libraries.sh"]
         end
 
-        subgraph CC_Skills ["skills/"]
+        subgraph CC_Skills ["skills/ (3 global)"]
             CCS1["brain-dump-workflow/"]
-            CCS2["tanstack-query/"]
-            CCS3["tanstack-mutations/"]
-            CCS4["tanstack-forms/"]
-            CCS5["tanstack-errors/"]
-            CCS6["tanstack-types/"]
-            CCS7["review/"]
-            CCS8["review-aggregation/"]
+            CCS2["review/"]
+            CCS3["review-aggregation/"]
         end
 
-        CC_Agents["agents/"]
         CC_Commands["commands/"]
     end
 

@@ -8,6 +8,7 @@
  *
  * @module tools/workflow
  */
+import { execFileSync } from "child_process";
 import { z } from "zod";
 import { log } from "../lib/logging.js";
 import { mcpError } from "../lib/mcp-response.ts";
@@ -16,13 +17,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type Database from "better-sqlite3";
 import { CoreError } from "../../core/errors.ts";
 import { startWork, completeWork, startEpicWork } from "../../core/workflow.ts";
-import { linkCommit, linkPr, syncTicketLinks } from "../../core/git.ts";
+import { linkCommit, linkPr, syncTicketLinks, checkUnlinkedItems } from "../../core/git.ts";
 import type { PrStatus } from "../../core/types.ts";
 import { createRealGitOperations, shortId } from "../../core/git-utils.ts";
-import type { StartWorkResult, CompleteWorkResult, StartEpicWorkResult } from "../../core/types.ts";
+import type { StartWorkResult, StartEpicWorkResult } from "../../core/types.ts";
 
 // MCP-layer presentation imports
-import { getActiveTelemetrySession, logMcpCallEvent } from "../lib/telemetry-self-log.js";
 import { loadTicketAttachments, buildAttachmentContextSection } from "../lib/attachment-loader.js";
 import { fetchTicketComments, buildCommentsSection } from "../lib/comment-utils.js";
 import { updatePrdForTicket } from "../lib/prd-utils.js";
@@ -57,15 +57,54 @@ export function registerWorkflowTool(
     "workflow",
     `Manage ticket and epic work lifecycle in Brain Dump.
 
-### start-work - Start ticket work (creates branch, sets in_progress, returns context)
-### complete-work - Complete implementation, move to ai_review, post summary
-### start-epic - Start epic work (creates shared branch for all tickets)
-### link-commit - Link a git commit to a ticket
-### link-pr - Link a GitHub PR to a ticket (also syncs PR statuses project-wide)
-### sync-links - Auto-discover and link commits/PRs from Ralph state or branch name`,
+## Actions
+
+### start-work
+Start working on a ticket. Creates git branch, sets status to in_progress, returns ticket context.
+Required params: ticketId
+Optional params: autoPr
+
+### complete-work
+Complete implementation and move ticket to ai_review. Posts work summary, updates PRD.
+Required params: ticketId
+Optional params: summary
+
+### start-epic
+Start working on an epic. Creates shared git branch for all tickets in the epic.
+Required params: epicId
+Optional params: createPr
+
+### link-commit
+Link a git commit to a ticket. Tracks which commits belong to which ticket.
+Required params: ticketId, commitHash
+Optional params: commitMessage
+
+### link-pr
+Link a GitHub PR to a ticket. Also triggers PR status sync for all tickets in the project.
+Required params: ticketId, prNumber
+Optional params: prUrl, prStatus
+
+### sync-links
+Auto-discover and link commits and PRs to the active ticket from Ralph state or branch name.
+Optional params: projectPath
+
+## Parameters
+- action: (required) The operation to perform
+- ticketId: Ticket ID. Required for: start-work, complete-work, link-commit, link-pr
+- autoPr: Create draft PR automatically when starting work (default: false). Optional for: start-work
+- epicId: Epic ID. Required for: start-epic
+- summary: Work summary. Optional for: complete-work
+- createPr: Create a draft PR immediately (default: false). Optional for: start-epic
+- commitHash: Git commit hash. Required for: link-commit
+- commitMessage: Commit message. Optional for: link-commit
+- prNumber: GitHub PR number. Required for: link-pr
+- prUrl: Full PR URL. Optional for: link-pr
+- prStatus: PR status (draft, open, merged, closed). Optional for: link-pr
+- projectPath: Project path for auto-detection. Optional for: sync-links`,
     {
       action: z.enum(ACTIONS).describe("The operation to perform"),
       ticketId: z.string().optional().describe("Ticket ID"),
+      autoPr: z.boolean().optional().describe("Create draft PR automatically (default: false)"),
       epicId: z.string().optional().describe("Epic ID"),
       summary: z.string().optional().describe("Work summary"),
       createPr: z.boolean().optional().describe("Create draft PR (default: false)"),
@@ -79,6 +118,7 @@ export function registerWorkflowTool(
     async (params: {
       action: (typeof ACTIONS)[number];
       ticketId?: string | undefined;
+      autoPr?: boolean | undefined;
       epicId?: string | undefined;
       summary?: string | undefined;
       createPr?: boolean | undefined;
@@ -197,45 +237,23 @@ function handleStartWork(
   db: Database.Database,
   git: ReturnType<typeof createRealGitOperations>,
   detectEnvironment: () => string,
-  params: { ticketId?: string | undefined }
+  params: { ticketId?: string | undefined; autoPr?: boolean | undefined }
 ) {
   const ticketId = requireParam(params.ticketId, "ticketId", "start-work");
 
-  // Telemetry self-logging (for non-hook environments)
-  const telemetrySession = getActiveTelemetrySession(db, ticketId);
-  let correlationId: string | null = null;
-  const startTime = Date.now();
-  if (telemetrySession) {
-    correlationId = logMcpCallEvent(db, {
-      sessionId: telemetrySession.id,
-      ticketId: telemetrySession.ticket_id,
-      event: "start",
-      toolName: "start_ticket_work",
-      params: { ticketId },
-    });
-  }
-
-  let result: StartWorkResult;
-  try {
-    result = startWork(db, ticketId, git);
-  } catch (err) {
-    if (telemetrySession && correlationId) {
-      logMcpCallEvent(db, {
-        sessionId: telemetrySession.id,
-        ticketId: telemetrySession.ticket_id,
-        event: "end",
-        toolName: "start_ticket_work",
-        correlationId,
-        success: false,
-        durationMs: Date.now() - startTime,
-        error: err instanceof Error ? err.message : "Unknown error",
-      });
-    }
-    throw err;
-  }
+  const result = startWork(db, ticketId, git);
 
   const ticket = result.ticket;
   const parseWarnings: string[] = [];
+
+  // Auto-PR creation when autoPr: true
+  let autoPrInfo = "";
+  if (params.autoPr) {
+    autoPrInfo = createAutoPr(db, ticket, result.branch, parseWarnings);
+  }
+
+  // Check for unlinked commits/PRs on the branch (absorbs check-pending-links.sh hook)
+  const unlinkedItemsInfo = formatUnlinkedItems(db, ticketId, ticket.project.path);
 
   // Parse acceptance criteria from subtasks
   let acceptanceCriteria: string[] = ["Complete the implementation as described"];
@@ -282,9 +300,17 @@ function handleStartWork(
   // Create conversation session for compliance logging
   const environment = detectEnvironment();
   const sessionResult = createConversationSession(db, ticketId, ticket.projectId, environment);
-  const sessionInfo = sessionResult.success
+  let sessionInfo = sessionResult.success
     ? `**Conversation Session:** \`${sessionResult.sessionId}\` (auto-created for compliance logging)`
     : `**Warning:** Compliance logging failed: ${sessionResult.error}. Work may not be logged for audit.`;
+
+  if (autoPrInfo) {
+    sessionInfo += `\n${autoPrInfo}`;
+  }
+
+  if (unlinkedItemsInfo) {
+    sessionInfo += `\n\n${unlinkedItemsInfo}`;
+  }
 
   // Build epic info if available
   let epicInfo: { title: string; branchName: string; prUrl?: string | undefined } | undefined;
@@ -323,19 +349,6 @@ function handleStartWork(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- buildTicketContextContent returns local ContentBlock[] with type:string, but MCP SDK expects literal type:"text"
   const content = buildTicketContextContent(contextParams, attachmentBlocks) as any;
 
-  // Log successful completion to telemetry
-  if (telemetrySession && correlationId) {
-    logMcpCallEvent(db, {
-      sessionId: telemetrySession.id,
-      ticketId: telemetrySession.ticket_id,
-      event: "end",
-      toolName: "start_ticket_work",
-      correlationId,
-      success: true,
-      durationMs: Date.now() - startTime,
-    });
-  }
-
   log.info(`Started work on ticket ${ticketId}: branch ${result.branch}`);
   return { content };
 }
@@ -352,38 +365,7 @@ function handleCompleteWork(
 ) {
   const ticketId = requireParam(params.ticketId, "ticketId", "complete-work");
 
-  // Telemetry self-logging
-  const telemetrySession = getActiveTelemetrySession(db, ticketId);
-  let correlationId: string | null = null;
-  const startTime = Date.now();
-  if (telemetrySession) {
-    correlationId = logMcpCallEvent(db, {
-      sessionId: telemetrySession.id,
-      ticketId: telemetrySession.ticket_id,
-      event: "start",
-      toolName: "complete_ticket_work",
-      params: { ticketId, summary: params.summary ? "[provided]" : undefined },
-    });
-  }
-
-  let result: CompleteWorkResult;
-  try {
-    result = completeWork(db, ticketId, git, params.summary);
-  } catch (err) {
-    if (telemetrySession && correlationId) {
-      logMcpCallEvent(db, {
-        sessionId: telemetrySession.id,
-        ticketId: telemetrySession.ticket_id,
-        event: "end",
-        toolName: "complete_ticket_work",
-        correlationId,
-        success: false,
-        durationMs: Date.now() - startTime,
-        error: err instanceof Error ? err.message : "Unknown error",
-      });
-    }
-    throw err;
-  }
+  const result = completeWork(db, ticketId, git, params.summary);
 
   // Get project path for PRD update
   const ticketRow = db
@@ -531,19 +513,6 @@ ${prDescription}
 
   const responseText = sections.join("\n\n---\n\n");
 
-  // Log successful completion to telemetry
-  if (telemetrySession && correlationId) {
-    logMcpCallEvent(db, {
-      sessionId: telemetrySession.id,
-      ticketId: telemetrySession.ticket_id,
-      event: "end",
-      toolName: "complete_ticket_work",
-      correlationId,
-      success: true,
-      durationMs: Date.now() - startTime,
-    });
-  }
-
   log.info(`Completed implementation on ticket ${ticketId}, moved to ai_review`);
   return {
     content: [{ type: "text" as const, text: responseText }],
@@ -628,4 +597,193 @@ Use \`workflow({ action: "start-work", ticketId: "..." })\` to begin work on any
       },
     ],
   };
+}
+
+// ============================================
+// Unlinked Items Helper
+// ============================================
+
+/**
+ * Check for unlinked commits/PRs on the branch and format a markdown section.
+ * Non-fatal: returns empty string on any error.
+ */
+function formatUnlinkedItems(db: Database.Database, ticketId: string, projectPath: string): string {
+  try {
+    const unlinked = checkUnlinkedItems(db, ticketId, projectPath);
+    if (!unlinked.hasUnlinkedItems) return "";
+
+    const parts: string[] = [];
+
+    if (unlinked.unlinkedCommits.length > 0) {
+      parts.push(`**${unlinked.unlinkedCommits.length} unlinked commit(s):**`);
+      for (const c of unlinked.unlinkedCommits.slice(0, 5)) {
+        parts.push(`  - \`${c.hash}\` ${c.message}`);
+      }
+      if (unlinked.unlinkedCommits.length > 5) {
+        parts.push(`  - ... and ${unlinked.unlinkedCommits.length - 5} more`);
+      }
+    }
+
+    if (unlinked.unlinkedPr) {
+      const urlSuffix = unlinked.unlinkedPr.url ? ` (${unlinked.unlinkedPr.url})` : "";
+      parts.push(`**Unlinked PR:** #${unlinked.unlinkedPr.number}${urlSuffix}`);
+    }
+
+    log.info(
+      `Found unlinked items for ticket ${ticketId}: ${unlinked.unlinkedCommits.length} commits, PR: ${unlinked.unlinkedPr?.number ?? "none"}`
+    );
+
+    return [
+      "### Unlinked Items Detected",
+      parts.join("\n"),
+      "",
+      'Call `workflow({ action: "sync-links" })` to link them to this ticket.',
+    ].join("\n");
+  } catch (err) {
+    log.error(
+      `Failed to check unlinked items for ticket ${ticketId}: ${err instanceof Error ? err.message : String(err)}`
+    );
+    return "";
+  }
+}
+
+// ============================================
+// Auto-PR Helper
+// ============================================
+
+/** Run a command safely using execFileSync (no shell interpretation). */
+function safeExec(
+  command: string,
+  args: string[],
+  cwd: string
+): { success: boolean; output: string; error?: string } {
+  try {
+    const output = execFileSync(command, args, {
+      cwd,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    return { success: true, output: output.trim() };
+  } catch (error) {
+    const err = error as { stderr?: string; message: string };
+    return { success: false, output: "", error: err.stderr?.trim() || err.message };
+  }
+}
+
+/**
+ * Create a draft PR for a ticket after starting work.
+ * Absorbs the logic from the `create-pr-on-ticket-start.sh` hook.
+ *
+ * Steps: check gh available → check no existing PR → WIP commit → push → create PR → link PR.
+ * All failures are non-fatal (warnings added, empty string returned).
+ *
+ * Uses execFileSync (argument arrays) instead of shell strings to prevent
+ * command injection from ticket titles containing shell metacharacters.
+ */
+function createAutoPr(
+  db: Database.Database,
+  ticket: StartWorkResult["ticket"],
+  branchName: string,
+  warnings: string[]
+): string {
+  const projectPath = ticket.project.path;
+  const ticketShortId = shortId(ticket.id);
+
+  // 1. Check if gh CLI is available
+  const ghCheck = safeExec("gh", ["--version"], projectPath);
+  if (!ghCheck.success) {
+    warnings.push(
+      "autoPr: `gh` CLI not found. Skipping auto-PR creation. Install GitHub CLI to enable this feature."
+    );
+    return "";
+  }
+
+  // 2. Check if a PR already exists for this branch
+  const existingPr = safeExec(
+    "gh",
+    ["pr", "view", branchName, "--json", "number,url"],
+    projectPath
+  );
+  if (existingPr.success && existingPr.output) {
+    try {
+      const prData = JSON.parse(existingPr.output) as { number?: number; url?: string };
+      if (prData.number) {
+        // Link existing PR to ticket
+        try {
+          linkPr(db, ticket.id, prData.number, prData.url, "draft");
+        } catch {
+          // Non-fatal
+        }
+        return `**Existing PR:** #${prData.number} (${prData.url || "no URL"}) — linked to ticket`;
+      }
+    } catch {
+      // Parse failed, proceed to create new PR
+    }
+  }
+
+  // 3. Create empty WIP commit
+  const commitMessage = `feat(${ticketShortId}): WIP - ${ticket.title}`;
+  const commitResult = safeExec(
+    "git",
+    ["commit", "--allow-empty", "-m", commitMessage],
+    projectPath
+  );
+  if (!commitResult.success) {
+    warnings.push(`autoPr: Failed to create WIP commit: ${commitResult.error}`);
+    return "";
+  }
+
+  // 4. Push branch to remote
+  const pushResult = safeExec("git", ["push", "-u", "origin", branchName], projectPath);
+  if (!pushResult.success) {
+    warnings.push(`autoPr: Failed to push branch: ${pushResult.error}`);
+    return "";
+  }
+
+  // 5. Create draft PR
+  const prTitle = `feat(${ticketShortId}): ${ticket.title}`;
+  const prBody = [
+    "## Summary",
+    `Work in progress for ticket: ${ticket.id}`,
+    "",
+    `**${ticket.title}**`,
+    "",
+    "---",
+    "_This PR was auto-created when work started on the ticket._",
+    "_Draft status will be removed when the ticket is complete._",
+  ].join("\n");
+  const prResult = safeExec(
+    "gh",
+    ["pr", "create", "--draft", "--title", prTitle, "--body", prBody],
+    projectPath
+  );
+
+  if (!prResult.success) {
+    warnings.push(`autoPr: Failed to create draft PR: ${prResult.error}`);
+    return "";
+  }
+
+  // 6. Extract PR number and URL from output
+  const prUrl = prResult.output.trim().split("\n").pop() || "";
+  const prNumberMatch = prUrl.match(/\/pull\/(\d+)/);
+  if (!prNumberMatch) {
+    warnings.push(
+      `autoPr: PR created but could not parse PR number from output: ${prResult.output}`
+    );
+    return "";
+  }
+
+  const prNumber = parseInt(prNumberMatch[1]!, 10);
+
+  // 7. Link PR to ticket via core function
+  try {
+    linkPr(db, ticket.id, prNumber, prUrl, "draft");
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : "Unknown error";
+    warnings.push(`autoPr: PR #${prNumber} created but failed to link: ${errMsg}`);
+    return `**Draft PR Created:** #${prNumber} (${prUrl}) — link failed, use \`workflow({ action: "link-pr", ticketId: "${ticket.id}", prNumber: ${prNumber} })\` to link manually`;
+  }
+
+  log.info(`Auto-created draft PR #${prNumber} for ticket ${ticket.id}: ${prUrl}`);
+  return `**Draft PR Created:** #${prNumber} (${prUrl}) — linked to ticket`;
 }

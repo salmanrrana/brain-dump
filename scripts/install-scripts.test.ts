@@ -134,10 +134,7 @@ describe("mktemp portability hardening", () => {
     expect(script).toContain('mktemp "${TMPDIR:-/tmp}/pending-links.XXXXXX"');
   });
 
-  it("merge-telemetry-hooks uses portable mktemp template syntax", () => {
-    const script = readScript(".claude/hooks/merge-telemetry-hooks.sh");
-    expect(script).toContain('mktemp "${TMPDIR:-/tmp}/claude-settings.XXXXXX"');
-  });
+  // merge-telemetry-hooks.sh was absorbed into MCP self-telemetry (ticket 6.4)
 });
 
 describe("setup-claude-code.sh hook merge behavior", () => {
