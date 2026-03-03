@@ -40,10 +40,12 @@ COMMANDS_TARGET="$CURSOR_CONFIG_DIR/commands"
 
 # Source directories in brain-dump
 AGENTS_SOURCE="$BRAIN_DUMP_DIR/.github/agents"
-SKILLS_SOURCE_GITHUB="$BRAIN_DUMP_DIR/.github/skills"
 SKILLS_SOURCE_CLAUDE="$BRAIN_DUMP_DIR/.claude/skills"
 COMMANDS_SOURCE="$BRAIN_DUMP_DIR/.claude/commands"
 
+# =============================================================================
+# Step 1: Configure MCP Server
+# =============================================================================
 echo ""
 echo -e "${BLUE}Step 1: Configure MCP Server${NC}"
 echo "─────────────────────────────"
@@ -114,6 +116,9 @@ EOF
     echo -e "${GREEN}Created mcp.json${NC}"
 fi
 
+# =============================================================================
+# Step 2: Configure Subagents (global)
+# =============================================================================
 echo ""
 echo -e "${BLUE}Step 2: Configure Subagents (global)${NC}"
 echo "───────────────────────────────────────────"
@@ -128,7 +133,7 @@ if [ -d "$AGENTS_SOURCE" ]; then
             # Convert .agent.md to .md for Cursor
             agent_name=$(basename "$agent_file" .agent.md)
             target_path="$AGENTS_TARGET/$agent_name.md"
-            
+
             # Copy files directly (Cursor may not follow symlinks)
             if [ -f "$target_path" ]; then
                 if ! cmp -s "$agent_file" "$target_path"; then
@@ -143,74 +148,75 @@ if [ -d "$AGENTS_SOURCE" ]; then
             fi
         fi
     done
-    
+
+    # Clean up previously-installed review/utility agents (now inlined into commands)
+    STALE_AGENTS=("code-reviewer.md" "silent-failure-hunter.md" "code-simplifier.md" "context7-library-compliance.md" "react-best-practices.md" "cruft-detector.md" "senior-engineer.md" "inception.md")
+    for stale in "${STALE_AGENTS[@]}"; do
+        if [ -f "$AGENTS_TARGET/$stale" ]; then
+            rm "$AGENTS_TARGET/$stale"
+            echo -e "${YELLOW}Removed legacy agent: $stale${NC}"
+        fi
+    done
+
     echo -e "${GREEN}Subagents installed:${NC}"
     ls "$AGENTS_TARGET"/*.md 2>/dev/null | xargs -I {} basename {} | sed 's/^/  • /' || echo "  (none)"
 else
     echo -e "${YELLOW}No agents found in Brain Dump (.github/agents/)${NC}"
 fi
 
+# =============================================================================
+# Step 3: Configure Skills (global)
+# =============================================================================
 echo ""
-echo -e "${BLUE}Step 3: Configure Skills${NC}"
-echo "─────────────────────────"
+echo -e "${BLUE}Step 3: Configure Skills (global)${NC}"
+echo "──────────────────────────────────"
 echo -e "${YELLOW}Location:${NC} $SKILLS_TARGET/"
-echo -e "${YELLOW}Note:${NC} Per Cursor docs, global skills go to ~/.cursor/skills/"
+echo -e "${YELLOW}Note:${NC} Only workflow-essential skills installed globally"
 
-# Copy skills from .github/skills
-if [ -d "$SKILLS_SOURCE_GITHUB" ]; then
+# Only install 3 global skills from .claude/skills/
+# Project-specific skills (tanstack-*, brain-dump-tickets, etc.) stay local
+GLOBAL_SKILLS=("brain-dump-workflow" "review" "review-aggregation")
+
+if [ -d "$SKILLS_SOURCE_CLAUDE" ]; then
     mkdir -p "$SKILLS_TARGET"
-    for skill_dir in "$SKILLS_SOURCE_GITHUB"/*/; do
+    for skill_name in "${GLOBAL_SKILLS[@]}"; do
+        skill_dir="$SKILLS_SOURCE_CLAUDE/$skill_name"
         if [ -d "$skill_dir" ]; then
-            skill_name=$(basename "$skill_dir")
             target_path="$SKILLS_TARGET/$skill_name"
-            # Copy directories directly (Cursor may not follow symlinks)
-            if [ -d "$target_path" ]; then
-                if ! diff -rq "$skill_dir" "$target_path" >/dev/null 2>&1; then
-                    rm -rf "$target_path"
-                    cp -r "$skill_dir" "$target_path"
-                    echo -e "${GREEN}Updated: $skill_name${NC}"
-                else
-                    echo -e "${YELLOW}Exists: $skill_name${NC}"
-                fi
-            else
-                [ -L "$target_path" ] && rm "$target_path"
-                cp -r "$skill_dir" "$target_path"
-                echo -e "${GREEN}Added: $skill_name${NC}"
-            fi
+            rm -rf "$target_path"
+            cp -r "$skill_dir" "$target_path"
+            echo -e "${GREEN}Installed: $skill_name${NC}"
+        else
+            echo -e "${YELLOW}Not found: $skill_name${NC}"
         fi
     done
 else
-    echo -e "${YELLOW}No skills found in Brain Dump (.github/skills/)${NC}"
+    echo -e "${YELLOW}No skills found in Brain Dump (.claude/skills/)${NC}"
 fi
 
-# Also copy skills from .claude/skills (review, review-aggregation)
-if [ -d "$SKILLS_SOURCE_CLAUDE" ]; then
-    mkdir -p "$SKILLS_TARGET"
-    for skill_dir in "$SKILLS_SOURCE_CLAUDE"/*/; do
-        if [ -d "$skill_dir" ]; then
-            skill_name=$(basename "$skill_dir")
-            target_path="$SKILLS_TARGET/$skill_name"
-            # Copy directories directly (Cursor may not follow symlinks)
-            if [ -d "$target_path" ]; then
-                if ! diff -rq "$skill_dir" "$target_path" >/dev/null 2>&1; then
-                    rm -rf "$target_path"
-                    cp -r "$skill_dir" "$target_path"
-                    echo -e "${GREEN}Updated: $skill_name${NC}"
-                else
-                    echo -e "${YELLOW}Exists: $skill_name${NC}"
-                fi
-            else
-                [ -L "$target_path" ] && rm "$target_path"
-                cp -r "$skill_dir" "$target_path"
-                echo -e "${GREEN}Added: $skill_name${NC}"
-            fi
-        fi
-    done
-fi
+# Clean up previously-installed project-specific skills
+STALE_SKILLS=("tanstack-errors" "tanstack-forms" "tanstack-mutations" "tanstack-query" "tanstack-types" "brain-dump-tickets" "ralph-workflow" "react-best-practices" "web-design-guidelines")
+for stale in "${STALE_SKILLS[@]}"; do
+    stale_path="$SKILLS_TARGET/$stale"
+    if [ -d "$stale_path" ] || [ -f "$stale_path" ]; then
+        rm -rf "$stale_path"
+        echo -e "${YELLOW}Removed legacy skill: $stale${NC}"
+    fi
+done
+# Also clean up standalone skill files (e.g., brain-dump-workflow.skill.md)
+for stale_file in "$SKILLS_TARGET"/*.skill.md; do
+    if [ -f "$stale_file" ]; then
+        rm "$stale_file"
+        echo -e "${YELLOW}Removed legacy skill file: $(basename "$stale_file")${NC}"
+    fi
+done
 
-echo -e "${GREEN}Skills installed:${NC}"
+echo -e "${GREEN}Global skills installed:${NC}"
 ls -d "$SKILLS_TARGET"/*/ 2>/dev/null | xargs -I {} basename {} | sed 's/^/  • /' || echo "  (none)"
 
+# =============================================================================
+# Step 4: Configure Commands
+# =============================================================================
 echo ""
 echo -e "${BLUE}Step 4: Configure Commands${NC}"
 echo "──────────────────────────────"
@@ -243,67 +249,32 @@ else
     echo -e "${YELLOW}No commands found in Brain Dump (.claude/commands/)${NC}"
 fi
 
-echo ""
-echo -e "${BLUE}Step 5: Configure Telemetry Hooks${NC}"
-echo "────────────────────────────────"
-echo -e "${YELLOW}Location:${NC} ~/.cursor/hooks/"
-
-HOOKS_SOURCE="$BRAIN_DUMP_DIR/.cursor/hooks"
+# Clean up legacy telemetry hooks if they exist from previous installs
 HOOKS_TARGET="$HOME/.cursor/hooks"
 HOOKS_CONFIG="$CURSOR_CONFIG_DIR/hooks.json"
-
-if [ -d "$HOOKS_SOURCE" ]; then
-    mkdir -p "$HOOKS_TARGET"
-
-    # Copy hook scripts
-    for hook_file in "$HOOKS_SOURCE"/*.sh; do
-        if [ -f "$hook_file" ]; then
-            hook_name=$(basename "$hook_file")
-            target_path="$HOOKS_TARGET/$hook_name"
-
-            if [ -f "$target_path" ]; then
-                if ! cmp -s "$hook_file" "$target_path"; then
-                    cp "$hook_file" "$target_path"
-                    chmod +x "$target_path"
-                    echo -e "${GREEN}Updated: $hook_name${NC}"
-                else
-                    echo -e "${YELLOW}Exists: $hook_name${NC}"
-                fi
-            else
-                cp "$hook_file" "$target_path"
-                chmod +x "$target_path"
-                echo -e "${GREEN}Added: $hook_name${NC}"
-            fi
+if [ -d "$HOOKS_TARGET" ]; then
+    for old_hook in start-telemetry.sh end-telemetry.sh log-tool.sh log-tool-failure.sh log-prompt.sh; do
+        if [ -f "$HOOKS_TARGET/$old_hook" ]; then
+            rm "$HOOKS_TARGET/$old_hook"
+            echo -e "${YELLOW}Removed legacy telemetry hook: $old_hook${NC}"
         fi
     done
-
-    # Copy or merge hooks.json config
-    if [ -f "$BRAIN_DUMP_DIR/.cursor/hooks.json" ]; then
-        if [ -f "$HOOKS_CONFIG" ]; then
-            echo -e "${YELLOW}Existing hooks.json found. Checking for telemetry hooks...${NC}"
-            if grep -q "start-telemetry" "$HOOKS_CONFIG"; then
-                echo -e "${GREEN}Telemetry hooks already configured.${NC}"
-            else
-                echo -e "${YELLOW}Note: Telemetry hooks template available at:${NC}"
-                echo "  $BRAIN_DUMP_DIR/.cursor/hooks.json"
-                echo ""
-                echo -e "${YELLOW}Merge manually or use:${NC}"
-                echo "  cp $BRAIN_DUMP_DIR/.cursor/hooks.json $HOOKS_CONFIG"
-            fi
-        else
-            cp "$BRAIN_DUMP_DIR/.cursor/hooks.json" "$HOOKS_CONFIG"
-            echo -e "${GREEN}Created: hooks.json${NC}"
-        fi
+    # Remove hooks dir if empty
+    rmdir "$HOOKS_TARGET" 2>/dev/null || true
+fi
+# Remove legacy hooks.json if it references telemetry
+if [ -f "$HOOKS_CONFIG" ]; then
+    if grep -q "start-telemetry" "$HOOKS_CONFIG" 2>/dev/null; then
+        rm "$HOOKS_CONFIG"
+        echo -e "${YELLOW}Removed legacy hooks.json (telemetry hooks)${NC}"
     fi
-
-    echo -e "${GREEN}Telemetry hooks installed:${NC}"
-    ls "$HOOKS_TARGET"/*.sh 2>/dev/null | xargs -I {} basename {} | sed 's/^/  • /' || echo "  (none)"
-else
-    echo -e "${YELLOW}Telemetry hooks not found in Brain Dump (.cursor/hooks/)${NC}"
 fi
 
+# =============================================================================
+# Step 5: Configure Project Rules
+# =============================================================================
 echo ""
-echo -e "${BLUE}Step 6: Configure Project Rules${NC}"
+echo -e "${BLUE}Step 5: Configure Project Rules${NC}"
 echo "────────────────────────────────"
 echo -e "${YELLOW}Location:${NC} .cursor/rules/"
 
@@ -315,24 +286,9 @@ else
     echo -e "${YELLOW}No project rules found in .cursor/rules/${NC}"
 fi
 
-echo ""
-echo -e "${BLUE}Step 7: Configure Project Skills${NC}"
-echo "────────────────────────────────"
-echo -e "${YELLOW}Location:${NC} .cursor/skills/"
-
-PROJECT_SKILLS="$BRAIN_DUMP_DIR/.cursor/skills"
-if [ -d "$PROJECT_SKILLS" ] && [ "$(ls -A "$PROJECT_SKILLS" 2>/dev/null)" ]; then
-    echo -e "${GREEN}Workflow skills present at $PROJECT_SKILLS:${NC}"
-    for skill_dir in "$PROJECT_SKILLS"/*/; do
-        if [ -d "$skill_dir" ]; then
-            skill_name=$(basename "$skill_dir")
-            echo "  • $skill_name"
-        fi
-    done
-else
-    echo -e "${YELLOW}No project skills found in .cursor/skills/${NC}"
-fi
-
+# =============================================================================
+# Step 6: Summary
+# =============================================================================
 echo ""
 echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║                    Setup Complete!                         ║${NC}"
@@ -341,27 +297,17 @@ echo ""
 echo -e "${BLUE}What's been configured:${NC}"
 echo ""
 echo -e "  ${GREEN}MCP Server:${NC}"
-echo "    • brain-dump (ticket management tools)"
+echo "    • brain-dump (ticket management, workflow, review, telemetry)"
 echo ""
 echo -e "  ${GREEN}Subagents (~/.cursor/agents/):${NC}"
 echo "    • ralph - Autonomous coding agent"
 echo "    • ticket-worker - Interactive ticket implementation"
 echo "    • planner - Create implementation plans and tickets"
-echo "    • code-reviewer - Automated code review"
-echo "    • silent-failure-hunter - Find error handling issues"
-echo "    • code-simplifier - Simplify and refine code"
-echo "    • inception - Start new projects"
-echo "    • context7-library-compliance - Verify library usage"
-echo "    • react-best-practices - React/Next.js patterns"
-echo "    • cruft-detector - Find unnecessary code"
-echo "    • senior-engineer - Synthesize review findings"
 echo ""
 echo -e "  ${GREEN}Skills (~/.cursor/skills/):${NC}"
-echo "    • brain-dump-tickets - Ticket management workflows"
-echo "    • ralph-workflow - Autonomous workflow patterns"
+echo "    • brain-dump-workflow - Universal quality workflow"
 echo "    • review - Code review pipeline"
 echo "    • review-aggregation - Combine review findings"
-echo "    • tanstack-* - TanStack library patterns (errors, forms, mutations, query, types)"
 echo ""
 echo -e "  ${GREEN}Commands (~/.cursor/commands/):${NC}"
 echo "    • /review - Run initial code review (3 agents)"
@@ -369,20 +315,15 @@ echo "    • /extended-review - Run extended review (4 agents)"
 echo "    • /inception - Start new project"
 echo "    • /breakdown - Break down features"
 echo ""
-echo -e "  ${GREEN}Telemetry Hooks (~/.cursor/hooks/):${NC}"
-echo "    • start-telemetry.sh - Track session start"
-echo "    • end-telemetry.sh - Track session end"
-echo "    • log-tool.sh - Track tool usage"
-echo "    • log-tool-failure.sh - Track tool failures"
-echo "    • log-prompt.sh - Track prompts submitted"
+echo -e "  ${GREEN}Telemetry:${NC}"
+echo "    • MCP self-instrumentation (no hooks needed)"
+echo "    • Session tracking, tool usage, and prompts captured by MCP server"
 echo ""
 echo -e "${BLUE}Configuration Locations:${NC}"
-echo "  • MCP:      $MCP_CONFIG_FILE"
+echo "  • MCP:       $MCP_CONFIG_FILE"
 echo "  • Subagents: $AGENTS_TARGET/ (global, all projects)"
-echo "  • Skills:   $SKILLS_TARGET/ (global, all projects)"
-echo "  • Commands: $COMMANDS_TARGET/ (global, all projects)"
-echo "  • Hooks:    $HOOKS_CONFIG (telemetry, auto-triggers)"
-echo "  • Hook Scripts: $HOOKS_TARGET/ (global, all projects)"
+echo "  • Skills:    $SKILLS_TARGET/ (global, all projects)"
+echo "  • Commands:  $COMMANDS_TARGET/ (global, all projects)"
 echo ""
 echo -e "${BLUE}Using Brain Dump in Cursor:${NC}"
 echo "  After restarting Cursor, you can:"
@@ -403,7 +344,8 @@ echo ""
 echo -e "${BLUE}Next steps:${NC}"
 echo "  1. Restart Cursor to load the MCP server and configurations"
 echo "  2. Open any project and try: @ralph or /review"
-echo "  3. Use MCP tools: Ask Agent to 'list my Brain Dump projects'"
+echo "  3. Telemetry is handled automatically by MCP self-instrumentation"
 echo ""
-echo -e "${YELLOW}Note:${NC} Make sure Brain Dump is running at least once to initialize the database."
+echo -e "${YELLOW}Note:${NC} Make sure Brain Dump's MCP server is built:"
+echo "  cd $BRAIN_DUMP_DIR && pnpm build"
 echo ""

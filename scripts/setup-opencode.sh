@@ -5,7 +5,7 @@
 # This script:
 # 1. Detects OpenCode installation
 # 2. Configures the Brain Dump MCP server
-# 3. Installs safety-net plugins (review-guard, review-marker, telemetry)
+# 3. Installs safety-net plugins (review-guard, review-marker)
 # 4. Copies workflow documentation (AGENTS.md)
 # 5. Installs the brain-dump-workflow skill
 # 6. Installs the Ralph agent
@@ -242,7 +242,6 @@ PLUGINS_COPIED=0
 PLUGINS=(
   "brain-dump-review-guard.ts"
   "brain-dump-review-marker.ts"
-  "brain-dump-telemetry.ts"
 )
 
 for plugin in "${PLUGINS[@]}"; do
@@ -268,6 +267,13 @@ if [ $PLUGINS_COPIED -eq 0 ]; then
 fi
 
 echo -e "${GREEN}✓ Copied $PLUGINS_COPIED safety-net plugins to $OPENCODE_PLUGINS${NC}"
+
+# Clean up stale telemetry plugin (now handled by MCP self-instrumentation)
+if [ -f "$OPENCODE_PLUGINS/brain-dump-telemetry.ts" ]; then
+  rm -f "$OPENCODE_PLUGINS/brain-dump-telemetry.ts"
+  echo -e "${YELLOW}✓ Removed stale brain-dump-telemetry.ts (MCP self-telemetry replaces it)${NC}"
+fi
+
 echo ""
 
 # ─────────────────────────────────────────────────────────────────
@@ -400,7 +406,9 @@ echo ""
 echo -e "  ${GREEN}Safety Plugins:${NC}"
 echo "    • brain-dump-review-guard - Prevent push without review"
 echo "    • brain-dump-review-marker - Mark code review completion"
-echo "    • brain-dump-telemetry - Track AI work sessions"
+echo ""
+echo -e "  ${GREEN}Telemetry:${NC}"
+echo "    • MCP self-instrumentation (no plugin needed)"
 echo ""
 echo -e "  ${GREEN}Documentation:${NC}"
 echo "    • AGENTS.md - Workflow quick reference"

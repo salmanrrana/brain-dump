@@ -243,6 +243,15 @@ if [ -d "$AGENTS_SOURCE" ]; then
             fi
         fi
     done
+
+    # Clean up previously-installed review/utility agents (now inlined into commands)
+    STALE_AGENTS=("code-reviewer.agent.md" "silent-failure-hunter.agent.md" "code-simplifier.agent.md" "context7-library-compliance.agent.md" "react-best-practices.agent.md" "cruft-detector.agent.md" "senior-engineer.agent.md" "inception.agent.md")
+    for stale in "${STALE_AGENTS[@]}"; do
+        if [ -f "$AGENTS_TARGET/$stale" ]; then
+            rm "$AGENTS_TARGET/$stale"
+            echo -e "${YELLOW}Removed legacy agent: $stale${NC}"
+        fi
+    done
 else
     echo -e "${YELLOW}No agents found in Brain Dump (.github/agents/)${NC}"
 fi
@@ -251,35 +260,46 @@ echo ""
 echo -e "${BLUE}Step 3: Configure Skills${NC}"
 echo "─────────────────────────"
 echo -e "${YELLOW}Location:${NC} $COPILOT_SKILLS_DIR/"
-echo -e "${YELLOW}Note:${NC} Per VS Code docs, global skills go to ~/.copilot/skills/"
+echo -e "${YELLOW}Note:${NC} Only workflow-essential skills installed globally"
 
-SKILLS_SOURCE="$BRAIN_DUMP_DIR/.github/skills"
+# Only install 3 global skills from .claude/skills/
+# Project-specific skills (tanstack-*, brain-dump-tickets, etc.) stay local
+SKILLS_SOURCE_CLAUDE="$BRAIN_DUMP_DIR/.claude/skills"
+GLOBAL_SKILLS=("brain-dump-workflow" "review" "review-aggregation")
 
-if [ -d "$SKILLS_SOURCE" ]; then
+if [ -d "$SKILLS_SOURCE_CLAUDE" ]; then
     mkdir -p "$COPILOT_SKILLS_DIR"
-    for skill_dir in "$SKILLS_SOURCE"/*/; do
+    for skill_name in "${GLOBAL_SKILLS[@]}"; do
+        skill_dir="$SKILLS_SOURCE_CLAUDE/$skill_name"
         if [ -d "$skill_dir" ]; then
-            skill_name=$(basename "$skill_dir")
             target_path="$COPILOT_SKILLS_DIR/$skill_name"
-            # Copy directories directly (VS Code may not follow symlinks)
-            if [ -d "$target_path" ]; then
-                if ! diff -rq "$skill_dir" "$target_path" >/dev/null 2>&1; then
-                    rm -rf "$target_path"
-                    cp -r "$skill_dir" "$target_path"
-                    echo -e "${GREEN}Updated: $skill_name${NC}"
-                else
-                    echo -e "${YELLOW}Exists: $skill_name${NC}"
-                fi
-            else
-                [ -L "$target_path" ] && rm "$target_path"
-                cp -r "$skill_dir" "$target_path"
-                echo -e "${GREEN}Added: $skill_name${NC}"
-            fi
+            rm -rf "$target_path"
+            cp -r "$skill_dir" "$target_path"
+            echo -e "${GREEN}Installed: $skill_name${NC}"
+        else
+            echo -e "${YELLOW}Not found: $skill_name${NC}"
         fi
     done
 else
-    echo -e "${YELLOW}No skills found in Brain Dump (.github/skills/)${NC}"
+    echo -e "${YELLOW}No skills found in Brain Dump (.claude/skills/)${NC}"
 fi
+
+# Clean up previously-installed project-specific skills
+STALE_SKILLS=("tanstack-errors" "tanstack-forms" "tanstack-mutations" "tanstack-query" "tanstack-types" "brain-dump-tickets" "ralph-workflow" "react-best-practices" "web-design-guidelines" "auto-review")
+for stale in "${STALE_SKILLS[@]}"; do
+    stale_path="$COPILOT_SKILLS_DIR/$stale"
+    if [ -d "$stale_path" ] || [ -f "$stale_path" ]; then
+        rm -rf "$stale_path"
+        echo -e "${YELLOW}Removed legacy skill: $stale${NC}"
+    fi
+done
+# Also clean up standalone skill files (e.g., brain-dump-workflow.skill.md)
+for stale_file in "$COPILOT_SKILLS_DIR"/*.skill.md; do
+    if [ -f "$stale_file" ]; then
+        rm "$stale_file"
+        echo -e "${YELLOW}Removed legacy skill file: $(basename "$stale_file")${NC}"
+    fi
+done
 
 echo ""
 echo -e "${BLUE}Step 4: Configure Prompts${NC}"
@@ -315,100 +335,35 @@ else
 fi
 
 echo ""
-echo -e "${BLUE}Step 5: Configure Auto-Review Workflow${NC}"
-echo "───────────────────────────────────────"
+echo -e "${BLUE}Step 5: Configure Auto-Review Prompt${NC}"
+echo "──────────────────────────────────────"
 
-# Create auto-review skill for VS Code in the Copilot skills directory
-AUTO_REVIEW_SKILL_DIR="$COPILOT_SKILLS_DIR/auto-review"
-if [ ! -d "$AUTO_REVIEW_SKILL_DIR" ]; then
-    mkdir -p "$AUTO_REVIEW_SKILL_DIR"
-    cat > "$AUTO_REVIEW_SKILL_DIR/SKILL.md" << 'EOF'
----
-name: auto-review
-description: Run the complete code review pipeline on recent changes. Use after completing a feature or fixing a bug to review code quality, error handling, and simplification opportunities.
----
-
-# Auto-Review Skill
-
-This skill runs the complete code review pipeline after completing a coding task.
-
-## Usage
-
-After completing a feature or fixing a bug, invoke this skill to review your changes:
-
-```
-/auto-review
-```
-
-Or mention agents directly:
-```
-@code-reviewer please review my recent changes
-```
-
-## Review Pipeline
-
-The auto-review workflow runs these three agents:
-
-1. **@code-reviewer** - Reviews code against project guidelines
-   - Checks CLAUDE.md/coding standards compliance
-   - Reports style issues, potential bugs, security concerns
-   - Reports only high-confidence issues (confidence >= 80)
-
-2. **@silent-failure-hunter** - Finds silent failures and error handling issues
-   - Empty catch blocks that swallow errors
-   - Fire-and-forget async calls
-   - Missing user feedback on errors
-   - Overly broad catch blocks
-
-3. **@code-simplifier** - Simplifies and refines code
-   - Removes redundancy
-   - Improves readability
-   - Preserves all functionality
-
-## Handoff Flow
-
-The agents are configured with handoffs so they can chain together:
-- code-reviewer → silent-failure-hunter → code-simplifier
-
-## Manual Review
-
-You can also call individual agents:
-- `@code-reviewer` - Code quality and style
-- `@silent-failure-hunter` - Error handling issues
-- `@code-simplifier` - Code simplification
-EOF
-    echo -e "${GREEN}Created auto-review skill${NC}"
-else
-    echo -e "${YELLOW}Auto-review skill already exists${NC}"
-fi
-
-# Create auto-review prompt for quick access
+# Create /auto-review prompt that uses the /review command approach
+# (Review agent personas are now inlined into the /review command, not separate agents)
 AUTO_REVIEW_PROMPT="$PROMPTS_TARGET/auto-review.prompt.md"
-if [ ! -f "$AUTO_REVIEW_PROMPT" ]; then
-    mkdir -p "$PROMPTS_TARGET"
-    cat > "$AUTO_REVIEW_PROMPT" << 'EOF'
+mkdir -p "$PROMPTS_TARGET"
+cat > "$AUTO_REVIEW_PROMPT" << 'EOF'
 ---
 description: Run the complete code review pipeline on recent changes
 ---
 
 # Auto-Review Pipeline
 
-Please run the complete code review pipeline on my recent changes:
+Please run the `/review` command on my recent changes.
 
-1. First, use @code-reviewer to review the code against project guidelines
-2. Then, use @silent-failure-hunter to check for error handling issues
-3. Finally, use @code-simplifier to simplify and refine the code
+This will launch three review passes in parallel:
+1. **Code quality** - Project guidelines, style, potential bugs
+2. **Silent failure detection** - Error handling issues, swallowed errors
+3. **Code simplification** - Redundancy removal, readability improvements
 
-Focus on:
-- Files modified in the current git diff
-- High-confidence issues only (confidence >= 80)
-- Preserving all functionality during simplification
-
-Start with the code review.
+Focus on files modified in the current git diff.
 EOF
-    echo -e "${GREEN}Created /auto-review prompt${NC}"
-else
-    echo -e "${YELLOW}Auto-review prompt already exists${NC}"
+echo -e "${GREEN}Updated /auto-review prompt (command-based)${NC}"
+
+# Remove legacy auto-review skill directory (replaced by /review command)
+if [ -d "$COPILOT_SKILLS_DIR/auto-review" ]; then
+    rm -rf "$COPILOT_SKILLS_DIR/auto-review"
+    echo -e "${YELLOW}Removed legacy auto-review skill (now command-based)${NC}"
 fi
 
 echo ""
@@ -417,36 +372,38 @@ echo -e "${GREEN}║                    Setup Complete!                         
 echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${BLUE}What's been configured:${NC}"
-echo "  • MCP Server: brain-dump (ticket management tools)"
-echo "  • Agents:"
-echo "      - Ralph, Ticket Worker, Planner, Inception"
-echo "      - Code Reviewer, Silent Failure Hunter, Code Simplifier"
-echo "      - Context7 Library Compliance, React Best Practices"
-echo "      - Cruft Detector, Senior Engineer"
-echo "  • Skills: brain-dump-tickets, ralph-workflow, auto-review"
-echo "  • Prompts: start-ticket, complete-ticket, create-tickets, auto-review"
 echo ""
-echo -e "${BLUE}Configuration Locations:${NC}"
-echo "  • MCP:      $VSCODE_TARGET/mcp.json"
-echo "  • Agents:   $VSCODE_TARGET/prompts/*.agent.md (global, all workspaces)"
-echo "  • Prompts:  $VSCODE_TARGET/prompts/*.prompt.md"
-echo "  • Skills:   $COPILOT_SKILLS_DIR/"
+echo -e "  ${GREEN}MCP Server:${NC}"
+echo "    • brain-dump (ticket management, workflow, review, telemetry)"
+echo ""
+echo -e "  ${GREEN}Agents ($VSCODE_TARGET/prompts/):${NC}"
+echo "    • ralph - Autonomous coding agent"
+echo "    • ticket-worker - Interactive ticket implementation"
+echo "    • planner - Create implementation plans and tickets"
+echo ""
+echo -e "  ${GREEN}Skills ($COPILOT_SKILLS_DIR/):${NC}"
+echo "    • brain-dump-workflow - Universal quality workflow"
+echo "    • review - Code review pipeline"
+echo "    • review-aggregation - Combine review findings"
+echo ""
+echo -e "  ${GREEN}Prompts ($VSCODE_TARGET/prompts/):${NC}"
+echo "    • /start-ticket, /complete-ticket, /create-tickets"
+echo "    • /auto-review - Runs /review command pipeline"
+echo ""
+echo -e "  ${GREEN}Telemetry:${NC}"
+echo "    • MCP self-instrumentation (no hooks needed)"
+echo "    • Session tracking, tool usage, and prompts captured by MCP server"
 echo ""
 echo -e "${BLUE}Code Review in VS Code:${NC}"
 echo "  Unlike Claude Code (which uses hooks), VS Code requires manual invocation."
-echo "  After completing a coding task, use one of these methods:"
-echo ""
-echo -e "  ${GREEN}Initial Review:${NC}"
-echo "    /auto-review or @code-reviewer → @silent-failure-hunter → @code-simplifier"
-echo ""
-echo -e "  ${GREEN}Extended Review (deeper analysis):${NC}"
-echo "    @context7-library-compliance → @react-best-practices"
-echo "    → @cruft-detector → @senior-engineer"
+echo "  After completing a coding task, use /auto-review or ask the agent to"
+echo "  run the /review command. Review personas are inlined into the command."
 echo ""
 echo -e "${BLUE}Next steps:${NC}"
 echo "  1. Restart VS Code to load the MCP server"
 echo "  2. Open Copilot Chat and try: @ralph or /start-ticket"
 echo "  3. After coding, use /auto-review to review changes"
 echo ""
-echo -e "${YELLOW}Note:${NC} Make sure Brain Dump is running at least once to initialize the database."
+echo -e "${YELLOW}Note:${NC} Make sure Brain Dump's MCP server is built:"
+echo "  cd $BRAIN_DUMP_DIR && pnpm build"
 echo ""
