@@ -1,5 +1,6 @@
 // Epics components
 export { CreateEpicModal, type CreateEpicModalProps } from "./CreateEpicModal";
+export { EpicProgressOverview, type EpicProgressOverviewProps } from "./EpicProgressOverview";
 
 // Form schema and options for TanStack Form
 export { epicFormSchema, type EpicFormData } from "./epic-form-schema";
