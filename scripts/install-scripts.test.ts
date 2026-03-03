@@ -11,6 +11,16 @@ function readScript(path: string): string {
 // All providers that should have install/uninstall parity
 const ALL_PROVIDERS = ["claude", "vscode", "cursor", "opencode", "copilot", "codex"];
 
+// Telemetry hook scripts removed post-refactor (MCP self-instrumentation handles telemetry)
+const TELEMETRY_HOOK_SCRIPTS = [
+  "start-telemetry.sh",
+  "end-telemetry.sh",
+  "log-tool-start.sh",
+  "log-tool-end.sh",
+  "log-tool-failure.sh",
+  "log-prompt.sh",
+];
+
 describe("install.sh (root)", () => {
   const script = readScript("install.sh");
 
@@ -229,9 +239,11 @@ describe("setup-copilot-cli.sh hooks.json format", () => {
   const script = readScript("scripts/setup-copilot-cli.sh");
 
   it("generates hooks.json with only preToolUse enforce-state hook", () => {
-    // After refactor: only 1 hook event (preToolUse with enforce-state-before-write)
-    // Telemetry hooks removed — MCP self-instrumentation handles telemetry
     expect(script).toContain(`"preToolUse"`);
+
+    const hooksJsonStart = script.indexOf("HOOKS_JSON_EOF");
+    const hooksJsonEnd = script.indexOf("HOOKS_JSON_EOF", hooksJsonStart + 1);
+    const hooksJsonSection = script.slice(hooksJsonStart, hooksJsonEnd);
 
     // Telemetry hook events should NOT be present
     for (const removed of [
@@ -241,20 +253,12 @@ describe("setup-copilot-cli.sh hooks.json format", () => {
       "userPromptSubmitted",
       "errorOccurred",
     ]) {
-      const hooksJsonSection = script.slice(
-        script.indexOf("HOOKS_JSON_EOF"),
-        script.indexOf("HOOKS_JSON_EOF", script.indexOf("HOOKS_JSON_EOF") + 1)
-      );
       expect(hooksJsonSection, `hooks.json should not contain ${removed}`).not.toContain(
         `"${removed}"`
       );
     }
 
-    // Count occurrences of "bash": in the hooks.json section
-    const hooksJsonSection = script.slice(
-      script.indexOf("HOOKS_JSON_EOF"),
-      script.indexOf("HOOKS_JSON_EOF", script.indexOf("HOOKS_JSON_EOF") + 1)
-    );
+    // Exactly 1 hook entry (enforce-state)
     const bashEntries = (hooksJsonSection.match(/"bash":/g) || []).length;
     const typeCommandEntries = (hooksJsonSection.match(/"type": "command"/g) || []).length;
 
@@ -313,51 +317,25 @@ describe("copilot pre-tool-use hook script", () => {
 describe("post-refactor: no telemetry hooks in setup scripts", () => {
   it("setup-cursor.sh does not create telemetry hook scripts", () => {
     const script = readScript("scripts/setup-cursor.sh");
-    // Should NOT create/write telemetry hook files (heredoc installs)
-    for (const hookScript of [
-      "start-telemetry.sh",
-      "end-telemetry.sh",
-      "log-tool-start.sh",
-      "log-tool-end.sh",
-      "log-tool-failure.sh",
-      "log-prompt.sh",
-    ]) {
-      // Check that no heredoc creates these files (cat > ...hookScript or cp ...hookScript)
+    for (const hookScript of TELEMETRY_HOOK_SCRIPTS) {
       expect(script, `setup-cursor.sh should not create ${hookScript}`).not.toMatch(
         new RegExp(`cat\\s*>.*${hookScript}`)
       );
     }
-    // Hooks.json should not contain telemetry event types
-    // (cursor uses the same hooks.json approach — check if it exists)
-    if (script.includes("hooks.json")) {
-      for (const removed of [
-        "sessionStart",
-        "sessionEnd",
-        "userPromptSubmitted",
-        "errorOccurred",
-      ]) {
-        expect(script, `should not reference telemetry event ${removed}`).not.toContain(
-          `"${removed}"`
-        );
-      }
+    // Telemetry event types should not appear in the script
+    for (const removed of ["sessionStart", "sessionEnd", "userPromptSubmitted", "errorOccurred"]) {
+      expect(script, `should not reference telemetry event ${removed}`).not.toContain(
+        `"${removed}"`
+      );
     }
   });
 
   it("setup-copilot-cli.sh does not generate telemetry hook scripts", () => {
     const script = readScript("scripts/setup-copilot-cli.sh");
-    // The hooks.json heredoc should NOT contain telemetry-related event types
     const hooksJsonStart = script.indexOf("HOOKS_JSON_EOF");
     const hooksJsonEnd = script.indexOf("HOOKS_JSON_EOF", hooksJsonStart + 1);
     const hooksJsonSection = script.slice(hooksJsonStart, hooksJsonEnd);
-    // None of these telemetry hook scripts should be generated
-    for (const hookScript of [
-      "start-telemetry.sh",
-      "end-telemetry.sh",
-      "log-tool-start.sh",
-      "log-tool-end.sh",
-      "log-tool-failure.sh",
-      "log-prompt.sh",
-    ]) {
+    for (const hookScript of TELEMETRY_HOOK_SCRIPTS) {
       expect(hooksJsonSection, `hooks.json should not reference ${hookScript}`).not.toContain(
         hookScript
       );
@@ -366,8 +344,6 @@ describe("post-refactor: no telemetry hooks in setup scripts", () => {
 });
 
 describe("post-refactor: only 3 global skills installed", () => {
-  const EXPECTED_GLOBAL_SKILLS = ["brain-dump-workflow", "review", "review-aggregation"];
-
   for (const setupScript of [
     "scripts/setup-cursor.sh",
     "scripts/setup-copilot-cli.sh",
@@ -378,9 +354,6 @@ describe("post-refactor: only 3 global skills installed", () => {
       expect(script).toContain(
         'GLOBAL_SKILLS=("brain-dump-workflow" "review" "review-aggregation")'
       );
-      for (const skill of EXPECTED_GLOBAL_SKILLS) {
-        expect(script).toContain(skill);
-      }
     });
   }
 
