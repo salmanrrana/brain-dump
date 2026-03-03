@@ -40,72 +40,15 @@ export function registerTelemetryTool(
 ): void {
   server.tool(
     "telemetry",
-    `Manage telemetry sessions in Brain Dump. Telemetry captures AI interaction metrics.
+    `Manage telemetry sessions in Brain Dump. Captures AI interaction metrics.
 
-## Actions
-
-### start
-Start a telemetry session for AI work on a ticket.
-Optional params: ticketId, projectPath, environment
-
-### log-prompt
-Log a user prompt to the telemetry session.
-Required params: sessionId, prompt
-Optional params: redact, tokenCount
-
-### log-tool
-Log a tool call to the telemetry session.
-Required params: sessionId, toolEvent, toolName
-Optional params: correlationId, toolParams, toolResult, success, durationMs, error
-
-### log-context
-Log what context was loaded when AI started work on a ticket.
-Required params: sessionId, hasDescription, hasAcceptanceCriteria
-Optional params: criteriaCount, commentCount, attachmentCount, imageCount
-
-### end
-End a telemetry session and compute final statistics.
-Required params: sessionId
-Optional params: outcome, totalTokens
-
-### get
-Get telemetry data for a session.
-Optional params: sessionId, ticketId, includeEvents, eventLimit
-
-### list
-List telemetry sessions with optional filters.
-Optional params: ticketId, projectId, since, limit
-
-## Parameters
-- action: (required) The operation to perform
-- sessionId: Telemetry session ID. Required for: log-prompt, log-tool, log-context, end. Optional for: get
-- ticketId: Ticket ID. Optional for: start, get, list
-- projectPath: Project path. Optional for: start
-- environment: Environment name. Optional for: start
-- prompt: Prompt text. Required for: log-prompt
-- redact: Hash prompt for privacy. Optional for: log-prompt
-- tokenCount: Token count. Optional for: log-prompt
-- toolEvent: Tool event type (start or end). Required for: log-tool
-- toolName: Tool name. Required for: log-tool
-- correlationId: Correlation ID for pairing start/end. Optional for: log-tool
-- toolParams: Parameter summary. Optional for: log-tool
-- toolResult: Result summary. Optional for: log-tool
-- success: Whether tool call succeeded. Optional for: log-tool
-- durationMs: Duration in ms. Optional for: log-tool
-- error: Error message. Optional for: log-tool
-- hasDescription: Whether ticket had description. Required for: log-context
-- hasAcceptanceCriteria: Whether ticket had criteria. Required for: log-context
-- criteriaCount: Number of criteria. Optional for: log-context
-- commentCount: Number of comments. Optional for: log-context
-- attachmentCount: Number of attachments. Optional for: log-context
-- imageCount: Number of images. Optional for: log-context
-- outcome: Session outcome. Optional for: end
-- totalTokens: Total token count. Optional for: end
-- includeEvents: Include event details. Optional for: get
-- eventLimit: Max events. Optional for: get
-- projectId: Filter by project. Optional for: list
-- since: Sessions after this date. Optional for: list
-- limit: Max results. Optional for: list`,
+### start - Start a telemetry session for AI work
+### log-prompt - Log a user prompt (supports redaction for privacy)
+### log-tool - Log a tool call start/end with correlation ID for duration tracking
+### log-context - Log what context was loaded when starting ticket work
+### end - End session and compute final statistics
+### get - Get telemetry data (provide sessionId or ticketId)
+### list - List telemetry sessions with optional filters`,
     {
       action: z.enum(ACTIONS).describe("The operation to perform"),
       sessionId: z.string().optional().describe("Telemetry session ID"),

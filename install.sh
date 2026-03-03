@@ -816,10 +816,6 @@ setup_devcontainer() {
     return 0
 }
 
-# ============================================================================
-# OpenCode Integration
-# ============================================================================
-
 # Install OpenCode if not present
 install_opencode() {
     print_step "Checking OpenCode installation"
@@ -860,208 +856,6 @@ install_opencode() {
     return 1
 }
 
-# Configure OpenCode with Brain Dump agents and skills
-setup_opencode() {
-    print_step "Configuring OpenCode for Brain Dump (global installation)"
-
-    BRAIN_DUMP_DIR="$(pwd)"
-    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/dist/index.js"
-
-    # Global OpenCode config directories (works from any project)
-    local global_dir="$HOME/.config/opencode"
-    local config_file="$global_dir/opencode.json"
-    local agents_dir="$global_dir/agents"
-    local skills_dir="$global_dir/skills"
-
-    # Create global directories
-    if ! mkdir -p "$global_dir" "$agents_dir" "$skills_dir"; then
-        print_error "Failed to create OpenCode directories"
-        return 1
-    fi
-    print_success "Global directories ready: $global_dir"
-
-    # ── Step 1: Write/merge global opencode.json with absolute MCP path ──
-    if [ -f "$config_file" ]; then
-        # Merge into existing config (preserve other MCP servers)
-        if grep -q '"brain-dump"' "$config_file"; then
-            print_info "Updating existing Brain Dump MCP config with absolute paths..."
-        else
-            print_info "Adding Brain Dump MCP server to existing config..."
-        fi
-
-        if command_exists node; then
-            cp "$config_file" "$config_file.backup"
-            if OPENCODE_JSON="$config_file" BRAIN_DUMP_DIR="$BRAIN_DUMP_DIR" node -e '
-const fs = require("fs");
-const configFile = process.env.OPENCODE_JSON;
-const brainDumpDir = process.env.BRAIN_DUMP_DIR;
-const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
-config.mcp = config.mcp || {};
-config.mcp["brain-dump"] = {
-    type: "local",
-    command: ["node", brainDumpDir + "/mcp-server/dist/index.js"],
-    enabled: true,
-    environment: { BRAIN_DUMP_PATH: brainDumpDir, OPENCODE: "1" }
-};
-config.tools = Object.assign(config.tools || {}, {
-    "brain-dump_workflow": true,
-    "brain-dump_ticket": true,
-    "brain-dump_session": true,
-    "brain-dump_review": true,
-    "brain-dump_telemetry": true,
-    "brain-dump_comment": true,
-    "brain-dump_epic": true,
-    "brain-dump_project": true,
-    "brain-dump_admin": true,
-    "brain-dump_*": false
-});
-config.permission = config.permission || {};
-config.permission["*"] = "allow";
-fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
-' 2>/dev/null; then
-                print_success "Updated global opencode.json with Brain Dump MCP server"
-                rm -f "$config_file.backup"
-            else
-                print_warning "Failed to merge config, restoring backup"
-                mv "$config_file.backup" "$config_file" 2>/dev/null || true
-            fi
-        else
-            print_warning "Node.js required to merge existing config"
-            SKIPPED+=("OpenCode global config merge (no Node.js)")
-        fi
-    else
-        # Create fresh global config
-        cat > "$config_file" << EOF
-{
-  "\$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "brain-dump": {
-      "type": "local",
-      "command": ["node", "$BRAIN_DUMP_DIR/mcp-server/dist/index.js"],
-      "enabled": true,
-      "environment": {
-        "BRAIN_DUMP_PATH": "$BRAIN_DUMP_DIR",
-        "OPENCODE": "1"
-      }
-    }
-  },
-  "tools": {
-    "brain-dump_workflow": true,
-    "brain-dump_ticket": true,
-    "brain-dump_session": true,
-    "brain-dump_review": true,
-    "brain-dump_telemetry": true,
-    "brain-dump_comment": true,
-    "brain-dump_epic": true,
-    "brain-dump_project": true,
-    "brain-dump_admin": true,
-    "brain-dump_*": false
-  },
-  "permission": {
-    "*": "allow"
-  }
-}
-EOF
-        print_success "Created global opencode.json"
-    fi
-
-    # Validate global config
-    if ! grep -q '"brain-dump"' "$config_file" 2>/dev/null; then
-        print_warning "MCP server not found in global opencode.json"
-        SKIPPED+=("OpenCode global config (MCP server missing)")
-        return 1
-    fi
-
-    # ── Step 2: Copy agents to global location ──
-    if [ -d ".opencode/agent" ]; then
-        local count=0
-        for file in .opencode/agent/*.md; do
-            [ -f "$file" ] || continue
-            cp "$file" "$agents_dir/" && count=$((count + 1))
-        done
-        [ "$count" -gt 0 ] && print_success "Installed $count agents to $agents_dir"
-    fi
-
-    # ── Step 3: Copy skills to global location ──
-    if [ -d ".opencode/skill" ]; then
-        local count=0
-        for dir in .opencode/skill/*/; do
-            [ -d "$dir" ] || continue
-            cp -r "$dir" "$skills_dir/" && count=$((count + 1))
-        done
-        [ "$count" -gt 0 ] && print_success "Installed $count skills to $skills_dir"
-    fi
-
-    # ── Step 4: Copy AGENTS.md to global location ──
-    if [ -f ".opencode/AGENTS.md" ]; then
-        cp ".opencode/AGENTS.md" "$global_dir/" && print_success "Installed AGENTS.md to $global_dir"
-    fi
-
-    print_info "Using global OpenCode config only: $config_file"
-    print_info "No local .opencode/opencode.json changes are made by installer"
-
-    create_opencode_fallbacks
-    INSTALLED+=("OpenCode configuration (global)")
-    return 0
-}
-
-# Create fallback agents for missing OpenCode plugins (global location)
-create_opencode_fallbacks() {
-    local agents_dir="$HOME/.config/opencode/agents"
-    mkdir -p "$agents_dir"
-
-    # Code reviewer fallback
-    if [ ! -f "$agents_dir/code-reviewer-fallback.md" ]; then
-        cat > "$agents_dir/code-reviewer-fallback.md" << 'EOF'
----
-description: Fallback code reviewer when pr-review-toolkit is unavailable
-mode: subagent
-model: anthropic/claude-sonnet-4-20250514
-temperature: 0.1
-permission:
-  bash: deny
-  write: deny
-  edit: deny
----
-
-Fallback code reviewer for when specialized tools are unavailable.
-
-## Review Process
-1. Identify changed files (git diff HEAD~1)
-2. Check style, error handling, security, logic
-3. Hunt silent failures (empty catches, fire-and-forget async)
-4. Provide structured report with critical/important/minor issues
-EOF
-        print_success "Created code-reviewer-fallback agent (global)"
-    fi
-
-    # Code simplifier fallback
-    if [ ! -f "$agents_dir/code-simplifier-fallback.md" ]; then
-        cat > "$agents_dir/code-simplifier-fallback.md" << 'EOF'
----
-description: Fallback code simplifier when code-simplifier plugin is unavailable
-mode: subagent
-model: anthropic/claude-sonnet-4-20250514
-temperature: 0.2
----
-
-Fallback code simplifier for when specialized tools are unavailable.
-
-## Simplification Principles
-1. **Remove Redundancy** - Duplicate code, unused imports, commented code
-2. **Improve Clarity** - Descriptive names, extract magic numbers
-3. **Reduce Complexity** - Flatten nesting, early returns, split functions
-4. **Enhance Readability** - Consistent formatting, logical grouping
-
-## What NOT to Change
-- Don't add new features or change public APIs
-- Don't "improve" working error handling
-- Don't add abstractions for single-use code
-- Don't optimize prematurely
-EOF
-        print_success "Created code-simplifier-fallback agent (global)"
-    fi
-}
 
 # Setup Claude Code skills from vendored third-party skills
 setup_claude_skills() {
@@ -1172,469 +966,62 @@ setup_project_config() {
     fi
 }
 
-# ============================================================================
-# VS Code Integration
-# ============================================================================
 
-# Get VS Code paths based on OS
-# Per VS Code docs:
-#   - Agents: ~/Library/Application Support/Code/User/agents/ (macOS)
-#   - Skills: ~/.copilot/skills/ (global) or .github/skills/ (workspace)
-#   - MCP: ~/Library/Application Support/Code/User/mcp.json (macOS)
-#   - Prompts: ~/Library/Application Support/Code/User/prompts/
-get_vscode_paths() {
-    case "$OS" in
-        macos)
-            VSCODE_USER_DIR="$HOME/Library/Application Support/Code/User"
-            VSCODE_INSIDERS_USER_DIR="$HOME/Library/Application Support/Code - Insiders/User"
-            COPILOT_SKILLS_DIR="$HOME/.copilot/skills"
-            ;;
-        linux)
-            VSCODE_USER_DIR="$HOME/.config/Code/User"
-            VSCODE_INSIDERS_USER_DIR="$HOME/.config/Code - Insiders/User"
-            COPILOT_SKILLS_DIR="$HOME/.copilot/skills"
-            ;;
-        windows)
-            VSCODE_USER_DIR="$APPDATA/Code/User"
-            VSCODE_INSIDERS_USER_DIR="$APPDATA/Code - Insiders/User"
-            COPILOT_SKILLS_DIR="$USERPROFILE/.copilot/skills"
-            ;;
-        *)
-            VSCODE_USER_DIR=""
-            VSCODE_INSIDERS_USER_DIR=""
-            COPILOT_SKILLS_DIR=""
-            ;;
-    esac
+# Setup VS Code integration using the setup script
+setup_vscode() {
+    print_step "Setting up VS Code integration"
 
-    # Detect which VS Code is installed
-    if [ -d "$VSCODE_USER_DIR" ]; then
-        VSCODE_TARGET="$VSCODE_USER_DIR"
-        VSCODE_TYPE="VS Code"
-    elif [ -d "$VSCODE_INSIDERS_USER_DIR" ]; then
-        VSCODE_TARGET="$VSCODE_INSIDERS_USER_DIR"
-        VSCODE_TYPE="VS Code Insiders"
-    else
-        VSCODE_TARGET=""
-        VSCODE_TYPE=""
-    fi
-}
+    local setup_script="scripts/setup-vscode.sh"
 
-# Configure MCP server for VS Code
-# MCP config goes in VS Code User profile: ~/Library/Application Support/Code/User/mcp.json
-configure_vscode_mcp() {
-    print_step "Configuring VS Code MCP server"
-
-    get_vscode_paths
-
-    if [ -z "$VSCODE_TARGET" ]; then
-        print_warning "VS Code not found. Skipping MCP configuration."
-        print_info "Install VS Code first, then re-run with --vscode"
-        SKIPPED+=("VS Code MCP server (VS Code not found)")
-        return 0
-    fi
-
-    BRAIN_DUMP_DIR="$(pwd)"
-    MCP_SERVER_PATH="$BRAIN_DUMP_DIR/mcp-server/dist/index.js"
-    MCP_CONFIG_FILE="$VSCODE_TARGET/mcp.json"
-
-    # Helper function to create fresh MCP config
-    create_mcp_config() {
-        cat > "$MCP_CONFIG_FILE" << EOF
-{
-  "servers": {
-    "brain-dump": {
-      "type": "stdio",
-      "command": "node",
-      "args": ["$MCP_SERVER_PATH"]
-    }
-  }
-}
-EOF
-    }
-
-    # Check 1: Does the file exist?
-    if [ ! -f "$MCP_CONFIG_FILE" ]; then
-        print_info "Creating VS Code mcp.json..."
-        create_mcp_config
-        print_success "Created VS Code mcp.json with brain-dump server"
-        INSTALLED+=("VS Code MCP server")
-        return 0
-    fi
-
-    # Check 2: Does the file have content?
-    if [ ! -s "$MCP_CONFIG_FILE" ]; then
-        print_info "mcp.json is empty, recreating..."
-        create_mcp_config
-        print_success "Created VS Code mcp.json with brain-dump server"
-        INSTALLED+=("VS Code MCP server")
-        return 0
-    fi
-
-    # Check 3: Does it have a valid servers section?
-    if ! grep -q '"servers"' "$MCP_CONFIG_FILE"; then
-        print_info "mcp.json missing servers section, recreating..."
-        create_mcp_config
-        print_success "Created VS Code mcp.json with brain-dump server"
-        INSTALLED+=("VS Code MCP server")
-        return 0
-    fi
-
-    # brain-dump entry exists or needs to be added — either way, update/add it
-    if grep -q '"brain-dump"' "$MCP_CONFIG_FILE"; then
-        print_info "Updating brain-dump MCP server config in VS Code..."
-    else
-        print_info "Adding brain-dump to existing mcp.json..."
-    fi
-
-    if command_exists node; then
-        local node_error
-        node_error=$(MCP_CONFIG_FILE="$MCP_CONFIG_FILE" MCP_SERVER_PATH="$MCP_SERVER_PATH" node -e '
-const fs = require("fs");
-const configFile = process.env.MCP_CONFIG_FILE;
-const serverPath = process.env.MCP_SERVER_PATH;
-
-const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
-config.servers = config.servers || {};
-config.servers["brain-dump"] = {
-    type: "stdio",
-    command: "node",
-    args: [serverPath]
-};
-fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
-console.log("Config updated successfully");
-' 2>&1) && {
-            print_success "brain-dump MCP server configured in VS Code"
-            INSTALLED+=("VS Code MCP server")
-            return 0
-        }
-        if [ -n "$node_error" ]; then
-            print_warning "JSON merge failed: $node_error"
-        fi
-    fi
-
-    # Fallback to manual instructions
-    print_warning "Could not auto-merge. Please add this to servers in VS Code mcp.json:"
-    print_info "Location: $MCP_CONFIG_FILE"
-    echo ""
-    echo '  "brain-dump": {'
-    echo '    "type": "stdio",'
-    echo '    "command": "node",'
-    echo "    \"args\": [\"$MCP_SERVER_PATH\"]"
-    echo '  }'
-    echo ""
-    SKIPPED+=("VS Code MCP server (manual merge required)")
-}
-
-# Helper: link or update a symlink (handles broken symlinks and wrong targets)
-link_or_update() {
-    local source="${1%/}"  # Normalize: remove trailing slash from glob expansion
-    local target="$2"
-    local name=$(basename "$source")
-
-    # Check if target is a symlink
-    if [ -L "$target" ]; then
-        local current_target=$(readlink "$target")
-        if [ "$current_target" = "$source" ]; then
-            # Symlink already points to correct location
-            echo "exists"
-            return 0
-        else
-            # Symlink points to wrong location - update it
-            rm "$target"
-            if ln -s "$source" "$target" 2>/dev/null; then
-                echo "updated"
-            else
-                cp -r "$source" "$target"
-                echo "updated_copy"
-            fi
-            return 0
-        fi
-    elif [ -e "$target" ]; then
-        # Regular file/dir exists - skip
-        echo "exists"
-        return 0
-    else
-        # Doesn't exist - create
-        if ln -s "$source" "$target" 2>/dev/null; then
-            echo "created"
-        else
-            cp -r "$source" "$target"
-            echo "created_copy"
-        fi
-        return 0
-    fi
-}
-
-# Setup VS Code agents from .github/agents
-# Per VS Code docs: https://code.visualstudio.com/docs/copilot/customization/custom-agents
-# Global agents go to VS Code User prompts folder: ~/Library/Application Support/Code/User/prompts/
-# This makes agents available across ALL workspaces, not just this project
-setup_vscode_agents() {
-    print_step "Setting up VS Code agents (global)"
-
-    get_vscode_paths
-
-    if [ -z "$VSCODE_TARGET" ]; then
-        print_warning "VS Code user directory not found"
-        print_info "Install VS Code first, then re-run with --vscode"
-        SKIPPED+=("VS Code agents (VS Code not found)")
-        return 0
-    fi
-
-    print_info "Found $VSCODE_TYPE"
-
-    AGENTS_SOURCE="$(pwd)/.github/agents"
-    # VS Code stores user-level agents in the prompts folder (same as prompts)
-    AGENTS_TARGET="$VSCODE_TARGET/prompts"
-
-    if [ ! -d "$AGENTS_SOURCE" ]; then
-        print_warning "No .github/agents directory found in project"
-        SKIPPED+=("VS Code agents (no source agents)")
-        return 0
-    fi
-
-    mkdir -p "$AGENTS_TARGET"
-    print_info "Installing agents to: $AGENTS_TARGET"
-
-    local agents_linked=0
-    local agents_updated=0
-
-    # Enable nullglob to handle case when no matching files exist
-    local old_nullglob
-    old_nullglob=$(shopt -p nullglob 2>/dev/null || echo "shopt -u nullglob")
-    shopt -s nullglob
-
-    for agent_file in "$AGENTS_SOURCE"/*.agent.md; do
-        if [ -f "$agent_file" ]; then
-            local agent_name=$(basename "$agent_file")
-            local target_path="$AGENTS_TARGET/$agent_name"
-            # Copy files directly (VS Code may not follow symlinks)
-            if [ -f "$target_path" ]; then
-                # Check if content is different
-                if ! cmp -s "$agent_file" "$target_path"; then
-                    cp "$agent_file" "$target_path"
-                    print_success "  $agent_name (updated)"
-                    agents_updated=$((agents_updated + 1))
-                else
-                    print_info "  $agent_name (exists)"
-                fi
-            else
-                cp "$agent_file" "$target_path"
-                print_success "  $agent_name"
-                agents_linked=$((agents_linked + 1))
-            fi
-        fi
-    done
-
-    # Restore previous nullglob setting
-    eval "$old_nullglob"
-
-    local total=$((agents_linked + agents_updated))
-    if [ $total -gt 0 ]; then
-        INSTALLED+=("VS Code agents ($total)")
-    else
-        SKIPPED+=("VS Code agents (already linked)")
-    fi
-
-    print_info "Agents will be available globally in all VS Code workspaces"
-}
-
-# Setup VS Code skills from .github/skills and vendor/agent-skills/skills
-# Per VS Code docs, global skills go to ~/.copilot/skills/
-setup_vscode_skills() {
-    print_step "Setting up VS Code skills"
-
-    get_vscode_paths
-
-    if [ -z "$COPILOT_SKILLS_DIR" ]; then
-        print_warning "Could not determine Copilot skills directory"
-        SKIPPED+=("VS Code skills (unknown directory)")
-        return 0
-    fi
-
-    if ! mkdir -p "$COPILOT_SKILLS_DIR"; then
-        print_error "Failed to create Copilot skills directory: $COPILOT_SKILLS_DIR"
-        print_info "Check permissions on $HOME/.copilot"
-        FAILED+=("VS Code skills (directory creation failed)")
+    if [ ! -f "$setup_script" ]; then
+        print_warning "VS Code setup script not found: $setup_script"
+        SKIPPED+=("VS Code setup (script not found)")
         return 1
     fi
 
-    local skills_linked=0
-    local skills_updated=0
-    local skills_failed=0
-
-    # Enable nullglob to handle case when no matching directories exist
-    local old_nullglob
-    old_nullglob=$(shopt -p nullglob 2>/dev/null || echo "shopt -u nullglob")
-    shopt -s nullglob
-
-    # Install project-specific skills from .github/skills
-    SKILLS_SOURCE="$(pwd)/.github/skills"
-
-    if [ -d "$SKILLS_SOURCE" ]; then
-        print_info "Installing project skills..."
-
-        for skill_dir in "$SKILLS_SOURCE"/*/; do
-            if [ -d "$skill_dir" ]; then
-                local skill_name=$(basename "$skill_dir")
-                local target_path="$COPILOT_SKILLS_DIR/$skill_name"
-                # Copy directories directly (VS Code may not follow symlinks)
-                if [ -d "$target_path" ]; then
-                    # Check if content is different by comparing file counts and sizes
-                    if ! diff -rq "$skill_dir" "$target_path" >/dev/null 2>&1; then
-                        # Backup-then-replace pattern for safe updates
-                        local backup_path="${target_path}.backup.$$"
-                        mv "$target_path" "$backup_path"
-                        if cp -r "$skill_dir" "$target_path"; then
-                            rm -rf "$backup_path"
-                            print_success "  $skill_name (updated)"
-                            skills_updated=$((skills_updated + 1))
-                        else
-                            # Restore from backup on failure
-                            mv "$backup_path" "$target_path"
-                            print_error "  $skill_name (update FAILED - restored previous)"
-                            skills_failed=$((skills_failed + 1))
-                        fi
-                    else
-                        print_info "  $skill_name (exists)"
-                    fi
-                else
-                    # Remove broken symlink if exists
-                    [ -L "$target_path" ] && rm "$target_path"
-                    if cp -r "$skill_dir" "$target_path"; then
-                        print_success "  $skill_name"
-                        skills_linked=$((skills_linked + 1))
-                    else
-                        print_error "  $skill_name (install FAILED)"
-                        skills_failed=$((skills_failed + 1))
-                    fi
-                fi
-            fi
-        done
+    if [ ! -x "$setup_script" ]; then
+        print_info "Making setup script executable..."
+        chmod +x "$setup_script"
     fi
 
-    # Also install vendored third-party skills
-    VENDORED_SKILLS="$(pwd)/vendor/agent-skills/skills"
-
-    if [ -d "$VENDORED_SKILLS" ]; then
-        print_info "Installing vendored skills..."
-
-        for skill_dir in "$VENDORED_SKILLS"/*/; do
-            if [ -d "$skill_dir" ] && [ -f "$skill_dir/SKILL.md" ]; then
-                local skill_name=$(basename "$skill_dir")
-                local target_path="$COPILOT_SKILLS_DIR/$skill_name"
-
-                if [ -d "$target_path" ]; then
-                    if ! diff -rq "$skill_dir" "$target_path" >/dev/null 2>&1; then
-                        # Backup-then-replace pattern for safe updates
-                        local backup_path="${target_path}.backup.$$"
-                        mv "$target_path" "$backup_path"
-                        if cp -r "$skill_dir" "$target_path"; then
-                            rm -rf "$backup_path"
-                            print_success "  $skill_name (updated)"
-                            skills_updated=$((skills_updated + 1))
-                        else
-                            # Restore from backup on failure
-                            mv "$backup_path" "$target_path"
-                            print_error "  $skill_name (update FAILED - restored previous)"
-                            skills_failed=$((skills_failed + 1))
-                        fi
-                    else
-                        print_info "  $skill_name (exists)"
-                    fi
-                else
-                    if cp -r "$skill_dir" "$target_path"; then
-                        print_success "  $skill_name"
-                        skills_linked=$((skills_linked + 1))
-                    else
-                        print_error "  $skill_name (install FAILED)"
-                        skills_failed=$((skills_failed + 1))
-                    fi
-                fi
-            fi
-        done
-    fi
-
-    # Restore previous nullglob setting
-    eval "$old_nullglob"
-
-    local total=$((skills_linked + skills_updated))
-    if [ $total -gt 0 ]; then
-        INSTALLED+=("VS Code skills ($total)")
-        print_info "Skills location: $COPILOT_SKILLS_DIR"
+    print_info "Running VS Code setup script..."
+    if bash "$setup_script"; then
+        print_success "VS Code integration configured"
+        INSTALLED+=("VS Code integration")
+        return 0
     else
-        SKIPPED+=("VS Code skills (already linked)")
-    fi
-
-    if [ $skills_failed -gt 0 ]; then
-        FAILED+=("VS Code skills ($skills_failed failed)")
+        print_error "VS Code setup script failed"
+        FAILED+=("VS Code integration")
+        return 1
     fi
 }
 
-# Setup VS Code prompts from .github/prompts
-# Prompts go to VS Code User profile: ~/Library/Application Support/Code/User/prompts/
-setup_vscode_prompts() {
-    print_step "Setting up VS Code prompts"
+# Setup OpenCode integration using the setup script
+setup_opencode_env() {
+    print_step "Setting up OpenCode integration"
 
-    get_vscode_paths
+    local setup_script="scripts/setup-opencode.sh"
 
-    if [ -z "$VSCODE_TARGET" ]; then
-        print_warning "VS Code user directory not found"
-        SKIPPED+=("VS Code prompts (VS Code not found)")
-        return 0
+    if [ ! -f "$setup_script" ]; then
+        print_warning "OpenCode setup script not found: $setup_script"
+        SKIPPED+=("OpenCode setup (script not found)")
+        return 1
     fi
 
-    PROMPTS_SOURCE="$(pwd)/.github/prompts"
-    PROMPTS_TARGET="$VSCODE_TARGET/prompts"
-
-    if [ ! -d "$PROMPTS_SOURCE" ]; then
-        print_warning "No .github/prompts directory found in project"
-        SKIPPED+=("VS Code prompts (no source prompts)")
-        return 0
+    if [ ! -x "$setup_script" ]; then
+        print_info "Making setup script executable..."
+        chmod +x "$setup_script"
     fi
 
-    mkdir -p "$PROMPTS_TARGET"
-
-    local prompts_linked=0
-    local prompts_updated=0
-
-    # Enable nullglob to handle case when no matching files exist
-    local old_nullglob
-    old_nullglob=$(shopt -p nullglob 2>/dev/null || echo "shopt -u nullglob")
-    shopt -s nullglob
-
-    for prompt_file in "$PROMPTS_SOURCE"/*.prompt.md; do
-        if [ -f "$prompt_file" ]; then
-            local prompt_name=$(basename "$prompt_file")
-            local target_path="$PROMPTS_TARGET/$prompt_name"
-            # Copy files directly (VS Code may not follow symlinks)
-            if [ -f "$target_path" ]; then
-                # Check if content is different
-                if ! cmp -s "$prompt_file" "$target_path"; then
-                    cp "$prompt_file" "$target_path"
-                    print_success "  $prompt_name (updated)"
-                    prompts_updated=$((prompts_updated + 1))
-                else
-                    print_info "  $prompt_name (exists)"
-                fi
-            else
-                # Remove broken symlink if exists
-                [ -L "$target_path" ] && rm "$target_path"
-                cp "$prompt_file" "$target_path"
-                print_success "  $prompt_name"
-                prompts_linked=$((prompts_linked + 1))
-            fi
-        fi
-    done
-
-    # Restore previous nullglob setting
-    eval "$old_nullglob"
-
-    local total=$((prompts_linked + prompts_updated))
-    if [ $total -gt 0 ]; then
-        INSTALLED+=("VS Code prompts ($total)")
+    print_info "Running OpenCode setup script..."
+    if bash "$setup_script"; then
+        print_success "OpenCode integration configured"
+        INSTALLED+=("OpenCode integration")
+        return 0
     else
-        SKIPPED+=("VS Code prompts (already linked)")
+        print_error "OpenCode setup script failed"
+        FAILED+=("OpenCode integration")
+        return 1
     fi
 }
 
@@ -2140,10 +1527,7 @@ main() {
 
     # VS Code setup
     if [ "$SETUP_VSCODE" = true ]; then
-        configure_vscode_mcp || true
-        setup_vscode_agents || true
-        setup_vscode_skills || true
-        setup_vscode_prompts || true
+        setup_vscode || true
     fi
 
     # Cursor setup
@@ -2154,7 +1538,7 @@ main() {
     # OpenCode setup
     if [ "$SETUP_OPENCODE" = true ]; then
         install_opencode || true
-        setup_opencode || true
+        setup_opencode_env || true
     fi
 
     # Copilot CLI setup

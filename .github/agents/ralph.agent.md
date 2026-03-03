@@ -9,7 +9,7 @@ tools:
   - githubRepo
   - fetch
   - brain-dump/*
-model: Claude Sonnet 4
+model: Claude Opus 4.6
 ---
 
 # Ralph - Autonomous Coding Agent

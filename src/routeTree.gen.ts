@@ -15,6 +15,7 @@ import { Route as BoardRouteImport } from './routes/board'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TicketIdRouteImport } from './routes/ticket.$id'
 import { Route as ProjectsProjectIdRouteImport } from './routes/projects.$projectId'
+import { Route as EpicIdRouteImport } from './routes/epic.$id'
 
 const ListRoute = ListRouteImport.update({
   id: '/list',
@@ -46,12 +47,18 @@ const ProjectsProjectIdRoute = ProjectsProjectIdRouteImport.update({
   path: '/projects/$projectId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EpicIdRoute = EpicIdRouteImport.update({
+  id: '/epic/$id',
+  path: '/epic/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/board': typeof BoardRoute
   '/dashboard': typeof DashboardRoute
   '/list': typeof ListRoute
+  '/epic/$id': typeof EpicIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/ticket/$id': typeof TicketIdRoute
 }
@@ -60,6 +67,7 @@ export interface FileRoutesByTo {
   '/board': typeof BoardRoute
   '/dashboard': typeof DashboardRoute
   '/list': typeof ListRoute
+  '/epic/$id': typeof EpicIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/ticket/$id': typeof TicketIdRoute
 }
@@ -69,6 +77,7 @@ export interface FileRoutesById {
   '/board': typeof BoardRoute
   '/dashboard': typeof DashboardRoute
   '/list': typeof ListRoute
+  '/epic/$id': typeof EpicIdRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
   '/ticket/$id': typeof TicketIdRoute
 }
@@ -79,6 +88,7 @@ export interface FileRouteTypes {
     | '/board'
     | '/dashboard'
     | '/list'
+    | '/epic/$id'
     | '/projects/$projectId'
     | '/ticket/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -87,6 +97,7 @@ export interface FileRouteTypes {
     | '/board'
     | '/dashboard'
     | '/list'
+    | '/epic/$id'
     | '/projects/$projectId'
     | '/ticket/$id'
   id:
@@ -95,6 +106,7 @@ export interface FileRouteTypes {
     | '/board'
     | '/dashboard'
     | '/list'
+    | '/epic/$id'
     | '/projects/$projectId'
     | '/ticket/$id'
   fileRoutesById: FileRoutesById
@@ -104,6 +116,7 @@ export interface RootRouteChildren {
   BoardRoute: typeof BoardRoute
   DashboardRoute: typeof DashboardRoute
   ListRoute: typeof ListRoute
+  EpicIdRoute: typeof EpicIdRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
   TicketIdRoute: typeof TicketIdRoute
 }
@@ -152,6 +165,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/epic/$id': {
+      id: '/epic/$id'
+      path: '/epic/$id'
+      fullPath: '/epic/$id'
+      preLoaderRoute: typeof EpicIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -160,6 +180,7 @@ const rootRouteChildren: RootRouteChildren = {
   BoardRoute: BoardRoute,
   DashboardRoute: DashboardRoute,
   ListRoute: ListRoute,
+  EpicIdRoute: EpicIdRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRoute,
   TicketIdRoute: TicketIdRoute,
 }

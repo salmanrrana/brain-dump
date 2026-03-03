@@ -57,48 +57,12 @@ export function registerWorkflowTool(
     "workflow",
     `Manage ticket and epic work lifecycle in Brain Dump.
 
-## Actions
-
-### start-work
-Start working on a ticket. Creates git branch, sets status to in_progress, returns ticket context.
-Required params: ticketId
-
-### complete-work
-Complete implementation and move ticket to ai_review. Posts work summary, updates PRD.
-Required params: ticketId
-Optional params: summary
-
-### start-epic
-Start working on an epic. Creates shared git branch for all tickets in the epic.
-Required params: epicId
-Optional params: createPr
-
-### link-commit
-Link a git commit to a ticket. Tracks which commits belong to which ticket.
-Required params: ticketId, commitHash
-Optional params: commitMessage
-
-### link-pr
-Link a GitHub PR to a ticket. Also triggers PR status sync for all tickets in the project.
-Required params: ticketId, prNumber
-Optional params: prUrl, prStatus
-
-### sync-links
-Auto-discover and link commits and PRs to the active ticket from Ralph state or branch name.
-Optional params: projectPath
-
-## Parameters
-- action: (required) The operation to perform
-- ticketId: Ticket ID. Required for: start-work, complete-work, link-commit, link-pr
-- epicId: Epic ID. Required for: start-epic
-- summary: Work summary. Optional for: complete-work
-- createPr: Create a draft PR immediately (default: false). Optional for: start-epic
-- commitHash: Git commit hash. Required for: link-commit
-- commitMessage: Commit message. Optional for: link-commit
-- prNumber: GitHub PR number. Required for: link-pr
-- prUrl: Full PR URL. Optional for: link-pr
-- prStatus: PR status (draft, open, merged, closed). Optional for: link-pr
-- projectPath: Project path for auto-detection. Optional for: sync-links`,
+### start-work - Start ticket work (creates branch, sets in_progress, returns context)
+### complete-work - Complete implementation, move to ai_review, post summary
+### start-epic - Start epic work (creates shared branch for all tickets)
+### link-commit - Link a git commit to a ticket
+### link-pr - Link a GitHub PR to a ticket (also syncs PR statuses project-wide)
+### sync-links - Auto-discover and link commits/PRs from Ralph state or branch name`,
     {
       action: z.enum(ACTIONS).describe("The operation to perform"),
       ticketId: z.string().optional().describe("Ticket ID"),

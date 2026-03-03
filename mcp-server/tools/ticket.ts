@@ -18,6 +18,7 @@ import {
   createTicket,
   listTickets,
   getTicket,
+  updateTicket,
   updateTicketStatus,
   updateAcceptanceCriterion,
   deleteTicket,
@@ -32,6 +33,7 @@ const ACTIONS = [
   "create",
   "list",
   "get",
+  "update",
   "update-status",
   "delete",
   "update-criterion",
@@ -64,76 +66,21 @@ const ATTACHMENT_PRIORITIES = ["primary", "supplementary"] as const;
 export function registerTicketTool(server: McpServer, db: Database.Database): void {
   server.tool(
     "ticket",
-    `Manage tickets in Brain Dump. Use the 'action' parameter to specify the operation.
+    `Manage tickets in Brain Dump.
 
-## Actions
+Status flow: backlog → ready → in_progress → ai_review → human_review → done
 
-### create
-Create a new ticket (added to Backlog). Use project action 'list' or 'find-by-path' first to get projectId.
-Required params: projectId, title
-Optional params: description, priority, epicId, tags
-
-### list
-List tickets with optional filters, sorted by creation date (newest first).
-Optional params: projectId, status, limit
-
-### get
-Get a single ticket by ID with full details.
-Required params: ticketId
-
-### update-status
-Update a ticket's status. Flow: backlog -> ready -> in_progress -> ai_review -> human_review -> done
-Required params: ticketId, status
-
-### delete
-Delete a ticket and comments. DRY RUN by default; set confirm=true to delete.
-Required params: ticketId
-Optional params: confirm
-
-### update-criterion
-Update an acceptance criterion's status (passed, failed, pending, skipped).
-Required params: ticketId, criterionId, criterionStatus
-Optional params: verificationNote
-
-### update-attachment
-Update metadata for a ticket attachment (type, description, priority, linkedCriteria).
-Required params: ticketId, attachmentId, attachmentType
-Optional params: attachmentDescription, attachmentPriority, linkedCriteria
-
-### list-by-epic
-List all tickets in a specific epic, sorted by position.
-Required params: epicId
-Optional params: projectId, status, limit
-
-### link-files
-Link file paths to a ticket for context tracking.
-Required params: ticketId, files
-
-### get-files
-Find tickets that have a specific file linked. Supports partial path matching.
-Required params: filePath
-Optional params: projectId
-
-## Parameters
-- action: (required) The operation to perform
-- ticketId: Ticket ID. Required for: get, update-status, delete, update-criterion, update-attachment, link-files
-- projectId: Project ID. Required for: create. Optional for: list, list-by-epic, get-files
-- title: Ticket title. Required for: create
-- description: Detailed description (markdown). Optional for: create
-- priority: Priority level (low, medium, high). Optional for: create
-- epicId: Epic ID. Required for: list-by-epic. Optional for: create
-- tags: Array of tags. Optional for: create
-- status: Ticket status. Required for: update-status. Optional filter for: list, list-by-epic
-- limit: Max results. Optional for: list, list-by-epic
-- confirm: Confirm deletion. Optional for: delete
-- criterionId: Criterion ID. Required for: update-criterion
-- criterionStatus: Criterion status (pending, passed, failed, skipped). Required for: update-criterion
-- verificationNote: How criterion was verified. Optional for: update-criterion
-- attachmentId: Attachment ID or filename. Required for: update-attachment
-- attachmentType: Attachment type. Optional for: update-attachment
-- attachmentDescription: Human context. Optional for: update-attachment
-- attachmentPriority: Importance (primary, supplementary). Optional for: update-attachment
-- linkedCriteria: Linked criterion IDs. Optional for: update-attachment`,
+### create - Create a new ticket (added to Backlog). Get projectId via project list/find-by-path first.
+### list - List tickets with optional filters (newest first)
+### get - Get a single ticket by ID with full details
+### update - Update ticket fields (only provided fields change)
+### update-status - Update ticket status (follows status flow above)
+### delete - Delete ticket and comments. DRY RUN by default; set confirm=true to delete.
+### update-criterion - Update acceptance criterion status
+### update-attachment - Update attachment metadata (type, description, priority, linkedCriteria)
+### list-by-epic - List all tickets in a specific epic (sorted by position)
+### link-files - Link file paths to a ticket for context tracking
+### get-files - Find tickets linked to a specific file (partial path matching)`,
     {
       action: z.enum(ACTIONS).describe("The operation to perform"),
       ticketId: z.string().optional().describe("Ticket ID"),
@@ -216,6 +163,28 @@ Optional params: projectId
             const ticketId = requireParam(params.ticketId, "ticketId", "get");
             const ticket = getTicket(db, ticketId);
             return formatResult(ticket);
+          }
+
+          case "update": {
+            const ticketId = requireParam(params.ticketId, "ticketId", "update");
+            const updated = updateTicket(db, ticketId, {
+              title: params.title,
+              description: params.description,
+              status: params.status as TicketStatus | undefined,
+              priority: params.priority as Priority | undefined,
+              epicId: params.epicId,
+              tags: params.tags,
+            });
+            const fields = [
+              params.title && "title",
+              params.description && "description",
+              params.status && "status",
+              params.priority && "priority",
+              params.epicId && "epicId",
+              params.tags && "tags",
+            ].filter(Boolean);
+            log.info(`Updated ticket ${ticketId}: ${fields.join(", ")}`);
+            return formatResult(updated, `Ticket updated (${fields.join(", ")})`);
           }
 
           case "update-status": {

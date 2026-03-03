@@ -38,9 +38,6 @@ const VSCODE_ENV_PATTERNS = [
 const CLAUDE_CODE_ENV_PATTERNS = [
   "CLAUDE_CODE",
   "CLAUDE_CODE_ENTRYPOINT",
-  "CLAUDE_API_KEY",
-  "ANTHROPIC_API_KEY",
-  "MCP_SERVER_NAME",
   "CLAUDE_CODE_TERMINAL_ID",
 ];
 
@@ -179,10 +176,30 @@ function hasCodexEnvironment(): boolean {
 
 /**
  * Detect the current environment (claude-code, opencode, copilot-cli, codex, cursor, vscode, or unknown).
- * Claude Code takes priority, then OpenCode, then Copilot CLI, then Codex, then Cursor, then VS Code.
+ *
+ * Detection priority:
+ * 1. Claude Code runtime vars (CLAUDE_CODE, CLAUDE_CODE_ENTRYPOINT, CLAUDE_CODE_TERMINAL_ID)
+ *    — set by Claude Code process, not inherited from user shell
+ * 2. Explicit provider flags (OPENCODE, COPILOT_CLI, CODEX, CURSOR)
+ *    — set intentionally via MCP config env section
+ * 3. Provider-specific env var patterns (OPENCODE_*, COPILOT_*, etc.)
+ *    — heuristic detection from provider-specific env vars
+ * 4. VS Code env vars (lowest priority since other tools may run inside VS Code terminals)
+ *
+ * NOTE: Generic env vars like ANTHROPIC_API_KEY, CLAUDE_API_KEY, and MCP_SERVER_NAME are
+ * intentionally excluded from Claude Code detection as they may be present in any environment.
  */
 export function detectEnvironment(): Environment {
+  // Claude Code runtime vars — set by Claude Code process itself, very reliable
   if (hasClaudeCodeEnvironment()) return "claude-code";
+
+  // Explicit provider flags — intentionally set via MCP config
+  if (process.env[OPENCODE_FLAG]) return "opencode";
+  if (process.env[COPILOT_CLI_FLAG]) return "copilot-cli";
+  if (process.env[CODEX_FLAG]) return "codex";
+  if (process.env[CURSOR_FLAG]) return "cursor";
+
+  // Heuristic detection via provider-specific env var patterns
   if (hasOpenCodeEnvironment()) return "opencode";
   if (hasCopilotCliEnvironment()) return "copilot-cli";
   if (hasCodexEnvironment()) return "codex";
@@ -263,6 +280,7 @@ export function getEnvironmentInfo(): EnvironmentInfo {
   }
 
   // Collect OpenCode env vars (both known patterns and any OPENCODE_* prefix)
+  if (process.env[OPENCODE_FLAG]) envVarsDetected.push(OPENCODE_FLAG);
   for (const envVar of OPENCODE_ENV_PATTERNS) {
     if (process.env[envVar]) envVarsDetected.push(envVar);
   }
