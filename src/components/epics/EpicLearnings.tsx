@@ -20,7 +20,19 @@ export interface EpicLearningsProps {
   learnings: LearningEntry[];
 }
 
-const LEARNING_TYPE_CONFIG = {
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return "Unknown";
+  return date.toLocaleDateString();
+}
+
+interface LearningConfig {
+  label: string;
+  className: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const LEARNING_TYPE_CONFIG: Record<string, LearningConfig> = {
   pattern: {
     label: "Pattern",
     className: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
@@ -41,14 +53,24 @@ const LEARNING_TYPE_CONFIG = {
     className: "bg-purple-500/20 text-purple-400 border-purple-500/30",
     icon: GitBranch,
   },
-} as const;
+};
 
-export function EpicLearnings({ learnings }: EpicLearningsProps) {
+const DEFAULT_CONFIG: LearningConfig = {
+  label: "Unknown",
+  className: "bg-slate-500/20 text-slate-400 border-slate-500/30",
+  icon: Lightbulb,
+};
+
+export function EpicLearnings({ learnings = [] }: EpicLearningsProps) {
   const [isOpen, setIsOpen] = React.useState(false);
 
-  const totalLearnings = learnings.reduce((acc, entry) => acc + entry.learnings.length, 0);
+  const safeLearnings = learnings ?? [];
+  const totalLearnings = safeLearnings.reduce(
+    (acc, entry) => acc + (entry.learnings?.length ?? 0),
+    0
+  );
 
-  if (learnings.length === 0) {
+  if (safeLearnings.length === 0) {
     return (
       <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-6 text-center">
         <p className="text-slate-400">
@@ -63,6 +85,7 @@ export function EpicLearnings({ learnings }: EpicLearningsProps) {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
+        aria-expanded={isOpen}
         className="flex w-full items-center justify-between p-4 text-left hover:bg-slate-700/30 transition-colors"
       >
         <div className="flex items-center gap-2">
@@ -80,20 +103,18 @@ export function EpicLearnings({ learnings }: EpicLearningsProps) {
 
       {isOpen && (
         <div className="border-t border-slate-700 p-4 space-y-4">
-          {learnings.map((entry) => (
+          {safeLearnings.map((entry) => (
             <div key={entry.ticketId} className="space-y-2">
               <div className="flex items-center gap-2">
                 <FileText className="h-3.5 w-3.5 text-slate-500" />
                 <span className="text-sm font-medium text-slate-300">{entry.ticketTitle}</span>
                 {entry.appliedAt && (
-                  <span className="text-xs text-slate-500">
-                    {new Date(entry.appliedAt).toLocaleDateString()}
-                  </span>
+                  <span className="text-xs text-slate-500">{formatDate(entry.appliedAt)}</span>
                 )}
               </div>
               <div className="ml-5 space-y-2">
-                {entry.learnings.map((learning, idx) => {
-                  const config = LEARNING_TYPE_CONFIG[learning.type];
+                {(entry.learnings ?? []).map((learning, idx) => {
+                  const config = LEARNING_TYPE_CONFIG[learning.type] ?? DEFAULT_CONFIG;
                   const Icon = config.icon;
                   return (
                     <div key={idx} className="rounded bg-slate-900/50 p-3">
