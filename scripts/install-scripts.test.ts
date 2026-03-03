@@ -228,19 +228,26 @@ describe("scripts/uninstall.sh (universal auto-detect)", () => {
 describe("setup-copilot-cli.sh hooks.json format", () => {
   const script = readScript("scripts/setup-copilot-cli.sh");
 
-  it("generates hooks.json with 'type: command' in every hook entry", () => {
-    // Every hook entry in the generated hooks.json must include "type": "command"
-    // per the Copilot CLI hooks specification
-    const hookEvents = [
+  it("generates hooks.json with only preToolUse enforce-state hook", () => {
+    // After refactor: only 1 hook event (preToolUse with enforce-state-before-write)
+    // Telemetry hooks removed — MCP self-instrumentation handles telemetry
+    expect(script).toContain(`"preToolUse"`);
+
+    // Telemetry hook events should NOT be present
+    for (const removed of [
       "sessionStart",
-      "preToolUse",
       "postToolUse",
       "sessionEnd",
       "userPromptSubmitted",
       "errorOccurred",
-    ];
-    for (const event of hookEvents) {
-      expect(script, `hooks.json ${event} section found`).toContain(`"${event}"`);
+    ]) {
+      const hooksJsonSection = script.slice(
+        script.indexOf("HOOKS_JSON_EOF"),
+        script.indexOf("HOOKS_JSON_EOF", script.indexOf("HOOKS_JSON_EOF") + 1)
+      );
+      expect(hooksJsonSection, `hooks.json should not contain ${removed}`).not.toContain(
+        `"${removed}"`
+      );
     }
 
     // Count occurrences of "bash": in the hooks.json section
@@ -251,7 +258,7 @@ describe("setup-copilot-cli.sh hooks.json format", () => {
     const bashEntries = (hooksJsonSection.match(/"bash":/g) || []).length;
     const typeCommandEntries = (hooksJsonSection.match(/"type": "command"/g) || []).length;
 
-    expect(typeCommandEntries).toBeGreaterThan(0);
+    expect(typeCommandEntries).toBe(1);
     expect(typeCommandEntries).toBe(bashEntries);
   });
 
