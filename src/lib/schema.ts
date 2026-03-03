@@ -89,6 +89,31 @@ export const ticketComments = sqliteTable(
   (table) => [index("idx_comments_ticket").on(table.ticketId)]
 );
 
+// Epic comments table (activity log for epic-level discussions and notes)
+export const epicComments = sqliteTable(
+  "epic_comments",
+  {
+    id: text("id").primaryKey(),
+    epicId: text("epic_id")
+      .notNull()
+      .references(() => epics.id, { onDelete: "cascade" }),
+    content: text("content").notNull(),
+    author: text("author"), // 'user', 'ralph', 'system', etc.
+    type: text("type").$type<"comment" | "activity" | "note">(),
+    metadata: text("metadata"), // JSON for structured data
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    index("idx_epic_comments_epic").on(table.epicId),
+    index("idx_epic_comments_created").on(table.createdAt),
+  ]
+);
+
+export type EpicComment = typeof epicComments.$inferSelect;
+export type NewEpicComment = typeof epicComments.$inferInsert;
+
 // Settings table (single row for app-wide settings)
 export const settings = sqliteTable("settings", {
   id: text("id").primaryKey().default("default"),
