@@ -112,48 +112,64 @@ uninstall_claude_code() {
 uninstall_cursor() {
   echo -e "${BLUE}Uninstalling Cursor configuration...${NC}"
 
-  HOOKS_DIR="$HOME/.cursor/hooks"
+  local failed=0
 
+  # Remove agent files
+  AGENTS_DIR="$HOME/.cursor/agents"
+  if [ -d "$AGENTS_DIR" ]; then
+    for agent in ralph.md ticket-worker.md planner.md \
+                 code-reviewer.md code-simplifier.md silent-failure-hunter.md; do
+      if [ -f "$AGENTS_DIR/$agent" ]; then
+        rm "$AGENTS_DIR/$agent" 2>/dev/null && echo -e "${GREEN}✓ Removed agent $agent${NC}" || failed=1
+      fi
+    done
+  fi
+
+  # Remove skills
+  SKILLS_DIR="$HOME/.cursor/skills"
+  if [ -d "$SKILLS_DIR" ]; then
+    for skill in brain-dump-workflow review review-aggregation \
+                 brain-dump-tickets ralph-workflow auto-review \
+                 tanstack-errors tanstack-forms tanstack-mutations tanstack-query tanstack-types; do
+      if [ -d "$SKILLS_DIR/$skill" ]; then
+        rm -rf "$SKILLS_DIR/$skill" 2>/dev/null && echo -e "${GREEN}✓ Removed $skill skill${NC}" || failed=1
+      fi
+    done
+    # Remove standalone skill files
+    find "$SKILLS_DIR" -maxdepth 1 -name "*.skill.md" -delete 2>/dev/null || true
+  fi
+
+  # Remove legacy telemetry hooks (no longer installed, cleanup for old installs)
+  HOOKS_DIR="$HOME/.cursor/hooks"
   if [ -d "$HOOKS_DIR" ]; then
-    local failed=0
-    # Remove Brain Dump telemetry hooks
     for hook in start-telemetry.sh end-telemetry.sh log-tool.sh \
                 log-tool-failure.sh log-prompt.sh; do
-      hook_path="$HOOKS_DIR/$hook"
-      if [ -f "$hook_path" ]; then
-        if ! rm "$hook_path"; then
-          echo -e "${RED}✗ Failed to remove $hook (permission denied or file locked)${NC}"
-          failed=1
-        fi
+      if [ -f "$HOOKS_DIR/$hook" ]; then
+        rm "$HOOKS_DIR/$hook" 2>/dev/null || failed=1
       fi
     done
+  fi
 
-    # Remove temporary files
-    for temp_file in telemetry-session.json telemetry-queue.jsonl telemetry.log; do
-      if [ -f "$HOME/.cursor/$temp_file" ]; then
-        if ! rm "$HOME/.cursor/$temp_file"; then
-          echo -e "${YELLOW}⚠ Could not remove $temp_file${NC}"
-          failed=1
-        fi
-      fi
-    done
+  # Remove legacy temp files
+  for temp_file in telemetry-session.json telemetry-queue.jsonl telemetry.log; do
+    if [ -f "$HOME/.cursor/$temp_file" ]; then
+      rm "$HOME/.cursor/$temp_file" 2>/dev/null || failed=1
+    fi
+  done
+  find "$HOME/.cursor" -maxdepth 1 -name "tool-correlation-*.txt" -delete 2>/dev/null || true
 
-    # Remove correlation files
-    find "$HOME/.cursor" -maxdepth 1 -name "tool-correlation-*.txt" -delete 2>/dev/null || true
-
-    if [ $failed -eq 0 ]; then
-      echo -e "${GREEN}✓ Cursor hooks removed${NC}"
-    else
-      echo -e "${YELLOW}⚠ Some hooks could not be removed. Check permissions.${NC}"
+  # Clean up hooks.json
+  HOOKS_CONFIG="$HOME/.cursor/hooks.json"
+  if [ -f "$HOOKS_CONFIG" ]; then
+    if grep -q "brain-dump\|enforce-state" "$HOOKS_CONFIG"; then
+      echo -e "${YELLOW}Note:${NC} Manually remove Brain Dump hooks from $HOOKS_CONFIG if needed"
     fi
   fi
 
-  # Clean up hooks.json if it only contains Brain Dump
-  HOOKS_CONFIG="$HOME/.cursor/hooks.json"
-  if [ -f "$HOOKS_CONFIG" ]; then
-    if grep -q "start-telemetry" "$HOOKS_CONFIG"; then
-      echo -e "${YELLOW}Note:${NC} Manually remove Brain Dump hooks from $HOOKS_CONFIG if needed"
-    fi
+  if [ $failed -eq 0 ]; then
+    echo -e "${GREEN}✓ Cursor uninstallation complete${NC}"
+  else
+    echo -e "${YELLOW}⚠ Some Cursor files could not be removed. Check permissions.${NC}"
   fi
 
   echo ""
@@ -234,13 +250,18 @@ try {
     fi
   fi
 
-  # Remove plugin
-  if [ -f "$PLUGINS_DIR/brain-dump-telemetry.ts" ]; then
-    if ! rm "$PLUGINS_DIR/brain-dump-telemetry.ts"; then
-      echo -e "${RED}✗ Failed to remove telemetry plugin (permission denied or file locked)${NC}"
-      failed=1
-    else
-      echo -e "${GREEN}✓ OpenCode plugin removed${NC}"
+  # Remove plugins (current + legacy)
+  for plugin in brain-dump-review-guard.ts brain-dump-review-marker.ts brain-dump-telemetry.ts; do
+    if [ -f "$PLUGINS_DIR/$plugin" ]; then
+      rm "$PLUGINS_DIR/$plugin" 2>/dev/null && echo -e "${GREEN}✓ Removed $plugin${NC}" || failed=1
+    fi
+  done
+
+  # Remove Ralph agent
+  AGENTS_DIR="$CONFIG_DIR/agents"
+  if [ -d "$AGENTS_DIR" ]; then
+    if [ -f "$AGENTS_DIR/ralph.md" ]; then
+      rm "$AGENTS_DIR/ralph.md" 2>/dev/null && echo -e "${GREEN}✓ Removed ralph agent${NC}" || failed=1
     fi
   fi
 
@@ -340,9 +361,10 @@ uninstall_vscode() {
     done
   fi
 
-  # Remove Brain Dump skills from Copilot skills folder
+  # Remove Brain Dump skills from Copilot skills folder (current + legacy)
   if [ -d "$COPILOT_SKILLS_DIR" ]; then
-    for skill in brain-dump-tickets ralph-workflow auto-review; do
+    for skill in brain-dump-workflow review review-aggregation \
+                 brain-dump-tickets ralph-workflow auto-review; do
       if [ -d "$COPILOT_SKILLS_DIR/$skill" ]; then
         rm -rf "$COPILOT_SKILLS_DIR/$skill" 2>/dev/null && echo -e "${GREEN}✓ Removed $skill skill${NC}" || failed=1
       fi
@@ -462,7 +484,7 @@ try {
 
   # Clean up hooks.json
   if [ -f "$HOOKS_CONFIG" ]; then
-    if grep -q "start-telemetry" "$HOOKS_CONFIG"; then
+    if grep -q "brain-dump\|enforce-state" "$HOOKS_CONFIG"; then
       rm "$HOOKS_CONFIG" 2>/dev/null && echo -e "${GREEN}✓ Removed hooks.json${NC}" || {
         echo -e "${YELLOW}Note:${NC} Manually remove Brain Dump hooks from $HOOKS_CONFIG"
         failed=1
@@ -490,9 +512,9 @@ try {
     if command -v code &>/dev/null 2>&1; then
       echo -e "${YELLOW}Note:${NC} Preserving ~/.copilot/skills/ (shared with VS Code)"
     else
-      for skill in brain-dump-tickets ralph-workflow auto-review brain-dump-workflow \
-                   review review-aggregation tanstack-errors tanstack-forms \
-                   tanstack-mutations tanstack-query tanstack-types; do
+      for skill in brain-dump-workflow review review-aggregation \
+                   brain-dump-tickets ralph-workflow auto-review \
+                   tanstack-errors tanstack-forms tanstack-mutations tanstack-query tanstack-types; do
         if [ -d "$SKILLS_DIR/$skill" ]; then
           rm -rf "$SKILLS_DIR/$skill" 2>/dev/null && echo -e "${GREEN}✓ Removed $skill skill${NC}" || failed=1
         fi
@@ -563,8 +585,9 @@ echo -e "${BLUE}Summary:${NC}"
 echo "  • Environments cleaned: $REMOVE_COUNT"
 echo ""
 echo -e "${BLUE}What's been removed:${NC}"
-echo "  • Telemetry hooks and plugins"
-echo "  • Temporary telemetry files"
+echo "  • Workflow hooks, plugins, and configurations"
+echo "  • Agent and skill files"
+echo "  • Temporary state files"
 echo "  • Configuration documentation"
 echo ""
 echo -e "${YELLOW}Note:${NC} Some configuration entries may need manual cleanup from:"
