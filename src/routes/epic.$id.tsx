@@ -229,8 +229,7 @@ function EpicDetailPage() {
   const ticketsTotal =
     epicDetail.workflowState?.ticketsTotal ??
     Object.values(epicDetail.ticketsByStatus).reduce((a, b) => a + b, 0);
-  const ticketsDone =
-    epicDetail.workflowState?.ticketsDone ?? epicDetail.ticketsByStatus["done"] ?? 0;
+  const ticketsDone = epicDetail.ticketsByStatus["done"] ?? 0;
 
   return (
     <div style={containerStyles}>

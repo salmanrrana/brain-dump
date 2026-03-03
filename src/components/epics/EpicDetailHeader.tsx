@@ -50,9 +50,8 @@ export function EpicDetailHeader({
   const { showToast } = useToast();
   const settings = useSettings();
 
-  const ticketsTotal =
-    workflowState?.ticketsTotal ?? Object.values(ticketsByStatus).reduce((a, b) => a + b, 0);
-  const ticketsDone = workflowState?.ticketsDone ?? ticketsByStatus["done"] ?? 0;
+  const ticketsTotal = Object.values(ticketsByStatus).reduce((a, b) => a + b, 0);
+  const ticketsDone = ticketsByStatus["done"] ?? 0;
   const completionPercent = ticketsTotal > 0 ? Math.round((ticketsDone / ticketsTotal) * 100) : 0;
 
   useClickOutside(
