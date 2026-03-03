@@ -1,5 +1,6 @@
 // Epics components
 export { CreateEpicModal, type CreateEpicModalProps } from "./CreateEpicModal";
+export { EpicDetailHeader, type EpicDetailHeaderProps } from "./EpicDetailHeader";
 export { EpicLearnings, type EpicLearningsProps, type LearningEntry } from "./EpicLearnings";
 export { EpicProgressOverview, type EpicProgressOverviewProps } from "./EpicProgressOverview";
 export { EpicTicketsList, type EpicTicketsListProps } from "./EpicTicketsList";
