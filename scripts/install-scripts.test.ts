@@ -310,6 +310,88 @@ describe("copilot pre-tool-use hook script", () => {
   });
 });
 
+describe("post-refactor: no telemetry hooks in setup scripts", () => {
+  it("setup-cursor.sh does not create telemetry hook scripts", () => {
+    const script = readScript("scripts/setup-cursor.sh");
+    // Should NOT create/write telemetry hook files (heredoc installs)
+    for (const hookScript of [
+      "start-telemetry.sh",
+      "end-telemetry.sh",
+      "log-tool-start.sh",
+      "log-tool-end.sh",
+      "log-tool-failure.sh",
+      "log-prompt.sh",
+    ]) {
+      // Check that no heredoc creates these files (cat > ...hookScript or cp ...hookScript)
+      expect(script, `setup-cursor.sh should not create ${hookScript}`).not.toMatch(
+        new RegExp(`cat\\s*>.*${hookScript}`)
+      );
+    }
+    // Hooks.json should not contain telemetry event types
+    // (cursor uses the same hooks.json approach — check if it exists)
+    if (script.includes("hooks.json")) {
+      for (const removed of [
+        "sessionStart",
+        "sessionEnd",
+        "userPromptSubmitted",
+        "errorOccurred",
+      ]) {
+        expect(script, `should not reference telemetry event ${removed}`).not.toContain(
+          `"${removed}"`
+        );
+      }
+    }
+  });
+
+  it("setup-copilot-cli.sh does not generate telemetry hook scripts", () => {
+    const script = readScript("scripts/setup-copilot-cli.sh");
+    // The hooks.json heredoc should NOT contain telemetry-related event types
+    const hooksJsonStart = script.indexOf("HOOKS_JSON_EOF");
+    const hooksJsonEnd = script.indexOf("HOOKS_JSON_EOF", hooksJsonStart + 1);
+    const hooksJsonSection = script.slice(hooksJsonStart, hooksJsonEnd);
+    // None of these telemetry hook scripts should be generated
+    for (const hookScript of [
+      "start-telemetry.sh",
+      "end-telemetry.sh",
+      "log-tool-start.sh",
+      "log-tool-end.sh",
+      "log-tool-failure.sh",
+      "log-prompt.sh",
+    ]) {
+      expect(hooksJsonSection, `hooks.json should not reference ${hookScript}`).not.toContain(
+        hookScript
+      );
+    }
+  });
+});
+
+describe("post-refactor: only 3 global skills installed", () => {
+  const EXPECTED_GLOBAL_SKILLS = ["brain-dump-workflow", "review", "review-aggregation"];
+
+  for (const setupScript of [
+    "scripts/setup-cursor.sh",
+    "scripts/setup-copilot-cli.sh",
+    "scripts/setup-vscode.sh",
+  ]) {
+    it(`${setupScript} installs exactly 3 global skills`, () => {
+      const script = readScript(setupScript);
+      expect(script).toContain(
+        'GLOBAL_SKILLS=("brain-dump-workflow" "review" "review-aggregation")'
+      );
+      for (const skill of EXPECTED_GLOBAL_SKILLS) {
+        expect(script).toContain(skill);
+      }
+    });
+  }
+
+  it("setup-cursor.sh cleans up stale project-specific skills", () => {
+    const script = readScript("scripts/setup-cursor.sh");
+    expect(script).toContain("STALE_SKILLS=");
+    expect(script).toContain("tanstack-errors");
+    expect(script).toContain("tanstack-forms");
+  });
+});
+
 describe("install/uninstall flag parity", () => {
   const installScript = readScript("install.sh");
   const uninstallScript = readScript("uninstall.sh");
