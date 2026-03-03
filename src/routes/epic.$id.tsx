@@ -211,7 +211,7 @@ function EpicDetailPage() {
         <div style={errorCardStyles}>
           <AlertCircle size={48} style={{ color: "var(--accent-danger)" }} />
           <h2 style={errorTitleStyles}>Epic Not Found</h2>
-          <p style={errorMessageStyles}>{error ? error : `Could not find epic with ID: ${id}`}</p>
+          <p style={errorMessageStyles}>{error || `Could not find epic with ID: ${id}`}</p>
           <button
             type="button"
             onClick={handleBackNavigation}

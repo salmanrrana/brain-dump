@@ -11,7 +11,7 @@
     {
       "id": "6e76bf6e-891f-4e5a-af0e-90385c55c5a9",
       "title": "Epic Overview — Full Implementation Plan",
-      "passes": false,
+      "passes": true,
       "overview": "Currently, epics are managed through modals (`EpicModal.tsx`) and sidebar list items. There's no dedicated page to view an epic's full picture — description, progress, tickets, learnings, and git info. The ticket detail page (`ticket.$id.tsx`) serves as a proven template for this pattern.\nThe `epicWorkflowState` table already tracks rich data (ticketsTotal, ticketsDone, currentTicketId, learnings, branch/PR info) that isn't surfaced anywhere in a consolidated view.",
       "types": [],
       "designDecisions": [],
@@ -118,7 +118,7 @@
     {
       "id": "f36655f0-aff5-44d7-9fe9-ce53a1add5b4",
       "title": "Component: EpicTicketsList — tickets grouped by status",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [
         {
@@ -154,7 +154,7 @@
     {
       "id": "5ac007ea-6353-4c2b-871a-02da5d5374a3",
       "title": "Component: EpicLearnings — collapsible learnings panel",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [
         {
@@ -191,7 +191,7 @@
     {
       "id": "429fb536-2775-45e9-b34d-ef6b404dcf65",
       "title": "Component: EpicDetailHeader — header with badges, git info, launch actions",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -226,7 +226,7 @@
     {
       "id": "2b35003b-2ea1-4f8a-9a80-84c00e8a530f",
       "title": "Route + Integration: epic.$id.tsx page and navigation links",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
