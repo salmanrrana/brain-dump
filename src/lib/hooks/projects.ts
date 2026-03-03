@@ -6,7 +6,14 @@
 import { useEffect, useMemo } from "react";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getProjects, createProject, updateProject, deleteProject } from "../../api/projects";
-import { getEpicsByProject, createEpic, updateEpic, deleteEpic } from "../../api/epics";
+import {
+  getEpicsByProject,
+  createEpic,
+  updateEpic,
+  deleteEpic,
+  getEpicDetail,
+  type EpicDetailResult,
+} from "../../api/epics";
 import {
   detectInstalledEditors,
   detectDevCommands,
@@ -499,4 +506,28 @@ export function useLaunchDevServer() {
   return useMutation({
     mutationFn: (data: { projectPath: string; commandName: string }) => launchDevServer({ data }),
   });
+}
+
+// =============================================================================
+// EPIC DETAIL HOOK
+// =============================================================================
+
+/**
+ * Hook for fetching full epic detail data including tickets, progress, and learnings.
+ * Uses staleTime: 0 to match ticket detail pattern (data can be updated externally via MCP).
+ */
+export function useEpicDetail(epicId: string) {
+  const query = useQuery({
+    queryKey: queryKeys.epicDetail(epicId),
+    queryFn: () => getEpicDetail({ data: epicId }),
+    staleTime: 0, // Data can be updated externally via MCP
+    enabled: !!epicId,
+  });
+
+  return {
+    data: query.data as EpicDetailResult | undefined,
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+    refetch: query.refetch,
+  };
 }

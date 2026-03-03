@@ -1,9 +1,65 @@
 import { createServerFn } from "@tanstack/react-start";
 import { db, sqlite } from "../lib/db";
-import { epics, projects, tickets } from "../lib/schema";
+import { epics, projects, tickets, epicWorkflowState } from "../lib/schema";
 import { desc, eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { ensureExists } from "../lib/utils";
+
+export interface EpicLearningEntry {
+  ticketId: string;
+  ticketTitle: string;
+  learnings: Array<{
+    type: "pattern" | "anti-pattern" | "tool-usage" | "workflow";
+    description: string;
+    suggestedUpdate?: {
+      file: string;
+      section: string;
+      content: string;
+    };
+  }>;
+  appliedAt: string;
+}
+
+export interface EpicDetailResult {
+  epic: {
+    id: string;
+    title: string;
+    description: string | null;
+    projectId: string;
+    color: string | null;
+    createdAt: string;
+  };
+  project: {
+    id: string;
+    name: string;
+    path: string;
+    color: string | null;
+  };
+  tickets: Array<{
+    id: string;
+    title: string;
+    status: string;
+    priority: string | null;
+    isBlocked: boolean | null;
+    blockedReason: string | null;
+    branchName: string | null;
+    prNumber: number | null;
+    prUrl: string | null;
+    prStatus: string | null;
+  }>;
+  ticketsByStatus: Record<string, number>;
+  workflowState: {
+    id: string;
+    ticketsTotal: number;
+    ticketsDone: number;
+    currentTicketId: string | null;
+    learnings: EpicLearningEntry[];
+    epicBranchName: string | null;
+    prNumber: number | null;
+    prUrl: string | null;
+    prStatus: string | null;
+  } | null;
+}
 
 // Types
 export interface CreateEpicInput {
@@ -197,3 +253,98 @@ export const deleteEpic = createServerFn({ method: "POST" })
       };
     }
   );
+
+// Get epic detail with all related data for the Epic Detail page
+export const getEpicDetail = createServerFn({ method: "GET" })
+  .inputValidator((epicId: string) => {
+    if (!epicId) {
+      throw new Error("Epic ID is required");
+    }
+    return epicId;
+  })
+  .handler(async ({ data: epicId }): Promise<EpicDetailResult> => {
+    // Fetch epic
+    const epicResult = db.select().from(epics).where(eq(epics.id, epicId)).get();
+    const epic = ensureExists(epicResult, "Epic", epicId);
+
+    // Fetch project
+    const projectResult = db.select().from(projects).where(eq(projects.id, epic.projectId)).get();
+    const project = ensureExists(projectResult, "Project", epic.projectId);
+
+    // Fetch tickets for this epic
+    const epicTickets = db
+      .select({
+        id: tickets.id,
+        title: tickets.title,
+        status: tickets.status,
+        priority: tickets.priority,
+        isBlocked: tickets.isBlocked,
+        blockedReason: tickets.blockedReason,
+        branchName: tickets.branchName,
+        prNumber: tickets.prNumber,
+        prUrl: tickets.prUrl,
+        prStatus: tickets.prStatus,
+      })
+      .from(tickets)
+      .where(eq(tickets.epicId, epicId))
+      .all();
+
+    // Compute ticketsByStatus
+    const ticketsByStatus: Record<string, number> = {};
+    for (const ticket of epicTickets) {
+      ticketsByStatus[ticket.status] = (ticketsByStatus[ticket.status] ?? 0) + 1;
+    }
+
+    // Fetch workflow state (may not exist)
+    const workflowStateResult = db
+      .select()
+      .from(epicWorkflowState)
+      .where(eq(epicWorkflowState.epicId, epicId))
+      .get();
+
+    let workflowState: EpicDetailResult["workflowState"] = null;
+
+    if (workflowStateResult) {
+      // Parse learnings JSON with try/catch fallback to empty array
+      let parsedLearnings: EpicLearningEntry[] = [];
+      if (workflowStateResult.learnings) {
+        try {
+          parsedLearnings = JSON.parse(workflowStateResult.learnings);
+        } catch {
+          parsedLearnings = [];
+        }
+      }
+
+      workflowState = {
+        id: workflowStateResult.id,
+        ticketsTotal: (workflowStateResult.ticketsTotal ?? 0) as number,
+        ticketsDone: (workflowStateResult.ticketsDone ?? 0) as number,
+        currentTicketId: workflowStateResult.currentTicketId,
+        learnings: parsedLearnings,
+        epicBranchName: workflowStateResult.epicBranchName,
+        prNumber: workflowStateResult.prNumber,
+        prUrl: workflowStateResult.prUrl,
+        prStatus: workflowStateResult.prStatus,
+      };
+    }
+
+    return {
+      epic: {
+        id: epic.id,
+        title: epic.title,
+        description: epic.description,
+        projectId: epic.projectId,
+        color: epic.color,
+        createdAt: epic.createdAt,
+      },
+      project: {
+        id: project.id,
+        name: project.name,
+        path: project.path,
+        color: project.color,
+      },
+      tickets: epicTickets,
+      ticketsByStatus,
+      workflowState,
+    };
+  });

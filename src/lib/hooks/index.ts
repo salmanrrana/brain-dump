@@ -75,12 +75,15 @@ export {
   useCommitFileStats,
   useLaunchEditor,
   useLaunchDevServer,
+  useEpicDetail,
   type Epic,
   type Project,
   type ProjectBase,
   type ProjectWithEpics,
   type ProjectWithAIActivity,
 } from "./projects";
+
+export type { EpicDetailResult } from "../../api/epics";
 
 // =============================================================================
 // SETTINGS & DOCKER HOOKS
