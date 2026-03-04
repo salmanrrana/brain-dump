@@ -8,6 +8,7 @@
 #   - MCP: VS Code User profile (~/Library/Application Support/Code/User/mcp.json)
 #   - Prompts: VS Code User profile (~/Library/Application Support/Code/User/prompts/)
 #
+# Installs to BOTH VS Code and VS Code Insiders if both are present.
 # After running, Brain Dump tools and agents will be available in ALL your projects.
 
 set -e
@@ -100,105 +101,46 @@ link_item() {
     fi
 }
 
-# Check which VS Code is installed
+# ─────────────────────────────────────────────────────────────────
+# Collect all VS Code installations (install to ALL found variants)
+# ─────────────────────────────────────────────────────────────────
+VSCODE_TARGETS=()
 if [ -d "$VSCODE_USER_DIR" ]; then
-    VSCODE_TARGET="$VSCODE_USER_DIR"
+    VSCODE_TARGETS+=("$VSCODE_USER_DIR")
     echo -e "${GREEN}Found VS Code${NC}"
-elif [ -d "$VSCODE_INSIDERS_USER_DIR" ]; then
-    VSCODE_TARGET="$VSCODE_INSIDERS_USER_DIR"
+fi
+if [ -d "$VSCODE_INSIDERS_USER_DIR" ]; then
+    VSCODE_TARGETS+=("$VSCODE_INSIDERS_USER_DIR")
     echo -e "${GREEN}Found VS Code Insiders${NC}"
-else
-    echo -e "${YELLOW}VS Code user directory not found. Will create it.${NC}"
-    VSCODE_TARGET="$VSCODE_USER_DIR"
-    mkdir -p "$VSCODE_TARGET"
+fi
+if [ ${#VSCODE_TARGETS[@]} -eq 0 ]; then
+    echo -e "${YELLOW}No VS Code installation found. Will create standard directory.${NC}"
+    mkdir -p "$VSCODE_USER_DIR"
+    VSCODE_TARGETS+=("$VSCODE_USER_DIR")
 fi
 
-echo ""
-echo -e "${BLUE}Step 1: Configure MCP Server${NC}"
-echo "─────────────────────────────"
-echo -e "${YELLOW}Location:${NC} $VSCODE_TARGET/mcp.json"
+# ─────────────────────────────────────────────────────────────────
+# Install MCP, agents, and prompts to each VS Code variant
+# ─────────────────────────────────────────────────────────────────
+install_to_vscode_target() {
+    local VSCODE_TARGET="$1"
+    local target_label="$2"
 
-# MCP config goes in VS Code User profile directory (not ~/.vscode)
-MCP_CONFIG_FILE="$VSCODE_TARGET/mcp.json"
+    echo ""
+    echo -e "${BLUE}━━━ Installing to $target_label ━━━${NC}"
+    echo -e "${YELLOW}Location:${NC} $VSCODE_TARGET"
 
-# Check if mcp.json already exists
-if [ -f "$MCP_CONFIG_FILE" ]; then
-    echo "Existing mcp.json found. Checking for brain-dump server..."
-    if grep -q '"brain-dump"' "$MCP_CONFIG_FILE"; then
-        echo "Brain Dump entry found. Updating to latest config..."
-        # Always update to ensure config is current (e.g. npx tsx → node dist/index.js)
-        if command -v node >/dev/null 2>&1; then
-            node_error=$(MCP_CONFIG_FILE="$MCP_CONFIG_FILE" BRAIN_DUMP_DIR="$BRAIN_DUMP_DIR" node -e '
-const fs = require("fs");
-const configFile = process.env.MCP_CONFIG_FILE;
-const brainDumpDir = process.env.BRAIN_DUMP_DIR;
+    # ── Step 1: Configure MCP Server ──
+    echo ""
+    echo -e "${BLUE}  MCP Server${NC}"
 
-try {
-    const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
-    config.servers = config.servers || {};
-    config.servers["brain-dump"] = {
-        type: "stdio",
-        command: "node",
-        args: [brainDumpDir + "/mcp-server/dist/index.js"]
-    };
-    fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
-    console.log("Config updated successfully");
-} catch (err) {
-    console.error("Error: " + err.message);
-    process.exit(1);
-}
-' 2>&1) && echo -e "${GREEN}Brain Dump MCP server updated.${NC}" || {
-                echo -e "${YELLOW}Update failed: $node_error${NC}"
-            }
-        else
-            echo -e "${GREEN}Brain Dump MCP server already configured.${NC}"
-        fi
-    else
-        echo "Adding brain-dump server to existing config..."
-        # Try to merge using node (using env vars to prevent command injection)
-        if command -v node >/dev/null 2>&1; then
-            node_error=$(MCP_CONFIG_FILE="$MCP_CONFIG_FILE" BRAIN_DUMP_DIR="$BRAIN_DUMP_DIR" node -e '
-const fs = require("fs");
-const configFile = process.env.MCP_CONFIG_FILE;
-const brainDumpDir = process.env.BRAIN_DUMP_DIR;
+    local MCP_CONFIG_FILE="$VSCODE_TARGET/mcp.json"
 
-try {
-    const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
-    config.servers = config.servers || {};
-    config.servers["brain-dump"] = {
-        type: "stdio",
-        command: "node",
-        args: [brainDumpDir + "/mcp-server/dist/index.js"]
-    };
-    fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
-    console.log("Config updated successfully");
-} catch (err) {
-    console.error("Error: " + err.message);
-    process.exit(1);
-}
-' 2>&1) && echo -e "${GREEN}Added brain-dump to mcp.json${NC}" || {
-                echo -e "${YELLOW}JSON merge failed: $node_error${NC}"
-                echo -e "${RED}Please manually add the brain-dump server to your mcp.json:${NC}"
-                echo ""
-                echo '  "brain-dump": {'
-                echo '    "type": "stdio",'
-                echo '    "command": "node",'
-                echo "    \"args\": [\"$BRAIN_DUMP_DIR/mcp-server/dist/index.js\"]"
-                echo '  }'
-            }
-        else
-            echo -e "${RED}Please manually add the brain-dump server to your mcp.json:${NC}"
-            echo ""
-            echo '  "brain-dump": {'
-            echo '    "type": "stdio",'
-            echo '    "command": "node",'
-            echo "    \"args\": [\"$BRAIN_DUMP_DIR/mcp-server/dist/index.js\"]"
-            echo '  }'
-        fi
-    fi
-else
-    echo "Creating new mcp.json..."
-    cat > "$MCP_CONFIG_FILE" << EOF
+    if [ -f "$MCP_CONFIG_FILE" ]; then
+        # Check if file is empty or has content
+        if [ ! -s "$MCP_CONFIG_FILE" ]; then
+            echo "  Empty mcp.json found. Creating fresh config..."
+            cat > "$MCP_CONFIG_FILE" << EOF
 {
   "servers": {
     "brain-dump": {
@@ -209,56 +151,195 @@ else
   }
 }
 EOF
-    echo -e "${GREEN}Created mcp.json${NC}"
-fi
+            echo -e "  ${GREEN}Created mcp.json${NC}"
+        elif grep -q '"brain-dump"' "$MCP_CONFIG_FILE"; then
+            echo "  Updating brain-dump config..."
+            if command -v node >/dev/null 2>&1; then
+                node_error=$(MCP_CONFIG_FILE="$MCP_CONFIG_FILE" BRAIN_DUMP_DIR="$BRAIN_DUMP_DIR" node -e '
+const fs = require("fs");
+const configFile = process.env.MCP_CONFIG_FILE;
+const brainDumpDir = process.env.BRAIN_DUMP_DIR;
 
-echo ""
-echo -e "${BLUE}Step 2: Configure Agents (global)${NC}"
-echo "──────────────────────────────────"
-echo -e "${YELLOW}Per VS Code docs:${NC} https://code.visualstudio.com/docs/copilot/customization/custom-agents"
-echo -e "${YELLOW}Location:${NC} $VSCODE_TARGET/prompts/"
-echo -e "${YELLOW}Note:${NC} Global agents are available in ALL VS Code workspaces"
-
-AGENTS_SOURCE="$BRAIN_DUMP_DIR/.github/agents"
-# VS Code stores user-level agents in the prompts folder
-AGENTS_TARGET="$VSCODE_TARGET/prompts"
-
-if [ -d "$AGENTS_SOURCE" ]; then
-    mkdir -p "$AGENTS_TARGET"
-    for agent_file in "$AGENTS_SOURCE"/*.agent.md; do
-        if [ -f "$agent_file" ]; then
-            agent_name=$(basename "$agent_file")
-            target_path="$AGENTS_TARGET/$agent_name"
-            # Copy files directly (VS Code may not follow symlinks)
-            if [ -f "$target_path" ]; then
-                if ! cmp -s "$agent_file" "$target_path"; then
-                    cp "$agent_file" "$target_path"
-                    echo -e "${GREEN}Updated: $agent_name${NC}"
-                else
-                    echo -e "${YELLOW}Exists: $agent_name${NC}"
-                fi
+try {
+    const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
+    config.servers = config.servers || {};
+    config.servers["brain-dump"] = {
+        type: "stdio",
+        command: "node",
+        args: [brainDumpDir + "/mcp-server/dist/index.js"]
+    };
+    fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
+    console.log("Config updated successfully");
+} catch (err) {
+    console.error("Error: " + err.message);
+    process.exit(1);
+}
+' 2>&1) && echo -e "  ${GREEN}Brain Dump MCP server updated.${NC}" || {
+                    echo -e "  ${YELLOW}Update failed: $node_error${NC}"
+                }
             else
-                cp "$agent_file" "$target_path"
-                echo -e "${GREEN}Added: $agent_name${NC}"
+                echo -e "  ${GREEN}Brain Dump MCP server already configured.${NC}"
+            fi
+        else
+            echo "  Adding brain-dump server to existing config..."
+            if command -v node >/dev/null 2>&1; then
+                node_error=$(MCP_CONFIG_FILE="$MCP_CONFIG_FILE" BRAIN_DUMP_DIR="$BRAIN_DUMP_DIR" node -e '
+const fs = require("fs");
+const configFile = process.env.MCP_CONFIG_FILE;
+const brainDumpDir = process.env.BRAIN_DUMP_DIR;
+
+try {
+    const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
+    config.servers = config.servers || {};
+    config.servers["brain-dump"] = {
+        type: "stdio",
+        command: "node",
+        args: [brainDumpDir + "/mcp-server/dist/index.js"]
+    };
+    fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
+    console.log("Config updated successfully");
+} catch (err) {
+    console.error("Error: " + err.message);
+    process.exit(1);
+}
+' 2>&1) && echo -e "  ${GREEN}Added brain-dump to mcp.json${NC}" || {
+                    echo -e "  ${YELLOW}JSON merge failed: $node_error${NC}"
+                    echo -e "  ${RED}Please manually add the brain-dump server to your mcp.json${NC}"
+                }
+            else
+                echo -e "  ${RED}Please manually add the brain-dump server to your mcp.json${NC}"
             fi
         fi
-    done
+    else
+        echo "  Creating new mcp.json..."
+        cat > "$MCP_CONFIG_FILE" << EOF
+{
+  "servers": {
+    "brain-dump": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["$BRAIN_DUMP_DIR/mcp-server/dist/index.js"]
+    }
+  }
+}
+EOF
+        echo -e "  ${GREEN}Created mcp.json${NC}"
+    fi
 
-    # Clean up previously-installed review/utility agents (now inlined into commands)
-    STALE_AGENTS=("code-reviewer.agent.md" "silent-failure-hunter.agent.md" "code-simplifier.agent.md" "context7-library-compliance.agent.md" "react-best-practices.agent.md" "cruft-detector.agent.md" "senior-engineer.agent.md" "inception.agent.md")
-    for stale in "${STALE_AGENTS[@]}"; do
-        if [ -f "$AGENTS_TARGET/$stale" ]; then
-            rm "$AGENTS_TARGET/$stale"
-            echo -e "${YELLOW}Removed legacy agent: $stale${NC}"
-        fi
-    done
-else
-    echo -e "${YELLOW}No agents found in Brain Dump (.github/agents/)${NC}"
-fi
+    # ── Step 2: Configure Agents ──
+    echo ""
+    echo -e "${BLUE}  Agents${NC}"
 
+    local AGENTS_SOURCE="$BRAIN_DUMP_DIR/.github/agents"
+    local AGENTS_TARGET="$VSCODE_TARGET/prompts"
+
+    if [ -d "$AGENTS_SOURCE" ]; then
+        mkdir -p "$AGENTS_TARGET"
+        for agent_file in "$AGENTS_SOURCE"/*.agent.md; do
+            if [ -f "$agent_file" ]; then
+                agent_name=$(basename "$agent_file")
+                target_path="$AGENTS_TARGET/$agent_name"
+                if [ -f "$target_path" ]; then
+                    if ! cmp -s "$agent_file" "$target_path"; then
+                        cp "$agent_file" "$target_path"
+                        echo -e "  ${GREEN}Updated: $agent_name${NC}"
+                    else
+                        echo -e "  ${YELLOW}Exists: $agent_name${NC}"
+                    fi
+                else
+                    cp "$agent_file" "$target_path"
+                    echo -e "  ${GREEN}Added: $agent_name${NC}"
+                fi
+            fi
+        done
+
+        # Clean up previously-installed review/utility agents (now inlined into commands)
+        STALE_AGENTS=("code-reviewer.agent.md" "silent-failure-hunter.agent.md" "code-simplifier.agent.md" "context7-library-compliance.agent.md" "react-best-practices.agent.md" "cruft-detector.agent.md" "senior-engineer.agent.md" "inception.agent.md")
+        for stale in "${STALE_AGENTS[@]}"; do
+            if [ -f "$AGENTS_TARGET/$stale" ]; then
+                rm "$AGENTS_TARGET/$stale"
+                echo -e "  ${YELLOW}Removed legacy agent: $stale${NC}"
+            fi
+        done
+    else
+        echo -e "  ${YELLOW}No agents found in Brain Dump (.github/agents/)${NC}"
+    fi
+
+    # ── Step 3: Configure Prompts ──
+    echo ""
+    echo -e "${BLUE}  Prompts${NC}"
+
+    local PROMPTS_SOURCE="$BRAIN_DUMP_DIR/.github/prompts"
+    local PROMPTS_TARGET="$VSCODE_TARGET/prompts"
+
+    if [ -d "$PROMPTS_SOURCE" ]; then
+        mkdir -p "$PROMPTS_TARGET"
+        for prompt_file in "$PROMPTS_SOURCE"/*.prompt.md; do
+            if [ -f "$prompt_file" ]; then
+                prompt_name=$(basename "$prompt_file")
+                target_path="$PROMPTS_TARGET/$prompt_name"
+                if [ -f "$target_path" ]; then
+                    if ! cmp -s "$prompt_file" "$target_path"; then
+                        cp "$prompt_file" "$target_path"
+                        echo -e "  ${GREEN}Updated: $prompt_name${NC}"
+                    else
+                        echo -e "  ${YELLOW}Exists: $prompt_name${NC}"
+                    fi
+                else
+                    [ -L "$target_path" ] && rm "$target_path"
+                    cp "$prompt_file" "$target_path"
+                    echo -e "  ${GREEN}Added: $prompt_name${NC}"
+                fi
+            fi
+        done
+    else
+        echo -e "  ${YELLOW}No prompts found in Brain Dump (.github/prompts/)${NC}"
+    fi
+
+    # ── Step 4: Configure Auto-Review Prompt ──
+    local AUTO_REVIEW_PROMPT="$PROMPTS_TARGET/auto-review.prompt.md"
+    mkdir -p "$PROMPTS_TARGET"
+    cat > "$AUTO_REVIEW_PROMPT" << 'EOF'
+---
+description: Run the complete code review pipeline on recent changes
+---
+
+# Auto-Review Pipeline
+
+Please run the `/review` command on my recent changes.
+
+This will launch three review passes in parallel:
+1. **Code quality** - Project guidelines, style, potential bugs
+2. **Silent failure detection** - Error handling issues, swallowed errors
+3. **Code simplification** - Redundancy removal, readability improvements
+
+Focus on files modified in the current git diff.
+EOF
+    echo -e "  ${GREEN}Updated /auto-review prompt${NC}"
+
+    # Remove legacy auto-review skill directory (replaced by /review command)
+    if [ -d "$COPILOT_SKILLS_DIR/auto-review" ]; then
+        rm -rf "$COPILOT_SKILLS_DIR/auto-review"
+        echo -e "  ${YELLOW}Removed legacy auto-review skill (now command-based)${NC}"
+    fi
+}
+
+# ─────────────────────────────────────────────────────────────────
+# Run installation for each VS Code variant
+# ─────────────────────────────────────────────────────────────────
+for target in "${VSCODE_TARGETS[@]}"; do
+    if [ "$target" = "$VSCODE_USER_DIR" ]; then
+        install_to_vscode_target "$target" "VS Code"
+    else
+        install_to_vscode_target "$target" "VS Code Insiders"
+    fi
+done
+
+# ─────────────────────────────────────────────────────────────────
+# Step 3: Configure Skills (shared across all VS Code variants)
+# ─────────────────────────────────────────────────────────────────
 echo ""
-echo -e "${BLUE}Step 3: Configure Skills${NC}"
-echo "─────────────────────────"
+echo -e "${BLUE}━━━ Global Skills (shared) ━━━${NC}"
 echo -e "${YELLOW}Location:${NC} $COPILOT_SKILLS_DIR/"
 echo -e "${YELLOW}Note:${NC} Only workflow-essential skills installed globally"
 
@@ -275,9 +356,9 @@ if [ -d "$SKILLS_SOURCE_CLAUDE" ]; then
             target_path="$COPILOT_SKILLS_DIR/$skill_name"
             rm -rf "$target_path"
             cp -r "$skill_dir" "$target_path"
-            echo -e "${GREEN}Installed: $skill_name${NC}"
+            echo -e "  ${GREEN}Installed: $skill_name${NC}"
         else
-            echo -e "${YELLOW}Not found: $skill_name${NC}"
+            echo -e "  ${YELLOW}Not found: $skill_name${NC}"
         fi
     done
 else
@@ -290,93 +371,36 @@ for stale in "${STALE_SKILLS[@]}"; do
     stale_path="$COPILOT_SKILLS_DIR/$stale"
     if [ -d "$stale_path" ] || [ -f "$stale_path" ]; then
         rm -rf "$stale_path"
-        echo -e "${YELLOW}Removed legacy skill: $stale${NC}"
+        echo -e "  ${YELLOW}Removed legacy skill: $stale${NC}"
     fi
 done
 # Also clean up standalone skill files (e.g., brain-dump-workflow.skill.md)
 for stale_file in "$COPILOT_SKILLS_DIR"/*.skill.md; do
     if [ -f "$stale_file" ]; then
         rm "$stale_file"
-        echo -e "${YELLOW}Removed legacy skill file: $(basename "$stale_file")${NC}"
+        echo -e "  ${YELLOW}Removed legacy skill file: $(basename "$stale_file")${NC}"
     fi
 done
 
-echo ""
-echo -e "${BLUE}Step 4: Configure Prompts${NC}"
-echo "──────────────────────────"
-echo -e "${YELLOW}Location:${NC} $VSCODE_TARGET/prompts/"
-
-PROMPTS_SOURCE="$BRAIN_DUMP_DIR/.github/prompts"
-PROMPTS_TARGET="$VSCODE_TARGET/prompts"
-
-if [ -d "$PROMPTS_SOURCE" ]; then
-    mkdir -p "$PROMPTS_TARGET"
-    for prompt_file in "$PROMPTS_SOURCE"/*.prompt.md; do
-        if [ -f "$prompt_file" ]; then
-            prompt_name=$(basename "$prompt_file")
-            target_path="$PROMPTS_TARGET/$prompt_name"
-            # Copy files directly (VS Code may not follow symlinks)
-            if [ -f "$target_path" ]; then
-                if ! cmp -s "$prompt_file" "$target_path"; then
-                    cp "$prompt_file" "$target_path"
-                    echo -e "${GREEN}Updated: $prompt_name${NC}"
-                else
-                    echo -e "${YELLOW}Exists: $prompt_name${NC}"
-                fi
-            else
-                [ -L "$target_path" ] && rm "$target_path"
-                cp "$prompt_file" "$target_path"
-                echo -e "${GREEN}Added: $prompt_name${NC}"
-            fi
-        fi
-    done
-else
-    echo -e "${YELLOW}No prompts found in Brain Dump (.github/prompts/)${NC}"
-fi
-
-echo ""
-echo -e "${BLUE}Step 5: Configure Auto-Review Prompt${NC}"
-echo "──────────────────────────────────────"
-
-# Create /auto-review prompt that uses the /review command approach
-# (Review agent personas are now inlined into the /review command, not separate agents)
-AUTO_REVIEW_PROMPT="$PROMPTS_TARGET/auto-review.prompt.md"
-mkdir -p "$PROMPTS_TARGET"
-cat > "$AUTO_REVIEW_PROMPT" << 'EOF'
----
-description: Run the complete code review pipeline on recent changes
----
-
-# Auto-Review Pipeline
-
-Please run the `/review` command on my recent changes.
-
-This will launch three review passes in parallel:
-1. **Code quality** - Project guidelines, style, potential bugs
-2. **Silent failure detection** - Error handling issues, swallowed errors
-3. **Code simplification** - Redundancy removal, readability improvements
-
-Focus on files modified in the current git diff.
-EOF
-echo -e "${GREEN}Updated /auto-review prompt (command-based)${NC}"
-
-# Remove legacy auto-review skill directory (replaced by /review command)
-if [ -d "$COPILOT_SKILLS_DIR/auto-review" ]; then
-    rm -rf "$COPILOT_SKILLS_DIR/auto-review"
-    echo -e "${YELLOW}Removed legacy auto-review skill (now command-based)${NC}"
-fi
-
+# ─────────────────────────────────────────────────────────────────
+# Summary
+# ─────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║                    Setup Complete!                         ║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+echo -e "${BLUE}Installed to:${NC}"
+for target in "${VSCODE_TARGETS[@]}"; do
+    echo "  • $target"
+done
 echo ""
 echo -e "${BLUE}What's been configured:${NC}"
 echo ""
 echo -e "  ${GREEN}MCP Server:${NC}"
 echo "    • brain-dump (ticket management, workflow, review, telemetry)"
 echo ""
-echo -e "  ${GREEN}Agents ($VSCODE_TARGET/prompts/):${NC}"
+echo -e "  ${GREEN}Agents:${NC}"
 echo "    • ralph - Autonomous coding agent"
 echo "    • ticket-worker - Interactive ticket implementation"
 echo "    • planner - Create implementation plans and tickets"
@@ -386,7 +410,7 @@ echo "    • brain-dump-workflow - Universal quality workflow"
 echo "    • review - Code review pipeline"
 echo "    • review-aggregation - Combine review findings"
 echo ""
-echo -e "  ${GREEN}Prompts ($VSCODE_TARGET/prompts/):${NC}"
+echo -e "  ${GREEN}Prompts:${NC}"
 echo "    • /start-ticket, /complete-ticket, /create-tickets"
 echo "    • /auto-review - Runs /review command pipeline"
 echo ""

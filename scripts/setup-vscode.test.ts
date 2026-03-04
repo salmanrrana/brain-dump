@@ -90,15 +90,7 @@ describe("VS Code Setup Script", () => {
     const promptsDir = path.join(VSCODE_USER_DIR, "prompts");
     const sourceAgentsDir = path.join(BRAIN_DUMP_DIR, ".github/agents");
 
-    const expectedAgents = [
-      "code-reviewer.agent.md",
-      "code-simplifier.agent.md",
-      "inception.agent.md",
-      "planner.agent.md",
-      "ralph.agent.md",
-      "silent-failure-hunter.agent.md",
-      "ticket-worker.agent.md",
-    ];
+    const expectedAgents = ["planner.agent.md", "ralph.agent.md", "ticket-worker.agent.md"];
 
     it("should have prompts directory in VS Code User folder", () => {
       expect(fs.existsSync(promptsDir)).toBe(true);
@@ -122,10 +114,10 @@ describe("VS Code Setup Script", () => {
   });
 
   describe("Skills Configuration", () => {
-    const sourceSkillsDir = path.join(BRAIN_DUMP_DIR, ".github/skills");
+    const sourceSkillsDir = path.join(BRAIN_DUMP_DIR, ".claude/skills");
 
     // These are the core skills that should always be present
-    const expectedSkills = ["brain-dump-tickets", "ralph-workflow"];
+    const expectedSkills = ["brain-dump-workflow", "review", "review-aggregation"];
 
     it("should have skills in ~/.copilot/skills (per VS Code docs)", () => {
       // Per VS Code documentation, global skills go to ~/.copilot/skills
@@ -198,8 +190,8 @@ describe("VS Code Setup Script", () => {
       expect(files.some((f) => f.endsWith(".agent.md"))).toBe(true);
     });
 
-    it("should have .github/skills directory with skill folders", () => {
-      const skillsDir = path.join(BRAIN_DUMP_DIR, ".github/skills");
+    it("should have .claude/skills directory with skill folders", () => {
+      const skillsDir = path.join(BRAIN_DUMP_DIR, ".claude/skills");
       expect(fs.existsSync(skillsDir)).toBe(true);
 
       const dirs = fs
@@ -263,7 +255,7 @@ describe("Install Script Path Conventions", () => {
   it("setup-vscode.sh should copy files directly instead of symlinks", () => {
     const content = fs.readFileSync(vsCodeSetupScript, "utf-8");
 
-    // The setup script should mention copying directly
-    expect(content).toContain("Copy files directly");
+    // The setup script should use cp for copying (VS Code may not follow symlinks)
+    expect(content).toContain("cp ");
   });
 });
