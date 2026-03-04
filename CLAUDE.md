@@ -356,6 +356,84 @@ export const getTickets = createServerFn().handler(async () => {
 
 These are called from React components via TanStack Query.
 
+## Code Review Rules (Derived from 333 Findings)
+
+These rules were extracted from recurring patterns across all code review findings. They represent the most common issues found by review agents and should be treated as mandatory guidance.
+
+### Rule 1: No Silent Failures (34 findings, mostly critical)
+
+Every `catch` block must either:
+
+1. Show user-visible feedback (toast, error message, error state)
+2. Re-throw to a boundary that does
+3. Log with structured logging (`log.error()` / `createBrowserLogger`)
+
+**Never**: empty catch `{}`, catch-and-return-null without logging, `console.error` only.
+
+```typescript
+// BAD - silent failure
+try {
+  await save(data);
+} catch {
+  return null;
+}
+
+// BAD - console only (invisible in production)
+try {
+  await save(data);
+} catch (e) {
+  console.error(e);
+}
+
+// GOOD - user feedback + logging
+try {
+  await save(data);
+} catch (e) {
+  log.error("Failed to save", { error: e });
+  toast.error("Save failed. Please try again.");
+}
+```
+
+### Rule 2: Every User Action Needs Error Feedback (38 critical+major)
+
+When a user clicks a button, submits a form, or triggers any action:
+
+- Show loading state during async operations
+- Show error state with actionable message if it fails
+- Never leave the UI in a stuck state (disabled button with no feedback)
+
+**Check**: mutation `onError` must update UI. `mutateAsync` results must check `result.success`.
+
+### Rule 3: No Shell String Interpolation (7 security findings)
+
+Never interpolate variables into shell command strings. Use `execFile` (array args, no shell) or the project's `execFileNoThrow` utility from `src/utils/execFileNoThrow.ts`.
+
+```typescript
+// BAD - command injection
+execSync(`which ${command}`);
+
+// GOOD - use project utility
+import { execFileNoThrow } from "../utils/execFileNoThrow.js";
+await execFileNoThrow("which", [command]);
+```
+
+### Rule 4: Clickable Elements Need Keyboard Support (12 accessibility findings)
+
+Any element with `onClick` or `role="button"` must also have:
+
+- `onKeyDown` handler (Enter and Space to activate)
+- `tabIndex={0}` if not a native `<button>`
+- Proper ARIA labels for screen readers
+- Focus trap for modals/overlays
+
+### Rule 5: Extract Repeated Values (16 findings)
+
+Hardcoded strings, numbers, and repeated style patterns should be constants:
+
+- Magic numbers → named constants
+- Repeated classNames → shared style objects or component variants
+- Duplicated modal dismiss logic → use shared `useModalKeyboard` hook
+
 ## DO/DON'T Guidelines
 
 ### Database Queries
