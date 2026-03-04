@@ -1,189 +1,85 @@
 # Brain Dump OpenCode Integration
 
-This directory contains OpenCode-specific integration files for Brain Dump, including plugins, skills, and configuration examples.
+This directory contains OpenCode-specific integration files for Brain Dump, including plugins, skills, agents, and configuration examples.
 
 ## Components
 
-### 1. Telemetry Plugin (`plugins/brain-dump-telemetry.ts`)
+### 1. Safety Plugins (`plugins/`)
 
-Automatic telemetry capture for all AI work sessions in OpenCode.
+- **brain-dump-review-guard.ts** — Prevents push without completing AI review
+- **brain-dump-review-marker.ts** — Marks code review completion
 
-**Features:**
+### 2. Agents (`agent/`)
 
-- Session lifecycle tracking (create, idle, error)
-- Tool execution telemetry with correlation IDs
-- User prompt capture (with optional redaction)
-- Automatic MCP tool invocation
+Three core agents:
 
-**Installation:**
+- **ralph.md** — Autonomous ticket implementation agent
+- **planner.md** — Designs implementation plans for complex features
+- **ticket-worker.md** — Implements individual tickets with human guidance
 
-```bash
-# Global installation
-mkdir -p ~/.config/opencode/plugins
-cp plugins/brain-dump-telemetry.ts ~/.config/opencode/plugins/
+Review agents (code-reviewer, code-simplifier, silent-failure-hunter) are invoked
+via commands, not separate agent files.
 
-# Or project-local installation
-cp plugins/brain-dump-telemetry.ts .opencode/plugins/
-```
-
-### 2. Workflow Guidance (`AGENTS.md`)
+### 3. Workflow Guidance (`AGENTS.md`)
 
 Documentation for AI agents working with Brain Dump tickets.
 
-**What it covers:**
-
 - Workflow state machine (backlog → ready → in_progress → ai_review → human_review → done)
-- MCP tool reference
-- Best practices for implementation
-- Code quality standards
-- Common patterns (features, bugs, refactors, docs)
+- MCP tool reference and rules
 - Troubleshooting
 
-**Usage:** OpenCode agents will reference this automatically when working on tickets.
+### 4. Skills (`skill/`)
 
-### 3. Workflow Skill (`skills/brain-dump-workflow/SKILL.md`)
+- **brain-dump-workflow** — Auto-activated skill providing context-aware workflow guidance
+- **ralph-autonomous** — Ralph-specific autonomous workflow patterns
 
-Auto-activated skill providing context-aware guidance for Brain Dump workflows.
-
-**Features:**
-
-- Automatic activation when working on tickets
-- Complete workflow guidance (states, transitions, tools)
-- Code quality standards
-- Common patterns and troubleshooting
-
-**Installation:**
-
-```bash
-# Global installation
-mkdir -p ~/.config/opencode/skills
-cp -r skills/brain-dump-workflow ~/.config/opencode/skills/
-```
-
-### 4. Configuration Example (`opencode.json.example`)
+### 5. Configuration Example (`opencode.json.example`)
 
 Template for `opencode.json` configuration.
 
-**What to configure:**
+## Setup
 
-- MCP server path (update `/path/to/brain-dump/mcp-server/index.ts`)
-- Plugin directory
-- Skills directory
-- Project metadata
-
-**Usage:**
+Run the automated setup script:
 
 ```bash
-cp opencode.json.example opencode.json
-# Then edit opencode.json to set correct paths
+scripts/setup-opencode.sh
 ```
 
-## Setup Instructions
+This handles:
 
-### For OpenCode Users
+1. Building the MCP server
+2. Configuring `opencode.json` with MCP server entry
+3. Installing safety plugins
+4. Copying workflow documentation (AGENTS.md)
+5. Installing the brain-dump-workflow skill
+6. Installing the Ralph agent
 
-1. **Install the telemetry plugin:**
+### Manual Setup
+
+1. **Configure MCP server in `opencode.json`:**
+
+   ```json
+   {
+     "mcp": {
+       "brain-dump": {
+         "type": "local",
+         "command": ["node", "/path/to/brain-dump/mcp-server/dist/index.js"],
+         "enabled": true,
+         "environment": { "BRAIN_DUMP_PATH": "/path/to/brain-dump", "OPENCODE": "1" }
+       }
+     }
+   }
+   ```
+
+2. **Install plugins:**
 
    ```bash
    mkdir -p ~/.config/opencode/plugins
-   cp plugins/brain-dump-telemetry.ts ~/.config/opencode/plugins/brain-dump-telemetry.ts
+   cp plugins/brain-dump-review-guard.ts ~/.config/opencode/plugins/
+   cp plugins/brain-dump-review-marker.ts ~/.config/opencode/plugins/
    ```
 
-2. **Configure MCP server in `opencode.json`:**
-
-   ```json
-   {
-     "mcp": {
-       "servers": {
-         "brain-dump": {
-           "type": "local",
-           "command": "npx",
-           "args": ["tsx", "/path/to/brain-dump/mcp-server/index.ts"]
-         }
-       }
-     }
-   }
-   ```
-
-3. **Restart OpenCode** - The plugin and MCP server will be available
-
-### For Project Developers
-
-If you want Brain Dump integration in your specific project:
-
-1. **Copy configuration to project root:**
-
-   ```bash
-   cp opencode.json.example opencode.json
-   cp -r plugins .opencode/plugins
-   ```
-
-2. **Update `opencode.json`:**
-
-   ```json
-   {
-     "mcp": {
-       "servers": {
-         "brain-dump": {
-           "command": "npx",
-           "args": ["tsx", "./mcp-server/index.ts"]
-         }
-       }
-     }
-   }
-   ```
-
-3. **Done!** - OpenCode will load local configuration
-
-## Features by Lifecycle Event
-
-### Session Events
-
-**session.created**
-
-- Automatically starts telemetry session
-- Detects active ticket (if in Brain Dump project)
-- Prompts to activate session tracking
-
-**session.idle**
-
-- Automatically ends telemetry
-- Flushes pending events to database
-- Logs session outcome
-
-**session.error**
-
-- Catches session errors
-- Ends telemetry with failure outcome
-- Records error for debugging
-
-### Tool Events
-
-**tool.execute.before**
-
-- Generates correlation ID
-- Records tool start
-- Captures parameters (sanitized)
-
-**tool.execute.after**
-
-- Records tool end
-- Calculates duration
-- Marks as successful
-
-**tool.execute.error**
-
-- Records tool failure
-- Captures error message
-- Marks as failed
-
-### Prompt Events
-
-**prompt.before.submit**
-
-- Captures user prompt
-- Records prompt length
-- Optional redaction for privacy
+3. **Restart OpenCode** to load new configurations
 
 ## MCP Tools Available
 
@@ -191,187 +87,56 @@ Once configured, these tools are automatically available:
 
 ### Tickets
 
-- `list_projects` - See your projects
-- `list_tickets` - See tickets in project
-- `workflow "start-work"` - Begin working on ticket
-- `workflow "complete-work"` - Mark ticket for review
-- `list_epics` - See project epics
+- `workflow "start-work"` — Begin working on ticket
+- `workflow "complete-work"` — Mark ticket for review
+- `ticket "list"` — See tickets in project
+- `epic "list"` — See project epics
 
 ### Review & Quality
 
-- `review "submit-finding"` - Post review findings
-- `review "mark-fixed"` - Mark issue resolved
-- `review "check-complete"` - Verify all critical issues fixed
-- `review "generate-demo"` - Create demo for human review
+- `review "submit-finding"` — Post review findings
+- `review "mark-fixed"` — Mark issue resolved
+- `review "check-complete"` — Verify all critical issues fixed
+- `review "generate-demo"` — Create demo for human review
 
 ### Telemetry
 
-- `telemetry "start"` - Begin tracking
-- `telemetry "log-tool"` - Record tool usage
-- `telemetry "log-prompt"` - Record prompts
-- `telemetry "end"` - Finalize tracking
-
-## Telemetry Data Flow
-
-```
-┌─────────────────────────────────────┐
-│ OpenCode Session Starts             │
-│ (session.created event)             │
-└─────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────┐
-│ Telemetry Plugin Activates          │
-│ - Calls telemetry "start"            │
-│ - Stores session ID                 │
-└─────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────┐
-│ Tool & Prompt Events Captured       │
-│ - tool.execute.before/after         │
-│ - prompt.before.submit              │
-│ - Logs with correlation IDs         │
-└─────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────┐
-│ Session Ends                        │
-│ (session.idle or session.error)     │
-└─────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────┐
-│ Telemetry Finalized                 │
-│ - Calls telemetry "end"             │
-│ - All events flushed to database    │
-└─────────────────────────────────────┘
-```
+Telemetry is handled by MCP self-instrumentation — the MCP server automatically
+captures tool call events, session lifecycle, and correlation IDs. No external
+plugin is needed.
 
 ## Privacy & Security
 
-### Prompt Redaction
-
-By default, prompts are stored verbatim. To enable redaction:
-
-Edit `brain-dump-telemetry.ts` and change:
-
-```typescript
-redact: false; // Change to true
-```
-
-This hashes prompts instead of storing them.
-
 ### Parameter Sanitization
 
-Tool parameters are automatically sanitized:
+Tool parameters are automatically sanitized by the MCP server:
 
 - Strings > 100 chars: `[N chars]`
-- Large objects: `[object]`
+- Large objects: summarized
 - Sensitive data: Not logged
 
 ### Local Storage
 
-All telemetry is stored locally:
-
-- OpenCode: `.opencode/` directory
-- Database: Brain Dump SQLite database
-- No external transmission
-
-## Testing
-
-### Verify Plugin Load
-
-```bash
-# Check OpenCode recognizes the plugin
-opencode info --plugins
-```
-
-### Verify MCP Server
-
-```bash
-# Test MCP connection
-opencode mcp debug brain-dump
-
-# Should show:
-# ✓ Connected to brain-dump MCP server
-# ✓ Available tools: [list of tools]
-```
-
-### Manual Telemetry Test
-
-1. Start OpenCode session with Brain Dump project
-2. Use any MCP tool (e.g., `list_tickets`)
-3. End session
-4. Check database: telemetry events should be recorded
+All data is stored locally in the Brain Dump SQLite database. No external transmission.
 
 ## Troubleshooting
-
-### Plugin Not Loading
-
-1. **Check syntax:** TypeScript syntax errors prevent load
-
-   ```bash
-   npx tsc --noEmit plugins/brain-dump-telemetry.ts
-   ```
-
-2. **Check permissions:** Plugin file must be readable
-
-   ```bash
-   chmod +r ~/.config/opencode/plugins/brain-dump-telemetry.ts
-   ```
-
-3. **Check OpenCode version:** Requires OpenCode with plugin support
 
 ### MCP Server Not Connecting
 
 1. **Check path:** Verify MCP server path in `opencode.json`
-2. **Check Node:** `node --version` should work
-3. **Check permissions:** MCP script must be executable
+2. **Check build:** Run `pnpm build` in `mcp-server/`
+3. **Check Node:** `node --version` should work
 
-### No Telemetry Data
+### Plugin Not Loading
 
-1. **Check session:** Plugin only logs when session.created fires
-2. **Check tools:** Only MCP tool calls are logged, not UI interactions
-3. **Check database:** Verify Brain Dump database location
-
-## Documentation
-
-- **Spec:** `plans/specs/universal-quality-workflow.md` (OpenCode section)
-- **API:** https://opencode.ai/docs/plugins/
-- **Workflow:** `AGENTS.md` (this directory)
-
-## Examples
-
-### Example: Workflow Integration
-
-```typescript
-// OpenCode asks Claude to start working on a ticket
-// Claude calls: workflow "start-work"({ ticketId: "abc-123" })
-// Plugin telemetry automatically captures:
-// - Tool call start
-// - Tool parameters
-// - Tool execution duration
-// - Tool result summary
-// - All stored with session context
-```
-
-### Example: Session Tracking
-
-```typescript
-// User starts OpenCode session
-// session.created event fires
-// Plugin starts telemetry session
-
-// ... user works on ticket ...
-
-// User stops OpenCode
-// session.idle event fires
-// Plugin ends telemetry session
-// All queued events flushed to database
-```
+1. **Check permissions:** Plugin files must be readable
+2. **Check OpenCode version:** Requires OpenCode with plugin support
 
 ## Contributing
 
 To improve the OpenCode integration:
 
-1. Update `brain-dump-telemetry.ts` (plugin logic)
+1. Update plugins in `plugins/` (safety-net logic)
 2. Update `AGENTS.md` (workflow documentation)
 3. Test with latest OpenCode version
 4. Submit PR to brain-dump repository

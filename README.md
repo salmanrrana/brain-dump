@@ -224,30 +224,21 @@ Common commands available from installed command packs:
 
 [Workflow skills and commands →](docs/workflow-skills.md)
 
-### Subagents In This Repository
+### Agents
 
-Core workflow agents from `AGENTS.md`:
+Three core agents (installed globally from `.github/agents/`):
 
-- `ralph`
-- `ticket-worker`
-- `planner`
-- `code-reviewer`
-- `silent-failure-hunter`
-- `code-simplifier`
-- `inception`
+- `ralph` — Autonomous ticket implementation
+- `ticket-worker` — Guided ticket implementation
+- `planner` — Implementation planning
 
-Extended review/specialist agents from `.github/agents/`:
-
-- `cruft-detector`
-- `react-best-practices`
-- `context7-library-compliance`
-- `senior-engineer`
+Review agents (`code-reviewer`, `silent-failure-hunter`, `code-simplifier`) are invoked on-demand via `/review` and `/review-ticket` commands — not loaded as separate agent files.
 
 ---
 
 ## Choose Your Environment
 
-All environments get the same MCP tools, agents, and workflows.
+All environments get the same MCP tools, quality workflow, and 3 global skills (`brain-dump-workflow`, `review`, `review-aggregation`). Telemetry is handled by MCP self-instrumentation — no client-side telemetry plugins needed.
 
 | Environment     | Install                   | Best For                       |
 | --------------- | ------------------------- | ------------------------------ |
@@ -266,43 +257,42 @@ All environments get the same MCP tools, agents, and workflows.
 
 - Click "Start with Claude" on any ticket → Claude opens with full context
 - Click "Start with Ralph" for autonomous mode
-- MCP server is configured via `claude mcp add ...`
-- Global commands/hooks/agents live under `~/.claude/`
+- Installs: MCP server, 9 commands, 3 global skills, hooks (enforcement + PR automation)
+- Agent personas inlined into commands (no separate agent files)
 - [Full setup guide →](docs/claude-code-setup.md)
 
 ### VS Code (Copilot)
 
 - Agents available in Copilot Chat: `@ralph`, `@ticket-worker`, `@planner`
 - Background Agents for autonomous work
-- MCP config is stored in VS Code User profile `mcp.json`
+- Installs: MCP server, 3 agents, 3 prompts, 3 global skills
 - [Full setup guide →](docs/vscode-setup.md)
 
 ### OpenCode
 
 - Tab to switch agents, `@agent-name` to invoke subagents
+- Installs: MCP server, 2 safety plugins, 1 skill, 1 agent
 - Uses `~/.config/opencode/opencode.json` for MCP config
-- Uses `~/.config/opencode/agents` and `~/.config/opencode/skills`
 - [Full setup guide →](docs/opencode-setup.md)
 
 ### Cursor
 
-- Subagents available in Agent chat: `@ralph`, `@ticket-worker`, `@planner`, `@code-reviewer`
-- Skills and commands available globally across all projects
-- Uses `~/.cursor/mcp.json` for MCP config
+- Subagents available in Agent chat: `@ralph`, `@ticket-worker`, `@planner`
+- Installs: MCP server, 3 agents, 3 global skills, 9 commands, 1 rule
+- Review agents invoked on-demand via commands
 - [Full setup guide →](docs/cursor-setup.md)
 
 ### Copilot CLI
 
-- Agents available: `@ralph`, `@ticket-worker`, `@planner`, `@code-reviewer`
-- Global hooks enforce workflow state and capture telemetry
-- Uses `~/.copilot/mcp-config.json` for MCP config
+- Agents available: `@ralph`, `@ticket-worker`, `@planner`
+- Installs: MCP server, 3 agents, 3 global skills, 1 enforcement hook
+- No telemetry hooks — MCP self-instrumentation handles telemetry
 - Skills shared with VS Code (`~/.copilot/skills/`)
-- Run `copilot --allow-tool 'brain-dump'` to auto-approve Brain Dump tools
 
 ### Codex
 
 - Use `Start with Codex` in ticket launch actions
-- Uses `~/.codex/config.toml` for MCP config
+- Installs: MCP server only (`config.toml` entry)
 - Supports AGENTS.md, rules, and skills-based workflow guidance
 - [Full setup guide →](docs/environments/codex.md)
 </details>

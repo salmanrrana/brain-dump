@@ -31,40 +31,14 @@ import { execDockerCommand, getDockerHostEnvValue } from "./docker-utils";
  * Used by both Claude Code (via getRalphPrompt) and VS Code (via generateVSCodeContext).
  */
 const WORKFLOW_PHASES = `
-## Mandatory Tool Calls
+## 4-Phase Workflow
 
-Use Brain Dump MCP tools literally. Do not use local substitutes for branching, review logging, or status updates.
+Use Brain Dump MCP tools literally. No local substitutes for branching, review, or status updates.
 
-Primary actions:
-- \`workflow\`: \`start-work\`, \`complete-work\`
-- \`session\`: \`create\`, \`update-state\`, \`complete\`
-- \`review\`: \`submit-finding\`, \`mark-fixed\`, \`check-complete\`, \`generate-demo\`, \`submit-feedback\`
-
-## Mandatory 4-Phase Workflow
-
-### Phase 1: Implementation
-1. Read \`plans/prd.json\` and \`plans/progress.txt\`
-2. Pick exactly one incomplete ticket
-3. Invoke \`workflow({ action: "start-work", ticketId: "<ticketId>" })\`
-4. Invoke \`session({ action: "create", ticketId: "<ticketId>" })\`
-5. Implement, test, and commit
-6. Invoke \`workflow({ action: "complete-work", ticketId: "<ticketId>", summary: "..." })\`
-
-### Phase 2: AI Review
-1. Review your own diff
-2. Record each issue with \`review({ action: "submit-finding", ... })\`
-3. Fix critical/major issues and mark them with \`review({ action: "mark-fixed", findingId: "...", fixStatus: "fixed", fixDescription: "..." })\`
-4. Invoke \`review({ action: "check-complete", ticketId: "<ticketId>" })\` until \`canProceedToHumanReview: true\`
-
-### Phase 3: Demo Generation
-1. Invoke \`review({ action: "generate-demo", ticketId: "<ticketId>", steps: [...] })\`
-2. Provide at least 3 manual test steps
-3. Confirm ticket moved to \`human_review\`
-
-### Phase 4: Stop for Human Review
-1. Invoke \`session({ action: "complete", sessionId: "<sessionId>", outcome: "success" })\`
-2. STOP and wait for human \`review({ action: "submit-feedback" })\`
-3. Never move tickets to \`done\` yourself
+1. **Implementation** — start-work → create session → implement → commit → complete-work
+2. **AI Review** — self-review → submit-finding → fix critical/major → check-complete (must return canProceedToHumanReview: true)
+3. **Demo** — generate-demo with 3+ manual test steps → ticket moves to human_review
+4. **Stop** — complete session → STOP. Never move tickets to done yourself.
 
 If all tickets are in \`human_review\` or \`done\`, output: \`PRD_COMPLETE\`.
 `;
@@ -74,41 +48,20 @@ If all tickets are in \`human_review\` or \`done\`, output: \`PRD_COMPLETE\`.
  * Used by both getRalphPrompt() and generateVSCodeContext().
  */
 const VERIFICATION_CHECKLIST = `
-## Verification Checklist
-
-### Before Completing Phase 1
-Run these checks before calling \`workflow({ action: "complete-work" })\`:
-- \`pnpm type-check\` - must pass with no errors
-- \`pnpm lint\` - must pass with no errors
-- \`pnpm test\` - all tests must pass
-- All acceptance criteria from ticket implemented
-- Changes committed with format: \`feat(<ticket-id>): <description>\`
-
-### Before Proceeding Past Phase 2
-- Self-review completed for code quality, error handling, and simplification concerns
-- All findings submitted with \`review({ action: "submit-finding" })\` (at least specify critical/major issues)
-- All critical/major findings fixed and marked with \`review({ action: "mark-fixed" })\`
-- \`review({ action: "check-complete" })\` returns \`canProceedToHumanReview: true\`
-
-### Before Calling session({ action: "complete" })
-- \`review({ action: "generate-demo" })\` called with at least 3 manual test steps
-- Ticket status is \`human_review\`
-- Human reviewer will call \`review({ action: "submit-feedback" })\` (not you)
+## Gates
+- Before complete-work: \`pnpm type-check && pnpm lint && pnpm test\` must pass, all criteria met
+- Before demo: all critical/major findings fixed, check-complete returns canProceedToHumanReview: true
+- Before session complete: generate-demo called, ticket in human_review
 `;
 
 /**
  * Rules for Ralph workflow.
  */
 const WORKFLOW_RULES = `
-## Workflow Rules
-
-- Follow all 4 phases in strict order: Implementation → AI Review → Demo → STOP
-- ONE ticket per iteration
-- All quality checks must pass: \`pnpm type-check && pnpm lint && pnpm test\`
-- Keep changes minimal and focused
-- Phase gates are enforced - cannot skip phases or proceed without required responses
-- Do not call \`review({ action: "submit-feedback" })\` - only humans approve tickets
-- Do not move ticket to \`done\` - only humans can approve via \`review({ action: "submit-feedback" })\`
+## Rules
+- Strict phase order: Implementation → AI Review → Demo → STOP
+- ONE ticket per iteration, minimal focused changes
+- Never call review submit-feedback or move tickets to done — humans only
 - If stuck, note progress in \`plans/progress.txt\` and move to next ticket
 `;
 
@@ -237,12 +190,6 @@ Optional detailed progress events:
 
 Write/Edit operations are blocked unless session state is \`implementing\`, \`testing\`, or \`committing\`.
 If blocked, call the exact \`session({ action: "update-state", ... })\` shown in the hook message, then retry.
-
-## Dev Servers
-
-Only when a task requires a running app:
-- Start with explicit binding: \`pnpm dev --port 8100 --host 0.0.0.0\`
-- Update \`.ralph-services.json\` when starting/stopping services.
 `;
 }
 
@@ -290,28 +237,9 @@ ${WORKFLOW_RULES}
 ${VERIFICATION_CHECKLIST}
 ---
 
-## Core MCP Calls
-
-All tools use an \`action\` parameter:
-
-- \`workflow({ action: "start-work" | "complete-work", ... })\`
-- \`session({ action: "create" | "update-state" | "complete", ... })\`
-- \`review({ action: "submit-finding" | "mark-fixed" | "check-complete" | "generate-demo", ... })\`
-- \`review({ action: "submit-feedback", ... })\` is human-only
-
----
-
 ## Testing Requirements
 
 ${prd.testingRequirements.map((req) => `- ${req}`).join("\n")}
-
----
-
-## Dev Server Notes
-
-- Only start a dev server when required by the ticket.
-- Use explicit binding: \`pnpm dev --port 8100 --host 0.0.0.0\`
-- Track start/stop state in \`.ralph-services.json\`.
 `;
 }
 

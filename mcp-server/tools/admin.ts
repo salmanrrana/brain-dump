@@ -80,73 +80,16 @@ export function registerAdminTool(
     "admin",
     `Brain Dump administration, health monitoring, and compliance logging.
 
-## Actions
-
-### health
-Get comprehensive database health report including integrity check, backup status, and statistics.
-No additional params required.
-
-### environment
-Get current environment information (auto-detects Claude Code, VS Code, etc.).
-No additional params required.
-
-### settings
-Get project settings including working method preference.
-Required params: projectId
-
-### update-settings
-Update project settings (working method preference).
-Required params: projectId, workingMethod
-
-### start-conversation
-Start a new conversation session for compliance logging. Auto-detects environment.
-Optional params: projectId, ticketId, userId, metadata, dataClassification
-
-### log-message
-Log a message to an existing conversation session with tamper detection and secret scanning.
-Required params: sessionId, role, content
-Optional params: toolCalls, tokenCount, modelId
-
-### end-conversation
-End a conversation session and prevent further message logging.
-Required params: sessionId
-
-### list-conversations
-List conversation sessions with optional filters, sorted by start date (newest first).
-Optional params: projectId, ticketId, environment, startDate, endDate, includeActive, limit
-
-### export-logs
-Export conversation logs for compliance auditing (SOC2, GDPR, ISO 27001).
-Required params: startDate, endDate
-Optional params: sessionId, projectId, includeContent, verifyIntegrity
-
-### archive-sessions
-Archive (delete) conversation sessions older than retention period. DRY RUN by default.
-Sessions with legal_hold=true are NEVER deleted.
-Optional params: retentionDays, confirm
-
-## Parameters
-- action: (required) The operation to perform
-- projectId: Project ID. Required for: settings, update-settings. Optional for: start-conversation, list-conversations, export-logs
-- workingMethod: Working method (auto, claude-code, vscode, opencode, cursor, copilot-cli, codex). Required for: update-settings
-- sessionId: Conversation session ID. Required for: log-message, end-conversation. Optional for: export-logs
-- ticketId: Ticket ID. Optional for: start-conversation, list-conversations
-- userId: User identifier. Optional for: start-conversation
-- metadata: JSON object with additional context. Optional for: start-conversation
-- dataClassification: Data sensitivity (public, internal, confidential, restricted). Optional for: start-conversation
-- role: Message role (user, assistant, system, tool). Required for: log-message
-- content: Message content. Required for: log-message
-- toolCalls: Array of tool call objects. Optional for: log-message
-- tokenCount: Token count for message. Optional for: log-message
-- modelId: Model identifier. Optional for: log-message
-- environment: Environment filter. Optional for: list-conversations
-- startDate: Start date (ISO format). Required for: export-logs. Optional for: list-conversations
-- endDate: End date (ISO format). Required for: export-logs. Optional for: list-conversations
-- includeActive: Include active sessions. Optional for: list-conversations
-- includeContent: Include message content in export. Optional for: export-logs
-- verifyIntegrity: Verify HMAC hashes. Optional for: export-logs
-- retentionDays: Days to retain (default: from settings or 90). Optional for: archive-sessions
-- confirm: Confirm deletion. Optional for: archive-sessions`,
+### health - Database health report (integrity, backup status, statistics)
+### environment - Current environment info (auto-detects Claude Code, VS Code, etc.)
+### settings - Get project settings including working method
+### update-settings - Update project settings (working method)
+### start-conversation - Start compliance logging session (auto-detects environment)
+### log-message - Log message with tamper detection and secret scanning
+### end-conversation - End a conversation session
+### list-conversations - List conversation sessions with filters (newest first)
+### export-logs - Export logs for compliance auditing (SOC2, GDPR, ISO 27001)
+### archive-sessions - Delete old sessions. DRY RUN by default. Sessions with legal_hold=true are NEVER deleted.`,
     {
       action: z.enum(ACTIONS).describe("The operation to perform"),
       projectId: z.string().optional().describe("Project ID"),

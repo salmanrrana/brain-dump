@@ -38,23 +38,8 @@ export function registerCommentTool(server: McpServer, db: Database.Database): v
     "comment",
     `Manage ticket comments in Brain Dump. Comments provide audit trails for AI work.
 
-## Actions
-
-### add
-Add a comment or work summary to a ticket. Creates an audit trail.
-Required params: ticketId, content
-Optional params: author, commentType
-
-### list
-Get all comments for a ticket, sorted by creation date (newest first).
-Required params: ticketId
-
-## Parameters
-- action: (required) The operation to perform
-- ticketId: Ticket ID. Required for: add, list
-- content: Comment text (markdown supported). Required for: add
-- author: Who is adding the comment (auto-detected if omitted). Optional for: add
-- commentType: Type of comment (comment, work_summary, test_report, progress). Optional for: add`,
+### add - Add a comment or work summary to a ticket (author auto-detected if omitted)
+### list - Get all comments for a ticket (newest first)`,
     {
       action: z.enum(ACTIONS).describe("The operation to perform"),
       ticketId: z.string().optional().describe("Ticket ID. Required for: add, list"),

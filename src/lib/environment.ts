@@ -39,9 +39,7 @@ const VSCODE_ENV_PATTERNS = [
 const CLAUDE_CODE_ENV_PATTERNS = [
   "CLAUDE_CODE",
   "CLAUDE_CODE_ENTRYPOINT",
-  "CLAUDE_API_KEY", // May indicate Claude Code context
-  "ANTHROPIC_API_KEY", // May indicate Anthropic tooling
-  "MCP_SERVER_NAME", // When run as MCP server in Claude Code
+  "CLAUDE_CODE_TERMINAL_ID",
 ] as const;
 
 /**
@@ -109,12 +107,6 @@ function hasClaudeCodeEnvironment(): boolean {
     if (process.env[envVar]) {
       return true;
     }
-  }
-
-  // Additional checks for Claude Code indicators
-  // Claude Code sets specific shell integration
-  if (process.env.CLAUDE_CODE_TERMINAL_ID) {
-    return true;
   }
 
   // Check if running in a Claude Code session
@@ -220,17 +212,16 @@ function hasCodexEnvironment(): boolean {
  * Detect the current environment
  *
  * Detection priority:
- * 1. If Claude Code env vars are present -> "claude-code"
- * 2. If OpenCode env vars are present -> "opencode"
- * 3. If Copilot CLI env vars are present -> "copilot-cli"
- * 4. If Codex env vars are present -> "codex"
- * 5. If Cursor env vars are present -> "cursor"
- * 6. If VS Code env vars are present -> "vscode"
- * 7. Otherwise -> "unknown"
+ * 1. Claude Code runtime vars (CLAUDE_CODE, CLAUDE_CODE_ENTRYPOINT, CLAUDE_CODE_TERMINAL_ID)
+ *    — set by Claude Code process, not inherited from user shell
+ * 2. Explicit provider flags (OPENCODE, COPILOT_CLI, CODEX, CURSOR)
+ *    — set intentionally via MCP config env section
+ * 3. Provider-specific env var patterns (OPENCODE_*, COPILOT_*, etc.)
+ *    — heuristic detection from provider-specific env vars
+ * 4. VS Code env vars (lowest priority since other tools may run inside VS Code terminals)
  *
- * Claude Code takes priority because it may run inside a VS Code terminal,
- * and OpenCode/Copilot CLI/Codex/Cursor take priority over VS Code for similar reasons.
- * We want to use tool-specific features when available.
+ * NOTE: Generic env vars like ANTHROPIC_API_KEY, CLAUDE_API_KEY, and MCP_SERVER_NAME are
+ * intentionally excluded from Claude Code detection as they may be present in any environment.
  */
 export function detectEnvironment(): Environment {
   // Allow test override
@@ -238,33 +229,21 @@ export function detectEnvironment(): Environment {
     return environmentOverride;
   }
 
-  // Check Claude Code first (highest priority)
-  if (hasClaudeCodeEnvironment()) {
-    return "claude-code";
-  }
+  // Claude Code runtime vars — set by Claude Code process itself, very reliable
+  if (hasClaudeCodeEnvironment()) return "claude-code";
 
-  // Check OpenCode (second priority)
-  if (hasOpenCodeEnvironment()) {
-    return "opencode";
-  }
+  // Explicit provider flags — intentionally set via MCP config
+  if (process.env[OPENCODE_FLAG]) return "opencode";
+  if (process.env[COPILOT_CLI_FLAG]) return "copilot-cli";
+  if (process.env[CODEX_FLAG]) return "codex";
+  if (process.env[CURSOR_FLAG]) return "cursor";
 
-  if (hasCopilotCliEnvironment()) {
-    return "copilot-cli";
-  }
-
-  if (hasCodexEnvironment()) {
-    return "codex";
-  }
-
-  if (hasCursorEnvironment()) {
-    return "cursor";
-  }
-
-  // Check VS Code
-  if (hasVSCodeEnvironment()) {
-    return "vscode";
-  }
-
+  // Heuristic detection via provider-specific env var patterns
+  if (hasOpenCodeEnvironment()) return "opencode";
+  if (hasCopilotCliEnvironment()) return "copilot-cli";
+  if (hasCodexEnvironment()) return "codex";
+  if (hasCursorEnvironment()) return "cursor";
+  if (hasVSCodeEnvironment()) return "vscode";
   return "unknown";
 }
 
@@ -335,6 +314,9 @@ export function getEnvironmentInfo(): EnvironmentInfo {
   }
 
   // Collect OpenCode env vars (both known patterns and any OPENCODE_* prefix)
+  if (process.env[OPENCODE_FLAG]) {
+    envVarsDetected.push(OPENCODE_FLAG);
+  }
   for (const envVar of OPENCODE_ENV_PATTERNS) {
     if (process.env[envVar]) {
       envVarsDetected.push(envVar);

@@ -60,67 +60,14 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
     "review",
     `Manage review findings and demo scripts in Brain Dump.
 
-## Actions
-
-### submit-finding
-Submit a review finding for a ticket in ai_review status.
-Required params: ticketId, agent, severity, category, description
-Optional params: filePath, lineNumber, suggestedFix
-
-### mark-fixed
-Mark a review finding as fixed, won't fix, or duplicate.
-Required params: findingId, fixStatus
-Optional params: fixDescription
-
-### get-findings
-Get review findings for a ticket with optional filters.
-Required params: ticketId
-Optional params: findingStatus, severity, agent
-
-### check-complete
-Check if all critical/major findings have been resolved.
-Required params: ticketId
-
-### generate-demo
-Generate a demo script for human review. Moves ticket to human_review.
-Required params: ticketId, steps
-
-### get-demo
-Get the demo script for a ticket.
-Required params: ticketId
-
-### update-demo-step
-Update a single demo step's status during human review.
-Required params: demoScriptId, stepOrder, stepStatus
-Optional params: stepNotes
-
-### submit-feedback
-Submit final demo feedback from human reviewer. Moves ticket to done if passed.
-Required params: ticketId, passed, feedback
-Optional params: stepResults
-
-## Parameters
-- action: (required) The operation to perform
-- ticketId: Ticket ID. Required for: submit-finding, get-findings, check-complete, generate-demo, get-demo, submit-feedback
-- agent: Review agent. Required for: submit-finding. Optional filter for: get-findings
-- severity: Finding severity. Required for: submit-finding. Optional filter for: get-findings
-- category: Finding category. Required for: submit-finding
-- description: Finding description. Required for: submit-finding
-- filePath: File path. Optional for: submit-finding
-- lineNumber: Line number. Optional for: submit-finding
-- suggestedFix: Suggested fix. Optional for: submit-finding
-- findingId: Finding ID. Required for: mark-fixed
-- fixStatus: Fix status. Required for: mark-fixed
-- fixDescription: How it was fixed. Optional for: mark-fixed
-- findingStatus: Finding status filter. Optional for: get-findings
-- steps: Demo steps array. Required for: generate-demo
-- demoScriptId: Demo script ID. Required for: update-demo-step
-- stepOrder: Step order number. Required for: update-demo-step
-- stepStatus: Step status. Required for: update-demo-step
-- stepNotes: Reviewer notes. Optional for: update-demo-step
-- passed: Whether demo passed. Required for: submit-feedback
-- feedback: Reviewer feedback. Required for: submit-feedback
-- stepResults: Step results array. Optional for: submit-feedback`,
+### submit-finding - Submit a review finding (ticket must be in ai_review)
+### mark-fixed - Mark finding as fixed, wont_fix, or duplicate
+### get-findings - Get findings for a ticket (filterable by status, severity, agent)
+### check-complete - Check if all critical/major findings resolved (returns canProceedToHumanReview)
+### generate-demo - Generate demo script for human review (moves ticket to human_review)
+### get-demo - Get the demo script for a ticket
+### update-demo-step - Update a demo step's status during human review
+### submit-feedback - Submit final demo feedback from human reviewer (moves to done if passed)`,
     {
       action: z.enum(ACTIONS).describe("The operation to perform"),
       ticketId: z.string().optional().describe("Ticket ID"),

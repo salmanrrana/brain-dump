@@ -145,13 +145,13 @@ backlog → ready → in_progress → ai_review → human_review → done
 
 ### Multi-Environment Support
 
-| Environment | AI Review | Hook Enforcement              | Telemetry          |
-| ----------- | --------- | ----------------------------- | ------------------ |
-| Claude Code | ✅ Full   | ✅ Hooks enforce state        | ✅ Hooks capture   |
-| Cursor      | ✅ Full   | ✅ Hooks enforce state        | ✅ Hooks capture   |
-| Copilot CLI | ✅ Full   | ✅ Global hooks enforce state | ✅ Hooks capture   |
-| OpenCode    | ✅ Full   | ❌ MCP enforces preconditions | ✅ Plugin captures |
-| VS Code     | ✅ Full   | ❌ MCP enforces preconditions | ✅ MCP captures    |
+| Environment | AI Review | Hook Enforcement              | Telemetry             |
+| ----------- | --------- | ----------------------------- | --------------------- |
+| Claude Code | ✅ Full   | ✅ Hooks enforce state        | ✅ MCP self-telemetry |
+| Cursor      | ✅ Full   | ❌ None                       | ✅ MCP self-telemetry |
+| Copilot CLI | ✅ Full   | ✅ Global hooks enforce state | ✅ MCP self-telemetry |
+| OpenCode    | ✅ Full   | ❌ MCP enforces preconditions | ✅ MCP self-telemetry |
+| VS Code     | ✅ Full   | ❌ MCP enforces preconditions | ✅ MCP self-telemetry |
 
 ### Troubleshooting
 
@@ -180,12 +180,20 @@ This project uses Claude Code hooks to enforce Ralph's workflow. Hooks provide g
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-#### Hook Scripts
+#### Hook Scripts (10 hooks)
 
-| Hook                          | File        | Enforces                                                                      |
-| ----------------------------- | ----------- | ----------------------------------------------------------------------------- |
-| enforce-state-before-write.sh | PreToolUse  | Must be in 'implementing', 'testing', or 'committing' state before Write/Edit |
-| record-state-change.sh        | PostToolUse | Logs state changes for debugging/audit                                        |
+| Hook                          | Event        | Purpose                                                                       |
+| ----------------------------- | ------------ | ----------------------------------------------------------------------------- |
+| enforce-state-before-write.sh | PreToolUse   | Must be in 'implementing', 'testing', or 'committing' state before Write/Edit |
+| enforce-review-before-push.sh | PreToolUse   | Blocks git push/gh pr create until review is completed                        |
+| link-commit-to-ticket.sh      | PostToolUse  | Outputs commit/PR link commands after each git commit                         |
+| spawn-next-ticket.sh          | PostToolUse  | Spawns next ticket after `workflow` `complete-work` (env-gated)               |
+| spawn-after-pr.sh             | PostToolUse  | Spawns next ticket after successful PR creation (env-gated)                   |
+| capture-claude-tasks.sh       | PostToolUse  | Syncs TodoWrite tasks to Brain Dump                                           |
+| chain-extended-review.sh      | SubagentStop | Triggers extended review after pr-review-toolkit agents complete              |
+| check-for-code-changes.sh     | Stop         | Reminds AI to run review if uncommitted source changes exist                  |
+| mark-review-completed.sh      | Stop         | Creates `.review-completed` marker after review                               |
+| detect-libraries.sh           | Utility      | Extracts significant libraries from package.json for context7                 |
 
 #### State File
 
@@ -239,90 +247,26 @@ Brain Dump supports multiple development environments:
 
 Do NOT try to work around state enforcement - it ensures work is properly tracked in the Brain Dump UI.
 
-#### Automated PR Workflow
+#### Automated PR & Commit Workflow
 
-The following hooks provide an automated workflow for code review and PR creation:
-
-| Hook              | File                            | Purpose                                                        |
-| ----------------- | ------------------------------- | -------------------------------------------------------------- |
-| Auto-PR creation  | `create-pr-on-ticket-start.sh`  | Creates draft PR immediately when `workflow` `start-work` runs |
-| Commit tracking   | `link-commit-to-ticket.sh`      | Outputs commit/PR link commands after each git commit          |
-| Pre-push review   | `enforce-review-before-push.sh` | Blocks `git push`/`gh pr create` until review is completed     |
-| Post-ticket spawn | `spawn-next-ticket.sh`          | Spawns next ticket after `workflow` `complete-work`            |
-| Post-PR spawn     | `spawn-after-pr.sh`             | Spawns next ticket after successful PR creation                |
-
-**Auto-PR Creation**: When `workflow` tool `action: "start-work"` is called, the hook automatically:
+**Auto-PR Creation via MCP**: `workflow` tool `action: "start-work"` with `autoPr: true` creates a draft PR automatically — no hook needed. It:
 
 1. Creates an empty WIP commit on the new branch
 2. Pushes the branch to remote
-3. Creates a draft PR with the ticket title
-4. The PR is linked to the ticket for immediate tracking
+3. Creates a draft PR with the ticket title via `gh`
+4. Links the PR to the ticket for immediate tracking
 
-**Commit Tracking**: After each `git commit`, the hook outputs:
+**Commit Tracking (hook)**: After each `git commit`, the `link-commit-to-ticket.sh` hook outputs:
 
 1. The commit hash and message
 2. MCP commands to link the commit to the active ticket
 3. MCP commands to link the PR if one exists for the branch
 
-**PR Status Sync**: When `workflow` tool `action: "link-pr"` is called, the MCP tool automatically syncs PR statuses for all tickets in the project. This updates any PRs that have been merged or closed since they were linked.
+**Review Gating (hook)**: `enforce-review-before-push.sh` blocks `git push` and `gh pr create` until code review is completed.
 
-**To enable these hooks**, run `scripts/setup-claude-code.sh` which installs hooks globally to `~/.claude/hooks/` and configures `~/.claude/settings.json`:
+**PR Status Sync**: When `workflow` tool `action: "link-pr"` is called, the MCP tool automatically syncs PR statuses for all tickets in the project.
 
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash(git push:*)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/enforce-review-before-push.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash(gh pr create:*)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/enforce-review-before-push.sh"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "mcp__brain-dump__workflow",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/create-pr-on-ticket-start.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash(git commit:*)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/link-commit-to-ticket.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash(gh pr create:*)",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/spawn-after-pr.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+**To enable hooks**, run `scripts/setup-claude-code.sh` which installs hooks globally to `~/.claude/hooks/` and configures `~/.claude/settings.json`.
 
 **Note:** Using `$HOME/.claude/hooks/` (not `$CLAUDE_PROJECT_DIR`) ensures hooks work from any directory, not just within the brain-dump project.
 
@@ -348,47 +292,23 @@ The hooks will:
 
 **Note:** This is opt-in because spawning new windows can be surprising if unexpected.
 
-#### Telemetry Hooks
+#### MCP Self-Telemetry
 
-Claude Code telemetry hooks automatically capture AI work sessions for observability and audit trails. These hooks work silently in the background without affecting Claude's workflow.
-
-**Telemetry Hooks:**
-
-| Hook                    | Type               | Purpose                                             |
-| ----------------------- | ------------------ | --------------------------------------------------- |
-| start-telemetry-session | SessionStart       | Creates telemetry session when Claude starts        |
-| end-telemetry-session   | Stop               | Flushes queue and ends telemetry when Claude exits  |
-| log-tool-start          | PreToolUse         | Records tool start with parameters                  |
-| log-tool-end            | PostToolUse        | Records tool completion with duration (success)     |
-| log-tool-failure        | PostToolUseFailure | Records tool completion with error details (failed) |
-| log-prompt              | UserPromptSubmit   | Records user prompts submitted to Claude            |
+Telemetry is handled entirely by the MCP server — no external hooks needed. The server instruments its own tool calls internally.
 
 **How it works:**
 
-1. When you start a Claude Code session, `start-telemetry-session` detects the active ticket from `.claude/ralph-state.json`
-2. You call `telemetry` tool, `action: "start"`, `ticketId` (hook prompts you)
-3. All subsequent tool calls are captured: PreToolUse records start event, PostToolUse/PostToolUseFailure record end
-4. Events are written to `.claude/telemetry-queue.jsonl` (JSONL format for streaming)
-5. Correlation IDs pair start/end events for duration tracking
-6. When Claude exits, `end-telemetry-session` prompts to call `telemetry` tool, `action: "end"` to finalize
-7. Events are flushed to database for analytics and audit trails
-
-**Queue files:**
-
-- `.claude/telemetry-queue.jsonl` - Events pending flush to database
-- `.claude/telemetry-session.json` - Current session metadata
-- `.claude/tool-correlation-*.txt` - Correlation IDs for pairing start/end events (cleanup automatically)
-- `.claude/telemetry.log` - Debug log of hook activity
+1. On each MCP tool invocation, the server logs a start event, executes the tool, then logs an end event with duration
+2. Telemetry session auto-creates when an active ticket is detected (from `.claude/ralph-state.json`)
+3. Correlation IDs are generated in-memory (no external files needed)
+4. Session auto-ends on server shutdown/disconnect
+5. The `telemetry` tool (excluded from self-instrumentation) is still available for manual use
 
 **Privacy:**
 
-- Telemetry hooks don't capture file contents (only parameters summary for tools like Read)
-- Prompts are recorded but can be hashed for privacy (`redact: true` option)
-- All telemetry data stays in the database (no external transmission)
-
-**To enable telemetry:**
-
-Run `scripts/setup-claude-code.sh` or `~/.claude/hooks/merge-telemetry-hooks.sh` to configure hooks in `.claude/settings.json`.
+- Tool parameters are summarized, not captured verbatim
+- Prompts can be hashed for privacy (`redact: true` option on `telemetry` tool)
+- All telemetry data stays in the local database (no external transmission)
 
 ## Specifications
 
@@ -435,6 +355,84 @@ export const getTickets = createServerFn().handler(async () => {
 ```
 
 These are called from React components via TanStack Query.
+
+## Code Review Rules (Derived from 333 Findings)
+
+These rules were extracted from recurring patterns across all code review findings. They represent the most common issues found by review agents and should be treated as mandatory guidance.
+
+### Rule 1: No Silent Failures (34 findings, mostly critical)
+
+Every `catch` block must either:
+
+1. Show user-visible feedback (toast, error message, error state)
+2. Re-throw to a boundary that does
+3. Log with structured logging (`log.error()` / `createBrowserLogger`)
+
+**Never**: empty catch `{}`, catch-and-return-null without logging, `console.error` only.
+
+```typescript
+// BAD - silent failure
+try {
+  await save(data);
+} catch {
+  return null;
+}
+
+// BAD - console only (invisible in production)
+try {
+  await save(data);
+} catch (e) {
+  console.error(e);
+}
+
+// GOOD - user feedback + logging
+try {
+  await save(data);
+} catch (e) {
+  log.error("Failed to save", { error: e });
+  toast.error("Save failed. Please try again.");
+}
+```
+
+### Rule 2: Every User Action Needs Error Feedback (38 critical+major)
+
+When a user clicks a button, submits a form, or triggers any action:
+
+- Show loading state during async operations
+- Show error state with actionable message if it fails
+- Never leave the UI in a stuck state (disabled button with no feedback)
+
+**Check**: mutation `onError` must update UI. `mutateAsync` results must check `result.success`.
+
+### Rule 3: No Shell String Interpolation (7 security findings)
+
+Never interpolate variables into shell command strings. Use `execFile` (array args, no shell) or the project's `execFileNoThrow` utility from `src/utils/execFileNoThrow.ts`.
+
+```typescript
+// BAD - command injection
+execSync(`which ${command}`);
+
+// GOOD - use project utility
+import { execFileNoThrow } from "../utils/execFileNoThrow.js";
+await execFileNoThrow("which", [command]);
+```
+
+### Rule 4: Clickable Elements Need Keyboard Support (12 accessibility findings)
+
+Any element with `onClick` or `role="button"` must also have:
+
+- `onKeyDown` handler (Enter and Space to activate)
+- `tabIndex={0}` if not a native `<button>`
+- Proper ARIA labels for screen readers
+- Focus trap for modals/overlays
+
+### Rule 5: Extract Repeated Values (16 findings)
+
+Hardcoded strings, numbers, and repeated style patterns should be constants:
+
+- Magic numbers → named constants
+- Repeated classNames → shared style objects or component variants
+- Duplicated modal dismiss logic → use shared `useModalKeyboard` hook
 
 ## DO/DON'T Guidelines
 

@@ -1,6 +1,358 @@
 # Ralph Progress Log
 # Previous entries archived to: archives/progress-20260228-141339.txt
 
+### 2026-03-03 - Ralph Session: Ticket c375aa93 Complete
+- **Ticket:** Update README.md to reflect reduced install footprint and new architecture
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Updated agents section: 3 core agents + note about command-based review agents
+  - Updated all 6 environment details with accurate install footprints
+  - Added MCP self-instrumentation note to Choose Your Environment intro
+  - Removed stale code-reviewer references from Cursor and Copilot CLI
+  - install-scripts.test.ts README assertions still pass (all 50 tests)
+- **Review:** 1 suggestion (doc-only, no code changes); canProceedToHumanReview: true
+- **Demo:** 6 test steps (5 manual, 1 automated)
+- **Commit:** 7236ec9
+- **Next:** Human must approve via submit-feedback
+
+---
+
+### 2026-03-03 - Ralph Session: Ticket 92f074a3 Complete
+- **Ticket:** Update install-scripts.test.ts to match updated scripts
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Added 6 new post-refactor test assertions (50 total, up from 44)
+  - Tests verify: no telemetry hooks in cursor/copilot setup, 3 global skills only, stale cleanup
+  - Extracted shared TELEMETRY_HOOK_SCRIPTS constant
+  - Fixed review findings: removed silent-skip if-guard, fixed indexOf-inside-loop
+- **Review:** 2 findings (1 major, 1 minor), both fixed; canProceedToHumanReview: true
+- **Demo:** 6 test steps (4 manual, 1 automated, 1 regression)
+- **Commits:** 2297ef6, b5b7ab5
+- **Next:** Human must approve via submit-feedback
+
+---
+
+### 2026-03-03 - Ralph Session: Ticket 6874abd8 Complete
+- **Ticket:** Update scripts/uninstall.sh to match new install footprint
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Cursor: added agent (6) and skill (11) removal, kept telemetry hooks as legacy cleanup
+  - OpenCode: added review-guard/marker plugins + ralph agent removal
+  - VS Code: added 3 global skills to removal list (current + legacy)
+  - Copilot CLI: updated hooks.json check (brain-dump|enforce-state), reordered skills
+  - Summary: updated wording (workflow hooks, agent/skill files, state files)
+  - All sections keep legacy file removal for old installations
+- **Review:** 2 suggestions only; canProceedToHumanReview: true
+- **Demo:** 6 test steps (all automated)
+- **Commit:** adc457f
+- **Next:** Human must approve via submit-feedback
+
+---
+
+### 2026-03-03 - Ralph Session: Ticket 9103a073 Complete
+- **Ticket:** Clean up .opencode/ stale telemetry plugin and agent files
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Deleted brain-dump-telemetry.ts plugin (redundant with MCP self-instrumentation)
+  - Removed 4 stale agents (code-reviewer, code-reviewer-fallback, code-simplifier-fallback, inception)
+  - Removed 5 project-specific tanstack skill directories
+  - Updated AGENTS.md: added agents section (3 core), noted command-based reviews + MCP telemetry
+  - Rewrote README.md: removed telemetry plugin focus, updated component list
+  - Kept 3 core agents (ralph, planner, ticket-worker), 2 plugins, 2 skills
+- **Review:** 2 suggestions only; canProceedToHumanReview: true
+- **Demo:** 6 test steps (5 automated, 1 manual)
+- **Commit:** 51d0369
+- **Next:** Human must approve via submit-feedback
+
+---
+
+### 2026-03-03 - Ralph Session: Ticket 3dc75dbc Complete
+- **Ticket:** Update setup-opencode.sh to remove telemetry plugin reference
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Confirmed brain-dump-telemetry.ts is fully redundant with MCP self-instrumentation
+  - Removed telemetry plugin from PLUGINS array (3 → 2 plugins)
+  - Added stale telemetry plugin cleanup for existing installations
+  - Updated header comment and summary text (2 safety plugins + MCP self-telemetry)
+  - Script syntax check passes, all quality checks pass
+- **Review:** 2 suggestions only; canProceedToHumanReview: true
+- **Demo:** 6 test steps (5 automated, 1 manual)
+- **Commit:** acb9eea
+- **Next:** Human must approve via submit-feedback
+
+---
+
+### 2026-03-03 - Ralph Session: Ticket 956301f6 Complete
+- **Ticket:** Update setup-vscode.sh to remove review agents, trim skills
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Added stale agent cleanup for 8 inlined review/utility agents
+  - Switched skills source from .github/skills/ (all) to .claude/skills/ (3 global only)
+  - Added stale skill cleanup for 10 project-specific skills + standalone .skill.md files
+  - Replaced auto-review skill/prompt with command-based /review approach
+  - Removed legacy auto-review skill directory cleanup
+  - Updated summary text: 3 agents, 3 skills, MCP self-telemetry, command-based review
+- **Review:** 2 suggestions only; canProceedToHumanReview: true
+- **Demo:** 6 test steps (5 automated, 1 manual)
+- **Commit:** a898312
+- **Next:** Human must approve via submit-feedback
+
+---
+
+### 2026-03-03 - Ralph Session: Ticket 5b6d2431 Complete
+- **Ticket:** Update setup-cursor.sh to remove telemetry hooks, trim agents/skills
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Removed Step 5 (telemetry hooks) entirely — MCP self-telemetry replaces
+  - Trimmed agents to 3 core (ralph, ticket-worker, planner) with stale cleanup for 8 inlined agents
+  - Trimmed skills to 3 global (brain-dump-workflow, review, review-aggregation) with stale cleanup
+  - Added legacy telemetry hook cleanup (hooks dir + hooks.json)
+  - Removed .github/skills source (use .claude/skills only)
+  - Updated summary: 3 agents, 3 skills, MCP self-telemetry, no hook scripts
+  - Removed Step 7 (project skills listing) — not relevant for global setup
+  - Script reduced from 410 to 290 lines
+- **Review:** 2 suggestions only; canProceedToHumanReview: true
+- **Demo:** 6 test steps (5 automated, 1 manual)
+- **Commit:** 529dadf
+- **Next:** Human must approve via submit-feedback
+
+---
+
+### 2026-03-03 - Ralph Session: Ticket ebca2ef2 Complete
+- **Ticket:** Update setup-copilot-cli.sh to remove telemetry hooks, trim agents/skills
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Removed 6 inline telemetry hook scripts (~442 lines): start-telemetry, end-telemetry, log-prompt, log-tool-start, log-tool-end, log-tool-failure
+  - Updated hooks.json to only preToolUse with enforce-state-before-write (was 6 event types)
+  - Trimmed skills to 3 global (brain-dump-workflow, review, review-aggregation) with stale cleanup
+  - Added stale agent cleanup for 8 review/utility agents inlined into commands
+  - Updated summary text to reflect 3 agents, 3 skills, 1 hook, MCP self-telemetry
+  - Updated install-scripts.test.ts to validate new hooks.json format
+  - Script reduced from 802 to 360 lines
+- **Review:** 2 suggestions only; canProceedToHumanReview: true
+- **Demo:** 6 test steps (4 automated, 2 manual)
+- **Commit:** 49cb853
+- **Next:** Human must approve via submit-feedback
+
+---
+
+### 2026-03-02 - Ralph Session: Ticket 40472169 Complete
+- **Ticket:** 6.5 — Update setup script and CLAUDE.md for reduced footprint
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Fixed setup script fresh install config: added 5 missing hooks (enforce-review-before-push, spawn-after-pr, chain-extended-review, mark-review-completed, SubagentStop event)
+  - Updated CLAUDE.md: replaced hook table (2→10 hooks), replaced Telemetry Hooks section with MCP Self-Telemetry, updated multi-environment table, removed stale automated PR workflow settings.json example
+  - Updated docs/installation-architecture.md: hooks 24→10, skills 8→3, removed agents dir from table and mermaid diagram
+  - Updated docs/mcp-tools.md: replaced telemetry hooks section with MCP self-telemetry
+  - Updated docs/environments/claude-code.md: hook count 6→10, replaced telemetry hook descriptions
+  - Updated docs/environments/copilot-cli.md: removed absorbed telemetry hooks from reference table
+  - Updated docs/cursor-integration.md: removed telemetry hook config
+  - Updated docs/uqw-multi-environment.md: replaced create-pr hook with autoPr, replaced telemetry hooks
+- **Review:** 1 minor (deferred: claude-flow-ticket-lifecycle.md full rewrite), 1 suggestion (copilot setup script); canProceedToHumanReview: true
+- **Demo:** 5 test steps (3 automated, 2 manual)
+- **Commits:** 87da5b7 (feat), follow-up fix commit
+- **Next:** Human must approve via submit-feedback
+- **Epic Status:** ALL tickets now in human_review or done — PRD_COMPLETE pending approval
+
+---
+
+### 2026-03-02 - Ralph Session: Ticket 13a627ac Complete
+- **Ticket:** 6.4 — Remove absorbed hooks from global install
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Deleted 14 absorbed hook scripts from both `~/.claude/hooks/` and `.claude/hooks/`
+  - Updated `~/.claude/settings.json`: removed SessionStart, PostToolUseFailure, UserPromptSubmit sections; removed absorbed entries from PreToolUse, PostToolUse, Stop
+  - Updated `scripts/setup-claude-code.sh`: added Node.js cleanup logic for absorbed hooks in existing settings, fresh install only configures 10 remaining hooks
+  - Updated `scripts/uninstall.sh`: Claude Code section now lists current 10 hooks + legacy cleanup
+  - Removed obsolete `e2e/telemetry-hooks.spec.ts` (hook-based telemetry tests replaced by MCP self-telemetry tests)
+  - Updated `scripts/install-scripts.test.ts`: removed merge-telemetry-hooks test
+  - Hooks: 24 → 10 remaining (14 absorbed into MCP server)
+- **Review:** 1 minor (doc refs deferred to 6.5), 2 suggestions; canProceedToHumanReview: true
+- **Demo:** 5 test steps (4 automated, 1 manual)
+- **Commit:** f3151b4
+- **Next:** Human must approve via submit-feedback
+
+---
+
+### 2026-03-02 - Ralph Session: Ticket 3f173655 Complete
+- **Ticket:** 6.3 — Remove project-specific skills from global install
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Copied react-best-practices and web-design-guidelines to project-local `.claude/skills/`
+  - Updated `scripts/setup-claude-code.sh` Step 5 to only install 3 global skills
+  - Added cleanup loop to remove previously-installed project-specific skills from global
+  - Fixed idempotency bug: `rm -rf` before `cp -r` prevents nested directory creation
+  - Global skill count: 12 → 3 (brain-dump-workflow, review, review-aggregation)
+  - Project-local: all 10 skills available within Brain Dump repo
+- **Review:** 1 major (fixed: idempotency), 1 suggestion (cosmetics); canProceedToHumanReview: true
+- **Demo:** 5 test steps (3 automated, 2 manual)
+- **Commits:** b335633 (feat), 2f29203 (fix)
+- **Next:** Human must approve via submit-feedback
+
+---
+
+### 2026-03-02 - Ralph Session: Ticket edb65b46 Complete
+- **Ticket:** 6.2 — Convert inception and breakdown agents to command-loaded
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Inlined breakdown agent persona into `/breakdown` command (philosophy, approach, sizing guidelines, complexity levels, Ralph PRD extraction notes)
+  - Inlined inception agent persona into `/inception` command (strict AskUserQuestion enforcement, in-depth interviewing guidance)
+  - Deleted both agent files from `.claude/agents/` (project-local) and `.github/agents/inception.agent.md`
+  - Updated `scripts/setup-claude-code.sh` to remove agent installation step
+  - Synced updated commands to global `~/.claude/commands/`
+  - Net savings: ~11.5 KB (~3K tokens) removed from every conversation's context window
+- **Review:** 2 suggestions only; canProceedToHumanReview: true
+- **Demo:** 5 test steps (4 automated, 1 manual)
+- **Commit:** 39ad232
+- **Next:** Human must approve via submit-feedback
+
+---
+
+### 2026-03-02 - Ralph Session: Ticket 1ec58799 Complete
+- **Ticket:** 6.1 — Convert review agents to on-demand skill loading
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Inlined 4 review agent personas into `/extended-review` command file
+  - Agents: cruft-detector, senior-engineer, react-best-practices, context7-library-compliance
+  - Command now uses Agent tool with `subagent_type: "Explore"` and `model: "sonnet"`
+  - Removed 4 agent files from `.claude/agents/` (project-local)
+  - Removed 4 agent files from `.github/agents/`
+  - Removed 4 agent files from `~/.claude/agents/` (global)
+  - Updated `scripts/setup-claude-code.sh` summary text
+  - Net savings: ~27KB (~7K tokens) removed from every conversation's context window
+- **Review:** 1 minor (review-epic.md stale refs), 2 suggestions; canProceedToHumanReview: true
+- **Demo:** 5 test steps (4 automated, 1 manual)
+- **Commit:** ef438a6
+- **Next:** Human must approve via submit-feedback
+
+---
+
+### 2026-03-02 - Ralph Session: Ticket d7f0d148 Complete
+- **Ticket:** 2.3 — Move agents, commands, and skills into workflow-pack
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Copied 3 agents (code-reviewer, silent-failure-hunter, code-simplifier) to workflow-pack/agents/
+  - Copied 7 commands (next-task, review-ticket, review-epic, demo, reconcile-learnings, review, extended-review) to workflow-pack/commands/
+  - Copied brain-dump-workflow skill (SKILL.md + 4 reference docs + run-quality-checks.sh) to workflow-pack/skills/
+  - All 15 markdown files have YAML frontmatter ownership marker: owner: brain-dump-workflow-pack@1.0.0
+  - Shell script has comment-based marker consistent with hooks
+  - SHA-256 checksums computed and added to manifest.json for all 16 new files
+  - Manifest schema evolved from string[] to object[] for agents/commands/skills (no consumers yet)
+  - Old file locations preserved (deletion is Phase 5)
+- **Review:** 1 minor (manifest schema change), 2 suggestions; canProceedToHumanReview: true
+- **Demo:** 5 test steps (4 automated, 1 manual)
+- **Commit:** 1bac72f
+- **Next:** Human must approve via submit-feedback
+
+---
+
+### 2026-03-02 - Ralph Session: Ticket 452c4d09 Complete
+- **Ticket:** 2.2 — Move remaining hooks into workflow-pack
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Copied all 6 hooks from ~/.claude/hooks/ to workflow-pack/hooks/ as canonical source
+  - enforce-state-before-write.sh, enforce-review-before-push.sh, link-commit-to-ticket.sh
+  - check-for-code-changes.sh, capture-claude-tasks.sh, spawn-next-ticket.sh
+  - Also copied save-tasks-to-db.cjs helper (co-located with capture-claude-tasks.sh)
+  - Added ownership marker to all 7 files: `# brain-dump-workflow-pack v1.0.0 | DO NOT EDIT — managed by brain-dump`
+  - Old hook locations preserved (deletion is Phase 5)
+  - Added workflow-pack/ to ESLint ignores (standalone scripts, not app code)
+  - All hooks tested functional from new location
+- **Review:** 1 minor (emoji cosmetics), 2 suggestions; canProceedToHumanReview: true
+- **Demo:** 5 test steps (3 automated, 2 manual)
+- **Commit:** 8cbb18b
+- **Next:** Human must approve via submit-feedback
+
+---
+
+### 2026-03-02 - Ralph Session: Ticket 4e94b588 Complete
+- **Ticket:** 2.1 — Create workflow-pack directory structure and manifest
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Created `workflow-pack/` directory with full structure: hooks/, agents/, commands/, skills/brain-dump-workflow/reference/
+  - Created `manifest.json` with complete asset inventory (6 hooks, 3 agents, 7 commands, 1 skill)
+  - SHA-256 checksums computed for all legacy files
+  - `legacyPaths.claude` populated with 40 entries covering all hooks, commands, agents, skill files
+  - Provider adapter stubs for claude (adapter.sh + plugin.json + hooks.json), cursor, copilot, vscode, opencode, codex
+  - Claude plugin.json and hooks.json templates ready for ticket 3.2
+  - Cursor/copilot hooks.json templates ready for ticket 3.3
+  - Codex adapter refuses workflow-pack with clear message (MCP-only)
+- **Review:** 1 minor, 2 suggestions; canProceedToHumanReview: true
+- **Demo:** 5 test steps (1 automated, 4 manual)
+- **Commit:** 2424de8
+- **Next:** Human must approve via submit-feedback
+
+---
+
+### 2026-03-02 - Ralph Session: Ticket ce57744e Complete
+- **Ticket:** 1.4 — Absorb state recording and pending-link hooks into MCP
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Verified AC1: `session update-state` already writes ralph-state.json (createSession, updateState, completeSession)
+  - Implemented AC2: Added `checkUnlinkedItems()` to `core/git.ts` — checks branch for unlinked commits/PRs
+  - Integrated into `handleStartWork()` via extracted `formatUnlinkedItems()` helper
+  - Verified AC3: `syncTicketLinks()` already auto-discovers commits/PRs from current branch
+  - AC4 satisfied: no pending-links.json temp files needed — start-work checks directly
+  - Added 4 integration tests with real git repos and SQLite databases
+  - Code-simplifier: extracted `isHashMatch()` helper (dedup 3x), simplified `unlinkedPr` assignment
+- **Review:** 1 major (fixed: silent catch → log.error), 1 minor, 2 suggestions; canProceedToHumanReview: true
+- **Demo:** 5 test steps (1 automated, 4 manual)
+- **Commits:** feat: b8d7f0b, refactor: 2701707
+- **Next:** Human must approve via submit-feedback
+
+---
+
+### 2026-03-02 - Ralph Session: Ticket 50589cef Complete
+- **Ticket:** 1.3 — Add MCP self-telemetry instrumentation
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Rewrote `mcp-server/lib/telemetry-self-log.ts` with `instrumentServer()` middleware
+  - Patches `McpServer.tool()` to wrap all handlers with start/end event logging
+  - Auto-creates telemetry sessions when active ticket detected (ralph-state.json or params)
+  - Auto-ends sessions on graceful shutdown via `endActiveSession()`
+  - Correlation IDs generated in-memory (no `.claude/tool-correlation-*.txt` files)
+  - Excluded `telemetry` tool from self-instrumentation to avoid noise
+  - Removed redundant inline telemetry from `workflow.ts` (handleStartWork, handleCompleteWork)
+  - Added 6 tests covering: start/end events, error logging, excluded tools, auto-session, shutdown, no-ticket skip
+- **Review:** 2 minor, 1 suggestion; canProceedToHumanReview: true
+- **Demo:** 5 test steps (1 automated, 4 manual)
+- **Commit:** 2da17ea
+- **Next:** Human must approve via submit-feedback
+
+---
+
+### 2026-03-02 - Ralph Session: Ticket f1be2c56 Complete
+- **Ticket:** 1.2 — Add autoPr param to workflow start-work
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Added `autoPr` optional boolean parameter to `workflow start-work` MCP tool Zod schema
+  - Implemented `createAutoPr` function in `mcp-server/tools/workflow.ts`
+  - When `autoPr: true`: creates WIP commit, pushes branch, creates draft PR via `gh`, links PR
+  - Graceful handling: missing `gh` CLI (warning + skip), existing PR (links it), all failures non-fatal
+  - Used `execFileSync` (argument arrays) instead of shell strings for security
+  - Added `safeExec` helper for shell-safe command execution
+- **Review:** 1 major (shell injection — fixed), 1 minor, 1 suggestion; canProceedToHumanReview: true
+- **Demo:** 5 test steps (4 manual, 1 automated)
+- **Commits:** 664401c (feat), c521016 (security fix)
+- **Next:** Human must approve via submit-feedback
+
+---
+
+### 2026-03-02 - Ralph Session: Ticket 065487b8 Complete
+- **Ticket:** 1.1 — Add MCP prompts for workflow and review guidance
+- **Status:** human_review (awaiting demo approval)
+- **Work Done:**
+  - Created `mcp-server/prompts/instructions.ts` — registers 4 MCP prompt endpoints
+  - Prompts: brain-dump-workflow, code-review, silent-failure-review, code-simplifier-review
+  - Added test in `mcp-server/prompts/instructions.test.ts` verifying registration
+  - Integrated into `mcp-server/index.ts` via `registerInstructionPrompts(server)`
+- **Review:** 3 suggestions only, canProceedToHumanReview: true
+- **Demo:** 5 test steps (3 manual, 2 automated)
+- **Commit:** 91c31e4
+- **Next:** Human must approve via submit-feedback
+
+---
+
 ### 2026-03-01 - Ralph Session: Ticket 5f3c5271 Complete
 - **Ticket:** Phase 3.15: Docs sync and drift prevention
 - **Status:** human_review (awaiting demo approval)

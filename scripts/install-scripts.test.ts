@@ -11,6 +11,16 @@ function readScript(path: string): string {
 // All providers that should have install/uninstall parity
 const ALL_PROVIDERS = ["claude", "vscode", "cursor", "opencode", "copilot", "codex"];
 
+// Telemetry hook scripts removed post-refactor (MCP self-instrumentation handles telemetry)
+const TELEMETRY_HOOK_SCRIPTS = [
+  "start-telemetry.sh",
+  "end-telemetry.sh",
+  "log-tool-start.sh",
+  "log-tool-end.sh",
+  "log-tool-failure.sh",
+  "log-prompt.sh",
+];
+
 describe("install.sh (root)", () => {
   const script = readScript("install.sh");
 
@@ -124,10 +134,7 @@ describe("mktemp portability hardening", () => {
     expect(script).toContain('mktemp "${TMPDIR:-/tmp}/pending-links.XXXXXX"');
   });
 
-  it("merge-telemetry-hooks uses portable mktemp template syntax", () => {
-    const script = readScript(".claude/hooks/merge-telemetry-hooks.sh");
-    expect(script).toContain('mktemp "${TMPDIR:-/tmp}/claude-settings.XXXXXX"');
-  });
+  // merge-telemetry-hooks.sh was absorbed into MCP self-telemetry (ticket 6.4)
 });
 
 describe("setup-claude-code.sh hook merge behavior", () => {
@@ -228,30 +235,31 @@ describe("scripts/uninstall.sh (universal auto-detect)", () => {
 describe("setup-copilot-cli.sh hooks.json format", () => {
   const script = readScript("scripts/setup-copilot-cli.sh");
 
-  it("generates hooks.json with 'type: command' in every hook entry", () => {
-    // Every hook entry in the generated hooks.json must include "type": "command"
-    // per the Copilot CLI hooks specification
-    const hookEvents = [
+  it("generates hooks.json with only preToolUse enforce-state hook", () => {
+    expect(script).toContain(`"preToolUse"`);
+
+    const hooksJsonStart = script.indexOf("HOOKS_JSON_EOF");
+    const hooksJsonEnd = script.indexOf("HOOKS_JSON_EOF", hooksJsonStart + 1);
+    const hooksJsonSection = script.slice(hooksJsonStart, hooksJsonEnd);
+
+    // Telemetry hook events should NOT be present
+    for (const removed of [
       "sessionStart",
-      "preToolUse",
       "postToolUse",
       "sessionEnd",
       "userPromptSubmitted",
       "errorOccurred",
-    ];
-    for (const event of hookEvents) {
-      expect(script, `hooks.json ${event} section found`).toContain(`"${event}"`);
+    ]) {
+      expect(hooksJsonSection, `hooks.json should not contain ${removed}`).not.toContain(
+        `"${removed}"`
+      );
     }
 
-    // Count occurrences of "bash": in the hooks.json section
-    const hooksJsonSection = script.slice(
-      script.indexOf("HOOKS_JSON_EOF"),
-      script.indexOf("HOOKS_JSON_EOF", script.indexOf("HOOKS_JSON_EOF") + 1)
-    );
+    // Exactly 1 hook entry (enforce-state)
     const bashEntries = (hooksJsonSection.match(/"bash":/g) || []).length;
     const typeCommandEntries = (hooksJsonSection.match(/"type": "command"/g) || []).length;
 
-    expect(typeCommandEntries).toBeGreaterThan(0);
+    expect(typeCommandEntries).toBe(1);
     expect(typeCommandEntries).toBe(bashEntries);
   });
 
@@ -300,6 +308,57 @@ describe("copilot pre-tool-use hook script", () => {
     expect(hook).toContain("permissionDecision");
     // Should not use Claude Code's "decision" format
     expect(hook).not.toContain('"decision":');
+  });
+});
+
+describe("post-refactor: no telemetry hooks in setup scripts", () => {
+  it("setup-cursor.sh does not create telemetry hook scripts", () => {
+    const script = readScript("scripts/setup-cursor.sh");
+    for (const hookScript of TELEMETRY_HOOK_SCRIPTS) {
+      expect(script, `setup-cursor.sh should not create ${hookScript}`).not.toMatch(
+        new RegExp(`cat\\s*>.*${hookScript}`)
+      );
+    }
+    // Telemetry event types should not appear in the script
+    for (const removed of ["sessionStart", "sessionEnd", "userPromptSubmitted", "errorOccurred"]) {
+      expect(script, `should not reference telemetry event ${removed}`).not.toContain(
+        `"${removed}"`
+      );
+    }
+  });
+
+  it("setup-copilot-cli.sh does not generate telemetry hook scripts", () => {
+    const script = readScript("scripts/setup-copilot-cli.sh");
+    const hooksJsonStart = script.indexOf("HOOKS_JSON_EOF");
+    const hooksJsonEnd = script.indexOf("HOOKS_JSON_EOF", hooksJsonStart + 1);
+    const hooksJsonSection = script.slice(hooksJsonStart, hooksJsonEnd);
+    for (const hookScript of TELEMETRY_HOOK_SCRIPTS) {
+      expect(hooksJsonSection, `hooks.json should not reference ${hookScript}`).not.toContain(
+        hookScript
+      );
+    }
+  });
+});
+
+describe("post-refactor: only 3 global skills installed", () => {
+  for (const setupScript of [
+    "scripts/setup-cursor.sh",
+    "scripts/setup-copilot-cli.sh",
+    "scripts/setup-vscode.sh",
+  ]) {
+    it(`${setupScript} installs exactly 3 global skills`, () => {
+      const script = readScript(setupScript);
+      expect(script).toContain(
+        'GLOBAL_SKILLS=("brain-dump-workflow" "review" "review-aggregation")'
+      );
+    });
+  }
+
+  it("setup-cursor.sh cleans up stale project-specific skills", () => {
+    const script = readScript("scripts/setup-cursor.sh");
+    expect(script).toContain("STALE_SKILLS=");
+    expect(script).toContain("tanstack-errors");
+    expect(script).toContain("tanstack-forms");
   });
 });
 

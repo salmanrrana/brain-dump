@@ -136,19 +136,19 @@ describe("Environment Detection", () => {
       expect(detectEnvironment()).toBe("claude-code");
     });
 
-    it("should detect CLAUDE_API_KEY env var", () => {
+    it("should NOT detect generic CLAUDE_API_KEY as Claude Code", () => {
       process.env.CLAUDE_API_KEY = "sk-test-key";
-      expect(detectEnvironment()).toBe("claude-code");
+      expect(detectEnvironment()).toBe("unknown");
     });
 
-    it("should detect ANTHROPIC_API_KEY env var", () => {
+    it("should NOT detect generic ANTHROPIC_API_KEY as Claude Code", () => {
       process.env.ANTHROPIC_API_KEY = "sk-ant-test";
-      expect(detectEnvironment()).toBe("claude-code");
+      expect(detectEnvironment()).toBe("unknown");
     });
 
-    it("should detect MCP_SERVER_NAME env var", () => {
+    it("should NOT detect generic MCP_SERVER_NAME as Claude Code", () => {
       process.env.MCP_SERVER_NAME = "brain-dump";
-      expect(detectEnvironment()).toBe("claude-code");
+      expect(detectEnvironment()).toBe("unknown");
     });
 
     it("should detect CLAUDE_CODE_TERMINAL_ID env var", () => {
@@ -362,8 +362,8 @@ describe("Environment Detection", () => {
       expect(detectEnvironment()).toBe("opencode");
     });
 
-    it("should prioritize Copilot CLI over Codex when both are present", () => {
-      process.env.COPILOT_TRACE_ID = "trace-123";
+    it("should prioritize Copilot CLI over Codex when both explicit flags are present", () => {
+      process.env.COPILOT_CLI = "1";
       process.env.CODEX = "1";
       expect(detectEnvironment()).toBe("copilot-cli");
     });
@@ -550,10 +550,10 @@ describe("Environment Detection", () => {
 
     it("should list detected Claude Code env vars", () => {
       process.env.CLAUDE_CODE = "true";
-      process.env.ANTHROPIC_API_KEY = "sk-test";
+      process.env.CLAUDE_CODE_ENTRYPOINT = "/path/to/claude";
       const info = getEnvironmentInfo();
       expect(info.envVarsDetected).toContain("CLAUDE_CODE");
-      expect(info.envVarsDetected).toContain("ANTHROPIC_API_KEY");
+      expect(info.envVarsDetected).toContain("CLAUDE_CODE_ENTRYPOINT");
     });
 
     it("should list detected VS Code env vars", () => {

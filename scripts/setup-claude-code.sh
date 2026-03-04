@@ -5,8 +5,9 @@
 # This script:
 # 1. Configures the Brain Dump MCP server in ~/.claude.json
 # 2. Installs required plugins (pr-review-toolkit, code-simplifier, context7)
-# 3. Copies agents, commands, hooks, and skills to ~/.claude/
+# 3. Copies commands, hooks, and skills to ~/.claude/
 # 4. Configures hooks in ~/.claude/settings.json
+# Note: Agent personas are inlined into commands (no separate agent files needed)
 #
 # After running, Brain Dump tools and auto-review will be available in all Claude Code sessions.
 
@@ -36,7 +37,6 @@ CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 GLOBAL_CLAUDE_DIR="$HOME/.claude"
 
 # Source directories in brain-dump
-SOURCE_AGENTS="$BRAIN_DUMP_DIR/.claude/agents"
 SOURCE_COMMANDS="$BRAIN_DUMP_DIR/.claude/commands"
 SOURCE_HOOKS="$BRAIN_DUMP_DIR/.claude/hooks"
 SOURCE_SKILLS="$BRAIN_DUMP_DIR/.claude/skills"
@@ -100,22 +100,7 @@ else
 fi
 
 echo ""
-echo -e "${BLUE}Step 3: Copy Agents to Global Location${NC}"
-echo "────────────────────────────────────────"
-
-mkdir -p "$GLOBAL_CLAUDE_DIR/agents"
-
-if [ -d "$SOURCE_AGENTS" ]; then
-    echo "Copying agents from brain-dump to ~/.claude/agents/..."
-    cp -v "$SOURCE_AGENTS"/*.md "$GLOBAL_CLAUDE_DIR/agents/" 2>/dev/null || true
-    echo -e "${GREEN}Agents installed:${NC}"
-    ls "$GLOBAL_CLAUDE_DIR/agents"/*.md 2>/dev/null | xargs -I {} basename {} | sed 's/^/  • /'
-else
-    echo -e "${YELLOW}No agents directory found in brain-dump.${NC}"
-fi
-
-echo ""
-echo -e "${BLUE}Step 4: Copy Commands to Global Location${NC}"
+echo -e "${BLUE}Step 3: Copy Commands to Global Location${NC}"
 echo "──────────────────────────────────────────"
 
 mkdir -p "$GLOBAL_CLAUDE_DIR/commands"
@@ -130,7 +115,7 @@ else
 fi
 
 echo ""
-echo -e "${BLUE}Step 5: Copy Hooks to Global Location${NC}"
+echo -e "${BLUE}Step 4: Copy Hooks to Global Location${NC}"
 echo "───────────────────────────────────────"
 
 mkdir -p "$GLOBAL_CLAUDE_DIR/hooks"
@@ -149,26 +134,49 @@ else
 fi
 
 echo ""
-echo -e "${BLUE}Step 6: Copy Skills to Global Location${NC}"
-echo "────────────────────────────────────────"
+echo -e "${BLUE}Step 5: Copy Global Skills${NC}"
+echo "───────────────────────────"
 
 mkdir -p "$GLOBAL_CLAUDE_DIR/skills"
 
+# Only install universally-relevant skills globally.
+# Project-specific skills (react-best-practices, tanstack-*, web-design-guidelines)
+# live in each project's .claude/skills/ directory instead.
+GLOBAL_SKILLS=("brain-dump-workflow" "review" "review-aggregation")
+
 if [ -d "$SOURCE_SKILLS" ]; then
-    echo "Copying skills from brain-dump to ~/.claude/skills/..."
-    cp -rv "$SOURCE_SKILLS"/* "$GLOBAL_CLAUDE_DIR/skills/" 2>/dev/null || true
-    echo -e "${GREEN}Skills installed:${NC}"
-    ls -d "$GLOBAL_CLAUDE_DIR/skills"/*/ 2>/dev/null | xargs -I {} basename {} | sed 's/^/  • /'
+    echo "Installing global skills to ~/.claude/skills/..."
+    for skill in "${GLOBAL_SKILLS[@]}"; do
+        if [ -d "$SOURCE_SKILLS/$skill" ]; then
+            rm -rf "$GLOBAL_CLAUDE_DIR/skills/$skill"
+            cp -r "$SOURCE_SKILLS/$skill" "$GLOBAL_CLAUDE_DIR/skills/$skill"
+            echo -e "  ${GREEN}✓${NC} $skill"
+        else
+            echo -e "  ${YELLOW}⚠${NC} $skill not found in source"
+        fi
+    done
+
+    # Clean up project-specific skills that were previously installed globally
+    PROJECT_SPECIFIC_SKILLS=("react-best-practices" "web-design-guidelines" "tanstack-query" "tanstack-mutations" "tanstack-types" "tanstack-errors" "tanstack-forms")
+    for skill in "${PROJECT_SPECIFIC_SKILLS[@]}"; do
+        if [ -d "$GLOBAL_CLAUDE_DIR/skills/$skill" ]; then
+            rm -rf "$GLOBAL_CLAUDE_DIR/skills/$skill"
+            echo -e "  ${YELLOW}🧹${NC} Removed $skill from global (now project-local)"
+        fi
+    done
+
+    echo -e "${GREEN}Global skills installed. Project-specific skills live in each repo's .claude/skills/${NC}"
 else
     echo -e "${YELLOW}No skills directory found in brain-dump.${NC}"
 fi
 
 echo ""
-echo -e "${BLUE}Step 7: Configure Hooks in Settings${NC}"
+echo -e "${BLUE}Step 6: Configure Hooks in Settings${NC}"
 echo "──────────────────────────────────────"
 
-# Create or update ~/.claude/settings.json with hooks configuration
-HOOKS_DIR="$GLOBAL_CLAUDE_DIR/hooks"
+# Hooks configuration — only 10 remaining hooks after MCP absorption.
+# Telemetry, PR creation, state recording, and pending-link hooks are now
+# handled by the MCP server itself (self-telemetry, autoPr param, etc.).
 
 if [ -f "$CLAUDE_SETTINGS" ]; then
     echo -e "${YELLOW}Existing ~/.claude/settings.json found.${NC}"
@@ -176,41 +184,105 @@ if [ -f "$CLAUDE_SETTINGS" ]; then
     if grep -q '"hooks"' "$CLAUDE_SETTINGS"; then
         echo -e "${GREEN}Hooks section already exists in settings.json${NC}"
 
+        # Clean up absorbed hooks that are no longer needed
+        ABSORBED_HOOKS=(
+            "start-telemetry-session.sh"
+            "end-telemetry-session.sh"
+            "log-tool-start.sh"
+            "log-tool-end.sh"
+            "log-tool-failure.sh"
+            "log-tool-telemetry.sh"
+            "log-prompt.sh"
+            "log-prompt-telemetry.sh"
+            "record-state-change.sh"
+            "check-pending-links.sh"
+            "clear-pending-links.sh"
+            "create-pr-on-ticket-start.sh"
+            "enforce-session-before-work.sh"
+            "merge-telemetry-hooks.sh"
+        )
+
+        NEEDS_CLEANUP=false
+        for hook in "${ABSORBED_HOOKS[@]}"; do
+            if grep -q "$hook" "$CLAUDE_SETTINGS"; then
+                NEEDS_CLEANUP=true
+                break
+            fi
+        done
+
+        if [ "$NEEDS_CLEANUP" = true ]; then
+            echo -e "${YELLOW}Removing absorbed hook entries (now handled by MCP server)...${NC}"
+            if command -v node &> /dev/null; then
+                if CLAUDE_SETTINGS="$CLAUDE_SETTINGS" node << 'CLEANUP_EOF'
+const fs = require("fs");
+
+const settingsPath = process.env.CLAUDE_SETTINGS;
+const raw = fs.readFileSync(settingsPath, "utf8");
+const config = JSON.parse(raw);
+
+const absorbed = new Set([
+    "start-telemetry-session.sh",
+    "end-telemetry-session.sh",
+    "log-tool-start.sh",
+    "log-tool-end.sh",
+    "log-tool-failure.sh",
+    "log-tool-telemetry.sh",
+    "log-prompt.sh",
+    "log-prompt-telemetry.sh",
+    "record-state-change.sh",
+    "check-pending-links.sh",
+    "clear-pending-links.sh",
+    "create-pr-on-ticket-start.sh",
+    "enforce-session-before-work.sh",
+    "merge-telemetry-hooks.sh",
+]);
+
+function isAbsorbed(command) {
+    return [...absorbed].some(h => command.includes(h));
+}
+
+function cleanHookEntries(entries) {
+    if (!Array.isArray(entries)) return entries;
+    return entries
+        .map(entry => {
+            if (!entry.hooks) return entry;
+            const kept = entry.hooks.filter(h => !isAbsorbed(h.command || ""));
+            if (kept.length === 0) return null;
+            return { ...entry, hooks: kept };
+        })
+        .filter(Boolean);
+}
+
+if (config.hooks) {
+    for (const event of Object.keys(config.hooks)) {
+        config.hooks[event] = cleanHookEntries(config.hooks[event]);
+        if (config.hooks[event].length === 0) {
+            delete config.hooks[event];
+        }
+    }
+}
+
+fs.writeFileSync(settingsPath, JSON.stringify(config, null, 2) + "\n");
+CLEANUP_EOF
+                then
+                    echo -e "${GREEN}Absorbed hook entries removed from settings.json${NC}"
+                else
+                    echo -e "${YELLOW}Failed to clean up absorbed hooks. They reference deleted files and will be skipped.${NC}"
+                fi
+            else
+                echo -e "${YELLOW}Node.js not available. Absorbed hooks reference deleted files and will be skipped.${NC}"
+            fi
+        else
+            echo -e "${GREEN}No absorbed hooks found in settings.json${NC}"
+        fi
+
         # Check if hooks use old $CLAUDE_PROJECT_DIR paths and update them
         if grep -q 'CLAUDE_PROJECT_DIR' "$CLAUDE_SETTINGS"; then
             echo -e "${YELLOW}Updating hook paths from \$CLAUDE_PROJECT_DIR to \$HOME/.claude/hooks/...${NC}"
-            # Use sed to replace the old paths with new global paths
             sed -i.bak 's|"\$CLAUDE_PROJECT_DIR"/.claude/hooks/|\$HOME/.claude/hooks/|g' "$CLAUDE_SETTINGS"
             sed -i.bak 's|"\\$CLAUDE_PROJECT_DIR"/.claude/hooks/|$HOME/.claude/hooks/|g' "$CLAUDE_SETTINGS"
             rm -f "$CLAUDE_SETTINGS.bak"
             echo -e "${GREEN}Hook paths updated to use global ~/.claude/hooks/${NC}"
-        else
-            echo -e "${GREEN}Hook paths already use global paths${NC}"
-        fi
-
-        # Migrate old individual MCP tool matchers to consolidated tool names
-        if grep -q 'mcp__brain-dump__start_ticket_work\|mcp__brain-dump__complete_ticket_work\|mcp__brain-dump__update_session_state\|mcp__brain-dump__create_ralph_session\|mcp__brain-dump__complete_ralph_session\|mcp__brain-dump__sync_ticket_links' "$CLAUDE_SETTINGS"; then
-            echo -e "${YELLOW}Migrating old MCP tool matchers to consolidated tool names...${NC}"
-            sed -i.bak \
-                -e 's|mcp__brain-dump__start_ticket_work|mcp__brain-dump__workflow|g' \
-                -e 's|mcp__brain-dump__complete_ticket_work|mcp__brain-dump__workflow|g' \
-                -e 's|mcp__brain-dump__update_session_state|mcp__brain-dump__session|g' \
-                -e 's|mcp__brain-dump__create_ralph_session|mcp__brain-dump__session|g' \
-                -e 's|mcp__brain-dump__complete_ralph_session|mcp__brain-dump__session|g' \
-                -e 's|mcp__brain-dump__sync_ticket_links|mcp__brain-dump__workflow|g' \
-                "$CLAUDE_SETTINGS"
-            rm -f "$CLAUDE_SETTINGS.bak"
-            echo -e "${GREEN}MCP tool matchers updated to consolidated names${NC}"
-            echo -e "${YELLOW}Note: Duplicate matchers may exist. Identical handlers are deduplicated by Claude Code.${NC}"
-        fi
-
-        # Ensure telemetry hooks are configured (idempotent merge)
-        echo ""
-        echo -e "${YELLOW}Verifying telemetry hooks are configured...${NC}"
-        if [ -f "$SOURCE_HOOKS/merge-telemetry-hooks.sh" ]; then
-            bash "$SOURCE_HOOKS/merge-telemetry-hooks.sh"
-        else
-            echo -e "${YELLOW}Warning: merge-telemetry-hooks.sh not found. Telemetry hooks may not be configured.${NC}"
         fi
     else
         echo -e "${YELLOW}No hooks section found. Adding Brain Dump hooks to existing settings.json...${NC}"
@@ -224,18 +296,7 @@ const raw = fs.readFileSync(settingsPath, "utf8");
 const config = JSON.parse(raw);
 
 config.hooks = {
-  SessionStart: [
-    {
-      hooks: [
-        { type: "command", command: "$HOME/.claude/hooks/start-telemetry-session.sh" },
-        { type: "command", command: "$HOME/.claude/hooks/check-pending-links.sh" }
-      ]
-    }
-  ],
   PreToolUse: [
-    {
-      hooks: [{ type: "command", command: "$HOME/.claude/hooks/log-tool-start.sh" }]
-    },
     {
       matcher: "Write",
       hooks: [{ type: "command", command: "$HOME/.claude/hooks/enforce-state-before-write.sh" }]
@@ -243,53 +304,45 @@ config.hooks = {
     {
       matcher: "Edit",
       hooks: [{ type: "command", command: "$HOME/.claude/hooks/enforce-state-before-write.sh" }]
+    },
+    {
+      matcher: "Bash(git push:*)",
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/enforce-review-before-push.sh" }]
+    },
+    {
+      matcher: "Bash(gh pr create:*)",
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/enforce-review-before-push.sh" }]
     }
   ],
   PostToolUse: [
     {
-      hooks: [{ type: "command", command: "$HOME/.claude/hooks/log-tool-end.sh" }]
-    },
-    {
-      matcher: "mcp__brain-dump__workflow",
-      hooks: [{ type: "command", command: "$HOME/.claude/hooks/create-pr-on-ticket-start.sh" }]
-    },
-    {
       matcher: "Bash(git commit:*)",
       hooks: [{ type: "command", command: "$HOME/.claude/hooks/link-commit-to-ticket.sh" }]
-    },
-    {
-      matcher: "mcp__brain-dump__session",
-      hooks: [{ type: "command", command: "$HOME/.claude/hooks/record-state-change.sh" }]
     },
     {
       matcher: "mcp__brain-dump__workflow",
       hooks: [{ type: "command", command: "$HOME/.claude/hooks/spawn-next-ticket.sh" }]
     },
     {
-      matcher: "mcp__brain-dump__workflow",
-      hooks: [{ type: "command", command: "$HOME/.claude/hooks/clear-pending-links.sh" }]
+      matcher: "Bash(gh pr create:*)",
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/spawn-after-pr.sh" }]
     },
     {
       matcher: "TodoWrite",
       hooks: [{ type: "command", command: "$HOME/.claude/hooks/capture-claude-tasks.sh" }]
     }
   ],
-  PostToolUseFailure: [
+  SubagentStop: [
     {
-      hooks: [{ type: "command", command: "$HOME/.claude/hooks/log-tool-failure.sh" }]
-    }
-  ],
-  UserPromptSubmit: [
-    {
-      hooks: [{ type: "command", command: "$HOME/.claude/hooks/log-prompt.sh" }]
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/chain-extended-review.sh" }]
     }
   ],
   Stop: [
     {
-      hooks: [
-        { type: "command", command: "$HOME/.claude/hooks/end-telemetry-session.sh" },
-        { type: "command", command: "$HOME/.claude/hooks/check-for-code-changes.sh" }
-      ]
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/check-for-code-changes.sh" }]
+    },
+    {
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/mark-review-completed.sh" }]
     }
   ]
 };
@@ -311,29 +364,7 @@ else
 {
   "\$schema": "https://json.schemastore.org/claude-code-settings.json",
   "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\$HOME/.claude/hooks/start-telemetry-session.sh"
-          },
-          {
-            "type": "command",
-            "command": "\$HOME/.claude/hooks/check-pending-links.sh"
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\$HOME/.claude/hooks/log-tool-start.sh"
-          }
-        ]
-      },
       {
         "matcher": "Write",
         "hooks": [
@@ -351,41 +382,33 @@ else
             "command": "\$HOME/.claude/hooks/enforce-state-before-write.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash(git push:*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/enforce-review-before-push.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash(gh pr create:*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/enforce-review-before-push.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\$HOME/.claude/hooks/log-tool-end.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__brain-dump__workflow",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\$HOME/.claude/hooks/create-pr-on-ticket-start.sh"
-          }
-        ]
-      },
       {
         "matcher": "Bash(git commit:*)",
         "hooks": [
           {
             "type": "command",
             "command": "\$HOME/.claude/hooks/link-commit-to-ticket.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__brain-dump__session",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\$HOME/.claude/hooks/record-state-change.sh"
           }
         ]
       },
@@ -399,11 +422,11 @@ else
         ]
       },
       {
-        "matcher": "mcp__brain-dump__workflow",
+        "matcher": "Bash(gh pr create:*)",
         "hooks": [
           {
             "type": "command",
-            "command": "\$HOME/.claude/hooks/clear-pending-links.sh"
+            "command": "\$HOME/.claude/hooks/spawn-after-pr.sh"
           }
         ]
       },
@@ -417,22 +440,12 @@ else
         ]
       }
     ],
-    "PostToolUseFailure": [
+    "SubagentStop": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "\$HOME/.claude/hooks/log-tool-failure.sh"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\$HOME/.claude/hooks/log-prompt.sh"
+            "command": "\$HOME/.claude/hooks/chain-extended-review.sh"
           }
         ]
       }
@@ -442,11 +455,15 @@ else
         "hooks": [
           {
             "type": "command",
-            "command": "\$HOME/.claude/hooks/end-telemetry-session.sh"
-          },
+            "command": "\$HOME/.claude/hooks/check-for-code-changes.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
           {
             "type": "command",
-            "command": "\$HOME/.claude/hooks/check-for-code-changes.sh"
+            "command": "\$HOME/.claude/hooks/mark-review-completed.sh"
           }
         ]
       }
@@ -472,40 +489,46 @@ echo "    • pr-review-toolkit (code review agents)"
 echo "    • code-simplifier (code refinement)"
 echo "    • context7 (library documentation)"
 echo ""
-echo -e "  ${GREEN}Agents (~/.claude/agents/):${NC}"
-echo "    • inception - Start new projects"
-echo "    • breakdown - Break features into tickets"
-echo "    • context7-library-compliance - Verify library usage"
-echo "    • react-best-practices - React/Next.js patterns"
-echo "    • cruft-detector - Find unnecessary code"
-echo "    • senior-engineer - Synthesize review findings"
-echo ""
 echo -e "  ${GREEN}Commands (~/.claude/commands/):${NC}"
 echo "    • /review - Run initial code review (3 agents)"
-echo "    • /extended-review - Run extended review (4 agents)"
-echo "    • /inception - Start new project"
-echo "    • /breakdown - Break down features"
+echo "    • /extended-review - Run extended review (4 inlined agent personas)"
+echo "    • /inception - Start new project (agent persona inlined)"
+echo "    • /breakdown - Break down features (agent persona inlined)"
 echo "    • /next-task - Pick up next ticket with precondition checking"
 echo "    • /review-ticket - Run AI review on current ticket"
 echo "    • /review-epic - Run comprehensive Tracer Review on epic"
 echo "    • /demo - Generate demo script for human review"
 echo "    • /reconcile-learnings - Extract and apply learnings"
 echo ""
-echo -e "  ${GREEN}Hooks (~/.claude/hooks/):${NC}"
-echo "    • Auto-review after code changes"
-echo "    • State enforcement for Ralph workflow"
-echo "    • Commit linking to tickets"
-echo "    • Auto-PR creation on ticket start"
-echo "    • Claude task capture (auto-sync TodoWrite to Brain Dump)"
-echo "    • Telemetry capture (session tracking, tool usage, prompts)"
+echo -e "  ${GREEN}Hooks (~/.claude/hooks/) — 10 hooks:${NC}"
+echo "    • State enforcement for Ralph workflow (enforce-state-before-write)"
+echo "    • Review gating before push (enforce-review-before-push)"
+echo "    • Commit linking to tickets (link-commit-to-ticket)"
+echo "    • Auto-review after code changes (check-for-code-changes)"
+echo "    • Claude task capture (capture-claude-tasks)"
+echo "    • Extended review chaining (chain-extended-review)"
+echo "    • Next ticket spawning (spawn-next-ticket, spawn-after-pr)"
+echo "    • Review completion marker (mark-review-completed)"
+echo "    • Library detection (detect-libraries)"
 echo ""
-echo -e "  ${GREEN}Skills (~/.claude/skills/):${NC}"
+echo -e "  ${GREEN}MCP Self-Telemetry (no hooks needed):${NC}"
+echo "    • Tool call instrumentation handled by MCP server"
+echo "    • PR creation via workflow start-work autoPr param"
+echo "    • State recording via session update-state"
+echo ""
+echo -e "  ${GREEN}Global Skills (~/.claude/skills/):${NC}"
+echo "    • brain-dump-workflow - Core ticket workflow"
+echo "    • review - Code review pipeline"
 echo "    • review-aggregation - Combine review findings"
-echo "    • tanstack-* - TanStack library patterns"
+echo ""
+echo -e "  ${GREEN}Project-Local Skills (.claude/skills/):${NC}"
+echo "    • react-best-practices, tanstack-*, web-design-guidelines"
+echo "    • These are only available in projects that include them"
 echo ""
 echo -e "${BLUE}Review Pipeline:${NC}"
 echo "  /review runs: code-reviewer → silent-failure-hunter → code-simplifier"
 echo "  /extended-review runs: context7 → react-best-practices → cruft-detector → senior-engineer"
+echo "  All agent personas are inlined into their respective commands (no separate agent files)"
 echo ""
 echo -e "${BLUE}Next steps:${NC}"
 echo "  1. Restart any running Claude Code sessions"

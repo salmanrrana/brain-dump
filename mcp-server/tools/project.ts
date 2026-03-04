@@ -28,36 +28,12 @@ const ACTIONS = ["list", "find-by-path", "create", "delete"] as const;
 export function registerProjectTool(server: McpServer, db: Database.Database): void {
   server.tool(
     "project",
-    `Manage projects in Brain Dump. Use the 'action' parameter to specify the operation.
+    `Manage projects in Brain Dump.
 
-## Actions
-
-### list
-List all registered projects. Returns project IDs, names, and paths.
-No additional params required.
-
-### find-by-path
-Find a project by filesystem path. Useful for auto-detecting which project you're in.
-Required params: path
-
-### create
-Register a new project directory in Brain Dump.
-Required params: name, path
-Optional params: color
-
-### delete
-Delete a project and ALL associated data (tickets, epics, comments).
-Safety: performs a DRY RUN by default. Set confirm=true to actually delete.
-Required params: projectId
-Optional params: confirm
-
-## Parameters
-- action: (required) The operation to perform
-- projectId: Project ID. Required for: delete
-- path: Absolute filesystem path. Required for: find-by-path, create
-- name: Display name. Required for: create
-- color: Hex color (e.g., "#3b82f6"). Optional for: create
-- confirm: Set true to confirm deletion. Optional for: delete`,
+### list - List all registered projects (IDs, names, paths)
+### find-by-path - Find a project by filesystem path (auto-detect current project)
+### create - Register a new project directory
+### delete - Delete project and ALL associated data. DRY RUN by default; set confirm=true to delete.`,
     {
       action: z.enum(ACTIONS).describe("The operation to perform"),
       projectId: z.string().optional().describe("Project ID. Required for: delete"),

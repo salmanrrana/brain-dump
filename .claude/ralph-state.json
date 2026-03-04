@@ -1,0 +1,11 @@
+{
+  "sessionId": "b70f1c96-cd89-4198-b9a4-3b208e9652b2",
+  "ticketId": "6e76bf6e-891f-4e5a-af0e-90385c55c5a9",
+  "currentState": "reviewing",
+  "stateHistory": [
+    "idle",
+    "reviewing"
+  ],
+  "startedAt": "2026-03-03T13:52:55.327Z",
+  "updatedAt": "2026-03-03T13:53:00.980Z"
+}

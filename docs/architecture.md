@@ -492,3 +492,17 @@ graph LR
 | Backups   | `~/Library/Application Support/brain-dump/backups/`  | `~/.local/state/brain-dump/backups/`  |
 | Logs      | `~/Library/Application Support/brain-dump/logs/`     | `~/.local/state/brain-dump/logs/`     |
 | Lock file | `~/Library/Application Support/brain-dump/.lock`     | `~/.local/state/brain-dump/.lock`     |
+
+## Server Functions Pattern
+
+API functions in `src/api/` use TanStack Start's `createServerFn`:
+
+```typescript
+import { createServerFn } from "@tanstack/react-start/server";
+
+export const getTickets = createServerFn().handler(async () => {
+  return db.select().from(tickets).all();
+});
+```
+
+These are called from React components via TanStack Query.
