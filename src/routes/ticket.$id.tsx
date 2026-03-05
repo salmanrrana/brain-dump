@@ -885,8 +885,8 @@ const rightColumnStyles: React.CSSProperties = {
 };
 
 const activitySectionStyles: React.CSSProperties = {
-  flex: 1,
-  minHeight: 0,
+  // Keep Activity at intrinsic height so metadata divider renders strictly below it.
+  flex: "0 0 auto",
 };
 
 const metadataStyles: React.CSSProperties = {
