@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 # prepare-commit-msg - Appends ticket context to commit messages
 #
 # This hook runs before the commit message editor opens.
@@ -10,23 +10,25 @@ COMMIT_MSG_FILE="$1"
 COMMIT_SOURCE="$2"  # message, template, merge, squash, commit (amend)
 
 # Skip for merge commits, squash commits, and amends
-if [[ "$COMMIT_SOURCE" == "merge" ]] || [[ "$COMMIT_SOURCE" == "squash" ]] || [[ "$COMMIT_SOURCE" == "commit" ]]; then
-  exit 0
-fi
+case "$COMMIT_SOURCE" in
+  merge|squash|commit)
+    exit 0
+    ;;
+esac
 
 # Get the directory where this script lives
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Check if get-ticket-context.sh exists
 CONTEXT_SCRIPT="$SCRIPT_DIR/scripts/get-ticket-context.sh"
-if [[ ! -x "$CONTEXT_SCRIPT" ]]; then
+if [ ! -x "$CONTEXT_SCRIPT" ]; then
   exit 0
 fi
 
 # Get ticket context (full format for commit messages)
 TICKET_CONTEXT=$("$CONTEXT_SCRIPT" full 2>/dev/null || echo "")
 
-if [[ -z "$TICKET_CONTEXT" ]]; then
+if [ -z "$TICKET_CONTEXT" ]; then
   exit 0
 fi
 

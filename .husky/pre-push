@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 # pre-push - Validates branch and prepares PR context before pushing
 #
 # This hook runs before git push and:
@@ -15,9 +15,11 @@ URL="$2"
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
 
 # Skip for main/master branches
-if [[ "$BRANCH" == "main" ]] || [[ "$BRANCH" == "master" ]] || [[ "$BRANCH" == "dev" ]]; then
-  exit 0
-fi
+case "$BRANCH" in
+  main|master|dev)
+    exit 0
+    ;;
+esac
 
 # Get the directory where this script lives
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -32,11 +34,11 @@ if ! echo "$BRANCH" | grep -qE '^(feature|bugfix|hotfix|chore|docs|fix|refactor)
 fi
 
 # Try to get ticket context
-if [[ -x "$CONTEXT_SCRIPT" ]]; then
+if [ -x "$CONTEXT_SCRIPT" ]; then
   TICKET_ID=$("$CONTEXT_SCRIPT" id 2>/dev/null || echo "")
   TICKET_CONTEXT=$("$CONTEXT_SCRIPT" full 2>/dev/null || echo "")
 
-  if [[ -n "$TICKET_ID" ]]; then
+  if [ -n "$TICKET_ID" ]; then
     echo "📋 Ticket detected: $TICKET_ID"
 
     # Generate PR description file
@@ -50,7 +52,7 @@ if [[ -x "$CONTEXT_SCRIPT" ]]; then
       echo ""
       echo "<!-- Auto-generated from ticket context -->"
       echo ""
-      if [[ -n "$COMMITS" ]]; then
+      if [ -n "$COMMITS" ]; then
         echo "### Commits in this PR"
         echo ""
         echo "\`\`\`"
