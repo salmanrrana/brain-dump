@@ -17,7 +17,7 @@ export type { BaseCommentAuthor, CommentAuthor };
 export interface CreateCommentInput {
   ticketId: string;
   content: string;
-  author: BaseCommentAuthor;
+  author: CommentAuthor;
   type?: CommentType;
 }
 

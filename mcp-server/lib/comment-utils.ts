@@ -35,6 +35,7 @@ type CommentAuthor =
   | "codex"
   | "ai"
   | "brain-dump"
+  | `ralph:${string}`
   | null;
 
 /** Comment record from database */

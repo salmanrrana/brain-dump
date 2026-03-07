@@ -95,6 +95,21 @@ describe("addComment", () => {
     expect(comment.type).toBe("work_summary");
     expect(comment.author).toBe("ralph");
   });
+
+  it("preserves provider-prefixed Ralph authors", () => {
+    seedProject();
+    seedTicket();
+
+    const comment = addComment(db, {
+      ticketId: "ticket-1",
+      content: "Automated pass completed",
+      author: "ralph:codex",
+      type: "progress",
+    });
+
+    expect(comment.author).toBe("ralph:codex");
+    expect(comment.type).toBe("progress");
+  });
 });
 
 describe("listComments", () => {

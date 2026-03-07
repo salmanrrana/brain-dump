@@ -24,7 +24,8 @@ export type CommentAuthor =
   | "copilot"
   | "codex"
   | "ai"
-  | "brain-dump";
+  | "brain-dump"
+  | `ralph:${string}`;
 export type CommentType = "comment" | "work_summary" | "test_report" | "progress";
 
 // ============================================

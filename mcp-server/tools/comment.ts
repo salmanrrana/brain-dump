@@ -30,6 +30,7 @@ const AUTHORS = [
   "ai",
   "brain-dump",
 ] as const;
+const RALPH_AUTHOR_PATTERN = /^ralph:[a-z0-9-]+$/i;
 const COMMENT_TYPES = ["comment", "work_summary", "test_report", "progress"] as const;
 
 /**
@@ -49,16 +50,13 @@ export function registerCommentTool(server: McpServer, db: Database.Database): v
         .string()
         .optional()
         .describe("Comment content (markdown supported). Required for: add"),
-      author: z.enum(AUTHORS).optional().describe("Comment author (auto-detected if omitted)"),
+      author: z
+        .union([z.enum(AUTHORS), z.string().regex(RALPH_AUTHOR_PATTERN)])
+        .optional()
+        .describe("Comment author (auto-detected if omitted)"),
       commentType: z.enum(COMMENT_TYPES).optional().describe("Comment type (default: comment)"),
     },
-    async (params: {
-      action: (typeof ACTIONS)[number];
-      ticketId?: string | undefined;
-      content?: string | undefined;
-      author?: (typeof AUTHORS)[number] | undefined;
-      commentType?: (typeof COMMENT_TYPES)[number] | undefined;
-    }) => {
+    async (params) => {
       try {
         switch (params.action) {
           case "add": {
