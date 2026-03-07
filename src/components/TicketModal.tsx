@@ -78,6 +78,7 @@ import {
   launchOpenCodeInTerminal,
 } from "../api/terminal";
 import { safeJsonParse } from "../lib/utils";
+import { getCommentAuthorBase, getCommentAuthorDisplayName } from "../lib/comment-authors";
 import { ticketFormOpts } from "./tickets/ticket-form-opts";
 import {
   ticketFormSchema,
@@ -105,6 +106,12 @@ const COMMENT_AUTHOR_STYLES: Record<string, string> = {
   ralph: "text-[var(--status-review)]",
   claude: "text-[var(--accent-ai)]",
   codex: "text-[var(--success)]",
+  cursor: "text-[var(--text-primary)]",
+  vscode: "text-[var(--accent-primary)]",
+  copilot: "text-[var(--text-secondary)]",
+  opencode: "text-[var(--success)]",
+  ai: "text-[var(--accent-primary)]",
+  "brain-dump": "text-[var(--text-secondary)]",
   user: "text-[var(--text-primary)]",
 };
 
@@ -1931,15 +1938,15 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                             </span>
                           )}
                           <span
-                            className={`font-medium ${COMMENT_AUTHOR_STYLES[comment.author] ?? COMMENT_AUTHOR_STYLES.user}`}
+                            className={`font-medium ${COMMENT_AUTHOR_STYLES[getCommentAuthorBase(comment.author)] ?? COMMENT_AUTHOR_STYLES.user}`}
                           >
-                            {comment.author === "ralph" && (
+                            {getCommentAuthorBase(comment.author) === "ralph" && (
                               <Bot size={12} className="inline mr-1" />
                             )}
-                            {comment.author === "claude" && (
+                            {getCommentAuthorBase(comment.author) === "claude" && (
                               <Terminal size={12} className="inline mr-1" />
                             )}
-                            {comment.author.charAt(0).toUpperCase() + comment.author.slice(1)}
+                            {getCommentAuthorDisplayName(comment.author)}
                           </span>
                           <span className="text-[var(--text-tertiary)] text-xs">
                             {new Date(comment.createdAt).toLocaleString()}

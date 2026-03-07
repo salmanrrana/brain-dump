@@ -1,7 +1,8 @@
 import { type FC, useState, useRef, useCallback, type KeyboardEvent } from "react";
 import { Send, Loader2 } from "lucide-react";
 import { useCreateComment } from "../../lib/hooks";
-import type { CommentAuthor, CommentType } from "../../api/comments";
+import type { CommentType } from "../../api/comments";
+import type { BaseCommentAuthor } from "../../lib/comment-authors";
 
 // =============================================================================
 // Types
@@ -61,7 +62,7 @@ export const CommentInput: FC<CommentInputProps> = ({
       {
         ticketId,
         content: content.trim(),
-        author: "user" as CommentAuthor,
+        author: "user" as BaseCommentAuthor,
         type: "comment" as CommentType,
       },
       {

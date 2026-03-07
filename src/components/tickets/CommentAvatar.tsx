@@ -1,5 +1,5 @@
 import { memo } from "react";
-import type { CommentAuthor } from "../../api/comments";
+import { getCommentAuthorDisplayName, getCommentAuthorStyle } from "../../lib/comment-authors";
 
 // =============================================================================
 // Types
@@ -7,7 +7,7 @@ import type { CommentAuthor } from "../../api/comments";
 
 export interface CommentAvatarProps {
   /** The author of the comment */
-  author: CommentAuthor;
+  author: string;
   /** Size of the avatar in pixels (default: 32) */
   size?: number;
   /** Test ID prefix for testing */
@@ -27,29 +27,6 @@ interface AuthorStyle {
   /** Text/icon color */
   color: string;
 }
-
-const AUTHOR_STYLES: Record<CommentAuthor, AuthorStyle> = {
-  claude: {
-    gradient: ["#a855f7", "#8b5cf6"], // purple to violet
-    display: "✨",
-    color: "#ffffff",
-  },
-  ralph: {
-    gradient: ["#06b6d4", "#3b82f6"], // cyan to blue
-    display: "🤖",
-    color: "#ffffff",
-  },
-  user: {
-    gradient: ["#f97316", "#f59e0b"], // orange to amber
-    display: "letter",
-    color: "#ffffff",
-  },
-  opencode: {
-    gradient: ["#22c55e", "#10b981"], // green to emerald
-    display: "💻",
-    color: "#ffffff",
-  },
-};
 
 // =============================================================================
 // CommentAvatar Component
@@ -81,7 +58,12 @@ export const CommentAvatar = memo(function CommentAvatar({
   size = 32,
   testId = "comment-avatar",
 }: CommentAvatarProps) {
-  const style = AUTHOR_STYLES[author] ?? AUTHOR_STYLES.user;
+  const resolvedStyle = getCommentAuthorStyle(author);
+  const style: AuthorStyle = {
+    gradient: resolvedStyle.gradient,
+    display: resolvedStyle.display,
+    color: resolvedStyle.color,
+  };
   const [fromColor, toColor] = style.gradient;
 
   const containerStyles: React.CSSProperties = {
@@ -101,7 +83,8 @@ export const CommentAvatar = memo(function CommentAvatar({
     userSelect: "none",
   };
 
-  const displayContent = style.display === "letter" ? author.charAt(0) : style.display;
+  const displayName = getCommentAuthorDisplayName(author);
+  const displayContent = style.display === "letter" ? displayName.charAt(0) : style.display;
 
   return (
     <div style={containerStyles} data-testid={testId} aria-hidden="true">

@@ -1,6 +1,7 @@
 import { useState, useMemo, memo } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import type { Comment as CommentData, CommentType, CommentAuthor } from "../../api/comments";
+import type { Comment as CommentData, CommentType } from "../../api/comments";
+import { getCommentAuthorDisplayName, getCommentAuthorStyle } from "../../lib/comment-authors";
 import { CommentAvatar } from "./CommentAvatar";
 import { CodeBlock } from "./CodeBlock";
 
@@ -27,14 +28,6 @@ const TYPE_BORDER_COLORS: Record<CommentType, string> = {
   progress: "#14b8a6", // teal
   work_summary: "#a855f7", // purple
   test_report: "#22c55e", // green
-};
-
-/** Author colors for header text */
-const AUTHOR_COLORS: Record<CommentAuthor, string> = {
-  claude: "#a855f7", // purple
-  ralph: "#06b6d4", // cyan
-  opencode: "#22c55e", // green
-  user: "#f97316", // orange
 };
 
 /** Type labels for display */
@@ -256,7 +249,8 @@ export const Comment = memo(function Comment({
 
   // Get colors
   const borderColor = TYPE_BORDER_COLORS[comment.type as CommentType] ?? TYPE_BORDER_COLORS.comment;
-  const authorColor = AUTHOR_COLORS[comment.author as CommentAuthor] ?? AUTHOR_COLORS.user;
+  const authorDisplayName = getCommentAuthorDisplayName(comment.author);
+  const authorColor = getCommentAuthorStyle(comment.author).textColor;
   const typeLabel = TYPE_LABELS[comment.type as CommentType];
 
   // Toggle expansion
@@ -299,7 +293,6 @@ export const Comment = memo(function Comment({
     fontSize: "var(--font-size-sm)",
     fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
     color: authorColor,
-    textTransform: "capitalize",
   };
 
   const timestampStyles: React.CSSProperties = {
@@ -339,13 +332,13 @@ export const Comment = memo(function Comment({
   return (
     <div style={containerStyles} data-testid={testId}>
       {/* Avatar */}
-      <CommentAvatar author={comment.author as CommentAuthor} testId={`${testId}-avatar`} />
+      <CommentAvatar author={comment.author} testId={`${testId}-avatar`} />
 
       {/* Content */}
       <div style={contentContainerStyles}>
         {/* Header */}
         <div style={headerStyles}>
-          <span style={authorStyles}>{comment.author}</span>
+          <span style={authorStyles}>{authorDisplayName}</span>
           <span style={timestampStyles}>·</span>
           <span style={timestampStyles}>{formatTimestamp(comment.createdAt)}</span>
           {typeLabel && <span style={typeBadgeStyles}>{typeLabel}</span>}

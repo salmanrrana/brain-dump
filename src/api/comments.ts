@@ -3,15 +3,21 @@ import { db } from "../lib/db";
 import { ticketComments } from "../lib/schema";
 import { eq, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import {
+  BASE_COMMENT_AUTHORS,
+  isValidCommentAuthor,
+  type BaseCommentAuthor,
+  type CommentAuthor,
+} from "../lib/comment-authors";
 
 // Comment types
 export type CommentType = "comment" | "work_summary" | "test_report" | "progress";
-export type CommentAuthor = "claude" | "ralph" | "user" | "opencode";
+export type { BaseCommentAuthor, CommentAuthor };
 
 export interface CreateCommentInput {
   ticketId: string;
   content: string;
-  author: CommentAuthor;
+  author: BaseCommentAuthor;
   type?: CommentType;
 }
 
@@ -25,7 +31,7 @@ export interface Comment {
 }
 
 // Valid authors and types for validation
-const VALID_AUTHORS: CommentAuthor[] = ["claude", "ralph", "user", "opencode"];
+const VALID_AUTHORS = [...BASE_COMMENT_AUTHORS];
 const VALID_TYPES: CommentType[] = ["comment", "work_summary", "test_report", "progress"];
 
 // Get comments for a ticket
@@ -66,7 +72,7 @@ export const createComment = createServerFn({ method: "POST" })
     if (data.content.length > 100000) {
       throw new Error("Comment content exceeds maximum length of 100,000 characters");
     }
-    if (!data.author || !VALID_AUTHORS.includes(data.author)) {
+    if (!data.author || !isValidCommentAuthor(data.author)) {
       throw new Error(`Invalid author. Must be one of: ${VALID_AUTHORS.join(", ")}`);
     }
     if (data.type && !VALID_TYPES.includes(data.type)) {

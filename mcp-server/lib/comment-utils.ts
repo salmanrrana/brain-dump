@@ -31,6 +31,10 @@ type CommentAuthor =
   | "opencode"
   | "cursor"
   | "vscode"
+  | "copilot"
+  | "codex"
+  | "ai"
+  | "brain-dump"
   | null;
 
 /** Comment record from database */
@@ -114,16 +118,15 @@ export function addComment(
  * Fetch and format comments for a ticket.
  * Returns the most recent comments (up to MAX_COMMENTS_IN_CONTEXT).
  */
-export function fetchTicketComments(
-  db: Database.Database,
-  ticketId: string
-): FetchCommentsResult {
+export function fetchTicketComments(db: Database.Database, ticketId: string): FetchCommentsResult {
   try {
     // Get total count first
     const countResult = db
-      .prepare(`
+      .prepare(
+        `
       SELECT COUNT(*) as count FROM ticket_comments WHERE ticket_id = ?
-    `)
+    `
+      )
       .get(ticketId) as { count: number } | undefined;
     const totalCount = countResult?.count || 0;
 
@@ -177,9 +180,7 @@ export function formatComment(comment: TicketComment): string {
     month: "short",
     day: "numeric",
   });
-  const typeLabel =
-    COMMENT_TYPE_LABELS[comment.type as keyof CommentTypeLabels] ||
-    "💬 Comment";
+  const typeLabel = COMMENT_TYPE_LABELS[comment.type as keyof CommentTypeLabels] || "💬 Comment";
 
   return `**${comment.author}** (${typeLabel}) - ${dateStr}:\n${comment.content}`;
 }

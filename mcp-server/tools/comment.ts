@@ -26,7 +26,9 @@ const AUTHORS = [
   "cursor",
   "vscode",
   "copilot",
+  "codex",
   "ai",
+  "brain-dump",
 ] as const;
 const COMMENT_TYPES = ["comment", "work_summary", "test_report", "progress"] as const;
 
