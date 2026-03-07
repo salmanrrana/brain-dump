@@ -204,6 +204,39 @@ function migrateProjectsTable() {
 
 migrateProjectsTable();
 
+function migrateEpicWorkflowStateTable() {
+  const workflowStateExists = sqlite
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='epic_workflow_state'")
+    .get();
+
+  if (!workflowStateExists) {
+    return;
+  }
+
+  const tableInfo = sqlite.prepare("PRAGMA table_info(epic_workflow_state)").all() as {
+    name: string;
+  }[];
+  const columns = tableInfo.map((col) => col.name);
+
+  if (!columns.includes("epic_branch_name")) {
+    sqlite.exec("ALTER TABLE epic_workflow_state ADD COLUMN epic_branch_name TEXT");
+  }
+  if (!columns.includes("epic_branch_created_at")) {
+    sqlite.exec("ALTER TABLE epic_workflow_state ADD COLUMN epic_branch_created_at TEXT");
+  }
+  if (!columns.includes("pr_number")) {
+    sqlite.exec("ALTER TABLE epic_workflow_state ADD COLUMN pr_number INTEGER");
+  }
+  if (!columns.includes("pr_url")) {
+    sqlite.exec("ALTER TABLE epic_workflow_state ADD COLUMN pr_url TEXT");
+  }
+  if (!columns.includes("pr_status")) {
+    sqlite.exec("ALTER TABLE epic_workflow_state ADD COLUMN pr_status TEXT");
+  }
+}
+
+migrateEpicWorkflowStateTable();
+
 // Initialize FTS5 table for search if it doesn't exist
 function initFTS5() {
   const tableExists = sqlite
