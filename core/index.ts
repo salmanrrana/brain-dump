@@ -60,6 +60,14 @@ export type {
   TelemetryEvent,
   GitCommandResult,
   GitOperations,
+  ExecFileNoThrowOptions,
+  ExecFileNoThrowResult,
+  GitStatusEntry,
+  PullRequestRef,
+  ShipScopeType,
+  ResolvedTicketShipScope,
+  ResolvedEpicShipScope,
+  ResolvedShipScope,
   DeletePreview,
   DeleteConfirmed,
   DeleteResult,
@@ -243,6 +251,16 @@ export {
   runGitCommand,
   findBaseBranch,
 } from "./git-utils.ts";
+
+export {
+  DEMO_STEPS_SENTINEL,
+  execFileNoThrow,
+  resolveShipScope,
+  parseGitStatusShortOutput,
+  parseCommitHashFromOutput,
+  parsePullRequestRef,
+  replaceSentinelBlock,
+} from "./ship.ts";
 
 // Workflow business logic
 export { startWork, completeWork, startEpicWork } from "./workflow.ts";

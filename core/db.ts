@@ -504,6 +504,13 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
   // Project columns
   addColumnIfMissing(db, "projects", "working_method", "TEXT DEFAULT 'auto'", logger);
 
+  // Epic workflow columns
+  addColumnIfMissing(db, "epic_workflow_state", "epic_branch_name", "TEXT", logger);
+  addColumnIfMissing(db, "epic_workflow_state", "epic_branch_created_at", "TEXT", logger);
+  addColumnIfMissing(db, "epic_workflow_state", "pr_number", "INTEGER", logger);
+  addColumnIfMissing(db, "epic_workflow_state", "pr_url", "TEXT", logger);
+  addColumnIfMissing(db, "epic_workflow_state", "pr_status", "TEXT", logger);
+
   // Ralph events table
   if (!tableExists(db, "ralph_events")) {
     db.prepare(
