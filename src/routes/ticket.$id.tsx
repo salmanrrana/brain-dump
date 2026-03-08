@@ -263,6 +263,7 @@ export function TicketDetailPage() {
     workflowState,
     loading: workflowLoading,
     error: workflowError,
+    refetch: refetchWorkflowState,
   } = useWorkflowState(id, {
     // Poll for updates when ticket is actively being worked on
     pollingInterval:
@@ -817,6 +818,9 @@ export function TicketDetailPage() {
               workflowState={workflowState}
               loading={workflowLoading}
               error={workflowError}
+              onRetry={() => {
+                void refetchWorkflowState();
+              }}
             />
           )}
         </div>
