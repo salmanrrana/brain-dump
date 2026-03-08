@@ -7,8 +7,10 @@ import {
   parseCommitHashFromOutput,
   parseGitStatusShortOutput,
   parsePullRequestRef,
+  renderDemoStepsMarkdown,
   replaceSentinelBlock,
   resolveShipScope,
+  syncPrVerificationChecklist,
 } from "../ship.ts";
 import { seedEpic, seedProject, seedTicket } from "./test-helpers.ts";
 
@@ -18,6 +20,16 @@ beforeEach(() => {
   const result = createTestDatabase();
   db = result.db;
 });
+
+function createExecResult(overrides: Partial<Awaited<ReturnType<typeof execFileNoThrow>>> = {}) {
+  return {
+    success: true,
+    stdout: "",
+    stderr: "",
+    exitCode: 0,
+    ...overrides,
+  };
+}
 
 describe("execFileNoThrow", () => {
   it("returns a structured success result instead of throwing", async () => {
@@ -238,5 +250,205 @@ describe("replaceSentinelBlock", () => {
     const twice = replaceSentinelBlock(once, replacement);
 
     expect(twice).toBe(once);
+  });
+});
+
+describe("renderDemoStepsMarkdown", () => {
+  it("renders sorted numbered steps with expected outcomes", () => {
+    const markdown = renderDemoStepsMarkdown([
+      {
+        order: 2,
+        description: "Verify the PR link appears",
+        expectedOutcome: "The linked PR URL is visible.",
+        type: "visual",
+      },
+      {
+        order: 1,
+        description: "Open the Ship Changes modal",
+        expectedOutcome: "Preflight data loads immediately.",
+        type: "manual",
+      },
+    ]);
+
+    expect(markdown).toBe(
+      [
+        "1. Open the Ship Changes modal",
+        "   Expected: Preflight data loads immediately.",
+        "2. Verify the PR link appears",
+        "   Expected: The linked PR URL is visible.",
+      ].join("\n")
+    );
+  });
+});
+
+describe("syncPrVerificationChecklist", () => {
+  it("returns early when the ticket has no linked PR", async () => {
+    seedProject(db, { id: "proj-1", path: "/tmp/ship-project" });
+    seedTicket(db, {
+      id: "ticket-1",
+      projectId: "proj-1",
+      branchName: "feature/ticket-1-ship",
+    });
+
+    const calls: string[] = [];
+    const result = await syncPrVerificationChecklist(
+      { ticketId: "ticket-1" },
+      {
+        db,
+        execFileNoThrow: async (command, args) => {
+          calls.push([command, ...args].join(" "));
+          return createExecResult();
+        },
+      }
+    );
+
+    expect(result).toEqual({
+      success: true,
+      updated: false,
+      skipped: true,
+      message: "No linked PR found for ticket ticket-1; skipped PR checklist sync.",
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it("replaces the demo sentinel block and updates the PR body through gh", async () => {
+    seedProject(db, { id: "proj-1", path: "/tmp/ship-project" });
+    seedTicket(db, {
+      id: "ticket-1",
+      projectId: "proj-1",
+      branchName: "feature/ticket-1-ship",
+    });
+    db.prepare("UPDATE tickets SET pr_number = ?, pr_url = ?, pr_status = ? WHERE id = ?").run(
+      42,
+      "https://github.com/openai/brain-dump/pull/42",
+      "draft",
+      "ticket-1"
+    );
+    db.prepare(
+      `INSERT INTO demo_scripts (id, ticket_id, steps, generated_at)
+       VALUES (?, ?, ?, ?)`
+    ).run(
+      "demo-1",
+      "ticket-1",
+      JSON.stringify([
+        {
+          order: 2,
+          description: "Confirm the PR badge updates",
+          expectedOutcome: "The PR badge shows the linked pull request.",
+          type: "visual",
+        },
+        {
+          order: 1,
+          description: "Generate the demo script",
+          expectedOutcome: "The ticket moves to human review.",
+          type: "manual",
+        },
+      ]),
+      "2026-03-08T02:00:00.000Z"
+    );
+
+    const calls: Array<{ command: string; args: string[]; cwd?: string }> = [];
+    const result = await syncPrVerificationChecklist(
+      { ticketId: "ticket-1" },
+      {
+        db,
+        execFileNoThrow: async (command, args, options) => {
+          const call: { command: string; args: string[]; cwd?: string } = { command, args };
+          if (options?.cwd) {
+            call.cwd = options.cwd;
+          }
+          calls.push(call);
+
+          if (command === "gh" && args[0] === "pr" && args[1] === "view") {
+            return createExecResult({
+              stdout: ["# Demo PR", "", DEMO_STEPS_SENTINEL, "_Placeholder_", "", "## Notes"].join(
+                "\n"
+              ),
+            });
+          }
+
+          return createExecResult();
+        },
+      }
+    );
+
+    expect(result).toEqual({
+      success: true,
+      updated: true,
+      skipped: false,
+      prUrl: "https://github.com/openai/brain-dump/pull/42",
+      message: "Updated PR #42 with 2 demo steps.",
+    });
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toEqual({
+      command: "gh",
+      args: ["pr", "view", "42", "--json", "body", "--jq", ".body"],
+      cwd: "/tmp/ship-project",
+    });
+    expect(calls[1]?.command).toBe("gh");
+    expect(calls[1]?.args[0]).toBe("pr");
+    expect(calls[1]?.args[1]).toBe("edit");
+    expect(calls[1]?.args[2]).toBe("42");
+    expect(calls[1]?.args[3]).toBe("--body");
+    expect(calls[1]?.args[4]).toContain("1. Generate the demo script");
+    expect(calls[1]?.args[4]).toContain("Expected: The ticket moves to human review.");
+    expect(calls[1]?.args[4]).toContain("2. Confirm the PR badge updates");
+    expect(calls[1]?.args[4]).toContain("## Notes");
+  });
+
+  it("is idempotent when the PR already contains the current demo steps", async () => {
+    seedProject(db, { id: "proj-1", path: "/tmp/ship-project" });
+    seedTicket(db, {
+      id: "ticket-1",
+      projectId: "proj-1",
+      branchName: "feature/ticket-1-ship",
+    });
+    db.prepare("UPDATE tickets SET pr_number = ?, pr_url = ?, pr_status = ? WHERE id = ?").run(
+      42,
+      "https://github.com/openai/brain-dump/pull/42",
+      "open",
+      "ticket-1"
+    );
+
+    const steps = [
+      {
+        order: 1,
+        description: "Generate the demo script",
+        expectedOutcome: "The ticket moves to human review.",
+        type: "manual" as const,
+      },
+    ];
+
+    db.prepare(
+      `INSERT INTO demo_scripts (id, ticket_id, steps, generated_at)
+       VALUES (?, ?, ?, ?)`
+    ).run("demo-1", "ticket-1", JSON.stringify(steps), "2026-03-08T02:00:00.000Z");
+
+    const calls: Array<{ command: string; args: string[] }> = [];
+    const currentBody = [DEMO_STEPS_SENTINEL, renderDemoStepsMarkdown(steps)].join("\n");
+    const result = await syncPrVerificationChecklist(
+      { ticketId: "ticket-1" },
+      {
+        db,
+        execFileNoThrow: async (command, args) => {
+          calls.push({ command, args });
+
+          if (command === "gh" && args[0] === "pr" && args[1] === "view") {
+            return createExecResult({ stdout: currentBody });
+          }
+
+          return createExecResult();
+        },
+      }
+    );
+
+    expect(result).toEqual({
+      success: true,
+      updated: false,
+      skipped: false,
+      prUrl: "https://github.com/openai/brain-dump/pull/42",
+      message: "PR #42 already contains the latest demo steps.",
+    });
+    expect(calls).toHaveLength(1);
   });
 });

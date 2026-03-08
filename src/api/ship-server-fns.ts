@@ -11,6 +11,7 @@ import {
   parseCommitHashFromOutput,
   parseGitStatusShortOutput,
   parsePullRequestRef,
+  syncPrVerificationChecklist,
   resolveShipScope,
   safeJsonParse,
   type DbHandle,
@@ -95,6 +96,10 @@ export interface GeneratePrBodyInput {
   scopeId: string;
 }
 
+export interface SyncPrVerificationChecklistInput {
+  ticketId: string;
+}
+
 export type GeneratePrBodyResult =
   | {
       success: true;
@@ -103,6 +108,20 @@ export type GeneratePrBodyResult =
   | {
       success: false;
       error: string;
+    };
+
+export type SyncPrVerificationChecklistResult =
+  | {
+      success: true;
+      updated: boolean;
+      skipped: boolean;
+      prUrl?: string;
+      message: string;
+    }
+  | {
+      success: false;
+      error: string;
+      prUrl?: string;
     };
 
 export interface CommitAndShipDeps {
@@ -722,3 +741,18 @@ export const commitAndShipServerFn = createServerFn({ method: "POST" })
   .handler(async ({ data }: { data: CommitAndShipInput }): Promise<CommitAndShipResult> => {
     return commitAndShip(data, defaultCommitAndShipDeps);
   });
+
+export const syncPrVerificationChecklistServerFn = createServerFn({ method: "POST" })
+  .inputValidator((data: SyncPrVerificationChecklistInput) => data)
+  .handler(
+    async ({
+      data,
+    }: {
+      data: SyncPrVerificationChecklistInput;
+    }): Promise<SyncPrVerificationChecklistResult> => {
+      return await syncPrVerificationChecklist(data, {
+        db: sqlite,
+        execFileNoThrow,
+      });
+    }
+  );

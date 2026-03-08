@@ -2,6 +2,7 @@ import { execFile } from "child_process";
 import { EpicNotFoundError, TicketNotFoundError } from "./errors.ts";
 import type {
   DbHandle,
+  DemoStep,
   ExecFileNoThrowOptions,
   ExecFileNoThrowResult,
   GitStatusEntry,
@@ -40,6 +41,37 @@ interface EpicShipScopeRow {
   pr_url: string | null;
   pr_status: "draft" | "open" | "merged" | "closed" | null;
 }
+
+interface DemoScriptStepsRow {
+  steps: string;
+}
+
+export interface SyncPrVerificationChecklistInput {
+  ticketId: string;
+}
+
+export interface SyncPrVerificationChecklistDeps {
+  db: DbHandle;
+  execFileNoThrow: (
+    command: string,
+    args: string[],
+    options?: ExecFileNoThrowOptions
+  ) => Promise<ExecFileNoThrowResult>;
+}
+
+export type SyncPrVerificationChecklistResult =
+  | {
+      success: true;
+      updated: boolean;
+      skipped: boolean;
+      prUrl?: string;
+      message: string;
+    }
+  | {
+      success: false;
+      error: string;
+      prUrl?: string;
+    };
 
 function normalizeGitPath(rawPath: string): { path: string; originalPath?: string } {
   const trimmedPath = rawPath.trim();
@@ -259,4 +291,154 @@ export function replaceSentinelBlock(
   const sentinelPattern = new RegExp(`${escapeRegExp(sentinel)}[\\s\\S]*?(?=\\n##\\s|$)`);
 
   return body.replace(sentinelPattern, replacementBlock);
+}
+
+export function renderDemoStepsMarkdown(steps: DemoStep[]): string {
+  return steps
+    .slice()
+    .sort((left, right) => left.order - right.order)
+    .map((step) =>
+      [`${step.order}. ${step.description}`, `   Expected: ${step.expectedOutcome}`].join("\n")
+    )
+    .join("\n");
+}
+
+function getDemoScriptSteps(db: DbHandle, ticketId: string): DemoStep[] {
+  const row = db
+    .prepare(
+      `SELECT steps
+       FROM demo_scripts
+       WHERE ticket_id = ?
+       ORDER BY generated_at DESC, rowid DESC
+       LIMIT 1`
+    )
+    .get(ticketId) as DemoScriptStepsRow | undefined;
+
+  if (!row) {
+    throw new Error(`No demo script found for ticket ${ticketId}.`);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(row.steps);
+  } catch {
+    throw new Error(`Demo script steps for ticket ${ticketId} are not valid JSON.`);
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw new Error(`Demo script steps for ticket ${ticketId} must be an array.`);
+  }
+
+  return parsed as DemoStep[];
+}
+
+function getCommandFailure(
+  description: string,
+  result: ExecFileNoThrowResult,
+  fallback: string
+): SyncPrVerificationChecklistResult {
+  return {
+    success: false,
+    error: `${description}: ${result.stderr.trim() || result.error || fallback}`,
+  };
+}
+
+export async function syncPrVerificationChecklist(
+  input: SyncPrVerificationChecklistInput,
+  deps: SyncPrVerificationChecklistDeps
+): Promise<SyncPrVerificationChecklistResult> {
+  let scope: ResolvedTicketShipScope;
+
+  try {
+    const resolvedScope = resolveShipScope(deps.db, {
+      scopeType: "ticket",
+      scopeId: input.ticketId,
+    });
+
+    if (resolvedScope.scopeType !== "ticket") {
+      throw new Error(`Expected ticket scope for ${input.ticketId}.`);
+    }
+
+    scope = resolvedScope;
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  if (scope.prNumber === null || !scope.prUrl) {
+    return {
+      success: true,
+      updated: false,
+      skipped: true,
+      message: `No linked PR found for ticket ${scope.ticketId}; skipped PR checklist sync.`,
+    };
+  }
+
+  let steps: DemoStep[];
+  try {
+    steps = getDemoScriptSteps(deps.db, scope.ticketId);
+  } catch (error) {
+    return {
+      success: false,
+      prUrl: scope.prUrl,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  const commandOptions = { cwd: scope.projectPath };
+  const viewResult = await deps.execFileNoThrow(
+    "gh",
+    ["pr", "view", String(scope.prNumber), "--json", "body", "--jq", ".body"],
+    commandOptions
+  );
+
+  if (!viewResult.success) {
+    return {
+      ...getCommandFailure("Failed to fetch the existing PR body", viewResult, "gh pr view failed"),
+      prUrl: scope.prUrl,
+    };
+  }
+
+  const currentBody = viewResult.stdout;
+  if (!currentBody.includes(DEMO_STEPS_SENTINEL)) {
+    return {
+      success: false,
+      prUrl: scope.prUrl,
+      error: `PR body is missing the ${DEMO_STEPS_SENTINEL} sentinel block.`,
+    };
+  }
+
+  const updatedBody = replaceSentinelBlock(currentBody, renderDemoStepsMarkdown(steps));
+  if (updatedBody.trimEnd() === currentBody.trimEnd()) {
+    return {
+      success: true,
+      updated: false,
+      skipped: false,
+      prUrl: scope.prUrl,
+      message: `PR #${scope.prNumber} already contains the latest demo steps.`,
+    };
+  }
+
+  const editResult = await deps.execFileNoThrow(
+    "gh",
+    ["pr", "edit", String(scope.prNumber), "--body", updatedBody],
+    commandOptions
+  );
+
+  if (!editResult.success) {
+    return {
+      ...getCommandFailure("Failed to update the PR body", editResult, "gh pr edit failed"),
+      prUrl: scope.prUrl,
+    };
+  }
+
+  return {
+    success: true,
+    updated: true,
+    skipped: false,
+    prUrl: scope.prUrl,
+    message: `Updated PR #${scope.prNumber} with ${steps.length} demo step${steps.length === 1 ? "" : "s"}.`,
+  };
 }

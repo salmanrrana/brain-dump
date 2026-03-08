@@ -260,6 +260,14 @@ export {
   parseCommitHashFromOutput,
   parsePullRequestRef,
   replaceSentinelBlock,
+  renderDemoStepsMarkdown,
+  syncPrVerificationChecklist,
+} from "./ship.ts";
+
+export type {
+  SyncPrVerificationChecklistInput,
+  SyncPrVerificationChecklistDeps,
+  SyncPrVerificationChecklistResult,
 } from "./ship.ts";
 
 // Workflow business logic
