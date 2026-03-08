@@ -1,5 +1,6 @@
+import { useNavigate } from "@tanstack/react-router";
 import { type FC, useState, useRef, useCallback, useEffect, type KeyboardEvent } from "react";
-import { X, Ticket, Loader2, Trash2 } from "lucide-react";
+import { X, Ticket, Loader2, Trash2, FolderOpen } from "lucide-react";
 import {
   useClickOutside,
   useProjects,
@@ -81,6 +82,7 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
   ticket,
   onSuccess,
 }) => {
+  const navigate = useNavigate();
   // Parse JSON fields from ticket - use safeJsonParse to handle corrupted data gracefully
   const initialTags = safeJsonParse<string[]>(ticket.tags, []);
   const initialSubtasks = safeJsonParse<Subtask[]>(ticket.subtasks, []);
@@ -163,6 +165,7 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
   // Get epics for selected project
   const selectedProject = projects.find((p) => p.id === projectId);
   const projectEpics = selectedProject?.epics ?? [];
+  const selectedEpic = projectEpics.find((epic) => epic.id === epicId) ?? null;
 
   // Reset form to initial values - called when modal closes
   // Note: When opening the modal for a different ticket, parent should pass
@@ -213,6 +216,19 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
     },
     [handleClose]
   );
+
+  const handleOpenEpic = useCallback(() => {
+    if (!selectedEpic) {
+      return;
+    }
+
+    void navigate({
+      to: "/epic/$id",
+      params: { id: selectedEpic.id },
+    }).catch(() => {
+      showToast("error", "Failed to open epic details");
+    });
+  }, [navigate, selectedEpic, showToast]);
 
   // Focus title input when modal opens
   useEffect(() => {
@@ -858,6 +874,30 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
     margin: 0,
   };
 
+  const headerTitleGroupStyles: React.CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: "var(--spacing-2)",
+    minWidth: 0,
+  };
+
+  const epicLinkTagStyles: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "var(--spacing-2)",
+    padding: "var(--spacing-1) var(--spacing-3)",
+    borderRadius: "var(--radius-full)",
+    border: "1px solid var(--border-primary)",
+    background: "var(--bg-tertiary)",
+    color: "var(--text-primary)",
+    fontSize: "var(--font-size-sm)",
+    fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+    cursor: "pointer",
+    transition: "background-color 0.15s",
+    maxWidth: "100%",
+  };
+
   const closeButtonStyles: React.CSSProperties = {
     display: "inline-flex",
     alignItems: "center",
@@ -1019,10 +1059,24 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
       >
         {/* Header */}
         <header style={headerStyles}>
-          <h2 id="edit-ticket-title" style={titleStyles}>
-            <Ticket size={20} aria-hidden="true" />
-            Edit Ticket
-          </h2>
+          <div style={headerTitleGroupStyles}>
+            <h2 id="edit-ticket-title" style={titleStyles}>
+              <Ticket size={20} aria-hidden="true" />
+              Edit Ticket
+            </h2>
+            {selectedEpic && (
+              <button
+                type="button"
+                onClick={handleOpenEpic}
+                style={epicLinkTagStyles}
+                className="hover:bg-[var(--bg-hover)]"
+                aria-label={`Open epic ${selectedEpic.title}`}
+              >
+                <FolderOpen size={14} aria-hidden="true" />
+                {selectedEpic.title}
+              </button>
+            )}
+          </div>
           <button
             type="button"
             style={closeButtonStyles}
