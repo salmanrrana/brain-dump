@@ -166,7 +166,7 @@ function EpicDetailSkeleton() {
   );
 }
 
-function EpicDetailPage() {
+export function EpicDetailPage() {
   const { id } = useParams({ from: "/epic/$id" });
   const router = useRouter();
   const canGoBack = useCanGoBack();

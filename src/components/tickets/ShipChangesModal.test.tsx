@@ -228,6 +228,50 @@ describe("ShipChangesModal", () => {
     expect(screen.getByText(/feature\/ship-changes can be shipped/i)).toBeInTheDocument();
   });
 
+  it("keeps shipping disabled when gh or remote checks fail and leaves the blocking feedback visible", async () => {
+    const user = userEvent.setup();
+    mockGetShipPrep.mockResolvedValueOnce(
+      createPrepResult({
+        ghAvailable: false,
+        remoteConfigured: false,
+      })
+    );
+
+    renderModal();
+
+    expect(await screen.findByText("gh is not installed or not on PATH")).toBeInTheDocument();
+    expect(screen.getByText("No remote configured")).toBeInTheDocument();
+
+    const shipButton = screen.getByRole("button", { name: /ship changes/i });
+    expect(shipButton).toBeDisabled();
+
+    await user.click(shipButton);
+    expect(mockCommitAndShipServerFn).not.toHaveBeenCalled();
+  });
+
+  it("submits from the commit-message field when Enter is pressed and preflight is valid", async () => {
+    const user = userEvent.setup();
+    const { props } = renderModal();
+
+    const commitInput = await screen.findByDisplayValue("feat(aa778958): Ship Changes");
+    await user.clear(commitInput);
+    await user.type(commitInput, "feat(ship): updated flow{Enter}");
+
+    await waitFor(() => {
+      expect(mockCommitAndShipServerFn).toHaveBeenCalledWith({
+        data: {
+          scopeType: "ticket",
+          scopeId: props.scopeId,
+          message: "feat(ship): updated flow",
+          selectedPaths: ["src/app.tsx", "src/new-file.ts"],
+          prTitle: "Ship Changes",
+          prBody: "## Summary\n\n<!-- brain-dump:demo-steps -->",
+          draft: true,
+        },
+      });
+    });
+  });
+
   it("surfaces ship failures in the error state and lets the user retry from preflight", async () => {
     const user = userEvent.setup();
     mockCommitAndShipServerFn.mockResolvedValueOnce({
@@ -253,6 +297,33 @@ describe("ShipChangesModal", () => {
     });
     expect(screen.getByRole("button", { name: /ship changes/i })).toBeInTheDocument();
   });
+
+  it.each([
+    ["commit", /commit failed because lint hooks rejected the changes/i, /create commit/i],
+    ["pr", /gh pr create returned a non-zero exit status/i, /create pull request/i],
+  ] as const)(
+    "surfaces %s failures with the failed step still visible to the user",
+    async (step, message, failedStep) => {
+      const user = userEvent.setup();
+      mockCommitAndShipServerFn.mockResolvedValueOnce({
+        success: false,
+        step,
+        error:
+          step === "commit"
+            ? "Commit failed because lint hooks rejected the changes"
+            : "gh pr create returned a non-zero exit status",
+      });
+
+      renderModal();
+
+      await user.click(await screen.findByRole("button", { name: /ship changes/i }));
+
+      const errorState = await screen.findByTestId("ship-error-state");
+      expect(errorState).toBeInTheDocument();
+      expect(within(errorState).getAllByText(failedStep).length).toBeGreaterThan(0);
+      expect(within(errorState).getByText(message)).toBeInTheDocument();
+    }
+  );
 
   it("closes on Escape before shipping, but ignores Escape while running", async () => {
     const user = userEvent.setup();
