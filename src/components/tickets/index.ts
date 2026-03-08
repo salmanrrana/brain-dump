@@ -16,6 +16,7 @@ export {
 } from "./LaunchActions";
 export { TicketDescription, type TicketDescriptionProps } from "./TicketDescription";
 export { TicketDetailHeader, type TicketDetailHeaderProps } from "./TicketDetailHeader";
+export { ShipChangesModal, type ShipChangesModalProps } from "./ShipChangesModal";
 export { RelatedTickets, type RelatedTicketsProps } from "./RelatedTickets";
 export { WorkflowProgress, type WorkflowProgressProps } from "./WorkflowProgress";
 export { ReviewFindingsPanel, type ReviewFindingsPanelProps } from "./ReviewFindingsPanel";
