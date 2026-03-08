@@ -530,6 +530,53 @@ describe("generateDemo", () => {
     expect(demo.id).toBeTruthy();
   });
 
+  it("refreshes an existing demo script for the same ticket instead of inserting a duplicate", () => {
+    seedProject();
+    seedAiReviewTicket();
+
+    const originalGeneratedAt = "2026-03-07T12:00:00.000Z";
+    db.prepare(
+      `INSERT INTO demo_scripts (id, ticket_id, steps, generated_at, completed_at, feedback, passed)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      "demo-1",
+      "ticket-1",
+      JSON.stringify([
+        { order: 1, description: "Old step", expectedOutcome: "Old", type: "manual" },
+      ]),
+      originalGeneratedAt,
+      "2026-03-07T12:05:00.000Z",
+      "Old feedback",
+      0
+    );
+
+    const demo = generateDemo(db, {
+      ticketId: "ticket-1",
+      steps: [
+        { order: 1, description: "New step", expectedOutcome: "Updated", type: "manual" },
+        {
+          order: 2,
+          description: "Confirm refresh",
+          expectedOutcome: "Two steps exist",
+          type: "visual",
+        },
+      ],
+    });
+
+    expect(demo.id).toBe("demo-1");
+    expect(demo.steps).toHaveLength(2);
+    expect(demo.steps[0]!.description).toBe("New step");
+    expect(demo.generatedAt).not.toBe(originalGeneratedAt);
+    expect(demo.executedAt).toBeNull();
+    expect(demo.feedback).toBeNull();
+    expect(demo.passed).toBeNull();
+
+    const count = db
+      .prepare("SELECT COUNT(*) AS count FROM demo_scripts WHERE ticket_id = ?")
+      .get("ticket-1") as { count: number };
+    expect(count.count).toBe(1);
+  });
+
   it("throws TicketNotFoundError for nonexistent ticket", () => {
     expect(() =>
       generateDemo(db, {

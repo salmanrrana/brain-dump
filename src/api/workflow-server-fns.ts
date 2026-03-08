@@ -12,9 +12,22 @@
 
 import { createServerFn } from "@tanstack/react-start";
 import { sqlite } from "../lib/db";
-import { startWork, startEpicWork, createRealGitOperations, CoreError } from "../../core/index.ts";
 
-const git = createRealGitOperations();
+async function getWorkflowCore() {
+  const [{ CoreError }, { createRealGitOperations }, { startWork, startEpicWork }] =
+    await Promise.all([
+      import("../../core/errors.ts"),
+      import("../../core/git-utils.ts"),
+      import("../../core/workflow.ts"),
+    ]);
+
+  return {
+    CoreError,
+    git: createRealGitOperations(),
+    startWork,
+    startEpicWork,
+  };
+}
 
 /**
  * Server function to start ticket workflow from the UI.
@@ -23,6 +36,8 @@ const git = createRealGitOperations();
 export const startTicketWorkflowFn = createServerFn({ method: "POST" })
   .inputValidator((data: { ticketId: string; projectPath: string }) => data)
   .handler(async ({ data }: { data: { ticketId: string; projectPath: string } }) => {
+    const { CoreError, git, startWork } = await getWorkflowCore();
+
     try {
       const result = startWork(sqlite, data.ticketId, git);
       return {
@@ -49,6 +64,8 @@ export const startTicketWorkflowFn = createServerFn({ method: "POST" })
 export const startEpicWorkflowFn = createServerFn({ method: "POST" })
   .inputValidator((data: { epicId: string; projectPath: string }) => data)
   .handler(async ({ data }: { data: { epicId: string; projectPath: string } }) => {
+    const { CoreError, git, startEpicWork } = await getWorkflowCore();
+
     try {
       const result = startEpicWork(sqlite, data.epicId, git);
       return {

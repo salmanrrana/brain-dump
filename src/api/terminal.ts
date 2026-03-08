@@ -2,9 +2,22 @@ import { createServerFn } from "@tanstack/react-start";
 import { detectTerminal, isTerminalAvailable, buildTerminalCommand } from "./terminal-utils";
 import { buildCodexAppLaunchPlan } from "./codex-launch";
 import { sqlite } from "../lib/db";
-import { startWork, createRealGitOperations, CoreError } from "../../core/index.ts";
 
-const coreGit = createRealGitOperations();
+async function startWorkflowForLaunch(ticketId: string) {
+  const [{ createRealGitOperations }, { startWork }] = await Promise.all([
+    import("../../core/git-utils.ts"),
+    import("../../core/workflow.ts"),
+  ]);
+
+  return startWork(sqlite, ticketId, createRealGitOperations());
+}
+
+async function formatCoreError(error: unknown): Promise<string> {
+  const { CoreError } = await import("../../core/errors.ts");
+  return error instanceof CoreError
+    ? error.message
+    : `Unexpected error: ${(error as Error).message}`;
+}
 
 interface InstallCheck {
   installed: boolean;
@@ -561,14 +574,10 @@ export const launchClaudeInTerminal = createServerFn({ method: "POST" })
 
     // Start ticket workflow: git branch, status update, workflow state, audit comment
     try {
-      const workflowResult = startWork(sqlite, ticketId, coreGit);
+      const workflowResult = await startWorkflowForLaunch(ticketId);
       warnings.push(...workflowResult.warnings);
     } catch (err) {
-      warnings.push(
-        err instanceof CoreError
-          ? err.message
-          : "Failed to start ticket workflow. You may need to update status manually."
-      );
+      warnings.push(await formatCoreError(err));
     }
 
     // Save current ticket ID to state file for CLI tool
@@ -785,14 +794,10 @@ export const launchOpenCodeInTerminal = createServerFn({ method: "POST" })
 
     // Start ticket workflow: git branch, status update, workflow state, audit comment
     try {
-      const workflowResult = startWork(sqlite, ticketId, coreGit);
+      const workflowResult = await startWorkflowForLaunch(ticketId);
       warnings.push(...workflowResult.warnings);
     } catch (err) {
-      warnings.push(
-        err instanceof CoreError
-          ? err.message
-          : "Failed to start ticket workflow. You may need to update status manually."
-      );
+      warnings.push(await formatCoreError(err));
     }
 
     // Save current ticket ID to state file for CLI tool
@@ -1048,14 +1053,10 @@ export const launchCodexInTerminal = createServerFn({ method: "POST" })
     const warnings: string[] = [];
 
     try {
-      const workflowResult = startWork(sqlite, ticketId, coreGit);
+      const workflowResult = await startWorkflowForLaunch(ticketId);
       warnings.push(...workflowResult.warnings);
     } catch (err) {
-      warnings.push(
-        err instanceof CoreError
-          ? err.message
-          : "Failed to start ticket workflow. You may need to update status manually."
-      );
+      warnings.push(await formatCoreError(err));
     }
 
     try {
@@ -1250,14 +1251,10 @@ export const launchCopilotInTerminal = createServerFn({ method: "POST" })
     }
 
     try {
-      const workflowResult = startWork(sqlite, ticketId, coreGit);
+      const workflowResult = await startWorkflowForLaunch(ticketId);
       warnings.push(...workflowResult.warnings);
     } catch (err) {
-      warnings.push(
-        err instanceof CoreError
-          ? err.message
-          : "Failed to start ticket workflow. You may need to update status manually."
-      );
+      warnings.push(await formatCoreError(err));
     }
 
     try {
@@ -1351,14 +1348,10 @@ export const launchCursorInTerminal = createServerFn({ method: "POST" })
     const warnings: string[] = [];
 
     try {
-      const workflowResult = startWork(sqlite, ticketId, coreGit);
+      const workflowResult = await startWorkflowForLaunch(ticketId);
       warnings.push(...workflowResult.warnings);
     } catch (err) {
-      warnings.push(
-        err instanceof CoreError
-          ? err.message
-          : "Failed to start ticket workflow. You may need to update status manually."
-      );
+      warnings.push(await formatCoreError(err));
     }
 
     try {
@@ -1456,14 +1449,10 @@ export const launchVSCodeInTerminal = createServerFn({ method: "POST" })
     const warnings: string[] = [];
 
     try {
-      const workflowResult = startWork(sqlite, ticketId, coreGit);
+      const workflowResult = await startWorkflowForLaunch(ticketId);
       warnings.push(...workflowResult.warnings);
     } catch (err) {
-      warnings.push(
-        err instanceof CoreError
-          ? err.message
-          : "Failed to start ticket workflow. You may need to update status manually."
-      );
+      warnings.push(await formatCoreError(err));
     }
 
     try {

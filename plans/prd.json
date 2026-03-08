@@ -9,257 +9,233 @@
   ],
   "userStories": [
     {
-      "id": "6e76bf6e-891f-4e5a-af0e-90385c55c5a9",
-      "title": "Epic Overview — Full Implementation Plan",
-      "passes": true,
-      "overview": "Currently, epics are managed through modals (`EpicModal.tsx`) and sidebar list items. There's no dedicated page to view an epic's full picture — description, progress, tickets, learnings, and git info. The ticket detail page (`ticket.$id.tsx`) serves as a proven template for this pattern.\nThe `epicWorkflowState` table already tracks rich data (ticketsTotal, ticketsDone, currentTicketId, learnings, branch/PR info) that isn't surfaced anywhere in a consolidated view.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "references": [
-        "src/routes/epic.$id.tsx",
-        "src/components/epics/EpicDetailHeader.tsx",
-        "src/lib/constants.ts",
-        "src/components/epics/EpicProgressOverview.tsx",
-        "src/components/epics/EpicTicketsList.tsx",
-        "src/components/epics/EpicLearnings.tsx",
-        "src/api/epics.ts",
-        "src/lib/query-keys.ts",
-        "src/lib/hooks/projects.ts",
-        "src/lib/hooks/index.ts",
-        "src/components/epics/index.ts",
-        "src/components/navigation/EpicListItem.tsx",
-        "src/api/context.ts",
-        "src/lib/utils"
-      ],
-      "description": "# Epic Detail Page — Full Implementation Plan\n\n**Shared feature branch:** All tickets in this epic share a single feature branch.\n\n## Context\n\nCurrently, epics are managed through modals (`EpicModal.tsx`) and sidebar list items. There's no dedicated page to view an epic's full picture — description, progress, tickets, learnings, and git info. The ticket detail page (`ticket.$id.tsx`) serves as a proven template for this pattern.\n\nThe `epicWorkflowState` table already tracks rich data (ticketsTotal, ticketsDone, currentTicketId, learnings, branch/PR info) that isn't surfaced anywhere in a consolidated view.\n\n## Page Layout\n\n```\n┌─────────────────────────────────────────────────────────────┐\n│ <- Back                                                     │\n├─────────────────────────────────────────────────────────────┤\n│ [color dot] Epic Title                     [Edit] [Launch▾] │\n│ Project: Name  ·  12 tickets  ·  75% complete               │\n│ Branch: feature/epic-abc  ·  PR #42 (draft)                 │\n├─────────────────────────────────────────────────────────────┤\n│ Progress                                                     │\n│ [████████████████████░░░░░░░] 75%                           │\n│ ● Backlog 1  ● Ready 2  ● In Progress 1  ● Done 9          │\n│ Currently working on: \"Add auth middleware\"                  │\n├──────────────────────────┬──────────────────────────────────┤\n│ Description              │ Tickets                          │\n│ (markdown, reuses        │ ▸ In Progress (1)                │\n│  TicketDescription)      │   ○ Ticket A - High [PR #5]      │\n│                          │ ▸ Ready (2)                       │\n│                          │   ○ Ticket B - Medium             │\n│                          │   ○ Ticket C - Low                │\n│                          │ ▸ Done (9) [collapsed]            │\n├──────────────────────────┴──────────────────────────────────┤\n│ Learnings (collapsible)                                      │\n│ From \"Add Auth\" (3 learnings):                              │\n│   [pattern] Use middleware for auth checks                   │\n│   [anti-pattern] Don't store tokens in localStorage          │\n├─────────────────────────────────────────────────────────────┤\n│ Created: Jan 15, 2026                                       │\n└─────────────────────────────────────────────────────────────┘\n```\n\n## Files to Create\n\n### 1. `src/routes/epic.$id.tsx` — Route component\n- Follow `ticket.$id.tsx` pattern: `createFileRoute(\"/epic/$id\")`, error component, loading skeleton\n- Fetch data with `useEpicDetail(id)` hook\n- Back navigation with `useCanGoBack()`\n- Edit via existing `EpicModal`\n- Launch actions: full dropdown (Claude, Codex, VS Code, Ralph, etc.) reusing `handleStartInteractive` pattern from `EpicModal` — launches the next non-done ticket\n\n### 2. `src/components/epics/EpicDetailHeader.tsx` — Header\n- Epic title, color dot, edit button, launch dropdown\n- Badge row: project name, ticket count, completion percentage\n- Git row: branch name (copyable), PR link with status badge\n- Reuses `STATUS_BADGE_CONFIG` from `src/lib/constants.ts` for PR status\n\n### 3. `src/components/epics/EpicProgressOverview.tsx` — Progress section\n- Multi-segment progress bar color-coded by status\n- Status chips with per-status ticket counts\n- \"Currently working on\" indicator when `currentTicketId` is set\n- Uses colors from `STATUS_BADGE_CONFIG`\n\n### 4. `src/components/epics/EpicTicketsList.tsx` — Tickets grouped by status\n- Tickets grouped by status (in_progress first, done last)\n- Each ticket: title (links to `/ticket/$id`), priority badge, blocked indicator, PR status\n- Status groups are collapsible, \"done\" group collapsed by default\n- Empty state when no tickets\n\n### 5. `src/components/epics/EpicLearnings.tsx` — Learnings section\n- Collapsible panel\n- Grouped by source ticket\n- Type badges: pattern (green), anti-pattern (red), tool-usage (blue), workflow (purple)\n- Empty state: \"No learnings yet\"\n\n## Files to Modify\n\n### 6. `src/api/epics.ts` — Add `getEpicDetail` server function\n- Single composite fetch: epic + project + tickets (partial fields) + epicWorkflowState + learnings\n- Returns `EpicDetailResult` type with everything the page needs\n- Computes `ticketsByStatus` breakdown server-side\n- Falls back to ticket array counts when `epicWorkflowState` doesn't exist\n\n### 7. `src/lib/query-keys.ts` — Add epic detail key\n```ts\nepicDetail: (epicId: string) => [\"epic\", epicId] as const,\n```\n\n### 8. `src/lib/hooks/projects.ts` — Add `useEpicDetail` hook\n- Wraps `getEpicDetail` with `useQuery`\n- `staleTime: 0` (can be updated externally via MCP)\n\n### 9. `src/lib/hooks/index.ts` — Re-export `useEpicDetail`\n\n### 10. `src/components/epics/index.ts` — Export new components\n\n### 11. `src/components/navigation/EpicListItem.tsx` — Add detail page link\n- Keep current click behavior (filters the board)\n- Add a secondary icon/button to navigate to `/epic/$id`\n\n## Key Reuse\n\n| Existing Code | Reuse For |\n|---|---|\n| `TicketDescription` component | Render epic markdown description as-is |\n| `EpicModal` component | Edit epic (title, description, color) — already fully built |\n| `STATUS_BADGE_CONFIG` / `PRIORITY_BADGE_CONFIG` | Status/priority badge styling |\n| `handleStartInteractive` pattern from `EpicModal` | Launch AI on next non-done ticket |\n| `useCanGoBack` / back nav pattern from `ticket.$id.tsx` | Back button |\n| `getEpicContext` / `getTicketContext` from `src/api/context.ts` | Context for launching |\n| `ensureExists` from `src/lib/utils` | Server function error handling |\n\n## Data Flow\n\n```\n/epic/{id} → useEpicDetail(id) → getEpicDetail server fn\n                                    ├─ SELECT epic WHERE id = ?\n                                    ├─ SELECT project WHERE id = epic.projectId\n                                    ├─ SELECT tickets (partial) WHERE epicId = ?\n                                    ├─ SELECT epicWorkflowState WHERE epicId = ?\n                                    └─ JSON.parse(learnings)\n                                  → EpicDetailResult distributed to components\n```\n\n## Navigation Integration\n\n- Sidebar epic click **keeps current behavior** (filters the board)\n- Add a secondary icon/button on `EpicListItem` to navigate to `/epic/$id`\n- Ticket detail page's epic badge could link to `/epic/$id`\n- No new sidebar nav item needed\n\n## Verification\n\n1. `pnpm type-check` — no errors\n2. `pnpm lint` — no errors\n3. `pnpm test` — all pass\n4. Manual browser testing at `localhost:4242`:\n   - Navigate to `/epic/{id}` directly\n   - Click detail icon on epic list item → lands on detail page\n   - Verify progress bar matches actual ticket statuses\n   - Click ticket in list → navigates to ticket detail\n   - Edit epic via Edit button → modal opens, saves correctly\n   - Launch actions work (launches next non-done ticket)\n   - Back button works (browser history and fallback)\n   - Loading skeleton displays briefly\n   - Error page shows for invalid epic IDs\n   - Learnings section shows/hides correctly",
-      "priority": "high",
-      "tags": [
-        "plan",
-        "reference",
-        "epic-detail-page",
-        "github:#42",
-        "github:#5"
-      ]
-    },
-    {
-      "id": "f154bf77-5daa-4b07-b48b-48bee5207a7f",
-      "title": "Backend: getEpicDetail server function + useEpicDetail hook",
-      "passes": true,
+      "id": "037a7f94-3fd6-4005-a9f2-bc8ee13685b6",
+      "title": "Server function: getShipPrep (preflight data)",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "`getEpicDetail` returns all data needed for the Epic Detail page in one call",
-        "Returns proper error (via `ensureExists`) for non-existent epic IDs",
-        "`ticketsByStatus` correctly counts tickets per status",
-        "Missing `epicWorkflowState` returns null (not error)",
-        "Learnings JSON parse failure returns empty array (not error)",
-        "`useEpicDetail` hook works with React Query",
-        "`pnpm type-check` passes",
-        "`pnpm lint` passes"
+        "Resolves project path server-side from `ticketId`/`epicId`",
+        "Returns all preflight fields correctly",
+        "`changedFiles` includes tracked, untracked, deleted, and renamed files",
+        "`isSafeToShip` is false for main/master/develop branches",
+        "`reviewMarkerFresh` uses a 5-minute window from file mtime",
+        "All subprocess calls use shared no-shell helpers",
+        "Parser behavior is covered by tests for realistic `git status --short` output",
+        "`pnpm type-check` passes"
       ],
       "references": [
-        "src/api/epics.ts",
-        "src/lib/schema.ts",
-        "src/lib/utils",
-        "src/lib/query-keys.ts",
-        "src/lib/hooks/projects.ts",
-        "src/api/epics",
-        "src/lib/hooks/index.ts"
+        "src/api/ship-server-fns.ts"
       ],
-      "description": "**Shared feature branch** — Part of the Epic Detail Page epic. All tickets share one branch.\n\n## Goal\nCreate the backend data layer that powers the Epic Detail page — a single composite server function and corresponding React Query hook.\n\n## Files to Modify\n\n### `src/api/epics.ts` — Add `getEpicDetail` server function\n- New `EpicDetailResult` interface containing: epic, project, tickets (partial fields), ticketsByStatus breakdown, workflowState, learnings\n- Single server function that fetches everything in one call (no client-side waterfall)\n- Import `epicWorkflowState` from `src/lib/schema.ts`\n- Import `tickets`, `projects` from schema\n- Compute `ticketsByStatus` record server-side by iterating tickets\n- Gracefully handle missing `epicWorkflowState` row (fall back to computed values from ticket array)\n- Parse learnings JSON from workflow state with try/catch fallback to empty array\n- Use `ensureExists` from `src/lib/utils` for epic and project lookups\n- Ticket fields to select: id, title, status, priority, isBlocked, blockedReason, branchName, prNumber, prUrl, prStatus\n\n### `src/lib/query-keys.ts` — Add query key\n```ts\nepicDetail: (epicId: string) => [\"epic\", epicId] as const,\n```\n\n### `src/lib/hooks/projects.ts` — Add `useEpicDetail` hook\n- Import `getEpicDetail` from `src/api/epics`\n- `staleTime: 0` to match ticket detail pattern (data can be updated externally via MCP)\n- Return `{ data, loading, error, refetch }`\n\n### `src/lib/hooks/index.ts` — Re-export\n- Add `useEpicDetail` and `EpicDetailResult` type to the barrel exports\n\n## Acceptance Criteria\n- [ ] `getEpicDetail` returns all data needed for the Epic Detail page in one call\n- [ ] Returns proper error (via `ensureExists`) for non-existent epic IDs\n- [ ] `ticketsByStatus` correctly counts tickets per status\n- [ ] Missing `epicWorkflowState` returns null (not error)\n- [ ] Learnings JSON parse failure returns empty array (not error)\n- [ ] `useEpicDetail` hook works with React Query\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm lint` passes\n\n## Branch Strategy\n**All tickets in this epic work on the same branch:**  (branched from `feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar`). Do NOT create a new branch — commit directly to this existing branch so all changes can be tested together before merging to feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar",
+      "description": "Create `src/api/ship-server-fns.ts` with the `getShipPrep` server function that gathers all preflight data needed before the Ship Changes modal can show its file picker and checks.\n\n## Function signature\n```ts\ngetShipPrep({ ticketId?, epicId? })\n  → {\n      changedFiles: { path: string; status: string }[];\n      currentBranch: string;\n      isSafeToShip: boolean;\n      reviewMarkerFresh: boolean;\n      ghAvailable: boolean;\n      remoteConfigured: boolean;\n      inferredScope: { type: 'ticket' | 'epic'; id: string; title: string } | null;\n    }\n```\n\n## Implementation notes\n- Resolve `projectPath` on the server from trusted DB records using `ticketId` or `epicId` — never trust a raw client path for git/gh operations\n- All subprocess calls via the shared `execFileNoThrow` helper using array args only\n- Use shared parser helpers where possible so later ship functions reuse the same git-status parsing behavior\n- `git status --short` → parse each line into `{ path, status }`; include untracked (`??`) and modified/deleted/renamed files\n- `git branch --show-current` → `currentBranch`\n- `isSafeToShip`: false when branch is in `['main', 'master', 'develop']`\n- `reviewMarkerFresh`: check `.claude/.review-completed` mtime < 5 minutes\n- `ghAvailable`: check `which gh`\n- `remoteConfigured`: `git remote` returns at least one remote\n- `inferredScope`: if `ticketId`/`epicId` passed, fetch title from DB; else null\n- Server function should follow the same POST wrapper pattern used by `workflow-server-fns.ts`\n\n## Acceptance Criteria\n- [ ] Resolves project path server-side from `ticketId`/`epicId`\n- [ ] Returns all preflight fields correctly\n- [ ] `changedFiles` includes tracked, untracked, deleted, and renamed files\n- [ ] `isSafeToShip` is false for main/master/develop branches\n- [ ] `reviewMarkerFresh` uses a 5-minute window from file mtime\n- [ ] All subprocess calls use shared no-shell helpers\n- [ ] Parser behavior is covered by tests for realistic `git status --short` output\n- [ ] `pnpm type-check` passes",
       "priority": "high",
       "tags": [
-        "backend",
+        "server",
+        "git",
+        "api"
+      ]
+    },
+    {
+      "id": "585695ad-0277-4e95-8981-798b275db684",
+      "title": "Server function: commitAndShipServerFn + PR body generator",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Stages only `selectedPaths` (never `git add -A`)",
+        "Resolves project path server-side from trusted scope IDs",
+        "Parses commit hash correctly from real git output",
+        "Epic scope links commit metadata to every ticket assigned to the epic",
+        "Epic scope links PR metadata to every ticket assigned to the epic",
+        "Epic scope updates `epic_workflow_state` so the epic detail header reflects the PR immediately",
+        "PR body includes acceptance criteria as checkboxes",
+        "PR body includes `<!-- brain-dump:demo-steps -->` sentinel",
+        "All subprocess calls use shared no-shell helpers",
+        "Returns structured errors instead of throwing to the caller",
+        "Includes tests for commit hash parsing, PR URL/number parsing, and epic-wide linkage persistence",
+        "`pnpm type-check` passes"
+      ],
+      "references": [
+        "src/api/ship-server-fns.ts"
+      ],
+      "description": "Add `commitAndShipServerFn` to `src/api/ship-server-fns.ts` — the core function that stages selected files, commits, pushes, creates a PR, and persists linkage for both ticket and epic scopes. This ticket also owns the PR body generator utility.\n\n## Function signature\n```ts\ncommitAndShipServerFn({\n  scopeType: 'ticket' | 'epic',\n  scopeId: string,\n  message: string,\n  selectedPaths: string[],\n  prTitle: string,\n  prBody: string,\n  draft: boolean\n}) → { success, commitHash?, prNumber?, prUrl?, error? }\n```\n\n## Steps (server-side, in order)\n1. Resolve trusted scope context from DB (`projectPath`, branch, ticket/epic metadata)\n2. `git add -- <selectedPaths>`\n3. `git commit -m <message>` → parse commit hash from stdout\n4. Link commit metadata\n   - ticket scope: link to that ticket\n   - epic scope: link to every ticket currently assigned to the epic so the audit trail matches the shared epic PR strategy\n5. `git push -u origin <currentBranch>`\n6. `gh pr create --title <prTitle> --body <prBody> [--draft]`\n7. Parse PR number and URL from `gh` stdout\n8. Persist PR linkage\n   - ticket scope: `linkPr` for that ticket\n   - epic scope: `linkPr` for every ticket currently assigned to the epic\n9. If epic scope, update `epic_workflow_state` with `pr_number`, `pr_url`, `pr_status`, and `updated_at`\n10. Return `{ success: true, commitHash, prNumber, prUrl }`\n\n## PR body generator\nExpose `generatePrBodyServerFn({ scopeType, scopeId })` that returns the generated body string used to pre-populate the modal before shipping.\n\n### Requirements\n- Epic scope must include the epic title/description, all tickets in the epic, acceptance criteria checkboxes from ticket subtasks/criteria, the demo-step sentinel block, and implementation notes from relevant work-summary comments\n- Ticket scope uses the same structure for a single ticket\n- Output should make the linked PR clearly attributable to the epic or ticket that created it\n\n## Acceptance Criteria\n- [ ] Stages only `selectedPaths` (never `git add -A`)\n- [ ] Resolves project path server-side from trusted scope IDs\n- [ ] Parses commit hash correctly from real git output\n- [ ] Epic scope links commit metadata to every ticket assigned to the epic\n- [ ] Epic scope links PR metadata to every ticket assigned to the epic\n- [ ] Epic scope updates `epic_workflow_state` so the epic detail header reflects the PR immediately\n- [ ] PR body includes acceptance criteria as checkboxes\n- [ ] PR body includes `<!-- brain-dump:demo-steps -->` sentinel\n- [ ] All subprocess calls use shared no-shell helpers\n- [ ] Returns structured errors instead of throwing to the caller\n- [ ] Includes tests for commit hash parsing, PR URL/number parsing, and epic-wide linkage persistence\n- [ ] `pnpm type-check` passes",
+      "priority": "high",
+      "tags": [
+        "server",
+        "git",
         "api",
-        "epic-detail-page"
+        "pr"
       ]
     },
     {
-      "id": "6f3de09c-2323-42d1-9901-df760a1c91b1",
-      "title": "Component: EpicProgressOverview — progress bar and status breakdown",
-      "passes": true,
-      "overview": "",
-      "types": [
-        {
-          "name": "EpicProgressOverviewProps",
-          "code": "interface EpicProgressOverviewProps {\n  ticketsByStatus: Record<string, number>;\n  ticketsTotal: number;\n  ticketsDone: number;\n  currentTicketId: string | null;\n  currentTicketTitle?: string;\n}"
-        }
-      ],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Progress bar renders with correct proportions per status",
-        "Status chips show correct counts",
-        "Percentage displays correctly",
-        "Current ticket indicator shows when applicable",
-        "Empty state when no tickets",
-        "Uses existing `STATUS_BADGE_CONFIG` colors",
-        "`pnpm type-check` passes"
-      ],
-      "references": [
-        "src/components/epics/EpicProgressOverview.tsx",
-        "src/lib/constants.ts"
-      ],
-      "description": "**Shared feature branch** — Part of the Epic Detail Page epic. All tickets share one branch.\n\n## Goal\nCreate the `EpicProgressOverview` component that shows a visual progress bar and per-status ticket breakdown.\n\n## File to Create\n\n### `src/components/epics/EpicProgressOverview.tsx`\n\n**Props:**\n```ts\ninterface EpicProgressOverviewProps {\n  ticketsByStatus: Record<string, number>;\n  ticketsTotal: number;\n  ticketsDone: number;\n  currentTicketId: string | null;\n  currentTicketTitle?: string;\n}\n```\n\n**Features:**\n- Multi-segment progress bar where each segment is color-coded by status\n- Use colors from `STATUS_BADGE_CONFIG` in `src/lib/constants.ts`\n- Status order: backlog → ready → in_progress → ai_review → human_review → done\n- Status chips below the bar showing count per status (only show statuses with count > 0)\n- Percentage label (ticketsDone / ticketsTotal)\n- \"Currently working on: [ticket title]\" indicator when `currentTicketId` is set\n- Handle edge case: ticketsTotal === 0 (show \"No tickets\" empty state)\n- CSS variables for styling consistency (`var(--spacing-*)`, `var(--bg-*)`, etc.)\n\n**Depends on:** Backend ticket (needs `EpicDetailResult` type)\n\n## Acceptance Criteria\n- [ ] Progress bar renders with correct proportions per status\n- [ ] Status chips show correct counts\n- [ ] Percentage displays correctly\n- [ ] Current ticket indicator shows when applicable\n- [ ] Empty state when no tickets\n- [ ] Uses existing `STATUS_BADGE_CONFIG` colors\n- [ ] `pnpm type-check` passes\n\n## Branch Strategy\n**All tickets in this epic work on the same branch:**  (branched from `feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar`). Do NOT create a new branch — commit directly to this existing branch so all changes can be tested together before merging to feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar",
-      "priority": "medium",
-      "tags": [
-        "frontend",
-        "component",
-        "epic-detail-page"
-      ]
-    },
-    {
-      "id": "f36655f0-aff5-44d7-9fe9-ce53a1add5b4",
-      "title": "Component: EpicTicketsList — tickets grouped by status",
-      "passes": true,
-      "overview": "",
-      "types": [
-        {
-          "name": "EpicTicketsListProps",
-          "code": "interface EpicTicketsListProps {\n  tickets: Array<{\n    id: string;\n    title: string;\n    status: string;\n    priority: string | null;\n    isBlocked: boolean | null;\n    blockedReason: string | null;\n    prNumber: number | null;\n    prStatus: string | null;\n  }>;\n}"
-        }
-      ],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Tickets correctly grouped by status",
-        "Groups appear in priority order (active statuses first)",
-        "\"Done\" group collapsed by default",
-        "Click ticket title navigates to `/ticket/$id`",
-        "Priority badges display correctly",
-        "Blocked tickets show indicator",
-        "PR status shows when applicable",
-        "Empty state renders when no tickets",
-        "`pnpm type-check` passes"
-      ],
-      "references": [
-        "src/components/epics/EpicTicketsList.tsx",
-        "src/lib/constants.ts"
-      ],
-      "description": "**Shared feature branch** — Part of the Epic Detail Page epic. All tickets share one branch.\n\n## Goal\nCreate the `EpicTicketsList` component that shows all tickets in the epic, grouped by status with collapsible sections.\n\n## File to Create\n\n### `src/components/epics/EpicTicketsList.tsx`\n\n**Props:**\n```ts\ninterface EpicTicketsListProps {\n  tickets: Array<{\n    id: string;\n    title: string;\n    status: string;\n    priority: string | null;\n    isBlocked: boolean | null;\n    blockedReason: string | null;\n    prNumber: number | null;\n    prStatus: string | null;\n  }>;\n}\n```\n\n**Features:**\n- Group tickets by status in order: in_progress, ai_review, human_review, ready, backlog, done\n- Each group has a collapsible header showing status label + count (e.g., \"In Progress (3)\")\n- \"Done\" group is collapsed by default, all others expanded\n- Each ticket row shows:\n  - Title as a `Link` to `/ticket/$id` (TanStack Router)\n  - Priority badge using `PRIORITY_BADGE_CONFIG` from `src/lib/constants.ts`\n  - Blocked indicator (icon + tooltip with reason) when `isBlocked` is true\n  - PR status badge when `prNumber` is set\n- Status group headers use colors from `STATUS_BADGE_CONFIG`\n- Empty state: \"No tickets in this epic yet\"\n- Use ChevronDown/ChevronRight from lucide-react for collapse toggles\n\n**Depends on:** Backend ticket (needs ticket data shape)\n\n## Acceptance Criteria\n- [ ] Tickets correctly grouped by status\n- [ ] Groups appear in priority order (active statuses first)\n- [ ] \"Done\" group collapsed by default\n- [ ] Click ticket title navigates to `/ticket/$id`\n- [ ] Priority badges display correctly\n- [ ] Blocked tickets show indicator\n- [ ] PR status shows when applicable\n- [ ] Empty state renders when no tickets\n- [ ] `pnpm type-check` passes\n\n## Branch Strategy\n**All tickets in this epic work on the same branch:**  (branched from `feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar`). Do NOT create a new branch — commit directly to this existing branch so all changes can be tested together before merging to feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar",
-      "priority": "medium",
-      "tags": [
-        "frontend",
-        "component",
-        "epic-detail-page"
-      ]
-    },
-    {
-      "id": "5ac007ea-6353-4c2b-871a-02da5d5374a3",
-      "title": "Component: EpicLearnings — collapsible learnings panel",
-      "passes": true,
-      "overview": "",
-      "types": [
-        {
-          "name": "LearningEntry",
-          "code": "interface LearningEntry {\n  ticketId: string;\n  ticketTitle: string;\n  learnings: Array<{\n    type: \"pattern\" | \"anti-pattern\" | \"tool-usage\" | \"workflow\";\n    description: string;\n    suggestedUpdate?: {\n      file: string;\n      section: string;\n      content: string;\n    };\n  }>;\n  appliedAt: string;\n}"
-        },
-        {
-          "name": "EpicLearningsProps",
-          "code": "interface EpicLearningsProps {\n  learnings: LearningEntry[];\n}"
-        }
-      ],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Collapsible panel toggles open/closed",
-        "Learnings grouped by source ticket",
-        "Type badges render with correct colors",
-        "Suggested updates show file/section when present",
-        "Empty state renders when no learnings",
-        "`pnpm type-check` passes"
-      ],
-      "references": [
-        "src/components/epics/EpicLearnings.tsx",
-        "src/lib/schema.ts"
-      ],
-      "description": "**Shared feature branch** — Part of the Epic Detail Page epic. All tickets share one branch.\n\n## Goal\nCreate the `EpicLearnings` component that displays accumulated learnings from completed tickets in a collapsible panel.\n\n## File to Create\n\n### `src/components/epics/EpicLearnings.tsx`\n\n**Props:**\n```ts\ninterface LearningEntry {\n  ticketId: string;\n  ticketTitle: string;\n  learnings: Array<{\n    type: \"pattern\" | \"anti-pattern\" | \"tool-usage\" | \"workflow\";\n    description: string;\n    suggestedUpdate?: {\n      file: string;\n      section: string;\n      content: string;\n    };\n  }>;\n  appliedAt: string;\n}\n\ninterface EpicLearningsProps {\n  learnings: LearningEntry[];\n}\n```\n\n**Features:**\n- Collapsible section with ChevronDown/ChevronUp toggle (collapsed by default)\n- Section header: \"Learnings\" with count badge\n- Grouped by source ticket (ticketId/ticketTitle)\n- Each learning shows:\n  - Type badge with color: pattern (green), anti-pattern (red), tool-usage (blue), workflow (purple)\n  - Description text\n  - Optional suggested update info (file + section) in a subtle sub-line\n- Empty state: \"No learnings captured yet. Complete tickets in this epic to accumulate learnings.\"\n- Use CSS variables for styling consistency\n\n**Reference:** Learnings data structure from `src/lib/schema.ts` `WorkflowLearning` type and `core/learnings.ts`\n\n## Acceptance Criteria\n- [ ] Collapsible panel toggles open/closed\n- [ ] Learnings grouped by source ticket\n- [ ] Type badges render with correct colors\n- [ ] Suggested updates show file/section when present\n- [ ] Empty state renders when no learnings\n- [ ] `pnpm type-check` passes\n\n## Branch Strategy\n**All tickets in this epic work on the same branch:**  (branched from `feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar`). Do NOT create a new branch — commit directly to this existing branch so all changes can be tested together before merging to feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar",
-      "priority": "medium",
-      "tags": [
-        "frontend",
-        "component",
-        "epic-detail-page"
-      ]
-    },
-    {
-      "id": "429fb536-2775-45e9-b34d-ef6b404dcf65",
-      "title": "Component: EpicDetailHeader — header with badges, git info, launch actions",
-      "passes": true,
+      "id": "994aecd2-89d3-4625-b404-fa75fb369fe4",
+      "title": "Server function: syncPrVerificationChecklist + review.generate-demo hook",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Title displays with color dot",
-        "Badge row shows project, ticket count, completion %",
-        "Git row shows branch and PR when available",
-        "Edit button triggers onEdit callback",
-        "Launch dropdown opens with full Interactive + Ralph sections",
-        "Launch actions work (launch next non-done ticket)",
-        "Copy branch name to clipboard works",
+        "Reads demo steps from the real `demo_scripts.steps` JSON storage model",
+        "Updates the PR body sentinel block with rendered demo steps",
+        "Is idempotent: running twice with the same steps does not duplicate content",
+        "Returns early cleanly if no PR is linked to the ticket",
+        "`review.generate-demo` invokes sync after saving steps",
+        "Sync failure logs a warning but does not break demo generation",
+        "All gh calls use shared no-shell helpers",
+        "Includes tests for sentinel replacement and idempotent behavior",
         "`pnpm type-check` passes"
       ],
       "references": [
-        "src/components/epics/EpicDetailHeader.tsx",
-        "src/components/tickets/TicketDetailHeader.tsx",
-        "src/components/EpicModal.tsx",
-        "src/lib/constants.ts",
-        "src/components/EpicModal.tsx:295-385",
-        "src/components/EpicModal.tsx:195-292"
+        "src/api/ship-server-fns.ts",
+        "mcp-server/tools/review.ts"
       ],
-      "description": "**Shared feature branch** — Part of the Epic Detail Page epic. All tickets share one branch.\n\n## Goal\nCreate the `EpicDetailHeader` component showing the epic title, metadata badges, git/PR info, and action buttons (edit + launch).\n\n## File to Create\n\n### `src/components/epics/EpicDetailHeader.tsx`\n\n**Layout:**\n```\n[color dot] Epic Title                          [Edit] [Launch ▾]\nProject: Name  ·  12 tickets  ·  75% complete\nBranch: feature/epic-abc  ·  PR #42 (draft)\n```\n\n**Features:**\n- **Title row:** Epic color dot, h1 title, Edit button, Launch split-button dropdown\n- **Badge row:** Project name badge, ticket count badge, completion percentage badge\n- **Git row** (conditional, only when workflowState exists):\n  - Branch name with copy-to-clipboard (reuse clipboard pattern from `TicketDetailHeader`)\n  - PR link with status badge (draft/open/merged/closed) when `prNumber` is set\n- **Edit button:** Opens existing `EpicModal` component (passed via `onEdit` callback)\n- **Launch dropdown:** Full launch menu matching `EpicModal`'s action menu structure:\n  - Interactive section: Claude, Codex (auto/cli/app), VS Code, Cursor, Copilot CLI, OpenCode\n  - Ralph section: Claude, Codex, VS Code, Cursor, Copilot CLI, OpenCode\n  - Each launches the next non-done ticket in the epic (same `handleStartInteractive` / `handleStartRalph` pattern from `EpicModal.tsx`)\n\n**Pattern references:**\n- `src/components/tickets/TicketDetailHeader.tsx` — badge row, git info, clipboard copy\n- `src/components/EpicModal.tsx` lines 295-385 — `handleStartInteractive` launch logic\n- `src/components/EpicModal.tsx` lines 195-292 — `handleStartRalph` launch logic\n- `src/lib/constants.ts` — `STATUS_BADGE_CONFIG` for PR status styling\n\n## Acceptance Criteria\n- [ ] Title displays with color dot\n- [ ] Badge row shows project, ticket count, completion %\n- [ ] Git row shows branch and PR when available\n- [ ] Edit button triggers onEdit callback\n- [ ] Launch dropdown opens with full Interactive + Ralph sections\n- [ ] Launch actions work (launch next non-done ticket)\n- [ ] Copy branch name to clipboard works\n- [ ] `pnpm type-check` passes\n\n## Branch Strategy\n**All tickets in this epic work on the same branch:**  (branched from `feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar`). Do NOT create a new branch — commit directly to this existing branch so all changes can be tested together before merging to feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar",
+      "description": "Add `syncPrVerificationChecklistServerFn` to `src/api/ship-server-fns.ts` and wire shared sync logic into `mcp-server/tools/review.ts` after `generate-demo` completes.\n\n## Server function\n```ts\nsyncPrVerificationChecklistServerFn({ ticketId })\n  → { success, prUrl?, error? }\n```\n\n## Steps\n1. Fetch ticket from DB and read `prNumber`/`prUrl`; if no PR is linked, return early with success\n2. Fetch the latest demo script row for the ticket from `demo_scripts`\n3. Parse the real `steps` JSON payload from `demo_scripts.steps`\n4. Fetch the current PR body via `gh pr view <prNumber> --json body --jq .body`\n5. Find content beginning at `<!-- brain-dump:demo-steps -->` and replace that block up to the next `##` header or EOF\n6. Render the demo steps in a stable numbered markdown format\n7. `gh pr edit <prNumber> --body <updatedBody>`\n8. Return `{ success: true, prUrl }`\n\n## Shared-core requirement\nThe MCP server is standalone and cannot call TanStack Start server functions directly. Extract the core sync/render logic into a shared helper that both the server fn and `mcp-server/tools/review.ts` can import.\n\n## `review.generate-demo` hook\nAfter demo steps are saved in `mcp-server/tools/review.ts`:\n- Check whether the ticket already has a linked PR\n- If yes, call the shared sync helper\n- If sync fails, log a warning and continue; demo generation must still succeed\n- Add sync outcome details to the MCP response text so the agent sees whether the PR body was updated\n\n## Acceptance Criteria\n- [ ] Reads demo steps from the real `demo_scripts.steps` JSON storage model\n- [ ] Updates the PR body sentinel block with rendered demo steps\n- [ ] Is idempotent: running twice with the same steps does not duplicate content\n- [ ] Returns early cleanly if no PR is linked to the ticket\n- [ ] `review.generate-demo` invokes sync after saving steps\n- [ ] Sync failure logs a warning but does not break demo generation\n- [ ] All gh calls use shared no-shell helpers\n- [ ] Includes tests for sentinel replacement and idempotent behavior\n- [ ] `pnpm type-check` passes",
       "priority": "medium",
       "tags": [
-        "frontend",
-        "component",
-        "epic-detail-page",
-        "github:#42"
+        "server",
+        "git",
+        "mcp",
+        "pr",
+        "sync"
       ]
     },
     {
-      "id": "2b35003b-2ea1-4f8a-9a80-84c00e8a530f",
-      "title": "Route + Integration: epic.$id.tsx page and navigation links",
-      "passes": true,
+      "id": "aa778958-2b89-4471-8711-72523627a93e",
+      "title": "UI: ShipChangesModal component with all 5 states",
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Route `/epic/{id}` renders the full epic detail page",
-        "Loading skeleton shows during data fetch",
-        "Error page shows for invalid epic IDs",
-        "Back button navigates correctly (history or fallback)",
-        "All sections render with correct data",
-        "Edit modal opens and saves correctly",
-        "Launch actions work end-to-end",
-        "EpicListItem has secondary link to detail page",
-        "Barrel exports updated",
-        "`pnpm type-check` passes",
-        "`pnpm lint` passes",
-        "`pnpm test` passes",
-        "Manual browser verification at localhost:4242"
+        "Modal opens and immediately fetches preflight data and generated PR body",
+        "File picker shows tracked + untracked files with status prefixes",
+        "Select All works correctly",
+        "Preflight checks render green/red/yellow states clearly",
+        "blocked-review appears when review marker is stale and Recheck works",
+        "blocked-main appears on protected branches and branch creation returns to preflight",
+        "running state shows step progression and prevents dismissal",
+        "done state shows commit hash and PR URL with copy/open actions",
+        "error state allows retry and keeps failures visible to the user",
+        "Keyboard behavior works: Escape closes unless running; Enter submits when valid",
+        "No silent failures: all errors are surfaced in the UI",
+        "Component tests cover at least one happy path and key blocked/error states",
+        "`pnpm type-check && pnpm lint` pass"
+      ],
+      "references": [
+        "src/components/tickets/ShipChangesModal.tsx"
+      ],
+      "description": "Create `src/components/tickets/ShipChangesModal.tsx` — the unified Ship Changes modal with 5 explicit states.\n\n## Props\n```ts\n{\n  isOpen: boolean;\n  onClose: () => void;\n  projectPath: string; // UI only: used for terminal-launch convenience\n  scopeType: 'ticket' | 'epic';\n  scopeId: string;\n  scopeTitle: string;\n  branchName?: string;\n  onSuccess: (prUrl: string) => void;\n}\n```\n\n## Important boundary\n- `projectPath` may be passed to support \"Run Review\" / terminal-launch UX\n- Ship mutations themselves (`getShipPrep`, `commitAndShipServerFn`, `pushBranchServerFn`) must resolve trusted project context server-side from IDs, not from this prop\n\n## State machine\n```text\npreflight → [blocked-review | blocked-main] → running → done | error\n```\n\nOn open, immediately load preflight data and the generated PR body.\n\n## State UIs\n### preflight\n- Preflight panel with branch, review freshness, GitHub CLI, and remote checks\n- File picker showing `<status> <path>` rows with checkboxes and a Select All toggle\n- Editable commit message prefilled `feat(<shortId>): <scopeTitle>`\n- Editable PR title\n- Collapsible editable PR body pre-populated from `generatePrBodyServerFn`\n- Draft PR checkbox (default checked)\n- CTA disabled when gh/remote checks fail or no files are selected\n\n### blocked-review\n- Warn that review must be run before shipping\n- \"Run Review\" launches a terminal in the project dir using existing terminal-launch logic\n- \"Recheck\" re-runs `getShipPrep`\n\n### blocked-main\n- Warn that direct pushes to main/master/develop are not allowed\n- \"Create feature branch and continue\" uses existing workflow start helpers, then re-runs preflight\n\n### running\n- Non-dismissible progress UI with steps for staging, committing, pushing, and creating the PR\n\n### done\n- Success UI showing commit hash, PR URL, copy/open actions, and close behavior via `onSuccess`\n\n### error\n- Inline error state that shows the failing step and allows retry back to preflight\n\n## Acceptance Criteria\n- [ ] Modal opens and immediately fetches preflight data and generated PR body\n- [ ] File picker shows tracked + untracked files with status prefixes\n- [ ] Select All works correctly\n- [ ] Preflight checks render green/red/yellow states clearly\n- [ ] blocked-review appears when review marker is stale and Recheck works\n- [ ] blocked-main appears on protected branches and branch creation returns to preflight\n- [ ] running state shows step progression and prevents dismissal\n- [ ] done state shows commit hash and PR URL with copy/open actions\n- [ ] error state allows retry and keeps failures visible to the user\n- [ ] Keyboard behavior works: Escape closes unless running; Enter submits when valid\n- [ ] No silent failures: all errors are surfaced in the UI\n- [ ] Component tests cover at least one happy path and key blocked/error states\n- [ ] `pnpm type-check && pnpm lint` pass",
+      "priority": "high",
+      "tags": [
+        "ui",
+        "modal",
+        "react"
+      ]
+    },
+    {
+      "id": "0aad4105-af78-483b-994c-cafed2c715da",
+      "title": "UI: Wire Ship Changes entry points (epic detail + ticket header)",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Epic detail page shows `Ship Changes` when the epic has a branch",
+        "Epic detail page shows `Push` when the epic already has a PR",
+        "Ticket detail header shows `Ship` when the ticket has a branch",
+        "Ticket detail header shows `Push` when the ticket already has a PR",
+        "Modal opens from both entry points with the correct scope",
+        "Push-only action shows loading state and success/error toast feedback",
+        "Ticket detail invalidates/refetches on successful ship",
+        "Epic detail invalidates/refetches on successful ship",
+        "Manual QA from the epic detail page covers the full ship flow end-to-end",
+        "`pnpm type-check && pnpm lint` pass"
       ],
       "references": [
         "src/routes/epic.$id.tsx",
-        "src/routes/ticket.$id.tsx",
-        "src/components/tickets/",
-        "src/components/navigation/EpicListItem.tsx",
-        "src/components/epics/index.ts"
+        "src/components/tickets/TicketDetailHeader.tsx",
+        "src/api/ship-server-fns.ts"
       ],
-      "description": "**Shared feature branch** — Part of the Epic Detail Page epic. All tickets share one branch.\n\n## Goal\nCreate the main route page that assembles all epic detail components, and add navigation links from the sidebar and ticket detail page.\n\n## Files to Create\n\n### `src/routes/epic.$id.tsx` — Main route\n\nFollow `src/routes/ticket.$id.tsx` pattern exactly:\n\n**Route definition:**\n```ts\nexport const Route = createFileRoute(\"/epic/$id\")({\n  component: EpicDetailPage,\n  errorComponent: EpicDetailError,\n});\n```\n\n**Error component:** `EpicDetailError` — shows \"Epic Not Found\" with back navigation (same pattern as `TicketDetailError`)\n\n**Loading skeleton:** `EpicDetailSkeleton` — placeholder UI with pulse animation mimicking the page layout\n\n**Main component:** `EpicDetailPage` — assembles:\n1. Back navigation (useCanGoBack + router.history.back or fallback to /board)\n2. `EpicDetailHeader` — title, badges, git info, launch actions\n3. `EpicProgressOverview` — progress bar and status breakdown\n4. Content grid (2 columns):\n   - Left: `TicketDescription` (reused from `src/components/tickets/`) with `epic.description`\n   - Right: `EpicTicketsList` with tickets array\n5. `EpicLearnings` — collapsible learnings panel\n6. Footer with created date\n7. `EpicModal` (rendered conditionally for edit)\n\n**Data fetching:**\n- `useEpicDetail(id)` for all epic data\n- `useTickets({ epicId: id })` for launch actions (finding next non-done ticket)\n- `useSettings()` for terminal preferences\n- `useLaunchRalphForEpic()` for Ralph launches\n\n**State:**\n- `showEditModal` boolean\n- Launch state (isLaunching, notification — same pattern as EpicModal)\n\n**Cache invalidation:** After edit (onSave from EpicModal), invalidate `queryKeys.epicDetail(id)` and `queryKeys.projectsWithEpics`\n\n## Files to Modify\n\n### `src/components/navigation/EpicListItem.tsx` — Add detail link\n- Keep current `onSelect` click behavior (filters the board)\n- Add a secondary icon button (e.g., `ExternalLink` or `ArrowRight` from lucide-react) that navigates to `/epic/$id`\n- Use TanStack Router's `Link` component or `useNavigate`\n\n### `src/components/epics/index.ts` — Export new components\n- Add exports for: `EpicDetailHeader`, `EpicProgressOverview`, `EpicTicketsList`, `EpicLearnings`\n\n**Depends on:** All previous component tickets in this epic\n\n## Acceptance Criteria\n- [ ] Route `/epic/{id}` renders the full epic detail page\n- [ ] Loading skeleton shows during data fetch\n- [ ] Error page shows for invalid epic IDs\n- [ ] Back button navigates correctly (history or fallback)\n- [ ] All sections render with correct data\n- [ ] Edit modal opens and saves correctly\n- [ ] Launch actions work end-to-end\n- [ ] EpicListItem has secondary link to detail page\n- [ ] Barrel exports updated\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm lint` passes\n- [ ] `pnpm test` passes\n- [ ] Manual browser verification at localhost:4242\n\n## Branch Strategy\n**All tickets in this epic work on the same branch:**  (branched from `feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar`). Do NOT create a new branch — commit directly to this existing branch so all changes can be tested together before merging to feature/epic-b65163de-align-provider-setup-scripts-with-post-refactor-ar",
+      "description": "Wire the `ShipChangesModal` into both entry points and add push-only buttons for subsequent pushes when a PR already exists.\n\n## Epic detail page (`src/routes/epic.$id.tsx`)\nThis is the primary entry point.\n\n### Ship Changes button\n- Visible when the epic has a workflow branch\n- Opens `ShipChangesModal` with `scopeType=\"epic\"`\n- Uses `project.path` already returned by epic detail data for terminal-launch UX only\n- On success: invalidate the epic detail query so PR badge/status refresh immediately\n\n### Push button\n- Visible when the epic already has a linked PR in `epic_workflow_state`\n- Inline action with spinner/toast feedback\n- Calls `pushBranchServerFn({ scopeType: 'epic', scopeId: epic.id })`\n\n## Ticket detail header (`src/components/tickets/TicketDetailHeader.tsx`)\nThis is the secondary entry point.\n\n### Ship button\n- Visible when `ticket.branchName` exists\n- Positioned before Edit: `[Ship] [Edit] [Start Work]`\n- Add `onShip: () => void` to `TicketDetailHeaderProps`\n\n### Push button\n- Visible when `ticket.prNumber` exists\n- Inline action with spinner/toast feedback\n- Calls `pushBranchServerFn({ scopeType: 'ticket', scopeId: ticket.id })`\n\n## `ticket.$id.tsx` changes\n- Add `showShipModal` state\n- Reuse existing project data access rather than inventing a new `getProject` API; derive the project from existing hooks/query data and pass `project.path` only for terminal UX\n- Render `<ShipChangesModal>` when open\n- On modal success: invalidate the ticket query so PR badge/status refresh immediately\n\n## `pushBranchServerFn`\nAdd to `src/api/ship-server-fns.ts`:\n```ts\npushBranchServerFn({ scopeType: 'ticket' | 'epic', scopeId: string })\n  → { success, error? }\n```\n\n### Requirements\n- Resolve trusted `projectPath` + branch server-side from DB/workflow state\n- `git push origin <branch>` via shared no-shell helper\n- Return structured errors for toast display\n\n## Acceptance Criteria\n- [ ] Epic detail page shows `Ship Changes` when the epic has a branch\n- [ ] Epic detail page shows `Push` when the epic already has a PR\n- [ ] Ticket detail header shows `Ship` when the ticket has a branch\n- [ ] Ticket detail header shows `Push` when the ticket already has a PR\n- [ ] Modal opens from both entry points with the correct scope\n- [ ] Push-only action shows loading state and success/error toast feedback\n- [ ] Ticket detail invalidates/refetches on successful ship\n- [ ] Epic detail invalidates/refetches on successful ship\n- [ ] Manual QA from the epic detail page covers the full ship flow end-to-end\n- [ ] `pnpm type-check && pnpm lint` pass",
       "priority": "high",
       "tags": [
-        "frontend",
-        "route",
+        "ui",
+        "epic",
+        "ticket",
+        "wiring"
+      ]
+    },
+    {
+      "id": "addfac96-b02c-437f-9af8-19aa68d767fa",
+      "title": "Foundation: shared ship helpers and secure process execution",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [
+        {
+          "decision": "this exists",
+          "alternatives": [
+            "The current ship plan assumes `execFileNoThrow`, but that helper does not exist yet",
+            "Review sync needs shared logic across TanStack server functions and `mcp-server/tools/review.ts`",
+            "Epic/ticket shipping should not each invent their own git parsing rules"
+          ],
+          "rationale": []
+        }
+      ],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Shared no-shell process helper exists and is reusable from ship-related code",
+        "Shared parser helpers exist for git status, commit output, PR output, and sentinel replacement",
+        "Shared scope-resolution helper resolves trusted project/branch context from DB IDs",
+        "Helper locations support both app server functions and MCP usage",
+        "Tests cover parser helpers with realistic command output fixtures",
+        "Any repo documentation that points to the helper path is updated if necessary",
+        "`pnpm type-check && pnpm lint` pass"
+      ],
+      "references": [
+        "mcp-server/tools/review.ts"
+      ],
+      "description": "Add the shared groundwork required by the Ship Changes epic so the later server and MCP tickets build on one secure implementation instead of duplicating parsing and subprocess logic.\n\n## Scope\n1. Introduce the shared `execFileNoThrow`-style helper used by ship-related git/gh calls\n2. Add shared helpers for:\n   - resolving trusted ship scope (`ticket` or `epic`) to project path / branch / metadata\n   - parsing `git status --short` output\n   - parsing commit hashes from `git commit` output\n   - parsing PR number/URL from `gh pr create` output\n   - replacing the `<!-- brain-dump:demo-steps -->` sentinel block idempotently\n3. Put shared non-UI logic in a location that can be imported by both app server functions and the standalone MCP server\n4. If needed, keep a thin app-side wrapper at the documented path so repo guidance stays accurate\n\n## Why this exists\n- The current ship plan assumes `execFileNoThrow`, but that helper does not exist yet\n- Review sync needs shared logic across TanStack server functions and `mcp-server/tools/review.ts`\n- Epic/ticket shipping should not each invent their own git parsing rules\n\n## Acceptance Criteria\n- [ ] Shared no-shell process helper exists and is reusable from ship-related code\n- [ ] Shared parser helpers exist for git status, commit output, PR output, and sentinel replacement\n- [ ] Shared scope-resolution helper resolves trusted project/branch context from DB IDs\n- [ ] Helper locations support both app server functions and MCP usage\n- [ ] Tests cover parser helpers with realistic command output fixtures\n- [ ] Any repo documentation that points to the helper path is updated if necessary\n- [ ] `pnpm type-check && pnpm lint` pass",
+      "priority": "high",
+      "tags": [
+        "foundation",
+        "server",
+        "git",
+        "security"
+      ]
+    },
+    {
+      "id": "7e0ad4e5-807a-4142-af26-1ae9a5a3273e",
+      "title": "Tests: user-facing success and failure coverage for Ship Changes flow",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Automated tests focus on user-visible behavior instead of implementation details",
+        "Happy-path tests exist for both epic and ticket entry points",
+        "Failure-path tests exist for the major blocked/error states",
+        "Query invalidation/refresh is verified through visible post-action UI state",
+        "Manual QA checklist is added for final verification",
+        "`pnpm test` passes",
+        "`pnpm type-check && pnpm lint` pass"
+      ],
+      "references": [],
+      "description": "Add user-centered test coverage for the full Ship Changes experience after implementation is complete. Follow a Kent C. Dodds style: test what the user sees, can click, and what feedback they receive.\n\n## Scope\n### Component/integration coverage\n- Epic detail page shows the correct `Ship Changes` / `Push` actions for the current state\n- Ticket detail header shows the correct `Ship` / `Push` actions for the current state\n- ShipChangesModal renders and transitions through preflight, blocked-review, blocked-main, running, done, and error states\n- File picker selection, Select All, disabled CTA states, and keyboard behavior work as expected\n- Success path shows commit hash, PR link, and success feedback\n- Failure paths surface visible feedback for:\n  - missing `gh`\n  - missing remote\n  - protected branch\n  - stale/missing review marker\n  - no files selected\n  - commit failure\n  - push failure\n  - PR creation failure\n  - push-only failure\n- `review.generate-demo` PR-body sync success/failure is covered at the shared-helper level and does not silently fail\n\n### Manual QA checklist\nCreate a concise visual/behavioral test matrix covering:\n- epic ship happy path\n- ticket ship happy path\n- push-only happy path\n- blocked-review recovery path\n- blocked-main recovery path\n- server error path with visible UI feedback\n- post-ship refresh showing PR badges/status on epic and ticket views\n\n## Acceptance Criteria\n- [ ] Automated tests focus on user-visible behavior instead of implementation details\n- [ ] Happy-path tests exist for both epic and ticket entry points\n- [ ] Failure-path tests exist for the major blocked/error states\n- [ ] Query invalidation/refresh is verified through visible post-action UI state\n- [ ] Manual QA checklist is added for final verification\n- [ ] `pnpm test` passes\n- [ ] `pnpm type-check && pnpm lint` pass",
+      "priority": "high",
+      "tags": [
+        "test",
+        "ui",
         "integration",
-        "epic-detail-page"
+        "qa"
       ]
     }
   ],
@@ -406,7 +382,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-03-03T07:03:17.053Z",
-  "epicTitle": "Epic Detail Page",
-  "epicDescription": "Add a dedicated Epic Detail page (`/epic/$id`) that provides a comprehensive view of an epic — its description, progress breakdown, associated tickets, learnings, and git/PR info. Currently epics are only viewable through modals and sidebar items with no consolidated detail view.\\n\\nAll tickets in this epic share a single feature branch."
+  "generatedAt": "2026-03-08T03:41:15.871Z",
+  "epicTitle": "Ship Changes: UI Commit, Push & PR Flow",
+  "epicDescription": "Close the gap in the dev workflow: developers currently must run `git commit`, `git push`, and `gh pr create` manually after ticket work. This epic adds a unified \"Ship Changes\" flow directly in the Brain Dump UI.\n\n## Primary entry point: Epic detail page\nThe main use case is shipping an entire epic's worth of work as one PR from the epic detail page.\n\n## Secondary entry point: Ticket detail header\nIndividual ticket branches can also be shipped from the ticket detail page.\n\n## What gets built\n1. Foundation helpers for secure process execution and shared ship/parsing logic\n2. Server functions for preflight checks, commit+push+PR, push-only, and PR body sync\n3. A unified ShipChangesModal with 5 states (preflight, blocked-review, blocked-main, running, done)\n4. Entry point buttons on the epic detail page and ticket detail header\n5. Auto-sync of PR body when demo steps are generated\n6. User-facing success/failure test coverage for the whole flow\n\n## Key success conditions\n- Epic PR creation must update `epic_workflow_state` and link PR metadata to every ticket currently assigned to that epic so the epic header and ticket headers stay in sync\n- Server-side git/gh actions must resolve `projectPath` from trusted DB records using `ticketId`/`epicId`; UI-provided paths are only for terminal-launch UX\n- PR body sync must read demo steps from the real `demo_scripts.steps` JSON payload and update the sentinel block idempotently\n- All subprocess calls use array args with a shared no-throw helper (no shell interpolation)\n- Testing follows a Kent C. Dodds style: validate what the user sees and can do, with explicit success and failure cases\n\n## Key design decisions\n- File selection picker (not blind `git add -A`) — user sees and picks which files to commit\n- Preflight checks: branch safety, review marker freshness, gh available, remote configured\n- PR body auto-populated with acceptance criteria checkboxes and demo steps from Brain Dump\n- `<!-- brain-dump:demo-steps -->` sentinel in PR body auto-updates when demo steps are generated\n- All subprocess calls use execFileNoThrow-style helpers (no shell interpolation)\n\n## Revised execution order\n1. Foundation: add shared process/ship helpers and parser coverage\n2. Server: getShipPrep\n3. Server: commitAndShip + PR body generation + epic-wide PR linkage\n4. Server/MCP: PR verification checklist sync after `review.generate-demo`\n5. UI: ShipChangesModal\n6. UI: entry points and push-only actions\n7. Tests: user-facing success/failure coverage and visual QA checklist"
 }

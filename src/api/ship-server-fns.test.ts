@@ -9,18 +9,18 @@ import {
   getShipPrepData,
   isReviewMarkerFresh,
   pushBranch,
-} from "./ship-server-fns";
+} from "./ship-core";
 
 type MockExec = (
   command: string,
   args: string[],
-  options?: { cwd?: string }
+  options?: { cwd?: string; env?: NodeJS.ProcessEnv; timeoutMs?: number }
 ) => Promise<ExecFileNoThrowResult>;
 
 interface RecordedCall {
   command: string;
   args: string[];
-  options?: { cwd?: string };
+  options?: { cwd?: string; env?: NodeJS.ProcessEnv; timeoutMs?: number };
 }
 
 let db: DbHandle;
@@ -405,7 +405,17 @@ describe("commitAndShip", () => {
       )]: createExecResult(),
       [createCommandKey(
         "gh",
-        ["pr", "create", "--title", "Ship Changes", "--body", prBody, "--draft"],
+        [
+          "pr",
+          "create",
+          "--head",
+          "feature/epic-1-ship",
+          "--title",
+          "Ship Changes",
+          "--body",
+          prBody,
+          "--draft",
+        ],
         "/tmp/ship-project"
       )]: createExecResult({
         stdout: "https://github.com/example/brain-dump/pull/42\n",
@@ -455,8 +465,25 @@ describe("commitAndShip", () => {
       },
       {
         command: "gh",
-        args: ["pr", "create", "--title", "Ship Changes", "--body", prBody, "--draft"],
-        options: { cwd: "/tmp/ship-project" },
+        args: [
+          "pr",
+          "create",
+          "--head",
+          "feature/epic-1-ship",
+          "--title",
+          "Ship Changes",
+          "--body",
+          prBody,
+          "--draft",
+        ],
+        options: {
+          cwd: "/tmp/ship-project",
+          env: expect.objectContaining({
+            GH_PROMPT_DISABLED: "1",
+            GIT_TERMINAL_PROMPT: "0",
+          }),
+          timeoutMs: 30_000,
+        },
       },
     ]);
 
@@ -526,7 +553,16 @@ describe("commitAndShip", () => {
       )]: createExecResult(),
       [createCommandKey(
         "gh",
-        ["pr", "create", "--title", "Ticket Ship", "--body", "body"],
+        [
+          "pr",
+          "create",
+          "--head",
+          "feature/ticket-1-ship",
+          "--title",
+          "Ticket Ship",
+          "--body",
+          "body",
+        ],
         "/tmp/ship-project"
       )]: createExecResult({
         stdout: "created pull request successfully",
@@ -555,6 +591,92 @@ describe("commitAndShip", () => {
       success: false,
       step: "pr",
       error: "Pull request was created, but the PR URL/number could not be parsed from gh output.",
+    });
+  });
+
+  it("returns a structured error when gh pr create times out in headless mode", async () => {
+    seedProject(db, { id: "proj-1", path: "/tmp/ship-project" });
+    seedTicket(db, {
+      id: "ticket-1",
+      projectId: "proj-1",
+      branchName: "feature/ticket-1-ship",
+    });
+
+    const { execFileNoThrow, calls } = createRecordingExec({
+      [createCommandKey("git", ["add", "--", "src/a.ts"], "/tmp/ship-project")]: createExecResult(),
+      [createCommandKey("git", ["commit", "-m", "feat(ticket-1): ship"], "/tmp/ship-project")]:
+        createExecResult({
+          stdout: "[feature/ticket-1-ship abcdef1] feat(ticket-1): ship\n 1 file changed",
+        }),
+      [createCommandKey(
+        "git",
+        ["push", "-u", "origin", "feature/ticket-1-ship"],
+        "/tmp/ship-project"
+      )]: createExecResult(),
+      [createCommandKey(
+        "gh",
+        [
+          "pr",
+          "create",
+          "--head",
+          "feature/ticket-1-ship",
+          "--title",
+          "Ticket Ship",
+          "--body",
+          "body",
+        ],
+        "/tmp/ship-project"
+      )]: createExecResult({
+        success: false,
+        error: "Command failed: gh pr create timed out",
+      }),
+    });
+
+    const result = await commitAndShip(
+      {
+        scopeType: "ticket",
+        scopeId: "ticket-1",
+        message: "feat(ticket-1): ship",
+        selectedPaths: ["src/a.ts"],
+        prTitle: "Ticket Ship",
+        prBody: "body",
+        draft: false,
+      },
+      {
+        db,
+        execFileNoThrow,
+        now: () => "2026-03-08T02:00:00.000Z",
+        createId: () => "unused",
+      }
+    );
+
+    expect(result).toEqual({
+      success: false,
+      step: "pr",
+      error:
+        "Failed to create pull request: GitHub CLI timed out waiting for a non-interactive result. Check gh auth and repository defaults, then retry.",
+    });
+
+    expect(calls.at(-1)).toEqual({
+      command: "gh",
+      args: [
+        "pr",
+        "create",
+        "--head",
+        "feature/ticket-1-ship",
+        "--title",
+        "Ticket Ship",
+        "--body",
+        "body",
+      ],
+      options: {
+        cwd: "/tmp/ship-project",
+        env: expect.objectContaining({
+          GH_PROMPT_DISABLED: "1",
+          GIT_TERMINAL_PROMPT: "0",
+        }),
+        timeoutMs: 30_000,
+      },
     });
   });
 });
