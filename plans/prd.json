@@ -175,7 +175,7 @@
     {
       "id": "addfac96-b02c-437f-9af8-19aa68d767fa",
       "title": "Foundation: shared ship helpers and secure process execution",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [
@@ -214,7 +214,7 @@
     {
       "id": "7e0ad4e5-807a-4142-af26-1ae9a5a3273e",
       "title": "Tests: user-facing success and failure coverage for Ship Changes flow",
-      "passes": true,
+      "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
@@ -236,6 +236,134 @@
         "ui",
         "integration",
         "qa"
+      ]
+    },
+    {
+      "id": "ceb04de4-a6c4-4258-97eb-3846c2dc2ad9",
+      "title": "UX: make stale review marker a warning, not a ship blocker",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Review marker is presented as warning-only in preflight",
+        "File selection remains enabled when reviewMarkerFresh is false",
+        "Ship CTA can still be used when other required checks pass",
+        "Existing protected-branch, gh-missing, and remote-missing blockers still work",
+        "Automated tests cover the non-blocking stale-review-marker behavior",
+        "pnpm type-check && pnpm lint && pnpm test pass"
+      ],
+      "references": [],
+      "description": "Update the Ship Changes modal so a stale or missing review marker does not lock the user out of file selection and shipping.\n\n## Requested behavior\n- A stale review marker should stay visibly highlighted as a warning\n- Users should still be able to select files and interact with the preflight form\n- The ship flow should remain usable without forcing Run Review first\n- The modal can still offer Run Review / Recheck guidance, but it must not hard-block the workflow\n\n## Acceptance Criteria\n- [ ] Review marker is presented as warning-only in preflight\n- [ ] File selection remains enabled when reviewMarkerFresh is false\n- [ ] Ship CTA can still be used when other required checks pass\n- [ ] Existing protected-branch, gh-missing, and remote-missing blockers still work\n- [ ] Automated tests cover the non-blocking stale-review-marker behavior\n- [ ] pnpm type-check && pnpm lint && pnpm test pass",
+      "priority": "high",
+      "tags": [
+        "ux",
+        "ship",
+        "ui"
+      ]
+    },
+    {
+      "id": "d2137822-9fbd-4182-9e8b-81038b028e85",
+      "title": "Fix Ship Changes PR creation hangs when gh prompts interactively",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`gh pr create` runs with non-interactive safeguards",
+        "PR creation has a bounded timeout and returns a structured `pr` error on timeout/prompt issues",
+        "Existing happy-path PR creation still works",
+        "Automated tests cover the guarded `gh pr create` invocation",
+        "pnpm type-check && pnpm lint && pnpm test pass"
+      ],
+      "references": [],
+      "description": "The Ship Changes modal can get stuck on the Create pull request step because the server-side `gh pr create` call does not currently enforce non-interactive behavior or a timeout.\n\n## Requested behavior\n- PR creation must fail fast with a visible error instead of hanging indefinitely\n- The `gh` invocation should be safe for headless server execution\n- The returned error should point the user toward missing/non-default GitHub CLI setup rather than leaving the modal spinning forever\n\n## Acceptance Criteria\n- [ ] `gh pr create` runs with non-interactive safeguards\n- [ ] PR creation has a bounded timeout and returns a structured `pr` error on timeout/prompt issues\n- [ ] Existing happy-path PR creation still works\n- [ ] Automated tests cover the guarded `gh pr create` invocation\n- [ ] pnpm type-check && pnpm lint && pnpm test pass",
+      "priority": "high",
+      "tags": [
+        "bug",
+        "ship",
+        "gh",
+        "ui"
+      ]
+    },
+    {
+      "id": "38b385e9-14d7-4938-92b9-2bb0956b854c",
+      "title": "Allow Ship Changes to create a PR from a clean branch",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Implement as described",
+        "Verify functionality works as expected"
+      ],
+      "references": [],
+      "description": "The Ship Changes modal currently disables submission when the worktree has no changed files, even if the branch is already ready for PR creation. Users should be able to create or retry a PR from an existing clean branch without making a new commit.\n\nAcceptance criteria:\n- Clean branches with no changed files can still submit the Ship Changes flow for PR creation\n- Server-side ship logic skips stage/commit when there are no selected paths and reuses the current HEAD commit metadata\n- UI messaging makes it clear when the flow will create a PR from the existing branch state\n- Automated tests cover the clean-branch PR path and preserve the existing changed-files path",
+      "priority": "high",
+      "tags": [
+        "ship-changes",
+        "ui",
+        "git",
+        "workflow"
+      ]
+    },
+    {
+      "id": "fb969bc0-1c3f-4db0-91b7-0628f7d349ca",
+      "title": "Clean up Ship Changes modal gating and ticket-scoped review actions",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Ship Changes preflight surfaces an existing linked PR immediately and offers follow-up actions instead of a duplicate ship path",
+        "Review-marker warning/check is removed from the modal and server preflight payload",
+        "Ship Changes no longer renders file selection checkboxes; dirty branches ship all current changes and clean branches reuse HEAD",
+        "Commit message UX clearly distinguishes between \"new commit will be created\" and \"existing HEAD will be reused\"",
+        "Epic detail replaces the old review launcher with a real ticket-scoped review action that operates on unresolved tickets",
+        "Epic detail exposes a way to inspect critical review findings for tickets in the epic and whether they are resolved",
+        "UI/server tests cover existing-PR, dirty-branch all-files, clean-branch reuse, and the new review-entry behavior",
+        "`pnpm type-check && pnpm lint && pnpm test` pass"
+      ],
+      "references": [],
+      "description": "Simplify the Ship Changes modal so it matches the real workflow and removes misleading affordances.\n\n## Scope\n- Show an explicit existing-PR state instead of letting the user enter the ship flow when the current ticket/epic already has a linked PR\n- Remove the stale `.claude/.review-completed` warning from Ship Changes preflight because it is not tied to real Brain Dump review state\n- Remove per-file staging checkboxes from the modal and simplify shipping to \"all current changes\" when there are local modifications, while still allowing clean-branch PR creation from the existing HEAD commit\n- Keep PR title fully editable\n- Keep commit message editable when a new commit will be created; make the clean-branch behavior explicit instead of pretending the field changes an existing commit\n- Replace the current epic-level `Run Review` terminal-launch action with a real ticket-scoped review action\n- Add an epic-level action that shows/open critical review findings across the epic's tickets with status visibility\n\n## Acceptance Criteria\n- [ ] Ship Changes preflight surfaces an existing linked PR immediately and offers follow-up actions instead of a duplicate ship path\n- [ ] Review-marker warning/check is removed from the modal and server preflight payload\n- [ ] Ship Changes no longer renders file selection checkboxes; dirty branches ship all current changes and clean branches reuse HEAD\n- [ ] Commit message UX clearly distinguishes between \"new commit will be created\" and \"existing HEAD will be reused\"\n- [ ] Epic detail replaces the old review launcher with a real ticket-scoped review action that operates on unresolved tickets\n- [ ] Epic detail exposes a way to inspect critical review findings for tickets in the epic and whether they are resolved\n- [ ] UI/server tests cover existing-PR, dirty-branch all-files, clean-branch reuse, and the new review-entry behavior\n- [ ] `pnpm type-check && pnpm lint && pnpm test` pass",
+      "priority": "high",
+      "tags": [
+        "ui",
+        "review",
+        "epic",
+        "ticket",
+        "workflow"
+      ]
+    },
+    {
+      "id": "2edf9cfc-6464-4bc5-b471-215cd527a1c9",
+      "title": "UI: Make ticket epic tag link to epic details with filter-preserving navigation",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "The epic tag shown at the top of a ticket detail view is rendered as a clear interactive link/button when the ticket belongs to an epic.",
+        "Activating that epic tag navigates to the correct epic detail route for that ticket's `epicId`.",
+        "Browser back navigation from the epic detail page returns the user to the prior page and preserves the filters/search params they had applied before opening the ticket.",
+        "Browser forward navigation works cleanly after going back.",
+        "Existing ticket detail behavior for tickets without an epic remains unchanged.",
+        "Add user-facing test coverage for the navigation behavior, including preservation of filtered state/search params."
+      ],
+      "references": [],
+      "description": "Make the epic tag in the ticket detail header clickable so users can jump directly into that epic's detail page without breaking navigation flow.\n\n## Goal\nCreate seamless routing between ticket detail and epic detail views, with browser back/forward behavior preserving the user's previous filtered board/list state.\n\n## Acceptance Criteria\n- The epic tag shown at the top of a ticket detail view is rendered as a clear interactive link/button when the ticket belongs to an epic.\n- Activating that epic tag navigates to the correct epic detail route for that ticket's `epicId`.\n- Browser back navigation from the epic detail page returns the user to the prior page and preserves the filters/search params they had applied before opening the ticket.\n- Browser forward navigation works cleanly after going back.\n- Existing ticket detail behavior for tickets without an epic remains unchanged.\n- Add user-facing test coverage for the navigation behavior, including preservation of filtered state/search params.\n\n## Notes\n- Prefer route/search-param driven state over ad hoc in-memory state so navigation survives normal browser history usage.\n- This ticket belongs to the shared branch/PR flow for the `Ship Changes: UI Commit, Push & PR Flow` epic.\n- Keep the interaction feeling native to the existing ticket header UI; no separate \"Open Epic\" control unless implementation requires it.",
+      "priority": "medium",
+      "tags": [
+        "ui",
+        "routing",
+        "epic",
+        "ticket",
+        "workflow"
       ]
     }
   ],
@@ -382,7 +510,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-03-08T03:41:15.871Z",
+  "generatedAt": "2026-03-08T18:04:59.916Z",
   "epicTitle": "Ship Changes: UI Commit, Push & PR Flow",
   "epicDescription": "Close the gap in the dev workflow: developers currently must run `git commit`, `git push`, and `gh pr create` manually after ticket work. This epic adds a unified \"Ship Changes\" flow directly in the Brain Dump UI.\n\n## Primary entry point: Epic detail page\nThe main use case is shipping an entire epic's worth of work as one PR from the epic detail page.\n\n## Secondary entry point: Ticket detail header\nIndividual ticket branches can also be shipped from the ticket detail page.\n\n## What gets built\n1. Foundation helpers for secure process execution and shared ship/parsing logic\n2. Server functions for preflight checks, commit+push+PR, push-only, and PR body sync\n3. A unified ShipChangesModal with 5 states (preflight, blocked-review, blocked-main, running, done)\n4. Entry point buttons on the epic detail page and ticket detail header\n5. Auto-sync of PR body when demo steps are generated\n6. User-facing success/failure test coverage for the whole flow\n\n## Key success conditions\n- Epic PR creation must update `epic_workflow_state` and link PR metadata to every ticket currently assigned to that epic so the epic header and ticket headers stay in sync\n- Server-side git/gh actions must resolve `projectPath` from trusted DB records using `ticketId`/`epicId`; UI-provided paths are only for terminal-launch UX\n- PR body sync must read demo steps from the real `demo_scripts.steps` JSON payload and update the sentinel block idempotently\n- All subprocess calls use array args with a shared no-throw helper (no shell interpolation)\n- Testing follows a Kent C. Dodds style: validate what the user sees and can do, with explicit success and failure cases\n\n## Key design decisions\n- File selection picker (not blind `git add -A`) — user sees and picks which files to commit\n- Preflight checks: branch safety, review marker freshness, gh available, remote configured\n- PR body auto-populated with acceptance criteria checkboxes and demo steps from Brain Dump\n- `<!-- brain-dump:demo-steps -->` sentinel in PR body auto-updates when demo steps are generated\n- All subprocess calls use execFileNoThrow-style helpers (no shell interpolation)\n\n## Revised execution order\n1. Foundation: add shared process/ship helpers and parser coverage\n2. Server: getShipPrep\n3. Server: commitAndShip + PR body generation + epic-wide PR linkage\n4. Server/MCP: PR verification checklist sync after `review.generate-demo`\n5. UI: ShipChangesModal\n6. UI: entry points and push-only actions\n7. Tests: user-facing success/failure coverage and visual QA checklist"
 }
