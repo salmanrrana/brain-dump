@@ -1,5 +1,7 @@
+import { useNavigate } from "@tanstack/react-router";
 import { type FC, useState, useRef, useCallback } from "react";
 import {
+  LoaderCircle,
   Edit3,
   Play,
   ChevronDown,
@@ -30,6 +32,12 @@ export interface TicketDetailHeaderProps {
   ticket: Ticket;
   /** Epic this ticket belongs to (for display) */
   epic?: Epic | null;
+  /** Handler when Ship is clicked */
+  onShip?: () => void;
+  /** Handler when Push is clicked */
+  onPush?: () => void | Promise<void>;
+  /** Whether a push is currently in progress */
+  isPushing?: boolean;
   /** Handler when Edit button is clicked */
   onEdit: () => void;
   /** Handler when a launch option is selected */
@@ -66,11 +74,15 @@ export interface TicketDetailHeaderProps {
 export const TicketDetailHeader: FC<TicketDetailHeaderProps> = ({
   ticket,
   epic,
+  onShip,
+  onPush,
+  isPushing = false,
   onEdit,
   onLaunch,
   isLaunching = false,
   launchingType = null,
 }) => {
+  const navigate = useNavigate();
   const [showLaunchMenu, setShowLaunchMenu] = useState(false);
   const launchMenuRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
@@ -105,6 +117,20 @@ export const TicketDetailHeader: FC<TicketDetailHeaderProps> = ({
     }
   }, [ticket.branchName, showToast]);
 
+  const handleOpenEpic = useCallback(() => {
+    if (!epic) {
+      return;
+    }
+
+    void navigate({
+      to: "/epic/$id",
+      params: { id: epic.id },
+      replace: true,
+    }).catch(() => {
+      showToast("error", "Failed to open epic details");
+    });
+  }, [epic, navigate, showToast]);
+
   // Get badge configurations
   const statusConfig = STATUS_BADGE_CONFIG[ticket.status] ?? {
     label: ticket.status,
@@ -131,6 +157,41 @@ export const TicketDetailHeader: FC<TicketDetailHeaderProps> = ({
         <h1 style={titleStyles}>{ticket.title}</h1>
 
         <div style={actionsContainerStyles}>
+          {ticket.branchName && !ticket.prNumber && onShip && (
+            <button
+              type="button"
+              onClick={onShip}
+              style={shipButtonStyles}
+              className="hover:opacity-90"
+              aria-label="Ship ticket changes"
+            >
+              <GitPullRequest size={16} />
+              Ship
+            </button>
+          )}
+
+          {ticket.prNumber && onPush && (
+            <button
+              type="button"
+              onClick={() => void onPush()}
+              disabled={isPushing}
+              style={{
+                ...pushButtonStyles,
+                opacity: isPushing ? 0.7 : 1,
+                cursor: isPushing ? "progress" : "pointer",
+              }}
+              className="hover:bg-[var(--bg-hover)]"
+              aria-label="Push branch updates"
+            >
+              {isPushing ? (
+                <LoaderCircle size={16} className="animate-spin" />
+              ) : (
+                <GitBranch size={16} />
+              )}
+              {isPushing ? "Pushing..." : "Push"}
+            </button>
+          )}
+
           {/* Edit Button */}
           <button
             type="button"
@@ -209,18 +270,23 @@ export const TicketDetailHeader: FC<TicketDetailHeaderProps> = ({
 
         {/* Epic Badge */}
         {epic && (
-          <span
+          <button
+            type="button"
+            onClick={handleOpenEpic}
             style={{
               ...badgeStyles,
+              ...epicBadgeButtonStyles,
               background: epic.color ? `${epic.color}20` : "var(--bg-tertiary)",
               color: epic.color ?? "var(--text-secondary)",
               border: epic.color ? `1px solid ${epic.color}40` : "1px solid var(--border-primary)",
             }}
             data-testid="ticket-epic-badge"
+            aria-label={`Open epic ${epic.title}`}
+            className="hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)]"
           >
             <FolderOpen size={12} style={{ marginRight: "4px" }} />
             {epic.title}
-          </span>
+          </button>
         )}
 
         {/* Tags */}
@@ -332,6 +398,35 @@ const editButtonStyles: React.CSSProperties = {
   transition: "background-color 0.15s",
 };
 
+const shipButtonStyles: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "var(--spacing-2)",
+  padding: "var(--spacing-2) var(--spacing-3)",
+  background: "var(--success)",
+  border: "none",
+  borderRadius: "var(--radius-md)",
+  color: "var(--text-on-accent)",
+  fontSize: "var(--font-size-sm)",
+  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+  cursor: "pointer",
+  transition: "opacity 0.15s",
+};
+
+const pushButtonStyles: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "var(--spacing-2)",
+  padding: "var(--spacing-2) var(--spacing-3)",
+  background: "var(--bg-tertiary)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-md)",
+  color: "var(--text-primary)",
+  fontSize: "var(--font-size-sm)",
+  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+  transition: "background-color 0.15s",
+};
+
 const startButtonStyles: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
@@ -379,6 +474,13 @@ const badgeStyles: React.CSSProperties = {
   borderRadius: "var(--radius-full)",
   fontSize: "var(--font-size-xs)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+};
+
+const epicBadgeButtonStyles: React.CSSProperties = {
+  borderWidth: "1px",
+  borderStyle: "solid",
+  cursor: "pointer",
+  transition: "opacity 0.15s",
 };
 
 const tagBadgeStyles: React.CSSProperties = {

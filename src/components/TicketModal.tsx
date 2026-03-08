@@ -34,6 +34,7 @@ import {
   GitBranch,
   GitPullRequest,
   Copy,
+  FolderOpen,
 } from "lucide-react";
 import type { Ticket, Epic } from "../lib/hooks";
 import {
@@ -182,6 +183,10 @@ function parseAcceptanceCriteria(subtasksJson: string | null): AcceptanceCriteri
 export default function TicketModal({ ticket, epics, onClose, onUpdate }: TicketModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const selectedEpic = useMemo(
+    () => epics.find((epic) => epic.id === ticket.epicId) ?? null,
+    [epics, ticket.epicId]
+  );
 
   // TanStack Form - replaces 10 form-related useState hooks
   const form = useForm({
@@ -323,6 +328,19 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     shouldPreventClose: useCallback(() => showStartWorkMenu, [showStartWorkMenu]),
     onPreventedClose: useCallback(() => setShowStartWorkMenu(false), []),
   });
+
+  const handleOpenEpic = useCallback(() => {
+    if (!selectedEpic) {
+      return;
+    }
+
+    void navigate({
+      to: "/epic/$id",
+      params: { id: selectedEpic.id },
+    }).catch(() => {
+      showToast("error", "Failed to open epic details");
+    });
+  }, [navigate, selectedEpic, showToast]);
 
   // Close dropdown when clicking outside
   useClickOutside(
@@ -1233,9 +1251,22 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[var(--border-primary)]">
-          <h2 id="modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
-            Edit Ticket
-          </h2>
+          <div className="flex min-w-0 flex-col items-start gap-2">
+            {selectedEpic && (
+              <button
+                type="button"
+                onClick={handleOpenEpic}
+                className="inline-flex max-w-full items-center gap-2 rounded-full border border-[var(--border-primary)] bg-[var(--bg-tertiary)] px-3 py-1 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]"
+                aria-label={`Open epic ${selectedEpic.title}`}
+              >
+                <FolderOpen size={14} aria-hidden="true" />
+                <span className="truncate">{selectedEpic.title}</span>
+              </button>
+            )}
+            <h2 id="modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
+              Edit Ticket
+            </h2>
+          </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => {

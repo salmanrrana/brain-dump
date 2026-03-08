@@ -1,5 +1,8 @@
 import { useState, useRef, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
+  AlertCircle,
+  LoaderCircle,
   Edit3,
   Play,
   ChevronDown,
@@ -12,8 +15,10 @@ import {
   Code2,
   Monitor,
   Github,
+  Search,
 } from "lucide-react";
 import { useToast } from "../Toast";
+import { Modal } from "../ui/Modal";
 import { useClickOutside } from "../../lib/hooks";
 import { getPrStatusIconColor, getPrStatusBadgeStyle } from "../../lib/constants";
 import type { EpicDetailResult } from "../../api/epics";
@@ -26,7 +31,8 @@ import {
   launchOpenCodeInTerminal,
 } from "../../api/terminal";
 import { getTicketContext } from "../../api/context";
-import { useSettings } from "../../lib/hooks";
+import { queryKeys } from "../../lib/query-keys";
+import { useLaunchRalphForTicket, useSettings } from "../../lib/hooks";
 
 export interface EpicDetailHeaderProps {
   epic: EpicDetailResult["epic"];
@@ -34,6 +40,11 @@ export interface EpicDetailHeaderProps {
   ticketsByStatus: EpicDetailResult["ticketsByStatus"];
   workflowState: EpicDetailResult["workflowState"];
   tickets: EpicDetailResult["tickets"];
+  findingsSummary: EpicDetailResult["findingsSummary"];
+  criticalFindings: EpicDetailResult["criticalFindings"];
+  onShipChanges?: () => void;
+  onPushChanges?: () => void | Promise<void>;
+  isPushingChanges?: boolean;
   onEdit: () => void;
 }
 
@@ -43,16 +54,43 @@ export function EpicDetailHeader({
   ticketsByStatus,
   workflowState,
   tickets,
+  findingsSummary,
+  criticalFindings,
+  onShipChanges,
+  onPushChanges,
+  isPushingChanges = false,
   onEdit,
 }: EpicDetailHeaderProps): React.ReactElement {
   const [showLaunchMenu, setShowLaunchMenu] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showFindingsModal, setShowFindingsModal] = useState(false);
+  const [launchingReviewTicketId, setLaunchingReviewTicketId] = useState<string | null>(null);
   const launchMenuRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
   const settings = useSettings();
+  const queryClient = useQueryClient();
+  const launchRalphMutation = useLaunchRalphForTicket();
 
   const ticketsTotal = Object.values(ticketsByStatus).reduce((a, b) => a + b, 0);
   const ticketsDone = ticketsByStatus["done"] ?? 0;
   const completionPercent = ticketsTotal > 0 ? Math.round((ticketsDone / ticketsTotal) * 100) : 0;
+  const hasFindings = findingsSummary.total > 0;
+  const openFindings = findingsSummary.total - findingsSummary.fixed;
+  const reviewableTickets = tickets
+    .filter((ticket) => ticket.status !== "done")
+    .sort((left, right) => {
+      if (left.id === workflowState?.currentTicketId) return -1;
+      if (right.id === workflowState?.currentTicketId) return 1;
+      return left.title.localeCompare(right.title);
+    });
+  const openCriticalCounts = criticalFindings.reduce((counts, finding) => {
+    if (finding.status !== "open") {
+      return counts;
+    }
+
+    counts.set(finding.ticketId, (counts.get(finding.ticketId) ?? 0) + 1);
+    return counts;
+  }, new Map<string, number>());
 
   useClickOutside(
     launchMenuRef,
@@ -145,265 +183,605 @@ export function EpicDetailHeader({
     [tickets, settings, epic.title, showToast]
   );
 
+  const handleLaunchTicketReview = useCallback(
+    async function handleLaunchTicketReview(ticketId: string, ticketTitle: string): Promise<void> {
+      setLaunchingReviewTicketId(ticketId);
+
+      try {
+        const result = await launchRalphMutation.mutateAsync({
+          ticketId,
+          preferredTerminal: settings?.settings?.terminalEmulator ?? null,
+          useSandbox: false,
+          aiBackend: "claude",
+        });
+
+        if ("warnings" in result && result.warnings) {
+          (result.warnings as string[]).forEach((warning) => showToast("info", warning));
+        }
+
+        if (result.success) {
+          showToast("success", `Review launched for ${ticketTitle}`);
+          setShowReviewModal(false);
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: queryKeys.epicDetail(epic.id) }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.allTickets }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics }),
+          ]);
+          return;
+        }
+
+        showToast("error", result.message);
+      } catch (error) {
+        showToast(
+          "error",
+          error instanceof Error ? error.message : "Failed to launch ticket review"
+        );
+      } finally {
+        setLaunchingReviewTicketId(null);
+      }
+    },
+    [epic.id, launchRalphMutation, queryClient, settings, showToast]
+  );
+
   const hasLaunchableTickets = tickets.some((t) => t.status !== "done");
 
   return (
-    <header style={containerStyles}>
-      <div style={topRowStyles}>
-        <div style={titleContainerStyles}>
-          <span
-            style={{
-              display: "inline-block",
-              width: 12,
-              height: 12,
-              borderRadius: "50%",
-              backgroundColor: epic.color ?? "var(--accent-primary)",
-              flexShrink: 0,
-            }}
-          />
-          <h1 style={titleStyles}>{epic.title}</h1>
-        </div>
+    <>
+      <header style={containerStyles}>
+        <div style={topRowStyles}>
+          <div style={titleContainerStyles}>
+            <span
+              style={{
+                display: "inline-block",
+                width: 12,
+                height: 12,
+                borderRadius: "50%",
+                backgroundColor: epic.color ?? "var(--accent-primary)",
+                flexShrink: 0,
+              }}
+            />
+            <h1 style={titleStyles}>{epic.title}</h1>
+          </div>
 
-        <div style={actionsContainerStyles}>
-          <button
-            type="button"
-            onClick={onEdit}
-            style={editButtonStyles}
-            className="hover:bg-[var(--bg-hover)]"
-            aria-label="Edit epic"
-          >
-            <Edit3 size={16} />
-            Edit
-          </button>
+          <div style={actionsContainerStyles}>
+            {workflowState?.epicBranchName && !workflowState.prNumber && onShipChanges && (
+              <button
+                type="button"
+                onClick={onShipChanges}
+                style={shipButtonStyles}
+                className="hover:opacity-90"
+                aria-label="Ship epic changes"
+              >
+                <GitPullRequest size={16} />
+                Ship Changes
+              </button>
+            )}
 
-          <div style={dropdownContainerStyles} ref={launchMenuRef}>
             <button
               type="button"
-              onClick={() => setShowLaunchMenu(!showLaunchMenu)}
-              disabled={!hasLaunchableTickets}
+              onClick={() => setShowReviewModal(true)}
+              disabled={reviewableTickets.length === 0}
               style={{
-                ...launchButtonStyles,
-                opacity: hasLaunchableTickets ? 1 : 0.5,
-                cursor: hasLaunchableTickets ? "pointer" : "not-allowed",
+                ...secondaryActionButtonStyles,
+                opacity: reviewableTickets.length === 0 ? 0.5 : 1,
+                cursor: reviewableTickets.length === 0 ? "not-allowed" : "pointer",
               }}
-              className="hover:opacity-90"
-              aria-expanded={showLaunchMenu}
-              aria-haspopup="true"
-              aria-label="Launch options"
+              className="hover:bg-[var(--bg-hover)]"
+              aria-label="Review a ticket in this epic"
             >
-              <Play size={16} fill="currentColor" />
-              Launch
-              <ChevronDown
-                size={14}
-                style={{
-                  transition: "transform 0.2s",
-                  transform: showLaunchMenu ? "rotate(180deg)" : "rotate(0deg)",
-                }}
-              />
+              <Search size={16} />
+              Review Ticket
             </button>
 
-            {showLaunchMenu && hasLaunchableTickets && (
-              <div style={dropdownMenuStyles}>
-                <div style={dropdownGridStyles}>
-                  <div style={dropdownSectionStyles}>
-                    <div style={sectionHeaderStyles}>
-                      <Terminal size={14} color="var(--success)" />
-                      <span style={sectionTitleStyles}>Interactive</span>
-                    </div>
-                    <div style={buttonGridStyles}>
-                      <button
-                        type="button"
-                        onClick={() => void handleLaunchInteractive("claude")}
-                        style={launchOptionButtonStyles}
-                      >
-                        <Terminal size={14} color="var(--success)" />
-                        <span style={optionTextStyles}>Claude</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleLaunchInteractive("codex")}
-                        style={launchOptionButtonStyles}
-                      >
-                        <Terminal size={14} color="var(--success)" />
-                        <span style={optionTextStyles}>Codex Auto</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleLaunchInteractive("codex-cli")}
-                        style={launchOptionButtonStyles}
-                      >
-                        <Terminal size={14} color="var(--success)" />
-                        <span style={optionTextStyles}>Codex CLI</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleLaunchInteractive("codex-app")}
-                        style={launchOptionButtonStyles}
-                      >
-                        <Code2 size={14} color="var(--success)" />
-                        <span style={optionTextStyles}>Codex App</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleLaunchInteractive("vscode")}
-                        style={launchOptionButtonStyles}
-                      >
-                        <Code2 size={14} color="var(--accent-primary)" />
-                        <span style={optionTextStyles}>VS Code</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleLaunchInteractive("cursor")}
-                        style={launchOptionButtonStyles}
-                      >
-                        <Monitor size={14} color="var(--warning)" />
-                        <span style={optionTextStyles}>Cursor</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleLaunchInteractive("copilot")}
-                        style={launchOptionButtonStyles}
-                      >
-                        <Github size={14} color="var(--text-secondary)" />
-                        <span style={optionTextStyles}>Copilot CLI</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleLaunchInteractive("opencode")}
-                        style={launchOptionButtonStyles}
-                      >
-                        <Code2 size={14} color="var(--info)" />
-                        <span style={optionTextStyles}>OpenCode</span>
-                      </button>
-                    </div>
-                  </div>
+            <button
+              type="button"
+              onClick={() => setShowFindingsModal(true)}
+              style={secondaryActionButtonStyles}
+              className="hover:bg-[var(--bg-hover)]"
+              aria-label="View review findings for this epic"
+            >
+              <AlertCircle size={16} />
+              {hasFindings ? `Findings (${findingsSummary.total})` : "Findings"}
+            </button>
 
-                  <div
-                    style={{
-                      ...dropdownSectionStyles,
-                      borderLeft: "1px solid var(--border-primary)",
-                    }}
-                  >
-                    <div style={sectionHeaderStyles}>
-                      <Bot size={14} color="var(--accent-ai)" />
-                      <span style={sectionTitleStyles}>Ralph</span>
-                    </div>
-                    <div style={buttonGridStyles}>
-                      <button
-                        type="button"
-                        onClick={() => showToast("info", "Ralph launch coming soon")}
-                        style={launchOptionButtonStyles}
-                      >
-                        <Bot size={14} color="var(--accent-ai)" />
-                        <span style={optionTextStyles}>Claude</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => showToast("info", "Ralph launch coming soon")}
-                        style={launchOptionButtonStyles}
-                      >
+            {workflowState?.prNumber && onPushChanges && (
+              <button
+                type="button"
+                onClick={() => void onPushChanges()}
+                disabled={isPushingChanges}
+                style={{
+                  ...pushButtonStyles,
+                  opacity: isPushingChanges ? 0.7 : 1,
+                  cursor: isPushingChanges ? "progress" : "pointer",
+                }}
+                className="hover:bg-[var(--bg-hover)]"
+                aria-label="Push epic branch updates"
+              >
+                {isPushingChanges ? (
+                  <LoaderCircle size={16} className="animate-spin" />
+                ) : (
+                  <GitBranch size={16} color="currentColor" />
+                )}
+                {isPushingChanges ? "Pushing..." : "Push"}
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={onEdit}
+              style={editButtonStyles}
+              className="hover:bg-[var(--bg-hover)]"
+              aria-label="Edit epic"
+            >
+              <Edit3 size={16} />
+              Edit
+            </button>
+
+            <div style={dropdownContainerStyles} ref={launchMenuRef}>
+              <button
+                type="button"
+                onClick={() => setShowLaunchMenu(!showLaunchMenu)}
+                disabled={!hasLaunchableTickets}
+                style={{
+                  ...launchButtonStyles,
+                  opacity: hasLaunchableTickets ? 1 : 0.5,
+                  cursor: hasLaunchableTickets ? "pointer" : "not-allowed",
+                }}
+                className="hover:opacity-90"
+                aria-expanded={showLaunchMenu}
+                aria-haspopup="true"
+                aria-label="Launch options"
+              >
+                <Play size={16} fill="currentColor" />
+                Launch
+                <ChevronDown
+                  size={14}
+                  style={{
+                    transition: "transform 0.2s",
+                    transform: showLaunchMenu ? "rotate(180deg)" : "rotate(0deg)",
+                  }}
+                />
+              </button>
+
+              {showLaunchMenu && hasLaunchableTickets && (
+                <div style={dropdownMenuStyles}>
+                  <div style={dropdownGridStyles}>
+                    <div style={dropdownSectionStyles}>
+                      <div style={sectionHeaderStyles}>
                         <Terminal size={14} color="var(--success)" />
-                        <span style={optionTextStyles}>Codex</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => showToast("info", "Ralph launch coming soon")}
-                        style={launchOptionButtonStyles}
-                      >
-                        <Code2 size={14} color="var(--accent-primary)" />
-                        <span style={optionTextStyles}>VS Code</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => showToast("info", "Ralph launch coming soon")}
-                        style={launchOptionButtonStyles}
-                      >
-                        <Monitor size={14} color="var(--warning)" />
-                        <span style={optionTextStyles}>Cursor</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => showToast("info", "Ralph launch coming soon")}
-                        style={launchOptionButtonStyles}
-                      >
-                        <Github size={14} color="var(--text-secondary)" />
-                        <span style={optionTextStyles}>Copilot CLI</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => showToast("info", "Ralph launch coming soon")}
-                        style={launchOptionButtonStyles}
-                      >
-                        <Code2 size={14} color="var(--accent-ai)" />
-                        <span style={optionTextStyles}>OpenCode</span>
-                      </button>
+                        <span style={sectionTitleStyles}>Interactive</span>
+                      </div>
+                      <div style={buttonGridStyles}>
+                        <button
+                          type="button"
+                          onClick={() => void handleLaunchInteractive("claude")}
+                          style={launchOptionButtonStyles}
+                        >
+                          <Terminal size={14} color="var(--success)" />
+                          <span style={optionTextStyles}>Claude</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleLaunchInteractive("codex")}
+                          style={launchOptionButtonStyles}
+                        >
+                          <Terminal size={14} color="var(--success)" />
+                          <span style={optionTextStyles}>Codex Auto</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleLaunchInteractive("codex-cli")}
+                          style={launchOptionButtonStyles}
+                        >
+                          <Terminal size={14} color="var(--success)" />
+                          <span style={optionTextStyles}>Codex CLI</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleLaunchInteractive("codex-app")}
+                          style={launchOptionButtonStyles}
+                        >
+                          <Code2 size={14} color="var(--success)" />
+                          <span style={optionTextStyles}>Codex App</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleLaunchInteractive("vscode")}
+                          style={launchOptionButtonStyles}
+                        >
+                          <Code2 size={14} color="var(--accent-primary)" />
+                          <span style={optionTextStyles}>VS Code</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleLaunchInteractive("cursor")}
+                          style={launchOptionButtonStyles}
+                        >
+                          <Monitor size={14} color="var(--warning)" />
+                          <span style={optionTextStyles}>Cursor</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleLaunchInteractive("copilot")}
+                          style={launchOptionButtonStyles}
+                        >
+                          <Github size={14} color="var(--text-secondary)" />
+                          <span style={optionTextStyles}>Copilot CLI</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleLaunchInteractive("opencode")}
+                          style={launchOptionButtonStyles}
+                        >
+                          <Code2 size={14} color="var(--info)" />
+                          <span style={optionTextStyles}>OpenCode</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        ...dropdownSectionStyles,
+                        borderLeft: "1px solid var(--border-primary)",
+                      }}
+                    >
+                      <div style={sectionHeaderStyles}>
+                        <Bot size={14} color="var(--accent-ai)" />
+                        <span style={sectionTitleStyles}>Ralph</span>
+                      </div>
+                      <div style={buttonGridStyles}>
+                        <button
+                          type="button"
+                          onClick={() => showToast("info", "Ralph launch coming soon")}
+                          style={launchOptionButtonStyles}
+                        >
+                          <Bot size={14} color="var(--accent-ai)" />
+                          <span style={optionTextStyles}>Claude</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => showToast("info", "Ralph launch coming soon")}
+                          style={launchOptionButtonStyles}
+                        >
+                          <Terminal size={14} color="var(--success)" />
+                          <span style={optionTextStyles}>Codex</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => showToast("info", "Ralph launch coming soon")}
+                          style={launchOptionButtonStyles}
+                        >
+                          <Code2 size={14} color="var(--accent-primary)" />
+                          <span style={optionTextStyles}>VS Code</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => showToast("info", "Ralph launch coming soon")}
+                          style={launchOptionButtonStyles}
+                        >
+                          <Monitor size={14} color="var(--warning)" />
+                          <span style={optionTextStyles}>Cursor</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => showToast("info", "Ralph launch coming soon")}
+                          style={launchOptionButtonStyles}
+                        >
+                          <Github size={14} color="var(--text-secondary)" />
+                          <span style={optionTextStyles}>Copilot CLI</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => showToast("info", "Ralph launch coming soon")}
+                          style={launchOptionButtonStyles}
+                        >
+                          <Code2 size={14} color="var(--accent-ai)" />
+                          <span style={optionTextStyles}>OpenCode</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div style={badgeRowStyles}>
+          <span style={badgeStyles}>{project.name}</span>
+          <span style={badgeStyles}>
+            {ticketsTotal} ticket{ticketsTotal !== 1 ? "s" : ""}
+          </span>
+          <span style={completionBadgeStyles}>{completionPercent}% complete</span>
+        </div>
+
+        <div style={findingsSectionStyles}>
+          <div style={findingsHeaderStyles}>
+            <span style={findingsTitleStyles}>Review Findings</span>
+            <span style={findingsSubtitleStyles}>
+              {hasFindings
+                ? `${findingsSummary.total} total findings across this epic`
+                : "No review findings recorded for this epic yet"}
+            </span>
+          </div>
+
+          <div style={findingsSummaryGridStyles}>
+            <div style={getSummaryCardStyles("danger")}>
+              <span style={summaryCardLabelStyles}>Critical</span>
+              <strong style={summaryCardValueStyles}>{findingsSummary.critical}</strong>
+            </div>
+            <div style={getSummaryCardStyles("warning")}>
+              <span style={summaryCardLabelStyles}>Major</span>
+              <strong style={summaryCardValueStyles}>{findingsSummary.major}</strong>
+            </div>
+            <div style={getSummaryCardStyles("info")}>
+              <span style={summaryCardLabelStyles}>Minor</span>
+              <strong style={summaryCardValueStyles}>{findingsSummary.minor}</strong>
+            </div>
+            <div style={getSummaryCardStyles("neutral")}>
+              <span style={summaryCardLabelStyles}>Suggestions</span>
+              <strong style={summaryCardValueStyles}>{findingsSummary.suggestion}</strong>
+            </div>
+            <div
+              style={getSummaryCardStyles(
+                openFindings === 0 && hasFindings ? "success" : "neutral"
+              )}
+            >
+              <span style={summaryCardLabelStyles}>Fixed</span>
+              <strong style={summaryCardValueStyles}>
+                {findingsSummary.fixed}/{findingsSummary.total}
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        {workflowState && (workflowState.epicBranchName || workflowState.prNumber) && (
+          <div style={gitRowStyles}>
+            {workflowState.epicBranchName && (
+              <div style={gitItemStyles}>
+                <GitBranch size={14} color="var(--accent-primary)" />
+                <code style={branchCodeStyles}>{workflowState.epicBranchName}</code>
+                <button
+                  type="button"
+                  onClick={handleCopyBranch}
+                  style={copyButtonStyles}
+                  className="hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                  title="Copy branch name"
+                  aria-label="Copy branch name"
+                >
+                  <Copy size={12} />
+                </button>
+              </div>
+            )}
+
+            {workflowState.prNumber && (
+              <div style={gitItemStyles}>
+                <GitPullRequest
+                  size={14}
+                  className={getPrStatusIconColor(workflowState.prStatus)}
+                />
+                {workflowState.prUrl ? (
+                  <a
+                    href={workflowState.prUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={prLinkStyles}
+                    className="hover:underline"
+                  >
+                    PR #{workflowState.prNumber}
+                    <ExternalLink size={12} style={{ marginLeft: 4 }} />
+                  </a>
+                ) : (
+                  <span style={{ color: "var(--text-primary)", fontSize: "var(--font-size-sm)" }}>
+                    PR #{workflowState.prNumber}
+                  </span>
+                )}
+                <span
+                  style={prStatusBadgeStyles}
+                  className={getPrStatusBadgeStyle(workflowState.prStatus)}
+                >
+                  {workflowState.prStatus ?? "open"}
+                </span>
               </div>
             )}
           </div>
-        </div>
-      </div>
+        )}
+      </header>
 
-      <div style={badgeRowStyles}>
-        <span style={badgeStyles}>{project.name}</span>
-        <span style={badgeStyles}>
-          {ticketsTotal} ticket{ticketsTotal !== 1 ? "s" : ""}
-        </span>
-        <span style={completionBadgeStyles}>{completionPercent}% complete</span>
-      </div>
+      <Modal
+        isOpen={showReviewModal}
+        onClose={() => setShowReviewModal(false)}
+        title={`Review Ticket: ${epic.title}`}
+        maxWidth="xl"
+        footer={
+          <button type="button" onClick={() => setShowReviewModal(false)} style={modalButtonStyles}>
+            Close
+          </button>
+        }
+      >
+        <div style={modalContentStyles}>
+          <p style={modalLeadStyles}>
+            Launch Ralph against a specific ticket in this epic. The selected ticket will re-enter
+            the active workflow and Ralph will drive review/fix/demo work from that ticket context.
+          </p>
 
-      {workflowState && (workflowState.epicBranchName || workflowState.prNumber) && (
-        <div style={gitRowStyles}>
-          {workflowState.epicBranchName && (
-            <div style={gitItemStyles}>
-              <GitBranch size={14} color="var(--accent-primary)" />
-              <code style={branchCodeStyles}>{workflowState.epicBranchName}</code>
-              <button
-                type="button"
-                onClick={handleCopyBranch}
-                style={copyButtonStyles}
-                className="hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                title="Copy branch name"
-                aria-label="Copy branch name"
-              >
-                <Copy size={12} />
-              </button>
+          {reviewableTickets.length === 0 ? (
+            <div style={emptyPanelStyles}>No tickets in this epic can be reviewed right now.</div>
+          ) : (
+            <div style={modalListStyles}>
+              {reviewableTickets.map((ticket) => {
+                const openCriticalCount = openCriticalCounts.get(ticket.id) ?? 0;
+                const isLaunching = launchingReviewTicketId === ticket.id;
+
+                return (
+                  <div key={ticket.id} style={modalListItemStyles}>
+                    <div style={modalListTextStyles}>
+                      <strong>{ticket.title}</strong>
+                      <span style={modalMetaStyles}>
+                        Status: {ticket.status}
+                        {openCriticalCount > 0
+                          ? ` • ${openCriticalCount} open critical finding${openCriticalCount === 1 ? "" : "s"}`
+                          : " • No open critical findings"}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleLaunchTicketReview(ticket.id, ticket.title)}
+                      disabled={Boolean(launchingReviewTicketId)}
+                      style={{
+                        ...modalButtonStyles,
+                        opacity: launchingReviewTicketId ? 0.7 : 1,
+                        cursor: launchingReviewTicketId ? "progress" : "pointer",
+                      }}
+                    >
+                      {isLaunching ? "Launching..." : "Review with Ralph"}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
+        </div>
+      </Modal>
 
-          {workflowState.prNumber && (
-            <div style={gitItemStyles}>
-              <GitPullRequest size={14} className={getPrStatusIconColor(workflowState.prStatus)} />
-              {workflowState.prUrl ? (
-                <a
-                  href={workflowState.prUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={prLinkStyles}
-                  className="hover:underline"
-                >
-                  PR #{workflowState.prNumber}
-                  <ExternalLink size={12} style={{ marginLeft: 4 }} />
-                </a>
-              ) : (
-                <span style={{ color: "var(--text-primary)", fontSize: "var(--font-size-sm)" }}>
-                  PR #{workflowState.prNumber}
-                </span>
+      <Modal
+        isOpen={showFindingsModal}
+        onClose={() => setShowFindingsModal(false)}
+        title={`Review Findings: ${epic.title}`}
+        maxWidth="xl"
+        footer={
+          <button
+            type="button"
+            onClick={() => setShowFindingsModal(false)}
+            style={modalButtonStyles}
+          >
+            Close
+          </button>
+        }
+      >
+        <div style={modalContentStyles}>
+          <p style={modalLeadStyles}>
+            This epic summary rolls up all review findings across its tickets. Critical findings are
+            broken out below because they can block progression.
+          </p>
+
+          <div style={modalSummaryGridStyles}>
+            <div style={getSummaryCardStyles("danger")}>
+              <span style={summaryCardLabelStyles}>Critical</span>
+              <strong style={summaryCardValueStyles}>{findingsSummary.critical}</strong>
+            </div>
+            <div style={getSummaryCardStyles("warning")}>
+              <span style={summaryCardLabelStyles}>Major</span>
+              <strong style={summaryCardValueStyles}>{findingsSummary.major}</strong>
+            </div>
+            <div style={getSummaryCardStyles("info")}>
+              <span style={summaryCardLabelStyles}>Minor</span>
+              <strong style={summaryCardValueStyles}>{findingsSummary.minor}</strong>
+            </div>
+            <div style={getSummaryCardStyles("neutral")}>
+              <span style={summaryCardLabelStyles}>Suggestions</span>
+              <strong style={summaryCardValueStyles}>{findingsSummary.suggestion}</strong>
+            </div>
+            <div
+              style={getSummaryCardStyles(
+                openFindings === 0 && hasFindings ? "success" : "neutral"
               )}
-              <span
-                style={prStatusBadgeStyles}
-                className={getPrStatusBadgeStyle(workflowState.prStatus)}
-              >
-                {workflowState.prStatus ?? "open"}
-              </span>
+            >
+              <span style={summaryCardLabelStyles}>Fixed</span>
+              <strong style={summaryCardValueStyles}>
+                {findingsSummary.fixed}/{findingsSummary.total}
+              </strong>
+            </div>
+          </div>
+
+          {criticalFindings.length === 0 ? (
+            <div style={emptyPanelStyles}>
+              {hasFindings
+                ? "No critical findings are recorded for this epic."
+                : "No review findings are recorded for this epic."}
+            </div>
+          ) : (
+            <div style={modalListStyles}>
+              {criticalFindings.map((finding) => (
+                <div key={finding.id} style={modalListItemStyles}>
+                  <div style={modalListTextStyles}>
+                    <strong>{finding.ticketTitle}</strong>
+                    <span style={modalMetaStyles}>
+                      {finding.status === "open" ? "Open" : "Resolved"} • {finding.agent} •{" "}
+                      {finding.category}
+                    </span>
+                    <span style={modalDescriptionStyles}>{finding.description}</span>
+                    {finding.filePath && (
+                      <span style={modalMetaStyles}>
+                        {finding.filePath}
+                        {finding.lineNumber ? `:${finding.lineNumber}` : ""}
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    style={{
+                      ...findingStatusStyles,
+                      background:
+                        finding.status === "open"
+                          ? "color-mix(in srgb, var(--accent-danger) 14%, transparent)"
+                          : "color-mix(in srgb, var(--success) 14%, transparent)",
+                      borderColor:
+                        finding.status === "open"
+                          ? "color-mix(in srgb, var(--accent-danger) 28%, transparent)"
+                          : "color-mix(in srgb, var(--success) 28%, transparent)",
+                      color: finding.status === "open" ? "var(--accent-danger)" : "var(--success)",
+                    }}
+                  >
+                    {finding.status === "open" ? "Open" : "Resolved"}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
         </div>
-      )}
-    </header>
+      </Modal>
+    </>
   );
+}
+
+type SummaryTone = "danger" | "warning" | "info" | "success" | "neutral";
+
+function getSummaryCardStyles(tone: SummaryTone): React.CSSProperties {
+  const toneStyles: Record<SummaryTone, { background: string; border: string; text: string }> = {
+    danger: {
+      background: "color-mix(in srgb, var(--accent-danger) 12%, transparent)",
+      border: "color-mix(in srgb, var(--accent-danger) 28%, transparent)",
+      text: "var(--accent-danger)",
+    },
+    warning: {
+      background: "color-mix(in srgb, var(--warning) 12%, transparent)",
+      border: "color-mix(in srgb, var(--warning) 28%, transparent)",
+      text: "var(--warning)",
+    },
+    info: {
+      background: "color-mix(in srgb, var(--info) 12%, transparent)",
+      border: "color-mix(in srgb, var(--info) 28%, transparent)",
+      text: "var(--info)",
+    },
+    success: {
+      background: "color-mix(in srgb, var(--success) 12%, transparent)",
+      border: "color-mix(in srgb, var(--success) 28%, transparent)",
+      text: "var(--success)",
+    },
+    neutral: {
+      background: "var(--bg-tertiary)",
+      border: "var(--border-primary)",
+      text: "var(--text-primary)",
+    },
+  };
+  const palette = toneStyles[tone];
+
+  return {
+    ...summaryCardStyles,
+    background: palette.background,
+    borderColor: palette.border,
+    color: palette.text,
+  };
 }
 
 const containerStyles: React.CSSProperties = {
@@ -455,6 +833,49 @@ const editButtonStyles: React.CSSProperties = {
   fontSize: "var(--font-size-sm)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
   cursor: "pointer",
+  transition: "background-color 0.15s",
+};
+
+const shipButtonStyles: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "var(--spacing-2)",
+  padding: "var(--spacing-2) var(--spacing-3)",
+  background: "var(--success)",
+  border: "none",
+  borderRadius: "var(--radius-md)",
+  color: "var(--text-on-accent)",
+  fontSize: "var(--font-size-sm)",
+  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+  cursor: "pointer",
+  transition: "opacity 0.15s",
+};
+
+const secondaryActionButtonStyles: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "var(--spacing-2)",
+  padding: "var(--spacing-2) var(--spacing-3)",
+  background: "var(--bg-tertiary)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-md)",
+  color: "var(--text-primary)",
+  fontSize: "var(--font-size-sm)",
+  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+  transition: "background-color 0.15s",
+};
+
+const pushButtonStyles: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "var(--spacing-2)",
+  padding: "var(--spacing-2) var(--spacing-3)",
+  background: "var(--bg-tertiary)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-md)",
+  color: "var(--text-primary)",
+  fontSize: "var(--font-size-sm)",
+  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
   transition: "background-color 0.15s",
 };
 
@@ -543,6 +964,61 @@ const badgeRowStyles: React.CSSProperties = {
   alignItems: "center",
 };
 
+const findingsSectionStyles: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "var(--spacing-3)",
+  padding: "var(--spacing-3)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-lg)",
+  background: "var(--bg-secondary)",
+};
+
+const findingsHeaderStyles: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "var(--spacing-1)",
+};
+
+const findingsTitleStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-sm)",
+  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+  color: "var(--text-primary)",
+};
+
+const findingsSubtitleStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-sm)",
+  color: "var(--text-secondary)",
+};
+
+const findingsSummaryGridStyles: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+  gap: "var(--spacing-2)",
+};
+
+const summaryCardStyles: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "var(--spacing-1)",
+  padding: "var(--spacing-3)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-md)",
+};
+
+const summaryCardLabelStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-xs)",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+  color: "var(--text-secondary)",
+};
+
+const summaryCardValueStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-lg)",
+  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+  color: "inherit",
+};
+
 const badgeStyles: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
@@ -614,4 +1090,90 @@ const prStatusBadgeStyles: React.CSSProperties = {
   padding: "2px 8px",
   borderRadius: "var(--radius-sm)",
   marginLeft: "var(--spacing-2)",
+};
+
+const modalContentStyles: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "var(--spacing-4)",
+};
+
+const modalLeadStyles: React.CSSProperties = {
+  margin: 0,
+  color: "var(--text-secondary)",
+  lineHeight: 1.5,
+};
+
+const modalSummaryGridStyles: React.CSSProperties = {
+  ...findingsSummaryGridStyles,
+};
+
+const emptyPanelStyles: React.CSSProperties = {
+  padding: "var(--spacing-4)",
+  borderRadius: "var(--radius-md)",
+  border: "1px dashed var(--border-primary)",
+  color: "var(--text-secondary)",
+  textAlign: "center",
+};
+
+const modalListStyles: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "var(--spacing-3)",
+};
+
+const modalListItemStyles: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "var(--spacing-3)",
+  alignItems: "flex-start",
+  padding: "var(--spacing-3)",
+  borderRadius: "var(--radius-md)",
+  border: "1px solid var(--border-primary)",
+  background: "var(--bg-tertiary)",
+};
+
+const modalListTextStyles: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "6px",
+  flex: 1,
+  minWidth: 0,
+};
+
+const modalMetaStyles: React.CSSProperties = {
+  color: "var(--text-secondary)",
+  fontSize: "var(--font-size-sm)",
+  lineHeight: 1.4,
+};
+
+const modalDescriptionStyles: React.CSSProperties = {
+  color: "var(--text-primary)",
+  lineHeight: 1.5,
+};
+
+const modalButtonStyles: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "var(--spacing-2)",
+  padding: "var(--spacing-2) var(--spacing-3)",
+  borderRadius: "var(--radius-md)",
+  border: "1px solid var(--border-primary)",
+  background: "var(--bg-primary)",
+  color: "var(--text-primary)",
+  fontSize: "var(--font-size-sm)",
+  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+  cursor: "pointer",
+};
+
+const findingStatusStyles: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  padding: "4px 10px",
+  borderRadius: "999px",
+  border: "1px solid transparent",
+  fontSize: "var(--font-size-xs)",
+  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+  whiteSpace: "nowrap",
 };

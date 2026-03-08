@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import type Database from "better-sqlite3";
 import { createTestDatabase } from "../db.ts";
-import { linkCommit, linkPr } from "../git.ts";
+import { deriveSyncedPrStatus, linkCommit, linkPr } from "../git.ts";
 import { TicketNotFoundError } from "../errors.ts";
 import { seedProject, seedTicket } from "./test-helpers.ts";
 
@@ -103,5 +103,25 @@ describe("linkPr", () => {
 
   it("throws TicketNotFoundError for nonexistent ticket", () => {
     expect(() => linkPr(db, "nonexistent", 1)).toThrow(TicketNotFoundError);
+  });
+});
+
+describe("deriveSyncedPrStatus", () => {
+  it("preserves draft status for open draft PRs", () => {
+    expect(
+      deriveSyncedPrStatus("draft", {
+        state: "OPEN",
+        isDraft: true,
+      })
+    ).toBe("draft");
+  });
+
+  it("returns open for non-draft open PRs", () => {
+    expect(
+      deriveSyncedPrStatus("draft", {
+        state: "OPEN",
+        isDraft: false,
+      })
+    ).toBe("open");
   });
 });

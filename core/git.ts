@@ -38,6 +38,12 @@ interface TicketWithPRRow {
   pr_status: string | null;
 }
 
+interface SyncedPrState {
+  state?: string;
+  mergedAt?: string | null;
+  isDraft?: boolean;
+}
+
 // ============================================
 // Result Types
 // ============================================
@@ -226,27 +232,20 @@ function syncProjectPRStatuses(
   for (const ticket of ticketsWithPRs) {
     try {
       const ghResult = runGitCommand(
-        `gh pr view ${ticket.pr_number} --json state,mergedAt 2>/dev/null`,
+        `gh pr view ${ticket.pr_number} --json state,mergedAt,isDraft 2>/dev/null`,
         projectPath
       );
 
       if (!ghResult.success) continue;
 
-      let prData: { state?: string; mergedAt?: string | null };
+      let prData: SyncedPrState;
       try {
-        prData = JSON.parse(ghResult.output) as { state?: string; mergedAt?: string | null };
+        prData = JSON.parse(ghResult.output) as SyncedPrState;
       } catch {
         continue;
       }
 
-      let newStatus = ticket.pr_status;
-      if (prData.state === "MERGED" || prData.mergedAt) {
-        newStatus = "merged";
-      } else if (prData.state === "CLOSED") {
-        newStatus = "closed";
-      } else if (prData.state === "OPEN") {
-        newStatus = "open";
-      }
+      const newStatus = deriveSyncedPrStatus(ticket.pr_status, prData);
 
       if (newStatus !== ticket.pr_status) {
         const now = new Date().toISOString();
@@ -269,6 +268,25 @@ function syncProjectPRStatuses(
   }
 
   return { synced, errors };
+}
+
+export function deriveSyncedPrStatus(
+  currentStatus: string | null,
+  prData: SyncedPrState
+): PrStatus | null {
+  if (prData.state === "MERGED" || prData.mergedAt) {
+    return "merged";
+  }
+
+  if (prData.state === "CLOSED") {
+    return "closed";
+  }
+
+  if (prData.state === "OPEN") {
+    return prData.isDraft ? "draft" : "open";
+  }
+
+  return (currentStatus as PrStatus | null) ?? null;
 }
 
 // ============================================

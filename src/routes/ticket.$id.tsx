@@ -4,6 +4,7 @@ import { useState, useCallback, useRef } from "react";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import { getTicket } from "../api/tickets";
 import { getTicketContext } from "../api/context";
+import { pushBranchServerFn } from "../api/ship-server-fns";
 import { useToast } from "../components/Toast";
 import {
   launchClaudeInTerminal,
@@ -16,8 +17,7 @@ import {
 import { ActivitySection } from "../components/tickets/ActivitySection";
 import { TicketDetailHeader } from "../components/tickets/TicketDetailHeader";
 import { EditTicketModal } from "../components/tickets/EditTicketModal";
-import { TicketDescription } from "../components/tickets";
-import { SubtasksProgress } from "../components/tickets";
+import { ShipChangesModal, TicketDescription, SubtasksProgress } from "../components/tickets";
 import { WorkflowProgress } from "../components/tickets/WorkflowProgress";
 import { ReviewFindingsPanel } from "../components/tickets/ReviewFindingsPanel";
 import { ClaudeTasks } from "../components/tickets/ClaudeTasks";
@@ -26,6 +26,7 @@ import { TelemetryPanel } from "../components/TelemetryPanel";
 import type { Subtask } from "../components/tickets/SubtasksProgress";
 import { type LaunchType } from "../components/tickets/LaunchActions";
 import { POLLING_INTERVALS } from "../lib/constants";
+import { queryKeys } from "../lib/query-keys";
 import {
   useProjects,
   useSettings,
@@ -227,7 +228,7 @@ function TicketDetailSkeleton() {
  * │ Activity (full timeline)                                    │
  * └─────────────────────────────────────────────────────────────┘
  */
-function TicketDetailPage() {
+export function TicketDetailPage() {
   const { id } = useParams({ from: "/ticket/$id" });
   const router = useRouter();
   const canGoBack = useCanGoBack();
@@ -239,6 +240,8 @@ function TicketDetailPage() {
 
   // Modal and launch state
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showShipModal, setShowShipModal] = useState(false);
+  const [isPushingChanges, setIsPushingChanges] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
   const [launchingType, setLaunchingType] = useState<LaunchType | null>(null);
 
@@ -260,6 +263,7 @@ function TicketDetailPage() {
     workflowState,
     loading: workflowLoading,
     error: workflowError,
+    refetch: refetchWorkflowState,
   } = useWorkflowState(id, {
     // Poll for updates when ticket is actively being worked on
     pollingInterval:
@@ -307,6 +311,9 @@ function TicketDetailPage() {
   const epic: Epic | null = ticket
     ? (projects.flatMap((p) => p.epics).find((e) => e.id === ticket.epicId) ?? null)
     : null;
+  const project = ticket
+    ? (projects.find((candidate) => candidate.id === ticket.projectId) ?? null)
+    : null;
 
   // Handle edit button click
   const handleEdit = useCallback(() => {
@@ -323,6 +330,50 @@ function TicketDetailPage() {
     void refetch();
     setShowEditModal(false);
   }, [refetch]);
+
+  const invalidateTicketDetail = useCallback(async () => {
+    await Promise.all([
+      refetch(),
+      queryClient.invalidateQueries({ queryKey: ["ticket", id] }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTickets }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.workflowState(id) }),
+    ]);
+  }, [id, queryClient, refetch]);
+
+  const handleShipSuccess = useCallback(() => {
+    void invalidateTicketDetail();
+    setShowShipModal(false);
+  }, [invalidateTicketDetail]);
+
+  const handlePushChanges = useCallback(async () => {
+    if (!ticket) {
+      return;
+    }
+
+    setIsPushingChanges(true);
+
+    try {
+      const result = await pushBranchServerFn({
+        data: {
+          scopeType: "ticket",
+          scopeId: ticket.id,
+        },
+      });
+
+      if (result.success) {
+        showToast("success", `Pushed ${result.branchName}`);
+        await invalidateTicketDetail();
+        return;
+      }
+
+      showToast("error", result.error);
+    } catch (error) {
+      showToast("error", error instanceof Error ? error.message : "Failed to push branch");
+    } finally {
+      setIsPushingChanges(false);
+    }
+  }, [invalidateTicketDetail, showToast, ticket]);
 
   // Handle back navigation - preserves filter state by using browser history
   // Uses TanStack Router's useCanGoBack hook to check if back navigation is possible
@@ -720,6 +771,9 @@ function TicketDetailPage() {
       <TicketDetailHeader
         ticket={ticket as Ticket}
         epic={epic}
+        onShip={() => setShowShipModal(true)}
+        onPush={handlePushChanges}
+        isPushing={isPushingChanges}
         onEdit={handleEdit}
         onLaunch={handleLaunch}
         isLaunching={isLaunching}
@@ -764,6 +818,9 @@ function TicketDetailPage() {
               workflowState={workflowState}
               loading={workflowLoading}
               error={workflowError}
+              onRetry={() => {
+                void refetchWorkflowState();
+              }}
             />
           )}
         </div>
@@ -813,6 +870,19 @@ function TicketDetailPage() {
         ticket={ticket as Ticket}
         onSuccess={handleEditSuccess}
       />
+
+      {showShipModal && project && (
+        <ShipChangesModal
+          isOpen={showShipModal}
+          onClose={() => setShowShipModal(false)}
+          projectPath={project.path}
+          scopeType="ticket"
+          scopeId={ticket.id}
+          scopeTitle={ticket.title}
+          branchName={ticket.branchName ?? undefined}
+          onSuccess={handleShipSuccess}
+        />
+      )}
     </div>
   );
 }

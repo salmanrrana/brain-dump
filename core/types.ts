@@ -349,6 +349,64 @@ export interface GitOperations {
   createBranch(branch: string, cwd: string): GitCommandResult;
 }
 
+export interface ExecFileNoThrowOptions {
+  cwd?: string;
+  env?: NodeJS.ProcessEnv;
+  timeoutMs?: number;
+  maxBuffer?: number;
+}
+
+export interface ExecFileNoThrowResult {
+  success: boolean;
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+  error?: string;
+}
+
+export interface GitStatusEntry {
+  path: string;
+  status: string;
+  originalPath?: string;
+  indexStatus: string;
+  workingTreeStatus: string;
+}
+
+export interface PullRequestRef {
+  number: number;
+  url: string;
+}
+
+export type ShipScopeType = "ticket" | "epic";
+
+interface ResolvedShipScopeBase {
+  scopeType: ShipScopeType;
+  scopeId: string;
+  title: string;
+  description: string | null;
+  projectId: string;
+  projectName: string;
+  projectPath: string;
+  branchName: string | null;
+  prNumber: number | null;
+  prUrl: string | null;
+  prStatus: PrStatus | null;
+}
+
+export interface ResolvedTicketShipScope extends ResolvedShipScopeBase {
+  scopeType: "ticket";
+  ticketId: string;
+  epicId: string | null;
+}
+
+export interface ResolvedEpicShipScope extends ResolvedShipScopeBase {
+  scopeType: "epic";
+  epicId: string;
+  ticketIds: string[];
+}
+
+export type ResolvedShipScope = ResolvedTicketShipScope | ResolvedEpicShipScope;
+
 // ============================================
 // Delete / Dry-Run Types
 // ============================================

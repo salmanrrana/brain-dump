@@ -26,6 +26,7 @@ import {
 import type { MarkFixedStatus, DemoStepStatus } from "../../core/review.ts";
 import type { FindingAgent, FindingSeverity, FindingStatus } from "../../core/types.ts";
 import { addComment } from "../../core/comment.ts";
+import { execFileNoThrow, syncPrVerificationChecklist } from "../../core/index.ts";
 
 const SEVERITY_ICONS: Record<string, string> = {
   critical: "🔴",
@@ -235,6 +236,25 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
             const steps = requireParam(params.steps, "steps", "generate-demo");
 
             const demo = generateDemo(db, { ticketId, steps });
+            let syncNote = "PR checklist sync skipped: no linked PR found for this ticket.";
+
+            const syncResult = await syncPrVerificationChecklist(
+              { ticketId },
+              {
+                db,
+                execFileNoThrow,
+              }
+            );
+
+            if (syncResult.success) {
+              syncNote = syncResult.message;
+            } else {
+              syncNote = `PR checklist sync warning: ${syncResult.error}`;
+              log.warn(
+                `PR checklist sync failed for ticket ${ticketId}`,
+                new Error(syncResult.error)
+              );
+            }
 
             // Add audit comment to ticket
             addComment(db, {
@@ -244,7 +264,10 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
             });
 
             log.info(`Generated demo script for ticket ${ticketId} with ${steps.length} steps`);
-            return formatResult(demo, "Demo script generated! Ticket moved to human_review.");
+            return formatResult(
+              demo,
+              `Demo script generated! Ticket moved to human_review.\n\n${syncNote}`
+            );
           }
 
           case "get-demo": {

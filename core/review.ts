@@ -352,13 +352,25 @@ export function generateDemo(db: DbHandle, params: GenerateDemoParams): DemoScri
     );
   }
 
-  const id = randomUUID();
   const now = new Date().toISOString();
+  const existingDemo = db
+    .prepare("SELECT id FROM demo_scripts WHERE ticket_id = ?")
+    .get(ticketId) as { id: string } | undefined;
 
-  db.prepare(
-    `INSERT INTO demo_scripts (id, ticket_id, steps, generated_at)
-     VALUES (?, ?, ?, ?)`
-  ).run(id, ticketId, JSON.stringify(steps), now);
+  const demoId = existingDemo?.id ?? randomUUID();
+
+  if (existingDemo) {
+    db.prepare(
+      `UPDATE demo_scripts
+       SET steps = ?, generated_at = ?, completed_at = NULL, feedback = NULL, passed = NULL
+       WHERE ticket_id = ?`
+    ).run(JSON.stringify(steps), now, ticketId);
+  } else {
+    db.prepare(
+      `INSERT INTO demo_scripts (id, ticket_id, steps, generated_at)
+       VALUES (?, ?, ?, ?)`
+    ).run(demoId, ticketId, JSON.stringify(steps), now);
+  }
 
   // Update workflow state (ensure it exists first)
   getOrCreateWorkflowState(db, ticketId);
@@ -372,7 +384,7 @@ export function generateDemo(db: DbHandle, params: GenerateDemoParams): DemoScri
     ticketId
   );
 
-  const row = db.prepare("SELECT * FROM demo_scripts WHERE id = ?").get(id) as DbDemoScriptRow;
+  const row = db.prepare("SELECT * FROM demo_scripts WHERE id = ?").get(demoId) as DbDemoScriptRow;
   return toDemoScript(row);
 }
 

@@ -8,6 +8,8 @@ export interface ReviewFindingsPanelProps {
   loading?: boolean;
   /** Error message if workflow state failed to load */
   error?: string | null;
+  /** Retry or initial-load action for findings data */
+  onRetry?: () => void;
 }
 
 /**
@@ -42,12 +44,15 @@ export const ReviewFindingsPanel: React.FC<ReviewFindingsPanelProps> = ({
   workflowState,
   loading = false,
   error = null,
+  onRetry,
 }) => {
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
-        <Loader2 size={16} className="animate-spin" />
-        <span className="text-sm">Loading findings...</span>
+      <div className="bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg p-4">
+        <div className="flex items-center gap-2 text-[var(--text-tertiary)]">
+          <Loader2 size={16} className="animate-spin" />
+          <span className="text-sm">Loading findings...</span>
+        </div>
       </div>
     );
   }
@@ -59,12 +64,35 @@ export const ReviewFindingsPanel: React.FC<ReviewFindingsPanelProps> = ({
           <AlertCircle size={16} />
           <span className="text-sm">Failed to load findings</span>
         </div>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-3 inline-flex items-center rounded-md border border-[var(--accent-danger)]/30 px-3 py-1.5 text-xs font-medium text-[var(--accent-danger)] hover:bg-[var(--accent-danger)]/10"
+          >
+            Retry
+          </button>
+        )}
       </div>
     );
   }
 
   if (!workflowState) {
-    return null;
+    return (
+      <div className="bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg p-4">
+        <h4 className="text-sm font-medium text-[var(--text-primary)] mb-2">Review Findings</h4>
+        <p className="text-xs text-[var(--text-tertiary)]">Findings are not loaded yet.</p>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-3 inline-flex items-center rounded-md border border-[var(--border-primary)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+          >
+            Load findings
+          </button>
+        )}
+      </div>
+    );
   }
 
   const { findingsSummary } = workflowState;
@@ -143,6 +171,15 @@ export const ReviewFindingsPanel: React.FC<ReviewFindingsPanelProps> = ({
           </span>
           {allFixed && <span className="text-xs text-[var(--success)] ml-1">All resolved</span>}
         </div>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-3 inline-flex items-center rounded-md border border-[var(--border-primary)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+          >
+            Refresh findings
+          </button>
+        )}
       </div>
     </div>
   );

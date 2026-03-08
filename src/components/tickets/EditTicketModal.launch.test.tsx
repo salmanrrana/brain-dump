@@ -6,6 +6,11 @@ import { EditTicketModal } from "./EditTicketModal";
 const mockShowToast = vi.hoisted(() => vi.fn());
 const mockLaunchCodexInTerminal = vi.hoisted(() => vi.fn());
 const mockGetTicketContext = vi.hoisted(() => vi.fn());
+const mockNavigate = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => mockNavigate,
+}));
 
 vi.mock("../../lib/hooks", () => ({
   useClickOutside: vi.fn(),
@@ -16,7 +21,15 @@ vi.mock("../../lib/hooks", () => ({
         id: "project-1",
         name: "Brain Dump",
         path: "/Users/test/brain-dump",
-        epics: [],
+        epics: [
+          {
+            id: "epic-1",
+            title: "Core Epic",
+            projectId: "project-1",
+            color: "#3b82f6",
+            createdAt: "2026-03-08T00:00:00.000Z",
+          },
+        ],
       },
     ],
   })),
@@ -150,6 +163,37 @@ describe("EditTicketModal launch behavior", () => {
     await waitFor(() => {
       expect(onSuccess).toHaveBeenCalledTimes(1);
       expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("shows an epic tag that navigates to epic details", async () => {
+    render(
+      <EditTicketModal
+        isOpen={true}
+        onClose={vi.fn()}
+        ticket={
+          {
+            id: "ticket-1",
+            title: "Validate security tier",
+            description: "Ensure valid values",
+            status: "ready",
+            priority: "high",
+            projectId: "project-1",
+            epicId: "epic-1",
+            tags: "[]",
+            subtasks: "[]",
+            isBlocked: false,
+            blockedReason: null,
+          } as never
+        }
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /open epic core epic/i }));
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/epic/$id",
+      params: { id: "epic-1" },
     });
   });
 });
