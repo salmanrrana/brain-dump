@@ -198,6 +198,42 @@ describe("ShipChangesModal", () => {
     });
   });
 
+  it("allows creating a PR from a clean branch with no changed files", async () => {
+    const user = userEvent.setup();
+    mockGetShipPrep.mockResolvedValueOnce(
+      createPrepResult({
+        changedFiles: [],
+      })
+    );
+
+    const { props } = renderModal();
+
+    expect(
+      await screen.findByText(
+        /reuse the current branch state and create a PR from the existing HEAD commit/i
+      )
+    ).toBeInTheDocument();
+
+    const shipButton = screen.getByRole("button", { name: /ship changes/i });
+    expect(shipButton).toBeEnabled();
+
+    await user.click(shipButton);
+
+    await waitFor(() => {
+      expect(mockCommitAndShipServerFn).toHaveBeenCalledWith({
+        data: {
+          scopeType: "ticket",
+          scopeId: props.scopeId,
+          message: "feat(aa778958): Ship Changes",
+          selectedPaths: [],
+          prTitle: "Ship Changes",
+          prBody: "## Summary\n\n<!-- brain-dump:demo-steps -->",
+          draft: true,
+        },
+      });
+    });
+  });
+
   it("lets the user run review and recheck from the warning state until the marker clears", async () => {
     const user = userEvent.setup();
     mockGetShipPrep

@@ -205,7 +205,8 @@ export function ShipChangesModal({
   const didInitializeFormRef = useRef(false);
 
   const effectiveBranchName = prepData?.currentBranch || branchName || "Unknown branch";
-  const canSelectAll = (prepData?.changedFiles.length ?? 0) > 0;
+  const hasChangedFiles = (prepData?.changedFiles.length ?? 0) > 0;
+  const canSelectAll = hasChangedFiles;
   const allSelected =
     canSelectAll &&
     selectedPaths.length > 0 &&
@@ -216,7 +217,7 @@ export function ShipChangesModal({
     !isSubmitting &&
     Boolean(prepData?.ghAvailable) &&
     Boolean(prepData?.remoteConfigured) &&
-    selectedPaths.length > 0;
+    (!hasChangedFiles || selectedPaths.length > 0);
 
   const checkRows = useMemo(() => {
     if (!prepData) {
@@ -460,7 +461,7 @@ export function ShipChangesModal({
   const handleShip = useCallback(
     async function handleShip(): Promise<void> {
       if (!prepData || !canShip) {
-        if (selectedPaths.length === 0) {
+        if (hasChangedFiles && selectedPaths.length === 0) {
           setVisibleError({
             step: "validate",
             message: "Select at least one changed file before shipping.",
@@ -518,6 +519,7 @@ export function ShipChangesModal({
       canShip,
       commitMessage,
       draftPr,
+      hasChangedFiles,
       prepData,
       prBody,
       prTitle,
@@ -777,7 +779,9 @@ export function ShipChangesModal({
                 <div>
                   <h4 style={panelTitleStyles}>Files to include</h4>
                   <p style={panelBodyStyles}>
-                    Choose exactly which tracked and untracked files will be staged.
+                    {hasChangedFiles
+                      ? "Choose exactly which tracked and untracked files will be staged."
+                      : "No uncommitted files are waiting to be staged. You can still create a PR from the current branch state."}
                   </p>
                 </div>
                 <label style={selectAllLabelStyles}>
@@ -810,7 +814,10 @@ export function ShipChangesModal({
                   ))}
                 </div>
               ) : (
-                <div style={emptyStateStyles}>No changed files found in the repository.</div>
+                <div style={emptyStateStyles}>
+                  No changed files found in the repository. Ship Changes will reuse the current
+                  branch state and create a PR from the existing HEAD commit.
+                </div>
               )}
             </section>
 

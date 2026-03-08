@@ -594,6 +594,128 @@ describe("commitAndShip", () => {
     });
   });
 
+  it("creates a pull request from the current branch when there are no changed files", async () => {
+    seedProject(db, { id: "proj-1", path: "/tmp/ship-project" });
+    seedTicket(db, {
+      id: "ticket-1",
+      projectId: "proj-1",
+      branchName: "feature/ticket-1-ship",
+    });
+
+    const { execFileNoThrow, calls } = createRecordingExec({
+      [createCommandKey("git", ["status", "--short"], "/tmp/ship-project")]: createExecResult(),
+      [createCommandKey("git", ["log", "-1", "--format=%H%n%s"], "/tmp/ship-project")]:
+        createExecResult({
+          stdout: "abcdef1\nfeat(ticket-1): existing branch work\n",
+        }),
+      [createCommandKey(
+        "git",
+        ["push", "-u", "origin", "feature/ticket-1-ship"],
+        "/tmp/ship-project"
+      )]: createExecResult(),
+      [createCommandKey(
+        "gh",
+        [
+          "pr",
+          "create",
+          "--head",
+          "feature/ticket-1-ship",
+          "--title",
+          "Ticket Ship",
+          "--body",
+          "body",
+        ],
+        "/tmp/ship-project"
+      )]: createExecResult({
+        stdout: "https://github.com/example/brain-dump/pull/57\n",
+      }),
+    });
+
+    const result = await commitAndShip(
+      {
+        scopeType: "ticket",
+        scopeId: "ticket-1",
+        message: "feat(ticket-1): ignored when branch is clean",
+        selectedPaths: [],
+        prTitle: "Ticket Ship",
+        prBody: "body",
+        draft: false,
+      },
+      {
+        db,
+        execFileNoThrow,
+        now: () => "2026-03-08T02:00:00.000Z",
+        createId: () => "unused",
+      }
+    );
+
+    expect(result).toEqual({
+      success: true,
+      commitHash: "abcdef1",
+      prNumber: 57,
+      prUrl: "https://github.com/example/brain-dump/pull/57",
+    });
+
+    expect(calls).toEqual([
+      {
+        command: "git",
+        args: ["status", "--short"],
+        options: { cwd: "/tmp/ship-project" },
+      },
+      {
+        command: "git",
+        args: ["log", "-1", "--format=%H%n%s"],
+        options: { cwd: "/tmp/ship-project" },
+      },
+      {
+        command: "git",
+        args: ["push", "-u", "origin", "feature/ticket-1-ship"],
+        options: { cwd: "/tmp/ship-project" },
+      },
+      {
+        command: "gh",
+        args: [
+          "pr",
+          "create",
+          "--head",
+          "feature/ticket-1-ship",
+          "--title",
+          "Ticket Ship",
+          "--body",
+          "body",
+        ],
+        options: {
+          cwd: "/tmp/ship-project",
+          env: expect.objectContaining({
+            GH_PROMPT_DISABLED: "1",
+            GIT_TERMINAL_PROMPT: "0",
+          }),
+          timeoutMs: 30_000,
+        },
+      },
+    ]);
+
+    const ticket = db
+      .prepare("SELECT linked_commits, pr_number, pr_url, pr_status FROM tickets WHERE id = ?")
+      .get("ticket-1") as {
+      linked_commits: string | null;
+      pr_number: number | null;
+      pr_url: string | null;
+      pr_status: string | null;
+    };
+
+    expect(JSON.parse(ticket.linked_commits ?? "[]")).toEqual([
+      {
+        hash: "abcdef1",
+        message: "feat(ticket-1): existing branch work",
+        linkedAt: expect.any(String),
+      },
+    ]);
+    expect(ticket.pr_number).toBe(57);
+    expect(ticket.pr_url).toBe("https://github.com/example/brain-dump/pull/57");
+    expect(ticket.pr_status).toBe("open");
+  });
+
   it("returns a structured error when gh pr create times out in headless mode", async () => {
     seedProject(db, { id: "proj-1", path: "/tmp/ship-project" });
     seedTicket(db, {

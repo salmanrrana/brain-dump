@@ -178,6 +178,11 @@ interface RenderedCriterion {
   checked: boolean;
 }
 
+interface HeadCommitInfo {
+  hash: string;
+  message: string;
+}
+
 function resolveShipPrepScopeInput(input: ShipPrepInput): {
   scopeType: ShipScopeType;
   scopeId: string;
@@ -355,6 +360,19 @@ function getDescriptionLead(description: string | null): string | null {
   return lines[0] ?? null;
 }
 
+function parseHeadCommitInfo(output: string): HeadCommitInfo | null {
+  const [hash, message] = output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (!hash || !message) {
+    return null;
+  }
+
+  return { hash, message };
+}
+
 function toBlockQuote(content: string): string {
   return content
     .trim()
@@ -504,15 +522,8 @@ export async function commitAndShip(
   }
 
   const selectedPaths = normalizeSelectedPaths(input.selectedPaths);
-  if (selectedPaths.length === 0) {
-    return {
-      success: false,
-      step: "validate",
-      error: "Select at least one file before shipping changes.",
-    };
-  }
 
-  if (!input.message.trim()) {
+  if (selectedPaths.length > 0 && !input.message.trim()) {
     return {
       success: false,
       step: "validate",
@@ -545,47 +556,105 @@ export async function commitAndShip(
   }
 
   const commandOptions = { cwd: scope.projectPath };
-  const addResult = await deps.execFileNoThrow(
-    "git",
-    ["add", "--", ...selectedPaths],
-    commandOptions
-  );
-  if (!addResult.success) {
-    return getStructuredCommandError(
-      "stage",
-      "Failed to stage selected files",
-      addResult,
-      "git add failed"
-    );
-  }
+  let commitHash: string;
+  let linkedCommitMessage: string;
 
-  const commitResult = await deps.execFileNoThrow(
-    "git",
-    ["commit", "-m", input.message.trim()],
-    commandOptions
-  );
-  if (!commitResult.success) {
-    return getStructuredCommandError(
-      "commit",
-      "Failed to create commit",
-      commitResult,
-      "git commit failed"
-    );
-  }
+  if (selectedPaths.length === 0) {
+    const statusResult = await deps.execFileNoThrow("git", ["status", "--short"], commandOptions);
+    if (!statusResult.success) {
+      return getStructuredCommandError(
+        "validate",
+        "Failed to inspect repository state",
+        statusResult,
+        "git status failed"
+      );
+    }
 
-  const commitHash = parseCommitHashFromOutput(`${commitResult.stdout}\n${commitResult.stderr}`);
-  if (!commitHash) {
-    return {
-      success: false,
-      step: "commit",
-      error: "Created the commit, but could not parse the commit hash from git output.",
-    };
+    const hasChangedFiles = parseGitStatusShortOutput(statusResult.stdout).length > 0;
+    if (hasChangedFiles) {
+      return {
+        success: false,
+        step: "validate",
+        error: "Select at least one file before shipping changes.",
+      };
+    }
+
+    const headCommitResult = await deps.execFileNoThrow(
+      "git",
+      ["log", "-1", "--format=%H%n%s"],
+      commandOptions
+    );
+    if (!headCommitResult.success) {
+      return getStructuredCommandError(
+        "commit",
+        "Failed to read the current branch commit",
+        headCommitResult,
+        "git log failed"
+      );
+    }
+
+    const headCommitInfo = parseHeadCommitInfo(
+      `${headCommitResult.stdout}\n${headCommitResult.stderr}`
+    );
+    if (!headCommitInfo) {
+      return {
+        success: false,
+        step: "commit",
+        error:
+          "No existing commit could be read from the current branch. Commit changes before creating a pull request.",
+      };
+    }
+
+    commitHash = headCommitInfo.hash;
+    linkedCommitMessage = headCommitInfo.message;
+  } else {
+    const addResult = await deps.execFileNoThrow(
+      "git",
+      ["add", "--", ...selectedPaths],
+      commandOptions
+    );
+    if (!addResult.success) {
+      return getStructuredCommandError(
+        "stage",
+        "Failed to stage selected files",
+        addResult,
+        "git add failed"
+      );
+    }
+
+    const commitResult = await deps.execFileNoThrow(
+      "git",
+      ["commit", "-m", input.message.trim()],
+      commandOptions
+    );
+    if (!commitResult.success) {
+      return getStructuredCommandError(
+        "commit",
+        "Failed to create commit",
+        commitResult,
+        "git commit failed"
+      );
+    }
+
+    const parsedCommitHash = parseCommitHashFromOutput(
+      `${commitResult.stdout}\n${commitResult.stderr}`
+    );
+    if (!parsedCommitHash) {
+      return {
+        success: false,
+        step: "commit",
+        error: "Created the commit, but could not parse the commit hash from git output.",
+      };
+    }
+
+    commitHash = parsedCommitHash;
+    linkedCommitMessage = input.message.trim();
   }
 
   const targetTicketIds = getScopeTicketIds(scope);
   try {
     for (const ticketId of targetTicketIds) {
-      linkCommit(deps.db, ticketId, commitHash, input.message.trim());
+      linkCommit(deps.db, ticketId, commitHash, linkedCommitMessage);
     }
   } catch (error) {
     return {
