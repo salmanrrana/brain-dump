@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import { type FC, useState, useRef, useCallback } from "react";
 import {
   LoaderCircle,
@@ -81,6 +82,7 @@ export const TicketDetailHeader: FC<TicketDetailHeaderProps> = ({
   isLaunching = false,
   launchingType = null,
 }) => {
+  const navigate = useNavigate();
   const [showLaunchMenu, setShowLaunchMenu] = useState(false);
   const launchMenuRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
@@ -114,6 +116,20 @@ export const TicketDetailHeader: FC<TicketDetailHeaderProps> = ({
       );
     }
   }, [ticket.branchName, showToast]);
+
+  const handleOpenEpic = useCallback(() => {
+    if (!epic) {
+      return;
+    }
+
+    void navigate({
+      to: "/epic/$id",
+      params: { id: epic.id },
+      replace: true,
+    }).catch(() => {
+      showToast("error", "Failed to open epic details");
+    });
+  }, [epic, navigate, showToast]);
 
   // Get badge configurations
   const statusConfig = STATUS_BADGE_CONFIG[ticket.status] ?? {
@@ -254,18 +270,23 @@ export const TicketDetailHeader: FC<TicketDetailHeaderProps> = ({
 
         {/* Epic Badge */}
         {epic && (
-          <span
+          <button
+            type="button"
+            onClick={handleOpenEpic}
             style={{
               ...badgeStyles,
+              ...epicBadgeButtonStyles,
               background: epic.color ? `${epic.color}20` : "var(--bg-tertiary)",
               color: epic.color ?? "var(--text-secondary)",
               border: epic.color ? `1px solid ${epic.color}40` : "1px solid var(--border-primary)",
             }}
             data-testid="ticket-epic-badge"
+            aria-label={`Open epic ${epic.title}`}
+            className="hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)]"
           >
             <FolderOpen size={12} style={{ marginRight: "4px" }} />
             {epic.title}
-          </span>
+          </button>
         )}
 
         {/* Tags */}
@@ -453,6 +474,13 @@ const badgeStyles: React.CSSProperties = {
   borderRadius: "var(--radius-full)",
   fontSize: "var(--font-size-xs)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+};
+
+const epicBadgeButtonStyles: React.CSSProperties = {
+  borderWidth: "1px",
+  borderStyle: "solid",
+  cursor: "pointer",
+  transition: "opacity 0.15s",
 };
 
 const tagBadgeStyles: React.CSSProperties = {

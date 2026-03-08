@@ -6,6 +6,7 @@ import { TicketDetailPage } from "./ticket.$id";
 const mockShowToast = vi.hoisted(() => vi.fn());
 const mockPushBranchServerFn = vi.hoisted(() => vi.fn());
 const mockInvalidateQueries = vi.hoisted(() => vi.fn());
+const mockNavigate = vi.hoisted(() => vi.fn());
 
 let ticketState: ReturnType<typeof createTicket>;
 let mockRefetch: ReturnType<typeof vi.fn>;
@@ -17,6 +18,7 @@ vi.mock("@tanstack/react-router", () => ({
     history: { back: vi.fn() },
     navigate: vi.fn(),
   }),
+  useNavigate: () => mockNavigate,
   useCanGoBack: () => true,
 }));
 
@@ -181,10 +183,33 @@ describe("TicketDetailPage ship entry points", () => {
     vi.clearAllMocks();
     ticketState = createTicket();
     mockRefetch = vi.fn(async () => undefined);
+    mockNavigate.mockResolvedValue(undefined);
     mockPushBranchServerFn.mockResolvedValue({
       success: true,
       branchName: "feature/ticket-ship",
     });
+  });
+
+  it("renders the epic badge as navigation that replaces the ticket history entry", async () => {
+    const user = userEvent.setup();
+
+    render(<TicketDetailPage />);
+
+    await user.click(screen.getByRole("button", { name: /open epic ship epic/i }));
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/epic/$id",
+      params: { id: "epic-1" },
+      replace: true,
+    });
+  });
+
+  it("keeps ticket detail behavior unchanged when no epic is assigned", () => {
+    ticketState = createTicket({ epicId: null });
+
+    render(<TicketDetailPage />);
+
+    expect(screen.queryByRole("button", { name: /open epic/i })).not.toBeInTheDocument();
   });
 
   it("shows Ship first, then refreshes to Push after a successful ticket ship", async () => {
