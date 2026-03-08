@@ -2,12 +2,14 @@ import { createFileRoute, useParams, useRouter, useCanGoBack } from "@tanstack/r
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useCallback } from "react";
 import { ArrowLeft, AlertCircle } from "lucide-react";
+import { pushBranchServerFn } from "../api/ship-server-fns";
 import { useEpicDetail } from "../lib/hooks";
 import { EpicDetailHeader } from "../components/epics/EpicDetailHeader";
 import { EpicProgressOverview } from "../components/epics/EpicProgressOverview";
 import { EpicTicketsList } from "../components/epics/EpicTicketsList";
 import { EpicLearnings } from "../components/epics/EpicLearnings";
 import { TicketDescription } from "../components/tickets/TicketDescription";
+import { ShipChangesModal } from "../components/tickets";
 import EpicModal from "../components/EpicModal";
 import { useToast } from "../components/Toast";
 import { queryKeys } from "../lib/query-keys";
@@ -172,6 +174,8 @@ function EpicDetailPage() {
   const queryClient = useQueryClient();
 
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showShipModal, setShowShipModal] = useState(false);
+  const [isPushingChanges, setIsPushingChanges] = useState(false);
 
   const { data: epicDetail, loading: isLoading, error, refetch } = useEpicDetail(id);
 
@@ -195,11 +199,50 @@ function EpicDetailPage() {
     setShowEditModal(false);
   }, []);
 
+  const invalidateEpicDetail = useCallback(async () => {
+    await Promise.all([
+      refetch(),
+      queryClient.invalidateQueries({ queryKey: queryKeys.epicDetail(id) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTickets }),
+    ]);
+  }, [id, queryClient, refetch]);
+
   const handleEditSuccess = useCallback(() => {
     void refetch();
     void queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
     setShowEditModal(false);
   }, [refetch, queryClient]);
+
+  const handleShipSuccess = useCallback(() => {
+    void invalidateEpicDetail();
+    setShowShipModal(false);
+  }, [invalidateEpicDetail]);
+
+  const handlePushChanges = useCallback(async () => {
+    setIsPushingChanges(true);
+
+    try {
+      const result = await pushBranchServerFn({
+        data: {
+          scopeType: "epic",
+          scopeId: id,
+        },
+      });
+
+      if (result.success) {
+        showToast("success", `Pushed ${result.branchName}`);
+        await invalidateEpicDetail();
+        return;
+      }
+
+      showToast("error", result.error);
+    } catch (error) {
+      showToast("error", error instanceof Error ? error.message : "Failed to push branch");
+    } finally {
+      setIsPushingChanges(false);
+    }
+  }, [id, invalidateEpicDetail, showToast]);
 
   if (isLoading) {
     return <EpicDetailSkeleton />;
@@ -249,6 +292,9 @@ function EpicDetailPage() {
         ticketsByStatus={epicDetail.ticketsByStatus}
         workflowState={epicDetail.workflowState}
         tickets={epicDetail.tickets}
+        onShipChanges={() => setShowShipModal(true)}
+        onPushChanges={handlePushChanges}
+        isPushingChanges={isPushingChanges}
         onEdit={handleEdit}
       />
 
@@ -294,6 +340,19 @@ function EpicDetailPage() {
           projectId={epicDetail.epic.projectId}
           onClose={handleEditClose}
           onSave={handleEditSuccess}
+        />
+      )}
+
+      {showShipModal && (
+        <ShipChangesModal
+          isOpen={showShipModal}
+          onClose={() => setShowShipModal(false)}
+          projectPath={epicDetail.project.path}
+          scopeType="epic"
+          scopeId={epicDetail.epic.id}
+          scopeTitle={epicDetail.epic.title}
+          branchName={epicDetail.workflowState?.epicBranchName ?? undefined}
+          onSuccess={handleShipSuccess}
         />
       )}
     </div>

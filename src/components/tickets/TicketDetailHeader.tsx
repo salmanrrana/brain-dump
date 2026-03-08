@@ -1,5 +1,6 @@
 import { type FC, useState, useRef, useCallback } from "react";
 import {
+  LoaderCircle,
   Edit3,
   Play,
   ChevronDown,
@@ -30,6 +31,12 @@ export interface TicketDetailHeaderProps {
   ticket: Ticket;
   /** Epic this ticket belongs to (for display) */
   epic?: Epic | null;
+  /** Handler when Ship is clicked */
+  onShip?: () => void;
+  /** Handler when Push is clicked */
+  onPush?: () => void | Promise<void>;
+  /** Whether a push is currently in progress */
+  isPushing?: boolean;
   /** Handler when Edit button is clicked */
   onEdit: () => void;
   /** Handler when a launch option is selected */
@@ -66,6 +73,9 @@ export interface TicketDetailHeaderProps {
 export const TicketDetailHeader: FC<TicketDetailHeaderProps> = ({
   ticket,
   epic,
+  onShip,
+  onPush,
+  isPushing = false,
   onEdit,
   onLaunch,
   isLaunching = false,
@@ -131,6 +141,41 @@ export const TicketDetailHeader: FC<TicketDetailHeaderProps> = ({
         <h1 style={titleStyles}>{ticket.title}</h1>
 
         <div style={actionsContainerStyles}>
+          {ticket.branchName && !ticket.prNumber && onShip && (
+            <button
+              type="button"
+              onClick={onShip}
+              style={shipButtonStyles}
+              className="hover:opacity-90"
+              aria-label="Ship ticket changes"
+            >
+              <GitPullRequest size={16} />
+              Ship
+            </button>
+          )}
+
+          {ticket.prNumber && onPush && (
+            <button
+              type="button"
+              onClick={() => void onPush()}
+              disabled={isPushing}
+              style={{
+                ...pushButtonStyles,
+                opacity: isPushing ? 0.7 : 1,
+                cursor: isPushing ? "progress" : "pointer",
+              }}
+              className="hover:bg-[var(--bg-hover)]"
+              aria-label="Push branch updates"
+            >
+              {isPushing ? (
+                <LoaderCircle size={16} className="animate-spin" />
+              ) : (
+                <GitBranch size={16} />
+              )}
+              {isPushing ? "Pushing..." : "Push"}
+            </button>
+          )}
+
           {/* Edit Button */}
           <button
             type="button"
@@ -329,6 +374,35 @@ const editButtonStyles: React.CSSProperties = {
   fontSize: "var(--font-size-sm)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
   cursor: "pointer",
+  transition: "background-color 0.15s",
+};
+
+const shipButtonStyles: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "var(--spacing-2)",
+  padding: "var(--spacing-2) var(--spacing-3)",
+  background: "var(--success)",
+  border: "none",
+  borderRadius: "var(--radius-md)",
+  color: "var(--text-on-accent)",
+  fontSize: "var(--font-size-sm)",
+  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+  cursor: "pointer",
+  transition: "opacity 0.15s",
+};
+
+const pushButtonStyles: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "var(--spacing-2)",
+  padding: "var(--spacing-2) var(--spacing-3)",
+  background: "var(--bg-tertiary)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-md)",
+  color: "var(--text-primary)",
+  fontSize: "var(--font-size-sm)",
+  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
   transition: "background-color 0.15s",
 };
 

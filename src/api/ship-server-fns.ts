@@ -100,10 +100,25 @@ export interface SyncPrVerificationChecklistInput {
   ticketId: string;
 }
 
+export interface PushBranchInput {
+  scopeType: ShipScopeType;
+  scopeId: string;
+}
+
 export type GeneratePrBodyResult =
   | {
       success: true;
       body: string;
+    }
+  | {
+      success: false;
+      error: string;
+    };
+
+export type PushBranchResult =
+  | {
+      success: true;
+      branchName: string;
     }
   | {
       success: false;
@@ -133,6 +148,15 @@ export interface CommitAndShipDeps {
   ) => Promise<ExecFileNoThrowResult>;
   now: () => string;
   createId: () => string;
+}
+
+export interface PushBranchDeps {
+  db: DbHandle;
+  execFileNoThrow: (
+    command: string,
+    args: string[],
+    options?: { cwd?: string; env?: NodeJS.ProcessEnv; timeoutMs?: number; maxBuffer?: number }
+  ) => Promise<ExecFileNoThrowResult>;
 }
 
 interface ScopeTicketRow {
@@ -634,6 +658,48 @@ export function generatePrBody(input: GeneratePrBodyInput, db: DbHandle): Genera
   }
 }
 
+export async function pushBranch(
+  input: PushBranchInput,
+  deps: PushBranchDeps
+): Promise<PushBranchResult> {
+  let scope: ReturnType<typeof resolveShipScope>;
+
+  try {
+    scope = resolveShipScope(deps.db, {
+      scopeType: input.scopeType,
+      scopeId: input.scopeId,
+    });
+  } catch (error) {
+    return {
+      success: false,
+      error: getErrorMessage(error),
+    };
+  }
+
+  if (!scope.branchName) {
+    return {
+      success: false,
+      error: `No branch is linked to this ${scope.scopeType}. Start workflow branch creation first.`,
+    };
+  }
+
+  const pushResult = await deps.execFileNoThrow("git", ["push", "origin", scope.branchName], {
+    cwd: scope.projectPath,
+  });
+
+  if (!pushResult.success) {
+    return {
+      success: false,
+      error: `Failed to push branch: ${pushResult.stderr.trim() || pushResult.error || "git push failed"}`,
+    };
+  }
+
+  return {
+    success: true,
+    branchName: scope.branchName,
+  };
+}
+
 export async function isReviewMarkerFresh(
   projectPath: string,
   deps: Pick<ShipPrepDeps, "stat" | "now">
@@ -710,6 +776,11 @@ const defaultCommitAndShipDeps: CommitAndShipDeps = {
   createId: () => randomUUID(),
 };
 
+const defaultPushBranchDeps: PushBranchDeps = {
+  db: sqlite,
+  execFileNoThrow,
+};
+
 export const getShipPrep = createServerFn({ method: "POST" })
   .inputValidator((data: ShipPrepInput) => data)
   .handler(async ({ data }: { data: ShipPrepInput }): Promise<ShipPrepResult> => {
@@ -740,6 +811,12 @@ export const commitAndShipServerFn = createServerFn({ method: "POST" })
   .inputValidator((data: CommitAndShipInput) => data)
   .handler(async ({ data }: { data: CommitAndShipInput }): Promise<CommitAndShipResult> => {
     return commitAndShip(data, defaultCommitAndShipDeps);
+  });
+
+export const pushBranchServerFn = createServerFn({ method: "POST" })
+  .inputValidator((data: PushBranchInput) => data)
+  .handler(async ({ data }: { data: PushBranchInput }): Promise<PushBranchResult> => {
+    return pushBranch(data, defaultPushBranchDeps);
   });
 
 export const syncPrVerificationChecklistServerFn = createServerFn({ method: "POST" })

@@ -66,7 +66,7 @@ export interface ShipChangesModalProps {
   scopeType: "ticket" | "epic";
   scopeId: string;
   scopeTitle: string;
-  branchName?: string;
+  branchName?: string | undefined;
   onSuccess: (prUrl: string) => void;
 }
 

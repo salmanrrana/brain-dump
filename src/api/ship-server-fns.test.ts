@@ -8,6 +8,7 @@ import {
   generatePrBody,
   getShipPrepData,
   isReviewMarkerFresh,
+  pushBranch,
 } from "./ship-server-fns";
 
 type MockExec = (
@@ -554,6 +555,66 @@ describe("commitAndShip", () => {
       success: false,
       step: "pr",
       error: "Pull request was created, but the PR URL/number could not be parsed from gh output.",
+    });
+  });
+});
+
+describe("pushBranch", () => {
+  it("pushes the resolved branch for ticket scope using trusted server-side context", async () => {
+    seedProject(db, { id: "proj-1", path: "/tmp/ship-project" });
+    seedTicket(db, {
+      id: "ticket-1",
+      projectId: "proj-1",
+      branchName: "feature/ticket-1-ship",
+    });
+
+    const { execFileNoThrow, calls } = createRecordingExec({
+      [createCommandKey("git", ["push", "origin", "feature/ticket-1-ship"], "/tmp/ship-project")]:
+        createExecResult(),
+    });
+
+    const result = await pushBranch(
+      {
+        scopeType: "ticket",
+        scopeId: "ticket-1",
+      },
+      {
+        db,
+        execFileNoThrow,
+      }
+    );
+
+    expect(result).toEqual({
+      success: true,
+      branchName: "feature/ticket-1-ship",
+    });
+    expect(calls).toEqual([
+      {
+        command: "git",
+        args: ["push", "origin", "feature/ticket-1-ship"],
+        options: { cwd: "/tmp/ship-project" },
+      },
+    ]);
+  });
+
+  it("returns a structured error when no workflow branch exists", async () => {
+    seedProject(db, { id: "proj-1", path: "/tmp/ship-project" });
+    seedEpic(db, { id: "epic-1", projectId: "proj-1", title: "Ship Epic" });
+
+    const result = await pushBranch(
+      {
+        scopeType: "epic",
+        scopeId: "epic-1",
+      },
+      {
+        db,
+        execFileNoThrow: createMockExec({}),
+      }
+    );
+
+    expect(result).toEqual({
+      success: false,
+      error: "No branch is linked to this epic. Start workflow branch creation first.",
     });
   });
 });
