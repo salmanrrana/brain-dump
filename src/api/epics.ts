@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { db, sqlite } from "../lib/db";
-import { epics, projects, tickets, epicWorkflowState } from "../lib/schema";
-import { desc, eq } from "drizzle-orm";
+import { epics, projects, tickets, epicWorkflowState, reviewFindings } from "../lib/schema";
+import { and, desc, eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { ensureExists } from "../lib/utils";
 import { createLogger } from "../lib/logger";
@@ -62,6 +62,19 @@ export interface EpicDetailResult {
     prUrl: string | null;
     prStatus: string | null;
   } | null;
+  criticalFindings: Array<{
+    id: string;
+    ticketId: string;
+    ticketTitle: string;
+    category: string;
+    agent: string;
+    description: string;
+    filePath: string | null;
+    lineNumber: number | null;
+    status: string;
+    createdAt: string;
+    fixedAt: string | null;
+  }>;
 }
 
 // Types
@@ -292,6 +305,26 @@ export const getEpicDetail = createServerFn({ method: "GET" })
       .where(eq(tickets.epicId, epicId))
       .all();
 
+    const criticalFindings = db
+      .select({
+        id: reviewFindings.id,
+        ticketId: reviewFindings.ticketId,
+        ticketTitle: tickets.title,
+        category: reviewFindings.category,
+        agent: reviewFindings.agent,
+        description: reviewFindings.description,
+        filePath: reviewFindings.filePath,
+        lineNumber: reviewFindings.lineNumber,
+        status: reviewFindings.status,
+        createdAt: reviewFindings.createdAt,
+        fixedAt: reviewFindings.fixedAt,
+      })
+      .from(reviewFindings)
+      .innerJoin(tickets, eq(reviewFindings.ticketId, tickets.id))
+      .where(and(eq(tickets.epicId, epicId), eq(reviewFindings.severity, "critical")))
+      .orderBy(desc(reviewFindings.createdAt))
+      .all();
+
     // Compute ticketsByStatus
     const ticketsByStatus: Record<string, number> = {};
     for (const ticket of epicTickets) {
@@ -353,5 +386,6 @@ export const getEpicDetail = createServerFn({ method: "GET" })
       tickets: epicTickets,
       ticketsByStatus,
       workflowState,
+      criticalFindings,
     };
   });

@@ -10,7 +10,6 @@ const mockGeneratePrBodyServerFn = vi.hoisted(() => vi.fn());
 const mockCommitAndShipServerFn = vi.hoisted(() => vi.fn());
 const mockStartTicketWorkflowFn = vi.hoisted(() => vi.fn());
 const mockStartEpicWorkflowFn = vi.hoisted(() => vi.fn());
-const mockLaunchTerminal = vi.hoisted(() => vi.fn());
 
 vi.mock("../Toast", () => ({
   useToast: () => ({ showToast: mockShowToast }),
@@ -27,19 +26,20 @@ vi.mock("../../api/workflow-server-fns", () => ({
   startEpicWorkflowFn: mockStartEpicWorkflowFn,
 }));
 
-vi.mock("../../api/dev-tools", () => ({
-  launchTerminal: mockLaunchTerminal,
-}));
-
 function createPrepResult(
   overrides: Partial<{
     changedFiles: Array<{ path: string; status: string }>;
     currentBranch: string;
     isSafeToShip: boolean;
-    reviewMarkerFresh: boolean;
     ghAvailable: boolean;
     remoteConfigured: boolean;
     inferredScope: { type: "ticket" | "epic"; id: string; title: string } | null;
+    existingPr: {
+      number: number;
+      url: string | null;
+      status: "draft" | "open" | "merged" | "closed" | null;
+    } | null;
+    headCommit: { hash: string; message: string } | null;
   }> = {}
 ) {
   return {
@@ -50,13 +50,17 @@ function createPrepResult(
     ],
     currentBranch: "feature/ship-changes",
     isSafeToShip: true,
-    reviewMarkerFresh: true,
     ghAvailable: true,
     remoteConfigured: true,
     inferredScope: {
       type: "ticket" as const,
       id: "ticket-1",
       title: "Ship Changes",
+    },
+    existingPr: null,
+    headCommit: {
+      hash: "abc1234",
+      message: "feat(ship): existing branch work",
     },
     ...overrides,
   };
@@ -108,13 +112,9 @@ describe("ShipChangesModal", () => {
       branchCreated: true,
       warnings: [],
     });
-    mockLaunchTerminal.mockResolvedValue({
-      success: true,
-      message: "Terminal opened in /tmp/brain-dump",
-    });
   });
 
-  it("loads preflight data on open, lets the user choose files, and completes the happy path", async () => {
+  it("loads preflight data on open, shows all repository changes, and completes the happy path", async () => {
     const user = userEvent.setup();
     const { props } = renderModal();
 
@@ -130,15 +130,9 @@ describe("ShipChangesModal", () => {
     expect(screen.getByText("src/app.tsx")).toBeInTheDocument();
     expect(screen.getByText("src/new-file.ts")).toBeInTheDocument();
     expect(screen.getByDisplayValue("feat(aa778958): Ship Changes")).toBeInTheDocument();
-
-    const selectAll = screen.getByRole("checkbox", { name: /select all/i });
     const shipButton = screen.getByRole("button", { name: /ship changes/i });
-
-    await user.click(selectAll);
-    expect(shipButton).toBeDisabled();
-
-    await user.click(selectAll);
     expect(shipButton).not.toBeDisabled();
+    expect(screen.queryByRole("checkbox", { name: /select all/i })).not.toBeInTheDocument();
 
     await user.click(shipButton);
 
@@ -166,36 +160,23 @@ describe("ShipChangesModal", () => {
     expect(props.onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps stale review marker as a warning and still allows shipping", async () => {
-    const user = userEvent.setup();
-    mockGetShipPrep.mockResolvedValueOnce(createPrepResult({ reviewMarkerFresh: false }));
-
-    const { props } = renderModal();
-
-    const warningPanel = await screen.findByTestId("ship-review-warning");
-    expect(warningPanel).toBeInTheDocument();
-    expect(screen.getByText("Review marker is missing or stale")).toBeInTheDocument();
-
-    const fileCheckbox = screen.getByRole("checkbox", { name: /select m src\/app\.tsx/i });
-    const shipButton = screen.getByRole("button", { name: /ship changes/i });
-    expect(fileCheckbox).toBeEnabled();
-    expect(shipButton).toBeEnabled();
-
-    await user.click(shipButton);
-
-    await waitFor(() => {
-      expect(mockCommitAndShipServerFn).toHaveBeenCalledWith({
-        data: {
-          scopeType: "ticket",
-          scopeId: props.scopeId,
-          message: "feat(aa778958): Ship Changes",
-          selectedPaths: ["src/app.tsx", "src/new-file.ts"],
-          prTitle: "Ship Changes",
-          prBody: "## Summary\n\n<!-- brain-dump:demo-steps -->",
-          draft: true,
+  it("shows an existing linked PR instead of allowing duplicate shipping", async () => {
+    mockGetShipPrep.mockResolvedValueOnce(
+      createPrepResult({
+        existingPr: {
+          number: 42,
+          url: "https://example.com/pr/42",
+          status: "open",
         },
-      });
-    });
+      })
+    );
+
+    renderModal();
+
+    expect(await screen.findByTestId("ship-existing-pr-state")).toBeInTheDocument();
+    expect(screen.getByText(/already has pr #42 linked/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /ship changes/i })).not.toBeInTheDocument();
+    expect(mockCommitAndShipServerFn).not.toHaveBeenCalled();
   });
 
   it("allows creating a PR from a clean branch with no changed files", async () => {
@@ -208,10 +189,9 @@ describe("ShipChangesModal", () => {
 
     const { props } = renderModal();
 
+    expect(await screen.findByTestId("ship-head-commit-message")).toBeInTheDocument();
     expect(
-      await screen.findByText(
-        /reuse the current branch state and create a PR from the existing HEAD commit/i
-      )
+      screen.getByText(/no new commit will be created from this modal while the branch is clean/i)
     ).toBeInTheDocument();
 
     const shipButton = screen.getByRole("button", { name: /ship changes/i });
@@ -224,7 +204,7 @@ describe("ShipChangesModal", () => {
         data: {
           scopeType: "ticket",
           scopeId: props.scopeId,
-          message: "feat(aa778958): Ship Changes",
+          message: "",
           selectedPaths: [],
           prTitle: "Ship Changes",
           prBody: "## Summary\n\n<!-- brain-dump:demo-steps -->",
@@ -232,36 +212,6 @@ describe("ShipChangesModal", () => {
         },
       });
     });
-  });
-
-  it("lets the user run review and recheck from the warning state until the marker clears", async () => {
-    const user = userEvent.setup();
-    mockGetShipPrep
-      .mockResolvedValueOnce(createPrepResult({ reviewMarkerFresh: false }))
-      .mockResolvedValueOnce(createPrepResult({ reviewMarkerFresh: true }));
-
-    renderModal();
-
-    expect(await screen.findByTestId("ship-review-warning")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: /run review/i }));
-
-    await waitFor(() => {
-      expect(mockLaunchTerminal).toHaveBeenCalledWith({
-        data: { projectPath: "/tmp/brain-dump" },
-      });
-    });
-
-    await user.click(screen.getByRole("button", { name: /recheck/i }));
-
-    await waitFor(() => {
-      expect(mockGetShipPrep).toHaveBeenCalledTimes(2);
-    });
-
-    await waitFor(() => {
-      expect(screen.queryByTestId("ship-review-warning")).not.toBeInTheDocument();
-    });
-    expect(screen.getByRole("button", { name: /ship changes/i })).toBeInTheDocument();
   });
 
   it("shows blocked-main and creates a feature branch before returning to preflight", async () => {

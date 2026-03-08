@@ -17,10 +17,9 @@ import {
   ExternalLink,
   FolderGit2,
   GitBranch,
+  GitPullRequest,
   LoaderCircle,
   RefreshCcw,
-  ShieldAlert,
-  TerminalSquare,
 } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../Toast";
@@ -32,9 +31,8 @@ import {
   type ShipPrepData,
 } from "../../api/ship-server-fns";
 import { startEpicWorkflowFn, startTicketWorkflowFn } from "../../api/workflow-server-fns";
-import { launchTerminal } from "../../api/dev-tools";
 
-type ShipChangesView = "preflight" | "blocked-main" | "running" | "done" | "error";
+type ShipChangesView = "preflight" | "blocked-main" | "existing-pr" | "running" | "done" | "error";
 
 interface ShipResult {
   commitHash: string;
@@ -43,7 +41,7 @@ interface ShipResult {
 }
 
 interface VisibleError {
-  step: ShipMutationStep | "load" | "review" | "branch";
+  step: ShipMutationStep | "load" | "branch";
   message: string;
 }
 
@@ -64,28 +62,53 @@ export interface ShipChangesModalProps {
   onSuccess: (prUrl: string) => void;
 }
 
-const RUNNING_STEPS: RunningStepDefinition[] = [
-  {
-    id: "stage",
-    label: "Stage files",
-    description: "Preparing the selected files for commit.",
-  },
-  {
-    id: "commit",
-    label: "Create commit",
-    description: "Recording the selected changes with your commit message.",
-  },
-  {
-    id: "push",
-    label: "Push branch",
-    description: "Sending the current branch to the remote.",
-  },
-  {
-    id: "pr",
-    label: "Create pull request",
-    description: "Opening the pull request with the generated body.",
-  },
-];
+function getRunningSteps(hasChangedFiles: boolean): RunningStepDefinition[] {
+  return hasChangedFiles
+    ? [
+        {
+          id: "stage",
+          label: "Stage repository changes",
+          description: "Preparing all current changes for the new commit.",
+        },
+        {
+          id: "commit",
+          label: "Create commit",
+          description: "Recording the current repository changes with your commit message.",
+        },
+        {
+          id: "push",
+          label: "Push branch",
+          description: "Sending the current branch to the remote.",
+        },
+        {
+          id: "pr",
+          label: "Create pull request",
+          description: "Opening the pull request with the generated body.",
+        },
+      ]
+    : [
+        {
+          id: "stage",
+          label: "Confirm clean branch",
+          description: "Verifying there are no uncommitted changes left to ship.",
+        },
+        {
+          id: "commit",
+          label: "Reuse HEAD commit",
+          description: "Using the existing branch commit instead of creating a new one.",
+        },
+        {
+          id: "push",
+          label: "Push branch",
+          description: "Sending the current branch to the remote.",
+        },
+        {
+          id: "pr",
+          label: "Create pull request",
+          description: "Opening the pull request with the generated body.",
+        },
+      ];
+}
 
 function getScopeInput(
   scopeType: ShipChangesModalProps["scopeType"],
@@ -107,6 +130,10 @@ function getNextView(prep: ShipPrepData): ShipChangesView {
     return "blocked-main";
   }
 
+  if (prep.existingPr) {
+    return "existing-pr";
+  }
+
   return "preflight";
 }
 
@@ -114,8 +141,6 @@ function getStepLabel(step: VisibleError["step"]): string {
   switch (step) {
     case "load":
       return "Loading preflight data";
-    case "review":
-      return "Run review";
     case "branch":
       return "Create feature branch";
     case "validate":
@@ -133,10 +158,7 @@ function getStepLabel(step: VisibleError["step"]): string {
   }
 }
 
-function getCheckTone(
-  value: boolean,
-  warnWhenFalse = false
-): {
+function getCheckTone(value: boolean): {
   color: string;
   background: string;
   border: string;
@@ -150,16 +172,6 @@ function getCheckTone(
       border: "color-mix(in srgb, var(--success) 28%, transparent)",
       icon: <CheckCircle2 size={16} aria-hidden="true" />,
       label: "Passing",
-    };
-  }
-
-  if (warnWhenFalse) {
-    return {
-      color: "var(--warning)",
-      background: "color-mix(in srgb, var(--warning) 12%, transparent)",
-      border: "color-mix(in srgb, var(--warning) 28%, transparent)",
-      icon: <ShieldAlert size={16} aria-hidden="true" />,
-      label: "Needs attention",
     };
   }
 
@@ -186,7 +198,6 @@ export function ShipChangesModal({
 
   const [view, setView] = useState<ShipChangesView>("preflight");
   const [prepData, setPrepData] = useState<ShipPrepData | null>(null);
-  const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
   const [commitMessage, setCommitMessage] = useState("");
   const [prTitle, setPrTitle] = useState("");
   const [prBody, setPrBody] = useState("");
@@ -196,7 +207,6 @@ export function ShipChangesModal({
   const [shipResult, setShipResult] = useState<ShipResult | null>(null);
   const [isLoadingPreflight, setIsLoadingPreflight] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLaunchingReview, setIsLaunchingReview] = useState(false);
   const [isCreatingBranch, setIsCreatingBranch] = useState(false);
   const [activeRunningStep, setActiveRunningStep] = useState<RunningStepDefinition["id"]>("stage");
 
@@ -206,18 +216,13 @@ export function ShipChangesModal({
 
   const effectiveBranchName = prepData?.currentBranch || branchName || "Unknown branch";
   const hasChangedFiles = (prepData?.changedFiles.length ?? 0) > 0;
-  const canSelectAll = hasChangedFiles;
-  const allSelected =
-    canSelectAll &&
-    selectedPaths.length > 0 &&
-    selectedPaths.length === (prepData?.changedFiles.length ?? 0);
+  const runningSteps = useMemo(() => getRunningSteps(hasChangedFiles), [hasChangedFiles]);
   const canShip =
     view === "preflight" &&
     !isLoadingPreflight &&
     !isSubmitting &&
     Boolean(prepData?.ghAvailable) &&
-    Boolean(prepData?.remoteConfigured) &&
-    (!hasChangedFiles || selectedPaths.length > 0);
+    Boolean(prepData?.remoteConfigured);
 
   const checkRows = useMemo(() => {
     if (!prepData) {
@@ -231,13 +236,6 @@ export function ShipChangesModal({
           ? `${prepData.currentBranch} can be shipped`
           : `${prepData.currentBranch} is protected`,
         tone: getCheckTone(prepData.isSafeToShip),
-      },
-      {
-        label: "Review marker",
-        detail: prepData.reviewMarkerFresh
-          ? "Fresh review marker found in .claude/.review-completed"
-          : "Review marker is missing or stale",
-        tone: getCheckTone(prepData.reviewMarkerFresh, true),
       },
       {
         label: "GitHub CLI",
@@ -266,18 +264,18 @@ export function ShipChangesModal({
 
       let stepIndex = 0;
       progressTimerRef.current = setInterval(() => {
-        stepIndex = Math.min(stepIndex + 1, RUNNING_STEPS.length - 1);
-        const nextStep = RUNNING_STEPS[stepIndex];
+        stepIndex = Math.min(stepIndex + 1, runningSteps.length - 1);
+        const nextStep = runningSteps[stepIndex];
         if (nextStep) {
           setActiveRunningStep(nextStep.id);
         }
 
-        if (stepIndex >= RUNNING_STEPS.length - 1) {
+        if (stepIndex >= runningSteps.length - 1) {
           stopProgressAnimation();
         }
       }, 700);
     },
-    [stopProgressAnimation]
+    [runningSteps, stopProgressAnimation]
   );
 
   const loadPreflight = useCallback(
@@ -301,7 +299,6 @@ export function ShipChangesModal({
         }
 
         setPrepData(prepResult);
-        setSelectedPaths(prepResult.changedFiles.map((file) => file.path));
 
         if (resetForm || !didInitializeFormRef.current) {
           setCommitMessage(getDefaultCommitMessage(scopeId, scopeTitle));
@@ -338,7 +335,6 @@ export function ShipChangesModal({
 
     setView("preflight");
     setPrepData(null);
-    setSelectedPaths([]);
     setCommitMessage("");
     setPrTitle("");
     setPrBody("");
@@ -347,7 +343,6 @@ export function ShipChangesModal({
     setVisibleError(null);
     setShipResult(null);
     setIsSubmitting(false);
-    setIsLaunchingReview(false);
     setIsCreatingBranch(false);
     setActiveRunningStep("stage");
     didReportSuccessRef.current = false;
@@ -374,51 +369,6 @@ export function ShipChangesModal({
       onClose();
     },
     [onClose, onSuccess, shipResult, view]
-  );
-
-  const toggleSelectedPath = useCallback(function toggleSelectedPath(path: string): void {
-    setSelectedPaths((current) =>
-      current.includes(path) ? current.filter((value) => value !== path) : [...current, path]
-    );
-  }, []);
-
-  const handleToggleAll = useCallback(
-    function handleToggleAll(): void {
-      if (!prepData) {
-        return;
-      }
-
-      setSelectedPaths((current) =>
-        current.length === prepData.changedFiles.length
-          ? []
-          : prepData.changedFiles.map((file) => file.path)
-      );
-    },
-    [prepData]
-  );
-
-  const handleRunReview = useCallback(
-    async function handleRunReview(): Promise<void> {
-      setIsLaunchingReview(true);
-      setVisibleError(null);
-
-      try {
-        const result = await launchTerminal({ data: { projectPath } });
-        if (result.success) {
-          showToast("success", result.message);
-        } else {
-          setVisibleError({ step: "review", message: result.message });
-        }
-      } catch (error) {
-        setVisibleError({
-          step: "review",
-          message: error instanceof Error ? error.message : "Failed to launch review terminal.",
-        });
-      } finally {
-        setIsLaunchingReview(false);
-      }
-    },
-    [projectPath, showToast]
   );
 
   const handleCreateBranch = useCallback(
@@ -461,12 +411,6 @@ export function ShipChangesModal({
   const handleShip = useCallback(
     async function handleShip(): Promise<void> {
       if (!prepData || !canShip) {
-        if (hasChangedFiles && selectedPaths.length === 0) {
-          setVisibleError({
-            step: "validate",
-            message: "Select at least one changed file before shipping.",
-          });
-        }
         return;
       }
 
@@ -480,8 +424,10 @@ export function ShipChangesModal({
           data: {
             scopeType,
             scopeId,
-            message: commitMessage.trim() || getDefaultCommitMessage(scopeId, scopeTitle),
-            selectedPaths,
+            message: hasChangedFiles
+              ? commitMessage.trim() || getDefaultCommitMessage(scopeId, scopeTitle)
+              : "",
+            selectedPaths: hasChangedFiles ? prepData.changedFiles.map((file) => file.path) : [],
             prTitle: prTitle.trim() || getDefaultPrTitle(scopeTitle),
             prBody,
             draft: draftPr,
@@ -526,7 +472,6 @@ export function ShipChangesModal({
       scopeId,
       scopeTitle,
       scopeType,
-      selectedPaths,
       startProgressAnimation,
       stopProgressAnimation,
     ]
@@ -602,7 +547,7 @@ export function ShipChangesModal({
   }
 
   const footer =
-    view === "done" ? (
+    view === "done" || view === "existing-pr" ? (
       <div style={footerRowStyles}>
         <button type="button" onClick={handleRequestClose} style={primaryButtonStyles}>
           Close
@@ -657,8 +602,8 @@ export function ShipChangesModal({
           <div>
             <h3 style={sectionHeadingStyles}>Prepare commit, push, and PR from one modal</h3>
             <p style={supportTextStyles}>
-              Review the repository state, choose the files to include, then ship from the current
-              branch with visible progress and failure feedback.
+              Review the current branch state, confirm what will be shipped, then create the pull
+              request with visible progress and failure feedback.
             </p>
           </div>
         </div>
@@ -713,41 +658,6 @@ export function ShipChangesModal({
               </div>
             </section>
 
-            {prepData && !prepData.reviewMarkerFresh && view !== "blocked-main" && (
-              <section style={blockedPanelStyles} data-testid="ship-review-warning">
-                <div style={blockedHeaderStyles}>
-                  <ShieldAlert size={20} aria-hidden="true" />
-                  <div>
-                    <h4 style={panelTitleStyles}>Review marker needs attention</h4>
-                    <p style={panelBodyStyles}>
-                      Run review from the project directory if you want a fresh marker, or continue
-                      shipping with the current selection. Recheck updates this warning in place.
-                    </p>
-                  </div>
-                </div>
-                <div style={actionRowStyles}>
-                  <button
-                    type="button"
-                    onClick={() => void handleRunReview()}
-                    disabled={isLaunchingReview}
-                    style={secondaryButtonStyles}
-                  >
-                    <TerminalSquare size={16} aria-hidden="true" />
-                    {isLaunchingReview ? "Launching…" : "Run Review"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void loadPreflight(false)}
-                    disabled={isLoadingPreflight}
-                    style={primaryButtonStyles}
-                  >
-                    <RefreshCcw size={16} aria-hidden="true" />
-                    Recheck
-                  </button>
-                </div>
-              </section>
-            )}
-
             {view === "blocked-main" && (
               <section style={blockedPanelStyles} data-testid="ship-blocked-main">
                 <div style={blockedHeaderStyles}>
@@ -777,22 +687,13 @@ export function ShipChangesModal({
             <section style={panelStyles}>
               <div style={panelHeaderStyles}>
                 <div>
-                  <h4 style={panelTitleStyles}>Files to include</h4>
+                  <h4 style={panelTitleStyles}>Repository changes</h4>
                   <p style={panelBodyStyles}>
                     {hasChangedFiles
-                      ? "Choose exactly which tracked and untracked files will be staged."
-                      : "No uncommitted files are waiting to be staged. You can still create a PR from the current branch state."}
+                      ? "All current tracked and untracked changes will be included in the new commit."
+                      : "No uncommitted files are waiting to be staged. Ship Changes will reuse the current branch state instead of creating a new commit."}
                   </p>
                 </div>
-                <label style={selectAllLabelStyles}>
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    onChange={handleToggleAll}
-                    disabled={!canSelectAll || isLoadingPreflight || view !== "preflight"}
-                  />
-                  Select all
-                </label>
               </div>
 
               {!prepData && isLoadingPreflight ? (
@@ -800,17 +701,10 @@ export function ShipChangesModal({
               ) : prepData?.changedFiles.length ? (
                 <div style={fileListStyles}>
                   {prepData.changedFiles.map((file) => (
-                    <label key={file.path} style={fileRowStyles}>
-                      <input
-                        type="checkbox"
-                        checked={selectedPaths.includes(file.path)}
-                        onChange={() => toggleSelectedPath(file.path)}
-                        disabled={view !== "preflight"}
-                        aria-label={`Select ${file.status} ${file.path}`}
-                      />
+                    <div key={file.path} style={fileRowStyles}>
                       <code style={statusCodeStyles}>{file.status}</code>
                       <span style={filePathStyles}>{file.path}</span>
-                    </label>
+                    </div>
                   ))}
                 </div>
               ) : (
@@ -823,17 +717,30 @@ export function ShipChangesModal({
 
             <section style={panelStyles}>
               <div style={formGridStyles}>
-                <label style={fieldLabelStyles}>
-                  Commit message
-                  <input
-                    type="text"
-                    value={commitMessage}
-                    onChange={(event) => setCommitMessage(event.target.value)}
-                    disabled={view !== "preflight"}
-                    style={textInputStyles}
-                    placeholder={getDefaultCommitMessage(scopeId, scopeTitle)}
-                  />
-                </label>
+                {hasChangedFiles ? (
+                  <label style={fieldLabelStyles}>
+                    Commit message
+                    <input
+                      type="text"
+                      value={commitMessage}
+                      onChange={(event) => setCommitMessage(event.target.value)}
+                      disabled={view !== "preflight"}
+                      style={textInputStyles}
+                      placeholder={getDefaultCommitMessage(scopeId, scopeTitle)}
+                    />
+                  </label>
+                ) : (
+                  <div style={fieldLabelStyles}>
+                    Existing HEAD commit
+                    <div style={readOnlyValueStyles} data-testid="ship-head-commit-message">
+                      {prepData?.headCommit?.message ??
+                        "No existing branch commit could be read yet. A PR cannot be created until the branch has at least one commit."}
+                    </div>
+                    <div style={fieldHintStyles}>
+                      No new commit will be created from this modal while the branch is clean.
+                    </div>
+                  </div>
+                )}
                 <label style={fieldLabelStyles}>
                   PR title
                   <input
@@ -883,6 +790,59 @@ export function ShipChangesModal({
           </>
         )}
 
+        {view === "existing-pr" && prepData?.existingPr && (
+          <section style={successPanelStyles} data-testid="ship-existing-pr-state">
+            <div style={blockedHeaderStyles}>
+              <GitPullRequest size={24} color="var(--accent-primary)" aria-hidden="true" />
+              <div>
+                <h4 style={panelTitleStyles}>Pull request already exists</h4>
+                <p style={panelBodyStyles}>
+                  This {scopeType} already has PR #{prepData.existingPr.number} linked. Use the push
+                  action from the page header if you need to send more commits.
+                </p>
+              </div>
+            </div>
+
+            <div style={successValueGridStyles}>
+              <div style={successValueCardStyles}>
+                <span style={successLabelStyles}>Linked pull request</span>
+                <code style={successCodeStyles}>#{prepData.existingPr.number}</code>
+                <div style={actionRowStyles}>
+                  {prepData.existingPr.url && (
+                    <button
+                      type="button"
+                      onClick={() => void handleCopy(prepData.existingPr!.url!, "PR URL")}
+                      style={secondaryButtonStyles}
+                    >
+                      <Copy size={16} aria-hidden="true" />
+                      Copy URL
+                    </button>
+                  )}
+                  {prepData.existingPr.url && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        window.open(prepData.existingPr?.url ?? "", "_blank", "noopener,noreferrer")
+                      }
+                      style={primaryButtonStyles}
+                    >
+                      <ExternalLink size={16} aria-hidden="true" />
+                      Open PR
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div style={successValueCardStyles}>
+                <span style={successLabelStyles}>Status</span>
+                <code style={successCodeStyles}>{prepData.existingPr.status ?? "open"}</code>
+                <div style={panelBodyStyles}>
+                  The linked PR state is tracked outside this modal.
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         {view === "running" && (
           <section style={panelStyles} data-testid="ship-running-state">
             <div style={runningHeaderStyles}>
@@ -895,10 +855,8 @@ export function ShipChangesModal({
               </div>
             </div>
             <div style={runningStepListStyles}>
-              {RUNNING_STEPS.map((step, index) => {
-                const activeIndex = RUNNING_STEPS.findIndex(
-                  (item) => item.id === activeRunningStep
-                );
+              {runningSteps.map((step, index) => {
+                const activeIndex = runningSteps.findIndex((item) => item.id === activeRunningStep);
                 const isDone = index < activeIndex;
                 const isActive = index === activeIndex;
 
@@ -1210,7 +1168,7 @@ const fileListStyles: CSSProperties = {
 
 const fileRowStyles: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "18px auto 1fr",
+  gridTemplateColumns: "auto 1fr",
   alignItems: "center",
   gap: "10px",
   padding: "10px 12px",
@@ -1241,14 +1199,6 @@ const emptyStateStyles: CSSProperties = {
   textAlign: "center",
 };
 
-const selectAllLabelStyles: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "8px",
-  fontSize: "14px",
-  color: "var(--text-secondary)",
-};
-
 const formGridStyles: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
@@ -1271,6 +1221,22 @@ const textInputStyles: CSSProperties = {
   background: "var(--bg-primary)",
   color: "var(--text-primary)",
   fontSize: "14px",
+};
+
+const readOnlyValueStyles: CSSProperties = {
+  padding: "10px 12px",
+  borderRadius: "var(--radius-md)",
+  border: "1px solid var(--border-primary)",
+  background: "var(--bg-primary)",
+  color: "var(--text-primary)",
+  lineHeight: 1.5,
+};
+
+const fieldHintStyles: CSSProperties = {
+  color: "var(--text-secondary)",
+  fontSize: "13px",
+  fontWeight: 400,
+  lineHeight: 1.4,
 };
 
 const checkboxRowStyles: CSSProperties = {

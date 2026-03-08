@@ -1,6 +1,3 @@
-import type { Stats } from "fs";
-import { stat as statFile } from "fs/promises";
-import { join } from "path";
 import { randomUUID } from "crypto";
 import { CoreError } from "../../core/errors.ts";
 import { linkCommit, linkPr } from "../../core/git.ts";
@@ -22,8 +19,6 @@ import type {
 import { extractAcceptanceCriteria } from "../lib/prd-extraction";
 import { sqlite } from "../lib/db";
 
-const REVIEW_MARKER_PATH = join(".claude", ".review-completed");
-const REVIEW_MARKER_MAX_AGE_MS = 5 * 60 * 1000;
 const PROTECTED_BRANCHES = new Set(["main", "master", "develop"]);
 const PR_CREATE_TIMEOUT_MS = 30_000;
 
@@ -43,14 +38,21 @@ export interface ShipPrepScopeRef {
   title: string;
 }
 
+export interface ShipPrepExistingPr {
+  number: number;
+  url: string | null;
+  status: PrStatus | null;
+}
+
 export interface ShipPrepData {
   changedFiles: ShipPrepChangedFile[];
   currentBranch: string;
   isSafeToShip: boolean;
-  reviewMarkerFresh: boolean;
   ghAvailable: boolean;
   remoteConfigured: boolean;
   inferredScope: ShipPrepScopeRef | null;
+  existingPr: ShipPrepExistingPr | null;
+  headCommit: HeadCommitInfo | null;
 }
 
 export type ShipPrepResult = ({ success: true } & ShipPrepData) | { success: false; error: string };
@@ -62,8 +64,6 @@ export interface ShipPrepDeps {
     args: string[],
     options?: { cwd?: string; env?: NodeJS.ProcessEnv; timeoutMs?: number; maxBuffer?: number }
   ) => Promise<ExecFileNoThrowResult>;
-  stat: (path: string) => Promise<Pick<Stats, "mtimeMs">>;
-  now: () => number;
 }
 
 export interface CommitAndShipInput {
@@ -178,7 +178,7 @@ interface RenderedCriterion {
   checked: boolean;
 }
 
-interface HeadCommitInfo {
+export interface HeadCommitInfo {
   hash: string;
   message: string;
 }
@@ -803,18 +803,6 @@ export async function pushBranch(
   };
 }
 
-export async function isReviewMarkerFresh(
-  projectPath: string,
-  deps: Pick<ShipPrepDeps, "stat" | "now">
-): Promise<boolean> {
-  try {
-    const markerStat = await deps.stat(join(projectPath, REVIEW_MARKER_PATH));
-    return deps.now() - markerStat.mtimeMs <= REVIEW_MARKER_MAX_AGE_MS;
-  } catch {
-    return false;
-  }
-}
-
 export async function getShipPrepData(
   input: ShipPrepInput,
   deps: ShipPrepDeps
@@ -823,15 +811,13 @@ export async function getShipPrepData(
   const scope = resolveShipScope(deps.db, scopeInput);
   const commandOptions = { cwd: scope.projectPath };
 
-  const [statusResult, branchResult, ghResult, remoteResult, reviewMarkerFresh] = await Promise.all(
-    [
-      deps.execFileNoThrow("git", ["status", "--short"], commandOptions),
-      deps.execFileNoThrow("git", ["branch", "--show-current"], commandOptions),
-      deps.execFileNoThrow("which", ["gh"]),
-      deps.execFileNoThrow("git", ["remote"], commandOptions),
-      isReviewMarkerFresh(scope.projectPath, deps),
-    ]
-  );
+  const [statusResult, branchResult, ghResult, remoteResult, headCommitResult] = await Promise.all([
+    deps.execFileNoThrow("git", ["status", "--short"], commandOptions),
+    deps.execFileNoThrow("git", ["branch", "--show-current"], commandOptions),
+    deps.execFileNoThrow("which", ["gh"]),
+    deps.execFileNoThrow("git", ["remote"], commandOptions),
+    deps.execFileNoThrow("git", ["log", "-1", "--format=%H%n%s"], commandOptions),
+  ]);
 
   if (!statusResult.success) {
     throw getCommandError("Unable to inspect changed files", statusResult, "git status failed");
@@ -846,6 +832,9 @@ export async function getShipPrepData(
   }
 
   const currentBranch = branchResult.stdout.trim();
+  const headCommit = headCommitResult.success
+    ? parseHeadCommitInfo(`${headCommitResult.stdout}\n${headCommitResult.stderr}`)
+    : null;
 
   return {
     changedFiles: parseGitStatusShortOutput(statusResult.stdout).map((entry) => ({
@@ -854,7 +843,6 @@ export async function getShipPrepData(
     })),
     currentBranch,
     isSafeToShip: !PROTECTED_BRANCHES.has(currentBranch),
-    reviewMarkerFresh,
     ghAvailable: ghResult.success && ghResult.stdout.trim().length > 0,
     remoteConfigured: remoteResult.stdout.trim().length > 0,
     inferredScope: {
@@ -862,14 +850,21 @@ export async function getShipPrepData(
       id: scope.scopeId,
       title: scope.title,
     },
+    existingPr:
+      scope.prNumber !== null
+        ? {
+            number: scope.prNumber,
+            url: scope.prUrl,
+            status: scope.prStatus,
+          }
+        : null,
+    headCommit,
   };
 }
 
 export const defaultShipPrepDeps: ShipPrepDeps = {
   db: sqlite,
   execFileNoThrow,
-  stat: statFile,
-  now: () => Date.now(),
 };
 
 export const defaultCommitAndShipDeps: CommitAndShipDeps = {

@@ -48,6 +48,9 @@ vi.mock("../lib/hooks", () => ({
       terminalEmulator: null,
     },
   }),
+  useLaunchRalphForTicket: () => ({
+    mutateAsync: vi.fn(),
+  }),
   useClickOutside: vi.fn(),
 }));
 
@@ -135,6 +138,7 @@ function createEpicDetail(overrides: Partial<Record<string, unknown>> = {}) {
         status: "in_progress",
       },
     ],
+    criticalFindings: [],
     workflowState: {
       epicBranchName: "feature/epic-ship",
       prNumber: null,
