@@ -1,0 +1,277 @@
+import { randomUUID } from "crypto";
+import type { DbHandle, EpicReviewRun, EpicReviewRunStatus } from "./types.ts";
+import { EpicNotFoundError, ValidationError } from "./errors.ts";
+import type { DbEpicReviewRunRow, DbEpicReviewRunTicketRow, DbTicketRow } from "./db-rows.ts";
+
+export interface CreateEpicReviewRunParams {
+  epicId: string;
+  selectedTicketIds: string[];
+  launchMode: string;
+  provider?: string | null;
+  steeringPrompt?: string | null;
+  status?: EpicReviewRunStatus;
+  summary?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+}
+
+export interface UpdateEpicReviewRunParams {
+  epicReviewRunId: string;
+  launchMode?: string;
+  provider?: string | null;
+  steeringPrompt?: string | null;
+  status?: EpicReviewRunStatus;
+  summary?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+}
+
+function assertEpicExists(db: DbHandle, epicId: string): void {
+  const row = db.prepare("SELECT id FROM epics WHERE id = ?").get(epicId) as
+    | { id: string }
+    | undefined;
+  if (!row) {
+    throw new EpicNotFoundError(epicId);
+  }
+}
+
+function validateLaunchMode(launchMode: string): string {
+  if (launchMode.trim().length === 0) {
+    throw new ValidationError("Epic review run launchMode is required.");
+  }
+
+  return launchMode;
+}
+
+function validateSelectedTicketIds(selectedTicketIds: string[]): string[] {
+  if (selectedTicketIds.length === 0) {
+    throw new ValidationError("Epic review run requires at least one selected ticket.");
+  }
+
+  const uniqueIds = new Set(selectedTicketIds);
+  if (uniqueIds.size !== selectedTicketIds.length) {
+    throw new ValidationError("Epic review run selectedTicketIds must be unique.");
+  }
+
+  return selectedTicketIds;
+}
+
+function getEpicTickets(db: DbHandle, epicId: string, ticketIds: string[]): DbTicketRow[] {
+  const placeholders = ticketIds.map(() => "?").join(", ");
+  const rows = db
+    .prepare(`SELECT * FROM tickets WHERE id IN (${placeholders})`)
+    .all(...ticketIds) as DbTicketRow[];
+
+  if (rows.length !== ticketIds.length) {
+    const foundIds = new Set(rows.map((row) => row.id));
+    const missingIds = ticketIds.filter((ticketId) => !foundIds.has(ticketId));
+    throw new ValidationError(`Epic review run tickets not found: ${missingIds.join(", ")}.`, {
+      missingTicketIds: missingIds.join(","),
+    });
+  }
+
+  const outsideEpicIds = rows.filter((row) => row.epic_id !== epicId).map((row) => row.id);
+  if (outsideEpicIds.length > 0) {
+    throw new ValidationError(
+      `Epic review run tickets must belong to epic ${epicId}: ${outsideEpicIds.join(", ")}.`,
+      { invalidTicketIds: outsideEpicIds.join(",") }
+    );
+  }
+
+  return rows;
+}
+
+function readSelectedTicketIds(db: DbHandle, epicReviewRunId: string): string[] {
+  const rows = db
+    .prepare(
+      `SELECT ticket_id
+       FROM epic_review_run_tickets
+       WHERE epic_review_run_id = ?
+       ORDER BY position ASC, created_at ASC`
+    )
+    .all(epicReviewRunId) as Array<{ ticket_id: string }>;
+
+  return rows.map((row) => row.ticket_id);
+}
+
+function toEpicReviewRun(db: DbHandle, row: DbEpicReviewRunRow): EpicReviewRun {
+  return {
+    id: row.id,
+    epicId: row.epic_id,
+    selectedTicketIds: readSelectedTicketIds(db, row.id),
+    steeringPrompt: row.steering_prompt,
+    launchMode: row.launch_mode,
+    provider: row.provider,
+    status: row.status as EpicReviewRunStatus,
+    summary: row.summary,
+    startedAt: row.started_at,
+    completedAt: row.completed_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function getEpicReviewRunRow(db: DbHandle, epicReviewRunId: string): DbEpicReviewRunRow {
+  const row = db.prepare("SELECT * FROM epic_review_runs WHERE id = ?").get(epicReviewRunId) as
+    | DbEpicReviewRunRow
+    | undefined;
+
+  if (!row) {
+    throw new ValidationError(`Epic review run not found: ${epicReviewRunId}`);
+  }
+
+  return row;
+}
+
+export function createEpicReviewRun(
+  db: DbHandle,
+  params: CreateEpicReviewRunParams
+): EpicReviewRun {
+  const {
+    epicId,
+    selectedTicketIds,
+    launchMode,
+    provider,
+    steeringPrompt,
+    status = "queued",
+    summary,
+    startedAt,
+    completedAt,
+  } = params;
+
+  assertEpicExists(db, epicId);
+  validateLaunchMode(launchMode);
+  validateSelectedTicketIds(selectedTicketIds);
+  getEpicTickets(db, epicId, selectedTicketIds);
+
+  const epicReviewRunId = randomUUID();
+  const now = new Date().toISOString();
+
+  const createRun = db.transaction(() => {
+    db.prepare(
+      `INSERT INTO epic_review_runs
+       (id, epic_id, steering_prompt, launch_mode, provider, status, summary, started_at, completed_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      epicReviewRunId,
+      epicId,
+      steeringPrompt ?? null,
+      launchMode,
+      provider ?? null,
+      status,
+      summary ?? null,
+      startedAt ?? null,
+      completedAt ?? null,
+      now,
+      now
+    );
+
+    const insertLink = db.prepare(
+      `INSERT INTO epic_review_run_tickets
+       (id, epic_review_run_id, ticket_id, position, created_at)
+       VALUES (?, ?, ?, ?, ?)`
+    );
+
+    selectedTicketIds.forEach((ticketId, index) => {
+      insertLink.run(randomUUID(), epicReviewRunId, ticketId, index, now);
+    });
+  });
+
+  createRun();
+
+  return getEpicReviewRun(db, epicReviewRunId);
+}
+
+export function getEpicReviewRun(db: DbHandle, epicReviewRunId: string): EpicReviewRun {
+  const row = getEpicReviewRunRow(db, epicReviewRunId);
+  return toEpicReviewRun(db, row);
+}
+
+export function listEpicReviewRuns(db: DbHandle, epicId: string): EpicReviewRun[] {
+  assertEpicExists(db, epicId);
+
+  const rows = db
+    .prepare("SELECT * FROM epic_review_runs WHERE epic_id = ? ORDER BY created_at DESC")
+    .all(epicId) as DbEpicReviewRunRow[];
+
+  return rows.map((row) => toEpicReviewRun(db, row));
+}
+
+export function updateEpicReviewRun(
+  db: DbHandle,
+  params: UpdateEpicReviewRunParams
+): EpicReviewRun {
+  const {
+    epicReviewRunId,
+    launchMode,
+    provider,
+    steeringPrompt,
+    status,
+    summary,
+    startedAt,
+    completedAt,
+  } = params;
+
+  const existing = getEpicReviewRunRow(db, epicReviewRunId);
+  const nextLaunchMode = launchMode ?? existing.launch_mode;
+  validateLaunchMode(nextLaunchMode);
+
+  const nextProvider = provider === undefined ? existing.provider : provider;
+  const nextSteeringPrompt =
+    steeringPrompt === undefined ? existing.steering_prompt : steeringPrompt;
+  const nextStatus = status ?? (existing.status as EpicReviewRunStatus);
+  const nextSummary = summary === undefined ? existing.summary : summary;
+  const nextStartedAt = startedAt === undefined ? existing.started_at : startedAt;
+  const nextCompletedAt = completedAt === undefined ? existing.completed_at : completedAt;
+  const now = new Date().toISOString();
+
+  db.prepare(
+    `UPDATE epic_review_runs
+     SET steering_prompt = ?, launch_mode = ?, provider = ?, status = ?, summary = ?, started_at = ?, completed_at = ?, updated_at = ?
+     WHERE id = ?`
+  ).run(
+    nextSteeringPrompt ?? null,
+    nextLaunchMode,
+    nextProvider ?? null,
+    nextStatus,
+    nextSummary ?? null,
+    nextStartedAt ?? null,
+    nextCompletedAt ?? null,
+    now,
+    epicReviewRunId
+  );
+
+  return getEpicReviewRun(db, epicReviewRunId);
+}
+
+export interface EpicReviewRunTicketLink {
+  id: string;
+  epicReviewRunId: string;
+  ticketId: string;
+  position: number;
+  createdAt: string;
+}
+
+export function listEpicReviewRunTicketLinks(
+  db: DbHandle,
+  epicReviewRunId: string
+): EpicReviewRunTicketLink[] {
+  getEpicReviewRunRow(db, epicReviewRunId);
+
+  const rows = db
+    .prepare(
+      `SELECT *
+       FROM epic_review_run_tickets
+       WHERE epic_review_run_id = ?
+       ORDER BY position ASC, created_at ASC`
+    )
+    .all(epicReviewRunId) as DbEpicReviewRunTicketRow[];
+
+  return rows.map((row) => ({
+    id: row.id,
+    epicReviewRunId: row.epic_review_run_id,
+    ticketId: row.ticket_id,
+    position: row.position,
+    createdAt: row.created_at,
+  }));
+}

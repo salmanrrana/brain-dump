@@ -185,6 +185,27 @@ export interface CompleteEpicResult {
 }
 
 // ============================================
+// Epic Review Run Types
+// ============================================
+
+export type EpicReviewRunStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
+
+export interface EpicReviewRun {
+  id: string;
+  epicId: string;
+  selectedTicketIds: string[];
+  steeringPrompt: string | null;
+  launchMode: string;
+  provider: string | null;
+  status: EpicReviewRunStatus;
+  summary: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ============================================
 // Review & Demo Types
 // ============================================
 

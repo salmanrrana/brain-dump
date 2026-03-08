@@ -80,10 +80,9 @@ describe("Backup Utilities", () => {
       const markerPath = join(stateDir, ".last-backup");
       writeFileSync(markerPath, "2020-01-01T00:00:00.000Z");
 
-      // Set the file's mtime to yesterday
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      utimesSync(markerPath, yesterday, yesterday);
+      // Use a fixed UTC timestamp so the assertion is stable across local time zones.
+      const oldMarkerTime = new Date(Date.UTC(2020, 0, 1, 0, 0, 0));
+      utimesSync(markerPath, oldMarkerTime, oldMarkerTime);
 
       expect(wasBackupCreatedToday()).toBe(false);
     });

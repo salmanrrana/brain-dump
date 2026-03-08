@@ -75,6 +75,28 @@ export interface DbTicketWorkflowStateRow {
   updated_at: string;
 }
 
+export interface DbEpicReviewRunRow {
+  id: string;
+  epic_id: string;
+  steering_prompt: string | null;
+  launch_mode: string;
+  provider: string | null;
+  status: string;
+  summary: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbEpicReviewRunTicketRow {
+  id: string;
+  epic_review_run_id: string;
+  ticket_id: string;
+  position: number;
+  created_at: string;
+}
+
 export interface DbReviewFindingRow {
   id: string;
   ticket_id: string;

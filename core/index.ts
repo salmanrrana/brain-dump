@@ -42,6 +42,8 @@ export type {
   EpicTicketSummary,
   EpicSummary,
   CompleteEpicResult,
+  EpicReviewRunStatus,
+  EpicReviewRun,
   FindingSeverity,
   FindingStatus,
   FindingAgent,
@@ -135,6 +137,21 @@ export type { CreateProjectParams } from "./project.ts";
 export { createEpic, listEpics, updateEpic, deleteEpic } from "./epic.ts";
 
 export type { CreateEpicParams, UpdateEpicParams } from "./epic.ts";
+
+// Epic review run business logic
+export {
+  createEpicReviewRun,
+  getEpicReviewRun,
+  listEpicReviewRuns,
+  updateEpicReviewRun,
+  listEpicReviewRunTicketLinks,
+} from "./epic-review-run.ts";
+
+export type {
+  CreateEpicReviewRunParams,
+  UpdateEpicReviewRunParams,
+  EpicReviewRunTicketLink,
+} from "./epic-review-run.ts";
 
 // Comment business logic
 export { addComment, listComments, getActivityLog } from "./comment.ts";
