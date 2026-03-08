@@ -34,13 +34,7 @@ import {
 import { startEpicWorkflowFn, startTicketWorkflowFn } from "../../api/workflow-server-fns";
 import { launchTerminal } from "../../api/dev-tools";
 
-type ShipChangesView =
-  | "preflight"
-  | "blocked-review"
-  | "blocked-main"
-  | "running"
-  | "done"
-  | "error";
+type ShipChangesView = "preflight" | "blocked-main" | "running" | "done" | "error";
 
 interface ShipResult {
   commitHash: string;
@@ -111,10 +105,6 @@ function getDefaultPrTitle(scopeTitle: string): string {
 function getNextView(prep: ShipPrepData): ShipChangesView {
   if (!prep.isSafeToShip) {
     return "blocked-main";
-  }
-
-  if (!prep.reviewMarkerFresh) {
-    return "blocked-review";
   }
 
   return "preflight";
@@ -681,7 +671,7 @@ export function ShipChangesModal({
           </div>
         )}
 
-        {(view === "preflight" || view === "blocked-review" || view === "blocked-main") && (
+        {(view === "preflight" || view === "blocked-main") && (
           <>
             <section style={panelStyles}>
               <div style={panelHeaderStyles}>
@@ -721,15 +711,15 @@ export function ShipChangesModal({
               </div>
             </section>
 
-            {view === "blocked-review" && (
-              <section style={blockedPanelStyles} data-testid="ship-blocked-review">
+            {prepData && !prepData.reviewMarkerFresh && view !== "blocked-main" && (
+              <section style={blockedPanelStyles} data-testid="ship-review-warning">
                 <div style={blockedHeaderStyles}>
                   <ShieldAlert size={20} aria-hidden="true" />
                   <div>
-                    <h4 style={panelTitleStyles}>Review required before shipping</h4>
+                    <h4 style={panelTitleStyles}>Review marker needs attention</h4>
                     <p style={panelBodyStyles}>
-                      Run review from the project directory, then recheck the marker before
-                      submitting.
+                      Run review from the project directory if you want a fresh marker, or continue
+                      shipping with the current selection. Recheck updates this warning in place.
                     </p>
                   </div>
                 </div>

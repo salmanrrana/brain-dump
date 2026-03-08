@@ -24,12 +24,12 @@ Use this checklist for the final user-facing verification of the Ship Changes fl
 - Trigger `Push` and confirm the button shows a loading state while the request is in flight.
 - Confirm a success toast is shown and the page refresh preserves the linked PR state.
 
-## Blocked-review recovery path
+## Review-warning guidance path
 
 - Force the review marker to be stale or missing.
-- Open the modal and verify the blocked-review state explains what to do next.
+- Open the modal and verify the review marker is highlighted as a warning without disabling file selection.
 - Use `Run Review` and confirm the terminal-launch feedback is visible.
-- Use `Recheck` after refreshing the marker and confirm the modal returns to preflight.
+- Use `Recheck` after refreshing the marker and confirm the warning clears in place.
 
 ## Blocked-main recovery path
 

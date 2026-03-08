@@ -166,7 +166,39 @@ describe("ShipChangesModal", () => {
     expect(props.onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("shows blocked-review, launches a terminal for review, and rechecks back into preflight", async () => {
+  it("keeps stale review marker as a warning and still allows shipping", async () => {
+    const user = userEvent.setup();
+    mockGetShipPrep.mockResolvedValueOnce(createPrepResult({ reviewMarkerFresh: false }));
+
+    const { props } = renderModal();
+
+    const warningPanel = await screen.findByTestId("ship-review-warning");
+    expect(warningPanel).toBeInTheDocument();
+    expect(screen.getByText("Review marker is missing or stale")).toBeInTheDocument();
+
+    const fileCheckbox = screen.getByRole("checkbox", { name: /select m src\/app\.tsx/i });
+    const shipButton = screen.getByRole("button", { name: /ship changes/i });
+    expect(fileCheckbox).toBeEnabled();
+    expect(shipButton).toBeEnabled();
+
+    await user.click(shipButton);
+
+    await waitFor(() => {
+      expect(mockCommitAndShipServerFn).toHaveBeenCalledWith({
+        data: {
+          scopeType: "ticket",
+          scopeId: props.scopeId,
+          message: "feat(aa778958): Ship Changes",
+          selectedPaths: ["src/app.tsx", "src/new-file.ts"],
+          prTitle: "Ship Changes",
+          prBody: "## Summary\n\n<!-- brain-dump:demo-steps -->",
+          draft: true,
+        },
+      });
+    });
+  });
+
+  it("lets the user run review and recheck from the warning state until the marker clears", async () => {
     const user = userEvent.setup();
     mockGetShipPrep
       .mockResolvedValueOnce(createPrepResult({ reviewMarkerFresh: false }))
@@ -174,7 +206,7 @@ describe("ShipChangesModal", () => {
 
     renderModal();
 
-    expect(await screen.findByTestId("ship-blocked-review")).toBeInTheDocument();
+    expect(await screen.findByTestId("ship-review-warning")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /run review/i }));
 
@@ -191,7 +223,7 @@ describe("ShipChangesModal", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByTestId("ship-blocked-review")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("ship-review-warning")).not.toBeInTheDocument();
     });
     expect(screen.getByRole("button", { name: /ship changes/i })).toBeInTheDocument();
   });
