@@ -40,6 +40,7 @@ export interface EpicDetailHeaderProps {
   ticketsByStatus: EpicDetailResult["ticketsByStatus"];
   workflowState: EpicDetailResult["workflowState"];
   tickets: EpicDetailResult["tickets"];
+  findingsSummary: EpicDetailResult["findingsSummary"];
   criticalFindings: EpicDetailResult["criticalFindings"];
   onShipChanges?: () => void;
   onPushChanges?: () => void | Promise<void>;
@@ -53,6 +54,7 @@ export function EpicDetailHeader({
   ticketsByStatus,
   workflowState,
   tickets,
+  findingsSummary,
   criticalFindings,
   onShipChanges,
   onPushChanges,
@@ -72,6 +74,8 @@ export function EpicDetailHeader({
   const ticketsTotal = Object.values(ticketsByStatus).reduce((a, b) => a + b, 0);
   const ticketsDone = ticketsByStatus["done"] ?? 0;
   const completionPercent = ticketsTotal > 0 ? Math.round((ticketsDone / ticketsTotal) * 100) : 0;
+  const hasFindings = findingsSummary.total > 0;
+  const openFindings = findingsSummary.total - findingsSummary.fixed;
   const reviewableTickets = tickets
     .filter((ticket) => ticket.status !== "done")
     .sort((left, right) => {
@@ -274,10 +278,10 @@ export function EpicDetailHeader({
               onClick={() => setShowFindingsModal(true)}
               style={secondaryActionButtonStyles}
               className="hover:bg-[var(--bg-hover)]"
-              aria-label="View critical findings for this epic"
+              aria-label="View review findings for this epic"
             >
               <AlertCircle size={16} />
-              Findings
+              {hasFindings ? `Findings (${findingsSummary.total})` : "Findings"}
             </button>
 
             {workflowState?.prNumber && onPushChanges && (
@@ -491,6 +495,46 @@ export function EpicDetailHeader({
           <span style={completionBadgeStyles}>{completionPercent}% complete</span>
         </div>
 
+        <div style={findingsSectionStyles}>
+          <div style={findingsHeaderStyles}>
+            <span style={findingsTitleStyles}>Review Findings</span>
+            <span style={findingsSubtitleStyles}>
+              {hasFindings
+                ? `${findingsSummary.total} total findings across this epic`
+                : "No review findings recorded for this epic yet"}
+            </span>
+          </div>
+
+          <div style={findingsSummaryGridStyles}>
+            <div style={getSummaryCardStyles("danger")}>
+              <span style={summaryCardLabelStyles}>Critical</span>
+              <strong style={summaryCardValueStyles}>{findingsSummary.critical}</strong>
+            </div>
+            <div style={getSummaryCardStyles("warning")}>
+              <span style={summaryCardLabelStyles}>Major</span>
+              <strong style={summaryCardValueStyles}>{findingsSummary.major}</strong>
+            </div>
+            <div style={getSummaryCardStyles("info")}>
+              <span style={summaryCardLabelStyles}>Minor</span>
+              <strong style={summaryCardValueStyles}>{findingsSummary.minor}</strong>
+            </div>
+            <div style={getSummaryCardStyles("neutral")}>
+              <span style={summaryCardLabelStyles}>Suggestions</span>
+              <strong style={summaryCardValueStyles}>{findingsSummary.suggestion}</strong>
+            </div>
+            <div
+              style={getSummaryCardStyles(
+                openFindings === 0 && hasFindings ? "success" : "neutral"
+              )}
+            >
+              <span style={summaryCardLabelStyles}>Fixed</span>
+              <strong style={summaryCardValueStyles}>
+                {findingsSummary.fixed}/{findingsSummary.total}
+              </strong>
+            </div>
+          </div>
+        </div>
+
         {workflowState && (workflowState.epicBranchName || workflowState.prNumber) && (
           <div style={gitRowStyles}>
             {workflowState.epicBranchName && (
@@ -603,7 +647,7 @@ export function EpicDetailHeader({
       <Modal
         isOpen={showFindingsModal}
         onClose={() => setShowFindingsModal(false)}
-        title={`Critical Findings: ${epic.title}`}
+        title={`Review Findings: ${epic.title}`}
         maxWidth="xl"
         footer={
           <button
@@ -617,12 +661,45 @@ export function EpicDetailHeader({
       >
         <div style={modalContentStyles}>
           <p style={modalLeadStyles}>
-            Critical findings are grouped under the ticket that owns them so you can see what is
-            still open versus what has already been resolved.
+            This epic summary rolls up all review findings across its tickets. Critical findings are
+            broken out below because they can block progression.
           </p>
 
+          <div style={modalSummaryGridStyles}>
+            <div style={getSummaryCardStyles("danger")}>
+              <span style={summaryCardLabelStyles}>Critical</span>
+              <strong style={summaryCardValueStyles}>{findingsSummary.critical}</strong>
+            </div>
+            <div style={getSummaryCardStyles("warning")}>
+              <span style={summaryCardLabelStyles}>Major</span>
+              <strong style={summaryCardValueStyles}>{findingsSummary.major}</strong>
+            </div>
+            <div style={getSummaryCardStyles("info")}>
+              <span style={summaryCardLabelStyles}>Minor</span>
+              <strong style={summaryCardValueStyles}>{findingsSummary.minor}</strong>
+            </div>
+            <div style={getSummaryCardStyles("neutral")}>
+              <span style={summaryCardLabelStyles}>Suggestions</span>
+              <strong style={summaryCardValueStyles}>{findingsSummary.suggestion}</strong>
+            </div>
+            <div
+              style={getSummaryCardStyles(
+                openFindings === 0 && hasFindings ? "success" : "neutral"
+              )}
+            >
+              <span style={summaryCardLabelStyles}>Fixed</span>
+              <strong style={summaryCardValueStyles}>
+                {findingsSummary.fixed}/{findingsSummary.total}
+              </strong>
+            </div>
+          </div>
+
           {criticalFindings.length === 0 ? (
-            <div style={emptyPanelStyles}>No critical findings are recorded for this epic.</div>
+            <div style={emptyPanelStyles}>
+              {hasFindings
+                ? "No critical findings are recorded for this epic."
+                : "No review findings are recorded for this epic."}
+            </div>
           ) : (
             <div style={modalListStyles}>
               {criticalFindings.map((finding) => (
@@ -665,6 +742,46 @@ export function EpicDetailHeader({
       </Modal>
     </>
   );
+}
+
+type SummaryTone = "danger" | "warning" | "info" | "success" | "neutral";
+
+function getSummaryCardStyles(tone: SummaryTone): React.CSSProperties {
+  const toneStyles: Record<SummaryTone, { background: string; border: string; text: string }> = {
+    danger: {
+      background: "color-mix(in srgb, var(--accent-danger) 12%, transparent)",
+      border: "color-mix(in srgb, var(--accent-danger) 28%, transparent)",
+      text: "var(--accent-danger)",
+    },
+    warning: {
+      background: "color-mix(in srgb, var(--warning) 12%, transparent)",
+      border: "color-mix(in srgb, var(--warning) 28%, transparent)",
+      text: "var(--warning)",
+    },
+    info: {
+      background: "color-mix(in srgb, var(--info) 12%, transparent)",
+      border: "color-mix(in srgb, var(--info) 28%, transparent)",
+      text: "var(--info)",
+    },
+    success: {
+      background: "color-mix(in srgb, var(--success) 12%, transparent)",
+      border: "color-mix(in srgb, var(--success) 28%, transparent)",
+      text: "var(--success)",
+    },
+    neutral: {
+      background: "var(--bg-tertiary)",
+      border: "var(--border-primary)",
+      text: "var(--text-primary)",
+    },
+  };
+  const palette = toneStyles[tone];
+
+  return {
+    ...summaryCardStyles,
+    background: palette.background,
+    borderColor: palette.border,
+    color: palette.text,
+  };
 }
 
 const containerStyles: React.CSSProperties = {
@@ -847,6 +964,61 @@ const badgeRowStyles: React.CSSProperties = {
   alignItems: "center",
 };
 
+const findingsSectionStyles: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "var(--spacing-3)",
+  padding: "var(--spacing-3)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-lg)",
+  background: "var(--bg-secondary)",
+};
+
+const findingsHeaderStyles: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "var(--spacing-1)",
+};
+
+const findingsTitleStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-sm)",
+  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+  color: "var(--text-primary)",
+};
+
+const findingsSubtitleStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-sm)",
+  color: "var(--text-secondary)",
+};
+
+const findingsSummaryGridStyles: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+  gap: "var(--spacing-2)",
+};
+
+const summaryCardStyles: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "var(--spacing-1)",
+  padding: "var(--spacing-3)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-md)",
+};
+
+const summaryCardLabelStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-xs)",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+  color: "var(--text-secondary)",
+};
+
+const summaryCardValueStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-lg)",
+  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+  color: "inherit",
+};
+
 const badgeStyles: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
@@ -930,6 +1102,10 @@ const modalLeadStyles: React.CSSProperties = {
   margin: 0,
   color: "var(--text-secondary)",
   lineHeight: 1.5,
+};
+
+const modalSummaryGridStyles: React.CSSProperties = {
+  ...findingsSummaryGridStyles,
 };
 
 const emptyPanelStyles: React.CSSProperties = {

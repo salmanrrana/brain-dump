@@ -138,6 +138,14 @@ function createEpicDetail(overrides: Partial<Record<string, unknown>> = {}) {
         status: "in_progress",
       },
     ],
+    findingsSummary: {
+      critical: 0,
+      major: 0,
+      minor: 0,
+      suggestion: 0,
+      fixed: 0,
+      total: 0,
+    },
     criticalFindings: [],
     workflowState: {
       epicBranchName: "feature/epic-ship",
@@ -233,5 +241,31 @@ describe("EpicDetailPage ship entry points", () => {
     expect(screen.getByRole("button", { name: /push epic branch updates/i })).toHaveTextContent(
       "Push"
     );
+  });
+
+  it("shows aggregated review finding counts for the epic", () => {
+    epicDetailState = createEpicDetail({
+      findingsSummary: {
+        critical: 1,
+        major: 2,
+        minor: 3,
+        suggestion: 4,
+        fixed: 5,
+        total: 10,
+      },
+    });
+
+    render(<EpicDetailPage />);
+
+    expect(screen.getByText("Review Findings")).toBeInTheDocument();
+    expect(screen.getByText("10 total findings across this epic")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /view review findings for this epic/i })
+    ).toHaveTextContent("Findings (10)");
+    expect(screen.getByText("Critical")).toBeInTheDocument();
+    expect(screen.getByText("Major")).toBeInTheDocument();
+    expect(screen.getByText("Minor")).toBeInTheDocument();
+    expect(screen.getByText("Suggestions")).toBeInTheDocument();
+    expect(screen.getByText("5/10")).toBeInTheDocument();
   });
 });

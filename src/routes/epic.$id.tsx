@@ -292,6 +292,7 @@ export function EpicDetailPage() {
         ticketsByStatus={epicDetail.ticketsByStatus}
         workflowState={epicDetail.workflowState}
         tickets={epicDetail.tickets}
+        findingsSummary={epicDetail.findingsSummary}
         criticalFindings={epicDetail.criticalFindings}
         onShipChanges={() => setShowShipModal(true)}
         onPushChanges={handlePushChanges}

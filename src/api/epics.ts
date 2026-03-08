@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { db, sqlite } from "../lib/db";
 import { epics, projects, tickets, epicWorkflowState, reviewFindings } from "../lib/schema";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { ensureExists } from "../lib/utils";
 import { createLogger } from "../lib/logger";
@@ -62,6 +62,14 @@ export interface EpicDetailResult {
     prUrl: string | null;
     prStatus: string | null;
   } | null;
+  findingsSummary: {
+    critical: number;
+    major: number;
+    minor: number;
+    suggestion: number;
+    fixed: number;
+    total: number;
+  };
   criticalFindings: Array<{
     id: string;
     ticketId: string;
@@ -325,6 +333,40 @@ export const getEpicDetail = createServerFn({ method: "GET" })
       .orderBy(desc(reviewFindings.createdAt))
       .all();
 
+    const findingsCounts = db
+      .select({
+        severity: reviewFindings.severity,
+        status: reviewFindings.status,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(reviewFindings)
+      .innerJoin(tickets, eq(reviewFindings.ticketId, tickets.id))
+      .where(eq(tickets.epicId, epicId))
+      .groupBy(reviewFindings.severity, reviewFindings.status)
+      .all();
+
+    const findingsSummary: EpicDetailResult["findingsSummary"] = {
+      critical: 0,
+      major: 0,
+      minor: 0,
+      suggestion: 0,
+      fixed: 0,
+      total: 0,
+    };
+
+    for (const row of findingsCounts) {
+      findingsSummary.total += row.count;
+
+      if (row.status === "fixed") {
+        findingsSummary.fixed += row.count;
+      }
+
+      const severity = row.severity as keyof EpicDetailResult["findingsSummary"];
+      if (severity in findingsSummary && severity !== "fixed" && severity !== "total") {
+        findingsSummary[severity] += row.count;
+      }
+    }
+
     // Compute ticketsByStatus
     const ticketsByStatus: Record<string, number> = {};
     for (const ticket of epicTickets) {
@@ -386,6 +428,7 @@ export const getEpicDetail = createServerFn({ method: "GET" })
       tickets: epicTickets,
       ticketsByStatus,
       workflowState,
+      findingsSummary,
       criticalFindings,
     };
   });
