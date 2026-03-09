@@ -14,7 +14,13 @@ import {
   type EnhancedPRDItem,
   type EnhancedPRDDocument,
 } from "../lib/prd-extraction";
-import { startWork, createRealGitOperations, GitError } from "../../core/index.ts";
+import {
+  startWork,
+  createRealGitOperations,
+  GitError,
+  createEpicReviewRun,
+  addEpicReviewRunAuditComments,
+} from "../../core/index.ts";
 
 const coreGit = createRealGitOperations();
 
@@ -65,6 +71,25 @@ interface EpicLaunchPreparation {
   promptProfile: RalphPromptProfile;
   prdTickets: TicketRecord[];
   startsImplementationWorkflow: boolean;
+}
+
+function recordFocusedReviewLaunch(
+  epicId: string,
+  profile: RalphReviewPromptProfile,
+  provider: RalphAiBackend
+): string {
+  const run = createEpicReviewRun(sqlite, {
+    epicId,
+    selectedTicketIds: [profile.selectedTicket.id],
+    launchMode: "focused-review",
+    provider,
+    steeringPrompt: profile.steeringPrompt ?? null,
+    status: "running",
+    startedAt: new Date().toISOString(),
+  });
+
+  addEpicReviewRunAuditComments(sqlite, run.id);
+  return run.id;
 }
 
 // ============================================================================
@@ -1841,6 +1866,7 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
 
     const { promptProfile, prdTickets, startsImplementationWorkflow } =
       launchPreparation.preparation;
+    const launchedTicketCount = prdTickets.length;
 
     // Create plans directory in project
     const plansDir = join(project.path, "plans");
@@ -1979,25 +2005,33 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       }
 
       if (workingMethod === "copilot-cli") {
+        const focusedReviewRunId =
+          promptProfile.type === "review"
+            ? recordFocusedReviewLaunch(epic.id, promptProfile, aiBackend)
+            : null;
         const terminalUsed = "terminal" in launchResult ? launchResult.terminal : undefined;
         const terminalLabel = terminalUsed ?? "your terminal";
         return {
           success: true,
-          message: `Opening Copilot CLI in ${terminalLabel} for ${epicTickets.length} tickets. If no window appears, check that ${terminalLabel} is running.`,
+          message: `Opening Copilot CLI in ${terminalLabel} for ${launchedTicketCount} ticket${launchedTicketCount === 1 ? "" : "s"}. If no window appears, check that ${terminalLabel} is running.${focusedReviewRunId ? ` Focused review run: ${focusedReviewRunId}.` : ""}`,
           launchMethod: "copilot-cli" as const,
           contextFile: contextResult.path,
           ...(terminalUsed ? { terminalUsed } : {}),
-          ticketCount: epicTickets.length,
+          ticketCount: launchedTicketCount,
           warnings: sshWarnings,
         };
       }
 
+      const focusedReviewRunId =
+        promptProfile.type === "review"
+          ? recordFocusedReviewLaunch(epic.id, promptProfile, aiBackend)
+          : null;
       return {
         success: true,
-        message: `Opened ${methodLabel} with Ralph context for ${epicTickets.length} tickets. Check .claude/ralph-context.md for instructions.`,
+        message: `Opened ${methodLabel} with Ralph context for ${launchedTicketCount} ticket${launchedTicketCount === 1 ? "" : "s"}. Check .claude/ralph-context.md for instructions.${focusedReviewRunId ? ` Focused review run: ${focusedReviewRunId}.` : ""}`,
         launchMethod: workingMethod,
         contextFile: contextResult.path,
-        ticketCount: epicTickets.length,
+        ticketCount: launchedTicketCount,
         warnings: sshWarnings,
       };
     }
@@ -2010,12 +2044,16 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       return launchResult;
     }
 
+    const focusedReviewRunId =
+      promptProfile.type === "review"
+        ? recordFocusedReviewLaunch(epic.id, promptProfile, aiBackend)
+        : null;
     return {
       success: true,
-      message: `Launched Ralph for ${epicTickets.length} tickets in ${launchResult.terminal}`,
+      message: `Launched Ralph for ${launchedTicketCount} ticket${launchedTicketCount === 1 ? "" : "s"} in ${launchResult.terminal}.${focusedReviewRunId ? ` Focused review run: ${focusedReviewRunId}.` : ""}`,
       terminalUsed: launchResult.terminal,
       launchMethod: "terminal" as const,
-      ticketCount: epicTickets.length,
+      ticketCount: launchedTicketCount,
       warnings: sshWarnings,
     };
   });

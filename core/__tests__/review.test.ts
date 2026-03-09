@@ -11,6 +11,7 @@ import {
   updateDemoStep,
   submitFeedback,
 } from "../review.ts";
+import { createEpicReviewRun, getEpicReviewRun } from "../epic-review-run.ts";
 import {
   TicketNotFoundError,
   FindingNotFoundError,
@@ -171,6 +172,35 @@ describe("submitFinding", () => {
         description: "Test",
       })
     ).toThrow(InvalidStateError);
+  });
+
+  it("links new findings to the active epic review run for the ticket", () => {
+    seedProject();
+    db.prepare("INSERT INTO epics (id, title, project_id, created_at) VALUES (?, ?, ?, ?)").run(
+      "epic-1",
+      "Epic 1",
+      "proj-1",
+      new Date().toISOString()
+    );
+    seedAiReviewTicket("ticket-1", "proj-1");
+    db.prepare("UPDATE tickets SET epic_id = ? WHERE id = ?").run("epic-1", "ticket-1");
+
+    const run = createEpicReviewRun(db, {
+      epicId: "epic-1",
+      selectedTicketIds: ["ticket-1"],
+      launchMode: "focused-review",
+      status: "running",
+    });
+
+    const finding = submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "major",
+      category: "logic",
+      description: "Finding linked to focused review",
+    });
+
+    expect(finding.epicReviewRunId).toBe(run.id);
   });
 });
 
@@ -584,6 +614,46 @@ describe("generateDemo", () => {
         steps: [{ order: 1, description: "Test", expectedOutcome: "Pass", type: "manual" }],
       })
     ).toThrow(TicketNotFoundError);
+  });
+
+  it("links the demo to the active epic review run and completes the run summary", () => {
+    seedProject();
+    db.prepare("INSERT INTO epics (id, title, project_id, created_at) VALUES (?, ?, ?, ?)").run(
+      "epic-1",
+      "Epic 1",
+      "proj-1",
+      new Date().toISOString()
+    );
+    seedAiReviewTicket("ticket-1", "proj-1");
+    db.prepare("UPDATE tickets SET epic_id = ? WHERE id = ?").run("epic-1", "ticket-1");
+
+    const run = createEpicReviewRun(db, {
+      epicId: "epic-1",
+      selectedTicketIds: ["ticket-1"],
+      launchMode: "focused-review",
+      status: "running",
+      startedAt: "2026-03-09T05:00:00.000Z",
+    });
+
+    submitFinding(db, {
+      ticketId: "ticket-1",
+      agent: "code-reviewer",
+      severity: "minor",
+      category: "ux",
+      description: "Minor copy issue",
+    });
+
+    const demo = generateDemo(db, {
+      ticketId: "ticket-1",
+      steps: [{ order: 1, description: "Test", expectedOutcome: "Pass", type: "manual" }],
+    });
+
+    expect(demo.epicReviewRunId).toBe(run.id);
+
+    const updatedRun = getEpicReviewRun(db, run.id);
+    expect(updatedRun.status).toBe("completed");
+    expect(updatedRun.summary).toContain("Focused review completed.");
+    expect(updatedRun.completedAt).toBeTruthy();
   });
 });
 

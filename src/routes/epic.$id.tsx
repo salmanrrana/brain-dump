@@ -326,6 +326,39 @@ export function EpicDetailPage() {
         <EpicLearnings learnings={epicDetail.workflowState?.learnings ?? []} />
       </section>
 
+      {epicDetail.reviewRuns.length > 0 ? (
+        <section style={reviewRunsSectionStyles} data-testid="epic-review-runs">
+          <div style={reviewRunsHeaderStyles}>
+            <h2 style={reviewRunsTitleStyles}>Focused Review Runs</h2>
+            <span style={reviewRunsMetaStyles}>
+              {epicDetail.reviewRuns.length} run{epicDetail.reviewRuns.length === 1 ? "" : "s"}
+            </span>
+          </div>
+
+          <div style={reviewRunsListStyles}>
+            {epicDetail.reviewRuns.slice(0, 3).map((run) => (
+              <article key={run.id} style={reviewRunCardStyles}>
+                <div style={reviewRunCardHeaderStyles}>
+                  <strong style={reviewRunCardTitleStyles}>Run {run.id.slice(0, 8)}</strong>
+                  <span style={reviewRunStatusStyles}>{run.status}</span>
+                </div>
+                <div style={reviewRunMetaStyles}>
+                  {run.selectedTickets.map((ticket) => ticket.title).join(", ")}
+                </div>
+                <div style={reviewRunMetaStyles}>
+                  {run.findingsTotal} finding{run.findingsTotal === 1 ? "" : "s"} •{" "}
+                  {run.findingsFixed} fixed • Demo {run.demoGenerated ? "generated" : "pending"}
+                </div>
+                {run.summary ? <div style={reviewRunSummaryStyles}>{run.summary}</div> : null}
+                {run.steeringPrompt ? (
+                  <div style={reviewRunSteeringStyles}>Steering: {run.steeringPrompt}</div>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <footer style={metadataStyles}>
         <span>Created: {new Date(epicDetail.epic.createdAt).toLocaleString()}</span>
       </footer>
@@ -416,6 +449,81 @@ const sectionStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: "var(--spacing-3)",
+};
+
+const reviewRunsSectionStyles: React.CSSProperties = {
+  ...sectionStyles,
+  padding: "var(--spacing-4)",
+  background: "var(--bg-secondary)",
+  borderRadius: "var(--radius-lg)",
+  border: "1px solid var(--border-primary)",
+};
+
+const reviewRunsHeaderStyles: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "var(--spacing-3)",
+};
+
+const reviewRunsTitleStyles: React.CSSProperties = {
+  margin: 0,
+  fontSize: "var(--font-size-lg)",
+  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+  color: "var(--text-primary)",
+};
+
+const reviewRunsMetaStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-sm)",
+  color: "var(--text-muted)",
+};
+
+const reviewRunsListStyles: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+  gap: "var(--spacing-3)",
+};
+
+const reviewRunCardStyles: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "var(--spacing-2)",
+  padding: "var(--spacing-3)",
+  borderRadius: "var(--radius-md)",
+  border: "1px solid var(--border-primary)",
+  background: "var(--bg-primary)",
+};
+
+const reviewRunCardHeaderStyles: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "var(--spacing-2)",
+};
+
+const reviewRunCardTitleStyles: React.CSSProperties = {
+  color: "var(--text-primary)",
+};
+
+const reviewRunStatusStyles: React.CSSProperties = {
+  textTransform: "capitalize",
+  fontSize: "var(--font-size-xs)",
+  color: "var(--text-muted)",
+};
+
+const reviewRunMetaStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-sm)",
+  color: "var(--text-secondary)",
+};
+
+const reviewRunSummaryStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-sm)",
+  color: "var(--text-primary)",
+};
+
+const reviewRunSteeringStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-xs)",
+  color: "var(--text-muted)",
 };
 
 const metadataStyles: React.CSSProperties = {

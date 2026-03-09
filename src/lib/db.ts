@@ -57,6 +57,19 @@ if (initializeWatcher(dbPath)) {
   console.log(`[DB] Database file watcher started`);
 }
 
+function columnExists(tableName: string, columnName: string): boolean {
+  const columns = sqlite.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{
+    name: string;
+  }>;
+  return columns.some((column) => column.name === columnName);
+}
+
+function ensureColumnExists(tableName: string, columnName: string, definition: string): void {
+  if (!columnExists(tableName, columnName)) {
+    sqlite.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+  }
+}
+
 // Auto-create tables if they don't exist
 function initTables() {
   const projectsExists = sqlite
@@ -503,6 +516,7 @@ function initReviewWorkflowTables() {
         file_path TEXT,
         line_number INTEGER,
         suggested_fix TEXT,
+        epic_review_run_id TEXT REFERENCES epic_review_runs(id) ON DELETE SET NULL,
         status TEXT NOT NULL DEFAULT 'open',
         fixed_at TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -524,6 +538,7 @@ function initReviewWorkflowTables() {
         id TEXT PRIMARY KEY NOT NULL,
         ticket_id TEXT NOT NULL UNIQUE REFERENCES tickets(id) ON DELETE CASCADE,
         steps TEXT NOT NULL,
+        epic_review_run_id TEXT REFERENCES epic_review_runs(id) ON DELETE SET NULL,
         generated_at TEXT NOT NULL DEFAULT (datetime('now')),
         completed_at TEXT,
         feedback TEXT,
@@ -586,6 +601,23 @@ function initReviewWorkflowTables() {
     );
     console.log("epic_review_run_tickets table created successfully");
   }
+
+  ensureColumnExists(
+    "review_findings",
+    "epic_review_run_id",
+    "TEXT REFERENCES epic_review_runs(id) ON DELETE SET NULL"
+  );
+  ensureColumnExists(
+    "demo_scripts",
+    "epic_review_run_id",
+    "TEXT REFERENCES epic_review_runs(id) ON DELETE SET NULL"
+  );
+  sqlite.exec(
+    `CREATE INDEX IF NOT EXISTS idx_review_findings_run ON review_findings (epic_review_run_id)`
+  );
+  sqlite.exec(
+    `CREATE INDEX IF NOT EXISTS idx_demo_scripts_run ON demo_scripts (epic_review_run_id)`
+  );
 }
 
 initReviewWorkflowTables();

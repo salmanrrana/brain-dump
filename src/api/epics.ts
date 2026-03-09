@@ -1,7 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
 import { db, sqlite } from "../lib/db";
-import { epics, projects, tickets, epicWorkflowState, reviewFindings } from "../lib/schema";
-import { and, desc, eq, sql } from "drizzle-orm";
+import {
+  epics,
+  projects,
+  tickets,
+  epicWorkflowState,
+  reviewFindings,
+  epicReviewRuns,
+  epicReviewRunTickets,
+  demoScripts,
+} from "../lib/schema";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { ensureExists } from "../lib/utils";
 import { createLogger } from "../lib/logger";
@@ -82,6 +91,24 @@ export interface EpicDetailResult {
     status: string;
     createdAt: string;
     fixedAt: string | null;
+  }>;
+  reviewRuns: Array<{
+    id: string;
+    status: string;
+    launchMode: string;
+    provider: string | null;
+    steeringPrompt: string | null;
+    summary: string | null;
+    createdAt: string;
+    startedAt: string | null;
+    completedAt: string | null;
+    selectedTickets: Array<{
+      id: string;
+      title: string;
+    }>;
+    findingsTotal: number;
+    findingsFixed: number;
+    demoGenerated: boolean;
   }>;
 }
 
@@ -367,6 +394,109 @@ export const getEpicDetail = createServerFn({ method: "GET" })
       }
     }
 
+    const reviewRunRows = db
+      .select({
+        id: epicReviewRuns.id,
+        status: epicReviewRuns.status,
+        launchMode: epicReviewRuns.launchMode,
+        provider: epicReviewRuns.provider,
+        steeringPrompt: epicReviewRuns.steeringPrompt,
+        summary: epicReviewRuns.summary,
+        createdAt: epicReviewRuns.createdAt,
+        startedAt: epicReviewRuns.startedAt,
+        completedAt: epicReviewRuns.completedAt,
+        ticketId: epicReviewRunTickets.ticketId,
+        ticketTitle: tickets.title,
+      })
+      .from(epicReviewRuns)
+      .leftJoin(epicReviewRunTickets, eq(epicReviewRunTickets.epicReviewRunId, epicReviewRuns.id))
+      .leftJoin(tickets, eq(tickets.id, epicReviewRunTickets.ticketId))
+      .where(eq(epicReviewRuns.epicId, epicId))
+      .orderBy(desc(epicReviewRuns.createdAt), epicReviewRunTickets.position)
+      .all();
+
+    const reviewRunIds = Array.from(new Set(reviewRunRows.map((row) => row.id)));
+    const findingsByRun =
+      reviewRunIds.length === 0
+        ? []
+        : db
+            .select({
+              epicReviewRunId: reviewFindings.epicReviewRunId,
+              status: reviewFindings.status,
+              count: sql<number>`COUNT(*)`,
+            })
+            .from(reviewFindings)
+            .where(inArray(reviewFindings.epicReviewRunId, reviewRunIds))
+            .groupBy(reviewFindings.epicReviewRunId, reviewFindings.status)
+            .all();
+    const demoByRun =
+      reviewRunIds.length === 0
+        ? []
+        : db
+            .select({
+              epicReviewRunId: demoScripts.epicReviewRunId,
+              count: sql<number>`COUNT(*)`,
+            })
+            .from(demoScripts)
+            .where(inArray(demoScripts.epicReviewRunId, reviewRunIds))
+            .groupBy(demoScripts.epicReviewRunId)
+            .all();
+
+    const reviewRunMap = new Map<string, EpicDetailResult["reviewRuns"][number]>();
+    for (const row of reviewRunRows) {
+      const existing = reviewRunMap.get(row.id);
+      if (existing) {
+        if (row.ticketId && row.ticketTitle) {
+          existing.selectedTickets.push({ id: row.ticketId, title: row.ticketTitle });
+        }
+        continue;
+      }
+
+      reviewRunMap.set(row.id, {
+        id: row.id,
+        status: row.status,
+        launchMode: row.launchMode,
+        provider: row.provider,
+        steeringPrompt: row.steeringPrompt,
+        summary: row.summary,
+        createdAt: row.createdAt,
+        startedAt: row.startedAt,
+        completedAt: row.completedAt,
+        selectedTickets:
+          row.ticketId && row.ticketTitle ? [{ id: row.ticketId, title: row.ticketTitle }] : [],
+        findingsTotal: 0,
+        findingsFixed: 0,
+        demoGenerated: false,
+      });
+    }
+
+    for (const row of findingsByRun) {
+      if (!row.epicReviewRunId) {
+        continue;
+      }
+
+      const reviewRun = reviewRunMap.get(row.epicReviewRunId);
+      if (!reviewRun) {
+        continue;
+      }
+
+      reviewRun.findingsTotal += row.count;
+      if (row.status === "fixed") {
+        reviewRun.findingsFixed += row.count;
+      }
+    }
+
+    for (const row of demoByRun) {
+      if (!row.epicReviewRunId) {
+        continue;
+      }
+
+      const reviewRun = reviewRunMap.get(row.epicReviewRunId);
+      if (reviewRun) {
+        reviewRun.demoGenerated = row.count > 0;
+      }
+    }
+
     // Compute ticketsByStatus
     const ticketsByStatus: Record<string, number> = {};
     for (const ticket of epicTickets) {
@@ -430,5 +560,6 @@ export const getEpicDetail = createServerFn({ method: "GET" })
       workflowState,
       findingsSummary,
       criticalFindings,
+      reviewRuns: Array.from(reviewRunMap.values()),
     };
   });

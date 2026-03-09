@@ -70,7 +70,12 @@ function seedDemoScript(id: string, ticketId: string) {
   db.prepare(
     `INSERT INTO demo_scripts (id, ticket_id, steps, generated_at)
      VALUES (?, ?, ?, ?)`
-  ).run(id, ticketId, JSON.stringify([{ order: 1, description: "Test", expectedOutcome: "Pass", type: "manual" }]), new Date().toISOString());
+  ).run(
+    id,
+    ticketId,
+    JSON.stringify([{ order: 1, description: "Test", expectedOutcome: "Pass", type: "manual" }]),
+    new Date().toISOString()
+  );
   return id;
 }
 
@@ -415,7 +420,9 @@ describe("importData - conflict resolution", () => {
     expect(result.idMap["exp-ticket-1"]).toBe("existing-t");
 
     // Verify the ticket was updated with import data
-    const row = db.prepare("SELECT description, tags FROM tickets WHERE id = 'existing-t'").get() as {
+    const row = db
+      .prepare("SELECT description, tags FROM tickets WHERE id = 'existing-t'")
+      .get() as {
       description: string;
       tags: string;
     };
@@ -436,9 +443,7 @@ describe("importData - conflict resolution", () => {
     expect(result.idMap["exp-ticket-1"]).not.toBe("existing-t");
 
     // Should now have 2 tickets
-    const tickets = db
-      .prepare("SELECT id FROM tickets WHERE project_id = 'proj-target'")
-      .all();
+    const tickets = db.prepare("SELECT id FROM tickets WHERE project_id = 'proj-target'").all();
     expect(tickets).toHaveLength(2);
   });
 });
@@ -463,6 +468,7 @@ describe("importData - review findings and demo scripts", () => {
           filePath: "src/foo.ts",
           lineNumber: 42,
           suggestedFix: "Fix it",
+          epicReviewRunId: null,
           status: "open",
           fixedAt: null,
           createdAt: new Date().toISOString(),
@@ -489,7 +495,10 @@ describe("importData - review findings and demo scripts", () => {
         {
           id: "exp-demo-1",
           ticketId: "exp-ticket-1",
-          steps: [{ order: 1, description: "Step 1", expectedOutcome: "OK", type: "manual" as const }],
+          steps: [
+            { order: 1, description: "Step 1", expectedOutcome: "OK", type: "manual" as const },
+          ],
+          epicReviewRunId: null,
           generatedAt: new Date().toISOString(),
           completedAt: null,
           feedback: null,

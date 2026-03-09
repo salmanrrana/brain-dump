@@ -108,6 +108,7 @@ export interface DbReviewFindingRow {
   file_path: string | null;
   line_number: number | null;
   suggested_fix: string | null;
+  epic_review_run_id: string | null;
   status: string;
   fixed_at: string | null;
   created_at: string;
@@ -117,6 +118,7 @@ export interface DbDemoScriptRow {
   id: string;
   ticket_id: string;
   steps: string;
+  epic_review_run_id: string | null;
   generated_at: string;
   completed_at: string | null;
   feedback: string | null;

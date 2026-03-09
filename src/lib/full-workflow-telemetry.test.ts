@@ -584,6 +584,7 @@ function initializeTestSchema(db: ReturnType<typeof Database>) {
       file_path TEXT,
       line_number INTEGER,
       suggested_fix TEXT,
+      epic_review_run_id TEXT,
       status TEXT NOT NULL DEFAULT 'open',
       fixed_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -596,6 +597,7 @@ function initializeTestSchema(db: ReturnType<typeof Database>) {
       id TEXT PRIMARY KEY,
       ticket_id TEXT NOT NULL UNIQUE REFERENCES tickets(id) ON DELETE CASCADE,
       steps TEXT NOT NULL,
+      epic_review_run_id TEXT,
       generated_at TEXT NOT NULL DEFAULT (datetime('now')),
       completed_at TEXT,
       feedback TEXT,

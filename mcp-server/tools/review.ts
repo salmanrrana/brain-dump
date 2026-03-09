@@ -173,6 +173,9 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
             if (params.suggestedFix) {
               commentContent += `\n\nSuggested fix:\n${params.suggestedFix}`;
             }
+            if (finding.epicReviewRunId) {
+              commentContent += `\n\nEpic review run: ${finding.epicReviewRunId}`;
+            }
             addComment(db, { ticketId, content: commentContent, type: "progress" });
 
             log.info(`Submitted ${severity} finding for ticket ${ticketId} by ${agent}`);
@@ -195,6 +198,9 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
             let fixComment = `${statusLabel}\nCategory: ${finding.category}\nSeverity: ${finding.severity}`;
             if (params.fixDescription) {
               fixComment += `\n\nFix description:\n${params.fixDescription}`;
+            }
+            if (finding.epicReviewRunId) {
+              fixComment += `\n\nEpic review run: ${finding.epicReviewRunId}`;
             }
             addComment(db, { ticketId: finding.ticketId, content: fixComment, type: "progress" });
 
@@ -259,7 +265,7 @@ export function registerReviewTool(server: McpServer, db: Database.Database): vo
             // Add audit comment to ticket
             addComment(db, {
               ticketId,
-              content: `Demo script generated with ${steps.length} steps. Ticket is now ready for human review.`,
+              content: `Demo script generated with ${steps.length} steps. Ticket is now ready for human review.${demo.epicReviewRunId ? `\n\nEpic review run: ${demo.epicReviewRunId}` : ""}`,
               type: "progress",
             });
 

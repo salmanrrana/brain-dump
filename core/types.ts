@@ -224,6 +224,7 @@ export interface ReviewFinding {
   filePath?: string;
   lineNumber?: number;
   suggestedFix?: string;
+  epicReviewRunId?: string | null;
   status: FindingStatus;
   createdAt: string;
 }
@@ -255,6 +256,7 @@ export interface DemoScript {
   id: string;
   ticketId: string;
   steps: DemoStep[];
+  epicReviewRunId?: string | null;
   generatedAt: string;
   executedAt?: string | null;
   feedback?: string | null;

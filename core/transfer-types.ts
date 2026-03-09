@@ -82,6 +82,7 @@ export interface ExportedReviewFinding {
   filePath: string | null;
   lineNumber: number | null;
   suggestedFix: string | null;
+  epicReviewRunId?: string | null;
   status: string;
   fixedAt: string | null;
   createdAt: string;
@@ -98,6 +99,7 @@ export interface ExportedDemoScript {
     status?: string;
     notes?: string;
   }>;
+  epicReviewRunId?: string | null;
   generatedAt: string;
   completedAt: string | null;
   feedback: string | null;

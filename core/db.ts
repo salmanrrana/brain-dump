@@ -346,6 +346,7 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
       file_path TEXT,
       line_number INTEGER,
       suggested_fix TEXT,
+      epic_review_run_id TEXT REFERENCES epic_review_runs(id) ON DELETE SET NULL,
       status TEXT NOT NULL DEFAULT 'open',
       fixed_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -355,6 +356,7 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
       id TEXT PRIMARY KEY,
       ticket_id TEXT NOT NULL UNIQUE REFERENCES tickets(id) ON DELETE CASCADE,
       steps TEXT NOT NULL,
+      epic_review_run_id TEXT REFERENCES epic_review_runs(id) ON DELETE SET NULL,
       generated_at TEXT NOT NULL DEFAULT (datetime('now')),
       completed_at TEXT,
       feedback TEXT,
@@ -591,6 +593,26 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
   ).run();
   db.prepare(
     "CREATE INDEX IF NOT EXISTS idx_epic_review_run_tickets_position ON epic_review_run_tickets(epic_review_run_id, position)"
+  ).run();
+  addColumnIfMissing(
+    db,
+    "review_findings",
+    "epic_review_run_id",
+    "TEXT REFERENCES epic_review_runs(id) ON DELETE SET NULL",
+    logger
+  );
+  addColumnIfMissing(
+    db,
+    "demo_scripts",
+    "epic_review_run_id",
+    "TEXT REFERENCES epic_review_runs(id) ON DELETE SET NULL",
+    logger
+  );
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_review_findings_run ON review_findings(epic_review_run_id)"
+  ).run();
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_demo_scripts_run ON demo_scripts(epic_review_run_id)"
   ).run();
 
   // Ralph events table

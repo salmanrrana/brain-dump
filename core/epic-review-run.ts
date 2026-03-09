@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import type { DbHandle, EpicReviewRun, EpicReviewRunStatus } from "./types.ts";
 import { EpicNotFoundError, ValidationError } from "./errors.ts";
 import type { DbEpicReviewRunRow, DbEpicReviewRunTicketRow, DbTicketRow } from "./db-rows.ts";
+import { addComment } from "./comment.ts";
 
 export interface CreateEpicReviewRunParams {
   epicId: string;
@@ -123,6 +124,33 @@ function getEpicReviewRunRow(db: DbHandle, epicReviewRunId: string): DbEpicRevie
   return row;
 }
 
+function getEpicTitle(db: DbHandle, epicId: string): string {
+  const row = db.prepare("SELECT title FROM epics WHERE id = ?").get(epicId) as
+    | { title: string }
+    | undefined;
+
+  if (!row) {
+    throw new EpicNotFoundError(epicId);
+  }
+
+  return row.title;
+}
+
+function buildEpicReviewRunLaunchComment(
+  run: EpicReviewRun,
+  epicTitle: string,
+  ticketTitle: string,
+  selectedTicketCount: number
+): string {
+  const scopeLabel =
+    selectedTicketCount === 1
+      ? `Ticket scope: ${ticketTitle}`
+      : `Ticket scope: ${ticketTitle} (${selectedTicketCount} tickets in this run)`;
+  const steeringSection = run.steeringPrompt ? `\n\nSteering prompt:\n${run.steeringPrompt}` : "";
+
+  return `Focused epic review launched.\n\nRun ID: ${run.id}\nEpic: ${epicTitle}\nLaunch mode: ${run.launchMode}\n${scopeLabel}\nNew findings and demo artifacts from this review will link back to this run.${steeringSection}`;
+}
+
 export function createEpicReviewRun(
   db: DbHandle,
   params: CreateEpicReviewRunParams
@@ -242,6 +270,100 @@ export function updateEpicReviewRun(
   );
 
   return getEpicReviewRun(db, epicReviewRunId);
+}
+
+export function findLatestActiveEpicReviewRunIdForTicket(
+  db: DbHandle,
+  ticketId: string
+): string | null {
+  const row = db
+    .prepare(
+      `SELECT err.id
+       FROM epic_review_runs err
+       INNER JOIN epic_review_run_tickets errt ON errt.epic_review_run_id = err.id
+       WHERE errt.ticket_id = ?
+         AND err.status IN ('queued', 'running')
+       ORDER BY err.created_at DESC
+       LIMIT 1`
+    )
+    .get(ticketId) as { id: string } | undefined;
+
+  return row?.id ?? null;
+}
+
+export interface EpicReviewRunArtifactSummary {
+  totalFindings: number;
+  fixedFindings: number;
+  openCritical: number;
+  openMajor: number;
+  openMinor: number;
+  openSuggestion: number;
+  demoGenerated: boolean;
+}
+
+export function getEpicReviewRunArtifactSummary(
+  db: DbHandle,
+  epicReviewRunId: string
+): EpicReviewRunArtifactSummary {
+  getEpicReviewRunRow(db, epicReviewRunId);
+
+  const findingRows = db
+    .prepare(
+      `SELECT severity, status, COUNT(*) AS count
+       FROM review_findings
+       WHERE epic_review_run_id = ?
+       GROUP BY severity, status`
+    )
+    .all(epicReviewRunId) as Array<{ severity: string; status: string; count: number }>;
+
+  const demoRow = db
+    .prepare("SELECT COUNT(*) AS count FROM demo_scripts WHERE epic_review_run_id = ?")
+    .get(epicReviewRunId) as { count: number };
+
+  const summary: EpicReviewRunArtifactSummary = {
+    totalFindings: 0,
+    fixedFindings: 0,
+    openCritical: 0,
+    openMajor: 0,
+    openMinor: 0,
+    openSuggestion: 0,
+    demoGenerated: demoRow.count > 0,
+  };
+
+  for (const row of findingRows) {
+    summary.totalFindings += row.count;
+
+    if (row.status === "fixed") {
+      summary.fixedFindings += row.count;
+      continue;
+    }
+
+    if (row.status !== "open") {
+      continue;
+    }
+
+    if (row.severity === "critical") summary.openCritical += row.count;
+    if (row.severity === "major") summary.openMajor += row.count;
+    if (row.severity === "minor") summary.openMinor += row.count;
+    if (row.severity === "suggestion") summary.openSuggestion += row.count;
+  }
+
+  return summary;
+}
+
+export function addEpicReviewRunAuditComments(db: DbHandle, epicReviewRunId: string): void {
+  const run = getEpicReviewRun(db, epicReviewRunId);
+  const epicTitle = getEpicTitle(db, run.epicId);
+  const ticketRows = getEpicTickets(db, run.epicId, run.selectedTicketIds);
+
+  for (const ticket of ticketRows) {
+    addComment(db, {
+      ticketId: ticket.id,
+      author: "brain-dump",
+      type: "progress",
+      content: buildEpicReviewRunLaunchComment(run, epicTitle, ticket.title, ticketRows.length),
+    });
+  }
 }
 
 export interface EpicReviewRunTicketLink {

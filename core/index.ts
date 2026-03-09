@@ -145,12 +145,16 @@ export {
   listEpicReviewRuns,
   updateEpicReviewRun,
   listEpicReviewRunTicketLinks,
+  findLatestActiveEpicReviewRunIdForTicket,
+  getEpicReviewRunArtifactSummary,
+  addEpicReviewRunAuditComments,
 } from "./epic-review-run.ts";
 
 export type {
   CreateEpicReviewRunParams,
   UpdateEpicReviewRunParams,
   EpicReviewRunTicketLink,
+  EpicReviewRunArtifactSummary,
 } from "./epic-review-run.ts";
 
 // Comment business logic

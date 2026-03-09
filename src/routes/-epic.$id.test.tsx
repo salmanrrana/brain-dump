@@ -149,6 +149,7 @@ function createEpicDetail(overrides: Partial<Record<string, unknown>> = {}) {
       total: 0,
     },
     criticalFindings: [],
+    reviewRuns: [],
     workflowState: {
       epicBranchName: "feature/epic-ship",
       prNumber: null,
@@ -273,6 +274,38 @@ describe("EpicDetailPage ship entry points", () => {
     expect(screen.getByText("Minor")).toBeInTheDocument();
     expect(screen.getByText("Suggestions")).toBeInTheDocument();
     expect(screen.getByText("5/10")).toBeInTheDocument();
+  });
+
+  it("shows focused review run summaries without duplicating ticket history", () => {
+    epicDetailState = createEpicDetail({
+      reviewRuns: [
+        {
+          id: "run-12345678",
+          status: "completed",
+          launchMode: "focused-review",
+          provider: "claude",
+          steeringPrompt: "Focus on silent failures.",
+          summary:
+            "Focused review completed. Findings: 2 total, 1 fixed, 0 open critical, 0 open major. Demo generated: yes.",
+          createdAt: "2026-03-09T05:00:00.000Z",
+          startedAt: "2026-03-09T05:00:00.000Z",
+          completedAt: "2026-03-09T05:15:00.000Z",
+          selectedTickets: [{ id: "ticket-1", title: "Ship modal" }],
+          findingsTotal: 2,
+          findingsFixed: 1,
+          demoGenerated: true,
+        },
+      ],
+    });
+
+    render(<EpicDetailPage />);
+
+    expect(screen.getByTestId("epic-review-runs")).toBeInTheDocument();
+    expect(screen.getByText("Focused Review Runs")).toBeInTheDocument();
+    expect(screen.getByText("Run run-1234")).toBeInTheDocument();
+    expect(screen.getByText("Ship modal")).toBeInTheDocument();
+    expect(screen.getByText("2 findings • 1 fixed • Demo generated")).toBeInTheDocument();
+    expect(screen.getByText(/Focus on silent failures\./)).toBeInTheDocument();
   });
 
   it("launches a focused review with selected ticket scope and optional steering text", async () => {

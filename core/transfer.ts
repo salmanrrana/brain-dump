@@ -108,6 +108,7 @@ function toExportedFinding(row: DbReviewFindingRow): ExportedReviewFinding {
     filePath: row.file_path,
     lineNumber: row.line_number,
     suggestedFix: row.suggested_fix,
+    epicReviewRunId: row.epic_review_run_id,
     status: row.status,
     fixedAt: row.fixed_at,
     createdAt: row.created_at,
@@ -119,6 +120,7 @@ function toExportedDemoScript(row: DbDemoScriptRow): ExportedDemoScript {
     id: row.id,
     ticketId: row.ticket_id,
     steps: safeJsonParse(row.steps, []),
+    epicReviewRunId: row.epic_review_run_id,
     generatedAt: row.generated_at,
     completedAt: row.completed_at,
     feedback: row.feedback,
@@ -202,11 +204,15 @@ function gatherTicketRelatedData(db: DbHandle, ticketIds: string[]) {
   const placeholders = ticketIds.map(() => "?").join(",");
 
   const commentRows = db
-    .prepare(`SELECT * FROM ticket_comments WHERE ticket_id IN (${placeholders}) ORDER BY created_at`)
+    .prepare(
+      `SELECT * FROM ticket_comments WHERE ticket_id IN (${placeholders}) ORDER BY created_at`
+    )
     .all(...ticketIds) as DbCommentRow[];
 
   const findingRows = db
-    .prepare(`SELECT * FROM review_findings WHERE ticket_id IN (${placeholders}) ORDER BY created_at`)
+    .prepare(
+      `SELECT * FROM review_findings WHERE ticket_id IN (${placeholders}) ORDER BY created_at`
+    )
     .all(...ticketIds) as DbReviewFindingRow[];
 
   const demoRows = db
@@ -233,9 +239,7 @@ function gatherTicketRelatedData(db: DbHandle, ticketIds: string[]) {
  * Gather all data for an epic export.
  */
 export function gatherEpicExportData(db: DbHandle, epicId: string): ExportResult {
-  const epic = db.prepare("SELECT * FROM epics WHERE id = ?").get(epicId) as
-    | DbEpicRow
-    | undefined;
+  const epic = db.prepare("SELECT * FROM epics WHERE id = ?").get(epicId) as DbEpicRow | undefined;
   if (!epic) throw new EpicNotFoundError(epicId);
 
   const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(epic.project_id) as
@@ -579,16 +583,14 @@ export function importData(params: ImportParams): ImportResult {
     for (const finding of manifest.reviewFindings) {
       const newTicketId = idMap[finding.ticketId];
       if (!newTicketId) {
-        warnings.push(
-          `Skipped finding ${finding.id}: ticket ${finding.ticketId} not mapped`
-        );
+        warnings.push(`Skipped finding ${finding.id}: ticket ${finding.ticketId} not mapped`);
         continue;
       }
       const newId = randomUUID();
       db.prepare(
         `INSERT INTO review_findings (id, ticket_id, iteration, agent, severity, category, description,
-         file_path, line_number, suggested_fix, status, fixed_at, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         file_path, line_number, suggested_fix, epic_review_run_id, status, fixed_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         newId,
         newTicketId,
@@ -600,6 +602,7 @@ export function importData(params: ImportParams): ImportResult {
         finding.filePath,
         finding.lineNumber,
         finding.suggestedFix,
+        finding.epicReviewRunId ?? null,
         finding.status,
         finding.fixedAt,
         finding.createdAt
@@ -612,19 +615,18 @@ export function importData(params: ImportParams): ImportResult {
     for (const demo of manifest.demoScripts) {
       const newTicketId = idMap[demo.ticketId];
       if (!newTicketId) {
-        warnings.push(
-          `Skipped demo script ${demo.id}: ticket ${demo.ticketId} not mapped`
-        );
+        warnings.push(`Skipped demo script ${demo.id}: ticket ${demo.ticketId} not mapped`);
         continue;
       }
       const newId = randomUUID();
       db.prepare(
-        `INSERT INTO demo_scripts (id, ticket_id, steps, generated_at, completed_at, feedback, passed)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO demo_scripts (id, ticket_id, steps, epic_review_run_id, generated_at, completed_at, feedback, passed)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         newId,
         newTicketId,
         JSON.stringify(demo.steps),
+        demo.epicReviewRunId ?? null,
         demo.generatedAt,
         demo.completedAt,
         demo.feedback,

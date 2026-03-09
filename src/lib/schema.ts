@@ -708,6 +708,9 @@ export const reviewFindings = sqliteTable(
     filePath: text("file_path"), // Optional file path affected
     lineNumber: integer("line_number"), // Optional line number
     suggestedFix: text("suggested_fix"), // Optional fix suggestion
+    epicReviewRunId: text("epic_review_run_id").references(() => epicReviewRuns.id, {
+      onDelete: "set null",
+    }),
     status: text("status").notNull().default("open"), // 'open', 'fixed', 'wont_fix', 'duplicate'
     fixedAt: text("fixed_at"), // When marked as fixed
     createdAt: text("created_at")
@@ -720,6 +723,7 @@ export const reviewFindings = sqliteTable(
     index("idx_review_findings_severity").on(table.severity),
     index("idx_review_findings_agent").on(table.agent),
     index("idx_review_findings_iteration").on(table.ticketId, table.iteration),
+    index("idx_review_findings_run").on(table.epicReviewRunId),
   ]
 );
 
@@ -736,6 +740,9 @@ export const demoScripts = sqliteTable(
       .unique()
       .references(() => tickets.id, { onDelete: "cascade" }),
     steps: text("steps").notNull(), // JSON array of demo step objects
+    epicReviewRunId: text("epic_review_run_id").references(() => epicReviewRuns.id, {
+      onDelete: "set null",
+    }),
     generatedAt: text("generated_at")
       .notNull()
       .default(sql`(datetime('now'))`),
@@ -746,6 +753,7 @@ export const demoScripts = sqliteTable(
   (table) => [
     index("idx_demo_scripts_ticket").on(table.ticketId),
     index("idx_demo_scripts_generated").on(table.generatedAt),
+    index("idx_demo_scripts_run").on(table.epicReviewRunId),
   ]
 );
 

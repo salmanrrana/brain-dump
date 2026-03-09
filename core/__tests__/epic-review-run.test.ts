@@ -7,6 +7,9 @@ import {
   listEpicReviewRunTicketLinks,
   listEpicReviewRuns,
   updateEpicReviewRun,
+  findLatestActiveEpicReviewRunIdForTicket,
+  getEpicReviewRunArtifactSummary,
+  addEpicReviewRunAuditComments,
 } from "../epic-review-run.ts";
 import { EpicNotFoundError, ValidationError } from "../errors.ts";
 
@@ -186,6 +189,33 @@ describe("createEpicReviewRun", () => {
     expect(findingsCount.count).toBe(1);
     expect(demoCount.count).toBe(1);
   });
+
+  it("writes ticket-visible audit comments when requested", () => {
+    seedProject();
+    seedEpic();
+    seedTicket("ticket-1");
+
+    const run = createEpicReviewRun(db, {
+      epicId: "epic-1",
+      selectedTicketIds: ["ticket-1"],
+      launchMode: "focused-review",
+      steeringPrompt: "focus on regressions",
+      status: "running",
+    });
+
+    addEpicReviewRunAuditComments(db, run.id);
+
+    const comments = db
+      .prepare("SELECT content, author, type FROM ticket_comments WHERE ticket_id = ?")
+      .all("ticket-1") as Array<{ content: string; author: string; type: string }>;
+
+    expect(comments).toHaveLength(1);
+    expect(comments[0]?.author).toBe("brain-dump");
+    expect(comments[0]?.type).toBe("progress");
+    expect(comments[0]?.content).toContain("Focused epic review launched.");
+    expect(comments[0]?.content).toContain(`Run ID: ${run.id}`);
+    expect(comments[0]?.content).toContain("focus on regressions");
+  });
 });
 
 describe("get/list/update epic review runs", () => {
@@ -240,5 +270,73 @@ describe("get/list/update epic review runs", () => {
     expect(updated.startedAt).toBe("2026-03-08T10:00:00.000Z");
     expect(updated.completedAt).toBe("2026-03-08T10:15:00.000Z");
     expect(updated.selectedTicketIds).toEqual(["ticket-1"]);
+  });
+
+  it("finds the latest active run for a ticket and summarizes linked artifacts", () => {
+    seedProject();
+    seedEpic();
+    seedTicket("ticket-1", "proj-1", "epic-1", "ai_review");
+
+    const completedRun = createEpicReviewRun(db, {
+      epicId: "epic-1",
+      selectedTicketIds: ["ticket-1"],
+      launchMode: "focused-review",
+      status: "completed",
+    });
+    const activeRun = createEpicReviewRun(db, {
+      epicId: "epic-1",
+      selectedTicketIds: ["ticket-1"],
+      launchMode: "focused-review",
+      status: "running",
+    });
+
+    db.prepare(
+      `INSERT INTO review_findings
+       (id, ticket_id, iteration, agent, severity, category, description, epic_review_run_id, status, created_at)
+       VALUES (?, ?, 1, 'code-reviewer', 'critical', 'logic', 'Broken state handling', ?, 'open', ?)`
+    ).run("finding-open", "ticket-1", activeRun.id, "2026-03-09T05:05:00.000Z");
+    db.prepare(
+      `INSERT INTO review_findings
+       (id, ticket_id, iteration, agent, severity, category, description, epic_review_run_id, status, fixed_at, created_at)
+       VALUES (?, ?, 1, 'code-reviewer', 'minor', 'style', 'Cleanup copy', ?, 'fixed', ?, ?)`
+    ).run(
+      "finding-fixed",
+      "ticket-1",
+      activeRun.id,
+      "2026-03-09T05:10:00.000Z",
+      "2026-03-09T05:05:00.000Z"
+    );
+    db.prepare(
+      `INSERT INTO demo_scripts (id, ticket_id, steps, epic_review_run_id, generated_at)
+       VALUES (?, ?, ?, ?, ?)`
+    ).run(
+      "demo-1",
+      "ticket-1",
+      JSON.stringify([
+        {
+          order: 1,
+          description: "Open the ticket",
+          expectedOutcome: "Ticket details render",
+          type: "manual",
+        },
+      ]),
+      activeRun.id,
+      "2026-03-09T05:12:00.000Z"
+    );
+
+    expect(findLatestActiveEpicReviewRunIdForTicket(db, "ticket-1")).toBe(activeRun.id);
+    expect(findLatestActiveEpicReviewRunIdForTicket(db, "missing-ticket")).toBeNull();
+
+    const summary = getEpicReviewRunArtifactSummary(db, activeRun.id);
+    expect(summary).toEqual({
+      totalFindings: 2,
+      fixedFindings: 1,
+      openCritical: 1,
+      openMajor: 0,
+      openMinor: 0,
+      openSuggestion: 0,
+      demoGenerated: true,
+    });
+    expect(completedRun.id).not.toBe(activeRun.id);
   });
 });
