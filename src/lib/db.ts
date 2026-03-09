@@ -7,6 +7,7 @@ import { performDailyBackupSync } from "./backup";
 import { initializeLockSync } from "./lockfile";
 import { initializeWatcher, stopWatching } from "./db-watcher";
 import { startupIntegrityCheck } from "./integrity";
+import { ensureTelemetryTables, ensureTicketWorkflowColumns } from "./db-bootstrap";
 
 // Ensure XDG directories exist with proper permissions
 ensureDirectoriesSync();
@@ -110,7 +111,11 @@ function initTables() {
         attachments TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-        completed_at TEXT
+        completed_at TEXT,
+        branch_name TEXT,
+        pr_number INTEGER,
+        pr_url TEXT,
+        pr_status TEXT
       )
     `);
     sqlite.exec(`CREATE INDEX idx_tickets_project ON tickets (project_id)`);
@@ -572,6 +577,9 @@ function initConversationLogging() {
 }
 
 initConversationLogging();
+
+ensureTicketWorkflowColumns(sqlite);
+ensureTelemetryTables(sqlite);
 
 // Perform daily backup maintenance (deferred 5s to avoid blocking startup)
 // VACUUM INTO can take 10+ seconds on larger databases
