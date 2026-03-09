@@ -276,10 +276,12 @@ ${steeringSection}
 ## Session State Tracking
 Use \`session\` to keep progress and UI state accurate.
 
-1. Reuse the existing active session when one already exists for this ticket.
-2. Update state as work progresses:
+1. Create a session when no active session exists for this ticket:
+   \`session({ action: "create", ticketId: "${profile.selectedTicket.id}" })\`
+2. Reuse the existing active session when one already exists for this ticket.
+3. Update state as work progresses:
    \`session({ action: "update-state", sessionId: "<sessionId>", state: "analyzing|implementing|testing|committing|reviewing", metadata: { message: "..." } })\`
-3. Complete after demo generation, then STOP:
+4. Complete after demo generation, then STOP:
    \`session({ action: "complete", sessionId: "<sessionId>", outcome: "success" })\`
 
 ## Hard Guards

@@ -149,6 +149,7 @@ describe("review-mode prompt builders", () => {
     expect(prompt).toContain("Focus on auth edge cases and silent failures.");
     expect(prompt).toContain('review({ action: "submit-finding", ticketId: "ticket-review"');
     expect(prompt).toContain('review({ action: "check-complete", ticketId: "ticket-review" })');
+    expect(prompt).toContain('session({ action: "create", ticketId: "ticket-review" })');
     expect(prompt).not.toContain('workflow({ action: "complete-work"');
   });
 
