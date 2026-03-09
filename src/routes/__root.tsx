@@ -72,7 +72,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   const [showSplash, setShowSplash] = useState(true);
 
   return (
-    <html lang="en" className="dark">
+    <html lang="en" data-theme={DEFAULT_THEME} suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>

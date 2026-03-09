@@ -9,360 +9,152 @@
   ],
   "userStories": [
     {
-      "id": "037a7f94-3fd6-4005-a9f2-bc8ee13685b6",
-      "title": "Server function: getShipPrep (preflight data)",
+      "id": "a38a7ecb-cbb0-4791-88d1-8b60da32beb3",
+      "title": "Add epic review run schema and orchestration records",
       "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Resolves project path server-side from `ticketId`/`epicId`",
-        "Returns all preflight fields correctly",
-        "`changedFiles` includes tracked, untracked, deleted, and renamed files",
-        "`isSafeToShip` is false for main/master/develop branches",
-        "`reviewMarkerFresh` uses a 5-minute window from file mtime",
-        "All subprocess calls use shared no-shell helpers",
-        "Parser behavior is covered by tests for realistic `git status --short` output",
-        "`pnpm type-check` passes"
-      ],
-      "references": [
-        "src/api/ship-server-fns.ts"
-      ],
-      "description": "Create `src/api/ship-server-fns.ts` with the `getShipPrep` server function that gathers all preflight data needed before the Ship Changes modal can show its file picker and checks.\n\n## Function signature\n```ts\ngetShipPrep({ ticketId?, epicId? })\n  → {\n      changedFiles: { path: string; status: string }[];\n      currentBranch: string;\n      isSafeToShip: boolean;\n      reviewMarkerFresh: boolean;\n      ghAvailable: boolean;\n      remoteConfigured: boolean;\n      inferredScope: { type: 'ticket' | 'epic'; id: string; title: string } | null;\n    }\n```\n\n## Implementation notes\n- Resolve `projectPath` on the server from trusted DB records using `ticketId` or `epicId` — never trust a raw client path for git/gh operations\n- All subprocess calls via the shared `execFileNoThrow` helper using array args only\n- Use shared parser helpers where possible so later ship functions reuse the same git-status parsing behavior\n- `git status --short` → parse each line into `{ path, status }`; include untracked (`??`) and modified/deleted/renamed files\n- `git branch --show-current` → `currentBranch`\n- `isSafeToShip`: false when branch is in `['main', 'master', 'develop']`\n- `reviewMarkerFresh`: check `.claude/.review-completed` mtime < 5 minutes\n- `ghAvailable`: check `which gh`\n- `remoteConfigured`: `git remote` returns at least one remote\n- `inferredScope`: if `ticketId`/`epicId` passed, fetch title from DB; else null\n- Server function should follow the same POST wrapper pattern used by `workflow-server-fns.ts`\n\n## Acceptance Criteria\n- [ ] Resolves project path server-side from `ticketId`/`epicId`\n- [ ] Returns all preflight fields correctly\n- [ ] `changedFiles` includes tracked, untracked, deleted, and renamed files\n- [ ] `isSafeToShip` is false for main/master/develop branches\n- [ ] `reviewMarkerFresh` uses a 5-minute window from file mtime\n- [ ] All subprocess calls use shared no-shell helpers\n- [ ] Parser behavior is covered by tests for realistic `git status --short` output\n- [ ] `pnpm type-check` passes",
-      "priority": "high",
-      "tags": [
-        "server",
-        "git",
-        "api"
-      ]
-    },
-    {
-      "id": "585695ad-0277-4e95-8981-798b275db684",
-      "title": "Server function: commitAndShipServerFn + PR body generator",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Stages only `selectedPaths` (never `git add -A`)",
-        "Resolves project path server-side from trusted scope IDs",
-        "Parses commit hash correctly from real git output",
-        "Epic scope links commit metadata to every ticket assigned to the epic",
-        "Epic scope links PR metadata to every ticket assigned to the epic",
-        "Epic scope updates `epic_workflow_state` so the epic detail header reflects the PR immediately",
-        "PR body includes acceptance criteria as checkboxes",
-        "PR body includes `<!-- brain-dump:demo-steps -->` sentinel",
-        "All subprocess calls use shared no-shell helpers",
-        "Returns structured errors instead of throwing to the caller",
-        "Includes tests for commit hash parsing, PR URL/number parsing, and epic-wide linkage persistence",
-        "`pnpm type-check` passes"
-      ],
-      "references": [
-        "src/api/ship-server-fns.ts"
-      ],
-      "description": "Add `commitAndShipServerFn` to `src/api/ship-server-fns.ts` — the core function that stages selected files, commits, pushes, creates a PR, and persists linkage for both ticket and epic scopes. This ticket also owns the PR body generator utility.\n\n## Function signature\n```ts\ncommitAndShipServerFn({\n  scopeType: 'ticket' | 'epic',\n  scopeId: string,\n  message: string,\n  selectedPaths: string[],\n  prTitle: string,\n  prBody: string,\n  draft: boolean\n}) → { success, commitHash?, prNumber?, prUrl?, error? }\n```\n\n## Steps (server-side, in order)\n1. Resolve trusted scope context from DB (`projectPath`, branch, ticket/epic metadata)\n2. `git add -- <selectedPaths>`\n3. `git commit -m <message>` → parse commit hash from stdout\n4. Link commit metadata\n   - ticket scope: link to that ticket\n   - epic scope: link to every ticket currently assigned to the epic so the audit trail matches the shared epic PR strategy\n5. `git push -u origin <currentBranch>`\n6. `gh pr create --title <prTitle> --body <prBody> [--draft]`\n7. Parse PR number and URL from `gh` stdout\n8. Persist PR linkage\n   - ticket scope: `linkPr` for that ticket\n   - epic scope: `linkPr` for every ticket currently assigned to the epic\n9. If epic scope, update `epic_workflow_state` with `pr_number`, `pr_url`, `pr_status`, and `updated_at`\n10. Return `{ success: true, commitHash, prNumber, prUrl }`\n\n## PR body generator\nExpose `generatePrBodyServerFn({ scopeType, scopeId })` that returns the generated body string used to pre-populate the modal before shipping.\n\n### Requirements\n- Epic scope must include the epic title/description, all tickets in the epic, acceptance criteria checkboxes from ticket subtasks/criteria, the demo-step sentinel block, and implementation notes from relevant work-summary comments\n- Ticket scope uses the same structure for a single ticket\n- Output should make the linked PR clearly attributable to the epic or ticket that created it\n\n## Acceptance Criteria\n- [ ] Stages only `selectedPaths` (never `git add -A`)\n- [ ] Resolves project path server-side from trusted scope IDs\n- [ ] Parses commit hash correctly from real git output\n- [ ] Epic scope links commit metadata to every ticket assigned to the epic\n- [ ] Epic scope links PR metadata to every ticket assigned to the epic\n- [ ] Epic scope updates `epic_workflow_state` so the epic detail header reflects the PR immediately\n- [ ] PR body includes acceptance criteria as checkboxes\n- [ ] PR body includes `<!-- brain-dump:demo-steps -->` sentinel\n- [ ] All subprocess calls use shared no-shell helpers\n- [ ] Returns structured errors instead of throwing to the caller\n- [ ] Includes tests for commit hash parsing, PR URL/number parsing, and epic-wide linkage persistence\n- [ ] `pnpm type-check` passes",
-      "priority": "high",
-      "tags": [
-        "server",
-        "git",
-        "api",
-        "pr"
-      ]
-    },
-    {
-      "id": "994aecd2-89d3-4625-b404-fa75fb369fe4",
-      "title": "Server function: syncPrVerificationChecklist + review.generate-demo hook",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Reads demo steps from the real `demo_scripts.steps` JSON storage model",
-        "Updates the PR body sentinel block with rendered demo steps",
-        "Is idempotent: running twice with the same steps does not duplicate content",
-        "Returns early cleanly if no PR is linked to the ticket",
-        "`review.generate-demo` invokes sync after saving steps",
-        "Sync failure logs a warning but does not break demo generation",
-        "All gh calls use shared no-shell helpers",
-        "Includes tests for sentinel replacement and idempotent behavior",
-        "`pnpm type-check` passes"
-      ],
-      "references": [
-        "src/api/ship-server-fns.ts",
-        "mcp-server/tools/review.ts"
-      ],
-      "description": "Add `syncPrVerificationChecklistServerFn` to `src/api/ship-server-fns.ts` and wire shared sync logic into `mcp-server/tools/review.ts` after `generate-demo` completes.\n\n## Server function\n```ts\nsyncPrVerificationChecklistServerFn({ ticketId })\n  → { success, prUrl?, error? }\n```\n\n## Steps\n1. Fetch ticket from DB and read `prNumber`/`prUrl`; if no PR is linked, return early with success\n2. Fetch the latest demo script row for the ticket from `demo_scripts`\n3. Parse the real `steps` JSON payload from `demo_scripts.steps`\n4. Fetch the current PR body via `gh pr view <prNumber> --json body --jq .body`\n5. Find content beginning at `<!-- brain-dump:demo-steps -->` and replace that block up to the next `##` header or EOF\n6. Render the demo steps in a stable numbered markdown format\n7. `gh pr edit <prNumber> --body <updatedBody>`\n8. Return `{ success: true, prUrl }`\n\n## Shared-core requirement\nThe MCP server is standalone and cannot call TanStack Start server functions directly. Extract the core sync/render logic into a shared helper that both the server fn and `mcp-server/tools/review.ts` can import.\n\n## `review.generate-demo` hook\nAfter demo steps are saved in `mcp-server/tools/review.ts`:\n- Check whether the ticket already has a linked PR\n- If yes, call the shared sync helper\n- If sync fails, log a warning and continue; demo generation must still succeed\n- Add sync outcome details to the MCP response text so the agent sees whether the PR body was updated\n\n## Acceptance Criteria\n- [ ] Reads demo steps from the real `demo_scripts.steps` JSON storage model\n- [ ] Updates the PR body sentinel block with rendered demo steps\n- [ ] Is idempotent: running twice with the same steps does not duplicate content\n- [ ] Returns early cleanly if no PR is linked to the ticket\n- [ ] `review.generate-demo` invokes sync after saving steps\n- [ ] Sync failure logs a warning but does not break demo generation\n- [ ] All gh calls use shared no-shell helpers\n- [ ] Includes tests for sentinel replacement and idempotent behavior\n- [ ] `pnpm type-check` passes",
-      "priority": "medium",
-      "tags": [
-        "server",
-        "git",
-        "mcp",
-        "pr",
-        "sync"
-      ]
-    },
-    {
-      "id": "aa778958-2b89-4471-8711-72523627a93e",
-      "title": "UI: ShipChangesModal component with all 5 states",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Modal opens and immediately fetches preflight data and generated PR body",
-        "File picker shows tracked + untracked files with status prefixes",
-        "Select All works correctly",
-        "Preflight checks render green/red/yellow states clearly",
-        "blocked-review appears when review marker is stale and Recheck works",
-        "blocked-main appears on protected branches and branch creation returns to preflight",
-        "running state shows step progression and prevents dismissal",
-        "done state shows commit hash and PR URL with copy/open actions",
-        "error state allows retry and keeps failures visible to the user",
-        "Keyboard behavior works: Escape closes unless running; Enter submits when valid",
-        "No silent failures: all errors are surfaced in the UI",
-        "Component tests cover at least one happy path and key blocked/error states",
-        "`pnpm type-check && pnpm lint` pass"
-      ],
-      "references": [
-        "src/components/tickets/ShipChangesModal.tsx"
-      ],
-      "description": "Create `src/components/tickets/ShipChangesModal.tsx` — the unified Ship Changes modal with 5 explicit states.\n\n## Props\n```ts\n{\n  isOpen: boolean;\n  onClose: () => void;\n  projectPath: string; // UI only: used for terminal-launch convenience\n  scopeType: 'ticket' | 'epic';\n  scopeId: string;\n  scopeTitle: string;\n  branchName?: string;\n  onSuccess: (prUrl: string) => void;\n}\n```\n\n## Important boundary\n- `projectPath` may be passed to support \"Run Review\" / terminal-launch UX\n- Ship mutations themselves (`getShipPrep`, `commitAndShipServerFn`, `pushBranchServerFn`) must resolve trusted project context server-side from IDs, not from this prop\n\n## State machine\n```text\npreflight → [blocked-review | blocked-main] → running → done | error\n```\n\nOn open, immediately load preflight data and the generated PR body.\n\n## State UIs\n### preflight\n- Preflight panel with branch, review freshness, GitHub CLI, and remote checks\n- File picker showing `<status> <path>` rows with checkboxes and a Select All toggle\n- Editable commit message prefilled `feat(<shortId>): <scopeTitle>`\n- Editable PR title\n- Collapsible editable PR body pre-populated from `generatePrBodyServerFn`\n- Draft PR checkbox (default checked)\n- CTA disabled when gh/remote checks fail or no files are selected\n\n### blocked-review\n- Warn that review must be run before shipping\n- \"Run Review\" launches a terminal in the project dir using existing terminal-launch logic\n- \"Recheck\" re-runs `getShipPrep`\n\n### blocked-main\n- Warn that direct pushes to main/master/develop are not allowed\n- \"Create feature branch and continue\" uses existing workflow start helpers, then re-runs preflight\n\n### running\n- Non-dismissible progress UI with steps for staging, committing, pushing, and creating the PR\n\n### done\n- Success UI showing commit hash, PR URL, copy/open actions, and close behavior via `onSuccess`\n\n### error\n- Inline error state that shows the failing step and allows retry back to preflight\n\n## Acceptance Criteria\n- [ ] Modal opens and immediately fetches preflight data and generated PR body\n- [ ] File picker shows tracked + untracked files with status prefixes\n- [ ] Select All works correctly\n- [ ] Preflight checks render green/red/yellow states clearly\n- [ ] blocked-review appears when review marker is stale and Recheck works\n- [ ] blocked-main appears on protected branches and branch creation returns to preflight\n- [ ] running state shows step progression and prevents dismissal\n- [ ] done state shows commit hash and PR URL with copy/open actions\n- [ ] error state allows retry and keeps failures visible to the user\n- [ ] Keyboard behavior works: Escape closes unless running; Enter submits when valid\n- [ ] No silent failures: all errors are surfaced in the UI\n- [ ] Component tests cover at least one happy path and key blocked/error states\n- [ ] `pnpm type-check && pnpm lint` pass",
-      "priority": "high",
-      "tags": [
-        "ui",
-        "modal",
-        "react"
-      ]
-    },
-    {
-      "id": "0aad4105-af78-483b-994c-cafed2c715da",
-      "title": "UI: Wire Ship Changes entry points (epic detail + ticket header)",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Epic detail page shows `Ship Changes` when the epic has a branch",
-        "Epic detail page shows `Push` when the epic already has a PR",
-        "Ticket detail header shows `Ship` when the ticket has a branch",
-        "Ticket detail header shows `Push` when the ticket already has a PR",
-        "Modal opens from both entry points with the correct scope",
-        "Push-only action shows loading state and success/error toast feedback",
-        "Ticket detail invalidates/refetches on successful ship",
-        "Epic detail invalidates/refetches on successful ship",
-        "Manual QA from the epic detail page covers the full ship flow end-to-end",
-        "`pnpm type-check && pnpm lint` pass"
-      ],
-      "references": [
-        "src/routes/epic.$id.tsx",
-        "src/components/tickets/TicketDetailHeader.tsx",
-        "src/api/ship-server-fns.ts"
-      ],
-      "description": "Wire the `ShipChangesModal` into both entry points and add push-only buttons for subsequent pushes when a PR already exists.\n\n## Epic detail page (`src/routes/epic.$id.tsx`)\nThis is the primary entry point.\n\n### Ship Changes button\n- Visible when the epic has a workflow branch\n- Opens `ShipChangesModal` with `scopeType=\"epic\"`\n- Uses `project.path` already returned by epic detail data for terminal-launch UX only\n- On success: invalidate the epic detail query so PR badge/status refresh immediately\n\n### Push button\n- Visible when the epic already has a linked PR in `epic_workflow_state`\n- Inline action with spinner/toast feedback\n- Calls `pushBranchServerFn({ scopeType: 'epic', scopeId: epic.id })`\n\n## Ticket detail header (`src/components/tickets/TicketDetailHeader.tsx`)\nThis is the secondary entry point.\n\n### Ship button\n- Visible when `ticket.branchName` exists\n- Positioned before Edit: `[Ship] [Edit] [Start Work]`\n- Add `onShip: () => void` to `TicketDetailHeaderProps`\n\n### Push button\n- Visible when `ticket.prNumber` exists\n- Inline action with spinner/toast feedback\n- Calls `pushBranchServerFn({ scopeType: 'ticket', scopeId: ticket.id })`\n\n## `ticket.$id.tsx` changes\n- Add `showShipModal` state\n- Reuse existing project data access rather than inventing a new `getProject` API; derive the project from existing hooks/query data and pass `project.path` only for terminal UX\n- Render `<ShipChangesModal>` when open\n- On modal success: invalidate the ticket query so PR badge/status refresh immediately\n\n## `pushBranchServerFn`\nAdd to `src/api/ship-server-fns.ts`:\n```ts\npushBranchServerFn({ scopeType: 'ticket' | 'epic', scopeId: string })\n  → { success, error? }\n```\n\n### Requirements\n- Resolve trusted `projectPath` + branch server-side from DB/workflow state\n- `git push origin <branch>` via shared no-shell helper\n- Return structured errors for toast display\n\n## Acceptance Criteria\n- [ ] Epic detail page shows `Ship Changes` when the epic has a branch\n- [ ] Epic detail page shows `Push` when the epic already has a PR\n- [ ] Ticket detail header shows `Ship` when the ticket has a branch\n- [ ] Ticket detail header shows `Push` when the ticket already has a PR\n- [ ] Modal opens from both entry points with the correct scope\n- [ ] Push-only action shows loading state and success/error toast feedback\n- [ ] Ticket detail invalidates/refetches on successful ship\n- [ ] Epic detail invalidates/refetches on successful ship\n- [ ] Manual QA from the epic detail page covers the full ship flow end-to-end\n- [ ] `pnpm type-check && pnpm lint` pass",
-      "priority": "high",
-      "tags": [
-        "ui",
-        "epic",
-        "ticket",
-        "wiring"
-      ]
-    },
-    {
-      "id": "addfac96-b02c-437f-9af8-19aa68d767fa",
-      "title": "Foundation: shared ship helpers and secure process execution",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [
-        {
-          "decision": "this exists",
-          "alternatives": [
-            "The current ship plan assumes `execFileNoThrow`, but that helper does not exist yet",
-            "Review sync needs shared logic across TanStack server functions and `mcp-server/tools/review.ts`",
-            "Epic/ticket shipping should not each invent their own git parsing rules"
-          ],
-          "rationale": []
-        }
-      ],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Shared no-shell process helper exists and is reusable from ship-related code",
-        "Shared parser helpers exist for git status, commit output, PR output, and sentinel replacement",
-        "Shared scope-resolution helper resolves trusted project/branch context from DB IDs",
-        "Helper locations support both app server functions and MCP usage",
-        "Tests cover parser helpers with realistic command output fixtures",
-        "Any repo documentation that points to the helper path is updated if necessary",
-        "`pnpm type-check && pnpm lint` pass"
-      ],
-      "references": [
-        "mcp-server/tools/review.ts"
-      ],
-      "description": "Add the shared groundwork required by the Ship Changes epic so the later server and MCP tickets build on one secure implementation instead of duplicating parsing and subprocess logic.\n\n## Scope\n1. Introduce the shared `execFileNoThrow`-style helper used by ship-related git/gh calls\n2. Add shared helpers for:\n   - resolving trusted ship scope (`ticket` or `epic`) to project path / branch / metadata\n   - parsing `git status --short` output\n   - parsing commit hashes from `git commit` output\n   - parsing PR number/URL from `gh pr create` output\n   - replacing the `<!-- brain-dump:demo-steps -->` sentinel block idempotently\n3. Put shared non-UI logic in a location that can be imported by both app server functions and the standalone MCP server\n4. If needed, keep a thin app-side wrapper at the documented path so repo guidance stays accurate\n\n## Why this exists\n- The current ship plan assumes `execFileNoThrow`, but that helper does not exist yet\n- Review sync needs shared logic across TanStack server functions and `mcp-server/tools/review.ts`\n- Epic/ticket shipping should not each invent their own git parsing rules\n\n## Acceptance Criteria\n- [ ] Shared no-shell process helper exists and is reusable from ship-related code\n- [ ] Shared parser helpers exist for git status, commit output, PR output, and sentinel replacement\n- [ ] Shared scope-resolution helper resolves trusted project/branch context from DB IDs\n- [ ] Helper locations support both app server functions and MCP usage\n- [ ] Tests cover parser helpers with realistic command output fixtures\n- [ ] Any repo documentation that points to the helper path is updated if necessary\n- [ ] `pnpm type-check && pnpm lint` pass",
-      "priority": "high",
-      "tags": [
-        "foundation",
-        "server",
-        "git",
-        "security"
-      ]
-    },
-    {
-      "id": "7e0ad4e5-807a-4142-af26-1ae9a5a3273e",
-      "title": "Tests: user-facing success and failure coverage for Ship Changes flow",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Automated tests focus on user-visible behavior instead of implementation details",
-        "Happy-path tests exist for both epic and ticket entry points",
-        "Failure-path tests exist for the major blocked/error states",
-        "Query invalidation/refresh is verified through visible post-action UI state",
-        "Manual QA checklist is added for final verification",
-        "`pnpm test` passes",
-        "`pnpm type-check && pnpm lint` pass"
+        "A new epic review run record can be created for an epic with one or more ticket ids",
+        "The record stores the freeform steering prompt verbatim",
+        "The record distinguishes orchestration metadata from ticket-level findings/history",
+        "Existing review findings, comments, demo scripts, and workflow state remain untouched",
+        "The implementation is structured so ticket-level review actions can link back to the epic review run later"
       ],
       "references": [],
-      "description": "Add user-centered test coverage for the full Ship Changes experience after implementation is complete. Follow a Kent C. Dodds style: test what the user sees, can click, and what feedback they receive.\n\n## Scope\n### Component/integration coverage\n- Epic detail page shows the correct `Ship Changes` / `Push` actions for the current state\n- Ticket detail header shows the correct `Ship` / `Push` actions for the current state\n- ShipChangesModal renders and transitions through preflight, blocked-review, blocked-main, running, done, and error states\n- File picker selection, Select All, disabled CTA states, and keyboard behavior work as expected\n- Success path shows commit hash, PR link, and success feedback\n- Failure paths surface visible feedback for:\n  - missing `gh`\n  - missing remote\n  - protected branch\n  - stale/missing review marker\n  - no files selected\n  - commit failure\n  - push failure\n  - PR creation failure\n  - push-only failure\n- `review.generate-demo` PR-body sync success/failure is covered at the shared-helper level and does not silently fail\n\n### Manual QA checklist\nCreate a concise visual/behavioral test matrix covering:\n- epic ship happy path\n- ticket ship happy path\n- push-only happy path\n- blocked-review recovery path\n- blocked-main recovery path\n- server error path with visible UI feedback\n- post-ship refresh showing PR badges/status on epic and ticket views\n\n## Acceptance Criteria\n- [ ] Automated tests focus on user-visible behavior instead of implementation details\n- [ ] Happy-path tests exist for both epic and ticket entry points\n- [ ] Failure-path tests exist for the major blocked/error states\n- [ ] Query invalidation/refresh is verified through visible post-action UI state\n- [ ] Manual QA checklist is added for final verification\n- [ ] `pnpm test` passes\n- [ ] `pnpm type-check && pnpm lint` pass",
+      "description": "Create the persistence layer for epic-scoped focused review runs.\n\n## Goal\nAdd a new epic-level orchestration record that captures the review campaign without replacing ticket-level findings or comments.\n\n## Scope\n- Define schema/storage for an epic review run\n- Store epic id, selected ticket ids, steering prompt, launch mode/provider, status, timestamps, and summary fields\n- Add core create/read/update helpers or server-side access paths needed by the UI and launch flow\n\n## Acceptance Criteria\n- A new epic review run record can be created for an epic with one or more ticket ids\n- The record stores the freeform steering prompt verbatim\n- The record distinguishes orchestration metadata from ticket-level findings/history\n- Existing review findings, comments, demo scripts, and workflow state remain untouched\n- The implementation is structured so ticket-level review actions can link back to the epic review run later\n\n## Notes\nThis is the foundation ticket. Do not collapse findings into the epic record; preserve ticket-level source of truth.",
       "priority": "high",
       "tags": [
-        "test",
-        "ui",
-        "integration",
-        "qa"
-      ]
-    },
-    {
-      "id": "ceb04de4-a6c4-4258-97eb-3846c2dc2ad9",
-      "title": "UX: make stale review marker a warning, not a ship blocker",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Review marker is presented as warning-only in preflight",
-        "File selection remains enabled when reviewMarkerFresh is false",
-        "Ship CTA can still be used when other required checks pass",
-        "Existing protected-branch, gh-missing, and remote-missing blockers still work",
-        "Automated tests cover the non-blocking stale-review-marker behavior",
-        "pnpm type-check && pnpm lint && pnpm test pass"
-      ],
-      "references": [],
-      "description": "Update the Ship Changes modal so a stale or missing review marker does not lock the user out of file selection and shipping.\n\n## Requested behavior\n- A stale review marker should stay visibly highlighted as a warning\n- Users should still be able to select files and interact with the preflight form\n- The ship flow should remain usable without forcing Run Review first\n- The modal can still offer Run Review / Recheck guidance, but it must not hard-block the workflow\n\n## Acceptance Criteria\n- [ ] Review marker is presented as warning-only in preflight\n- [ ] File selection remains enabled when reviewMarkerFresh is false\n- [ ] Ship CTA can still be used when other required checks pass\n- [ ] Existing protected-branch, gh-missing, and remote-missing blockers still work\n- [ ] Automated tests cover the non-blocking stale-review-marker behavior\n- [ ] pnpm type-check && pnpm lint && pnpm test pass",
-      "priority": "high",
-      "tags": [
-        "ux",
-        "ship",
-        "ui"
-      ]
-    },
-    {
-      "id": "d2137822-9fbd-4182-9e8b-81038b028e85",
-      "title": "Fix Ship Changes PR creation hangs when gh prompts interactively",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`gh pr create` runs with non-interactive safeguards",
-        "PR creation has a bounded timeout and returns a structured `pr` error on timeout/prompt issues",
-        "Existing happy-path PR creation still works",
-        "Automated tests cover the guarded `gh pr create` invocation",
-        "pnpm type-check && pnpm lint && pnpm test pass"
-      ],
-      "references": [],
-      "description": "The Ship Changes modal can get stuck on the Create pull request step because the server-side `gh pr create` call does not currently enforce non-interactive behavior or a timeout.\n\n## Requested behavior\n- PR creation must fail fast with a visible error instead of hanging indefinitely\n- The `gh` invocation should be safe for headless server execution\n- The returned error should point the user toward missing/non-default GitHub CLI setup rather than leaving the modal spinning forever\n\n## Acceptance Criteria\n- [ ] `gh pr create` runs with non-interactive safeguards\n- [ ] PR creation has a bounded timeout and returns a structured `pr` error on timeout/prompt issues\n- [ ] Existing happy-path PR creation still works\n- [ ] Automated tests cover the guarded `gh pr create` invocation\n- [ ] pnpm type-check && pnpm lint && pnpm test pass",
-      "priority": "high",
-      "tags": [
-        "bug",
-        "ship",
-        "gh",
-        "ui"
-      ]
-    },
-    {
-      "id": "38b385e9-14d7-4938-92b9-2bb0956b854c",
-      "title": "Allow Ship Changes to create a PR from a clean branch",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Implement as described",
-        "Verify functionality works as expected"
-      ],
-      "references": [],
-      "description": "The Ship Changes modal currently disables submission when the worktree has no changed files, even if the branch is already ready for PR creation. Users should be able to create or retry a PR from an existing clean branch without making a new commit.\n\nAcceptance criteria:\n- Clean branches with no changed files can still submit the Ship Changes flow for PR creation\n- Server-side ship logic skips stage/commit when there are no selected paths and reuses the current HEAD commit metadata\n- UI messaging makes it clear when the flow will create a PR from the existing branch state\n- Automated tests cover the clean-branch PR path and preserve the existing changed-files path",
-      "priority": "high",
-      "tags": [
-        "ship-changes",
-        "ui",
-        "git",
-        "workflow"
-      ]
-    },
-    {
-      "id": "fb969bc0-1c3f-4db0-91b7-0628f7d349ca",
-      "title": "Clean up Ship Changes modal gating and ticket-scoped review actions",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Ship Changes preflight surfaces an existing linked PR immediately and offers follow-up actions instead of a duplicate ship path",
-        "Review-marker warning/check is removed from the modal and server preflight payload",
-        "Ship Changes no longer renders file selection checkboxes; dirty branches ship all current changes and clean branches reuse HEAD",
-        "Commit message UX clearly distinguishes between \"new commit will be created\" and \"existing HEAD will be reused\"",
-        "Epic detail replaces the old review launcher with a real ticket-scoped review action that operates on unresolved tickets",
-        "Epic detail exposes a way to inspect critical review findings for tickets in the epic and whether they are resolved",
-        "UI/server tests cover existing-PR, dirty-branch all-files, clean-branch reuse, and the new review-entry behavior",
-        "`pnpm type-check && pnpm lint && pnpm test` pass"
-      ],
-      "references": [],
-      "description": "Simplify the Ship Changes modal so it matches the real workflow and removes misleading affordances.\n\n## Scope\n- Show an explicit existing-PR state instead of letting the user enter the ship flow when the current ticket/epic already has a linked PR\n- Remove the stale `.claude/.review-completed` warning from Ship Changes preflight because it is not tied to real Brain Dump review state\n- Remove per-file staging checkboxes from the modal and simplify shipping to \"all current changes\" when there are local modifications, while still allowing clean-branch PR creation from the existing HEAD commit\n- Keep PR title fully editable\n- Keep commit message editable when a new commit will be created; make the clean-branch behavior explicit instead of pretending the field changes an existing commit\n- Replace the current epic-level `Run Review` terminal-launch action with a real ticket-scoped review action\n- Add an epic-level action that shows/open critical review findings across the epic's tickets with status visibility\n\n## Acceptance Criteria\n- [ ] Ship Changes preflight surfaces an existing linked PR immediately and offers follow-up actions instead of a duplicate ship path\n- [ ] Review-marker warning/check is removed from the modal and server preflight payload\n- [ ] Ship Changes no longer renders file selection checkboxes; dirty branches ship all current changes and clean branches reuse HEAD\n- [ ] Commit message UX clearly distinguishes between \"new commit will be created\" and \"existing HEAD will be reused\"\n- [ ] Epic detail replaces the old review launcher with a real ticket-scoped review action that operates on unresolved tickets\n- [ ] Epic detail exposes a way to inspect critical review findings for tickets in the epic and whether they are resolved\n- [ ] UI/server tests cover existing-PR, dirty-branch all-files, clean-branch reuse, and the new review-entry behavior\n- [ ] `pnpm type-check && pnpm lint && pnpm test` pass",
-      "priority": "high",
-      "tags": [
-        "ui",
         "review",
         "epic",
-        "ticket",
+        "backend",
         "workflow"
       ]
     },
     {
-      "id": "2edf9cfc-6464-4bc5-b471-215cd527a1c9",
-      "title": "UI: Make ticket epic tag link to epic details with filter-preserving navigation",
+      "id": "e00652d5-09f9-4412-9887-f9da38a5dd8e",
+      "title": "Add review-mode launch contract and focused prompt builder",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Launch code can accept a review-mode input separate from the normal implementation launch path",
+        "The generated review prompt explicitly says to review only the selected ticket and not pick unrelated work",
+        "The prompt includes the freeform steering text when provided",
+        "The prompt still requires Brain Dump review workflow steps (findings, fixes, check-complete, demo where applicable)",
+        "The code path is clearly distinguishable from the default Ralph implementation prompt"
+      ],
+      "references": [],
+      "description": "Introduce a dedicated review launch mode instead of reusing the generic implementation Ralph prompt.\n\n## Goal\nAllow the system to launch a ticket review with focused instructions and an optional steering prompt while still honoring the existing Brain Dump workflow.\n\n## Scope\n- Extend the launch contract to support a review mode/profile\n- Add a review-specific prompt builder that includes selected ticket context and optional steering text\n- Ensure the steering prompt is additive guidance and cannot override workflow constraints\n- Avoid calling implementation-specific startup behavior when the intent is review-only\n\n## Acceptance Criteria\n- Launch code can accept a review-mode input separate from the normal implementation launch path\n- The generated review prompt explicitly says to review only the selected ticket and not pick unrelated work\n- The prompt includes the freeform steering text when provided\n- The prompt still requires Brain Dump review workflow steps (findings, fixes, check-complete, demo where applicable)\n- The code path is clearly distinguishable from the default Ralph implementation prompt\n\n## Notes\nTreat this as a profile/template system for now, not a generic arbitrary skill runner.",
+      "priority": "high",
+      "tags": [
+        "review",
+        "ralph",
+        "prompting",
+        "backend"
+      ]
+    },
+    {
+      "id": "aa117ad9-c57d-4fff-9c5b-9b6d20cfd988",
+      "title": "Build epic review modal with ticket selection and steering prompt",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "The epic detail UI lets the user choose one or more tickets to review",
+        "The UI includes a freeform textarea for review steering instructions",
+        "The launch action clearly communicates that this is a focused review flow, not a generic Ralph relaunch",
+        "The user can submit with no steering text or with custom steering text",
+        "Empty-state, loading, and launch-error behavior are handled cleanly"
+      ],
+      "references": [],
+      "description": "Add the first-class epic review UI for selecting tickets and steering the review.\n\n## Goal\nReplace the misleading generic relaunch UX with a review-specific entry point that matches what the user expects.\n\n## Scope\n- Add or update the epic review modal\n- Support selecting one or more tickets from the current epic\n- Add a textarea labeled clearly for review steering/focus instructions\n- Validate empty/invalid selection states and launch feedback\n\n## Acceptance Criteria\n- The epic detail UI lets the user choose one or more tickets to review\n- The UI includes a freeform textarea for review steering instructions\n- The launch action clearly communicates that this is a focused review flow, not a generic Ralph relaunch\n- The user can submit with no steering text or with custom steering text\n- Empty-state, loading, and launch-error behavior are handled cleanly\n\n## Notes\nSuggested UX copy can be simple, e.g. \"How do you want to steer the review?\"",
+      "priority": "high",
+      "tags": [
+        "review",
+        "epic",
+        "ui",
+        "ux"
+      ]
+    },
+    {
+      "id": "7de20caf-9ce7-4bfa-a55f-5ba31cf055dc",
+      "title": "Link epic review runs into ticket audit trail without replacing history",
+      "passes": false,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "A ticket included in an epic review run shows auditable evidence that it was reviewed under that run",
+        "Existing ticket comments/findings are preserved and remain visible",
+        "New review artifacts can be associated back to the epic review run for traceability",
+        "Epic-level summary data can be derived or displayed without duplicating the entire ticket history",
+        "Human review/demo history remains compatible with the new review run layer"
+      ],
+      "references": [],
+      "description": "Make the new epic review layer visible in the existing ticket-level audit trail.\n\n## Goal\nKeep all existing ticket comments, findings, and human-review artifacts intact while documenting that a ticket was part of an epic-focused review run.\n\n## Scope\n- Add linking/traceability from tickets to the originating epic review run\n- Write ticket-visible comments or activity entries when a ticket is included in an epic review run\n- Ensure findings and fixes created during the run can be traced back without replacing prior history\n- Add epic-visible summary/read paths as needed for documentation and drill-down\n\n## Acceptance Criteria\n- A ticket included in an epic review run shows auditable evidence that it was reviewed under that run\n- Existing ticket comments/findings are preserved and remain visible\n- New review artifacts can be associated back to the epic review run for traceability\n- Epic-level summary data can be derived or displayed without duplicating the entire ticket history\n- Human review/demo history remains compatible with the new review run layer\n\n## Notes\nThis ticket is about layering and traceability, not redefining the review source of truth.",
+      "priority": "medium",
+      "tags": [
+        "review",
+        "comments",
+        "audit",
+        "workflow"
+      ]
+    },
+    {
+      "id": "8338887e-40c6-44fa-abe0-a2532fd102a1",
+      "title": "Fan out multi-ticket review launches with isolated per-ticket execution",
       "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "The epic tag shown at the top of a ticket detail view is rendered as a clear interactive link/button when the ticket belongs to an epic.",
-        "Activating that epic tag navigates to the correct epic detail route for that ticket's `epicId`.",
-        "Browser back navigation from the epic detail page returns the user to the prior page and preserves the filters/search params they had applied before opening the ticket.",
-        "Browser forward navigation works cleanly after going back.",
-        "Existing ticket detail behavior for tickets without an epic remains unchanged.",
-        "Add user-facing test coverage for the navigation behavior, including preservation of filtered state/search params."
+        "A single epic review request can include multiple selected tickets",
+        "Each selected ticket gets its own isolated review execution context",
+        "Ticket prompts and review artifacts do not bleed across tickets",
+        "The epic review run records per-ticket status so users can tell what launched and what finished/failed",
+        "The design supports future parallel execution cleanly, even if the first implementation executes sequentially under the hood"
       ],
       "references": [],
-      "description": "Make the epic tag in the ticket detail header clickable so users can jump directly into that epic's detail page without breaking navigation flow.\n\n## Goal\nCreate seamless routing between ticket detail and epic detail views, with browser back/forward behavior preserving the user's previous filtered board/list state.\n\n## Acceptance Criteria\n- The epic tag shown at the top of a ticket detail view is rendered as a clear interactive link/button when the ticket belongs to an epic.\n- Activating that epic tag navigates to the correct epic detail route for that ticket's `epicId`.\n- Browser back navigation from the epic detail page returns the user to the prior page and preserves the filters/search params they had applied before opening the ticket.\n- Browser forward navigation works cleanly after going back.\n- Existing ticket detail behavior for tickets without an epic remains unchanged.\n- Add user-facing test coverage for the navigation behavior, including preservation of filtered state/search params.\n\n## Notes\n- Prefer route/search-param driven state over ad hoc in-memory state so navigation survives normal browser history usage.\n- This ticket belongs to the shared branch/PR flow for the `Ship Changes: UI Commit, Push & PR Flow` epic.\n- Keep the interaction feeling native to the existing ticket header UI; no separate \"Open Epic\" control unless implementation requires it.",
+      "description": "Support launching focused review across multiple selected tickets while keeping each review run isolated.\n\n## Goal\nAllow the user to kick off a single epic review request that can target multiple tickets, while ensuring each ticket still has clean context, state, and auditability.\n\n## Scope\n- Accept multiple selected ticket ids in the epic review launch flow\n- Fan out into one ticket-scoped review execution per selected ticket\n- Keep prompts, state, and findings isolated per ticket\n- Support sequential or parallel execution without mixing ticket context\n\n## Acceptance Criteria\n- A single epic review request can include multiple selected tickets\n- Each selected ticket gets its own isolated review execution context\n- Ticket prompts and review artifacts do not bleed across tickets\n- The epic review run records per-ticket status so users can tell what launched and what finished/failed\n- The design supports future parallel execution cleanly, even if the first implementation executes sequentially under the hood\n\n## Notes\nDo not create one giant mixed-context review prompt for multiple tickets.",
       "priority": "medium",
       "tags": [
-        "ui",
-        "routing",
+        "review",
         "epic",
-        "ticket",
+        "parallelism",
+        "backend"
+      ]
+    },
+    {
+      "id": "93372861-88aa-43cc-844d-e97e185e3c4a",
+      "title": "Add regression coverage for epic-scoped focused review runs",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Tests verify that review mode uses a different prompt/launch path than implementation mode",
+        "Tests verify that steering prompt text is included in the review launch payload",
+        "Tests verify that epic review run records are created and linked to affected tickets",
+        "Tests verify that prior ticket comments/findings are preserved",
+        "The test suite covers single-ticket and multi-ticket review launch behavior at the appropriate level"
+      ],
+      "references": [],
+      "description": "Cover the new review-launch path and history-preserving behavior with regression tests.\n\n## Goal\nPrevent the new review flow from silently falling back to the generic Ralph implementation path or breaking existing audit/history behavior.\n\n## Scope\n- Add tests for review-mode prompt generation and launch payloads\n- Add tests for epic review run record creation and ticket linkage\n- Add UI tests for ticket selection and steering prompt submission\n- Add coverage that existing ticket comments/findings/history remain visible and unchanged\n\n## Acceptance Criteria\n- Tests verify that review mode uses a different prompt/launch path than implementation mode\n- Tests verify that steering prompt text is included in the review launch payload\n- Tests verify that epic review run records are created and linked to affected tickets\n- Tests verify that prior ticket comments/findings are preserved\n- The test suite covers single-ticket and multi-ticket review launch behavior at the appropriate level\n\n## Notes\nFocus on user-visible outcomes and workflow guarantees, not just internal helper coverage.",
+      "priority": "medium",
+      "tags": [
+        "review",
+        "testing",
+        "epic",
         "workflow"
       ]
     }
@@ -510,7 +302,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-03-08T18:04:59.916Z",
-  "epicTitle": "Ship Changes: UI Commit, Push & PR Flow",
-  "epicDescription": "Close the gap in the dev workflow: developers currently must run `git commit`, `git push`, and `gh pr create` manually after ticket work. This epic adds a unified \"Ship Changes\" flow directly in the Brain Dump UI.\n\n## Primary entry point: Epic detail page\nThe main use case is shipping an entire epic's worth of work as one PR from the epic detail page.\n\n## Secondary entry point: Ticket detail header\nIndividual ticket branches can also be shipped from the ticket detail page.\n\n## What gets built\n1. Foundation helpers for secure process execution and shared ship/parsing logic\n2. Server functions for preflight checks, commit+push+PR, push-only, and PR body sync\n3. A unified ShipChangesModal with 5 states (preflight, blocked-review, blocked-main, running, done)\n4. Entry point buttons on the epic detail page and ticket detail header\n5. Auto-sync of PR body when demo steps are generated\n6. User-facing success/failure test coverage for the whole flow\n\n## Key success conditions\n- Epic PR creation must update `epic_workflow_state` and link PR metadata to every ticket currently assigned to that epic so the epic header and ticket headers stay in sync\n- Server-side git/gh actions must resolve `projectPath` from trusted DB records using `ticketId`/`epicId`; UI-provided paths are only for terminal-launch UX\n- PR body sync must read demo steps from the real `demo_scripts.steps` JSON payload and update the sentinel block idempotently\n- All subprocess calls use array args with a shared no-throw helper (no shell interpolation)\n- Testing follows a Kent C. Dodds style: validate what the user sees and can do, with explicit success and failure cases\n\n## Key design decisions\n- File selection picker (not blind `git add -A`) — user sees and picks which files to commit\n- Preflight checks: branch safety, review marker freshness, gh available, remote configured\n- PR body auto-populated with acceptance criteria checkboxes and demo steps from Brain Dump\n- `<!-- brain-dump:demo-steps -->` sentinel in PR body auto-updates when demo steps are generated\n- All subprocess calls use execFileNoThrow-style helpers (no shell interpolation)\n\n## Revised execution order\n1. Foundation: add shared process/ship helpers and parser coverage\n2. Server: getShipPrep\n3. Server: commitAndShip + PR body generation + epic-wide PR linkage\n4. Server/MCP: PR verification checklist sync after `review.generate-demo`\n5. UI: ShipChangesModal\n6. UI: entry points and push-only actions\n7. Tests: user-facing success/failure coverage and visual QA checklist"
+  "generatedAt": "2026-03-09T07:57:49.375Z",
+  "epicTitle": "Epic-Scoped Focused Review Runs",
+  "epicDescription": "Add a new review orchestration layer at the epic level without replacing any existing ticket-level review history, findings, comments, demo steps, or human review flow.\n\n## Problem\nThe current \"Review with Ralph\" behavior is effectively a generic Ralph relaunch. That does not match the UX implied by an epic review action, and it does not let users steer the AI toward a specific review focus.\n\n## Vision\nUsers can launch a focused review from an epic, pick one or more tickets, and optionally provide freeform steering instructions such as \"focus on auth edge cases and silent failures\" or \"prioritize UX regressions and missing loading states\".\n\nThis epic-level review run should:\n- act as orchestration and audit context\n- preserve all existing ticket-level findings/comments/history\n- add ticket-scoped review actions on top of the current workflow\n- support future parallel execution across multiple selected tickets\n\n## Key product decisions\n- Epic-level review runs are orchestration records, not replacements for ticket findings\n- Ticket-level findings/comments remain the source of truth for actionable review output\n- A freeform review steering prompt is additive guidance, not permission to bypass workflow rules\n- The first version should support one or more selected tickets and be designed so each ticket can run in isolation\n\n## Scope\n1. Add epic review run records that store selected tickets, steering prompt, provider/mode, status, and aggregate summary\n2. Add a dedicated review launch mode/prompt instead of reusing the generic Ralph implementation prompt\n3. Add epic UI for selecting tickets and entering a steering prompt\n4. Ensure review results are written to ticket comments/findings while linking back to the epic review run for traceability\n5. Support launching review work across multiple selected tickets with clean status visibility\n\n## Non-goals\n- Replacing existing ticket comments/findings/demo scripts/human review history\n- Inventing a generic arbitrary skill runner in this first pass\n- Forcing all review data to live only at the epic level\n\n## Success criteria\n- Epic page can start a focused review run with selected tickets and a freeform steering prompt\n- Review runs are documented at the epic level and linked to the affected tickets\n- Ticket-level review workflow still works and remains fully auditable\n- The launch prompt for review mode is clearly different from normal implementation mode\n- Existing history remains intact and visible"
 }
