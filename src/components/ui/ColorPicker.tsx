@@ -243,7 +243,7 @@ export const ColorPicker: FC<ColorPickerProps> = ({
           ...selectButtonStyles,
           opacity: disabled ? 0.6 : 1,
           cursor: disabled ? "not-allowed" : "pointer",
-          borderColor: isOpen ? "var(--accent-primary)" : "var(--border-primary)",
+          border: isOpen ? "1px solid var(--accent-primary)" : "1px solid var(--border-primary)",
         }}
         aria-haspopup="listbox"
         aria-expanded={isOpen}

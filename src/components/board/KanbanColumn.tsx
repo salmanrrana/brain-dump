@@ -1,5 +1,6 @@
-import { memo } from "react";
+import { memo, useCallback } from "react";
 import type { ReactNode } from "react";
+import { useDroppable } from "@dnd-kit/core";
 import type { TicketStatus } from "../../api/tickets";
 
 export interface KanbanColumnProps {
@@ -17,6 +18,19 @@ export interface KanbanColumnProps {
   testId?: string;
   /** Ref for drop target */
   innerRef?: React.Ref<HTMLDivElement>;
+}
+
+function assignRef<T>(ref: React.Ref<T> | undefined, value: T | null): void {
+  if (!ref) {
+    return;
+  }
+
+  if (typeof ref === "function") {
+    ref(value);
+    return;
+  }
+
+  Object.assign(ref, { current: value });
 }
 
 /**
@@ -56,6 +70,18 @@ export const KanbanColumn = memo(function KanbanColumn({
 }: KanbanColumnProps) {
   const isEmpty = count === 0;
   const columnTestId = testId ?? `column-${status}`;
+  const { isOver, setNodeRef } = useDroppable({
+    id: status,
+    data: { status },
+  });
+
+  const setContentRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      setNodeRef(node);
+      assignRef(innerRef, node);
+    },
+    [innerRef, setNodeRef]
+  );
 
   return (
     <div
@@ -64,7 +90,6 @@ export const KanbanColumn = memo(function KanbanColumn({
       aria-label={`${label} column, ${count} tickets`}
       data-testid={columnTestId}
       data-status={status}
-      ref={innerRef}
     >
       {/* Column Header */}
       <div style={columnHeaderStyles}>
@@ -82,9 +107,14 @@ export const KanbanColumn = memo(function KanbanColumn({
 
       {/* Column Content (Drop Zone) */}
       <div
-        style={columnContentStyles}
+        ref={setContentRef}
+        style={{
+          ...columnContentStyles,
+          ...(isOver ? activeColumnContentStyles : undefined),
+        }}
         data-testid={`${columnTestId}-content`}
         data-droppable={status}
+        data-drop-active={isOver ? "true" : undefined}
       >
         {isEmpty ? (
           <div style={emptyStateStyles} role="status">
@@ -167,6 +197,10 @@ const columnContentStyles: React.CSSProperties = {
   flex: 1,
   overflowY: "auto",
   minHeight: 0,
+};
+
+const activeColumnContentStyles: React.CSSProperties = {
+  background: "color-mix(in srgb, var(--accent-primary) 8%, transparent)",
 };
 
 const emptyStateStyles: React.CSSProperties = {
