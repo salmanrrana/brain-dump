@@ -18,7 +18,11 @@ import {
   getTelemetryStats,
   getLatestTelemetrySession,
   type ParsedTelemetryEvent,
+  type TelemetryStatsResult,
+  type TelemetrySessionResult,
   type TelemetrySessionWithEvents,
+  type TelemetryStatsAvailable,
+  type TelemetryUnavailableState,
 } from "../api/telemetry";
 import { queryKeys } from "../lib/hooks";
 
@@ -69,6 +73,20 @@ function OutcomeIcon({ outcome }: { outcome: string | null }) {
     );
   }
   return <Clock className="w-4 h-4 text-[var(--text-secondary)]" aria-label="In progress" />;
+}
+
+function TelemetryUnavailableNotice({ title, message }: { title: string; message: string }) {
+  return (
+    <div className="p-4 border border-[var(--warning)]/40 bg-[var(--warning)]/10 rounded-lg">
+      <div className="flex items-start gap-2" role="alert">
+        <AlertCircle className="w-4 h-4 text-[var(--warning)] mt-0.5" aria-hidden="true" />
+        <div>
+          <p className="text-sm font-medium text-[var(--text-primary)]">{title}</p>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">{message}</p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /** Memoized event item - prevents re-renders when parent state changes but event data is stable */
@@ -152,11 +170,11 @@ const StatsCard = memo(function StatsCard({
 function EventTimeline({
   isLoading,
   error,
-  session,
+  sessionResult,
 }: {
   isLoading: boolean;
   error: Error | null;
-  session: TelemetrySessionWithEvents | null;
+  sessionResult: TelemetrySessionResult | undefined;
 }) {
   if (isLoading) {
     return (
@@ -179,6 +197,19 @@ function EventTimeline({
     );
   }
 
+  if (!sessionResult) {
+    return <p className="text-xs text-[var(--text-muted)] p-2">No session data available</p>;
+  }
+
+  if (sessionResult.status === "unavailable") {
+    return (
+      <p className="text-xs text-[var(--warning)] p-2" role="alert">
+        {sessionResult.message}
+      </p>
+    );
+  }
+
+  const session: TelemetrySessionWithEvents | null = sessionResult.session;
   if (!session) {
     return <p className="text-xs text-[var(--text-muted)] p-2">No session data available</p>;
   }
@@ -207,7 +238,7 @@ export function TelemetryPanel({ ticketId }: TelemetryPanelProps) {
     data: stats,
     isLoading: statsLoading,
     error: statsError,
-  } = useQuery({
+  } = useQuery<TelemetryStatsResult, Error>({
     queryKey: queryKeys.telemetry.stats(ticketId),
     queryFn: () => getTelemetryStats({ data: ticketId }),
     staleTime: 30000,
@@ -217,12 +248,17 @@ export function TelemetryPanel({ ticketId }: TelemetryPanelProps) {
     data: latestSession,
     isLoading: sessionLoading,
     error: sessionError,
-  } = useQuery({
+  } = useQuery<TelemetrySessionResult, Error>({
     queryKey: queryKeys.telemetry.latestSession(ticketId),
     queryFn: () => getLatestTelemetrySession({ data: ticketId }),
     enabled: isExpanded,
     staleTime: 30000,
   });
+
+  const availableStats: TelemetryStatsAvailable | null =
+    stats && stats.status === "available" ? stats : null;
+  const statsUnavailable: TelemetryUnavailableState | null =
+    stats && stats.status === "unavailable" ? stats : null;
 
   if (statsLoading) {
     return (
@@ -251,12 +287,20 @@ export function TelemetryPanel({ ticketId }: TelemetryPanelProps) {
     );
   }
 
-  // No stats available (feature disabled or not initialized)
   if (!stats) {
     return null;
   }
 
-  if (stats.totalSessions === 0) {
+  if (statsUnavailable) {
+    return (
+      <TelemetryUnavailableNotice
+        title="Telemetry unavailable"
+        message={statsUnavailable.message}
+      />
+    );
+  }
+
+  if (!availableStats || availableStats.totalSessions === 0) {
     return (
       <div className="p-4 border border-[var(--border-subtle)] rounded-lg">
         <div className="flex items-center gap-2 text-[var(--text-muted)]">
@@ -282,15 +326,15 @@ export function TelemetryPanel({ ticketId }: TelemetryPanelProps) {
             className="text-xs px-1.5 py-0.5 bg-[var(--bg-tertiary)] rounded text-[var(--text-secondary)]"
             aria-live="polite"
           >
-            {stats.totalSessions} session{stats.totalSessions !== 1 ? "s" : ""}
+            {availableStats.totalSessions} session{availableStats.totalSessions !== 1 ? "s" : ""}
           </span>
         </div>
         <div className="flex items-center gap-3">
-          {stats.latestSession && (
+          {availableStats.latestSession && (
             <div className="flex items-center gap-1.5">
-              <OutcomeIcon outcome={stats.latestSession.outcome} />
+              <OutcomeIcon outcome={availableStats.latestSession.outcome} />
               <span className="text-xs text-[var(--text-secondary)]">
-                {formatDuration(stats.latestSession.totalDurationMs || 0)}
+                {formatDuration(availableStats.latestSession.totalDurationMs || 0)}
               </span>
             </div>
           )}
@@ -305,27 +349,27 @@ export function TelemetryPanel({ ticketId }: TelemetryPanelProps) {
       {isExpanded && (
         <div id="telemetry-content" className="p-3 space-y-4">
           <div className="grid grid-cols-2 gap-2" role="group" aria-label="Telemetry statistics">
-            <StatsCard label="Prompts" value={stats.totalPrompts} icon={MessageSquare} />
-            <StatsCard label="Tool Calls" value={stats.totalToolCalls} icon={Wrench} />
+            <StatsCard label="Prompts" value={availableStats.totalPrompts} icon={MessageSquare} />
+            <StatsCard label="Tool Calls" value={availableStats.totalToolCalls} icon={Wrench} />
             <StatsCard
               label="Total Time"
-              value={formatDuration(stats.totalDurationMs)}
+              value={formatDuration(availableStats.totalDurationMs)}
               icon={Clock}
             />
             <StatsCard
               label="Success Rate"
-              value={`${stats.successRate.toFixed(0)}%`}
+              value={`${availableStats.successRate.toFixed(0)}%`}
               icon={CheckCircle}
             />
           </div>
 
-          {stats.mostUsedTools.length > 0 && (
+          {availableStats.mostUsedTools.length > 0 && (
             <div>
               <h4 className="text-xs font-medium text-[var(--text-secondary)] mb-2">
                 Most Used Tools
               </h4>
               <div className="flex flex-wrap gap-1" role="list" aria-label="Most used tools">
-                {stats.mostUsedTools.slice(0, 5).map(({ toolName, count }) => (
+                {availableStats.mostUsedTools.slice(0, 5).map(({ toolName, count }) => (
                   <span
                     key={toolName}
                     role="listitem"
@@ -361,7 +405,7 @@ export function TelemetryPanel({ ticketId }: TelemetryPanelProps) {
                 <EventTimeline
                   isLoading={sessionLoading}
                   error={sessionError}
-                  session={latestSession ?? null}
+                  sessionResult={latestSession}
                 />
               </div>
             )}
