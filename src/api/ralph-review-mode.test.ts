@@ -152,6 +152,21 @@ describe("prepareEpicLaunch", () => {
       message: "Focused review launch received duplicate ticket selection: ticket-review",
     });
   });
+
+  it("rejects review mode when a selected ticket is outside the current epic scope", () => {
+    const epicTickets = [createLaunchTicket("ticket-review", "Review launch contract")];
+
+    const result = prepareEpicLaunch(epicTickets, {
+      type: "review",
+      selectedTicketIds: ["ticket-missing"],
+      steeringPrompt: "Focus on regressions only",
+    });
+
+    expect(result).toEqual({
+      success: false,
+      message: "Selected review ticket does not belong to this epic: ticket-missing",
+    });
+  });
 });
 
 describe("review-mode prompt builders", () => {
@@ -192,5 +207,22 @@ describe("review-mode prompt builders", () => {
     expect(context).toContain("Preserve review workflow guarantees.");
     expect(context).toContain("Do not pick unrelated tickets or generic implementation work.");
     expect(context).not.toContain("Unrelated ticket");
+  });
+
+  it("keeps review-only workflow gates in the focused review context", () => {
+    const context = generateVSCodeContext(createReviewPrd(), {
+      type: "review",
+      selectedTicket: {
+        id: "ticket-review",
+        title: "Review launch contract",
+      },
+      steeringPrompt: "Stay focused on the selected ticket.",
+    });
+
+    expect(context).toContain('review({ action: "check-complete", ticketId: "ticket-review" })');
+    expect(context).toContain("Generate a demo with at least 3 manual steps, then STOP.");
+    expect(context).toContain("- Review mode is separate from implementation launch mode");
+    expect(context).toContain("- Steering text is preserved verbatim");
+    expect(context).not.toContain('workflow({ action: "complete-work"');
   });
 });

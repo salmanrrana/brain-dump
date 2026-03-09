@@ -217,6 +217,63 @@ describe("createEpicReviewRun", () => {
     expect(comments[0]?.content).toContain(`Run ID: ${run.id}`);
     expect(comments[0]?.content).toContain("focus on regressions");
   });
+
+  it("preserves prior ticket comments and findings when audit comments are added", () => {
+    seedProject();
+    seedEpic();
+    seedTicket("ticket-1", "proj-1", "epic-1", "ai_review");
+
+    db.prepare(
+      `INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(
+      "comment-1",
+      "ticket-1",
+      "Existing discussion stays visible.",
+      "user",
+      "comment",
+      "2026-03-08T00:00:00.000Z"
+    );
+    db.prepare(
+      `INSERT INTO review_findings
+       (id, ticket_id, iteration, agent, severity, category, description, status, created_at)
+       VALUES (?, ?, 1, 'code-reviewer', 'major', 'logic', 'Existing finding stays linked to the ticket', 'open', ?)`
+    ).run("finding-1", "ticket-1", "2026-03-08T00:00:00.000Z");
+
+    const run = createEpicReviewRun(db, {
+      epicId: "epic-1",
+      selectedTicketIds: ["ticket-1"],
+      launchMode: "focused-review",
+      steeringPrompt: "preserve ticket history",
+      status: "running",
+    });
+
+    addEpicReviewRunAuditComments(db, run.id);
+
+    const comments = db
+      .prepare(
+        `SELECT content, author, type
+         FROM ticket_comments
+         WHERE ticket_id = ?
+         ORDER BY created_at ASC, id ASC`
+      )
+      .all("ticket-1") as Array<{ content: string; author: string; type: string }>;
+    const findingsCount = db.prepare("SELECT COUNT(*) AS count FROM review_findings").get() as {
+      count: number;
+    };
+
+    expect(findingsCount.count).toBe(1);
+    expect(comments).toHaveLength(2);
+    expect(comments[0]).toMatchObject({
+      content: "Existing discussion stays visible.",
+      author: "user",
+      type: "comment",
+    });
+    expect(comments[1]?.author).toBe("brain-dump");
+    expect(comments[1]?.type).toBe("progress");
+    expect(comments[1]?.content).toContain("Focused epic review launched.");
+    expect(comments[1]?.content).toContain(`Run ID: ${run.id}`);
+  });
 });
 
 describe("get/list/update epic review runs", () => {
