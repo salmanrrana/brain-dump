@@ -10,6 +10,7 @@ import {
   launchRalphForEpic,
   getActiveRalphSessions,
   type ActiveRalphSession,
+  type RalphEpicLaunchProfile,
 } from "../../api/ralph";
 import { launchProjectInception, launchSpecBreakdown } from "../../api/inception";
 import { getRalphEvents } from "../../api/ralph-events";
@@ -76,6 +77,7 @@ export function useLaunchRalphForEpic() {
         | "cursor"
         | "copilot-cli"
         | "codex";
+      launchProfile?: RalphEpicLaunchProfile;
     }) => launchRalphForEpic({ data }),
     onSuccess: () => {
       // Ticket statuses will be updated by Ralph, invalidate to reflect changes

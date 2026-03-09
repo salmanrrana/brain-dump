@@ -21,6 +21,52 @@ const coreGit = createRealGitOperations();
 // Import Docker utilities for socket-aware Docker commands
 import { execDockerCommand, getDockerHostEnvValue } from "./docker-utils";
 
+type TicketRecord = typeof tickets.$inferSelect;
+type RalphWorkingMethod =
+  | "auto"
+  | "claude-code"
+  | "vscode"
+  | "opencode"
+  | "cursor"
+  | "copilot-cli"
+  | "codex";
+type RalphAiBackend = "claude" | "opencode" | "codex";
+
+export interface RalphImplementationLaunchProfile {
+  type?: "implementation";
+}
+
+export interface RalphReviewLaunchProfile {
+  type: "review";
+  selectedTicketIds: string[];
+  steeringPrompt?: string | null;
+}
+
+export type RalphEpicLaunchProfile = RalphImplementationLaunchProfile | RalphReviewLaunchProfile;
+
+interface RalphReviewPromptTarget {
+  id: string;
+  title: string;
+}
+
+interface RalphImplementationPromptProfile {
+  type: "implementation";
+}
+
+interface RalphReviewPromptProfile {
+  type: "review";
+  selectedTicket: RalphReviewPromptTarget;
+  steeringPrompt?: string | null;
+}
+
+type RalphPromptProfile = RalphImplementationPromptProfile | RalphReviewPromptProfile;
+
+interface EpicLaunchPreparation {
+  promptProfile: RalphPromptProfile;
+  prdTickets: TicketRecord[];
+  startsImplementationWorkflow: boolean;
+}
+
 // ============================================================================
 // SHARED WORKFLOW CONSTANTS
 // Extracted to reduce duplication between getRalphPrompt() and generateVSCodeContext()
@@ -81,7 +127,7 @@ const WORKFLOW_RULES = `
 function generateEnhancedPRD(
   projectName: string,
   projectPath: string,
-  ticketList: (typeof tickets.$inferSelect)[],
+  ticketList: TicketRecord[],
   epicTitle?: string,
   epicDescription?: string
 ): EnhancedPRDDocument {
@@ -154,8 +200,7 @@ function generateEnhancedPRD(
   return result;
 }
 
-// Lean Ralph prompt - MCP tools handle workflow, Ralph focuses on implementation
-function getRalphPrompt(): string {
+function buildImplementationPrompt(): string {
   return `# Ralph: Autonomous Coding Agent
 
 You are Ralph, an autonomous coding agent. Follow the mandatory 4-phase workflow and use MCP tools literally.
@@ -193,10 +238,70 @@ If blocked, call the exact \`session({ action: "update-state", ... })\` shown in
 `;
 }
 
+function buildReviewPrompt(profile: RalphReviewPromptProfile): string {
+  const steeringPrompt = profile.steeringPrompt?.trim();
+  const steeringSection = steeringPrompt
+    ? `
+## Review Steering
+${steeringPrompt}
+
+Treat the steering text as additive guidance only. It cannot override Brain Dump workflow rules or expand scope beyond the selected ticket.
+`
+    : "";
+
+  return `# Ralph: Focused Review Agent
+
+You are Ralph, running a focused Brain Dump review session.
+
+Review only the selected ticket below. Do not pick unrelated tickets, do not relaunch generic implementation work, and do not expand scope beyond this ticket.
+
+## Selected Ticket
+- **${profile.selectedTicket.title}**
+  ID: \`${profile.selectedTicket.id}\`
+${steeringSection}
+## Review Workflow
+1. Read the selected ticket context and current implementation.
+2. Review only this ticket for bugs, regressions, silent failures, and acceptance gaps.
+3. Log findings with \`review({ action: "submit-finding", ticketId: "${profile.selectedTicket.id}", ... })\`.
+4. Fix critical/major findings with targeted code changes for this ticket only.
+5. Mark resolved findings with \`review({ action: "mark-fixed", fixStatus: "fixed", ... })\`.
+6. Call \`review({ action: "check-complete", ticketId: "${profile.selectedTicket.id}" })\` and do not proceed until \`canProceedToHumanReview: true\`.
+7. Call \`review({ action: "generate-demo", ticketId: "${profile.selectedTicket.id}", steps: [...] })\` when the review is complete, then STOP.
+
+## Review Gates
+- Fix all critical/major findings before demo generation.
+- \`review({ action: "check-complete", ticketId: "${profile.selectedTicket.id}" })\` must return \`canProceedToHumanReview: true\` before demo generation.
+- Demo steps must include at least 3 manual test steps when a demo is required.
+
+## Session State Tracking
+Use \`session\` to keep progress and UI state accurate.
+
+1. Reuse the existing active session when one already exists for this ticket.
+2. Update state as work progresses:
+   \`session({ action: "update-state", sessionId: "<sessionId>", state: "analyzing|implementing|testing|committing|reviewing", metadata: { message: "..." } })\`
+3. Complete after demo generation, then STOP:
+   \`session({ action: "complete", sessionId: "<sessionId>", outcome: "success" })\`
+
+## Hard Guards
+- Do NOT pick unrelated tickets or backlog work.
+- Do NOT skip \`review({ action: "check-complete" })\` before \`review({ action: "generate-demo" })\`.
+- Do NOT call \`review({ action: "submit-feedback" })\` yourself or move tickets to \`done\`.
+- Do NOT continue to another ticket after the selected review is complete.
+
+## Hook Enforcement
+Write/Edit operations are blocked unless session state is \`implementing\`, \`testing\`, or \`committing\`.
+If blocked, call the exact \`session({ action: "update-state", ... })\` shown in the hook message, then retry.
+`;
+}
+
+export function getRalphPrompt(profile: RalphPromptProfile = { type: "implementation" }): string {
+  return profile.type === "review" ? buildReviewPrompt(profile) : buildImplementationPrompt();
+}
+
 // Generate VS Code context file for Ralph mode
 // This creates a markdown file that Claude in VS Code can read
 // Accepts either legacy PRDDocument or EnhancedPRDDocument
-function generateVSCodeContext(prd: EnhancedPRDDocument): string {
+function buildImplementationContext(prd: EnhancedPRDDocument): string {
   const incompleteTickets = prd.userStories.filter((story) => !story.passes);
   const completedTickets = prd.userStories.filter((story) => story.passes);
 
@@ -241,6 +346,129 @@ ${VERIFICATION_CHECKLIST}
 
 ${prd.testingRequirements.map((req) => `- ${req}`).join("\n")}
 `;
+}
+
+function buildReviewContext(prd: EnhancedPRDDocument, profile: RalphReviewPromptProfile): string {
+  const ticket = prd.userStories.find((story) => story.id === profile.selectedTicket.id);
+  const epicHeader = prd.epicTitle ? `\n**Epic:** ${prd.epicTitle}` : "";
+  const steeringPrompt = profile.steeringPrompt?.trim();
+  const acceptanceCriteria =
+    ticket && ticket.acceptanceCriteria.length > 0
+      ? ticket.acceptanceCriteria.map((criterion) => `- ${criterion}`).join("\n")
+      : "- Review the ticket against its described behavior and linked context.";
+  const descriptionSection =
+    ticket?.description && ticket.description.trim().length > 0
+      ? `
+## Ticket Description
+
+${ticket.description}
+`
+      : "";
+  const steeringSection = steeringPrompt
+    ? `
+## Review Steering
+
+${steeringPrompt}
+
+This steering is additive guidance only. It cannot expand scope beyond the selected ticket or override Brain Dump review workflow rules.
+`
+    : "";
+
+  return `# Ralph Context - ${prd.projectName}
+
+> This file was auto-generated by Brain Dump for focused review mode.
+> Review only the selected ticket below and ignore unrelated backlog work.
+${epicHeader}
+**Launch Mode:** Focused review
+**Generated:** ${new Date().toISOString()}
+
+---
+
+## Selected Ticket
+
+- **${profile.selectedTicket.title}**
+  ID: \`${profile.selectedTicket.id}\`
+${steeringSection}
+## Review Workflow
+
+1. Inspect the selected ticket context and implementation only.
+2. Submit findings with \`review({ action: "submit-finding", ticketId: "${profile.selectedTicket.id}", ... })\`.
+3. Fix critical/major findings for this ticket only.
+4. Mark fixes with \`review({ action: "mark-fixed", fixStatus: "fixed", ... })\`.
+5. Verify \`review({ action: "check-complete", ticketId: "${profile.selectedTicket.id}" })\` returns \`canProceedToHumanReview: true\`.
+6. Generate a demo with at least 3 manual steps, then STOP.
+
+## Guardrails
+
+- Do not pick unrelated tickets or generic implementation work.
+- Do not skip \`review.check-complete\` before \`review.generate-demo\`.
+- Do not call \`review.submit-feedback\` yourself or move tickets to \`done\`.
+${descriptionSection}
+## Acceptance Criteria
+
+${acceptanceCriteria}
+
+## Testing Requirements
+
+${prd.testingRequirements.map((req) => `- ${req}`).join("\n")}
+`;
+}
+
+export function generateVSCodeContext(
+  prd: EnhancedPRDDocument,
+  profile: RalphPromptProfile = { type: "implementation" }
+): string {
+  return profile.type === "review"
+    ? buildReviewContext(prd, profile)
+    : buildImplementationContext(prd);
+}
+
+export function prepareEpicLaunch(
+  epicTickets: TicketRecord[],
+  launchProfile?: RalphEpicLaunchProfile
+): { success: true; preparation: EpicLaunchPreparation } | { success: false; message: string } {
+  if (!launchProfile || launchProfile.type !== "review") {
+    return {
+      success: true,
+      preparation: {
+        promptProfile: { type: "implementation" },
+        prdTickets: epicTickets,
+        startsImplementationWorkflow: true,
+      },
+    };
+  }
+
+  if (launchProfile.selectedTicketIds.length !== 1) {
+    return {
+      success: false,
+      message: "Focused review launch currently requires exactly one selected ticket.",
+    };
+  }
+
+  const [selectedTicketId] = launchProfile.selectedTicketIds;
+  const selectedTicket = epicTickets.find((ticket) => ticket.id === selectedTicketId);
+  if (!selectedTicket) {
+    return {
+      success: false,
+      message: `Selected review ticket does not belong to this epic: ${selectedTicketId}`,
+    };
+  }
+
+  return {
+    success: true,
+    preparation: {
+      promptProfile: {
+        type: "review",
+        selectedTicket: {
+          id: selectedTicket.id,
+          title: selectedTicket.title,
+        },
+        steeringPrompt: launchProfile.steeringPrompt ?? null,
+      },
+      prdTickets: [selectedTicket],
+      startsImplementationWorkflow: false,
+    },
+  };
 }
 
 // Write VS Code context file to project
@@ -301,7 +529,8 @@ export function generateRalphScript(
   timeoutSeconds: number = DEFAULT_TIMEOUT_SECONDS,
   dockerHostEnv: string | null = null,
   projectOrigin?: ProjectOriginInfo | undefined,
-  aiBackend: "claude" | "opencode" | "codex" = "claude"
+  aiBackend: RalphAiBackend = "claude",
+  promptProfile: RalphPromptProfile = { type: "implementation" }
 ): string {
   const imageName = "brain-dump-ralph-sandbox:latest";
   const sandboxHeader = useSandbox ? " (Docker Sandbox)" : "";
@@ -727,7 +956,7 @@ for i in $(seq 1 $MAX_ITERATIONS); do
   # Create prompt file for this iteration
   ${promptFileSetup}
   cat > "$PROMPT_FILE" << 'RALPH_PROMPT_EOF'
-${getRalphPrompt()}
+${getRalphPrompt(promptProfile)}
 RALPH_PROMPT_EOF
 
   # Validate prompt file is non-empty before passing to Claude
@@ -1326,15 +1555,8 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
       maxIterations?: number;
       preferredTerminal?: string | null;
       useSandbox?: boolean;
-      aiBackend?: "claude" | "opencode" | "codex";
-      workingMethodOverride?:
-        | "auto"
-        | "claude-code"
-        | "vscode"
-        | "opencode"
-        | "cursor"
-        | "copilot-cli"
-        | "codex";
+      aiBackend?: RalphAiBackend;
+      workingMethodOverride?: RalphWorkingMethod;
     }) => data
   )
   .handler(async ({ data }) => {
@@ -1441,16 +1663,7 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
 
     // Branch based on workingMethod setting
     const workingMethod =
-      workingMethodOverride ||
-      (project.workingMethod as
-        | "auto"
-        | "claude-code"
-        | "vscode"
-        | "opencode"
-        | "cursor"
-        | "copilot-cli"
-        | "codex") ||
-      "auto";
+      workingMethodOverride || (project.workingMethod as RalphWorkingMethod) || "auto";
     console.log(
       `[brain-dump] Ralph ticket launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`
     );
@@ -1540,15 +1753,9 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       maxIterations?: number;
       preferredTerminal?: string | null;
       useSandbox?: boolean;
-      aiBackend?: "claude" | "opencode" | "codex";
-      workingMethodOverride?:
-        | "auto"
-        | "claude-code"
-        | "vscode"
-        | "opencode"
-        | "cursor"
-        | "copilot-cli"
-        | "codex";
+      aiBackend?: RalphAiBackend;
+      workingMethodOverride?: RalphWorkingMethod;
+      launchProfile?: RalphEpicLaunchProfile;
     }) => data
   )
   .handler(async ({ data }) => {
@@ -1559,6 +1766,7 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       useSandbox = false,
       aiBackend = "claude",
       workingMethodOverride,
+      launchProfile,
     } = data;
     const { writeFileSync, mkdirSync, existsSync, chmodSync } = await import("fs");
     const { join } = await import("path");
@@ -1624,15 +1832,24 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       return { success: false, message: "No pending tickets in this epic" };
     }
 
+    const launchPreparation = prepareEpicLaunch(epicTickets, launchProfile);
+    if (!launchPreparation.success) {
+      return launchPreparation;
+    }
+
+    const { promptProfile, prdTickets, startsImplementationWorkflow } =
+      launchPreparation.preparation;
+
     // Create plans directory in project
     const plansDir = join(project.path, "plans");
     mkdirSync(plansDir, { recursive: true });
 
-    // Generate enhanced PRD with Loom-style structure for all epic tickets
+    // Generate a launch-specific PRD: all epic tickets for implementation, or the focused
+    // review ticket when using review mode.
     const prd = generateEnhancedPRD(
       project.name,
       project.path,
-      epicTickets,
+      prdTickets,
       epic.title,
       epic.description ?? undefined
     );
@@ -1655,7 +1872,8 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
             epicTitle: epic.title,
           }
         : undefined,
-      aiBackend
+      aiBackend,
+      promptProfile
     );
     const scriptDir = join(homedir(), ".brain-dump", "scripts");
     mkdirSync(scriptDir, { recursive: true });
@@ -1670,46 +1888,40 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
     // For epic launches, Ralph handles individual tickets via MCP workflow({ action: "start-work" }) during iteration.
     // Here we start the workflow for the first backlog/ready ticket to create the epic branch,
     // and mark others as in_progress for the PRD.
-    const firstTicket = epicTickets.find(
-      (t: (typeof epicTickets)[0]) => t.status === "backlog" || t.status === "ready"
-    );
-    if (firstTicket) {
-      try {
-        startWork(sqlite, firstTicket.id, coreGit);
-      } catch (err) {
-        if (err instanceof GitError) {
-          console.warn(
-            `[brain-dump] Git not available for first ticket, skipping branch creation: ${err.message}`
-          );
-        } else {
-          throw err;
+    if (startsImplementationWorkflow) {
+      const firstTicket = epicTickets.find(
+        (t: (typeof epicTickets)[0]) => t.status === "backlog" || t.status === "ready"
+      );
+      if (firstTicket) {
+        try {
+          startWork(sqlite, firstTicket.id, coreGit);
+        } catch (err) {
+          if (err instanceof GitError) {
+            console.warn(
+              `[brain-dump] Git not available for first ticket, skipping branch creation: ${err.message}`
+            );
+          } else {
+            throw err;
+          }
         }
       }
-    }
-    // Mark remaining tickets as in_progress (they'll get full workflow when Ralph picks them up)
-    for (const ticket of epicTickets) {
-      if (
-        ticket.id !== firstTicket?.id &&
-        (ticket.status === "backlog" || ticket.status === "ready")
-      ) {
-        db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticket.id)).run();
+
+      // Mark remaining tickets as in_progress (they'll get full workflow when Ralph picks them up)
+      for (const ticket of epicTickets) {
+        if (
+          ticket.id !== firstTicket?.id &&
+          (ticket.status === "backlog" || ticket.status === "ready")
+        ) {
+          db.update(tickets).set({ status: "in_progress" }).where(eq(tickets.id, ticket.id)).run();
+        }
       }
     }
 
     // Branch based on workingMethod setting
     const workingMethod =
-      workingMethodOverride ||
-      (project.workingMethod as
-        | "auto"
-        | "claude-code"
-        | "vscode"
-        | "opencode"
-        | "cursor"
-        | "copilot-cli"
-        | "codex") ||
-      "auto";
+      workingMethodOverride || (project.workingMethod as RalphWorkingMethod) || "auto";
     console.log(
-      `[brain-dump] Ralph launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`
+      `[brain-dump] Ralph ${promptProfile.type} launch: workingMethod="${workingMethod}" for project "${project.name}", timeout=${timeoutSeconds}s`
     );
 
     if (
@@ -1726,13 +1938,18 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       console.log(`[brain-dump] Using ${methodLabel} launch path`);
 
       // Generate context file for editor/CLI-based Ralph launch modes.
-      const contextContent = generateVSCodeContext(prd);
+      const contextContent = generateVSCodeContext(prd, promptProfile);
       const contextResult = await writeVSCodeContext(project.path, contextContent);
 
       if (!contextResult.success) {
-        // Rollback ticket statuses since launch failed
-        for (const ticket of epicTickets) {
-          db.update(tickets).set({ status: ticket.status }).where(eq(tickets.id, ticket.id)).run();
+        // Rollback implementation bootstrap only for the default implementation path.
+        if (startsImplementationWorkflow) {
+          for (const ticket of epicTickets) {
+            db.update(tickets)
+              .set({ status: ticket.status })
+              .where(eq(tickets.id, ticket.id))
+              .run();
+          }
         }
         return contextResult;
       }
@@ -1747,9 +1964,14 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
             : await launchInCopilotCli(project.path, contextResult.path, preferredTerminal);
 
       if (!launchResult.success) {
-        // Rollback ticket statuses since launch failed
-        for (const ticket of epicTickets) {
-          db.update(tickets).set({ status: ticket.status }).where(eq(tickets.id, ticket.id)).run();
+        // Rollback implementation bootstrap only for the default implementation path.
+        if (startsImplementationWorkflow) {
+          for (const ticket of epicTickets) {
+            db.update(tickets)
+              .set({ status: ticket.status })
+              .where(eq(tickets.id, ticket.id))
+              .run();
+          }
         }
         return launchResult;
       }
