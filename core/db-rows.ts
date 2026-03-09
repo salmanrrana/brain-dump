@@ -94,6 +94,10 @@ export interface DbEpicReviewRunTicketRow {
   epic_review_run_id: string;
   ticket_id: string;
   position: number;
+  status: string;
+  summary: string | null;
+  started_at: string | null;
+  completed_at: string | null;
   created_at: string;
 }
 

@@ -34,7 +34,9 @@ import type {
 import {
   findLatestActiveEpicReviewRunIdForTicket,
   getEpicReviewRunArtifactSummary,
+  listEpicReviewRunTicketLinks,
   updateEpicReviewRun,
+  updateEpicReviewRunTicketLink,
 } from "./epic-review-run.ts";
 
 // ============================================
@@ -91,9 +93,13 @@ function toDemoScript(row: DbDemoScriptRow): DemoScript {
 }
 
 function buildEpicReviewRunCompletionSummary(
-  summary: ReturnType<typeof getEpicReviewRunArtifactSummary>
+  summary: ReturnType<typeof getEpicReviewRunArtifactSummary>,
+  ticketCounts?: { completedTickets: number; failedTickets: number }
 ): string {
-  return `Focused review completed. Findings: ${summary.totalFindings} total, ${summary.fixedFindings} fixed, ${summary.openCritical} open critical, ${summary.openMajor} open major. Demo generated: ${summary.demoGenerated ? "yes" : "no"}.`;
+  const ticketSection = ticketCounts
+    ? ` Tickets completed: ${ticketCounts.completedTickets}, failed launches: ${ticketCounts.failedTickets}.`
+    : "";
+  return `Focused review completed. Findings: ${summary.totalFindings} total, ${summary.fixedFindings} fixed, ${summary.openCritical} open critical, ${summary.openMajor} open major.${ticketSection} Demo generated: ${summary.demoGenerated ? "yes" : "no"}.`;
 }
 
 function getOrCreateWorkflowState(db: DbHandle, ticketId: string): DbTicketWorkflowStateRow {
@@ -402,12 +408,30 @@ export function generateDemo(db: DbHandle, params: GenerateDemoParams): DemoScri
   );
 
   if (linkedEpicReviewRunId) {
+    updateEpicReviewRunTicketLink(db, {
+      epicReviewRunId: linkedEpicReviewRunId,
+      ticketId,
+      status: "completed",
+      completedAt: now,
+      summary: "Review completed and demo generated.",
+    });
+
+    const ticketLinks = listEpicReviewRunTicketLinks(db, linkedEpicReviewRunId);
     const artifactSummary = getEpicReviewRunArtifactSummary(db, linkedEpicReviewRunId);
+    const hasActiveTickets = ticketLinks.some(
+      (link) => link.status === "queued" || link.status === "running"
+    );
+    const failedTickets = ticketLinks.filter((link) => link.status === "failed").length;
+    const completedTickets = ticketLinks.filter((link) => link.status === "completed").length;
+
     updateEpicReviewRun(db, {
       epicReviewRunId: linkedEpicReviewRunId,
-      status: "completed",
-      summary: buildEpicReviewRunCompletionSummary(artifactSummary),
-      completedAt: now,
+      status: hasActiveTickets ? "running" : "completed",
+      summary: buildEpicReviewRunCompletionSummary(artifactSummary, {
+        completedTickets,
+        failedTickets,
+      }),
+      completedAt: hasActiveTickets ? null : now,
     });
   }
 

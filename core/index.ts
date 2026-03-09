@@ -44,6 +44,8 @@ export type {
   CompleteEpicResult,
   EpicReviewRunStatus,
   EpicReviewRun,
+  EpicReviewRunTicketStatus,
+  EpicReviewRunTicket,
   FindingSeverity,
   FindingStatus,
   FindingAgent,
@@ -145,6 +147,7 @@ export {
   listEpicReviewRuns,
   updateEpicReviewRun,
   listEpicReviewRunTicketLinks,
+  updateEpicReviewRunTicketLink,
   findLatestActiveEpicReviewRunIdForTicket,
   getEpicReviewRunArtifactSummary,
   addEpicReviewRunAuditComments,
@@ -155,6 +158,7 @@ export type {
   UpdateEpicReviewRunParams,
   EpicReviewRunTicketLink,
   EpicReviewRunArtifactSummary,
+  UpdateEpicReviewRunTicketLinkParams,
 } from "./epic-review-run.ts";
 
 // Comment business logic

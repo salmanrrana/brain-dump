@@ -212,13 +212,6 @@ export function EpicDetailHeader({
       return;
     }
 
-    if (selectedReviewTicketIds.length > 1) {
-      setReviewLaunchError(
-        "This first focused review launch handles one ticket at a time. Narrow the selection to one ticket and launch again."
-      );
-      return;
-    }
-
     setReviewLaunchError(null);
 
     try {
@@ -767,8 +760,8 @@ export function EpicDetailHeader({
               ) : null}
 
               <div style={reviewHintStyles}>
-                Focused review mode keeps the run scoped to the selected ticket context and follows
-                the Brain Dump review workflow.
+                Focused review mode fans out one isolated review context per selected ticket and
+                follows the Brain Dump review workflow for each run.
               </div>
             </div>
           )}

@@ -1,5 +1,11 @@
 import { randomUUID } from "crypto";
-import type { DbHandle, EpicReviewRun, EpicReviewRunStatus } from "./types.ts";
+import type {
+  DbHandle,
+  EpicReviewRun,
+  EpicReviewRunStatus,
+  EpicReviewRunTicket,
+  EpicReviewRunTicketStatus,
+} from "./types.ts";
 import { EpicNotFoundError, ValidationError } from "./errors.ts";
 import type { DbEpicReviewRunRow, DbEpicReviewRunTicketRow, DbTicketRow } from "./db-rows.ts";
 import { addComment } from "./comment.ts";
@@ -22,6 +28,15 @@ export interface UpdateEpicReviewRunParams {
   provider?: string | null;
   steeringPrompt?: string | null;
   status?: EpicReviewRunStatus;
+  summary?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+}
+
+export interface UpdateEpicReviewRunTicketLinkParams {
+  epicReviewRunId: string;
+  ticketId: string;
+  status?: EpicReviewRunTicketStatus;
   summary?: string | null;
   startedAt?: string | null;
   completedAt?: string | null;
@@ -124,6 +139,28 @@ function getEpicReviewRunRow(db: DbHandle, epicReviewRunId: string): DbEpicRevie
   return row;
 }
 
+function getEpicReviewRunTicketLinkRow(
+  db: DbHandle,
+  epicReviewRunId: string,
+  ticketId: string
+): DbEpicReviewRunTicketRow {
+  const row = db
+    .prepare(
+      `SELECT *
+       FROM epic_review_run_tickets
+       WHERE epic_review_run_id = ? AND ticket_id = ?`
+    )
+    .get(epicReviewRunId, ticketId) as DbEpicReviewRunTicketRow | undefined;
+
+  if (!row) {
+    throw new ValidationError(
+      `Epic review run ticket link not found for run ${epicReviewRunId} and ticket ${ticketId}.`
+    );
+  }
+
+  return row;
+}
+
 function getEpicTitle(db: DbHandle, epicId: string): string {
   const row = db.prepare("SELECT title FROM epics WHERE id = ?").get(epicId) as
     | { title: string }
@@ -196,8 +233,8 @@ export function createEpicReviewRun(
 
     const insertLink = db.prepare(
       `INSERT INTO epic_review_run_tickets
-       (id, epic_review_run_id, ticket_id, position, created_at)
-       VALUES (?, ?, ?, ?, ?)`
+       (id, epic_review_run_id, ticket_id, position, status, summary, started_at, completed_at, created_at)
+       VALUES (?, ?, ?, ?, 'queued', NULL, NULL, NULL, ?)`
     );
 
     selectedTicketIds.forEach((ticketId, index) => {
@@ -283,6 +320,7 @@ export function findLatestActiveEpicReviewRunIdForTicket(
        INNER JOIN epic_review_run_tickets errt ON errt.epic_review_run_id = err.id
        WHERE errt.ticket_id = ?
          AND err.status IN ('queued', 'running')
+         AND errt.status IN ('queued', 'running')
        ORDER BY err.created_at DESC
        LIMIT 1`
     )
@@ -371,7 +409,25 @@ export interface EpicReviewRunTicketLink {
   epicReviewRunId: string;
   ticketId: string;
   position: number;
+  status: EpicReviewRunTicketStatus;
+  summary: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
   createdAt: string;
+}
+
+function toEpicReviewRunTicketLink(row: DbEpicReviewRunTicketRow): EpicReviewRunTicket {
+  return {
+    id: row.id,
+    epicReviewRunId: row.epic_review_run_id,
+    ticketId: row.ticket_id,
+    position: row.position,
+    status: row.status as EpicReviewRunTicketStatus,
+    summary: row.summary,
+    startedAt: row.started_at,
+    completedAt: row.completed_at,
+    createdAt: row.created_at,
+  };
 }
 
 export function listEpicReviewRunTicketLinks(
@@ -389,11 +445,28 @@ export function listEpicReviewRunTicketLinks(
     )
     .all(epicReviewRunId) as DbEpicReviewRunTicketRow[];
 
-  return rows.map((row) => ({
-    id: row.id,
-    epicReviewRunId: row.epic_review_run_id,
-    ticketId: row.ticket_id,
-    position: row.position,
-    createdAt: row.created_at,
-  }));
+  return rows.map((row) => toEpicReviewRunTicketLink(row));
+}
+
+export function updateEpicReviewRunTicketLink(
+  db: DbHandle,
+  params: UpdateEpicReviewRunTicketLinkParams
+): EpicReviewRunTicketLink {
+  const { epicReviewRunId, ticketId, status, summary, startedAt, completedAt } = params;
+  const existing = getEpicReviewRunTicketLinkRow(db, epicReviewRunId, ticketId);
+
+  db.prepare(
+    `UPDATE epic_review_run_tickets
+     SET status = ?, summary = ?, started_at = ?, completed_at = ?
+     WHERE epic_review_run_id = ? AND ticket_id = ?`
+  ).run(
+    status ?? (existing.status as EpicReviewRunTicketStatus),
+    summary === undefined ? existing.summary : (summary ?? null),
+    startedAt === undefined ? existing.started_at : (startedAt ?? null),
+    completedAt === undefined ? existing.completed_at : (completedAt ?? null),
+    epicReviewRunId,
+    ticketId
+  );
+
+  return toEpicReviewRunTicketLink(getEpicReviewRunTicketLinkRow(db, epicReviewRunId, ticketId));
 }

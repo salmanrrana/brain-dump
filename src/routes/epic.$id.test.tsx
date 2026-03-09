@@ -6,6 +6,7 @@ import { EpicDetailPage } from "./epic.$id";
 const mockShowToast = vi.hoisted(() => vi.fn());
 const mockPushBranchServerFn = vi.hoisted(() => vi.fn());
 const mockInvalidateQueries = vi.hoisted(() => vi.fn());
+const mockLaunchRalphForEpic = vi.hoisted(() => vi.fn());
 
 let epicDetailState: ReturnType<typeof createEpicDetail>;
 let mockRefetch: ReturnType<typeof vi.fn>;
@@ -48,8 +49,9 @@ vi.mock("../lib/hooks", () => ({
       terminalEmulator: null,
     },
   }),
-  useLaunchRalphForTicket: () => ({
-    mutateAsync: vi.fn(),
+  useLaunchRalphForEpic: () => ({
+    mutateAsync: mockLaunchRalphForEpic,
+    isPending: false,
   }),
   useClickOutside: vi.fn(),
 }));
@@ -147,6 +149,7 @@ function createEpicDetail(overrides: Partial<Record<string, unknown>> = {}) {
       total: 0,
     },
     criticalFindings: [],
+    reviewRuns: [],
     workflowState: {
       epicBranchName: "feature/epic-ship",
       prNumber: null,
@@ -178,6 +181,10 @@ describe("EpicDetailPage ship entry points", () => {
     vi.clearAllMocks();
     epicDetailState = createEpicDetail();
     mockRefetch = vi.fn(async () => undefined);
+    mockLaunchRalphForEpic.mockResolvedValue({
+      success: true,
+      message: "Launched Ralph in terminal",
+    });
     mockPushBranchServerFn.mockResolvedValue({
       success: true,
       branchName: "feature/epic-ship",

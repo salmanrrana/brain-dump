@@ -105,6 +105,8 @@ export interface EpicDetailResult {
     selectedTickets: Array<{
       id: string;
       title: string;
+      status: string;
+      summary: string | null;
     }>;
     findingsTotal: number;
     findingsFixed: number;
@@ -407,6 +409,9 @@ export const getEpicDetail = createServerFn({ method: "GET" })
         completedAt: epicReviewRuns.completedAt,
         ticketId: epicReviewRunTickets.ticketId,
         ticketTitle: tickets.title,
+        ticketStatus: tickets.status,
+        ticketRunStatus: epicReviewRunTickets.status,
+        ticketRunSummary: epicReviewRunTickets.summary,
       })
       .from(epicReviewRuns)
       .leftJoin(epicReviewRunTickets, eq(epicReviewRunTickets.epicReviewRunId, epicReviewRuns.id))
@@ -447,7 +452,16 @@ export const getEpicDetail = createServerFn({ method: "GET" })
       const existing = reviewRunMap.get(row.id);
       if (existing) {
         if (row.ticketId && row.ticketTitle) {
-          existing.selectedTickets.push({ id: row.ticketId, title: row.ticketTitle });
+          existing.selectedTickets.push({
+            id: row.ticketId,
+            title: row.ticketTitle,
+            status:
+              row.ticketRunStatus === "running" &&
+              (row.ticketStatus === "human_review" || row.ticketStatus === "done")
+                ? "completed"
+                : (row.ticketRunStatus ?? "queued"),
+            summary: row.ticketRunSummary,
+          });
         }
         continue;
       }
@@ -463,7 +477,20 @@ export const getEpicDetail = createServerFn({ method: "GET" })
         startedAt: row.startedAt,
         completedAt: row.completedAt,
         selectedTickets:
-          row.ticketId && row.ticketTitle ? [{ id: row.ticketId, title: row.ticketTitle }] : [],
+          row.ticketId && row.ticketTitle
+            ? [
+                {
+                  id: row.ticketId,
+                  title: row.ticketTitle,
+                  status:
+                    row.ticketRunStatus === "running" &&
+                    (row.ticketStatus === "human_review" || row.ticketStatus === "done")
+                      ? "completed"
+                      : (row.ticketRunStatus ?? "queued"),
+                  summary: row.ticketRunSummary,
+                },
+              ]
+            : [],
         findingsTotal: 0,
         findingsFixed: 0,
         demoGenerated: false,

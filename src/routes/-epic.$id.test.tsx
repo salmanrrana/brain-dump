@@ -290,7 +290,14 @@ describe("EpicDetailPage ship entry points", () => {
           createdAt: "2026-03-09T05:00:00.000Z",
           startedAt: "2026-03-09T05:00:00.000Z",
           completedAt: "2026-03-09T05:15:00.000Z",
-          selectedTickets: [{ id: "ticket-1", title: "Ship modal" }],
+          selectedTickets: [
+            {
+              id: "ticket-1",
+              title: "Ship modal",
+              status: "completed",
+              summary: "Review completed and demo generated.",
+            },
+          ],
           findingsTotal: 2,
           findingsFixed: 1,
           demoGenerated: true,
@@ -303,7 +310,9 @@ describe("EpicDetailPage ship entry points", () => {
     expect(screen.getByTestId("epic-review-runs")).toBeInTheDocument();
     expect(screen.getByText("Focused Review Runs")).toBeInTheDocument();
     expect(screen.getByText("Run run-1234")).toBeInTheDocument();
-    expect(screen.getByText("Ship modal")).toBeInTheDocument();
+    expect(
+      screen.getByText("Ship modal (completed: Review completed and demo generated.)")
+    ).toBeInTheDocument();
     expect(screen.getByText("2 findings • 1 fixed • Demo generated")).toBeInTheDocument();
     expect(screen.getByText(/Focus on silent failures\./)).toBeInTheDocument();
   });
@@ -350,7 +359,7 @@ describe("EpicDetailPage ship entry points", () => {
     expect(mockLaunchRalphForEpic).not.toHaveBeenCalled();
   });
 
-  it("lets the user select more than one ticket and handles that invalid launch state cleanly", async () => {
+  it("fans out a focused review launch when the user selects more than one ticket", async () => {
     const user = userEvent.setup();
     epicDetailState = createEpicDetail({
       ticketsByStatus: {
@@ -382,9 +391,20 @@ describe("EpicDetailPage ship entry points", () => {
     await user.click(screen.getByLabelText(/select review launch copy for focused review/i));
     await user.click(screen.getByRole("button", { name: /launch focused review/i }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "This first focused review launch handles one ticket at a time."
-    );
-    expect(mockLaunchRalphForEpic).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockLaunchRalphForEpic).toHaveBeenCalledWith({
+        epicId: "epic-1",
+        preferredTerminal: null,
+        useSandbox: false,
+        aiBackend: "claude",
+        launchProfile: {
+          type: "review",
+          selectedTicketIds: ["ticket-1", "ticket-2"],
+          steeringPrompt: "",
+        },
+      });
+    });
+
+    expect(mockShowToast).toHaveBeenCalledWith("success", "Focused review launched for 2 tickets");
   });
 });

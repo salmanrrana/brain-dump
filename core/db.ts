@@ -390,13 +390,17 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
-    CREATE TABLE IF NOT EXISTS epic_review_run_tickets (
-      id TEXT PRIMARY KEY,
-      epic_review_run_id TEXT NOT NULL REFERENCES epic_review_runs(id) ON DELETE CASCADE,
-      ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
-      position INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
+      CREATE TABLE IF NOT EXISTS epic_review_run_tickets (
+        id TEXT PRIMARY KEY,
+        epic_review_run_id TEXT NOT NULL REFERENCES epic_review_runs(id) ON DELETE CASCADE,
+        ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+        position INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'queued',
+        summary TEXT,
+        started_at TEXT,
+        completed_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
 
     CREATE TABLE IF NOT EXISTS claude_tasks (
       id TEXT PRIMARY KEY NOT NULL,
@@ -570,6 +574,10 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
         epic_review_run_id TEXT NOT NULL REFERENCES epic_review_runs(id) ON DELETE CASCADE,
         ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
         position INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'queued',
+        summary TEXT,
+        started_at TEXT,
+        completed_at TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
     `
@@ -594,6 +602,16 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
   db.prepare(
     "CREATE INDEX IF NOT EXISTS idx_epic_review_run_tickets_position ON epic_review_run_tickets(epic_review_run_id, position)"
   ).run();
+  addColumnIfMissing(
+    db,
+    "epic_review_run_tickets",
+    "status",
+    "TEXT NOT NULL DEFAULT 'queued'",
+    logger
+  );
+  addColumnIfMissing(db, "epic_review_run_tickets", "summary", "TEXT", logger);
+  addColumnIfMissing(db, "epic_review_run_tickets", "started_at", "TEXT", logger);
+  addColumnIfMissing(db, "epic_review_run_tickets", "completed_at", "TEXT", logger);
   addColumnIfMissing(
     db,
     "review_findings",

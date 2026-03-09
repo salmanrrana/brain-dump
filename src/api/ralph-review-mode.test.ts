@@ -84,17 +84,21 @@ describe("prepareEpicLaunch", () => {
     expect(result.preparation.startsImplementationWorkflow).toBe(true);
   });
 
-  it("builds a focused review launch for exactly one selected ticket", () => {
+  it("builds focused review launches for each selected ticket", () => {
     const epicTickets = [
       createLaunchTicket("ticket-review", "Review launch contract"),
       createLaunchTicket("ticket-other", "Unrelated ticket"),
     ];
 
-    const result = prepareEpicLaunch(epicTickets, {
-      type: "review",
-      selectedTicketIds: ["ticket-review"],
-      steeringPrompt: "Focus on workflow guardrails",
-    });
+    const result = prepareEpicLaunch(
+      epicTickets,
+      {
+        type: "review",
+        selectedTicketIds: ["ticket-review", "ticket-other"],
+        steeringPrompt: "Focus on workflow guardrails",
+      },
+      "run-1234"
+    );
 
     expect(result.success).toBe(true);
     if (!result.success) {
@@ -102,18 +106,37 @@ describe("prepareEpicLaunch", () => {
     }
 
     expect(result.preparation.startsImplementationWorkflow).toBe(false);
-    expect(result.preparation.prdTickets.map((ticket) => ticket.id)).toEqual(["ticket-review"]);
-    expect(result.preparation.promptProfile).toMatchObject({
-      type: "review",
-      selectedTicket: {
+    expect(result.preparation.prdTickets.map((ticket) => ticket.id)).toEqual([
+      "ticket-review",
+      "ticket-other",
+    ]);
+    expect(result.preparation.reviewLaunches).toHaveLength(2);
+    expect(result.preparation.reviewLaunches[0]).toMatchObject({
+      ticket: {
         id: "ticket-review",
-        title: "Review launch contract",
       },
-      steeringPrompt: "Focus on workflow guardrails",
+      prdRelativePath: "plans/review-runs/run-1234/ticket-review.json",
+      contextRelativePath: ".claude/review-runs/run-1234/ticket-review.md",
+      promptProfile: {
+        type: "review",
+        selectedTicket: {
+          id: "ticket-review",
+          title: "Review launch contract",
+        },
+        steeringPrompt: "Focus on workflow guardrails",
+        prdRelativePath: "plans/review-runs/run-1234/ticket-review.json",
+      },
+    });
+    expect(result.preparation.reviewLaunches[1]).toMatchObject({
+      ticket: {
+        id: "ticket-other",
+      },
+      prdRelativePath: "plans/review-runs/run-1234/ticket-other.json",
+      contextRelativePath: ".claude/review-runs/run-1234/ticket-other.md",
     });
   });
 
-  it("rejects review mode when more than one ticket is selected", () => {
+  it("rejects review mode when duplicate ticket ids are selected", () => {
     const epicTickets = [
       createLaunchTicket("ticket-review", "Review launch contract"),
       createLaunchTicket("ticket-other", "Unrelated ticket"),
@@ -121,12 +144,12 @@ describe("prepareEpicLaunch", () => {
 
     const result = prepareEpicLaunch(epicTickets, {
       type: "review",
-      selectedTicketIds: ["ticket-review", "ticket-other"],
+      selectedTicketIds: ["ticket-review", "ticket-review"],
     });
 
     expect(result).toEqual({
       success: false,
-      message: "Focused review launch currently requires exactly one selected ticket.",
+      message: "Focused review launch received duplicate ticket selection: ticket-review",
     });
   });
 });

@@ -587,6 +587,10 @@ function initReviewWorkflowTables() {
         epic_review_run_id TEXT NOT NULL REFERENCES epic_review_runs(id) ON DELETE CASCADE,
         ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
         position INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'queued',
+        summary TEXT,
+        started_at TEXT,
+        completed_at TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
     `);
@@ -607,6 +611,10 @@ function initReviewWorkflowTables() {
     "epic_review_run_id",
     "TEXT REFERENCES epic_review_runs(id) ON DELETE SET NULL"
   );
+  ensureColumnExists("epic_review_run_tickets", "status", "TEXT NOT NULL DEFAULT 'queued'");
+  ensureColumnExists("epic_review_run_tickets", "summary", "TEXT");
+  ensureColumnExists("epic_review_run_tickets", "started_at", "TEXT");
+  ensureColumnExists("epic_review_run_tickets", "completed_at", "TEXT");
   ensureColumnExists(
     "demo_scripts",
     "epic_review_run_id",

@@ -7,6 +7,7 @@ import {
   listEpicReviewRunTicketLinks,
   listEpicReviewRuns,
   updateEpicReviewRun,
+  updateEpicReviewRunTicketLink,
   findLatestActiveEpicReviewRunIdForTicket,
   getEpicReviewRunArtifactSummary,
   addEpicReviewRunAuditComments,
@@ -77,9 +78,9 @@ describe("createEpicReviewRun", () => {
     expect(run.steeringPrompt).toBe("focus on auth edge cases\nand silent failures");
 
     const links = listEpicReviewRunTicketLinks(db, run.id);
-    expect(links.map((link) => [link.ticketId, link.position])).toEqual([
-      ["ticket-2", 0],
-      ["ticket-1", 1],
+    expect(links.map((link) => [link.ticketId, link.position, link.status, link.summary])).toEqual([
+      ["ticket-2", 0, "queued", null],
+      ["ticket-1", 1, "queued", null],
     ]);
   });
 
@@ -270,6 +271,35 @@ describe("get/list/update epic review runs", () => {
     expect(updated.startedAt).toBe("2026-03-08T10:00:00.000Z");
     expect(updated.completedAt).toBe("2026-03-08T10:15:00.000Z");
     expect(updated.selectedTicketIds).toEqual(["ticket-1"]);
+  });
+
+  it("updates per-ticket launch status independently", () => {
+    seedProject();
+    seedEpic();
+    seedTicket("ticket-1");
+    seedTicket("ticket-2");
+
+    const run = createEpicReviewRun(db, {
+      epicId: "epic-1",
+      selectedTicketIds: ["ticket-1", "ticket-2"],
+      launchMode: "focused-review",
+    });
+
+    const updatedLink = updateEpicReviewRunTicketLink(db, {
+      epicReviewRunId: run.id,
+      ticketId: "ticket-2",
+      status: "failed",
+      summary: "Terminal launch failed",
+      completedAt: "2026-03-08T10:05:00.000Z",
+    });
+
+    expect(updatedLink.status).toBe("failed");
+    expect(updatedLink.summary).toBe("Terminal launch failed");
+    expect(updatedLink.completedAt).toBe("2026-03-08T10:05:00.000Z");
+
+    const links = listEpicReviewRunTicketLinks(db, run.id);
+    expect(links.find((link) => link.ticketId === "ticket-1")?.status).toBe("queued");
+    expect(links.find((link) => link.ticketId === "ticket-2")?.status).toBe("failed");
   });
 
   it("finds the latest active run for a ticket and summarizes linked artifacts", () => {

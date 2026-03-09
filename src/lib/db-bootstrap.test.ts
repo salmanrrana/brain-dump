@@ -61,5 +61,13 @@ describe("db bootstrap", () => {
 
       expect(row?.name).toBe(table);
     }
+
+    const reviewRunTicketColumns = sqlite
+      .prepare("PRAGMA table_info(epic_review_run_tickets)")
+      .all() as Array<{ name: string }>;
+
+    expect(reviewRunTicketColumns.map((column) => column.name)).toEqual(
+      expect.arrayContaining(["status", "summary", "started_at", "completed_at"])
+    );
   });
 });

@@ -678,6 +678,10 @@ export const epicReviewRunTickets = sqliteTable(
       .notNull()
       .references(() => tickets.id, { onDelete: "cascade" }),
     position: integer("position").notNull().default(0),
+    status: text("status").notNull().default("queued"),
+    summary: text("summary"),
+    startedAt: text("started_at"),
+    completedAt: text("completed_at"),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),

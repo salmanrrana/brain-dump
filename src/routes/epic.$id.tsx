@@ -343,7 +343,13 @@ export function EpicDetailPage() {
                   <span style={reviewRunStatusStyles}>{run.status}</span>
                 </div>
                 <div style={reviewRunMetaStyles}>
-                  {run.selectedTickets.map((ticket) => ticket.title).join(", ")}
+                  {run.selectedTickets
+                    .map((ticket) =>
+                      ticket.summary
+                        ? `${ticket.title} (${ticket.status}: ${ticket.summary})`
+                        : `${ticket.title} (${ticket.status})`
+                    )
+                    .join(", ")}
                 </div>
                 <div style={reviewRunMetaStyles}>
                   {run.findingsTotal} finding{run.findingsTotal === 1 ? "" : "s"} •{" "}
