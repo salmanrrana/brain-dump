@@ -1,7 +1,8 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { EpicDetailPage } from "./epic.$id";
+import type { ComponentType } from "react";
+import { Route } from "./epic.$id";
 
 const mockShowToast = vi.hoisted(() => vi.fn());
 const mockPushBranchServerFn = vi.hoisted(() => vi.fn());
@@ -12,7 +13,7 @@ let epicDetailState: ReturnType<typeof createEpicDetail>;
 let mockRefetch: ReturnType<typeof vi.fn>;
 
 vi.mock("@tanstack/react-router", () => ({
-  createFileRoute: () => (config: unknown) => config,
+  createFileRoute: () => (config: Record<string, unknown>) => ({ ...config, options: config }),
   useParams: () => ({ id: "epic-1" }),
   useRouter: () => ({
     history: { back: vi.fn() },
@@ -32,6 +33,8 @@ vi.mock("@tanstack/react-query", async () => {
     }),
   };
 });
+
+const EpicDetailPage = Route.options.component as ComponentType;
 
 vi.mock("../api/ship-server-fns", () => ({
   pushBranchServerFn: mockPushBranchServerFn,

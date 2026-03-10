@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { TicketDetailPage } from "./ticket.$id";
+import type { ComponentType } from "react";
+import { Route } from "./ticket.$id";
 
 const mockShowToast = vi.hoisted(() => vi.fn());
 const mockPushBranchServerFn = vi.hoisted(() => vi.fn());
@@ -12,7 +13,7 @@ let ticketState: ReturnType<typeof createTicket>;
 let mockRefetch: ReturnType<typeof vi.fn>;
 
 vi.mock("@tanstack/react-router", () => ({
-  createFileRoute: () => (config: unknown) => config,
+  createFileRoute: () => (config: Record<string, unknown>) => ({ ...config, options: config }),
   useParams: () => ({ id: "ticket-1" }),
   useRouter: () => ({
     history: { back: vi.fn() },
@@ -39,6 +40,8 @@ vi.mock("@tanstack/react-query", async () => {
     }),
   };
 });
+
+const TicketDetailPage = Route.options.component as ComponentType;
 
 vi.mock("../api/tickets", () => ({
   getTicket: vi.fn(),

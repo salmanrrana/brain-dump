@@ -228,7 +228,7 @@ function TicketDetailSkeleton() {
  * │ Activity (full timeline)                                    │
  * └─────────────────────────────────────────────────────────────┘
  */
-export function TicketDetailPage() {
+function TicketDetailPage() {
   const { id } = useParams({ from: "/ticket/$id" });
   const router = useRouter();
   const canGoBack = useCanGoBack();
