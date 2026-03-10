@@ -391,7 +391,7 @@ const filterChipStyles: React.CSSProperties = {
 
 const activeFilterChipStyles: React.CSSProperties = {
   color: "var(--accent-primary)",
-  borderColor: "var(--accent-primary)",
+  border: "1px solid var(--accent-primary)",
   background: "color-mix(in srgb, var(--accent-primary) 10%, transparent)",
 };
 

@@ -1,9 +1,23 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import KanbanColumn from "./KanbanColumn";
 import type { TicketStatus } from "../../api/tickets";
 
+const useDroppableMock = vi.fn();
+
+vi.mock("@dnd-kit/core", () => ({
+  useDroppable: (...args: unknown[]) => useDroppableMock(...args),
+}));
+
 describe("KanbanColumn", () => {
+  beforeEach(() => {
+    useDroppableMock.mockReset();
+    useDroppableMock.mockReturnValue({
+      isOver: false,
+      setNodeRef: vi.fn(),
+    });
+  });
+
   const defaultProps = {
     status: "todo" as TicketStatus,
     label: "To Do",
@@ -23,6 +37,16 @@ describe("KanbanColumn", () => {
     render(<KanbanColumn {...defaultProps} count={0} />);
 
     expect(screen.getByText("No tickets")).toBeInTheDocument();
+  });
+
+  it("registers the column content as a droppable target", () => {
+    render(<KanbanColumn {...defaultProps} count={0} />);
+
+    expect(useDroppableMock).toHaveBeenCalledWith({
+      id: "todo",
+      data: { status: "todo" },
+    });
+    expect(screen.getByTestId("column-todo-content")).toHaveAttribute("data-droppable", "todo");
   });
 
   it("renders children when provided", () => {

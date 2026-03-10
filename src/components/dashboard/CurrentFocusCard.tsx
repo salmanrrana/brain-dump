@@ -194,7 +194,7 @@ const focusTicketStyles: React.CSSProperties = {
 /** Styles applied when AI (Ralph) is actively working on the ticket */
 const aiActiveTicketStyles: React.CSSProperties = {
   boxShadow: "0 0 20px var(--accent-ai-glow)",
-  borderColor: "var(--accent-ai)",
+  border: "1px solid var(--accent-ai)",
   background: "linear-gradient(135deg, rgba(20, 184, 166, 0.05), var(--bg-tertiary))",
 };
 

@@ -266,7 +266,9 @@ export const TagInput: FC<TagInputProps> = ({
       <div
         style={{
           ...inputContainerStyles,
-          borderColor: isDropdownOpen ? "var(--accent-primary)" : "var(--border-primary)",
+          border: isDropdownOpen
+            ? "1px solid var(--accent-primary)"
+            : "1px solid var(--border-primary)",
           opacity: disabled ? 0.5 : 1,
         }}
         onClick={() => !disabled && inputRef.current?.focus()}

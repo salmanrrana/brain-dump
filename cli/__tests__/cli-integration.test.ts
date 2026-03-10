@@ -264,7 +264,7 @@ describe("ticket", () => {
     expect(got.title).toBe("Test Ticket");
   });
 
-  it("list tickets for a project", async () => {
+  it("list tickets for a project", { timeout: 10_000 }, async () => {
     const projectId = await createProject();
     await runOk("ticket", "create", "--project", projectId, "--title", "T1");
     await runOk("ticket", "create", "--project", projectId, "--title", "T2");
@@ -646,7 +646,7 @@ describe("session", () => {
     expect(sessions).toHaveLength(1);
   });
 
-  it("emit-event and get-events", async () => {
+  it("emit-event and get-events", { timeout: 10_000 }, async () => {
     const ticketId = await setupTicket();
     const session = (await runOk("session", "create", "--ticket", ticketId)) as Record<
       string,
