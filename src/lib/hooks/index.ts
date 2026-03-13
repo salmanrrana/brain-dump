@@ -169,7 +169,7 @@ export {
 // =============================================================================
 // ANALYTICS HOOKS
 // =============================================================================
-export { useDashboardAnalytics } from "./analytics";
+export { useDashboardAnalytics, useDashboardTelemetryAnalytics } from "./analytics";
 
 // =============================================================================
 // TRANSFER HOOKS (Export/Import .braindump archives)

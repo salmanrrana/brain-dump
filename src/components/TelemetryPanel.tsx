@@ -13,6 +13,8 @@ import {
   XCircle,
   AlertCircle,
   Loader2,
+  Monitor,
+  Zap,
 } from "lucide-react";
 import {
   getTelemetryStats,
@@ -102,6 +104,7 @@ const EventItem = memo(function EventItem({ event }: { event: ParsedTelemetryEve
   const message = eventData.message as string | undefined;
   const promptLength = eventData.promptLength as number | undefined;
   const success = eventData.success as boolean | undefined;
+  const errorMessage = eventData.error as string | undefined;
 
   return (
     <div className="flex items-start gap-2 py-1.5 border-b border-[var(--border-subtle)] last:border-0">
@@ -136,6 +139,11 @@ const EventItem = memo(function EventItem({ event }: { event: ParsedTelemetryEve
         {promptLength && (
           <p className="text-xs text-[var(--text-muted)] mt-0.5">
             {promptLength.toLocaleString()} chars
+          </p>
+        )}
+        {(event.isError || success === false) && errorMessage && (
+          <p className="text-xs text-[var(--error)] mt-0.5 truncate" role="alert">
+            {errorMessage}
           </p>
         )}
       </div>
@@ -328,6 +336,29 @@ export function TelemetryPanel({ ticketId }: TelemetryPanelProps) {
           >
             {availableStats.totalSessions} session{availableStats.totalSessions !== 1 ? "s" : ""}
           </span>
+          {availableStats.latestSession?.environment &&
+            availableStats.latestSession.environment !== "unknown" && (
+              <span className="text-xs px-1.5 py-0.5 bg-[var(--accent-ai)]/15 rounded text-[var(--accent-ai)]">
+                <Monitor className="w-3 h-3 inline-block mr-0.5" aria-hidden="true" />
+                {availableStats.latestSession.environment}
+              </span>
+            )}
+          {availableStats.latestSession?.totalTokens != null &&
+            availableStats.latestSession.totalTokens > 0 && (
+              <span className="text-xs px-1.5 py-0.5 bg-[var(--bg-tertiary)] rounded text-[var(--text-muted)]">
+                <Zap className="w-3 h-3 inline-block mr-0.5" aria-hidden="true" />
+                {availableStats.latestSession.totalTokens.toLocaleString()} tokens
+              </span>
+            )}
+          {availableStats.errorCount > 0 && (
+            <span
+              className="text-xs px-1.5 py-0.5 bg-[var(--error)]/15 rounded text-[var(--error)]"
+              aria-label={`${availableStats.errorCount} error${availableStats.errorCount !== 1 ? "s" : ""}`}
+            >
+              <AlertCircle className="w-3 h-3 inline-block mr-0.5" aria-hidden="true" />
+              {availableStats.errorCount}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {availableStats.latestSession && (

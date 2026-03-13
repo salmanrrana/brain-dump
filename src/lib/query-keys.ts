@@ -81,6 +81,7 @@ export const queryKeys = {
     stats: (ticketId: string) => ["telemetry", "stats", ticketId] as const,
     latestSession: (ticketId: string) => ["telemetry", "latestSession", ticketId] as const,
     sessions: (ticketId: string) => ["telemetry", "sessions", ticketId] as const,
+    dashboardAnalytics: () => ["telemetry", "dashboardAnalytics"] as const,
   },
 
   // Claude Tasks

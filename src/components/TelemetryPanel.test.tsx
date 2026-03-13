@@ -50,6 +50,7 @@ function createStatsResult(
     avgSessionDurationMs: 1200,
     mostUsedTools: [{ toolName: "Edit", count: 3 }],
     successRate: 100,
+    errorCount: 0,
     latestSession: {
       id: "session-1",
       ticketId: "ticket-1",
@@ -143,6 +144,7 @@ describe("TelemetryPanel", () => {
         avgSessionDurationMs: 0,
         mostUsedTools: [],
         successRate: 0,
+        errorCount: 0,
         latestSession: null,
       })
     );

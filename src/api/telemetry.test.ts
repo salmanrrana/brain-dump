@@ -167,6 +167,7 @@ describe("telemetry API helpers", () => {
       avgSessionDurationMs: 0,
       mostUsedTools: [],
       successRate: 0,
+      errorCount: 0,
       latestSession: null,
     });
   });

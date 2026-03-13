@@ -1,8 +1,15 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useCallback } from "react";
-import { useTickets, useActiveRalphSessions, useDashboardAnalytics } from "../lib/hooks";
-import { StatsGrid, AnalyticsSection } from "../components/dashboard";
+import { useCallback, useState } from "react";
+import {
+  useTickets,
+  useActiveRalphSessions,
+  useDashboardAnalytics,
+  useDashboardTelemetryAnalytics,
+} from "../lib/hooks";
+import { StatsGrid, AnalyticsSection, AITelemetryTab } from "../components/dashboard";
 import type { StatFilter } from "../components/dashboard";
+
+type DashboardTab = "overview" | "ai-telemetry";
 export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
   errorComponent: DashboardError,
@@ -78,6 +85,7 @@ const errorButtonStyles: React.CSSProperties = {
  */
 function Dashboard() {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
   const { tickets, loading, error } = useTickets();
   const { sessions } = useActiveRalphSessions();
   const {
@@ -85,6 +93,43 @@ function Dashboard() {
     isLoading: analyticsLoading,
     error: analyticsError,
   } = useDashboardAnalytics();
+  const {
+    data: telemetryAnalytics,
+    isLoading: telemetryLoading,
+    error: telemetryError,
+  } = useDashboardTelemetryAnalytics();
+
+  const handleStatClick = useCallback(
+    async (filter: StatFilter) => {
+      try {
+        await navigate({ to: "/board" });
+        if (filter === "all") return;
+
+        let columnSelector: string;
+        switch (filter) {
+          case "in_progress":
+            columnSelector = '[data-status="in_progress"]';
+            break;
+          case "done":
+            columnSelector = '[data-status="done"]';
+            break;
+          case "ai_active":
+            columnSelector = '[data-status="in_progress"]';
+            break;
+          default:
+            return;
+        }
+
+        const column = document.querySelector(columnSelector);
+        if (column) {
+          column.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+        }
+      } catch (navError) {
+        console.error("Failed to navigate to board:", navError);
+      }
+    },
+    [navigate]
+  );
 
   if (loading) {
     return <div className="h-full" />;
@@ -103,51 +148,29 @@ function Dashboard() {
   const aiActiveCount = Object.keys(sessions).length;
   const doneCount = tickets.filter((t) => t.status === "done").length;
 
-  // Handle stat card clicks - navigate to board and scroll to relevant column
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const handleStatClick = useCallback(
-    async (filter: StatFilter) => {
-      try {
-        // Wait for navigation to complete before scrolling
-        await navigate({ to: "/board" });
-
-        // Only scroll if not the "all" filter
-        if (filter === "all") {
-          return;
-        }
-
-        // Scroll to the relevant column
-        let columnSelector: string;
-        switch (filter) {
-          case "in_progress":
-            columnSelector = '[data-status="in_progress"]';
-            break;
-          case "done":
-            columnSelector = '[data-status="done"]';
-            break;
-          case "ai_active":
-            // For AI active, scroll to in_progress column (where AI sessions are)
-            columnSelector = '[data-status="in_progress"]';
-            break;
-          default:
-            return;
-        }
-
-        const column = document.querySelector(columnSelector);
-        if (column) {
-          column.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
-        }
-      } catch (error) {
-        // Navigation failed - log to console for debugging
-        console.error("Failed to navigate to board:", error);
-      }
-    },
-    [navigate]
-  );
-
   return (
     <div style={containerStyles} className="route-fade-in">
-      <h1 style={titleStyles}>Dashboard</h1>
+      <div style={headerRowStyles}>
+        <h1 style={titleStyles}>Dashboard</h1>
+        <div style={tabBarStyles} role="tablist" aria-label="Dashboard tabs">
+          <button
+            role="tab"
+            aria-selected={activeTab === "overview"}
+            onClick={() => setActiveTab("overview")}
+            style={activeTab === "overview" ? activeTabStyles : tabStyles}
+          >
+            Overview
+          </button>
+          <button
+            role="tab"
+            aria-selected={activeTab === "ai-telemetry"}
+            onClick={() => setActiveTab("ai-telemetry")}
+            style={activeTab === "ai-telemetry" ? activeTabStyles : tabStyles}
+          >
+            AI Telemetry
+          </button>
+        </div>
+      </div>
 
       <StatsGrid
         total={totalCount}
@@ -157,8 +180,16 @@ function Dashboard() {
         onStatClick={handleStatClick}
       />
 
-      {analytics && (
+      {activeTab === "overview" && analytics && (
         <AnalyticsSection analytics={analytics} loading={analyticsLoading} error={analyticsError} />
+      )}
+
+      {activeTab === "ai-telemetry" && telemetryAnalytics && (
+        <AITelemetryTab
+          analytics={telemetryAnalytics}
+          isLoading={telemetryLoading}
+          error={telemetryError}
+        />
       )}
     </div>
   );
@@ -171,6 +202,13 @@ const containerStyles: React.CSSProperties = {
   height: "100%",
 };
 
+const headerRowStyles: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "var(--spacing-4)",
+};
+
 const titleStyles: React.CSSProperties = {
   fontSize: "var(--font-size-2xl)",
   fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
@@ -178,4 +216,28 @@ const titleStyles: React.CSSProperties = {
   margin: 0,
 };
 
-// Removed mainGridStyles - Current Focus and Up Next sections removed
+const tabBarStyles: React.CSSProperties = {
+  display: "flex",
+  gap: "var(--spacing-1)",
+  background: "var(--bg-secondary)",
+  borderRadius: "var(--radius-md)",
+  padding: "2px",
+  border: "1px solid var(--border-primary)",
+};
+
+const tabStyles: React.CSSProperties = {
+  padding: "var(--spacing-1) var(--spacing-3)",
+  fontSize: "var(--font-size-sm)",
+  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+  color: "var(--text-secondary)",
+  background: "transparent",
+  border: "none",
+  borderRadius: "var(--radius-sm)",
+  cursor: "pointer",
+};
+
+const activeTabStyles: React.CSSProperties = {
+  ...tabStyles,
+  color: "var(--text-primary)",
+  background: "var(--bg-tertiary)",
+};

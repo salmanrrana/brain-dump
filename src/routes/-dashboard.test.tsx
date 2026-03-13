@@ -6,6 +6,7 @@ vi.mock("../lib/hooks", () => ({
   useTickets: vi.fn(),
   useActiveRalphSessions: vi.fn(),
   useDashboardAnalytics: vi.fn(),
+  useDashboardTelemetryAnalytics: vi.fn(),
 }));
 
 // Mock dashboard components - we're testing the route's data transformation logic
@@ -19,13 +20,22 @@ vi.mock("../components/dashboard", () => ({
     </div>
   )),
   AnalyticsSection: vi.fn(() => <div data-testid="analytics-section">Analytics</div>),
+  AITelemetryTab: vi.fn(() => <div data-testid="ai-telemetry-tab">AI Telemetry</div>),
 }));
 
-import { useTickets, useActiveRalphSessions, useDashboardAnalytics } from "../lib/hooks";
+import {
+  useTickets,
+  useActiveRalphSessions,
+  useDashboardAnalytics,
+  useDashboardTelemetryAnalytics,
+} from "../lib/hooks";
 
 const mockUseTickets = useTickets as ReturnType<typeof vi.fn>;
 const mockUseActiveRalphSessions = useActiveRalphSessions as ReturnType<typeof vi.fn>;
 const mockUseDashboardAnalytics = useDashboardAnalytics as ReturnType<typeof vi.fn>;
+const mockUseDashboardTelemetryAnalytics = useDashboardTelemetryAnalytics as ReturnType<
+  typeof vi.fn
+>;
 
 function createTicket(
   overrides: Partial<{
@@ -62,6 +72,11 @@ beforeEach(async () => {
   mockUseTickets.mockReturnValue({ tickets: [], loading: false, error: null });
   mockUseActiveRalphSessions.mockReturnValue({ sessions: {}, error: null });
   mockUseDashboardAnalytics.mockReturnValue({
+    data: null,
+    isLoading: false,
+    error: null,
+  });
+  mockUseDashboardTelemetryAnalytics.mockReturnValue({
     data: null,
     isLoading: false,
     error: null,

@@ -331,7 +331,7 @@ describe("EpicDetailPage ship entry points", () => {
       screen.getByLabelText(/how do you want to steer the review\?/i),
       "Focus on loading states and silent failures."
     );
-    await user.click(screen.getByRole("button", { name: /launch focused review/i }));
+    await user.click(screen.getByRole("button", { name: /^claude$/i }));
 
     await waitFor(() => {
       expect(mockLaunchRalphForEpic).toHaveBeenCalledWith({
@@ -350,15 +350,15 @@ describe("EpicDetailPage ship entry points", () => {
     expect(mockShowToast).toHaveBeenCalledWith("success", "Focused review launched for Ship modal");
   });
 
-  it("shows inline validation when the focused review form is submitted without any ticket selected", async () => {
+  it("disables provider buttons when no ticket is selected for focused review", async () => {
     const user = userEvent.setup();
 
     render(<EpicDetailPage />);
 
     await user.click(screen.getByRole("button", { name: /review a ticket in this epic/i }));
-    await user.click(screen.getByRole("button", { name: /launch focused review/i }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Select at least one ticket to review.");
+    const claudeButton = screen.getByRole("button", { name: /^claude$/i });
+    expect(claudeButton).toBeDisabled();
     expect(mockLaunchRalphForEpic).not.toHaveBeenCalled();
   });
 
@@ -392,7 +392,7 @@ describe("EpicDetailPage ship entry points", () => {
     await user.click(screen.getByRole("button", { name: /review a ticket in this epic/i }));
     await user.click(screen.getByLabelText(/select ship modal for focused review/i));
     await user.click(screen.getByLabelText(/select review launch copy for focused review/i));
-    await user.click(screen.getByRole("button", { name: /launch focused review/i }));
+    await user.click(screen.getByRole("button", { name: /^claude$/i }));
 
     await waitFor(() => {
       expect(mockLaunchRalphForEpic).toHaveBeenCalledWith({

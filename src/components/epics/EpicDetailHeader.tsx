@@ -67,6 +67,7 @@ export function EpicDetailHeader({
   const [selectedReviewTicketIds, setSelectedReviewTicketIds] = useState<string[]>([]);
   const [reviewSteeringPrompt, setReviewSteeringPrompt] = useState("");
   const [reviewLaunchError, setReviewLaunchError] = useState<string | null>(null);
+  const [pendingReviewProvider, setPendingReviewProvider] = useState<string | null>(null);
   const launchMenuRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
   const settings = useSettings();
@@ -206,68 +207,81 @@ export function EpicDetailHeader({
     setReviewLaunchError(null);
   }, []);
 
-  const handleLaunchFocusedReview = useCallback(async (): Promise<void> => {
-    if (selectedReviewTicketIds.length === 0) {
-      setReviewLaunchError("Select at least one ticket to review.");
-      return;
-    }
-
-    setReviewLaunchError(null);
-
-    try {
-      const result = await launchRalphMutation.mutateAsync({
-        epicId: epic.id,
-        preferredTerminal: settings?.settings?.terminalEmulator ?? null,
-        useSandbox: false,
-        aiBackend: "claude",
-        launchProfile: {
-          type: "review",
-          selectedTicketIds: selectedReviewTicketIds,
-          steeringPrompt: reviewSteeringPrompt,
-        },
-      });
-
-      if ("warnings" in result && result.warnings) {
-        (result.warnings as string[]).forEach((warning) => showToast("info", warning));
-      }
-
-      if (!result.success) {
-        setReviewLaunchError(result.message);
-        showToast("error", result.message);
+  const handleLaunchFocusedReview = useCallback(
+    async (provider: {
+      aiBackend: "claude" | "opencode" | "codex";
+      workingMethodOverride?: "vscode" | "cursor" | "copilot-cli";
+      label: string;
+    }): Promise<void> => {
+      if (selectedReviewTicketIds.length === 0) {
+        setReviewLaunchError("Select at least one ticket to review.");
         return;
       }
 
-      const selectedTicketTitles = reviewableTickets
-        .filter((ticket) => selectedReviewTicketIds.includes(ticket.id))
-        .map((ticket) => ticket.title);
-      const launchLabel =
-        selectedTicketTitles.length === 1
-          ? selectedTicketTitles[0]
-          : `${selectedTicketTitles.length} tickets`;
+      setReviewLaunchError(null);
+      setPendingReviewProvider(provider.label);
 
-      showToast("success", `Focused review launched for ${launchLabel}`);
-      setShowReviewModal(false);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.epicDetail(epic.id) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.allTickets }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics }),
-      ]);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to launch focused ticket review";
-      setReviewLaunchError(message);
-      showToast("error", message);
-    }
-  }, [
-    epic.id,
-    launchRalphMutation,
-    queryClient,
-    reviewSteeringPrompt,
-    reviewableTickets,
-    selectedReviewTicketIds,
-    settings,
-    showToast,
-  ]);
+      try {
+        const result = await launchRalphMutation.mutateAsync({
+          epicId: epic.id,
+          preferredTerminal: settings?.settings?.terminalEmulator ?? null,
+          useSandbox: false,
+          aiBackend: provider.aiBackend,
+          ...(provider.workingMethodOverride !== undefined
+            ? { workingMethodOverride: provider.workingMethodOverride }
+            : {}),
+          launchProfile: {
+            type: "review",
+            selectedTicketIds: selectedReviewTicketIds,
+            steeringPrompt: reviewSteeringPrompt,
+          },
+        });
+
+        if ("warnings" in result && result.warnings) {
+          (result.warnings as string[]).forEach((warning) => showToast("info", warning));
+        }
+
+        if (!result.success) {
+          setReviewLaunchError(result.message);
+          showToast("error", result.message);
+          return;
+        }
+
+        const selectedTicketTitles = reviewableTickets
+          .filter((ticket) => selectedReviewTicketIds.includes(ticket.id))
+          .map((ticket) => ticket.title);
+        const launchLabel =
+          selectedTicketTitles.length === 1
+            ? selectedTicketTitles[0]
+            : `${selectedTicketTitles.length} tickets`;
+
+        showToast("success", `Focused review launched for ${launchLabel}`);
+        setPendingReviewProvider(null);
+        setShowReviewModal(false);
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: queryKeys.epicDetail(epic.id) }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.allTickets }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics }),
+        ]);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to launch focused ticket review";
+        setPendingReviewProvider(null);
+        setReviewLaunchError(message);
+        showToast("error", message);
+      }
+    },
+    [
+      epic.id,
+      launchRalphMutation,
+      queryClient,
+      reviewSteeringPrompt,
+      reviewableTickets,
+      selectedReviewTicketIds,
+      settings,
+      showToast,
+    ]
+  );
 
   const hasLaunchableTickets = tickets.some((t) => t.status !== "done");
 
@@ -640,33 +654,9 @@ export function EpicDetailHeader({
         title={`Focused Review: ${epic.title}`}
         maxWidth="xl"
         footer={
-          <div style={reviewModalFooterStyles}>
-            <button type="button" onClick={handleCloseReviewModal} style={modalButtonStyles}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleLaunchFocusedReview()}
-              disabled={launchRalphMutation.isPending || reviewableTickets.length === 0}
-              style={{
-                ...primaryModalButtonStyles,
-                opacity: launchRalphMutation.isPending || reviewableTickets.length === 0 ? 0.7 : 1,
-                cursor:
-                  launchRalphMutation.isPending || reviewableTickets.length === 0
-                    ? "progress"
-                    : "pointer",
-              }}
-            >
-              {launchRalphMutation.isPending ? (
-                <>
-                  <LoaderCircle size={16} className="animate-spin" />
-                  Launching Review...
-                </>
-              ) : (
-                "Launch Focused Review"
-              )}
-            </button>
-          </div>
+          <button type="button" onClick={handleCloseReviewModal} style={modalButtonStyles}>
+            Cancel
+          </button>
         }
       >
         <div style={modalContentStyles}>
@@ -759,9 +749,79 @@ export function EpicDetailHeader({
                 </div>
               ) : null}
 
-              <div style={reviewHintStyles}>
-                Focused review mode fans out one isolated review context per selected ticket and
-                follows the Brain Dump review workflow for each run.
+              <div style={reviewFormSectionStyles}>
+                <div style={reviewSectionHeaderStyles}>
+                  <strong>Launch via Ralph</strong>
+                  <span style={modalMetaStyles}>
+                    Each selected ticket runs as an isolated review session. The steering prompt
+                    above is injected into every session.
+                  </span>
+                </div>
+                <div style={reviewProviderGridStyles}>
+                  {[
+                    {
+                      label: "Claude",
+                      aiBackend: "claude" as const,
+                      icon: <Bot size={14} className="text-[var(--accent-ai)] flex-shrink-0" />,
+                    },
+                    {
+                      label: "Codex",
+                      aiBackend: "codex" as const,
+                      icon: <Terminal size={14} className="text-[var(--success)] flex-shrink-0" />,
+                    },
+                    {
+                      label: "VS Code",
+                      aiBackend: "claude" as const,
+                      workingMethodOverride: "vscode" as const,
+                      icon: (
+                        <Code2 size={14} className="text-[var(--accent-primary)] flex-shrink-0" />
+                      ),
+                    },
+                    {
+                      label: "Cursor",
+                      aiBackend: "claude" as const,
+                      workingMethodOverride: "cursor" as const,
+                      icon: <Monitor size={14} className="text-[var(--warning)] flex-shrink-0" />,
+                    },
+                    {
+                      label: "Copilot CLI",
+                      aiBackend: "claude" as const,
+                      workingMethodOverride: "copilot-cli" as const,
+                      icon: (
+                        <Github size={14} className="text-[var(--text-secondary)] flex-shrink-0" />
+                      ),
+                    },
+                    {
+                      label: "OpenCode",
+                      aiBackend: "opencode" as const,
+                      icon: <Code2 size={14} className="text-[var(--accent-ai)] flex-shrink-0" />,
+                    },
+                  ].map((p) => {
+                    const isThisOne = pendingReviewProvider === p.label;
+                    const isDisabled =
+                      launchRalphMutation.isPending || selectedReviewTicketIds.length === 0;
+                    return (
+                      <button
+                        key={p.label}
+                        type="button"
+                        onClick={() => void handleLaunchFocusedReview(p)}
+                        disabled={isDisabled}
+                        style={{
+                          ...reviewProviderButtonStyles,
+                          opacity: isDisabled ? 0.6 : 1,
+                          cursor: isDisabled ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {isThisOne ? (
+                          <LoaderCircle size={14} className="animate-spin flex-shrink-0" />
+                        ) : (
+                          p.icon
+                        )}
+                        <span className="text-sm text-[var(--text-primary)]">{p.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}
@@ -1291,19 +1351,6 @@ const modalButtonStyles: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const primaryModalButtonStyles: React.CSSProperties = {
-  ...modalButtonStyles,
-  background: "var(--accent-primary)",
-  border: "none",
-  color: "var(--text-on-accent)",
-};
-
-const reviewModalFooterStyles: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "flex-end",
-  gap: "var(--spacing-2)",
-};
-
 const reviewFormStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
@@ -1360,13 +1407,22 @@ const reviewErrorStyles: React.CSSProperties = {
   lineHeight: 1.5,
 };
 
-const reviewHintStyles: React.CSSProperties = {
-  padding: "var(--spacing-3)",
+const reviewProviderGridStyles: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, 1fr)",
+  gap: "var(--spacing-2)",
+};
+
+const reviewProviderButtonStyles: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "var(--spacing-2)",
   borderRadius: "var(--radius-md)",
   border: "1px solid var(--border-primary)",
-  background: "var(--bg-secondary)",
-  color: "var(--text-secondary)",
-  lineHeight: 1.5,
+  padding: "var(--spacing-2) var(--spacing-3)",
+  textAlign: "left",
+  background: "var(--bg-tertiary)",
+  transition: "background-color 0.15s",
 };
 
 const findingStatusStyles: React.CSSProperties = {

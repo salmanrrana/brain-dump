@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import { db } from "../lib/db";
+import { db, sqlite } from "../lib/db";
 import * as schema from "../lib/schema";
 import { eq, desc } from "drizzle-orm";
 import { safeJsonParse } from "../lib/utils";
@@ -47,6 +47,7 @@ export interface TelemetryStats {
   avgSessionDurationMs: number;
   mostUsedTools: Array<{ toolName: string; count: number }>;
   successRate: number;
+  errorCount: number;
   latestSession: TelemetrySessionRecord | null;
 }
 
@@ -142,6 +143,7 @@ function createEmptyTelemetryStats(): TelemetryStatsAvailable {
     avgSessionDurationMs: 0,
     mostUsedTools: [],
     successRate: 0,
+    errorCount: 0,
     latestSession: null,
   };
 }
@@ -183,10 +185,14 @@ export function loadTelemetryStats(
       .all();
 
     const toolCounts = new Map<string, number>();
+    let errorCount = 0;
     for (const event of toolEvents) {
       const toolName = event.toolName || "unknown";
       if (event.eventType === "tool_end") {
         toolCounts.set(toolName, (toolCounts.get(toolName) || 0) + 1);
+      }
+      if (event.isError || event.eventType === "error") {
+        errorCount++;
       }
     }
 
@@ -204,6 +210,7 @@ export function loadTelemetryStats(
       avgSessionDurationMs: totalDurationMs / sessions.length,
       mostUsedTools,
       successRate: (successCount / sessions.length) * 100,
+      errorCount,
       latestSession: sessions[0] ?? null,
     };
   } catch (error) {
@@ -302,3 +309,203 @@ export const getLatestTelemetrySession = createServerFn({ method: "GET" })
   .handler(async ({ data: ticketId }): Promise<TelemetrySessionResult> => {
     return loadLatestTelemetrySession(db, ticketId);
   });
+
+// =============================================================================
+// Dashboard Telemetry Analytics
+// =============================================================================
+
+export interface DashboardTelemetryAnalytics {
+  /** Top tools by call count (tool_end events) */
+  toolCallDistribution: Array<{ toolName: string; count: number }>;
+  /** Session outcomes breakdown */
+  sessionOutcomes: {
+    success: number;
+    failure: number;
+    timeout: number;
+    cancelled: number;
+    inProgress: number;
+  };
+  /** Sessions grouped by environment */
+  environmentBreakdown: Array<{ environment: string; count: number }>;
+  /** Sessions per day over last 30 days */
+  sessionsOverTime: Array<{ date: string; count: number }>;
+  /** Average session duration per day (minutes) over last 30 days */
+  avgDurationOverTime: Array<{ date: string; avgMinutes: number }>;
+  /** Token usage per day over last 30 days */
+  tokenUsageOverTime: Array<{ date: string; tokens: number }>;
+}
+
+/**
+ * Get aggregated telemetry analytics for the dashboard.
+ * Aggregates across all sessions and projects.
+ */
+export const getDashboardTelemetryAnalytics = createServerFn({ method: "GET" }).handler(
+  async (): Promise<DashboardTelemetryAnalytics> => {
+    const now = new Date();
+    const formatDate = (date: Date): string => {
+      const isoString = date.toISOString();
+      return isoString.split("T")[0] ?? isoString.substring(0, 10);
+    };
+
+    try {
+      // 1. Tool call distribution (top 15 tools by tool_end event count)
+      const toolDistRows = sqlite
+        .prepare(
+          `SELECT tool_name, COUNT(*) as count
+           FROM telemetry_events
+           WHERE event_type = 'tool_end' AND tool_name IS NOT NULL
+           GROUP BY tool_name
+           ORDER BY count DESC
+           LIMIT 15`
+        )
+        .all() as Array<{ tool_name: string; count: number }>;
+
+      const toolCallDistribution = toolDistRows.map((r) => ({
+        toolName: (r.tool_name || "unknown").replace("mcp__brain-dump__", ""),
+        count: Number(r.count) || 0,
+      }));
+
+      // 2. Session outcomes
+      const outcomeRows = sqlite
+        .prepare(
+          `SELECT outcome, COUNT(*) as count
+           FROM telemetry_sessions
+           GROUP BY outcome`
+        )
+        .all() as Array<{ outcome: string | null; count: number }>;
+
+      const sessionOutcomes = {
+        success: 0,
+        failure: 0,
+        timeout: 0,
+        cancelled: 0,
+        inProgress: 0,
+      };
+      for (const row of outcomeRows) {
+        const count = Number(row.count) || 0;
+        if (row.outcome === "success") sessionOutcomes.success = count;
+        else if (row.outcome === "failure") sessionOutcomes.failure = count;
+        else if (row.outcome === "timeout") sessionOutcomes.timeout = count;
+        else if (row.outcome === "cancelled") sessionOutcomes.cancelled = count;
+        else sessionOutcomes.inProgress += count;
+      }
+
+      // 3. Environment breakdown
+      const envRows = sqlite
+        .prepare(
+          `SELECT environment, COUNT(*) as count
+           FROM telemetry_sessions
+           GROUP BY environment
+           ORDER BY count DESC`
+        )
+        .all() as Array<{ environment: string; count: number }>;
+
+      const environmentBreakdown = envRows.map((r) => ({
+        environment: r.environment || "unknown",
+        count: Number(r.count) || 0,
+      }));
+
+      // 4. Sessions over time (last 30 days)
+      const sessionsTimeRows = sqlite
+        .prepare(
+          `SELECT date(started_at) as date, COUNT(*) as count
+           FROM telemetry_sessions
+           WHERE started_at >= datetime('now', '-30 days')
+           GROUP BY date(started_at)
+           ORDER BY date ASC`
+        )
+        .all() as Array<{ date: string; count: number }>;
+
+      const sessionsTimeMap = new Map<string, number>();
+      for (let i = 0; i < 30; i++) {
+        const date = new Date(now.getTime() - (29 - i) * 24 * 60 * 60 * 1000);
+        const dateStr = formatDate(date);
+        sessionsTimeMap.set(dateStr, 0);
+      }
+      for (const row of sessionsTimeRows) {
+        if (row.date) sessionsTimeMap.set(row.date, Number(row.count) || 0);
+      }
+      const sessionsOverTime = Array.from(sessionsTimeMap.entries())
+        .map(([date, count]) => ({ date, count }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      // 5. Avg session duration over time (last 30 days)
+      const durationRows = sqlite
+        .prepare(
+          `SELECT date(started_at) as date,
+                  AVG(total_duration_ms) as avg_ms
+           FROM telemetry_sessions
+           WHERE started_at >= datetime('now', '-30 days')
+             AND total_duration_ms IS NOT NULL
+             AND total_duration_ms > 0
+           GROUP BY date(started_at)
+           ORDER BY date ASC`
+        )
+        .all() as Array<{ date: string; avg_ms: number }>;
+
+      const durationMap = new Map<string, number>();
+      for (let i = 0; i < 30; i++) {
+        const date = new Date(now.getTime() - (29 - i) * 24 * 60 * 60 * 1000);
+        const dateStr = formatDate(date);
+        durationMap.set(dateStr, 0);
+      }
+      for (const row of durationRows) {
+        if (row.date) {
+          durationMap.set(row.date, Math.round((Number(row.avg_ms) || 0) / 60000));
+        }
+      }
+      const avgDurationOverTime = Array.from(durationMap.entries())
+        .map(([date, avgMinutes]) => ({ date, avgMinutes }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      // 6. Token usage over time (last 30 days)
+      const tokenRows = sqlite
+        .prepare(
+          `SELECT date(started_at) as date,
+                  SUM(total_tokens) as tokens
+           FROM telemetry_sessions
+           WHERE started_at >= datetime('now', '-30 days')
+             AND total_tokens IS NOT NULL
+             AND total_tokens > 0
+           GROUP BY date(started_at)
+           ORDER BY date ASC`
+        )
+        .all() as Array<{ date: string; tokens: number }>;
+
+      const tokenMap = new Map<string, number>();
+      for (let i = 0; i < 30; i++) {
+        const date = new Date(now.getTime() - (29 - i) * 24 * 60 * 60 * 1000);
+        const dateStr = formatDate(date);
+        tokenMap.set(dateStr, 0);
+      }
+      for (const row of tokenRows) {
+        if (row.date) tokenMap.set(row.date, Number(row.tokens) || 0);
+      }
+      const tokenUsageOverTime = Array.from(tokenMap.entries())
+        .map(([date, tokens]) => ({ date, tokens }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      return {
+        toolCallDistribution,
+        sessionOutcomes,
+        environmentBreakdown,
+        sessionsOverTime,
+        avgDurationOverTime,
+        tokenUsageOverTime,
+      };
+    } catch (error) {
+      // Gracefully handle missing telemetry tables
+      if (isMissingTelemetrySchemaError(error)) {
+        return {
+          toolCallDistribution: [],
+          sessionOutcomes: { success: 0, failure: 0, timeout: 0, cancelled: 0, inProgress: 0 },
+          environmentBreakdown: [],
+          sessionsOverTime: [],
+          avgDurationOverTime: [],
+          tokenUsageOverTime: [],
+        };
+      }
+      throw error;
+    }
+  }
+);

@@ -9,153 +9,28 @@
   ],
   "userStories": [
     {
-      "id": "a38a7ecb-cbb0-4791-88d1-8b60da32beb3",
-      "title": "Add epic review run schema and orchestration records",
+      "id": "72aa1e24-ccc8-447f-8538-781239c1de9f",
+      "title": "Enhance telemetry panel + add interactive AI Telemetry dashboard tab",
       "passes": false,
       "overview": "",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "A new epic review run record can be created for an epic with one or more ticket ids",
-        "The record stores the freeform steering prompt verbatim",
-        "The record distinguishes orchestration metadata from ticket-level findings/history",
-        "Existing review findings, comments, demo scripts, and workflow state remain untouched",
-        "The implementation is structured so ticket-level review actions can link back to the epic review run later"
+        "TelemetryPanel header shows environment badge, token count (when > 0), and error indicator",
+        "Event timeline renders error message text on failed events",
+        "Dashboard has an AI Telemetry tab with at least 4 interactive charts with tooltips",
+        "Charts use Recharts (already in deps)",
+        "No breaking changes to existing TelemetryPanel usage in TicketModal or ticket.$id route",
+        "Do this work within the current feature branch \"feature/epic-31d0c0bf-epic-scoped-focused-review-runs\""
       ],
       "references": [],
-      "description": "Create the persistence layer for epic-scoped focused review runs.\n\n## Goal\nAdd a new epic-level orchestration record that captures the review campaign without replacing ticket-level findings or comments.\n\n## Scope\n- Define schema/storage for an epic review run\n- Store epic id, selected ticket ids, steering prompt, launch mode/provider, status, timestamps, and summary fields\n- Add core create/read/update helpers or server-side access paths needed by the UI and launch flow\n\n## Acceptance Criteria\n- A new epic review run record can be created for an epic with one or more ticket ids\n- The record stores the freeform steering prompt verbatim\n- The record distinguishes orchestration metadata from ticket-level findings/history\n- Existing review findings, comments, demo scripts, and workflow state remain untouched\n- The implementation is structured so ticket-level review actions can link back to the epic review run later\n\n## Notes\nThis is the foundation ticket. Do not collapse findings into the epic record; preserve ticket-level source of truth.",
+      "description": "Two related improvements to telemetry visibility.\n\n## TelemetryPanel (ticket detail + kanban modal)\n\nSurface more of the data we already capture:\n- Environment badge (claude-code, vscode, cursor, etc.)\n- Total tokens when > 0\n- Error count / error indicator in the header\n- Top tool used shown in the stats area\n- Event timeline shows error message text on failed tool calls\n\n## Dashboard AI Telemetry Tab\n\nAdd a dedicated **AI Telemetry** tab to the dashboard page with interactive Recharts visualizations:\n- Tool call distribution (bar chart) — top tools by call count\n- Session outcomes (donut) — success / failure / timeout / cancelled\n- Environment breakdown (bar or donut)\n- Sessions over time (line chart, last 30 days)\n- Avg session duration over time\n- Token usage over time (when available)\n\nPowered by a new `getDashboardTelemetryAnalytics` server function aggregating across all sessions and projects.\n\n## Acceptance Criteria\n\n- TelemetryPanel header shows environment badge, token count (when > 0), and error indicator\n- Event timeline renders error message text on failed events\n- Dashboard has an AI Telemetry tab with at least 4 interactive charts with tooltips\n- Charts use Recharts (already in deps)\n- No breaking changes to existing TelemetryPanel usage in TicketModal or ticket.$id route\n- Do this work within the current feature branch \"feature/epic-31d0c0bf-epic-scoped-focused-review-runs\"",
       "priority": "high",
       "tags": [
-        "review",
-        "epic",
-        "backend",
-        "workflow"
-      ]
-    },
-    {
-      "id": "e00652d5-09f9-4412-9887-f9da38a5dd8e",
-      "title": "Add review-mode launch contract and focused prompt builder",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Launch code can accept a review-mode input separate from the normal implementation launch path",
-        "The generated review prompt explicitly says to review only the selected ticket and not pick unrelated work",
-        "The prompt includes the freeform steering text when provided",
-        "The prompt still requires Brain Dump review workflow steps (findings, fixes, check-complete, demo where applicable)",
-        "The code path is clearly distinguishable from the default Ralph implementation prompt"
-      ],
-      "references": [],
-      "description": "Introduce a dedicated review launch mode instead of reusing the generic implementation Ralph prompt.\n\n## Goal\nAllow the system to launch a ticket review with focused instructions and an optional steering prompt while still honoring the existing Brain Dump workflow.\n\n## Scope\n- Extend the launch contract to support a review mode/profile\n- Add a review-specific prompt builder that includes selected ticket context and optional steering text\n- Ensure the steering prompt is additive guidance and cannot override workflow constraints\n- Avoid calling implementation-specific startup behavior when the intent is review-only\n\n## Acceptance Criteria\n- Launch code can accept a review-mode input separate from the normal implementation launch path\n- The generated review prompt explicitly says to review only the selected ticket and not pick unrelated work\n- The prompt includes the freeform steering text when provided\n- The prompt still requires Brain Dump review workflow steps (findings, fixes, check-complete, demo where applicable)\n- The code path is clearly distinguishable from the default Ralph implementation prompt\n\n## Notes\nTreat this as a profile/template system for now, not a generic arbitrary skill runner.",
-      "priority": "high",
-      "tags": [
-        "review",
-        "ralph",
-        "prompting",
-        "backend"
-      ]
-    },
-    {
-      "id": "aa117ad9-c57d-4fff-9c5b-9b6d20cfd988",
-      "title": "Build epic review modal with ticket selection and steering prompt",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "The epic detail UI lets the user choose one or more tickets to review",
-        "The UI includes a freeform textarea for review steering instructions",
-        "The launch action clearly communicates that this is a focused review flow, not a generic Ralph relaunch",
-        "The user can submit with no steering text or with custom steering text",
-        "Empty-state, loading, and launch-error behavior are handled cleanly"
-      ],
-      "references": [],
-      "description": "Add the first-class epic review UI for selecting tickets and steering the review.\n\n## Goal\nReplace the misleading generic relaunch UX with a review-specific entry point that matches what the user expects.\n\n## Scope\n- Add or update the epic review modal\n- Support selecting one or more tickets from the current epic\n- Add a textarea labeled clearly for review steering/focus instructions\n- Validate empty/invalid selection states and launch feedback\n\n## Acceptance Criteria\n- The epic detail UI lets the user choose one or more tickets to review\n- The UI includes a freeform textarea for review steering instructions\n- The launch action clearly communicates that this is a focused review flow, not a generic Ralph relaunch\n- The user can submit with no steering text or with custom steering text\n- Empty-state, loading, and launch-error behavior are handled cleanly\n\n## Notes\nSuggested UX copy can be simple, e.g. \"How do you want to steer the review?\"",
-      "priority": "high",
-      "tags": [
-        "review",
-        "epic",
-        "ui",
-        "ux"
-      ]
-    },
-    {
-      "id": "7de20caf-9ce7-4bfa-a55f-5ba31cf055dc",
-      "title": "Link epic review runs into ticket audit trail without replacing history",
-      "passes": false,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "A ticket included in an epic review run shows auditable evidence that it was reviewed under that run",
-        "Existing ticket comments/findings are preserved and remain visible",
-        "New review artifacts can be associated back to the epic review run for traceability",
-        "Epic-level summary data can be derived or displayed without duplicating the entire ticket history",
-        "Human review/demo history remains compatible with the new review run layer"
-      ],
-      "references": [],
-      "description": "Make the new epic review layer visible in the existing ticket-level audit trail.\n\n## Goal\nKeep all existing ticket comments, findings, and human-review artifacts intact while documenting that a ticket was part of an epic-focused review run.\n\n## Scope\n- Add linking/traceability from tickets to the originating epic review run\n- Write ticket-visible comments or activity entries when a ticket is included in an epic review run\n- Ensure findings and fixes created during the run can be traced back without replacing prior history\n- Add epic-visible summary/read paths as needed for documentation and drill-down\n\n## Acceptance Criteria\n- A ticket included in an epic review run shows auditable evidence that it was reviewed under that run\n- Existing ticket comments/findings are preserved and remain visible\n- New review artifacts can be associated back to the epic review run for traceability\n- Epic-level summary data can be derived or displayed without duplicating the entire ticket history\n- Human review/demo history remains compatible with the new review run layer\n\n## Notes\nThis ticket is about layering and traceability, not redefining the review source of truth.",
-      "priority": "medium",
-      "tags": [
-        "review",
-        "comments",
-        "audit",
-        "workflow"
-      ]
-    },
-    {
-      "id": "8338887e-40c6-44fa-abe0-a2532fd102a1",
-      "title": "Fan out multi-ticket review launches with isolated per-ticket execution",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "A single epic review request can include multiple selected tickets",
-        "Each selected ticket gets its own isolated review execution context",
-        "Ticket prompts and review artifacts do not bleed across tickets",
-        "The epic review run records per-ticket status so users can tell what launched and what finished/failed",
-        "The design supports future parallel execution cleanly, even if the first implementation executes sequentially under the hood"
-      ],
-      "references": [],
-      "description": "Support launching focused review across multiple selected tickets while keeping each review run isolated.\n\n## Goal\nAllow the user to kick off a single epic review request that can target multiple tickets, while ensuring each ticket still has clean context, state, and auditability.\n\n## Scope\n- Accept multiple selected ticket ids in the epic review launch flow\n- Fan out into one ticket-scoped review execution per selected ticket\n- Keep prompts, state, and findings isolated per ticket\n- Support sequential or parallel execution without mixing ticket context\n\n## Acceptance Criteria\n- A single epic review request can include multiple selected tickets\n- Each selected ticket gets its own isolated review execution context\n- Ticket prompts and review artifacts do not bleed across tickets\n- The epic review run records per-ticket status so users can tell what launched and what finished/failed\n- The design supports future parallel execution cleanly, even if the first implementation executes sequentially under the hood\n\n## Notes\nDo not create one giant mixed-context review prompt for multiple tickets.",
-      "priority": "medium",
-      "tags": [
-        "review",
-        "epic",
-        "parallelism",
-        "backend"
-      ]
-    },
-    {
-      "id": "93372861-88aa-43cc-844d-e97e185e3c4a",
-      "title": "Add regression coverage for epic-scoped focused review runs",
-      "passes": true,
-      "overview": "",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Tests verify that review mode uses a different prompt/launch path than implementation mode",
-        "Tests verify that steering prompt text is included in the review launch payload",
-        "Tests verify that epic review run records are created and linked to affected tickets",
-        "Tests verify that prior ticket comments/findings are preserved",
-        "The test suite covers single-ticket and multi-ticket review launch behavior at the appropriate level"
-      ],
-      "references": [],
-      "description": "Cover the new review-launch path and history-preserving behavior with regression tests.\n\n## Goal\nPrevent the new review flow from silently falling back to the generic Ralph implementation path or breaking existing audit/history behavior.\n\n## Scope\n- Add tests for review-mode prompt generation and launch payloads\n- Add tests for epic review run record creation and ticket linkage\n- Add UI tests for ticket selection and steering prompt submission\n- Add coverage that existing ticket comments/findings/history remain visible and unchanged\n\n## Acceptance Criteria\n- Tests verify that review mode uses a different prompt/launch path than implementation mode\n- Tests verify that steering prompt text is included in the review launch payload\n- Tests verify that epic review run records are created and linked to affected tickets\n- Tests verify that prior ticket comments/findings are preserved\n- The test suite covers single-ticket and multi-ticket review launch behavior at the appropriate level\n\n## Notes\nFocus on user-visible outcomes and workflow guarantees, not just internal helper coverage.",
-      "priority": "medium",
-      "tags": [
-        "review",
-        "testing",
-        "epic",
-        "workflow"
+        "telemetry",
+        "dashboard",
+        "ui"
       ]
     }
   ],
@@ -302,7 +177,5 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-03-09T07:57:49.375Z",
-  "epicTitle": "Epic-Scoped Focused Review Runs",
-  "epicDescription": "Add a new review orchestration layer at the epic level without replacing any existing ticket-level review history, findings, comments, demo steps, or human review flow.\n\n## Problem\nThe current \"Review with Ralph\" behavior is effectively a generic Ralph relaunch. That does not match the UX implied by an epic review action, and it does not let users steer the AI toward a specific review focus.\n\n## Vision\nUsers can launch a focused review from an epic, pick one or more tickets, and optionally provide freeform steering instructions such as \"focus on auth edge cases and silent failures\" or \"prioritize UX regressions and missing loading states\".\n\nThis epic-level review run should:\n- act as orchestration and audit context\n- preserve all existing ticket-level findings/comments/history\n- add ticket-scoped review actions on top of the current workflow\n- support future parallel execution across multiple selected tickets\n\n## Key product decisions\n- Epic-level review runs are orchestration records, not replacements for ticket findings\n- Ticket-level findings/comments remain the source of truth for actionable review output\n- A freeform review steering prompt is additive guidance, not permission to bypass workflow rules\n- The first version should support one or more selected tickets and be designed so each ticket can run in isolation\n\n## Scope\n1. Add epic review run records that store selected tickets, steering prompt, provider/mode, status, and aggregate summary\n2. Add a dedicated review launch mode/prompt instead of reusing the generic Ralph implementation prompt\n3. Add epic UI for selecting tickets and entering a steering prompt\n4. Ensure review results are written to ticket comments/findings while linking back to the epic review run for traceability\n5. Support launching review work across multiple selected tickets with clean status visibility\n\n## Non-goals\n- Replacing existing ticket comments/findings/demo scripts/human review history\n- Inventing a generic arbitrary skill runner in this first pass\n- Forcing all review data to live only at the epic level\n\n## Success criteria\n- Epic page can start a focused review run with selected tickets and a freeform steering prompt\n- Review runs are documented at the epic level and linked to the affected tickets\n- Ticket-level review workflow still works and remains fully auditable\n- The launch prompt for review mode is clearly different from normal implementation mode\n- Existing history remains intact and visible"
+  "generatedAt": "2026-03-13T03:33:57.263Z"
 }

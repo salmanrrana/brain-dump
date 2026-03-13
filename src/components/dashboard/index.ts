@@ -18,3 +18,4 @@ export { PRMetrics } from "./PRMetrics";
 export { CycleTimeCard } from "./CycleTimeCard";
 export { TopProjectsCard } from "./TopProjectsCard";
 export { CommitsPerDayCard } from "./CommitsPerDayCard";
+export { AITelemetryTab } from "./AITelemetryTab";
