@@ -8,7 +8,17 @@ import {
   useCallback,
 } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { Search, LayoutGrid, List, X, Loader2, Settings, RefreshCw, Menu } from "lucide-react";
+import {
+  Search,
+  LayoutGrid,
+  List,
+  X,
+  Loader2,
+  Settings,
+  RefreshCw,
+  Menu,
+  MessageSquareWarning,
+} from "lucide-react";
 import { IconSidebar } from "./navigation/IconSidebar";
 import { ProjectsPanel } from "./navigation/ProjectsPanel";
 import ProjectTree from "./ProjectTree";
@@ -22,6 +32,7 @@ import DeleteConfirmationModal, { type DeletePreview } from "./DeleteConfirmatio
 import { NewTicketDropdown } from "./navigation/NewTicketDropdown";
 import { InceptionModal } from "./inception/InceptionModal";
 import { ShortcutsModal } from "./ui/ShortcutsModal";
+import { FeedbackModal } from "./FeedbackModal";
 import ImportModal from "./transfer/ImportModal";
 import { useToast } from "./Toast";
 import { getStatusColor, getPriorityStyle } from "../lib/constants";
@@ -68,6 +79,7 @@ interface AppState {
   openProjectModal: (project?: ProjectBase) => void;
   openEpicModal: (projectId: string, epic?: Epic) => void;
   openSettingsModal: () => void;
+  openFeedbackModal: () => void;
   closeModal: () => void;
 
   // Refresh
@@ -165,6 +177,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     openEpic,
     openSettings,
     openShortcuts,
+    openFeedback,
     close: closeModal,
     isAnyOpen: isAnyModalOpen,
   } = useModal();
@@ -401,6 +414,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     openProjectModal: openProject,
     openEpicModal: openEpic,
     openSettingsModal: openSettings,
+    openFeedbackModal: openFeedback,
     closeModal,
 
     // Refresh
@@ -664,6 +678,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
         {/* Keyboard Shortcuts Help Modal */}
         {modal.type === "shortcuts" && <ShortcutsModal isOpen={true} onClose={closeModal} />}
 
+        {/* Feedback Modal */}
+        {modal.type === "feedback" && <FeedbackModal onClose={closeModal} />}
+
         {/* Delete Epic Confirmation Modal */}
         {epicToDelete && (
           <DeleteConfirmationModal
@@ -695,6 +712,7 @@ function AppHeader() {
   const {
     openNewTicketModal,
     openSettingsModal,
+    openFeedbackModal,
     filters,
     onSelectTicketFromSearch,
     refreshAllData,
@@ -876,6 +894,15 @@ function AppHeader() {
         aria-label="Refresh data (r)"
       >
         <RefreshCw size={18} className={isRefreshing ? "animate-spin" : ""} aria-hidden="true" />
+      </button>
+
+      {/* Feedback button */}
+      <button
+        onClick={openFeedbackModal}
+        className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
+        aria-label="Send feedback"
+      >
+        <MessageSquareWarning size={18} aria-hidden="true" />
       </button>
 
       {/* Settings button */}

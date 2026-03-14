@@ -38,7 +38,8 @@ export type ModalState =
       } | null;
     }
   | { type: "settings" }
-  | { type: "shortcuts" };
+  | { type: "shortcuts" }
+  | { type: "feedback" };
 
 export interface UseModalReturn {
   modal: ModalState;
@@ -63,6 +64,7 @@ export interface UseModalReturn {
   ) => void;
   openSettings: () => void;
   openShortcuts: () => void;
+  openFeedback: () => void;
   close: () => void;
   isAnyOpen: boolean;
 }
@@ -120,6 +122,10 @@ export function useModal(): UseModalReturn {
     setModal({ type: "shortcuts" });
   }, []);
 
+  const openFeedback = useCallback(() => {
+    setModal({ type: "feedback" });
+  }, []);
+
   const close = useCallback(() => {
     setModal({ type: "none" });
   }, []);
@@ -133,6 +139,7 @@ export function useModal(): UseModalReturn {
     openEpic,
     openSettings,
     openShortcuts,
+    openFeedback,
     close,
     isAnyOpen,
   };
