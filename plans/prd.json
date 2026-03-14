@@ -11,7 +11,7 @@
     {
       "id": "72aa1e24-ccc8-447f-8538-781239c1de9f",
       "title": "Enhance telemetry panel + add interactive AI Telemetry dashboard tab",
-      "passes": false,
+      "passes": true,
       "overview": "",
       "types": [],
       "designDecisions": [],

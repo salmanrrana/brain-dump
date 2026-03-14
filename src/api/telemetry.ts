@@ -188,7 +188,11 @@ export function loadTelemetryStats(
     let errorCount = 0;
     for (const event of toolEvents) {
       const toolName = event.toolName || "unknown";
-      if (event.eventType === "tool_end") {
+      // Count end events: mcp_call with duration (end phase) or legacy tool_end
+      if (
+        (event.eventType === "mcp_call" && event.durationMs != null) ||
+        event.eventType === "tool_end"
+      ) {
         toolCounts.set(toolName, (toolCounts.get(toolName) || 0) + 1);
       }
       if (event.isError || event.eventType === "error") {
@@ -353,7 +357,8 @@ export const getDashboardTelemetryAnalytics = createServerFn({ method: "GET" }).
         .prepare(
           `SELECT tool_name, COUNT(*) as count
            FROM telemetry_events
-           WHERE event_type = 'tool_end' AND tool_name IS NOT NULL
+           WHERE tool_name IS NOT NULL
+             AND ((event_type = 'mcp_call' AND duration_ms IS NOT NULL) OR event_type = 'tool_end')
            GROUP BY tool_name
            ORDER BY count DESC
            LIMIT 15`

@@ -37,11 +37,84 @@ const EVENT_TYPE_STYLES: Record<string, { icon: typeof Activity; color: string }
   session_start: { icon: Activity, color: "text-[var(--success)]" },
   session_end: { icon: Activity, color: "text-[var(--text-secondary)]" },
   prompt: { icon: MessageSquare, color: "text-[var(--accent-ai)]" },
+  mcp_call: { icon: Wrench, color: "text-[var(--accent-ai)]" },
   tool_start: { icon: Wrench, color: "text-[var(--warning)]" },
   tool_end: { icon: Wrench, color: "text-[var(--success)]" },
   context_loaded: { icon: Activity, color: "text-[var(--info)]" },
   error: { icon: AlertCircle, color: "text-[var(--error)]" },
 };
+
+/** Merged representation of a start/end event pair */
+interface MergedTelemetryEvent {
+  id: string;
+  eventType: string;
+  toolName: string | null;
+  action: string | null;
+  durationMs: number | null;
+  success: boolean | undefined;
+  isError: boolean;
+  createdAt: string;
+  errorMessage: string | undefined;
+  message: string | undefined;
+}
+
+/**
+ * Merge start/end event pairs by correlation_id into single rows.
+ * Non-mcp_call events pass through as-is.
+ */
+function mergeStartEndEvents(events: ParsedTelemetryEvent[]): MergedTelemetryEvent[] {
+  const correlationMap = new Map<string, ParsedTelemetryEvent[]>();
+  const merged: MergedTelemetryEvent[] = [];
+
+  for (const event of events) {
+    if (event.correlationId && event.eventType === "mcp_call") {
+      const group = correlationMap.get(event.correlationId) || [];
+      group.push(event);
+      correlationMap.set(event.correlationId, group);
+    } else {
+      const eventData = event.eventData || {};
+      merged.push({
+        id: event.id,
+        eventType: event.eventType,
+        toolName: event.toolName,
+        action: null,
+        durationMs: event.durationMs,
+        success: undefined,
+        isError: event.isError || false,
+        createdAt: event.createdAt,
+        errorMessage: eventData.error as string | undefined,
+        message: eventData.message as string | undefined,
+      });
+    }
+  }
+
+  for (const [, group] of correlationMap) {
+    const startEvent = group.find(
+      (e) => (e.eventData as Record<string, unknown>)?.phase === "start"
+    );
+    const endEvent = group.find((e) => (e.eventData as Record<string, unknown>)?.phase === "end");
+    const base = startEvent || group[0]!;
+    const startData = startEvent?.eventData || {};
+    const endData = endEvent?.eventData || {};
+    const params = startData.params as Record<string, unknown> | undefined;
+
+    merged.push({
+      id: base.id,
+      eventType: "mcp_call",
+      toolName: base.toolName || (startData.toolName as string) || null,
+      action: (params?.action as string) || null,
+      durationMs: endEvent?.durationMs || null,
+      success: endData.success as boolean | undefined,
+      isError: group.some((e) => e.isError),
+      createdAt: base.createdAt,
+      errorMessage: (endData.error as string) || undefined,
+      message: (startData.message as string) || undefined,
+    });
+  }
+
+  merged.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return merged;
+}
 
 /** Format milliseconds as human-readable duration (e.g., "2m 30s") */
 function formatDuration(ms: number): string {
@@ -91,59 +164,45 @@ function TelemetryUnavailableNotice({ title, message }: { title: string; message
   );
 }
 
-/** Memoized event item - prevents re-renders when parent state changes but event data is stable */
-const EventItem = memo(function EventItem({ event }: { event: ParsedTelemetryEvent }) {
+/** Memoized event item - renders a merged start/end pair as a single row */
+const EventItem = memo(function EventItem({ event }: { event: MergedTelemetryEvent }) {
   const style = EVENT_TYPE_STYLES[event.eventType] || {
     icon: Activity,
     color: "text-[var(--text-secondary)]",
   };
   const Icon = style.icon;
 
-  const eventData = event.eventData || {};
-  const toolName = event.toolName || (eventData.toolName as string);
-  const message = eventData.message as string | undefined;
-  const promptLength = eventData.promptLength as number | undefined;
-  const success = eventData.success as boolean | undefined;
-  const errorMessage = eventData.error as string | undefined;
+  const displayLabel =
+    event.toolName && event.action
+      ? `${event.toolName}.${event.action}`
+      : event.toolName || event.eventType.replace(/_/g, " ");
 
   return (
     <div className="flex items-start gap-2 py-1.5 border-b border-[var(--border-subtle)] last:border-0">
       <Icon className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${style.color}`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-[var(--text-primary)]">
-            {event.eventType.replace(/_/g, " ")}
-          </span>
-          {toolName && (
-            <span className="text-xs px-1.5 py-0.5 bg-[var(--bg-tertiary)] rounded text-[var(--text-secondary)]">
-              {toolName}
-            </span>
-          )}
-          {event.durationMs && (
+          <span className="text-xs font-medium text-[var(--text-primary)]">{displayLabel}</span>
+          {event.durationMs != null && (
             <span className="text-xs text-[var(--text-muted)]">
               {formatDuration(event.durationMs)}
             </span>
           )}
-          {success !== undefined && (
+          {event.success !== undefined && (
             <span
-              className={success ? "text-[var(--success)]" : "text-[var(--error)]"}
-              aria-label={success ? "Succeeded" : "Failed"}
+              className={event.success ? "text-[var(--success)]" : "text-[var(--error)]"}
+              aria-label={event.success ? "Succeeded" : "Failed"}
             >
-              {success ? "✓" : "✗"}
+              {event.success ? "✓" : "✗"}
             </span>
           )}
         </div>
-        {message && (
-          <p className="text-xs text-[var(--text-secondary)] mt-0.5 truncate">{message}</p>
+        {event.message && (
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5 truncate">{event.message}</p>
         )}
-        {promptLength && (
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">
-            {promptLength.toLocaleString()} chars
-          </p>
-        )}
-        {(event.isError || success === false) && errorMessage && (
+        {(event.isError || event.success === false) && event.errorMessage && (
           <p className="text-xs text-[var(--error)] mt-0.5 truncate" role="alert">
-            {errorMessage}
+            {event.errorMessage}
           </p>
         )}
       </div>
@@ -226,12 +285,14 @@ function EventTimeline({
     return <p className="text-xs text-[var(--text-muted)] p-2">No events recorded</p>;
   }
 
+  const mergedEvents = mergeStartEndEvents(session.events);
+
   return (
     <div>
       <p className="text-xs text-[var(--text-muted)] mb-2">
-        Latest session - {session.eventCount} events
+        Latest session - {mergedEvents.length} calls
       </p>
-      {session.events.map((event: ParsedTelemetryEvent) => (
+      {mergedEvents.map((event) => (
         <EventItem key={event.id} event={event} />
       ))}
     </div>
