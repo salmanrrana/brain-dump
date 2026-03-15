@@ -36,6 +36,8 @@ export interface RecordUsageParams {
   cacheReadTokens?: number;
   cacheCreationTokens?: number;
   source?: string;
+  /** Override recorded_at timestamp (ISO string). Defaults to now. Used for backfill. */
+  recordedAt?: string;
 }
 
 export interface UpsertCostModelParams {
@@ -173,6 +175,7 @@ export function recordUsage(db: DbHandle, params: RecordUsageParams): TokenUsage
     cacheReadTokens = 0,
     cacheCreationTokens = 0,
     source = "mcp-manual",
+    recordedAt,
   } = params;
 
   if (!model) {
@@ -201,7 +204,7 @@ export function recordUsage(db: DbHandle, params: RecordUsageParams): TokenUsage
   });
 
   const id = randomUUID();
-  const now = new Date().toISOString();
+  const now = recordedAt || new Date().toISOString();
 
   db.prepare(
     `INSERT INTO token_usage
