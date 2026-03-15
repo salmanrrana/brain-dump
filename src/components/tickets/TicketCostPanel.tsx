@@ -86,7 +86,7 @@ export function TicketCostPanel({ ticketId }: TicketCostPanelProps) {
     );
   }
 
-  if (!costData || costData.totalCostUsd === 0) {
+  if (!costData || costData.byModel.length === 0) {
     return (
       <div className="p-4 border border-[var(--border-subtle)] rounded-lg">
         <div className="flex items-center gap-2 text-[var(--text-muted)]">
