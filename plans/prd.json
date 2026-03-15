@@ -25,12 +25,35 @@
         "Do this work within the current feature branch \"feature/epic-31d0c0bf-epic-scoped-focused-review-runs\""
       ],
       "references": [],
-      "description": "Two related improvements to telemetry visibility.\n\n## TelemetryPanel (ticket detail + kanban modal)\n\nSurface more of the data we already capture:\n- Environment badge (claude-code, vscode, cursor, etc.)\n- Total tokens when > 0\n- Error count / error indicator in the header\n- Top tool used shown in the stats area\n- Event timeline shows error message text on failed tool calls\n\n## Dashboard AI Telemetry Tab\n\nAdd a dedicated **AI Telemetry** tab to the dashboard page with interactive Recharts visualizations:\n- Tool call distribution (bar chart) — top tools by call count\n- Session outcomes (donut) — success / failure / timeout / cancelled\n- Environment breakdown (bar or donut)\n- Sessions over time (line chart, last 30 days)\n- Avg session duration over time\n- Token usage over time (when available)\n\nPowered by a new `getDashboardTelemetryAnalytics` server function aggregating across all sessions and projects.\n\n## Acceptance Criteria\n\n- TelemetryPanel header shows environment badge, token count (when > 0), and error indicator\n- Event timeline renders error message text on failed events\n- Dashboard has an AI Telemetry tab with at least 4 interactive charts with tooltips\n- Charts use Recharts (already in deps)\n- No breaking changes to existing TelemetryPanel usage in TicketModal or ticket.$id route\n- Do this work within the current feature branch \"feature/epic-31d0c0bf-epic-scoped-focused-review-runs\"",
+      "description": "Two related improvements to telemetry visibility.\n\n## TelemetryPanel (ticket detail + kanban modal)\n\nSurface more of the data we already capture:\n- Environment badge (claude-code, vscode, cursor, etc.)\n- Total tokens when > 0\n- Error count / error indicator in the header\n- Top tool used shown in the stats area\n- Event timeline shows error message text on failed tool calls\n\n## Dashboard AI Telemetry Tab\n\nAdd a dedicated **AI Telemetry** tab to the dashboard page with interactive Recharts visualizations:\n- Tool call distribution (bar chart) \u2014 top tools by call count\n- Session outcomes (donut) \u2014 success / failure / timeout / cancelled\n- Environment breakdown (bar or donut)\n- Sessions over time (line chart, last 30 days)\n- Avg session duration over time\n- Token usage over time (when available)\n\nPowered by a new `getDashboardTelemetryAnalytics` server function aggregating across all sessions and projects.\n\n## Acceptance Criteria\n\n- TelemetryPanel header shows environment badge, token count (when > 0), and error indicator\n- Event timeline renders error message text on failed events\n- Dashboard has an AI Telemetry tab with at least 4 interactive charts with tooltips\n- Charts use Recharts (already in deps)\n- No breaking changes to existing TelemetryPanel usage in TicketModal or ticket.$id route\n- Do this work within the current feature branch \"feature/epic-31d0c0bf-epic-scoped-focused-review-runs\"",
       "priority": "high",
       "tags": [
         "telemetry",
         "dashboard",
         "ui"
+      ]
+    },
+    {
+      "id": "f11ff914-67d1-45f6-91b2-f49dde5525dd",
+      "title": "Activate automatic token usage recording (deploy JSONL hook)",
+      "passes": true,
+      "overview": "",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "JSONL Stop hook is deployed and active in Claude Code hooks config",
+        "New Claude Code sessions automatically record token usage to token_usage table",
+        "Cost per Ticket chart shows data for completed tickets with recorded usage",
+        "Cost Trend chart reflects actual spending over time"
+      ],
+      "references": [],
+      "description": "",
+      "priority": "high",
+      "tags": [
+        "infrastructure",
+        "cost-tracking",
+        "hooks"
       ]
     }
   ],

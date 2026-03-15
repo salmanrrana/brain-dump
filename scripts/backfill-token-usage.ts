@@ -148,17 +148,25 @@ async function main(): Promise<void> {
 
   const { db } = initDatabase({ logger: consoleLogger });
 
-  // Check existing token_usage to avoid duplicates
-  // We'll track files we've already processed by checking if usage exists
-  // for the same session within the same time window
+  // Build set of existing backfill timestamps to prevent duplicates
+  const existingBackfillDates = new Set(
+    (
+      db
+        .prepare("SELECT DISTINCT recorded_at FROM token_usage WHERE source = 'jsonl-backfill'")
+        .all() as Array<{ recorded_at: string }>
+    ).map((r) => r.recorded_at)
+  );
+
   const existingCount = (
     db.prepare("SELECT COUNT(*) as count FROM token_usage").get() as { count: number }
   ).count;
-  console.log(`Existing token_usage rows: ${existingCount}\n`);
+  console.log(`Existing token_usage rows: ${existingCount}`);
+  console.log(`Existing backfill timestamps: ${existingBackfillDates.size}\n`);
 
   let processed = 0;
   let recorded = 0;
   let skippedEmpty = 0;
+  let skippedDuplicate = 0;
   let skippedError = 0;
   let totalCostUsd = 0;
 
@@ -166,6 +174,12 @@ async function main(): Promise<void> {
     const fileName = path.basename(filePath, ".jsonl");
     const stat = fs.statSync(filePath);
     const fileMtime = stat.mtime;
+
+    // Skip files already backfilled (matched by exact recorded_at timestamp)
+    if (existingBackfillDates.has(fileMtime.toISOString())) {
+      skippedDuplicate++;
+      continue;
+    }
 
     try {
       const usage = await parseTranscript(filePath);
@@ -222,6 +236,7 @@ async function main(): Promise<void> {
   console.log("\n--- Backfill Summary ---");
   console.log(`Files processed: ${processed}`);
   console.log(`Files skipped (no usage data): ${skippedEmpty}`);
+  console.log(`Files skipped (already backfilled): ${skippedDuplicate}`);
   console.log(`Files skipped (errors): ${skippedError}`);
   console.log(`Token usage rows recorded: ${recorded}`);
   console.log(`Total cost: $${totalCostUsd.toFixed(2)}`);
