@@ -101,12 +101,13 @@ export function EpicTicketsList({ tickets }: EpicTicketsListProps) {
                 {groupTickets.map((ticket) => (
                   <div
                     key={ticket.id}
-                    className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-slate-700/30 group"
+                    className="flex items-start gap-2 py-1.5 px-2 rounded hover:bg-slate-700/30 group min-w-0"
                   >
                     <Link
                       to="/ticket/$id"
                       params={{ id: ticket.id }}
-                      className="flex-1 text-sm text-slate-200 hover:text-blue-400 hover:underline truncate"
+                      className="flex-1 text-sm text-slate-200 hover:text-blue-400 hover:underline line-clamp-2 min-w-0"
+                      title={ticket.title}
                     >
                       {ticket.title}
                     </Link>
