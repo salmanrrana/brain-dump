@@ -1,15 +1,8 @@
+import { escapeForBashDoubleQuote } from "./ralph-launchers";
+
 export interface CodexAppLaunchPlan {
   projectCommands: string[];
   contextCommands: string[];
-}
-
-function escapeForBashDoubleQuote(str: string): string {
-  return str
-    .replace(/\\/g, "\\\\")
-    .replace(/\$/g, "\\$")
-    .replace(/`/g, "\\`")
-    .replace(/"/g, '\\"')
-    .replace(/!/g, "\\!");
 }
 
 /**
