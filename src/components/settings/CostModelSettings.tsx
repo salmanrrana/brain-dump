@@ -1,7 +1,12 @@
 import { useState, useCallback, useId } from "react";
-import { Plus, Pencil, Trash2, Check, X, Loader2 } from "lucide-react";
-import { useCostModels, useUpdateCostModel, useDeleteCostModel } from "../../lib/hooks";
-import { useToast } from "../../lib/toast-context";
+import { Plus, Pencil, Trash2, Check, X, Loader2, RefreshCw } from "lucide-react";
+import {
+  useCostModels,
+  useUpdateCostModel,
+  useDeleteCostModel,
+  useRecalculateCosts,
+} from "../../lib/hooks";
+import { useToast } from "../Toast";
 import type { CostModel } from "../../api/cost";
 import { sectionHeaderStyles, inputStyles } from "./settingsStyles";
 
@@ -52,7 +57,8 @@ export function CostModelSettings({ isActive }: CostModelSettingsProps) {
   const { data: models, isLoading, error } = useCostModels();
   const updateMutation = useUpdateCostModel();
   const deleteMutation = useDeleteCostModel();
-  const toast = useToast();
+  const recalculateMutation = useRecalculateCosts();
+  const { showToast } = useToast();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -80,7 +86,7 @@ export function CostModelSettings({ isActive }: CostModelSettingsProps) {
     const input = parseFloat(form.inputCostPerMtok);
     const output = parseFloat(form.outputCostPerMtok);
     if (!form.provider || !form.modelName || isNaN(input) || isNaN(output)) {
-      toast.error("Provider, model name, and costs are required");
+      showToast("error", "Provider, model name, and costs are required");
       return;
     }
     const cacheRead = form.cacheReadCostPerMtok ? parseFloat(form.cacheReadCostPerMtok) : undefined;
@@ -92,7 +98,7 @@ export function CostModelSettings({ isActive }: CostModelSettingsProps) {
       (cacheRead !== undefined && (isNaN(cacheRead) || cacheRead < 0)) ||
       (cacheCreate !== undefined && (isNaN(cacheCreate) || cacheCreate < 0))
     ) {
-      toast.error("Cache cost values must be valid non-negative numbers");
+      showToast("error", "Cache cost values must be valid non-negative numbers");
       return;
     }
 
@@ -108,29 +114,35 @@ export function CostModelSettings({ isActive }: CostModelSettingsProps) {
       },
       {
         onSuccess: () => {
-          toast.success(editingId ? "Cost model updated" : "Cost model added");
+          showToast("success", editingId ? "Cost model updated" : "Cost model added");
           handleCancel();
         },
         onError: (err) => {
-          toast.error(`Failed to save: ${err instanceof Error ? err.message : "Unknown error"}`);
+          showToast(
+            "error",
+            `Failed to save: ${err instanceof Error ? err.message : "Unknown error"}`
+          );
         },
       }
     );
-  }, [form, editingId, updateMutation, toast, handleCancel]);
+  }, [form, editingId, updateMutation, showToast, handleCancel]);
 
   const handleDelete = useCallback(
     (model: CostModel) => {
       deleteMutation.mutate(model.id, {
         onSuccess: () => {
-          toast.success(`Deleted ${model.provider}/${model.modelName}`);
+          showToast("success", `Deleted ${model.provider}/${model.modelName}`);
           if (editingId === model.id) handleCancel();
         },
         onError: (err) => {
-          toast.error(`Failed to delete: ${err instanceof Error ? err.message : "Unknown error"}`);
+          showToast(
+            "error",
+            `Failed to delete: ${err instanceof Error ? err.message : "Unknown error"}`
+          );
         },
       });
     },
-    [deleteMutation, toast, editingId, handleCancel]
+    [deleteMutation, showToast, editingId, handleCancel]
   );
 
   const handleFieldChange = useCallback((field: keyof EditingModel, value: string) => {
@@ -242,16 +254,47 @@ export function CostModelSettings({ isActive }: CostModelSettingsProps) {
             </div>
           )}
 
-          {/* Add button */}
-          {!isAdding && (
+          {/* Actions */}
+          <div className="mt-4 flex items-center gap-2">
+            {!isAdding && (
+              <button
+                onClick={handleAdd}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
+              >
+                <Plus size={16} />
+                Add Model
+              </button>
+            )}
             <button
-              onClick={handleAdd}
-              className="mt-4 flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors"
+              onClick={() => {
+                recalculateMutation.mutate(undefined, {
+                  onSuccess: (result) => {
+                    const diff = result.newTotalCost - result.oldTotalCost;
+                    const diffStr =
+                      diff >= 0 ? `+$${diff.toFixed(2)}` : `-$${Math.abs(diff).toFixed(2)}`;
+                    showToast(
+                      "success",
+                      `Recalculated ${result.updatedRows} of ${result.totalRows} rows (${diffStr})`
+                    );
+                  },
+                  onError: (err) => {
+                    showToast(
+                      "error",
+                      `Failed to recalculate: ${err instanceof Error ? err.message : "Unknown error"}`
+                    );
+                  },
+                });
+              }}
+              disabled={recalculateMutation.isPending}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-lg transition-colors disabled:opacity-50"
             >
-              <Plus size={16} />
-              Add Model
+              <RefreshCw
+                size={16}
+                className={recalculateMutation.isPending ? "animate-spin" : ""}
+              />
+              {recalculateMutation.isPending ? "Recalculating..." : "Recalculate All Costs"}
             </button>
-          )}
+          </div>
         </>
       )}
     </div>

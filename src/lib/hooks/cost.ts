@@ -14,6 +14,7 @@ import {
   getCostModels,
   updateCostModel,
   deleteCostModel,
+  recalculateCosts,
   type UpdateCostModelInput,
 } from "../../api/cost";
 import { queryKeys } from "../query-keys";
@@ -89,6 +90,26 @@ export function useUpdateCostModel() {
     onError: (err, variables) => {
       logger.error(
         `Failed to save cost model: provider="${variables.provider}", model="${variables.modelName}"`,
+        err instanceof Error ? err : new Error(String(err))
+      );
+    },
+  });
+}
+
+/**
+ * Mutation hook for recalculating all costs using current pricing models.
+ * Invalidates all cost-related queries on success.
+ */
+export function useRecalculateCosts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => recalculateCosts(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cost"] });
+    },
+    onError: (err) => {
+      logger.error(
+        "Failed to recalculate costs",
         err instanceof Error ? err : new Error(String(err))
       );
     },

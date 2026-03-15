@@ -224,7 +224,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-modal-title"
-        className="relative bg-[var(--bg-secondary)] rounded-lg w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
+        className="relative bg-[var(--bg-secondary)] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
         style={{
           boxShadow: "var(--shadow-modal)",
         }}

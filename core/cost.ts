@@ -582,6 +582,112 @@ export function deleteCostModel(db: DbHandle, id: string): void {
 }
 
 // ============================================
+// Recalculate
+// ============================================
+
+export interface RecalculateResult {
+  totalRows: number;
+  updatedRows: number;
+  sessionsUpdated: number;
+  oldTotalCost: number;
+  newTotalCost: number;
+}
+
+/**
+ * Recalculate cost_usd for all token_usage rows using current cost_models pricing.
+ * Also rebuilds telemetry_sessions aggregate totals.
+ */
+export function recalculateCosts(db: DbHandle): RecalculateResult {
+  const rows = db
+    .prepare(
+      `SELECT id, model, input_tokens, output_tokens,
+              cache_read_tokens, cache_creation_tokens, cost_usd,
+              telemetry_session_id
+       FROM token_usage`
+    )
+    .all() as Array<{
+    id: string;
+    model: string;
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_tokens: number | null;
+    cache_creation_tokens: number | null;
+    cost_usd: number | null;
+    telemetry_session_id: string | null;
+  }>;
+
+  let updatedRows = 0;
+  let oldTotalCost = 0;
+  let newTotalCost = 0;
+
+  const updateStmt = db.prepare("UPDATE token_usage SET cost_usd = ? WHERE id = ?");
+
+  const run = db.transaction(() => {
+    for (const row of rows) {
+      const oldCost = row.cost_usd ?? 0;
+      oldTotalCost += oldCost;
+
+      const newCost = computeCostFromTokens(db, row.model, {
+        inputTokens: row.input_tokens,
+        outputTokens: row.output_tokens,
+        cacheReadTokens: row.cache_read_tokens ?? 0,
+        cacheCreationTokens: row.cache_creation_tokens ?? 0,
+      });
+      newTotalCost += newCost;
+
+      if (Math.abs(newCost - oldCost) > 0.000001) {
+        updateStmt.run(newCost, row.id);
+        updatedRows++;
+      }
+    }
+
+    // Rebuild telemetry_sessions aggregates from scratch
+    const sessions = db
+      .prepare(
+        `SELECT DISTINCT telemetry_session_id
+         FROM token_usage
+         WHERE telemetry_session_id IS NOT NULL`
+      )
+      .all() as Array<{ telemetry_session_id: string }>;
+
+    const rebuildStmt = db.prepare(
+      `UPDATE telemetry_sessions
+       SET total_input_tokens = (
+             SELECT COALESCE(SUM(input_tokens), 0) FROM token_usage WHERE telemetry_session_id = ?
+           ),
+           total_output_tokens = (
+             SELECT COALESCE(SUM(output_tokens), 0) FROM token_usage WHERE telemetry_session_id = ?
+           ),
+           total_cost_usd = (
+             SELECT COALESCE(SUM(cost_usd), 0) FROM token_usage WHERE telemetry_session_id = ?
+           )
+       WHERE id = ?`
+    );
+
+    for (const s of sessions) {
+      rebuildStmt.run(
+        s.telemetry_session_id,
+        s.telemetry_session_id,
+        s.telemetry_session_id,
+        s.telemetry_session_id
+      );
+    }
+
+    return sessions.length;
+  });
+
+  const sessionsUpdated = run();
+
+  return {
+    totalRows: rows.length,
+    updatedRows,
+    sessionsUpdated,
+    oldTotalCost,
+    newTotalCost,
+  };
+}
+
+// ============================================
 // Seed Data
 // ============================================
 
@@ -600,10 +706,10 @@ export function seedCostModels(db: DbHandle): number {
     {
       provider: "anthropic",
       modelName: "claude-opus-4-6",
-      inputCostPerMtok: 15,
-      outputCostPerMtok: 75,
-      cacheReadCostPerMtok: 1.5,
-      cacheCreateCostPerMtok: 18.75,
+      inputCostPerMtok: 5,
+      outputCostPerMtok: 25,
+      cacheReadCostPerMtok: 0.5,
+      cacheCreateCostPerMtok: 6.25,
     },
     {
       provider: "anthropic",
@@ -633,6 +739,19 @@ export function seedCostModels(db: DbHandle): number {
       modelName: "o3",
       inputCostPerMtok: 10,
       outputCostPerMtok: 40,
+    },
+    {
+      provider: "openai",
+      modelName: "gpt-5.4",
+      inputCostPerMtok: 2.5,
+      outputCostPerMtok: 15,
+      cacheReadCostPerMtok: 0.25,
+    },
+    {
+      provider: "openai",
+      modelName: "gpt-5.4-pro",
+      inputCostPerMtok: 30,
+      outputCostPerMtok: 180,
     },
     // Google
     {

@@ -914,6 +914,14 @@ export const COMMAND_REGISTRY: CommandDef[] = [
     ],
   },
 
+  {
+    resource: "telemetry",
+    action: "recalculate-costs",
+    description: "Recalculate cost_usd for all token usage rows using current pricing models",
+    flags: [prettyFlag],
+    examples: ["brain-dump telemetry recalculate-costs --pretty"],
+  },
+
   // ── files ──────────────────────────────────────────────────
   {
     resource: "files",

@@ -7,8 +7,10 @@ import {
   listCostModels as coreListCostModels,
   upsertCostModel as coreUpsertCostModel,
   deleteCostModel as coreDeleteCostModel,
+  recalculateCosts as coreRecalculateCosts,
 } from "../../core/cost.ts";
 import type { CostModel } from "../../core/types.ts";
+import type { RecalculateResult } from "../../core/cost.ts";
 
 // =============================================================================
 // Types
@@ -268,5 +270,16 @@ export const deleteCostModel = createServerFn({ method: "POST" })
     coreDeleteCostModel(sqlite, data.id);
   });
 
+/**
+ * Recalculate cost_usd for all token_usage rows using current pricing models.
+ * Also rebuilds telemetry_sessions aggregate totals.
+ */
+export const recalculateCosts = createServerFn({ method: "POST" }).handler(
+  async (): Promise<RecalculateResult> => {
+    return coreRecalculateCosts(sqlite);
+  }
+);
+
 // Re-export types from core for convenience
 export type { CostModel, TicketCostResult, EpicCostResult } from "../../core/types.ts";
+export type { RecalculateResult } from "../../core/cost.ts";

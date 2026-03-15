@@ -244,9 +244,15 @@ export {
   listCostModels,
   deleteCostModel,
   seedCostModels,
+  recalculateCosts,
 } from "./cost.ts";
 
-export type { RecordUsageParams, UpsertCostModelParams, CostTrendParams } from "./cost.ts";
+export type {
+  RecordUsageParams,
+  UpsertCostModelParams,
+  CostTrendParams,
+  RecalculateResult,
+} from "./cost.ts";
 
 // Telemetry business logic
 export {

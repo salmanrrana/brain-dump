@@ -11,6 +11,7 @@ import {
   logPrompt,
   logContext,
   recordUsage,
+  recalculateCosts,
   detectActiveTicket,
   InvalidActionError,
 } from "../../core/index.ts";
@@ -29,6 +30,7 @@ const ACTIONS = [
   "log-prompt",
   "log-context",
   "record-usage",
+  "recalculate-costs",
 ];
 
 export function handle(action: string, args: string[]): void {
@@ -218,6 +220,12 @@ export function handle(action: string, args: string[]): void {
         };
 
         const result = recordUsage(db, usageParams);
+        outputResult(result, pretty);
+        break;
+      }
+
+      case "recalculate-costs": {
+        const result = recalculateCosts(db);
         outputResult(result, pretty);
         break;
       }

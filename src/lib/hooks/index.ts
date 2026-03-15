@@ -180,6 +180,7 @@ export {
   useCostModels,
   useUpdateCostModel,
   useDeleteCostModel,
+  useRecalculateCosts,
 } from "./cost";
 
 // =============================================================================
