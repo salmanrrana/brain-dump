@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { EnhancedPRDDocument } from "../lib/prd-extraction";
-import { generateVSCodeContext, getRalphPrompt, prepareEpicLaunch } from "./ralph";
+import { generateVSCodeContext, getRalphPrompt } from "./ralph-prompts";
+import { prepareEpicLaunch } from "./ralph";
 
 type LaunchTicket = Parameters<typeof prepareEpicLaunch>[0][number];
 

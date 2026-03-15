@@ -212,6 +212,7 @@ export {
   emitEvent,
   getEvents,
   clearEvents,
+  clearActiveSessionsForProject,
   writeRalphStateFile,
   removeRalphStateFile,
   VALID_STATES,
@@ -230,6 +231,7 @@ export type {
   ListSessionsResult,
   UpdateStateParams,
   EmitEventParams,
+  ClearActiveSessionsResult,
 } from "./session.ts";
 
 // Cost tracking business logic

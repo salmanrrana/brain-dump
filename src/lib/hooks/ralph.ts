@@ -9,6 +9,7 @@ import {
   launchRalphForTicket,
   launchRalphForEpic,
   getActiveRalphSessions,
+  clearActiveSessionsForProject,
   type ActiveRalphSession,
   type RalphEpicLaunchProfile,
 } from "../../api/ralph";
@@ -121,6 +122,25 @@ export function useActiveRalphSessions(options: { pollingInterval?: number } = {
     error: query.error?.message ?? null,
     refetch: query.refetch,
   };
+}
+
+// =============================================================================
+// CLEAR ACTIVE SESSIONS HOOK
+// =============================================================================
+
+/**
+ * Hook for clearing all active (stale) Ralph sessions for a project.
+ * Marks orphaned sessions as cancelled so the "AI active" badge disappears.
+ */
+export function useClearActiveSessions() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (projectId: string) => clearActiveSessionsForProject({ data: projectId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["activeRalphSessions"] });
+    },
+  });
 }
 
 // =============================================================================
