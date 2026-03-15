@@ -640,9 +640,12 @@ export function seedCostModels(db: DbHandle): number {
     },
   ];
 
-  for (const model of models) {
-    upsertCostModel(db, model);
-  }
+  const insertAll = db.transaction(() => {
+    for (const model of models) {
+      upsertCostModel(db, model);
+    }
+  });
 
+  insertAll();
   return models.length;
 }

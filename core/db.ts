@@ -837,9 +837,14 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
   addColumnIfMissing(db, "telemetry_sessions", "total_output_tokens", "INTEGER", logger);
   addColumnIfMissing(db, "telemetry_sessions", "total_cost_usd", "REAL", logger);
 
-  // Seed cost models if table is empty
-  const seeded = seedCostModels(db);
-  if (seeded > 0) logger.info(`Seeded ${seeded} cost models`);
+  // Seed cost models if table is empty (non-fatal — cost tracking works without seed data)
+  try {
+    const seeded = seedCostModels(db);
+    if (seeded > 0) logger.info(`Seeded ${seeded} cost models`);
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    logger.warn("Failed to seed cost models. Pricing can be configured manually.", error);
+  }
 
   // Settings columns added in various migrations
   addColumnIfMissing(db, "settings", "ralph_timeout", "INTEGER DEFAULT 3600", logger);
