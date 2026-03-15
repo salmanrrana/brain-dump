@@ -108,6 +108,7 @@ export {
   useLaunchRalphForTicket,
   useLaunchRalphForEpic,
   useActiveRalphSessions,
+  useClearActiveSessions,
   useLaunchProjectInception,
   useLaunchSpecBreakdown,
   useRalphEvents,

@@ -545,6 +545,82 @@ export function listSessions(
 }
 
 // ============================================
+// Bulk Session Operations
+// ============================================
+
+export interface ClearActiveSessionsResult {
+  projectId: string;
+  clearedCount: number;
+  clearedSessionIds: string[];
+}
+
+/**
+ * Clear all active (non-completed) Ralph sessions for a project.
+ *
+ * Marks all active sessions as completed with outcome "cancelled" and
+ * removes any stale state files. This is useful when sessions become
+ * orphaned due to crashes or disconnects.
+ */
+export function clearActiveSessionsForProject(
+  db: DbHandle,
+  projectId: string
+): ClearActiveSessionsResult {
+  // Find all active sessions for this project
+  const activeSessions = db
+    .prepare(
+      `SELECT rs.id, rs.ticket_id, rs.state_history, rs.started_at, p.path as project_path
+       FROM ralph_sessions rs
+       JOIN tickets t ON rs.ticket_id = t.id
+       JOIN projects p ON t.project_id = p.id
+       WHERE t.project_id = ? AND rs.completed_at IS NULL`
+    )
+    .all(projectId) as Array<{
+    id: string;
+    ticket_id: string;
+    state_history: string | null;
+    started_at: string;
+    project_path: string;
+  }>;
+
+  if (activeSessions.length === 0) {
+    return { projectId, clearedCount: 0, clearedSessionIds: [] };
+  }
+
+  const now = new Date().toISOString();
+  const clearedSessionIds: string[] = [];
+
+  // Use a transaction to clear all sessions atomically
+  const clearAll = db.transaction(() => {
+    for (const session of activeSessions) {
+      const stateHistory = parseStateHistory(session.state_history);
+      stateHistory.push({
+        state: "done",
+        timestamp: now,
+        metadata: { outcome: "cancelled", reason: "manually cleared" },
+      });
+
+      db.prepare(
+        `UPDATE ralph_sessions
+         SET current_state = 'done', state_history = ?, outcome = 'cancelled',
+             error_message = 'Manually cleared stale session', completed_at = ?
+         WHERE id = ?`
+      ).run(JSON.stringify(stateHistory), now, session.id);
+
+      clearedSessionIds.push(session.id);
+    }
+  });
+  clearAll();
+
+  // Remove state files outside transaction (file I/O shouldn't block DB)
+  const projectPaths = new Set(activeSessions.map((s) => s.project_path));
+  for (const projectPath of projectPaths) {
+    removeRalphStateFile(projectPath);
+  }
+
+  return { projectId, clearedCount: clearedSessionIds.length, clearedSessionIds };
+}
+
+// ============================================
 // Event Functions
 // ============================================
 

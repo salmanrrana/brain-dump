@@ -2445,3 +2445,15 @@ export const getActiveRalphSessions = createServerFn({ method: "GET" }).handler(
     return result;
   }
 );
+
+/**
+ * Clear all active (stale) Ralph sessions for a project.
+ * Marks them as cancelled so the "AI active" badge disappears.
+ */
+export const clearActiveSessionsForProject = createServerFn({ method: "POST" })
+  .inputValidator((projectId: string) => projectId)
+  .handler(async ({ data: projectId }) => {
+    const { clearActiveSessionsForProject: clearSessions } = await import("../../core/index.ts");
+    const result = clearSessions(sqlite, projectId);
+    return result;
+  });
