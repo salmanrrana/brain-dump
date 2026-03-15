@@ -343,6 +343,9 @@ config.hooks = {
     },
     {
       hooks: [{ type: "command", command: "$HOME/.claude/hooks/mark-review-completed.sh" }]
+    },
+    {
+      hooks: [{ type: "command", command: "$HOME/.claude/hooks/capture-token-usage.sh" }]
     }
   ]
 };
@@ -466,6 +469,14 @@ else
             "command": "\$HOME/.claude/hooks/mark-review-completed.sh"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\$HOME/.claude/hooks/capture-token-usage.sh"
+          }
+        ]
       }
     ]
   }
@@ -500,7 +511,7 @@ echo "    • /review-epic - Run comprehensive Tracer Review on epic"
 echo "    • /demo - Generate demo script for human review"
 echo "    • /reconcile-learnings - Extract and apply learnings"
 echo ""
-echo -e "  ${GREEN}Hooks (~/.claude/hooks/) — 10 hooks:${NC}"
+echo -e "  ${GREEN}Hooks (~/.claude/hooks/) — 11 hooks:${NC}"
 echo "    • State enforcement for Ralph workflow (enforce-state-before-write)"
 echo "    • Review gating before push (enforce-review-before-push)"
 echo "    • Commit linking to tickets (link-commit-to-ticket)"
@@ -510,6 +521,7 @@ echo "    • Extended review chaining (chain-extended-review)"
 echo "    • Next ticket spawning (spawn-next-ticket, spawn-after-pr)"
 echo "    • Review completion marker (mark-review-completed)"
 echo "    • Library detection (detect-libraries)"
+echo "    • Token usage capture from JSONL transcripts (capture-token-usage)"
 echo ""
 echo -e "  ${GREEN}MCP Self-Telemetry (no hooks needed):${NC}"
 echo "    • Tool call instrumentation handled by MCP server"
