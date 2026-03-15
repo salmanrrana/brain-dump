@@ -23,6 +23,7 @@ import { ReviewFindingsPanel } from "../components/tickets/ReviewFindingsPanel";
 import { ClaudeTasks } from "../components/tickets/ClaudeTasks";
 import { DemoPanel } from "../components/tickets/DemoPanel";
 import { TelemetryPanel } from "../components/TelemetryPanel";
+import { TicketCostPanel } from "../components/tickets/TicketCostPanel";
 import type { Subtask } from "../components/tickets/SubtasksProgress";
 import { type LaunchType } from "../components/tickets/LaunchActions";
 import { POLLING_INTERVALS } from "../lib/constants";
@@ -836,6 +837,11 @@ function TicketDetailPage() {
       {/* Claude Tasks Section - Shows tasks Claude created while working on this ticket */}
       <section style={sectionStyles}>
         <ClaudeTasks ticketId={ticket.id} ticketStatus={ticket.status} defaultExpanded={true} />
+      </section>
+
+      {/* Cost Panel - Shows USD cost and model breakdown */}
+      <section style={sectionStyles}>
+        <TicketCostPanel ticketId={ticket.id} />
       </section>
 
       {/* Telemetry Panel - Shows AI session data and tool usage statistics */}

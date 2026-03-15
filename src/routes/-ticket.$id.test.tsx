@@ -145,6 +145,10 @@ vi.mock("../components/TelemetryPanel", () => ({
   TelemetryPanel: () => <div>Telemetry</div>,
 }));
 
+vi.mock("../components/tickets/TicketCostPanel", () => ({
+  TicketCostPanel: () => <div>Cost</div>,
+}));
+
 function createTicket(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: "ticket-1",
