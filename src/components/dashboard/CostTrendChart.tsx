@@ -63,6 +63,7 @@ export function CostTrendChart({ data }: CostTrendChartProps) {
               />
               <Tooltip
                 contentStyle={tooltipStyle}
+                separator=": "
                 labelFormatter={(label: string) => new Date(label).toLocaleDateString()}
                 formatter={(value: number) => [formatUsd(value), "Cost"]}
               />

@@ -30,7 +30,7 @@ export function CostByEpicChart({ data }: CostByEpicChartProps) {
     () =>
       data.map((d) => ({
         ...d,
-        shortTitle: d.title.length > 25 ? d.title.substring(0, 25) + "\u2026" : d.title,
+        shortTitle: d.title.length > 30 ? d.title.substring(0, 30) + "\u2026" : d.title,
       })),
     [data]
   );
@@ -63,7 +63,7 @@ export function CostByEpicChart({ data }: CostByEpicChartProps) {
           <BarChart
             data={chartData}
             layout="vertical"
-            margin={{ top: 5, right: 10, left: 100, bottom: 5 }}
+            margin={{ top: 5, right: 10, left: 120, bottom: 5 }}
           >
             <XAxis
               type="number"
@@ -75,7 +75,7 @@ export function CostByEpicChart({ data }: CostByEpicChartProps) {
               type="category"
               dataKey="shortTitle"
               tick={{ fontSize: 10, fill: colors.textSecondary }}
-              width={95}
+              width={115}
               stroke={colors.border}
             />
             <Tooltip

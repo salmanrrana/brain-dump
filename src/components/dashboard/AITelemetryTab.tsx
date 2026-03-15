@@ -134,7 +134,7 @@ const SessionOutcomesChart: FC<{
         <span style={subtitleStyle}>{total} sessions</span>
       </div>
       <div style={sectionContentStyles}>
-        <ResponsiveContainer width="100%" height={200}>
+        <ResponsiveContainer width="100%" height={280}>
           <PieChart>
             <Pie
               data={pieData}
@@ -142,8 +142,8 @@ const SessionOutcomesChart: FC<{
               cy="50%"
               labelLine={false}
               label={({ name, value }) => `${name}: ${value}`}
-              outerRadius={75}
-              innerRadius={35}
+              outerRadius={80}
+              innerRadius={40}
               dataKey="value"
               stroke="var(--bg-secondary)"
               strokeWidth={2}
@@ -202,7 +202,7 @@ const EnvironmentBreakdownChart: FC<{
         <h3 style={sectionTitleStyles}>Environments</h3>
       </div>
       <div style={sectionContentStyles}>
-        <ResponsiveContainer width="100%" height={data.length * 35 + 20}>
+        <ResponsiveContainer width="100%" height={Math.max(data.length * 42 + 20, 100)}>
           <BarChart
             data={data}
             layout="vertical"
