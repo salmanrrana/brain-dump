@@ -35,6 +35,7 @@ import {
 import type { ComplianceDependencies, MessageRole } from "../../core/compliance.ts";
 import type { DataClassification } from "../../core/types.ts";
 import { containsSecrets } from "../lib/secrets.ts";
+import { upsertCostModel, listCostModels } from "../../core/cost.ts";
 
 const ACTIONS = [
   "health",
@@ -47,6 +48,8 @@ const ACTIONS = [
   "list-conversations",
   "export-logs",
   "archive-sessions",
+  "set-cost-model",
+  "list-cost-models",
 ] as const;
 const WORKING_METHODS = [
   "auto",
@@ -89,7 +92,9 @@ export function registerAdminTool(
 ### end-conversation - End a conversation session
 ### list-conversations - List conversation sessions with filters (newest first)
 ### export-logs - Export logs for compliance auditing (SOC2, GDPR, ISO 27001)
-### archive-sessions - Delete old sessions. DRY RUN by default. Sessions with legal_hold=true are NEVER deleted.`,
+### archive-sessions - Delete old sessions. DRY RUN by default. Sessions with legal_hold=true are NEVER deleted.
+### set-cost-model - Configure pricing for a provider/model (upserts by provider+modelName)
+### list-cost-models - List all configured pricing models (seeded + custom)`,
     {
       action: z.enum(ACTIONS).describe("The operation to perform"),
       projectId: z.string().optional().describe("Project ID"),
@@ -122,6 +127,13 @@ export function registerAdminTool(
       retentionDays: z.number().optional().describe("Days to retain"),
       confirm: z.boolean().optional().describe("Confirm deletion"),
       limit: z.number().optional().describe("Max results"),
+      // set-cost-model params
+      provider: z.string().optional().describe("Model provider (e.g. 'anthropic', 'openai')"),
+      modelName: z.string().optional().describe("Model name (e.g. 'claude-opus-4-6')"),
+      inputCostPerMtok: z.number().optional().describe("USD per 1M input tokens"),
+      outputCostPerMtok: z.number().optional().describe("USD per 1M output tokens"),
+      cacheReadCostPerMtok: z.number().optional().describe("USD per 1M cache read tokens"),
+      cacheCreateCostPerMtok: z.number().optional().describe("USD per 1M cache creation tokens"),
     },
     async (params: {
       action: (typeof ACTIONS)[number];
@@ -147,6 +159,13 @@ export function registerAdminTool(
       retentionDays?: number | undefined;
       confirm?: boolean | undefined;
       limit?: number | undefined;
+      // set-cost-model params
+      provider?: string | undefined;
+      modelName?: string | undefined;
+      inputCostPerMtok?: number | undefined;
+      outputCostPerMtok?: number | undefined;
+      cacheReadCostPerMtok?: number | undefined;
+      cacheCreateCostPerMtok?: number | undefined;
     }) => {
       const complianceDeps: ComplianceDependencies = { detectEnvironment, containsSecrets };
 
@@ -311,6 +330,45 @@ export function registerAdminTool(
               result,
               `Archived ${result.sessionsDeleted} session(s) and ${result.messagesDeleted} message(s). ${result.legalHoldCount} legal hold session(s) preserved.`
             );
+          }
+
+          case "set-cost-model": {
+            const provider = requireParam(params.provider, "provider", "set-cost-model");
+            const modelName = requireParam(params.modelName, "modelName", "set-cost-model");
+            const inputCostPerMtok = requireParam(
+              params.inputCostPerMtok,
+              "inputCostPerMtok",
+              "set-cost-model"
+            );
+            const outputCostPerMtok = requireParam(
+              params.outputCostPerMtok,
+              "outputCostPerMtok",
+              "set-cost-model"
+            );
+
+            const result = upsertCostModel(db, {
+              provider,
+              modelName,
+              inputCostPerMtok,
+              outputCostPerMtok,
+              ...(params.cacheReadCostPerMtok !== undefined
+                ? { cacheReadCostPerMtok: params.cacheReadCostPerMtok }
+                : {}),
+              ...(params.cacheCreateCostPerMtok !== undefined
+                ? { cacheCreateCostPerMtok: params.cacheCreateCostPerMtok }
+                : {}),
+            });
+
+            log.info(`Upserted cost model: ${provider}/${modelName}`);
+            return formatResult(result, `Cost model ${provider}/${modelName} saved!`);
+          }
+
+          case "list-cost-models": {
+            const models = listCostModels(db);
+            if (models.length === 0) {
+              return formatEmpty("cost models");
+            }
+            return formatResult(models, `Found ${models.length} cost model(s)`);
           }
         }
       } catch (err) {
