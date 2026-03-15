@@ -15,6 +15,7 @@ import {
   emitEvent,
   getEvents,
   clearEvents,
+  clearActiveSessionsForProject,
   InvalidActionError,
   ValidationError,
 } from "../../core/index.ts";
@@ -37,6 +38,7 @@ const ACTIONS = [
   "complete",
   "get",
   "list",
+  "clear-active",
   "emit-event",
   "get-events",
   "clear-events",
@@ -136,6 +138,13 @@ export function handle(action: string, args: string[]): void {
           state,
           ...(message !== undefined ? { metadata: { message } } : {}),
         });
+        outputResult(result, pretty);
+        break;
+      }
+
+      case "clear-active": {
+        const projectId = requireFlag(flags, "project");
+        const result = clearActiveSessionsForProject(db, projectId);
         outputResult(result, pretty);
         break;
       }

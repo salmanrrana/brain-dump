@@ -203,6 +203,7 @@ export {
   emitEvent,
   getEvents,
   clearEvents,
+  clearActiveSessionsForProject,
   writeRalphStateFile,
   removeRalphStateFile,
   VALID_STATES,
@@ -221,6 +222,7 @@ export type {
   ListSessionsResult,
   UpdateStateParams,
   EmitEventParams,
+  ClearActiveSessionsResult,
 } from "./session.ts";
 
 // Telemetry business logic

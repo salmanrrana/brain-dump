@@ -7,12 +7,14 @@ import {
   useMemo,
   type KeyboardEvent,
 } from "react";
-import { X, Folder, Loader2, FolderOpen, Trash2, BarChart3 } from "lucide-react";
+import { X, Folder, Loader2, FolderOpen, Trash2, BarChart3, Bot, XCircle } from "lucide-react";
 import {
   useUpdateProject,
   useDeleteProject,
   useClickOutside,
   useTickets,
+  useActiveRalphSessions,
+  useClearActiveSessions,
   type ProjectBase,
   type Ticket,
 } from "../../lib/hooks";
@@ -81,6 +83,28 @@ export const EditProjectModal: FC<EditProjectModalProps> = ({
   const { showToast } = useToast();
   const updateMutation = useUpdateProject();
   const deleteMutation = useDeleteProject();
+
+  // Active AI session detection and clearing
+  const { sessions } = useActiveRalphSessions();
+  const clearSessionsMutation = useClearActiveSessions();
+
+  const activeSessionCount = useMemo(() => {
+    return Object.values(sessions).filter((s) => s.projectId === project.id).length;
+  }, [sessions, project.id]);
+
+  const handleClearSessions = useCallback(() => {
+    clearSessionsMutation.mutate(project.id, {
+      onSuccess: (result) => {
+        showToast(
+          "success",
+          `Cleared ${result.clearedCount} stale AI session${result.clearedCount === 1 ? "" : "s"}`
+        );
+      },
+      onError: (err) => {
+        showToast("error", err instanceof Error ? err.message : "Failed to clear sessions");
+      },
+    });
+  }, [project.id, clearSessionsMutation, showToast]);
 
   // Fetch tickets for this project to compute stats
   const { tickets } = useTickets({ projectId: project.id });
@@ -486,6 +510,55 @@ export const EditProjectModal: FC<EditProjectModalProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Active AI Sessions */}
+          {activeSessionCount > 0 && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "var(--spacing-3)",
+                background: "rgba(251, 191, 36, 0.08)",
+                border: "1px solid rgba(251, 191, 36, 0.25)",
+                borderRadius: "var(--radius-md)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-2)" }}>
+                <Bot size={16} style={{ color: "var(--accent-ai, #fbbf24)" }} aria-hidden="true" />
+                <span style={{ color: "var(--text-primary)", fontSize: "var(--font-size-sm)" }}>
+                  {activeSessionCount} active AI session{activeSessionCount === 1 ? "" : "s"}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleClearSessions}
+                disabled={clearSessionsMutation.isPending}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "var(--spacing-1)",
+                  padding: "var(--spacing-1) var(--spacing-3)",
+                  background: "rgba(251, 191, 36, 0.15)",
+                  border: "1px solid rgba(251, 191, 36, 0.3)",
+                  borderRadius: "var(--radius-md)",
+                  color: "#fbbf24",
+                  fontSize: "var(--font-size-sm)",
+                  cursor: clearSessionsMutation.isPending ? "not-allowed" : "pointer",
+                  opacity: clearSessionsMutation.isPending ? 0.6 : 1,
+                  transition: "all var(--transition-fast)",
+                }}
+                className="hover:bg-[rgba(251,191,36,0.25)]"
+              >
+                {clearSessionsMutation.isPending ? (
+                  <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <XCircle size={14} aria-hidden="true" />
+                )}
+                {clearSessionsMutation.isPending ? "Clearing..." : "Clear Sessions"}
+              </button>
+            </div>
+          )}
 
           {/* Name field */}
           <div>

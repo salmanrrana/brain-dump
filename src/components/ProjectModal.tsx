@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, type DragEvent, type ChangeEvent } from "react";
+import { useState, useRef, useCallback, useMemo, type DragEvent, type ChangeEvent } from "react";
 import {
   X,
   ChevronDown,
@@ -8,12 +8,16 @@ import {
   AlertTriangle,
   FileArchive,
   FolderPlus,
+  Bot,
+  XCircle,
 } from "lucide-react";
 import {
   useCreateProject,
   useUpdateProject,
   useDeleteProject,
   useModalKeyboard,
+  useActiveRalphSessions,
+  useClearActiveSessions,
   type ProjectBase,
 } from "../lib/hooks";
 import { usePreviewImport, useCreateProjectAndImport } from "../lib/hooks/transfer";
@@ -78,6 +82,33 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
   const deleteMutation = useDeleteProject();
   const previewMutation = usePreviewImport();
   const createAndImportMutation = useCreateProjectAndImport();
+
+  // Active AI session detection and clearing (edit mode only)
+  const { sessions } = useActiveRalphSessions({ pollingInterval: isEditing ? 5000 : 0 });
+  const clearSessionsMutation = useClearActiveSessions();
+
+  const activeSessionCount = useMemo(
+    () =>
+      isEditing && project
+        ? Object.values(sessions).filter((s) => s.projectId === project.id).length
+        : 0,
+    [sessions, project, isEditing]
+  );
+
+  const handleClearSessions = useCallback(() => {
+    if (!project) return;
+    clearSessionsMutation.mutate(project.id, {
+      onSuccess: (result) => {
+        showToast(
+          "success",
+          `Cleared ${result.clearedCount} stale AI session${result.clearedCount === 1 ? "" : "s"}`
+        );
+      },
+      onError: (err) => {
+        showToast("error", err instanceof Error ? err.message : "Failed to clear sessions");
+      },
+    });
+  }, [project, clearSessionsMutation, showToast]);
 
   const isSaving =
     createMutation.isPending || updateMutation.isPending || createAndImportMutation.isPending;
@@ -333,6 +364,31 @@ export default function ProjectModal({ project, onClose, onSave }: ProjectModalP
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* Error */}
           <ErrorAlert error={error} />
+
+          {/* Active AI Sessions warning (edit mode only) */}
+          {isEditing && activeSessionCount > 0 && (
+            <div className="flex items-center justify-between p-3 rounded-lg border border-amber-400/25 bg-amber-400/[0.08]">
+              <div className="flex items-center gap-2">
+                <Bot size={16} className="text-amber-400" />
+                <span className="text-sm text-[var(--text-primary)]">
+                  {activeSessionCount} active AI session{activeSessionCount === 1 ? "" : "s"}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleClearSessions}
+                disabled={clearSessionsMutation.isPending}
+                className="inline-flex items-center gap-1.5 px-3 py-1 text-sm text-amber-400 bg-amber-400/15 border border-amber-400/30 rounded-lg hover:bg-amber-400/25 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {clearSessionsMutation.isPending ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <XCircle size={14} />
+                )}
+                {clearSessionsMutation.isPending ? "Clearing..." : "Clear Sessions"}
+              </button>
+            </div>
+          )}
 
           {/* Import file selection (import mode, no preview yet) */}
           {!isEditing && createMode === "import" && !preview && (
