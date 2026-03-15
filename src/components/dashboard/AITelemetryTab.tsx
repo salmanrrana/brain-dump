@@ -21,11 +21,16 @@ import {
   sectionContentStyles,
 } from "./shared-styles";
 import type { DashboardTelemetryAnalytics } from "../../api/telemetry";
+import type { DashboardCostAnalytics } from "../../api/cost";
+import { CostTrendChart } from "./CostTrendChart";
+import { CostPerTicketChart } from "./CostPerTicketChart";
+import { CostByEpicChart } from "./CostByEpicChart";
 
 interface AITelemetryTabProps {
   analytics: DashboardTelemetryAnalytics;
   isLoading: boolean;
   error: Error | null;
+  costAnalytics?: DashboardCostAnalytics | null | undefined;
 }
 
 // Resolve CSS variable values to actual colors for Recharts
@@ -419,62 +424,6 @@ const AvgDurationOverTimeChart: FC<{
   );
 };
 
-/** Token Usage Over Time - bar chart */
-const TokenUsageOverTimeChart: FC<{
-  data: DashboardTelemetryAnalytics["tokenUsageOverTime"];
-}> = ({ data }) => {
-  const [colors, setColors] = useState(getComputedColors());
-
-  useEffect(() => {
-    const update = () => setColors(getComputedColors());
-    update();
-    const observer = new MutationObserver(update);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
-    return () => observer.disconnect();
-  }, []);
-
-  const hasData = data.some((d) => d.tokens > 0);
-
-  return (
-    <section style={sectionStyles}>
-      <div style={sectionHeaderStyles}>
-        <Activity size={18} style={{ color: colors.secondary }} aria-hidden="true" />
-        <h3 style={sectionTitleStyles}>Token Usage</h3>
-        <span style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>
-          Last 30 days
-        </span>
-      </div>
-      <div style={sectionContentStyles}>
-        {hasData ? (
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" stroke={colors.border} />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 10, fill: colors.textSecondary }}
-                stroke={colors.border}
-                tickFormatter={formatShortDate}
-              />
-              <YAxis tick={{ fontSize: 10, fill: colors.textSecondary }} stroke={colors.border} />
-              <Tooltip
-                contentStyle={tooltipStyle}
-                labelFormatter={(label: string) => new Date(label).toLocaleDateString()}
-                formatter={(value: number) => [value.toLocaleString(), "Tokens"]}
-              />
-              <Bar dataKey="tokens" fill={colors.secondary} radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        ) : (
-          <EmptyState message="No token usage data yet" />
-        )}
-      </div>
-    </section>
-  );
-};
-
 function EmptyState({ message }: { message: string }) {
   return (
     <div
@@ -493,7 +442,7 @@ function EmptyState({ message }: { message: string }) {
 }
 
 /**
- * AITelemetryTab - Full AI Telemetry dashboard tab with 6 interactive charts.
+ * AITelemetryTab - Full AI Telemetry dashboard tab with interactive charts.
  *
  * Charts:
  * 1. Tool Call Distribution (horizontal bar)
@@ -501,9 +450,16 @@ function EmptyState({ message }: { message: string }) {
  * 3. Environment Breakdown (horizontal bar)
  * 4. Sessions Over Time (line, 30 days)
  * 5. Avg Session Duration (line, 30 days)
- * 6. Token Usage (bar, 30 days)
+ * 6. Cost Trend (line, 30 days)
+ * 7. Cost per Ticket (bar)
+ * 8. Cost by Epic (horizontal bar)
  */
-export const AITelemetryTab: FC<AITelemetryTabProps> = ({ analytics, isLoading, error }) => {
+export const AITelemetryTab: FC<AITelemetryTabProps> = ({
+  analytics,
+  isLoading,
+  error,
+  costAnalytics,
+}) => {
   if (isLoading) {
     return (
       <div
@@ -550,7 +506,9 @@ export const AITelemetryTab: FC<AITelemetryTabProps> = ({ analytics, isLoading, 
       <EnvironmentBreakdownChart data={analytics.environmentBreakdown} />
       <SessionsOverTimeChart data={analytics.sessionsOverTime} />
       <AvgDurationOverTimeChart data={analytics.avgDurationOverTime} />
-      <TokenUsageOverTimeChart data={analytics.tokenUsageOverTime} />
+      {costAnalytics && <CostTrendChart data={costAnalytics.costTrend} />}
+      {costAnalytics && <CostPerTicketChart data={costAnalytics.costPerTicket} />}
+      {costAnalytics && <CostByEpicChart data={costAnalytics.costByEpic} />}
     </div>
   );
 };

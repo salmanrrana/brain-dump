@@ -172,6 +172,11 @@ export {
 export { useDashboardAnalytics, useDashboardTelemetryAnalytics } from "./analytics";
 
 // =============================================================================
+// COST HOOKS
+// =============================================================================
+export { useCostAnalytics, useTicketCost } from "./cost";
+
+// =============================================================================
 // TRANSFER HOOKS (Export/Import .braindump archives)
 // =============================================================================
 export {

@@ -5,6 +5,7 @@ import {
   useActiveRalphSessions,
   useDashboardAnalytics,
   useDashboardTelemetryAnalytics,
+  useCostAnalytics,
 } from "../lib/hooks";
 import { StatsGrid, AnalyticsSection, AITelemetryTab } from "../components/dashboard";
 import type { StatFilter } from "../components/dashboard";
@@ -98,6 +99,7 @@ function Dashboard() {
     isLoading: telemetryLoading,
     error: telemetryError,
   } = useDashboardTelemetryAnalytics();
+  const { data: costAnalytics } = useCostAnalytics();
 
   const handleStatClick = useCallback(
     async (filter: StatFilter) => {
@@ -189,6 +191,7 @@ function Dashboard() {
           analytics={telemetryAnalytics}
           isLoading={telemetryLoading}
           error={telemetryError}
+          costAnalytics={costAnalytics}
         />
       )}
     </div>

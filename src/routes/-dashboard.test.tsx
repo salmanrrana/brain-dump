@@ -7,6 +7,7 @@ vi.mock("../lib/hooks", () => ({
   useActiveRalphSessions: vi.fn(),
   useDashboardAnalytics: vi.fn(),
   useDashboardTelemetryAnalytics: vi.fn(),
+  useCostAnalytics: vi.fn(() => ({ data: undefined })),
 }));
 
 // Mock dashboard components - we're testing the route's data transformation logic

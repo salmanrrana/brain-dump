@@ -1,0 +1,133 @@
+import { createServerFn } from "@tanstack/react-start";
+import { sqlite } from "../lib/db";
+import { getTicketCost as coreGetTicketCost, getCostTrend } from "../../core/cost.ts";
+
+// =============================================================================
+// Types
+// =============================================================================
+
+export interface DashboardCostAnalytics {
+  costPerTicket: Array<{
+    ticketId: string;
+    title: string;
+    costUsd: number;
+    completedAt: string | null;
+  }>;
+  costTrend: Array<{ date: string; costUsd: number }>;
+  costByEpic: Array<{ epicId: string; title: string; costUsd: number }>;
+}
+
+// =============================================================================
+// Server Functions
+// =============================================================================
+
+/**
+ * Get cost analytics for the dashboard.
+ * Returns cost-per-ticket, daily cost trend, and cost-by-epic.
+ */
+export const getCostAnalytics = createServerFn({ method: "GET" }).handler(
+  async (): Promise<DashboardCostAnalytics> => {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sinceDate = thirtyDaysAgo.toISOString();
+    const formatDate = (date: Date): string => {
+      const isoString = date.toISOString();
+      return isoString.split("T")[0] ?? isoString.substring(0, 10);
+    };
+
+    // 1. Cost per completed ticket (last 30 days)
+    const costPerTicketRows = sqlite
+      .prepare(
+        `SELECT
+           t.id as ticket_id,
+           t.title,
+           COALESCE(SUM(tu.cost_usd), 0) as cost_usd,
+           t.completed_at
+         FROM tickets t
+         LEFT JOIN token_usage tu ON tu.ticket_id = t.id
+         WHERE t.status = 'done'
+           AND t.completed_at >= ?
+         GROUP BY t.id, t.title, t.completed_at
+         HAVING cost_usd > 0
+         ORDER BY t.completed_at DESC`
+      )
+      .all(sinceDate) as Array<{
+      ticket_id: string;
+      title: string;
+      cost_usd: number;
+      completed_at: string | null;
+    }>;
+
+    const costPerTicket = costPerTicketRows.map((r) => ({
+      ticketId: r.ticket_id,
+      title: r.title,
+      costUsd: r.cost_usd,
+      completedAt: r.completed_at,
+    }));
+
+    // 2. Daily cost trend (last 30 days) - fill missing dates with 0
+    const trendResult = getCostTrend(sqlite, {
+      since: sinceDate,
+      granularity: "daily",
+    });
+
+    const trendMap = new Map<string, number>();
+    for (let i = 0; i < 30; i++) {
+      const date = new Date(now.getTime() - (29 - i) * 24 * 60 * 60 * 1000);
+      const dateStr = formatDate(date);
+      trendMap.set(dateStr, 0);
+    }
+    for (const entry of trendResult.entries) {
+      trendMap.set(entry.period, entry.totalCostUsd);
+    }
+    const costTrend = Array.from(trendMap.entries())
+      .map(([date, costUsd]) => ({ date, costUsd }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    // 3. Cost by epic
+    const epicRows = sqlite
+      .prepare(
+        `SELECT
+           e.id as epic_id,
+           e.title,
+           COALESCE(SUM(tu.cost_usd), 0) as cost_usd
+         FROM epics e
+         JOIN tickets t ON t.epic_id = e.id
+         JOIN token_usage tu ON tu.ticket_id = t.id
+         GROUP BY e.id, e.title
+         HAVING cost_usd > 0
+         ORDER BY cost_usd DESC
+         LIMIT 10`
+      )
+      .all() as Array<{
+      epic_id: string;
+      title: string;
+      cost_usd: number;
+    }>;
+
+    const costByEpic = epicRows.map((r) => ({
+      epicId: r.epic_id,
+      title: r.title,
+      costUsd: r.cost_usd,
+    }));
+
+    return { costPerTicket, costTrend, costByEpic };
+  }
+);
+
+/**
+ * Get cost breakdown for a specific ticket.
+ */
+export const getTicketCost = createServerFn({ method: "GET" })
+  .inputValidator((data: string) => {
+    if (!data || typeof data !== "string") {
+      throw new Error("Ticket ID is required");
+    }
+    return data;
+  })
+  .handler(async ({ data: ticketId }) => {
+    return coreGetTicketCost(sqlite, ticketId);
+  });
+
+// Re-export types from core for convenience
+export type { TicketCostResult, EpicCostResult } from "../../core/types.ts";

@@ -19,3 +19,6 @@ export { CycleTimeCard } from "./CycleTimeCard";
 export { TopProjectsCard } from "./TopProjectsCard";
 export { CommitsPerDayCard } from "./CommitsPerDayCard";
 export { AITelemetryTab } from "./AITelemetryTab";
+export { CostTrendChart } from "./CostTrendChart";
+export { CostPerTicketChart } from "./CostPerTicketChart";
+export { CostByEpicChart } from "./CostByEpicChart";
