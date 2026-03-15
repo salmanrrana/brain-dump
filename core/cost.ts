@@ -122,18 +122,7 @@ export function computeCostFromTokens(db: DbHandle, model: string, tokens: Token
     )
     .get(normalized) as DbCostModelRow | undefined;
 
-  // Try prefix match (e.g. "claude-opus-4-6" matches "claude-opus-4-6-20250616")
-  if (!row) {
-    row = db
-      .prepare(
-        `SELECT * FROM cost_models
-         WHERE ? LIKE LOWER(model_name) || '%'
-         LIMIT 1`
-      )
-      .get(normalized) as DbCostModelRow | undefined;
-  }
-
-  // Try if the stored model_name is a prefix of the input
+  // Fuzzy match: input is prefix of stored name, or stored name is prefix of input
   if (!row) {
     row = db
       .prepare(
@@ -189,7 +178,7 @@ export function recordUsage(db: DbHandle, params: RecordUsageParams): TokenUsage
   if (!model) {
     throw new ValidationError("model is required for recording token usage.");
   }
-  if (inputTokens < 0 || outputTokens < 0) {
+  if (inputTokens < 0 || outputTokens < 0 || cacheReadTokens < 0 || cacheCreationTokens < 0) {
     throw new ValidationError("Token counts must be non-negative.");
   }
 
@@ -226,8 +215,8 @@ export function recordUsage(db: DbHandle, params: RecordUsageParams): TokenUsage
     model,
     inputTokens,
     outputTokens,
-    cacheReadTokens || null,
-    cacheCreationTokens || null,
+    cacheReadTokens ?? null,
+    cacheCreationTokens ?? null,
     costUsd,
     source,
     now
@@ -494,7 +483,12 @@ export function upsertCostModel(db: DbHandle, params: UpsertCostModelParams): Co
   if (!provider || !modelName) {
     throw new ValidationError("provider and modelName are required.");
   }
-  if (inputCostPerMtok < 0 || outputCostPerMtok < 0) {
+  if (
+    inputCostPerMtok < 0 ||
+    outputCostPerMtok < 0 ||
+    (cacheReadCostPerMtok != null && cacheReadCostPerMtok < 0) ||
+    (cacheCreateCostPerMtok != null && cacheCreateCostPerMtok < 0)
+  ) {
     throw new ValidationError("Cost values must be non-negative.");
   }
 
