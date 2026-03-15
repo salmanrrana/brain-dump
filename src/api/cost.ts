@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { sqlite } from "../lib/db";
 import {
   getTicketCost as coreGetTicketCost,
+  getEpicCost as coreGetEpicCost,
   getCostTrend,
   listCostModels as coreListCostModels,
   upsertCostModel as coreUpsertCostModel,
@@ -140,6 +141,34 @@ export const getCostAnalytics = createServerFn({ method: "GET" }).handler(
     }
   }
 );
+
+/**
+ * Get cost breakdown for a specific epic (aggregated across all tickets).
+ */
+export const getEpicCost = createServerFn({ method: "GET" })
+  .inputValidator((data: string) => {
+    if (!data || typeof data !== "string") {
+      throw new Error("Epic ID is required");
+    }
+    return data;
+  })
+  .handler(async ({ data: epicId }) => {
+    try {
+      return coreGetEpicCost(sqlite, epicId);
+    } catch (error) {
+      if (isMissingCostSchemaError(error)) {
+        return {
+          epicId,
+          totalCostUsd: 0,
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          ticketCount: 0,
+          byTicket: [],
+        };
+      }
+      throw error;
+    }
+  });
 
 /**
  * Get cost breakdown for a specific ticket.

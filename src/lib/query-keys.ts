@@ -80,6 +80,7 @@ export const queryKeys = {
   cost: {
     dashboardAnalytics: () => ["cost", "dashboardAnalytics"] as const,
     ticketCost: (ticketId: string) => ["cost", "ticket", ticketId] as const,
+    epicCost: (epicId: string) => ["cost", "epic", epicId] as const,
     models: () => ["cost", "models"] as const,
   },
 

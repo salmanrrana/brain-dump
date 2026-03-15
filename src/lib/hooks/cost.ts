@@ -10,6 +10,7 @@ const logger = createBrowserLogger("hooks:cost");
 import {
   getCostAnalytics,
   getTicketCost,
+  getEpicCost,
   getCostModels,
   updateCostModel,
   deleteCostModel,
@@ -28,6 +29,19 @@ export function useCostAnalytics() {
     staleTime: 300_000, // 5 minutes - cost data doesn't change frequently
     gcTime: 600_000, // 10 minutes - keep cache alive between refetch cycles
     refetchInterval: 600_000, // Refetch every 10 minutes
+  });
+}
+
+/**
+ * Hook for fetching cost breakdown for a specific epic.
+ */
+export function useEpicCost(epicId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.cost.epicCost(epicId ?? ""),
+    queryFn: () => getEpicCost({ data: epicId! }),
+    enabled: !!epicId,
+    staleTime: 300_000,
+    gcTime: 600_000,
   });
 }
 

@@ -90,6 +90,10 @@ vi.mock("../components/epics/EpicLearnings", () => ({
   EpicLearnings: () => <div>Epic learnings</div>,
 }));
 
+vi.mock("../components/epics/EpicCostPanel", () => ({
+  EpicCostPanel: () => <div>Epic cost panel</div>,
+}));
+
 vi.mock("../components/tickets/TicketDescription", () => ({
   TicketDescription: ({ description }: { description: string | null }) => (
     <div>{description ?? "No description"}</div>
