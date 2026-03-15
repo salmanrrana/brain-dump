@@ -4,6 +4,9 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { createBrowserLogger } from "../browser-logger";
+
+const logger = createBrowserLogger("hooks:cost");
 import {
   getCostAnalytics,
   getTicketCost,
@@ -37,6 +40,7 @@ export function useTicketCost(ticketId: string | undefined) {
     queryFn: () => getTicketCost({ data: ticketId! }),
     enabled: !!ticketId,
     staleTime: 300_000,
+    gcTime: 600_000,
   });
 }
 
@@ -52,6 +56,7 @@ export function useCostModels() {
     queryKey: queryKeys.cost.models(),
     queryFn: () => getCostModels(),
     staleTime: 300_000,
+    gcTime: 600_000,
   });
 }
 
@@ -67,6 +72,12 @@ export function useUpdateCostModel() {
       queryClient.invalidateQueries({ queryKey: queryKeys.cost.models() });
       queryClient.invalidateQueries({ queryKey: queryKeys.cost.dashboardAnalytics() });
     },
+    onError: (err, variables) => {
+      logger.error(
+        `Failed to save cost model: provider="${variables.provider}", model="${variables.modelName}"`,
+        err instanceof Error ? err : new Error(String(err))
+      );
+    },
   });
 }
 
@@ -81,6 +92,12 @@ export function useDeleteCostModel() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.cost.models() });
       queryClient.invalidateQueries({ queryKey: queryKeys.cost.dashboardAnalytics() });
+    },
+    onError: (err, id) => {
+      logger.error(
+        `Failed to delete cost model: id="${id}"`,
+        err instanceof Error ? err : new Error(String(err))
+      );
     },
   });
 }

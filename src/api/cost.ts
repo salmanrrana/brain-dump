@@ -193,8 +193,21 @@ export const updateCostModel = createServerFn({ method: "POST" })
     if (!data.provider || !data.modelName) {
       throw new Error("Provider and model name are required");
     }
-    if (data.inputCostPerMtok < 0 || data.outputCostPerMtok < 0) {
-      throw new Error("Cost values must be non-negative");
+    if (
+      isNaN(data.inputCostPerMtok) ||
+      isNaN(data.outputCostPerMtok) ||
+      data.inputCostPerMtok < 0 ||
+      data.outputCostPerMtok < 0
+    ) {
+      throw new Error("Cost values must be valid non-negative numbers");
+    }
+    if (
+      (data.cacheReadCostPerMtok != null &&
+        (isNaN(data.cacheReadCostPerMtok) || data.cacheReadCostPerMtok < 0)) ||
+      (data.cacheCreateCostPerMtok != null &&
+        (isNaN(data.cacheCreateCostPerMtok) || data.cacheCreateCostPerMtok < 0))
+    ) {
+      throw new Error("Cache cost values must be valid non-negative numbers");
     }
     return data;
   })

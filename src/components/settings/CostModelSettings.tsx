@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useId } from "react";
 import { Plus, Pencil, Trash2, Check, X, Loader2 } from "lucide-react";
 import { useCostModels, useUpdateCostModel, useDeleteCostModel } from "../../lib/hooks";
 import { useToast } from "../../lib/toast-context";
@@ -87,6 +87,14 @@ export function CostModelSettings({ isActive }: CostModelSettingsProps) {
     const cacheCreate = form.cacheCreateCostPerMtok
       ? parseFloat(form.cacheCreateCostPerMtok)
       : undefined;
+
+    if (
+      (cacheRead !== undefined && (isNaN(cacheRead) || cacheRead < 0)) ||
+      (cacheCreate !== undefined && (isNaN(cacheCreate) || cacheCreate < 0))
+    ) {
+      toast.error("Cache cost values must be valid non-negative numbers");
+      return;
+    }
 
     updateMutation.mutate(
       {
@@ -199,7 +207,9 @@ export function CostModelSettings({ isActive }: CostModelSettingsProps) {
                         model={model}
                         onEdit={handleEdit}
                         onDelete={handleDelete}
-                        isDeleting={deleteMutation.isPending}
+                        isDeleting={
+                          deleteMutation.isPending && deleteMutation.variables === model.id
+                        }
                       />
                     )
                   )}
@@ -313,33 +323,40 @@ function ModelEditRow({
   onKeyDown: (e: React.KeyboardEvent) => void;
   showProviderField?: boolean;
 }) {
+  const id = useId();
   return (
     <div className="space-y-2">
-      {showProviderField && (
+      {showProviderField ? (
         <div className="grid grid-cols-2 gap-2">
           <input
+            id={`${id}-provider`}
             className={inputStyles.base}
             placeholder="Provider (e.g. anthropic)"
             value={form.provider}
             onChange={(e) => onFieldChange("provider", e.target.value)}
             onKeyDown={onKeyDown}
+            aria-label="Provider"
           />
           <input
+            id={`${id}-model`}
             className={inputStyles.base}
             placeholder="Model name"
             value={form.modelName}
             onChange={(e) => onFieldChange("modelName", e.target.value)}
             onKeyDown={onKeyDown}
+            aria-label="Model name"
           />
         </div>
-      )}
-      {!showProviderField && (
+      ) : (
         <div className="text-sm font-medium text-[var(--text-primary)] mb-1">{form.modelName}</div>
       )}
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="text-xs text-[var(--text-tertiary)]">Input $/1M tok</label>
+          <label htmlFor={`${id}-input-cost`} className="text-xs text-[var(--text-tertiary)]">
+            Input $/1M tok
+          </label>
           <input
+            id={`${id}-input-cost`}
             className={inputStyles.base}
             type="number"
             step="0.01"
@@ -351,8 +368,11 @@ function ModelEditRow({
           />
         </div>
         <div>
-          <label className="text-xs text-[var(--text-tertiary)]">Output $/1M tok</label>
+          <label htmlFor={`${id}-output-cost`} className="text-xs text-[var(--text-tertiary)]">
+            Output $/1M tok
+          </label>
           <input
+            id={`${id}-output-cost`}
             className={inputStyles.base}
             type="number"
             step="0.01"
@@ -366,8 +386,11 @@ function ModelEditRow({
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="text-xs text-[var(--text-tertiary)]">Cache Read $/1M (optional)</label>
+          <label htmlFor={`${id}-cache-read`} className="text-xs text-[var(--text-tertiary)]">
+            Cache Read $/1M (optional)
+          </label>
           <input
+            id={`${id}-cache-read`}
             className={inputStyles.base}
             type="number"
             step="0.01"
@@ -379,10 +402,11 @@ function ModelEditRow({
           />
         </div>
         <div>
-          <label className="text-xs text-[var(--text-tertiary)]">
+          <label htmlFor={`${id}-cache-create`} className="text-xs text-[var(--text-tertiary)]">
             Cache Create $/1M (optional)
           </label>
           <input
+            id={`${id}-cache-create`}
             className={inputStyles.base}
             type="number"
             step="0.01"

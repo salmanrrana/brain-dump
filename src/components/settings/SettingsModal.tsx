@@ -38,7 +38,7 @@ const SETTINGS_TABS: Tab[] = [
  * SettingsModal - Modal for configuring application settings.
  *
  * Features:
- * - **Tabbed navigation**: 4 tabs using TabNav component (General, Ralph, Git, Enterprise)
+ * - **Tabbed navigation**: 5 tabs using TabNav component (General, Ralph, Git, Enterprise, AI Pricing)
  * - **Form state preservation**: Tab switching preserves all form values
  * - **Keyboard accessible**: Escape to close, Tab/Arrow key navigation
  * - **Save/Cancel**: Footer buttons to save changes or cancel
