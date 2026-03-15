@@ -1,5 +1,5 @@
 /**
- * Telemetry commands: start, end, get, list, log-tool, log-prompt.
+ * Telemetry commands: start, end, get, list, log-tool, log-prompt, log-context, record-usage.
  */
 
 import {
@@ -10,14 +10,26 @@ import {
   logTool,
   logPrompt,
   logContext,
+  recordUsage,
+  detectActiveTicket,
   InvalidActionError,
 } from "../../core/index.ts";
-import type { TelemetryOutcome, ToolEventType } from "../../core/index.ts";
+import type { TelemetryOutcome, ToolEventType, RecordUsageParams } from "../../core/index.ts";
 import { parseFlags, requireFlag, optionalFlag, boolFlag, numericFlag } from "../lib/args.ts";
 import { outputResult, outputError, showResourceHelp } from "../lib/output.ts";
 import { getDb } from "../lib/db.ts";
+import { resolve } from "path";
 
-const ACTIONS = ["start", "end", "get", "list", "log-tool", "log-prompt", "log-context"];
+const ACTIONS = [
+  "start",
+  "end",
+  "get",
+  "list",
+  "log-tool",
+  "log-prompt",
+  "log-context",
+  "record-usage",
+];
 
 export function handle(action: string, args: string[]): void {
   if (!action || action === "--help" || action === "help") {
@@ -129,6 +141,83 @@ export function handle(action: string, args: string[]): void {
           ...(attachmentCount !== undefined ? { attachmentCount } : {}),
           ...(imageCount !== undefined ? { imageCount } : {}),
         });
+        outputResult(result, pretty);
+        break;
+      }
+
+      case "record-usage": {
+        const model = requireFlag(flags, "model");
+        const inputTokens = numericFlag(flags, "input");
+        const outputTokens = numericFlag(flags, "output");
+
+        if (inputTokens === undefined) {
+          throw new Error("Missing required flag: --input (input token count)");
+        }
+        if (outputTokens === undefined) {
+          throw new Error("Missing required flag: --output (output token count)");
+        }
+
+        const cacheReadTokens = numericFlag(flags, "cache-read");
+        const cacheCreateTokens = numericFlag(flags, "cache-create");
+        const source = optionalFlag(flags, "source") ?? "jsonl-hook";
+        const sessionIdFlag = optionalFlag(flags, "session");
+        const ticketIdFlag = optionalFlag(flags, "ticket");
+
+        // Auto-detect session from ralph-state.json if not provided
+        let resolvedSessionId = sessionIdFlag;
+        let resolvedTicketId = ticketIdFlag;
+
+        if (!resolvedSessionId) {
+          const detection = detectActiveTicket(resolve(process.cwd()));
+          if (detection.ticketId) {
+            resolvedTicketId = resolvedTicketId || detection.ticketId;
+            // Find most recent active telemetry session for this ticket
+            const activeSession = db
+              .prepare(
+                `SELECT id FROM telemetry_sessions
+                 WHERE ticket_id = ? AND ended_at IS NULL
+                 ORDER BY started_at DESC LIMIT 1`
+              )
+              .get(detection.ticketId) as { id: string } | undefined;
+            if (activeSession) {
+              resolvedSessionId = activeSession.id;
+            }
+          }
+
+          // Fallback: find any active telemetry session
+          if (!resolvedSessionId) {
+            const anyActive = db
+              .prepare(
+                `SELECT id FROM telemetry_sessions
+                 WHERE ended_at IS NULL
+                 ORDER BY started_at DESC LIMIT 1`
+              )
+              .get() as { id: string } | undefined;
+            if (anyActive) {
+              resolvedSessionId = anyActive.id;
+            }
+          }
+        }
+
+        if (!resolvedSessionId && !resolvedTicketId) {
+          throw new Error(
+            "No active telemetry session found. Provide --session or --ticket, " +
+              "or ensure a Ralph session is active (.claude/ralph-state.json)."
+          );
+        }
+
+        const usageParams: RecordUsageParams = {
+          model,
+          inputTokens,
+          outputTokens,
+          source,
+          ...(resolvedSessionId !== undefined ? { telemetrySessionId: resolvedSessionId } : {}),
+          ...(resolvedTicketId !== undefined ? { ticketId: resolvedTicketId } : {}),
+          ...(cacheReadTokens !== undefined ? { cacheReadTokens } : {}),
+          ...(cacheCreateTokens !== undefined ? { cacheCreationTokens: cacheCreateTokens } : {}),
+        };
+
+        const result = recordUsage(db, usageParams);
         outputResult(result, pretty);
         break;
       }

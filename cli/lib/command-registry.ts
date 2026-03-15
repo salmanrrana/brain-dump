@@ -872,6 +872,47 @@ export const COMMAND_REGISTRY: CommandDef[] = [
       "brain-dump telemetry log-context --session abc --has-description --has-criteria --criteria-count 3",
     ],
   },
+  {
+    resource: "telemetry",
+    action: "record-usage",
+    description: "Record token usage with cost computation (auto-detects session)",
+    flags: [
+      { ...sessionFlag, required: false },
+      { ...ticketFlag, required: false },
+      {
+        name: "model",
+        type: "string",
+        required: true,
+        description: "Model name (e.g. claude-opus-4-6)",
+      },
+      { name: "input", type: "number", required: true, description: "Input token count" },
+      { name: "output", type: "number", required: true, description: "Output token count" },
+      {
+        name: "cache-read",
+        type: "number",
+        required: false,
+        description: "Cache read token count",
+      },
+      {
+        name: "cache-create",
+        type: "number",
+        required: false,
+        description: "Cache creation token count",
+      },
+      {
+        name: "source",
+        type: "enum",
+        required: false,
+        description: "Token data source (default: jsonl-hook)",
+        enum: ["jsonl-hook", "otel", "mcp-manual"],
+      },
+      prettyFlag,
+    ],
+    examples: [
+      "brain-dump telemetry record-usage --model claude-opus-4-6 --input 1000 --output 500",
+      "brain-dump telemetry record-usage --session abc --model claude-opus-4-6 --input 1000 --output 500",
+    ],
+  },
 
   // ── files ──────────────────────────────────────────────────
   {
@@ -1284,7 +1325,7 @@ export function getResourceDescription(resource: string): string {
     review: "Submit findings, generate demos, manage reviews",
     session: "Create, update, complete Ralph sessions",
     git: "Link commits, PRs, sync ticket links",
-    telemetry: "Start, end, get, list telemetry sessions",
+    telemetry: "Start, end, get, list telemetry sessions, record token usage",
     files: "Link files to tickets, find tickets by file",
     tasks: "Save, get, clear Claude task lists",
     compliance: "Conversation logging for compliance auditing",
