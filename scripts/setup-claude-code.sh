@@ -129,8 +129,11 @@ if [ -d "$SOURCE_HOOKS" ]; then
     chmod +x "$GLOBAL_CLAUDE_DIR/hooks"/*.sh 2>/dev/null || true
     # Copy parser script alongside hooks so capture-token-usage.sh can find it globally
     if [ -f "$BRAIN_DUMP_DIR/scripts/parse-transcript-tokens.ts" ]; then
-        cp -v "$BRAIN_DUMP_DIR/scripts/parse-transcript-tokens.ts" "$GLOBAL_CLAUDE_DIR/hooks/" 2>/dev/null || true
-        echo -e "  ${GREEN}✓${NC} parse-transcript-tokens.ts (token usage parser)"
+        if cp -v "$BRAIN_DUMP_DIR/scripts/parse-transcript-tokens.ts" "$GLOBAL_CLAUDE_DIR/hooks/" 2>/dev/null; then
+            echo -e "  ${GREEN}✓${NC} parse-transcript-tokens.ts (token usage parser)"
+        else
+            echo -e "  ${RED}✗${NC} Failed to copy parse-transcript-tokens.ts"
+        fi
     fi
     echo -e "${GREEN}Hook scripts installed:${NC}"
     ls "$GLOBAL_CLAUDE_DIR/hooks"/*.sh 2>/dev/null | xargs -I {} basename {} | sed 's/^/  • /'

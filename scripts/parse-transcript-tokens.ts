@@ -26,46 +26,42 @@ interface ModelUsage {
 }
 
 async function parseTranscript(filePath: string): Promise<ModelUsage[]> {
-  const totals = new Map<
-    string,
-    {
-      inputTokens: number;
-      outputTokens: number;
-      cacheReadTokens: number;
-      cacheCreationTokens: number;
-    }
-  >();
+  const totals = new Map<string, Omit<ModelUsage, "model">>();
 
   const fileStream = fs.createReadStream(filePath);
   const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
 
   for await (const line of rl) {
+    let obj: unknown;
     try {
-      const obj = JSON.parse(line);
-
-      if (obj.type !== "assistant") continue;
-
-      const usage = obj.message?.usage;
-      const model = obj.message?.model;
-      if (!usage || !model) continue;
-
-      const inputTokens = usage.input_tokens ?? 0;
-      const outputTokens = usage.output_tokens ?? 0;
-      const cacheReadTokens = usage.cache_read_input_tokens ?? 0;
-      const cacheCreationTokens = usage.cache_creation_input_tokens ?? 0;
-
-      const existing = totals.get(model);
-      if (existing) {
-        existing.inputTokens += inputTokens;
-        existing.outputTokens += outputTokens;
-        existing.cacheReadTokens += cacheReadTokens;
-        existing.cacheCreationTokens += cacheCreationTokens;
-      } else {
-        totals.set(model, { inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens });
-      }
+      obj = JSON.parse(line);
     } catch {
-      // Skip malformed lines — not an error
+      // Skip malformed JSON lines — expected in JSONL files
       continue;
+    }
+
+    if (typeof obj !== "object" || obj === null) continue;
+    const record = obj as Record<string, unknown>;
+    if (record.type !== "assistant") continue;
+
+    const message = record.message as Record<string, unknown> | undefined;
+    const usage = message?.usage as Record<string, unknown> | undefined;
+    const model = message?.model;
+    if (!usage || typeof model !== "string") continue;
+
+    const inputTokens = Number(usage.input_tokens) || 0;
+    const outputTokens = Number(usage.output_tokens) || 0;
+    const cacheReadTokens = Number(usage.cache_read_input_tokens) || 0;
+    const cacheCreationTokens = Number(usage.cache_creation_input_tokens) || 0;
+
+    const existing = totals.get(model);
+    if (existing) {
+      existing.inputTokens += inputTokens;
+      existing.outputTokens += outputTokens;
+      existing.cacheReadTokens += cacheReadTokens;
+      existing.cacheCreationTokens += cacheCreationTokens;
+    } else {
+      totals.set(model, { inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens });
     }
   }
 
@@ -74,24 +70,25 @@ async function parseTranscript(filePath: string): Promise<ModelUsage[]> {
 
 // --- Main ---
 
-const filePath = process.argv[2];
+async function main(): Promise<void> {
+  const filePath = process.argv[2];
 
-if (!filePath) {
-  process.stderr.write("Usage: parse-transcript-tokens.ts <path-to-jsonl>\n");
-  process.exit(1);
-}
-
-if (!fs.existsSync(filePath)) {
-  process.stderr.write(`File not found: ${filePath}\n`);
-  process.exit(1);
-}
-
-parseTranscript(filePath)
-  .then((results) => {
-    process.stdout.write(JSON.stringify(results) + "\n");
-  })
-  .catch((err: unknown) => {
-    const message = err instanceof Error ? err.message : String(err);
-    process.stderr.write(`Error parsing transcript: ${message}\n`);
+  if (!filePath) {
+    process.stderr.write("Usage: parse-transcript-tokens.ts <path-to-jsonl>\n");
     process.exit(1);
-  });
+  }
+
+  if (!fs.existsSync(filePath)) {
+    process.stderr.write(`File not found: ${filePath}\n`);
+    process.exit(1);
+  }
+
+  const results = await parseTranscript(filePath);
+  process.stdout.write(JSON.stringify(results) + "\n");
+}
+
+main().catch((err: unknown) => {
+  const message = err instanceof Error ? err.message : String(err);
+  process.stderr.write(`Error parsing transcript: ${message}\n`);
+  process.exit(1);
+});

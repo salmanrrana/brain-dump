@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Event: Stop
 # Parses Claude Code transcript JSONL for real token usage and records to Brain Dump.
 #
@@ -7,7 +7,8 @@
 #
 # All errors exit 0 — this hook must never block Claude Code shutdown.
 
-set -euo pipefail
+set -e
+trap 'exit 0' ERR
 
 # --- Resolve project directory ---
 if [ -n "${CLAUDE_PROJECT_DIR:-}" ]; then
@@ -17,6 +18,12 @@ else
 fi
 
 if [ -z "$PROJECT_DIR" ]; then
+    echo "[capture-token-usage] No project directory found, skipping" >&2
+    exit 0
+fi
+
+if ! command -v jq &>/dev/null; then
+    echo "[capture-token-usage] jq not found, skipping token capture" >&2
     exit 0
 fi
 
@@ -59,8 +66,7 @@ if [ ${#BRAIN_DUMP_CMD[@]} -eq 0 ]; then
     exit 0
 fi
 
-# --- Locate parser script ---
-# Check: alongside the hook (global install copies it here), then in project
+# --- Locate parser script (global install copies it alongside hook, else project) ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARSER=""
 if [ -f "$SCRIPT_DIR/parse-transcript-tokens.ts" ]; then
@@ -96,15 +102,13 @@ if [ -f "$RALPH_STATE" ]; then
 fi
 
 # --- Record each model's usage via CLI ---
+# Extract all fields per model in a single jq call (tab-separated)
 MODEL_COUNT=$(echo "$PARSER_OUTPUT" | jq 'length' 2>/dev/null || echo "0")
 RECORDED=0
 
 for i in $(seq 0 $((MODEL_COUNT - 1))); do
-    MODEL=$(echo "$PARSER_OUTPUT" | jq -r ".[$i].model" 2>/dev/null || echo "")
-    INPUT_TOKENS=$(echo "$PARSER_OUTPUT" | jq -r ".[$i].inputTokens" 2>/dev/null || echo "0")
-    OUTPUT_TOKENS=$(echo "$PARSER_OUTPUT" | jq -r ".[$i].outputTokens" 2>/dev/null || echo "0")
-    CACHE_READ=$(echo "$PARSER_OUTPUT" | jq -r ".[$i].cacheReadTokens" 2>/dev/null || echo "0")
-    CACHE_CREATE=$(echo "$PARSER_OUTPUT" | jq -r ".[$i].cacheCreationTokens" 2>/dev/null || echo "0")
+    read -r MODEL INPUT_TOKENS OUTPUT_TOKENS CACHE_READ CACHE_CREATE <<< \
+        "$(echo "$PARSER_OUTPUT" | jq -r ".[$i] | [.model, .inputTokens, .outputTokens, .cacheReadTokens, .cacheCreationTokens] | @tsv" 2>/dev/null)"
 
     if [ -z "$MODEL" ] || [ "$MODEL" = "null" ]; then
         continue
@@ -117,11 +121,11 @@ for i in $(seq 0 $((MODEL_COUNT - 1))); do
         ARGS+=("${SESSION_ARGS[@]}")
     fi
 
-    if [ "$CACHE_READ" != "0" ] && [ "$CACHE_READ" != "null" ]; then
+    if [ "$CACHE_READ" != "0" ]; then
         ARGS+=(--cache-read "$CACHE_READ")
     fi
 
-    if [ "$CACHE_CREATE" != "0" ] && [ "$CACHE_CREATE" != "null" ]; then
+    if [ "$CACHE_CREATE" != "0" ]; then
         ARGS+=(--cache-create "$CACHE_CREATE")
     fi
 
