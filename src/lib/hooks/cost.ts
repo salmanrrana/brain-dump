@@ -14,10 +14,9 @@ import { queryKeys } from "../query-keys";
 export function useCostAnalytics() {
   return useQuery({
     queryKey: queryKeys.cost.dashboardAnalytics(),
-    queryFn: async () => {
-      return getCostAnalytics();
-    },
+    queryFn: () => getCostAnalytics(),
     staleTime: 300_000, // 5 minutes - cost data doesn't change frequently
+    gcTime: 600_000, // 10 minutes - keep cache alive between refetch cycles
     refetchInterval: 600_000, // Refetch every 10 minutes
   });
 }
@@ -28,9 +27,7 @@ export function useCostAnalytics() {
 export function useTicketCost(ticketId: string | undefined) {
   return useQuery({
     queryKey: queryKeys.cost.ticketCost(ticketId ?? ""),
-    queryFn: async () => {
-      return getTicketCost({ data: ticketId! });
-    },
+    queryFn: () => getTicketCost({ data: ticketId! }),
     enabled: !!ticketId,
     staleTime: 300_000,
   });

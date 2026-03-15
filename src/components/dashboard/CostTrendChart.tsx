@@ -1,4 +1,3 @@
-import { type FC, useEffect, useState } from "react";
 import { DollarSign } from "lucide-react";
 import {
   LineChart,
@@ -15,32 +14,15 @@ import {
   sectionTitleStyles,
   sectionContentStyles,
 } from "./shared-styles";
+import {
+  useThemeColors,
+  formatUsd,
+  formatShortDate,
+  tooltipStyle,
+  emptyChartStyle,
+  subtitleStyle,
+} from "./chart-utils";
 import type { DashboardCostAnalytics } from "../../api/cost";
-
-function getComputedColors() {
-  if (typeof window === "undefined") {
-    return {
-      primary: "#f97316",
-      border: "#374151",
-      textSecondary: "#94a3b8",
-    };
-  }
-  const style = getComputedStyle(document.documentElement);
-  return {
-    primary: style.getPropertyValue("--accent-primary").trim() || "#f97316",
-    border: style.getPropertyValue("--border-primary").trim() || "#374151",
-    textSecondary: style.getPropertyValue("--text-secondary").trim() || "#94a3b8",
-  };
-}
-
-function formatShortDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  return `${date.getMonth() + 1}/${date.getDate()}`;
-}
-
-function formatUsd(value: number): string {
-  return `$${value.toFixed(2)}`;
-}
 
 export interface CostTrendChartProps {
   data: DashboardCostAnalytics["costTrend"];
@@ -48,22 +30,9 @@ export interface CostTrendChartProps {
 
 /**
  * CostTrendChart - Line chart showing daily cost over last 30 days.
- * Follows SessionsOverTimeChart pattern from AITelemetryTab.
  */
-export const CostTrendChart: FC<CostTrendChartProps> = ({ data }) => {
-  const [colors, setColors] = useState(getComputedColors());
-
-  useEffect(() => {
-    const update = () => setColors(getComputedColors());
-    update();
-    const observer = new MutationObserver(update);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
-    return () => observer.disconnect();
-  }, []);
-
+export function CostTrendChart({ data }: CostTrendChartProps) {
+  const colors = useThemeColors();
   const hasData = data.some((d) => d.costUsd > 0);
   const totalCost = data.reduce((sum, d) => sum + d.costUsd, 0);
 
@@ -72,8 +41,8 @@ export const CostTrendChart: FC<CostTrendChartProps> = ({ data }) => {
       <div style={sectionHeaderStyles}>
         <DollarSign size={18} style={{ color: colors.primary }} aria-hidden="true" />
         <h3 style={sectionTitleStyles}>Cost Trend</h3>
-        <span style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>
-          {hasData ? `${formatUsd(totalCost)} total • Last 30 days` : "Last 30 days"}
+        <span style={subtitleStyle}>
+          {hasData ? `${formatUsd(totalCost)} total \u2022 Last 30 days` : "Last 30 days"}
         </span>
       </div>
       <div style={sectionContentStyles}>
@@ -108,36 +77,9 @@ export const CostTrendChart: FC<CostTrendChartProps> = ({ data }) => {
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <EmptyState message="No cost data yet" />
+          <div style={emptyChartStyle}>No cost data yet</div>
         )}
       </div>
     </section>
-  );
-};
-
-const tooltipStyle: React.CSSProperties = {
-  backgroundColor: "var(--bg-secondary)",
-  border: "none",
-  borderRadius: "var(--radius-md)",
-  padding: "var(--spacing-2)",
-  color: "var(--text-primary)",
-  fontSize: "var(--font-size-sm)",
-  boxShadow: "var(--shadow-lg)",
-};
-
-function EmptyState({ message }: { message: string }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        height: 120,
-        color: "var(--text-tertiary)",
-        fontSize: "var(--font-size-sm)",
-      }}
-    >
-      {message}
-    </div>
   );
 }

@@ -25,20 +25,32 @@ export interface DashboardCostAnalytics {
  * Get cost analytics for the dashboard.
  * Returns cost-per-ticket, daily cost trend, and cost-by-epic.
  */
+const EMPTY_COST_ANALYTICS: DashboardCostAnalytics = {
+  costPerTicket: [],
+  costTrend: [],
+  costByEpic: [],
+};
+
+function isMissingCostSchemaError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  return message.includes("no such table: token_usage") || message.includes("no such table: cost_");
+}
+
 export const getCostAnalytics = createServerFn({ method: "GET" }).handler(
   async (): Promise<DashboardCostAnalytics> => {
-    const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const sinceDate = thirtyDaysAgo.toISOString();
-    const formatDate = (date: Date): string => {
-      const isoString = date.toISOString();
-      return isoString.split("T")[0] ?? isoString.substring(0, 10);
-    };
+    try {
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const sinceDate = thirtyDaysAgo.toISOString();
+      const formatDate = (date: Date): string => {
+        const isoString = date.toISOString();
+        return isoString.split("T")[0] ?? isoString.substring(0, 10);
+      };
 
-    // 1. Cost per completed ticket (last 30 days)
-    const costPerTicketRows = sqlite
-      .prepare(
-        `SELECT
+      // 1. Cost per completed ticket (last 30 days)
+      const costPerTicketRows = sqlite
+        .prepare(
+          `SELECT
            t.id as ticket_id,
            t.title,
            COALESCE(SUM(tu.cost_usd), 0) as cost_usd,
@@ -50,44 +62,44 @@ export const getCostAnalytics = createServerFn({ method: "GET" }).handler(
          GROUP BY t.id, t.title, t.completed_at
          HAVING cost_usd > 0
          ORDER BY t.completed_at DESC`
-      )
-      .all(sinceDate) as Array<{
-      ticket_id: string;
-      title: string;
-      cost_usd: number;
-      completed_at: string | null;
-    }>;
+        )
+        .all(sinceDate) as Array<{
+        ticket_id: string;
+        title: string;
+        cost_usd: number;
+        completed_at: string | null;
+      }>;
 
-    const costPerTicket = costPerTicketRows.map((r) => ({
-      ticketId: r.ticket_id,
-      title: r.title,
-      costUsd: r.cost_usd,
-      completedAt: r.completed_at,
-    }));
+      const costPerTicket = costPerTicketRows.map((r) => ({
+        ticketId: r.ticket_id,
+        title: r.title,
+        costUsd: r.cost_usd,
+        completedAt: r.completed_at,
+      }));
 
-    // 2. Daily cost trend (last 30 days) - fill missing dates with 0
-    const trendResult = getCostTrend(sqlite, {
-      since: sinceDate,
-      granularity: "daily",
-    });
+      // 2. Daily cost trend (last 30 days) - fill missing dates with 0
+      const trendResult = getCostTrend(sqlite, {
+        since: sinceDate,
+        granularity: "daily",
+      });
 
-    const trendMap = new Map<string, number>();
-    for (let i = 0; i < 30; i++) {
-      const date = new Date(now.getTime() - (29 - i) * 24 * 60 * 60 * 1000);
-      const dateStr = formatDate(date);
-      trendMap.set(dateStr, 0);
-    }
-    for (const entry of trendResult.entries) {
-      trendMap.set(entry.period, entry.totalCostUsd);
-    }
-    const costTrend = Array.from(trendMap.entries())
-      .map(([date, costUsd]) => ({ date, costUsd }))
-      .sort((a, b) => a.date.localeCompare(b.date));
+      const trendMap = new Map<string, number>();
+      for (let i = 0; i < 30; i++) {
+        const date = new Date(now.getTime() - (29 - i) * 24 * 60 * 60 * 1000);
+        const dateStr = formatDate(date);
+        trendMap.set(dateStr, 0);
+      }
+      for (const entry of trendResult.entries) {
+        trendMap.set(entry.period, entry.totalCostUsd);
+      }
+      const costTrend = Array.from(trendMap.entries())
+        .map(([date, costUsd]) => ({ date, costUsd }))
+        .sort((a, b) => a.date.localeCompare(b.date));
 
-    // 3. Cost by epic
-    const epicRows = sqlite
-      .prepare(
-        `SELECT
+      // 3. Cost by epic
+      const epicRows = sqlite
+        .prepare(
+          `SELECT
            e.id as epic_id,
            e.title,
            COALESCE(SUM(tu.cost_usd), 0) as cost_usd
@@ -98,20 +110,27 @@ export const getCostAnalytics = createServerFn({ method: "GET" }).handler(
          HAVING cost_usd > 0
          ORDER BY cost_usd DESC
          LIMIT 10`
-      )
-      .all() as Array<{
-      epic_id: string;
-      title: string;
-      cost_usd: number;
-    }>;
+        )
+        .all() as Array<{
+        epic_id: string;
+        title: string;
+        cost_usd: number;
+      }>;
 
-    const costByEpic = epicRows.map((r) => ({
-      epicId: r.epic_id,
-      title: r.title,
-      costUsd: r.cost_usd,
-    }));
+      const costByEpic = epicRows.map((r) => ({
+        epicId: r.epic_id,
+        title: r.title,
+        costUsd: r.cost_usd,
+      }));
 
-    return { costPerTicket, costTrend, costByEpic };
+      return { costPerTicket, costTrend, costByEpic };
+    } catch (error) {
+      // Gracefully handle missing cost tables (migration not yet run)
+      if (isMissingCostSchemaError(error)) {
+        return EMPTY_COST_ANALYTICS;
+      }
+      throw error;
+    }
   }
 );
 

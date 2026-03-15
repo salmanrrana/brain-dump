@@ -99,7 +99,7 @@ function Dashboard() {
     isLoading: telemetryLoading,
     error: telemetryError,
   } = useDashboardTelemetryAnalytics();
-  const { data: costAnalytics } = useCostAnalytics();
+  const { data: costAnalytics, error: costError } = useCostAnalytics();
 
   const handleStatClick = useCallback(
     async (filter: StatFilter) => {
@@ -192,6 +192,7 @@ function Dashboard() {
           isLoading={telemetryLoading}
           error={telemetryError}
           costAnalytics={costAnalytics}
+          costError={costError}
         />
       )}
     </div>

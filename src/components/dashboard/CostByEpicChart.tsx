@@ -1,4 +1,4 @@
-import { type FC, useEffect, useState, useMemo } from "react";
+import { useMemo } from "react";
 import { Layers } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import {
@@ -7,27 +7,14 @@ import {
   sectionTitleStyles,
   sectionContentStyles,
 } from "./shared-styles";
+import {
+  useThemeColors,
+  formatUsd,
+  tooltipStyle,
+  emptyChartStyle,
+  subtitleStyle,
+} from "./chart-utils";
 import type { DashboardCostAnalytics } from "../../api/cost";
-
-function getComputedColors() {
-  if (typeof window === "undefined") {
-    return {
-      ai: "#14b8a6",
-      border: "#374151",
-      textSecondary: "#94a3b8",
-    };
-  }
-  const style = getComputedStyle(document.documentElement);
-  return {
-    ai: style.getPropertyValue("--accent-ai").trim() || "#14b8a6",
-    border: style.getPropertyValue("--border-primary").trim() || "#374151",
-    textSecondary: style.getPropertyValue("--text-secondary").trim() || "#94a3b8",
-  };
-}
-
-function formatUsd(value: number): string {
-  return `$${value.toFixed(2)}`;
-}
 
 export interface CostByEpicChartProps {
   data: DashboardCostAnalytics["costByEpic"];
@@ -35,27 +22,15 @@ export interface CostByEpicChartProps {
 
 /**
  * CostByEpicChart - Horizontal bar chart showing total cost per epic.
- * Follows ToolCallDistributionChart pattern from AITelemetryTab.
  */
-export const CostByEpicChart: FC<CostByEpicChartProps> = ({ data }) => {
-  const [colors, setColors] = useState(getComputedColors());
-
-  useEffect(() => {
-    const update = () => setColors(getComputedColors());
-    update();
-    const observer = new MutationObserver(update);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
-    return () => observer.disconnect();
-  }, []);
+export function CostByEpicChart({ data }: CostByEpicChartProps) {
+  const colors = useThemeColors();
 
   const chartData = useMemo(
     () =>
       data.map((d) => ({
         ...d,
-        shortTitle: d.title.length > 25 ? d.title.substring(0, 25) + "…" : d.title,
+        shortTitle: d.title.length > 25 ? d.title.substring(0, 25) + "\u2026" : d.title,
       })),
     [data]
   );
@@ -68,7 +43,7 @@ export const CostByEpicChart: FC<CostByEpicChartProps> = ({ data }) => {
           <h3 style={sectionTitleStyles}>Cost by Epic</h3>
         </div>
         <div style={sectionContentStyles}>
-          <EmptyState message="No epic cost data yet" />
+          <div style={emptyChartStyle}>No epic cost data yet</div>
         </div>
       </section>
     );
@@ -81,9 +56,7 @@ export const CostByEpicChart: FC<CostByEpicChartProps> = ({ data }) => {
       <div style={sectionHeaderStyles}>
         <Layers size={18} style={{ color: colors.ai }} aria-hidden="true" />
         <h3 style={sectionTitleStyles}>Cost by Epic</h3>
-        <span style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>
-          {formatUsd(totalCost)} total
-        </span>
+        <span style={subtitleStyle}>{formatUsd(totalCost)} total</span>
       </div>
       <div style={sectionContentStyles}>
         <ResponsiveContainer width="100%" height={chartData.length * 32 + 20}>
@@ -118,32 +91,5 @@ export const CostByEpicChart: FC<CostByEpicChartProps> = ({ data }) => {
         </ResponsiveContainer>
       </div>
     </section>
-  );
-};
-
-const tooltipStyle: React.CSSProperties = {
-  backgroundColor: "var(--bg-secondary)",
-  border: "none",
-  borderRadius: "var(--radius-md)",
-  padding: "var(--spacing-2)",
-  color: "var(--text-primary)",
-  fontSize: "var(--font-size-sm)",
-  boxShadow: "var(--shadow-lg)",
-};
-
-function EmptyState({ message }: { message: string }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        height: 120,
-        color: "var(--text-tertiary)",
-        fontSize: "var(--font-size-sm)",
-      }}
-    >
-      {message}
-    </div>
   );
 }

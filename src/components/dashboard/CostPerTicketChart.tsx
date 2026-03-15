@@ -1,4 +1,4 @@
-import { type FC, useEffect, useState, useMemo } from "react";
+import { useMemo } from "react";
 import { Receipt } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import {
@@ -7,27 +7,14 @@ import {
   sectionTitleStyles,
   sectionContentStyles,
 } from "./shared-styles";
+import {
+  useThemeColors,
+  formatUsd,
+  tooltipStyle,
+  emptyChartStyle,
+  subtitleStyle,
+} from "./chart-utils";
 import type { DashboardCostAnalytics } from "../../api/cost";
-
-function getComputedColors() {
-  if (typeof window === "undefined") {
-    return {
-      secondary: "#ea580c",
-      border: "#374151",
-      textSecondary: "#94a3b8",
-    };
-  }
-  const style = getComputedStyle(document.documentElement);
-  return {
-    secondary: style.getPropertyValue("--accent-secondary").trim() || "#ea580c",
-    border: style.getPropertyValue("--border-primary").trim() || "#374151",
-    textSecondary: style.getPropertyValue("--text-secondary").trim() || "#94a3b8",
-  };
-}
-
-function formatUsd(value: number): string {
-  return `$${value.toFixed(2)}`;
-}
 
 export interface CostPerTicketChartProps {
   data: DashboardCostAnalytics["costPerTicket"];
@@ -36,25 +23,14 @@ export interface CostPerTicketChartProps {
 /**
  * CostPerTicketChart - Bar chart showing cost per completed ticket (last 30 days).
  */
-export const CostPerTicketChart: FC<CostPerTicketChartProps> = ({ data }) => {
-  const [colors, setColors] = useState(getComputedColors());
-
-  useEffect(() => {
-    const update = () => setColors(getComputedColors());
-    update();
-    const observer = new MutationObserver(update);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
-    return () => observer.disconnect();
-  }, []);
+export function CostPerTicketChart({ data }: CostPerTicketChartProps) {
+  const colors = useThemeColors();
 
   const chartData = useMemo(
     () =>
       data.map((d) => ({
         ...d,
-        shortTitle: d.title.length > 20 ? d.title.substring(0, 20) + "…" : d.title,
+        shortTitle: d.title.length > 20 ? d.title.substring(0, 20) + "\u2026" : d.title,
       })),
     [data]
   );
@@ -67,7 +43,7 @@ export const CostPerTicketChart: FC<CostPerTicketChartProps> = ({ data }) => {
           <h3 style={sectionTitleStyles}>Cost per Ticket</h3>
         </div>
         <div style={sectionContentStyles}>
-          <EmptyState message="No completed tickets with cost data" />
+          <div style={emptyChartStyle}>No completed tickets with cost data</div>
         </div>
       </section>
     );
@@ -80,8 +56,8 @@ export const CostPerTicketChart: FC<CostPerTicketChartProps> = ({ data }) => {
       <div style={sectionHeaderStyles}>
         <Receipt size={18} style={{ color: colors.secondary }} aria-hidden="true" />
         <h3 style={sectionTitleStyles}>Cost per Ticket</h3>
-        <span style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>
-          {chartData.length} tickets • {formatUsd(avgCost)} avg
+        <span style={subtitleStyle}>
+          {chartData.length} tickets \u2022 {formatUsd(avgCost)} avg
         </span>
       </div>
       <div style={sectionContentStyles}>
@@ -115,32 +91,5 @@ export const CostPerTicketChart: FC<CostPerTicketChartProps> = ({ data }) => {
         </ResponsiveContainer>
       </div>
     </section>
-  );
-};
-
-const tooltipStyle: React.CSSProperties = {
-  backgroundColor: "var(--bg-secondary)",
-  border: "none",
-  borderRadius: "var(--radius-md)",
-  padding: "var(--spacing-2)",
-  color: "var(--text-primary)",
-  fontSize: "var(--font-size-sm)",
-  boxShadow: "var(--shadow-lg)",
-};
-
-function EmptyState({ message }: { message: string }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        height: 120,
-        color: "var(--text-tertiary)",
-        fontSize: "var(--font-size-sm)",
-      }}
-    >
-      {message}
-    </div>
   );
 }
