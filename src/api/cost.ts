@@ -1,6 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { sqlite } from "../lib/db";
-import { getTicketCost as coreGetTicketCost, getCostTrend } from "../../core/cost.ts";
+import {
+  getTicketCost as coreGetTicketCost,
+  getCostTrend,
+  listCostModels as coreListCostModels,
+  upsertCostModel as coreUpsertCostModel,
+  deleteCostModel as coreDeleteCostModel,
+} from "../../core/cost.ts";
+import type { CostModel } from "../../core/types.ts";
 
 // =============================================================================
 // Types
@@ -148,5 +155,76 @@ export const getTicketCost = createServerFn({ method: "GET" })
     return coreGetTicketCost(sqlite, ticketId);
   });
 
+// =============================================================================
+// Cost Model CRUD
+// =============================================================================
+
+export interface UpdateCostModelInput {
+  id?: string | undefined;
+  provider: string;
+  modelName: string;
+  inputCostPerMtok: number;
+  outputCostPerMtok: number;
+  cacheReadCostPerMtok?: number | undefined;
+  cacheCreateCostPerMtok?: number | undefined;
+}
+
+/**
+ * List all configured cost models.
+ */
+export const getCostModels = createServerFn({ method: "GET" }).handler(
+  async (): Promise<CostModel[]> => {
+    try {
+      return coreListCostModels(sqlite);
+    } catch (error) {
+      if (isMissingCostSchemaError(error)) {
+        return [];
+      }
+      throw error;
+    }
+  }
+);
+
+/**
+ * Create or update a cost model.
+ */
+export const updateCostModel = createServerFn({ method: "POST" })
+  .inputValidator((data: UpdateCostModelInput) => {
+    if (!data.provider || !data.modelName) {
+      throw new Error("Provider and model name are required");
+    }
+    if (data.inputCostPerMtok < 0 || data.outputCostPerMtok < 0) {
+      throw new Error("Cost values must be non-negative");
+    }
+    return data;
+  })
+  .handler(async ({ data }): Promise<CostModel> => {
+    const params: Parameters<typeof coreUpsertCostModel>[1] = {
+      provider: data.provider,
+      modelName: data.modelName,
+      inputCostPerMtok: data.inputCostPerMtok,
+      outputCostPerMtok: data.outputCostPerMtok,
+    };
+    if (data.id) params.id = data.id;
+    if (data.cacheReadCostPerMtok != null) params.cacheReadCostPerMtok = data.cacheReadCostPerMtok;
+    if (data.cacheCreateCostPerMtok != null)
+      params.cacheCreateCostPerMtok = data.cacheCreateCostPerMtok;
+    return coreUpsertCostModel(sqlite, params);
+  });
+
+/**
+ * Delete a cost model by ID.
+ */
+export const deleteCostModel = createServerFn({ method: "POST" })
+  .inputValidator((data: { id: string }) => {
+    if (!data.id) {
+      throw new Error("Cost model ID is required");
+    }
+    return data;
+  })
+  .handler(async ({ data }) => {
+    coreDeleteCostModel(sqlite, data.id);
+  });
+
 // Re-export types from core for convenience
-export type { TicketCostResult, EpicCostResult } from "../../core/types.ts";
+export type { CostModel, TicketCostResult, EpicCostResult } from "../../core/types.ts";

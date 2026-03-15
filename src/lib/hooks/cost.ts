@@ -3,8 +3,15 @@
  * Queries for dashboard cost charts and per-ticket cost breakdown.
  */
 
-import { useQuery } from "@tanstack/react-query";
-import { getCostAnalytics, getTicketCost } from "../../api/cost";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  getCostAnalytics,
+  getTicketCost,
+  getCostModels,
+  updateCostModel,
+  deleteCostModel,
+  type UpdateCostModelInput,
+} from "../../api/cost";
 import { queryKeys } from "../query-keys";
 
 /**
@@ -30,5 +37,50 @@ export function useTicketCost(ticketId: string | undefined) {
     queryFn: () => getTicketCost({ data: ticketId! }),
     enabled: !!ticketId,
     staleTime: 300_000,
+  });
+}
+
+// =============================================================================
+// COST MODEL CRUD HOOKS
+// =============================================================================
+
+/**
+ * Hook for fetching all configured cost models.
+ */
+export function useCostModels() {
+  return useQuery({
+    queryKey: queryKeys.cost.models(),
+    queryFn: () => getCostModels(),
+    staleTime: 300_000,
+  });
+}
+
+/**
+ * Mutation hook for creating or updating a cost model.
+ * Invalidates cost models query on success.
+ */
+export function useUpdateCostModel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: UpdateCostModelInput) => updateCostModel({ data }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.cost.models() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.cost.dashboardAnalytics() });
+    },
+  });
+}
+
+/**
+ * Mutation hook for deleting a cost model.
+ * Invalidates cost models query on success.
+ */
+export function useDeleteCostModel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteCostModel({ data: { id } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.cost.models() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.cost.dashboardAnalytics() });
+    },
   });
 }
