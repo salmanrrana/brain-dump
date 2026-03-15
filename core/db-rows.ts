@@ -194,6 +194,37 @@ export interface DbRalphEventRow {
 }
 
 // ============================================
+// Cost Tracking Row Types
+// ============================================
+
+export interface DbCostModelRow {
+  id: string;
+  provider: string;
+  model_name: string;
+  input_cost_per_mtok: number;
+  output_cost_per_mtok: number;
+  cache_read_cost_per_mtok: number | null;
+  cache_create_cost_per_mtok: number | null;
+  is_default: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbTokenUsageRow {
+  id: string;
+  telemetry_session_id: string | null;
+  ticket_id: string | null;
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number | null;
+  cache_creation_tokens: number | null;
+  cost_usd: number | null;
+  source: string;
+  recorded_at: string;
+}
+
+// ============================================
 // Telemetry Row Types
 // ============================================
 
@@ -209,6 +240,9 @@ export interface DbTelemetrySessionRow {
   total_tool_calls: number;
   total_duration_ms: number | null;
   total_tokens: number | null;
+  total_input_tokens: number | null;
+  total_output_tokens: number | null;
+  total_cost_usd: number | null;
   outcome: string | null;
 }
 

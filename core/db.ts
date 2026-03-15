@@ -12,6 +12,7 @@ import { existsSync, copyFileSync, mkdirSync, readdirSync, writeFileSync, statSy
 import { join } from "path";
 import { homedir } from "os";
 import type { DbHandle, InitDatabaseResult } from "./types.ts";
+import { seedCostModels } from "./cost.ts";
 
 // ============================================
 // XDG Path Utilities (copied from mcp-server/lib/xdg.ts)
@@ -780,6 +781,65 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
     db.prepare("CREATE INDEX idx_audit_log_accessed ON audit_log_access(accessed_at)").run();
     logger.info("Created audit_log_access table");
   }
+
+  // Cost tracking tables
+  if (!tableExists(db, "cost_models")) {
+    db.prepare(
+      `
+      CREATE TABLE cost_models (
+        id TEXT PRIMARY KEY NOT NULL,
+        provider TEXT NOT NULL,
+        model_name TEXT NOT NULL,
+        input_cost_per_mtok REAL NOT NULL,
+        output_cost_per_mtok REAL NOT NULL,
+        cache_read_cost_per_mtok REAL,
+        cache_create_cost_per_mtok REAL,
+        is_default INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `
+    ).run();
+    db.prepare("CREATE INDEX idx_cost_models_provider ON cost_models(provider)").run();
+    db.prepare("CREATE INDEX idx_cost_models_model ON cost_models(provider, model_name)").run();
+    logger.info("Created cost_models table");
+  }
+
+  if (!tableExists(db, "token_usage")) {
+    db.prepare(
+      `
+      CREATE TABLE token_usage (
+        id TEXT PRIMARY KEY NOT NULL,
+        telemetry_session_id TEXT REFERENCES telemetry_sessions(id) ON DELETE CASCADE,
+        ticket_id TEXT REFERENCES tickets(id) ON DELETE CASCADE,
+        model TEXT NOT NULL,
+        input_tokens INTEGER NOT NULL,
+        output_tokens INTEGER NOT NULL,
+        cache_read_tokens INTEGER,
+        cache_creation_tokens INTEGER,
+        cost_usd REAL,
+        source TEXT NOT NULL,
+        recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `
+    ).run();
+    db.prepare("CREATE INDEX idx_token_usage_session ON token_usage(telemetry_session_id)").run();
+    db.prepare("CREATE INDEX idx_token_usage_ticket ON token_usage(ticket_id)").run();
+    db.prepare("CREATE INDEX idx_token_usage_recorded ON token_usage(recorded_at)").run();
+    db.prepare(
+      "CREATE INDEX idx_token_usage_ticket_recorded ON token_usage(ticket_id, recorded_at)"
+    ).run();
+    logger.info("Created token_usage table");
+  }
+
+  // Telemetry sessions aggregate columns for cost tracking
+  addColumnIfMissing(db, "telemetry_sessions", "total_input_tokens", "INTEGER", logger);
+  addColumnIfMissing(db, "telemetry_sessions", "total_output_tokens", "INTEGER", logger);
+  addColumnIfMissing(db, "telemetry_sessions", "total_cost_usd", "REAL", logger);
+
+  // Seed cost models if table is empty
+  const seeded = seedCostModels(db);
+  if (seeded > 0) logger.info(`Seeded ${seeded} cost models`);
 
   // Settings columns added in various migrations
   addColumnIfMissing(db, "settings", "ralph_timeout", "INTEGER DEFAULT 3600", logger);

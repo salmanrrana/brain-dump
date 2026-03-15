@@ -47,6 +47,9 @@ function createTelemetrySessionsTable(sqlite: Database.Database): void {
       total_tool_calls INTEGER DEFAULT 0,
       total_duration_ms INTEGER,
       total_tokens INTEGER,
+      total_input_tokens INTEGER,
+      total_output_tokens INTEGER,
+      total_cost_usd REAL,
       outcome TEXT
     )
   `);

@@ -332,6 +332,93 @@ export interface RalphEvent {
 }
 
 // ============================================
+// Cost Tracking Types
+// ============================================
+
+export interface CostModel {
+  id: string;
+  provider: string;
+  modelName: string;
+  inputCostPerMtok: number;
+  outputCostPerMtok: number;
+  cacheReadCostPerMtok: number | null;
+  cacheCreateCostPerMtok: number | null;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TokenUsageRecord {
+  id: string;
+  telemetrySessionId: string | null;
+  ticketId: string | null;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number | null;
+  cacheCreationTokens: number | null;
+  costUsd: number | null;
+  source: string;
+  recordedAt: string;
+}
+
+export interface TokenCounts {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens?: number;
+  cacheCreationTokens?: number;
+}
+
+export interface ModelCostBreakdown {
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  costUsd: number;
+}
+
+export interface TicketCostResult {
+  ticketId: string;
+  totalCostUsd: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCacheReadTokens: number;
+  totalCacheCreationTokens: number;
+  byModel: ModelCostBreakdown[];
+  sessionCount: number;
+}
+
+export interface EpicCostResult {
+  epicId: string;
+  totalCostUsd: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  ticketCount: number;
+  byTicket: Array<{ ticketId: string; title: string; costUsd: number }>;
+}
+
+export interface ProjectCostResult {
+  projectId: string;
+  totalCostUsd: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  ticketCount: number;
+}
+
+export interface CostTrendEntry {
+  period: string;
+  totalCostUsd: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+}
+
+export interface CostTrendResult {
+  entries: CostTrendEntry[];
+  granularity: "daily" | "weekly";
+}
+
+// ============================================
 // Telemetry Types
 // ============================================
 

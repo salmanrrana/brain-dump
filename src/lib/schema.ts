@@ -387,6 +387,10 @@ export const telemetrySessions = sqliteTable(
     totalToolCalls: integer("total_tool_calls").default(0),
     totalDurationMs: integer("total_duration_ms"),
     totalTokens: integer("total_tokens"),
+    // Token usage aggregates (computed from token_usage table)
+    totalInputTokens: integer("total_input_tokens"),
+    totalOutputTokens: integer("total_output_tokens"),
+    totalCostUsd: real("total_cost_usd"),
     outcome: text("outcome"), // 'success', 'failure', 'timeout', 'cancelled'
   },
   (table) => [
@@ -480,6 +484,71 @@ export interface ContextLoadedEventData {
   attachmentCount: number;
   imageCount: number;
 }
+
+// ============================================
+// Cost Tracking Tables
+// ============================================
+
+// Cost models table - stores pricing per provider/model
+export const costModels = sqliteTable(
+  "cost_models",
+  {
+    id: text("id").primaryKey(),
+    provider: text("provider").notNull(), // 'anthropic', 'openai', 'google', etc.
+    modelName: text("model_name").notNull(),
+    inputCostPerMtok: real("input_cost_per_mtok").notNull(), // USD per 1M input tokens
+    outputCostPerMtok: real("output_cost_per_mtok").notNull(), // USD per 1M output tokens
+    cacheReadCostPerMtok: real("cache_read_cost_per_mtok"), // USD per 1M cache read tokens
+    cacheCreateCostPerMtok: real("cache_create_cost_per_mtok"), // USD per 1M cache creation tokens
+    isDefault: integer("is_default", { mode: "boolean" }).default(false),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    index("idx_cost_models_provider").on(table.provider),
+    index("idx_cost_models_model").on(table.provider, table.modelName),
+  ]
+);
+
+export type CostModel = typeof costModels.$inferSelect;
+export type NewCostModel = typeof costModels.$inferInsert;
+
+// Token usage table - records actual token usage per session
+export const tokenUsage = sqliteTable(
+  "token_usage",
+  {
+    id: text("id").primaryKey(),
+    telemetrySessionId: text("telemetry_session_id").references(() => telemetrySessions.id, {
+      onDelete: "cascade",
+    }),
+    ticketId: text("ticket_id").references(() => tickets.id, {
+      onDelete: "cascade",
+    }),
+    model: text("model").notNull(),
+    inputTokens: integer("input_tokens").notNull(),
+    outputTokens: integer("output_tokens").notNull(),
+    cacheReadTokens: integer("cache_read_tokens"),
+    cacheCreationTokens: integer("cache_creation_tokens"),
+    costUsd: real("cost_usd"), // Computed from cost_models at insert time
+    source: text("source").notNull(), // 'jsonl-hook', 'otel', 'mcp-manual'
+    recordedAt: text("recorded_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    index("idx_token_usage_session").on(table.telemetrySessionId),
+    index("idx_token_usage_ticket").on(table.ticketId),
+    index("idx_token_usage_recorded").on(table.recordedAt),
+    index("idx_token_usage_ticket_recorded").on(table.ticketId, table.recordedAt),
+  ]
+);
+
+export type TokenUsage = typeof tokenUsage.$inferSelect;
+export type NewTokenUsage = typeof tokenUsage.$inferInsert;
 
 // ============================================
 // Claude Tasks Tables

@@ -60,6 +60,15 @@ export type {
   RalphSession,
   RalphEventType,
   RalphEvent,
+  CostModel,
+  TokenUsageRecord,
+  TokenCounts,
+  ModelCostBreakdown,
+  TicketCostResult,
+  EpicCostResult,
+  ProjectCostResult,
+  CostTrendEntry,
+  CostTrendResult,
   TelemetrySession,
   TelemetryEvent,
   GitCommandResult,
@@ -222,6 +231,22 @@ export type {
   UpdateStateParams,
   EmitEventParams,
 } from "./session.ts";
+
+// Cost tracking business logic
+export {
+  recordUsage,
+  getTicketCost,
+  getEpicCost,
+  getProjectCost,
+  getCostTrend,
+  computeCostFromTokens,
+  upsertCostModel,
+  listCostModels,
+  deleteCostModel,
+  seedCostModels,
+} from "./cost.ts";
+
+export type { RecordUsageParams, UpsertCostModelParams, CostTrendParams } from "./cost.ts";
 
 // Telemetry business logic
 export {
