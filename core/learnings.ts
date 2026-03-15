@@ -11,6 +11,7 @@ import { join } from "path";
 import type { DbHandle, Learning } from "./types.ts";
 import { TicketNotFoundError, EpicNotFoundError, InvalidStateError } from "./errors.ts";
 import { addComment } from "./comment.ts";
+import { listComments } from "./comment.ts";
 
 // ============================================
 // Internal DB Row Types
@@ -75,6 +76,15 @@ export interface GetEpicLearningsResult {
   epicTitle: string;
   ticketsCompleted: number;
   learnings: LearningEntry[];
+}
+
+export interface AutoExtractLearningsResult {
+  epicId: string;
+  epicTitle: string;
+  ticketsProcessed: number;
+  ticketsSkipped: number;
+  totalLearningsExtracted: number;
+  results: ReconcileLearningsResult[];
 }
 
 // ============================================
@@ -225,6 +235,125 @@ export function reconcileLearnings(
     docsUpdated,
     commentWarning,
   };
+}
+
+/**
+ * Auto-extract learnings from completed tickets in an epic.
+ * For each done ticket that doesn't already have learnings,
+ * extracts a "workflow" learning from its work_summary comments.
+ * Handles deduplication: tickets with existing learnings are skipped.
+ */
+export function autoExtractLearnings(db: DbHandle, epicId: string): AutoExtractLearningsResult {
+  const epic = db.prepare("SELECT id, title FROM epics WHERE id = ?").get(epicId) as
+    | DbEpicRow
+    | undefined;
+
+  if (!epic) {
+    throw new EpicNotFoundError(epicId);
+  }
+
+  // Get all done tickets in this epic
+  const doneTickets = db
+    .prepare("SELECT id, title, status, epic_id FROM tickets WHERE epic_id = ? AND status = 'done'")
+    .all(epicId) as TicketRow[];
+
+  // Get existing learnings to check which tickets already have them
+  const epicState = db
+    .prepare("SELECT * FROM epic_workflow_state WHERE epic_id = ?")
+    .get(epicId) as DbEpicWorkflowState | undefined;
+
+  const existingLearnings: LearningEntry[] = epicState?.learnings
+    ? JSON.parse(epicState.learnings)
+    : [];
+
+  const ticketIdsWithLearnings = new Set(existingLearnings.map((l) => l.ticketId));
+
+  const results: ReconcileLearningsResult[] = [];
+  let ticketsSkipped = 0;
+  let totalLearningsExtracted = 0;
+
+  for (const ticket of doneTickets) {
+    if (ticketIdsWithLearnings.has(ticket.id)) {
+      ticketsSkipped++;
+      continue;
+    }
+
+    const learnings = extractLearningsFromTicket(db, ticket.id, ticket.title);
+
+    if (learnings.length === 0) {
+      continue;
+    }
+
+    const result = reconcileLearnings(db, ticket.id, learnings);
+    results.push(result);
+    totalLearningsExtracted += result.learningsStored;
+  }
+
+  return {
+    epicId,
+    epicTitle: epic.title,
+    ticketsProcessed: results.length,
+    ticketsSkipped,
+    totalLearningsExtracted,
+    results,
+  };
+}
+
+/**
+ * Extract learnings from a ticket's comments and review findings.
+ * Work summaries become "workflow" learnings, fixed review findings become "anti-pattern" learnings.
+ */
+function extractLearningsFromTicket(
+  db: DbHandle,
+  ticketId: string,
+  ticketTitle: string
+): Learning[] {
+  const learnings: Learning[] = [];
+
+  // Extract from work_summary comments
+  const comments = listComments(db, ticketId);
+  const workSummaries = comments.filter((c) => c.type === "work_summary");
+
+  for (const summary of workSummaries) {
+    const content = summary.content.trim();
+    if (content.length > 0) {
+      learnings.push({
+        type: "workflow",
+        description: content.length > 500 ? content.slice(0, 497) + "..." : content,
+      });
+    }
+  }
+
+  // Extract from fixed review findings (critical/major only)
+  interface FindingRow {
+    description: string;
+    severity: string;
+    category: string;
+  }
+  const fixedFindings = db
+    .prepare(
+      `SELECT description, severity, category FROM review_findings
+       WHERE ticket_id = ? AND status = 'fixed' AND severity IN ('critical', 'major')
+       ORDER BY created_at ASC`
+    )
+    .all(ticketId) as FindingRow[];
+
+  for (const finding of fixedFindings) {
+    learnings.push({
+      type: "anti-pattern",
+      description: `[${finding.category}] ${finding.description}`,
+    });
+  }
+
+  // If no comments or findings, add a basic completion learning
+  if (learnings.length === 0) {
+    learnings.push({
+      type: "workflow",
+      description: `Ticket "${ticketTitle}" completed successfully.`,
+    });
+  }
+
+  return learnings;
 }
 
 /**

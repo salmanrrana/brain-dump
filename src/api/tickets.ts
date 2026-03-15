@@ -4,6 +4,10 @@ import { tickets, projects, epics, ticketComments } from "../lib/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { ensureExists, safeJsonStringify } from "../lib/utils";
+import { autoExtractLearnings } from "../../core/index";
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("tickets-api");
 
 // Types
 export type TicketStatus =
@@ -316,7 +320,31 @@ export const updateTicketStatus = createServerFn({ method: "POST" })
 
     db.update(tickets).set(updateData).where(eq(tickets.id, id)).run();
 
-    return db.select().from(tickets).where(eq(tickets.id, id)).get();
+    const updated = db.select().from(tickets).where(eq(tickets.id, id)).get();
+
+    // Auto-trigger learnings when all tickets in an epic are done
+    if (status === "done" && existing.epicId) {
+      try {
+        const epicTickets = db
+          .select({ status: tickets.status })
+          .from(tickets)
+          .where(eq(tickets.epicId, existing.epicId))
+          .all();
+
+        const allDone = epicTickets.every((t) => t.status === "done");
+        if (allDone) {
+          autoExtractLearnings(sqlite, existing.epicId);
+          log.info(`Auto-extracted learnings for completed epic ${existing.epicId}`);
+        }
+      } catch (err) {
+        log.error(
+          `Failed to auto-extract learnings for epic ${existing.epicId}`,
+          err instanceof Error ? err : new Error(String(err))
+        );
+      }
+    }
+
+    return updated;
   });
 
 // Update ticket position only

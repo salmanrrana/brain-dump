@@ -328,7 +328,10 @@ function EpicDetailPage() {
       </section>
 
       <section style={sectionStyles}>
-        <EpicLearnings learnings={epicDetail.workflowState?.learnings ?? []} />
+        <EpicLearnings
+          epicId={epicDetail.epic.id}
+          learnings={epicDetail.workflowState?.learnings ?? []}
+        />
       </section>
 
       {epicDetail.reviewRuns.length > 0 ? (

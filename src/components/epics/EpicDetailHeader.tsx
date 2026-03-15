@@ -16,6 +16,7 @@ import {
   Monitor,
   Github,
   Search,
+  MoreHorizontal,
 } from "lucide-react";
 import { useToast } from "../Toast";
 import { Modal } from "../ui/Modal";
@@ -62,6 +63,7 @@ export function EpicDetailHeader({
   onEdit,
 }: EpicDetailHeaderProps): React.ReactElement {
   const [showLaunchMenu, setShowLaunchMenu] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showFindingsModal, setShowFindingsModal] = useState(false);
   const [selectedReviewTicketIds, setSelectedReviewTicketIds] = useState<string[]>([]);
@@ -69,6 +71,7 @@ export function EpicDetailHeader({
   const [reviewLaunchError, setReviewLaunchError] = useState<string | null>(null);
   const [pendingReviewProvider, setPendingReviewProvider] = useState<string | null>(null);
   const launchMenuRef = useRef<HTMLDivElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
   const settings = useSettings();
   const queryClient = useQueryClient();
@@ -99,6 +102,12 @@ export function EpicDetailHeader({
     launchMenuRef,
     useCallback(() => setShowLaunchMenu(false), []),
     showLaunchMenu
+  );
+
+  useClickOutside(
+    moreMenuRef,
+    useCallback(() => setShowMoreMenu(false), []),
+    showMoreMenu
   );
 
   const handleOpenReviewModal = useCallback(() => {
@@ -317,33 +326,6 @@ export function EpicDetailHeader({
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={handleOpenReviewModal}
-              disabled={reviewableTickets.length === 0}
-              style={{
-                ...secondaryActionButtonStyles,
-                opacity: reviewableTickets.length === 0 ? 0.5 : 1,
-                cursor: reviewableTickets.length === 0 ? "not-allowed" : "pointer",
-              }}
-              className="hover:bg-[var(--bg-hover)]"
-              aria-label="Review a ticket in this epic"
-            >
-              <Search size={16} />
-              Review Ticket
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowFindingsModal(true)}
-              style={secondaryActionButtonStyles}
-              className="hover:bg-[var(--bg-hover)]"
-              aria-label="View review findings for this epic"
-            >
-              <AlertCircle size={16} />
-              {hasFindings ? `Findings (${findingsSummary.total})` : "Findings"}
-            </button>
-
             {workflowState?.prNumber && onPushChanges && (
               <button
                 type="button"
@@ -366,16 +348,73 @@ export function EpicDetailHeader({
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={onEdit}
-              style={editButtonStyles}
-              className="hover:bg-[var(--bg-hover)]"
-              aria-label="Edit epic"
-            >
-              <Edit3 size={16} />
-              Edit
-            </button>
+            <div style={dropdownContainerStyles} ref={moreMenuRef}>
+              <button
+                type="button"
+                onClick={() => setShowMoreMenu(!showMoreMenu)}
+                style={secondaryActionButtonStyles}
+                className="hover:bg-[var(--bg-hover)]"
+                aria-expanded={showMoreMenu}
+                aria-haspopup="true"
+                aria-label="More actions"
+              >
+                <MoreHorizontal size={16} />
+                More
+                <ChevronDown
+                  size={14}
+                  style={{
+                    transition: "transform 0.2s",
+                    transform: showMoreMenu ? "rotate(180deg)" : "rotate(0deg)",
+                  }}
+                />
+              </button>
+
+              {showMoreMenu && (
+                <div style={moreMenuDropdownStyles}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      handleOpenReviewModal();
+                    }}
+                    disabled={reviewableTickets.length === 0}
+                    style={{
+                      ...moreMenuItemStyles,
+                      opacity: reviewableTickets.length === 0 ? 0.5 : 1,
+                      cursor: reviewableTickets.length === 0 ? "not-allowed" : "pointer",
+                    }}
+                    className="hover:bg-[var(--bg-hover)]"
+                  >
+                    <Search size={14} />
+                    Review Ticket
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      setShowFindingsModal(true);
+                    }}
+                    style={moreMenuItemStyles}
+                    className="hover:bg-[var(--bg-hover)]"
+                  >
+                    <AlertCircle size={14} />
+                    {hasFindings ? `Findings (${findingsSummary.total})` : "Findings"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      onEdit();
+                    }}
+                    style={moreMenuItemStyles}
+                    className="hover:bg-[var(--bg-hover)]"
+                  >
+                    <Edit3 size={14} />
+                    Edit
+                  </button>
+                </div>
+              )}
+            </div>
 
             <div style={dropdownContainerStyles} ref={launchMenuRef}>
               <button
@@ -1005,21 +1044,6 @@ const actionsContainerStyles: React.CSSProperties = {
   flexShrink: 0,
 };
 
-const editButtonStyles: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "var(--spacing-2)",
-  padding: "var(--spacing-2) var(--spacing-3)",
-  background: "var(--bg-tertiary)",
-  border: "1px solid var(--border-primary)",
-  borderRadius: "var(--radius-md)",
-  color: "var(--text-primary)",
-  fontSize: "var(--font-size-sm)",
-  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-  cursor: "pointer",
-  transition: "background-color 0.15s",
-};
-
 const shipButtonStyles: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
@@ -1080,6 +1104,35 @@ const launchButtonStyles: React.CSSProperties = {
 
 const dropdownContainerStyles: React.CSSProperties = {
   position: "relative",
+};
+
+const moreMenuDropdownStyles: React.CSSProperties = {
+  position: "absolute",
+  top: "100%",
+  right: 0,
+  marginTop: "var(--spacing-2)",
+  background: "var(--bg-secondary)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-lg)",
+  boxShadow: "var(--shadow-lg)",
+  zIndex: 50,
+  minWidth: "180px",
+  padding: "var(--spacing-1) 0",
+};
+
+const moreMenuItemStyles: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "var(--spacing-2)",
+  width: "100%",
+  padding: "var(--spacing-2) var(--spacing-3)",
+  background: "transparent",
+  border: "none",
+  color: "var(--text-primary)",
+  fontSize: "var(--font-size-sm)",
+  textAlign: "left",
+  cursor: "pointer",
+  transition: "background-color 0.15s",
 };
 
 const dropdownMenuStyles: React.CSSProperties = {

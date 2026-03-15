@@ -257,7 +257,8 @@ describe("EpicDetailPage ship entry points", () => {
     );
   });
 
-  it("shows aggregated review finding counts for the epic", () => {
+  it("shows aggregated review finding counts for the epic", async () => {
+    const user = userEvent.setup();
     epicDetailState = createEpicDetail({
       findingsSummary: {
         critical: 1,
@@ -273,9 +274,11 @@ describe("EpicDetailPage ship entry points", () => {
 
     expect(screen.getByText("Review Findings")).toBeInTheDocument();
     expect(screen.getByText("10 total findings across this epic")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /view review findings for this epic/i })
-    ).toHaveTextContent("Findings (10)");
+
+    // Open the More dropdown to find the Findings button
+    await user.click(screen.getByRole("button", { name: /more actions/i }));
+    expect(screen.getByText("Findings (10)")).toBeInTheDocument();
+
     expect(screen.getByText("Critical")).toBeInTheDocument();
     expect(screen.getByText("Major")).toBeInTheDocument();
     expect(screen.getByText("Minor")).toBeInTheDocument();
@@ -329,7 +332,9 @@ describe("EpicDetailPage ship entry points", () => {
 
     render(<EpicDetailPage />);
 
-    await user.click(screen.getByRole("button", { name: /review a ticket in this epic/i }));
+    // Open the More dropdown first, then click Review Ticket
+    await user.click(screen.getByRole("button", { name: /more actions/i }));
+    await user.click(screen.getByText("Review Ticket"));
     await user.click(screen.getByLabelText(/select ship modal for focused review/i));
     await user.type(
       screen.getByLabelText(/how do you want to steer the review\?/i),
@@ -359,7 +364,9 @@ describe("EpicDetailPage ship entry points", () => {
 
     render(<EpicDetailPage />);
 
-    await user.click(screen.getByRole("button", { name: /review a ticket in this epic/i }));
+    // Open the More dropdown first, then click Review Ticket
+    await user.click(screen.getByRole("button", { name: /more actions/i }));
+    await user.click(screen.getByText("Review Ticket"));
 
     const claudeButton = screen.getByRole("button", { name: /^claude$/i });
     expect(claudeButton).toBeDisabled();
@@ -393,7 +400,9 @@ describe("EpicDetailPage ship entry points", () => {
 
     render(<EpicDetailPage />);
 
-    await user.click(screen.getByRole("button", { name: /review a ticket in this epic/i }));
+    // Open the More dropdown first, then click Review Ticket
+    await user.click(screen.getByRole("button", { name: /more actions/i }));
+    await user.click(screen.getByText("Review Ticket"));
     await user.click(screen.getByLabelText(/select ship modal for focused review/i));
     await user.click(screen.getByLabelText(/select review launch copy for focused review/i));
     await user.click(screen.getByRole("button", { name: /^claude$/i }));

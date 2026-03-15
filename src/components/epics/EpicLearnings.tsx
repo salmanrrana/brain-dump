@@ -1,5 +1,18 @@
 import React from "react";
-import { ChevronDown, ChevronUp, Lightbulb, FileText, Wrench, GitBranch } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Lightbulb,
+  FileText,
+  Wrench,
+  GitBranch,
+  RefreshCw,
+  LoaderCircle,
+} from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { triggerAutoLearnings } from "../../api/epics";
+import { queryKeys } from "../../lib/query-keys";
+import { useToast } from "../Toast";
 
 export interface LearningEntry {
   ticketId: string;
@@ -17,6 +30,7 @@ export interface LearningEntry {
 }
 
 export interface EpicLearningsProps {
+  epicId: string;
   learnings: LearningEntry[];
 }
 
@@ -61,8 +75,31 @@ const DEFAULT_CONFIG: LearningConfig = {
   icon: Lightbulb,
 };
 
-export function EpicLearnings({ learnings = [] }: EpicLearningsProps) {
+export function EpicLearnings({ epicId, learnings = [] }: EpicLearningsProps) {
   const [isOpen, setIsOpen] = React.useState(false);
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+
+  const refreshMutation = useMutation({
+    mutationFn: () => triggerAutoLearnings({ data: { epicId } }),
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.epicDetail(epicId) });
+      if (result.ticketsProcessed > 0) {
+        showToast(
+          "success",
+          `Extracted ${result.totalLearningsExtracted} learnings from ${result.ticketsProcessed} ticket${result.ticketsProcessed === 1 ? "" : "s"}`
+        );
+      } else {
+        showToast("info", "No new learnings to extract. All tickets already have learnings.");
+      }
+    },
+    onError: (err) => {
+      showToast(
+        "error",
+        `Failed to refresh learnings: ${err instanceof Error ? err.message : "Unknown error"}`
+      );
+    },
+  });
 
   const safeLearnings = learnings ?? [];
   const totalLearnings = safeLearnings.reduce(
@@ -76,6 +113,19 @@ export function EpicLearnings({ learnings = [] }: EpicLearningsProps) {
         <p className="text-slate-400">
           No learnings captured yet. Complete tickets in this epic to accumulate learnings.
         </p>
+        <button
+          type="button"
+          onClick={() => refreshMutation.mutate()}
+          disabled={refreshMutation.isPending}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-600 transition-colors disabled:opacity-50"
+        >
+          {refreshMutation.isPending ? (
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <RefreshCw className="h-3.5 w-3.5" />
+          )}
+          {refreshMutation.isPending ? "Extracting..." : "Refresh Learnings"}
+        </button>
       </div>
     );
   }
@@ -139,6 +189,22 @@ export function EpicLearnings({ learnings = [] }: EpicLearningsProps) {
               </div>
             </div>
           ))}
+
+          <div className="border-t border-slate-700 pt-3">
+            <button
+              type="button"
+              onClick={() => refreshMutation.mutate()}
+              disabled={refreshMutation.isPending}
+              className="inline-flex items-center gap-1.5 rounded-md bg-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-600 transition-colors disabled:opacity-50"
+            >
+              {refreshMutation.isPending ? (
+                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              {refreshMutation.isPending ? "Extracting..." : "Refresh Learnings"}
+            </button>
+          </div>
         </div>
       )}
     </div>

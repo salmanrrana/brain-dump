@@ -373,13 +373,14 @@ export type {
 } from "./health.ts";
 
 // Learning reconciliation business logic
-export { reconcileLearnings, getEpicLearnings } from "./learnings.ts";
+export { reconcileLearnings, getEpicLearnings, autoExtractLearnings } from "./learnings.ts";
 
 export type {
   LearningEntry,
   DocUpdateResult,
   ReconcileLearningsResult,
   GetEpicLearningsResult,
+  AutoExtractLearningsResult,
 } from "./learnings.ts";
 
 // Compliance / conversation logging business logic

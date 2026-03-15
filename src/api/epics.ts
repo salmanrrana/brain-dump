@@ -14,6 +14,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { ensureExists } from "../lib/utils";
 import { createLogger } from "../lib/logger";
+import { autoExtractLearnings } from "../../core/index";
 
 const log = createLogger("epics-api");
 
@@ -589,4 +590,16 @@ export const getEpicDetail = createServerFn({ method: "GET" })
       criticalFindings,
       reviewRuns: Array.from(reviewRunMap.values()),
     };
+  });
+
+// Trigger auto-extraction of learnings from completed tickets in an epic
+export const triggerAutoLearnings = createServerFn({ method: "POST" })
+  .inputValidator((input: { epicId: string }) => {
+    if (!input.epicId) {
+      throw new Error("Epic ID is required");
+    }
+    return input;
+  })
+  .handler(async ({ data: { epicId } }) => {
+    return autoExtractLearnings(sqlite, epicId);
   });
