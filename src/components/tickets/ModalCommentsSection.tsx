@@ -1,7 +1,7 @@
 import { type FC, useState, useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { MessageSquare, ChevronDown, Loader2, Send, Bot, Terminal } from "lucide-react";
-import { useComments, useCreateComment } from "../../lib/hooks";
+import { usePaginatedComments, useCreateComment } from "../../lib/hooks";
 import { POLLING_INTERVALS } from "../../lib/constants";
 import { getCommentAuthorBase, getCommentAuthorDisplayName } from "../../lib/comment-authors";
 import { useToast } from "../Toast";
@@ -52,7 +52,14 @@ export const ModalCommentsSection: FC<ModalCommentsSectionProps> = ({ ticketId, 
   const [newComment, setNewComment] = useState("");
   const [showComments, setShowComments] = useState(true);
 
-  const { comments, loading: commentsLoading } = useComments(ticketId, {
+  const {
+    comments,
+    totalCount,
+    loading: commentsLoading,
+    hasMore,
+    fetchMore,
+    isFetchingMore,
+  } = usePaginatedComments(ticketId, {
     pollingInterval:
       ticketStatus === "in_progress"
         ? POLLING_INTERVALS.COMMENTS_ACTIVE
@@ -93,9 +100,7 @@ export const ModalCommentsSection: FC<ModalCommentsSectionProps> = ({ ticketId, 
       >
         <MessageSquare size={16} />
         <span>Activity</span>
-        {comments.length > 0 && (
-          <span className="text-[var(--text-tertiary)]">({comments.length})</span>
-        )}
+        {totalCount > 0 && <span className="text-[var(--text-tertiary)]">({totalCount})</span>}
         <ChevronDown
           size={14}
           className={`transition-transform ${showComments ? "rotate-180" : ""}`}
@@ -128,7 +133,13 @@ export const ModalCommentsSection: FC<ModalCommentsSectionProps> = ({ ticketId, 
           </div>
 
           {/* Comments list */}
-          <CommentsList comments={comments} loading={commentsLoading} />
+          <CommentsList
+            comments={comments}
+            loading={commentsLoading}
+            hasMore={hasMore}
+            isFetchingMore={isFetchingMore}
+            onLoadMore={() => fetchMore()}
+          />
         </div>
       )}
     </div>
@@ -136,11 +147,20 @@ export const ModalCommentsSection: FC<ModalCommentsSectionProps> = ({ ticketId, 
 };
 
 interface CommentsListProps {
-  comments: ReturnType<typeof useComments>["comments"];
+  comments: ReturnType<typeof usePaginatedComments>["comments"];
   loading: boolean;
+  hasMore: boolean;
+  isFetchingMore: boolean;
+  onLoadMore: () => void;
 }
 
-function CommentsList({ comments, loading }: CommentsListProps) {
+function CommentsList({
+  comments,
+  loading,
+  hasMore,
+  isFetchingMore,
+  onLoadMore,
+}: CommentsListProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const useVirtual = comments.length > VIRTUALIZATION_THRESHOLD;
 
@@ -210,10 +230,23 @@ function CommentsList({ comments, loading }: CommentsListProps) {
     );
   }
 
+  const loadMoreButton = hasMore && (
+    <button
+      type="button"
+      onClick={onLoadMore}
+      disabled={isFetchingMore}
+      className="w-full flex items-center justify-center gap-1 py-2 text-xs text-[var(--text-muted)] bg-[var(--bg-hover)] border border-[var(--border-secondary)] rounded hover:bg-[var(--bg-tertiary)] transition-colors disabled:cursor-wait"
+    >
+      {isFetchingMore ? <Loader2 size={12} className="animate-spin" /> : <ChevronDown size={12} />}
+      {isFetchingMore ? "Loading..." : "Load older comments"}
+    </button>
+  );
+
   if (!useVirtual) {
     return (
       <div className="space-y-2 max-h-96 overflow-y-auto">
         {comments.map((comment) => renderComment(comment))}
+        {loadMoreButton}
       </div>
     );
   }
@@ -221,29 +254,32 @@ function CommentsList({ comments, loading }: CommentsListProps) {
   const virtualItems = virtualizer.getVirtualItems();
 
   return (
-    <div ref={scrollContainerRef} className="max-h-96 overflow-y-auto">
-      <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
-        {virtualItems.map((virtualRow) => {
-          const comment = comments[virtualRow.index];
-          if (!comment) return null;
-          return (
-            <div
-              key={virtualRow.key}
-              ref={virtualizer.measureElement}
-              data-index={virtualRow.index}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                transform: `translateY(${virtualRow.start}px)`,
-              }}
-            >
-              <div className="pb-2">{renderComment(comment)}</div>
-            </div>
-          );
-        })}
+    <div>
+      <div ref={scrollContainerRef} className="max-h-96 overflow-y-auto">
+        <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+          {virtualItems.map((virtualRow) => {
+            const comment = comments[virtualRow.index];
+            if (!comment) return null;
+            return (
+              <div
+                key={virtualRow.key}
+                ref={virtualizer.measureElement}
+                data-index={virtualRow.index}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                <div className="pb-2">{renderComment(comment)}</div>
+              </div>
+            );
+          })}
+        </div>
       </div>
+      {loadMoreButton}
     </div>
   );
 }

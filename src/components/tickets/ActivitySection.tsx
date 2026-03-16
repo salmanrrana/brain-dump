@@ -1,6 +1,6 @@
 import { type FC, useRef, useCallback, useEffect, useMemo } from "react";
-import { MessageCircle, Loader2 } from "lucide-react";
-import { useComments } from "../../lib/hooks";
+import { MessageCircle, Loader2, ChevronUp } from "lucide-react";
+import { usePaginatedComments } from "../../lib/hooks";
 import { Comment as CommentComponent } from "./Comment";
 import { CommentInput } from "./CommentInput";
 
@@ -50,7 +50,8 @@ export const ActivitySection: FC<ActivitySectionProps> = ({
   testId = "activity-section",
 }) => {
   const listRef = useRef<HTMLDivElement>(null);
-  const { comments, loading, error } = useComments(ticketId, { pollingInterval });
+  const { comments, totalCount, loading, error, hasMore, fetchMore, isFetchingMore } =
+    usePaginatedComments(ticketId, { pollingInterval });
 
   // Sort comments oldest first (API returns newest first, so reverse)
   // Memoized to avoid re-creating array on every render
@@ -143,7 +144,7 @@ export const ActivitySection: FC<ActivitySectionProps> = ({
           <MessageCircle size={16} aria-hidden="true" />
           Activity
         </h3>
-        {comments.length > 0 && <span style={countBadgeStyles}>{comments.length}</span>}
+        {totalCount > 0 && <span style={countBadgeStyles}>{totalCount}</span>}
       </div>
 
       {/* Error display */}
@@ -161,9 +162,40 @@ export const ActivitySection: FC<ActivitySectionProps> = ({
             No activity yet
           </div>
         ) : (
-          sortedComments.map((comment) => (
-            <CommentComponent key={comment.id} comment={comment} testId={`${testId}-item`} />
-          ))
+          <>
+            {hasMore && (
+              <button
+                type="button"
+                onClick={() => fetchMore()}
+                disabled={isFetchingMore}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "var(--spacing-1)",
+                  padding: "var(--spacing-2) var(--spacing-3)",
+                  fontSize: "var(--font-size-xs)",
+                  color: "var(--text-muted)",
+                  background: "var(--bg-hover)",
+                  border: "1px solid var(--border-secondary)",
+                  borderRadius: "var(--radius-sm)",
+                  cursor: isFetchingMore ? "wait" : "pointer",
+                  width: "100%",
+                }}
+                data-testid={`${testId}-load-older`}
+              >
+                {isFetchingMore ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <ChevronUp size={12} />
+                )}
+                {isFetchingMore ? "Loading..." : "Load older comments"}
+              </button>
+            )}
+            {sortedComments.map((comment) => (
+              <CommentComponent key={comment.id} comment={comment} testId={`${testId}-item`} />
+            ))}
+          </>
         )}
       </div>
 

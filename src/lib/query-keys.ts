@@ -54,6 +54,7 @@ export const queryKeys = {
 
   // Comments
   comments: (ticketId: string) => ["comments", ticketId] as const,
+  paginatedComments: (ticketId: string) => ["comments", ticketId, "paginated"] as const,
 
   // Settings
   settings: ["settings"] as const,

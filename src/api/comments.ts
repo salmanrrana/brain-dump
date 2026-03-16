@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { db } from "../lib/db";
 import { ticketComments } from "../lib/schema";
 import type { TicketComment } from "../lib/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, lt, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
   BASE_COMMENT_AUTHORS,
@@ -48,6 +48,74 @@ export const getComments = createServerFn({ method: "GET" })
       .all();
 
     return comments;
+  });
+
+// ─── Paginated Comments ──────────────────────────────────────────────────────
+
+export interface PaginatedCommentsInput {
+  ticketId: string;
+  /** Max comments per page (default 50) */
+  limit?: number;
+  /** Cursor: ISO timestamp — returns comments older than this */
+  cursor?: string;
+}
+
+export interface PaginatedCommentsResult {
+  comments: Comment[];
+  /** Cursor for the next page, or null if no more pages */
+  nextCursor: string | null;
+  /** Total comment count for this ticket */
+  totalCount: number;
+}
+
+const DEFAULT_COMMENT_PAGE_SIZE = 50;
+
+/**
+ * Paginated comments for a ticket.
+ * Returns most recent comments first. Pass `cursor` (the `createdAt` of the
+ * last comment from the previous page) to load older comments.
+ */
+export const getPaginatedComments = createServerFn({ method: "GET" })
+  .inputValidator((data: PaginatedCommentsInput) => {
+    if (!data.ticketId || typeof data.ticketId !== "string") {
+      throw new Error("Ticket ID is required");
+    }
+    if (!/^[a-zA-Z0-9-]+$/.test(data.ticketId)) {
+      throw new Error("Invalid ticket ID format");
+    }
+    return data;
+  })
+  .handler(async ({ data }): Promise<PaginatedCommentsResult> => {
+    const { ticketId, limit = DEFAULT_COMMENT_PAGE_SIZE, cursor } = data;
+    const pageSize = Math.min(Math.max(1, limit), 200);
+
+    // Total count for this ticket
+    const countResult = db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(ticketComments)
+      .where(eq(ticketComments.ticketId, ticketId))
+      .get();
+    const totalCount = countResult?.count ?? 0;
+
+    // Fetch one extra to determine if there's a next page
+    const conditions = [eq(ticketComments.ticketId, ticketId)];
+    if (cursor) {
+      conditions.push(lt(ticketComments.createdAt, cursor));
+    }
+
+    const rows = db
+      .select()
+      .from(ticketComments)
+      .where(and(...conditions))
+      .orderBy(desc(ticketComments.createdAt))
+      .limit(pageSize + 1)
+      .all();
+
+    const hasMore = rows.length > pageSize;
+    const comments = hasMore ? rows.slice(0, pageSize) : rows;
+    const nextCursor = hasMore ? comments[comments.length - 1]!.createdAt : null;
+
+    return { comments, nextCursor, totalCount };
   });
 
 // Create a new comment

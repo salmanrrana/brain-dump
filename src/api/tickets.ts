@@ -521,6 +521,125 @@ export const getTicketSummaries = createServerFn({ method: "GET" })
     return query.orderBy(tickets.position).all();
   });
 
+// ─── Paginated Ticket Summaries ──────────────────────────────────────────────
+
+export interface PaginatedTicketFilters extends TicketFilters {
+  /** Max tickets per page (default 50) */
+  limit?: number;
+  /** Offset for pagination (default 0) */
+  offset?: number;
+}
+
+export interface PaginatedTicketResult {
+  tickets: TicketSummary[];
+  /** Total matching tickets (before pagination) */
+  total: number;
+  /** Whether more pages exist */
+  hasMore: boolean;
+}
+
+const DEFAULT_TICKET_PAGE_SIZE = 50;
+
+/**
+ * Paginated ticket summaries. Returns a page of lightweight ticket summaries
+ * with total count and hasMore flag. Omits heavy text fields.
+ */
+export const getPaginatedTicketSummaries = createServerFn({ method: "GET" })
+  .inputValidator((filters: PaginatedTicketFilters) => filters)
+  .handler(async ({ data: filters }): Promise<PaginatedTicketResult> => {
+    const { limit = DEFAULT_TICKET_PAGE_SIZE, offset = 0, ...ticketFilters } = filters;
+    const pageSize = Math.min(Math.max(1, limit), 200);
+    const safeOffset = Math.max(0, offset);
+
+    // Build WHERE conditions
+    const conditions = [];
+    if (ticketFilters.projectId) {
+      conditions.push(eq(tickets.projectId, ticketFilters.projectId));
+    }
+    if (ticketFilters.epicId) {
+      conditions.push(eq(tickets.epicId, ticketFilters.epicId));
+    }
+    if (ticketFilters.status) {
+      conditions.push(eq(tickets.status, ticketFilters.status));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Total count
+    let countQuery = db.select({ count: sql<number>`COUNT(*)` }).from(tickets);
+    if (whereClause) {
+      countQuery = countQuery.where(whereClause) as typeof countQuery;
+    }
+    const countResult = countQuery.get();
+    const total = countResult?.count ?? 0;
+
+    // Tag filtering uses raw SQL (same pattern as getTicketSummaries)
+    if (ticketFilters.tags && ticketFilters.tags.length > 0) {
+      const cols = `id, title, status, priority, position, project_id, epic_id, tags, subtasks, is_blocked, blocked_reason, created_at, updated_at, completed_at, branch_name, pr_number, pr_url, pr_status`;
+      let sqlStr = `SELECT ${cols} FROM tickets WHERE 1=1`;
+      const params: (string | number)[] = [];
+
+      if (ticketFilters.projectId) {
+        sqlStr += " AND project_id = ?";
+        params.push(ticketFilters.projectId);
+      }
+      if (ticketFilters.epicId) {
+        sqlStr += " AND epic_id = ?";
+        params.push(ticketFilters.epicId);
+      }
+      if (ticketFilters.status) {
+        sqlStr += " AND status = ?";
+        params.push(ticketFilters.status);
+      }
+
+      for (const tag of ticketFilters.tags) {
+        sqlStr += ` AND json_valid(tickets.tags) AND EXISTS (
+          SELECT 1 FROM json_each(tickets.tags)
+          WHERE json_each.value = ?
+        )`;
+        params.push(tag);
+      }
+
+      sqlStr += " ORDER BY position LIMIT ? OFFSET ?";
+      params.push(pageSize, safeOffset);
+
+      const stmt = sqlite.prepare(sqlStr);
+      const ticketRows = stmt.all(...params) as TicketSummary[];
+      return { tickets: ticketRows, total, hasMore: safeOffset + ticketRows.length < total };
+    }
+
+    // Standard ORM query with pagination
+    const selectedColumns = {
+      id: tickets.id,
+      title: tickets.title,
+      status: tickets.status,
+      priority: tickets.priority,
+      position: tickets.position,
+      projectId: tickets.projectId,
+      epicId: tickets.epicId,
+      tags: tickets.tags,
+      subtasks: tickets.subtasks,
+      isBlocked: tickets.isBlocked,
+      blockedReason: tickets.blockedReason,
+      createdAt: tickets.createdAt,
+      updatedAt: tickets.updatedAt,
+      completedAt: tickets.completedAt,
+      branchName: tickets.branchName,
+      prNumber: tickets.prNumber,
+      prUrl: tickets.prUrl,
+      prStatus: tickets.prStatus,
+    };
+
+    let query = db.select(selectedColumns).from(tickets);
+    if (whereClause) {
+      query = query.where(whereClause) as typeof query;
+    }
+
+    const ticketRows = query.orderBy(tickets.position).limit(pageSize).offset(safeOffset).all();
+
+    return { tickets: ticketRows, total, hasMore: safeOffset + ticketRows.length < total };
+  });
+
 // Delete a ticket with dry-run preview support
 export interface DeleteTicketInput {
   ticketId: string;
