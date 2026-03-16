@@ -137,7 +137,7 @@ describe("Backup Utilities", () => {
       for (const date of dates) {
         const dbPath = join(backupsDir, `brain-dump-${date}.db`);
         const db = new Database(dbPath);
-        db.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
+        db.exec("CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY)");
         db.close();
       }
 
@@ -302,7 +302,7 @@ describe("Backup Utilities", () => {
         const date = `2026-01-${i.toString().padStart(2, "0")}`;
         const dbPath = join(backupsDir, `brain-dump-${date}.db`);
         const db = new Database(dbPath);
-        db.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
+        db.exec("CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY)");
         db.close();
       }
 
@@ -322,7 +322,7 @@ describe("Backup Utilities", () => {
         const date = `2026-01-${i.toString().padStart(2, "0")}`;
         const dbPath = join(backupsDir, `brain-dump-${date}.db`);
         const db = new Database(dbPath);
-        db.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
+        db.exec("CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY)");
         db.close();
       }
 
@@ -347,7 +347,7 @@ describe("Backup Utilities", () => {
         const date = `2026-01-${i.toString().padStart(2, "0")}`;
         const dbPath = join(backupsDir, `brain-dump-${date}.db`);
         const db = new Database(dbPath);
-        db.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
+        db.exec("CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY)");
         db.close();
       }
 
@@ -398,7 +398,7 @@ describe("Backup Utilities", () => {
         const dateStr = date.toISOString().split("T")[0];
         const dbPath = join(backupsDir, `brain-dump-${dateStr}.db`);
         const db = new Database(dbPath);
-        db.exec("CREATE TABLE test (id INTEGER PRIMARY KEY)");
+        db.exec("CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY)");
         db.close();
       }
 

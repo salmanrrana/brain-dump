@@ -8,6 +8,7 @@ import { EpicDetailHeader } from "../components/epics/EpicDetailHeader";
 import { EpicProgressOverview } from "../components/epics/EpicProgressOverview";
 import { EpicTicketsList } from "../components/epics/EpicTicketsList";
 import { EpicLearnings } from "../components/epics/EpicLearnings";
+import { EpicInsights } from "../components/epics/EpicInsights";
 import { EpicCostPanel } from "../components/epics/EpicCostPanel";
 import { TicketDescription } from "../components/tickets/TicketDescription";
 import { ShipChangesModal } from "../components/tickets";
@@ -325,6 +326,13 @@ function EpicDetailPage() {
 
       <section style={sectionStyles}>
         <EpicCostPanel epicId={epicDetail.epic.id} />
+      </section>
+
+      <section style={sectionStyles}>
+        <EpicInsights
+          insights={epicDetail.workflowState?.insights ?? []}
+          analyzedAt={epicDetail.workflowState?.analyzedAt ?? null}
+        />
       </section>
 
       <section style={sectionStyles}>

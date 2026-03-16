@@ -8,8 +8,10 @@ import {
   upsertCostModel as coreUpsertCostModel,
   deleteCostModel as coreDeleteCostModel,
   recalculateCosts as coreRecalculateCosts,
+  getCostExplorerData as coreGetCostExplorerData,
+  getTicketCostDetail as coreGetTicketCostDetail,
 } from "../../core/cost.ts";
-import type { CostModel } from "../../core/types.ts";
+import type { CostModel, CostExplorerParams, CostExplorerNode } from "../../core/types.ts";
 import type { RecalculateResult } from "../../core/cost.ts";
 
 // =============================================================================
@@ -280,6 +282,60 @@ export const recalculateCosts = createServerFn({ method: "POST" }).handler(
   }
 );
 
+// =============================================================================
+// Cost Explorer
+// =============================================================================
+
+/**
+ * Get hierarchical cost explorer data for treemap drill-down.
+ * Returns a full 4-level tree: Project → Epics → Tickets → Stages → Sessions.
+ */
+export const getCostExplorerData = createServerFn({ method: "GET" })
+  .inputValidator((data: CostExplorerParams) => data)
+  .handler(async ({ data }): Promise<CostExplorerNode> => {
+    try {
+      return coreGetCostExplorerData(sqlite, data);
+    } catch (error) {
+      if (isMissingCostSchemaError(error)) {
+        return {
+          id: "root",
+          name: "All Projects",
+          type: "project" as const,
+          value: 0,
+          costUsd: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cacheCreationTokens: 0,
+          sessionCount: 0,
+          children: [],
+        };
+      }
+      throw error;
+    }
+  });
+
+/**
+ * Get detailed cost breakdown for a specific ticket including stage and session data.
+ */
+export const getTicketCostDetail = createServerFn({ method: "GET" })
+  .inputValidator((data: string) => {
+    if (!data || typeof data !== "string") {
+      throw new Error("Ticket ID is required");
+    }
+    return data;
+  })
+  .handler(async ({ data: ticketId }) => {
+    return coreGetTicketCostDetail(sqlite, ticketId);
+  });
+
 // Re-export types from core for convenience
-export type { CostModel, TicketCostResult, EpicCostResult } from "../../core/types.ts";
+export type {
+  CostModel,
+  TicketCostResult,
+  EpicCostResult,
+  CostExplorerNode,
+  CostExplorerParams,
+  TicketCostDetail,
+} from "../../core/types.ts";
 export type { RecalculateResult } from "../../core/cost.ts";

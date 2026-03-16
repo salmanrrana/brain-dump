@@ -19,6 +19,12 @@ import type {
   ProjectCostResult,
   CostTrendResult,
   CostTrendEntry,
+  RalphSessionState,
+  StateHistoryEntry,
+  StageCostEntry,
+  TicketCostDetail,
+  CostExplorerNode,
+  CostExplorerParams,
 } from "./types.ts";
 import { ValidationError } from "./errors.ts";
 import type { DbCostModelRow, DbTokenUsageRow } from "./db-rows.ts";
@@ -684,6 +690,433 @@ export function recalculateCosts(db: DbHandle): RecalculateResult {
     sessionsUpdated,
     oldTotalCost,
     newTotalCost,
+  };
+}
+
+// ============================================
+// Cost Explorer
+// ============================================
+
+/**
+ * Parse state history JSON safely, returning empty array on failure.
+ */
+function safeParseStateHistory(json: string | null | undefined): StateHistoryEntry[] {
+  if (!json) return [];
+  try {
+    return JSON.parse(json) as StateHistoryEntry[];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Compute time-proportional cost attribution per workflow state.
+ *
+ * Takes ralph sessions with their state histories and total cost,
+ * computes time spent in each state from consecutive timestamps,
+ * and attributes the session cost proportionally.
+ *
+ * Falls back to equal attribution if state history is incomplete.
+ */
+export function computeStageCosts(
+  sessions: Array<{
+    stateHistory: StateHistoryEntry[];
+    totalCostUsd: number;
+    completedAt: string | null;
+  }>
+): Map<RalphSessionState, { costUsd: number; durationMs: number }> {
+  const result = new Map<RalphSessionState, { costUsd: number; durationMs: number }>();
+
+  for (const session of sessions) {
+    const { stateHistory, totalCostUsd } = session;
+    if (totalCostUsd <= 0) continue;
+
+    if (stateHistory.length < 2) {
+      // Single-state or empty: attribute all cost to the one state
+      const state = stateHistory[0]?.state ?? "idle";
+      const existing = result.get(state) ?? { costUsd: 0, durationMs: 0 };
+      existing.costUsd += totalCostUsd;
+      result.set(state, existing);
+      continue;
+    }
+
+    // Compute duration per state from consecutive timestamps
+    const segments: Array<{ state: RalphSessionState; durationMs: number }> = [];
+    let totalDurationMs = 0;
+
+    for (let i = 0; i < stateHistory.length - 1; i++) {
+      const current = stateHistory[i]!;
+      const next = stateHistory[i + 1]!;
+      const start = new Date(current.timestamp).getTime();
+      const end = new Date(next.timestamp).getTime();
+      const durationMs = Math.max(0, end - start);
+      segments.push({ state: current.state, durationMs });
+      totalDurationMs += durationMs;
+    }
+
+    // Handle the last state: use completedAt or give it 0 duration
+    const lastEntry = stateHistory[stateHistory.length - 1]!;
+    if (session.completedAt && lastEntry.state !== "done") {
+      const lastDuration = Math.max(
+        0,
+        new Date(session.completedAt).getTime() - new Date(lastEntry.timestamp).getTime()
+      );
+      segments.push({ state: lastEntry.state, durationMs: lastDuration });
+      totalDurationMs += lastDuration;
+    }
+
+    // Attribute cost proportionally
+    if (totalDurationMs <= 0) {
+      // Equal attribution fallback
+      const perState = totalCostUsd / segments.length;
+      for (const seg of segments) {
+        const existing = result.get(seg.state) ?? { costUsd: 0, durationMs: 0 };
+        existing.costUsd += perState;
+        existing.durationMs += seg.durationMs;
+        result.set(seg.state, existing);
+      }
+    } else {
+      for (const seg of segments) {
+        const fraction = seg.durationMs / totalDurationMs;
+        const existing = result.get(seg.state) ?? { costUsd: 0, durationMs: 0 };
+        existing.costUsd += totalCostUsd * fraction;
+        existing.durationMs += seg.durationMs;
+        result.set(seg.state, existing);
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Get detailed cost breakdown for a ticket including stage and session-level data.
+ */
+export function getTicketCostDetail(db: DbHandle, ticketId: string): TicketCostDetail {
+  const base = getTicketCost(db, ticketId);
+
+  // Get ralph sessions for this ticket with matched telemetry cost
+  const ralphRows = db
+    .prepare(
+      `SELECT
+         rs.id, rs.state_history, rs.started_at, rs.completed_at, rs.outcome,
+         COALESCE(SUM(tu.cost_usd), 0) as total_cost_usd
+       FROM ralph_sessions rs
+       LEFT JOIN token_usage tu ON tu.ticket_id = rs.ticket_id
+         AND tu.recorded_at >= rs.started_at
+         AND (tu.recorded_at <= rs.completed_at OR rs.completed_at IS NULL)
+       WHERE rs.ticket_id = ?
+       GROUP BY rs.id`
+    )
+    .all(ticketId) as Array<{
+    id: string;
+    state_history: string | null;
+    started_at: string;
+    completed_at: string | null;
+    outcome: string | null;
+    total_cost_usd: number;
+  }>;
+
+  // Compute stage costs from ralph sessions
+  const sessionsForStages = ralphRows.map((r) => ({
+    stateHistory: safeParseStateHistory(r.state_history),
+    totalCostUsd: r.total_cost_usd,
+    completedAt: r.completed_at,
+  }));
+
+  const stageCostMap = computeStageCosts(sessionsForStages);
+
+  const stages: StageCostEntry[] = [];
+  for (const [stage, data] of stageCostMap) {
+    if (stage === "done" || stage === "idle") continue;
+    stages.push({
+      stage,
+      costUsd: data.costUsd,
+      durationMs: data.durationMs,
+      percentage: base.totalCostUsd > 0 ? (data.costUsd / base.totalCostUsd) * 100 : 0,
+    });
+  }
+  stages.sort((a, b) => b.costUsd - a.costUsd);
+
+  // Get per-session breakdown
+  const sessionRows = db
+    .prepare(
+      `SELECT
+         tu.telemetry_session_id as session_id,
+         COALESCE(tu.model, 'unknown') as model,
+         SUM(tu.cost_usd) as cost_usd,
+         SUM(tu.input_tokens) as input_tokens,
+         SUM(tu.output_tokens) as output_tokens,
+         ts.started_at,
+         ts.ended_at as completed_at,
+         ts.outcome
+       FROM token_usage tu
+       LEFT JOIN telemetry_sessions ts ON tu.telemetry_session_id = ts.id
+       WHERE tu.ticket_id = ?
+         AND tu.telemetry_session_id IS NOT NULL
+       GROUP BY tu.telemetry_session_id
+       ORDER BY ts.started_at DESC`
+    )
+    .all(ticketId) as Array<{
+    session_id: string;
+    model: string;
+    cost_usd: number;
+    input_tokens: number;
+    output_tokens: number;
+    started_at: string | null;
+    completed_at: string | null;
+    outcome: string | null;
+  }>;
+
+  const sessions = sessionRows.map((r) => ({
+    sessionId: r.session_id,
+    costUsd: r.cost_usd ?? 0,
+    inputTokens: r.input_tokens ?? 0,
+    outputTokens: r.output_tokens ?? 0,
+    model: r.model,
+    startedAt: r.started_at ?? "",
+    completedAt: r.completed_at,
+    outcome: r.outcome,
+  }));
+
+  return { ...base, stages, sessions };
+}
+
+/**
+ * Build the full hierarchical cost explorer tree.
+ *
+ * Returns a CostExplorerNode tree: Project → Epics → Tickets → Stages → Sessions.
+ * Tickets without an epic are grouped under "[Unassigned]".
+ */
+export function getCostExplorerData(db: DbHandle, params: CostExplorerParams): CostExplorerNode {
+  const since = params.since ?? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+  // Build conditions
+  const conditions: string[] = ["(tu.recorded_at >= ? OR tu.recorded_at IS NULL)"];
+  const queryParams: (string | number)[] = [since];
+
+  if (params.projectId) {
+    conditions.push("t.project_id = ?");
+    queryParams.push(params.projectId);
+  }
+
+  const whereClause = conditions.join(" AND ");
+
+  // Ticket-level cost with epic grouping
+  const ticketRows = db
+    .prepare(
+      `SELECT
+         t.id as ticket_id, t.title, t.status, t.epic_id,
+         e.title as epic_title, e.color as epic_color,
+         COALESCE(SUM(tu.cost_usd), 0) as cost_usd,
+         COALESCE(SUM(tu.input_tokens), 0) as input_tokens,
+         COALESCE(SUM(tu.output_tokens), 0) as output_tokens,
+         COALESCE(SUM(tu.cache_read_tokens), 0) as cache_read_tokens,
+         COALESCE(SUM(tu.cache_creation_tokens), 0) as cache_creation_tokens,
+         COUNT(DISTINCT tu.telemetry_session_id) as session_count
+       FROM tickets t
+       LEFT JOIN epics e ON t.epic_id = e.id
+       LEFT JOIN token_usage tu ON tu.ticket_id = t.id
+       WHERE ${whereClause}
+       GROUP BY t.id
+       HAVING cost_usd > 0
+       ORDER BY cost_usd DESC`
+    )
+    .all(...queryParams) as Array<{
+    ticket_id: string;
+    title: string;
+    status: string;
+    epic_id: string | null;
+    epic_title: string | null;
+    epic_color: string | null;
+    cost_usd: number;
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_tokens: number;
+    cache_creation_tokens: number;
+    session_count: number;
+  }>;
+
+  // Group by epic
+  const epicMap = new Map<
+    string,
+    { title: string; color: string | null; tickets: typeof ticketRows }
+  >();
+  const unassigned: typeof ticketRows = [];
+
+  for (const row of ticketRows) {
+    if (row.epic_id) {
+      const existing = epicMap.get(row.epic_id);
+      if (existing) {
+        existing.tickets.push(row);
+      } else {
+        epicMap.set(row.epic_id, {
+          title: row.epic_title ?? "Unknown Epic",
+          color: row.epic_color,
+          tickets: [row],
+        });
+      }
+    } else {
+      unassigned.push(row);
+    }
+  }
+
+  // Build ticket detail — get stage breakdowns for each ticket
+  function buildTicketNode(row: (typeof ticketRows)[0]): CostExplorerNode {
+    const detail = getTicketCostDetail(db, row.ticket_id);
+
+    // Build stage children
+    const stageChildren: CostExplorerNode[] = detail.stages.map(
+      (stage) =>
+        ({
+          id: `${row.ticket_id}-${stage.stage}`,
+          name: stage.stage,
+          type: "stage" as const,
+          value: stage.costUsd,
+          costUsd: stage.costUsd,
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cacheCreationTokens: 0,
+          sessionCount: 0,
+          metadata: {
+            durationMs: stage.durationMs,
+            percentage: Math.round(stage.percentage * 10) / 10,
+          },
+        }) satisfies CostExplorerNode
+    );
+
+    // If no stages, add session-level children directly
+    if (stageChildren.length === 0 && detail.sessions.length > 0) {
+      const sessionChildren: CostExplorerNode[] = detail.sessions.map(
+        (s) =>
+          ({
+            id: s.sessionId,
+            name: `Session ${s.sessionId.substring(0, 8)}`,
+            type: "session" as const,
+            value: s.costUsd,
+            costUsd: s.costUsd,
+            inputTokens: s.inputTokens,
+            outputTokens: s.outputTokens,
+            cacheReadTokens: 0,
+            cacheCreationTokens: 0,
+            sessionCount: 1,
+            metadata: {
+              model: s.model ?? null,
+              startedAt: s.startedAt,
+              completedAt: s.completedAt ?? null,
+              outcome: s.outcome ?? null,
+            },
+          }) satisfies CostExplorerNode
+      );
+
+      return {
+        id: row.ticket_id,
+        name: row.title,
+        type: "ticket",
+        value: row.cost_usd,
+        costUsd: row.cost_usd,
+        inputTokens: row.input_tokens,
+        outputTokens: row.output_tokens,
+        cacheReadTokens: row.cache_read_tokens,
+        cacheCreationTokens: row.cache_creation_tokens,
+        sessionCount: row.session_count,
+        children: sessionChildren,
+        metadata: { status: row.status },
+      };
+    }
+
+    return {
+      id: row.ticket_id,
+      name: row.title,
+      type: "ticket",
+      value: row.cost_usd,
+      costUsd: row.cost_usd,
+      inputTokens: row.input_tokens,
+      outputTokens: row.output_tokens,
+      cacheReadTokens: row.cache_read_tokens,
+      cacheCreationTokens: row.cache_creation_tokens,
+      sessionCount: row.session_count,
+      children: stageChildren.length > 0 ? stageChildren : undefined,
+      metadata: { status: row.status },
+    };
+  }
+
+  // Build epic nodes
+  const epicNodes: CostExplorerNode[] = [];
+  for (const [epicId, epic] of epicMap) {
+    const ticketNodes = epic.tickets.map(buildTicketNode);
+    const epicCost = ticketNodes.reduce((sum, t) => sum + t.costUsd, 0);
+    const epicInput = ticketNodes.reduce((sum, t) => sum + t.inputTokens, 0);
+    const epicOutput = ticketNodes.reduce((sum, t) => sum + t.outputTokens, 0);
+    const epicCacheRead = ticketNodes.reduce((sum, t) => sum + t.cacheReadTokens, 0);
+    const epicCacheCreate = ticketNodes.reduce((sum, t) => sum + t.cacheCreationTokens, 0);
+    const epicSessions = ticketNodes.reduce((sum, t) => sum + t.sessionCount, 0);
+
+    epicNodes.push({
+      id: epicId,
+      name: epic.title,
+      type: "epic",
+      value: epicCost,
+      costUsd: epicCost,
+      inputTokens: epicInput,
+      outputTokens: epicOutput,
+      cacheReadTokens: epicCacheRead,
+      cacheCreationTokens: epicCacheCreate,
+      sessionCount: epicSessions,
+      children: ticketNodes,
+      metadata: { color: epic.color },
+    });
+  }
+
+  // Build unassigned node if needed
+  if (unassigned.length > 0) {
+    const ticketNodes = unassigned.map(buildTicketNode);
+    const uCost = ticketNodes.reduce((sum, t) => sum + t.costUsd, 0);
+    const uInput = ticketNodes.reduce((sum, t) => sum + t.inputTokens, 0);
+    const uOutput = ticketNodes.reduce((sum, t) => sum + t.outputTokens, 0);
+    const uCacheRead = ticketNodes.reduce((sum, t) => sum + t.cacheReadTokens, 0);
+    const uCacheCreate = ticketNodes.reduce((sum, t) => sum + t.cacheCreationTokens, 0);
+    const uSessions = ticketNodes.reduce((sum, t) => sum + t.sessionCount, 0);
+
+    epicNodes.push({
+      id: "unassigned",
+      name: "[Unassigned]",
+      type: "unassigned",
+      value: uCost,
+      costUsd: uCost,
+      inputTokens: uInput,
+      outputTokens: uOutput,
+      cacheReadTokens: uCacheRead,
+      cacheCreationTokens: uCacheCreate,
+      sessionCount: uSessions,
+      children: ticketNodes,
+    });
+  }
+
+  // Sort epics by cost descending
+  epicNodes.sort((a, b) => b.costUsd - a.costUsd);
+
+  // Root node
+  const totalCost = epicNodes.reduce((sum, e) => sum + e.costUsd, 0);
+  const totalInput = epicNodes.reduce((sum, e) => sum + e.inputTokens, 0);
+  const totalOutput = epicNodes.reduce((sum, e) => sum + e.outputTokens, 0);
+  const totalCacheRead = epicNodes.reduce((sum, e) => sum + e.cacheReadTokens, 0);
+  const totalCacheCreate = epicNodes.reduce((sum, e) => sum + e.cacheCreationTokens, 0);
+  const totalSessions = epicNodes.reduce((sum, e) => sum + e.sessionCount, 0);
+
+  return {
+    id: "root",
+    name: "All Projects",
+    type: "project",
+    value: totalCost,
+    costUsd: totalCost,
+    inputTokens: totalInput,
+    outputTokens: totalOutput,
+    cacheReadTokens: totalCacheRead,
+    cacheCreationTokens: totalCacheCreate,
+    sessionCount: totalSessions,
+    children: epicNodes,
   };
 }
 

@@ -1,5 +1,5 @@
 /**
- * Epic commands: create, list, update, delete, reconcile-learnings, get-learnings.
+ * Epic commands: create, list, update, delete, reconcile-learnings, get-learnings, clear-learnings, save-insights, get-insights.
  */
 
 import { readFileSync } from "fs";
@@ -10,15 +10,28 @@ import {
   deleteEpic,
   reconcileLearnings,
   getEpicLearnings,
+  clearEpicLearnings,
+  saveEpicInsights,
+  getEpicInsights,
   InvalidActionError,
   ValidationError,
 } from "../../core/index.ts";
-import type { Learning } from "../../core/index.ts";
+import type { Learning, EpicInsight } from "../../core/index.ts";
 import { parseFlags, requireFlag, optionalFlag, boolFlag } from "../lib/args.ts";
 import { outputResult, outputError, showResourceHelp } from "../lib/output.ts";
 import { getDb } from "../lib/db.ts";
 
-const ACTIONS = ["create", "list", "update", "delete", "reconcile-learnings", "get-learnings"];
+const ACTIONS = [
+  "create",
+  "list",
+  "update",
+  "delete",
+  "reconcile-learnings",
+  "get-learnings",
+  "clear-learnings",
+  "save-insights",
+  "get-insights",
+];
 
 export function handle(action: string, args: string[]): void {
   if (!action || action === "--help" || action === "help") {
@@ -95,6 +108,45 @@ export function handle(action: string, args: string[]): void {
       case "get-learnings": {
         const epicId = requireFlag(flags, "epic");
         const result = getEpicLearnings(db, epicId);
+        outputResult(result, pretty);
+        break;
+      }
+
+      case "clear-learnings": {
+        const epicId = requireFlag(flags, "epic");
+        const result = clearEpicLearnings(db, epicId);
+        outputResult(result, pretty);
+        break;
+      }
+
+      case "save-insights": {
+        const epicId = requireFlag(flags, "epic");
+        const insightsFile = requireFlag(flags, "insights-file");
+
+        let insights: EpicInsight[];
+        try {
+          const raw = readFileSync(insightsFile, "utf-8");
+          insights = JSON.parse(raw) as EpicInsight[];
+          if (!Array.isArray(insights)) {
+            throw new ValidationError(
+              `Expected JSON array in ${insightsFile}, got ${typeof insights}`
+            );
+          }
+        } catch (e) {
+          if (e instanceof ValidationError) throw e;
+          throw new ValidationError(
+            `Failed to read/parse insights file: ${insightsFile}\n${e instanceof Error ? e.message : String(e)}`
+          );
+        }
+
+        const result = saveEpicInsights(db, epicId, insights);
+        outputResult(result, pretty);
+        break;
+      }
+
+      case "get-insights": {
+        const epicId = requireFlag(flags, "epic");
+        const result = getEpicInsights(db, epicId);
         outputResult(result, pretty);
         break;
       }

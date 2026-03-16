@@ -22,6 +22,7 @@
 
 import type { TicketFilters } from "../api/tickets";
 import type { TagFilters } from "../api/tags";
+import type { CostExplorerParams } from "../api/cost";
 
 export const queryKeys = {
   // Projects
@@ -82,6 +83,8 @@ export const queryKeys = {
     ticketCost: (ticketId: string) => ["cost", "ticket", ticketId] as const,
     epicCost: (epicId: string) => ["cost", "epic", epicId] as const,
     models: () => ["cost", "models"] as const,
+    explorer: (params?: CostExplorerParams) => ["cost", "explorer", params ?? {}] as const,
+    ticketDetail: (ticketId: string) => ["cost", "ticket-detail", ticketId] as const,
   },
 
   // Telemetry

@@ -1,0 +1,1 @@
+ALTER TABLE `epic_workflow_state` ADD `insights` text;

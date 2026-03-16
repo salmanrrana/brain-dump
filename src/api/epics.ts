@@ -14,7 +14,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { ensureExists } from "../lib/utils";
 import { createLogger } from "../lib/logger";
-import { autoExtractLearnings } from "../../core/index";
+import { autoExtractLearnings, gatherEpicAnalysisContext } from "../../core/index";
 
 const log = createLogger("epics-api");
 
@@ -31,6 +31,12 @@ export interface EpicLearningEntry {
     };
   }>;
   appliedAt: string;
+}
+
+export interface EpicInsightEntry {
+  category: "frequent-actions" | "skills" | "plugins" | "agents" | "project-docs";
+  title: string;
+  description: string;
 }
 
 export interface EpicDetailResult {
@@ -67,6 +73,8 @@ export interface EpicDetailResult {
     ticketsDone: number;
     currentTicketId: string | null;
     learnings: EpicLearningEntry[];
+    insights: EpicInsightEntry[];
+    analyzedAt: string | null;
     epicBranchName: string | null;
     prNumber: number | null;
     prUrl: string | null;
@@ -555,12 +563,27 @@ export const getEpicDetail = createServerFn({ method: "GET" })
         }
       }
 
+      let parsedInsights: EpicInsightEntry[] = [];
+      if (workflowStateResult.insights) {
+        try {
+          parsedInsights = JSON.parse(workflowStateResult.insights);
+        } catch (err) {
+          log.error(
+            `Failed to parse epic insights JSON for epic ${epicId}`,
+            err instanceof Error ? err : new Error(String(err))
+          );
+          parsedInsights = [];
+        }
+      }
+
       workflowState = {
         id: workflowStateResult.id,
         ticketsTotal: workflowStateResult.ticketsTotal ?? 0,
         ticketsDone: workflowStateResult.ticketsDone ?? 0,
         currentTicketId: workflowStateResult.currentTicketId,
         learnings: parsedLearnings,
+        insights: parsedInsights,
+        analyzedAt: parsedInsights.length > 0 ? workflowStateResult.updatedAt : null,
         epicBranchName: workflowStateResult.epicBranchName,
         prNumber: workflowStateResult.prNumber,
         prUrl: workflowStateResult.prUrl,
@@ -602,4 +625,120 @@ export const triggerAutoLearnings = createServerFn({ method: "POST" })
   })
   .handler(async ({ data: { epicId } }) => {
     return autoExtractLearnings(sqlite, epicId);
+  });
+
+// Launch AI analysis session for epic learnings
+export const launchEpicAnalysis = createServerFn({ method: "POST" })
+  .inputValidator((input: { epicId: string; preferredTerminal?: string | null }) => {
+    if (!input.epicId) throw new Error("Epic ID is required");
+    return input;
+  })
+  .handler(async ({ data: { epicId, preferredTerminal } }) => {
+    const { existsSync } = await import("fs");
+    // exec is used here to fire-and-forget a terminal window process.
+    // The command is built by buildTerminalCommand from validated internal values,
+    // not from user input — same pattern as launchClaudeInTerminal.
+    const { exec } = await import("child_process");
+
+    const context = gatherEpicAnalysisContext(sqlite, epicId);
+
+    if (!existsSync(context.projectPath)) {
+      return {
+        success: false,
+        message: `Project directory not found: ${context.projectPath}`,
+      };
+    }
+
+    // Import terminal utilities
+    const { detectTerminal, isTerminalAvailable, buildTerminalCommand } =
+      await import("./terminal-utils");
+
+    // Determine terminal
+    let terminal: string | null = null;
+    if (preferredTerminal) {
+      const result = await isTerminalAvailable(preferredTerminal);
+      if (result.available) terminal = preferredTerminal;
+    }
+    if (!terminal) terminal = await detectTerminal();
+
+    if (!terminal) {
+      return {
+        success: false,
+        message: "No supported terminal emulator found.",
+      };
+    }
+
+    // Create launch script
+    const { writeFileSync, mkdirSync, chmodSync } = await import("fs");
+    const { join } = await import("path");
+    const { homedir } = await import("os");
+    const { randomUUID: uuid } = await import("crypto");
+
+    const scriptDir = join(homedir(), ".brain-dump", "scripts");
+    mkdirSync(scriptDir, { recursive: true });
+
+    const scriptPath = join(scriptDir, `epic-analysis-${uuid()}.sh`);
+
+    // Escape for bash double quotes
+    const safePath = context.projectPath.replace(/[\\"$`!]/g, "\\$&");
+    const safeTitle = context.epicTitle.replace(/[\\"$`!]/g, "\\$&");
+
+    const script = `#!/bin/bash
+set -e
+
+cd "${safePath}"
+
+# Save analysis prompt to a temp file
+PROMPT_FILE="/tmp/brain-dump-epic-analysis-${epicId}.md"
+cat > "$PROMPT_FILE" << 'BRAIN_DUMP_ANALYSIS_EOF_8a4c1d3e'
+${context.prompt}
+BRAIN_DUMP_ANALYSIS_EOF_8a4c1d3e
+
+echo ""
+echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo -e "\\033[0;35m🔬 Brain Dump - Epic Analysis\\033[0m"
+echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo -e "\\033[1;33m📋 Epic:\\033[0m ${safeTitle}"
+echo -e "\\033[1;33m📁 Project:\\033[0m ${safePath}"
+echo -e "\\033[0;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo ""
+
+# Launch Claude with the analysis prompt
+claude --dangerously-skip-permissions "$PROMPT_FILE"
+
+# Cleanup
+rm -f "$PROMPT_FILE"
+
+echo ""
+echo -e "\\033[0;35m✅ Epic analysis session ended.\\033[0m"
+exec bash
+`;
+
+    writeFileSync(scriptPath, script, { mode: 0o700 });
+    chmodSync(scriptPath, 0o700);
+
+    const windowTitle = `[Epic Analysis] ${context.epicTitle}`;
+    const terminalCommand = buildTerminalCommand(
+      terminal,
+      context.projectPath,
+      scriptPath,
+      windowTitle
+    );
+
+    try {
+      exec(terminalCommand, (error) => {
+        if (error) console.error("Terminal launch error:", error);
+      });
+
+      return {
+        success: true,
+        message: `Launched epic analysis in ${terminal}`,
+        terminalUsed: terminal,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to launch terminal: ${error instanceof Error ? error.message : "Unknown error"}`,
+      };
+    }
   });

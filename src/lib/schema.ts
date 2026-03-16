@@ -681,6 +681,7 @@ export const epicWorkflowState = sqliteTable(
       onDelete: "set null",
     }), // Currently being worked on
     learnings: text("learnings"), // JSON array of learning objects
+    insights: text("insights"), // JSON array of AI-generated epic insights
     // Epic-level git branch tracking (for single PR per epic)
     epicBranchName: text("epic_branch_name"), // e.g., "feature/epic-abc123-my-epic"
     epicBranchCreatedAt: text("epic_branch_created_at"), // When branch was created
