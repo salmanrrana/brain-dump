@@ -1,7 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useGitProjectInfo, useGitCommitsInfinite, useCommitFileStats } from "../../lib/hooks";
 import type { Commit } from "../../api/git-info";
 import { skeletonLineStyles } from "./shared-styles";
+
+const VIRTUALIZATION_THRESHOLD = 20;
+const COMMIT_ROW_HEIGHT_ESTIMATE = 36;
 
 interface GitHistoryCardProps {
   projectPath: string;
@@ -281,18 +285,13 @@ export default function GitHistoryCard({ projectPath }: GitHistoryCardProps) {
             {allCommits.length > 0 && (
               <div style={commitSectionStyles}>
                 <p style={sectionLabelStyles}>History</p>
-                <div style={commitListStyles}>
-                  {allCommits.map((commit) => (
-                    <CommitRow
-                      key={commit.hash}
-                      commit={commit}
-                      remoteUrl={projectInfo.remoteUrl}
-                      projectPath={projectPath}
-                      isExpanded={expandedHash === commit.hash}
-                      onToggle={() => handleToggle(commit.hash)}
-                    />
-                  ))}
-                </div>
+                <VirtualizedCommitList
+                  commits={allCommits}
+                  remoteUrl={projectInfo.remoteUrl}
+                  projectPath={projectPath}
+                  expandedHash={expandedHash}
+                  onToggle={handleToggle}
+                />
 
                 {/* Sentinel for intersection observer */}
                 <div ref={sentinelRef} style={{ height: 1 }} />
@@ -307,6 +306,92 @@ export default function GitHistoryCard({ projectPath }: GitHistoryCardProps) {
             )}
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// VirtualizedCommitList — renders commit rows with optional virtualization
+// =============================================================================
+
+interface VirtualizedCommitListProps {
+  commits: Commit[];
+  remoteUrl: string | null;
+  projectPath: string;
+  expandedHash: string | null;
+  onToggle: (hash: string) => void;
+}
+
+function VirtualizedCommitList({
+  commits,
+  remoteUrl,
+  projectPath,
+  expandedHash,
+  onToggle,
+}: VirtualizedCommitListProps) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const useVirtual = commits.length > VIRTUALIZATION_THRESHOLD;
+
+  const virtualizer = useVirtualizer({
+    count: commits.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => COMMIT_ROW_HEIGHT_ESTIMATE,
+    overscan: 5,
+    enabled: useVirtual,
+  });
+
+  if (!useVirtual) {
+    return (
+      <div style={commitListStyles}>
+        {commits.map((commit) => (
+          <CommitRow
+            key={commit.hash}
+            commit={commit}
+            remoteUrl={remoteUrl}
+            projectPath={projectPath}
+            isExpanded={expandedHash === commit.hash}
+            onToggle={() => onToggle(commit.hash)}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  const virtualItems = virtualizer.getVirtualItems();
+
+  return (
+    <div
+      ref={scrollContainerRef}
+      style={{ ...commitListStyles, maxHeight: 400, overflowY: "auto" }}
+    >
+      <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+        {virtualItems.map((virtualRow) => {
+          const commit = commits[virtualRow.index];
+          if (!commit) return null;
+          return (
+            <div
+              key={virtualRow.key}
+              ref={virtualizer.measureElement}
+              data-index={virtualRow.index}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+            >
+              <CommitRow
+                commit={commit}
+                remoteUrl={remoteUrl}
+                projectPath={projectPath}
+                isExpanded={expandedHash === commit.hash}
+                onToggle={() => onToggle(commit.hash)}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
