@@ -90,6 +90,8 @@ export function usePerformImport() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTags });
     },
@@ -109,6 +111,8 @@ export function useCreateProjectAndImport() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTags });
     },

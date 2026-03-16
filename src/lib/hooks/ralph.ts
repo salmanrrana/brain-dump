@@ -55,6 +55,7 @@ export function useLaunchRalphForTicket() {
     onSuccess: () => {
       // Ticket status will be updated by Ralph, invalidate to reflect changes
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
     },
   });
 }
@@ -83,6 +84,7 @@ export function useLaunchRalphForEpic() {
     onSuccess: () => {
       // Ticket statuses will be updated by Ralph, invalidate to reflect changes
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
     },
   });
 }
@@ -171,8 +173,10 @@ export function useLaunchSpecBreakdown() {
       preferredTerminal?: string | null;
     }) => launchSpecBreakdown({ data }),
     onSuccess: () => {
-      // Tickets will be created, invalidate tickets and projects
+      // Tickets will be created, invalidate tickets, summaries, counts, and projects
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
     },
   });

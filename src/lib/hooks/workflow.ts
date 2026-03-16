@@ -181,8 +181,10 @@ export function useSubmitDemoFeedback() {
     onSuccess: (_, variables) => {
       // Invalidate demo script for this ticket
       queryClient.invalidateQueries({ queryKey: queryKeys.demoScript(variables.ticketId) });
-      // Invalidate tickets to reflect status change
+      // Invalidate tickets to reflect status change (feedback changes status)
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });
       // Invalidate workflow state as demo feedback changes it
       queryClient.invalidateQueries({ queryKey: queryKeys.workflowState(variables.ticketId) });
     },

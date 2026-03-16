@@ -216,6 +216,8 @@ export function useDeleteProject() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTags });
     },
   });
@@ -402,6 +404,7 @@ export function useDeleteEpic() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
     },
   });
 }

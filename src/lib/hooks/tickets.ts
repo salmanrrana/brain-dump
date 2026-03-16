@@ -17,6 +17,7 @@ import {
   type CreateTicketInput,
   type UpdateTicketInput,
   type TicketStatus,
+  type TicketSummary,
 } from "../../api/tickets";
 import { searchTickets, type SearchResult } from "../../api/search";
 import { getTags, getTagsWithMetadata, type TagFilters, type TagMetadata } from "../../api/tags";
@@ -51,12 +52,14 @@ export function useInvalidateQueries() {
     invalidateTickets: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });
     },
     invalidateTags: () => queryClient.invalidateQueries({ queryKey: queryKeys.allTags }),
     invalidateAll: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTags });
     },
   };
@@ -73,33 +76,39 @@ export function useCreateTicket() {
   return useMutation({
     mutationFn: (data: CreateTicketInput) => createTicket({ data }),
     onMutate: async (newTicketData) => {
-      // Cancel outgoing refetches
+      // Cancel outgoing refetches for both ticket query types
       await queryClient.cancelQueries({ queryKey: queryKeys.allTickets });
+      await queryClient.cancelQueries({ queryKey: queryKeys.allTicketSummaries });
 
-      // Snapshot all ticket queries for rollback
+      // Snapshot both query types for rollback
       const previousTicketQueries = queryClient.getQueriesData<Ticket[]>({
         queryKey: queryKeys.allTickets,
       });
+      const previousSummaryQueries = queryClient.getQueriesData<TicketSummary[]>({
+        queryKey: queryKeys.allTicketSummaries,
+      });
+
+      const now = new Date().toISOString();
+      const tagsJson = newTicketData.tags ? JSON.stringify(newTicketData.tags) : null;
 
       // Create optimistic ticket with temporary ID
-      // Note: CreateTicketInput only has title, description, projectId, epicId, priority, tags, attachments
       const optimisticTicket: Ticket = {
         id: `temp-${Date.now()}`,
         title: newTicketData.title,
         description: newTicketData.description ?? null,
-        status: "backlog", // New tickets always start in backlog
+        status: "backlog",
         priority: newTicketData.priority ?? null,
-        position: 0, // Will be updated by server
+        position: 0,
         projectId: newTicketData.projectId,
         epicId: newTicketData.epicId ?? null,
-        tags: newTicketData.tags ? JSON.stringify(newTicketData.tags) : null,
-        subtasks: null, // Not in CreateTicketInput
+        tags: tagsJson,
+        subtasks: null,
         isBlocked: null,
         blockedReason: null,
         linkedFiles: null,
         attachments: newTicketData.attachments ? JSON.stringify(newTicketData.attachments) : null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
         completedAt: null,
         branchName: null,
         prNumber: null,
@@ -107,34 +116,67 @@ export function useCreateTicket() {
         prStatus: null,
       };
 
-      // Add optimistic ticket to all matching queries
+      // Optimistic summary (same shape minus description/linkedFiles/attachments)
+      const optimisticSummary: TicketSummary = {
+        id: optimisticTicket.id,
+        title: optimisticTicket.title,
+        status: optimisticTicket.status as TicketStatus,
+        priority: optimisticTicket.priority,
+        position: optimisticTicket.position,
+        projectId: optimisticTicket.projectId,
+        epicId: optimisticTicket.epicId,
+        tags: tagsJson,
+        subtasks: null,
+        isBlocked: null,
+        blockedReason: null,
+        createdAt: now,
+        updatedAt: now,
+        completedAt: null,
+        branchName: null,
+        prNumber: null,
+        prUrl: null,
+        prStatus: null,
+      };
+
+      // Add optimistic ticket to all matching full-ticket queries
       for (const [queryKey, tickets] of previousTicketQueries) {
         if (tickets) {
           queryClient.setQueryData<Ticket[]>(queryKey, [...tickets, optimisticTicket]);
         }
       }
 
-      return { previousTicketQueries };
+      // Add optimistic summary to all matching summary queries
+      for (const [queryKey, summaries] of previousSummaryQueries) {
+        if (summaries) {
+          queryClient.setQueryData<TicketSummary[]>(queryKey, [...summaries, optimisticSummary]);
+        }
+      }
+
+      return { previousTicketQueries, previousSummaryQueries };
     },
     onError: (err, newTicket, context) => {
-      // Note: Components using this hook should show user-facing error notifications
-      // Log error with context for debugging
       logger.error(
         `Failed to create ticket: title="${newTicket.title}", projectId="${newTicket.projectId}"`,
         err instanceof Error ? err : new Error(String(err))
       );
 
-      // Rollback all ticket queries
+      // Rollback both query types
       if (context?.previousTicketQueries) {
         for (const [queryKey, tickets] of context.previousTicketQueries) {
           queryClient.setQueryData(queryKey, tickets);
         }
       }
+      if (context?.previousSummaryQueries) {
+        for (const [queryKey, summaries] of context.previousSummaryQueries) {
+          queryClient.setQueryData(queryKey, summaries);
+        }
+      }
     },
     onSettled: () => {
-      // Invalidate tickets, summaries, and tags (new ticket might have new tags)
+      // Create affects all lists and may introduce new tags
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTags });
     },
   });
@@ -146,85 +188,103 @@ export function useUpdateTicket() {
   return useMutation({
     mutationFn: (data: { id: string; updates: UpdateTicketInput }) => updateTicket({ data }),
     onMutate: async ({ id, updates }) => {
-      // Cancel outgoing refetches
+      // Cancel outgoing refetches for both query types
       await queryClient.cancelQueries({ queryKey: queryKeys.allTickets });
+      await queryClient.cancelQueries({ queryKey: queryKeys.allTicketSummaries });
 
-      // Snapshot all ticket queries for rollback
+      // Snapshot both query types for rollback
       const previousTicketQueries = queryClient.getQueriesData<Ticket[]>({
         queryKey: queryKeys.allTickets,
       });
+      const previousSummaryQueries = queryClient.getQueriesData<TicketSummary[]>({
+        queryKey: queryKeys.allTicketSummaries,
+      });
 
-      // Optimistically update the ticket in all matching queries
+      // Helper to apply common field updates to both Ticket and TicketSummary
+      const applyCommonUpdates = <T extends TicketSummary>(item: T): T => {
+        const updated = { ...item, updatedAt: new Date().toISOString() };
+        if (updates.title !== undefined) updated.title = updates.title;
+        if (updates.status !== undefined) updated.status = updates.status as TicketStatus;
+        if (updates.priority !== undefined) updated.priority = updates.priority;
+        if (updates.epicId !== undefined) updated.epicId = updates.epicId;
+        if (updates.isBlocked !== undefined) updated.isBlocked = updates.isBlocked;
+        if (updates.blockedReason !== undefined) updated.blockedReason = updates.blockedReason;
+        if (updates.tags !== undefined)
+          updated.tags = updates.tags ? JSON.stringify(updates.tags) : null;
+        if (updates.subtasks !== undefined)
+          updated.subtasks = updates.subtasks ? JSON.stringify(updates.subtasks) : null;
+
+        // Handle completedAt based on status change
+        if (updates.status === "done") {
+          updated.completedAt = new Date().toISOString();
+        } else if (updates.status && item.status === "done") {
+          updated.completedAt = null;
+        }
+
+        return updated;
+      };
+
+      // Optimistically update full-ticket queries
       for (const [queryKey, tickets] of previousTicketQueries) {
         if (tickets) {
           queryClient.setQueryData<Ticket[]>(
             queryKey,
             tickets.map((ticket) => {
               if (ticket.id !== id) return ticket;
-
-              // Build optimistic update, transforming array fields to JSON strings
-              const optimisticUpdate: Ticket = {
-                ...ticket,
-                updatedAt: new Date().toISOString(),
-              };
-
-              // Apply simple field updates
-              if (updates.title !== undefined) optimisticUpdate.title = updates.title;
-              if (updates.description !== undefined)
-                optimisticUpdate.description = updates.description;
-              if (updates.status !== undefined) optimisticUpdate.status = updates.status;
-              if (updates.priority !== undefined) optimisticUpdate.priority = updates.priority;
-              if (updates.epicId !== undefined) optimisticUpdate.epicId = updates.epicId;
-              if (updates.isBlocked !== undefined) optimisticUpdate.isBlocked = updates.isBlocked;
-              if (updates.blockedReason !== undefined)
-                optimisticUpdate.blockedReason = updates.blockedReason;
-
-              // Transform array fields to JSON strings (Ticket stores these as strings)
-              if (updates.tags !== undefined)
-                optimisticUpdate.tags = updates.tags ? JSON.stringify(updates.tags) : null;
-              if (updates.subtasks !== undefined)
-                optimisticUpdate.subtasks = updates.subtasks
-                  ? JSON.stringify(updates.subtasks)
-                  : null;
+              const updated = applyCommonUpdates(ticket);
+              // Ticket-only fields
+              if (updates.description !== undefined) updated.description = updates.description;
               if (updates.linkedFiles !== undefined)
-                optimisticUpdate.linkedFiles = updates.linkedFiles
+                updated.linkedFiles = updates.linkedFiles
                   ? JSON.stringify(updates.linkedFiles)
                   : null;
-
-              // Handle completedAt based on status change
-              if (updates.status === "done") {
-                optimisticUpdate.completedAt = new Date().toISOString();
-              } else if (updates.status && ticket.status === "done") {
-                optimisticUpdate.completedAt = null;
-              }
-
-              return optimisticUpdate;
+              return updated;
             })
           );
         }
       }
 
-      return { previousTicketQueries };
+      // Optimistically update summary queries
+      for (const [queryKey, summaries] of previousSummaryQueries) {
+        if (summaries) {
+          queryClient.setQueryData<TicketSummary[]>(
+            queryKey,
+            summaries.map((summary) => (summary.id === id ? applyCommonUpdates(summary) : summary))
+          );
+        }
+      }
+
+      return { previousTicketQueries, previousSummaryQueries, updates };
     },
     onError: (err, variables, context) => {
-      // Note: Components using this hook should show user-facing error notifications
-      // Log error with context for debugging
       logger.error(
         `Failed to update ticket: id="${variables.id}", updates=${JSON.stringify(variables.updates)}`,
         err instanceof Error ? err : new Error(String(err))
       );
 
-      // Rollback all ticket queries
+      // Rollback both query types
       if (context?.previousTicketQueries) {
         for (const [queryKey, tickets] of context.previousTicketQueries) {
           queryClient.setQueryData(queryKey, tickets);
         }
       }
+      if (context?.previousSummaryQueries) {
+        for (const [queryKey, summaries] of context.previousSummaryQueries) {
+          queryClient.setQueryData(queryKey, summaries);
+        }
+      }
     },
-    onSettled: () => {
+    onSettled: (_data, _err, _variables, context) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
-      queryClient.invalidateQueries({ queryKey: queryKeys.allTags });
+      // Only invalidate tags if tags were modified
+      if (context?.updates?.tags !== undefined) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.allTags });
+      }
+      // Invalidate counts if status changed (affects project/epic progress)
+      if (context?.updates?.status !== undefined) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });
+      }
     },
   });
 }
@@ -234,9 +294,69 @@ export function useUpdateTicketStatus() {
 
   return useMutation({
     mutationFn: (data: { id: string; status: TicketStatus }) => updateTicketStatus({ data }),
-    onSuccess: () => {
+    onMutate: async ({ id, status }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.allTickets });
+      await queryClient.cancelQueries({ queryKey: queryKeys.allTicketSummaries });
+
+      const previousTicketQueries = queryClient.getQueriesData<Ticket[]>({
+        queryKey: queryKeys.allTickets,
+      });
+      const previousSummaryQueries = queryClient.getQueriesData<TicketSummary[]>({
+        queryKey: queryKeys.allTicketSummaries,
+      });
+
+      const now = new Date().toISOString();
+      const applyStatusUpdate = <
+        T extends { id: string; status: string; completedAt: string | null; updatedAt: string },
+      >(
+        item: T
+      ): T => {
+        const updated = { ...item, status, updatedAt: now };
+        if (status === "done") updated.completedAt = now;
+        else if (item.status === "done") updated.completedAt = null;
+        return updated;
+      };
+
+      for (const [queryKey, tickets] of previousTicketQueries) {
+        if (tickets) {
+          queryClient.setQueryData<Ticket[]>(
+            queryKey,
+            tickets.map((t) => (t.id === id ? applyStatusUpdate(t) : t))
+          );
+        }
+      }
+      for (const [queryKey, summaries] of previousSummaryQueries) {
+        if (summaries) {
+          queryClient.setQueryData<TicketSummary[]>(
+            queryKey,
+            summaries.map((s) => (s.id === id ? applyStatusUpdate(s) : s))
+          );
+        }
+      }
+
+      return { previousTicketQueries, previousSummaryQueries };
+    },
+    onError: (err, variables, context) => {
+      logger.error(
+        `Failed to update ticket status: id="${variables.id}", status="${variables.status}"`,
+        err instanceof Error ? err : new Error(String(err))
+      );
+
+      if (context?.previousTicketQueries) {
+        for (const [queryKey, tickets] of context.previousTicketQueries) {
+          queryClient.setQueryData(queryKey, tickets);
+        }
+      }
+      if (context?.previousSummaryQueries) {
+        for (const [queryKey, summaries] of context.previousSummaryQueries) {
+          queryClient.setQueryData(queryKey, summaries);
+        }
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });
     },
   });
 }
@@ -246,7 +366,59 @@ export function useUpdateTicketPosition() {
 
   return useMutation({
     mutationFn: (data: { id: string; position: number }) => updateTicketPosition({ data }),
-    onSuccess: () => {
+    onMutate: async ({ id, position }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.allTickets });
+      await queryClient.cancelQueries({ queryKey: queryKeys.allTicketSummaries });
+
+      const previousTicketQueries = queryClient.getQueriesData<Ticket[]>({
+        queryKey: queryKeys.allTickets,
+      });
+      const previousSummaryQueries = queryClient.getQueriesData<TicketSummary[]>({
+        queryKey: queryKeys.allTicketSummaries,
+      });
+
+      for (const [queryKey, tickets] of previousTicketQueries) {
+        if (tickets) {
+          queryClient.setQueryData<Ticket[]>(
+            queryKey,
+            tickets.map((t) =>
+              t.id === id ? { ...t, position, updatedAt: new Date().toISOString() } : t
+            )
+          );
+        }
+      }
+      for (const [queryKey, summaries] of previousSummaryQueries) {
+        if (summaries) {
+          queryClient.setQueryData<TicketSummary[]>(
+            queryKey,
+            summaries.map((s) =>
+              s.id === id ? { ...s, position, updatedAt: new Date().toISOString() } : s
+            )
+          );
+        }
+      }
+
+      return { previousTicketQueries, previousSummaryQueries };
+    },
+    onError: (err, variables, context) => {
+      logger.error(
+        `Failed to update ticket position: id="${variables.id}", position=${variables.position}`,
+        err instanceof Error ? err : new Error(String(err))
+      );
+
+      if (context?.previousTicketQueries) {
+        for (const [queryKey, tickets] of context.previousTicketQueries) {
+          queryClient.setQueryData(queryKey, tickets);
+        }
+      }
+      if (context?.previousSummaryQueries) {
+        for (const [queryKey, summaries] of context.previousSummaryQueries) {
+          queryClient.setQueryData(queryKey, summaries);
+        }
+      }
+    },
+    onSettled: () => {
+      // Position changes don't affect counts or tags — only ticket lists
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
     },
@@ -259,8 +431,10 @@ export function useDeleteTicket() {
   return useMutation({
     mutationFn: (params: { ticketId: string; confirm?: boolean }) => deleteTicket({ data: params }),
     onSuccess: () => {
+      // Delete affects all lists, may orphan tags, and changes counts
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTags });
     },
   });
