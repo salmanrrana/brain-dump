@@ -199,6 +199,97 @@ export function clearNavigationData(): void {
   pendingFetches.clear();
 }
 
+// =============================================================================
+// SSR / HYDRATION TIMING
+// =============================================================================
+
+/**
+ * Mark when React hydration completes (call from root component useEffect).
+ * Creates a measure from navigationStart → hydration for SSR-to-interactive gap.
+ */
+export function markHydrationComplete(): void {
+  if (!import.meta.env.DEV) return;
+
+  performance.mark("app:hydration:end");
+
+  // Measure from navigation start to hydration complete
+  try {
+    const navEntry = performance.getEntriesByType("navigation")[0] as
+      | PerformanceNavigationTiming
+      | undefined;
+    if (navEntry) {
+      // Use navigation start as the baseline
+      performance.measure("SSR → Hydration", {
+        start: navEntry.startTime,
+        end: performance.now(),
+      });
+    }
+  } catch {
+    // Fallback: measure from boot start
+    try {
+      performance.measure("Boot → Hydration", "app:boot:start", "app:hydration:end");
+    } catch {
+      // boot:start may not exist on HMR
+    }
+  }
+}
+
+/**
+ * Print SSR/hydration timing report to the console.
+ * Call from DevTools: `window.__hydrationReport()`
+ */
+export function printHydrationReport(): void {
+  const navEntries = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
+  const navEntry = navEntries[0];
+
+  if (!navEntry) {
+    console.log("[Hydration] No navigation timing data available.");
+    return;
+  }
+
+  const hydrationMark = performance.getEntriesByName("app:hydration:end", "mark")[0];
+  const bootEndMark = performance.getEntriesByName("app:boot:end", "mark")[0];
+
+  console.group("[Hydration] SSR-to-Hydration Timing");
+
+  console.table({
+    "DNS Lookup": `${(navEntry.domainLookupEnd - navEntry.domainLookupStart).toFixed(1)}ms`,
+    "TCP Connect": `${(navEntry.connectEnd - navEntry.connectStart).toFixed(1)}ms`,
+    "Server Response (TTFB)": `${navEntry.responseStart.toFixed(1)}ms`,
+    "Response Download": `${(navEntry.responseEnd - navEntry.responseStart).toFixed(1)}ms`,
+    "DOM Interactive": `${navEntry.domInteractive.toFixed(1)}ms`,
+    "DOM Content Loaded": `${navEntry.domContentLoadedEventEnd.toFixed(1)}ms`,
+    "Load Event": `${navEntry.loadEventEnd.toFixed(1)}ms`,
+    ...(bootEndMark ? { "React Boot (useEffect)": `${bootEndMark.startTime.toFixed(1)}ms` } : {}),
+    ...(hydrationMark ? { "Hydration Complete": `${hydrationMark.startTime.toFixed(1)}ms` } : {}),
+  });
+
+  // Compute SSR contribution
+  if (hydrationMark) {
+    const ssrToHydration = hydrationMark.startTime - navEntry.responseEnd;
+    const totalLoadTime = hydrationMark.startTime;
+    const ssrContribution = navEntry.responseEnd / totalLoadTime;
+
+    console.log(`\n📊 SSR Analysis:`);
+    console.log(`   Server rendered HTML arrived at: ${navEntry.responseEnd.toFixed(1)}ms`);
+    console.log(`   Hydration completed at: ${hydrationMark.startTime.toFixed(1)}ms`);
+    console.log(`   Hydration gap: ${ssrToHydration.toFixed(1)}ms (JS parse + hydrate)`);
+    console.log(`   SSR contribution: ${(ssrContribution * 100).toFixed(0)}% of total load`);
+
+    if (ssrToHydration > 1000) {
+      console.warn(`   ⚠️ Hydration gap >1s — consider reducing JS payload or lazy hydration`);
+    }
+  }
+
+  // Check for hydration mismatch warnings
+  console.log(`\n🔍 Hydration Mismatch Check:`);
+  console.log(`   suppressHydrationWarning used: yes (on <html> element for theme)`);
+  console.log(`   To check for mismatches, watch console during page load for React warnings.`);
+  console.log(`   React 19 logs: "Warning: Text content did not match" or "Hydration failed"`);
+
+  console.groupEnd();
+}
+
 // Mark app boot time
 if (import.meta.env.DEV && typeof window !== "undefined") {
   performance.mark("app:boot:start");
@@ -207,4 +298,5 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).__navigationReport = printNavigationReport;
   (window as unknown as Record<string, unknown>).__navigationClear = clearNavigationData;
   (window as unknown as Record<string, unknown>).__navigationLog = getNavigationLog;
+  (window as unknown as Record<string, unknown>).__hydrationReport = printHydrationReport;
 }

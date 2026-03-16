@@ -5,7 +5,7 @@ import { TanStackDevtools } from "@tanstack/react-devtools";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import type { RouterContext } from "../router";
 // Side-effect imports: dev-only performance instrumentation
-import "../lib/navigation-timing";
+import { markHydrationComplete } from "../lib/navigation-timing";
 import { setQueryClientForHealth } from "../lib/session-health";
 
 import AppLayout from "../components/AppLayout";
@@ -58,7 +58,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   const { queryClient } = Route.useRouteContext();
   const [showSplash, setShowSplash] = useState(true);
 
-  // Mark app boot completion for Performance timeline + connect session health monitor
+  // Mark app boot + hydration completion for Performance timeline + connect health monitor
   useEffect(() => {
     if (import.meta.env.DEV) {
       performance.mark("app:boot:end");
@@ -67,6 +67,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       } catch {
         // boot:start mark may not exist on HMR
       }
+      markHydrationComplete();
       setQueryClientForHealth(queryClient);
     }
   }, [queryClient]);
