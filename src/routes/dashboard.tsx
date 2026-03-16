@@ -8,6 +8,9 @@ import {
   useDashboardTelemetryAnalytics,
   useCostAnalytics,
 } from "../lib/hooks";
+import { getTickets } from "../api/tickets";
+import { getDashboardAnalytics } from "../api/analytics";
+import { getDashboardTelemetryAnalytics } from "../api/telemetry";
 import { getCostExplorerData } from "../api/cost";
 import { queryKeys } from "../lib/query-keys";
 import {
@@ -20,6 +23,24 @@ import type { StatFilter } from "../components/dashboard";
 
 type DashboardTab = "overview" | "ai-telemetry" | "cost-explorer";
 export const Route = createFileRoute("/dashboard")({
+  loader: ({ context }) => {
+    // Pre-warm cache with tickets (for stats), analytics, and telemetry
+    void context.queryClient.ensureQueryData({
+      queryKey: queryKeys.tickets({}),
+      queryFn: () => getTickets({ data: {} }),
+      staleTime: 30_000,
+    });
+    void context.queryClient.ensureQueryData({
+      queryKey: queryKeys.analytics.dashboard(),
+      queryFn: () => getDashboardAnalytics(),
+      staleTime: 60_000,
+    });
+    void context.queryClient.ensureQueryData({
+      queryKey: queryKeys.telemetry.dashboardAnalytics(),
+      queryFn: () => getDashboardTelemetryAnalytics(),
+      staleTime: 60_000,
+    });
+  },
   component: Dashboard,
   errorComponent: DashboardError,
 });

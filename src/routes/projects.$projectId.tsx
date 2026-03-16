@@ -7,10 +7,35 @@ import { createBrowserLogger } from "../lib/browser-logger";
 import EpicListItem from "../components/navigation/EpicListItem";
 import DevHubToolbar from "../components/projects/DevHubToolbar";
 import GitHistoryCard from "../components/projects/GitHistoryCard";
+import { getTickets } from "../api/tickets";
+import { getProjects } from "../api/projects";
+import { getEpicsByProject } from "../api/epics";
+import { queryKeys } from "../lib/query-keys";
 
 const logger = createBrowserLogger("routes:project-detail");
 
 export const Route = createFileRoute("/projects/$projectId")({
+  loader: ({ context, params }) => {
+    // Pre-warm cache with projects (with epics) and project-specific tickets
+    void context.queryClient.ensureQueryData({
+      queryKey: queryKeys.projectsWithEpics,
+      queryFn: async () => {
+        const projectList = await getProjects();
+        return Promise.all(
+          projectList.map(async (project: (typeof projectList)[0]) => {
+            const epics = await getEpicsByProject({ data: project.id });
+            return { ...project, epics };
+          })
+        );
+      },
+      staleTime: 30_000,
+    });
+    void context.queryClient.ensureQueryData({
+      queryKey: queryKeys.tickets({ projectId: params.projectId }),
+      queryFn: () => getTickets({ data: { projectId: params.projectId } }),
+      staleTime: 30_000,
+    });
+  },
   component: ProjectDetail,
 });
 

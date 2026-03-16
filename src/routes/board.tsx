@@ -13,9 +13,33 @@ import TicketModal from "../components/TicketModal";
 import { BoardHeader } from "../components/board";
 import { getStatusLabel } from "../lib/constants";
 import { KanbanBoard } from "../components/board/KanbanBoard";
-import { getTicket } from "../api/tickets";
+import { getTicket, getTickets } from "../api/tickets";
+import { getProjects } from "../api/projects";
+import { getEpicsByProject } from "../api/epics";
+import { queryKeys } from "../lib/query-keys";
 import { createBrowserLogger } from "../lib/browser-logger";
 export const Route = createFileRoute("/board")({
+  loader: ({ context }) => {
+    // Pre-warm cache with default (unfiltered) tickets and projects
+    void context.queryClient.ensureQueryData({
+      queryKey: queryKeys.tickets({}),
+      queryFn: () => getTickets({ data: {} }),
+      staleTime: 30_000,
+    });
+    void context.queryClient.ensureQueryData({
+      queryKey: queryKeys.projectsWithEpics,
+      queryFn: async () => {
+        const projectList = await getProjects();
+        return Promise.all(
+          projectList.map(async (project: (typeof projectList)[0]) => {
+            const epics = await getEpicsByProject({ data: project.id });
+            return { ...project, epics };
+          })
+        );
+      },
+      staleTime: 30_000,
+    });
+  },
   component: Board,
 });
 

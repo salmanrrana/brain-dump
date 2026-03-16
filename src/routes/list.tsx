@@ -13,7 +13,10 @@ import TicketListView from "../components/TicketListView";
 import TagListView from "../components/TagListView";
 import TicketModal from "../components/TicketModal";
 import { getStatusLabel } from "../lib/constants";
-import { getTicket } from "../api/tickets";
+import { getTicket, getTickets } from "../api/tickets";
+import { getProjects } from "../api/projects";
+import { getEpicsByProject } from "../api/epics";
+import { queryKeys } from "../lib/query-keys";
 import { createBrowserLogger } from "../lib/browser-logger";
 
 interface ListSearch {
@@ -21,6 +24,27 @@ interface ListSearch {
 }
 
 export const Route = createFileRoute("/list")({
+  loader: ({ context }) => {
+    // Pre-warm cache with default (unfiltered) tickets and projects
+    void context.queryClient.ensureQueryData({
+      queryKey: queryKeys.tickets({}),
+      queryFn: () => getTickets({ data: {} }),
+      staleTime: 30_000,
+    });
+    void context.queryClient.ensureQueryData({
+      queryKey: queryKeys.projectsWithEpics,
+      queryFn: async () => {
+        const projectList = await getProjects();
+        return Promise.all(
+          projectList.map(async (project: (typeof projectList)[0]) => {
+            const epics = await getEpicsByProject({ data: project.id });
+            return { ...project, epics };
+          })
+        );
+      },
+      staleTime: 30_000,
+    });
+  },
   component: ListView,
   validateSearch: (search: Record<string, unknown>): ListSearch => ({
     ...(search.view === "tags" ? { view: "tags" as const } : {}),
