@@ -4,8 +4,9 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import type { RouterContext } from "../router";
-// Side-effect import: registers app:boot:start mark and window helpers
+// Side-effect imports: dev-only performance instrumentation
 import "../lib/navigation-timing";
+import { setQueryClientForHealth } from "../lib/session-health";
 
 import AppLayout from "../components/AppLayout";
 import { SplashScreen } from "../components/SplashScreen";
@@ -57,7 +58,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   const { queryClient } = Route.useRouteContext();
   const [showSplash, setShowSplash] = useState(true);
 
-  // Mark app boot completion for Performance timeline
+  // Mark app boot completion for Performance timeline + connect session health monitor
   useEffect(() => {
     if (import.meta.env.DEV) {
       performance.mark("app:boot:end");
@@ -66,8 +67,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       } catch {
         // boot:start mark may not exist on HMR
       }
+      setQueryClientForHealth(queryClient);
     }
-  }, []);
+  }, [queryClient]);
 
   return (
     <html lang="en" className="dark" data-theme={DEFAULT_THEME} suppressHydrationWarning>
