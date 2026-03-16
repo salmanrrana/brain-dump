@@ -148,7 +148,6 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
   const [view, setView] = useState<PanelView>("projects");
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
   const [drillInProject, setDrillInProject] = useState<ProjectWithAIActivity | null>(null);
-  const [hoveredProjectId, setHoveredProjectId] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -646,13 +645,11 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
                     style={projectRowStyles}
                     onClick={() => handleSelectProject(project.id)}
                     onDoubleClick={() => handleDoubleClick(project)}
-                    onMouseEnter={() => setHoveredProjectId(project.id)}
-                    onMouseLeave={() => setHoveredProjectId(null)}
                     role="option"
                     aria-selected={isSelected}
                     aria-expanded={hasEpics ? isExpanded : undefined}
                     title={project.path}
-                    className="hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-primary)]"
+                    className="group hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-primary)]"
                     tabIndex={0}
                   >
                     {/* Expand/collapse chevron */}
@@ -710,9 +707,6 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
                           borderRadius: "var(--radius-sm)",
                           color: "var(--text-secondary)",
                           cursor: "pointer",
-                          transition: "opacity var(--transition-fast)",
-                          opacity: hoveredProjectId === project.id ? 1 : 0,
-                          pointerEvents: hoveredProjectId === project.id ? "auto" : "none",
                           flexShrink: 0,
                         }}
                         onClick={(e) => {
@@ -721,7 +715,7 @@ export const ProjectsPanel: FC<ProjectsPanelProps> = ({
                         }}
                         aria-label={`Edit ${project.name}`}
                         data-testid={`edit-project-${project.id}`}
-                        className="hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] hover:border-[var(--accent-primary)]"
+                        className="opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-visible:opacity-100 group-focus-visible:pointer-events-auto transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] hover:border-[var(--accent-primary)]"
                       >
                         <Pencil size={14} aria-hidden="true" />
                       </button>
