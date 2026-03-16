@@ -18,6 +18,7 @@ import { getTicket, getTicketSummaries } from "../api/tickets";
 import { getProjectsWithEpics } from "../api/projects";
 import { queryKeys } from "../lib/query-keys";
 import { createBrowserLogger } from "../lib/browser-logger";
+import { markLoaderStart, markLoaderEnd, timedFetch } from "../lib/navigation-timing";
 import { ListSkeleton } from "../components/route-skeletons";
 
 interface ListSearch {
@@ -27,17 +28,23 @@ interface ListSearch {
 export const Route = createFileRoute("/list")({
   pendingComponent: ListSkeleton,
   loader: ({ context }) => {
+    markLoaderStart("list");
     // Pre-warm cache with default (unfiltered) tickets and projects
-    void context.queryClient.ensureQueryData({
-      queryKey: queryKeys.ticketSummaries({}),
-      queryFn: () => getTicketSummaries({ data: {} }),
-      staleTime: 30_000,
-    });
-    void context.queryClient.ensureQueryData({
-      queryKey: queryKeys.projectsWithEpics,
-      queryFn: () => getProjectsWithEpics(),
-      staleTime: 30_000,
-    });
+    void timedFetch("list:tickets", () =>
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.ticketSummaries({}),
+        queryFn: () => getTicketSummaries({ data: {} }),
+        staleTime: 30_000,
+      })
+    );
+    void timedFetch("list:projects", () =>
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.projectsWithEpics,
+        queryFn: () => getProjectsWithEpics(),
+        staleTime: 30_000,
+      })
+    );
+    markLoaderEnd("list");
   },
   component: ListView,
   validateSearch: (search: Record<string, unknown>): ListSearch => ({

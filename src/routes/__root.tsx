@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { HeadContent, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import type { RouterContext } from "../router";
+// Side-effect import: registers app:boot:start mark and window helpers
+import "../lib/navigation-timing";
 
 import AppLayout from "../components/AppLayout";
 import { SplashScreen } from "../components/SplashScreen";
@@ -54,6 +56,18 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 function RootDocument({ children }: { children: React.ReactNode }) {
   const { queryClient } = Route.useRouteContext();
   const [showSplash, setShowSplash] = useState(true);
+
+  // Mark app boot completion for Performance timeline
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      performance.mark("app:boot:end");
+      try {
+        performance.measure("App Boot", "app:boot:start", "app:boot:end");
+      } catch {
+        // boot:start mark may not exist on HMR
+      }
+    }
+  }, []);
 
   return (
     <html lang="en" className="dark" data-theme={DEFAULT_THEME} suppressHydrationWarning>

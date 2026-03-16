@@ -19,21 +19,28 @@ import { getTicket, getTicketSummaries } from "../api/tickets";
 import { getProjectsWithEpics } from "../api/projects";
 import { queryKeys } from "../lib/query-keys";
 import { createBrowserLogger } from "../lib/browser-logger";
+import { markLoaderStart, markLoaderEnd, timedFetch } from "../lib/navigation-timing";
 import { BoardSkeleton } from "../components/route-skeletons";
 export const Route = createFileRoute("/board")({
   pendingComponent: BoardSkeleton,
   loader: ({ context }) => {
+    markLoaderStart("board");
     // Pre-warm cache with default (unfiltered) tickets and projects
-    void context.queryClient.ensureQueryData({
-      queryKey: queryKeys.ticketSummaries({}),
-      queryFn: () => getTicketSummaries({ data: {} }),
-      staleTime: 30_000,
-    });
-    void context.queryClient.ensureQueryData({
-      queryKey: queryKeys.projectsWithEpics,
-      queryFn: () => getProjectsWithEpics(),
-      staleTime: 30_000,
-    });
+    void timedFetch("board:tickets", () =>
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.ticketSummaries({}),
+        queryFn: () => getTicketSummaries({ data: {} }),
+        staleTime: 30_000,
+      })
+    );
+    void timedFetch("board:projects", () =>
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.projectsWithEpics,
+        queryFn: () => getProjectsWithEpics(),
+        staleTime: 30_000,
+      })
+    );
+    markLoaderEnd("board");
   },
   component: Board,
 });

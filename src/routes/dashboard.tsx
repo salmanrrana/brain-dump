@@ -22,33 +22,44 @@ import {
 } from "../components/dashboard";
 import type { StatFilter } from "../components/dashboard";
 
+import { markLoaderStart, markLoaderEnd, timedFetch } from "../lib/navigation-timing";
 import { DashboardSkeleton } from "../components/route-skeletons";
 
 type DashboardTab = "overview" | "ai-telemetry" | "cost-explorer";
 export const Route = createFileRoute("/dashboard")({
   pendingComponent: DashboardSkeleton,
   loader: ({ context }) => {
+    markLoaderStart("dashboard");
     // Pre-warm cache with tickets (for stats), analytics, telemetry, and cost in parallel
-    void context.queryClient.ensureQueryData({
-      queryKey: queryKeys.ticketSummaries({}),
-      queryFn: () => getTicketSummaries({ data: {} }),
-      staleTime: 30_000,
-    });
-    void context.queryClient.ensureQueryData({
-      queryKey: queryKeys.analytics.dashboard(),
-      queryFn: () => getDashboardAnalytics(),
-      staleTime: 60_000,
-    });
-    void context.queryClient.ensureQueryData({
-      queryKey: queryKeys.telemetry.dashboardAnalytics(),
-      queryFn: () => getDashboardTelemetryAnalytics(),
-      staleTime: 60_000,
-    });
-    void context.queryClient.ensureQueryData({
-      queryKey: queryKeys.cost.dashboardAnalytics(),
-      queryFn: () => getCostAnalytics(),
-      staleTime: 300_000,
-    });
+    void timedFetch("dashboard:tickets", () =>
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.ticketSummaries({}),
+        queryFn: () => getTicketSummaries({ data: {} }),
+        staleTime: 30_000,
+      })
+    );
+    void timedFetch("dashboard:analytics", () =>
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.analytics.dashboard(),
+        queryFn: () => getDashboardAnalytics(),
+        staleTime: 60_000,
+      })
+    );
+    void timedFetch("dashboard:telemetry", () =>
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.telemetry.dashboardAnalytics(),
+        queryFn: () => getDashboardTelemetryAnalytics(),
+        staleTime: 60_000,
+      })
+    );
+    void timedFetch("dashboard:cost", () =>
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.cost.dashboardAnalytics(),
+        queryFn: () => getCostAnalytics(),
+        staleTime: 300_000,
+      })
+    );
+    markLoaderEnd("dashboard");
   },
   component: Dashboard,
   errorComponent: DashboardError,
