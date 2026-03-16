@@ -68,6 +68,10 @@ export const tickets = sqliteTable(
     index("idx_tickets_project").on(table.projectId),
     index("idx_tickets_epic").on(table.epicId),
     index("idx_tickets_status").on(table.status),
+    // Composite indexes for common filter/query paths
+    index("idx_tickets_project_status").on(table.projectId, table.status),
+    index("idx_tickets_epic_status").on(table.epicId, table.status),
+    index("idx_tickets_project_priority").on(table.projectId, table.priority),
   ]
 );
 
@@ -86,7 +90,11 @@ export const ticketComments = sqliteTable(
       .notNull()
       .default(sql`(datetime('now'))`),
   },
-  (table) => [index("idx_comments_ticket").on(table.ticketId)]
+  (table) => [
+    index("idx_comments_ticket").on(table.ticketId),
+    // Composite index for chronological comment listing per ticket
+    index("idx_comments_ticket_created").on(table.ticketId, table.createdAt),
+  ]
 );
 
 // Epic comments table (activity log for epic-level discussions and notes)
