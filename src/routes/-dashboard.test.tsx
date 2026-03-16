@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
+// Mock @tanstack/react-query for useQueryClient used in prefetchExplorer
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: vi.fn(() => ({
+    prefetchQuery: vi.fn(),
+  })),
+}));
+
 // Mock the hooks module
 vi.mock("../lib/hooks", () => ({
   useTickets: vi.fn(),
@@ -8,6 +15,11 @@ vi.mock("../lib/hooks", () => ({
   useDashboardAnalytics: vi.fn(),
   useDashboardTelemetryAnalytics: vi.fn(),
   useCostAnalytics: vi.fn(() => ({ data: undefined, error: null })),
+}));
+
+// Mock api/cost for getCostExplorerData used in prefetch
+vi.mock("../api/cost", () => ({
+  getCostExplorerData: vi.fn(),
 }));
 
 // Mock dashboard components - we're testing the route's data transformation logic
@@ -22,6 +34,7 @@ vi.mock("../components/dashboard", () => ({
   )),
   AnalyticsSection: vi.fn(() => <div data-testid="analytics-section">Analytics</div>),
   AITelemetryTab: vi.fn(() => <div data-testid="ai-telemetry-tab">AI Telemetry</div>),
+  CostExplorerTab: vi.fn(() => <div data-testid="cost-explorer-tab">Cost Explorer</div>),
 }));
 
 import {

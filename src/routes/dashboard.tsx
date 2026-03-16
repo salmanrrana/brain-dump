@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useTickets,
   useActiveRalphSessions,
@@ -7,10 +8,17 @@ import {
   useDashboardTelemetryAnalytics,
   useCostAnalytics,
 } from "../lib/hooks";
-import { StatsGrid, AnalyticsSection, AITelemetryTab } from "../components/dashboard";
+import { getCostExplorerData } from "../api/cost";
+import { queryKeys } from "../lib/query-keys";
+import {
+  StatsGrid,
+  AnalyticsSection,
+  AITelemetryTab,
+  CostExplorerTab,
+} from "../components/dashboard";
 import type { StatFilter } from "../components/dashboard";
 
-type DashboardTab = "overview" | "ai-telemetry";
+type DashboardTab = "overview" | "ai-telemetry" | "cost-explorer";
 export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
   errorComponent: DashboardError,
@@ -100,6 +108,18 @@ function Dashboard() {
     error: telemetryError,
   } = useDashboardTelemetryAnalytics();
   const { data: costAnalytics, error: costError } = useCostAnalytics();
+  const queryClient = useQueryClient();
+
+  const prefetchExplorer = useCallback(() => {
+    queryClient.prefetchQuery({
+      queryKey: queryKeys.cost.explorer(),
+      queryFn: async () => {
+        const result = await getCostExplorerData({ data: {} });
+        return result;
+      },
+      staleTime: 300_000,
+    });
+  }, [queryClient]);
 
   const handleStatClick = useCallback(
     async (filter: StatFilter) => {
@@ -171,6 +191,15 @@ function Dashboard() {
           >
             AI Telemetry
           </button>
+          <button
+            role="tab"
+            aria-selected={activeTab === "cost-explorer"}
+            onClick={() => setActiveTab("cost-explorer")}
+            onMouseEnter={prefetchExplorer}
+            style={activeTab === "cost-explorer" ? activeTabStyles : tabStyles}
+          >
+            Cost Explorer
+          </button>
         </div>
       </div>
 
@@ -195,6 +224,8 @@ function Dashboard() {
           costError={costError}
         />
       )}
+
+      {activeTab === "cost-explorer" && <CostExplorerTab />}
     </div>
   );
 }

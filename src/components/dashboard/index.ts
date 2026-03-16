@@ -22,3 +22,8 @@ export { AITelemetryTab } from "./AITelemetryTab";
 export { CostTrendChart } from "./CostTrendChart";
 export { CostPerTicketChart } from "./CostPerTicketChart";
 export { CostByEpicChart } from "./CostByEpicChart";
+export { CostExplorerTab } from "./CostExplorerTab";
+export { CostTreemapChart } from "./CostTreemapChart";
+export { CostDetailPanel } from "./CostDetailPanel";
+export { CostSummaryCards } from "./CostSummaryCards";
+export type { CostSummaryData } from "./CostSummaryCards";

@@ -69,6 +69,10 @@ export type {
   ProjectCostResult,
   CostTrendEntry,
   CostTrendResult,
+  CostExplorerNode,
+  CostExplorerParams,
+  StageCostEntry,
+  TicketCostDetail,
   TelemetrySession,
   TelemetryEvent,
   GitCommandResult,
@@ -95,6 +99,8 @@ export type {
   LearningType,
   Learning,
   LearningRecord,
+  InsightCategory,
+  EpicInsight,
   InitDatabaseResult,
 } from "./types.ts";
 
@@ -247,6 +253,9 @@ export {
   deleteCostModel,
   seedCostModels,
   recalculateCosts,
+  computeStageCosts,
+  getTicketCostDetail,
+  getCostExplorerData,
 } from "./cost.ts";
 
 export type {
@@ -375,7 +384,15 @@ export type {
 } from "./health.ts";
 
 // Learning reconciliation business logic
-export { reconcileLearnings, getEpicLearnings, autoExtractLearnings } from "./learnings.ts";
+export {
+  reconcileLearnings,
+  getEpicLearnings,
+  autoExtractLearnings,
+  gatherEpicAnalysisContext,
+  saveEpicInsights,
+  getEpicInsights,
+  clearEpicLearnings,
+} from "./learnings.ts";
 
 export type {
   LearningEntry,
@@ -383,6 +400,9 @@ export type {
   ReconcileLearningsResult,
   GetEpicLearningsResult,
   AutoExtractLearningsResult,
+  EpicAnalysisContext,
+  SaveEpicInsightsResult,
+  GetEpicInsightsResult,
 } from "./learnings.ts";
 
 // Compliance / conversation logging business logic

@@ -85,6 +85,13 @@
       "when": 1773588377068,
       "tag": "0011_equal_cerise",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1773609168477,
+      "tag": "0012_lucky_rachel_grey",
+      "breakpoints": true
     }
   ]
 }

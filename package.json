@@ -54,6 +54,8 @@
     "@tanstack/router-plugin": "^1.132.0",
     "better-sqlite3": "^12.5.0",
     "drizzle-orm": "^0.45.1",
+    "echarts": "^6.0.0",
+    "echarts-for-react": "^3.0.6",
     "jszip": "^3.10.1",
     "lucide-react": "^0.561.0",
     "nitro": "latest",

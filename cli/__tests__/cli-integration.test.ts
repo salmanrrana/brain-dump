@@ -9,7 +9,11 @@ import { execFile } from "child_process";
 import { mkdtempSync, mkdirSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+// Each test spawns multiple tsx subprocesses sequentially.
+// Under parallel load from the full suite, 5s default is too tight.
+vi.setConfig({ testTimeout: 15_000 });
 
 // ── Test Harness ────────────────────────────────────────────────
 
@@ -646,7 +650,7 @@ describe("session", () => {
     expect(sessions).toHaveLength(1);
   });
 
-  it("emit-event and get-events", { timeout: 10_000 }, async () => {
+  it("emit-event and get-events", async () => {
     const ticketId = await setupTicket();
     const session = (await runOk("session", "create", "--ticket", ticketId)) as Record<
       string,

@@ -8,11 +8,13 @@ import {
   GitBranch,
   RefreshCw,
   LoaderCircle,
+  Sparkles,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { triggerAutoLearnings } from "../../api/epics";
+import { triggerAutoLearnings, launchEpicAnalysis } from "../../api/epics";
 import { queryKeys } from "../../lib/query-keys";
 import { useToast } from "../Toast";
+import { useSettings } from "../../lib/hooks/settings";
 
 export interface LearningEntry {
   ticketId: string;
@@ -75,10 +77,38 @@ const DEFAULT_CONFIG: LearningConfig = {
   icon: Lightbulb,
 };
 
+const TRUNCATE_LENGTH = 120;
+
+function TruncatedText({ text }: { text: string }) {
+  const [expanded, setExpanded] = React.useState(false);
+  const needsTruncation = text.length > TRUNCATE_LENGTH;
+
+  if (!needsTruncation) {
+    return <p className="text-sm text-slate-300">{text}</p>;
+  }
+
+  return (
+    <p className="text-sm text-slate-300">
+      {expanded ? text : text.slice(0, TRUNCATE_LENGTH) + "..."}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setExpanded(!expanded);
+        }}
+        className="ml-1 text-xs text-slate-500 hover:text-slate-400 transition-colors"
+      >
+        {expanded ? "show less" : "show more"}
+      </button>
+    </p>
+  );
+}
+
 export function EpicLearnings({ epicId, learnings = [] }: EpicLearningsProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const { settings } = useSettings();
 
   const refreshMutation = useMutation({
     mutationFn: () => triggerAutoLearnings({ data: { epicId } }),
@@ -101,6 +131,29 @@ export function EpicLearnings({ epicId, learnings = [] }: EpicLearningsProps) {
     },
   });
 
+  const analysisMutation = useMutation({
+    mutationFn: () =>
+      launchEpicAnalysis({
+        data: {
+          epicId,
+          preferredTerminal: settings?.terminalEmulator ?? null,
+        },
+      }),
+    onSuccess: (result) => {
+      if (result.success) {
+        showToast("success", result.message);
+      } else {
+        showToast("error", result.message);
+      }
+    },
+    onError: (err) => {
+      showToast(
+        "error",
+        `Failed to launch analysis: ${err instanceof Error ? err.message : "Unknown error"}`
+      );
+    },
+  });
+
   const safeLearnings = learnings ?? [];
   const totalLearnings = safeLearnings.reduce(
     (acc, entry) => acc + (entry.learnings?.length ?? 0),
@@ -113,19 +166,34 @@ export function EpicLearnings({ epicId, learnings = [] }: EpicLearningsProps) {
         <p className="text-slate-400">
           No learnings captured yet. Complete tickets in this epic to accumulate learnings.
         </p>
-        <button
-          type="button"
-          onClick={() => refreshMutation.mutate()}
-          disabled={refreshMutation.isPending}
-          className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-600 transition-colors disabled:opacity-50"
-        >
-          {refreshMutation.isPending ? (
-            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <RefreshCw className="h-3.5 w-3.5" />
-          )}
-          {refreshMutation.isPending ? "Extracting..." : "Refresh Learnings"}
-        </button>
+        <div className="mt-3 flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => analysisMutation.mutate()}
+            disabled={analysisMutation.isPending}
+            className="inline-flex items-center gap-1.5 rounded-md bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-500 transition-colors disabled:opacity-50"
+          >
+            {analysisMutation.isPending ? (
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+            {analysisMutation.isPending ? "Launching..." : "Analyze with AI"}
+          </button>
+          <button
+            type="button"
+            onClick={() => refreshMutation.mutate()}
+            disabled={refreshMutation.isPending}
+            className="inline-flex items-center gap-1.5 rounded-md bg-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-600 transition-colors disabled:opacity-50"
+          >
+            {refreshMutation.isPending ? (
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+            {refreshMutation.isPending ? "Extracting..." : "Quick Extract"}
+          </button>
+        </div>
       </div>
     );
   }
@@ -176,7 +244,7 @@ export function EpicLearnings({ epicId, learnings = [] }: EpicLearningsProps) {
                           {config.label}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-300">{learning.description}</p>
+                      <TruncatedText text={learning.description} />
                       {learning.suggestedUpdate && (
                         <p className="mt-1 text-xs text-slate-500">
                           Suggested update: {learning.suggestedUpdate.file} →{" "}
@@ -190,7 +258,20 @@ export function EpicLearnings({ epicId, learnings = [] }: EpicLearningsProps) {
             </div>
           ))}
 
-          <div className="border-t border-slate-700 pt-3">
+          <div className="border-t border-slate-700 pt-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => analysisMutation.mutate()}
+              disabled={analysisMutation.isPending}
+              className="inline-flex items-center gap-1.5 rounded-md bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-500 transition-colors disabled:opacity-50"
+            >
+              {analysisMutation.isPending ? (
+                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
+              {analysisMutation.isPending ? "Launching..." : "Analyze with AI"}
+            </button>
             <button
               type="button"
               onClick={() => refreshMutation.mutate()}
@@ -202,7 +283,7 @@ export function EpicLearnings({ epicId, learnings = [] }: EpicLearningsProps) {
               ) : (
                 <RefreshCw className="h-3.5 w-3.5" />
               )}
-              {refreshMutation.isPending ? "Extracting..." : "Refresh Learnings"}
+              {refreshMutation.isPending ? "Extracting..." : "Quick Extract"}
             </button>
           </div>
         </div>

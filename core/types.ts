@@ -419,6 +419,54 @@ export interface CostTrendResult {
 }
 
 // ============================================
+// Cost Explorer Types
+// ============================================
+
+/** Recursive tree node for the Cost Explorer treemap drill-down. */
+export interface CostExplorerNode {
+  id: string;
+  name: string;
+  type: "project" | "epic" | "ticket" | "stage" | "session" | "unassigned";
+  /** ECharts treemap uses "value" as the size key */
+  value: number;
+  costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  sessionCount: number;
+  children?: CostExplorerNode[] | undefined;
+  metadata?: Record<string, string | number | boolean | null> | undefined;
+}
+
+export interface CostExplorerParams {
+  projectId?: string;
+  since?: string;
+}
+
+export interface StageCostEntry {
+  stage: RalphSessionState;
+  costUsd: number;
+  durationMs: number;
+  /** Percentage of total ticket cost */
+  percentage: number;
+}
+
+export interface TicketCostDetail extends TicketCostResult {
+  stages: StageCostEntry[];
+  sessions: Array<{
+    sessionId: string;
+    costUsd: number;
+    inputTokens: number;
+    outputTokens: number;
+    model: string | null;
+    startedAt: string;
+    completedAt: string | null;
+    outcome: string | null;
+  }>;
+}
+
+// ============================================
 // Telemetry Types
 // ============================================
 
@@ -680,6 +728,18 @@ export interface LearningRecord extends Learning {
   ticketId: string;
   appliedAt: string;
   docUpdated: boolean;
+}
+
+// ============================================
+// Epic Insight Types (AI-generated analysis)
+// ============================================
+
+export type InsightCategory = "frequent-actions" | "skills" | "plugins" | "agents" | "project-docs";
+
+export interface EpicInsight {
+  category: InsightCategory;
+  title: string;
+  description: string;
 }
 
 // ============================================
