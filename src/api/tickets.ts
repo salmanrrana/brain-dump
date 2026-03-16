@@ -575,37 +575,46 @@ export const getPaginatedTicketSummaries = createServerFn({ method: "GET" })
 
     // Tag filtering uses raw SQL (same pattern as getTicketSummaries)
     if (ticketFilters.tags && ticketFilters.tags.length > 0) {
-      const cols = `id, title, status, priority, position, project_id, epic_id, tags, subtasks, is_blocked, blocked_reason, created_at, updated_at, completed_at, branch_name, pr_number, pr_url, pr_status`;
-      let sqlStr = `SELECT ${cols} FROM tickets WHERE 1=1`;
-      const params: (string | number)[] = [];
+      // Build base WHERE clause for tag-filtered queries
+      let baseWhere = "WHERE 1=1";
+      const baseParams: (string | number)[] = [];
 
       if (ticketFilters.projectId) {
-        sqlStr += " AND project_id = ?";
-        params.push(ticketFilters.projectId);
+        baseWhere += " AND project_id = ?";
+        baseParams.push(ticketFilters.projectId);
       }
       if (ticketFilters.epicId) {
-        sqlStr += " AND epic_id = ?";
-        params.push(ticketFilters.epicId);
+        baseWhere += " AND epic_id = ?";
+        baseParams.push(ticketFilters.epicId);
       }
       if (ticketFilters.status) {
-        sqlStr += " AND status = ?";
-        params.push(ticketFilters.status);
+        baseWhere += " AND status = ?";
+        baseParams.push(ticketFilters.status);
       }
 
       for (const tag of ticketFilters.tags) {
-        sqlStr += ` AND json_valid(tickets.tags) AND EXISTS (
+        baseWhere += ` AND json_valid(tickets.tags) AND EXISTS (
           SELECT 1 FROM json_each(tickets.tags)
           WHERE json_each.value = ?
         )`;
-        params.push(tag);
+        baseParams.push(tag);
       }
 
-      sqlStr += " ORDER BY position LIMIT ? OFFSET ?";
-      params.push(pageSize, safeOffset);
+      // Total count with tag filters included
+      const countStmt = sqlite.prepare(`SELECT COUNT(*) as count FROM tickets ${baseWhere}`);
+      const tagTotal = (countStmt.get(...baseParams) as { count: number })?.count ?? 0;
 
-      const stmt = sqlite.prepare(sqlStr);
-      const ticketRows = stmt.all(...params) as TicketSummary[];
-      return { tickets: ticketRows, total, hasMore: safeOffset + ticketRows.length < total };
+      // Paginated data query
+      const cols = `id, title, status, priority, position, project_id, epic_id, tags, subtasks, is_blocked, blocked_reason, created_at, updated_at, completed_at, branch_name, pr_number, pr_url, pr_status`;
+      const dataStmt = sqlite.prepare(
+        `SELECT ${cols} FROM tickets ${baseWhere} ORDER BY position LIMIT ? OFFSET ?`
+      );
+      const ticketRows = dataStmt.all(...baseParams, pageSize, safeOffset) as TicketSummary[];
+      return {
+        tickets: ticketRows,
+        total: tagTotal,
+        hasMore: safeOffset + ticketRows.length < tagTotal,
+      };
     }
 
     // Standard ORM query with pagination
