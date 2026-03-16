@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Profiler, useCallback, useEffect, useMemo, useState } from "react";
+import { onRenderCallback } from "../lib/profiler";
 import { useAppState } from "../components/AppLayout";
 import {
   useTicketSummaries,
@@ -165,35 +166,43 @@ function Board() {
   }
 
   return (
-    <div style={boardContainerStyles} className="route-fade-in">
-      {/* Board Header with filters */}
-      <BoardHeader
-        projectId={appFilters.projectId}
-        epicId={appFilters.epicId}
-        tags={appFilters.tags}
-        onClearFilters={clearAllFilters}
-      />
+    <Profiler id="Board" onRender={onRenderCallback}>
+      <div style={boardContainerStyles} className="route-fade-in">
+        {/* Board Header with filters */}
+        <Profiler id="Board.Header" onRender={onRenderCallback}>
+          <BoardHeader
+            projectId={appFilters.projectId}
+            epicId={appFilters.epicId}
+            tags={appFilters.tags}
+            onClearFilters={clearAllFilters}
+          />
+        </Profiler>
 
-      {/* Main content area */}
-      <div style={contentAreaStyles}>
-        <KanbanBoard
-          tickets={tickets}
-          onTicketClick={handleTicketClick}
-          onRefresh={refetch}
-          getRalphSession={getRalphSession}
-        />
+        {/* Main content area */}
+        <div style={contentAreaStyles}>
+          <Profiler id="Board.Kanban" onRender={onRenderCallback}>
+            <KanbanBoard
+              tickets={tickets}
+              onTicketClick={handleTicketClick}
+              onRefresh={refetch}
+              getRalphSession={getRalphSession}
+            />
+          </Profiler>
+        </div>
+
+        {/* Ticket Detail Modal */}
+        {selectedTicket && (
+          <Profiler id="Board.TicketModal" onRender={onRenderCallback}>
+            <TicketModal
+              ticket={selectedTicket}
+              epics={allEpics}
+              onClose={handleModalClose}
+              onUpdate={handleTicketUpdate}
+            />
+          </Profiler>
+        )}
       </div>
-
-      {/* Ticket Detail Modal */}
-      {selectedTicket && (
-        <TicketModal
-          ticket={selectedTicket}
-          epics={allEpics}
-          onClose={handleModalClose}
-          onUpdate={handleTicketUpdate}
-        />
-      )}
-    </div>
+    </Profiler>
   );
 }
 
