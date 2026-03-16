@@ -2,11 +2,11 @@ import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { KanbanBoard } from "./KanbanBoard";
 import * as hooks from "../../lib/hooks";
-import type { Ticket } from "../../lib/schema";
+import type { TicketSummary } from "../../api/tickets";
 
 // Mock the useTickets hook and mutation hooks
 vi.mock("../../lib/hooks", () => ({
-  useTickets: vi.fn(),
+  useTicketSummaries: vi.fn(),
   useUpdateTicketStatus: vi.fn(() => ({
     mutateAsync: vi.fn(),
     isPending: false,
@@ -62,11 +62,10 @@ vi.mock("./KanbanColumn", () => ({
 }));
 
 // Helper to create valid Ticket objects for testing
-const createMockTicket = (overrides: Partial<Ticket>): Ticket => {
+const createMockTicket = (overrides: Partial<TicketSummary>): TicketSummary => {
   return {
     id: "1",
     title: "Test Ticket",
-    description: "Test Description",
     status: "backlog",
     priority: "medium",
     position: 0,
@@ -79,18 +78,16 @@ const createMockTicket = (overrides: Partial<Ticket>): Ticket => {
     blockedReason: null,
     tags: null,
     subtasks: null,
-    linkedFiles: null,
-    attachments: null,
     branchName: null,
     prNumber: null,
     prUrl: null,
     prStatus: null,
     ...overrides,
-  } as unknown as Ticket;
+  } as unknown as TicketSummary;
 };
 
 describe("KanbanBoard", () => {
-  const mockTickets: Ticket[] = [
+  const mockTickets: TicketSummary[] = [
     createMockTicket({
       id: "1",
       title: "Ticket 1",
@@ -118,7 +115,7 @@ describe("KanbanBoard", () => {
   });
 
   it("renders loading skeleton when loading", () => {
-    vi.mocked(hooks.useTickets).mockReturnValue({
+    vi.mocked(hooks.useTicketSummaries).mockReturnValue({
       tickets: [],
       loading: true,
       error: null,
@@ -140,7 +137,7 @@ describe("KanbanBoard", () => {
   });
 
   it("renders error message when fetch fails", () => {
-    vi.mocked(hooks.useTickets).mockReturnValue({
+    vi.mocked(hooks.useTicketSummaries).mockReturnValue({
       tickets: [],
       loading: false,
       error: "Failed to fetch",
@@ -153,12 +150,12 @@ describe("KanbanBoard", () => {
   });
 
   it("renders columns and distributes tickets correctly", () => {
-    vi.mocked(hooks.useTickets).mockReturnValue({
+    vi.mocked(hooks.useTicketSummaries).mockReturnValue({
       tickets: mockTickets,
       loading: false,
       error: null,
       refetch: vi.fn(),
-    } as unknown as ReturnType<typeof hooks.useTickets>);
+    } as unknown as ReturnType<typeof hooks.useTicketSummaries>);
 
     render(<KanbanBoard />);
 

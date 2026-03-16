@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { ChevronUp, ChevronDown, AlertCircle, GitBranch, GitPullRequest } from "lucide-react";
 
-import type { Ticket } from "../lib/hooks";
+import type { TicketSummary } from "../api/tickets";
 import {
   STATUS_ORDER,
   PRIORITY_ORDER,
@@ -17,9 +17,9 @@ interface Epic {
 }
 
 interface TicketListViewProps {
-  tickets: Ticket[];
+  tickets: TicketSummary[];
   epics: Epic[];
-  onTicketClick: (ticket: Ticket) => void;
+  onTicketClick: (ticket: TicketSummary) => void;
 }
 
 type SortField = "title" | "status" | "priority" | "createdAt";

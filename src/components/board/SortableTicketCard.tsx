@@ -2,13 +2,13 @@ import { memo, useCallback, useMemo } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { TicketCard } from "./TicketCard";
-import type { Ticket } from "../../lib/schema";
+import type { TicketSummary } from "../../api/tickets";
 import type { ActiveRalphSession } from "../../lib/hooks";
 
 interface SortableTicketCardProps {
-  ticket: Ticket;
+  ticket: TicketSummary;
   /** Stable click handler — receives the ticket, so parent doesn't need a per-card closure */
-  onTicketClick?: ((ticket: Ticket) => void) | undefined;
+  onTicketClick?: ((ticket: TicketSummary) => void) | undefined;
   ralphSession: ActiveRalphSession | null;
   /** Tab index for roving tabindex pattern */
   tabIndex?: 0 | -1;

@@ -2,18 +2,19 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppState } from "../components/AppLayout";
 import {
-  useTickets,
+  useTicketSummaries,
   useProjects,
   useTagsWithMetadata,
   type Ticket,
   type StatusChange,
 } from "../lib/hooks";
+import type { TicketSummary } from "../api/tickets";
 import { useToast } from "../components/Toast";
 import TicketListView from "../components/TicketListView";
 import TagListView from "../components/TagListView";
 import TicketModal from "../components/TicketModal";
 import { getStatusLabel } from "../lib/constants";
-import { getTicket, getTickets } from "../api/tickets";
+import { getTicket, getTicketSummaries } from "../api/tickets";
 import { getProjectsWithEpics } from "../api/projects";
 import { queryKeys } from "../lib/query-keys";
 import { createBrowserLogger } from "../lib/browser-logger";
@@ -28,8 +29,8 @@ export const Route = createFileRoute("/list")({
   loader: ({ context }) => {
     // Pre-warm cache with default (unfiltered) tickets and projects
     void context.queryClient.ensureQueryData({
-      queryKey: queryKeys.tickets({}),
-      queryFn: () => getTickets({ data: {} }),
+      queryKey: queryKeys.ticketSummaries({}),
+      queryFn: () => getTicketSummaries({ data: {} }),
       staleTime: 30_000,
     });
     void context.queryClient.ensureQueryData({
@@ -104,7 +105,7 @@ function ListView() {
     [showToast]
   );
 
-  const { tickets, loading, error, refetch } = useTickets(filters, {
+  const { tickets, loading, error, refetch } = useTicketSummaries(filters, {
     onStatusChange: handleStatusChange,
   });
 
@@ -157,8 +158,17 @@ function ListView() {
 
   const allEpics = projects.flatMap((p) => p.epics);
 
-  const handleTicketClick = (ticket: Ticket) => {
-    setSelectedTicket(ticket);
+  const handleTicketClick = async (ticket: TicketSummary) => {
+    try {
+      const fullTicket = await getTicket({ data: ticket.id });
+      setSelectedTicket(fullTicket as Ticket);
+    } catch (err) {
+      logger.error(
+        `Failed to fetch ticket detail: ticketId=${ticket.id}`,
+        err instanceof Error ? err : new Error(String(err))
+      );
+      showToast("error", "Failed to open ticket details");
+    }
   };
 
   const handleModalClose = () => {

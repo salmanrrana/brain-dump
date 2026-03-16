@@ -37,6 +37,8 @@ export const queryKeys = {
   // Tickets
   tickets: (filters: TicketFilters) => ["tickets", filters] as const,
   allTickets: ["tickets"] as const,
+  ticketSummaries: (filters: TicketFilters) => ["ticket-summaries", filters] as const,
+  allTicketSummaries: ["ticket-summaries"] as const,
   projectTicketCounts: ["tickets", "project-counts"] as const,
   epicTicketCounts: (projectId: string) => ["tickets", "epic-counts", projectId] as const,
 

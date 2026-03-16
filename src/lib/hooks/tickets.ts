@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getTickets,
+  getTicketSummaries,
   createTicket,
   updateTicket,
   updateTicketStatus,
@@ -16,6 +17,7 @@ import {
   type CreateTicketInput,
   type UpdateTicketInput,
   type TicketStatus,
+  type TicketSummary,
 } from "../../api/tickets";
 import { searchTickets, type SearchResult } from "../../api/search";
 import { getTags, getTagsWithMetadata, type TagFilters, type TagMetadata } from "../../api/tags";
@@ -72,11 +74,15 @@ export function useInvalidateQueries() {
 
   return {
     invalidateProjects: () => queryClient.invalidateQueries({ queryKey: queryKeys.projects }),
-    invalidateTickets: () => queryClient.invalidateQueries({ queryKey: queryKeys.allTickets }),
+    invalidateTickets: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
+    },
     invalidateTags: () => queryClient.invalidateQueries({ queryKey: queryKeys.allTags }),
     invalidateAll: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTags });
     },
   };
@@ -152,8 +158,9 @@ export function useCreateTicket() {
       }
     },
     onSettled: () => {
-      // Invalidate tickets and tags (new ticket might have new tags)
+      // Invalidate tickets, summaries, and tags (new ticket might have new tags)
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTags });
     },
   });
@@ -242,6 +249,7 @@ export function useUpdateTicket() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTags });
     },
   });
@@ -254,6 +262,7 @@ export function useUpdateTicketStatus() {
     mutationFn: (data: { id: string; status: TicketStatus }) => updateTicketStatus({ data }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
     },
   });
 }
@@ -265,6 +274,7 @@ export function useUpdateTicketPosition() {
     mutationFn: (data: { id: string; position: number }) => updateTicketPosition({ data }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
     },
   });
 }
@@ -276,6 +286,7 @@ export function useDeleteTicket() {
     mutationFn: (params: { ticketId: string; confirm?: boolean }) => deleteTicket({ data: params }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTags });
     },
   });
@@ -321,6 +332,67 @@ export function useTickets(
     queryFn: async () => {
       const ticketList = await getTickets({ data: filters });
       return ticketList as Ticket[];
+    },
+    enabled,
+    staleTime: 30_000, // 30s — mutations invalidate; MCP changes picked up on next interval
+    refetchInterval: pollingInterval > 0 ? pollingInterval : false,
+  });
+
+  // Check for status changes when data updates
+  useEffect(() => {
+    if (!query.data || !onStatusChange) return;
+
+    if (!isInitialLoad.current) {
+      for (const ticket of query.data) {
+        const prevStatus = prevTicketsRef.current.get(ticket.id);
+        if (prevStatus && prevStatus !== ticket.status) {
+          onStatusChange({
+            ticketId: ticket.id,
+            ticketTitle: ticket.title,
+            fromStatus: prevStatus,
+            toStatus: ticket.status,
+          });
+        }
+      }
+    }
+
+    // Update previous tickets map
+    prevTicketsRef.current = new Map(query.data.map((t) => [t.id, t.status]));
+    isInitialLoad.current = false;
+  }, [query.data, onStatusChange]);
+
+  return {
+    tickets: query.data ?? [],
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
+    refetch: query.refetch,
+  };
+}
+
+// =============================================================================
+// TICKET SUMMARIES QUERY (lightweight — no description/linkedFiles/attachments)
+// =============================================================================
+
+/**
+ * Lightweight hook for board, list, and dashboard views.
+ * Returns ticket summaries without heavy text fields (description, linkedFiles, attachments).
+ */
+export function useTicketSummaries(
+  filters: TicketFilters = {},
+  options: {
+    pollingInterval?: number;
+    onStatusChange?: (change: StatusChange) => void;
+    enabled?: boolean;
+  } = {}
+) {
+  const prevTicketsRef = useRef<Map<string, string>>(new Map());
+  const isInitialLoad = useRef(true);
+  const { pollingInterval = 0, onStatusChange, enabled = true } = options;
+
+  const query = useQuery({
+    queryKey: queryKeys.ticketSummaries(filters),
+    queryFn: async () => {
+      return (await getTicketSummaries({ data: filters })) as TicketSummary[];
     },
     enabled,
     staleTime: 30_000, // 30s — mutations invalidate; MCP changes picked up on next interval

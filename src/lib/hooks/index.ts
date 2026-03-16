@@ -46,6 +46,7 @@ export {
   useDeleteTicket,
   useTicketDeletePreview,
   useTickets,
+  useTicketSummaries,
   useSearch,
   useTags,
   useTagsWithMetadata,
@@ -54,6 +55,8 @@ export {
   type SearchResult,
   type TagMetadata,
 } from "./tickets";
+
+export type { TicketSummary } from "../../api/tickets";
 
 // =============================================================================
 // PROJECT & EPIC HOOKS

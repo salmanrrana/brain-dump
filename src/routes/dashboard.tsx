@@ -2,13 +2,13 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  useTickets,
+  useTicketSummaries,
   useActiveRalphSessions,
   useDashboardAnalytics,
   useDashboardTelemetryAnalytics,
   useCostAnalytics,
 } from "../lib/hooks";
-import { getTickets } from "../api/tickets";
+import { getTicketSummaries } from "../api/tickets";
 import { getDashboardAnalytics } from "../api/analytics";
 import { getDashboardTelemetryAnalytics } from "../api/telemetry";
 import { getCostAnalytics, getCostExplorerData } from "../api/cost";
@@ -29,8 +29,8 @@ export const Route = createFileRoute("/dashboard")({
   loader: ({ context }) => {
     // Pre-warm cache with tickets (for stats), analytics, telemetry, and cost in parallel
     void context.queryClient.ensureQueryData({
-      queryKey: queryKeys.tickets({}),
-      queryFn: () => getTickets({ data: {} }),
+      queryKey: queryKeys.ticketSummaries({}),
+      queryFn: () => getTicketSummaries({ data: {} }),
       staleTime: 30_000,
     });
     void context.queryClient.ensureQueryData({
@@ -124,7 +124,7 @@ const errorButtonStyles: React.CSSProperties = {
 function Dashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
-  const { tickets, loading, error } = useTickets();
+  const { tickets, loading, error } = useTicketSummaries();
   const { sessions } = useActiveRalphSessions();
   const {
     data: analytics,

@@ -10,7 +10,7 @@ vi.mock("@tanstack/react-query", () => ({
 
 // Mock the hooks module
 vi.mock("../lib/hooks", () => ({
-  useTickets: vi.fn(),
+  useTicketSummaries: vi.fn(),
   useActiveRalphSessions: vi.fn(),
   useDashboardAnalytics: vi.fn(),
   useDashboardTelemetryAnalytics: vi.fn(),
@@ -38,13 +38,13 @@ vi.mock("../components/dashboard", () => ({
 }));
 
 import {
-  useTickets,
+  useTicketSummaries,
   useActiveRalphSessions,
   useDashboardAnalytics,
   useDashboardTelemetryAnalytics,
 } from "../lib/hooks";
 
-const mockUseTickets = useTickets as ReturnType<typeof vi.fn>;
+const mockUseTicketSummaries = useTicketSummaries as ReturnType<typeof vi.fn>;
 const mockUseActiveRalphSessions = useActiveRalphSessions as ReturnType<typeof vi.fn>;
 const mockUseDashboardAnalytics = useDashboardAnalytics as ReturnType<typeof vi.fn>;
 const mockUseDashboardTelemetryAnalytics = useDashboardTelemetryAnalytics as ReturnType<
@@ -68,7 +68,6 @@ function createTicket(
     priority: overrides.priority ?? null,
     position: overrides.position ?? 0,
     isBlocked: overrides.isBlocked ?? false,
-    description: null,
     projectId: "project-1",
     epicId: null,
     subtasks: null,
@@ -83,7 +82,7 @@ let Dashboard: any;
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  mockUseTickets.mockReturnValue({ tickets: [], loading: false, error: null });
+  mockUseTicketSummaries.mockReturnValue({ tickets: [], loading: false, error: null });
   mockUseActiveRalphSessions.mockReturnValue({ sessions: {}, error: null });
   mockUseDashboardAnalytics.mockReturnValue({
     data: null,
@@ -101,7 +100,7 @@ beforeEach(async () => {
 
 describe("Dashboard", () => {
   it("shows empty container while fetching tickets", () => {
-    mockUseTickets.mockReturnValue({ tickets: [], loading: true, error: null });
+    mockUseTicketSummaries.mockReturnValue({ tickets: [], loading: true, error: null });
 
     const { container } = render(<Dashboard />);
 
@@ -111,7 +110,7 @@ describe("Dashboard", () => {
   });
 
   it("shows error message when ticket fetch fails", () => {
-    mockUseTickets.mockReturnValue({
+    mockUseTicketSummaries.mockReturnValue({
       tickets: [],
       loading: false,
       error: "Database connection failed",
@@ -123,7 +122,7 @@ describe("Dashboard", () => {
   });
 
   it("displays correct stats for a mixed set of tickets", () => {
-    mockUseTickets.mockReturnValue({
+    mockUseTicketSummaries.mockReturnValue({
       tickets: [
         createTicket({ status: "backlog" }),
         createTicket({ status: "ready" }),
@@ -150,7 +149,7 @@ describe("Dashboard", () => {
   });
 
   it("renders analytics section when analytics data is available", () => {
-    mockUseTickets.mockReturnValue({
+    mockUseTicketSummaries.mockReturnValue({
       tickets: [],
       loading: false,
       error: null,

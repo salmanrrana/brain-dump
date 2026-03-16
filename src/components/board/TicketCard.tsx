@@ -1,12 +1,12 @@
 import { memo, useMemo } from "react";
 import { PlayCircle } from "lucide-react";
-import type { Ticket } from "../../lib/schema";
+import type { TicketSummary } from "../../api/tickets";
 import { GitInfo } from "./GitInfo";
 import { TicketTags } from "./TicketTags";
 
 export interface TicketCardProps {
-  ticket: Ticket;
-  onClick?: ((ticket: Ticket) => void) | undefined;
+  ticket: TicketSummary;
+  onClick?: ((ticket: TicketSummary) => void) | undefined;
   isAiActive?: boolean;
   isOverlay?: boolean;
   isDragging?: boolean;

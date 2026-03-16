@@ -419,6 +419,114 @@ export const getEpicTicketCounts = createServerFn({ method: "GET" })
     return counts;
   });
 
+// ─── Ticket Summaries (lightweight list queries) ────────────────────────────
+
+/**
+ * Summary type for board/list display — omits heavy text fields
+ * (description, linkedFiles, attachments) that are only needed in detail views.
+ */
+export interface TicketSummary {
+  id: string;
+  title: string;
+  status: string;
+  priority: string | null;
+  position: number;
+  projectId: string;
+  epicId: string | null;
+  tags: string | null;
+  subtasks: string | null;
+  isBlocked: boolean | null;
+  blockedReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  branchName: string | null;
+  prNumber: number | null;
+  prUrl: string | null;
+  prStatus: "draft" | "open" | "merged" | "closed" | null;
+}
+
+/**
+ * Returns ticket summaries (no description/linkedFiles/attachments) with optional filters.
+ * Use this for board, list, and dashboard views where full ticket content is not needed.
+ */
+export const getTicketSummaries = createServerFn({ method: "GET" })
+  .inputValidator((filters: TicketFilters) => filters)
+  .handler(async ({ data: filters }) => {
+    const selectedColumns = {
+      id: tickets.id,
+      title: tickets.title,
+      status: tickets.status,
+      priority: tickets.priority,
+      position: tickets.position,
+      projectId: tickets.projectId,
+      epicId: tickets.epicId,
+      tags: tickets.tags,
+      subtasks: tickets.subtasks,
+      isBlocked: tickets.isBlocked,
+      blockedReason: tickets.blockedReason,
+      createdAt: tickets.createdAt,
+      updatedAt: tickets.updatedAt,
+      completedAt: tickets.completedAt,
+      branchName: tickets.branchName,
+      prNumber: tickets.prNumber,
+      prUrl: tickets.prUrl,
+      prStatus: tickets.prStatus,
+    };
+
+    // Tag filtering requires raw SQL for JSON handling
+    if (filters.tags && filters.tags.length > 0) {
+      const cols = `id, title, status, priority, position, project_id, epic_id, tags, subtasks, is_blocked, blocked_reason, created_at, updated_at, completed_at, branch_name, pr_number, pr_url, pr_status`;
+      let sqlStr = `SELECT ${cols} FROM tickets WHERE 1=1`;
+      const params: string[] = [];
+
+      if (filters.projectId) {
+        sqlStr += " AND project_id = ?";
+        params.push(filters.projectId);
+      }
+      if (filters.epicId) {
+        sqlStr += " AND epic_id = ?";
+        params.push(filters.epicId);
+      }
+      if (filters.status) {
+        sqlStr += " AND status = ?";
+        params.push(filters.status);
+      }
+
+      for (const tag of filters.tags) {
+        sqlStr += ` AND json_valid(tickets.tags) AND EXISTS (
+          SELECT 1 FROM json_each(tickets.tags)
+          WHERE json_each.value = ?
+        )`;
+        params.push(tag);
+      }
+
+      sqlStr += " ORDER BY position";
+      const stmt = sqlite.prepare(sqlStr);
+      return stmt.all(...params) as TicketSummary[];
+    }
+
+    // Standard ORM query with specific column selection
+    let query = db.select(selectedColumns).from(tickets);
+
+    const conditions = [];
+    if (filters.projectId) {
+      conditions.push(eq(tickets.projectId, filters.projectId));
+    }
+    if (filters.epicId) {
+      conditions.push(eq(tickets.epicId, filters.epicId));
+    }
+    if (filters.status) {
+      conditions.push(eq(tickets.status, filters.status));
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as typeof query;
+    }
+
+    return query.orderBy(tickets.position).all() as TicketSummary[];
+  });
+
 // Delete a ticket with dry-run preview support
 export interface DeleteTicketInput {
   ticketId: string;
