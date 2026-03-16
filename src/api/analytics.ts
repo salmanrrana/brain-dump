@@ -245,54 +245,100 @@ export const getDashboardAnalytics = createServerFn({ method: "GET" }).handler(
     const prDraft = Number(prMetricsRow?.draft) || 0;
     const mergeRate = prTotal > 0 ? (prMerged / prTotal) * 100 : 0;
 
-    // 6. Cycle time (completed_at - created_at for done tickets)
-    const cycleTimeSql = `
-      SELECT 
-        (julianday(completed_at) - julianday(created_at)) * 24 as hours
-      FROM tickets
-      WHERE completed_at IS NOT NULL
-        AND created_at IS NOT NULL
-      ORDER BY hours ASC
+    // 6. Cycle time — computed via SQL aggregation (no raw-row transfer)
+    const cycleTimeStatsSql = `
+      SELECT
+        AVG(hours) as avg_hours,
+        COUNT(*) as total_count,
+        MIN(hours) as min_hours,
+        MAX(hours) as max_hours
+      FROM (
+        SELECT (julianday(completed_at) - julianday(created_at)) * 24 as hours
+        FROM tickets
+        WHERE completed_at IS NOT NULL AND created_at IS NOT NULL
+          AND (julianday(completed_at) - julianday(created_at)) * 24 > 0
+      )
     `;
-    const cycleTimeRows = sqlite.prepare(cycleTimeSql).all() as Array<{ hours: number }>;
-    const cycleTimes = cycleTimeRows
-      .map((r) => Number(r.hours) || 0)
-      .filter((h) => h > 0 && isFinite(h));
+    const cycleStats = sqlite.prepare(cycleTimeStatsSql).get() as {
+      avg_hours: number | null;
+      total_count: number;
+      min_hours: number | null;
+      max_hours: number | null;
+    };
 
-    let avgCycleTime = 0;
+    const totalCycleTimeRows = Number(cycleStats?.total_count) || 0;
+    const avgCycleTime = Number(cycleStats?.avg_hours) || 0;
     let medianCycleTime = 0;
     let p95CycleTime = 0;
     const cycleTimeDistribution: Array<{ range: string; count: number }> = [];
 
-    if (cycleTimes.length > 0) {
-      avgCycleTime = cycleTimes.reduce((a, b) => a + b, 0) / cycleTimes.length;
-      const sorted = [...cycleTimes].sort((a, b) => a - b);
-      medianCycleTime = sorted[Math.floor(sorted.length / 2)] ?? 0;
-      const p95Index = Math.floor(sorted.length * 0.95);
-      p95CycleTime = sorted[p95Index] ?? sorted[sorted.length - 1] ?? 0;
+    if (totalCycleTimeRows > 0) {
+      // Median via LIMIT/OFFSET at the middle position
+      const medianOffset = Math.floor(totalCycleTimeRows / 2);
+      const medianSql = `
+        SELECT hours FROM (
+          SELECT (julianday(completed_at) - julianday(created_at)) * 24 as hours
+          FROM tickets
+          WHERE completed_at IS NOT NULL AND created_at IS NOT NULL
+            AND (julianday(completed_at) - julianday(created_at)) * 24 > 0
+          ORDER BY hours ASC
+        ) LIMIT 1 OFFSET ?
+      `;
+      const medianRow = sqlite.prepare(medianSql).get(medianOffset) as
+        | { hours: number }
+        | undefined;
+      medianCycleTime = Number(medianRow?.hours) || 0;
 
-      // Create distribution buckets for histogram
-      const max = Math.max(...cycleTimes);
+      // P95 via LIMIT/OFFSET at the 95th percentile position
+      const p95Offset = Math.floor(totalCycleTimeRows * 0.95);
+      const p95Row = sqlite.prepare(medianSql).get(p95Offset) as { hours: number } | undefined;
+      p95CycleTime = Number(p95Row?.hours) || 0;
+
+      // Distribution buckets via SQL CASE — computed from max value
+      const maxHours = Number(cycleStats?.max_hours) || 1;
       const bucketCount = 8;
-      const bucketSize = max / bucketCount;
+      const bucketSize = maxHours / bucketCount;
+
+      // Build CASE expression for 8 histogram buckets
+      const caseParts: string[] = [];
+      for (let i = 0; i < bucketCount; i++) {
+        const lo = i * bucketSize;
+        const hi = (i + 1) * bucketSize;
+        caseParts.push(
+          i === bucketCount - 1
+            ? `WHEN hours >= ${lo} THEN ${i}`
+            : `WHEN hours >= ${lo} AND hours < ${hi} THEN ${i}`
+        );
+      }
+
+      const distSql = `
+        SELECT bucket, COUNT(*) as count FROM (
+          SELECT CASE ${caseParts.join(" ")} END as bucket
+          FROM (
+            SELECT (julianday(completed_at) - julianday(created_at)) * 24 as hours
+            FROM tickets
+            WHERE completed_at IS NOT NULL AND created_at IS NOT NULL
+              AND (julianday(completed_at) - julianday(created_at)) * 24 > 0
+          )
+        )
+        GROUP BY bucket
+        ORDER BY bucket ASC
+      `;
+      const distRows = sqlite.prepare(distSql).all() as Array<{ bucket: number; count: number }>;
 
       for (let i = 0; i < bucketCount; i++) {
-        const min = i * bucketSize;
-        const maxBucket = (i + 1) * bucketSize;
-        const count = cycleTimes.filter(
-          (h) => h >= min && (i === bucketCount - 1 ? h <= maxBucket : h < maxBucket)
-        ).length;
+        const lo = i * bucketSize;
+        const hi = (i + 1) * bucketSize;
+        const row = distRows.find((r) => r.bucket === i);
 
         let rangeLabel: string;
-        if (maxBucket < 24) {
-          rangeLabel = `${min.toFixed(0)}-${maxBucket.toFixed(0)}h`;
+        if (hi < 24) {
+          rangeLabel = `${lo.toFixed(0)}-${hi.toFixed(0)}h`;
         } else {
-          const minDays = Math.floor(min / 24);
-          const maxDays = Math.floor(maxBucket / 24);
-          rangeLabel = `${minDays}-${maxDays}d`;
+          rangeLabel = `${Math.floor(lo / 24)}-${Math.floor(hi / 24)}d`;
         }
 
-        cycleTimeDistribution.push({ range: rangeLabel, count });
+        cycleTimeDistribution.push({ range: rangeLabel, count: Number(row?.count) || 0 });
       }
     }
 
@@ -321,55 +367,41 @@ export const getDashboardAnalytics = createServerFn({ method: "GET" }).handler(
       completed: Number(row.completed) || 0,
     }));
 
-    // 8. Commits per day (from linked_commits on tickets)
-    const commitsSql = `
-      SELECT linked_commits
-      FROM tickets
-      WHERE linked_commits IS NOT NULL AND linked_commits != ''
+    // 8. Commits per day — use SQL json_each to extract dates without JS parsing
+    const commitsPerDaySql = `
+      SELECT
+        date(json_extract(je.value, '$.linkedAt')) as commit_date,
+        COUNT(*) as count
+      FROM tickets,
+           json_each(tickets.linked_commits) as je
+      WHERE tickets.linked_commits IS NOT NULL
+        AND json_valid(tickets.linked_commits)
+        AND json_extract(je.value, '$.linkedAt') IS NOT NULL
+        AND date(json_extract(je.value, '$.linkedAt')) >= date('now', '-30 days')
+      GROUP BY commit_date
+      ORDER BY commit_date ASC
     `;
-    const commitsRows = sqlite.prepare(commitsSql).all() as Array<{
-      linked_commits: string | null;
+    const commitRows = sqlite.prepare(commitsPerDaySql).all() as Array<{
+      commit_date: string;
+      count: number;
     }>;
 
-    // Parse all commits and extract dates
-    const commitDates: string[] = [];
-    for (const row of commitsRows) {
-      if (!row.linked_commits) continue;
-      try {
-        const commits = safeJsonParse<Array<{ hash: string; message: string; linkedAt: string }>>(
-          row.linked_commits,
-          []
-        );
-        for (const commit of commits) {
-          const linkedAt = commit.linkedAt;
-          if (linkedAt) {
-            // Extract date from ISO timestamp
-            const date = linkedAt.split("T")[0];
-            if (date) {
-              commitDates.push(date);
-            }
-          }
-        }
-      } catch {
-        // Skip invalid JSON - expected for some tickets with malformed linked_commits
-        continue;
+    // Build a lookup map from SQL results
+    const commitsByDate = new Map<string, number>();
+    for (const row of commitRows) {
+      if (row.commit_date) {
+        commitsByDate.set(row.commit_date, Number(row.count) || 0);
       }
     }
 
-    // Count commits per day
-    const commitsByDate: Record<string, number> = {};
-    for (const date of commitDates) {
-      commitsByDate[date] = (commitsByDate[date] || 0) + 1;
-    }
-
-    // Fill in last 30 days with commit counts
+    // Fill in last 30 days with commit counts (0 for missing days)
     const commitsPerDay: Array<{ date: string; count: number }> = [];
     for (let i = 29; i >= 0; i--) {
       const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
       const dateStr = formatDate(date);
       commitsPerDay.push({
         date: dateStr,
-        count: commitsByDate[dateStr] || 0,
+        count: commitsByDate.get(dateStr) || 0,
       });
     }
 
