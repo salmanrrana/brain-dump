@@ -1,28 +1,9 @@
-import { lazy, Suspense, useState } from "react";
+import { useState } from "react";
 import { HeadContent, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { TanStackDevtools } from "@tanstack/react-devtools";
+import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import type { RouterContext } from "../router";
-
-const LazyDevtools = import.meta.env.DEV
-  ? lazy(() =>
-      Promise.all([
-        import("@tanstack/react-devtools"),
-        import("@tanstack/react-router-devtools"),
-      ]).then(([mod, routerMod]) => ({
-        default: () => (
-          <mod.TanStackDevtools
-            config={{ position: "bottom-right" }}
-            plugins={[
-              {
-                name: "Tanstack Router",
-                render: <routerMod.TanStackRouterDevtoolsPanel />,
-              },
-            ]}
-          />
-        ),
-      }))
-    )
-  : () => null;
 
 import AppLayout from "../components/AppLayout";
 import { SplashScreen } from "../components/SplashScreen";
@@ -92,9 +73,15 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             </ToastProvider>
           </ThemeProvider>
         </QueryClientProvider>
-        <Suspense>
-          <LazyDevtools />
-        </Suspense>
+        <TanStackDevtools
+          config={{ position: "bottom-right" }}
+          plugins={[
+            {
+              name: "Tanstack Router",
+              render: <TanStackRouterDevtoolsPanel />,
+            },
+          ]}
+        />
         <Scripts />
       </body>
     </html>
