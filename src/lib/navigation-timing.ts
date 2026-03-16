@@ -290,6 +290,65 @@ export function printHydrationReport(): void {
   console.groupEnd();
 }
 
+// =============================================================================
+// SPLASH SCREEN TIMING
+// =============================================================================
+
+/**
+ * Print splash screen timing analysis to the console.
+ * Call from DevTools: `window.__splashReport()`
+ */
+export function printSplashReport(): void {
+  const mountMark = performance.getEntriesByName("splash:mount", "mark")[0];
+  const fadeStartMark = performance.getEntriesByName("splash:fade-start", "mark")[0];
+  const completeMark = performance.getEntriesByName("splash:complete", "mark")[0];
+  const hydrationMark = performance.getEntriesByName("app:hydration:end", "mark")[0];
+
+  if (!mountMark) {
+    console.log("[Splash] No splash timing data. Run after a cold page load.");
+    return;
+  }
+
+  console.group("[Splash] Splash Screen Timing Analysis");
+
+  console.table({
+    "Splash Mount": `${mountMark.startTime.toFixed(1)}ms`,
+    ...(fadeStartMark ? { "Fade Start": `${fadeStartMark.startTime.toFixed(1)}ms` } : {}),
+    ...(completeMark ? { "Splash Complete": `${completeMark.startTime.toFixed(1)}ms` } : {}),
+    ...(fadeStartMark
+      ? { "Visible Duration": `${(fadeStartMark.startTime - mountMark.startTime).toFixed(1)}ms` }
+      : {}),
+    ...(completeMark && fadeStartMark
+      ? { "Fade Duration": `${(completeMark.startTime - fadeStartMark.startTime).toFixed(1)}ms` }
+      : {}),
+    ...(completeMark
+      ? { "Total Blocking Time": `${(completeMark.startTime - mountMark.startTime).toFixed(1)}ms` }
+      : {}),
+  });
+
+  // Compare splash time to hydration time
+  if (completeMark && hydrationMark) {
+    const hydrationTime = hydrationMark.startTime;
+    const splashAfterHydration = completeMark.startTime - hydrationMark.startTime;
+
+    console.log(`\n📊 Impact Analysis:`);
+    console.log(`   App was interactive at: ${hydrationTime.toFixed(1)}ms (hydration complete)`);
+    console.log(`   Splash blocked until: ${completeMark.startTime.toFixed(1)}ms`);
+    console.log(`   Unnecessary blocking: ${Math.max(0, splashAfterHydration).toFixed(1)}ms`);
+    console.log(`   Role: branding animation (LetterGlitch effect)`);
+    console.log(`   Config: MIN_DISPLAY=${800}ms, FADE_DURATION=${800}ms`);
+
+    if (splashAfterHydration > 500) {
+      console.warn(
+        `   ⚠️ Splash blocks ${splashAfterHydration.toFixed(0)}ms AFTER hydration completes.`
+      );
+      console.warn(`   Consider reducing MIN_DISPLAY_MS or showing splash only on cold boot.`);
+    }
+  }
+
+  console.groupEnd();
+}
+
 // Mark app boot time
 if (import.meta.env.DEV && typeof window !== "undefined") {
   performance.mark("app:boot:start");
@@ -299,4 +358,5 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).__navigationClear = clearNavigationData;
   (window as unknown as Record<string, unknown>).__navigationLog = getNavigationLog;
   (window as unknown as Record<string, unknown>).__hydrationReport = printHydrationReport;
+  (window as unknown as Record<string, unknown>).__splashReport = printSplashReport;
 }
