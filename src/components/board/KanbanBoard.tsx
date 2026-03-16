@@ -369,12 +369,12 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
                     <SortableTicketCard
                       key={ticket.id}
                       ticket={ticket}
-                      onClick={onTicketClick && (() => onTicketClick(ticket))}
+                      onTicketClick={onTicketClick}
                       ralphSession={getRalphSession?.(ticket.id) ?? null}
                       tabIndex={getTabIndex(ticket.id)}
                       isFocused={focusedTicketId === ticket.id}
-                      registerRef={registerCardRef(ticket.id)}
-                      onFocus={() => handleCardFocus(ticket.id)}
+                      registerCardRef={registerCardRef}
+                      onCardFocus={handleCardFocus}
                     />
                   ))}
                 </SortableContext>
