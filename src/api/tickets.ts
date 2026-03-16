@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { db, sqlite } from "../lib/db";
-import { tickets, projects, epics, ticketComments } from "../lib/schema";
+import { tickets, projects, epics, ticketComments, type Ticket } from "../lib/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { ensureExists, safeJsonStringify } from "../lib/utils";
@@ -9,15 +9,9 @@ import { createLogger } from "../lib/logger";
 
 const log = createLogger("tickets-api");
 
-// Types
-export type TicketStatus =
-  | "backlog"
-  | "ready"
-  | "in_progress"
-  | "ai_review"
-  | "human_review"
-  | "done";
-export type TicketPriority = "high" | "medium" | "low";
+// Types — derived from the schema's $type<>() annotations
+export type TicketStatus = Ticket["status"];
+export type TicketPriority = NonNullable<Ticket["priority"]>;
 
 export interface Subtask {
   id: string;
@@ -90,7 +84,7 @@ export interface TicketFilters {
 // Get tickets with optional filters
 export const getTickets = createServerFn({ method: "GET" })
   .inputValidator((filters: TicketFilters) => filters)
-  .handler(async ({ data: filters }) => {
+  .handler(async ({ data: filters }): Promise<Ticket[]> => {
     // If tag filtering is needed, use raw SQL for JSON handling
     if (filters.tags && filters.tags.length > 0) {
       let sql = `
@@ -126,7 +120,7 @@ export const getTickets = createServerFn({ method: "GET" })
 
       // Use the already-imported sqlite instance for raw SQL queries
       const stmt = sqlite.prepare(sql);
-      return stmt.all(...params) as (typeof tickets.$inferSelect)[];
+      return stmt.all(...params) as Ticket[];
     }
 
     // Standard ORM query when no tag filtering
@@ -428,8 +422,8 @@ export const getEpicTicketCounts = createServerFn({ method: "GET" })
 export interface TicketSummary {
   id: string;
   title: string;
-  status: string;
-  priority: string | null;
+  status: TicketStatus;
+  priority: TicketPriority | null;
   position: number;
   projectId: string;
   epicId: string | null;
@@ -452,7 +446,7 @@ export interface TicketSummary {
  */
 export const getTicketSummaries = createServerFn({ method: "GET" })
   .inputValidator((filters: TicketFilters) => filters)
-  .handler(async ({ data: filters }) => {
+  .handler(async ({ data: filters }): Promise<TicketSummary[]> => {
     const selectedColumns = {
       id: tickets.id,
       title: tickets.title,
@@ -524,7 +518,7 @@ export const getTicketSummaries = createServerFn({ method: "GET" })
       query = query.where(and(...conditions)) as typeof query;
     }
 
-    return query.orderBy(tickets.position).all() as TicketSummary[];
+    return query.orderBy(tickets.position).all();
   });
 
 // Delete a ticket with dry-run preview support

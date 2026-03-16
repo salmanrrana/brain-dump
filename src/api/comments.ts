@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { db } from "../lib/db";
-import { ticketComments, type TicketComment } from "../lib/schema";
+import { ticketComments } from "../lib/schema";
+import type { TicketComment } from "../lib/schema";
 import { eq, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
@@ -10,9 +11,9 @@ import {
   type CommentAuthor,
 } from "../lib/comment-authors";
 
-// Comment types — use schema-derived TicketComment as canonical type
+// Comment types — derived from schema's $type<>() annotations
 export type Comment = TicketComment;
-export type CommentType = "comment" | "work_summary" | "test_report" | "progress";
+export type CommentType = TicketComment["type"];
 export type { BaseCommentAuthor, CommentAuthor };
 
 export interface CreateCommentInput {

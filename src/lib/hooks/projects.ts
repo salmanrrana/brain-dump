@@ -11,13 +11,7 @@ import {
   updateProject,
   deleteProject,
 } from "../../api/projects";
-import {
-  createEpic,
-  updateEpic,
-  deleteEpic,
-  getEpicDetail,
-  type EpicDetailResult,
-} from "../../api/epics";
+import { createEpic, updateEpic, deleteEpic, getEpicDetail } from "../../api/epics";
 import {
   detectInstalledEditors,
   detectDevCommands,
@@ -528,7 +522,7 @@ export function useEpicDetail(epicId: string) {
   });
 
   return {
-    data: query.data as EpicDetailResult | undefined,
+    data: query.data,
     loading: query.isLoading,
     error: query.error?.message ?? null,
     refetch: query.refetch,

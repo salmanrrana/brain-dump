@@ -17,7 +17,6 @@ import {
   type CreateTicketInput,
   type UpdateTicketInput,
   type TicketStatus,
-  type TicketSummary,
 } from "../../api/tickets";
 import { searchTickets, type SearchResult } from "../../api/search";
 import { getTags, getTagsWithMetadata, type TagFilters, type TagMetadata } from "../../api/tags";
@@ -305,8 +304,7 @@ export function useTickets(
   const query = useQuery({
     queryKey: queryKeys.tickets(filters),
     queryFn: async () => {
-      const ticketList = await getTickets({ data: filters });
-      return ticketList as Ticket[];
+      return getTickets({ data: filters });
     },
     enabled,
     staleTime: 30_000, // 30s — mutations invalidate; MCP changes picked up on next interval
@@ -367,7 +365,7 @@ export function useTicketSummaries(
   const query = useQuery({
     queryKey: queryKeys.ticketSummaries(filters),
     queryFn: async () => {
-      return (await getTicketSummaries({ data: filters })) as TicketSummary[];
+      return getTicketSummaries({ data: filters });
     },
     enabled,
     staleTime: 30_000, // 30s — mutations invalidate; MCP changes picked up on next interval

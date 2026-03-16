@@ -26,8 +26,7 @@ export function useComments(ticketId: string, options: { pollingInterval?: numbe
   const query = useQuery({
     queryKey: ["comments", ticketId],
     queryFn: async () => {
-      const comments = await getComments({ data: ticketId });
-      return comments as Comment[];
+      return getComments({ data: ticketId });
     },
     enabled: Boolean(ticketId),
     refetchInterval: pollingInterval > 0 ? pollingInterval : false,

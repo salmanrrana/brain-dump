@@ -197,7 +197,7 @@ describe("Sample Data API", () => {
         .run();
 
       // Insert tickets matching sample-data.ts
-      const sampleTickets = [
+      const sampleTickets: (typeof tickets.$inferInsert)[] = [
         {
           id: randomUUID(),
           title: "Welcome to Brain Dump!",
