@@ -106,6 +106,7 @@ export function EpicTicketsList({ tickets }: EpicTicketsListProps) {
                     <Link
                       to="/ticket/$id"
                       params={{ id: ticket.id }}
+                      preload="intent"
                       className="flex-1 text-sm text-slate-200 hover:text-blue-400 hover:underline line-clamp-2 min-w-0"
                       title={ticket.title}
                     >

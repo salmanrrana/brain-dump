@@ -187,6 +187,7 @@ export const EpicListItem: FC<EpicListItemProps> = ({
         <Link
           to="/epic/$id"
           params={{ id: epic.id }}
+          preload="intent"
           style={actionButtonStyles}
           aria-label={`View ${epic.title} details`}
           className="hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"

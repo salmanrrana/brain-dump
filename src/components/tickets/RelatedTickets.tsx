@@ -76,6 +76,7 @@ const RelatedTicketItem = memo<RelatedTicketItemProps>(({ ticket, testId }) => {
       <Link
         to="/ticket/$id"
         params={{ id: ticket.id }}
+        preload="intent"
         style={ticketLinkStyles}
         data-testid={`${testId}-item-${ticket.id}`}
         className="hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-primary)]"
@@ -201,6 +202,7 @@ export const RelatedTickets: FC<RelatedTicketsProps> = ({
         <Link
           to="/board"
           search={{ epicId }}
+          preload="intent"
           style={viewAllStyles}
           data-testid={`${testId}-view-all`}
           className="hover:text-[var(--accent-primary)] focus:outline-none focus-visible:underline"
