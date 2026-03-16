@@ -349,6 +349,102 @@ export function printSplashReport(): void {
   console.groupEnd();
 }
 
+// =============================================================================
+// ASSET DELIVERY AUDIT
+// =============================================================================
+
+/**
+ * Print a static asset delivery audit to the console.
+ * Uses the Resource Timing API to analyze loaded assets.
+ * Call from DevTools: `window.__assetReport()`
+ */
+export function printAssetReport(): void {
+  const resources = performance.getEntriesByType("resource") as PerformanceResourceTiming[];
+
+  if (resources.length === 0) {
+    console.log("[Assets] No resource timing data. Run after a page load.");
+    return;
+  }
+
+  // Categorize resources
+  const scripts: PerformanceResourceTiming[] = [];
+  const styles: PerformanceResourceTiming[] = [];
+  const images: PerformanceResourceTiming[] = [];
+  const fonts: PerformanceResourceTiming[] = [];
+  const fetchReqs: PerformanceResourceTiming[] = [];
+  const other: PerformanceResourceTiming[] = [];
+
+  for (const r of resources) {
+    if (r.initiatorType === "script" || r.name.match(/\.m?js(\?|$)/)) {
+      scripts.push(r);
+    } else if (r.initiatorType === "css" || r.name.match(/\.css(\?|$)/)) {
+      styles.push(r);
+    } else if (
+      r.initiatorType === "img" ||
+      r.name.match(/\.(png|jpg|jpeg|gif|webp|avif|svg|ico)(\?|$)/)
+    ) {
+      images.push(r);
+    } else if (r.name.match(/\.(woff2?|ttf|otf|eot)(\?|$)/)) {
+      fonts.push(r);
+    } else if (r.initiatorType === "fetch" || r.initiatorType === "xmlhttprequest") {
+      fetchReqs.push(r);
+    } else {
+      other.push(r);
+    }
+  }
+
+  const categories = { scripts, styles, images, fonts, fetch: fetchReqs, other };
+
+  console.group("[Assets] Static Asset Delivery Report");
+
+  console.table(
+    Object.entries(categories).map(([category, items]) => ({
+      Category: category,
+      Count: items.length,
+      "Total Transfer (KB)": Math.round(
+        items.reduce((sum, r) => sum + (r.transferSize || 0), 0) / 1024
+      ),
+      "Largest (KB)": Math.round(Math.max(0, ...items.map((r) => r.transferSize || 0)) / 1024),
+    }))
+  );
+
+  // Check for content hashing (Vite default)
+  const unhashed = scripts
+    .filter((r) => !r.name.match(/[.-][a-f0-9]{8}\./))
+    .map((r) => r.name.split("/").pop());
+  if (unhashed.length > 0) {
+    console.warn("⚠️ Scripts without content hash:", unhashed);
+  } else {
+    console.log("✓ All scripts use content-hashed filenames");
+  }
+
+  // Font strategy
+  if (fonts.length === 0) {
+    console.log("✓ No custom web fonts — using system font stack (zero font overhead)");
+  } else {
+    console.warn(`⚠️ ${fonts.length} web font(s) loaded. Check font-display strategy.`);
+  }
+
+  // Large assets
+  const largeAssets = resources
+    .filter((r) => (r.transferSize || 0) > 100 * 1024)
+    .sort((a, b) => (b.transferSize || 0) - (a.transferSize || 0));
+  if (largeAssets.length > 0) {
+    console.warn("⚠️ Assets >100KB:");
+    console.table(
+      largeAssets.map((r) => ({
+        Name: r.name.split("/").pop(),
+        "Size (KB)": Math.round((r.transferSize || 0) / 1024),
+        "Duration (ms)": Math.round(r.duration),
+      }))
+    );
+  } else {
+    console.log("✓ No individual assets >100KB");
+  }
+
+  console.groupEnd();
+}
+
 // Mark app boot time
 if (import.meta.env.DEV && typeof window !== "undefined") {
   performance.mark("app:boot:start");
@@ -359,4 +455,5 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).__navigationLog = getNavigationLog;
   (window as unknown as Record<string, unknown>).__hydrationReport = printHydrationReport;
   (window as unknown as Record<string, unknown>).__splashReport = printSplashReport;
+  (window as unknown as Record<string, unknown>).__assetReport = printAssetReport;
 }
