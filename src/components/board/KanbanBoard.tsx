@@ -11,6 +11,7 @@ import { KanbanColumn } from "./KanbanColumn";
 import { SortableTicketCard } from "./SortableTicketCard";
 import type { TicketStatus, TicketSummary } from "../../api/tickets";
 import { useToast } from "../Toast";
+import { createBrowserLogger } from "../../lib/browser-logger";
 import { useBoardKeyboardNavigation } from "../../lib/use-board-keyboard-navigation";
 import { COLUMN_STATUSES } from "../../lib/constants";
 import {
@@ -78,6 +79,8 @@ const COLUMN_COLORS: Record<TicketStatus, string> = {
   human_review: "var(--accent-primary)",
   done: "var(--status-done)",
 };
+
+const logger = createBrowserLogger("board:kanban");
 
 /** Screen reader announcements for drag-and-drop operations */
 const announcements: Announcements = {
@@ -283,7 +286,10 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
           showToast("success", `Moved "${truncateTitle(draggedTicket.title)}" to ${toLabel}`);
         }
       } catch (error) {
-        console.error("Failed to update ticket during drag:", error);
+        logger.error(
+          "Failed to update ticket during drag",
+          error instanceof Error ? error : new Error(String(error))
+        );
         showToast(
           "error",
           `Failed to move ticket: ${error instanceof Error ? error.message : "Unknown error"}`
