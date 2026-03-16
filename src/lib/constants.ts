@@ -91,10 +91,8 @@ export function getPriorityStyle(priority: string): string {
 
 // Polling intervals in milliseconds for consistent timing across the app
 export const POLLING_INTERVALS = {
-  /** Polling interval for service discovery (running dev servers) */
-  SERVICES: 5000,
   /** Polling interval for comments during active work (Ralph/Claude updates) */
-  COMMENTS_ACTIVE: 3000,
+  COMMENTS_ACTIVE: 10_000,
   /** No polling - used when feature is disabled */
   DISABLED: 0,
 } as const;

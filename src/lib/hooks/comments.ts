@@ -34,6 +34,7 @@ export function useComments(ticketId: string, options: { pollingInterval?: numbe
     },
     enabled: Boolean(ticketId),
     refetchInterval: pollingInterval > 0 ? pollingInterval : false,
+    refetchOnWindowFocus: true,
   });
 
   return {
@@ -73,6 +74,7 @@ export function usePaginatedComments(
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     enabled: Boolean(ticketId),
     refetchInterval: pollingInterval > 0 ? pollingInterval : false,
+    refetchOnWindowFocus: true,
   });
 
   // Flatten all pages into a single comments array

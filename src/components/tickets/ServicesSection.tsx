@@ -1,7 +1,6 @@
 import { type FC, useMemo } from "react";
 import { Globe, Server, BookOpen, Database, ExternalLink } from "lucide-react";
 import { useProjectServices, useProjects } from "../../lib/hooks";
-import { POLLING_INTERVALS } from "../../lib/constants";
 import type { ServiceType } from "../../lib/service-discovery";
 
 const SERVICE_TYPE_ICONS: Record<ServiceType, typeof Globe> = {
@@ -35,7 +34,6 @@ export const ServicesSection: FC<ServicesSectionProps> = ({ projectId }) => {
 
   const { runningServices, error: servicesError } = useProjectServices(projectPath, {
     enabled: true,
-    pollingInterval: POLLING_INTERVALS.SERVICES,
   });
 
   if (servicesError) {

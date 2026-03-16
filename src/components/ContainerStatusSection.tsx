@@ -214,10 +214,9 @@ export default function ContainerStatusSection({ projectPath }: ContainerStatusS
   const [logsModalOpen, setLogsModalOpen] = useState(false);
   const { showToast } = useToast();
 
-  // Fetch services with 5s polling
+  // Services use event-driven refresh (focus + mutation invalidation) instead of polling
   const { services, runningServices, loading, error } = useProjectServices(projectPath, {
     enabled: Boolean(projectPath),
-    pollingInterval: 5000, // 5 seconds
   });
 
   // Check Docker availability (cached, re-checks every 60s)
