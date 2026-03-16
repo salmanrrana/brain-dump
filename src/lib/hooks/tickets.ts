@@ -468,11 +468,13 @@ export function useTags(filters: TagFilters = {}) {
 // =============================================================================
 
 // Hook for fetching tags with metadata (counts, status breakdown, last used)
-export function useTagsWithMetadata(filters: TagFilters = {}) {
+export function useTagsWithMetadata(filters: TagFilters = {}, options: { enabled?: boolean } = {}) {
+  const { enabled = true } = options;
   const query = useQuery({
     queryKey: queryKeys.tagsWithMetadata(filters),
     queryFn: () => getTagsWithMetadata({ data: filters }),
     staleTime: 0,
+    enabled,
   });
 
   return {

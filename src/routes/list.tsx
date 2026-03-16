@@ -95,7 +95,9 @@ function ListView() {
   });
 
   // Fetch tag metadata only when in tags sub-mode
-  const { tagsWithMetadata } = useTagsWithMetadata(tagFilters);
+  const { tagsWithMetadata } = useTagsWithMetadata(tagFilters, {
+    enabled: listSubMode === "tags",
+  });
 
   // Refetch when ticketRefreshKey changes (e.g., after creating a new ticket)
   useEffect(() => {
