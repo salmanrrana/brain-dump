@@ -4,21 +4,22 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const LazyDevtools = import.meta.env.DEV
   ? lazy(() =>
-      import("@tanstack/react-devtools").then((mod) =>
-        import("@tanstack/react-router-devtools").then((routerMod) => ({
-          default: () => (
-            <mod.TanStackDevtools
-              config={{ position: "bottom-right" }}
-              plugins={[
-                {
-                  name: "Tanstack Router",
-                  render: <routerMod.TanStackRouterDevtoolsPanel />,
-                },
-              ]}
-            />
-          ),
-        }))
-      )
+      Promise.all([
+        import("@tanstack/react-devtools"),
+        import("@tanstack/react-router-devtools"),
+      ]).then(([mod, routerMod]) => ({
+        default: () => (
+          <mod.TanStackDevtools
+            config={{ position: "bottom-right" }}
+            plugins={[
+              {
+                name: "Tanstack Router",
+                render: <routerMod.TanStackRouterDevtoolsPanel />,
+              },
+            ]}
+          />
+        ),
+      }))
     )
   : () => null;
 
