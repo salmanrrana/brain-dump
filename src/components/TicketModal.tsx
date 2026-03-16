@@ -154,7 +154,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
       blockedReason: ticket.blockedReason ?? "",
     },
     validators: {
-      onChange: ticketFormSchema,
+      onBlur: ticketFormSchema,
     },
   });
 

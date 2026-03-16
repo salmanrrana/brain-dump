@@ -98,7 +98,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
       color: epic?.color ?? "",
     },
     validators: {
-      onChange: epicFormSchema,
+      onBlur: epicFormSchema,
     },
   });
 

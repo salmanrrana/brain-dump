@@ -78,7 +78,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
       conversationRetentionDays: settings?.conversationRetentionDays ?? 90,
     },
     validators: {
-      onChange: settingsFormSchema,
+      onBlur: settingsFormSchema,
     },
   });
 
