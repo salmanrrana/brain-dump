@@ -14,8 +14,7 @@ import { BoardHeader } from "../components/board";
 import { getStatusLabel } from "../lib/constants";
 import { KanbanBoard } from "../components/board/KanbanBoard";
 import { getTicket, getTickets } from "../api/tickets";
-import { getProjects } from "../api/projects";
-import { getEpicsByProject } from "../api/epics";
+import { getProjectsWithEpics } from "../api/projects";
 import { queryKeys } from "../lib/query-keys";
 import { createBrowserLogger } from "../lib/browser-logger";
 import { BoardSkeleton } from "../components/route-skeletons";
@@ -30,15 +29,7 @@ export const Route = createFileRoute("/board")({
     });
     void context.queryClient.ensureQueryData({
       queryKey: queryKeys.projectsWithEpics,
-      queryFn: async () => {
-        const projectList = await getProjects();
-        return Promise.all(
-          projectList.map(async (project: (typeof projectList)[0]) => {
-            const epics = await getEpicsByProject({ data: project.id });
-            return { ...project, epics };
-          })
-        );
-      },
+      queryFn: () => getProjectsWithEpics(),
       staleTime: 30_000,
     });
   },

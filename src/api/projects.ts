@@ -33,6 +33,76 @@ export const getProjects = createServerFn({ method: "GET" }).handler(async () =>
   return allProjects;
 });
 
+// Get all projects with their epics in a single query (eliminates N+1)
+export const getProjectsWithEpics = createServerFn({ method: "GET" }).handler(async () => {
+  const rows = db
+    .select({
+      projectId: projects.id,
+      projectName: projects.name,
+      projectPath: projects.path,
+      projectColor: projects.color,
+      projectWorkingMethod: projects.workingMethod,
+      projectCreatedAt: projects.createdAt,
+      epicId: epics.id,
+      epicTitle: epics.title,
+      epicDescription: epics.description,
+      epicColor: epics.color,
+      epicCreatedAt: epics.createdAt,
+    })
+    .from(projects)
+    .leftJoin(epics, eq(epics.projectId, projects.id))
+    .all();
+
+  // Group rows by project, collecting epics
+  const projectMap = new Map<
+    string,
+    {
+      id: string;
+      name: string;
+      path: string;
+      color: string | null;
+      workingMethod: string | null;
+      createdAt: string;
+      epics: Array<{
+        id: string;
+        title: string;
+        description: string | null;
+        projectId: string;
+        color: string | null;
+        createdAt: string;
+      }>;
+    }
+  >();
+
+  for (const row of rows) {
+    let project = projectMap.get(row.projectId);
+    if (!project) {
+      project = {
+        id: row.projectId,
+        name: row.projectName,
+        path: row.projectPath,
+        color: row.projectColor,
+        workingMethod: row.projectWorkingMethod,
+        createdAt: row.projectCreatedAt,
+        epics: [],
+      };
+      projectMap.set(row.projectId, project);
+    }
+    if (row.epicId) {
+      project.epics.push({
+        id: row.epicId,
+        title: row.epicTitle!,
+        description: row.epicDescription,
+        projectId: row.projectId,
+        color: row.epicColor,
+        createdAt: row.epicCreatedAt!,
+      });
+    }
+  }
+
+  return Array.from(projectMap.values());
+});
+
 // Create a new project
 export const createProject = createServerFn({ method: "POST" })
   .inputValidator((input: CreateProjectInput) => {

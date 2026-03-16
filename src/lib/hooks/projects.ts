@@ -5,9 +5,13 @@
 
 import { useEffect, useMemo } from "react";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getProjects, createProject, updateProject, deleteProject } from "../../api/projects";
 import {
-  getEpicsByProject,
+  getProjectsWithEpics,
+  createProject,
+  updateProject,
+  deleteProject,
+} from "../../api/projects";
+import {
   createEpic,
   updateEpic,
   deleteEpic,
@@ -88,24 +92,11 @@ export interface ProjectWithAIActivity extends ProjectWithEpics {
 // PROJECT QUERIES
 // =============================================================================
 
-// Hook for fetching projects with their epics
+// Hook for fetching projects with their epics (single server call, no N+1)
 export function useProjects() {
   const query = useQuery({
     queryKey: queryKeys.projectsWithEpics,
-    queryFn: async () => {
-      // Fetch all projects
-      const projectList = await getProjects();
-
-      // Fetch epics for each project
-      const projectsWithEpics: ProjectWithEpics[] = await Promise.all(
-        projectList.map(async (project: (typeof projectList)[0]) => {
-          const epics = await getEpicsByProject({ data: project.id });
-          return { ...project, epics };
-        })
-      );
-
-      return projectsWithEpics;
-    },
+    queryFn: () => getProjectsWithEpics(),
     staleTime: 30 * 1000, // 30s - balance between freshness and reducing refetches
     refetchOnMount: "always", // Always refetch on mount to catch external changes
   });
