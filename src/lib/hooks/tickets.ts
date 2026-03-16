@@ -323,8 +323,7 @@ export function useTickets(
       return ticketList as Ticket[];
     },
     enabled,
-    // Always stale - tickets can be created/updated via MCP externally
-    staleTime: 0,
+    staleTime: 30_000, // 30s — mutations invalidate; MCP changes picked up on next interval
     refetchInterval: pollingInterval > 0 ? pollingInterval : false,
   });
 
@@ -451,8 +450,7 @@ export function useTags(filters: TagFilters = {}) {
   const query = useQuery({
     queryKey: queryKeys.tags(filters),
     queryFn: () => getTags({ data: filters }),
-    // Always stale - tags derived from tickets which can change via MCP
-    staleTime: 0,
+    staleTime: 60_000, // 60s — tags change infrequently; mutations invalidate
   });
 
   return {
@@ -473,7 +471,7 @@ export function useTagsWithMetadata(filters: TagFilters = {}, options: { enabled
   const query = useQuery({
     queryKey: queryKeys.tagsWithMetadata(filters),
     queryFn: () => getTagsWithMetadata({ data: filters }),
-    staleTime: 0,
+    staleTime: 60_000, // 60s — tag metadata changes infrequently; mutations invalidate
     enabled,
   });
 

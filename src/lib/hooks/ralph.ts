@@ -107,8 +107,8 @@ export function useActiveRalphSessions(options: { pollingInterval?: number } = {
     },
     // Poll frequently to show real-time status
     refetchInterval: pollingInterval > 0 ? pollingInterval : false,
-    // Sessions can change at any time via MCP
-    staleTime: 0,
+    staleTime: pollingInterval, // Match polling interval — data refreshes via polling
+    refetchOnWindowFocus: false, // Polling handles freshness
   });
 
   return {

@@ -36,9 +36,8 @@ function createQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        // Shorter staleTime to allow faster refresh when returning from external changes
-        staleTime: 1000 * 5, // 5 seconds
-        refetchOnWindowFocus: true, // Refetch stale queries when window regains focus
+        staleTime: 1000 * 5, // 5 seconds global default
+        refetchOnWindowFocus: false, // Opt-in per query; global=true causes refetch storms
       },
     },
   });
