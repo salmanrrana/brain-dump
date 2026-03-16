@@ -131,7 +131,7 @@ export function useAvailableTerminals() {
 // Hook for checking Docker status
 export function useDockerStatus() {
   const query = useQuery({
-    queryKey: ["docker-status"],
+    queryKey: queryKeys.dockerStatus,
     queryFn: async () => {
       const status = await getDockerStatus();
       return status as DockerStatus;
@@ -154,7 +154,7 @@ export function useBuildSandboxImage() {
   return useMutation({
     mutationFn: () => buildSandboxImage(),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["docker-status"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dockerStatus });
       queryClient.invalidateQueries({ queryKey: queryKeys.dockerAvailability });
     },
   });

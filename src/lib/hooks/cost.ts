@@ -109,7 +109,7 @@ export function useRecalculateCosts() {
   return useMutation({
     mutationFn: () => recalculateCosts(),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cost"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.cost.all });
     },
     onError: (err) => {
       logger.error(

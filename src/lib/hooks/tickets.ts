@@ -277,7 +277,7 @@ export function useDeleteTicket() {
  */
 export function useTicketDeletePreview(ticketId: string, enabled: boolean) {
   return useQuery({
-    queryKey: ["ticket", ticketId, "delete-preview"] as const,
+    queryKey: queryKeys.ticketDeletePreview(ticketId),
     queryFn: () => deleteTicket({ data: { ticketId, confirm: false } }),
     enabled,
   });

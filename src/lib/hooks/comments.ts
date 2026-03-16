@@ -11,6 +11,7 @@ import {
   type Comment,
   type CreateCommentInput,
 } from "../../api/comments";
+import { queryKeys } from "../query-keys";
 
 // Re-export types for components
 export type { Comment, CreateCommentInput };
@@ -24,7 +25,7 @@ export function useComments(ticketId: string, options: { pollingInterval?: numbe
   const { pollingInterval = 0 } = options;
 
   const query = useQuery({
-    queryKey: ["comments", ticketId],
+    queryKey: queryKeys.comments(ticketId),
     queryFn: async () => {
       return getComments({ data: ticketId });
     },
@@ -47,7 +48,7 @@ export function useCreateComment() {
   return useMutation({
     mutationFn: (data: CreateCommentInput) => createComment({ data }),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["comments", variables.ticketId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.comments(variables.ticketId) });
     },
   });
 }
@@ -59,7 +60,7 @@ export function useDeleteComment(ticketId: string) {
   return useMutation({
     mutationFn: (commentId: string) => deleteComment({ data: commentId }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["comments", ticketId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.comments(ticketId) });
     },
   });
 }
