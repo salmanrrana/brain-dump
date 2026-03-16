@@ -11,7 +11,7 @@ import {
 import { getTickets } from "../api/tickets";
 import { getDashboardAnalytics } from "../api/analytics";
 import { getDashboardTelemetryAnalytics } from "../api/telemetry";
-import { getCostExplorerData } from "../api/cost";
+import { getCostAnalytics, getCostExplorerData } from "../api/cost";
 import { queryKeys } from "../lib/query-keys";
 import {
   StatsGrid,
@@ -27,7 +27,7 @@ type DashboardTab = "overview" | "ai-telemetry" | "cost-explorer";
 export const Route = createFileRoute("/dashboard")({
   pendingComponent: DashboardSkeleton,
   loader: ({ context }) => {
-    // Pre-warm cache with tickets (for stats), analytics, and telemetry
+    // Pre-warm cache with tickets (for stats), analytics, telemetry, and cost in parallel
     void context.queryClient.ensureQueryData({
       queryKey: queryKeys.tickets({}),
       queryFn: () => getTickets({ data: {} }),
@@ -42,6 +42,11 @@ export const Route = createFileRoute("/dashboard")({
       queryKey: queryKeys.telemetry.dashboardAnalytics(),
       queryFn: () => getDashboardTelemetryAnalytics(),
       staleTime: 60_000,
+    });
+    void context.queryClient.ensureQueryData({
+      queryKey: queryKeys.cost.dashboardAnalytics(),
+      queryFn: () => getCostAnalytics(),
+      staleTime: 300_000,
     });
   },
   component: Dashboard,

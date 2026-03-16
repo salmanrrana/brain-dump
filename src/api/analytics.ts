@@ -1,6 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { db, sqlite } from "../lib/db";
-import { ralphSessions } from "../lib/schema";
+import { sqlite } from "../lib/db";
 import { safeJsonParse } from "../lib/utils";
 import type { StateHistoryEntry } from "../lib/schema";
 
@@ -164,72 +163,59 @@ export const getDashboardAnalytics = createServerFn({ method: "GET" }).handler(
       else aiUsage.user += count; // Sum all other authors as "user"
     }
 
-    // 4. Ralph session metrics
-    const allSessions = db.select().from(ralphSessions).all();
-    const completedSessions = allSessions.filter(
-      (s: (typeof allSessions)[0]) => s.completedAt !== null
-    );
-    const successfulSessions = completedSessions.filter(
-      (s: (typeof completedSessions)[0]) => s.outcome === "success"
-    );
+    // 4. Ralph session metrics — use SQL aggregation instead of loading all sessions
+    const ralphMetricsSql = `
+      SELECT
+        COUNT(*) as total,
+        COUNT(CASE WHEN completed_at IS NOT NULL THEN 1 END) as completed,
+        COUNT(CASE WHEN outcome = 'success' THEN 1 END) as successful,
+        AVG(
+          CASE WHEN completed_at IS NOT NULL AND started_at IS NOT NULL
+               AND julianday(completed_at) > julianday(started_at)
+          THEN (julianday(completed_at) - julianday(started_at)) * 24 * 60
+          END
+        ) as avg_duration_min
+      FROM ralph_sessions
+    `;
+    const ralphRow = sqlite.prepare(ralphMetricsSql).get() as {
+      total: number;
+      completed: number;
+      successful: number;
+      avg_duration_min: number | null;
+    };
 
-    const totalSessions = allSessions.length;
+    const totalSessions = Number(ralphRow?.total) || 0;
+    const completedCount = Number(ralphRow?.completed) || 0;
     const successRate =
-      completedSessions.length > 0
-        ? (successfulSessions.length / completedSessions.length) * 100
-        : 0;
+      completedCount > 0 ? (Number(ralphRow?.successful || 0) / completedCount) * 100 : 0;
+    const avgDuration = Number(ralphRow?.avg_duration_min) || 0;
 
-    // Calculate average duration
-    let totalDuration = 0;
-    let durationCount = 0;
+    // Time-by-state requires JSON parsing — only load state_history column for completed sessions
+    const stateHistoryRows = sqlite
+      .prepare(
+        `SELECT state_history FROM ralph_sessions
+         WHERE completed_at IS NOT NULL AND state_history IS NOT NULL`
+      )
+      .all() as Array<{ state_history: string }>;
+
     const timeByState: Record<string, number[]> = {};
-
-    for (const session of completedSessions) {
-      if (session.startedAt && session.completedAt) {
-        const start = new Date(session.startedAt).getTime();
-        const end = new Date(session.completedAt).getTime();
-        // Validate dates are valid
-        if (isNaN(start) || isNaN(end) || end < start) {
-          continue; // Skip invalid sessions
-        }
-        const duration = (end - start) / (1000 * 60); // minutes
-        if (duration > 0) {
-          totalDuration += duration;
-          durationCount++;
-        }
-
-        // Parse state history to calculate time per state
-        if (session.stateHistory) {
-          const history = safeJsonParse<StateHistoryEntry[]>(session.stateHistory, []);
-          for (let i = 0; i < history.length - 1; i++) {
-            const currentEntry = history[i];
-            const nextEntry = history[i + 1];
-            if (!currentEntry?.timestamp || !nextEntry?.timestamp) {
-              continue; // Skip entries without timestamps
-            }
-            const current = new Date(currentEntry.timestamp).getTime();
-            const next = new Date(nextEntry.timestamp).getTime();
-            // Validate timestamps and ensure positive duration
-            if (isNaN(current) || isNaN(next) || next <= current) {
-              continue; // Skip invalid state transitions
-            }
-            const stateDuration = (next - current) / (1000 * 60); // minutes
-            const state = currentEntry.state;
-            if (!state) {
-              continue; // Skip entries without state
-            }
-            if (!timeByState[state]) {
-              timeByState[state] = [];
-            }
-            timeByState[state].push(stateDuration);
-          }
-        }
+    for (const row of stateHistoryRows) {
+      const history = safeJsonParse<StateHistoryEntry[]>(row.state_history, []);
+      for (let i = 0; i < history.length - 1; i++) {
+        const currentEntry = history[i];
+        const nextEntry = history[i + 1];
+        if (!currentEntry?.timestamp || !nextEntry?.timestamp) continue;
+        const current = new Date(currentEntry.timestamp).getTime();
+        const next = new Date(nextEntry.timestamp).getTime();
+        if (isNaN(current) || isNaN(next) || next <= current) continue;
+        const stateDuration = (next - current) / (1000 * 60);
+        const state = currentEntry.state;
+        if (!state) continue;
+        if (!timeByState[state]) timeByState[state] = [];
+        timeByState[state].push(stateDuration);
       }
     }
 
-    const avgDuration = durationCount > 0 ? totalDuration / durationCount : 0;
-
-    // Calculate average time by state
     const avgTimeByState: Record<string, number> = {};
     for (const [state, durations] of Object.entries(timeByState)) {
       avgTimeByState[state] =
