@@ -399,52 +399,85 @@ export default function AppLayout({ children }: AppLayoutProps) {
     isRefreshing,
   });
 
-  const appState: AppState = {
-    // Filters
-    filters,
-    setProjectId,
-    setEpicId,
-    toggleTag,
-    clearTagFilters: clearTags,
-    clearAllFilters: clearAll,
+  const appState: AppState = useMemo(
+    () => ({
+      // Filters
+      filters,
+      setProjectId,
+      setEpicId,
+      toggleTag,
+      clearTagFilters: clearTags,
+      clearAllFilters: clearAll,
 
-    // Modals
-    modal,
-    openNewTicketModal: openNewTicket,
-    openProjectModal: openProject,
-    openEpicModal: openEpic,
-    openSettingsModal: openSettings,
-    openFeedbackModal: openFeedback,
-    closeModal,
+      // Modals
+      modal,
+      openNewTicketModal: openNewTicket,
+      openProjectModal: openProject,
+      openEpicModal: openEpic,
+      openSettingsModal: openSettings,
+      openFeedbackModal: openFeedback,
+      closeModal,
 
-    // Refresh
-    ticketRefreshKey,
-    refreshAllData,
-    isRefreshing,
+      // Refresh
+      ticketRefreshKey,
+      refreshAllData,
+      isRefreshing,
 
-    // Search navigation
-    selectedTicketIdFromSearch,
-    onSelectTicketFromSearch,
-    clearSelectedTicketFromSearch,
+      // Search navigation
+      selectedTicketIdFromSearch,
+      onSelectTicketFromSearch,
+      clearSelectedTicketFromSearch,
 
-    // Sample data
-    hasSampleData,
-    isDeletingSampleData,
-    deleteSampleData,
+      // Sample data
+      hasSampleData,
+      isDeletingSampleData,
+      deleteSampleData,
 
-    // Epic deletion
-    onDeleteEpic: handleDeleteEpicClick,
+      // Epic deletion
+      onDeleteEpic: handleDeleteEpicClick,
 
-    // Mobile menu
-    isMobileMenuOpen,
-    openMobileMenu,
-    closeMobileMenu,
+      // Mobile menu
+      isMobileMenuOpen,
+      openMobileMenu,
+      closeMobileMenu,
 
-    // Projects panel
-    isProjectsPanelOpen,
-    openProjectsPanel,
-    closeProjectsPanel,
-  };
+      // Projects panel
+      isProjectsPanelOpen,
+      openProjectsPanel,
+      closeProjectsPanel,
+    }),
+    [
+      filters,
+      setProjectId,
+      setEpicId,
+      toggleTag,
+      clearTags,
+      clearAll,
+      modal,
+      openNewTicket,
+      openProject,
+      openEpic,
+      openSettings,
+      openFeedback,
+      closeModal,
+      ticketRefreshKey,
+      refreshAllData,
+      isRefreshing,
+      selectedTicketIdFromSearch,
+      onSelectTicketFromSearch,
+      clearSelectedTicketFromSearch,
+      hasSampleData,
+      isDeletingSampleData,
+      deleteSampleData,
+      handleDeleteEpicClick,
+      isMobileMenuOpen,
+      openMobileMenu,
+      closeMobileMenu,
+      isProjectsPanelOpen,
+      openProjectsPanel,
+      closeProjectsPanel,
+    ]
+  );
 
   // Handler for IconSidebar actions
   const handleSidebarAction = useCallback(
