@@ -18,27 +18,14 @@ import {
   Pencil,
   Upload,
 } from "lucide-react";
-import { useClickOutside, type Epic } from "../../lib/hooks";
+import {
+  useClickOutside,
+  type Epic,
+  type Project,
+  type ProjectWithAIActivity,
+} from "../../lib/hooks";
 import { EpicListItem } from "./EpicListItem";
 import { EpicDrillInView } from "./EpicDrillInView";
-
-export interface Project {
-  id: string;
-  name: string;
-  path: string;
-  color: string | null;
-}
-
-export interface ProjectWithEpics extends Project {
-  epics: Epic[];
-}
-
-export interface ProjectWithAIActivity extends ProjectWithEpics {
-  /** Whether this project has any active Ralph sessions */
-  hasActiveAI: boolean;
-  /** Number of active sessions in this project */
-  activeSessionCount: number;
-}
 
 export interface ProjectsPanelProps {
   /** Whether the panel is open */
