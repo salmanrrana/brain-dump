@@ -11,6 +11,13 @@ import {
 } from "../lib/constants";
 import { safeJsonParse } from "../lib/utils";
 
+interface ParsedTicketRow {
+  ticket: TicketSummary;
+  tags: string[];
+  subtaskCount: number;
+  completedSubtaskCount: number;
+}
+
 interface Epic {
   id: string;
   title: string;
@@ -51,29 +58,47 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
     return new Map(epics.map((e) => [e.id, e]));
   }, [epics]);
 
-  const sortedTickets = useMemo(() => {
-    return [...tickets].sort((a, b) => {
+  // Parse JSON fields once per data change, not per render
+  const parsedRows = useMemo(() => {
+    const rows: ParsedTicketRow[] = tickets.map((ticket) => {
+      const tags = safeJsonParse<string[]>(ticket.tags, []);
+      const subtasks = safeJsonParse<{ completed: boolean }[]>(ticket.subtasks, []);
+      return {
+        ticket,
+        tags,
+        subtaskCount: subtasks.length,
+        completedSubtaskCount: subtasks.filter((s) => s.completed).length,
+      };
+    });
+    return rows;
+  }, [tickets]);
+
+  const sortedRows = useMemo(() => {
+    return [...parsedRows].sort((a, b) => {
       let comparison = 0;
 
       switch (sortField) {
         case "title":
-          comparison = a.title.localeCompare(b.title);
+          comparison = a.ticket.title.localeCompare(b.ticket.title);
           break;
         case "status":
-          comparison = (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99);
+          comparison =
+            (STATUS_ORDER[a.ticket.status] ?? 99) - (STATUS_ORDER[b.ticket.status] ?? 99);
           break;
         case "priority":
           comparison =
-            (PRIORITY_ORDER[a.priority ?? ""] ?? 99) - (PRIORITY_ORDER[b.priority ?? ""] ?? 99);
+            (PRIORITY_ORDER[a.ticket.priority ?? ""] ?? 99) -
+            (PRIORITY_ORDER[b.ticket.priority ?? ""] ?? 99);
           break;
         case "createdAt":
-          comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          comparison =
+            new Date(a.ticket.createdAt).getTime() - new Date(b.ticket.createdAt).getTime();
           break;
       }
 
       return sortDirection === "asc" ? comparison : -comparison;
     });
-  }, [tickets, sortField, sortDirection]);
+  }, [parsedRows, sortField, sortDirection]);
 
   const handleSort = (field: SortField) => {
     if (field === sortField) {
@@ -140,21 +165,15 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
           </tr>
         </thead>
         <tbody>
-          {sortedTickets.length === 0 ? (
+          {sortedRows.length === 0 ? (
             <tr>
               <td colSpan={8} className="px-4 py-8 text-center text-[var(--text-muted)] text-sm">
                 No tickets found
               </td>
             </tr>
           ) : (
-            sortedTickets.map((ticket) => {
+            sortedRows.map(({ ticket, tags, subtaskCount, completedSubtaskCount }) => {
               const epic = ticket.epicId ? epicMap.get(ticket.epicId) : null;
-              const tags = safeJsonParse<string[]>(ticket.tags, []);
-              const subtasks = safeJsonParse<{ id: string; text: string; completed: boolean }[]>(
-                ticket.subtasks,
-                []
-              );
-              const completedSubtasks = subtasks.filter((s) => s.completed).length;
 
               return (
                 <tr
@@ -239,9 +258,9 @@ export default function TicketListView({ tickets, epics, onTicketClick }: Ticket
 
                   {/* Subtasks */}
                   <td className="px-4 py-3">
-                    {subtasks.length > 0 && (
+                    {subtaskCount > 0 && (
                       <span className="text-xs text-[var(--text-secondary)]">
-                        {completedSubtasks}/{subtasks.length}
+                        {completedSubtaskCount}/{subtaskCount}
                       </span>
                     )}
                   </td>
