@@ -140,15 +140,16 @@ export function useCreateTicket() {
       };
 
       // Add optimistic ticket to all matching full-ticket queries
+      // Array.isArray guard: allTickets prefix also matches count queries (Record<string, number>)
       for (const [queryKey, tickets] of previousTicketQueries) {
-        if (tickets) {
+        if (Array.isArray(tickets)) {
           queryClient.setQueryData<Ticket[]>(queryKey, [...tickets, optimisticTicket]);
         }
       }
 
       // Add optimistic summary to all matching summary queries
       for (const [queryKey, summaries] of previousSummaryQueries) {
-        if (summaries) {
+        if (Array.isArray(summaries)) {
           queryClient.setQueryData<TicketSummary[]>(queryKey, [...summaries, optimisticSummary]);
         }
       }
@@ -226,8 +227,9 @@ export function useUpdateTicket() {
       };
 
       // Optimistically update full-ticket queries
+      // Array.isArray guard: allTickets prefix also matches count queries (Record<string, number>)
       for (const [queryKey, tickets] of previousTicketQueries) {
-        if (tickets) {
+        if (Array.isArray(tickets)) {
           queryClient.setQueryData<Ticket[]>(
             queryKey,
             tickets.map((ticket) => {
@@ -247,7 +249,7 @@ export function useUpdateTicket() {
 
       // Optimistically update summary queries
       for (const [queryKey, summaries] of previousSummaryQueries) {
-        if (summaries) {
+        if (Array.isArray(summaries)) {
           queryClient.setQueryData<TicketSummary[]>(
             queryKey,
             summaries.map((summary) => (summary.id === id ? applyCommonUpdates(summary) : summary))
@@ -318,8 +320,9 @@ export function useUpdateTicketStatus() {
         return updated;
       };
 
+      // Array.isArray guard: allTickets prefix also matches count queries (Record<string, number>)
       for (const [queryKey, tickets] of previousTicketQueries) {
-        if (tickets) {
+        if (Array.isArray(tickets)) {
           queryClient.setQueryData<Ticket[]>(
             queryKey,
             tickets.map((t) => (t.id === id ? applyStatusUpdate(t) : t))
@@ -327,7 +330,7 @@ export function useUpdateTicketStatus() {
         }
       }
       for (const [queryKey, summaries] of previousSummaryQueries) {
-        if (summaries) {
+        if (Array.isArray(summaries)) {
           queryClient.setQueryData<TicketSummary[]>(
             queryKey,
             summaries.map((s) => (s.id === id ? applyStatusUpdate(s) : s))
@@ -378,8 +381,9 @@ export function useUpdateTicketPosition() {
         queryKey: queryKeys.allTicketSummaries,
       });
 
+      // Array.isArray guard: allTickets prefix also matches count queries (Record<string, number>)
       for (const [queryKey, tickets] of previousTicketQueries) {
-        if (tickets) {
+        if (Array.isArray(tickets)) {
           queryClient.setQueryData<Ticket[]>(
             queryKey,
             tickets.map((t) =>
@@ -389,7 +393,7 @@ export function useUpdateTicketPosition() {
         }
       }
       for (const [queryKey, summaries] of previousSummaryQueries) {
-        if (summaries) {
+        if (Array.isArray(summaries)) {
           queryClient.setQueryData<TicketSummary[]>(
             queryKey,
             summaries.map((s) =>
