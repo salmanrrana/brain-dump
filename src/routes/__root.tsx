@@ -1,8 +1,26 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
-import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-import { TanStackDevtools } from "@tanstack/react-devtools";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+const LazyDevtools = import.meta.env.DEV
+  ? lazy(() =>
+      import("@tanstack/react-devtools").then((mod) =>
+        import("@tanstack/react-router-devtools").then((routerMod) => ({
+          default: () => (
+            <mod.TanStackDevtools
+              config={{ position: "bottom-right" }}
+              plugins={[
+                {
+                  name: "Tanstack Router",
+                  render: <routerMod.TanStackRouterDevtoolsPanel />,
+                },
+              ]}
+            />
+          ),
+        }))
+      )
+    )
+  : () => null;
 
 import AppLayout from "../components/AppLayout";
 import { SplashScreen } from "../components/SplashScreen";
@@ -89,17 +107,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             </ToastProvider>
           </ThemeProvider>
         </QueryClientProvider>
-        <TanStackDevtools
-          config={{
-            position: "bottom-right",
-          }}
-          plugins={[
-            {
-              name: "Tanstack Router",
-              render: <TanStackRouterDevtoolsPanel />,
-            },
-          ]}
-        />
+        <Suspense>
+          <LazyDevtools />
+        </Suspense>
         <Scripts />
       </body>
     </html>
