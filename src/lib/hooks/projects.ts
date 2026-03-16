@@ -22,10 +22,10 @@ import {
 } from "../../api/dev-tools";
 import { getGitProjectInfo, getGitCommits, getCommitFileStats } from "../../api/git-info";
 import type { GitCommitsPage, CommitFileStatsResult } from "../../api/git-info";
+import { getProjectTicketCounts, getEpicTicketCounts } from "../../api/tickets";
 import { createBrowserLogger } from "../browser-logger";
 import { queryKeys } from "../query-keys";
 import { useActiveRalphSessions, type ActiveRalphSession } from "./ralph";
-import { useTickets } from "./tickets";
 
 // Browser-safe logger for hook errors
 const logger = createBrowserLogger("hooks:projects");
@@ -119,6 +119,31 @@ export function useProjects() {
 }
 
 /**
+ * Hook that returns per-project ticket counts via a lightweight SQL aggregation endpoint.
+ * Avoids loading full ticket objects just to derive `.length`.
+ */
+export function useProjectTicketCounts() {
+  return useQuery({
+    queryKey: queryKeys.projectTicketCounts,
+    queryFn: () => getProjectTicketCounts(),
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * Hook that returns per-epic ticket counts for a single project
+ * via a lightweight SQL aggregation endpoint.
+ */
+export function useEpicTicketCounts(projectId: string) {
+  return useQuery({
+    queryKey: queryKeys.epicTicketCounts(projectId),
+    queryFn: () => getEpicTicketCounts({ data: projectId }),
+    staleTime: 30_000,
+    enabled: !!projectId,
+  });
+}
+
+/**
  * Hook for fetching projects with AI activity indicators and ticket counts.
  * Combines projects data with active Ralph session data to determine
  * which projects have active AI work for glow effects, and aggregates
@@ -133,22 +158,25 @@ export function useProjects() {
 export function useProjectsWithAIActivity() {
   const { projects, loading, error, refetch } = useProjects();
   const { sessions } = useActiveRalphSessions();
-  const { tickets, error: ticketsError, loading: ticketsLoading } = useTickets();
+  const {
+    data: ticketCounts,
+    error: countsError,
+    isLoading: countsLoading,
+  } = useProjectTicketCounts();
 
   // Determine overall loading/error state considering all queries
-  const isLoading = loading || ticketsLoading;
-  const overallError = error || ticketsError;
+  const isLoading = loading || countsLoading;
+  const overallError = error || (countsError?.message ?? null);
 
   // Log ticket loading errors for debugging (in useEffect to avoid side effects in render)
   useEffect(() => {
-    if (ticketsError) {
-      logger.error("Failed to load ticket counts for projects", new Error(ticketsError));
+    if (countsError) {
+      logger.error("Failed to load ticket counts for projects", countsError);
     }
-  }, [ticketsError]);
+  }, [countsError]);
 
   const projectsWithActivity = useMemo<ProjectWithAIActivity[]>(() => {
     const sessionCounts = countBy(Object.values(sessions), (s) => s.projectId);
-    const ticketCounts = countBy(tickets, (t) => t.projectId);
 
     return projects.map((project) => {
       const activeSessionCount = sessionCounts.get(project.id) ?? 0;
@@ -156,10 +184,10 @@ export function useProjectsWithAIActivity() {
         ...project,
         hasActiveAI: activeSessionCount > 0,
         activeSessionCount,
-        ticketCount: ticketCounts.get(project.id) ?? 0,
+        ticketCount: ticketCounts?.[project.id] ?? 0,
       };
     });
-  }, [projects, sessions, tickets]);
+  }, [projects, sessions, ticketCounts]);
 
   return {
     projects: projectsWithActivity,

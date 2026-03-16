@@ -61,6 +61,8 @@ export {
 export {
   useProjects,
   useProjectsWithAIActivity,
+  useProjectTicketCounts,
+  useEpicTicketCounts,
   useCreateProject,
   useUpdateProject,
   useDeleteProject,

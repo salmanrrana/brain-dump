@@ -370,6 +370,55 @@ export const updateTicketPosition = createServerFn({ method: "POST" })
     return db.select().from(tickets).where(eq(tickets.id, id)).get();
   });
 
+// ─── Summary / Count Endpoints ───────────────────────────────────────────────
+
+/**
+ * Returns ticket counts grouped by projectId.
+ * Uses SQL COUNT/GROUP BY — no full ticket objects are transferred.
+ */
+export const getProjectTicketCounts = createServerFn({ method: "GET" }).handler(async () => {
+  const rows = db
+    .select({
+      projectId: tickets.projectId,
+      count: sql<number>`COUNT(*)`,
+    })
+    .from(tickets)
+    .groupBy(tickets.projectId)
+    .all();
+
+  const counts: Record<string, number> = {};
+  for (const row of rows) {
+    counts[row.projectId] = row.count;
+  }
+  return counts;
+});
+
+/**
+ * Returns ticket counts grouped by epicId for a given project.
+ * Uses SQL COUNT/GROUP BY — no full ticket objects are transferred.
+ */
+export const getEpicTicketCounts = createServerFn({ method: "GET" })
+  .inputValidator((projectId: string) => projectId)
+  .handler(async ({ data: projectId }) => {
+    const rows = db
+      .select({
+        epicId: tickets.epicId,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(tickets)
+      .where(and(eq(tickets.projectId, projectId), sql`${tickets.epicId} IS NOT NULL`))
+      .groupBy(tickets.epicId)
+      .all();
+
+    const counts: Record<string, number> = {};
+    for (const row of rows) {
+      if (row.epicId) {
+        counts[row.epicId] = row.count;
+      }
+    }
+    return counts;
+  });
+
 // Delete a ticket with dry-run preview support
 export interface DeleteTicketInput {
   ticketId: string;
