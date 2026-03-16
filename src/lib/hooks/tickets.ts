@@ -23,38 +23,13 @@ import { searchTickets, type SearchResult } from "../../api/search";
 import { getTags, getTagsWithMetadata, type TagFilters, type TagMetadata } from "../../api/tags";
 import { createBrowserLogger } from "../browser-logger";
 import { queryKeys } from "../query-keys";
+import type { Ticket } from "../schema";
+
+// Re-export schema-derived type for consumers
+export type { Ticket };
 
 // Browser-safe logger for hook errors
 const logger = createBrowserLogger("hooks:tickets");
-
-// =============================================================================
-// TYPES
-// =============================================================================
-
-export interface Ticket {
-  id: string;
-  title: string;
-  description: string | null;
-  status: string;
-  priority: string | null;
-  position: number;
-  projectId: string;
-  epicId: string | null;
-  tags: string | null;
-  subtasks: string | null;
-  isBlocked: boolean | null;
-  blockedReason: string | null;
-  linkedFiles: string | null;
-  attachments: string | null;
-  createdAt: string;
-  updatedAt: string;
-  completedAt: string | null;
-  // Git/PR tracking fields
-  branchName: string | null;
-  prNumber: number | null;
-  prUrl: string | null;
-  prStatus: "draft" | "open" | "merged" | "closed" | null;
-}
 
 // Status change event for notifications
 export interface StatusChange {

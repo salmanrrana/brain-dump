@@ -29,7 +29,11 @@ import type { GitCommitsPage, CommitFileStatsResult } from "../../api/git-info";
 import { getProjectTicketCounts, getEpicTicketCounts } from "../../api/tickets";
 import { createBrowserLogger } from "../browser-logger";
 import { queryKeys } from "../query-keys";
+import type { Epic, Project } from "../schema";
 import { useActiveRalphSessions, type ActiveRalphSession } from "./ralph";
+
+// Re-export schema-derived types for consumers
+export type { Epic, Project };
 
 // Browser-safe logger for hook errors
 const logger = createBrowserLogger("hooks:projects");
@@ -48,28 +52,8 @@ function countBy<T>(items: T[], keyFn: (item: T) => string): Map<string, number>
 // TYPES
 // =============================================================================
 
-export interface Epic {
-  id: string;
-  title: string;
-  description: string | null;
-  projectId: string;
-  color: string | null;
-  createdAt: string;
-}
-
 /** Base project properties used for editing (without createdAt) */
-export interface ProjectBase {
-  id: string;
-  name: string;
-  path: string;
-  color: string | null;
-  workingMethod: string | null;
-}
-
-/** Full project type including createdAt */
-export interface Project extends ProjectBase {
-  createdAt: string;
-}
+export type ProjectBase = Omit<Project, "createdAt">;
 
 export interface ProjectWithEpics extends Project {
   epics: Epic[];
