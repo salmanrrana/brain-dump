@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState } from "react";
-import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { HeadContent, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
+import { QueryClientProvider } from "@tanstack/react-query";
+import type { RouterContext } from "../router";
 
 const LazyDevtools = import.meta.env.DEV
   ? lazy(() =>
@@ -30,20 +31,7 @@ import { ThemeProvider, THEME_STORAGE_KEY, THEMES, DEFAULT_THEME } from "../lib/
 
 import appCss from "../styles.css?url";
 
-// Factory function to create QueryClient with consistent options
-// Used inside useState to ensure per-component instance (SSR safety)
-function createQueryClient() {
-  return new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 1000 * 5, // 5 seconds global default
-        refetchOnWindowFocus: false, // Opt-in per query; global=true causes refetch storms
-      },
-    },
-  });
-}
-
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<RouterContext>()({
   head: () => ({
     meta: [
       {
@@ -83,10 +71,7 @@ export const Route = createRootRoute({
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
-  // Create QueryClient inside component state to avoid SSR issues
-  // This ensures the focus manager is properly initialized on the client
-  // See: https://tanstack.com/query/latest/docs/framework/react/guides/ssr
-  const [queryClient] = useState(createQueryClient);
+  const { queryClient } = Route.useRouteContext();
   const [showSplash, setShowSplash] = useState(true);
 
   return (
