@@ -16,8 +16,15 @@ import { getStatusLabel } from "../lib/constants";
 import { getTicket } from "../api/tickets";
 import { createBrowserLogger } from "../lib/browser-logger";
 
+interface ListSearch {
+  view?: "tags";
+}
+
 export const Route = createFileRoute("/list")({
   component: ListView,
+  validateSearch: (search: Record<string, unknown>): ListSearch => ({
+    ...(search.view === "tags" ? { view: "tags" as const } : {}),
+  }),
 });
 
 type ListSubMode = "tickets" | "tags";
@@ -36,24 +43,14 @@ function ListView() {
   const { showToast } = useToast();
 
   // Sub-mode from URL param ?view=tags (default: tickets)
-  const searchString = Route.useSearch({
-    select: (s: Record<string, string>) => s.view,
-  });
-  const listSubMode: ListSubMode = searchString === "tags" ? "tags" : "tickets";
+  const search = Route.useSearch();
+  const listSubMode: ListSubMode = search.view === "tags" ? "tags" : "tickets";
 
   const setListSubMode = useCallback(
     (mode: ListSubMode) => {
       void navigate({
         to: ".",
-        search: (prev: Record<string, string>) => {
-          const next = { ...prev };
-          if (mode === "tags") {
-            next.view = "tags";
-          } else {
-            delete next.view;
-          }
-          return next;
-        },
+        search: mode === "tags" ? { view: "tags" as const } : {},
         replace: true,
       });
     },
