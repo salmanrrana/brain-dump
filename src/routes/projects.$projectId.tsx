@@ -11,10 +11,12 @@ import { getTickets } from "../api/tickets";
 import { getProjects } from "../api/projects";
 import { getEpicsByProject } from "../api/epics";
 import { queryKeys } from "../lib/query-keys";
+import { ProjectDetailSkeleton } from "../components/route-skeletons";
 
 const logger = createBrowserLogger("routes:project-detail");
 
 export const Route = createFileRoute("/projects/$projectId")({
+  pendingComponent: ProjectDetailSkeleton,
   loader: ({ context, params }) => {
     // Pre-warm cache with projects (with epics) and project-specific tickets
     void context.queryClient.ensureQueryData({

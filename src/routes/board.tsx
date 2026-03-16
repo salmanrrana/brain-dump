@@ -18,7 +18,9 @@ import { getProjects } from "../api/projects";
 import { getEpicsByProject } from "../api/epics";
 import { queryKeys } from "../lib/query-keys";
 import { createBrowserLogger } from "../lib/browser-logger";
+import { BoardSkeleton } from "../components/route-skeletons";
 export const Route = createFileRoute("/board")({
+  pendingComponent: BoardSkeleton,
   loader: ({ context }) => {
     // Pre-warm cache with default (unfiltered) tickets and projects
     void context.queryClient.ensureQueryData({

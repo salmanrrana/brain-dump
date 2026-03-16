@@ -21,8 +21,11 @@ import {
 } from "../components/dashboard";
 import type { StatFilter } from "../components/dashboard";
 
+import { DashboardSkeleton } from "../components/route-skeletons";
+
 type DashboardTab = "overview" | "ai-telemetry" | "cost-explorer";
 export const Route = createFileRoute("/dashboard")({
+  pendingComponent: DashboardSkeleton,
   loader: ({ context }) => {
     // Pre-warm cache with tickets (for stats), analytics, and telemetry
     void context.queryClient.ensureQueryData({

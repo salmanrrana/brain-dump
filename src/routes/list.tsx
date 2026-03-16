@@ -18,12 +18,14 @@ import { getProjects } from "../api/projects";
 import { getEpicsByProject } from "../api/epics";
 import { queryKeys } from "../lib/query-keys";
 import { createBrowserLogger } from "../lib/browser-logger";
+import { ListSkeleton } from "../components/route-skeletons";
 
 interface ListSearch {
   view?: "tags";
 }
 
 export const Route = createFileRoute("/list")({
+  pendingComponent: ListSkeleton,
   loader: ({ context }) => {
     // Pre-warm cache with default (unfiltered) tickets and projects
     void context.queryClient.ensureQueryData({
