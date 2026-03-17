@@ -263,6 +263,43 @@ describe("KanbanBoard", () => {
     });
   });
 
+  it("moves ticket to an empty column on drag-and-drop", async () => {
+    vi.mocked(hooks.useTicketSummaries).mockReturnValue({
+      tickets: mockTickets, // no "ready" tickets — that column is empty
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof hooks.useTicketSummaries>);
+
+    render(<KanbanBoard />);
+
+    // "Ready" column is empty (0 tickets)
+    expect(screen.getByText(/Ready \(0\)/)).toBeInTheDocument();
+
+    // Simulate drag: move ticket "1" (backlog) to the empty "ready" column
+    await capturedOnDragEnd!({
+      active: { id: "1" },
+      over: { id: "ready" },
+    });
+
+    // Status mutation fires with the empty column's status
+    expect(mockStatusMutate).toHaveBeenCalledWith({
+      id: "1",
+      status: "ready",
+    });
+
+    // Position set to 1 (first ticket in empty column)
+    expect(mockPositionMutate).toHaveBeenCalledWith({
+      id: "1",
+      position: 1,
+    });
+
+    // User sees success toast
+    await waitFor(() => {
+      expect(mockShowToast).toHaveBeenCalledWith("success", expect.stringContaining("Ready"));
+    });
+  });
+
   it("does not call status mutation when ticket is dropped in its own column", async () => {
     vi.mocked(hooks.useTicketSummaries).mockReturnValue({
       tickets: mockTickets,

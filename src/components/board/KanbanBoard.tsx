@@ -18,6 +18,7 @@ import {
   DndContext,
   DragOverlay,
   closestCenter,
+  pointerWithin,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -25,6 +26,7 @@ import {
   type DragStartEvent,
   type DragEndEvent,
   type Announcements,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -81,6 +83,37 @@ const COLUMN_COLORS: Record<TicketStatus, string> = {
 };
 
 const logger = createBrowserLogger("board:kanban");
+
+/**
+ * Custom collision detection for the kanban board.
+ *
+ * closestCenter alone bypasses empty columns because tickets in adjacent
+ * columns have centers closer to the pointer. This combines pointerWithin
+ * (detects which column the pointer is in) with closestCenter (precise
+ * item ordering within that column).
+ */
+const kanbanCollisionDetection: CollisionDetection = (args) => {
+  // Check which droppable areas contain the pointer
+  const withinCollisions = pointerWithin(args);
+
+  if (withinCollisions.length > 0) {
+    // Pointer is inside one or more droppables — use closestCenter among
+    // only those droppables for precise ticket-level ordering
+    const idsUnderPointer = new Set(withinCollisions.map((c) => c.id));
+    const filtered = args.droppableContainers.filter((c) => idsUnderPointer.has(c.id));
+
+    if (filtered.length > 0) {
+      const closest = closestCenter({ ...args, droppableContainers: filtered });
+      if (closest.length > 0) return closest;
+    }
+
+    // No closer match — return the raw pointerWithin results (empty column)
+    return withinCollisions;
+  }
+
+  // Pointer not within any droppable — fall back to closestCenter
+  return closestCenter(args);
+};
 
 /** Screen reader announcements for drag-and-drop operations */
 const announcements: Announcements = {
@@ -340,7 +373,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={kanbanCollisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       accessibility={{ announcements }}
