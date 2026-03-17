@@ -43,7 +43,11 @@ export function useProjectServices(
       return getProjectServices({ data: { projectPath } });
     },
     enabled: enabled && Boolean(projectPath),
+    // Prefer event-driven updates: refetch on focus + mutation invalidation
+    // Polling is a fallback for external changes (e.g., services started outside the UI)
     refetchInterval: pollingInterval > 0 ? pollingInterval : false,
+    refetchOnWindowFocus: true,
+    staleTime: 30_000, // 30s — services change infrequently
   });
 
   // Filter to only running services for convenience

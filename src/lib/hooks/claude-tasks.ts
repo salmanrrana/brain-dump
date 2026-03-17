@@ -27,8 +27,7 @@ export function useClaudeTasks(ticketId: string, options: { pollingInterval?: nu
   const query = useQuery({
     queryKey: queryKeys.claudeTasks(ticketId),
     queryFn: async () => {
-      const tasks = await getClaudeTasks({ data: ticketId });
-      return tasks as ClaudeTask[];
+      return getClaudeTasks({ data: ticketId });
     },
     enabled: Boolean(ticketId),
     refetchInterval: pollingInterval > 0 ? pollingInterval : false,

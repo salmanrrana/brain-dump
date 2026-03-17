@@ -35,8 +35,14 @@ export const queryKeys = {
   epicDetail: (epicId: string) => ["epic", epicId] as const,
 
   // Tickets
+  ticket: (ticketId: string) => ["ticket", ticketId] as const,
+  ticketDeletePreview: (ticketId: string) => ["ticket", ticketId, "delete-preview"] as const,
   tickets: (filters: TicketFilters) => ["tickets", filters] as const,
   allTickets: ["tickets"] as const,
+  ticketSummaries: (filters: TicketFilters) => ["ticket-summaries", filters] as const,
+  allTicketSummaries: ["ticket-summaries"] as const,
+  projectTicketCounts: ["tickets", "project-counts"] as const,
+  epicTicketCounts: (projectId: string) => ["tickets", "epic-counts", projectId] as const,
 
   // Tags
   tags: (filters: TagFilters) => ["tags", filters] as const,
@@ -46,9 +52,14 @@ export const queryKeys = {
   // Search
   search: (query: string, projectId?: string) => ["search", query, projectId] as const,
 
+  // Comments
+  comments: (ticketId: string) => ["comments", ticketId] as const,
+  paginatedComments: (ticketId: string) => ["comments", ticketId, "paginated"] as const,
+
   // Settings
   settings: ["settings"] as const,
   availableTerminals: ["available-terminals"] as const,
+  dockerStatus: ["docker-status"] as const,
 
   // Docker runtime detection
   dockerRuntimes: ["dockerRuntimes"] as const,
@@ -56,6 +67,9 @@ export const queryKeys = {
 
   // Docker availability (for UI buttons)
   dockerAvailability: ["docker-availability"] as const,
+
+  // Active Ralph sessions
+  activeRalphSessions: ["activeRalphSessions"] as const,
 
   // Ralph container monitoring (hierarchical for easy invalidation)
   ralph: {
@@ -79,6 +93,7 @@ export const queryKeys = {
 
   // Cost
   cost: {
+    all: ["cost"] as const,
     dashboardAnalytics: () => ["cost", "dashboardAnalytics"] as const,
     ticketCost: (ticketId: string) => ["cost", "ticket", ticketId] as const,
     epicCost: (epicId: string) => ["cost", "epic", epicId] as const,

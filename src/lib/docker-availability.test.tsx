@@ -13,6 +13,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { queryKeys } from "./query-keys";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
@@ -250,7 +251,7 @@ describe("useDockerAvailability", () => {
       // Manually invalidate the cache to simulate stale time expiration
       // This is equivalent to what happens when staleTime (30s) passes
       await act(async () => {
-        await queryClient.invalidateQueries({ queryKey: ["docker-availability"] });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.dockerAvailability });
       });
 
       // Wait for the refetch to complete

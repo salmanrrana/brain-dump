@@ -1,16 +1,33 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMemo } from "react";
 import { ArrowLeft, Plus, AlertCircle } from "lucide-react";
-import { useProjects, useTickets } from "../lib/hooks";
+import { useProjects, useEpicTicketCounts } from "../lib/hooks";
 import { useAppState } from "../components/AppLayout";
 import { createBrowserLogger } from "../lib/browser-logger";
 import EpicListItem from "../components/navigation/EpicListItem";
 import DevHubToolbar from "../components/projects/DevHubToolbar";
 import GitHistoryCard from "../components/projects/GitHistoryCard";
+import { getEpicTicketCounts } from "../api/tickets";
+import { getProjectsWithEpics } from "../api/projects";
+import { queryKeys } from "../lib/query-keys";
+import { ProjectDetailSkeleton } from "../components/route-skeletons";
 
 const logger = createBrowserLogger("routes:project-detail");
 
 export const Route = createFileRoute("/projects/$projectId")({
+  pendingComponent: ProjectDetailSkeleton,
+  loader: ({ context, params }) => {
+    // Pre-warm cache with projects (with epics) and per-epic ticket counts
+    void context.queryClient.ensureQueryData({
+      queryKey: queryKeys.projectsWithEpics,
+      queryFn: () => getProjectsWithEpics(),
+      staleTime: 30_000,
+    });
+    void context.queryClient.ensureQueryData({
+      queryKey: queryKeys.epicTicketCounts(params.projectId),
+      queryFn: () => getEpicTicketCounts({ data: params.projectId }),
+      staleTime: 30_000,
+    });
+  },
   component: ProjectDetail,
 });
 
@@ -18,19 +35,8 @@ function ProjectDetail() {
   const { projectId } = Route.useParams();
   const navigate = useNavigate();
   const { projects, loading, error } = useProjects();
-  const { tickets } = useTickets({ projectId });
+  const { data: epicTicketCounts } = useEpicTicketCounts(projectId);
   const { openEpicModal } = useAppState();
-
-  // Must call hooks before any early returns
-  const ticketCountByEpic = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const ticket of tickets) {
-      if (ticket.epicId) {
-        counts.set(ticket.epicId, (counts.get(ticket.epicId) ?? 0) + 1);
-      }
-    }
-    return counts;
-  }, [tickets]);
 
   if (loading) {
     return (
@@ -156,7 +162,7 @@ function ProjectDetail() {
                 <EpicListItem
                   key={epic.id}
                   epic={epic}
-                  ticketCount={ticketCountByEpic.get(epic.id)}
+                  ticketCount={epicTicketCounts?.[epic.id]}
                   onSelect={() =>
                     navigate({ to: "/board", search: { project: projectId, epic: epic.id } })
                   }

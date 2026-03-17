@@ -63,9 +63,11 @@ export function useSampleData(onDeleted?: () => void): UseSampleDataReturn {
     mutationFn: () => deleteSampleDataApi({ data: undefined }),
     onSuccess: () => {
       setHasSampleData(false);
-      // Invalidate all affected queries - projects, tickets, and tags
+      // Invalidate all affected queries - projects, tickets, summaries, counts, and tags
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTags });
       onDeleted?.();
     },

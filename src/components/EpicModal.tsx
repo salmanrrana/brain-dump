@@ -1,12 +1,23 @@
 import { useState, useRef, useCallback } from "react";
-import { X, ChevronDown, Bot, Loader2, Save, Code2, Terminal, Monitor, Github, Download } from "lucide-react";
+import {
+  X,
+  ChevronDown,
+  Bot,
+  Loader2,
+  Save,
+  Code2,
+  Terminal,
+  Monitor,
+  Github,
+  Download,
+} from "lucide-react";
 import { useForm } from "@tanstack/react-form-start";
 import {
   useCreateEpic,
   useUpdateEpic,
   useDeleteEpic,
   useSettings,
-  useTickets,
+  useTicketSummaries,
   useLaunchRalphForEpic,
   useModalKeyboard,
   useClickOutside,
@@ -74,7 +85,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   // Settings and Ralph hooks
   const { settings } = useSettings();
   const launchRalphMutation = useLaunchRalphForEpic();
-  const { tickets } = useTickets(epic ? { projectId, epicId: epic.id } : {}, {
+  const { tickets } = useTicketSummaries(epic ? { projectId, epicId: epic.id } : {}, {
     enabled: Boolean(epic?.id),
   });
 
@@ -87,7 +98,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
       color: epic?.color ?? "",
     },
     validators: {
-      onChange: epicFormSchema,
+      onBlur: epicFormSchema,
     },
   });
 

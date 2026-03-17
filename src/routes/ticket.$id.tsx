@@ -253,7 +253,7 @@ function TicketDetailPage() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ["ticket", id],
+    queryKey: queryKeys.ticket(id),
     queryFn: () => getTicket({ data: id }),
     // Ticket could be updated externally via MCP
     staleTime: 0,
@@ -303,7 +303,7 @@ function TicketDetailPage() {
     (updatedSubtasks: Subtask[]) => {
       setLocalSubtasks(updatedSubtasks);
       // Invalidate the ticket query to refresh data after mutation completes
-      queryClient.invalidateQueries({ queryKey: ["ticket", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.ticket(id) });
     },
     [queryClient, id]
   );
@@ -335,7 +335,7 @@ function TicketDetailPage() {
   const invalidateTicketDetail = useCallback(async () => {
     await Promise.all([
       refetch(),
-      queryClient.invalidateQueries({ queryKey: ["ticket", id] }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.ticket(id) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets }),
       queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics }),
       queryClient.invalidateQueries({ queryKey: queryKeys.workflowState(id) }),

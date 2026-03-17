@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ProjectsPanel, type ProjectWithAIActivity } from "./ProjectsPanel";
+import { ProjectsPanel } from "./ProjectsPanel";
+import type { ProjectWithAIActivity } from "../../lib/hooks";
 
 // Sample test data with AI activity fields
 const mockProjects: ProjectWithAIActivity[] = [
@@ -10,8 +11,11 @@ const mockProjects: ProjectWithAIActivity[] = [
     name: "Brain Dump",
     path: "/Users/dev/brain-dump",
     color: "#8b5cf6",
+    workingMethod: "auto",
+    createdAt: "2026-01-01T00:00:00Z",
     hasActiveAI: false,
     activeSessionCount: 0,
+    ticketCount: 0,
     epics: [],
   },
   {
@@ -19,8 +23,11 @@ const mockProjects: ProjectWithAIActivity[] = [
     name: "My App",
     path: "/Users/dev/my-app",
     color: "#10b981",
+    workingMethod: "auto",
+    createdAt: "2026-01-01T00:00:00Z",
     hasActiveAI: false,
     activeSessionCount: 0,
+    ticketCount: 0,
     epics: [],
   },
   {
@@ -28,8 +35,11 @@ const mockProjects: ProjectWithAIActivity[] = [
     name: "API Server",
     path: "/Users/dev/api-server",
     color: "#f97316",
+    workingMethod: "auto",
+    createdAt: "2026-01-01T00:00:00Z",
     hasActiveAI: false,
     activeSessionCount: 0,
+    ticketCount: 0,
     epics: [],
   },
 ];

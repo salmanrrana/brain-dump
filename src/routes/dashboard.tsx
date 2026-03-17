@@ -1,14 +1,18 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useCallback, useState } from "react";
+import { Profiler, useCallback, useState } from "react";
+import { onRenderCallback } from "../lib/profiler";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  useTickets,
+  useTicketSummaries,
   useActiveRalphSessions,
   useDashboardAnalytics,
   useDashboardTelemetryAnalytics,
   useCostAnalytics,
 } from "../lib/hooks";
-import { getCostExplorerData } from "../api/cost";
+import { getTicketSummaries } from "../api/tickets";
+import { getDashboardAnalytics } from "../api/analytics";
+import { getDashboardTelemetryAnalytics } from "../api/telemetry";
+import { getCostAnalytics, getCostExplorerData } from "../api/cost";
 import { queryKeys } from "../lib/query-keys";
 import {
   StatsGrid,
@@ -18,8 +22,45 @@ import {
 } from "../components/dashboard";
 import type { StatFilter } from "../components/dashboard";
 
+import { markLoaderStart, markLoaderEnd, timedFetch } from "../lib/navigation-timing";
+import { DashboardSkeleton } from "../components/route-skeletons";
+
 type DashboardTab = "overview" | "ai-telemetry" | "cost-explorer";
 export const Route = createFileRoute("/dashboard")({
+  pendingComponent: DashboardSkeleton,
+  loader: ({ context }) => {
+    markLoaderStart("dashboard");
+    // Pre-warm cache with tickets (for stats), analytics, telemetry, and cost in parallel
+    void timedFetch("dashboard:tickets", () =>
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.ticketSummaries({}),
+        queryFn: () => getTicketSummaries({ data: {} }),
+        staleTime: 30_000,
+      })
+    );
+    void timedFetch("dashboard:analytics", () =>
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.analytics.dashboard(),
+        queryFn: () => getDashboardAnalytics(),
+        staleTime: 60_000,
+      })
+    );
+    void timedFetch("dashboard:telemetry", () =>
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.telemetry.dashboardAnalytics(),
+        queryFn: () => getDashboardTelemetryAnalytics(),
+        staleTime: 60_000,
+      })
+    );
+    void timedFetch("dashboard:cost", () =>
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.cost.dashboardAnalytics(),
+        queryFn: () => getCostAnalytics(),
+        staleTime: 300_000,
+      })
+    );
+    markLoaderEnd("dashboard");
+  },
   component: Dashboard,
   errorComponent: DashboardError,
 });
@@ -95,7 +136,7 @@ const errorButtonStyles: React.CSSProperties = {
 function Dashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
-  const { tickets, loading, error } = useTickets();
+  const { tickets, loading, error } = useTicketSummaries();
   const { sessions } = useActiveRalphSessions();
   const {
     data: analytics,
@@ -171,62 +212,78 @@ function Dashboard() {
   const doneCount = tickets.filter((t) => t.status === "done").length;
 
   return (
-    <div style={containerStyles} className="route-fade-in">
-      <div style={headerRowStyles}>
-        <h1 style={titleStyles}>Dashboard</h1>
-        <div style={tabBarStyles} role="tablist" aria-label="Dashboard tabs">
-          <button
-            role="tab"
-            aria-selected={activeTab === "overview"}
-            onClick={() => setActiveTab("overview")}
-            style={activeTab === "overview" ? activeTabStyles : tabStyles}
-          >
-            Overview
-          </button>
-          <button
-            role="tab"
-            aria-selected={activeTab === "ai-telemetry"}
-            onClick={() => setActiveTab("ai-telemetry")}
-            style={activeTab === "ai-telemetry" ? activeTabStyles : tabStyles}
-          >
-            AI Telemetry
-          </button>
-          <button
-            role="tab"
-            aria-selected={activeTab === "cost-explorer"}
-            onClick={() => setActiveTab("cost-explorer")}
-            onMouseEnter={prefetchExplorer}
-            style={activeTab === "cost-explorer" ? activeTabStyles : tabStyles}
-          >
-            Cost Explorer
-          </button>
+    <Profiler id="Dashboard" onRender={onRenderCallback}>
+      <div style={containerStyles} className="route-fade-in">
+        <div style={headerRowStyles}>
+          <h1 style={titleStyles}>Dashboard</h1>
+          <div style={tabBarStyles} role="tablist" aria-label="Dashboard tabs">
+            <button
+              role="tab"
+              aria-selected={activeTab === "overview"}
+              onClick={() => setActiveTab("overview")}
+              style={activeTab === "overview" ? activeTabStyles : tabStyles}
+            >
+              Overview
+            </button>
+            <button
+              role="tab"
+              aria-selected={activeTab === "ai-telemetry"}
+              onClick={() => setActiveTab("ai-telemetry")}
+              style={activeTab === "ai-telemetry" ? activeTabStyles : tabStyles}
+            >
+              AI Telemetry
+            </button>
+            <button
+              role="tab"
+              aria-selected={activeTab === "cost-explorer"}
+              onClick={() => setActiveTab("cost-explorer")}
+              onMouseEnter={prefetchExplorer}
+              style={activeTab === "cost-explorer" ? activeTabStyles : tabStyles}
+            >
+              Cost Explorer
+            </button>
+          </div>
         </div>
+
+        <Profiler id="Dashboard.StatsGrid" onRender={onRenderCallback}>
+          <StatsGrid
+            total={totalCount}
+            inProgress={inProgressCount}
+            aiActive={aiActiveCount}
+            done={doneCount}
+            onStatClick={handleStatClick}
+          />
+        </Profiler>
+
+        {activeTab === "overview" && analytics && (
+          <Profiler id="Dashboard.Analytics" onRender={onRenderCallback}>
+            <AnalyticsSection
+              analytics={analytics}
+              loading={analyticsLoading}
+              error={analyticsError}
+            />
+          </Profiler>
+        )}
+
+        {activeTab === "ai-telemetry" && telemetryAnalytics && (
+          <Profiler id="Dashboard.AITelemetry" onRender={onRenderCallback}>
+            <AITelemetryTab
+              analytics={telemetryAnalytics}
+              isLoading={telemetryLoading}
+              error={telemetryError}
+              costAnalytics={costAnalytics}
+              costError={costError}
+            />
+          </Profiler>
+        )}
+
+        {activeTab === "cost-explorer" && (
+          <Profiler id="Dashboard.CostExplorer" onRender={onRenderCallback}>
+            <CostExplorerTab />
+          </Profiler>
+        )}
       </div>
-
-      <StatsGrid
-        total={totalCount}
-        inProgress={inProgressCount}
-        aiActive={aiActiveCount}
-        done={doneCount}
-        onStatClick={handleStatClick}
-      />
-
-      {activeTab === "overview" && analytics && (
-        <AnalyticsSection analytics={analytics} loading={analyticsLoading} error={analyticsError} />
-      )}
-
-      {activeTab === "ai-telemetry" && telemetryAnalytics && (
-        <AITelemetryTab
-          analytics={telemetryAnalytics}
-          isLoading={telemetryLoading}
-          error={telemetryError}
-          costAnalytics={costAnalytics}
-          costError={costError}
-        />
-      )}
-
-      {activeTab === "cost-explorer" && <CostExplorerTab />}
-    </div>
+    </Profiler>
   );
 }
 

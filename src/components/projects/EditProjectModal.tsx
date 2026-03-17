@@ -12,11 +12,10 @@ import {
   useUpdateProject,
   useDeleteProject,
   useClickOutside,
-  useTickets,
+  useTicketSummaries,
   useActiveRalphSessions,
   useClearActiveSessions,
   type ProjectBase,
-  type Ticket,
 } from "../../lib/hooks";
 import { useToast } from "../Toast";
 import DirectoryPicker from "../DirectoryPicker";
@@ -106,17 +105,16 @@ export const EditProjectModal: FC<EditProjectModalProps> = ({
     });
   }, [project.id, clearSessionsMutation, showToast]);
 
-  // Fetch tickets for this project to compute stats
-  const { tickets } = useTickets({ projectId: project.id });
+  // Fetch ticket summaries for this project to compute stats
+  const { tickets } = useTicketSummaries({ projectId: project.id });
 
   // Compute ticket stats for preview section
   const projectStats = useMemo(() => {
-    const projectTickets = tickets as Ticket[];
     return {
-      total: projectTickets.length,
-      inProgress: projectTickets.filter((t: Ticket) => t.status === "in_progress").length,
-      done: projectTickets.filter((t: Ticket) => t.status === "done").length,
-      backlog: projectTickets.filter((t: Ticket) => t.status === "backlog").length,
+      total: tickets.length,
+      inProgress: tickets.filter((t) => t.status === "in_progress").length,
+      done: tickets.filter((t) => t.status === "done").length,
+      backlog: tickets.filter((t) => t.status === "backlog").length,
     };
   }, [tickets]);
 

@@ -173,7 +173,7 @@ export const IconSidebar: FC<IconSidebarProps> = ({
     // Route items: use Link for proper navigation (unless disabled for testing)
     if (item.path && !disableRouterIntegration) {
       return (
-        <Link key={item.label} to={item.path} style={{ textDecoration: "none" }}>
+        <Link key={item.label} to={item.path} preload="intent" style={{ textDecoration: "none" }}>
           {navItemElement}
         </Link>
       );

@@ -1,21 +1,47 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Profiler, useCallback, useEffect, useMemo, useState } from "react";
+import { onRenderCallback } from "../lib/profiler";
 import { useAppState } from "../components/AppLayout";
 import {
-  useTickets,
+  useTicketSummaries,
   useProjects,
   useActiveRalphSessions,
   type Ticket,
   type StatusChange,
 } from "../lib/hooks";
+import type { TicketSummary } from "../api/tickets";
 import { useToast } from "../components/Toast";
 import TicketModal from "../components/TicketModal";
 import { BoardHeader } from "../components/board";
 import { getStatusLabel } from "../lib/constants";
 import { KanbanBoard } from "../components/board/KanbanBoard";
-import { getTicket } from "../api/tickets";
+import { getTicket, getTicketSummaries } from "../api/tickets";
+import { getProjectsWithEpics } from "../api/projects";
+import { queryKeys } from "../lib/query-keys";
 import { createBrowserLogger } from "../lib/browser-logger";
+import { markLoaderStart, markLoaderEnd, timedFetch } from "../lib/navigation-timing";
+import { BoardSkeleton } from "../components/route-skeletons";
 export const Route = createFileRoute("/board")({
+  pendingComponent: BoardSkeleton,
+  loader: ({ context }) => {
+    markLoaderStart("board");
+    // Pre-warm cache with default (unfiltered) tickets and projects
+    void timedFetch("board:tickets", () =>
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.ticketSummaries({}),
+        queryFn: () => getTicketSummaries({ data: {} }),
+        staleTime: 30_000,
+      })
+    );
+    void timedFetch("board:projects", () =>
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.projectsWithEpics,
+        queryFn: () => getProjectsWithEpics(),
+        staleTime: 30_000,
+      })
+    );
+    markLoaderEnd("board");
+  },
   component: Board,
 });
 
@@ -60,7 +86,7 @@ function Board() {
     [showToast]
   );
 
-  const { tickets, loading, error, refetch } = useTickets(filters, {
+  const { tickets, loading, error, refetch } = useTicketSummaries(filters, {
     onStatusChange: handleStatusChange,
   });
 
@@ -112,8 +138,17 @@ function Board() {
 
   const allEpics = projects.flatMap((p) => p.epics);
 
-  const handleTicketClick = (ticket: Ticket) => {
-    setSelectedTicket(ticket);
+  const handleTicketClick = async (ticket: TicketSummary) => {
+    try {
+      const fullTicket = await getTicket({ data: ticket.id });
+      setSelectedTicket(fullTicket as Ticket);
+    } catch (err) {
+      logger.error(
+        `Failed to fetch ticket detail: ticketId=${ticket.id}`,
+        err instanceof Error ? err : new Error(String(err))
+      );
+      showToast("error", "Failed to open ticket details");
+    }
   };
 
   const handleModalClose = () => {
@@ -138,35 +173,43 @@ function Board() {
   }
 
   return (
-    <div style={boardContainerStyles} className="route-fade-in">
-      {/* Board Header with filters */}
-      <BoardHeader
-        projectId={appFilters.projectId}
-        epicId={appFilters.epicId}
-        tags={appFilters.tags}
-        onClearFilters={clearAllFilters}
-      />
+    <Profiler id="Board" onRender={onRenderCallback}>
+      <div style={boardContainerStyles} className="route-fade-in">
+        {/* Board Header with filters */}
+        <Profiler id="Board.Header" onRender={onRenderCallback}>
+          <BoardHeader
+            projectId={appFilters.projectId}
+            epicId={appFilters.epicId}
+            tags={appFilters.tags}
+            onClearFilters={clearAllFilters}
+          />
+        </Profiler>
 
-      {/* Main content area */}
-      <div style={contentAreaStyles}>
-        <KanbanBoard
-          tickets={tickets}
-          onTicketClick={handleTicketClick}
-          onRefresh={refetch}
-          getRalphSession={getRalphSession}
-        />
+        {/* Main content area */}
+        <div style={contentAreaStyles}>
+          <Profiler id="Board.Kanban" onRender={onRenderCallback}>
+            <KanbanBoard
+              tickets={tickets}
+              onTicketClick={handleTicketClick}
+              onRefresh={refetch}
+              getRalphSession={getRalphSession}
+            />
+          </Profiler>
+        </div>
+
+        {/* Ticket Detail Modal */}
+        {selectedTicket && (
+          <Profiler id="Board.TicketModal" onRender={onRenderCallback}>
+            <TicketModal
+              ticket={selectedTicket}
+              epics={allEpics}
+              onClose={handleModalClose}
+              onUpdate={handleTicketUpdate}
+            />
+          </Profiler>
+        )}
       </div>
-
-      {/* Ticket Detail Modal */}
-      {selectedTicket && (
-        <TicketModal
-          ticket={selectedTicket}
-          epics={allEpics}
-          onClose={handleModalClose}
-          onUpdate={handleTicketUpdate}
-        />
-      )}
-    </div>
+    </Profiler>
   );
 }
 

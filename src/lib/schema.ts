@@ -38,8 +38,11 @@ export const tickets = sqliteTable(
     id: text("id").primaryKey(),
     title: text("title").notNull(),
     description: text("description"),
-    status: text("status").notNull().default("backlog"),
-    priority: text("priority"),
+    status: text("status")
+      .notNull()
+      .default("backlog")
+      .$type<"backlog" | "ready" | "in_progress" | "ai_review" | "human_review" | "done">(),
+    priority: text("priority").$type<"high" | "medium" | "low">(),
     position: real("position").notNull(),
     projectId: text("project_id")
       .notNull()
@@ -68,6 +71,10 @@ export const tickets = sqliteTable(
     index("idx_tickets_project").on(table.projectId),
     index("idx_tickets_epic").on(table.epicId),
     index("idx_tickets_status").on(table.status),
+    // Composite indexes for common filter/query paths
+    index("idx_tickets_project_status").on(table.projectId, table.status),
+    index("idx_tickets_epic_status").on(table.epicId, table.status),
+    index("idx_tickets_project_priority").on(table.projectId, table.priority),
   ]
 );
 
@@ -81,12 +88,19 @@ export const ticketComments = sqliteTable(
       .references(() => tickets.id, { onDelete: "cascade" }),
     content: text("content").notNull(),
     author: text("author").notNull(), // 'claude', 'ralph', 'opencode', or user identifier
-    type: text("type").notNull().default("comment"), // 'comment', 'work_summary', 'test_report'
+    type: text("type")
+      .notNull()
+      .default("comment")
+      .$type<"comment" | "work_summary" | "test_report" | "progress">(),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),
   },
-  (table) => [index("idx_comments_ticket").on(table.ticketId)]
+  (table) => [
+    index("idx_comments_ticket").on(table.ticketId),
+    // Composite index for chronological comment listing per ticket
+    index("idx_comments_ticket_created").on(table.ticketId, table.createdAt),
+  ]
 );
 
 // Epic comments table (activity log for epic-level discussions and notes)
@@ -554,6 +568,9 @@ export type NewTokenUsage = typeof tokenUsage.$inferInsert;
 // Claude Tasks Tables
 // ============================================
 
+// Claude task status types (defined before table so $type<> can reference it)
+export type ClaudeTaskStatus = "pending" | "in_progress" | "completed";
+
 // Claude tasks table - stores tasks created by Claude via TodoWrite tool when working on tickets
 export const claudeTasks = sqliteTable(
   "claude_tasks",
@@ -564,7 +581,7 @@ export const claudeTasks = sqliteTable(
       .references(() => tickets.id, { onDelete: "cascade" }),
     subject: text("subject").notNull(), // Task title/subject
     description: text("description"), // Optional detailed description
-    status: text("status").notNull().default("pending"), // 'pending', 'in_progress', 'completed'
+    status: text("status").notNull().default("pending").$type<ClaudeTaskStatus>(),
     activeForm: text("active_form"), // Present continuous form shown during execution (e.g., "Running tests")
     position: real("position").notNull(), // Order within the ticket's task list
     statusHistory: text("status_history"), // JSON array of {status, timestamp} for tracking changes
@@ -587,9 +604,6 @@ export const claudeTasks = sqliteTable(
 
 export type ClaudeTask = typeof claudeTasks.$inferSelect;
 export type NewClaudeTask = typeof claudeTasks.$inferInsert;
-
-// Claude task status types
-export type ClaudeTaskStatus = "pending" | "in_progress" | "completed";
 
 // Status history entry interface
 export interface TaskStatusHistoryEntry {

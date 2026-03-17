@@ -4,6 +4,8 @@ import { useState, useCallback } from "react";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import { pushBranchServerFn } from "../api/ship-server-fns";
 import { useEpicDetail } from "../lib/hooks";
+import { getEpicDetail } from "../api/epics";
+import { getEpicCost } from "../api/cost";
 import { EpicDetailHeader } from "../components/epics/EpicDetailHeader";
 import { EpicProgressOverview } from "../components/epics/EpicProgressOverview";
 import { EpicTicketsList } from "../components/epics/EpicTicketsList";
@@ -17,6 +19,20 @@ import { useToast } from "../components/Toast";
 import { queryKeys } from "../lib/query-keys";
 
 export const Route = createFileRoute("/epic/$id")({
+  loader: ({ context, params }) => {
+    const epicId = params.id;
+    // Pre-warm both epic detail and epic cost in parallel to avoid waterfall
+    void context.queryClient.ensureQueryData({
+      queryKey: queryKeys.epicDetail(epicId),
+      queryFn: () => getEpicDetail({ data: epicId }),
+      staleTime: 0,
+    });
+    void context.queryClient.ensureQueryData({
+      queryKey: queryKeys.cost.epicCost(epicId),
+      queryFn: () => getEpicCost({ data: epicId }),
+      staleTime: 300_000,
+    });
+  },
   component: EpicDetailPage,
   errorComponent: EpicDetailError,
 });

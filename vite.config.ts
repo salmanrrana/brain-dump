@@ -4,11 +4,13 @@ import viteReact from "@vitejs/plugin-react";
 import viteTsConfigPaths from "vite-tsconfig-paths";
 import tailwindcss from "@tailwindcss/vite";
 import { nitro } from "nitro/vite";
+import { devtools } from "@tanstack/devtools-vite";
 
 // Note: Vitest configuration is in vitest.config.ts
 // This separation is required for React 19 compatibility with TanStack Start
 const config = defineConfig({
   plugins: [
+    devtools(),
     nitro({
       // Externalize native modules - they can't be bundled
       rollupConfig: {

@@ -1,7 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronUp, ChevronDown, Tag } from "lucide-react";
 import { getTagColor } from "../lib/tag-colors";
 import type { TagMetadata } from "../lib/hooks";
+
+const VIRTUALIZATION_THRESHOLD = 20;
+const ROW_HEIGHT_ESTIMATE = 45;
 
 interface TagListViewProps {
   tagsWithMetadata: TagMetadata[];
@@ -76,6 +80,19 @@ export default function TagListView({ tagsWithMetadata, onTagClick }: TagListVie
     });
   };
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const useVirtual = filteredAndSorted.length > VIRTUALIZATION_THRESHOLD;
+
+  const virtualizer = useVirtualizer({
+    count: filteredAndSorted.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => ROW_HEIGHT_ESTIMATE,
+    overscan: 5,
+    enabled: useVirtual,
+  });
+
+  const virtualItems = useVirtual ? virtualizer.getVirtualItems() : [];
+
   if (tagsWithMetadata.length === 0) {
     return (
       <div className="bg-[var(--bg-secondary)] rounded-lg p-8 text-center">
@@ -85,6 +102,58 @@ export default function TagListView({ tagsWithMetadata, onTagClick }: TagListVie
           Add tags to tickets to see them here. Tags help organize and categorize your work.
         </p>
       </div>
+    );
+  }
+
+  function renderTagRow(tagMeta: TagMetadata) {
+    const color = getTagColor(tagMeta.tag);
+    const doneCount = tagMeta.statusBreakdown.done;
+    const total = tagMeta.ticketCount;
+    const donePercent = total > 0 ? (doneCount / total) * 100 : 0;
+
+    return (
+      <tr
+        key={tagMeta.tag}
+        onClick={() => onTagClick?.(tagMeta.tag)}
+        className="border-b border-[var(--border-primary)] hover:bg-[var(--bg-hover)]/50 cursor-pointer"
+      >
+        <td className="px-4 py-3">
+          <span
+            style={{
+              ...tagPillStyles,
+              backgroundColor: color.bg,
+              color: color.text,
+            }}
+          >
+            {tagMeta.tag}
+          </span>
+        </td>
+        <td className="px-4 py-3">
+          <span className="text-sm text-[var(--text-primary)]">{tagMeta.ticketCount}</span>
+        </td>
+        <td className="px-4 py-3">
+          <div className="flex items-center gap-2">
+            <div
+              className="flex-1 max-w-[120px] h-2 rounded-full overflow-hidden"
+              style={{ backgroundColor: "var(--bg-tertiary)" }}
+            >
+              <div
+                className="h-full rounded-full transition-all"
+                style={{
+                  width: `${donePercent}%`,
+                  backgroundColor: "var(--success, #22c55e)",
+                }}
+              />
+            </div>
+            <span className="text-xs text-[var(--text-secondary)] whitespace-nowrap">
+              {doneCount}/{total} done
+            </span>
+          </div>
+        </td>
+        <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">
+          {formatDate(tagMeta.lastUsedAt)}
+        </td>
+      </tr>
     );
   }
 
@@ -102,7 +171,7 @@ export default function TagListView({ tagsWithMetadata, onTagClick }: TagListVie
       </div>
 
       {/* Scrollable table area */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto">
         <table className="w-full">
           <thead className="sticky top-0 bg-[var(--bg-secondary)] z-10">
             <tr className="border-b border-[var(--border-primary)]">
@@ -139,67 +208,32 @@ export default function TagListView({ tagsWithMetadata, onTagClick }: TagListVie
                   No matching tags
                 </td>
               </tr>
-            ) : (
-              filteredAndSorted.map((tagMeta) => {
-                const color = getTagColor(tagMeta.tag);
-                const doneCount = tagMeta.statusBreakdown.done;
-                const total = tagMeta.ticketCount;
-                const donePercent = total > 0 ? (doneCount / total) * 100 : 0;
-
-                return (
-                  <tr
-                    key={tagMeta.tag}
-                    onClick={() => onTagClick?.(tagMeta.tag)}
-                    className="border-b border-[var(--border-primary)] hover:bg-[var(--bg-hover)]/50 cursor-pointer"
-                  >
-                    {/* Tag name with color pill */}
-                    <td className="px-4 py-3">
-                      <span
-                        style={{
-                          ...tagPillStyles,
-                          backgroundColor: color.bg,
-                          color: color.text,
-                        }}
-                      >
-                        {tagMeta.tag}
-                      </span>
-                    </td>
-
-                    {/* Ticket count */}
-                    <td className="px-4 py-3">
-                      <span className="text-sm text-[var(--text-primary)]">
-                        {tagMeta.ticketCount}
-                      </span>
-                    </td>
-
-                    {/* Status breakdown - mini progress bar */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="flex-1 max-w-[120px] h-2 rounded-full overflow-hidden"
-                          style={{ backgroundColor: "var(--bg-tertiary)" }}
-                        >
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{
-                              width: `${donePercent}%`,
-                              backgroundColor: "var(--success, #22c55e)",
-                            }}
-                          />
-                        </div>
-                        <span className="text-xs text-[var(--text-secondary)] whitespace-nowrap">
-                          {doneCount}/{total} done
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Last used date */}
-                    <td className="px-4 py-3 text-sm text-[var(--text-secondary)]">
-                      {formatDate(tagMeta.lastUsedAt)}
-                    </td>
+            ) : useVirtual ? (
+              <>
+                {virtualItems.length > 0 && virtualItems[0]!.start > 0 && (
+                  <tr>
+                    <td style={{ height: virtualItems[0]!.start, padding: 0 }} />
                   </tr>
-                );
-              })
+                )}
+                {virtualItems.map((virtualRow) => {
+                  const tagMeta = filteredAndSorted[virtualRow.index];
+                  if (!tagMeta) return null;
+                  return renderTagRow(tagMeta);
+                })}
+                {virtualItems.length > 0 && (
+                  <tr>
+                    <td
+                      style={{
+                        height:
+                          virtualizer.getTotalSize() - virtualItems[virtualItems.length - 1]!.end,
+                        padding: 0,
+                      }}
+                    />
+                  </tr>
+                )}
+              </>
+            ) : (
+              filteredAndSorted.map((tagMeta) => renderTagRow(tagMeta))
             )}
           </tbody>
         </table>

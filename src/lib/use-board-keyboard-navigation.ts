@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Ticket } from "./schema";
+import type { TicketSummary } from "../api/tickets";
 import type { TicketStatus } from "../api/tickets";
 import { COLUMN_STATUSES } from "./constants";
 import { isInputFocused } from "./keyboard-utils";
@@ -9,9 +9,9 @@ const COLUMNS = COLUMN_STATUSES as unknown as TicketStatus[];
 
 interface UseBoardKeyboardNavigationConfig {
   /** Tickets grouped by status column */
-  ticketsByStatus: Record<TicketStatus, Ticket[]>;
+  ticketsByStatus: Record<TicketStatus, TicketSummary[]>;
   /** Callback when Enter is pressed on focused ticket */
-  onTicketSelect?: ((ticket: Ticket) => void) | undefined;
+  onTicketSelect?: ((ticket: TicketSummary) => void) | undefined;
   /** Whether keyboard navigation is disabled (e.g., modal open, input focused) */
   disabled?: boolean;
 }
@@ -72,7 +72,7 @@ export function useBoardKeyboardNavigation(
 
   // Build a flat list of all tickets for navigation (useMemo caches the computed array)
   const allTickets = useMemo(() => {
-    const tickets: { ticket: Ticket; column: TicketStatus; index: number }[] = [];
+    const tickets: { ticket: TicketSummary; column: TicketStatus; index: number }[] = [];
     for (const column of COLUMNS) {
       const columnTickets = ticketsByStatus[column] ?? [];
       columnTickets.forEach((ticket, index) => {

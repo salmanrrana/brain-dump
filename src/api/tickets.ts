@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { db, sqlite } from "../lib/db";
-import { tickets, projects, epics, ticketComments } from "../lib/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { tickets, projects, epics, ticketComments, type Ticket } from "../lib/schema";
+import { eq, and, sql, type SQL } from "drizzle-orm";
+import { tagFilterConditions } from "../lib/sql-helpers";
 import { randomUUID } from "crypto";
 import { ensureExists, safeJsonStringify } from "../lib/utils";
 import { autoExtractLearnings } from "../../core/index";
@@ -9,15 +10,9 @@ import { createLogger } from "../lib/logger";
 
 const log = createLogger("tickets-api");
 
-// Types
-export type TicketStatus =
-  | "backlog"
-  | "ready"
-  | "in_progress"
-  | "ai_review"
-  | "human_review"
-  | "done";
-export type TicketPriority = "high" | "medium" | "low";
+// Types — derived from the schema's $type<>() annotations
+export type TicketStatus = Ticket["status"];
+export type TicketPriority = NonNullable<Ticket["priority"]>;
 
 export interface Subtask {
   id: string;
@@ -90,60 +85,17 @@ export interface TicketFilters {
 // Get tickets with optional filters
 export const getTickets = createServerFn({ method: "GET" })
   .inputValidator((filters: TicketFilters) => filters)
-  .handler(async ({ data: filters }) => {
-    // If tag filtering is needed, use raw SQL for JSON handling
+  .handler(async ({ data: filters }): Promise<Ticket[]> => {
+    const conditions: SQL[] = [];
+
+    if (filters.projectId) conditions.push(eq(tickets.projectId, filters.projectId));
+    if (filters.epicId) conditions.push(eq(tickets.epicId, filters.epicId));
+    if (filters.status) conditions.push(eq(tickets.status, filters.status));
     if (filters.tags && filters.tags.length > 0) {
-      let sql = `
-        SELECT * FROM tickets
-        WHERE 1=1
-      `;
-      const params: string[] = [];
-
-      if (filters.projectId) {
-        sql += " AND project_id = ?";
-        params.push(filters.projectId);
-      }
-      if (filters.epicId) {
-        sql += " AND epic_id = ?";
-        params.push(filters.epicId);
-      }
-      if (filters.status) {
-        sql += " AND status = ?";
-        params.push(filters.status);
-      }
-
-      // AND filter for tags - ticket must have ALL selected tags
-      // json_valid guard prevents crash on malformed tags data
-      for (const tag of filters.tags) {
-        sql += ` AND json_valid(tickets.tags) AND EXISTS (
-          SELECT 1 FROM json_each(tickets.tags)
-          WHERE json_each.value = ?
-        )`;
-        params.push(tag);
-      }
-
-      sql += " ORDER BY position";
-
-      // Use the already-imported sqlite instance for raw SQL queries
-      const stmt = sqlite.prepare(sql);
-      return stmt.all(...params) as (typeof tickets.$inferSelect)[];
+      conditions.push(...tagFilterConditions(filters.tags));
     }
 
-    // Standard ORM query when no tag filtering
     let query = db.select().from(tickets);
-
-    // Build dynamic WHERE conditions
-    const conditions = [];
-    if (filters.projectId) {
-      conditions.push(eq(tickets.projectId, filters.projectId));
-    }
-    if (filters.epicId) {
-      conditions.push(eq(tickets.epicId, filters.epicId));
-    }
-    if (filters.status) {
-      conditions.push(eq(tickets.status, filters.status));
-    }
-
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as typeof query;
     }
@@ -368,6 +320,186 @@ export const updateTicketPosition = createServerFn({ method: "POST" })
       .run();
 
     return db.select().from(tickets).where(eq(tickets.id, id)).get();
+  });
+
+// ─── Summary / Count Endpoints ───────────────────────────────────────────────
+
+/**
+ * Returns ticket counts grouped by projectId.
+ * Uses SQL COUNT/GROUP BY — no full ticket objects are transferred.
+ */
+export const getProjectTicketCounts = createServerFn({ method: "GET" }).handler(async () => {
+  const rows = db
+    .select({
+      projectId: tickets.projectId,
+      count: sql<number>`COUNT(*)`,
+    })
+    .from(tickets)
+    .groupBy(tickets.projectId)
+    .all();
+
+  const counts: Record<string, number> = {};
+  for (const row of rows) {
+    counts[row.projectId] = row.count;
+  }
+  return counts;
+});
+
+/**
+ * Returns ticket counts grouped by epicId for a given project.
+ * Uses SQL COUNT/GROUP BY — no full ticket objects are transferred.
+ */
+export const getEpicTicketCounts = createServerFn({ method: "GET" })
+  .inputValidator((projectId: string) => projectId)
+  .handler(async ({ data: projectId }) => {
+    const rows = db
+      .select({
+        epicId: tickets.epicId,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(tickets)
+      .where(and(eq(tickets.projectId, projectId), sql`${tickets.epicId} IS NOT NULL`))
+      .groupBy(tickets.epicId)
+      .all();
+
+    const counts: Record<string, number> = {};
+    for (const row of rows) {
+      if (row.epicId) {
+        counts[row.epicId] = row.count;
+      }
+    }
+    return counts;
+  });
+
+// ─── Ticket Summaries (lightweight list queries) ────────────────────────────
+
+/**
+ * Summary type for board/list display — omits heavy text fields
+ * (description, linkedFiles, attachments) that are only needed in detail views.
+ */
+export interface TicketSummary {
+  id: string;
+  title: string;
+  status: TicketStatus;
+  priority: TicketPriority | null;
+  position: number;
+  projectId: string;
+  epicId: string | null;
+  tags: string | null;
+  subtasks: string | null;
+  isBlocked: boolean | null;
+  blockedReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  branchName: string | null;
+  prNumber: number | null;
+  prUrl: string | null;
+  prStatus: "draft" | "open" | "merged" | "closed" | null;
+}
+
+/** Columns selected for summary queries — omits heavy text fields (description, linkedFiles, attachments). */
+const TICKET_SUMMARY_COLUMNS = {
+  id: tickets.id,
+  title: tickets.title,
+  status: tickets.status,
+  priority: tickets.priority,
+  position: tickets.position,
+  projectId: tickets.projectId,
+  epicId: tickets.epicId,
+  tags: tickets.tags,
+  subtasks: tickets.subtasks,
+  isBlocked: tickets.isBlocked,
+  blockedReason: tickets.blockedReason,
+  createdAt: tickets.createdAt,
+  updatedAt: tickets.updatedAt,
+  completedAt: tickets.completedAt,
+  branchName: tickets.branchName,
+  prNumber: tickets.prNumber,
+  prUrl: tickets.prUrl,
+  prStatus: tickets.prStatus,
+};
+
+/**
+ * Returns ticket summaries (no description/linkedFiles/attachments) with optional filters.
+ * Use this for board, list, and dashboard views where full ticket content is not needed.
+ */
+export const getTicketSummaries = createServerFn({ method: "GET" })
+  .inputValidator((filters: TicketFilters) => filters)
+  .handler(async ({ data: filters }): Promise<TicketSummary[]> => {
+    const conditions: SQL[] = [];
+
+    if (filters.projectId) conditions.push(eq(tickets.projectId, filters.projectId));
+    if (filters.epicId) conditions.push(eq(tickets.epicId, filters.epicId));
+    if (filters.status) conditions.push(eq(tickets.status, filters.status));
+    if (filters.tags && filters.tags.length > 0) {
+      conditions.push(...tagFilterConditions(filters.tags));
+    }
+
+    let query = db.select(TICKET_SUMMARY_COLUMNS).from(tickets);
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as typeof query;
+    }
+
+    return query.orderBy(tickets.position).all();
+  });
+
+// ─── Paginated Ticket Summaries ──────────────────────────────────────────────
+
+export interface PaginatedTicketFilters extends TicketFilters {
+  /** Max tickets per page (default 50) */
+  limit?: number;
+  /** Offset for pagination (default 0) */
+  offset?: number;
+}
+
+export interface PaginatedTicketResult {
+  tickets: TicketSummary[];
+  /** Total matching tickets (before pagination) */
+  total: number;
+  /** Whether more pages exist */
+  hasMore: boolean;
+}
+
+const DEFAULT_TICKET_PAGE_SIZE = 50;
+
+/**
+ * Paginated ticket summaries. Returns a page of lightweight ticket summaries
+ * with total count and hasMore flag. Omits heavy text fields.
+ */
+export const getPaginatedTicketSummaries = createServerFn({ method: "GET" })
+  .inputValidator((filters: PaginatedTicketFilters) => filters)
+  .handler(async ({ data: filters }): Promise<PaginatedTicketResult> => {
+    const { limit = DEFAULT_TICKET_PAGE_SIZE, offset = 0, ...ticketFilters } = filters;
+    const pageSize = Math.min(Math.max(1, limit), 200);
+    const safeOffset = Math.max(0, offset);
+
+    // Build WHERE conditions (including tags — single code path)
+    const conditions: SQL[] = [];
+    if (ticketFilters.projectId) conditions.push(eq(tickets.projectId, ticketFilters.projectId));
+    if (ticketFilters.epicId) conditions.push(eq(tickets.epicId, ticketFilters.epicId));
+    if (ticketFilters.status) conditions.push(eq(tickets.status, ticketFilters.status));
+    if (ticketFilters.tags && ticketFilters.tags.length > 0) {
+      conditions.push(...tagFilterConditions(ticketFilters.tags));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Total count (includes tag filters)
+    let countQuery = db.select({ count: sql<number>`COUNT(*)` }).from(tickets);
+    if (whereClause) {
+      countQuery = countQuery.where(whereClause) as typeof countQuery;
+    }
+    const total = countQuery.get()?.count ?? 0;
+
+    // Paginated data query
+    let query = db.select(TICKET_SUMMARY_COLUMNS).from(tickets);
+    if (whereClause) {
+      query = query.where(whereClause) as typeof query;
+    }
+    const ticketRows = query.orderBy(tickets.position).limit(pageSize).offset(safeOffset).all();
+
+    return { tickets: ticketRows, total, hasMore: safeOffset + ticketRows.length < total };
   });
 
 // Delete a ticket with dry-run preview support

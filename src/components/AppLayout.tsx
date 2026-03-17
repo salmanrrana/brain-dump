@@ -1,26 +1,9 @@
-import {
-  ReactNode,
-  useState,
-  createContext,
-  useContext,
-  useMemo,
-  useRef,
-  useCallback,
-} from "react";
+import { ReactNode, useState, createContext, useContext, useMemo, useCallback } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import {
-  Search,
-  LayoutGrid,
-  List,
-  X,
-  Loader2,
-  Settings,
-  RefreshCw,
-  Menu,
-  MessageSquareWarning,
-} from "lucide-react";
+import { LayoutGrid, List, Settings, RefreshCw, Menu, MessageSquareWarning } from "lucide-react";
 import { IconSidebar } from "./navigation/IconSidebar";
 import { ProjectsPanel } from "./navigation/ProjectsPanel";
+import { SearchBar } from "./navigation/SearchBar";
 import ProjectTree from "./ProjectTree";
 import ContainerStatusSection from "./ContainerStatusSection";
 import ContainerLogsModal from "./ContainerLogsModal";
@@ -35,16 +18,13 @@ import { ShortcutsModal } from "./ui/ShortcutsModal";
 import { FeedbackModal } from "./FeedbackModal";
 import ImportModal from "./transfer/ImportModal";
 import { useToast } from "./Toast";
-import { getStatusColor, getPriorityStyle } from "../lib/constants";
 import {
   useProjects,
   useProjectsWithAIActivity,
-  useSearch,
   useTags,
   useModal,
   useFilters,
   useSampleData,
-  useClickOutside,
   useDeleteEpic,
   useInvalidateQueries,
   useDockerAvailable,
@@ -123,38 +103,6 @@ export function useAppState() {
 
 interface AppLayoutProps {
   children: ReactNode;
-}
-
-/**
- * Sanitize search snippet HTML for safe rendering.
- *
- * Security approach (whitelist pattern):
- * 1. Escape ALL HTML entities first - neutralizes any malicious content
- * 2. Restore ONLY safe tags - mark and b without attributes
- *
- * This is secure because:
- * - Source: SQLite FTS5 highlight() function output (predictable, server-generated)
- * - Only 2 benign formatting tags allowed (mark, b) with no attributes
- * - Tags are reconstructed without attributes, preventing attribute injection
- * - Any other HTML (scripts, event handlers) remains escaped
- *
- * DOMPurify not needed - this narrow whitelist is sufficient and avoids dependency.
- */
-function sanitizeSnippet(html: string): string {
-  // Step 1: Escape ALL HTML entities
-  const escaped = html
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-
-  // Step 2: Restore only safe highlight markers (SQLite FTS5 uses mark tag by default)
-  return escaped
-    .replace(/&lt;mark&gt;/g, "<mark>")
-    .replace(/&lt;\/mark&gt;/g, "</mark>")
-    .replace(/&lt;b&gt;/g, "<b>")
-    .replace(/&lt;\/b&gt;/g, "</b>");
 }
 
 export default function AppLayout({ children }: AppLayoutProps) {
@@ -399,52 +347,85 @@ export default function AppLayout({ children }: AppLayoutProps) {
     isRefreshing,
   });
 
-  const appState: AppState = {
-    // Filters
-    filters,
-    setProjectId,
-    setEpicId,
-    toggleTag,
-    clearTagFilters: clearTags,
-    clearAllFilters: clearAll,
+  const appState: AppState = useMemo(
+    () => ({
+      // Filters
+      filters,
+      setProjectId,
+      setEpicId,
+      toggleTag,
+      clearTagFilters: clearTags,
+      clearAllFilters: clearAll,
 
-    // Modals
-    modal,
-    openNewTicketModal: openNewTicket,
-    openProjectModal: openProject,
-    openEpicModal: openEpic,
-    openSettingsModal: openSettings,
-    openFeedbackModal: openFeedback,
-    closeModal,
+      // Modals
+      modal,
+      openNewTicketModal: openNewTicket,
+      openProjectModal: openProject,
+      openEpicModal: openEpic,
+      openSettingsModal: openSettings,
+      openFeedbackModal: openFeedback,
+      closeModal,
 
-    // Refresh
-    ticketRefreshKey,
-    refreshAllData,
-    isRefreshing,
+      // Refresh
+      ticketRefreshKey,
+      refreshAllData,
+      isRefreshing,
 
-    // Search navigation
-    selectedTicketIdFromSearch,
-    onSelectTicketFromSearch,
-    clearSelectedTicketFromSearch,
+      // Search navigation
+      selectedTicketIdFromSearch,
+      onSelectTicketFromSearch,
+      clearSelectedTicketFromSearch,
 
-    // Sample data
-    hasSampleData,
-    isDeletingSampleData,
-    deleteSampleData,
+      // Sample data
+      hasSampleData,
+      isDeletingSampleData,
+      deleteSampleData,
 
-    // Epic deletion
-    onDeleteEpic: handleDeleteEpicClick,
+      // Epic deletion
+      onDeleteEpic: handleDeleteEpicClick,
 
-    // Mobile menu
-    isMobileMenuOpen,
-    openMobileMenu,
-    closeMobileMenu,
+      // Mobile menu
+      isMobileMenuOpen,
+      openMobileMenu,
+      closeMobileMenu,
 
-    // Projects panel
-    isProjectsPanelOpen,
-    openProjectsPanel,
-    closeProjectsPanel,
-  };
+      // Projects panel
+      isProjectsPanelOpen,
+      openProjectsPanel,
+      closeProjectsPanel,
+    }),
+    [
+      filters,
+      setProjectId,
+      setEpicId,
+      toggleTag,
+      clearTags,
+      clearAll,
+      modal,
+      openNewTicket,
+      openProject,
+      openEpic,
+      openSettings,
+      openFeedback,
+      closeModal,
+      ticketRefreshKey,
+      refreshAllData,
+      isRefreshing,
+      selectedTicketIdFromSearch,
+      onSelectTicketFromSearch,
+      clearSelectedTicketFromSearch,
+      hasSampleData,
+      isDeletingSampleData,
+      deleteSampleData,
+      handleDeleteEpicClick,
+      isMobileMenuOpen,
+      openMobileMenu,
+      closeMobileMenu,
+      isProjectsPanelOpen,
+      openProjectsPanel,
+      closeProjectsPanel,
+    ]
+  );
 
   // Handler for IconSidebar actions
   const handleSidebarAction = useCallback(
@@ -719,34 +700,15 @@ function AppHeader() {
     isRefreshing,
     openMobileMenu,
   } = useAppState();
-  const { query, results, loading, search, clearSearch } = useSearch(filters.projectId);
-  const [showResults, setShowResults] = useState(false);
-  const searchRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const handleSearchResultSelect = useCallback(
+    (result: SearchResult) => {
+      onSelectTicketFromSearch(result.id);
+    },
+    [onSelectTicketFromSearch]
+  );
 
   // Inception modal state
   const [isInceptionModalOpen, setIsInceptionModalOpen] = useState(false);
-
-  // Close search dropdown when clicking outside - uses the existing useClickOutside hook
-  const closeSearchResults = useCallback(() => setShowResults(false), []);
-  useClickOutside(searchRef, closeSearchResults, showResults);
-
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    search(e.target.value);
-    setShowResults(true);
-  };
-
-  const handleClear = () => {
-    clearSearch();
-    setShowResults(false);
-    inputRef.current?.focus();
-  };
-
-  const handleSelectResult = (result: SearchResult) => {
-    onSelectTicketFromSearch(result.id);
-    clearSearch();
-    setShowResults(false);
-  };
 
   if (isProjectPage) return null;
 
@@ -762,84 +724,8 @@ function AppHeader() {
       </button>
 
       {/* Search */}
-      <div className="flex-1 max-w-md" ref={searchRef}>
-        <div className="relative">
-          <Search
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]"
-            size={18}
-          />
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={handleSearchChange}
-            onFocus={() => query && setShowResults(true)}
-            placeholder="Search tickets..."
-            className="w-full pl-10 pr-10 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-secondary)] rounded-lg text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)]"
-          />
-          {loading && (
-            <Loader2
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] animate-spin"
-              size={16}
-            />
-          )}
-          {!loading && query && (
-            <button
-              onClick={handleClear}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              aria-label="Clear search"
-            >
-              <X size={16} aria-hidden="true" />
-            </button>
-          )}
-
-          {/* Search Results Dropdown */}
-          {showResults && query && (
-            <div
-              role="listbox"
-              aria-label="Search results"
-              className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-secondary)] border border-[var(--border-secondary)] rounded-lg shadow-xl max-h-80 overflow-y-auto z-50"
-            >
-              {results.length === 0 && !loading && (
-                <div
-                  className="px-4 py-3 text-sm text-[var(--text-tertiary)] text-center"
-                  role="status"
-                >
-                  No results found
-                </div>
-              )}
-              {results.map((result) => (
-                <button
-                  key={result.id}
-                  role="option"
-                  aria-selected="false"
-                  onClick={() => handleSelectResult(result)}
-                  className="w-full px-4 py-3 text-left hover:bg-[var(--bg-hover)] border-b border-[var(--border-primary)] last:border-b-0"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs ${getStatusColor(result.status)}`}>
-                      {result.status.replace("_", " ")}
-                    </span>
-                    {result.priority && (
-                      <span
-                        className={`text-xs px-1.5 py-0.5 rounded ${getPriorityStyle(result.priority)}`}
-                      >
-                        {result.priority}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-sm text-[var(--text-primary)] mt-1">{result.title}</div>
-                  {result.snippet && result.snippet !== result.title && (
-                    <div
-                      className="text-xs text-[var(--text-secondary)] mt-1 line-clamp-2"
-                      dangerouslySetInnerHTML={{ __html: sanitizeSnippet(result.snippet) }}
-                    />
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+      <div className="flex-1 max-w-md">
+        <SearchBar projectId={filters.projectId} onResultSelect={handleSearchResultSelect} />
       </div>
 
       {/* View toggle */}

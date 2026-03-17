@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, lazy, Suspense } from "react";
 import { useForm, useStore } from "@tanstack/react-form-start";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -15,18 +15,10 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronUp,
-  Upload,
-  FileIcon,
   Loader2,
   Clipboard,
   Bot,
   Terminal,
-  MessageSquare,
-  Send,
-  Globe,
-  Server,
-  BookOpen,
-  Database,
   ExternalLink,
   Code2,
   Monitor,
@@ -41,27 +33,13 @@ import {
   useUpdateTicket,
   useSettings,
   useLaunchRalphForTicket,
-  useComments,
-  useCreateComment,
   useTags,
   useAutoClearState,
-  useProjectServices,
-  useProjects,
   useActiveRalphSessions,
 } from "../lib/hooks";
 import { RalphStatusBadge } from "./RalphStatusBadge";
-import { DemoPanel } from "./tickets/DemoPanel";
-import { TelemetryPanel } from "./TelemetryPanel";
-import { ClaudeTasks } from "./tickets/ClaudeTasks";
-import type { ServiceType } from "../lib/service-discovery";
 import { useToast } from "./Toast";
 import type { TicketStatus, TicketPriority } from "../api/tickets";
-import {
-  getAttachments,
-  uploadAttachment,
-  deleteAttachment,
-  type Attachment,
-} from "../api/attachments";
 import {
   STATUS_OPTIONS,
   PRIORITY_OPTIONS,
@@ -79,7 +57,6 @@ import {
   launchOpenCodeInTerminal,
 } from "../api/terminal";
 import { safeJsonParse } from "../lib/utils";
-import { getCommentAuthorBase, getCommentAuthorDisplayName } from "../lib/comment-authors";
 import { ticketFormOpts } from "./tickets/ticket-form-opts";
 import {
   ticketFormSchema,
@@ -88,64 +65,38 @@ import {
   type AcceptanceCriterionStatus,
 } from "./tickets/ticket-form-schema";
 
+// Lazy-loaded sections — each owns its own data subscriptions and state
+const DemoPanel = lazy(() => import("./tickets/DemoPanel").then((m) => ({ default: m.DemoPanel })));
+const TelemetryPanel = lazy(() =>
+  import("./TelemetryPanel").then((m) => ({ default: m.TelemetryPanel }))
+);
+const ClaudeTasks = lazy(() =>
+  import("./tickets/ClaudeTasks").then((m) => ({ default: m.ClaudeTasks }))
+);
+const AttachmentsSection = lazy(() =>
+  import("./tickets/AttachmentsSection").then((m) => ({ default: m.AttachmentsSection }))
+);
+const ModalCommentsSection = lazy(() =>
+  import("./tickets/ModalCommentsSection").then((m) => ({ default: m.ModalCommentsSection }))
+);
+const ServicesSection = lazy(() =>
+  import("./tickets/ServicesSection").then((m) => ({ default: m.ServicesSection }))
+);
+
+function SectionFallback() {
+  return (
+    <div className="flex items-center justify-center py-4 text-[var(--text-tertiary)]">
+      <Loader2 size={16} className="animate-spin" />
+    </div>
+  );
+}
+
 interface TicketModalProps {
   ticket: Ticket;
   epics: Epic[];
   onClose: () => void;
   onUpdate: () => void;
 }
-
-// Comment type styling lookup objects to avoid nested ternaries
-const COMMENT_CONTAINER_STYLES: Record<string, string> = {
-  progress: "p-2 bg-[var(--info-muted)] border border-[var(--info)]/50",
-  work_summary: "p-3 bg-[var(--status-review)]/20 border border-[var(--status-review)]/50",
-  test_report: "p-3 bg-[var(--success-muted)] border border-[var(--success)]/50",
-  comment: "p-3 bg-[var(--bg-tertiary)]",
-};
-
-const COMMENT_AUTHOR_STYLES: Record<string, string> = {
-  ralph: "text-[var(--status-review)]",
-  claude: "text-[var(--accent-ai)]",
-  codex: "text-[var(--success)]",
-  cursor: "text-[var(--text-primary)]",
-  vscode: "text-[var(--accent-primary)]",
-  copilot: "text-[var(--text-secondary)]",
-  opencode: "text-[var(--success)]",
-  ai: "text-[var(--accent-primary)]",
-  "brain-dump": "text-[var(--text-secondary)]",
-  user: "text-[var(--text-primary)]",
-};
-
-const COMMENT_BADGE_STYLES: Record<string, string> = {
-  progress: "bg-[var(--info)] text-white",
-  work_summary: "bg-[var(--status-review)] text-white",
-  test_report: "bg-[var(--success)] text-white",
-};
-
-const COMMENT_BADGE_LABELS: Record<string, string> = {
-  progress: "Working...",
-  work_summary: "Work Summary",
-  test_report: "Test Report",
-};
-
-// Service type icons for the services panel
-const SERVICE_TYPE_ICONS: Record<ServiceType, typeof Globe> = {
-  frontend: Globe,
-  backend: Server,
-  storybook: BookOpen,
-  docs: BookOpen,
-  database: Database,
-  other: Server,
-};
-
-const SERVICE_TYPE_COLORS: Record<ServiceType, string> = {
-  frontend: "text-[var(--accent-ai)]",
-  backend: "text-[var(--status-review)]",
-  storybook: "text-[var(--accent-primary)]",
-  docs: "text-[var(--success)]",
-  database: "text-[var(--warning)]",
-  other: "text-[var(--text-secondary)]",
-};
 
 // Stable empty state for tag suggestions to prevent recreation on every render
 const EMPTY_TAG_STATE = { tagSuggestions: [] as string[], showCreateHelper: false };
@@ -203,7 +154,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
       blockedReason: ticket.blockedReason ?? "",
     },
     validators: {
-      onChange: ticketFormSchema,
+      onBlur: ticketFormSchema,
     },
   });
 
@@ -217,12 +168,6 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
   // UI state for acceptance criteria input (not form data - intermediate input state)
   const [newCriterion, setNewCriterion] = useState("");
 
-  // Attachments - kept as separate state per acceptance criteria (file uploads don't fit form model)
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
-  const [isDraggingOver, setIsDraggingOver] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   // Start work UI state
   const [isStartingWork, setIsStartingWork] = useState(false);
   const [startWorkNotification, setStartWorkNotification] = useAutoClearState<{
@@ -235,10 +180,6 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
   // Delete confirmation state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  // Comments state
-  const [newComment, setNewComment] = useState("");
-  const [showComments, setShowComments] = useState(true);
 
   // Use mutation hook for type-safe updates with cache invalidation
   const updateTicketMutation = useUpdateTicket();
@@ -258,13 +199,6 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
   // Fetch delete preview when confirmation modal opens (dry-run)
   const { data: deletePreview } = useTicketDeletePreview(ticket.id, showDeleteConfirm);
 
-  // Get project path for service discovery
-  const { projects } = useProjects();
-  const projectPath = useMemo(() => {
-    const project = projects.find((p) => p.id === ticket.projectId);
-    return project?.path ?? null;
-  }, [projects, ticket.projectId]);
-
   // Reactive subscriptions to form state — useStore ensures the component
   // re-renders when these specific values change (useForm alone does NOT
   // subscribe the component to store changes, so reading form.state.values
@@ -272,21 +206,6 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
   const currentStatus = useStore(form.store, (s) => s.values.status);
   const formTags = useStore(form.store, (s) => s.values.tags);
   const formCriteria = useStore(form.store, (s) => s.values.acceptanceCriteria);
-
-  // Service discovery - poll when ticket is in progress
-  const { runningServices, error: servicesError } = useProjectServices(projectPath, {
-    enabled: currentStatus === "in_progress",
-    pollingInterval: POLLING_INTERVALS.SERVICES,
-  });
-
-  // Comments - poll when ticket is in progress (Ralph might be working)
-  const { comments, loading: commentsLoading } = useComments(ticket.id, {
-    pollingInterval:
-      currentStatus === "in_progress"
-        ? POLLING_INTERVALS.COMMENTS_ACTIVE
-        : POLLING_INTERVALS.DISABLED,
-  });
-  const createCommentMutation = useCreateComment();
 
   // Ralph session status - poll when ticket is in progress
   const { getSession: getRalphSession } = useActiveRalphSessions({
@@ -355,138 +274,6 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     setSelectedSuggestionIndex(-1);
   }, []);
   useClickOutside(tagDropdownRef, closeTagDropdown, isTagDropdownOpen, tagInputRef);
-
-  // Fetch attachments on mount
-  useEffect(() => {
-    const fetchAttachments = async () => {
-      try {
-        const data = await getAttachments({ data: ticket.id });
-        setAttachments(data);
-      } catch (error) {
-        showToast(
-          "error",
-          `Failed to load attachments: ${error instanceof Error ? error.message : "Unknown error"}`
-        );
-      }
-    };
-    void fetchAttachments();
-  }, [ticket.id, showToast]);
-
-  // Handle file upload - uploads files in parallel for better performance
-  const handleFileUpload = useCallback(
-    async (files: FileList | null) => {
-      if (!files || files.length === 0) return;
-
-      // Filter out oversized files first
-      const validFiles: File[] = [];
-      for (const file of Array.from(files)) {
-        if (file.size > 10 * 1024 * 1024) {
-          showToast("error", `File "${file.name}" exceeds 10MB limit`);
-        } else {
-          validFiles.push(file);
-        }
-      }
-
-      if (validFiles.length === 0) return;
-
-      setIsUploadingAttachment(true);
-      try {
-        // Upload all valid files in parallel using allSettled for partial success handling
-        const uploadPromises = validFiles.map(async (file) => {
-          const reader = new FileReader();
-          const base64 = await new Promise<string>((resolve, reject) => {
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = () => {
-              const errorName = reader.error?.name ?? "UnknownError";
-              const errorMessage = reader.error?.message ?? "Unknown file read error";
-              reject(new Error(`Failed to read "${file.name}": ${errorName} - ${errorMessage}`));
-            };
-            reader.readAsDataURL(file);
-          });
-
-          const attachment = await uploadAttachment({
-            data: {
-              ticketId: ticket.id,
-              filename: file.name,
-              data: base64,
-            },
-          });
-          return { file: file.name, attachment };
-        });
-
-        const results = await Promise.allSettled(uploadPromises);
-        const succeeded: Attachment[] = [];
-        const failed: string[] = [];
-
-        for (const result of results) {
-          if (result.status === "fulfilled") {
-            succeeded.push(result.value.attachment);
-          } else {
-            failed.push(result.reason?.message || "Unknown error");
-          }
-        }
-
-        if (succeeded.length > 0) {
-          setAttachments((prev) => [...prev, ...succeeded]);
-        }
-
-        if (failed.length > 0) {
-          showToast("error", `Failed to upload ${failed.length} file(s): ${failed.join(", ")}`);
-        }
-      } catch (error) {
-        showToast(
-          "error",
-          `Failed to upload attachments: ${error instanceof Error ? error.message : "Unknown error"}`
-        );
-      } finally {
-        setIsUploadingAttachment(false);
-      }
-    },
-    [ticket.id, showToast]
-  );
-
-  // Handle drag and drop
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDraggingOver(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDraggingOver(false);
-  }, []);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setIsDraggingOver(false);
-      void handleFileUpload(e.dataTransfer.files);
-    },
-    [handleFileUpload]
-  );
-
-  // Handle delete attachment
-  const handleDeleteAttachment = useCallback(
-    async (attachment: Attachment) => {
-      if (!confirm(`Delete "${attachment.filename}"?`)) return;
-
-      try {
-        await deleteAttachment({
-          data: {
-            ticketId: ticket.id,
-            filename: attachment.filename,
-          },
-        });
-        setAttachments((prev) => prev.filter((a) => a.id !== attachment.id));
-      } catch (error) {
-        showToast(
-          "error",
-          `Failed to delete attachment: ${error instanceof Error ? error.message : "Unknown error"}`
-        );
-      }
-    },
-    [ticket.id, showToast]
-  );
 
   // Handle Start Work - launch Claude in terminal with context
   const handleStartWork = useCallback(async () => {
@@ -1025,32 +812,6 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
       setIsStartingWork(false);
     }
   }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification, form]);
-
-  // Handle adding a comment
-  const handleAddComment = useCallback(() => {
-    const content = newComment.trim();
-    if (!content) return;
-
-    createCommentMutation.mutate(
-      {
-        ticketId: ticket.id,
-        content,
-        author: "user",
-        type: "comment",
-      },
-      {
-        onSuccess: () => {
-          setNewComment("");
-        },
-        onError: (error) => {
-          showToast(
-            "error",
-            `Failed to add comment: ${error instanceof Error ? error.message : "Unknown error"}`
-          );
-        },
-      }
-    );
-  }, [newComment, ticket.id, createCommentMutation, showToast]);
 
   // Handle delete ticket confirmation
   const handleDeleteConfirm = useCallback(() => {
@@ -1753,259 +1514,43 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
             </div>
           </div>
 
-          {/* Attachments */}
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
-              Attachments
-              {attachments.length > 0 && (
-                <span className="ml-2 text-[var(--text-tertiary)]">({attachments.length})</span>
-              )}
-            </label>
+          {/* Attachments — lazy loaded, owns its own state */}
+          <Suspense fallback={<SectionFallback />}>
+            <AttachmentsSection ticketId={ticket.id} />
+          </Suspense>
 
-            {/* Drop zone */}
-            <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
-                isDraggingOver
-                  ? "border-[var(--accent-primary)] bg-[var(--accent-primary)]/10"
-                  : "border-[var(--border-primary)] hover:border-[var(--border-secondary)]"
-              }`}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                onChange={(e) => void handleFileUpload(e.target.files)}
-                className="hidden"
-              />
-              {isUploadingAttachment ? (
-                <div className="flex items-center justify-center gap-2 text-[var(--text-secondary)]">
-                  <Loader2 size={20} className="animate-spin" />
-                  <span>Uploading...</span>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Upload size={24} className="mx-auto text-[var(--text-tertiary)]" />
-                  <p className="text-sm text-[var(--text-secondary)]">
-                    Drag and drop files here, or{" "}
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="text-[var(--accent-primary)] hover:text-[var(--accent-secondary)] underline"
-                    >
-                      browse
-                    </button>
-                  </p>
-                  <p className="text-xs text-[var(--text-tertiary)]">Max file size: 10MB</p>
-                </div>
-              )}
-            </div>
-
-            {/* Attachment list */}
-            {attachments.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {attachments.map((attachment) => (
-                  <div
-                    key={attachment.id}
-                    className="flex items-center gap-3 p-2 bg-[var(--bg-tertiary)] rounded-lg group"
-                  >
-                    {attachment.isImage ? (
-                      <a
-                        href={attachment.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-shrink-0"
-                      >
-                        <img
-                          src={attachment.url}
-                          alt={attachment.filename}
-                          className="w-12 h-12 object-cover rounded"
-                        />
-                      </a>
-                    ) : (
-                      <div className="w-12 h-12 bg-[var(--bg-hover)] rounded flex items-center justify-center">
-                        <FileIcon size={20} className="text-[var(--text-secondary)]" />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <a
-                        href={attachment.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-[var(--text-primary)] hover:text-[var(--accent-primary)] truncate block"
-                      >
-                        {attachment.filename}
-                      </a>
-                      <p className="text-xs text-[var(--text-tertiary)]">
-                        {(attachment.size / 1024).toFixed(1)} KB
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => void handleDeleteAttachment(attachment)}
-                      className="p-1 text-[var(--text-tertiary)] hover:text-[var(--accent-danger)] opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Delete"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Running Services - Only show when ticket is in progress */}
-          {currentStatus === "in_progress" && servicesError && (
-            <div className="bg-red-900/30 border border-red-800 rounded-lg p-3 text-sm text-red-300">
-              <span className="font-medium">Service discovery error:</span> {servicesError}
-            </div>
-          )}
-          {currentStatus === "in_progress" && runningServices.length > 0 && (
-            <div className="bg-[var(--bg-tertiary)]/50 border border-[var(--border-secondary)] rounded-lg p-3">
-              <h4 className="text-sm font-medium text-[var(--text-primary)] mb-2 flex items-center gap-2">
-                <Globe size={14} className="text-[var(--accent-ai)]" />
-                Running Services
-              </h4>
-              <div className="space-y-1">
-                {runningServices.map((service) => {
-                  // Lookup tables are exhaustive for all ServiceType values, no fallback needed
-                  const IconComponent = SERVICE_TYPE_ICONS[service.type];
-                  const colorClass = SERVICE_TYPE_COLORS[service.type];
-                  return (
-                    <a
-                      key={service.port}
-                      href={`http://localhost:${service.port}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 px-2 py-1.5 bg-[var(--bg-primary)]/50 rounded hover:bg-[var(--bg-hover)]/50 transition-colors group"
-                    >
-                      <IconComponent size={14} className={colorClass} />
-                      <span className="text-sm text-[var(--text-primary)] flex-1">
-                        {service.name}
-                      </span>
-                      <span className="text-xs text-[var(--text-muted)]">
-                        localhost:{service.port}
-                      </span>
-                      <ExternalLink
-                        size={12}
-                        className="text-[var(--text-muted)] group-hover:text-[var(--accent-ai)] transition-colors"
-                      />
-                    </a>
-                  );
-                })}
-              </div>
-            </div>
+          {/* Running Services — lazy loaded, owns its own polling subscription */}
+          {currentStatus === "in_progress" && (
+            <Suspense fallback={<SectionFallback />}>
+              <ServicesSection projectId={ticket.projectId} />
+            </Suspense>
           )}
 
-          {/* Demo Review Panel - Shows prominently when ticket is in human_review status */}
-          {currentStatus === "human_review" && <DemoPanel ticketId={ticket.id} />}
+          {/* Demo Review Panel — lazy loaded */}
+          {currentStatus === "human_review" && (
+            <Suspense fallback={<SectionFallback />}>
+              <DemoPanel ticketId={ticket.id} />
+            </Suspense>
+          )}
 
-          {/* AI Telemetry */}
-          <TelemetryPanel ticketId={ticket.id} />
+          {/* AI Telemetry — lazy loaded */}
+          <Suspense fallback={<SectionFallback />}>
+            <TelemetryPanel ticketId={ticket.id} />
+          </Suspense>
 
-          {/* Claude Tasks */}
-          <ClaudeTasks ticketId={ticket.id} ticketStatus={currentStatus} defaultExpanded={false} />
+          {/* Claude Tasks — lazy loaded */}
+          <Suspense fallback={<SectionFallback />}>
+            <ClaudeTasks
+              ticketId={ticket.id}
+              ticketStatus={currentStatus}
+              defaultExpanded={false}
+            />
+          </Suspense>
 
-          {/* Activity / Comments */}
-          <div>
-            <button
-              onClick={() => setShowComments(!showComments)}
-              className="flex items-center gap-2 text-sm font-medium text-[var(--text-secondary)] mb-2 hover:text-[var(--text-primary)] transition-colors"
-            >
-              <MessageSquare size={16} />
-              <span>Activity</span>
-              {comments.length > 0 && (
-                <span className="text-[var(--text-tertiary)]">({comments.length})</span>
-              )}
-              <ChevronDown
-                size={14}
-                className={`transition-transform ${showComments ? "rotate-180" : ""}`}
-              />
-            </button>
-
-            {showComments && (
-              <div className="space-y-3">
-                {/* Add comment input */}
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
-                    placeholder="Add a comment..."
-                    className="flex-1 px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] text-sm"
-                  />
-                  <button
-                    onClick={handleAddComment}
-                    disabled={!newComment.trim() || createCommentMutation.isPending}
-                    className="px-3 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] rounded-lg transition-colors"
-                  >
-                    {createCommentMutation.isPending ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <Send size={16} />
-                    )}
-                  </button>
-                </div>
-
-                {/* Comments list */}
-                {commentsLoading ? (
-                  <div className="flex items-center justify-center py-4 text-[var(--text-tertiary)]">
-                    <Loader2 size={20} className="animate-spin" />
-                  </div>
-                ) : comments.length > 0 ? (
-                  <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {comments.map((comment) => (
-                      <div
-                        key={comment.id}
-                        className={`rounded-lg text-sm ${COMMENT_CONTAINER_STYLES[comment.type] ?? COMMENT_CONTAINER_STYLES.comment}`}
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          {comment.type === "progress" && (
-                            <span className="relative flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--info)] opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--info)]"></span>
-                            </span>
-                          )}
-                          <span
-                            className={`font-medium ${COMMENT_AUTHOR_STYLES[getCommentAuthorBase(comment.author)] ?? COMMENT_AUTHOR_STYLES.user}`}
-                          >
-                            {getCommentAuthorBase(comment.author) === "ralph" && (
-                              <Bot size={12} className="inline mr-1" />
-                            )}
-                            {getCommentAuthorBase(comment.author) === "claude" && (
-                              <Terminal size={12} className="inline mr-1" />
-                            )}
-                            {getCommentAuthorDisplayName(comment.author)}
-                          </span>
-                          <span className="text-[var(--text-tertiary)] text-xs">
-                            {new Date(comment.createdAt).toLocaleString()}
-                          </span>
-                          {comment.type !== "comment" && COMMENT_BADGE_STYLES[comment.type] && (
-                            <span
-                              className={`text-xs px-1.5 py-0.5 rounded ${COMMENT_BADGE_STYLES[comment.type]}`}
-                            >
-                              {COMMENT_BADGE_LABELS[comment.type]}
-                            </span>
-                          )}
-                        </div>
-                        <p
-                          className={`whitespace-pre-wrap ${comment.type === "progress" ? "text-[var(--info-text)] text-xs" : "text-[var(--text-primary)]"}`}
-                        >
-                          {comment.content}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-[var(--text-tertiary)] py-2">
-                    No activity yet. Comments from Claude and Ralph will appear here.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
+          {/* Activity / Comments — lazy loaded, owns its own polling subscription */}
+          <Suspense fallback={<SectionFallback />}>
+            <ModalCommentsSection ticketId={ticket.id} ticketStatus={currentStatus} />
+          </Suspense>
 
           {/* Metadata */}
           <div className="text-xs text-[var(--text-tertiary)] border-t border-[var(--border-primary)] pt-4">

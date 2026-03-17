@@ -5,15 +5,13 @@
 
 import { useEffect, useMemo } from "react";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getProjects, createProject, updateProject, deleteProject } from "../../api/projects";
 import {
-  getEpicsByProject,
-  createEpic,
-  updateEpic,
-  deleteEpic,
-  getEpicDetail,
-  type EpicDetailResult,
-} from "../../api/epics";
+  getProjectsWithEpics,
+  createProject,
+  updateProject,
+  deleteProject,
+} from "../../api/projects";
+import { createEpic, updateEpic, deleteEpic, getEpicDetail } from "../../api/epics";
 import {
   detectInstalledEditors,
   detectDevCommands,
@@ -22,10 +20,14 @@ import {
 } from "../../api/dev-tools";
 import { getGitProjectInfo, getGitCommits, getCommitFileStats } from "../../api/git-info";
 import type { GitCommitsPage, CommitFileStatsResult } from "../../api/git-info";
+import { getProjectTicketCounts, getEpicTicketCounts } from "../../api/tickets";
 import { createBrowserLogger } from "../browser-logger";
 import { queryKeys } from "../query-keys";
+import type { Epic, Project } from "../schema";
 import { useActiveRalphSessions, type ActiveRalphSession } from "./ralph";
-import { useTickets } from "./tickets";
+
+// Re-export schema-derived types for consumers
+export type { Epic, Project };
 
 // Browser-safe logger for hook errors
 const logger = createBrowserLogger("hooks:projects");
@@ -44,28 +46,8 @@ function countBy<T>(items: T[], keyFn: (item: T) => string): Map<string, number>
 // TYPES
 // =============================================================================
 
-export interface Epic {
-  id: string;
-  title: string;
-  description: string | null;
-  projectId: string;
-  color: string | null;
-  createdAt: string;
-}
-
 /** Base project properties used for editing (without createdAt) */
-export interface ProjectBase {
-  id: string;
-  name: string;
-  path: string;
-  color: string | null;
-  workingMethod: string | null;
-}
-
-/** Full project type including createdAt */
-export interface Project extends ProjectBase {
-  createdAt: string;
-}
+export type ProjectBase = Omit<Project, "createdAt">;
 
 export interface ProjectWithEpics extends Project {
   epics: Epic[];
@@ -88,24 +70,11 @@ export interface ProjectWithAIActivity extends ProjectWithEpics {
 // PROJECT QUERIES
 // =============================================================================
 
-// Hook for fetching projects with their epics
+// Hook for fetching projects with their epics (single server call, no N+1)
 export function useProjects() {
   const query = useQuery({
     queryKey: queryKeys.projectsWithEpics,
-    queryFn: async () => {
-      // Fetch all projects
-      const projectList = await getProjects();
-
-      // Fetch epics for each project
-      const projectsWithEpics: ProjectWithEpics[] = await Promise.all(
-        projectList.map(async (project: (typeof projectList)[0]) => {
-          const epics = await getEpicsByProject({ data: project.id });
-          return { ...project, epics };
-        })
-      );
-
-      return projectsWithEpics;
-    },
+    queryFn: () => getProjectsWithEpics(),
     staleTime: 30 * 1000, // 30s - balance between freshness and reducing refetches
     refetchOnMount: "always", // Always refetch on mount to catch external changes
   });
@@ -116,6 +85,31 @@ export function useProjects() {
     error: query.error?.message ?? null,
     refetch: query.refetch,
   };
+}
+
+/**
+ * Hook that returns per-project ticket counts via a lightweight SQL aggregation endpoint.
+ * Avoids loading full ticket objects just to derive `.length`.
+ */
+export function useProjectTicketCounts() {
+  return useQuery({
+    queryKey: queryKeys.projectTicketCounts,
+    queryFn: () => getProjectTicketCounts(),
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * Hook that returns per-epic ticket counts for a single project
+ * via a lightweight SQL aggregation endpoint.
+ */
+export function useEpicTicketCounts(projectId: string) {
+  return useQuery({
+    queryKey: queryKeys.epicTicketCounts(projectId),
+    queryFn: () => getEpicTicketCounts({ data: projectId }),
+    staleTime: 30_000,
+    enabled: !!projectId,
+  });
 }
 
 /**
@@ -133,22 +127,25 @@ export function useProjects() {
 export function useProjectsWithAIActivity() {
   const { projects, loading, error, refetch } = useProjects();
   const { sessions } = useActiveRalphSessions();
-  const { tickets, error: ticketsError, loading: ticketsLoading } = useTickets();
+  const {
+    data: ticketCounts,
+    error: countsError,
+    isLoading: countsLoading,
+  } = useProjectTicketCounts();
 
   // Determine overall loading/error state considering all queries
-  const isLoading = loading || ticketsLoading;
-  const overallError = error || ticketsError;
+  const isLoading = loading || countsLoading;
+  const overallError = error || (countsError?.message ?? null);
 
   // Log ticket loading errors for debugging (in useEffect to avoid side effects in render)
   useEffect(() => {
-    if (ticketsError) {
-      logger.error("Failed to load ticket counts for projects", new Error(ticketsError));
+    if (countsError) {
+      logger.error("Failed to load ticket counts for projects", countsError);
     }
-  }, [ticketsError]);
+  }, [countsError]);
 
   const projectsWithActivity = useMemo<ProjectWithAIActivity[]>(() => {
     const sessionCounts = countBy(Object.values(sessions), (s) => s.projectId);
-    const ticketCounts = countBy(tickets, (t) => t.projectId);
 
     return projects.map((project) => {
       const activeSessionCount = sessionCounts.get(project.id) ?? 0;
@@ -156,10 +153,10 @@ export function useProjectsWithAIActivity() {
         ...project,
         hasActiveAI: activeSessionCount > 0,
         activeSessionCount,
-        ticketCount: ticketCounts.get(project.id) ?? 0,
+        ticketCount: ticketCounts?.[project.id] ?? 0,
       };
     });
-  }, [projects, sessions, tickets]);
+  }, [projects, sessions, ticketCounts]);
 
   return {
     projects: projectsWithActivity,
@@ -219,6 +216,8 @@ export function useDeleteProject() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTags });
     },
   });
@@ -405,6 +404,7 @@ export function useDeleteEpic() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics });
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
     },
   });
 }
@@ -525,7 +525,7 @@ export function useEpicDetail(epicId: string) {
   });
 
   return {
-    data: query.data as EpicDetailResult | undefined,
+    data: query.data,
     loading: query.isLoading,
     error: query.error?.message ?? null,
     refetch: query.refetch,

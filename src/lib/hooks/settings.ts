@@ -18,34 +18,13 @@ import { getDockerUnavailableMessage } from "../docker-messages";
 import type { DockerRuntimeInfo } from "../docker-runtime";
 import { createBrowserLogger } from "../browser-logger";
 import { queryKeys } from "../query-keys";
+import type { Settings } from "../schema";
+
+// Re-export schema-derived type for consumers
+export type { Settings };
 
 // Browser-safe logger for hook errors
 const logger = createBrowserLogger("hooks:settings");
-
-// =============================================================================
-// TYPES
-// =============================================================================
-
-// Settings type
-export interface Settings {
-  id: string;
-  terminalEmulator: string | null;
-  ralphSandbox: boolean | null;
-  ralphTimeout: number | null;
-  ralphMaxIterations: number | null;
-  autoCreatePr: boolean | null;
-  prTargetBranch: string | null;
-  defaultProjectsDirectory: string | null;
-  defaultWorkingMethod: string | null;
-  // Docker runtime settings
-  dockerRuntime: string | null; // 'lima' | 'colima' | 'rancher' | 'docker-desktop' | 'podman' | null (auto)
-  dockerSocketPath: string | null; // Custom socket path override
-  // Enterprise conversation logging
-  conversationLoggingEnabled: boolean | null;
-  conversationRetentionDays: number | null;
-  createdAt: string;
-  updatedAt: string;
-}
 
 // Docker status type
 export interface DockerStatus {
@@ -152,7 +131,7 @@ export function useAvailableTerminals() {
 // Hook for checking Docker status
 export function useDockerStatus() {
   const query = useQuery({
-    queryKey: ["docker-status"],
+    queryKey: queryKeys.dockerStatus,
     queryFn: async () => {
       const status = await getDockerStatus();
       return status as DockerStatus;
@@ -175,7 +154,7 @@ export function useBuildSandboxImage() {
   return useMutation({
     mutationFn: () => buildSandboxImage(),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["docker-status"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dockerStatus });
       queryClient.invalidateQueries({ queryKey: queryKeys.dockerAvailability });
     },
   });

@@ -1,7 +1,7 @@
 import type { FC } from "react";
 import { useCallback, useMemo, useState } from "react";
 import {
-  useTickets,
+  useTicketSummaries,
   useUpdateTicketStatus,
   useUpdateTicketPosition,
   type ActiveRalphSession,
@@ -9,15 +9,16 @@ import {
 import { TicketCard } from "./TicketCard";
 import { KanbanColumn } from "./KanbanColumn";
 import { SortableTicketCard } from "./SortableTicketCard";
-import type { TicketStatus } from "../../api/tickets";
-import type { Ticket } from "../../lib/schema";
+import type { TicketStatus, TicketSummary } from "../../api/tickets";
 import { useToast } from "../Toast";
+import { createBrowserLogger } from "../../lib/browser-logger";
 import { useBoardKeyboardNavigation } from "../../lib/use-board-keyboard-navigation";
 import { COLUMN_STATUSES } from "../../lib/constants";
 import {
   DndContext,
   DragOverlay,
   closestCenter,
+  pointerWithin,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -25,6 +26,7 @@ import {
   type DragStartEvent,
   type DragEndEvent,
   type Announcements,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -40,13 +42,13 @@ export interface KanbanBoardProps {
   /** Optional tags to filter tickets */
   tags?: string[];
   /** Handler when a ticket card is clicked */
-  onTicketClick?: (ticket: Ticket) => void;
+  onTicketClick?: (ticket: TicketSummary) => void;
   /** Function to get active Ralph session for a ticket */
   getRalphSession?: (ticketId: string) => ActiveRalphSession | null;
   /** Handler to refresh data */
   onRefresh?: () => void;
   /** Pre-loaded tickets (optional, will fetch if not provided) */
-  tickets?: Ticket[];
+  tickets?: TicketSummary[];
   /** Loading state (optional) */
   loading?: boolean;
   /** Error state (optional) */
@@ -78,6 +80,39 @@ const COLUMN_COLORS: Record<TicketStatus, string> = {
   ai_review: "var(--accent-warning)",
   human_review: "var(--accent-primary)",
   done: "var(--status-done)",
+};
+
+const logger = createBrowserLogger("board:kanban");
+
+/**
+ * Custom collision detection for the kanban board.
+ *
+ * closestCenter alone bypasses empty columns because tickets in adjacent
+ * columns have centers closer to the pointer. This combines pointerWithin
+ * (detects which column the pointer is in) with closestCenter (precise
+ * item ordering within that column).
+ */
+const kanbanCollisionDetection: CollisionDetection = (args) => {
+  // Check which droppable areas contain the pointer
+  const withinCollisions = pointerWithin(args);
+
+  if (withinCollisions.length > 0) {
+    // Pointer is inside one or more droppables — use closestCenter among
+    // only those droppables for precise ticket-level ordering
+    const idsUnderPointer = new Set(withinCollisions.map((c) => c.id));
+    const filtered = args.droppableContainers.filter((c) => idsUnderPointer.has(c.id));
+
+    if (filtered.length > 0) {
+      const closest = closestCenter({ ...args, droppableContainers: filtered });
+      if (closest.length > 0) return closest;
+    }
+
+    // No closer match — return the raw pointerWithin results (empty column)
+    return withinCollisions;
+  }
+
+  // Pointer not within any droppable — fall back to closestCenter
+  return closestCenter(args);
 };
 
 /** Screen reader announcements for drag-and-drop operations */
@@ -135,7 +170,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
     loading: internalLoading,
     error: internalError,
     refetch,
-  } = useTickets(internalFilters, {
+  } = useTicketSummaries(internalFilters, {
     enabled: !providedTickets, // Only fetch if tickets not provided
   });
 
@@ -150,7 +185,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
   const { showToast } = useToast();
 
   // DnD State
-  const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
+  const [activeTicket, setActiveTicket] = useState<TicketSummary | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -165,7 +200,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
 
   // Group tickets by status
   const ticketsByStatus = useMemo(() => {
-    const grouped: Record<TicketStatus, Ticket[]> = {
+    const grouped: Record<TicketStatus, TicketSummary[]> = {
       backlog: [],
       ready: [],
       in_progress: [],
@@ -284,7 +319,10 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
           showToast("success", `Moved "${truncateTitle(draggedTicket.title)}" to ${toLabel}`);
         }
       } catch (error) {
-        console.error("Failed to update ticket during drag:", error);
+        logger.error(
+          "Failed to update ticket during drag",
+          error instanceof Error ? error : new Error(String(error))
+        );
         showToast(
           "error",
           `Failed to move ticket: ${error instanceof Error ? error.message : "Unknown error"}`
@@ -335,7 +373,7 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={kanbanCollisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       accessibility={{ announcements }}
@@ -369,12 +407,12 @@ export const KanbanBoard: FC<KanbanBoardProps> = ({
                     <SortableTicketCard
                       key={ticket.id}
                       ticket={ticket}
-                      onClick={onTicketClick && (() => onTicketClick(ticket))}
+                      onTicketClick={onTicketClick}
                       ralphSession={getRalphSession?.(ticket.id) ?? null}
                       tabIndex={getTabIndex(ticket.id)}
                       isFocused={focusedTicketId === ticket.id}
-                      registerRef={registerCardRef(ticket.id)}
-                      onFocus={() => handleCardFocus(ticket.id)}
+                      registerCardRef={registerCardRef}
+                      onCardFocus={handleCardFocus}
                     />
                   ))}
                 </SortableContext>

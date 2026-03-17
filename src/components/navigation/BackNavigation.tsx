@@ -1,5 +1,5 @@
 import { type FC } from "react";
-import { Link, useRouter } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 
 // =============================================================================
@@ -39,8 +39,6 @@ export const BackNavigation: FC<BackNavigationProps> = ({
   fallback = "/",
   testId = "back-navigation",
 }) => {
-  const router = useRouter();
-
   // Get current search params to preserve filters when going back
   const searchParams =
     typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
@@ -49,18 +47,13 @@ export const BackNavigation: FC<BackNavigationProps> = ({
   // Build the target URL with preserved search params
   const targetUrl = `${fallback}${preservedSearch}`;
 
-  // Handle click with prefetch for better performance
-  const handleMouseEnter = () => {
-    void router.preloadRoute({ to: fallback });
-  };
-
   return (
     <Link
       to={targetUrl}
+      preload="intent"
       style={linkStyles}
       data-testid={testId}
       className="hover:bg-[var(--bg-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)]"
-      onMouseEnter={handleMouseEnter}
     >
       <ArrowLeft size={16} aria-hidden="true" style={iconStyles} />
       <span>{label}</span>

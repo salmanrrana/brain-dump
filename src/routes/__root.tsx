@@ -1,8 +1,12 @@
-import { useState } from "react";
-import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
-import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import { useEffect, useState } from "react";
+import { HeadContent, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { TanStackDevtools } from "@tanstack/react-devtools";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import type { RouterContext } from "../router";
+// Side-effect imports: dev-only performance instrumentation
+import { markHydrationComplete } from "../lib/navigation-timing";
+import { setQueryClientForHealth } from "../lib/session-health";
 
 import AppLayout from "../components/AppLayout";
 import { SplashScreen } from "../components/SplashScreen";
@@ -11,21 +15,7 @@ import { ThemeProvider, THEME_STORAGE_KEY, THEMES, DEFAULT_THEME } from "../lib/
 
 import appCss from "../styles.css?url";
 
-// Factory function to create QueryClient with consistent options
-// Used inside useState to ensure per-component instance (SSR safety)
-function createQueryClient() {
-  return new QueryClient({
-    defaultOptions: {
-      queries: {
-        // Shorter staleTime to allow faster refresh when returning from external changes
-        staleTime: 1000 * 5, // 5 seconds
-        refetchOnWindowFocus: true, // Refetch stale queries when window regains focus
-      },
-    },
-  });
-}
-
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<RouterContext>()({
   head: () => ({
     meta: [
       {
@@ -65,11 +55,22 @@ export const Route = createRootRoute({
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
-  // Create QueryClient inside component state to avoid SSR issues
-  // This ensures the focus manager is properly initialized on the client
-  // See: https://tanstack.com/query/latest/docs/framework/react/guides/ssr
-  const [queryClient] = useState(createQueryClient);
+  const { queryClient } = Route.useRouteContext();
   const [showSplash, setShowSplash] = useState(true);
+
+  // Mark app boot + hydration completion for Performance timeline + connect health monitor
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      performance.mark("app:boot:end");
+      try {
+        performance.measure("App Boot", "app:boot:start", "app:boot:end");
+      } catch {
+        // boot:start mark may not exist on HMR
+      }
+      markHydrationComplete();
+      setQueryClientForHealth(queryClient);
+    }
+  }, [queryClient]);
 
   return (
     <html lang="en" className="dark" data-theme={DEFAULT_THEME} suppressHydrationWarning>
@@ -90,9 +91,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           </ThemeProvider>
         </QueryClientProvider>
         <TanStackDevtools
-          config={{
-            position: "bottom-right",
-          }}
+          config={{ position: "bottom-right" }}
           plugins={[
             {
               name: "Tanstack Router",

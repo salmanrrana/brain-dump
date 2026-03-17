@@ -55,6 +55,7 @@ export function useLaunchRalphForTicket() {
     onSuccess: () => {
       // Ticket status will be updated by Ralph, invalidate to reflect changes
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
     },
   });
 }
@@ -83,6 +84,7 @@ export function useLaunchRalphForEpic() {
     onSuccess: () => {
       // Ticket statuses will be updated by Ralph, invalidate to reflect changes
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
     },
   });
 }
@@ -101,14 +103,14 @@ export function useActiveRalphSessions(options: { pollingInterval?: number } = {
   const { pollingInterval = 5000 } = options; // Default: poll every 5 seconds
 
   const query = useQuery({
-    queryKey: ["activeRalphSessions"],
+    queryKey: queryKeys.activeRalphSessions,
     queryFn: async (): Promise<Record<string, ActiveRalphSession>> => {
       return getActiveRalphSessions();
     },
     // Poll frequently to show real-time status
     refetchInterval: pollingInterval > 0 ? pollingInterval : false,
-    // Sessions can change at any time via MCP
-    staleTime: 0,
+    staleTime: pollingInterval, // Match polling interval — data refreshes via polling
+    refetchOnWindowFocus: false, // Polling handles freshness
   });
 
   return {
@@ -138,7 +140,7 @@ export function useClearActiveSessions() {
   return useMutation({
     mutationFn: (projectId: string) => clearActiveSessionsForProject({ data: projectId }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["activeRalphSessions"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.activeRalphSessions });
     },
   });
 }
@@ -171,8 +173,10 @@ export function useLaunchSpecBreakdown() {
       preferredTerminal?: string | null;
     }) => launchSpecBreakdown({ data }),
     onSuccess: () => {
-      // Tickets will be created, invalidate tickets and projects
+      // Tickets will be created, invalidate tickets, summaries, counts, and projects
       queryClient.invalidateQueries({ queryKey: queryKeys.allTickets });
+      queryClient.invalidateQueries({ queryKey: queryKeys.allTicketSummaries });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projectTicketCounts });
       queryClient.invalidateQueries({ queryKey: queryKeys.projects });
     },
   });

@@ -54,6 +54,13 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
 
   const [glitchColors] = useState(getThemeGlitchColors);
 
+  // Mark splash screen mount for Performance timeline
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      performance.mark("splash:mount");
+    }
+  }, []);
+
   // Minimum display timer
   useEffect(() => {
     const timer = setTimeout(() => setMinTimeElapsed(true), MIN_DISPLAY_MS);
@@ -65,7 +72,24 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
 
   useEffect(() => {
     if (!minTimeElapsed) return;
+    if (import.meta.env.DEV) {
+      performance.mark("splash:fade-start");
+      try {
+        performance.measure("Splash: Visible", "splash:mount", "splash:fade-start");
+      } catch {
+        // mount mark may not exist on HMR
+      }
+    }
     const timer = setTimeout(() => {
+      if (import.meta.env.DEV) {
+        performance.mark("splash:complete");
+        try {
+          performance.measure("Splash: Fade", "splash:fade-start", "splash:complete");
+          performance.measure("Splash: Total", "splash:mount", "splash:complete");
+        } catch {
+          // marks may not exist on HMR
+        }
+      }
       setFadeComplete(true);
       onCompleteRef.current();
     }, FADE_DURATION_MS);

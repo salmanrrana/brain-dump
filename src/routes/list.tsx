@@ -2,22 +2,54 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAppState } from "../components/AppLayout";
 import {
-  useTickets,
+  useTicketSummaries,
   useProjects,
   useTagsWithMetadata,
   type Ticket,
   type StatusChange,
 } from "../lib/hooks";
+import type { TicketSummary } from "../api/tickets";
 import { useToast } from "../components/Toast";
 import TicketListView from "../components/TicketListView";
 import TagListView from "../components/TagListView";
 import TicketModal from "../components/TicketModal";
 import { getStatusLabel } from "../lib/constants";
-import { getTicket } from "../api/tickets";
+import { getTicket, getTicketSummaries } from "../api/tickets";
+import { getProjectsWithEpics } from "../api/projects";
+import { queryKeys } from "../lib/query-keys";
 import { createBrowserLogger } from "../lib/browser-logger";
+import { markLoaderStart, markLoaderEnd, timedFetch } from "../lib/navigation-timing";
+import { ListSkeleton } from "../components/route-skeletons";
+
+interface ListSearch {
+  view?: "tags";
+}
 
 export const Route = createFileRoute("/list")({
+  pendingComponent: ListSkeleton,
+  loader: ({ context }) => {
+    markLoaderStart("list");
+    // Pre-warm cache with default (unfiltered) tickets and projects
+    void timedFetch("list:tickets", () =>
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.ticketSummaries({}),
+        queryFn: () => getTicketSummaries({ data: {} }),
+        staleTime: 30_000,
+      })
+    );
+    void timedFetch("list:projects", () =>
+      context.queryClient.ensureQueryData({
+        queryKey: queryKeys.projectsWithEpics,
+        queryFn: () => getProjectsWithEpics(),
+        staleTime: 30_000,
+      })
+    );
+    markLoaderEnd("list");
+  },
   component: ListView,
+  validateSearch: (search: Record<string, unknown>): ListSearch => ({
+    ...(search.view === "tags" ? { view: "tags" as const } : {}),
+  }),
 });
 
 type ListSubMode = "tickets" | "tags";
@@ -36,24 +68,14 @@ function ListView() {
   const { showToast } = useToast();
 
   // Sub-mode from URL param ?view=tags (default: tickets)
-  const searchString = Route.useSearch({
-    select: (s: Record<string, string>) => s.view,
-  });
-  const listSubMode: ListSubMode = searchString === "tags" ? "tags" : "tickets";
+  const search = Route.useSearch();
+  const listSubMode: ListSubMode = search.view === "tags" ? "tags" : "tickets";
 
   const setListSubMode = useCallback(
     (mode: ListSubMode) => {
       void navigate({
         to: ".",
-        search: (prev: Record<string, string>) => {
-          const next = { ...prev };
-          if (mode === "tags") {
-            next.view = "tags";
-          } else {
-            delete next.view;
-          }
-          return next;
-        },
+        search: mode === "tags" ? { view: "tags" as const } : {},
         replace: true,
       });
     },
@@ -90,12 +112,14 @@ function ListView() {
     [showToast]
   );
 
-  const { tickets, loading, error, refetch } = useTickets(filters, {
+  const { tickets, loading, error, refetch } = useTicketSummaries(filters, {
     onStatusChange: handleStatusChange,
   });
 
   // Fetch tag metadata only when in tags sub-mode
-  const { tagsWithMetadata } = useTagsWithMetadata(tagFilters);
+  const { tagsWithMetadata } = useTagsWithMetadata(tagFilters, {
+    enabled: listSubMode === "tags",
+  });
 
   // Refetch when ticketRefreshKey changes (e.g., after creating a new ticket)
   useEffect(() => {
@@ -141,8 +165,17 @@ function ListView() {
 
   const allEpics = projects.flatMap((p) => p.epics);
 
-  const handleTicketClick = (ticket: Ticket) => {
-    setSelectedTicket(ticket);
+  const handleTicketClick = async (ticket: TicketSummary) => {
+    try {
+      const fullTicket = await getTicket({ data: ticket.id });
+      setSelectedTicket(fullTicket as Ticket);
+    } catch (err) {
+      logger.error(
+        `Failed to fetch ticket detail: ticketId=${ticket.id}`,
+        err instanceof Error ? err : new Error(String(err))
+      );
+      showToast("error", "Failed to open ticket details");
+    }
   };
 
   const handleModalClose = () => {

@@ -9,25 +9,1059 @@
   ],
   "userStories": [
     {
-      "id": "e97b4dc7-1aec-4017-9056-2dfa5a306a8d",
-      "title": "Auto-trigger learnings on epic completion & refactor epic header actions",
-      "passes": false,
-      "overview": "",
+      "id": "538ab1b5-64c3-4f7a-a37e-0a64936d50df",
+      "title": "Disable TanStack devtools in production builds",
+      "passes": true,
+      "overview": "Devtools (`TanStackDevtools` and `TanStackRouterDevtoolsPanel`) are mounted unconditionally in the root shell at `src/routes/__root.tsx#L92`. They ship in production builds, adding to the initial JS payload.",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "Learnings auto-trigger when last ticket in epic completes",
-        "Manual \"Refresh Learnings\" button exists in learnings section",
-        "Re-running learnings works correctly (updates, not duplicates)",
-        "Epic detail header actions are cleaner and less crowded",
-        "All existing button functionality preserved",
-        "Responsive at narrower widths"
+        "Devtools do not render in production builds",
+        "Devtools still work in development",
+        "Production bundle size for main chunk decreases measurably"
+      ],
+      "references": [
+        "src/routes/__root.tsx#L92",
+        "src/routes/__root.tsx"
+      ],
+      "description": "## Context\n\nDevtools (`TanStackDevtools` and `TanStackRouterDevtoolsPanel`) are mounted unconditionally in the root shell at `src/routes/__root.tsx#L92`. They ship in production builds, adding to the initial JS payload.\n\n## What to do\n\nGate devtools rendering to development only. Use `import.meta.env.DEV` or `process.env.NODE_ENV === 'development'` to conditionally render. Consider using dynamic `import()` so the devtools code is tree-shaken from production bundles entirely.\n\n## Key files\n\n- `src/routes/__root.tsx`\n\n## Acceptance criteria\n\n- Devtools do not render in production builds\n- Devtools still work in development\n- Production bundle size for main chunk decreases measurably",
+      "priority": "high",
+      "tags": [
+        "performance",
+        "sprint-1",
+        "quick-win"
+      ]
+    },
+    {
+      "id": "7e7ab9c7-d54f-4707-89d6-7ebcc0cb515d",
+      "title": "Gate tag metadata query to tag sub-mode only",
+      "passes": true,
+      "overview": "The list route always calls `useTagsWithMetadata(tagFilters)` at `src/routes/list.tsx#L97`. The `tagFilters` is a stable empty object and `useTagsWithMetadata` in `src/lib/hooks/tickets.ts#L471` has no `enabled` guard. This means the tag metadata query fires regardless of whether the user is viewing tickets or tags.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Tag metadata query does not fire when in ticket list mode",
+        "Tag metadata loads correctly when switching to tag sub-mode",
+        "No regressions in tag view functionality"
+      ],
+      "references": [
+        "src/routes/list.tsx#L97",
+        "src/lib/hooks/tickets.ts#L471",
+        "src/routes/list.tsx",
+        "src/lib/hooks/tickets.ts"
+      ],
+      "description": "## Context\n\nThe list route always calls `useTagsWithMetadata(tagFilters)` at `src/routes/list.tsx#L97`. The `tagFilters` is a stable empty object and `useTagsWithMetadata` in `src/lib/hooks/tickets.ts#L471` has no `enabled` guard. This means the tag metadata query fires regardless of whether the user is viewing tickets or tags.\n\n## What to do\n\nAdd an `enabled` option to `useTagsWithMetadata` and gate it with the current list sub-mode. The query should only run when `listSubMode === \"tags\"`.\n\n## Key files\n\n- `src/routes/list.tsx`\n- `src/lib/hooks/tickets.ts` (useTagsWithMetadata)\n\n## Acceptance criteria\n\n- Tag metadata query does not fire when in ticket list mode\n- Tag metadata loads correctly when switching to tag sub-mode\n- No regressions in tag view functionality",
+      "priority": "high",
+      "tags": [
+        "performance",
+        "sprint-1",
+        "quick-win"
+      ]
+    },
+    {
+      "id": "08cd2df2-856f-489f-a41e-eb33a0fd12e9",
+      "title": "Fix Query freshness defaults — remove staleTime: 0 overrides and opt-in refetchOnWindowFocus",
+      "passes": true,
+      "overview": "Global query defaults set `staleTime: 5000` and `refetchOnWindowFocus: true` in `src/routes/__root.tsx#L19`. However, several high-traffic hooks override `staleTime` back to `0`:\n- Tickets: `src/lib/hooks/tickets.ts#L326`\n- Tags: `src/lib/hooks/tickets.ts#L449`\n- Tag metadata: `src/lib/hooks/tickets.ts#L471`\nActive Ralph sessions also poll every 5 seconds at `src/lib/hooks/ralph.ts#L99`.\nThis means focusing the window triggers broad refresh storms, and the query cache cannot hide latency effectively.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "No hook uses `staleTime: 0` without explicit justification",
+        "`refetchOnWindowFocus` is off globally and opt-in per query",
+        "Window focus no longer triggers broad refetch storms",
+        "Data still refreshes appropriately after mutations via invalidation"
+      ],
+      "references": [
+        "src/routes/__root.tsx#L19",
+        "src/lib/hooks/tickets.ts#L326",
+        "src/lib/hooks/tickets.ts#L449",
+        "src/lib/hooks/tickets.ts#L471",
+        "src/lib/hooks/ralph.ts#L99",
+        "src/routes/__root.tsx",
+        "src/lib/hooks/tickets.ts",
+        "src/lib/hooks/ralph.ts"
+      ],
+      "description": "## Context\n\nGlobal query defaults set `staleTime: 5000` and `refetchOnWindowFocus: true` in `src/routes/__root.tsx#L19`. However, several high-traffic hooks override `staleTime` back to `0`:\n\n- Tickets: `src/lib/hooks/tickets.ts#L326`\n- Tags: `src/lib/hooks/tickets.ts#L449`\n- Tag metadata: `src/lib/hooks/tickets.ts#L471`\n\nActive Ralph sessions also poll every 5 seconds at `src/lib/hooks/ralph.ts#L99`.\n\nThis means focusing the window triggers broad refresh storms, and the query cache cannot hide latency effectively.\n\n## What to do\n\n1. Remove `staleTime: 0` overrides from ticket and tag hooks. Use data-appropriate freshness windows (e.g., 30s for tickets, 60s for tags).\n2. Change global `refetchOnWindowFocus` to `false`. Add it back as opt-in only on queries that truly need live freshness.\n3. Keep polling only for actively viewed \"live\" surfaces (e.g., active Ralph session view).\n4. Match `gcTime` to any long `staleTime` values per project memory guidelines.\n\n## Key files\n\n- `src/routes/__root.tsx`\n- `src/lib/hooks/tickets.ts`\n- `src/lib/hooks/ralph.ts`\n\n## Acceptance criteria\n\n- No hook uses `staleTime: 0` without explicit justification\n- `refetchOnWindowFocus` is off globally and opt-in per query\n- Window focus no longer triggers broad refetch storms\n- Data still refreshes appropriately after mutations via invalidation",
+      "priority": "high",
+      "tags": [
+        "performance",
+        "sprint-1",
+        "quick-win",
+        "tanstack-query"
+      ]
+    },
+    {
+      "id": "a7deb9d8-8192-42c4-8a5e-b817d0c0c47c",
+      "title": "Add validateSearch to routes that read URL search state",
+      "passes": true,
+      "overview": "Route search state is manually typed with `Record<string, string>` instead of validated route search schemas at `src/routes/list.tsx#L39`. Route params and status values are frequently narrowed with casts like `ticket.status as TicketStatus` instead of validated unions.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Routes with URL search state have `validateSearch` schemas",
+        "`Record<string, string>` casts are replaced with schema-derived types",
+        "URL state is validated at the router boundary",
+        "No regressions in URL-driven filtering or navigation"
+      ],
+      "references": [
+        "src/routes/list.tsx#L39",
+        "src/routes/list.tsx",
+        "src/routes/board.tsx"
+      ],
+      "description": "## Context\n\nRoute search state is manually typed with `Record<string, string>` instead of validated route search schemas at `src/routes/list.tsx#L39`. Route params and status values are frequently narrowed with casts like `ticket.status as TicketStatus` instead of validated unions.\n\n## What to do\n\nAdd `validateSearch` schemas to routes that read URL search state. This gives type safety at the router boundary and removes the need for manual casts downstream.\n\n## Key files\n\n- `src/routes/list.tsx`\n- `src/routes/board.tsx` (if applicable)\n- Other routes that use `Route.useSearch()`\n\n## Acceptance criteria\n\n- Routes with URL search state have `validateSearch` schemas\n- `Record<string, string>` casts are replaced with schema-derived types\n- URL state is validated at the router boundary\n- No regressions in URL-driven filtering or navigation",
+      "priority": "medium",
+      "tags": [
+        "performance",
+        "sprint-1",
+        "quick-win",
+        "tanstack-router",
+        "type-safety"
+      ]
+    },
+    {
+      "id": "2024cec0-dd7e-4dc7-a3fd-64f3492e14a5",
+      "title": "Consolidate duplicated search behavior into one shared path",
+      "passes": true,
+      "overview": "Search behavior exists in both `src/components/navigation/SearchBar.tsx#L55` and `src/components/AppLayout.tsx#L705`. This duplication means two implementations of the same concern, increasing maintenance burden and creating subtle inconsistencies.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Search behavior has a single implementation",
+        "Search works correctly from all entry points (header, keyboard shortcut)",
+        "No duplicate state management for search",
+        "`AppLayout` no longer owns search routing logic"
+      ],
+      "references": [
+        "src/components/navigation/SearchBar.tsx#L55",
+        "src/components/AppLayout.tsx#L705",
+        "src/components/navigation/SearchBar.tsx",
+        "src/components/AppLayout.tsx"
+      ],
+      "description": "## Context\n\nSearch behavior exists in both `src/components/navigation/SearchBar.tsx#L55` and `src/components/AppLayout.tsx#L705`. This duplication means two implementations of the same concern, increasing maintenance burden and creating subtle inconsistencies.\n\n## What to do\n\nStandardize on a single search implementation. Move search logic into a dedicated hook or the `SearchBar` component, and remove the duplicate from `AppLayout`.\n\n## Key files\n\n- `src/components/navigation/SearchBar.tsx`\n- `src/components/AppLayout.tsx`\n\n## Acceptance criteria\n\n- Search behavior has a single implementation\n- Search works correctly from all entry points (header, keyboard shortcut)\n- No duplicate state management for search\n- `AppLayout` no longer owns search routing logic",
+      "priority": "medium",
+      "tags": [
+        "performance",
+        "sprint-1",
+        "quick-win",
+        "state-management"
+      ]
+    },
+    {
+      "id": "7000347d-563d-4177-82a2-c8421aee4461",
+      "title": "Re-enable route preload strategy for high-traffic routes",
+      "passes": true,
+      "overview": "Router preload is effectively disabled with `defaultPreloadStaleTime: 0` at `src/router.tsx#L13`. This means routes are not prefetched on hover/intent, making every navigation feel like a cold load.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`defaultPreloadStaleTime` is set to a non-zero value",
+        "Hovering over navigation links triggers route prefetch",
+        "Board, list, and dashboard routes benefit from preloading",
+        "No regressions in route navigation behavior"
+      ],
+      "references": [
+        "src/router.tsx#L13",
+        "src/router.tsx"
+      ],
+      "description": "## Context\n\nRouter preload is effectively disabled with `defaultPreloadStaleTime: 0` at `src/router.tsx#L13`. This means routes are not prefetched on hover/intent, making every navigation feel like a cold load.\n\n## What to do\n\nChange `defaultPreloadStaleTime` to a reasonable value (e.g., 30 seconds) so that route data can be prefetched before the user navigates. Focus on high-traffic routes: board, list, ticket detail, dashboard.\n\n## Key files\n\n- `src/router.tsx`\n\n## Acceptance criteria\n\n- `defaultPreloadStaleTime` is set to a non-zero value\n- Hovering over navigation links triggers route prefetch\n- Board, list, and dashboard routes benefit from preloading\n- No regressions in route navigation behavior",
+      "priority": "high",
+      "tags": [
+        "performance",
+        "sprint-1",
+        "quick-win",
+        "tanstack-router"
+      ]
+    },
+    {
+      "id": "b052e015-d099-400d-9968-c6a582ce61e6",
+      "title": "Memoize or split AppLayout provider value to reduce rerender fan-out",
+      "passes": true,
+      "overview": "`AppLayout` at `src/components/AppLayout.tsx#L160` reads 10+ hooks (projects, projectsWithAI, active sessions, settings, filters, sample data, modals, search, tags, docker, Ralph containers). The context value is rebuilt as a fresh object on every render at line 402 without `useMemo`. `AppContext.Provider` wraps the entire shell at line 587. This means any small state change in the shell causes all context consumers to rerender.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Context provider value is either memoized or split into narrower providers",
+        "Small UI state changes (e.g., toggling mobile menu) do not rerender unrelated consumers",
+        "No regressions in AppLayout functionality",
+        "`BoardHeader` no longer needs to re-subscribe to URL filter state (it already gets it from props)"
+      ],
+      "references": [
+        "src/components/AppLayout.tsx#L160",
+        "src/components/AppLayout.tsx"
+      ],
+      "description": "## Context\n\n`AppLayout` at `src/components/AppLayout.tsx#L160` reads 10+ hooks (projects, projectsWithAI, active sessions, settings, filters, sample data, modals, search, tags, docker, Ralph containers). The context value is rebuilt as a fresh object on every render at line 402 without `useMemo`. `AppContext.Provider` wraps the entire shell at line 587. This means any small state change in the shell causes all context consumers to rerender.\n\n## What to do\n\nEither:\n1. **Memoize** the provider value with `useMemo` (quick fix), or\n2. **Split** the monolithic `AppContext` into smaller, focused contexts (filters, modals, search, shell UI) so consumers only subscribe to state they use.\n\nOption 2 is more work but eliminates the coupling problem at the root.\n\nAlso consider:\n- Moving route-specific fetching out of `AppLayout`\n- Having leaf components read their own queries instead of receiving everything through context\n\n## Key files\n\n- `src/components/AppLayout.tsx`\n\n## Acceptance criteria\n\n- Context provider value is either memoized or split into narrower providers\n- Small UI state changes (e.g., toggling mobile menu) do not rerender unrelated consumers\n- No regressions in AppLayout functionality\n- `BoardHeader` no longer needs to re-subscribe to URL filter state (it already gets it from props)",
+      "priority": "high",
+      "tags": [
+        "performance",
+        "sprint-1",
+        "quick-win",
+        "state-management"
+      ]
+    },
+    {
+      "id": "533d91aa-1d14-4d89-ade6-14aa4f16f618",
+      "title": "Add queryClient to router context",
+      "passes": true,
+      "overview": "Route loaders need access to `queryClient` to call `ensureQueryData`. Currently the router context at `src/router.tsx` is empty (`context: {}`), and `queryClient` is created inside the root component's `useState` at `src/routes/__root.tsx#L71`.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`queryClient` is available in router context",
+        "Existing routes and queries continue to work",
+        "Route loaders can access `queryClient` via `context.queryClient`"
+      ],
+      "references": [
+        "src/router.tsx",
+        "src/routes/__root.tsx#L71",
+        "src/routes/__root.tsx"
+      ],
+      "description": "## Context\n\nRoute loaders need access to `queryClient` to call `ensureQueryData`. Currently the router context at `src/router.tsx` is empty (`context: {}`), and `queryClient` is created inside the root component's `useState` at `src/routes/__root.tsx#L71`.\n\n## What to do\n\n1. Wire `queryClient` into the router context so route loaders can access it.\n2. This is a prerequisite for adding `ensureQueryData`-based route loaders and `preload=\"intent\"` on links.\n\n## Key files\n\n- `src/router.tsx`\n- `src/routes/__root.tsx`\n\n## Acceptance criteria\n\n- `queryClient` is available in router context\n- Existing routes and queries continue to work\n- Route loaders can access `queryClient` via `context.queryClient`",
+      "priority": "high",
+      "tags": [
+        "performance",
+        "sprint-2",
+        "tanstack-router",
+        "tanstack-query"
+      ]
+    },
+    {
+      "id": "e1f1792a-9855-49c4-99e1-13de7445d040",
+      "title": "Add route loaders with ensureQueryData for key routes",
+      "passes": true,
+      "overview": "Currently all data fetching happens post-mount via `useQuery` hooks in components. This means every route transition starts with a loading state while data is fetched. Route loaders with `ensureQueryData` can pre-warm the query cache during navigation so data is ready before the component renders.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Key routes use loaders with `ensureQueryData`",
+        "Route transitions show data immediately when cache is warm",
+        "Loader queries use the same query keys as component queries (no duplication)",
+        "No regressions in data freshness or error handling"
+      ],
+      "references": [
+        "src/routes/board.tsx",
+        "src/routes/list.tsx",
+        "src/routes/projects.$projectId.tsx",
+        "src/routes/dashboard.tsx"
+      ],
+      "description": "## Context\n\nCurrently all data fetching happens post-mount via `useQuery` hooks in components. This means every route transition starts with a loading state while data is fetched. Route loaders with `ensureQueryData` can pre-warm the query cache during navigation so data is ready before the component renders.\n\n## What to do\n\nAdd route loaders using `ensureQueryData` for high-traffic routes:\n- Board ticket lists\n- Ticket detail\n- Epic detail\n- Project detail\n- Dashboard\n\nRequires the \"Add queryClient to router context\" ticket to be completed first.\n\n## Key files\n\n- `src/routes/board.tsx`\n- `src/routes/list.tsx`\n- `src/routes/projects.$projectId.tsx`\n- `src/routes/dashboard.tsx` (or equivalent)\n\n## Acceptance criteria\n\n- Key routes use loaders with `ensureQueryData`\n- Route transitions show data immediately when cache is warm\n- Loader queries use the same query keys as component queries (no duplication)\n- No regressions in data freshness or error handling",
+      "priority": "high",
+      "tags": [
+        "performance",
+        "sprint-2",
+        "tanstack-router",
+        "tanstack-query"
+      ]
+    },
+    {
+      "id": "3455acf6-328a-4ada-a3f2-eabc67e66209",
+      "title": "Add preload=\"intent\" on high-frequency navigation links",
+      "passes": true,
+      "overview": "After route loaders are in place, adding `preload=\"intent\"` to `<Link>` components triggers data prefetch on hover/focus. This makes route transitions feel instant because data arrives before the click.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "High-frequency links use `preload=\"intent\"`",
+        "Hovering over a nav link starts prefetching route data",
+        "Route transitions feel noticeably faster for common paths",
+        "No unnecessary prefetching for rarely-used links"
+      ],
+      "references": [
+        "src/components/navigation/",
+        "src/components/board/"
+      ],
+      "description": "## Context\n\nAfter route loaders are in place, adding `preload=\"intent\"` to `<Link>` components triggers data prefetch on hover/focus. This makes route transitions feel instant because data arrives before the click.\n\n## What to do\n\nAdd `preload=\"intent\"` to navigation links for the most common user flows:\n- Sidebar navigation (board, list, dashboard)\n- Ticket cards linking to ticket detail\n- Project/epic navigation links\n\nRequires route loaders to be in place first.\n\n## Key files\n\n- Navigation components with `<Link>` elements\n- `src/components/navigation/`\n- `src/components/board/` (ticket card links)\n\n## Acceptance criteria\n\n- High-frequency links use `preload=\"intent\"`\n- Hovering over a nav link starts prefetching route data\n- Route transitions feel noticeably faster for common paths\n- No unnecessary prefetching for rarely-used links",
+      "priority": "medium",
+      "tags": [
+        "performance",
+        "sprint-2",
+        "tanstack-router"
+      ]
+    },
+    {
+      "id": "eb75544f-8f4b-4f49-9290-70e1dbbbb51b",
+      "title": "Add pending components and skeletons for route transitions",
+      "passes": true,
+      "overview": "With route loaders in place, TanStack Router can show pending UI during transitions. Currently there are no pending components, so transitions either show nothing or flash loading states.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Key routes have `pendingComponent` defined",
+        "Skeletons match the general layout of the target route",
+        "Pending UI shows during slow route transitions",
+        "Fast transitions (cache hit) skip the pending state entirely",
+        "Skeletons are lightweight (no data fetching, minimal DOM)"
+      ],
+      "references": [
+        "src/routes/board.tsx",
+        "src/routes/list.tsx",
+        "src/routes/dashboard.tsx",
+        "src/routes/projects.$projectId.tsx"
+      ],
+      "description": "## Context\n\nWith route loaders in place, TanStack Router can show pending UI during transitions. Currently there are no pending components, so transitions either show nothing or flash loading states.\n\n## What to do\n\nAdd `pendingComponent` to route definitions for key routes. These should be lightweight skeleton screens that match the layout of the target route, giving users immediate visual feedback during navigation.\n\n## Key files\n\n- `src/routes/board.tsx`\n- `src/routes/list.tsx`\n- `src/routes/dashboard.tsx`\n- `src/routes/projects.$projectId.tsx`\n\n## Acceptance criteria\n\n- Key routes have `pendingComponent` defined\n- Skeletons match the general layout of the target route\n- Pending UI shows during slow route transitions\n- Fast transitions (cache hit) skip the pending state entirely\n- Skeletons are lightweight (no data fetching, minimal DOM)",
+      "priority": "medium",
+      "tags": [
+        "performance",
+        "sprint-2",
+        "tanstack-router",
+        "ux"
+      ]
+    },
+    {
+      "id": "773a7353-f605-4d14-938d-c86aa40d6a42",
+      "title": "Replace project and epic count derivations with summary endpoints",
+      "passes": false,
+      "overview": "`useProjectsWithAIActivity` loads all tickets just to derive per-project counts at `src/lib/hooks/projects.ts#L133`. The project detail page loads all project tickets just to count tickets per epic at `src/routes/projects.$projectId.tsx#L21`. This means full ticket objects (including description, tags JSON, subtasks JSON) are transferred and parsed just to compute `.length`.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Project panel shows correct ticket counts without loading full ticket objects",
+        "Epic detail shows correct per-epic ticket counts without loading full tickets",
+        "New endpoints use SQL aggregation, not client-side counting",
+        "Existing full-ticket queries are not broken"
+      ],
+      "references": [
+        "src/lib/hooks/projects.ts#L133",
+        "src/routes/projects.$projectId.tsx#L21",
+        "src/api/tickets.ts",
+        "src/lib/hooks/projects.ts",
+        "src/routes/projects.$projectId.tsx"
+      ],
+      "description": "## Context\n\n`useProjectsWithAIActivity` loads all tickets just to derive per-project counts at `src/lib/hooks/projects.ts#L133`. The project detail page loads all project tickets just to count tickets per epic at `src/routes/projects.$projectId.tsx#L21`. This means full ticket objects (including description, tags JSON, subtasks JSON) are transferred and parsed just to compute `.length`.\n\n## What to do\n\n1. Add a server function that returns project-level ticket counts (e.g., `getProjectTicketCounts`).\n2. Add a server function that returns epic-level ticket counts (e.g., `getEpicTicketCounts`).\n3. Replace the full-ticket-load patterns in hooks with these lightweight endpoints.\n4. Use SQL `COUNT(*)` / `GROUP BY` for efficiency.\n\n## Key files\n\n- `src/api/tickets.ts` (new summary endpoints)\n- `src/lib/hooks/projects.ts` (useProjectsWithAIActivity)\n- `src/routes/projects.$projectId.tsx`\n\n## Acceptance criteria\n\n- Project panel shows correct ticket counts without loading full ticket objects\n- Epic detail shows correct per-epic ticket counts without loading full tickets\n- New endpoints use SQL aggregation, not client-side counting\n- Existing full-ticket queries are not broken",
+      "priority": "high",
+      "tags": [
+        "performance",
+        "sprint-3",
+        "server",
+        "data-layer"
+      ]
+    },
+    {
+      "id": "ceda338d-ac29-4da4-8089-1cfc51463ec4",
+      "title": "Collapse N+1 project/epic loading into a single server response",
+      "passes": false,
+      "overview": "`useProjects` at `src/lib/hooks/projects.ts#L92` fetches all projects, then calls `getEpicsByProject` once per project in a `Promise.all` loop. This is a classic N+1 pattern — 1 project list query + N epic queries.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Projects with epics are loaded in a single server call",
+        "N+1 query pattern is eliminated",
+        "No regressions in project/epic display",
+        "Query key is compatible with existing invalidation patterns"
+      ],
+      "references": [
+        "src/lib/hooks/projects.ts#L92",
+        "src/api/projects.ts",
+        "src/api/epics.ts",
+        "src/lib/hooks/projects.ts"
+      ],
+      "description": "## Context\n\n`useProjects` at `src/lib/hooks/projects.ts#L92` fetches all projects, then calls `getEpicsByProject` once per project in a `Promise.all` loop. This is a classic N+1 pattern — 1 project list query + N epic queries.\n\n## What to do\n\nCreate a single server function (e.g., `getProjectsWithEpics`) that returns projects with their epics in one database query using a JOIN or subquery. Replace the N+1 pattern in `useProjects`.\n\n## Key files\n\n- `src/api/projects.ts` or `src/api/epics.ts` (new batch endpoint)\n- `src/lib/hooks/projects.ts` (useProjects)\n\n## Acceptance criteria\n\n- Projects with epics are loaded in a single server call\n- N+1 query pattern is eliminated\n- No regressions in project/epic display\n- Query key is compatible with existing invalidation patterns",
+      "priority": "high",
+      "tags": [
+        "performance",
+        "sprint-3",
+        "server",
+        "data-layer"
+      ]
+    },
+    {
+      "id": "5415ad11-37c2-49be-8392-674eca000b12",
+      "title": "Batch or consolidate epic-detail and analytics query waterfalls",
+      "passes": false,
+      "overview": "Epic detail and analytics views trigger multiple sequential queries that could be batched or consolidated. This creates request waterfalls where later queries wait for earlier ones to complete.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Epic detail loads data with fewer sequential round-trips",
+        "Analytics queries that can run in parallel do so",
+        "No regressions in data correctness",
+        "Measurable reduction in time-to-interactive for these views"
+      ],
+      "references": [
+        "src/lib/hooks/projects.ts",
+        "src/components/dashboard/AnalyticsSection.tsx"
+      ],
+      "description": "## Context\n\nEpic detail and analytics views trigger multiple sequential queries that could be batched or consolidated. This creates request waterfalls where later queries wait for earlier ones to complete.\n\n## What to do\n\n1. Identify the query waterfalls in epic detail and analytics views.\n2. Consolidate sequential queries into batch server functions where possible.\n3. Use `Promise.all` for independent parallel queries rather than sequential awaits.\n\n## Key files\n\n- `src/lib/hooks/projects.ts` (epic detail hooks)\n- `src/components/dashboard/AnalyticsSection.tsx`\n- Related API files\n\n## Acceptance criteria\n\n- Epic detail loads data with fewer sequential round-trips\n- Analytics queries that can run in parallel do so\n- No regressions in data correctness\n- Measurable reduction in time-to-interactive for these views",
+      "priority": "medium",
+      "tags": [
+        "performance",
+        "sprint-3",
+        "server",
+        "data-layer"
+      ]
+    },
+    {
+      "id": "78dbb548-74cc-481f-ac6d-2d12751de9e0",
+      "title": "Add ticket-summary endpoints for board/list/project views",
+      "passes": false,
+      "overview": "Ticket list endpoints at `src/api/tickets.ts#L86` return full ticket objects including JSON-backed text fields (description, tags, subtasks). Board, list, and project views only need a subset of fields for display.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Summary endpoints return only needed fields",
+        "Board and list views use lighter queries for display",
+        "Full ticket data is only loaded when ticket detail is opened",
+        "Response payload sizes are measurably smaller"
+      ],
+      "references": [
+        "src/api/tickets.ts#L86",
+        "src/api/tickets.ts",
+        "src/lib/hooks/tickets.ts"
+      ],
+      "description": "## Context\n\nTicket list endpoints at `src/api/tickets.ts#L86` return full ticket objects including JSON-backed text fields (description, tags, subtasks). Board, list, and project views only need a subset of fields for display.\n\n## What to do\n\nAdd field-selected ticket summary endpoints that return only the fields needed for each view:\n- Board view: id, title, status, priority, position, epicId, tags, isBlocked\n- List view: id, title, status, priority, tags, subtasks (for counts), epicId\n- Project view: id, status, epicId (for counting)\n\nUse SQL `SELECT` with specific columns rather than `SELECT *`.\n\n## Key files\n\n- `src/api/tickets.ts` (new summary endpoints)\n- `src/lib/hooks/tickets.ts` (update hooks to use summary endpoints where appropriate)\n\n## Acceptance criteria\n\n- Summary endpoints return only needed fields\n- Board and list views use lighter queries for display\n- Full ticket data is only loaded when ticket detail is opened\n- Response payload sizes are measurably smaller",
+      "priority": "medium",
+      "tags": [
+        "performance",
+        "sprint-3",
+        "server",
+        "data-layer"
+      ]
+    },
+    {
+      "id": "59179deb-78db-4051-aca8-8a1f065529c4",
+      "title": "Add composite indexes for common filter/query paths",
+      "passes": false,
+      "overview": "As ticket and project counts grow, common query patterns (filter by project + status, filter by epic + status, etc.) will benefit from composite indexes. Currently only single-column indexes exist.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Composite indexes added for top filter patterns",
+        "Migration runs cleanly",
+        "Query performance improves for filtered views (verify with EXPLAIN if needed)",
+        "No regressions in write performance"
+      ],
+      "references": [
+        "src/api/tickets.ts",
+        "src/lib/schema.ts"
+      ],
+      "description": "## Context\n\nAs ticket and project counts grow, common query patterns (filter by project + status, filter by epic + status, etc.) will benefit from composite indexes. Currently only single-column indexes exist.\n\n## What to do\n\n1. Identify the most common filter combinations from the query patterns in `src/api/tickets.ts`.\n2. Add composite indexes to the Drizzle schema for those patterns.\n3. Generate and run migration.\n\nCommon candidates:\n- `tickets(projectId, status)`\n- `tickets(epicId, status)`\n- `tickets(projectId, priority)`\n- `ticket_comments(ticketId, createdAt)`\n\n## Key files\n\n- `src/lib/schema.ts`\n- Migration files via `pnpm db:generate`\n\n## Acceptance criteria\n\n- Composite indexes added for top filter patterns\n- Migration runs cleanly\n- Query performance improves for filtered views (verify with EXPLAIN if needed)\n- No regressions in write performance",
+      "priority": "medium",
+      "tags": [
+        "performance",
+        "sprint-3",
+        "server",
+        "database"
+      ]
+    },
+    {
+      "id": "1d358c09-dda3-4029-bb78-4af387484649",
+      "title": "Split TicketModal into lazy sections or tabs",
+      "passes": false,
+      "overview": "`TicketModal` at `src/components/TicketModal.tsx#L183` is 2,277 lines and owns form state, polling, comments, attachments, launch actions, services, Ralph status, and delete flow. It subscribes to comments polling, services polling, active Ralph session polling, and tag fetching at line 276. Editing a single field can rerun work unrelated to that field.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "TicketModal is broken into independently loadable sections",
+        "Editing a field does not rerender unrelated sections",
+        "Each section owns its own polling/data subscriptions",
+        "Modal still functions correctly as a whole",
+        "Initial modal open is faster (less code parsed up front)"
+      ],
+      "references": [
+        "src/components/TicketModal.tsx#L183",
+        "src/components/TicketModal.tsx",
+        "src/components/tickets/"
+      ],
+      "description": "## Context\n\n`TicketModal` at `src/components/TicketModal.tsx#L183` is 2,277 lines and owns form state, polling, comments, attachments, launch actions, services, Ralph status, and delete flow. It subscribes to comments polling, services polling, active Ralph session polling, and tag fetching at line 276. Editing a single field can rerun work unrelated to that field.\n\n## What to do\n\nSplit the modal into lazy-loaded sections:\n- Core metadata (title, status, priority, epic, tags)\n- Activity/comments section\n- Telemetry section\n- Demo/review panels\n- Attachments/services section\n\nEach section should own its own data subscriptions and state. Only the core metadata section needs to render immediately; others can lazy load on demand or when their tab is selected.\n\n## Key files\n\n- `src/components/TicketModal.tsx`\n- New section components in `src/components/tickets/`\n\n## Acceptance criteria\n\n- TicketModal is broken into independently loadable sections\n- Editing a field does not rerender unrelated sections\n- Each section owns its own polling/data subscriptions\n- Modal still functions correctly as a whole\n- Initial modal open is faster (less code parsed up front)",
+      "priority": "high",
+      "tags": [
+        "performance",
+        "sprint-4",
+        "react",
+        "refactor"
+      ]
+    },
+    {
+      "id": "770fd418-6d94-406f-b432-6bdc3685e866",
+      "title": "Lazy load dashboard chart components",
+      "passes": false,
+      "overview": "`AnalyticsSection` at `src/components/dashboard/AnalyticsSection.tsx#L59` eagerly renders all 8 chart cards. 7 of 8 import `recharts`, which is a heavy library. All charts load synchronously even if the user hasn't scrolled to them or doesn't need them on initial view.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Dashboard charts are lazy loaded",
+        "Initial dashboard render does not load all recharts code",
+        "Charts show skeleton/placeholder while loading",
+        "Dashboard chunk size decreases measurably",
+        "No regressions in chart rendering or interactivity"
+      ],
+      "references": [
+        "src/components/dashboard/AnalyticsSection.tsx#L59",
+        "src/components/dashboard/AnalyticsSection.tsx",
+        "src/components/dashboard/AIUsageChart.tsx",
+        "src/components/dashboard/VelocityChart.tsx",
+        "src/components/dashboard/CommitsPerDayCard.tsx",
+        "src/components/dashboard/CycleTimeCard.tsx"
+      ],
+      "description": "## Context\n\n`AnalyticsSection` at `src/components/dashboard/AnalyticsSection.tsx#L59` eagerly renders all 8 chart cards. 7 of 8 import `recharts`, which is a heavy library. All charts load synchronously even if the user hasn't scrolled to them or doesn't need them on initial view.\n\n## What to do\n\n1. Use `React.lazy` or dynamic `import()` for each chart component.\n2. Wrap each lazy chart in a `Suspense` boundary with a lightweight skeleton/placeholder.\n3. Consider intersection observer-based loading so charts only load when scrolled into view.\n\n## Key files\n\n- `src/components/dashboard/AnalyticsSection.tsx`\n- `src/components/dashboard/AIUsageChart.tsx`\n- `src/components/dashboard/VelocityChart.tsx`\n- `src/components/dashboard/CommitsPerDayCard.tsx`\n- `src/components/dashboard/CycleTimeCard.tsx`\n- Other dashboard chart files\n\n## Acceptance criteria\n\n- Dashboard charts are lazy loaded\n- Initial dashboard render does not load all recharts code\n- Charts show skeleton/placeholder while loading\n- Dashboard chunk size decreases measurably\n- No regressions in chart rendering or interactivity",
+      "priority": "high",
+      "tags": [
+        "performance",
+        "sprint-4",
+        "react",
+        "bundle-size"
+      ]
+    },
+    {
+      "id": "8c62f33c-851d-487b-be83-cbd042dfa8bf",
+      "title": "Normalize ticket row data before render",
+      "passes": false,
+      "overview": "`TicketListView` parses JSON for tags and subtasks inside the `.map()` render loop at `src/components/TicketListView.tsx#L150`. `safeJsonParse` is called per row per render, which scales with row count.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`safeJsonParse` is not called inside row rendering",
+        "Parsed ticket data is computed once per data change, not per render",
+        "No regressions in tag/subtask display",
+        "List rendering performance improves for large ticket counts"
+      ],
+      "references": [
+        "src/components/TicketListView.tsx#L150",
+        "src/components/TicketListView.tsx",
+        "src/lib/hooks/tickets.ts"
+      ],
+      "description": "## Context\n\n`TicketListView` parses JSON for tags and subtasks inside the `.map()` render loop at `src/components/TicketListView.tsx#L150`. `safeJsonParse` is called per row per render, which scales with row count.\n\n## What to do\n\nMove JSON parsing out of the render path. Options:\n1. Parse in a TanStack Query `select` function so the data is already normalized when the component reads it.\n2. Parse in a `useMemo` that depends on the raw ticket array.\n3. Normalize on the server side so fields arrive as arrays, not JSON strings.\n\n## Key files\n\n- `src/components/TicketListView.tsx`\n- `src/lib/hooks/tickets.ts` (for `select`-based approach)\n\n## Acceptance criteria\n\n- `safeJsonParse` is not called inside row rendering\n- Parsed ticket data is computed once per data change, not per render\n- No regressions in tag/subtask display\n- List rendering performance improves for large ticket counts",
+      "priority": "medium",
+      "tags": [
+        "performance",
+        "sprint-4",
+        "react"
+      ]
+    },
+    {
+      "id": "f19a4490-8cf8-4593-b46f-62ecbbb3f886",
+      "title": "Memoize markdown and comment render work",
+      "passes": false,
+      "overview": "`Comment` component reparses markdown via `renderMarkdown(displayContent)` and recomputes relative timestamps via `formatTimestamp(dateStr)` during every render at `src/components/tickets/Comment.tsx#L48` and `#L143`. Both costs scale with comment count and content length.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Markdown is not re-rendered on every parent rerender",
+        "Timestamps are cached and only update periodically",
+        "Comment list rendering is faster for long comment threads",
+        "No regressions in comment display or formatting"
+      ],
+      "references": [
+        "src/components/tickets/Comment.tsx#L48",
+        "src/components/tickets/Comment.tsx",
+        " and :143"
+      ],
+      "description": "## Context\n\n`Comment` component reparses markdown via `renderMarkdown(displayContent)` and recomputes relative timestamps via `formatTimestamp(dateStr)` during every render at `src/components/tickets/Comment.tsx#L48` and `#L143`. Both costs scale with comment count and content length.\n\n## What to do\n\n1. Memoize rendered markdown by `comment.id + updatedAt` so it only re-renders when the comment changes.\n2. Memoize or cache relative timestamps — they only need to update every ~30-60 seconds, not every render.\n3. Consider `React.memo` on the `Comment` component itself.\n\n## Key files\n\n- `src/components/tickets/Comment.tsx`\n\n## Acceptance criteria\n\n- Markdown is not re-rendered on every parent rerender\n- Timestamps are cached and only update periodically\n- Comment list rendering is faster for long comment threads\n- No regressions in comment display or formatting",
+      "priority": "medium",
+      "tags": [
+        "performance",
+        "sprint-4",
+        "react"
+      ]
+    },
+    {
+      "id": "a4ce0f61-b0ee-4f3d-8f6d-9b6896cf5f6a",
+      "title": "Replace ProjectsPanel hover state with CSS-only hover behavior",
+      "passes": false,
+      "overview": "`ProjectsPanel` uses React state (`useState`) to track hover state for visual effects. This causes unnecessary rerenders on every mouse enter/leave event, which can create state churn in the component tree.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Hover effects work via CSS only",
+        "No `useState` for hover tracking",
+        "Visual behavior is unchanged",
+        "No unnecessary rerenders on mouse movement"
+      ],
+      "references": [
+        "src/components/ProjectsPanel.tsx"
+      ],
+      "description": "## Context\n\n`ProjectsPanel` uses React state (`useState`) to track hover state for visual effects. This causes unnecessary rerenders on every mouse enter/leave event, which can create state churn in the component tree.\n\n## What to do\n\nReplace JavaScript hover state tracking with CSS `:hover` pseudo-class styling. This eliminates rerenders entirely for hover effects.\n\n## Key files\n\n- `src/components/ProjectsPanel.tsx` (or equivalent)\n\n## Acceptance criteria\n\n- Hover effects work via CSS only\n- No `useState` for hover tracking\n- Visual behavior is unchanged\n- No unnecessary rerenders on mouse movement",
+      "priority": "low",
+      "tags": [
+        "performance",
+        "sprint-4",
+        "quick-win",
+        "css"
+      ]
+    },
+    {
+      "id": "d3fef4b3-066e-47c6-bfdb-126de71273c5",
+      "title": "Memoize SortableTicketCard and stabilize hot-loop callbacks",
+      "passes": true,
+      "overview": "Board columns render many `SortableTicketCard` components in a loop. If the card component or its callbacks are not stable, every board rerender (e.g., from drag-and-drop or status changes) recreates all card elements, causing unnecessary DOM work.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "`SortableTicketCard` is wrapped in `React.memo`",
+        "Callback props are stable across renders",
+        "Board drag-and-drop performance improves for boards with many cards",
+        "No regressions in card interaction or display"
+      ],
+      "references": [
+        "src/components/board/SortableTicketCard.tsx"
+      ],
+      "description": "## Context\n\nBoard columns render many `SortableTicketCard` components in a loop. If the card component or its callbacks are not stable, every board rerender (e.g., from drag-and-drop or status changes) recreates all card elements, causing unnecessary DOM work.\n\n## What to do\n\n1. Wrap `SortableTicketCard` in `React.memo`.\n2. Ensure all callback props passed to cards are stable (use `useCallback` with correct dependencies).\n3. Ensure style/className objects are stable (defined outside render or memoized).\n\n## Key files\n\n- `src/components/board/SortableTicketCard.tsx`\n- Board column components that render cards\n\n## Acceptance criteria\n\n- `SortableTicketCard` is wrapped in `React.memo`\n- Callback props are stable across renders\n- Board drag-and-drop performance improves for boards with many cards\n- No regressions in card interaction or display",
+      "priority": "medium",
+      "tags": [
+        "performance",
+        "sprint-4",
+        "react",
+        "dnd"
+      ]
+    },
+    {
+      "id": "32cd0289-a3fc-4586-a8f1-a06bf3715852",
+      "title": "Remove handwritten duplicate domain types — use schema-derived types",
+      "passes": false,
+      "overview": "`lib/schema.ts` exports inferred DB types like `Ticket` at `src/lib/schema.ts#L151`, but `useTickets` defines a separate handwritten `Ticket` interface at `src/lib/hooks/tickets.ts#L32`. Similar duplication exists for comments and other models. This creates hidden type drift between schema, API DTOs, and UI models.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "No duplicate type definitions for the same domain model",
+        "Schema-derived types are used consistently",
+        "Type changes in schema automatically propagate to hooks and components",
+        "No regressions — all existing functionality works with unified types"
+      ],
+      "references": [
+        "lib/schema.ts",
+        "src/lib/schema.ts#L151",
+        "src/lib/hooks/tickets.ts#L32",
+        "src/lib/schema.ts",
+        "src/lib/hooks/tickets.ts",
+        "src/lib/hooks/comments.ts",
+        "src/api/comments.ts"
+      ],
+      "description": "## Context\n\n`lib/schema.ts` exports inferred DB types like `Ticket` at `src/lib/schema.ts#L151`, but `useTickets` defines a separate handwritten `Ticket` interface at `src/lib/hooks/tickets.ts#L32`. Similar duplication exists for comments and other models. This creates hidden type drift between schema, API DTOs, and UI models.\n\n## What to do\n\n1. Pick one canonical domain layer — preferably the Drizzle-inferred types from `schema.ts`.\n2. Remove handwritten duplicate `Ticket`, `Comment`, and other interfaces from hooks.\n3. If the hook types need additional fields (computed/derived), extend the schema type rather than duplicating it.\n\n## Key files\n\n- `src/lib/schema.ts`\n- `src/lib/hooks/tickets.ts`\n- `src/lib/hooks/comments.ts`\n- `src/api/comments.ts`\n\n## Acceptance criteria\n\n- No duplicate type definitions for the same domain model\n- Schema-derived types are used consistently\n- Type changes in schema automatically propagate to hooks and components\n- No regressions — all existing functionality works with unified types",
+      "priority": "medium",
+      "tags": [
+        "performance",
+        "sprint-5",
+        "type-safety",
+        "refactor"
+      ]
+    },
+    {
+      "id": "3782d6de-088f-4905-9923-da3f50e070ca",
+      "title": "Remove hook-level `as` casts by typing server function outputs precisely",
+      "passes": false,
+      "overview": "Hook query functions cast server results back into expected shapes:\n- Comments: `src/lib/hooks/comments.ts#L28`\n- Claude tasks: `src/lib/hooks/claude-tasks.ts#L29`\n- Epic detail: `src/lib/hooks/projects.ts#L519`\n- Tickets: `src/lib/hooks/tickets.ts#L321`\nComment storage uses broad types at the schema/API boundary — `author: string` and `type: string` instead of union types at `src/lib/schema.ts#L75` and `src/api/comments.ts#L24`.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Server functions return correctly typed data",
+        "Hook query functions have no `as` casts for server results",
+        "Narrow union types for fields like `author` and `type`",
+        "TypeScript compilation passes without new `any` or cast workarounds"
+      ],
+      "references": [
+        "src/lib/hooks/comments.ts#L28",
+        "src/lib/hooks/claude-tasks.ts#L29",
+        "src/lib/hooks/projects.ts#L519",
+        "src/lib/hooks/tickets.ts#L321",
+        "src/lib/schema.ts#L75",
+        "src/api/comments.ts#L24",
+        "src/api/comments.ts",
+        "src/api/tickets.ts",
+        "src/lib/hooks/comments.ts",
+        "src/lib/hooks/claude-tasks.ts",
+        "src/lib/hooks/projects.ts",
+        "src/lib/hooks/tickets.ts",
+        "src/lib/schema.ts"
+      ],
+      "description": "## Context\n\nHook query functions cast server results back into expected shapes:\n- Comments: `src/lib/hooks/comments.ts#L28`\n- Claude tasks: `src/lib/hooks/claude-tasks.ts#L29`\n- Epic detail: `src/lib/hooks/projects.ts#L519`\n- Tickets: `src/lib/hooks/tickets.ts#L321`\n\nComment storage uses broad types at the schema/API boundary — `author: string` and `type: string` instead of union types at `src/lib/schema.ts#L75` and `src/api/comments.ts#L24`.\n\n## What to do\n\n1. Return strongly typed DTOs from server functions so hooks don't need to cast.\n2. Narrow `author` and `type` fields to union types at the schema or API edge.\n3. Remove `as` casts from hook query functions.\n\n## Key files\n\n- `src/api/comments.ts`\n- `src/api/tickets.ts`\n- `src/lib/hooks/comments.ts`\n- `src/lib/hooks/claude-tasks.ts`\n- `src/lib/hooks/projects.ts`\n- `src/lib/hooks/tickets.ts`\n- `src/lib/schema.ts`\n\n## Acceptance criteria\n\n- Server functions return correctly typed data\n- Hook query functions have no `as` casts for server results\n- Narrow union types for fields like `author` and `type`\n- TypeScript compilation passes without new `any` or cast workarounds",
+      "priority": "medium",
+      "tags": [
+        "performance",
+        "sprint-5",
+        "type-safety",
+        "refactor"
+      ]
+    },
+    {
+      "id": "80e12f44-9b14-47bc-80ab-46d2711b6418",
+      "title": "Standardize all query keys through the query key factory",
+      "passes": false,
+      "overview": "The project has a `queryKeys` object for centralized query key management, but some queries bypass it with ad-hoc key strings. This makes invalidation unreliable and harder to reason about.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "All queries use `queryKeys` factory",
+        "No hardcoded query key strings outside the factory",
+        "Invalidation calls use matching factory keys",
+        "No regressions in cache behavior"
+      ],
+      "references": [
+        "src/lib/hooks/",
+        "src/lib/hooks.ts"
+      ],
+      "description": "## Context\n\nThe project has a `queryKeys` object for centralized query key management, but some queries bypass it with ad-hoc key strings. This makes invalidation unreliable and harder to reason about.\n\n## What to do\n\n1. Audit all `useQuery` calls for query keys not using the `queryKeys` factory.\n2. Add missing keys to the factory.\n3. Replace all ad-hoc query key strings with factory calls.\n4. Ensure invalidation calls use factory keys consistently.\n\n## Key files\n\n- `src/lib/hooks/` (all hook files)\n- `src/lib/hooks.ts` or wherever `queryKeys` is defined\n\n## Acceptance criteria\n\n- All queries use `queryKeys` factory\n- No hardcoded query key strings outside the factory\n- Invalidation calls use matching factory keys\n- No regressions in cache behavior",
+      "priority": "medium",
+      "tags": [
+        "performance",
+        "sprint-5",
+        "tanstack-query"
+      ]
+    },
+    {
+      "id": "fa28cf0e-a7df-47f1-9c77-746a7b518952",
+      "title": "Narrow invalidation scope after mutations",
+      "passes": false,
+      "overview": "Mutations currently use broad invalidation patterns like `invalidateQueries({ queryKey: queryKeys.allTickets })` which refetches all ticket data even when only one ticket changed. This compounds with the aggressive freshness defaults to create unnecessary network and render work.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Mutations use narrow invalidation (specific keys, not broad parent keys)",
+        "Simple updates use `setQueryData` where possible",
+        "No stale data visible after mutations",
+        "Fewer network requests after common actions (status change, edit, comment)"
+      ],
+      "references": [
+        "src/lib/hooks/tickets.ts",
+        "src/lib/hooks/projects.ts"
+      ],
+      "description": "## Context\n\nMutations currently use broad invalidation patterns like `invalidateQueries({ queryKey: queryKeys.allTickets })` which refetches all ticket data even when only one ticket changed. This compounds with the aggressive freshness defaults to create unnecessary network and render work.\n\n## What to do\n\n1. After ticket mutations, invalidate only the specific ticket's query key, not all tickets.\n2. Use direct cache writes (`setQueryData`) for simple updates where the new value is known.\n3. Invalidate parent lists only when the change affects list-level display (e.g., status change on board).\n\n## Key files\n\n- `src/lib/hooks/tickets.ts` (mutation hooks)\n- `src/lib/hooks/projects.ts` (mutation hooks)\n- Other files with `invalidateQueries` calls\n\n## Acceptance criteria\n\n- Mutations use narrow invalidation (specific keys, not broad parent keys)\n- Simple updates use `setQueryData` where possible\n- No stale data visible after mutations\n- Fewer network requests after common actions (status change, edit, comment)",
+      "priority": "medium",
+      "tags": [
+        "performance",
+        "sprint-5",
+        "tanstack-query"
+      ]
+    },
+    {
+      "id": "9bd40a91-fb00-4a0d-a121-fe6fe1538471",
+      "title": "Add optimistic updates for status and position changes",
+      "passes": false,
+      "overview": "Status changes (moving tickets between columns) and position changes (drag-and-drop reordering) currently wait for server round-trips before updating the UI. This makes board interactions feel sluggish.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Status changes appear instant in the UI",
+        "Drag-and-drop reordering appears instant",
+        "Failed mutations roll back to previous state",
+        "Error toast shown on rollback",
+        "`onSettled` invalidation keys match `onMutate` keys"
+      ],
+      "references": [
+        "src/lib/hooks/tickets.ts"
+      ],
+      "description": "## Context\n\nStatus changes (moving tickets between columns) and position changes (drag-and-drop reordering) currently wait for server round-trips before updating the UI. This makes board interactions feel sluggish.\n\n## What to do\n\n1. Add optimistic updates to the status mutation — immediately move the ticket card to the new column.\n2. Add optimistic updates to the position mutation — immediately reorder cards during drag.\n3. Roll back on error with proper user feedback.\n4. Ensure `onSettled` invalidation keys match `onMutate` optimistic update keys (per project memory guidelines).\n\n## Key files\n\n- `src/lib/hooks/tickets.ts` (status and position mutations)\n- Board components that handle drag-and-drop\n\n## Acceptance criteria\n\n- Status changes appear instant in the UI\n- Drag-and-drop reordering appears instant\n- Failed mutations roll back to previous state\n- Error toast shown on rollback\n- `onSettled` invalidation keys match `onMutate` keys",
+      "priority": "medium",
+      "tags": [
+        "performance",
+        "sprint-5",
+        "tanstack-query",
+        "ux"
+      ]
+    },
+    {
+      "id": "f6db967c-1224-4747-aafe-bbb714685c85",
+      "title": "Move form validation to blur/submit where live validation is unnecessary",
+      "passes": false,
+      "overview": "`TicketModal` form validates on every change via `validators: { onChange: ticketFormSchema }` at `src/components/TicketModal.tsx#L205`. This runs the full Zod schema on every keystroke, which is unnecessary for most fields and can cause noticeable input lag on complex forms.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Form validation runs on blur, not every keystroke",
+        "Submit always validates the full form",
+        "Input feels responsive even on large forms",
+        "Validation errors still appear before submission (on blur)",
+        "No regressions in form validation behavior"
+      ],
+      "references": [
+        "src/components/TicketModal.tsx#L205",
+        "src/components/TicketModal.tsx"
+      ],
+      "description": "## Context\n\n`TicketModal` form validates on every change via `validators: { onChange: ticketFormSchema }` at `src/components/TicketModal.tsx#L205`. This runs the full Zod schema on every keystroke, which is unnecessary for most fields and can cause noticeable input lag on complex forms.\n\n## What to do\n\n1. Move validation from `onChange` to `onBlur` for most fields.\n2. Keep `onChange` validation only for fields that truly need live feedback (e.g., if showing inline validation messages while typing).\n3. Always validate on submit as a safety net.\n\n## Key files\n\n- `src/components/TicketModal.tsx`\n- Ticket form options/schema definitions\n\n## Acceptance criteria\n\n- Form validation runs on blur, not every keystroke\n- Submit always validates the full form\n- Input feels responsive even on large forms\n- Validation errors still appear before submission (on blur)\n- No regressions in form validation behavior",
+      "priority": "medium",
+      "tags": [
+        "performance",
+        "sprint-5",
+        "tanstack-form"
+      ]
+    },
+    {
+      "id": "51b5024c-b7e0-4fa5-87af-9d916a08c406",
+      "title": "Add virtualization to long ticket, tag, comment, and git-history lists",
+      "passes": false,
+      "overview": "Long lists (tickets, tags, comments, git history) currently render all items to the DOM. As datasets grow, this creates increasingly expensive render and layout work.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Long lists use virtualization (only DOM-visible items are rendered)",
+        "Scroll performance is smooth for 100+ item lists",
+        "No regressions in list item interaction (click, hover, keyboard nav)",
+        "Small lists (< 20 items) can skip virtualization if simpler"
+      ],
+      "references": [
+        "src/components/TicketListView.tsx",
+        "src/components/tickets/Comment.tsx"
+      ],
+      "description": "## Context\n\nLong lists (tickets, tags, comments, git history) currently render all items to the DOM. As datasets grow, this creates increasingly expensive render and layout work.\n\n## What to do\n\nAdd virtualization using TanStack Virtual for lists that can grow without bound:\n- Ticket list view\n- Tag list in tag sub-mode\n- Comment timeline in ticket detail\n- Git history view\n\nOnly virtualize lists that have grown large enough to benefit — don't over-optimize small lists.\n\n## Key files\n\n- `src/components/TicketListView.tsx`\n- `src/components/tickets/Comment.tsx` (comment list parent)\n- Tag list components\n- Git history components\n\n## Acceptance criteria\n\n- Long lists use virtualization (only DOM-visible items are rendered)\n- Scroll performance is smooth for 100+ item lists\n- No regressions in list item interaction (click, hover, keyboard nav)\n- Small lists (< 20 items) can skip virtualization if simpler",
+      "priority": "medium",
+      "tags": [
+        "performance",
+        "sprint-6",
+        "tanstack-virtual",
+        "scale"
+      ]
+    },
+    {
+      "id": "a31ffd1c-b48e-478e-b655-e2236fc31064",
+      "title": "Paginate result sets that can grow unbounded",
+      "passes": false,
+      "overview": "Ticket lists, comment histories, and activity logs currently load all records at once. As projects accumulate data, these unbounded queries will become increasingly slow.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Large collections are paginated server-side",
+        "Initial page loads are fast regardless of total data size",
+        "UI supports loading additional pages",
+        "No regressions for small datasets (pagination is transparent)"
+      ],
+      "references": [
+        "src/api/tickets.ts",
+        "src/api/comments.ts",
+        "src/lib/hooks/tickets.ts",
+        "src/lib/hooks/comments.ts"
+      ],
+      "description": "## Context\n\nTicket lists, comment histories, and activity logs currently load all records at once. As projects accumulate data, these unbounded queries will become increasingly slow.\n\n## What to do\n\n1. Add pagination support to server functions that return collections (tickets, comments, activity).\n2. Use cursor-based or offset-based pagination depending on the access pattern.\n3. Update hooks and UI to support paginated loading (load more, infinite scroll, or page controls).\n\n## Key files\n\n- `src/api/tickets.ts`\n- `src/api/comments.ts`\n- `src/lib/hooks/tickets.ts`\n- `src/lib/hooks/comments.ts`\n\n## Acceptance criteria\n\n- Large collections are paginated server-side\n- Initial page loads are fast regardless of total data size\n- UI supports loading additional pages\n- No regressions for small datasets (pagination is transparent)",
+      "priority": "medium",
+      "tags": [
+        "performance",
+        "sprint-6",
+        "server",
+        "scale"
+      ]
+    },
+    {
+      "id": "9c116295-e7c3-47e2-a992-f191f0a5a185",
+      "title": "Shift analytics aggregation into SQL or pre-aggregated shapes",
+      "passes": false,
+      "overview": "Analytics and dashboard views currently derive aggregated data (velocity, cycle time, commit counts, AI usage) by loading raw records and computing in JavaScript. As data grows, this becomes increasingly expensive.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Analytics queries use SQL aggregation, not client-side computation",
+        "Dashboard loads faster for projects with large histories",
+        "Aggregated data shapes match what charts need (no unnecessary client transforms)",
+        "No regressions in analytics accuracy"
+      ],
+      "references": [
+        "src/api/",
+        "src/components/dashboard/",
+        "src/lib/schema.ts"
+      ],
+      "description": "## Context\n\nAnalytics and dashboard views currently derive aggregated data (velocity, cycle time, commit counts, AI usage) by loading raw records and computing in JavaScript. As data grows, this becomes increasingly expensive.\n\n## What to do\n\n1. Move aggregation logic into SQL queries (GROUP BY, COUNT, AVG, date bucketing).\n2. Consider pre-aggregated summary tables for frequently accessed metrics.\n3. Return aggregated shapes from server functions so the client does minimal computation.\n\n## Key files\n\n- `src/api/` (analytics-related server functions)\n- `src/components/dashboard/` (chart data consumers)\n- `src/lib/schema.ts` (if adding summary tables)\n\n## Acceptance criteria\n\n- Analytics queries use SQL aggregation, not client-side computation\n- Dashboard loads faster for projects with large histories\n- Aggregated data shapes match what charts need (no unnecessary client transforms)\n- No regressions in analytics accuracy",
+      "priority": "low",
+      "tags": [
+        "performance",
+        "sprint-6",
+        "server",
+        "database",
+        "scale"
+      ]
+    },
+    {
+      "id": "ff33b0d2-16c1-4c76-ac34-87e131d66134",
+      "title": "Replace polling with event-driven invalidation where practical",
+      "passes": false,
+      "overview": "Several hooks use interval-based polling for freshness:\n- Active Ralph sessions poll every 5 seconds at `src/lib/hooks/ralph.ts#L99`\n- Comments and services poll during active ticket work at `src/components/TicketModal.tsx#L276`\nPolling creates constant background work even when nothing has changed.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "At least one polling-heavy surface is converted to event-driven updates",
+        "Background network requests decrease during idle periods",
+        "Data freshness is maintained (no missed updates)",
+        "Polling remains as a fallback where needed"
+      ],
+      "references": [
+        "src/lib/hooks/ralph.ts#L99",
+        "src/components/TicketModal.tsx#L276",
+        "src/lib/hooks/ralph.ts",
+        "src/components/TicketModal.tsx"
+      ],
+      "description": "## Context\n\nSeveral hooks use interval-based polling for freshness:\n- Active Ralph sessions poll every 5 seconds at `src/lib/hooks/ralph.ts#L99`\n- Comments and services poll during active ticket work at `src/components/TicketModal.tsx#L276`\n\nPolling creates constant background work even when nothing has changed.\n\n## What to do\n\n1. Evaluate where server-sent events (SSE), WebSocket, or MCP-driven invalidation could replace polling.\n2. For MCP-driven updates, invalidate specific query keys when the MCP server reports changes.\n3. Keep polling only as a fallback for environments where event-driven updates aren't available.\n\n## Key files\n\n- `src/lib/hooks/ralph.ts`\n- `src/components/TicketModal.tsx`\n- MCP server integration points\n\n## Acceptance criteria\n\n- At least one polling-heavy surface is converted to event-driven updates\n- Background network requests decrease during idle periods\n- Data freshness is maintained (no missed updates)\n- Polling remains as a fallback where needed",
+      "priority": "low",
+      "tags": [
+        "performance",
+        "sprint-6",
+        "architecture",
+        "scale"
+      ]
+    },
+    {
+      "id": "722d90f7-f66f-44e0-866c-f1cf0ad52598",
+      "title": "Capture React Profiler traces for key user flows",
+      "passes": false,
+      "overview": "The performance report is based on static analysis. Runtime profiling is needed to validate which optimizations delivered the biggest wins and to catch interaction bottlenecks that static analysis cannot prove.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Profiler traces captured for all three flows",
+        "Baseline measurements documented",
+        "Post-optimization measurements show improvement",
+        "Any unexpected bottlenecks identified and filed as new tickets"
       ],
       "references": [],
-      "description": "Two tasks:\n\n## 1. Auto-Trigger Learnings on Epic Completion\n\nWhen all tickets in an epic move to \"done\", automatically trigger the learnings reconciliation process. This eliminates the \"No learnings captured yet\" message that currently shows on completed epics.\n\n**Behavior:**\n- When a ticket status changes to \"done\", check if ALL tickets in its epic are now done\n- If yes, automatically run the learnings extraction/reconciliation for that epic\n- Add a manual \"Refresh Learnings\" button on the epic detail page for re-running when new tickets are added or learnings need updating\n- The manual button should be visible in the learnings section (not the header)\n\n## 2. Refactor Epic Detail Header Actions\n\nThe header action buttons (Ship Changes, Review Ticket, Findings, Edit, Launch) are getting crowded on a single row. Refactor into a cleaner layout:\n- Keep primary action (Ship Changes) prominent\n- Group secondary actions (Review, Findings, Edit) into a dropdown or overflow menu  \n- Keep Launch dropdown as-is\n\n## Acceptance Criteria\n- [ ] Learnings auto-trigger when last ticket in epic completes\n- [ ] Manual \"Refresh Learnings\" button exists in learnings section\n- [ ] Re-running learnings works correctly (updates, not duplicates)\n- [ ] Epic detail header actions are cleaner and less crowded\n- [ ] All existing button functionality preserved\n- [ ] Responsive at narrower widths",
+      "description": "## Context\n\nThe performance report is based on static analysis. Runtime profiling is needed to validate which optimizations delivered the biggest wins and to catch interaction bottlenecks that static analysis cannot prove.\n\n## What to do\n\nCapture React Profiler traces for:\n1. Board navigation (route transition, column render, card render)\n2. Ticket detail open/edit/close (modal mount, form interaction, polling)\n3. Dashboard initial load (chart render, data fetch timing)\n\nDocument baseline measurements before optimization and post-optimization measurements after each sprint.\n\n## Acceptance criteria\n\n- Profiler traces captured for all three flows\n- Baseline measurements documented\n- Post-optimization measurements show improvement\n- Any unexpected bottlenecks identified and filed as new tickets",
       "priority": "medium",
-      "tags": []
+      "tags": [
+        "performance",
+        "sprint-7",
+        "profiling",
+        "measurement"
+      ]
+    },
+    {
+      "id": "60d70d47-32c8-4c63-9092-d7aa15a4e5d1",
+      "title": "Record network waterfalls for app boot and route navigation",
+      "passes": false,
+      "overview": "The performance report identifies multiple query waterfalls and N+1 patterns, but there are no actual network waterfall captures to quantify the impact or verify fixes.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Waterfall captures documented for all four flows",
+        "Baseline measurements recorded",
+        "Sequential vs parallel request patterns identified",
+        "Post-optimization captures show improvement"
+      ],
+      "references": [],
+      "description": "## Context\n\nThe performance report identifies multiple query waterfalls and N+1 patterns, but there are no actual network waterfall captures to quantify the impact or verify fixes.\n\n## What to do\n\nRecord network waterfalls (browser DevTools Network tab or equivalent) for:\n1. App boot (cold start to interactive)\n2. Board route navigation\n3. Ticket route navigation (opening ticket detail)\n4. Dashboard route navigation\n\nDocument request count, total transfer size, and waterfall depth for each flow.\n\n## Acceptance criteria\n\n- Waterfall captures documented for all four flows\n- Baseline measurements recorded\n- Sequential vs parallel request patterns identified\n- Post-optimization captures show improvement",
+      "priority": "medium",
+      "tags": [
+        "performance",
+        "sprint-7",
+        "profiling",
+        "measurement"
+      ]
+    },
+    {
+      "id": "c15ed35c-1fd5-4e27-9955-235a5df896df",
+      "title": "Measure long-session behavior with polling-heavy screens open",
+      "passes": false,
+      "overview": "Active Ralph sessions poll every 5 seconds. TicketModal combines multiple live subscriptions. `useTickets` tracks previous tickets in a ref for status diffing. These are not obviously broken, but they should be verified under long-running sessions for timer buildup, subscription duplication, and retained data growth.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Memory usage is stable over 30+ minute sessions",
+        "No timer/interval leaks",
+        "Polling stops when components unmount",
+        "No unbounded ref or cache growth identified (or issues filed if found)"
+      ],
+      "references": [],
+      "description": "## Context\n\nActive Ralph sessions poll every 5 seconds. TicketModal combines multiple live subscriptions. `useTickets` tracks previous tickets in a ref for status diffing. These are not obviously broken, but they should be verified under long-running sessions for timer buildup, subscription duplication, and retained data growth.\n\n## What to do\n\n1. Run the app for 30-60 minutes with polling-heavy screens open (ticket detail during active Ralph session).\n2. Monitor memory usage over time (Chrome DevTools Memory tab).\n3. Check for timer/interval accumulation.\n4. Verify polling stops when screens are hidden or unmounted.\n5. Check `prevTicketsRef` for unbounded growth.\n\n## Acceptance criteria\n\n- Memory usage is stable over 30+ minute sessions\n- No timer/interval leaks\n- Polling stops when components unmount\n- No unbounded ref or cache growth identified (or issues filed if found)",
+      "priority": "medium",
+      "tags": [
+        "performance",
+        "sprint-7",
+        "profiling",
+        "memory"
+      ]
+    },
+    {
+      "id": "3fc5251e-2664-4b76-8a8d-3ce122a2df4d",
+      "title": "Measure SSR-to-hydration timing and check for hydration mismatches",
+      "passes": false,
+      "overview": "The app uses TanStack Start with SSR enabled (`routeTree.gen.ts#L195` declares `ssr: true`). SSR may be helping first paint, but the report does not yet measure how much. Hydration cost may be large because the app shell and initial JS payload are heavy. The splash screen may also mask SSR benefits.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "SSR-to-hydration timing measured and documented",
+        "Hydration mismatches identified (if any) and filed as issues",
+        "Clear picture of SSR's contribution to first paint",
+        "Recommendations for improving SSR/hydration performance if gaps found"
+      ],
+      "references": [],
+      "description": "## Context\n\nThe app uses TanStack Start with SSR enabled (`routeTree.gen.ts#L195` declares `ssr: true`). SSR may be helping first paint, but the report does not yet measure how much. Hydration cost may be large because the app shell and initial JS payload are heavy. The splash screen may also mask SSR benefits.\n\n## What to do\n\n1. Measure server-rendered first paint vs hydrated interactivity gap.\n2. Check browser console for hydration mismatch warnings.\n3. Identify any unnecessary client-only rework during hydration.\n4. Document the SSR contribution to perceived performance.\n\n## Acceptance criteria\n\n- SSR-to-hydration timing measured and documented\n- Hydration mismatches identified (if any) and filed as issues\n- Clear picture of SSR's contribution to first paint\n- Recommendations for improving SSR/hydration performance if gaps found",
+      "priority": "low",
+      "tags": [
+        "performance",
+        "sprint-7",
+        "profiling",
+        "ssr"
+      ]
+    },
+    {
+      "id": "7e5b6db9-6302-455d-8858-9c6b8aaf07e4",
+      "title": "Review splash screen's effect on perceived load timing",
+      "passes": false,
+      "overview": "The root shell always renders `SplashScreen` first at `src/routes/__root.tsx#L87`. It enforces a minimum display time of 800ms plus an 800ms fade duration (`src/components/SplashScreen.tsx#L18`), blocking the app for roughly 1.6s. This may dominate perceived performance on fast local loads and mask SSR benefits.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Load timing measured with and without splash",
+        "Decision documented on splash screen's role (branding vs loading)",
+        "If branding: minimum display time reduced or gated to cold boot only",
+        "If loading: replaced with progressive rendering approach",
+        "`prefers-reduced-motion` behavior preserved"
+      ],
+      "references": [
+        "src/routes/__root.tsx#L87",
+        "src/components/SplashScreen.tsx#L18"
+      ],
+      "description": "## Context\n\nThe root shell always renders `SplashScreen` first at `src/routes/__root.tsx#L87`. It enforces a minimum display time of 800ms plus an 800ms fade duration (`src/components/SplashScreen.tsx#L18`), blocking the app for roughly 1.6s. This may dominate perceived performance on fast local loads and mask SSR benefits.\n\n## What to do\n\n1. Measure actual load time with and without the splash screen.\n2. Determine if the splash is serving as branding or as a loading cover.\n3. If branding: consider reducing minimum display time or showing only on cold boot.\n4. If loading cover: replace with route-aware pending states.\n5. Note: the splash screen correctly respects `prefers-reduced-motion`.\n\n## Acceptance criteria\n\n- Load timing measured with and without splash\n- Decision documented on splash screen's role (branding vs loading)\n- If branding: minimum display time reduced or gated to cold boot only\n- If loading: replaced with progressive rendering approach\n- `prefers-reduced-motion` behavior preserved",
+      "priority": "low",
+      "tags": [
+        "performance",
+        "sprint-7",
+        "ux",
+        "measurement"
+      ]
+    },
+    {
+      "id": "a1412b81-a7ca-4397-ba8e-a9fb5f6fa8b8",
+      "title": "Review image, font, and static asset delivery and caching",
+      "passes": false,
+      "overview": "The performance report focused on JS bundle, query behavior, and component architecture. Static asset strategy (images, fonts, cache headers) was not deeply audited but should be reviewed for completeness.",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Image, font, and asset delivery audited",
+        "Issues identified and filed as separate tickets if needed",
+        "Cache headers verified for production builds",
+        "No oversized unoptimized assets in the build output"
+      ],
+      "references": [],
+      "description": "## Context\n\nThe performance report focused on JS bundle, query behavior, and component architecture. Static asset strategy (images, fonts, cache headers) was not deeply audited but should be reviewed for completeness.\n\n## What to do\n\n1. Audit image usage — are images optimized? Are there unnecessarily large assets?\n2. Check font loading strategy — is font-display set? Are fonts preloaded?\n3. Review static asset cache headers — are built assets cached with long TTLs and content hashes?\n4. Check for any unoptimized SVGs or large icon sets.\n\n## Acceptance criteria\n\n- Image, font, and asset delivery audited\n- Issues identified and filed as separate tickets if needed\n- Cache headers verified for production builds\n- No oversized unoptimized assets in the build output",
+      "priority": "low",
+      "tags": [
+        "performance",
+        "sprint-7",
+        "assets",
+        "measurement"
+      ]
     }
   ],
   "projectContext": {
@@ -173,7 +1207,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-03-15T18:05:51.201Z",
-  "epicTitle": "Cost-Per-Ticket Tracking (Real Token Data)",
-  "epicDescription": "# Plan: Cost-Per-Ticket Tracking (Real Token Data)\n\n## Context\n\nBrain Dump has telemetry infrastructure (sessions, events, tool call tracking) and a dashboard with charts, but **token usage is never captured** — the `totalTokens` field is always NULL because Claude Code doesn't expose token counts to MCP servers. The dashboard's Token Usage chart permanently shows \"No token usage data yet.\"\n\nThe self-telemetry in `mcp-server/lib/telemetry-self-log.ts:322` calls `endTelemetrySession` with just `{ sessionId, outcome }` — no token data. The schema and UI exist for tokens but nothing flows in.\n\n**Solution**: Parse Claude Code's JSONL transcript files (which contain full `usage` data per API response) via a Stop hook, and provide a universal MCP intake API for other providers. Real data only, no estimation.\n\n**Constraint**: No new MCP tools — only new actions on existing `telemetry` and `admin` tools.\n\n---\n\n## Approach: Real Token Data via Three Collection Layers\n\n**Layer 1 — Stop Hook (Claude Code)**: An 11th hook fires at session end, receives `transcript_path`, parses the JSONL file for actual token counts per model (input, output, cache_read, cache_creation), and records them via Brain Dump CLI.\n\n**Layer 2 — OpenTelemetry Ingestion** (Phase 2, documented but not built in v1): A lightweight OTEL collector receives `claude_code.token.usage` and `claude_code.cost.usage` metrics. Provider-agnostic — any tool that exports OTEL can feed data in.\n\n**Layer 3 — MCP Intake API**: The `telemetry` tool accepts `record-usage` actions from any environment. Cursor, VS Code, OpenCode, or custom tools can self-report token usage directly. Universal fallback.\n\nIf no real data exists for a session, the UI shows nothing (no estimates).\n\n---\n\n## Data Collection Details\n\n### Stop Hook (`capture-token-usage.sh`)\n\n1. Receives `transcript_path` from Claude Code Stop event (via stdin JSON)\n2. Calls `scripts/parse-transcript-tokens.ts` which parses the JSONL\n3. JSONL format: each line is a JSON object, assistant messages include `usage`:\n   ```json\n   {\"type\":\"assistant\",\"message\":{\"usage\":{\"input_tokens\":12500,\"output_tokens\":3200,\"cache_read_input_tokens\":45000,\"cache_creation_input_tokens\":8000},\"model\":\"claude-opus-4-6-20250616\"}}\n   ```\n4. Groups by model, sums all token types\n5. Detects active Brain Dump session from `.claude/ralph-state.json` (or finds by timestamp)\n6. Calls `brain-dump telemetry record-usage --session <id> --model <name> --input <n> --output <n> --cache-read <n> --cache-create <n>`\n7. Installed via existing `scripts/setup-claude-code.sh`\n\n### OTEL Collector (Phase 2 — document only)\n\n- Config: `CLAUDE_CODE_ENABLE_TELEMETRY=1` + `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318`\n- Brain Dump would run a minimal OTLP HTTP receiver that writes to SQLite\n- Maps `session.id` from OTEL spans to Brain Dump telemetry session IDs\n\n---\n\n## Schema Changes\n\n### New table: `cost_models`\n\n| Column | Type | Notes |\n|--------|------|-------|\n| id | TEXT PK | |\n| provider | TEXT NOT NULL | 'anthropic', 'openai', 'google', etc. |\n| model_name | TEXT NOT NULL | 'claude-opus-4-6', 'gpt-4o', etc. |\n| input_cost_per_mtok | REAL NOT NULL | USD per 1M input tokens |\n| output_cost_per_mtok | REAL NOT NULL | USD per 1M output tokens |\n| cache_read_cost_per_mtok | REAL | USD per 1M cache read tokens |\n| cache_create_cost_per_mtok | REAL | USD per 1M cache creation tokens |\n| is_default | INTEGER | One model is default |\n| created_at, updated_at | TEXT | |\n\n### New table: `token_usage`\n\n| Column | Type | Notes |\n|--------|------|-------|\n| id | TEXT PK | |\n| telemetry_session_id | TEXT FK | Links to telemetry_sessions |\n| ticket_id | TEXT FK | Denormalized for fast queries |\n| model | TEXT NOT NULL | Model used |\n| input_tokens | INTEGER NOT NULL | |\n| output_tokens | INTEGER NOT NULL | |\n| cache_read_tokens | INTEGER | |\n| cache_creation_tokens | INTEGER | |\n| cost_usd | REAL | Computed from cost_models at insert time |\n| source | TEXT NOT NULL | 'jsonl-hook', 'otel', 'mcp-manual' |\n| recorded_at | TEXT NOT NULL | |\n\n**Indexes**: telemetry_session_id, ticket_id, recorded_at, (ticket_id + recorded_at)\n\n### Altered columns on `telemetry_sessions`\n\n- `total_input_tokens` INTEGER (aggregated from token_usage)\n- `total_output_tokens` INTEGER (aggregated from token_usage)\n- `total_cost_usd` REAL (aggregated from token_usage)\n\n---\n\n## Core Logic\n\n### New file: `core/cost.ts`\n\n```typescript\n// Recording\nexport function recordUsage(db: DbHandle, params: RecordUsageParams): TokenUsageRecord;\n  // → inserts token_usage row\n  // → looks up cost_models for the model, computes cost_usd\n  // → updates telemetry_sessions aggregates (total_input_tokens, total_output_tokens, total_cost_usd)\n\n// Queries\nexport function getTicketCost(db: DbHandle, ticketId: string): TicketCostResult;\n  // → aggregates token_usage rows for all sessions linked to this ticket\n\nexport function getEpicCost(db: DbHandle, epicId: string): EpicCostResult;\n  // → aggregates across all tickets in the epic\n\nexport function getProjectCost(db: DbHandle, projectId: string): ProjectCostResult;\n  // → aggregates across all tickets in the project\n\nexport function getCostTrend(db: DbHandle, params: CostTrendParams): CostTrendResult;\n  // → daily/weekly cost grouped by recorded_at date\n  // → params: projectId?, epicId?, since?, granularity ('daily'|'weekly')\n\n// Pricing CRUD\nexport function upsertCostModel(db: DbHandle, params: UpsertCostModelParams): CostModel;\nexport function listCostModels(db: DbHandle): CostModel[];\nexport function deleteCostModel(db: DbHandle, id: string): void;\n\n// Internal\nexport function computeCostFromTokens(db: DbHandle, model: string, tokens: TokenCounts): number;\n  // → looks up cost_models by model_name (fuzzy match), computes USD\n  // → returns 0 if no matching model found (unknown model, not an error)\n```\n\n### New file: `cli/commands/telemetry-record-usage.ts`\n\nCLI command called by the Stop hook:\n```\nbrain-dump telemetry record-usage \\\n  --session <telemetry_session_id> \\\n  --model <model_name> \\\n  --input <input_tokens> \\\n  --output <output_tokens> \\\n  --cache-read <cache_read_tokens> \\\n  --cache-create <cache_creation_tokens> \\\n  --source jsonl-hook\n```\n\nFalls back to finding the most recent active telemetry session if `--session` not provided.\n\n### New file: `scripts/parse-transcript-tokens.ts`\n\nTypeScript helper called by the Stop hook:\n```typescript\n// Reads a Claude Code JSONL transcript file\n// Parses each line, extracts usage objects from assistant messages\n// Groups by model, sums all token types\n// Outputs JSON: [{model, inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens}]\n```\n\n### Modify: `core/index.ts`\n\nExport the new `cost` module.\n\n---\n\n## Stop Hook Implementation\n\n### New file: `.claude/hooks/capture-token-usage.sh`\n\n```bash\n#!/usr/bin/env bash\n# Event: Stop\n# Parses Claude Code transcript JSONL for real token usage and records to Brain Dump\n\n# 1. Read stdin JSON for transcript_path\n# 2. Call parse-transcript-tokens.ts to extract token data\n# 3. Detect active session from .claude/ralph-state.json\n# 4. For each model in output, call: brain-dump telemetry record-usage ...\n```\n\n### Modify: `scripts/setup-claude-code.sh`\n\nAdd the new hook to the installation script so it gets registered in `~/.claude/hooks/`.\n\n---\n\n## MCP Changes (actions on existing tools only — NO new tools)\n\n### Extend `telemetry` tool (mcp-server/tools/telemetry.ts)\n\n3 new actions:\n\n- **`record-usage`** — Universal intake. Any provider reports actual token counts.\n  - Params: `sessionId?`, `ticketId?`, `model`, `inputTokens`, `outputTokens`, `cacheReadTokens?`, `cacheCreationTokens?`, `source?`\n  - Auto-detects session if not provided (same as existing telemetry tools)\n\n- **`get-cost`** — Cost for a session, ticket, or epic.\n  - Params: `sessionId?`, `ticketId?`, `epicId?`\n  - Returns: total cost, token breakdown by model, per-session breakdown\n\n- **`cost-trend`** — Cost over time for a project.\n  - Params: `projectId`, `since?`, `granularity?` ('daily'|'weekly')\n  - Returns: array of {period, totalCostUsd, tokensByModel}\n\n### Extend `admin` tool (mcp-server/tools/admin.ts)\n\n2 new actions:\n\n- **`set-cost-model`** — Configure pricing for a provider/model.\n  - Params: `provider`, `modelName`, `inputCostPerMtok`, `outputCostPerMtok`, `cacheReadCostPerMtok?`, `cacheCreateCostPerMtok?`\n\n- **`list-cost-models`** — List all configured pricing models.\n\n---\n\n## UI Changes\n\n### New dashboard components (src/components/dashboard/)\n\n- **`CostPerTicketChart.tsx`** — Bar chart showing cost per completed ticket (last 30 days). Uses existing Recharts BarChart pattern from CommitsPerDayCard.tsx.\n\n- **`CostTrendChart.tsx`** — Line chart showing daily/weekly cost trend. Uses existing Recharts LineChart pattern from VelocityChart.tsx.\n\n- **`CostByEpicChart.tsx`** — Horizontal bar chart showing total cost per epic. Uses existing Recharts BarChart horizontal layout pattern from ToolCallDistributionChart.\n\n### Replace: `TokenUsageOverTimeChart` (AITelemetryTab.tsx:423-476)\n\nReplace the always-empty token chart with `CostTrendChart` showing actual cost data from `token_usage` table.\n\n### New settings component\n\n- **`CostModelSettings.tsx`** — Section in settings UI for managing pricing per provider/model. Table view with edit/add/delete. Seeded models shown as read-only with override option.\n\n### New API: `src/api/cost.ts`\n\n```typescript\nexport const getCostAnalytics = createServerFn({ method: \"GET\" })\n  .handler(async (): Promise<DashboardCostAnalytics>);\n\nexport const getTicketCost = createServerFn({ method: \"GET\" })\n  .inputValidator(...)\n  .handler(async ({ data: ticketId }): Promise<TicketCostResult>);\n\nexport const getCostModels = createServerFn({ method: \"GET\" })\n  .handler(async (): Promise<CostModel[]>);\n\nexport const updateCostModel = createServerFn({ method: \"POST\" })\n  .inputValidator(...)\n  .handler(async ({ data }): Promise<CostModel>);\n```\n\n### New hooks: `src/lib/hooks/cost.ts`\n\n- `useCostAnalytics()` — dashboard-level cost data\n- `useTicketCost(ticketId)` — per-ticket cost breakdown\n- `useCostModels()` — pricing configuration\n- `useUpdateCostModel()` — mutation for updating pricing\n\n---\n\n## Migration\n\n1. **Schema migration**: `pnpm db:generate` + `pnpm db:migrate` for new tables and columns\n2. **Seed cost models**: Insert current pricing for major providers:\n   - Anthropic: Opus 4 ($15/$75), Sonnet 4 ($3/$15), Haiku 4.5 ($1/$5) per 1M tokens\n   - OpenAI: GPT-4o ($2.50/$10), o3 ($10/$40)\n   - Google: Gemini 2.5 Pro ($1.25/$10)\n3. **Backfill** (optional, best-effort): Scan `~/.claude/projects/` for existing JSONL transcript files, parse tokens, match to telemetry sessions by timestamp overlap\n\n---\n\n## Critical Files\n\n### Modified Files\n\n| File | Changes |\n|------|---------|\n| `src/lib/schema.ts` | New tables: cost_models, token_usage. New columns on telemetry_sessions |\n| `core/index.ts` | Export cost module |\n| `mcp-server/tools/telemetry.ts` | Add record-usage, get-cost, cost-trend actions |\n| `mcp-server/tools/admin.ts` | Add set-cost-model, list-cost-models actions |\n| `src/api/telemetry.ts` | Replace token chart query with cost data query |\n| `src/components/dashboard/AITelemetryTab.tsx` | Replace TokenUsageOverTimeChart with CostTrendChart, add CostPerTicketChart, CostByEpicChart |\n| `scripts/setup-claude-code.sh` | Register capture-token-usage.sh hook |\n\n### New Files\n\n| File | Purpose |\n|------|---------|\n| `core/cost.ts` | Token usage recording, cost computation, trend queries |\n| `cli/commands/telemetry-record-usage.ts` | CLI command called by Stop hook |\n| `scripts/parse-transcript-tokens.ts` | Parse Claude Code JSONL, sum tokens per model |\n| `.claude/hooks/capture-token-usage.sh` | Stop hook: parse transcript, record real tokens |\n| `src/api/cost.ts` | Server functions for cost analytics |\n| `src/lib/hooks/cost.ts` | React Query hooks for cost data |\n| `src/components/dashboard/CostPerTicketChart.tsx` | Bar chart: cost per ticket |\n| `src/components/dashboard/CostTrendChart.tsx` | Line chart: daily/weekly cost trend |\n| `src/components/dashboard/CostByEpicChart.tsx` | Horizontal bar: cost per epic |\n| `src/components/settings/CostModelSettings.tsx` | Settings: manage pricing per model |\n\n---\n\n## Verification\n\n1. `pnpm db:generate` — generates migration from schema changes\n2. `pnpm db:migrate` — applies migration\n3. `pnpm type-check` — no TypeScript errors\n4. `pnpm lint` — no lint errors\n5. `pnpm test` — all tests pass\n6. Manual verification in browser at `localhost:4242`:\n   - Dashboard AI Telemetry tab shows cost charts with real data\n   - Settings shows cost model management\n7. MCP tool verification:\n   - `telemetry record-usage` with manual token counts → appears in dashboard\n   - `telemetry get-cost` returns per-ticket/epic breakdown\n   - `admin list-cost-models` shows seeded pricing\n8. Hook end-to-end:\n   - End a Claude Code session → Stop hook fires → `capture-token-usage.sh` parses JSONL → `token_usage` rows appear in DB → dashboard shows cost"
+  "generatedAt": "2026-03-16T01:59:11.734Z",
+  "epicTitle": "Frontend Performance Optimization",
+  "epicDescription": "# Frontend Performance Report\n\nDate: 2026-03-15\n\n## Executive summary\n\nThe app is already using TanStack Router, Query, and Form correctly in a few places, but the current frontend still has three clear performance ceilings:\n\n1. Too much JavaScript is loaded up front.\n2. Too many views subscribe to broad, always-fresh data.\n3. A few large screens do expensive work in render paths that should be pushed down, deferred, or lazy loaded.\n\nThe biggest wins are not micro-optimizations. They are:\n\n- Cut initial bundle weight with route and component lazy loading.\n- Reduce broad query invalidation and `staleTime: 0` usage.\n- Stop loading full ticket/tag datasets just to compute counts or inactive views.\n- Break up `AppLayout` and `TicketModal` so small state changes do not fan out through the app shell.\n\n## What I measured\n\nProduction build output from `pnpm build`:\n\n- Client `main` chunk: `770.18 kB` minified, `223.86 kB` gzip\n- Client dashboard chunk: `458.67 kB` minified, `120.92 kB` gzip\n- Client ticket detail chunk: `90.64 kB` minified, `19.70 kB` gzip\n- Client board chunk: `72.67 kB` minified, `23.82 kB` gzip\n\nThe build also emitted Vite's large chunk warning. That is the clearest signal that perceived slowness is not just runtime rendering. The app is shipping a lot of JS before the user can feel it \"waiting on them\".\n\n## Scope and limitations\n\nThis report is primarily based on:\n\n- static code analysis\n- query/state flow inspection\n- production build output\n\nIt does not yet include:\n\n- React Profiler traces\n- Lighthouse or Web Vitals measurements\n- network waterfall captures\n- long-session memory/leak profiling\n- SSR hydration timing analysis beyond static inspection\n\nSo the findings here are strong enough to prioritize work, but they should be followed by runtime profiling to validate the biggest wins and catch interaction bottlenecks that static analysis cannot prove.\n\n## Findings\n\n### 0. State management is workable, but not close to \"most effective\"\n\nCurrent state strategy:\n\n- TanStack Query for server state\n- TanStack Form in some newer surfaces\n- URL state for filters\n- React local state for most UI concerns\n- A broad app-shell context for cross-route coordination\n\nThat is a reasonable stack, but the implementation is uneven. The main issues are:\n\n- shell state and route state are coupled too tightly\n- some state is duplicated in multiple places\n- heavy feature components still own too many concerns at once\n\nEvidence:\n\n- `AppLayout` acts as a global coordinator for filters, modals, refresh state, search routing, mobile shell state, project data, settings, and Ralph state in src/components/AppLayout.tsx#L160.\n- The provider value is a fresh object every render in src/components/AppLayout.tsx#L402.\n- Search behavior exists in both src/components/navigation/SearchBar.tsx#L55 and src/components/AppLayout.tsx#L705.\n- `BoardHeader` re-subscribes to URL filter state even though the route already derived and passed filters in src/components/board/BoardHeader.tsx#L39.\n- `TicketModal` still owns a very large mixed bag of state even after moving to TanStack Form in src/components/TicketModal.tsx#L183.\n\nAssessment:\n\n- Server state: mostly fine, but too eager and too broad.\n- UI state: functional, but spread across large components.\n- Cross-route state: too centralized in the shell.\n- Form state: improving, but not consistently isolated at field/section level.\n\nBest options:\n\n- Split shell context into smaller providers or route-local hooks.\n- Standardize one search implementation.\n- Stop double-subscribing to URL/router state where props already exist.\n- Push bulky modal and detail-screen state down into section components.\n\n### 1. Initial JS cost is too high\n\nEvidence:\n\n- Devtools are mounted unconditionally in the root shell in src/routes/__root.tsx#L92.\n- Router preload is effectively disabled with `defaultPreloadStaleTime: 0` in src/router.tsx#L13.\n- Dashboard eagerly renders eight chart cards in src/components/dashboard/AnalyticsSection.tsx#L59.\n- Multiple dashboard cards pull in `recharts`, for example src/components/dashboard/AIUsageChart.tsx#L3.\n\nImpact:\n\n- Slower initial parse and hydration.\n- Higher input delay on lower-end hardware.\n- Dashboard becomes a \"big bang\" route instead of progressive UI.\n\nBest options:\n\n- Gate devtools to development only.\n- Convert deep routes to lazy routes and split heavy leaf components with `React.lazy` or TanStack Router lazy routes.\n- Lazy load dashboard charts and render them on demand.\n- Lazy load heavyweight modals and panels that are not visible on first paint: `TicketModal`, settings, feedback, import, git history, telemetry.\n- Turn route preloading back on for common paths like board, list, and ticket detail.\n\n### 2. Query freshness defaults are too aggressive\n\nEvidence:\n\n- Global query defaults already use a non-zero `staleTime` of 5 seconds in src/routes/__root.tsx#L19, but several high-traffic hooks override that back to `0`.\n- Global query defaults also use `refetchOnWindowFocus: true` in src/routes/__root.tsx#L19.\n- Tickets are always stale in src/lib/hooks/tickets.ts#L326.\n- Tags are always stale in src/lib/hooks/tickets.ts#L449.\n- Tag metadata is always stale in src/lib/hooks/tickets.ts#L471.\n- Active Ralph sessions poll every 5 seconds by default in src/lib/hooks/ralph.ts#L99.\n\nImpact:\n\n- Focusing the window can trigger broad refresh storms.\n- Query cache has less opportunity to hide latency.\n- Background polling competes with user-triggered work.\n\nBest options:\n\n- Make `refetchOnWindowFocus` opt-in for the few queries that truly need it.\n- Replace blanket `staleTime: 0` with data-specific freshness windows.\n- Keep live polling only for actively viewed \"live\" surfaces.\n- Use manual invalidation or event-driven refresh for MCP-driven updates instead of assuming every collection is stale all the time.\n\n### 3. The app shell pulls in too much global data\n\nEvidence:\n\n- `AppLayout` reads projects, project-with-AI data, active sessions, settings, filters, sample data, modals, and more in one component in src/components/AppLayout.tsx#L160.\n- The context value is rebuilt as a fresh object on every render in src/components/AppLayout.tsx#L402.\n- `AppContext.Provider` wraps the whole shell in src/components/AppLayout.tsx#L587.\n\nImpact:\n\n- Small local updates can cause large rerender fan-out.\n- Header, sidebar, route content, and modal state stay more tightly coupled than necessary.\n\nBest options:\n\n- Split app state into narrower contexts: filters, modal control, search navigation, shell UI.\n- Memoize provider values.\n- Move route-specific fetching out of `AppLayout` where possible.\n- Prefer colocated query reads in leaf components over one huge shell coordinator.\n\n### 4. Some aggregate views fetch far more data than they need\n\nEvidence:\n\n- `useProjectsWithAIActivity` loads all tickets just to derive per-project counts in src/lib/hooks/projects.ts#L133.\n- The project detail page loads all project tickets just to count tickets per epic in src/routes/projects.$projectId.tsx#L21.\n- `useProjects` does a project list call plus one epic query per project in src/lib/hooks/projects.ts#L92.\n\nImpact:\n\n- Extra query work even on screens that only need counts or summaries.\n- More cache churn and more CPU spent on derived aggregation.\n\nBest options:\n\n- Add lightweight summary endpoints:\n  - project counts\n  - epic ticket counts\n  - projects with epics in one server call\n- Use `select` in Query for derived shapes when you already have the raw data.\n- Stop using full ticket lists as a count API.\n\n### 5. Some routes fetch data even when the view is inactive\n\nEvidence:\n\n- The list route always calls `useTagsWithMetadata(tagFilters)` in src/routes/list.tsx#L97, while `tagFilters` is a stable empty object and `useTagsWithMetadata` has no `enabled` guard in src/lib/hooks/tickets.ts#L471. That means the query runs regardless of whether the user is in ticket or tag sub-mode.\n- `BoardHeader` subscribes to URL filters again via `useFiltersWithUrl()` even though the route already passes filter props in src/components/board/BoardHeader.tsx#L39.\n\nImpact:\n\n- Unnecessary background work on the list route.\n- Extra router subscriptions and avoidable header rerenders.\n\nBest options:\n\n- Gate tag metadata query with `enabled: listSubMode === \"tags\"`.\n- Let `BoardHeader` receive the already-derived filter callbacks instead of re-subscribing to router state.\n\n### 6. Ticket detail is doing too much in one component\n\nEvidence:\n\n- `TicketModal` is a very large component that owns form state, polling, comments, attachments, launch actions, services, Ralph status, and delete flow in src/components/TicketModal.tsx#L183.\n- The form validates on every change in src/components/TicketModal.tsx#L205.\n- The same component also subscribes to comments polling, services polling, active Ralph session polling, and tag fetching in src/components/TicketModal.tsx#L276.\n\nImpact:\n\n- Editing a field can rerun work unrelated to the edited field.\n- Ticket detail becomes harder to keep responsive as features accumulate.\n\nBest options:\n\n- Split ticket detail into lazy sections:\n  - core metadata\n  - activity/comments\n  - telemetry\n  - demo/review panels\n  - attachments/services\n- Move form validation from `onChange` to `onBlur` or submit for heavier schemas.\n- Keep only the fields that truly need live subscriptions connected to the form store.\n\n### 7. List and comment rendering still do avoidable per-row work\n\nEvidence:\n\n- `TicketListView` parses JSON for tags and subtasks inside row rendering in src/components/TicketListView.tsx#L150.\n- `Comment` reparses markdown and recomputes relative timestamps during render in src/components/tickets/Comment.tsx#L48 and src/components/tickets/Comment.tsx#L143.\n\nImpact:\n\n- The cost scales with row count and comment length.\n- This is not a crisis at low volume, but it becomes noticeable as tickets/comments grow.\n\nBest options:\n\n- Normalize parsed ticket fields earlier, ideally in the server layer or query `select`.\n- Precompute comment render models or memoize rendered markdown by `comment.id + updatedAt`.\n- Consider virtualization for long ticket tables, comment timelines, tags, and git history once datasets grow further.\n\n### 8. Type safety is not end-to-end yet\n\nThe app is typed, but not fully type-safe across the boundary from DB/API to hooks to UI. There are still several places where runtime shape is trusted and then cast, or where domain types are duplicated instead of shared.\n\nEvidence:\n\n- `lib/schema.ts` already exports inferred DB types like `Ticket` and `TicketComment` in src/lib/schema.ts#L151.\n- `useTickets` defines a separate handwritten `Ticket` interface in src/lib/hooks/tickets.ts#L32.\n- Hook query functions cast server results back into expected shapes, for example:\n  - comments in src/lib/hooks/comments.ts#L28\n  - claude tasks in src/lib/hooks/claude-tasks.ts#L29\n  - epic detail in src/lib/hooks/projects.ts#L519\n  - tickets in src/lib/hooks/tickets.ts#L321\n- Comment storage is broad at the schema/API boundary:\n  - DB schema stores `author` and `type` as text in src/lib/schema.ts#L75\n  - API `Comment` type exposes `author: string` and `type: string` in src/api/comments.ts#L24\n- Route search state is manually typed with `Record<string, string>` instead of validated route search schemas in src/routes/list.tsx#L39.\n- Route params and status values are frequently narrowed with casts instead of validated unions, for example `ticket.status as TicketStatus` patterns throughout the ticket and board surfaces.\n\nImpact:\n\n- Hidden type drift between schema, API DTOs, and UI models.\n- More `JSON.parse` and more defensive fallback logic in components.\n- Bugs can survive compilation because casts reassert correctness instead of proving it.\n\nBest options:\n\n- Pick one canonical domain layer for app-facing models.\n  - Best option here: infer from schema or validated server DTOs, then reuse everywhere.\n- Remove handwritten duplicate `Ticket` and `Comment` models where possible.\n- Return strongly typed DTOs from server functions without re-casting in hooks.\n- Add route `validateSearch` schemas so URL state is typed at the router boundary.\n- Narrow string fields at the schema/API edge, not inside components.\n- Normalize JSON-backed fields before they reach render code.\n\nBottom line:\n\n- The app is not \"unsafe\", but it is not yet the kind of type-safe system where the compiler is doing maximum work for you.\n- Right now the codebase still leans on \"fetch, then cast, then defensively parse\".\n- The better target is \"validate/normalize once at the boundary, then trust the type all the way up\".\n\n### 9. Server-side and data-layer work is part of the performance story\n\nSeveral of the frontend bottlenecks are symptoms of server/data-shape issues rather than purely client rendering problems.\n\nEvidence:\n\n- `useProjectsWithAIActivity` currently derives counts by loading full ticket collections in src/lib/hooks/projects.ts#L133.\n- `useProjects` triggers one epic fetch per project in src/lib/hooks/projects.ts#L92.\n- Ticket list endpoints return full ticket objects, including JSON-backed text fields, from src/api/tickets.ts#L86.\n\nImpact:\n\n- Some of the best frontend wins require new summary endpoints, field-selected queries, or better SQL/index design.\n- If those are not addressed, the client will keep doing too much work with too much data.\n\nBest options:\n\n- Add summary endpoints for project/epic counts.\n- Add ticket-summary queries for board/list/project views.\n- Add composite indexes for common filters.\n- Consolidate analytics and epic-detail query plans on the server.\n\n### 10. Long-lived polling and subscriptions should be profiled, not assumed safe\n\nEvidence:\n\n- Active Ralph sessions poll every 5 seconds in src/lib/hooks/ralph.ts#L99.\n- Ticket detail combines multiple live subscriptions in src/components/TicketModal.tsx#L276.\n- `useTickets` tracks previous tickets in a ref for status diffing in src/lib/hooks/tickets.ts#L315.\n\nImpact:\n\n- These are not obviously broken, but they should be verified under long-running sessions for timer buildup, subscription duplication, and retained data growth.\n\nBest options:\n\n- Add a profiling pass for 30-60 minute active sessions.\n- Confirm polling is disabled when screens are hidden or not mounted.\n- Check for unnecessary ref retention and repeated observer/timer setup.\n\n### 11. Splash screen is intentionally delaying access to the app\n\nEvidence:\n\n- The root shell always renders `SplashScreen` first in src/routes/__root.tsx#L87.\n- `SplashScreen` enforces a minimum display time of `800ms` plus an `800ms` fade duration in src/components/SplashScreen.tsx#L18.\n- That means the overlay can block the app for roughly `1.6s` before disappearing in src/components/SplashScreen.tsx#L57.\n\nImpact:\n\n- This may dominate perceived performance on fast local loads.\n- It can mask some real wins or losses in route/data performance because the user is gated by animation first.\n\nBest options:\n\n- Decide whether the splash is a branding choice or a loading strategy.\n- If it is branding, reduce the minimum display time sharply or show it only on cold app boot.\n- If it is meant to hide loading, replace it with route-aware pending states and faster progressive rendering.\n\n### 12. SSR is present, but SSR/hydration performance has not been validated\n\nEvidence:\n\n- The app is built on TanStack Start with SSR-capable routing and server functions.\n- The generated route tree indicates SSR is enabled in src/routeTree.gen.ts#L195.\n- The root document is structured as an SSR shell in src/routes/__root.tsx#L67.\n\nImpact:\n\n- SSR may already be helping first paint, but this report does not yet measure how much.\n- Hydration cost may still be large because the app shell and initial JS payload are heavy.\n- If the splash screen blocks everything, some SSR benefit may be hidden from the user.\n\nBest options:\n\n- Measure server-rendered first paint vs hydrated interactivity.\n- Check for hydration mismatches or unnecessary client-only rework.\n- Prefer SSR + route loader data + progressive hydration over blocking overlays.\n\n### 13. Static asset strategy was not deeply audited\n\nThis report does not yet cover:\n\n- image optimization\n- font loading strategy\n- static asset cache headers\n\nThat is a secondary concern here because the largest current issues are app-shell JS, query behavior, and route/data architecture, but it should still be reviewed before calling the frontend audit \"complete\".\n\n## Prioritized action list\n\n### Quick wins\n\nThese should give the best return for low implementation risk.\n\n1. Disable devtools in production.\n2. Change the list route so tag metadata is only fetched in tag view.\n3. Stop global `refetchOnWindowFocus` and add it only where needed.\n4. Give tickets and tags a non-zero `staleTime` unless the screen is explicitly live.\n5. Re-enable Router preload for high-traffic routes.\n6. Add `validateSearch` to routes that read URL search state.\n7. Consolidate duplicated search UI onto one component and one state path.\n8. Memoize or split `AppLayout` provider state.\n9. Memoize `SortableTicketCard` and stabilize hot-path board props.\n10. Replace `ProjectsPanel` hover state with CSS-only hover behavior.\n\n### Medium effort, high payoff\n\n1. Replace full-ticket count derivations with summary APIs.\n2. Collapse `useProjects` N+1 fetching into a single server response.\n3. Split `TicketModal` into smaller lazy sections.\n4. Move heavier form validation off `onChange`.\n5. Normalize ticket row data before render so list rows do not `JSON.parse` repeatedly.\n6. Replace duplicated handwritten domain interfaces with shared DTO/schema-derived types.\n7. Remove hook-level result casts by typing server function outputs more precisely.\n8. Add route loaders with `ensureQueryData`, after wiring `queryClient` into router context.\n9. Add `preload=\"intent\"` on likely next-click links after loaders exist.\n10. Standardize missing query keys and stop bypassing the query key factory.\n11. Narrow invalidation scope and add optimistic updates for status/position mutations.\n12. Lazy load dashboard charts and inactive ticket-detail sections.\n\n### Bigger bets\n\n1. Add route loaders with `ensureQueryData` so route transitions arrive pre-warmed.\n2. Add virtualization for long collections using TanStack Virtual.\n3. Push live updates toward event-driven invalidation instead of repeated polling.\n4. Consider replacing some dashboard charts with lighter-weight SVG or server-rendered summaries if the charts are not interacted with often.\n5. Add composite indexes for the most common filter/query paths.\n6. Move analytics and epic-detail aggregation deeper into SQL or batched query plans.\n7. Add field-selected ticket summary endpoints for board/list/project pages.\n8. Paginate large result sets where lists can grow without bound.\n\n## TanStack-specific recommendations\n\n### TanStack Router\n\n- Use lazy routes for board, ticket detail, epic detail, dashboard subtrees.\n- Add `queryClient` to router context before adopting loader-driven prefetch.\n- Use loaders plus `ensureQueryData` for:\n  - board ticket lists\n  - ticket detail\n  - epic detail\n  - project detail\n- Turn on intent-based preloading for likely next clicks.\n- Add pending components so navigation feels instant even when data is still in flight.\n\n### TanStack Query\n\n- Centralize `queryOptions` definitions so freshness and invalidation rules are explicit.\n- Use `select` for derived data like counts, grouped maps, and normalized ticket row models.\n- Replace broad `invalidateQueries({ queryKey: queryKeys.allTickets })` where possible with narrower keys or direct cache writes.\n- Keep polling localized to surfaces the user is actively looking at.\n\n### TanStack Form\n\n- Keep `useStore` selectors narrow like you already do, but move more of the UI into field-level subscribers.\n- Validate expensive schemas on blur or submit, not every keystroke.\n- Break giant forms into section components so unrelated fields do not rerender together.\n\n## Recommended implementation order\n\nIf the goal is for the app to feel noticeably faster quickly, I would do this in order:\n\n1. Production devtools off, route preloading on, list tag query gating.\n2. Fix Query freshness defaults and reduce stale-everything behavior.\n3. Add route search validation and consolidate duplicated search state/UI.\n4. Split `AppLayout` so shell state changes stop rippling through the app.\n5. Wire `queryClient` into router context, then add route loaders and `preload=\"intent\"`.\n6. Lazy load dashboard charts and heavy ticket-detail sections.\n7. Replace count-by-fetching-full-lists with summary endpoints.\n8. Fix N+1 and heavy query waterfalls in projects, epic detail, and analytics.\n9. Unify domain types and remove cast-heavy hook boundaries.\n10. Add targeted optimistic updates, narrower invalidation, and standardized query keys.\n11. Add virtualization only after the above if large datasets still feel heavy.\n\n## Merged execution plan\n\nThis is the version I would actually run in the repo after comparing both audits.\n\n### Sprint 1: Shell and navigation feel\n\nGoal: make normal navigation stop feeling heavier than it should.\n\n1. Disable devtools in production.\n2. Stop always fetching tag metadata in ticket-list mode.\n3. Move Query freshness defaults away from \"everything is stale\".\n4. Add `validateSearch` where routes read URL state.\n5. Consolidate duplicated search behavior into one shared path.\n6. Re-enable preload strategy for likely next routes.\n7. Memoize or split the `AppLayout` provider value.\n\n### Sprint 2: Preload data before the user asks for it\n\nGoal: route transitions should already be warm.\n\n1. Add `queryClient` to router context.\n2. Add route loaders using `ensureQueryData`.\n3. Add `preload=\"intent\"` on high-frequency links.\n4. Add pending components/skeletons tuned for route transitions.\n\n### Sprint 3: Reduce unnecessary work per screen\n\nGoal: stop paying full-list/full-view costs for summary screens.\n\n1. Replace project and epic count derivations with summary endpoints.\n2. Collapse N+1 project/epic loading into a single server response.\n3. Batch or consolidate epic-detail and analytics query waterfalls.\n4. Add ticket-summary endpoints or field-selected queries for board/list/project views.\n5. Add missing composite indexes for common filters.\n\n### Sprint 4: Break up heavy UI surfaces\n\nGoal: the big screens should load and rerender in pieces, not as monoliths.\n\n1. Split `TicketModal` into lazy sections or tabs.\n2. Lazy load dashboard chart components.\n3. Normalize ticket row data before render.\n4. Memoize markdown/comment render work where it is reused.\n5. Replace hover-driven state churn in `ProjectsPanel` with CSS.\n6. Memoize `SortableTicketCard` and stabilize hot-loop callbacks.\n\n### Sprint 5: Tighten correctness and perceived speed\n\nGoal: make the app both safer and more responsive under mutation-heavy flows.\n\n1. Remove handwritten duplicate domain types where schema or DTO types already exist.\n2. Remove hook-level `as` casts by returning strongly typed DTOs from server functions.\n3. Standardize all query keys through the query key factory.\n4. Narrow invalidation scope after mutations.\n5. Add optimistic updates for status and position changes.\n6. Move form validation to blur/submit where live validation is not necessary.\n\n### Sprint 6: Scale-oriented work\n\nGoal: keep performance stable as project size grows.\n\n1. Add virtualization to long ticket, tag, comment, and git-history lists.\n2. Paginate result sets that can grow unbounded.\n3. Shift more analytics aggregation into SQL or pre-aggregated shapes.\n4. Replace polling with event-driven invalidation where practical.\n\n### Sprint 7: Runtime validation and measurement\n\nGoal: confirm the static audit with real traces and lock in measurable outcomes.\n\n1. Capture React Profiler traces for:\n   - board navigation\n   - ticket detail open/edit/close\n   - dashboard initial load\n2. Record network waterfalls for:\n   - app boot\n   - board route navigation\n   - ticket route navigation\n   - dashboard route navigation\n3. Measure long-session behavior with polling-heavy screens open.\n4. Measure SSR-to-hydration timing and look for hydration mismatch work.\n5. Review the splash screen's effect on perceived load timing.\n6. Review image/font/static-asset delivery and caching.\n\n## Suggested success metrics\n\nThese are reasonable targets for the first implementation pass.\n\n### Build and bundle targets\n\n- Reduce client `main` chunk below `500 kB` minified.\n- Reduce dashboard route chunk by at least `30-40%`.\n- Remove production devtools from shipped JS.\n\n### Data-loading targets\n\n- Eliminate avoidable inactive-view queries on list/board shell surfaces.\n- Reduce duplicate mount/refocus ticket fetches during board -> ticket -> board flows.\n- Replace N+1 project/epic loading with a single projects-with-epics request.\n\n### UX targets\n\n- Board/list/ticket route transitions should show data-prefetch behavior rather than waiting for post-mount fetch.\n- Ticket modal open time should improve noticeably after section splitting and lazy loading.\n- Dragging and status changes should feel immediate after optimistic updates and reduced rerender fan-out.\n- Cold boot should not be dominated by a blocking splash animation unless that is an intentional product choice.\n\n### Runtime profiling targets\n\n- Establish baseline and post-fix traces for:\n  - initial route render duration\n  - splash-to-interactive duration\n  - ticket modal commit duration\n  - dashboard interaction latency\n  - SSR first paint vs hydrated interactivity gap\n  - polling-heavy long-session memory behavior\n\n## Expected payoff\n\nIf you do only the first three steps, the app should feel meaningfully snappier:\n\n- faster first interaction\n- fewer focus-triggered refetch spikes\n- smoother board/list/dashboard navigation\n- less \"whole app shivers\" when small UI state changes\n\nIf you also do the summary endpoints and shell split, the app should start feeling much more intentional under load instead of \"constantly recomputing everything just in case\"."
 }

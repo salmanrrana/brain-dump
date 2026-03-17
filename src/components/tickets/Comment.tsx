@@ -267,6 +267,12 @@ export const Comment = memo(function Comment({
     return lines.slice(0, maxLines).join("\n") + "...";
   }, [comment.content, needsExpansion, isExpanded, maxLines]);
 
+  // Memoize markdown rendering — only re-parse when displayContent changes
+  const renderedMarkdown = useMemo(() => renderMarkdown(displayContent), [displayContent]);
+
+  // Memoize relative timestamp — only recompute when createdAt changes
+  const relativeTimestamp = useMemo(() => formatTimestamp(comment.createdAt), [comment.createdAt]);
+
   // Styles
   const containerStyles: React.CSSProperties = {
     display: "flex",
@@ -340,12 +346,12 @@ export const Comment = memo(function Comment({
         <div style={headerStyles}>
           <span style={authorStyles}>{authorDisplayName}</span>
           <span style={timestampStyles}>·</span>
-          <span style={timestampStyles}>{formatTimestamp(comment.createdAt)}</span>
+          <span style={timestampStyles}>{relativeTimestamp}</span>
           {typeLabel && <span style={typeBadgeStyles}>{typeLabel}</span>}
         </div>
 
-        {/* Comment content with markdown */}
-        <div style={contentStyles}>{renderMarkdown(displayContent)}</div>
+        {/* Comment content with markdown — memoized to avoid re-parsing on every render */}
+        <div style={contentStyles}>{renderedMarkdown}</div>
 
         {/* Expand/collapse button */}
         {needsExpansion && (

@@ -162,6 +162,7 @@ export const Header: FC<HeaderProps> = ({
         {logo ?? (
           <Link
             to="/"
+            preload="intent"
             style={brandLinkStyles}
             title="Back to Projects home"
             className="hover:text-[var(--accent-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"

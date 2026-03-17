@@ -42,6 +42,35 @@ vi.mock("../../api/projects", () => ({
       createdAt: "2026-01-02",
     },
   ]),
+  getProjectsWithEpics: vi.fn().mockResolvedValue([
+    {
+      id: "project-1",
+      name: "Brain Dump",
+      path: "/code/brain-dump",
+      color: "#8b5cf6",
+      workingMethod: null,
+      createdAt: "2026-01-01",
+      epics: [
+        {
+          id: "epic-1",
+          title: "Sprint 1",
+          projectId: "project-1",
+          description: null,
+          color: null,
+          createdAt: "2026-01-01",
+        },
+      ],
+    },
+    {
+      id: "project-2",
+      name: "Side Project",
+      path: "/code/side-project",
+      color: "#3b82f6",
+      workingMethod: null,
+      createdAt: "2026-01-02",
+      epics: [],
+    },
+  ]),
 }));
 
 vi.mock("../../api/epics", () => ({

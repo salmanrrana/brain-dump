@@ -46,6 +46,8 @@ export {
   useDeleteTicket,
   useTicketDeletePreview,
   useTickets,
+  useTicketSummaries,
+  usePaginatedTicketSummaries,
   useSearch,
   useTags,
   useTagsWithMetadata,
@@ -55,12 +57,16 @@ export {
   type TagMetadata,
 } from "./tickets";
 
+export type { TicketSummary, PaginatedTicketResult } from "../../api/tickets";
+
 // =============================================================================
 // PROJECT & EPIC HOOKS
 // =============================================================================
 export {
   useProjects,
   useProjectsWithAIActivity,
+  useProjectTicketCounts,
+  useEpicTicketCounts,
   useCreateProject,
   useUpdateProject,
   useDeleteProject,
@@ -127,10 +133,12 @@ export {
 // =============================================================================
 export {
   useComments,
+  usePaginatedComments,
   useCreateComment,
   useDeleteComment,
   type Comment,
   type CreateCommentInput,
+  type PaginatedCommentsResult,
 } from "./comments";
 
 // =============================================================================
