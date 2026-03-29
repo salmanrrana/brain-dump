@@ -23,6 +23,7 @@ export type CommentAuthor =
   | "vscode"
   | "copilot"
   | "codex"
+  | "cursor-agent"
   | "ai"
   | "brain-dump"
   | `ralph:${string}`;

@@ -17,6 +17,7 @@ export type Environment =
   | "copilot-cli"
   | "codex"
   | "cursor"
+  | "cursor-agent"
   | "vscode"
   | "unknown";
 
@@ -60,7 +61,12 @@ const COPILOT_CLI_ENV_PATTERNS = [
   "COPILOT_CLI_VERSION",
 ] as const;
 
-const CURSOR_ENV_PATTERNS = ["CURSOR_TRACE_ID", "CURSOR_SESSION", "CURSOR_PID", "CURSOR_CWD"] as const;
+const CURSOR_ENV_PATTERNS = [
+  "CURSOR_TRACE_ID",
+  "CURSOR_SESSION",
+  "CURSOR_PID",
+  "CURSOR_CWD",
+] as const;
 
 const CODEX_ENV_PATTERNS = [
   "CODEX_HOME",
@@ -74,6 +80,7 @@ const CODEX_ENV_PATTERNS = [
 const OPENCODE_FLAG = "OPENCODE";
 const COPILOT_CLI_FLAG = "COPILOT_CLI";
 const CURSOR_FLAG = "CURSOR";
+const CURSOR_AGENT_FLAG = "CURSOR_AGENT";
 const CODEX_FLAG = "CODEX";
 
 let environmentOverride: Environment | null = null;
@@ -163,7 +170,16 @@ function hasCopilotCliEnvironment(): boolean {
 }
 
 /**
+ * Check if Cursor Agent environment is present.
+ * Cursor Agent sets CURSOR_AGENT=1 via MCP config.
+ */
+function hasCursorAgentEnvironment(): boolean {
+  return !!process.env[CURSOR_AGENT_FLAG];
+}
+
+/**
  * Check if any Cursor environment variables are present.
+ * Excludes CURSOR_AGENT flag to avoid false positives — cursor-agent is detected separately.
  */
 function hasCursorEnvironment(): boolean {
   if (process.env[CURSOR_FLAG]) {
@@ -177,7 +193,7 @@ function hasCursorEnvironment(): boolean {
   }
 
   for (const key of Object.keys(process.env)) {
-    if (key.startsWith("CURSOR_")) {
+    if (key.startsWith("CURSOR_") && key !== CURSOR_AGENT_FLAG) {
       return true;
     }
   }
@@ -233,12 +249,14 @@ export function detectEnvironment(): Environment {
   if (hasClaudeCodeEnvironment()) return "claude-code";
 
   // Explicit provider flags — intentionally set via MCP config
+  if (process.env[CURSOR_AGENT_FLAG]) return "cursor-agent";
   if (process.env[OPENCODE_FLAG]) return "opencode";
   if (process.env[COPILOT_CLI_FLAG]) return "copilot-cli";
   if (process.env[CODEX_FLAG]) return "codex";
   if (process.env[CURSOR_FLAG]) return "cursor";
 
   // Heuristic detection via provider-specific env var patterns
+  if (hasCursorAgentEnvironment()) return "cursor-agent";
   if (hasOpenCodeEnvironment()) return "opencode";
   if (hasCopilotCliEnvironment()) return "copilot-cli";
   if (hasCodexEnvironment()) return "codex";
@@ -280,6 +298,13 @@ export function isCodex(): boolean {
  */
 export function isCursor(): boolean {
   return detectEnvironment() === "cursor";
+}
+
+/**
+ * Check if currently running in Cursor Agent CLI
+ */
+export function isCursorAgent(): boolean {
+  return detectEnvironment() === "cursor-agent";
 }
 
 /**
@@ -349,6 +374,7 @@ export function getEnvironmentInfo(): EnvironmentInfo {
   for (const key of Object.keys(process.env)) {
     if (
       key.startsWith("CURSOR_") &&
+      key !== CURSOR_AGENT_FLAG &&
       !CURSOR_ENV_PATTERNS.includes(key as (typeof CURSOR_ENV_PATTERNS)[number])
     ) {
       envVarsDetected.push(key);
@@ -356,6 +382,9 @@ export function getEnvironmentInfo(): EnvironmentInfo {
   }
   if (process.env[CURSOR_FLAG]) {
     envVarsDetected.push(CURSOR_FLAG);
+  }
+  if (process.env[CURSOR_AGENT_FLAG]) {
+    envVarsDetected.push(CURSOR_AGENT_FLAG);
   }
 
   for (const envVar of CODEX_ENV_PATTERNS) {

@@ -19,6 +19,7 @@ type Environment =
   | "copilot-cli"
   | "codex"
   | "cursor"
+  | "cursor-agent"
   | "vscode"
   | "unknown";
 
@@ -45,6 +46,7 @@ const CLAUDE_CODE_ENV_PATTERNS = [
 const OPENCODE_FLAG = "OPENCODE";
 const COPILOT_CLI_FLAG = "COPILOT_CLI";
 const CURSOR_FLAG = "CURSOR";
+const CURSOR_AGENT_FLAG = "CURSOR_AGENT";
 const CODEX_FLAG = "CODEX";
 
 /**
@@ -121,9 +123,17 @@ function hasOpenCodeEnvironment(): boolean {
 }
 
 /**
+ * Check if Cursor Agent environment is present.
+ * Cursor Agent sets CURSOR_AGENT=1 via MCP config.
+ */
+function hasCursorAgentEnvironment(): boolean {
+  return !!process.env[CURSOR_AGENT_FLAG];
+}
+
+/**
  * Check if any Cursor environment variables are present.
  * Cursor uses CURSOR_* prefixed environment variables.
- * Also checks for explicit CURSOR flag set via MCP config.
+ * Excludes CURSOR_AGENT flag to avoid false positives — cursor-agent is detected separately.
  */
 function hasCursorEnvironment(): boolean {
   // Check explicit flag (set via MCP config env section)
@@ -133,9 +143,9 @@ function hasCursorEnvironment(): boolean {
   for (const envVar of CURSOR_ENV_PATTERNS) {
     if (process.env[envVar]) return true;
   }
-  // Check for any CURSOR_* prefixed environment variable
+  // Check for any CURSOR_* prefixed environment variable (excluding CURSOR_AGENT)
   for (const key of Object.keys(process.env)) {
-    if (key.startsWith("CURSOR_")) return true;
+    if (key.startsWith("CURSOR_") && key !== CURSOR_AGENT_FLAG) return true;
   }
   return false;
 }
@@ -194,12 +204,14 @@ export function detectEnvironment(): Environment {
   if (hasClaudeCodeEnvironment()) return "claude-code";
 
   // Explicit provider flags — intentionally set via MCP config
+  if (process.env[CURSOR_AGENT_FLAG]) return "cursor-agent";
   if (process.env[OPENCODE_FLAG]) return "opencode";
   if (process.env[COPILOT_CLI_FLAG]) return "copilot-cli";
   if (process.env[CODEX_FLAG]) return "codex";
   if (process.env[CURSOR_FLAG]) return "cursor";
 
   // Heuristic detection via provider-specific env var patterns
+  if (hasCursorAgentEnvironment()) return "cursor-agent";
   if (hasOpenCodeEnvironment()) return "opencode";
   if (hasCopilotCliEnvironment()) return "copilot-cli";
   if (hasCodexEnvironment()) return "codex";
@@ -242,6 +254,9 @@ export function detectAuthor(): string {
       break;
     case "cursor":
       baseTool = "cursor";
+      break;
+    case "cursor-agent":
+      baseTool = "cursor-agent";
       break;
     case "codex":
       baseTool = "codex";
@@ -301,11 +316,16 @@ export function getEnvironmentInfo(): EnvironmentInfo {
     if (process.env[envVar]) envVarsDetected.push(envVar);
   }
   for (const key of Object.keys(process.env)) {
-    if (key.startsWith("CURSOR_") && !CURSOR_ENV_PATTERNS.includes(key)) {
+    if (
+      key.startsWith("CURSOR_") &&
+      key !== CURSOR_AGENT_FLAG &&
+      !CURSOR_ENV_PATTERNS.includes(key)
+    ) {
       envVarsDetected.push(key);
     }
   }
   if (process.env[CURSOR_FLAG]) envVarsDetected.push(CURSOR_FLAG);
+  if (process.env[CURSOR_AGENT_FLAG]) envVarsDetected.push(CURSOR_AGENT_FLAG);
 
   // Collect Codex env vars
   for (const envVar of CODEX_ENV_PATTERNS) {
