@@ -1,5 +1,14 @@
 import { type FC, useState, useRef, useCallback, type KeyboardEvent } from "react";
-import { ChevronDown, Wand2, Sparkles, Code2, MousePointer2, Terminal, Github, Check } from "lucide-react";
+import {
+  ChevronDown,
+  Wand2,
+  Sparkles,
+  Code2,
+  MousePointer2,
+  Terminal,
+  Github,
+  Check,
+} from "lucide-react";
 import { useClickOutside } from "../../lib/hooks";
 
 // =============================================================================
@@ -21,6 +30,7 @@ export type WorkingMethod =
   | "vscode"
   | "opencode"
   | "cursor"
+  | "cursor-agent"
   | "copilot-cli"
   | "codex";
 
@@ -55,6 +65,12 @@ export const WORKING_METHOD_OPTIONS: WorkingMethodOption[] = [
     label: "Cursor",
     icon: MousePointer2,
     description: "AI-first editor",
+  },
+  {
+    value: "cursor-agent",
+    label: "Cursor Agent",
+    icon: Terminal,
+    description: "Terminal AI with multi-model access",
   },
   {
     value: "copilot-cli",
@@ -95,7 +111,7 @@ export interface WorkingMethodSelectProps {
  * WorkingMethodSelect - Dropdown for selecting project working method preference.
  *
  * Features:
- * - **7 options**: Auto-detect, Claude Code, VS Code, OpenCode, Cursor, Copilot CLI, Codex
+ * - **8 options**: Auto-detect, Claude Code, VS Code, OpenCode, Cursor, Cursor Agent, Copilot CLI, Codex
  * - **Icon + name per option**: Visual differentiation
  * - **Description text**: Explains each option's purpose
  * - **Keyboard accessible**: Arrow keys, Enter, Escape

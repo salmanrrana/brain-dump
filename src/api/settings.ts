@@ -29,6 +29,7 @@ export interface UpdateSettingsInput {
     | "vscode"
     | "opencode"
     | "cursor"
+    | "cursor-agent"
     | "copilot-cli"
     | "codex";
   // Docker runtime settings
@@ -91,6 +92,7 @@ export const updateSettings = createServerFn({ method: "POST" })
         "vscode",
         "opencode",
         "cursor",
+        "cursor-agent",
         "copilot-cli",
         "codex",
       ];
