@@ -170,14 +170,6 @@ function hasCopilotCliEnvironment(): boolean {
 }
 
 /**
- * Check if Cursor Agent environment is present.
- * Cursor Agent sets CURSOR_AGENT=1 via MCP config.
- */
-function hasCursorAgentEnvironment(): boolean {
-  return !!process.env[CURSOR_AGENT_FLAG];
-}
-
-/**
  * Check if any Cursor environment variables are present.
  * Excludes CURSOR_AGENT flag to avoid false positives — cursor-agent is detected separately.
  */
@@ -230,7 +222,7 @@ function hasCodexEnvironment(): boolean {
  * Detection priority:
  * 1. Claude Code runtime vars (CLAUDE_CODE, CLAUDE_CODE_ENTRYPOINT, CLAUDE_CODE_TERMINAL_ID)
  *    — set by Claude Code process, not inherited from user shell
- * 2. Explicit provider flags (OPENCODE, COPILOT_CLI, CODEX, CURSOR)
+ * 2. Explicit provider flags (CURSOR_AGENT, OPENCODE, COPILOT_CLI, CODEX, CURSOR)
  *    — set intentionally via MCP config env section
  * 3. Provider-specific env var patterns (OPENCODE_*, COPILOT_*, etc.)
  *    — heuristic detection from provider-specific env vars
@@ -256,7 +248,6 @@ export function detectEnvironment(): Environment {
   if (process.env[CURSOR_FLAG]) return "cursor";
 
   // Heuristic detection via provider-specific env var patterns
-  if (hasCursorAgentEnvironment()) return "cursor-agent";
   if (hasOpenCodeEnvironment()) return "opencode";
   if (hasCopilotCliEnvironment()) return "copilot-cli";
   if (hasCodexEnvironment()) return "codex";
