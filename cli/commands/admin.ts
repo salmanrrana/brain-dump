@@ -6,6 +6,7 @@
  * `health` is new (wraps core/health.getDatabaseHealth).
  */
 
+import { execFileSync } from "child_process";
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { createInterface } from "readline";
@@ -444,6 +445,121 @@ function handleDoctorAction(): void {
     }
   } else {
     console.log("  o Not detected (Cursor not installed or not configured)");
+  }
+
+  console.log();
+
+  // Cursor Agent CLI
+  console.log("Cursor Agent CLI");
+  console.log("-".repeat(50));
+
+  let cursorAgentBinary: string | null = null;
+  let cursorAgentVersion: string | null = null;
+
+  // Strategy 1: Check 'agent' in PATH and verify it's Cursor's binary
+  try {
+    const versionOutput = execFileSync("agent", ["--version"], {
+      encoding: "utf-8",
+      timeout: 5000,
+    }).trim();
+    if (/cursor/i.test(versionOutput)) {
+      cursorAgentBinary = "agent";
+      cursorAgentVersion = versionOutput;
+    }
+  } catch {
+    // not found or not Cursor's agent
+  }
+
+  // Strategy 2: Fallback to ~/.local/bin/agent
+  if (!cursorAgentBinary) {
+    const localBin = join(home, ".local", "bin", "agent");
+    if (existsSync(localBin)) {
+      try {
+        const versionOutput = execFileSync(localBin, ["--version"], {
+          encoding: "utf-8",
+          timeout: 5000,
+        }).trim();
+        if (/cursor/i.test(versionOutput)) {
+          cursorAgentBinary = localBin;
+          cursorAgentVersion = versionOutput;
+        }
+      } catch {
+        // binary exists but failed to run
+      }
+    }
+  }
+
+  // Strategy 3: Fallback to 'cursor-agent' in PATH
+  if (!cursorAgentBinary) {
+    try {
+      const versionOutput = execFileSync("cursor-agent", ["--version"], {
+        encoding: "utf-8",
+        timeout: 5000,
+      }).trim();
+      cursorAgentBinary = "cursor-agent";
+      cursorAgentVersion = versionOutput;
+    } catch {
+      // not found
+    }
+  }
+
+  if (cursorAgentBinary) {
+    console.log(`  \u2713 Binary found: ${cursorAgentBinary}`);
+    if (cursorAgentVersion) {
+      console.log(`  \u2713 Version: ${cursorAgentVersion}`);
+    }
+  } else {
+    console.log("  o Not detected (Cursor Agent CLI not installed)");
+    console.log("    Install: curl https://cursor.com/install -fsS | bash");
+  }
+
+  // Check MCP configuration
+  const cursorMcpJsonForAgent = join(home, ".cursor", "mcp.json");
+  if (existsSync(cursorMcpJsonForAgent)) {
+    try {
+      const mcpContent = readFileSync(cursorMcpJsonForAgent, "utf-8");
+      if (mcpContent.includes('"brain-dump"')) {
+        console.log("  \u2713 MCP server configured (mcp.json)");
+      } else {
+        console.log("  o MCP server: brain-dump not found in mcp.json");
+      }
+    } catch {
+      console.log("  ! Could not read mcp.json");
+    }
+  } else {
+    console.log("  o MCP server: mcp.json not found");
+  }
+
+  // Check cli-config.json permissions
+  const cliConfigPath = join(home, ".cursor", "cli-config.json");
+  if (existsSync(cliConfigPath)) {
+    try {
+      const cliConfig = JSON.parse(readFileSync(cliConfigPath, "utf-8")) as Record<string, unknown>;
+      const permissions = cliConfig.permissions as { allow?: string[] } | undefined;
+      if (permissions?.allow && permissions.allow.includes("Shell(git)")) {
+        console.log(`  \u2713 Permissions configured (${permissions.allow.length} allow rules)`);
+      } else {
+        console.log("  o Permissions: Brain Dump entries not found in cli-config.json");
+        issues.push({
+          environment: "Cursor Agent CLI",
+          component: "Permissions",
+          message: "Brain Dump permission entries missing from cli-config.json",
+          fix: "./scripts/setup-cursor.sh",
+        });
+      }
+    } catch {
+      console.log("  ! Could not parse cli-config.json");
+    }
+  } else {
+    console.log("  o cli-config.json not found");
+  }
+
+  // Check hook installed (optional)
+  const cursorHookPath = join(home, ".cursor", "hooks", "enforce-state-before-write.sh");
+  if (existsSync(cursorHookPath)) {
+    console.log("  \u2713 State enforcement hook installed");
+  } else {
+    console.log("  o State enforcement hook not installed (optional)");
   }
 
   console.log();
