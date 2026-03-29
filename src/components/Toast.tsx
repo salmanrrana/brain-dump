@@ -93,7 +93,7 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
     <div
       role={role}
       aria-live={toast.type === "error" ? "assertive" : "polite"}
-      className={`flex items-center gap-3 px-4 py-3 rounded-lg border ${config.bgClass} shadow-lg animate-slide-in`}
+      className={`flex items-center gap-3 px-4 py-3 rounded-xl border backdrop-blur-md ${config.bgClass} shadow-xl animate-slide-in`}
     >
       <Icon size={18} className={config.iconClass} aria-hidden="true" />
       <span className="text-sm text-[var(--text-primary)]">{toast.message}</span>

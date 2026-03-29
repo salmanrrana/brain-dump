@@ -96,7 +96,7 @@ function parseInlineMarkdown(text: string, keyPrefix: string): React.ReactNode[]
             background: "var(--bg-tertiary)",
             padding: "2px 4px",
             borderRadius: "3px",
-            fontFamily: "monospace",
+            fontFamily: "var(--font-mono)",
             fontSize: "0.9em",
           }}
         >

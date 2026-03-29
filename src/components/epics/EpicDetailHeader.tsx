@@ -1091,15 +1091,17 @@ const launchButtonStyles: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   gap: "var(--spacing-2)",
-  padding: "var(--spacing-2) var(--spacing-3)",
-  background: "var(--accent-primary)",
+  padding: "var(--spacing-2) var(--spacing-4)",
+  background: "var(--gradient-accent)",
   border: "none",
-  borderRadius: "var(--radius-md)",
+  borderRadius: "var(--radius-xl)",
   color: "var(--text-on-accent)",
   fontSize: "var(--font-size-sm)",
+  fontFamily: "var(--font-sans)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
   cursor: "pointer",
-  transition: "opacity 0.15s",
+  transition: "all var(--transition-fast)",
+  boxShadow: "var(--shadow-sm)",
 };
 
 const dropdownContainerStyles: React.CSSProperties = {
@@ -1112,9 +1114,9 @@ const moreMenuDropdownStyles: React.CSSProperties = {
   right: 0,
   marginTop: "var(--spacing-2)",
   background: "var(--bg-secondary)",
-  border: "1px solid var(--border-primary)",
-  borderRadius: "var(--radius-lg)",
-  boxShadow: "var(--shadow-lg)",
+  border: "1px solid var(--border-secondary)",
+  borderRadius: "var(--radius-xl)",
+  boxShadow: "var(--shadow-xl)",
   zIndex: 50,
   minWidth: "180px",
   padding: "var(--spacing-1) 0",
@@ -1141,9 +1143,9 @@ const dropdownMenuStyles: React.CSSProperties = {
   right: 0,
   marginTop: "var(--spacing-2)",
   background: "var(--bg-secondary)",
-  border: "1px solid var(--border-primary)",
-  borderRadius: "var(--radius-lg)",
-  boxShadow: "var(--shadow-lg)",
+  border: "1px solid var(--border-secondary)",
+  borderRadius: "var(--radius-xl)",
+  boxShadow: "var(--shadow-xl)",
   zIndex: 50,
   minWidth: "400px",
 };
@@ -1181,12 +1183,12 @@ const launchOptionButtonStyles: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: "var(--spacing-2)",
-  padding: "var(--spacing-2)",
-  background: "var(--bg-tertiary)",
+  padding: "var(--spacing-2) var(--spacing-3)",
+  background: "var(--bg-card)",
   border: "1px solid var(--border-primary)",
-  borderRadius: "var(--radius-md)",
+  borderRadius: "var(--radius-xl)",
   cursor: "pointer",
-  transition: "background-color 0.15s",
+  transition: "all var(--transition-fast)",
 };
 
 const optionTextStyles: React.CSSProperties = {
@@ -1204,33 +1206,36 @@ const badgeRowStyles: React.CSSProperties = {
 const findingsSectionStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "var(--spacing-3)",
-  padding: "var(--spacing-3)",
+  gap: "var(--spacing-4)",
+  padding: "var(--spacing-5)",
   border: "1px solid var(--border-primary)",
-  borderRadius: "var(--radius-lg)",
-  background: "var(--bg-secondary)",
+  borderRadius: "var(--radius-xl)",
+  background: "var(--bg-card)",
 };
 
 const findingsHeaderStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "var(--spacing-1)",
+  gap: "2px",
 };
 
 const findingsTitleStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-sm)",
+  fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
   fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-  color: "var(--text-primary)",
+  letterSpacing: "var(--tracking-wider)",
+  textTransform: "uppercase",
+  color: "var(--text-secondary)",
 };
 
 const findingsSubtitleStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-sm)",
-  color: "var(--text-secondary)",
+  fontSize: "var(--font-size-xs)",
+  color: "var(--text-muted)",
 };
 
 const findingsSummaryGridStyles: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+  gridTemplateColumns: "repeat(5, 1fr)",
   gap: "var(--spacing-2)",
 };
 
@@ -1238,44 +1243,53 @@ const summaryCardStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: "var(--spacing-1)",
-  padding: "var(--spacing-3)",
+  padding: "var(--spacing-3) var(--spacing-4)",
   border: "1px solid var(--border-primary)",
-  borderRadius: "var(--radius-md)",
+  borderRadius: "var(--radius-xl)",
+  background: "var(--bg-primary)",
 };
 
 const summaryCardLabelStyles: React.CSSProperties = {
   fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
   textTransform: "uppercase",
-  letterSpacing: "0.04em",
-  color: "var(--text-secondary)",
+  letterSpacing: "var(--tracking-wider)",
+  color: "var(--text-muted)",
 };
 
 const summaryCardValueStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-lg)",
-  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+  fontSize: "var(--font-size-xl)",
+  fontFamily: "var(--font-mono)",
+  fontWeight: "var(--font-weight-bold)" as React.CSSProperties["fontWeight"],
+  letterSpacing: "var(--tracking-tight)",
   color: "inherit",
 };
 
 const badgeStyles: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
-  padding: "var(--spacing-1) var(--spacing-3)",
-  borderRadius: "var(--radius-full)",
+  padding: "3px var(--spacing-3)",
+  borderRadius: "var(--radius-lg)",
+  border: "1px solid var(--border-primary)",
   fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-  background: "var(--bg-tertiary)",
+  background: "var(--bg-card)",
   color: "var(--text-secondary)",
+  letterSpacing: "0.01em",
 };
 
 const completionBadgeStyles: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
-  padding: "var(--spacing-1) var(--spacing-3)",
-  borderRadius: "var(--radius-full)",
+  padding: "3px var(--spacing-3)",
+  borderRadius: "var(--radius-lg)",
   fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-  background: "var(--accent-primary)",
-  color: "var(--text-on-accent)",
+  background: "var(--accent-muted)",
+  color: "var(--accent-primary)",
+  border: "1px solid color-mix(in srgb, var(--accent-primary) 20%, transparent)",
 };
 
 const gitRowStyles: React.CSSProperties = {

@@ -215,7 +215,7 @@ const headerStyles: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: "var(--spacing-4)",
-  padding: "var(--spacing-4)",
+  padding: "var(--spacing-6) var(--spacing-6) var(--spacing-4)",
 };
 
 const backButtonStyles: React.CSSProperties = {
@@ -224,10 +224,10 @@ const backButtonStyles: React.CSSProperties = {
   justifyContent: "center",
   width: "36px",
   height: "36px",
-  background: "transparent",
-  border: "none",
-  borderRadius: "var(--radius-md)",
-  color: "var(--text-secondary)",
+  background: "var(--bg-card)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-lg)",
+  color: "var(--text-tertiary)",
   cursor: "pointer",
   transition: "all var(--transition-fast)",
   flexShrink: 0,
@@ -242,10 +242,11 @@ const projectHeaderStyles: React.CSSProperties = {
 };
 
 const colorDotStyles: React.CSSProperties = {
-  width: "16px",
-  height: "16px",
+  width: "12px",
+  height: "12px",
   borderRadius: "var(--radius-full)",
   flexShrink: 0,
+  boxShadow: "0 0 8px currentColor",
 };
 
 const projectInfoStyles: React.CSSProperties = {
@@ -255,8 +256,9 @@ const projectInfoStyles: React.CSSProperties = {
 };
 
 const projectNameStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-lg)",
+  fontSize: "var(--font-size-xl)",
   fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+  letterSpacing: "var(--tracking-tight)",
   color: "var(--text-primary)",
   margin: 0,
   whiteSpace: "nowrap",
@@ -266,7 +268,8 @@ const projectNameStyles: React.CSSProperties = {
 
 const projectPathStyles: React.CSSProperties = {
   fontSize: "var(--font-size-xs)",
-  color: "var(--text-tertiary)",
+  fontFamily: "var(--font-mono)",
+  color: "var(--text-muted)",
   margin: 0,
   whiteSpace: "nowrap",
   overflow: "hidden",
@@ -278,15 +281,17 @@ const accentButtonStyles: React.CSSProperties = {
   alignItems: "center",
   gap: "var(--spacing-2)",
   padding: "var(--spacing-2) var(--spacing-4)",
-  background: "var(--accent-primary)",
-  color: "white",
+  background: "var(--gradient-accent)",
+  color: "var(--text-on-accent)",
   border: "none",
-  borderRadius: "var(--radius-md)",
+  borderRadius: "var(--radius-lg)",
   fontSize: "var(--font-size-sm)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+  fontFamily: "var(--font-sans)",
   cursor: "pointer",
   transition: "all var(--transition-fast)",
   flexShrink: 0,
+  boxShadow: "var(--shadow-sm)",
 };
 
 const columnsContainerStyles: React.CSSProperties = {
@@ -301,9 +306,9 @@ const columnsContainerStyles: React.CSSProperties = {
 const columnStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  background: "var(--bg-secondary)",
+  background: "var(--bg-card)",
   border: "1px solid var(--border-primary)",
-  borderRadius: "var(--radius-md)",
+  borderRadius: "var(--radius-xl)",
   overflow: "hidden",
 };
 
@@ -311,15 +316,18 @@ const columnHeaderStyles: React.CSSProperties = {
   position: "sticky",
   top: 0,
   zIndex: 1,
-  padding: "var(--spacing-3) var(--spacing-4)",
+  padding: "var(--spacing-4) var(--spacing-5)",
   borderBottom: "1px solid var(--border-primary)",
-  background: "var(--bg-secondary)",
+  background: "var(--bg-card)",
 };
 
 const columnTitleStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-md)",
+  fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
   fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-  color: "var(--text-primary)",
+  letterSpacing: "var(--tracking-wider)",
+  textTransform: "uppercase",
+  color: "var(--text-secondary)",
   margin: 0,
 };
 
@@ -354,8 +362,9 @@ const addEpicButtonStyles: React.CSSProperties = {
   height: "40px",
   background: "transparent",
   border: "1px dashed var(--border-secondary)",
-  borderRadius: "var(--radius-md)",
-  color: "var(--text-secondary)",
+  borderRadius: "var(--radius-lg)",
+  color: "var(--text-tertiary)",
+  fontFamily: "var(--font-sans)",
   fontSize: "var(--font-size-sm)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
   cursor: "pointer",

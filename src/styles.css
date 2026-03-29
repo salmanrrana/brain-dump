@@ -3,82 +3,211 @@
 
 /* ============================================
    TAILWIND CSS v4 THEME MAPPING
-   Maps Tailwind's semantic color classes to our CSS variables
-   so they adapt properly to light/dark themes.
    ============================================ */
 @theme {
-  /* Background colors */
   --color-background: var(--bg-primary);
   --color-card: var(--bg-card);
-
-  /* Foreground/text colors */
   --color-foreground: var(--text-primary);
   --color-muted-foreground: var(--text-secondary);
-
-  /* Border colors */
   --color-border: var(--border-primary);
-
-  /* Accent colors */
   --color-accent-primary: var(--accent-primary);
   --color-accent-secondary: var(--accent-secondary);
+
+  /* Font families for Tailwind utility classes */
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
 }
 
+/* ============================================
+   BASE TYPOGRAPHY & BODY
+   ============================================ */
 body {
   @apply m-0;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell",
-    "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  font-family: var(--font-sans);
+  font-variant-ligatures: common-ligatures;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--bg-primary);
   color: var(--text-primary);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  letter-spacing: var(--tracking-normal);
   transition:
-    background-color 150ms ease,
-    color 150ms ease;
+    background-color 200ms var(--ease-spring),
+    color 200ms var(--ease-spring);
+}
+
+/* Dot grid background on primary surfaces */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: radial-gradient(
+    circle at center,
+    var(--grid-dot-color) var(--grid-dot-size),
+    transparent var(--grid-dot-size)
+  );
+  background-size: var(--grid-dot-spacing) var(--grid-dot-spacing);
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 30%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 30%, transparent 70%);
+}
+
+/* Noise grain overlay for photographic depth */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* Light themes: kill noise grain, soften dot grid */
+[data-theme="daylight"] body::after,
+[data-theme="frost"] body::after,
+[data-theme="paper"] body::after {
+  opacity: 0;
+}
+
+/* Ensure all content sits above the texture layers */
+body > * {
+  position: relative;
+  z-index: 2;
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+  font-family: var(--font-mono);
+  font-feature-settings: "liga";
+  letter-spacing: -0.01em;
 }
 
-/* Toast slide-in animation */
+/* Heading typography - Bricolage looks best heavier with tight tracking */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-sans);
+  font-variant-ligatures: common-ligatures;
+  letter-spacing: var(--tracking-tight);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Monospace elements - ticket IDs, stats, metadata */
+.font-mono {
+  font-family: var(--font-mono);
+  font-feature-settings: "liga";
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
+/* Toast slide-in */
 @keyframes slide-in {
   from {
-    transform: translateX(100%);
+    transform: translateX(100%) scale(0.95);
     opacity: 0;
   }
   to {
-    transform: translateX(0);
+    transform: translateX(0) scale(1);
     opacity: 1;
   }
 }
 
 .animate-slide-in {
-  animation: slide-in 0.3s ease-out;
+  animation: slide-in 0.35s var(--ease-out-expo);
 }
 
-/* AI-active glow animation for ticket cards and status indicators
-   Uses --accent-ai-glow (teal) for AI/Ralph-related elements.
-   Animation is subtle (2s duration) to avoid being distracting. */
+/* AI-active glow - subtle breathing effect */
 @keyframes ai-pulse {
   0%,
   100% {
-    box-shadow: 0 0 8px var(--accent-ai-glow, rgba(20, 184, 166, 0.4));
+    box-shadow: 0 0 8px var(--accent-ai-glow, rgba(20, 184, 166, 0.35));
   }
   50% {
-    box-shadow: 0 0 20px 5px var(--accent-ai-glow, rgba(20, 184, 166, 0.6));
+    box-shadow: 0 0 24px 4px var(--accent-ai-glow, rgba(20, 184, 166, 0.5));
   }
 }
 
-/* Apply to AI-active tickets and Ralph status indicators */
 .animate-pulse-slow,
 .ai-active-glow {
-  animation: ai-pulse 2s ease-in-out infinite;
+  animation: ai-pulse 2.5s ease-in-out infinite;
 }
 
-/* Data attribute version for declarative styling */
 [data-ai-active="true"] {
-  animation: ai-pulse 2s ease-in-out infinite;
+  animation: ai-pulse 2.5s ease-in-out infinite;
+}
+
+/* Staggered reveal for lists and grids */
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-reveal {
+  animation: reveal-up 0.5s var(--ease-out-expo) both;
+}
+
+/* Stagger children - apply to parent container */
+.stagger-children > * {
+  animation: reveal-up 0.4s var(--ease-out-expo) both;
+}
+.stagger-children > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+.stagger-children > *:nth-child(2) {
+  animation-delay: 50ms;
+}
+.stagger-children > *:nth-child(3) {
+  animation-delay: 100ms;
+}
+.stagger-children > *:nth-child(4) {
+  animation-delay: 150ms;
+}
+.stagger-children > *:nth-child(5) {
+  animation-delay: 200ms;
+}
+.stagger-children > *:nth-child(6) {
+  animation-delay: 250ms;
+}
+.stagger-children > *:nth-child(7) {
+  animation-delay: 300ms;
+}
+.stagger-children > *:nth-child(8) {
+  animation-delay: 350ms;
+}
+.stagger-children > *:nth-child(n + 9) {
+  animation-delay: 400ms;
+}
+
+/* Accent glow breathing - for highlighted elements */
+@keyframes glow-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 12px var(--accent-glow);
+  }
+  50% {
+    box-shadow:
+      0 0 28px var(--accent-glow),
+      0 0 56px rgba(249, 115, 22, 0.08);
+  }
+}
+
+.animate-glow-breathe {
+  animation: glow-breathe 3s ease-in-out infinite;
 }
 
 /* ============================================
@@ -159,13 +288,9 @@ select:focus-visible {
 
 /* ============================================
    HOVER AND FOCUS TRANSITIONS
-   ============================================
-   Global hover/focus states for interactive elements.
-   Uses CSS variables for consistent timing across themes.
-   Applied via Tailwind-style utility classes.
-*/
+   ============================================ */
 
-/* Button-like elements - smooth background/border transitions */
+/* Button-like elements - spring-based transitions */
 button,
 [role="button"],
 a.nav-item,
@@ -174,11 +299,11 @@ a.nav-item,
     background-color var(--transition-fast),
     border-color var(--transition-fast),
     color var(--transition-fast),
-    box-shadow var(--transition-fast),
-    transform var(--transition-fast);
+    box-shadow var(--transition-normal),
+    transform var(--transition-normal);
 }
 
-/* Hover lift effect for cards (subtle scale + shadow) */
+/* Hover lift - subtle float + shadow expansion */
 .hover-lift {
   transition:
     transform var(--transition-normal),
@@ -186,18 +311,41 @@ a.nav-item,
 }
 
 .hover-lift:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px);
   box-shadow: var(--shadow-lg);
 }
 
-/* Hover glow effect (accent-colored shadow) */
+/* Hover glow - accent bleeds into surrounding space */
+.hover-glow {
+  transition: box-shadow var(--transition-normal);
+}
+
 .hover-glow:hover {
   box-shadow: var(--shadow-glow-sm);
 }
 
-/* Subtle hover background change */
+/* Subtle hover background */
 .hover-bg:hover {
   background-color: var(--bg-hover);
+}
+
+/* Glass panel effect */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+}
+
+/* Surface with subtle gradient for depth */
+.surface-elevated {
+  background: var(--bg-elevated);
+  background-image: var(--gradient-subtle);
+}
+
+/* Accent surface - very subtle accent tint */
+.surface-accent {
+  background: var(--accent-surface);
 }
 
 /* ============================================
@@ -206,14 +354,16 @@ a.nav-item,
 @keyframes routeFadeIn {
   from {
     opacity: 0;
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
+    transform: translateY(0);
   }
 }
 
 .route-fade-in {
-  animation: routeFadeIn 900ms ease-out;
+  animation: routeFadeIn 600ms var(--ease-out-expo);
 }
 
 /* ============================================
@@ -228,17 +378,23 @@ a.nav-item,
 @keyframes pulse {
   0%,
   100% {
-    opacity: 0.15;
+    opacity: 0.12;
   }
   50% {
-    opacity: 0.25;
+    opacity: 0.22;
   }
 }
 
-/* Cost card hover lift */
+/* Cost card hover */
+.cost-card {
+  transition:
+    transform var(--transition-normal),
+    box-shadow var(--transition-normal);
+}
+
 .cost-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px -8px rgba(0, 0, 0, 0.3);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
 }
 
 /* ============================================

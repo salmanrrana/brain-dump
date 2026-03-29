@@ -343,16 +343,23 @@ const containerStyles: React.CSSProperties = {
 };
 
 const sectionTitleStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-lg)",
+  fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
   fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-  color: "var(--text-primary)",
+  letterSpacing: "var(--tracking-wider)",
+  textTransform: "uppercase",
+  color: "var(--text-muted)",
   margin: 0,
 };
 
 const contentStyles: React.CSSProperties = {
   fontSize: "var(--font-size-base)",
-  lineHeight: 1.7,
+  lineHeight: 1.75,
   color: "var(--text-primary)",
+  padding: "var(--spacing-5)",
+  background: "var(--bg-card)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-xl)",
 };
 
 const emptyStateStyles: React.CSSProperties = {
@@ -360,19 +367,22 @@ const emptyStateStyles: React.CSSProperties = {
   flexDirection: "column",
   alignItems: "center",
   justifyContent: "center",
-  padding: "var(--spacing-6)",
-  background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-md)",
+  padding: "var(--spacing-8)",
+  border: "1px dashed var(--border-primary)",
+  borderRadius: "var(--radius-xl)",
   color: "var(--text-muted)",
-  fontSize: "var(--font-size-sm)",
+  fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
+  letterSpacing: "var(--tracking-wide)",
 };
 
 const inlineCodeStyles: React.CSSProperties = {
   background: "var(--bg-tertiary)",
   padding: "2px 6px",
-  borderRadius: "var(--radius-sm)",
-  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-  fontSize: "0.9em",
+  borderRadius: "var(--radius-md)",
+  fontFamily: "var(--font-mono)",
+  fontSize: "0.85em",
+  border: "1px solid var(--border-primary)",
 };
 
 const linkStyles: React.CSSProperties = {
@@ -397,9 +407,9 @@ const listItemStyles: React.CSSProperties = {
 const blockquoteStyles: React.CSSProperties = {
   margin: "var(--spacing-3) 0",
   padding: "var(--spacing-3) var(--spacing-4)",
-  borderLeft: "3px solid var(--accent-primary)",
-  background: "var(--bg-secondary)",
-  borderRadius: "0 var(--radius-sm) var(--radius-sm) 0",
+  borderLeft: "2px solid var(--accent-primary)",
+  background: "var(--accent-surface)",
+  borderRadius: "0 var(--radius-lg) var(--radius-lg) 0",
   color: "var(--text-secondary)",
   fontStyle: "italic",
 };

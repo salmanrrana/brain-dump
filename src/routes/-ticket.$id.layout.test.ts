@@ -6,9 +6,9 @@ describe("Ticket detail Activity layout regression guards", () => {
     expect(activitySectionStyles.flex).toBe("0 0 auto");
   });
 
-  it("renders metadata as a regular footer with a top divider", () => {
-    expect(metadataStyles.borderTop).toBe("1px solid var(--border-primary)");
-    expect(metadataStyles.padding).toBe("var(--spacing-4)");
+  it("renders metadata as a regular footer card", () => {
+    expect(metadataStyles.border).toBe("1px solid var(--border-primary)");
+    expect(metadataStyles.padding).toBe("var(--spacing-5)");
     expect(metadataStyles.display).toBe("flex");
     expect(metadataStyles.position).toBeUndefined();
   });

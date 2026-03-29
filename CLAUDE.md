@@ -674,6 +674,22 @@ Never build backend logic without connecting the frontend.
 Never build a frontend trigger without verifying it calls the right backend.
 Test the FULL flow, not just individual pieces.
 
+### Identify ALL Instances Before Modifying Shared Patterns
+
+When updating a UI pattern (e.g., "the edit ticket modal"), ALWAYS search for ALL components that implement that pattern before making changes. This project has multiple components serving similar purposes from different entry points:
+
+- `TicketModal.tsx` — board-view edit modal (opened from kanban card click)
+- `tickets/EditTicketModal.tsx` — detail-page edit modal (opened from ticket detail "Edit" button)
+- `EpicModal.tsx` — epic create/edit modal
+- `tickets/CreateTicketModal.tsx` — new ticket creation modal
+
+Before modifying any modal, component, or pattern:
+
+1. `grep` for all files implementing the same pattern
+2. Update ALL instances, not just the first one you find
+3. Verify visually that every entry point renders the updated version
+4. When in doubt, open the actual UI from every possible navigation path
+
 ## Enterprise Conversation Logging
 
 Brain Dump includes enterprise-grade conversation logging for compliance auditing (SOC2, GDPR, ISO 27001).

@@ -165,7 +165,7 @@ export const CodeBlock = memo(function CodeBlock({
   const languageBadgeStyles: React.CSSProperties = {
     fontSize: "var(--font-size-xs)",
     color: "var(--text-muted)",
-    fontFamily: "monospace",
+    fontFamily: "var(--font-mono)",
     textTransform: "lowercase",
   };
 
@@ -189,7 +189,7 @@ export const CodeBlock = memo(function CodeBlock({
     background: "#1e1e1e", // Dark code background
     overflowX: "auto",
     fontSize: "var(--font-size-sm)",
-    fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+    fontFamily: "var(--font-mono)",
     lineHeight: 1.6,
     color: "#d4d4d4", // Light text for dark background
   };

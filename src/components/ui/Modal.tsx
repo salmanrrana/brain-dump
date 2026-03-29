@@ -232,7 +232,9 @@ const overlayStyles: CSSProperties = {
 const backdropStyles: CSSProperties = {
   position: "absolute",
   inset: 0,
-  backgroundColor: "rgba(0, 0, 0, 0.6)",
+  backgroundColor: "rgba(0, 0, 0, 0.7)",
+  backdropFilter: "blur(4px)",
+  WebkitBackdropFilter: "blur(4px)",
 };
 
 const containerStyles: CSSProperties = {
@@ -251,10 +253,11 @@ const dialogStyles: CSSProperties = {
   display: "flex",
   flexDirection: "column",
   width: "100%",
-  maxHeight: "90vh",
+  maxHeight: "85vh",
   backgroundColor: "var(--bg-secondary)",
-  borderRadius: "var(--radius-lg)",
-  boxShadow: "var(--shadow-xl)",
+  borderRadius: "var(--radius-2xl)",
+  border: "1px solid var(--glass-border)",
+  boxShadow: "var(--shadow-modal)",
   overflow: "hidden",
   pointerEvents: "auto",
 };
@@ -263,7 +266,7 @@ const headerStyles: CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  padding: "var(--spacing-4)",
+  padding: "var(--spacing-5) var(--spacing-5) var(--spacing-4)",
   borderBottom: "1px solid var(--border-primary)",
   backgroundColor: "var(--bg-secondary)",
   flexShrink: 0,
@@ -273,6 +276,7 @@ const titleStyles: CSSProperties = {
   margin: 0,
   fontSize: "var(--font-size-lg)",
   fontWeight: 600,
+  letterSpacing: "var(--tracking-tight)",
   color: "var(--text-primary)",
 };
 
@@ -283,14 +287,14 @@ const closeButtonStyles: CSSProperties = {
   padding: "var(--spacing-2)",
   backgroundColor: "transparent",
   border: "none",
-  borderRadius: "var(--radius-md)",
-  color: "var(--text-secondary)",
+  borderRadius: "var(--radius-lg)",
+  color: "var(--text-tertiary)",
   cursor: "pointer",
   transition: "var(--transition-fast)",
 };
 
 const contentStyles: CSSProperties = {
-  padding: "var(--spacing-4)",
+  padding: "var(--spacing-5)",
   overflowY: "auto",
   flexGrow: 1,
 };
@@ -300,7 +304,7 @@ const footerStyles: CSSProperties = {
   alignItems: "center",
   justifyContent: "flex-end",
   gap: "var(--spacing-3)",
-  padding: "var(--spacing-4)",
+  padding: "var(--spacing-4) var(--spacing-5)",
   borderTop: "1px solid var(--border-primary)",
   backgroundColor: "var(--bg-secondary)",
   flexShrink: 0,

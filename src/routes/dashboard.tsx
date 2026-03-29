@@ -296,14 +296,15 @@ const containerStyles: React.CSSProperties = {
 
 const headerRowStyles: React.CSSProperties = {
   display: "flex",
-  alignItems: "center",
+  alignItems: "flex-end",
   justifyContent: "space-between",
   gap: "var(--spacing-4)",
 };
 
 const titleStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-2xl)",
-  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+  fontSize: "var(--font-size-3xl)",
+  fontWeight: "var(--font-weight-bold)" as React.CSSProperties["fontWeight"],
+  letterSpacing: "var(--tracking-tighter)",
   color: "var(--text-primary)",
   margin: 0,
 };
@@ -311,25 +312,28 @@ const titleStyles: React.CSSProperties = {
 const tabBarStyles: React.CSSProperties = {
   display: "flex",
   gap: "var(--spacing-1)",
-  background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-md)",
-  padding: "2px",
+  background: "var(--bg-card)",
+  borderRadius: "var(--radius-lg)",
+  padding: "3px",
   border: "1px solid var(--border-primary)",
 };
 
 const tabStyles: React.CSSProperties = {
   padding: "var(--spacing-1) var(--spacing-3)",
-  fontSize: "var(--font-size-sm)",
+  fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-  color: "var(--text-secondary)",
+  letterSpacing: "var(--tracking-wide)",
+  color: "var(--text-tertiary)",
   background: "transparent",
   border: "none",
-  borderRadius: "var(--radius-sm)",
+  borderRadius: "var(--radius-md)",
   cursor: "pointer",
+  transition: "all var(--transition-fast)",
 };
 
 const activeTabStyles: React.CSSProperties = {
   ...tabStyles,
   color: "var(--text-primary)",
-  background: "var(--bg-tertiary)",
+  background: "var(--bg-hover)",
 };

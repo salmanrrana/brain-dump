@@ -72,7 +72,7 @@ function ProjectListItem({
       tabIndex={0}
       title={`${project.name || "(Unnamed)"} — ${project.path || "(Unknown path)"}`}
       data-testid={`project-list-item-${project.id}`}
-      className="group hover:bg-[var(--bg-hover)] hover:[&_h3]:text-[var(--accent-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-primary)]"
+      className="group hover:border-[var(--border-secondary)] hover:bg-[var(--bg-hover)] hover:[&_h3]:text-[var(--accent-primary)] hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-primary)]"
     >
       <span
         style={{
@@ -114,45 +114,49 @@ export default ProjectListItem;
 const badgeStyles: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
-  gap: "var(--spacing-1)",
+  gap: "4px",
   fontSize: "var(--font-size-xs)",
-  color: "var(--text-tertiary)",
+  fontFamily: "var(--font-mono)",
+  color: "var(--text-muted)",
   whiteSpace: "nowrap",
+  letterSpacing: "0.02em",
 };
 
 const baseContainerStyles: CSSProperties = {
   position: "relative",
   display: "flex",
   alignItems: "center",
-  gap: "var(--spacing-3)",
+  gap: "var(--spacing-4)",
   width: "100%",
-  padding: "var(--spacing-3) var(--spacing-4)",
-  background: "transparent",
-  border: "none",
-  borderRadius: "var(--radius-md)",
+  padding: "var(--spacing-4) var(--spacing-5)",
+  background: "var(--bg-card)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-xl)",
   cursor: "pointer",
-  transition: "all var(--transition-fast)",
+  transition: "all var(--transition-normal)",
   textAlign: "left",
 };
 
 const colorDotStyles: CSSProperties = {
-  width: "12px",
-  height: "12px",
+  width: "10px",
+  height: "10px",
   borderRadius: "var(--radius-full)",
   flexShrink: 0,
+  boxShadow: "0 0 6px currentColor",
 };
 
 const contentStyles: CSSProperties = {
   flex: 1,
   display: "flex",
   flexDirection: "column",
-  gap: "var(--spacing-2)",
+  gap: "var(--spacing-1)",
 };
 
 const nameStyles: CSSProperties = {
   color: "var(--text-primary)",
-  fontSize: "var(--font-size-sm)",
+  fontSize: "var(--font-size-base)",
   fontWeight: 500,
+  letterSpacing: "var(--tracking-tight)",
   margin: 0,
   whiteSpace: "nowrap",
   overflow: "hidden",
@@ -163,19 +167,19 @@ const nameStyles: CSSProperties = {
 const metadataRowStyles: CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: "var(--spacing-3)",
+  gap: "var(--spacing-4)",
 };
 
 const settingsButtonStyles: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  width: "24px",
-  height: "24px",
+  width: "28px",
+  height: "28px",
   background: "transparent",
   border: "none",
-  borderRadius: "var(--radius-sm)",
-  color: "var(--text-tertiary)",
+  borderRadius: "var(--radius-md)",
+  color: "var(--text-muted)",
   cursor: "pointer",
   transition: "all var(--transition-fast)",
   flexShrink: 0,

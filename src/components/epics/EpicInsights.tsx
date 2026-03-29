@@ -15,10 +15,8 @@ export interface EpicInsightsProps {
 interface CategoryConfig {
   label: string;
   description: string;
-  icon: React.ComponentType<{ className?: string }>;
-  accentClass: string;
-  bgClass: string;
-  borderClass: string;
+  icon: React.ComponentType<{ className?: string; size?: number; style?: React.CSSProperties }>;
+  accentColor: string;
 }
 
 const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
@@ -26,45 +24,34 @@ const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
     label: "Frequent Actions",
     description: "What you do most often across sessions",
     icon: Repeat,
-    accentClass: "text-amber-400",
-    bgClass: "bg-amber-500/10",
-    borderClass: "border-amber-500/20",
+    accentColor: "var(--warning)",
   },
   skills: {
     label: "Potential Skills",
     description: "Reusable workflows that could become Claude Code skills",
     icon: Zap,
-    accentClass: "text-emerald-400",
-    bgClass: "bg-emerald-500/10",
-    borderClass: "border-emerald-500/20",
+    accentColor: "var(--success)",
   },
   plugins: {
     label: "Potential Plugins",
     description: "Tools or integrations that could become standalone plugins",
     icon: Puzzle,
-    accentClass: "text-blue-400",
-    bgClass: "bg-blue-500/10",
-    borderClass: "border-blue-500/20",
+    accentColor: "var(--info)",
   },
   agents: {
     label: "Potential Agents",
     description: "Autonomous tasks that could run as subagents",
     icon: Bot,
-    accentClass: "text-purple-400",
-    bgClass: "bg-purple-500/10",
-    borderClass: "border-purple-500/20",
+    accentColor: "var(--accent-ai)",
   },
   "project-docs": {
     label: "Project Documentation",
     description: "Patterns and conventions for CLAUDE.md or README",
     icon: FileText,
-    accentClass: "text-cyan-400",
-    bgClass: "bg-cyan-500/10",
-    borderClass: "border-cyan-500/20",
+    accentColor: "var(--accent-primary)",
   },
 };
 
-// Render order
 const CATEGORY_ORDER: InsightEntry["category"][] = [
   "frequent-actions",
   "skills",
@@ -88,7 +75,6 @@ export function EpicInsights({ insights, analyzedAt }: EpicInsightsProps) {
 
   if (insights.length === 0) return null;
 
-  // Group by category
   const grouped = new Map<string, InsightEntry[]>();
   for (const insight of insights) {
     const existing = grouped.get(insight.category) ?? [];
@@ -97,32 +83,91 @@ export function EpicInsights({ insights, analyzedAt }: EpicInsightsProps) {
   }
 
   return (
-    <div className="rounded-lg border border-purple-500/20 bg-gradient-to-br from-slate-800/80 to-purple-900/10">
+    <div
+      style={{
+        borderRadius: "var(--radius-xl)",
+        border: "1px solid var(--border-primary)",
+        background: "var(--bg-card)",
+        overflow: "hidden",
+      }}
+    >
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
-        className="flex w-full items-center justify-between p-4 text-left hover:bg-slate-700/20 transition-colors"
+        style={{
+          display: "flex",
+          width: "100%",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "var(--spacing-4) var(--spacing-5)",
+          textAlign: "left",
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          transition: "background-color var(--transition-fast)",
+        }}
+        className="hover:bg-[var(--bg-hover)]"
       >
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-purple-400" />
-          <span className="text-sm font-medium text-purple-300">AI Insights</span>
-          <span className="inline-flex items-center rounded-full bg-purple-500/20 px-2 py-0.5 text-xs font-medium text-purple-300">
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-3)" }}>
+          <Sparkles size={14} style={{ color: "var(--accent-ai)" }} />
+          <span
+            style={{
+              fontSize: "var(--font-size-xs)",
+              fontFamily: "var(--font-mono)",
+              fontWeight: 600,
+              letterSpacing: "var(--tracking-wider)",
+              textTransform: "uppercase",
+              color: "var(--text-secondary)",
+            }}
+          >
+            AI Insights
+          </span>
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              padding: "2px 8px",
+              borderRadius: "var(--radius-md)",
+              background: "var(--bg-primary)",
+              border: "1px solid var(--border-primary)",
+              fontSize: "var(--font-size-xs)",
+              fontFamily: "var(--font-mono)",
+              color: "var(--text-tertiary)",
+            }}
+          >
             {insights.length}
           </span>
           {analyzedAt && (
-            <span className="text-xs text-slate-500 ml-2">Analyzed {formatDate(analyzedAt)}</span>
+            <span
+              style={{
+                fontSize: "var(--font-size-xs)",
+                fontFamily: "var(--font-mono)",
+                color: "var(--text-muted)",
+                marginLeft: "var(--spacing-1)",
+              }}
+            >
+              {formatDate(analyzedAt)}
+            </span>
           )}
         </div>
         {isOpen ? (
-          <ChevronUp className="h-4 w-4 text-slate-400" />
+          <ChevronUp size={14} style={{ color: "var(--text-muted)" }} />
         ) : (
-          <ChevronDown className="h-4 w-4 text-slate-400" />
+          <ChevronDown size={14} style={{ color: "var(--text-muted)" }} />
         )}
       </button>
 
       {isOpen && (
-        <div className="border-t border-purple-500/20 p-4 space-y-5">
+        <div
+          style={{
+            borderTop: "1px solid var(--border-primary)",
+            padding: "var(--spacing-5)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--spacing-6)",
+          }}
+        >
           {CATEGORY_ORDER.filter((cat) => grouped.has(cat)).map((category) => {
             const config = CATEGORY_CONFIG[category]!;
             const items = grouped.get(category)!;
@@ -130,21 +175,72 @@ export function EpicInsights({ insights, analyzedAt }: EpicInsightsProps) {
 
             return (
               <div key={category}>
-                <div className="flex items-center gap-2 mb-2">
-                  <Icon className={`h-4 w-4 ${config.accentClass}`} />
-                  <span className={`text-sm font-medium ${config.accentClass}`}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "var(--spacing-2)",
+                    marginBottom: "var(--spacing-3)",
+                  }}
+                >
+                  <Icon size={14} style={{ color: config.accentColor }} />
+                  <span
+                    style={{
+                      fontSize: "var(--font-size-sm)",
+                      fontWeight: 600,
+                      color: config.accentColor,
+                    }}
+                  >
                     {config.label}
                   </span>
-                  <span className="text-xs text-slate-500">{config.description}</span>
+                  <span
+                    style={{
+                      fontSize: "var(--font-size-xs)",
+                      color: "var(--text-muted)",
+                    }}
+                  >
+                    {config.description}
+                  </span>
                 </div>
-                <div className="space-y-2 ml-6">
+                <div
+                  style={{
+                    marginLeft: "var(--spacing-6)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "var(--spacing-2)",
+                  }}
+                >
                   {items.map((item, idx) => (
                     <div
                       key={idx}
-                      className={`rounded-md border ${config.borderClass} ${config.bgClass} p-3`}
+                      style={{
+                        borderRadius: "var(--radius-xl)",
+                        border: "1px solid var(--border-primary)",
+                        background: "var(--bg-primary)",
+                        padding: "var(--spacing-3) var(--spacing-4)",
+                      }}
                     >
-                      <p className={`text-sm font-medium ${config.accentClass}`}>{item.title}</p>
-                      <p className="text-sm text-slate-300 mt-0.5">{item.description}</p>
+                      <p
+                        style={{
+                          fontSize: "var(--font-size-sm)",
+                          fontWeight: 600,
+                          color: "var(--text-primary)",
+                          margin: 0,
+                        }}
+                      >
+                        {item.title}
+                      </p>
+                      <p
+                        style={{
+                          fontSize: "var(--font-size-sm)",
+                          color: "var(--text-secondary)",
+                          margin: 0,
+                          marginTop: "2px",
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {item.description}
+                      </p>
                     </div>
                   ))}
                 </div>

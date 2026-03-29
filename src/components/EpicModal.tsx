@@ -398,58 +398,64 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden="true" />
+      <div
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden="true"
+      />
 
-      {/* Modal - with theme-colored glow effect */}
-      {/* Note: overflow-visible allows the dropdown menu to render outside modal bounds */}
+      {/* Modal */}
       <div
         ref={modalRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="relative bg-[var(--bg-secondary)] rounded-lg w-full max-w-md max-h-[90vh] flex flex-col"
+        className="relative bg-[var(--bg-secondary)] rounded-2xl w-full max-w-xl max-h-[85vh] flex flex-col border border-[var(--glass-border)]"
         style={{
           boxShadow: "var(--shadow-modal)",
           overflow: "visible",
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[var(--border-primary)]">
-          <h2 id="modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-primary)]">
+          <h2
+            id="modal-title"
+            className="text-lg font-semibold tracking-tight text-[var(--text-primary)]"
+          >
             {isEditing ? "Edit Epic" : "New Epic"}
           </h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            className="p-2 hover:bg-[var(--bg-hover)] rounded-xl transition-colors text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
             aria-label="Close modal"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
           {/* Error */}
           <ErrorAlert error={error} />
 
           {/* Delete Confirmation */}
           {showDeleteConfirm && (
-            <div className="p-4 bg-[var(--accent-danger)]/20 border border-[var(--accent-danger)]/50 rounded-lg">
-              <p className="text-[var(--accent-danger)] text-sm mb-3">
-                Are you sure you want to delete this epic? Tickets in this epic will become orphaned
-                (not deleted).
+            <div className="p-4 bg-[var(--error-muted)] border border-[var(--error)]/30 rounded-xl">
+              <p className="text-[var(--error)] text-sm mb-3">
+                Are you sure you want to delete this epic? Tickets will become orphaned (not
+                deleted).
               </p>
               <div className="flex gap-2">
                 <button
                   onClick={handleDelete}
                   disabled={isDeleting}
-                  className="px-3 py-1.5 bg-[var(--accent-danger)] hover:bg-[var(--accent-danger)]/80 disabled:bg-[var(--bg-tertiary)] rounded text-sm font-medium"
+                  className="px-3 py-1.5 bg-[var(--error)] text-white hover:brightness-110 disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] rounded-xl text-sm font-medium transition-all"
                 >
                   {isDeleting ? "Deleting..." : "Yes, Delete"}
                 </button>
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="px-3 py-1.5 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] rounded text-sm"
+                  className="px-3 py-1.5 bg-[var(--bg-card)] border border-[var(--border-primary)] hover:bg-[var(--bg-hover)] rounded-xl text-sm transition-colors"
                 >
                   Cancel
                 </button>
@@ -457,44 +463,90 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
             </div>
           )}
 
-          {/* Title */}
-          <form.Field
-            name="title"
-            children={(field) => (
-              <div>
-                <label
-                  htmlFor={field.name}
-                  className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
-                >
-                  Title <span className="text-[var(--accent-danger)]">*</span>
-                </label>
-                <input
-                  ref={titleInputRef}
-                  id={field.name}
-                  type="text"
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  onBlur={field.handleBlur}
-                  placeholder="Epic name"
-                  className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)]"
-                />
-                {field.state.meta.isTouched && field.state.meta.errors.length > 0 && (
-                  <p className="mt-1 text-sm text-[var(--accent-danger)]" role="alert">
-                    {field.state.meta.errors.join(", ")}
-                  </p>
-                )}
-              </div>
-            )}
-          />
+          {/* Title + Color row */}
+          <div className="grid grid-cols-[1fr_140px] gap-4">
+            <form.Field
+              name="title"
+              children={(field) => (
+                <div>
+                  <label
+                    htmlFor={field.name}
+                    className="block text-xs font-medium text-[var(--text-muted)] mb-1.5 uppercase tracking-wider"
+                  >
+                    Title <span className="text-[var(--error)]">*</span>
+                  </label>
+                  <input
+                    ref={titleInputRef}
+                    id={field.name}
+                    type="text"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    onBlur={field.handleBlur}
+                    placeholder="Epic name"
+                    className="w-full px-3 py-2.5 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl text-[var(--text-primary)] text-base font-medium tracking-tight focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/30 transition-colors"
+                  />
+                  {field.state.meta.isTouched && field.state.meta.errors.length > 0 && (
+                    <p className="mt-1 text-sm text-[var(--error)]" role="alert">
+                      {field.state.meta.errors.join(", ")}
+                    </p>
+                  )}
+                </div>
+              )}
+            />
 
-          {/* Description */}
+            <form.Field
+              name="color"
+              children={(field) => (
+                <div>
+                  <label
+                    htmlFor={field.name}
+                    className="block text-xs font-medium text-[var(--text-muted)] mb-1.5 uppercase tracking-wider"
+                  >
+                    Color
+                  </label>
+                  <div className="relative">
+                    <div className="flex items-center gap-2">
+                      {field.state.value && (
+                        <span
+                          className="w-3 h-3 rounded-full flex-shrink-0"
+                          style={{
+                            backgroundColor: field.state.value,
+                            boxShadow: `0 0 6px ${field.state.value}`,
+                          }}
+                        />
+                      )}
+                      <select
+                        id={field.name}
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        onBlur={field.handleBlur}
+                        className="w-full px-3 py-2.5 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl text-[var(--text-primary)] text-sm appearance-none focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/30 transition-colors"
+                      >
+                        {COLOR_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        size={14}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            />
+          </div>
+
+          {/* Description - full width, more room */}
           <form.Field
             name="description"
             children={(field) => (
               <div>
                 <label
                   htmlFor={field.name}
-                  className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
+                  className="block text-xs font-medium text-[var(--text-muted)] mb-1.5 uppercase tracking-wider"
                 >
                   Description
                 </label>
@@ -503,53 +555,10 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                   onBlur={field.handleBlur}
-                  rows={5}
+                  rows={8}
                   placeholder="Optional description..."
-                  className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] resize-vertical min-h-[100px]"
+                  className="w-full px-3 py-2 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl text-[var(--text-primary)] resize-vertical min-h-[140px] focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/30 transition-colors"
                 />
-              </div>
-            )}
-          />
-
-          {/* Color */}
-          <form.Field
-            name="color"
-            children={(field) => (
-              <div>
-                <label
-                  htmlFor={field.name}
-                  className="block text-sm font-medium text-[var(--text-secondary)] mb-1"
-                >
-                  Color
-                </label>
-                <div className="relative">
-                  <select
-                    id={field.name}
-                    value={field.state.value}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    onBlur={field.handleBlur}
-                    className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none"
-                  >
-                    {COLOR_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown
-                    size={16}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
-                  />
-                </div>
-                {field.state.value && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <span
-                      className="w-4 h-4 rounded"
-                      style={{ backgroundColor: field.state.value }}
-                    />
-                    <span className="text-xs text-[var(--text-secondary)]">Preview</span>
-                  </div>
-                )}
               </div>
             )}
           />
@@ -558,7 +567,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
         {/* Ralph Notification */}
         {ralphNotification && (
           <div
-            className={`mx-4 mb-0 p-3 rounded-lg text-sm ${
+            className={`mx-5 mb-0 p-3 rounded-xl text-sm ${
               ralphNotification.type === "success"
                 ? "bg-[var(--success-muted)] text-[var(--success-text)] border border-[var(--success)]/50"
                 : ralphNotification.type === "info"
@@ -598,13 +607,13 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-4 border-t border-[var(--border-primary)]">
+        <div className="flex items-center justify-between px-5 py-4 border-t border-[var(--border-primary)]">
           <div>
             {isEditing && (
               <button
                 onClick={() => setShowDeleteConfirm(true)}
                 disabled={showDeleteConfirm}
-                className="px-3 py-2 text-[var(--accent-danger)] hover:text-[var(--accent-danger)]/80 hover:bg-[var(--bg-hover)] rounded-lg transition-colors text-sm"
+                className="px-3 py-2 text-[var(--error)] hover:bg-[var(--error-muted)] rounded-xl transition-colors text-sm font-medium"
               >
                 Delete Epic
               </button>
@@ -623,7 +632,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                   <button
                     onClick={handleSave}
                     disabled={isSaving || !title.trim() || !canSubmit}
-                    className={`flex items-center gap-2 px-4 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] font-medium transition-colors ${isEditing ? "rounded-l-lg" : "rounded-lg"}`}
+                    className={`flex items-center gap-2 px-5 py-2 bg-[var(--accent-primary)] text-[var(--text-on-accent)] hover:brightness-110 disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] font-medium transition-all shadow-sm ${isEditing ? "rounded-l-xl" : "rounded-xl"}`}
                   >
                     {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                     <span>{isEditing ? "Save Changes" : "Create Epic"}</span>
@@ -634,7 +643,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                 <button
                   onClick={() => setShowActionMenu(!showActionMenu)}
                   disabled={isSaving || isStartingRalph}
-                  className="flex items-center px-2 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] rounded-r-lg border-l border-[var(--accent-secondary)] transition-colors"
+                  className="flex items-center px-2 py-2 bg-[var(--accent-primary)] text-[var(--text-on-accent)] hover:brightness-110 disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] rounded-r-xl border-l border-[var(--text-on-accent)]/20 transition-all"
                   aria-label="More actions"
                 >
                   <ChevronDown size={16} />
@@ -644,7 +653,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
 
             {/* Dropdown Menu */}
             {showActionMenu && isEditing && (
-              <div className="absolute right-0 bottom-full mb-2 w-[46rem] max-w-[95vw] bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg shadow-xl z-[80] overflow-hidden">
+              <div className="absolute right-0 bottom-full mb-2 w-[46rem] max-w-[95vw] bg-[var(--bg-secondary)] border border-[var(--border-secondary)] rounded-xl shadow-xl z-[80] overflow-hidden">
                 <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[var(--border-primary)]">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 px-3 py-2 bg-[var(--bg-primary)] border-b border-[var(--border-primary)]">
@@ -656,7 +665,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                     <div className="grid grid-cols-2 gap-2 p-3">
                       <button
                         onClick={() => void handleStartInteractive("claude")}
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
                       >
                         <Terminal size={14} className="text-[var(--success)] flex-shrink-0" />
                         <span className="text-sm text-[var(--text-primary)]">Claude</span>
@@ -664,49 +673,49 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                       <button
                         onClick={() => void handleStartInteractive("codex")}
                         title="Try Codex CLI first, then Codex App if CLI is unavailable."
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
                       >
                         <Terminal size={14} className="text-[var(--success)] flex-shrink-0" />
                         <span className="text-sm text-[var(--text-primary)]">Codex Auto</span>
                       </button>
                       <button
                         onClick={() => void handleStartInteractive("codex-cli")}
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
                       >
                         <Terminal size={14} className="text-[var(--success)] flex-shrink-0" />
                         <span className="text-sm text-[var(--text-primary)]">Codex CLI</span>
                       </button>
                       <button
                         onClick={() => void handleStartInteractive("codex-app")}
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
                       >
                         <Code2 size={14} className="text-[var(--success)] flex-shrink-0" />
                         <span className="text-sm text-[var(--text-primary)]">Codex App</span>
                       </button>
                       <button
                         onClick={() => void handleStartInteractive("vscode")}
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
                       >
                         <Code2 size={14} className="text-[var(--accent-primary)] flex-shrink-0" />
                         <span className="text-sm text-[var(--text-primary)]">VS Code</span>
                       </button>
                       <button
                         onClick={() => void handleStartInteractive("cursor")}
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
                       >
                         <Monitor size={14} className="text-[var(--warning)] flex-shrink-0" />
                         <span className="text-sm text-[var(--text-primary)]">Cursor</span>
                       </button>
                       <button
                         onClick={() => void handleStartInteractive("copilot")}
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
                       >
                         <Github size={14} className="text-[var(--text-secondary)] flex-shrink-0" />
                         <span className="text-sm text-[var(--text-primary)]">Copilot CLI</span>
                       </button>
                       <button
                         onClick={() => void handleStartInteractive("opencode")}
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
                       >
                         <Code2 size={14} className="text-[var(--info)] flex-shrink-0" />
                         <span className="text-sm text-[var(--text-primary)]">OpenCode</span>
@@ -726,7 +735,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                         onClick={() =>
                           void handleStartRalph({ useSandbox: false, aiBackend: "claude" })
                         }
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
                       >
                         <Bot size={14} className="text-[var(--accent-ai)] flex-shrink-0" />
                         <span className="text-sm text-[var(--text-primary)]">Claude</span>
@@ -735,7 +744,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                         onClick={() =>
                           void handleStartRalph({ useSandbox: false, aiBackend: "codex" })
                         }
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
                       >
                         <Terminal size={14} className="text-[var(--success)] flex-shrink-0" />
                         <span className="text-sm text-[var(--text-primary)]">Codex</span>
@@ -748,7 +757,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                             workingMethodOverride: "vscode",
                           })
                         }
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
                       >
                         <Code2 size={14} className="text-[var(--accent-primary)] flex-shrink-0" />
                         <span className="text-sm text-[var(--text-primary)]">VS Code</span>
@@ -761,7 +770,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                             workingMethodOverride: "cursor",
                           })
                         }
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
                       >
                         <Monitor size={14} className="text-[var(--warning)] flex-shrink-0" />
                         <span className="text-sm text-[var(--text-primary)]">Cursor</span>
@@ -774,7 +783,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                             workingMethodOverride: "copilot-cli",
                           })
                         }
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
                       >
                         <Github size={14} className="text-[var(--text-secondary)] flex-shrink-0" />
                         <span className="text-sm text-[var(--text-primary)]">Copilot CLI</span>
@@ -783,7 +792,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                         onClick={() =>
                           void handleStartRalph({ useSandbox: false, aiBackend: "opencode" })
                         }
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
                       >
                         <Code2 size={14} className="text-[var(--accent-ai)] flex-shrink-0" />
                         <span className="text-sm text-[var(--text-primary)]">OpenCode</span>

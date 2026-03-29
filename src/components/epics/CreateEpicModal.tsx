@@ -307,18 +307,20 @@ const backdropStyles: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  background: "rgba(0, 0, 0, 0.6)",
+  background: "rgba(0, 0, 0, 0.7)",
+  backdropFilter: "blur(4px)",
+  WebkitBackdropFilter: "blur(4px)",
   zIndex: 50,
 };
 
 const modalStyles: React.CSSProperties = {
   width: "100%",
-  maxWidth: "480px",
-  maxHeight: "90vh",
+  maxWidth: "520px",
+  maxHeight: "85vh",
   background: "var(--bg-secondary)",
-  border: "1px solid var(--border-primary)",
-  borderRadius: "var(--radius-lg)",
-  boxShadow: "var(--shadow-modal)", // Theme-colored glow effect
+  border: "1px solid var(--glass-border)",
+  borderRadius: "var(--radius-2xl)",
+  boxShadow: "var(--shadow-modal)",
   display: "flex",
   flexDirection: "column",
   overflow: "hidden",
@@ -328,7 +330,7 @@ const headerStyles: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  padding: "var(--spacing-4)",
+  padding: "var(--spacing-5)",
   borderBottom: "1px solid var(--border-primary)",
   background: "var(--bg-secondary)",
   position: "sticky",
@@ -346,17 +348,18 @@ const headerIconStyles: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  width: "36px",
-  height: "36px",
-  borderRadius: "var(--radius-md)",
-  background: "var(--gradient-accent)",
-  color: "white",
+  width: "32px",
+  height: "32px",
+  borderRadius: "var(--radius-lg)",
+  background: "var(--accent-muted)",
+  color: "var(--accent-primary)",
 };
 
 const headerTitleStyles: React.CSSProperties = {
   margin: 0,
   fontSize: "var(--font-size-lg)",
   fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+  letterSpacing: "var(--tracking-tight)",
   color: "var(--text-primary)",
 };
 
@@ -368,8 +371,8 @@ const closeButtonStyles: React.CSSProperties = {
   height: "32px",
   background: "transparent",
   border: "none",
-  borderRadius: "var(--radius-md)",
-  color: "var(--text-secondary)",
+  borderRadius: "var(--radius-xl)",
+  color: "var(--text-tertiary)",
   cursor: "pointer",
   transition: "all var(--transition-fast)",
 };
@@ -377,8 +380,8 @@ const closeButtonStyles: React.CSSProperties = {
 const formStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  padding: "var(--spacing-4)",
-  gap: "var(--spacing-4)",
+  padding: "var(--spacing-5)",
+  gap: "var(--spacing-5)",
   overflowY: "auto",
 };
 
@@ -387,14 +390,17 @@ const projectContextStyles: React.CSSProperties = {
   alignItems: "center",
   gap: "var(--spacing-2)",
   padding: "var(--spacing-3)",
-  background: "var(--bg-primary)",
-  borderRadius: "var(--radius-md)",
+  background: "var(--bg-card)",
+  borderRadius: "var(--radius-xl)",
   border: "1px solid var(--border-primary)",
 };
 
 const projectContextLabelStyles: React.CSSProperties = {
-  color: "var(--text-secondary)",
-  fontSize: "var(--font-size-sm)",
+  color: "var(--text-muted)",
+  fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
+  letterSpacing: "var(--tracking-wide)",
+  textTransform: "uppercase",
 };
 
 const projectContextValueStyles: React.CSSProperties = {
@@ -406,26 +412,29 @@ const projectContextValueStyles: React.CSSProperties = {
 const formGroupStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "var(--spacing-2)",
+  gap: "6px",
 };
 
 const labelStyles: React.CSSProperties = {
-  color: "var(--text-secondary)",
-  fontSize: "var(--font-size-sm)",
+  color: "var(--text-muted)",
+  fontSize: "var(--font-size-xs)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+  letterSpacing: "var(--tracking-wider)",
+  textTransform: "uppercase",
 };
 
 const requiredStyles: React.CSSProperties = {
-  color: "var(--status-error)",
+  color: "var(--error)",
 };
 
 const inputStyles: React.CSSProperties = {
   width: "100%",
   padding: "var(--spacing-2) var(--spacing-3)",
-  background: "var(--bg-primary)",
+  background: "var(--bg-card)",
   border: "1px solid var(--border-primary)",
-  borderRadius: "var(--radius-md)",
+  borderRadius: "var(--radius-xl)",
   color: "var(--text-primary)",
+  fontFamily: "var(--font-sans)",
   fontSize: "var(--font-size-base)",
   outline: "none",
   transition: "border-color var(--transition-fast)",
@@ -434,24 +443,24 @@ const inputStyles: React.CSSProperties = {
 const textareaStyles: React.CSSProperties = {
   width: "100%",
   padding: "var(--spacing-2) var(--spacing-3)",
-  background: "var(--bg-primary)",
+  background: "var(--bg-card)",
   border: "1px solid var(--border-primary)",
-  borderRadius: "var(--radius-md)",
+  borderRadius: "var(--radius-xl)",
   color: "var(--text-primary)",
+  fontFamily: "var(--font-sans)",
   fontSize: "var(--font-size-base)",
   outline: "none",
   resize: "vertical",
   minHeight: "80px",
-  fontFamily: "inherit",
   transition: "border-color var(--transition-fast)",
 };
 
 const errorStyles: React.CSSProperties = {
   padding: "var(--spacing-3)",
-  background: "var(--status-error-bg)",
-  border: "1px solid var(--status-error)",
-  borderRadius: "var(--radius-md)",
-  color: "var(--status-error)",
+  background: "var(--error-muted)",
+  border: "1px solid rgba(239, 68, 68, 0.3)",
+  borderRadius: "var(--radius-xl)",
+  color: "var(--error)",
   fontSize: "var(--font-size-sm)",
 };
 
@@ -460,17 +469,18 @@ const footerStyles: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "flex-end",
   gap: "var(--spacing-3)",
-  paddingTop: "var(--spacing-2)",
+  paddingTop: "var(--spacing-3)",
   borderTop: "1px solid var(--border-primary)",
-  marginTop: "var(--spacing-2)",
+  marginTop: "var(--spacing-1)",
 };
 
 const cancelButtonStyles: React.CSSProperties = {
   padding: "var(--spacing-2) var(--spacing-4)",
   background: "transparent",
-  border: "1px solid var(--border-primary)",
-  borderRadius: "var(--radius-md)",
-  color: "var(--text-secondary)",
+  border: "none",
+  borderRadius: "var(--radius-xl)",
+  color: "var(--text-tertiary)",
+  fontFamily: "var(--font-sans)",
   fontSize: "var(--font-size-sm)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
   cursor: "pointer",
@@ -481,14 +491,16 @@ const submitButtonStyles: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: "var(--spacing-2)",
-  padding: "var(--spacing-2) var(--spacing-4)",
+  padding: "var(--spacing-2) var(--spacing-5)",
   background: "var(--gradient-accent)",
   border: "none",
-  borderRadius: "var(--radius-md)",
-  color: "white",
+  borderRadius: "var(--radius-xl)",
+  color: "var(--text-on-accent)",
+  fontFamily: "var(--font-sans)",
   fontSize: "var(--font-size-sm)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
   transition: "all var(--transition-fast)",
+  boxShadow: "var(--shadow-sm)",
 };
 
 export default CreateEpicModal;

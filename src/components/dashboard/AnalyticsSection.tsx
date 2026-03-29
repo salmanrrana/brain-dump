@@ -122,8 +122,8 @@ function ChartCardSkeleton() {
 const skeletonCard: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-lg)",
+  background: "var(--bg-card)",
+  borderRadius: "var(--radius-xl)",
   border: "1px solid var(--border-primary)",
   overflow: "hidden",
 };

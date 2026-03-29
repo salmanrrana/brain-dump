@@ -43,11 +43,11 @@ describe("IconSidebar", () => {
       expect(sidebar).toHaveStyle({ height: "100vh" });
     });
 
-    it("uses --bg-secondary background", () => {
+    it("uses glass background", () => {
       render(<IconSidebar {...defaultProps} />);
 
       const sidebar = getSidebar();
-      expect(sidebar).toHaveStyle({ background: "var(--bg-secondary)" });
+      expect(sidebar).toHaveStyle({ background: "var(--glass-bg)" });
     });
 
     it("renders custom nav items when provided", () => {

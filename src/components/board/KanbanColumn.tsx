@@ -136,19 +136,17 @@ const columnStyles: React.CSSProperties = {
   flexShrink: 0,
   height: "100%",
   background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-lg)",
+  borderRadius: "var(--radius-xl)",
   border: "1px solid var(--border-primary)",
-  overflow: "hidden", // Ensure children respect radius
-  // Scroll snap alignment for touch scrolling
+  overflow: "hidden",
   scrollSnapAlign: "start",
 };
 
 const columnHeaderStyles: React.CSSProperties = {
-  padding: "var(--spacing-3) var(--spacing-4)",
+  padding: "var(--spacing-4) var(--spacing-4)",
   borderBottom: "1px solid var(--border-primary)",
   flexShrink: 0,
-  background: "var(--bg-secondary)", // Ensure header sits on top
-  // Sticky header within column during vertical scroll
+  background: "var(--bg-secondary)",
   position: "sticky",
   top: 0,
   zIndex: 1,
@@ -157,21 +155,25 @@ const columnHeaderStyles: React.CSSProperties = {
 const headerContentStyles: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: "var(--spacing-2)",
+  gap: "var(--spacing-3)",
 };
 
 const headerAccentStyles: React.CSSProperties = {
-  width: "4px",
-  height: "16px",
-  borderRadius: "2px",
+  width: "6px",
+  height: "6px",
+  borderRadius: "var(--radius-full)",
   flexShrink: 0,
+  boxShadow: "0 0 8px currentColor",
 };
 
 const headerTitleStyles: React.CSSProperties = {
   margin: 0,
-  fontSize: "var(--font-size-sm)",
+  fontSize: "var(--font-size-xs)",
   fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-  color: "var(--text-primary)",
+  fontFamily: "var(--font-mono)",
+  letterSpacing: "var(--tracking-wide)",
+  textTransform: "uppercase",
+  color: "var(--text-secondary)",
   flex: 1,
 };
 
@@ -179,20 +181,22 @@ const countBadgeStyles: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minWidth: "20px",
-  height: "20px",
+  minWidth: "22px",
+  height: "22px",
   padding: "0 var(--spacing-2)",
   fontSize: "var(--font-size-xs)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
-  color: "var(--text-secondary)",
-  background: "var(--bg-tertiary)",
-  borderRadius: "var(--radius-full)",
+  fontFamily: "var(--font-mono)",
+  color: "var(--text-tertiary)",
+  background: "var(--bg-primary)",
+  borderRadius: "var(--radius-md)",
+  border: "1px solid var(--border-primary)",
 };
 
 const columnContentStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "var(--spacing-3)",
+  gap: "var(--spacing-2)",
   padding: "var(--spacing-3)",
   flex: 1,
   overflowY: "auto",
@@ -200,7 +204,8 @@ const columnContentStyles: React.CSSProperties = {
 };
 
 const activeColumnContentStyles: React.CSSProperties = {
-  background: "color-mix(in srgb, var(--accent-primary) 8%, transparent)",
+  background: "color-mix(in srgb, var(--accent-primary) 6%, transparent)",
+  boxShadow: "inset 0 0 24px color-mix(in srgb, var(--accent-primary) 4%, transparent)",
 };
 
 const emptyStateStyles: React.CSSProperties = {
@@ -208,14 +213,16 @@ const emptyStateStyles: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   padding: "var(--spacing-8) var(--spacing-4)",
-  border: "2px dashed var(--border-secondary)",
-  borderRadius: "var(--radius-md)",
+  border: "1px dashed var(--border-primary)",
+  borderRadius: "var(--radius-lg)",
   margin: "var(--spacing-2) 0",
 };
 
 const emptyTextStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-sm)",
-  color: "var(--text-tertiary)",
+  fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
+  color: "var(--text-muted)",
+  letterSpacing: "var(--tracking-wide)",
 };
 
 export default KanbanColumn;

@@ -100,7 +100,7 @@ describe("NavItem", () => {
       render(<NavItem icon={HomeIcon} label="Home" />);
 
       const button = screen.getByRole("button");
-      expect(button).toHaveStyle({ color: "var(--text-secondary)" });
+      expect(button).toHaveStyle({ color: "var(--text-muted)" });
     });
 
     it("sets data-active attribute when active", () => {

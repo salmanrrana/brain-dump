@@ -7,8 +7,8 @@
 export const sectionStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-lg)",
+  background: "var(--bg-card)",
+  borderRadius: "var(--radius-xl)",
   border: "1px solid var(--border-primary)",
   overflow: "hidden",
 };
@@ -17,15 +17,16 @@ export const sectionStyles: React.CSSProperties = {
 export const sectionHeaderStyles: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: "var(--spacing-2)",
-  padding: "var(--spacing-3)",
+  gap: "var(--spacing-3)",
+  padding: "var(--spacing-4)",
   borderBottom: "1px solid var(--border-primary)",
 };
 
 /** Section title text style */
 export const sectionTitleStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-base)",
-  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+  fontSize: "var(--font-size-sm)",
+  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+  letterSpacing: "-0.01em",
   color: "var(--text-primary)",
   margin: 0,
 };

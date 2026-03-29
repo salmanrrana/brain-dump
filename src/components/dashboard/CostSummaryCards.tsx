@@ -150,11 +150,11 @@ const cardStyles: React.CSSProperties = {
   position: "relative",
   display: "flex",
   flexDirection: "column",
-  background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-lg)",
+  background: "var(--bg-card)",
+  borderRadius: "var(--radius-xl)",
   border: "1px solid var(--border-primary)",
   overflow: "hidden",
-  transition: "transform 0.2s ease, box-shadow 0.2s ease",
+  transition: "all var(--transition-normal)",
   cursor: "default",
 };
 

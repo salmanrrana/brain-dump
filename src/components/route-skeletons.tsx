@@ -6,8 +6,8 @@
 
 const skeleton: React.CSSProperties = {
   background: "var(--bg-tertiary)",
-  borderRadius: "var(--radius-md)",
-  animation: "pulse 1.5s ease-in-out infinite",
+  borderRadius: "var(--radius-lg)",
+  animation: "pulse 2s ease-in-out infinite",
 };
 
 // ---------------------------------------------------------------------------
@@ -88,7 +88,7 @@ const boardColumn: React.CSSProperties = {
   flex: 1,
   minWidth: 0,
   background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-md)",
+  borderRadius: "var(--radius-xl)",
   border: "1px solid var(--border-primary)",
   display: "flex",
   flexDirection: "column",
@@ -105,8 +105,8 @@ const boardColumnHeader: React.CSSProperties = {
 const boardCard: React.CSSProperties = {
   padding: "var(--spacing-3)",
   margin: "var(--spacing-2)",
-  background: "var(--bg-primary)",
-  borderRadius: "var(--radius-md)",
+  background: "var(--bg-card)",
+  borderRadius: "var(--radius-xl)",
   border: "1px solid var(--border-primary)",
 };
 
@@ -257,9 +257,9 @@ const dashStats: React.CSSProperties = {
 };
 
 const dashStatCard: React.CSSProperties = {
-  padding: "var(--spacing-4)",
-  background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-md)",
+  padding: "var(--spacing-5)",
+  background: "var(--bg-card)",
+  borderRadius: "var(--radius-xl)",
   border: "1px solid var(--border-primary)",
 };
 
@@ -270,9 +270,9 @@ const dashChartGrid: React.CSSProperties = {
 };
 
 const dashChartCard: React.CSSProperties = {
-  padding: "var(--spacing-4)",
-  background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-md)",
+  padding: "var(--spacing-5)",
+  background: "var(--bg-card)",
+  borderRadius: "var(--radius-xl)",
   border: "1px solid var(--border-primary)",
 };
 
@@ -372,9 +372,9 @@ const projColumns: React.CSSProperties = {
 const projColumn: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  background: "var(--bg-secondary)",
+  background: "var(--bg-card)",
   border: "1px solid var(--border-primary)",
-  borderRadius: "var(--radius-md)",
+  borderRadius: "var(--radius-xl)",
   overflow: "hidden",
 };
 

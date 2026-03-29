@@ -80,7 +80,8 @@ export const NavItem = forwardRef<HTMLButtonElement, NavItemProps>(function NavI
   ref
 ) {
   const [showTooltip, setShowTooltip] = useState(false);
-  const iconSize = Math.round(size * 0.5);
+  const [tooltipTop, setTooltipTop] = useState(0);
+  const iconSize = Math.round(size * 0.45);
 
   // Inject keyframes for tooltip animation (useEffect to avoid side effects during render)
   useEffect(() => {
@@ -96,37 +97,36 @@ export const NavItem = forwardRef<HTMLButtonElement, NavItemProps>(function NavI
     height: `${size}px`,
     minWidth: `${size}px`,
     minHeight: `${size}px`,
-    borderRadius: "var(--radius-lg)",
+    borderRadius: "var(--radius-xl)",
     transition: "all var(--transition-normal)",
     cursor: disabled ? "not-allowed" : "pointer",
     opacity: disabled ? 0.5 : 1,
     background: active ? "var(--gradient-accent)" : "transparent",
-    color: active ? "var(--text-on-accent)" : "var(--text-secondary)",
-    border: "none",
+    color: active ? "var(--text-on-accent)" : "var(--text-muted)",
+    border: active ? "none" : "1px solid transparent",
     position: "relative",
     boxShadow: active ? "var(--shadow-glow)" : "none",
     ...style,
   };
 
-  // Tooltip styles - appears to the right of the button
+  // Tooltip styles - fixed position to escape glass stacking context
   const tooltipStyles: React.CSSProperties = {
-    position: "absolute",
-    left: "100%",
-    top: "50%",
-    transform: "translateY(-50%)",
-    marginLeft: "12px",
-    padding: "var(--spacing-1) var(--spacing-3)",
+    position: "fixed",
+    left: `${size + 20}px`,
+    padding: "6px 12px",
     background: "var(--bg-tertiary)",
     color: "var(--text-primary)",
-    fontSize: "var(--font-size-sm)",
+    fontSize: "var(--font-size-xs)",
     fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+    fontFamily: "var(--font-sans)",
+    letterSpacing: "0.01em",
     borderRadius: "var(--radius-md)",
     border: "1px solid var(--border-secondary)",
     whiteSpace: "nowrap",
     pointerEvents: "none",
-    zIndex: "var(--z-tooltip)",
-    animation: "navitem-tooltip-fade 150ms ease-out",
-    boxShadow: "var(--shadow-md)",
+    zIndex: 9999,
+    animation: "navitem-tooltip-fade 120ms ease-out",
+    boxShadow: "var(--shadow-xl)",
   };
 
   return (
@@ -147,8 +147,12 @@ export const NavItem = forwardRef<HTMLButtonElement, NavItemProps>(function NavI
         if (!disabled) {
           if (!active) {
             const target = e.currentTarget;
-            target.style.background = "var(--bg-hover)";
+            target.style.background = "rgba(255,255,255,0.04)";
+            target.style.borderColor = "var(--border-primary)";
+            target.style.color = "var(--text-secondary)";
           }
+          const rect = e.currentTarget.getBoundingClientRect();
+          setTooltipTop(rect.top + rect.height / 2);
           setShowTooltip(true);
         }
         props.onMouseEnter?.(e);
@@ -158,6 +162,8 @@ export const NavItem = forwardRef<HTMLButtonElement, NavItemProps>(function NavI
           if (!active) {
             const target = e.currentTarget;
             target.style.background = "transparent";
+            target.style.borderColor = "transparent";
+            target.style.color = "var(--text-muted)";
           }
           setShowTooltip(false);
         }
@@ -166,8 +172,12 @@ export const NavItem = forwardRef<HTMLButtonElement, NavItemProps>(function NavI
       onFocus={(e) => {
         if (!disabled && !active) {
           const target = e.currentTarget;
-          target.style.background = "var(--bg-hover)";
+          target.style.background = "rgba(255,255,255,0.04)";
+          target.style.borderColor = "var(--border-primary)";
+          target.style.color = "var(--text-secondary)";
         }
+        const rect = e.currentTarget.getBoundingClientRect();
+        setTooltipTop(rect.top + rect.height / 2);
         setShowTooltip(true);
         props.onFocus?.(e);
       }}
@@ -175,6 +185,8 @@ export const NavItem = forwardRef<HTMLButtonElement, NavItemProps>(function NavI
         if (!disabled && !active) {
           const target = e.currentTarget;
           target.style.background = "transparent";
+          target.style.borderColor = "transparent";
+          target.style.color = "var(--text-muted)";
         }
         setShowTooltip(false);
         props.onBlur?.(e);
@@ -183,20 +195,28 @@ export const NavItem = forwardRef<HTMLButtonElement, NavItemProps>(function NavI
     >
       <Icon size={iconSize} aria-hidden="true" />
 
-      {/* Tooltip - appears to the right, shows shortcut key if provided */}
+      {/* Tooltip - fixed position to escape glass stacking context */}
       {showTooltip && (
-        <span role="tooltip" style={tooltipStyles}>
+        <span
+          role="tooltip"
+          style={{
+            ...tooltipStyles,
+            top: `${tooltipTop}px`,
+            transform: "translateY(-50%)",
+          }}
+        >
           {label}
           {shortcutKey && (
             <kbd
               style={{
                 marginLeft: "6px",
                 padding: "1px 5px",
-                background: "var(--bg-secondary)",
+                background: "var(--bg-primary)",
                 borderRadius: "var(--radius-sm)",
                 fontSize: "var(--font-size-xs)",
-                fontFamily: "monospace",
-                border: "1px solid var(--border-secondary)",
+                fontFamily: "var(--font-mono)",
+                border: "1px solid var(--border-primary)",
+                color: "var(--text-muted)",
               }}
             >
               {shortcutKey}

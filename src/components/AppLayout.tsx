@@ -568,8 +568,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
     <AppContext.Provider value={appState}>
       {/* Desktop: grid with IconSidebar (64px) | Mobile: single column */}
       <div className="h-screen grid grid-cols-1 md:grid-cols-[64px_1fr] text-[var(--text-primary)]">
-        {/* Desktop IconSidebar - hidden on mobile */}
-        <div className="hidden md:block">
+        {/* Desktop IconSidebar - hidden on mobile, z-30 so tooltips render above main content */}
+        <div className="hidden md:block relative z-30">
           <IconSidebar onAction={handleSidebarAction} />
         </div>
 

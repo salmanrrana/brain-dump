@@ -37,8 +37,19 @@ export function EpicTicketsList({ tickets }: EpicTicketsListProps) {
 
   if (tickets.length === 0) {
     return (
-      <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-6 text-center">
-        <p className="text-slate-400">No tickets in this epic yet</p>
+      <div
+        style={{
+          padding: "var(--spacing-8)",
+          textAlign: "center",
+          border: "1px dashed var(--border-primary)",
+          borderRadius: "var(--radius-xl)",
+          color: "var(--text-muted)",
+          fontFamily: "var(--font-mono)",
+          fontSize: "var(--font-size-xs)",
+          letterSpacing: "var(--tracking-wide)",
+        }}
+      >
+        No tickets in this epic yet
       </div>
     );
   }
@@ -68,7 +79,14 @@ export function EpicTicketsList({ tickets }: EpicTicketsListProps) {
   };
 
   return (
-    <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4 space-y-2">
+    <div
+      style={{
+        borderRadius: "var(--radius-xl)",
+        border: "1px solid var(--border-primary)",
+        background: "var(--bg-card)",
+        overflow: "hidden",
+      }}
+    >
       {STATUS_GROUP_ORDER.map((status) => {
         const groupTickets = ticketsByStatus[status];
         if (!groupTickets || groupTickets.length === 0) return null;
@@ -78,36 +96,80 @@ export function EpicTicketsList({ tickets }: EpicTicketsListProps) {
         const count = groupTickets.length;
 
         return (
-          <div key={status} className="border-b border-slate-700 last:border-b-0">
+          <div
+            key={status}
+            style={{
+              borderBottom: "1px solid var(--border-primary)",
+            }}
+            className="last:border-b-0"
+          >
             <button
               type="button"
               onClick={() => toggleGroup(status)}
-              className="flex w-full items-center gap-2 py-2 text-left hover:bg-slate-700/30 rounded transition-colors"
+              style={{
+                display: "flex",
+                width: "100%",
+                alignItems: "center",
+                gap: "var(--spacing-3)",
+                padding: "var(--spacing-3) var(--spacing-4)",
+                textAlign: "left",
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                transition: "background-color var(--transition-fast)",
+              }}
+              className="hover:bg-[var(--bg-hover)]"
             >
               {isCollapsed ? (
-                <ChevronRight className="h-4 w-4 text-slate-400" />
+                <ChevronRight size={14} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
               ) : (
-                <ChevronDown className="h-4 w-4 text-slate-400" />
+                <ChevronDown size={14} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
               )}
               <span
-                className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${statusConfig?.className ?? "bg-slate-700 text-slate-300"}`}
+                className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-medium ${statusConfig?.className ?? "bg-[var(--bg-tertiary)] text-[var(--text-secondary)]"}`}
+                style={{ fontFamily: "var(--font-mono)", letterSpacing: "0.01em" }}
               >
                 {statusConfig?.label ?? getStatusLabel(status)} ({count})
               </span>
             </button>
 
             {!isCollapsed && (
-              <div className="ml-6 space-y-1 pb-2">
+              <div
+                style={{
+                  paddingBottom: "var(--spacing-2)",
+                }}
+              >
                 {groupTickets.map((ticket) => (
                   <div
                     key={ticket.id}
-                    className="flex items-start gap-2 py-1.5 px-2 rounded hover:bg-slate-700/30 group min-w-0"
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "var(--spacing-2)",
+                      padding: "var(--spacing-2) var(--spacing-4)",
+                      paddingLeft: "var(--spacing-10)",
+                      minWidth: 0,
+                      transition: "background-color var(--transition-fast)",
+                    }}
+                    className="hover:bg-[var(--bg-hover)]"
                   >
                     <Link
                       to="/ticket/$id"
                       params={{ id: ticket.id }}
                       preload="intent"
-                      className="flex-1 text-sm text-slate-200 hover:text-blue-400 hover:underline line-clamp-2 min-w-0"
+                      style={{
+                        flex: 1,
+                        fontSize: "var(--font-size-sm)",
+                        color: "var(--text-primary)",
+                        textDecoration: "none",
+                        lineHeight: 1.4,
+                        minWidth: 0,
+                        overflow: "hidden",
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                      }}
+                      className="hover:text-[var(--accent-primary)] hover:underline"
                       title={ticket.title}
                     >
                       {ticket.title}
@@ -119,7 +181,8 @@ export function EpicTicketsList({ tickets }: EpicTicketsListProps) {
                         if (!priorityConfig) return null;
                         return (
                           <span
-                            className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${priorityConfig.className}`}
+                            className={`inline-flex items-center rounded-lg px-1.5 py-0.5 text-xs font-medium ${priorityConfig.className}`}
+                            style={{ flexShrink: 0 }}
                           >
                             {priorityConfig.label}
                           </span>
@@ -127,10 +190,28 @@ export function EpicTicketsList({ tickets }: EpicTicketsListProps) {
                       })()}
 
                     {ticket.isBlocked && (
-                      <div className="relative group/blocked">
-                        <AlertCircle className="h-4 w-4 text-red-400" />
+                      <div className="relative group/blocked" style={{ flexShrink: 0 }}>
+                        <AlertCircle size={14} style={{ color: "var(--error)" }} />
                         {ticket.blockedReason && (
-                          <div className="absolute right-0 top-full mt-1 z-10 w-48 rounded bg-red-900/90 p-2 text-xs text-red-200 opacity-0 group-hover/blocked:opacity-100 pointer-events-none transition-opacity">
+                          <div
+                            style={{
+                              position: "absolute",
+                              right: 0,
+                              top: "100%",
+                              marginTop: "4px",
+                              zIndex: 10,
+                              width: "200px",
+                              padding: "var(--spacing-2) var(--spacing-3)",
+                              borderRadius: "var(--radius-xl)",
+                              background: "var(--bg-secondary)",
+                              border: "1px solid var(--border-secondary)",
+                              boxShadow: "var(--shadow-xl)",
+                              fontSize: "var(--font-size-xs)",
+                              color: "var(--text-secondary)",
+                              lineHeight: 1.4,
+                            }}
+                            className="opacity-0 group-hover/blocked:opacity-100 pointer-events-none transition-opacity"
+                          >
                             {ticket.blockedReason}
                           </div>
                         )}
@@ -139,9 +220,13 @@ export function EpicTicketsList({ tickets }: EpicTicketsListProps) {
 
                     {ticket.prNumber && (
                       <span
-                        className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ${getPrStatusBadgeStyle(ticket.prStatus)}`}
+                        className={`inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-xs font-medium ${getPrStatusBadgeStyle(ticket.prStatus)}`}
+                        style={{
+                          flexShrink: 0,
+                          fontFamily: "var(--font-mono)",
+                        }}
                       >
-                        <GitPullRequest className="h-3 w-3" />#{ticket.prNumber}
+                        <GitPullRequest size={11} />#{ticket.prNumber}
                       </span>
                     )}
                   </div>

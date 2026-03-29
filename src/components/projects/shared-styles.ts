@@ -2,10 +2,10 @@
 // Reduces duplication across GitHistoryCard and DevServerPicker
 
 export const cardStyles: React.CSSProperties = {
-  background: "var(--bg-secondary)",
+  background: "var(--bg-card)",
   border: "1px solid var(--border-primary)",
-  borderRadius: "var(--radius-md)",
-  padding: "var(--spacing-4)",
+  borderRadius: "var(--radius-xl)",
+  padding: "var(--spacing-5)",
   display: "flex",
   flexDirection: "column",
   gap: "var(--spacing-3)",
@@ -14,11 +14,14 @@ export const cardStyles: React.CSSProperties = {
 };
 
 export const cardHeaderStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-md)",
+  fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
   fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-  color: "var(--text-primary)",
+  letterSpacing: "var(--tracking-wider)",
+  textTransform: "uppercase",
+  color: "var(--text-secondary)",
   margin: 0,
-  paddingBottom: "var(--spacing-2)",
+  paddingBottom: "var(--spacing-3)",
   borderBottom: "1px solid var(--border-primary)",
 };
 
@@ -54,25 +57,28 @@ export const accentButtonStyles: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   padding: "var(--spacing-2) var(--spacing-4)",
-  background: "var(--accent-primary)",
-  color: "white",
+  background: "var(--gradient-accent)",
+  color: "var(--text-on-accent)",
   border: "none",
-  borderRadius: "var(--radius-md)",
+  borderRadius: "var(--radius-lg)",
   fontSize: "var(--font-size-sm)",
+  fontFamily: "var(--font-sans)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
   cursor: "pointer",
   transition: "all var(--transition-fast)",
+  boxShadow: "var(--shadow-sm)",
 };
 
 export const secondaryButtonStyles: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   padding: "var(--spacing-2) var(--spacing-4)",
-  background: "var(--bg-tertiary)",
+  background: "var(--bg-card)",
   color: "var(--text-primary)",
   border: "1px solid var(--border-primary)",
-  borderRadius: "var(--radius-md)",
+  borderRadius: "var(--radius-lg)",
   fontSize: "var(--font-size-sm)",
+  fontFamily: "var(--font-sans)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
   cursor: "pointer",
   transition: "all var(--transition-fast)",

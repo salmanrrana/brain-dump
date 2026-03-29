@@ -834,23 +834,23 @@ function TicketDetailPage() {
         </section>
       )}
 
-      {/* Claude Tasks Section - Shows tasks Claude created while working on this ticket */}
-      <section style={sectionStyles}>
+      {/* Claude Tasks Section */}
+      <section style={cardSectionStyles}>
         <ClaudeTasks ticketId={ticket.id} ticketStatus={ticket.status} defaultExpanded={true} />
       </section>
 
-      {/* Cost Panel - Shows USD cost and model breakdown */}
-      <section style={sectionStyles}>
+      {/* Cost Panel */}
+      <section style={cardSectionStyles}>
         <TicketCostPanel ticketId={ticket.id} />
       </section>
 
-      {/* Telemetry Panel - Shows AI session data and tool usage statistics */}
-      <section style={sectionStyles}>
+      {/* Telemetry Panel */}
+      <section style={cardSectionStyles}>
         <TelemetryPanel ticketId={ticket.id} />
       </section>
 
-      {/* Activity Section - Full height, no max-height constraint */}
-      <section style={activitySectionStyles}>
+      {/* Activity Section */}
+      <section style={cardSectionStyles}>
         <ActivitySection
           ticketId={ticket.id}
           pollingInterval={ticket.status === "in_progress" ? POLLING_INTERVALS.COMMENTS_ACTIVE : 0}
@@ -900,8 +900,8 @@ function TicketDetailPage() {
 const containerStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "var(--spacing-6)",
-  padding: "var(--spacing-6)",
+  gap: "var(--spacing-8)",
+  padding: "var(--spacing-8)",
   maxWidth: "1200px",
   margin: "0 auto",
   height: "100%",
@@ -909,36 +909,38 @@ const containerStyles: React.CSSProperties = {
 };
 
 const backNavStyles: React.CSSProperties = {
-  marginBottom: "var(--spacing-2)",
+  marginBottom: "var(--spacing-1)",
 };
 
 const backNavLinkStyles: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   gap: "var(--spacing-2)",
-  color: "var(--text-secondary)",
-  fontSize: "var(--font-size-sm)",
+  color: "var(--text-muted)",
+  fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+  letterSpacing: "var(--tracking-wide)",
   padding: "var(--spacing-2) var(--spacing-3)",
-  borderRadius: "var(--radius-md)",
-  transition: "background-color 0.15s, color 0.15s",
+  borderRadius: "var(--radius-lg)",
+  border: "1px solid transparent",
+  transition: "all var(--transition-fast)",
   cursor: "pointer",
   background: "transparent",
-  border: "none",
 };
 
 const headerSectionStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "var(--spacing-3)",
-  paddingBottom: "var(--spacing-4)",
+  gap: "var(--spacing-4)",
+  paddingBottom: "var(--spacing-6)",
   borderBottom: "1px solid var(--border-primary)",
 };
 
 const contentGridStyles: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: "var(--spacing-6)",
+  gridTemplateColumns: "3fr 2fr",
+  gap: "var(--spacing-8)",
 };
 
 const sectionStyles: React.CSSProperties = {
@@ -948,16 +950,23 @@ const sectionStyles: React.CSSProperties = {
 };
 
 const workflowSectionStyles: React.CSSProperties = {
-  padding: "var(--spacing-4)",
-  background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-lg)",
+  padding: "var(--spacing-5)",
+  background: "var(--bg-card)",
+  borderRadius: "var(--radius-xl)",
   border: "1px solid var(--border-primary)",
 };
 
 const rightColumnStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "var(--spacing-4)",
+  gap: "var(--spacing-5)",
+};
+
+const cardSectionStyles: React.CSSProperties = {
+  padding: "var(--spacing-5)",
+  background: "var(--bg-card)",
+  border: "1px solid var(--border-primary)",
+  borderRadius: "var(--radius-xl)",
 };
 
 export const activitySectionStyles: React.CSSProperties = {
@@ -967,12 +976,16 @@ export const activitySectionStyles: React.CSSProperties = {
 
 export const metadataStyles: React.CSSProperties = {
   display: "flex",
-  gap: "var(--spacing-4)",
+  gap: "var(--spacing-6)",
   flexWrap: "wrap",
-  padding: "var(--spacing-4)",
-  borderTop: "1px solid var(--border-primary)",
+  padding: "var(--spacing-5)",
+  background: "var(--bg-card)",
+  borderRadius: "var(--radius-xl)",
+  border: "1px solid var(--border-primary)",
   fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
   color: "var(--text-muted)",
+  letterSpacing: "0.01em",
 };
 
 // Error styles
@@ -981,31 +994,33 @@ const errorContainerStyles: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   height: "100%",
-  padding: "var(--spacing-6)",
+  padding: "var(--spacing-8)",
 };
 
 const errorCardStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
-  gap: "var(--spacing-4)",
-  padding: "var(--spacing-8)",
-  background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-lg)",
+  gap: "var(--spacing-5)",
+  padding: "var(--spacing-10)",
+  background: "var(--bg-card)",
+  borderRadius: "var(--radius-2xl)",
   border: "1px solid var(--border-primary)",
   textAlign: "center",
-  maxWidth: "400px",
+  maxWidth: "440px",
 };
 
 const errorTitleStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-xl)",
-  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+  fontSize: "var(--font-size-2xl)",
+  fontWeight: "var(--font-weight-bold)" as React.CSSProperties["fontWeight"],
+  letterSpacing: "var(--tracking-tight)",
   color: "var(--text-primary)",
   margin: 0,
 };
 
 const errorMessageStyles: React.CSSProperties = {
   color: "var(--text-secondary)",
+  fontSize: "var(--font-size-sm)",
   margin: 0,
 };
 
@@ -1013,19 +1028,21 @@ const backLinkStyles: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   gap: "var(--spacing-2)",
-  padding: "var(--spacing-2) var(--spacing-4)",
-  background: "var(--accent-primary)",
-  color: "white",
-  borderRadius: "var(--radius-md)",
+  padding: "var(--spacing-2) var(--spacing-5)",
+  background: "var(--gradient-accent)",
+  color: "var(--text-on-accent)",
+  borderRadius: "var(--radius-lg)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+  fontFamily: "var(--font-sans)",
   marginTop: "var(--spacing-2)",
   cursor: "pointer",
   border: "none",
+  boxShadow: "var(--shadow-sm)",
 };
 
 // Skeleton styles
 const skeletonStyles: React.CSSProperties = {
   background: "var(--bg-tertiary)",
-  borderRadius: "var(--radius-md)",
-  animation: "pulse 1.5s ease-in-out infinite",
+  borderRadius: "var(--radius-lg)",
+  animation: "pulse 2s ease-in-out infinite",
 };

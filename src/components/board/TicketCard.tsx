@@ -73,11 +73,12 @@ export const TicketCard = memo(function TicketCard({
       }}
       onFocus={onFocus}
       className={`
-        group relative flex flex-col gap-2 rounded-lg border border-[var(--border-primary)]/50
-        bg-[var(--bg-card)] p-3 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5
-        border-l-4 ${priorityBorderClass}
-        ${isAiActive ? "ring-2 ring-[var(--accent-ai)] ring-opacity-50 shadow-[0_0_12px_var(--accent-ai-glow)] animate-pulse-slow" : ""}
-        ${isOverlay ? "rotate-2 scale-105 shadow-xl cursor-grabbing" : isDragging ? "opacity-50" : "cursor-pointer"}
+        group relative flex flex-col gap-2.5 rounded-xl border border-[var(--border-primary)]
+        bg-[var(--bg-card)] p-3.5 transition-all
+        hover:border-[var(--border-secondary)] hover:shadow-lg hover:-translate-y-0.5
+        border-l-[3px] ${priorityBorderClass}
+        ${isAiActive ? "ring-1 ring-[var(--accent-ai)]/40 shadow-[0_0_16px_var(--accent-ai-glow)] animate-pulse-slow" : ""}
+        ${isOverlay ? "rotate-1 scale-[1.03] shadow-2xl cursor-grabbing" : isDragging ? "opacity-40" : "cursor-pointer"}
         ${isFocused ? "ring-2 ring-offset-2 ring-[var(--accent-primary)]" : ""}
         focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--accent-primary)] focus-visible:outline-none
       `}

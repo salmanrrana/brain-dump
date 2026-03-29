@@ -116,10 +116,12 @@ export const IconSidebar: FC<IconSidebarProps> = ({
     width: "64px",
     minWidth: "64px",
     height: "100vh",
-    background: "var(--bg-secondary)",
-    borderRight: "1px solid var(--border-primary)",
-    padding: "var(--spacing-3) 0",
-    gap: "var(--spacing-2)",
+    background: "var(--glass-bg)",
+    backdropFilter: "blur(var(--glass-blur))",
+    WebkitBackdropFilter: "blur(var(--glass-blur))",
+    borderRight: "1px solid var(--glass-border)",
+    padding: "var(--spacing-4) 0",
+    gap: "var(--spacing-1)",
   };
 
   const navStyles: React.CSSProperties = {

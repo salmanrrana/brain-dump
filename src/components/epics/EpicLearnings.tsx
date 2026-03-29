@@ -51,29 +51,30 @@ interface LearningConfig {
 const LEARNING_TYPE_CONFIG: Record<string, LearningConfig> = {
   pattern: {
     label: "Pattern",
-    className: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+    className: "bg-[var(--success-muted)] text-[var(--success)] border-[var(--success)]/30",
     icon: Lightbulb,
   },
   "anti-pattern": {
     label: "Anti-pattern",
-    className: "bg-red-500/20 text-red-400 border-red-500/30",
+    className: "bg-[var(--error-muted)] text-[var(--error)] border-[var(--error)]/30",
     icon: Lightbulb,
   },
   "tool-usage": {
     label: "Tool Usage",
-    className: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+    className: "bg-[var(--info-muted)] text-[var(--info)] border-[var(--info)]/30",
     icon: Wrench,
   },
   workflow: {
     label: "Workflow",
-    className: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+    className:
+      "bg-[var(--accent-muted)] text-[var(--accent-primary)] border-[var(--accent-primary)]/30",
     icon: GitBranch,
   },
 };
 
 const DEFAULT_CONFIG: LearningConfig = {
   label: "Unknown",
-  className: "bg-slate-500/20 text-slate-400 border-slate-500/30",
+  className: "bg-[var(--bg-tertiary)] text-[var(--text-secondary)] border-[var(--border-primary)]",
   icon: Lightbulb,
 };
 
@@ -84,11 +85,29 @@ function TruncatedText({ text }: { text: string }) {
   const needsTruncation = text.length > TRUNCATE_LENGTH;
 
   if (!needsTruncation) {
-    return <p className="text-sm text-slate-300">{text}</p>;
+    return (
+      <p
+        style={{
+          fontSize: "var(--font-size-sm)",
+          color: "var(--text-primary)",
+          lineHeight: 1.5,
+          margin: 0,
+        }}
+      >
+        {text}
+      </p>
+    );
   }
 
   return (
-    <p className="text-sm text-slate-300">
+    <p
+      style={{
+        fontSize: "var(--font-size-sm)",
+        color: "var(--text-primary)",
+        lineHeight: 1.5,
+        margin: 0,
+      }}
+    >
       {expanded ? text : text.slice(0, TRUNCATE_LENGTH) + "..."}
       <button
         type="button"
@@ -96,13 +115,37 @@ function TruncatedText({ text }: { text: string }) {
           e.stopPropagation();
           setExpanded(!expanded);
         }}
-        className="ml-1 text-xs text-slate-500 hover:text-slate-400 transition-colors"
+        style={{
+          marginLeft: "4px",
+          fontSize: "var(--font-size-xs)",
+          fontFamily: "var(--font-mono)",
+          color: "var(--text-muted)",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          padding: 0,
+        }}
+        className="hover:text-[var(--text-secondary)]"
       >
         {expanded ? "show less" : "show more"}
       </button>
     </p>
   );
 }
+
+const actionButtonBase: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "6px",
+  borderRadius: "var(--radius-xl)",
+  padding: "6px 12px",
+  fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-sans)",
+  fontWeight: 500,
+  cursor: "pointer",
+  border: "none",
+  transition: "all var(--transition-fast)",
+};
 
 export function EpicLearnings({ epicId, learnings = [] }: EpicLearningsProps) {
   const [isOpen, setIsOpen] = React.useState(false);
@@ -159,86 +202,207 @@ export function EpicLearnings({ epicId, learnings = [] }: EpicLearningsProps) {
     (acc, entry) => acc + (entry.learnings?.length ?? 0),
     0
   );
+  const isPending = analysisMutation.isPending || refreshMutation.isPending;
+
+  const renderActionButtons = () => (
+    <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-2)" }}>
+      <button
+        type="button"
+        onClick={() => analysisMutation.mutate()}
+        disabled={isPending}
+        style={{
+          ...actionButtonBase,
+          background: "var(--accent-ai)",
+          color: "white",
+          opacity: isPending ? 0.5 : 1,
+        }}
+        className="hover:brightness-110"
+      >
+        {analysisMutation.isPending ? (
+          <LoaderCircle size={13} className="animate-spin" />
+        ) : (
+          <Sparkles size={13} />
+        )}
+        {analysisMutation.isPending ? "Launching..." : "Analyze with AI"}
+      </button>
+      <button
+        type="button"
+        onClick={() => refreshMutation.mutate()}
+        disabled={isPending}
+        style={{
+          ...actionButtonBase,
+          background: "var(--bg-card)",
+          color: "var(--text-secondary)",
+          border: "1px solid var(--border-primary)",
+          opacity: isPending ? 0.5 : 1,
+        }}
+        className="hover:bg-[var(--bg-hover)]"
+      >
+        {refreshMutation.isPending ? (
+          <LoaderCircle size={13} className="animate-spin" />
+        ) : (
+          <RefreshCw size={13} />
+        )}
+        {refreshMutation.isPending ? "Extracting..." : "Quick Extract"}
+      </button>
+    </div>
+  );
 
   if (safeLearnings.length === 0) {
     return (
-      <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-6 text-center">
-        <p className="text-slate-400">
-          No learnings captured yet. Complete tickets in this epic to accumulate learnings.
+      <div
+        style={{
+          padding: "var(--spacing-8)",
+          textAlign: "center",
+          border: "1px dashed var(--border-primary)",
+          borderRadius: "var(--radius-xl)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "var(--spacing-4)",
+        }}
+      >
+        <p style={{ color: "var(--text-muted)", fontSize: "var(--font-size-sm)", margin: 0 }}>
+          No learnings captured yet. Complete tickets to accumulate learnings.
         </p>
-        <div className="mt-3 flex items-center justify-center gap-2">
-          <button
-            type="button"
-            onClick={() => analysisMutation.mutate()}
-            disabled={analysisMutation.isPending}
-            className="inline-flex items-center gap-1.5 rounded-md bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-500 transition-colors disabled:opacity-50"
-          >
-            {analysisMutation.isPending ? (
-              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Sparkles className="h-3.5 w-3.5" />
-            )}
-            {analysisMutation.isPending ? "Launching..." : "Analyze with AI"}
-          </button>
-          <button
-            type="button"
-            onClick={() => refreshMutation.mutate()}
-            disabled={refreshMutation.isPending}
-            className="inline-flex items-center gap-1.5 rounded-md bg-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-600 transition-colors disabled:opacity-50"
-          >
-            {refreshMutation.isPending ? (
-              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <RefreshCw className="h-3.5 w-3.5" />
-            )}
-            {refreshMutation.isPending ? "Extracting..." : "Quick Extract"}
-          </button>
-        </div>
+        {renderActionButtons()}
       </div>
     );
   }
 
   return (
-    <div className="rounded-lg border border-slate-700 bg-slate-800/50">
+    <div
+      style={{
+        borderRadius: "var(--radius-xl)",
+        border: "1px solid var(--border-primary)",
+        background: "var(--bg-card)",
+        overflow: "hidden",
+      }}
+    >
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
-        className="flex w-full items-center justify-between p-4 text-left hover:bg-slate-700/30 transition-colors"
+        style={{
+          display: "flex",
+          width: "100%",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "var(--spacing-4) var(--spacing-5)",
+          textAlign: "left",
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          transition: "background-color var(--transition-fast)",
+        }}
+        className="hover:bg-[var(--bg-hover)]"
       >
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-slate-300">Learnings</span>
-          <span className="inline-flex items-center rounded-full bg-slate-700 px-2 py-0.5 text-xs font-medium text-slate-300">
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-3)" }}>
+          <span
+            style={{
+              fontSize: "var(--font-size-xs)",
+              fontFamily: "var(--font-mono)",
+              fontWeight: 600,
+              letterSpacing: "var(--tracking-wider)",
+              textTransform: "uppercase",
+              color: "var(--text-secondary)",
+            }}
+          >
+            Learnings
+          </span>
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              padding: "2px 8px",
+              borderRadius: "var(--radius-md)",
+              background: "var(--bg-primary)",
+              border: "1px solid var(--border-primary)",
+              fontSize: "var(--font-size-xs)",
+              fontFamily: "var(--font-mono)",
+              color: "var(--text-tertiary)",
+            }}
+          >
             {totalLearnings}
           </span>
         </div>
         {isOpen ? (
-          <ChevronUp className="h-4 w-4 text-slate-400" />
+          <ChevronUp size={14} style={{ color: "var(--text-muted)" }} />
         ) : (
-          <ChevronDown className="h-4 w-4 text-slate-400" />
+          <ChevronDown size={14} style={{ color: "var(--text-muted)" }} />
         )}
       </button>
 
       {isOpen && (
-        <div className="border-t border-slate-700 p-4 space-y-4">
+        <div
+          style={{
+            borderTop: "1px solid var(--border-primary)",
+            padding: "var(--spacing-5)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--spacing-5)",
+          }}
+        >
           {safeLearnings.map((entry) => (
-            <div key={entry.ticketId} className="space-y-2">
-              <div className="flex items-center gap-2">
-                <FileText className="h-3.5 w-3.5 text-slate-500" />
-                <span className="text-sm font-medium text-slate-300">{entry.ticketTitle}</span>
+            <div
+              key={entry.ticketId}
+              style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-3)" }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-2)" }}>
+                <FileText size={13} style={{ color: "var(--text-muted)" }} />
+                <span
+                  style={{
+                    fontSize: "var(--font-size-sm)",
+                    fontWeight: 500,
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  {entry.ticketTitle}
+                </span>
                 {entry.appliedAt && (
-                  <span className="text-xs text-slate-500">{formatDate(entry.appliedAt)}</span>
+                  <span
+                    style={{
+                      fontSize: "var(--font-size-xs)",
+                      fontFamily: "var(--font-mono)",
+                      color: "var(--text-muted)",
+                    }}
+                  >
+                    {formatDate(entry.appliedAt)}
+                  </span>
                 )}
               </div>
-              <div className="ml-5 space-y-2">
+              <div
+                style={{
+                  marginLeft: "var(--spacing-5)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "var(--spacing-2)",
+                }}
+              >
                 {(entry.learnings ?? []).map((learning, idx) => {
                   const config = LEARNING_TYPE_CONFIG[learning.type] ?? DEFAULT_CONFIG;
                   const Icon = config.icon;
                   return (
-                    <div key={idx} className="rounded bg-slate-900/50 p-3">
-                      <div className="flex items-center gap-2 mb-1">
+                    <div
+                      key={idx}
+                      style={{
+                        borderRadius: "var(--radius-xl)",
+                        background: "var(--bg-primary)",
+                        border: "1px solid var(--border-primary)",
+                        padding: "var(--spacing-3) var(--spacing-4)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "var(--spacing-2)",
+                          marginBottom: "var(--spacing-2)",
+                        }}
+                      >
                         <span
-                          className={`inline-flex items-center rounded border px-1.5 py-0.5 text-xs font-medium ${config.className}`}
+                          className={`inline-flex items-center rounded-lg border px-1.5 py-0.5 text-xs font-medium ${config.className}`}
+                          style={{ fontFamily: "var(--font-mono)" }}
                         >
                           <Icon className="mr-1 h-3 w-3" />
                           {config.label}
@@ -246,8 +410,15 @@ export function EpicLearnings({ epicId, learnings = [] }: EpicLearningsProps) {
                       </div>
                       <TruncatedText text={learning.description} />
                       {learning.suggestedUpdate && (
-                        <p className="mt-1 text-xs text-slate-500">
-                          Suggested update: {learning.suggestedUpdate.file} →{" "}
+                        <p
+                          style={{
+                            marginTop: "var(--spacing-2)",
+                            fontSize: "var(--font-size-xs)",
+                            fontFamily: "var(--font-mono)",
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          Suggested: {learning.suggestedUpdate.file} →{" "}
                           {learning.suggestedUpdate.section}
                         </p>
                       )}
@@ -258,33 +429,10 @@ export function EpicLearnings({ epicId, learnings = [] }: EpicLearningsProps) {
             </div>
           ))}
 
-          <div className="border-t border-slate-700 pt-3 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => analysisMutation.mutate()}
-              disabled={analysisMutation.isPending}
-              className="inline-flex items-center gap-1.5 rounded-md bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-500 transition-colors disabled:opacity-50"
-            >
-              {analysisMutation.isPending ? (
-                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Sparkles className="h-3.5 w-3.5" />
-              )}
-              {analysisMutation.isPending ? "Launching..." : "Analyze with AI"}
-            </button>
-            <button
-              type="button"
-              onClick={() => refreshMutation.mutate()}
-              disabled={refreshMutation.isPending}
-              className="inline-flex items-center gap-1.5 rounded-md bg-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-600 transition-colors disabled:opacity-50"
-            >
-              {refreshMutation.isPending ? (
-                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RefreshCw className="h-3.5 w-3.5" />
-              )}
-              {refreshMutation.isPending ? "Extracting..." : "Quick Extract"}
-            </button>
+          <div
+            style={{ borderTop: "1px solid var(--border-primary)", paddingTop: "var(--spacing-4)" }}
+          >
+            {renderActionButtons()}
           </div>
         </div>
       )}

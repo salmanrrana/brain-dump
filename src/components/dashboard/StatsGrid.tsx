@@ -169,21 +169,21 @@ const gridStyles: React.CSSProperties = {
 const cardStyles: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: "var(--spacing-3)",
-  padding: "var(--spacing-4)",
-  background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-lg)",
+  gap: "var(--spacing-4)",
+  padding: "var(--spacing-5)",
+  background: "var(--bg-card)",
+  borderRadius: "var(--radius-xl)",
   border: "1px solid var(--border-primary)",
-  transition: "border-color var(--transition-fast)",
+  transition: "all var(--transition-normal)",
 };
 
 const iconWrapperStyles: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  width: "40px",
-  height: "40px",
-  borderRadius: "var(--radius-md)",
+  width: "44px",
+  height: "44px",
+  borderRadius: "var(--radius-lg)",
   background: "var(--bg-tertiary)",
   flexShrink: 0,
 };
@@ -191,19 +191,25 @@ const iconWrapperStyles: React.CSSProperties = {
 const contentStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
+  gap: "2px",
   minWidth: 0,
 };
 
 const valueStyles: React.CSSProperties = {
   fontSize: "var(--font-size-2xl)",
+  fontFamily: "var(--font-mono)",
   fontWeight: "var(--font-weight-bold)" as React.CSSProperties["fontWeight"],
+  letterSpacing: "var(--tracking-tight)",
   color: "var(--text-primary)",
   lineHeight: 1,
 };
 
 const labelStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-sm)",
-  color: "var(--text-secondary)",
+  fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
+  color: "var(--text-muted)",
+  letterSpacing: "var(--tracking-wide)",
+  textTransform: "uppercase",
 };
 
 export default StatsGrid;

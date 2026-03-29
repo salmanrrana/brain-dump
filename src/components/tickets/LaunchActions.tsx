@@ -185,11 +185,11 @@ const LaunchOptionCard: FC<LaunchOptionCardProps> = ({ option, onClick, isLoadin
     alignItems: "center",
     gap: "var(--spacing-2)",
     padding: "var(--spacing-3)",
-    background: option.recommended ? "rgba(168, 85, 247, 0.1)" : "var(--bg-primary)",
+    background: option.recommended ? "var(--accent-muted)" : "var(--bg-card)",
     border: option.recommended
-      ? "1px solid rgba(168, 85, 247, 0.3)"
+      ? "1px solid color-mix(in srgb, var(--accent-primary) 25%, transparent)"
       : "1px solid var(--border-primary)",
-    borderRadius: "var(--radius-lg)",
+    borderRadius: "var(--radius-xl)",
     cursor: isCardDisabled ? "not-allowed" : "pointer",
     opacity: isCardDisabled ? 0.5 : 1,
     transition: "all var(--transition-fast)",
@@ -203,8 +203,8 @@ const LaunchOptionCard: FC<LaunchOptionCardProps> = ({ option, onClick, isLoadin
     justifyContent: "center",
     width: "40px",
     height: "40px",
-    borderRadius: "var(--radius-md)",
-    background: `${option.iconColor}20`, // 20% opacity
+    borderRadius: "var(--radius-lg)",
+    background: `${option.iconColor}15`,
   };
 
   const nameStyles: React.CSSProperties = {
@@ -224,12 +224,13 @@ const LaunchOptionCard: FC<LaunchOptionCardProps> = ({ option, onClick, isLoadin
     position: "absolute",
     top: "-8px",
     right: "-8px",
-    padding: "2px 6px",
-    background: "#a855f7",
-    borderRadius: "var(--radius-sm)",
+    padding: "2px 8px",
+    background: "var(--accent-primary)",
+    color: "var(--text-on-accent)",
+    borderRadius: "var(--radius-lg)",
     fontSize: "10px",
+    fontFamily: "var(--font-mono)",
     fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-    color: "white",
     textTransform: "uppercase",
     letterSpacing: "0.5px",
   };
@@ -324,10 +325,13 @@ export const LaunchActions: FC<LaunchActionsProps> = ({
   };
 
   const headerStyles: React.CSSProperties = {
-    fontSize: "var(--font-size-sm)",
+    fontSize: "var(--font-size-xs)",
+    fontFamily: "var(--font-mono)",
     fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-    color: "var(--text-secondary)",
-    marginBottom: "var(--spacing-1)",
+    letterSpacing: "var(--tracking-wider)",
+    textTransform: "uppercase",
+    color: "var(--text-muted)",
+    marginBottom: "var(--spacing-2)",
   };
 
   const gridStyles: React.CSSProperties = {

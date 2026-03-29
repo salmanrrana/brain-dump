@@ -172,7 +172,7 @@ function buildTooltipHtml(nodeData: CostExplorerNode, rootTotal: number): string
     <div style="
       min-width: 220px;
       max-width: 320px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: 'Fira Sans', -apple-system, BlinkMacSystemFont, sans-serif;
       color: #e2e8f0;
     ">
       <!-- Header -->

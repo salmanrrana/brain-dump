@@ -435,8 +435,8 @@ function EpicDetailPage() {
 const containerStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "var(--spacing-6)",
-  padding: "var(--spacing-6)",
+  gap: "var(--spacing-8)",
+  padding: "var(--spacing-8)",
   maxWidth: "1200px",
   margin: "0 auto",
   height: "100%",
@@ -444,56 +444,58 @@ const containerStyles: React.CSSProperties = {
 };
 
 const backNavStyles: React.CSSProperties = {
-  marginBottom: "var(--spacing-2)",
+  marginBottom: "var(--spacing-1)",
 };
 
 const backNavLinkStyles: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   gap: "var(--spacing-2)",
-  color: "var(--text-secondary)",
-  fontSize: "var(--font-size-sm)",
+  color: "var(--text-muted)",
+  fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+  letterSpacing: "var(--tracking-wide)",
   padding: "var(--spacing-2) var(--spacing-3)",
-  borderRadius: "var(--radius-md)",
-  transition: "background-color 0.15s, color 0.15s",
+  borderRadius: "var(--radius-lg)",
+  border: "1px solid transparent",
+  transition: "all var(--transition-fast)",
   cursor: "pointer",
   background: "transparent",
-  border: "none",
 };
 
 const headerSectionStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "var(--spacing-3)",
-  paddingBottom: "var(--spacing-4)",
+  gap: "var(--spacing-4)",
+  paddingBottom: "var(--spacing-6)",
   borderBottom: "1px solid var(--border-primary)",
 };
 
 const progressSectionStyles: React.CSSProperties = {
-  padding: "var(--spacing-4)",
-  background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-lg)",
+  padding: "var(--spacing-5)",
+  background: "var(--bg-card)",
+  borderRadius: "var(--radius-xl)",
   border: "1px solid var(--border-primary)",
 };
 
 const contentGridStyles: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: "var(--spacing-6)",
+  gridTemplateColumns: "3fr 2fr",
+  gap: "var(--spacing-8)",
 };
 
 const sectionStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "var(--spacing-3)",
+  gap: "var(--spacing-4)",
 };
 
 const reviewRunsSectionStyles: React.CSSProperties = {
   ...sectionStyles,
-  padding: "var(--spacing-4)",
-  background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-lg)",
+  padding: "var(--spacing-5)",
+  background: "var(--bg-card)",
+  borderRadius: "var(--radius-xl)",
   border: "1px solid var(--border-primary)",
 };
 
@@ -506,19 +508,23 @@ const reviewRunsHeaderStyles: React.CSSProperties = {
 
 const reviewRunsTitleStyles: React.CSSProperties = {
   margin: 0,
-  fontSize: "var(--font-size-lg)",
+  fontSize: "var(--font-size-sm)",
+  fontFamily: "var(--font-mono)",
   fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
-  color: "var(--text-primary)",
+  letterSpacing: "var(--tracking-wide)",
+  textTransform: "uppercase" as const,
+  color: "var(--text-secondary)",
 };
 
 const reviewRunsMetaStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-sm)",
+  fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
   color: "var(--text-muted)",
 };
 
 const reviewRunsListStyles: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
   gap: "var(--spacing-3)",
 };
 
@@ -526,10 +532,11 @@ const reviewRunCardStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: "var(--spacing-2)",
-  padding: "var(--spacing-3)",
-  borderRadius: "var(--radius-md)",
+  padding: "var(--spacing-4)",
+  borderRadius: "var(--radius-xl)",
   border: "1px solid var(--border-primary)",
   background: "var(--bg-primary)",
+  transition: "all var(--transition-normal)",
 };
 
 const reviewRunCardHeaderStyles: React.CSSProperties = {
@@ -541,11 +548,14 @@ const reviewRunCardHeaderStyles: React.CSSProperties = {
 
 const reviewRunCardTitleStyles: React.CSSProperties = {
   color: "var(--text-primary)",
+  fontFamily: "var(--font-mono)",
+  fontSize: "var(--font-size-sm)",
 };
 
 const reviewRunStatusStyles: React.CSSProperties = {
   textTransform: "capitalize",
   fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
   color: "var(--text-muted)",
 };
 
@@ -557,20 +567,25 @@ const reviewRunMetaStyles: React.CSSProperties = {
 const reviewRunSummaryStyles: React.CSSProperties = {
   fontSize: "var(--font-size-sm)",
   color: "var(--text-primary)",
+  lineHeight: "var(--line-height-relaxed)",
 };
 
 const reviewRunSteeringStyles: React.CSSProperties = {
   fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
   color: "var(--text-muted)",
 };
 
 const metadataStyles: React.CSSProperties = {
   display: "flex",
-  gap: "var(--spacing-4)",
+  gap: "var(--spacing-6)",
   flexWrap: "wrap",
-  padding: "var(--spacing-4)",
-  borderTop: "1px solid var(--border-primary)",
+  padding: "var(--spacing-5)",
+  background: "var(--bg-card)",
+  borderRadius: "var(--radius-xl)",
+  border: "1px solid var(--border-primary)",
   fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
   color: "var(--text-muted)",
 };
 
@@ -579,31 +594,33 @@ const errorContainerStyles: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   height: "100%",
-  padding: "var(--spacing-6)",
+  padding: "var(--spacing-8)",
 };
 
 const errorCardStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
-  gap: "var(--spacing-4)",
-  padding: "var(--spacing-8)",
-  background: "var(--bg-secondary)",
-  borderRadius: "var(--radius-lg)",
+  gap: "var(--spacing-5)",
+  padding: "var(--spacing-10)",
+  background: "var(--bg-card)",
+  borderRadius: "var(--radius-2xl)",
   border: "1px solid var(--border-primary)",
   textAlign: "center",
-  maxWidth: "400px",
+  maxWidth: "440px",
 };
 
 const errorTitleStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-xl)",
-  fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+  fontSize: "var(--font-size-2xl)",
+  fontWeight: "var(--font-weight-bold)" as React.CSSProperties["fontWeight"],
+  letterSpacing: "var(--tracking-tight)",
   color: "var(--text-primary)",
   margin: 0,
 };
 
 const errorMessageStyles: React.CSSProperties = {
   color: "var(--text-secondary)",
+  fontSize: "var(--font-size-sm)",
   margin: 0,
 };
 
@@ -611,18 +628,20 @@ const backLinkStyles: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   gap: "var(--spacing-2)",
-  padding: "var(--spacing-2) var(--spacing-4)",
-  background: "var(--accent-primary)",
-  color: "white",
-  borderRadius: "var(--radius-md)",
+  padding: "var(--spacing-2) var(--spacing-5)",
+  background: "var(--gradient-accent)",
+  color: "var(--text-on-accent)",
+  borderRadius: "var(--radius-lg)",
+  fontFamily: "var(--font-sans)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
   marginTop: "var(--spacing-2)",
   cursor: "pointer",
   border: "none",
+  boxShadow: "var(--shadow-sm)",
 };
 
 const skeletonStyles: React.CSSProperties = {
   background: "var(--bg-tertiary)",
-  borderRadius: "var(--radius-md)",
-  animation: "pulse 1.5s ease-in-out infinite",
+  borderRadius: "var(--radius-lg)",
+  animation: "pulse 2s ease-in-out infinite",
 };

@@ -63,14 +63,17 @@ function Home() {
   return (
     <div style={pageContainerStyles} className="route-fade-in">
       <header style={headerStyles}>
-        <h1 style={titleStyles}>Projects</h1>
+        <div>
+          <p style={labelStyles}>workspace</p>
+          <h1 style={titleStyles}>Projects</h1>
+        </div>
         <button
           type="button"
           style={accentButtonStyles}
           onClick={() => openProjectModal()}
-          className="hover:bg-[var(--accent-primary)] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
+          className="hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
         >
-          <Plus size={18} aria-hidden="true" />
+          <Plus size={16} aria-hidden="true" />
           New Project
         </button>
       </header>
@@ -168,16 +171,29 @@ const centeredContainerStyles: React.CSSProperties = {
 
 const headerStyles: React.CSSProperties = {
   display: "flex",
-  alignItems: "center",
+  alignItems: "flex-end",
   justifyContent: "space-between",
-  padding: "var(--spacing-6) var(--spacing-8)",
+  padding: "var(--spacing-8) var(--spacing-8) var(--spacing-4)",
+};
+
+const labelStyles: React.CSSProperties = {
+  fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
+  fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+  color: "var(--text-muted)",
+  letterSpacing: "var(--tracking-wider)",
+  textTransform: "uppercase",
+  margin: 0,
+  marginBottom: "var(--spacing-1)",
 };
 
 const titleStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-2xl)",
+  fontSize: "var(--font-size-3xl)",
   fontWeight: "var(--font-weight-bold)" as React.CSSProperties["fontWeight"],
+  letterSpacing: "var(--tracking-tighter)",
   color: "var(--text-primary)",
   margin: 0,
+  lineHeight: "var(--line-height-tight)",
 };
 
 const accentButtonStyles: React.CSSProperties = {
@@ -185,18 +201,20 @@ const accentButtonStyles: React.CSSProperties = {
   alignItems: "center",
   gap: "var(--spacing-2)",
   padding: "var(--spacing-2) var(--spacing-4)",
-  background: "var(--accent-primary)",
-  color: "white",
+  background: "var(--gradient-accent)",
+  color: "var(--text-on-accent)",
   border: "none",
-  borderRadius: "var(--radius-md)",
+  borderRadius: "var(--radius-lg)",
   fontSize: "var(--font-size-sm)",
   fontWeight: "var(--font-weight-medium)" as React.CSSProperties["fontWeight"],
+  fontFamily: "var(--font-sans)",
   cursor: "pointer",
   transition: "all var(--transition-fast)",
+  boxShadow: "var(--shadow-sm)",
 };
 
 const searchContainerStyles: CSSProperties = {
-  padding: "var(--spacing-4) var(--spacing-8)",
+  padding: "0 var(--spacing-8) var(--spacing-4)",
   display: "flex",
   justifyContent: "center",
 };
@@ -212,11 +230,12 @@ const searchWrapperStyles: CSSProperties = {
 
 const searchInputStyles: React.CSSProperties = {
   flex: 1,
-  padding: "var(--spacing-2) var(--spacing-3) var(--spacing-2) var(--spacing-3)",
-  background: "var(--bg-primary)",
+  padding: "var(--spacing-2) var(--spacing-3)",
+  background: "var(--bg-card)",
   border: "1px solid var(--border-primary)",
   borderRadius: "var(--radius-lg)",
   fontSize: "var(--font-size-sm)",
+  fontFamily: "var(--font-sans)",
   color: "var(--text-primary)",
   outline: "none",
   transition: "all var(--transition-fast)",
@@ -241,7 +260,7 @@ const listContainerStyles: CSSProperties = {
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
-  padding: "var(--spacing-6) var(--spacing-8)",
+  padding: "var(--spacing-4) var(--spacing-8)",
 };
 
 const projectListStyles: CSSProperties = {
@@ -249,7 +268,7 @@ const projectListStyles: CSSProperties = {
   maxWidth: "900px",
   display: "flex",
   flexDirection: "column",
-  gap: "var(--spacing-1)",
+  gap: "var(--spacing-2)",
 };
 
 const noResultsContainerStyles: CSSProperties = {
@@ -284,12 +303,13 @@ const emptyStateStyles: React.CSSProperties = {
 
 const emptyContentStyles: React.CSSProperties = {
   textAlign: "center",
-  maxWidth: "400px",
+  maxWidth: "440px",
 };
 
 const emptyTitleStyles: React.CSSProperties = {
-  fontSize: "var(--font-size-xl)",
+  fontSize: "var(--font-size-2xl)",
   fontWeight: "var(--font-weight-semibold)" as React.CSSProperties["fontWeight"],
+  letterSpacing: "var(--tracking-tight)",
   color: "var(--text-primary)",
   margin: 0,
   marginBottom: "var(--spacing-2)",
@@ -299,7 +319,7 @@ const emptyDescriptionStyles: React.CSSProperties = {
   fontSize: "var(--font-size-sm)",
   color: "var(--text-secondary)",
   margin: 0,
-  marginBottom: "var(--spacing-4)",
+  marginBottom: "var(--spacing-6)",
 };
 
 const errorContainerStyles: React.CSSProperties = {

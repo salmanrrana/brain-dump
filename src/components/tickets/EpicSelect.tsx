@@ -334,18 +334,22 @@ export const EpicSelect: FC<EpicSelectProps> = ({
 const containerStyles: React.CSSProperties = {
   position: "relative",
   width: "100%",
+  minWidth: 0,
 };
 
 const selectButtonStyles: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
+  gap: "var(--spacing-2)",
   width: "100%",
+  minWidth: 0,
   padding: "var(--spacing-2) var(--spacing-3)",
-  background: "var(--bg-primary)",
+  background: "var(--bg-card)",
   border: "1px solid var(--border-primary)",
-  borderRadius: "var(--radius-md)",
+  borderRadius: "var(--radius-xl)",
   color: "var(--text-primary)",
+  fontFamily: "var(--font-sans)",
   fontSize: "var(--font-size-base)",
   textAlign: "left",
   transition: "border-color var(--transition-fast)",
@@ -356,6 +360,7 @@ const selectedValueStyles: React.CSSProperties = {
   alignItems: "center",
   gap: "8px",
   flex: 1,
+  minWidth: 0,
   overflow: "hidden",
 };
 
@@ -363,19 +368,22 @@ const selectedTextStyles: React.CSSProperties = {
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
+  minWidth: 0,
 };
 
 const colorDotStyles: React.CSSProperties = {
-  width: "10px",
-  height: "10px",
+  width: "8px",
+  height: "8px",
   borderRadius: "50%",
   flexShrink: 0,
+  boxShadow: "0 0 6px currentColor",
 };
 
 const helperTextStyles: React.CSSProperties = {
   marginTop: "var(--spacing-1)",
-  color: "var(--text-tertiary)",
+  color: "var(--text-muted)",
   fontSize: "var(--font-size-xs)",
+  fontFamily: "var(--font-mono)",
 };
 
 const dropdownStyles: React.CSSProperties = {
@@ -387,9 +395,9 @@ const dropdownStyles: React.CSSProperties = {
   maxHeight: "240px",
   overflowY: "auto",
   background: "var(--bg-secondary)",
-  border: "1px solid var(--border-primary)",
-  borderRadius: "var(--radius-md)",
-  boxShadow: "var(--shadow-lg)",
+  border: "1px solid var(--border-secondary)",
+  borderRadius: "var(--radius-xl)",
+  boxShadow: "var(--shadow-xl)",
   zIndex: 100,
   padding: "4px 0",
   listStyle: "none",
@@ -400,6 +408,7 @@ const optionStyles: React.CSSProperties = {
   alignItems: "center",
   padding: "8px 12px",
   fontSize: "var(--font-size-sm)",
+  fontFamily: "var(--font-sans)",
   color: "var(--text-primary)",
   cursor: "pointer",
   transition: "background-color var(--transition-fast)",
@@ -409,6 +418,7 @@ const optionTextStyles: React.CSSProperties = {
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
+  minWidth: 0,
 };
 
 const dividerStyles: React.CSSProperties = {

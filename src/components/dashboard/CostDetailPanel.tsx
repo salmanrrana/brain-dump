@@ -404,7 +404,7 @@ const modelBadgeStyles: React.CSSProperties = {
   fontWeight: 600,
   padding: "2px 8px",
   borderRadius: 4,
-  fontFamily: "monospace",
+  fontFamily: "var(--font-mono)",
 };
 
 const outcomeBadgeStyles: React.CSSProperties = {

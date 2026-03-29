@@ -997,7 +997,11 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden="true" />
+      <div
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden="true"
+      />
 
       {/* Modal */}
       <div
@@ -1005,26 +1009,29 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="relative bg-[var(--bg-secondary)] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-visible flex flex-col"
+        className="relative bg-[var(--bg-secondary)] rounded-2xl w-full max-w-4xl max-h-[85vh] overflow-visible flex flex-col border border-[var(--glass-border)]"
         style={{
           boxShadow: "var(--shadow-modal)",
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[var(--border-primary)]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-primary)]">
           <div className="flex min-w-0 flex-col items-start gap-2">
             {selectedEpic && (
               <button
                 type="button"
                 onClick={handleOpenEpic}
-                className="inline-flex max-w-full items-center gap-2 rounded-full border border-[var(--border-primary)] bg-[var(--bg-tertiary)] px-3 py-1 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]"
+                className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-card)] px-2.5 py-1 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                 aria-label={`Open epic ${selectedEpic.title}`}
               >
-                <FolderOpen size={14} aria-hidden="true" />
+                <FolderOpen size={12} aria-hidden="true" />
                 <span className="truncate">{selectedEpic.title}</span>
               </button>
             )}
-            <h2 id="modal-title" className="text-lg font-semibold text-[var(--text-primary)]">
+            <h2
+              id="modal-title"
+              className="text-lg font-semibold tracking-tight text-[var(--text-primary)]"
+            >
               Edit Ticket
             </h2>
           </div>
@@ -1050,354 +1057,356 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
           </div>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* Title Field with Validation */}
-          <form.Field
-            name="title"
-            children={(field) => (
-              <div>
-                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-                  Title
-                </label>
-                <input
-                  type="text"
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  onBlur={field.handleBlur}
-                  className={`w-full px-3 py-2 bg-[var(--bg-tertiary)] border rounded-lg text-[var(--text-primary)] ${
-                    field.state.meta.errors.length > 0
-                      ? "border-[var(--accent-danger)]"
-                      : "border-[var(--border-primary)]"
-                  }`}
-                />
-                {field.state.meta.errors.length > 0 && (
-                  <p className="mt-1 text-xs text-[var(--accent-danger)]" role="alert">
-                    {field.state.meta.errors.join(", ")}
-                  </p>
-                )}
-              </div>
-            )}
-          />
-
-          {/* Ralph Status - show when Ralph is working on this ticket */}
-          {ralphSession && (
-            <div className="flex items-center gap-2 p-3 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg">
-              <span className="text-sm text-[var(--text-secondary)]">Ralph Status:</span>
-              <RalphStatusBadge session={ralphSession} size="md" />
-              <span className="text-xs text-[var(--text-tertiary)] ml-auto">
-                Started {new Date(ralphSession.startedAt).toLocaleTimeString()}
-              </span>
-            </div>
-          )}
-
-          {/* Description Field */}
-          <form.Field
-            name="description"
-            children={(field) => (
-              <div>
-                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-                  Description
-                </label>
-                <textarea
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  onBlur={field.handleBlur}
-                  rows={8}
-                  className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] resize-y min-h-[120px]"
-                />
-              </div>
-            )}
-          />
-
-          {/* Status, Priority, Epic */}
-          <div className="grid grid-cols-3 gap-4">
-            <form.Field
-              name="status"
-              children={(field) => (
-                <div>
-                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-                    Status
-                  </label>
-                  <div className="relative">
-                    <select
+        {/* Content — Two-panel layout */}
+        <div className="flex-1 overflow-y-auto px-5 py-5">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_280px] gap-0">
+            {/* LEFT PANEL: Content */}
+            <div className="space-y-5 min-w-0 pr-0 md:pr-5">
+              {/* Title */}
+              <form.Field
+                name="title"
+                children={(field) => (
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
+                      Title
+                    </label>
+                    <input
+                      type="text"
                       value={field.state.value}
-                      onChange={(e) => field.handleChange(e.target.value as TicketStatus)}
-                      className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none"
-                    >
-                      {STATUS_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={16}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                      className={`w-full px-3 py-2.5 bg-[var(--bg-card)] border rounded-xl text-[var(--text-primary)] text-lg font-medium tracking-tight focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/30 transition-colors ${
+                        field.state.meta.errors.length > 0
+                          ? "border-[var(--accent-danger)]"
+                          : "border-[var(--border-primary)]"
+                      }`}
                     />
+                    {field.state.meta.errors.length > 0 && (
+                      <p className="mt-1 text-xs text-[var(--accent-danger)]" role="alert">
+                        {field.state.meta.errors.join(", ")}
+                      </p>
+                    )}
                   </div>
-                </div>
-              )}
-            />
+                )}
+              />
 
-            <form.Field
-              name="priority"
-              children={(field) => (
-                <div>
-                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-                    Priority
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={field.state.value ?? ""}
-                      onChange={(e) =>
-                        field.handleChange(
-                          e.target.value ? (e.target.value as TicketPriority) : undefined
-                        )
-                      }
-                      className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none"
-                    >
-                      {PRIORITY_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={16}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
-                    />
-                  </div>
-                </div>
-              )}
-            />
-
-            <form.Field
-              name="epicId"
-              children={(field) => (
-                <div>
-                  <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-                    Epic
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={field.state.value ?? ""}
-                      onChange={(e) => field.handleChange(e.target.value || undefined)}
-                      className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] appearance-none"
-                    >
-                      <option value="">None</option>
-                      {epics.map((epic) => (
-                        <option key={epic.id} value={epic.id}>
-                          {epic.title}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={16}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
-                    />
-                  </div>
-                </div>
-              )}
-            />
-          </div>
-
-          {/* Git/PR Info (read-only, populated by MCP tools) */}
-          {(ticket.branchName || ticket.prNumber) && (
-            <div className="bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg p-3 space-y-2">
-              <div className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider">
-                Git / PR
-              </div>
-
-              {/* Branch name */}
-              {ticket.branchName && (
-                <div className="flex items-center gap-2">
-                  <GitBranch size={14} className="text-[var(--accent-primary)] flex-shrink-0" />
-                  <code className="text-sm text-[var(--text-primary)] bg-[var(--bg-hover)] px-2 py-0.5 rounded font-mono truncate flex-1">
-                    {ticket.branchName}
-                  </code>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigator.clipboard.writeText(ticket.branchName ?? "");
-                      showToast("success", "Branch copied!");
-                    }}
-                    className="p-1 hover:bg-[var(--bg-hover)] rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-                    title="Copy branch name"
-                  >
-                    <Copy size={14} />
-                  </button>
-                </div>
-              )}
-
-              {/* PR link */}
-              {ticket.prNumber && (
-                <div className="flex items-center gap-2">
-                  <GitPullRequest
-                    size={14}
-                    className={`flex-shrink-0 ${getPrStatusIconColor(ticket.prStatus)}`}
-                  />
-                  {ticket.prUrl ? (
-                    <a
-                      href={ticket.prUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-[var(--accent-primary)] hover:text-[var(--accent-secondary)] hover:underline flex items-center gap-1"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      PR #{ticket.prNumber}
-                      <ExternalLink size={12} />
-                    </a>
-                  ) : (
-                    <span className="text-sm text-[var(--text-primary)]">
-                      PR #{ticket.prNumber}
-                    </span>
-                  )}
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded ${getPrStatusBadgeStyle(ticket.prStatus)}`}
-                  >
-                    {ticket.prStatus ?? "open"}
+              {/* Ralph Status */}
+              {ralphSession && (
+                <div className="flex items-center gap-2 p-3 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl">
+                  <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
+                    Ralph
                   </span>
+                  <RalphStatusBadge session={ralphSession} size="md" />
+                  <span className="text-xs text-[var(--text-muted)] ml-auto font-mono">
+                    {new Date(ralphSession.startedAt).toLocaleTimeString()}
+                  </span>
+                </div>
+              )}
+
+              {/* Description */}
+              <form.Field
+                name="description"
+                children={(field) => (
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
+                      Description
+                    </label>
+                    <textarea
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                      rows={10}
+                      className="w-full px-3 py-2 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl text-[var(--text-primary)] resize-y min-h-[160px] focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/30 transition-colors"
+                    />
+                  </div>
+                )}
+              />
+
+              {/* Git/PR Info */}
+              {(ticket.branchName || ticket.prNumber) && (
+                <div className="bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl p-3 space-y-2">
+                  <div className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
+                    Git / PR
+                  </div>
+                  {ticket.branchName && (
+                    <div className="flex items-center gap-2">
+                      <GitBranch size={14} className="text-[var(--accent-primary)] flex-shrink-0" />
+                      <code className="text-sm text-[var(--text-primary)] bg-[var(--bg-hover)] px-2 py-0.5 rounded-lg font-mono truncate flex-1">
+                        {ticket.branchName}
+                      </code>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(ticket.branchName ?? "");
+                          showToast("success", "Branch copied!");
+                        }}
+                        className="p-1 hover:bg-[var(--bg-hover)] rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                        title="Copy branch name"
+                      >
+                        <Copy size={14} />
+                      </button>
+                    </div>
+                  )}
+                  {ticket.prNumber && (
+                    <div className="flex items-center gap-2">
+                      <GitPullRequest
+                        size={14}
+                        className={`flex-shrink-0 ${getPrStatusIconColor(ticket.prStatus)}`}
+                      />
+                      {ticket.prUrl ? (
+                        <a
+                          href={ticket.prUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-[var(--accent-primary)] hover:text-[var(--accent-secondary)] hover:underline flex items-center gap-1 font-mono"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          PR #{ticket.prNumber}
+                          <ExternalLink size={12} />
+                        </a>
+                      ) : (
+                        <span className="text-sm text-[var(--text-primary)] font-mono">
+                          PR #{ticket.prNumber}
+                        </span>
+                      )}
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-lg ${getPrStatusBadgeStyle(ticket.prStatus)}`}
+                      >
+                        {ticket.prStatus ?? "open"}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          )}
 
-          {/* Blocked */}
-          <form.Field
-            name="isBlocked"
-            children={(blockedField) => (
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={blockedField.state.value}
-                    onChange={(e) => blockedField.handleChange(e.target.checked)}
-                    className="w-4 h-4 rounded border-[var(--border-primary)] text-[var(--accent-danger)] focus:ring-[var(--accent-danger)] bg-[var(--bg-tertiary)]"
-                  />
-                  <span className="text-sm text-[var(--text-secondary)] flex items-center gap-1">
-                    <AlertCircle size={14} className="text-[var(--accent-danger)]" />
-                    Blocked
-                  </span>
-                </label>
-                {blockedField.state.value && (
-                  <form.Field
-                    name="blockedReason"
-                    children={(reasonField) => (
-                      <input
-                        type="text"
-                        value={reasonField.state.value}
-                        onChange={(e) => reasonField.handleChange(e.target.value)}
-                        placeholder="Reason for blocking..."
-                        className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)]"
+            {/* RIGHT PANEL: Metadata sidebar */}
+            <div className="space-y-4 min-w-0 pt-5 md:pt-0 md:pl-5 md:border-l border-t md:border-t-0 border-[var(--border-primary)]">
+              {/* Status */}
+              <form.Field
+                name="status"
+                children={(field) => (
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
+                      Status
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value as TicketStatus)}
+                        className="w-full px-3 py-2 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl text-[var(--text-primary)] appearance-none focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/30 transition-colors"
+                      >
+                        {STATUS_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        size={16}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
                       />
-                    )}
-                  />
-                )}
-              </div>
-            )}
-          />
-
-          {/* Tags */}
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
-              Tags
-            </label>
-            {formTags.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-2">
-                {formTags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="flex items-center gap-1 px-2 py-1 bg-[var(--bg-tertiary)] text-[var(--text-secondary)] rounded text-sm"
-                  >
-                    {tag}
-                    <button
-                      onClick={() => removeTag(tag)}
-                      className="hover:text-[var(--accent-danger)]"
-                    >
-                      <X size={12} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="relative">
-              <div className="flex gap-2">
-                <input
-                  ref={tagInputRef}
-                  type="text"
-                  value={newTag}
-                  onChange={handleTagInputChange}
-                  onKeyDown={handleTagInputKeyDown}
-                  onFocus={() => {
-                    if (newTag.trim()) setIsTagDropdownOpen(true);
-                  }}
-                  placeholder="Add tag..."
-                  className="flex-1 px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] text-sm"
-                  autoComplete="off"
-                />
-                <button
-                  type="button"
-                  onClick={() => addTag()}
-                  className="px-3 py-2 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] rounded-lg text-[var(--text-secondary)]"
-                >
-                  <Plus size={16} />
-                </button>
-              </div>
-
-              {/* Tag suggestions dropdown */}
-              {isTagDropdownOpen && (tagsLoading || tagSuggestions.length > 0) && (
-                <div
-                  ref={tagDropdownRef}
-                  className="absolute z-10 left-0 right-12 mt-1 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg shadow-lg max-h-40 overflow-y-auto"
-                >
-                  {tagsLoading ? (
-                    <div className="flex items-center justify-center gap-2 px-3 py-2 text-[var(--text-secondary)] text-sm">
-                      <Loader2 size={14} className="animate-spin" />
-                      <span>Loading tags...</span>
                     </div>
-                  ) : (
-                    tagSuggestions.map((tag, index) => (
-                      <button
+                  </div>
+                )}
+              />
+
+              {/* Priority */}
+              <form.Field
+                name="priority"
+                children={(field) => (
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
+                      Priority
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={field.state.value ?? ""}
+                        onChange={(e) =>
+                          field.handleChange(
+                            e.target.value ? (e.target.value as TicketPriority) : undefined
+                          )
+                        }
+                        className="w-full px-3 py-2 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl text-[var(--text-primary)] appearance-none focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/30 transition-colors"
+                      >
+                        {PRIORITY_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        size={16}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
+                      />
+                    </div>
+                  </div>
+                )}
+              />
+
+              {/* Epic */}
+              <form.Field
+                name="epicId"
+                children={(field) => (
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
+                      Epic
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={field.state.value ?? ""}
+                        onChange={(e) => field.handleChange(e.target.value || undefined)}
+                        className="w-full px-3 py-2 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl text-[var(--text-primary)] appearance-none focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/30 transition-colors"
+                      >
+                        <option value="">None</option>
+                        {epics.map((epic) => (
+                          <option key={epic.id} value={epic.id}>
+                            {epic.title}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        size={16}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] pointer-events-none"
+                      />
+                    </div>
+                  </div>
+                )}
+              />
+
+              {/* Tags */}
+              <div className="border-t border-[var(--border-primary)] pt-4">
+                <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
+                  Tags
+                </label>
+                {formTags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {formTags.map((tag) => (
+                      <span
                         key={tag}
-                        type="button"
-                        onClick={() => addTag(tag)}
-                        className={`w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-hover)] ${
-                          index === selectedSuggestionIndex
-                            ? "bg-[var(--bg-hover)] text-[var(--accent-primary)]"
-                            : "text-[var(--text-primary)]"
-                        }`}
+                        className="flex items-center gap-1 px-2 py-0.5 bg-[var(--bg-card)] border border-[var(--border-primary)] text-[var(--text-secondary)] rounded-lg text-xs font-mono"
                       >
                         {tag}
-                      </button>
-                    ))
+                        <button
+                          onClick={() => removeTag(tag)}
+                          className="hover:text-[var(--accent-danger)]"
+                        >
+                          <X size={10} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="relative">
+                  <div className="flex gap-2">
+                    <input
+                      ref={tagInputRef}
+                      type="text"
+                      value={newTag}
+                      onChange={handleTagInputChange}
+                      onKeyDown={handleTagInputKeyDown}
+                      onFocus={() => {
+                        if (newTag.trim()) setIsTagDropdownOpen(true);
+                      }}
+                      placeholder="Add tag..."
+                      className="flex-1 px-3 py-1.5 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl text-[var(--text-primary)] focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/30 transition-colors text-sm"
+                      autoComplete="off"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => addTag()}
+                      className="px-2 py-1.5 bg-[var(--bg-card)] border border-[var(--border-primary)] hover:bg-[var(--bg-hover)] rounded-xl text-[var(--text-secondary)]"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+
+                  {isTagDropdownOpen && (tagsLoading || tagSuggestions.length > 0) && (
+                    <div
+                      ref={tagDropdownRef}
+                      className="absolute z-10 left-0 right-0 mt-1 bg-[var(--bg-secondary)] border border-[var(--border-secondary)] rounded-xl shadow-xl max-h-40 overflow-y-auto"
+                    >
+                      {tagsLoading ? (
+                        <div className="flex items-center justify-center gap-2 px-3 py-2 text-[var(--text-secondary)] text-sm">
+                          <Loader2 size={14} className="animate-spin" />
+                          <span>Loading tags...</span>
+                        </div>
+                      ) : (
+                        tagSuggestions.map((tag, index) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => addTag(tag)}
+                            className={`w-full text-left px-3 py-2 text-sm hover:bg-[var(--bg-hover)] ${
+                              index === selectedSuggestionIndex
+                                ? "bg-[var(--bg-hover)] text-[var(--accent-primary)]"
+                                : "text-[var(--text-primary)]"
+                            }`}
+                          >
+                            {tag}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {tagsError && (
+                    <p className="mt-1 text-xs text-[var(--accent-danger)]">
+                      Failed to load tags: {tagsError}
+                    </p>
+                  )}
+
+                  {showCreateHelper && (
+                    <p className="mt-1 text-xs text-[var(--text-tertiary)]">
+                      Press Enter to create "{newTag.trim()}"
+                    </p>
                   )}
                 </div>
-              )}
+              </div>
 
-              {/* Tag loading error */}
-              {tagsError && (
-                <p className="mt-1 text-xs text-[var(--accent-danger)]">
-                  Failed to load tags: {tagsError}
-                </p>
-              )}
-
-              {/* Helper text for creating new tags */}
-              {showCreateHelper && (
-                <p className="mt-1 text-xs text-[var(--text-tertiary)]">
-                  Press{" "}
-                  <kbd className="px-1 py-0.5 bg-[var(--bg-tertiary)] rounded text-[var(--text-secondary)]">
-                    Enter
-                  </kbd>{" "}
-                  to create &quot;{newTag.trim()}&quot; as a new tag
-                </p>
-              )}
+              {/* Blocked */}
+              <div className="border-t border-[var(--border-primary)] pt-4">
+                <form.Field
+                  name="isBlocked"
+                  children={(blockedField) => (
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={blockedField.state.value}
+                          onChange={(e) => blockedField.handleChange(e.target.checked)}
+                          className="w-4 h-4 rounded border-[var(--border-primary)] text-[var(--accent-danger)] focus:ring-[var(--accent-danger)] bg-[var(--bg-card)]"
+                          style={{ accentColor: "var(--error)" }}
+                        />
+                        <span className="text-sm text-[var(--text-secondary)] flex items-center gap-1">
+                          <AlertCircle size={14} className="text-[var(--accent-danger)]" />
+                          Blocked
+                        </span>
+                      </label>
+                      {blockedField.state.value && (
+                        <form.Field
+                          name="blockedReason"
+                          children={(reasonField) => (
+                            <input
+                              type="text"
+                              value={reasonField.state.value}
+                              onChange={(e) => reasonField.handleChange(e.target.value)}
+                              placeholder="Reason for blocking..."
+                              className="w-full px-3 py-1.5 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl text-[var(--text-primary)] text-sm focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/30 transition-colors"
+                            />
+                          )}
+                        />
+                      )}
+                    </div>
+                  )}
+                />
+              </div>
             </div>
           </div>
 
           {/* Acceptance Criteria */}
           <div>
-            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+            <label className="block text-xs font-medium text-[var(--text-muted)] mb-1.5 uppercase tracking-wider">
               Acceptance Criteria
               {formCriteria.length > 0 && (
                 <span className="ml-2 text-[var(--text-tertiary)]">
@@ -1503,7 +1512,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 onChange={(e) => setNewCriterion(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && addCriterion()}
                 placeholder="Add acceptance criterion..."
-                className="flex-1 px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg text-[var(--text-primary)] text-sm"
+                className="flex-1 px-3 py-2 bg-[var(--bg-card)] border border-[var(--border-primary)] rounded-xl text-[var(--text-primary)] focus:border-[var(--accent-primary)] focus:ring-1 focus:ring-[var(--accent-primary)]/30 transition-colors text-sm"
               />
               <button
                 onClick={addCriterion}
@@ -1587,7 +1596,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
         )}
 
         {/* Footer */}
-        <div className="flex justify-between gap-3 p-4 border-t border-[var(--border-primary)]">
+        <div className="flex justify-between gap-3 px-5 py-4 border-t border-[var(--border-primary)]">
           {/* Start Work Split Button */}
           <div className="relative" ref={startWorkMenuRef}>
             <div className="flex">
@@ -1790,7 +1799,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                 <button
                   onClick={handleSave}
                   disabled={updateTicketMutation.isPending || !canSubmit || !title}
-                  className="px-4 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] rounded-lg font-medium transition-colors"
+                  className="px-5 py-2 bg-gradient-to-r from-[var(--accent-primary)] to-[var(--accent-secondary)] hover:brightness-110 disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] disabled:from-transparent disabled:to-transparent rounded-xl font-medium transition-all shadow-sm"
                 >
                   {updateTicketMutation.isPending ? "Saving..." : "Save Changes"}
                 </button>

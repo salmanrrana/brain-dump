@@ -437,7 +437,7 @@ const branchBadgeStyles: React.CSSProperties = {
   background: "var(--bg-tertiary)",
   padding: "1px var(--spacing-1)",
   borderRadius: "var(--radius-sm)",
-  fontFamily: "monospace",
+  fontFamily: "var(--font-mono)",
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
@@ -559,7 +559,7 @@ const chevronStyles: React.CSSProperties = {
 };
 
 const commitHashStyles: React.CSSProperties = {
-  fontFamily: "monospace",
+  fontFamily: "var(--font-mono)",
   color: "var(--text-tertiary)",
   flexShrink: 0,
 };
@@ -634,7 +634,7 @@ const fileListStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: "1px",
-  fontFamily: "monospace",
+  fontFamily: "var(--font-mono)",
   fontSize: "11px",
 };
 
