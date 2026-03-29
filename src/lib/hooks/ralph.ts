@@ -42,7 +42,7 @@ export function useLaunchRalphForTicket() {
       maxIterations?: number;
       preferredTerminal?: string | null;
       useSandbox?: boolean;
-      aiBackend?: "claude" | "opencode" | "codex";
+      aiBackend?: "claude" | "opencode" | "codex" | "cursor-agent";
       workingMethodOverride?:
         | "auto"
         | "claude-code"
@@ -70,7 +70,7 @@ export function useLaunchRalphForEpic() {
       maxIterations?: number;
       preferredTerminal?: string | null;
       useSandbox?: boolean;
-      aiBackend?: "claude" | "opencode" | "codex";
+      aiBackend?: "claude" | "opencode" | "codex" | "cursor-agent";
       workingMethodOverride?:
         | "auto"
         | "claude-code"

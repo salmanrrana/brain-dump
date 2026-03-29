@@ -28,6 +28,7 @@ import {
   launchCodexInTerminal,
   launchVSCodeInTerminal,
   launchCursorInTerminal,
+  launchCursorAgentInTerminal,
   launchCopilotInTerminal,
   launchOpenCodeInTerminal,
 } from "../../api/terminal";
@@ -145,6 +146,7 @@ export function EpicDetailHeader({
         | "codex-app"
         | "vscode"
         | "cursor"
+        | "cursor-agent"
         | "copilot"
         | "opencode"
     ) => {
@@ -187,6 +189,8 @@ export function EpicDetailHeader({
               return launchVSCodeInTerminal({ data: payload });
             case "cursor":
               return launchCursorInTerminal({ data: payload });
+            case "cursor-agent":
+              return launchCursorAgentInTerminal({ data: payload });
             case "copilot":
               return launchCopilotInTerminal({ data: payload });
             case "opencode":
@@ -218,7 +222,7 @@ export function EpicDetailHeader({
 
   const handleLaunchFocusedReview = useCallback(
     async (provider: {
-      aiBackend: "claude" | "opencode" | "codex";
+      aiBackend: "claude" | "opencode" | "codex" | "cursor-agent";
       workingMethodOverride?: "vscode" | "cursor" | "copilot-cli";
       label: string;
     }): Promise<void> => {
@@ -817,10 +821,15 @@ export function EpicDetailHeader({
                       ),
                     },
                     {
-                      label: "Cursor",
+                      label: "Cursor Editor",
                       aiBackend: "claude" as const,
                       workingMethodOverride: "cursor" as const,
                       icon: <Monitor size={14} className="text-[var(--warning)] flex-shrink-0" />,
+                    },
+                    {
+                      label: "Cursor Agent",
+                      aiBackend: "cursor-agent" as const,
+                      icon: <Terminal size={14} className="text-[var(--warning)] flex-shrink-0" />,
                     },
                     {
                       label: "Copilot CLI",

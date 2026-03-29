@@ -11,6 +11,7 @@ import {
   launchCodexInTerminal,
   launchVSCodeInTerminal,
   launchCursorInTerminal,
+  launchCursorAgentInTerminal,
   launchCopilotInTerminal,
   launchOpenCodeInTerminal,
 } from "../api/terminal";
@@ -552,6 +553,32 @@ function TicketDetailPage() {
           } else {
             showToast("error", launchResult.message);
           }
+        } else if (type === "cursor-agent") {
+          const launchResult = await launchCursorAgentInTerminal({
+            data: {
+              ticketId: ticket.id,
+              context: contextResult.context,
+              projectPath: contextResult.projectPath,
+              preferredTerminal: settings?.terminalEmulator ?? null,
+              projectName: contextResult.projectName,
+              epicName: contextResult.epicName,
+              ticketTitle: contextResult.ticketTitle,
+            },
+          });
+
+          if (launchResult.warnings) {
+            launchResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          if (launchResult.success) {
+            showToast(
+              "success",
+              `Cursor Agent launched${launchResult.terminalUsed ? ` (${launchResult.terminalUsed})` : ""}`
+            );
+            void refetch();
+          } else {
+            showToast("error", launchResult.message);
+          }
         } else if (type === "copilot") {
           const launchResult = await launchCopilotInTerminal({
             data: {
@@ -682,6 +709,24 @@ function TicketDetailPage() {
             useSandbox: false,
             aiBackend: "claude",
             workingMethodOverride: "cursor",
+          });
+
+          if ("warnings" in result && result.warnings) {
+            (result.warnings as string[]).forEach((warning) => showToast("info", warning));
+          }
+
+          if (result.success) {
+            showToast("success", result.message);
+            void refetch();
+          } else {
+            showToast("error", result.message);
+          }
+        } else if (type === "ralph-cursor-agent") {
+          const result = await launchRalphMutation.mutateAsync({
+            ticketId: ticket.id,
+            preferredTerminal: settings?.terminalEmulator ?? null,
+            useSandbox: false,
+            aiBackend: "cursor-agent",
           });
 
           if ("warnings" in result && result.warnings) {

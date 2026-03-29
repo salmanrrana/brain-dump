@@ -36,6 +36,7 @@ import {
   launchCodexInTerminal,
   launchVSCodeInTerminal,
   launchCursorInTerminal,
+  launchCursorAgentInTerminal,
   launchCopilotInTerminal,
   launchOpenCodeInTerminal,
 } from "../api/terminal";
@@ -210,7 +211,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
       workingMethodOverride,
     }: {
       useSandbox: boolean;
-      aiBackend: "claude" | "opencode" | "codex";
+      aiBackend: "claude" | "opencode" | "codex" | "cursor-agent";
       workingMethodOverride?:
         | "auto"
         | "claude-code"
@@ -312,6 +313,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
         | "codex-app"
         | "vscode"
         | "cursor"
+        | "cursor-agent"
         | "copilot"
         | "opencode"
     ) => {
@@ -356,6 +358,8 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
               return launchVSCodeInTerminal({ data: payload });
             case "cursor":
               return launchCursorInTerminal({ data: payload });
+            case "cursor-agent":
+              return launchCursorAgentInTerminal({ data: payload });
             case "copilot":
               return launchCopilotInTerminal({ data: payload });
             case "opencode":

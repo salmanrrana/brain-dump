@@ -25,6 +25,7 @@ import {
   launchCodexInTerminal,
   launchVSCodeInTerminal,
   launchCursorInTerminal,
+  launchCursorAgentInTerminal,
   launchCopilotInTerminal,
   launchOpenCodeInTerminal,
 } from "../../api/terminal";
@@ -553,6 +554,34 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
           } else {
             showToast("error", launchResult.message);
           }
+        } else if (type === "cursor-agent") {
+          const launchResult = await launchCursorAgentInTerminal({
+            data: {
+              ticketId: ticket.id,
+              context: contextResult.context,
+              projectPath: contextResult.projectPath,
+              preferredTerminal: settings?.terminalEmulator ?? null,
+              projectName: contextResult.projectName,
+              epicName: contextResult.epicName,
+              ticketTitle: contextResult.ticketTitle,
+            },
+          });
+
+          if (launchResult.warnings) {
+            launchResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          if (launchResult.success) {
+            showToast(
+              "success",
+              `Cursor Agent launched${launchResult.terminalUsed ? ` (${launchResult.terminalUsed})` : ""}`
+            );
+            setStatus("in_progress");
+            onSuccess?.();
+            onClose();
+          } else {
+            showToast("error", launchResult.message);
+          }
         } else if (type === "copilot") {
           const launchResult = await launchCopilotInTerminal({
             data: {
@@ -763,6 +792,39 @@ export const EditTicketModal: FC<EditTicketModalProps> = ({
             useSandbox: false,
             aiBackend: "claude",
             workingMethodOverride: "cursor",
+          });
+
+          if ("warnings" in result && result.warnings) {
+            (result.warnings as string[]).forEach((warning) => showToast("info", warning));
+          }
+
+          if (result.success) {
+            showToast("success", result.message);
+            setStatus("in_progress");
+            onSuccess?.();
+            onClose();
+          } else {
+            showToast("error", result.message);
+          }
+        } else if (type === "ralph-cursor-agent") {
+          // Initialize workflow first (git branch, status, audit comment)
+          const workflowResult = await startTicketWorkflowFn({
+            data: { ticketId: ticket.id, projectPath: contextResult.projectPath },
+          });
+          if (!workflowResult.success) {
+            showToast(
+              "info",
+              `Branch setup skipped: ${workflowResult.error || "Unknown error"}. Launching on the current branch.`
+            );
+          } else if (workflowResult.warnings?.length) {
+            workflowResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          const result = await launchRalphMutation.mutateAsync({
+            ticketId: ticket.id,
+            preferredTerminal: settings?.terminalEmulator ?? null,
+            useSandbox: false,
+            aiBackend: "cursor-agent",
           });
 
           if ("warnings" in result && result.warnings) {

@@ -14,11 +14,13 @@ export type LaunchType =
   | "codex-app"
   | "vscode"
   | "cursor"
+  | "cursor-agent"
   | "copilot"
   | "ralph-native"
   | "ralph-codex"
   | "ralph-vscode"
   | "ralph-cursor"
+  | "ralph-cursor-agent"
   | "ralph-copilot"
   | "opencode"
   | "ralph-opencode";
@@ -101,9 +103,16 @@ const LAUNCH_OPTIONS: LaunchOption[] = [
   },
   {
     id: "cursor",
-    name: "Cursor",
+    name: "Cursor Editor",
     description: "Open editor with task context",
     icon: Monitor,
+    iconColor: "#f59e0b", // amber
+  },
+  {
+    id: "cursor-agent",
+    name: "Cursor Agent",
+    description: "Terminal AI with multi-model",
+    icon: Terminal,
     iconColor: "#f59e0b", // amber
   },
   {
@@ -136,9 +145,16 @@ const LAUNCH_OPTIONS: LaunchOption[] = [
   },
   {
     id: "ralph-cursor",
-    name: "Ralph (Cursor)",
+    name: "Ralph (Cursor Editor)",
     description: "Autonomous context in Cursor",
     icon: Monitor,
+    iconColor: "#f59e0b", // amber
+  },
+  {
+    id: "ralph-cursor-agent",
+    name: "Ralph (Cursor Agent)",
+    description: "Autonomous multi-model agent",
+    icon: Bot,
     iconColor: "#f59e0b", // amber
   },
   {
