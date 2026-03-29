@@ -530,6 +530,132 @@
 }
 
 /* ============================================
+   MIDNIGHT THEME — Navy Command
+   Inspired by Cowboys/Yankees navy + silver
+   ============================================ */
+[data-theme="midnight"] {
+  --bg-primary: #020818;
+  --bg-secondary: #061028;
+  --bg-tertiary: #0c1a38;
+  --bg-card: #081430;
+  --bg-hover: #102040;
+  --bg-active: #162848;
+  --bg-elevated: #0c1a35;
+
+  --glass-bg: rgba(8, 20, 48, 0.85);
+  --glass-border: rgba(120, 160, 220, 0.08);
+
+  --text-primary: #e8edf5;
+  --text-secondary: #8898b8;
+  --text-tertiary: #506080;
+  --text-muted: #384860;
+
+  --border-primary: #102040;
+  --border-secondary: #1a2c50;
+  --border-focus: #2a3c65;
+  --border-subtle: rgba(120, 160, 220, 0.05);
+
+  --accent-primary: #c0c8d4;
+  --accent-secondary: #a0aab8;
+  --accent-tertiary: #8090a4;
+  --accent-muted: rgba(192, 200, 212, 0.1);
+  --accent-glow: rgba(192, 200, 212, 0.2);
+  --accent-surface: rgba(192, 200, 212, 0.05);
+  --text-on-accent: #020818;
+
+  --accent-ai: #60a5fa;
+  --accent-ai-glow: rgba(96, 165, 250, 0.25);
+
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  --shadow-glow-lg: 0 0 40px var(--accent-glow), 0 0 80px rgba(192, 200, 212, 0.06);
+  --grid-dot-color: rgba(120, 160, 220, 0.04);
+}
+
+/* ============================================
+   VOLT THEME — Electric Green
+   Inspired by Seahawks/Monster Energy neon green
+   ============================================ */
+[data-theme="volt"] {
+  --bg-primary: #040804;
+  --bg-secondary: #081008;
+  --bg-tertiary: #101c10;
+  --bg-card: #0c160c;
+  --bg-hover: #142214;
+  --bg-active: #1a2c1a;
+  --bg-elevated: #101a10;
+
+  --glass-bg: rgba(12, 22, 12, 0.85);
+  --glass-border: rgba(140, 255, 100, 0.06);
+
+  --text-primary: #e8f4e8;
+  --text-secondary: #88b088;
+  --text-tertiary: #588058;
+  --text-muted: #386038;
+
+  --border-primary: #1a2c1a;
+  --border-secondary: #223822;
+  --border-focus: #2c4c2c;
+  --border-subtle: rgba(140, 255, 100, 0.04);
+
+  --accent-primary: #84cc16;
+  --accent-secondary: #65a30d;
+  --accent-tertiary: #4d7c0f;
+  --accent-muted: rgba(132, 204, 22, 0.12);
+  --accent-glow: rgba(132, 204, 22, 0.25);
+  --accent-surface: rgba(132, 204, 22, 0.05);
+  --text-on-accent: #040804;
+
+  --accent-ai: #f472b6;
+  --accent-ai-glow: rgba(244, 114, 182, 0.25);
+
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  --shadow-glow-lg: 0 0 40px var(--accent-glow), 0 0 80px rgba(132, 204, 22, 0.08);
+  --grid-dot-color: rgba(132, 204, 22, 0.03);
+}
+
+/* ============================================
+   CARBON THEME — Black Gold
+   Inspired by Saints/Steelers black + gold
+   ============================================ */
+[data-theme="carbon"] {
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #121212;
+  --bg-tertiary: #1a1a1a;
+  --bg-card: #161616;
+  --bg-hover: #1e1e1e;
+  --bg-active: #262626;
+  --bg-elevated: #181818;
+
+  --glass-bg: rgba(18, 18, 18, 0.85);
+  --glass-border: rgba(255, 200, 50, 0.06);
+
+  --text-primary: #f5f0e0;
+  --text-secondary: #b0a880;
+  --text-tertiary: #807850;
+  --text-muted: #585038;
+
+  --border-primary: #252520;
+  --border-secondary: #333028;
+  --border-focus: #444035;
+  --border-subtle: rgba(255, 200, 50, 0.04);
+
+  --accent-primary: #eab308;
+  --accent-secondary: #d4a000;
+  --accent-tertiary: #b08c00;
+  --accent-muted: rgba(234, 179, 8, 0.1);
+  --accent-glow: rgba(234, 179, 8, 0.22);
+  --accent-surface: rgba(234, 179, 8, 0.05);
+  --text-on-accent: #0a0a0a;
+
+  --accent-ai: #38bdf8;
+  --accent-ai-glow: rgba(56, 189, 248, 0.25);
+
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  --shadow-glow-lg: 0 0 40px var(--accent-glow), 0 0 80px rgba(234, 179, 8, 0.06);
+  --grid-dot-color: rgba(234, 179, 8, 0.025);
+}
+
+/* ============================================
    LIGHT THEMES
    ============================================ */
 
@@ -701,17 +827,17 @@
   --border-focus: #737373;
   --border-subtle: rgba(0, 0, 0, 0.03);
 
-  /* Ink/Charcoal — editorial, understated, timeless */
-  --accent-primary: #171717;
-  --accent-secondary: #262626;
-  --accent-tertiary: #404040;
-  --accent-muted: rgba(23, 23, 23, 0.06);
-  --accent-glow: rgba(23, 23, 23, 0.1);
-  --accent-surface: rgba(23, 23, 23, 0.03);
+  /* Warm charcoal — readable, editorial, timeless */
+  --accent-primary: #404040;
+  --accent-secondary: #333333;
+  --accent-tertiary: #262626;
+  --accent-muted: rgba(64, 64, 64, 0.08);
+  --accent-glow: rgba(64, 64, 64, 0.12);
+  --accent-surface: rgba(64, 64, 64, 0.04);
   --text-on-accent: #ffffff;
 
-  --accent-ai: #0284c7;
-  --accent-ai-glow: rgba(2, 132, 199, 0.15);
+  --accent-ai: #0891b2;
+  --accent-ai-glow: rgba(8, 145, 178, 0.15);
 
   --success: #059669;
   --success-muted: rgba(5, 150, 105, 0.08);

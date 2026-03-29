@@ -112,6 +112,9 @@ describe("Theme System", () => {
         "mint",
         "blush",
         "oxide",
+        "midnight",
+        "volt",
+        "carbon",
         // Legacy
         "ember",
         "solar",

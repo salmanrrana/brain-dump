@@ -31,6 +31,9 @@ export type Theme =
   | "mint"
   | "blush"
   | "oxide"
+  | "midnight"
+  | "volt"
+  | "carbon"
   | "ember"
   | "solar"
   | "daylight"
@@ -62,6 +65,9 @@ export const THEMES: readonly Theme[] = [
   "mint",
   "blush",
   "oxide",
+  "midnight",
+  "volt",
+  "carbon",
   // Legacy (hidden from picker, still valid for existing users)
   "ember",
   "solar",
@@ -79,6 +85,9 @@ export const DARK_THEMES: readonly Theme[] = [
   "mint",
   "blush",
   "oxide",
+  "midnight",
+  "volt",
+  "carbon",
 ] as const;
 
 /** Light themes */

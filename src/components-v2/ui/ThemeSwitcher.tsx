@@ -62,6 +62,27 @@ const THEME_CONFIG: Record<
     bgColor: "#070504",
     description: "Warm copper-red",
   },
+  midnight: {
+    name: "Midnight",
+    primaryColor: "#c0c8d4",
+    secondaryColor: "#60a5fa",
+    bgColor: "#020818",
+    description: "Navy command",
+  },
+  volt: {
+    name: "Volt",
+    primaryColor: "#84cc16",
+    secondaryColor: "#f472b6",
+    bgColor: "#040804",
+    description: "Electric green",
+  },
+  carbon: {
+    name: "Carbon",
+    primaryColor: "#eab308",
+    secondaryColor: "#38bdf8",
+    bgColor: "#0a0a0a",
+    description: "Black + gold",
+  },
   // Legacy themes (hidden from picker but still valid)
   ember: {
     name: "Ember",
@@ -94,10 +115,10 @@ const THEME_CONFIG: Record<
   },
   paper: {
     name: "Paper",
-    primaryColor: "#171717",
-    secondaryColor: "#0284c7",
+    primaryColor: "#404040",
+    secondaryColor: "#0891b2",
     bgColor: "#fafafa",
-    description: "Ink on neutral white",
+    description: "Charcoal editorial",
   },
 };
 

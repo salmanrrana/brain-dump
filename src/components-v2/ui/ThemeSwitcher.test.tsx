@@ -61,6 +61,9 @@ describe("ThemeSwitcher", () => {
       expect(screen.getByRole("radio", { name: /mint theme/i })).toBeInTheDocument();
       expect(screen.getByRole("radio", { name: /blush theme/i })).toBeInTheDocument();
       expect(screen.getByRole("radio", { name: /oxide theme/i })).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: /midnight theme/i })).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: /volt theme/i })).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: /carbon theme/i })).toBeInTheDocument();
     });
 
     it("renders all light theme buttons", () => {
@@ -174,6 +177,9 @@ describe("ThemeSwitcher", () => {
       expect(screen.getByText("Mint")).toBeInTheDocument();
       expect(screen.getByText("Blush")).toBeInTheDocument();
       expect(screen.getByText("Oxide")).toBeInTheDocument();
+      expect(screen.getByText("Midnight")).toBeInTheDocument();
+      expect(screen.getByText("Volt")).toBeInTheDocument();
+      expect(screen.getByText("Carbon")).toBeInTheDocument();
 
       // Light themes
       expect(screen.getByText("Daylight")).toBeInTheDocument();
