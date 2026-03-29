@@ -1,4 +1,5 @@
 import { execDockerCommand } from "./docker-utils";
+import { execFileNoThrow } from "../utils/execFileNoThrow";
 
 // ============================================================================
 // UTILITIES
@@ -68,6 +69,37 @@ export async function findCursorCli(): Promise<string | null> {
     if (existsSync(cursorPath)) {
       return cursorPath;
     }
+  }
+
+  return null;
+}
+
+// Check if Cursor Agent CLI is available and get the path
+// The binary is called `agent` but that's generic — we verify it's Cursor's agent
+export async function findCursorAgentCli(): Promise<string | null> {
+  const { existsSync } = await import("fs");
+  const { join } = await import("path");
+  const { homedir } = await import("os");
+
+  // 1. Check `agent` in PATH — verify output contains "cursor"
+  const agentResult = await execFileNoThrow("agent", ["--version"]);
+  if (agentResult.success && /cursor/i.test(agentResult.stdout + agentResult.stderr)) {
+    return "agent";
+  }
+
+  // 2. Fallback: check ~/.local/bin/agent directly
+  const localBinAgent = join(homedir(), ".local", "bin", "agent");
+  if (existsSync(localBinAgent)) {
+    const localResult = await execFileNoThrow(localBinAgent, ["--version"]);
+    if (localResult.success && /cursor/i.test(localResult.stdout + localResult.stderr)) {
+      return localBinAgent;
+    }
+  }
+
+  // 3. Fallback: check `cursor-agent` in PATH
+  const cursorAgentResult = await execFileNoThrow("cursor-agent", ["--version"]);
+  if (cursorAgentResult.success) {
+    return "cursor-agent";
   }
 
   return null;

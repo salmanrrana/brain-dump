@@ -238,6 +238,21 @@ async function isCursorInstalled(): Promise<InstallCheck> {
   }
 }
 
+// Check if Cursor Agent CLI is installed
+export async function isCursorAgentInstalled(): Promise<InstallCheck> {
+  const { findCursorAgentCli } = await import("./ralph-launchers");
+
+  const agentPath = await findCursorAgentCli();
+  if (agentPath) {
+    return { installed: true, mode: "cli" };
+  }
+
+  return {
+    installed: false,
+    error: "Cursor Agent CLI not found. Install: curl https://cursor.com/install -fsS | bash",
+  };
+}
+
 // Check if VS Code is installed (CLI or app)
 async function isVSCodeInstalled(): Promise<InstallCheck> {
   const { exec } = await import("child_process");
