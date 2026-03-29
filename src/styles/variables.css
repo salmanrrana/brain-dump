@@ -247,43 +247,90 @@
 }
 
 /* ============================================
-   MINT THEME (Emerald + Rose)
+   MINT THEME — Forest Workshop
+   Deep green-tinted base, like coding in a cabin
    ============================================ */
 [data-theme="mint"] {
+  --bg-primary: #040806;
+  --bg-secondary: #0a100c;
+  --bg-tertiary: #101a14;
+  --bg-card: #0c1410;
+  --bg-hover: #142018;
+  --bg-active: #1a281e;
+  --bg-elevated: #121c16;
+
+  --glass-bg: rgba(12, 20, 16, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.05);
+
+  --text-primary: #e8f0ec;
+  --text-secondary: #8aa898;
+  --text-tertiary: #5e7a6a;
+  --text-muted: #3e5848;
+
+  --border-primary: #1a2a20;
+  --border-secondary: #263830;
+  --border-focus: #3a5a4a;
+  --border-subtle: rgba(255, 255, 255, 0.03);
+
   --accent-primary: #10b981;
   --accent-secondary: #059669;
   --accent-tertiary: #047857;
   --accent-muted: rgba(16, 185, 129, 0.12);
-  --accent-glow: rgba(16, 185, 129, 0.35);
+  --accent-glow: rgba(16, 185, 129, 0.3);
   --accent-surface: rgba(16, 185, 129, 0.06);
 
   --accent-ai: #f43f5e;
-  --accent-ai-glow: rgba(244, 63, 94, 0.35);
+  --accent-ai-glow: rgba(244, 63, 94, 0.3);
 
   --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-  --shadow-glow-lg: 0 0 40px var(--accent-glow), 0 0 80px rgba(16, 185, 129, 0.1);
+  --shadow-glow-lg: 0 0 40px var(--accent-glow), 0 0 80px rgba(16, 185, 129, 0.08);
+  --grid-dot-color: rgba(16, 185, 129, 0.03);
 }
 
 /* ============================================
-   SOLAR THEME (Gold + Blue)
+   SOLAR THEME — Warm Terminal
+   Amber-tinted base, like a vintage CRT glow
    ============================================ */
 [data-theme="solar"] {
+  --bg-primary: #070604;
+  --bg-secondary: #0e0c08;
+  --bg-tertiary: #18140e;
+  --bg-card: #12100a;
+  --bg-hover: #1c1810;
+  --bg-active: #242018;
+  --bg-elevated: #161210;
+
+  --glass-bg: rgba(18, 16, 10, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.05);
+
+  --text-primary: #f2ece0;
+  --text-secondary: #a89878;
+  --text-tertiary: #786848;
+  --text-muted: #584c38;
+
+  --border-primary: #2a2418;
+  --border-secondary: #383020;
+  --border-focus: #4a4030;
+  --border-subtle: rgba(255, 255, 255, 0.03);
+
   --accent-primary: #eab308;
   --accent-secondary: #ca8a04;
   --accent-tertiary: #a16207;
-  --accent-muted: rgba(234, 179, 8, 0.12);
-  --accent-glow: rgba(234, 179, 8, 0.35);
-  --accent-surface: rgba(234, 179, 8, 0.06);
+  --accent-muted: rgba(234, 179, 8, 0.1);
+  --accent-glow: rgba(234, 179, 8, 0.25);
+  --accent-surface: rgba(234, 179, 8, 0.05);
 
   --accent-ai: #3b82f6;
-  --accent-ai-glow: rgba(59, 130, 246, 0.35);
+  --accent-ai-glow: rgba(59, 130, 246, 0.3);
 
   --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-  --shadow-glow-lg: 0 0 40px var(--accent-glow), 0 0 80px rgba(234, 179, 8, 0.1);
+  --shadow-glow-lg: 0 0 40px var(--accent-glow), 0 0 80px rgba(234, 179, 8, 0.08);
+  --grid-dot-color: rgba(234, 179, 8, 0.025);
 }
 
 /* ============================================
-   EMBER THEME (Explicit - same as :root)
+   EMBER THEME — Cool Midnight (default)
+   Cool blue-black base with warm orange accent
    ============================================ */
 [data-theme="ember"] {
   --accent-primary: #f97316;
@@ -298,57 +345,126 @@
 }
 
 /* ============================================
-   ARCTIC THEME (Ice Blue + Violet)
+   ARCTIC THEME — Deep Polar
+   Blue-tinted base, cold and crisp like ice
    ============================================ */
 [data-theme="arctic"] {
-  --accent-primary: #0ea5e9;
-  --accent-secondary: #0284c7;
-  --accent-tertiary: #0369a1;
-  --accent-muted: rgba(14, 165, 233, 0.12);
-  --accent-glow: rgba(14, 165, 233, 0.35);
-  --accent-surface: rgba(14, 165, 233, 0.06);
+  --bg-primary: #040608;
+  --bg-secondary: #080c12;
+  --bg-tertiary: #0e1420;
+  --bg-card: #0a1018;
+  --bg-hover: #121a28;
+  --bg-active: #182230;
+  --bg-elevated: #101822;
 
-  --accent-ai: #a855f7;
-  --accent-ai-glow: rgba(168, 85, 247, 0.35);
+  --glass-bg: rgba(10, 16, 24, 0.8);
+  --glass-border: rgba(140, 180, 255, 0.06);
+
+  --text-primary: #e0e8f4;
+  --text-secondary: #8098b8;
+  --text-tertiary: #506888;
+  --text-muted: #384a60;
+
+  --border-primary: #162030;
+  --border-secondary: #1e2c40;
+  --border-focus: #2a3c55;
+  --border-subtle: rgba(140, 180, 255, 0.04);
+
+  --accent-primary: #38bdf8;
+  --accent-secondary: #0ea5e9;
+  --accent-tertiary: #0284c7;
+  --accent-muted: rgba(56, 189, 248, 0.1);
+  --accent-glow: rgba(56, 189, 248, 0.25);
+  --accent-surface: rgba(56, 189, 248, 0.05);
+
+  --accent-ai: #a78bfa;
+  --accent-ai-glow: rgba(167, 139, 250, 0.3);
 
   --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-  --shadow-glow-lg: 0 0 40px var(--accent-glow), 0 0 80px rgba(14, 165, 233, 0.1);
+  --shadow-glow-lg: 0 0 40px var(--accent-glow), 0 0 80px rgba(56, 189, 248, 0.08);
+  --grid-dot-color: rgba(56, 189, 248, 0.025);
 }
 
 /* ============================================
-   NEON THEME (Violet + Cyan)
+   NEON THEME — Cyberpunk Lab
+   Deep purple-tinted base, saturated and electric
    ============================================ */
 [data-theme="neon"] {
-  --accent-primary: #8b5cf6;
-  --accent-secondary: #7c3aed;
-  --accent-tertiary: #6d28d9;
-  --accent-muted: rgba(139, 92, 246, 0.12);
-  --accent-glow: rgba(139, 92, 246, 0.35);
-  --accent-surface: rgba(139, 92, 246, 0.06);
+  --bg-primary: #06040a;
+  --bg-secondary: #0c0814;
+  --bg-tertiary: #14101e;
+  --bg-card: #100c1a;
+  --bg-hover: #1a1428;
+  --bg-active: #221a32;
+  --bg-elevated: #161220;
 
-  --accent-ai: #06b6d4;
-  --accent-ai-glow: rgba(6, 182, 212, 0.35);
+  --glass-bg: rgba(16, 12, 26, 0.8);
+  --glass-border: rgba(160, 120, 255, 0.06);
+
+  --text-primary: #ece8f4;
+  --text-secondary: #9888b8;
+  --text-tertiary: #6a5888;
+  --text-muted: #4a3868;
+
+  --border-primary: #201830;
+  --border-secondary: #2c2040;
+  --border-focus: #3c2c58;
+  --border-subtle: rgba(160, 120, 255, 0.04);
+
+  --accent-primary: #a78bfa;
+  --accent-secondary: #8b5cf6;
+  --accent-tertiary: #7c3aed;
+  --accent-muted: rgba(167, 139, 250, 0.12);
+  --accent-glow: rgba(167, 139, 250, 0.3);
+  --accent-surface: rgba(167, 139, 250, 0.06);
+
+  --accent-ai: #22d3ee;
+  --accent-ai-glow: rgba(34, 211, 238, 0.3);
 
   --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-  --shadow-glow-lg: 0 0 40px var(--accent-glow), 0 0 80px rgba(139, 92, 246, 0.1);
+  --shadow-glow-lg: 0 0 40px var(--accent-glow), 0 0 80px rgba(167, 139, 250, 0.1);
+  --grid-dot-color: rgba(167, 139, 250, 0.03);
 }
 
 /* ============================================
-   BLUSH THEME (Pink + Teal)
+   BLUSH THEME — Rose Studio
+   Warm rose-tinted base, soft and modern
    ============================================ */
 [data-theme="blush"] {
-  --accent-primary: #ec4899;
-  --accent-secondary: #db2777;
-  --accent-tertiary: #be185d;
-  --accent-muted: rgba(236, 72, 153, 0.12);
-  --accent-glow: rgba(236, 72, 153, 0.35);
-  --accent-surface: rgba(236, 72, 153, 0.06);
+  --bg-primary: #080506;
+  --bg-secondary: #100a0c;
+  --bg-tertiary: #1a1014;
+  --bg-card: #140c10;
+  --bg-hover: #201418;
+  --bg-active: #281a20;
+  --bg-elevated: #181016;
 
-  --accent-ai: #14b8a6;
-  --accent-ai-glow: rgba(20, 184, 166, 0.35);
+  --glass-bg: rgba(20, 12, 16, 0.8);
+  --glass-border: rgba(255, 140, 180, 0.06);
+
+  --text-primary: #f4e8ee;
+  --text-secondary: #b888a0;
+  --text-tertiary: #885870;
+  --text-muted: #684050;
+
+  --border-primary: #2a1820;
+  --border-secondary: #38202c;
+  --border-focus: #4a2c3c;
+  --border-subtle: rgba(255, 140, 180, 0.04);
+
+  --accent-primary: #f472b6;
+  --accent-secondary: #ec4899;
+  --accent-tertiary: #db2777;
+  --accent-muted: rgba(244, 114, 182, 0.12);
+  --accent-glow: rgba(244, 114, 182, 0.25);
+  --accent-surface: rgba(244, 114, 182, 0.06);
+
+  --accent-ai: #2dd4bf;
+  --accent-ai-glow: rgba(45, 212, 191, 0.3);
 
   --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-  --shadow-glow-lg: 0 0 40px var(--accent-glow), 0 0 80px rgba(236, 72, 153, 0.1);
+  --shadow-glow-lg: 0 0 40px var(--accent-glow), 0 0 80px rgba(244, 114, 182, 0.08);
+  --grid-dot-color: rgba(244, 114, 182, 0.025);
 }
 
 /* ============================================
