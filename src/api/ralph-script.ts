@@ -4,7 +4,7 @@ import { getRalphPrompt, type RalphPromptProfile } from "./ralph-prompts";
 // TYPES
 // ============================================================================
 
-export type RalphAiBackend = "claude" | "opencode" | "codex";
+export type RalphAiBackend = "claude" | "opencode" | "codex" | "cursor-agent";
 
 // Resource limit configuration for Docker sandbox
 export interface DockerResourceLimits {
@@ -120,7 +120,15 @@ if ! command -v codex >/dev/null 2>&1; then
   exit 1
 fi
 `
-        : `
+        : aiBackend === "cursor-agent"
+          ? `
+if ! command -v agent >/dev/null 2>&1; then
+  echo -e "\\033[0;31m❌ Cursor Agent CLI not found in PATH\\033[0m"
+  echo "Install: curl https://cursor.com/install -fsS | bash"
+  exit 1
+fi
+`
+          : `
 if ! command -v claude >/dev/null 2>&1; then
   echo -e "\\033[0;31m❌ Claude CLI not found in PATH\\033[0m"
   exit 1
@@ -241,7 +249,14 @@ fi
     : "";
 
   // AI backend display name
-  const aiName = aiBackend === "opencode" ? "OpenCode" : aiBackend === "codex" ? "Codex" : "Claude";
+  const aiName =
+    aiBackend === "opencode"
+      ? "OpenCode"
+      : aiBackend === "codex"
+        ? "Codex"
+        : aiBackend === "cursor-agent"
+          ? "Cursor Agent"
+          : "Claude";
 
   // Generate the AI invocation command based on backend choice
   const aiInvocation = useSandbox
@@ -294,7 +309,10 @@ fi
       : aiBackend === "codex"
         ? `  # Run Codex directly with prompt
   codex "$(cat "$PROMPT_FILE")"`
-        : `  # Run Claude in print mode (-p) so it exits after completion
+        : aiBackend === "cursor-agent"
+          ? `  # Run Cursor Agent in headless mode with prompt
+  agent --force --approve-mcps --trust -p "$(cat "$PROMPT_FILE")"`
+          : `  # Run Claude in print mode (-p) so it exits after completion
   # This allows the bash loop to continue to the next iteration
   claude --dangerously-skip-permissions --output-format text -p "$(cat "$PROMPT_FILE")"`;
 

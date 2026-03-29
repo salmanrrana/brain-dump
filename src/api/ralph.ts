@@ -65,6 +65,7 @@ type RalphWorkingMethod =
   | "vscode"
   | "opencode"
   | "cursor"
+  | "cursor-agent"
   | "copilot-cli"
   | "codex";
 
