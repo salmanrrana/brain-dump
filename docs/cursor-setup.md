@@ -17,6 +17,7 @@ This configures:
 - Subagents (Ralph, Ticket Worker, Planner, Code Reviewer, etc.)
 - Skills (ticket workflows, review pipeline, TanStack patterns)
 - Commands (/review, /inception, /breakdown, etc.)
+- Cursor Agent CLI: binary detection, `cli-config.json` permissions, optional state enforcement hook
 
 After running, restart Cursor to load the configurations.
 
@@ -425,6 +426,34 @@ Each subagent execution returns an agent ID. Pass this ID to resume with full co
 2. Check MCP logs in Output panel
 3. Ensure Brain Dump database is initialized
 4. Try explicitly asking: "Use the brain-dump MCP tools to list my projects"
+
+### Cursor Agent CLI not detected
+
+The `agent` binary name is generic. Brain Dump verifies it's Cursor's binary by checking `agent --version` for "cursor" in the output.
+
+1. Run `agent --version` — output should contain "cursor"
+2. If not in PATH, check `~/.local/bin/agent`
+3. Alternative name: `cursor-agent` is also checked
+4. Install: `curl https://cursor.com/install -fsS | bash`
+5. Run `brain-dump doctor` to see detection status
+
+### Cursor Agent CLI permissions not working
+
+Cursor uses exact `"Shell(command)"` string matching in `~/.cursor/cli-config.json`:
+
+1. Verify `~/.cursor/cli-config.json` exists and contains `permissions.allow` entries
+2. Check entries match exact format: `"Shell(git)"`, `"Shell(pnpm)"`, etc.
+3. Re-run `./scripts/setup-cursor.sh` to regenerate permissions
+4. The `--cursor` install flag configures both editor and CLI
+
+### Cursor Agent CLI state enforcement
+
+When hooks are enabled, the `enforce-state-before-write.sh` hook blocks Write/Edit until the session is in the correct state:
+
+1. State file: `.claude/ralph-state.json` in the project root
+2. Valid states for writing: `implementing`, `testing`, `committing`
+3. If blocked, call `session update-state` with the correct state
+4. When not in Ralph mode (no state file), all operations are allowed
 
 ## Architecture
 
