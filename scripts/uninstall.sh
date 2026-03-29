@@ -6,7 +6,7 @@
 #
 # Supported environments:
 # - Claude Code (.claude/)
-# - Cursor (.cursor/)
+# - Cursor (.cursor/) + Cursor Agent CLI (cli-config.json, hooks)
 # - OpenCode (~/.config/opencode/)
 # - VS Code (.vscode/ + .github/)
 # - Copilot CLI (~/.copilot/)
@@ -175,11 +175,130 @@ uninstall_cursor() {
   done
   find "$HOME/.cursor" -maxdepth 1 -name "tool-correlation-*.txt" -delete 2>/dev/null || true
 
-  # Clean up hooks.json
+  # Remove Cursor Agent CLI config (Brain Dump-managed permissions only)
+  CLI_CONFIG="$HOME/.cursor/cli-config.json"
+  if [ -f "$CLI_CONFIG" ]; then
+    if command -v node >/dev/null 2>&1; then
+      node_result=$(CLI_CONFIG="$CLI_CONFIG" node -e '
+const fs = require("fs");
+const configFile = process.env.CLI_CONFIG;
+
+try {
+    const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
+    if (!config.permissions) { console.log("no_permissions"); process.exit(0); }
+
+    // Brain Dump-managed permission entries to remove
+    const bdAllow = new Set([
+        "Shell(git)","Shell(node)","Shell(pnpm)","Shell(npm)",
+        "Shell(bash)","Shell(sh)","Shell(rg)","Shell(find)",
+        "Shell(ls)","Shell(cat)","Shell(sed)","Shell(grep)",
+        "Shell(mkdir)","Shell(cp)","Shell(mv)","Shell(echo)",
+        "Shell(test)","Shell(which)"
+    ]);
+    const bdDeny = new Set([
+        "Shell(rm -rf /)","Shell(sudo)","Shell(shutdown)","Shell(reboot)"
+    ]);
+
+    if (config.permissions.allow) {
+        config.permissions.allow = config.permissions.allow.filter(p => !bdAllow.has(p));
+    }
+    if (config.permissions.deny) {
+        config.permissions.deny = config.permissions.deny.filter(p => !bdDeny.has(p));
+    }
+
+    // Remove empty arrays
+    if (config.permissions.allow && config.permissions.allow.length === 0) delete config.permissions.allow;
+    if (config.permissions.deny && config.permissions.deny.length === 0) delete config.permissions.deny;
+    if (Object.keys(config.permissions).length === 0) delete config.permissions;
+
+    // Remove file if empty, otherwise write back
+    if (Object.keys(config).length === 0) {
+        fs.unlinkSync(configFile);
+        console.log("removed");
+    } else {
+        fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
+        console.log("updated");
+    }
+} catch (err) {
+    console.error("error:" + err.message);
+    process.exit(1);
+}
+' 2>&1)
+      case "$node_result" in
+        removed)
+          echo -e "${GREEN}✓ Removed cli-config.json (was only Brain Dump config)${NC}"
+          ;;
+        updated)
+          echo -e "${GREEN}✓ Removed Brain Dump permissions from cli-config.json${NC}"
+          ;;
+        no_permissions)
+          echo -e "${YELLOW}No permissions found in cli-config.json${NC}"
+          ;;
+        error:*)
+          echo -e "${RED}✗ Could not update cli-config.json: ${node_result#error:}${NC}"
+          failed=1
+          ;;
+      esac
+    else
+      echo -e "${YELLOW}Note:${NC} Manually remove Brain Dump permissions from $CLI_CONFIG"
+    fi
+  fi
+
+  # Remove hooks (enforce-state-before-write.sh)
+  HOOKS_DIR="$HOME/.cursor/hooks"
+  if [ -d "$HOOKS_DIR" ]; then
+    if [ -f "$HOOKS_DIR/enforce-state-before-write.sh" ]; then
+      rm "$HOOKS_DIR/enforce-state-before-write.sh" 2>/dev/null && \
+        echo -e "${GREEN}✓ Removed enforce-state-before-write.sh hook${NC}" || failed=1
+    fi
+  fi
+
+  # Clean up hooks.json (remove Brain Dump hook entries)
   HOOKS_CONFIG="$HOME/.cursor/hooks.json"
   if [ -f "$HOOKS_CONFIG" ]; then
     if grep -q "brain-dump\|enforce-state" "$HOOKS_CONFIG"; then
-      echo -e "${YELLOW}Note:${NC} Manually remove Brain Dump hooks from $HOOKS_CONFIG if needed"
+      if command -v node >/dev/null 2>&1; then
+        node_result=$(HOOKS_CONFIG="$HOOKS_CONFIG" node -e '
+const fs = require("fs");
+const configFile = process.env.HOOKS_CONFIG;
+
+try {
+    const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
+    if (config.hooks && config.hooks.preToolUse) {
+        config.hooks.preToolUse = config.hooks.preToolUse.filter(h =>
+            !(h.bash && h.bash.includes("enforce-state-before-write"))
+        );
+        if (config.hooks.preToolUse.length === 0) delete config.hooks.preToolUse;
+    }
+    if (config.hooks && Object.keys(config.hooks).length === 0) delete config.hooks;
+    const remainingKeys = Object.keys(config).filter(k => k !== "version");
+    if (remainingKeys.length === 0) {
+        fs.unlinkSync(configFile);
+        console.log("removed");
+    } else {
+        fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
+        console.log("updated");
+    }
+} catch (err) {
+    console.error("error:" + err.message);
+    process.exit(1);
+}
+' 2>&1)
+        case "$node_result" in
+          removed)
+            echo -e "${GREEN}✓ Removed hooks.json (was only Brain Dump config)${NC}"
+            ;;
+          updated)
+            echo -e "${GREEN}✓ Removed Brain Dump hooks from hooks.json${NC}"
+            ;;
+          error:*)
+            echo -e "${YELLOW}Note:${NC} Manually remove Brain Dump hooks from $HOOKS_CONFIG"
+            failed=1
+            ;;
+        esac
+      else
+        echo -e "${YELLOW}Note:${NC} Manually remove Brain Dump hooks from $HOOKS_CONFIG"
+      fi
     fi
   fi
 

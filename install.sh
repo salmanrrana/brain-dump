@@ -1272,6 +1272,7 @@ print_summary() {
     if [ "$SETUP_CURSOR" = true ]; then
         echo "  4. Restart Cursor to load MCP server and configurations"
         echo "  5. Use @ralph, @ticket-worker, or /review in Agent chat"
+        echo "  6. Cursor Agent CLI: run 'agent' for headless terminal mode"
     fi
 
     if [ "$SETUP_OPENCODE" = true ]; then
@@ -1328,7 +1329,7 @@ show_help() {
     echo "IDE Options:"
     echo "  --claude    Set up Claude Code integration (MCP server + plugins)"
     echo "  --vscode    Set up VS Code integration (MCP server + agents + skills + prompts)"
-    echo "  --cursor    Set up Cursor integration (MCP server + subagents + skills + commands)"
+    echo "  --cursor    Set up Cursor integration (MCP server + subagents + skills + commands + Agent CLI)"
     echo "  --opencode  Set up OpenCode integration (MCP server + agents + skills)"
     echo "  --copilot   Set up Copilot CLI integration (MCP server + agents + skills + hooks)"
     echo "  --codex     Set up Codex integration (MCP server in ~/.codex/config.toml)"

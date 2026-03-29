@@ -350,6 +350,138 @@ try {
         print_info "Cursor commands directory not found"
     fi
 
+    # Remove Cursor Agent CLI config (Brain Dump-managed permissions only)
+    CLI_CONFIG="$CURSOR_CONFIG_DIR/cli-config.json"
+    if [ -f "$CLI_CONFIG" ]; then
+        if command -v node >/dev/null 2>&1; then
+            node_result=$(CLI_CONFIG="$CLI_CONFIG" node -e '
+const fs = require("fs");
+const configFile = process.env.CLI_CONFIG;
+
+try {
+    const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
+    if (!config.permissions) { console.log("no_permissions"); process.exit(0); }
+
+    const bdAllow = new Set([
+        "Shell(git)","Shell(node)","Shell(pnpm)","Shell(npm)",
+        "Shell(bash)","Shell(sh)","Shell(rg)","Shell(find)",
+        "Shell(ls)","Shell(cat)","Shell(sed)","Shell(grep)",
+        "Shell(mkdir)","Shell(cp)","Shell(mv)","Shell(echo)",
+        "Shell(test)","Shell(which)"
+    ]);
+    const bdDeny = new Set([
+        "Shell(rm -rf /)","Shell(sudo)","Shell(shutdown)","Shell(reboot)"
+    ]);
+
+    if (config.permissions.allow) {
+        config.permissions.allow = config.permissions.allow.filter(p => !bdAllow.has(p));
+    }
+    if (config.permissions.deny) {
+        config.permissions.deny = config.permissions.deny.filter(p => !bdDeny.has(p));
+    }
+
+    if (config.permissions.allow && config.permissions.allow.length === 0) delete config.permissions.allow;
+    if (config.permissions.deny && config.permissions.deny.length === 0) delete config.permissions.deny;
+    if (Object.keys(config.permissions).length === 0) delete config.permissions;
+
+    if (Object.keys(config).length === 0) {
+        fs.unlinkSync(configFile);
+        console.log("removed");
+    } else {
+        fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
+        console.log("updated");
+    }
+} catch (err) {
+    console.error("error:" + err.message);
+    process.exit(1);
+}
+' 2>&1)
+            case "$node_result" in
+                removed)
+                    print_success "Removed cli-config.json (was only Brain Dump config)"
+                    REMOVED+=("Cursor Agent CLI config")
+                    ;;
+                updated)
+                    print_success "Removed Brain Dump permissions from cli-config.json"
+                    REMOVED+=("Cursor Agent CLI permissions")
+                    ;;
+                no_permissions)
+                    print_info "No Brain Dump permissions in cli-config.json"
+                    ;;
+                error:*)
+                    print_warning "Could not update cli-config.json: ${node_result#error:}"
+                    SKIPPED+=("Cursor Agent CLI config (manual removal needed)")
+                    ;;
+            esac
+        else
+            print_warning "Could not update cli-config.json (node not found)"
+            print_info "Manually edit: $CLI_CONFIG"
+            SKIPPED+=("Cursor Agent CLI config (manual removal needed)")
+        fi
+    fi
+
+    # Remove Cursor Agent hooks
+    HOOKS_DIR="$CURSOR_CONFIG_DIR/hooks"
+    if [ -d "$HOOKS_DIR" ]; then
+        if [ -f "$HOOKS_DIR/enforce-state-before-write.sh" ]; then
+            rm -f "$HOOKS_DIR/enforce-state-before-write.sh"
+            print_success "Removed enforce-state-before-write.sh hook"
+            REMOVED+=("Cursor Agent hook")
+        fi
+    fi
+
+    # Clean up hooks.json (remove Brain Dump hook entries)
+    HOOKS_CONFIG="$CURSOR_CONFIG_DIR/hooks.json"
+    if [ -f "$HOOKS_CONFIG" ]; then
+        if grep -q "brain-dump\|enforce-state" "$HOOKS_CONFIG"; then
+            if command -v node >/dev/null 2>&1; then
+                node_result=$(HOOKS_CONFIG="$HOOKS_CONFIG" node -e '
+const fs = require("fs");
+const configFile = process.env.HOOKS_CONFIG;
+
+try {
+    const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
+    if (config.hooks && config.hooks.preToolUse) {
+        config.hooks.preToolUse = config.hooks.preToolUse.filter(h =>
+            !(h.bash && h.bash.includes("enforce-state-before-write"))
+        );
+        if (config.hooks.preToolUse.length === 0) delete config.hooks.preToolUse;
+    }
+    if (config.hooks && Object.keys(config.hooks).length === 0) delete config.hooks;
+    const remainingKeys = Object.keys(config).filter(k => k !== "version");
+    if (remainingKeys.length === 0) {
+        fs.unlinkSync(configFile);
+        console.log("removed");
+    } else {
+        fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
+        console.log("updated");
+    }
+} catch (err) {
+    console.error("error:" + err.message);
+    process.exit(1);
+}
+' 2>&1)
+                case "$node_result" in
+                    removed)
+                        print_success "Removed hooks.json (was only Brain Dump config)"
+                        REMOVED+=("Cursor hooks.json")
+                        ;;
+                    updated)
+                        print_success "Removed Brain Dump hooks from hooks.json"
+                        REMOVED+=("Cursor hooks.json entries")
+                        ;;
+                    error:*)
+                        print_warning "Could not update hooks.json"
+                        SKIPPED+=("Cursor hooks.json (manual removal needed)")
+                        ;;
+                esac
+            else
+                print_info "Manually remove Brain Dump hooks from $HOOKS_CONFIG"
+                SKIPPED+=("Cursor hooks.json (manual removal needed)")
+            fi
+        fi
+    fi
+
     # Clean up empty .cursor directory if it exists
     if [ -d "$CURSOR_CONFIG_DIR" ] && [ -z "$(ls -A "$CURSOR_CONFIG_DIR" 2>/dev/null)" ]; then
         rmdir "$CURSOR_CONFIG_DIR"
@@ -938,7 +1070,7 @@ show_help() {
     echo "Options:"
     echo "  --vscode       Remove VS Code integration only"
     echo "  --claude       Remove Claude Code integration only"
-    echo "  --cursor       Remove Cursor integration only"
+    echo "  --cursor       Remove Cursor integration only (editor + Agent CLI config)"
     echo "  --opencode     Remove OpenCode integration only"
     echo "  --copilot      Remove Copilot CLI integration only"
     echo "  --codex        Remove Codex integration only"
@@ -955,7 +1087,7 @@ show_help() {
     echo "What gets removed:"
     echo "  VS Code:       MCP config, agents, skills, prompts"
     echo "  Claude Code:   MCP config in ~/.claude.json"
-    echo "  Cursor:        MCP config, subagents, skills, commands in ~/.cursor/"
+    echo "  Cursor:        MCP config, subagents, skills, commands, Agent CLI config, hooks in ~/.cursor/"
     echo "  OpenCode:      MCP config, agents, skill, plugins in ~/.config/opencode/"
     echo "  Copilot CLI:   MCP config, agents, skills, hooks in ~/.copilot/"
     echo "  Codex:         MCP config in ~/.codex/config.toml"
