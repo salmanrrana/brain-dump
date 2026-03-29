@@ -683,44 +683,6 @@ function TicketDetailPage() {
           } else {
             showToast("error", result.message);
           }
-        } else if (type === "ralph-vscode") {
-          const result = await launchRalphMutation.mutateAsync({
-            ticketId: ticket.id,
-            preferredTerminal: settings?.terminalEmulator ?? null,
-            useSandbox: false,
-            aiBackend: "claude",
-            workingMethodOverride: "vscode",
-          });
-
-          if ("warnings" in result && result.warnings) {
-            (result.warnings as string[]).forEach((warning) => showToast("info", warning));
-          }
-
-          if (result.success) {
-            showToast("success", result.message);
-            void refetch();
-          } else {
-            showToast("error", result.message);
-          }
-        } else if (type === "ralph-cursor") {
-          const result = await launchRalphMutation.mutateAsync({
-            ticketId: ticket.id,
-            preferredTerminal: settings?.terminalEmulator ?? null,
-            useSandbox: false,
-            aiBackend: "claude",
-            workingMethodOverride: "cursor",
-          });
-
-          if ("warnings" in result && result.warnings) {
-            (result.warnings as string[]).forEach((warning) => showToast("info", warning));
-          }
-
-          if (result.success) {
-            showToast("success", result.message);
-            void refetch();
-          } else {
-            showToast("error", result.message);
-          }
         } else if (type === "ralph-cursor-agent") {
           const result = await launchRalphMutation.mutateAsync({
             ticketId: ticket.id,
