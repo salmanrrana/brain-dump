@@ -1019,7 +1019,7 @@ async function createCursorAgentLaunchScript(
   projectPath: string,
   context: string
 ): Promise<string> {
-  const { writeFileSync, mkdirSync, chmodSync } = await import("fs");
+  const { writeFileSync, mkdirSync } = await import("fs");
   const { join } = await import("path");
   const { homedir } = await import("os");
   const { randomUUID } = await import("crypto");
@@ -1086,7 +1086,6 @@ exec bash
 `;
 
   writeFileSync(scriptPath, script, { mode: 0o700 });
-  chmodSync(scriptPath, 0o700);
 
   return scriptPath;
 }
@@ -1197,7 +1196,19 @@ export const launchCursorAgentInTerminal = createServerFn({ method: "POST" })
       );
     }
 
-    const scriptPath = await createCursorAgentLaunchScript(projectPath, context);
+    let scriptPath: string;
+    try {
+      scriptPath = await createCursorAgentLaunchScript(projectPath, context);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      return {
+        success: false,
+        method: "clipboard",
+        message: `Failed to create launch script: ${message}. Check permissions on ~/.brain-dump/scripts/.`,
+        ...(warnings.length > 0 && { warnings }),
+      };
+    }
+
     const windowTitle = buildWindowTitle(projectName, epicName, ticketTitle);
     const terminalCommand = buildTerminalCommand(terminal, projectPath, scriptPath, windowTitle);
 
