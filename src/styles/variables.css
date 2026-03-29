@@ -44,13 +44,13 @@
   --border-focus: #3a3a4a;
   --border-subtle: rgba(255, 255, 255, 0.04);
 
-  /* Accent Colors - Ember Theme (Orange) */
-  --accent-primary: #f97316;
-  --accent-secondary: #ea580c;
-  --accent-tertiary: #c2410c;
-  --accent-muted: rgba(249, 115, 22, 0.12);
-  --accent-glow: rgba(249, 115, 22, 0.35);
-  --accent-surface: rgba(249, 115, 22, 0.06);
+  /* Accent Colors - Slate Theme (Neutral default) */
+  --accent-primary: #6366f1;
+  --accent-secondary: #4f46e5;
+  --accent-tertiary: #4338ca;
+  --accent-muted: rgba(99, 102, 241, 0.12);
+  --accent-glow: rgba(99, 102, 241, 0.3);
+  --accent-surface: rgba(99, 102, 241, 0.06);
 
   /* Gradient for primary buttons/highlights */
   --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
@@ -96,9 +96,9 @@
   --status-error: var(--error);
   --status-info: var(--info);
 
-  /* AI accent color */
-  --accent-ai: #14b8a6;
-  --accent-ai-glow: rgba(20, 184, 166, 0.35);
+  /* AI accent color — cyan pairs well with indigo */
+  --accent-ai: #06b6d4;
+  --accent-ai-glow: rgba(6, 182, 212, 0.3);
 
   /* Typography Scale - Tighter, more editorial */
   --font-size-xs: 0.6875rem; /* 11px */
@@ -329,8 +329,67 @@
 }
 
 /* ============================================
-   EMBER THEME — Cool Midnight (default)
-   Cool blue-black base with warm orange accent
+   SLATE THEME — Neutral Professional (default)
+   Same as :root — indigo accent, no colored tint
+   ============================================ */
+[data-theme="slate"] {
+  --accent-primary: #6366f1;
+  --accent-secondary: #4f46e5;
+  --accent-tertiary: #4338ca;
+  --accent-muted: rgba(99, 102, 241, 0.12);
+  --accent-glow: rgba(99, 102, 241, 0.3);
+  --accent-surface: rgba(99, 102, 241, 0.06);
+
+  --accent-ai: #06b6d4;
+  --accent-ai-glow: rgba(6, 182, 212, 0.3);
+
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  --shadow-glow-lg: 0 0 40px var(--accent-glow), 0 0 80px rgba(99, 102, 241, 0.08);
+}
+
+/* ============================================
+   OXIDE THEME — Warm Copper
+   Deep warm base with copper-red accent
+   ============================================ */
+[data-theme="oxide"] {
+  --bg-primary: #070504;
+  --bg-secondary: #0e0a08;
+  --bg-tertiary: #181210;
+  --bg-card: #120e0c;
+  --bg-hover: #1e1814;
+  --bg-active: #26201a;
+  --bg-elevated: #161210;
+
+  --glass-bg: rgba(18, 14, 12, 0.8);
+  --glass-border: rgba(255, 180, 140, 0.06);
+
+  --text-primary: #f2ebe6;
+  --text-secondary: #a89080;
+  --text-tertiary: #786050;
+  --text-muted: #584838;
+
+  --border-primary: #281e18;
+  --border-secondary: #362a22;
+  --border-focus: #4a3c30;
+  --border-subtle: rgba(255, 180, 140, 0.04);
+
+  --accent-primary: #ef4444;
+  --accent-secondary: #dc2626;
+  --accent-tertiary: #b91c1c;
+  --accent-muted: rgba(239, 68, 68, 0.1);
+  --accent-glow: rgba(239, 68, 68, 0.25);
+  --accent-surface: rgba(239, 68, 68, 0.05);
+
+  --accent-ai: #38bdf8;
+  --accent-ai-glow: rgba(56, 189, 248, 0.3);
+
+  --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  --shadow-glow-lg: 0 0 40px var(--accent-glow), 0 0 80px rgba(239, 68, 68, 0.08);
+  --grid-dot-color: rgba(239, 68, 68, 0.025);
+}
+
+/* ============================================
+   EMBER THEME (Legacy — hidden from picker)
    ============================================ */
 [data-theme="ember"] {
   --accent-primary: #f97316;
@@ -341,8 +400,11 @@
   --accent-surface: rgba(249, 115, 22, 0.06);
 
   --gradient-accent: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-  --shadow-glow-lg: 0 0 40px var(--accent-glow), 0 0 80px rgba(249, 115, 22, 0.1);
 }
+
+/* ============================================
+   SOLAR THEME (Legacy — hidden from picker)
+   ============================================ */
 
 /* ============================================
    ARCTIC THEME — Deep Polar

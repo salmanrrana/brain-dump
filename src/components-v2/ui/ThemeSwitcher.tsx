@@ -20,26 +20,12 @@ const THEME_CONFIG: Record<
   }
 > = {
   // Dark themes
-  ember: {
-    name: "Ember",
-    primaryColor: "#f97316",
-    secondaryColor: "#14b8a6",
+  slate: {
+    name: "Slate",
+    primaryColor: "#6366f1",
+    secondaryColor: "#06b6d4",
     bgColor: "#050507",
-    description: "Cool midnight + warm orange",
-  },
-  mint: {
-    name: "Mint",
-    primaryColor: "#10b981",
-    secondaryColor: "#f43f5e",
-    bgColor: "#040806",
-    description: "Forest workshop",
-  },
-  solar: {
-    name: "Solar",
-    primaryColor: "#eab308",
-    secondaryColor: "#3b82f6",
-    bgColor: "#070604",
-    description: "Warm terminal glow",
+    description: "Neutral professional",
   },
   arctic: {
     name: "Arctic",
@@ -55,12 +41,41 @@ const THEME_CONFIG: Record<
     bgColor: "#06040a",
     description: "Cyberpunk lab",
   },
+  mint: {
+    name: "Mint",
+    primaryColor: "#10b981",
+    secondaryColor: "#f43f5e",
+    bgColor: "#040806",
+    description: "Forest workshop",
+  },
   blush: {
     name: "Blush",
     primaryColor: "#f472b6",
     secondaryColor: "#2dd4bf",
     bgColor: "#080506",
     description: "Rose studio",
+  },
+  oxide: {
+    name: "Oxide",
+    primaryColor: "#ef4444",
+    secondaryColor: "#38bdf8",
+    bgColor: "#070504",
+    description: "Warm copper-red",
+  },
+  // Legacy themes (hidden from picker but still valid)
+  ember: {
+    name: "Ember",
+    primaryColor: "#f97316",
+    secondaryColor: "#14b8a6",
+    bgColor: "#050507",
+    description: "Legacy orange",
+  },
+  solar: {
+    name: "Solar",
+    primaryColor: "#eab308",
+    secondaryColor: "#3b82f6",
+    bgColor: "#070604",
+    description: "Legacy gold",
   },
   // Light themes
   daylight: {

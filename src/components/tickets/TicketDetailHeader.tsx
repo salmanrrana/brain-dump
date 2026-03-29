@@ -454,13 +454,13 @@ const dropdownMenuStyles: React.CSSProperties = {
   top: "100%",
   right: 0,
   marginTop: "var(--spacing-2)",
-  padding: "var(--spacing-3)",
-  background: "var(--bg-secondary)",
+  padding: "var(--spacing-4)",
+  background: "var(--bg-card)",
   border: "1px solid var(--border-secondary)",
   borderRadius: "var(--radius-xl)",
-  boxShadow: "var(--shadow-xl)",
+  boxShadow: "var(--shadow-2xl)",
   zIndex: 50,
-  minWidth: "320px",
+  minWidth: "340px",
 };
 
 const badgeRowStyles: React.CSSProperties = {

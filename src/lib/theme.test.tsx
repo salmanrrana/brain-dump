@@ -99,19 +99,22 @@ describe("Theme System", () => {
       expect(THEME_STORAGE_KEY).toBe("brain-dump-theme");
     });
 
-    it("should export DEFAULT_THEME as 'ember'", () => {
-      expect(DEFAULT_THEME).toBe("ember");
+    it("should export DEFAULT_THEME as 'slate'", () => {
+      expect(DEFAULT_THEME).toBe("slate");
     });
 
     it("should export THEMES array with all valid themes", () => {
       expect(THEMES).toEqual([
         // Dark themes
-        "ember",
-        "mint",
-        "solar",
+        "slate",
         "arctic",
         "neon",
+        "mint",
         "blush",
+        "oxide",
+        // Legacy
+        "ember",
+        "solar",
         // Light themes
         "daylight",
         "frost",
@@ -222,14 +225,14 @@ describe("Theme System", () => {
         expect(result.current.theme).toBe("mint");
       });
 
-      it("should default to ember when no initialTheme provided", async () => {
+      it("should default to slate when no initialTheme provided", async () => {
         const { result } = renderHook(() => useTheme(), {
           wrapper: createWrapper(),
         });
 
         // Wait for hydration effect
         await waitFor(() => {
-          expect(result.current.theme).toBe("ember");
+          expect(result.current.theme).toBe("slate");
         });
       });
 
@@ -394,7 +397,7 @@ describe("Theme System", () => {
 
       // Wait for initial hydration
       await waitFor(() => {
-        expect(result1.current.theme).toBe("ember");
+        expect(result1.current.theme).toBe("slate");
       });
 
       // Change theme

@@ -185,7 +185,7 @@ const LaunchOptionCard: FC<LaunchOptionCardProps> = ({ option, onClick, isLoadin
     alignItems: "center",
     gap: "var(--spacing-2)",
     padding: "var(--spacing-3)",
-    background: option.recommended ? "var(--accent-muted)" : "var(--bg-card)",
+    background: option.recommended ? "var(--accent-muted)" : "var(--bg-secondary)",
     border: option.recommended
       ? "1px solid color-mix(in srgb, var(--accent-primary) 25%, transparent)"
       : "1px solid var(--border-primary)",

@@ -22,7 +22,7 @@ const localStorageMock = (() => {
   };
 })();
 
-function renderWithTheme(initialTheme: Theme = "ember") {
+function renderWithTheme(initialTheme: Theme = "slate") {
   return render(
     <ThemeProvider initialTheme={initialTheme}>
       <ThemeSwitcher />
@@ -55,12 +55,12 @@ describe("ThemeSwitcher", () => {
     it("renders all dark theme buttons", () => {
       renderWithTheme();
 
-      expect(screen.getByRole("radio", { name: /ember theme/i })).toBeInTheDocument();
-      expect(screen.getByRole("radio", { name: /mint theme/i })).toBeInTheDocument();
-      expect(screen.getByRole("radio", { name: /solar theme/i })).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: /slate theme/i })).toBeInTheDocument();
       expect(screen.getByRole("radio", { name: /arctic theme/i })).toBeInTheDocument();
       expect(screen.getByRole("radio", { name: /neon theme/i })).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: /mint theme/i })).toBeInTheDocument();
       expect(screen.getByRole("radio", { name: /blush theme/i })).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: /oxide theme/i })).toBeInTheDocument();
     });
 
     it("renders all light theme buttons", () => {
@@ -72,16 +72,16 @@ describe("ThemeSwitcher", () => {
     });
 
     it("indicates current theme with aria-checked", async () => {
-      renderWithTheme("solar");
+      renderWithTheme("neon");
 
       await waitFor(() => {
-        expect(screen.getByRole("radio", { name: /solar theme.*active/i })).toHaveAttribute(
+        expect(screen.getByRole("radio", { name: /neon theme.*active/i })).toHaveAttribute(
           "aria-checked",
           "true"
         );
       });
 
-      expect(screen.getByRole("radio", { name: /ember theme/i })).toHaveAttribute(
+      expect(screen.getByRole("radio", { name: /slate theme/i })).toHaveAttribute(
         "aria-checked",
         "false"
       );
@@ -91,7 +91,7 @@ describe("ThemeSwitcher", () => {
   describe("User interactions", () => {
     it("changes theme when a button is clicked", async () => {
       const user = userEvent.setup();
-      renderWithTheme("ember");
+      renderWithTheme("slate");
 
       await user.click(screen.getByRole("radio", { name: /mint theme/i }));
 
@@ -105,11 +105,11 @@ describe("ThemeSwitcher", () => {
 
     it("updates localStorage when theme changes", async () => {
       const user = userEvent.setup();
-      renderWithTheme("ember");
+      renderWithTheme("slate");
 
-      await user.click(screen.getByRole("radio", { name: /solar theme/i }));
+      await user.click(screen.getByRole("radio", { name: /arctic theme/i }));
 
-      expect(localStorageMock.setItem).toHaveBeenCalledWith("brain-dump-theme", "solar");
+      expect(localStorageMock.setItem).toHaveBeenCalledWith("brain-dump-theme", "arctic");
     });
   });
 
@@ -120,19 +120,19 @@ describe("ThemeSwitcher", () => {
 
       await user.tab();
 
-      expect(screen.getByRole("radio", { name: /ember theme/i })).toHaveFocus();
+      expect(screen.getByRole("radio", { name: /slate theme/i })).toHaveFocus();
     });
 
     it("selects theme with Enter key", async () => {
       const user = userEvent.setup();
-      renderWithTheme("ember");
+      renderWithTheme("slate");
 
       await user.tab();
       await user.tab();
       await user.keyboard("{Enter}");
 
       await waitFor(() => {
-        expect(screen.getByRole("radio", { name: /mint theme.*active/i })).toHaveAttribute(
+        expect(screen.getByRole("radio", { name: /arctic theme.*active/i })).toHaveAttribute(
           "aria-checked",
           "true"
         );
@@ -141,7 +141,7 @@ describe("ThemeSwitcher", () => {
 
     it("selects theme with Space key", async () => {
       const user = userEvent.setup();
-      renderWithTheme("ember");
+      renderWithTheme("slate");
 
       await user.tab();
       await user.tab();
@@ -149,7 +149,7 @@ describe("ThemeSwitcher", () => {
       await user.keyboard(" ");
 
       await waitFor(() => {
-        expect(screen.getByRole("radio", { name: /solar theme.*active/i })).toHaveAttribute(
+        expect(screen.getByRole("radio", { name: /neon theme.*active/i })).toHaveAttribute(
           "aria-checked",
           "true"
         );
@@ -168,12 +168,12 @@ describe("ThemeSwitcher", () => {
       renderWithTheme();
 
       // Dark themes
-      expect(screen.getByText("Ember")).toBeInTheDocument();
-      expect(screen.getByText("Mint")).toBeInTheDocument();
-      expect(screen.getByText("Solar")).toBeInTheDocument();
+      expect(screen.getByText("Slate")).toBeInTheDocument();
       expect(screen.getByText("Arctic")).toBeInTheDocument();
       expect(screen.getByText("Neon")).toBeInTheDocument();
+      expect(screen.getByText("Mint")).toBeInTheDocument();
       expect(screen.getByText("Blush")).toBeInTheDocument();
+      expect(screen.getByText("Oxide")).toBeInTheDocument();
 
       // Light themes
       expect(screen.getByText("Daylight")).toBeInTheDocument();

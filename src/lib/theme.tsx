@@ -12,25 +12,27 @@ import {
  * Available theme options.
  *
  * Dark themes:
- * - ember: Orange accent (default)
- * - mint: Emerald/green accent
- * - solar: Gold/yellow accent
- * - arctic: Ice blue accent
- * - neon: Violet accent (cyberpunk)
- * - blush: Pink accent
+ * - slate: Neutral charcoal (default) — professional, no colored accent
+ * - arctic: Cool blue-tinted — like deep polar ice
+ * - neon: Electric purple — cyberpunk lab
+ * - mint: Forest green-tinted — organic workshop
+ * - blush: Rose-tinted — modern studio
+ * - oxide: Warm copper-red — bold and distinctive
  *
  * Light themes:
- * - daylight: Warm white + orange (like Solarized)
- * - frost: Cool white + blue (like Nord)
- * - paper: Neutral white + violet (like One Light)
+ * - daylight: Warm cream + terracotta
+ * - frost: Cool slate + deep indigo
+ * - paper: Neutral + ink/charcoal
  */
 export type Theme =
-  | "ember"
-  | "mint"
-  | "solar"
+  | "slate"
   | "arctic"
   | "neon"
+  | "mint"
   | "blush"
+  | "oxide"
+  | "ember"
+  | "solar"
   | "daylight"
   | "frost"
   | "paper";
@@ -49,31 +51,34 @@ export interface ThemeContextValue {
 export const THEME_STORAGE_KEY = "brain-dump-theme";
 
 /** Default theme when no preference is stored */
-export const DEFAULT_THEME: Theme = "ember";
+export const DEFAULT_THEME: Theme = "slate";
 
 /** All valid theme values for validation */
 export const THEMES: readonly Theme[] = [
   // Dark themes
-  "ember",
-  "mint",
-  "solar",
+  "slate",
   "arctic",
   "neon",
+  "mint",
   "blush",
+  "oxide",
+  // Legacy (hidden from picker, still valid for existing users)
+  "ember",
+  "solar",
   // Light themes
   "daylight",
   "frost",
   "paper",
 ] as const;
 
-/** Dark themes */
+/** Dark themes shown in theme picker */
 export const DARK_THEMES: readonly Theme[] = [
-  "ember",
-  "mint",
-  "solar",
+  "slate",
   "arctic",
   "neon",
+  "mint",
   "blush",
+  "oxide",
 ] as const;
 
 /** Light themes */
