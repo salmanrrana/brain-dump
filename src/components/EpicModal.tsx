@@ -218,6 +218,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
         | "vscode"
         | "opencode"
         | "cursor"
+        | "cursor-agent"
         | "copilot-cli"
         | "codex";
     }) => {

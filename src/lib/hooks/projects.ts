@@ -197,6 +197,7 @@ export function useUpdateProject() {
           | "vscode"
           | "opencode"
           | "cursor"
+          | "cursor-agent"
           | "copilot-cli"
           | "codex";
       };

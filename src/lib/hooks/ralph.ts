@@ -49,6 +49,7 @@ export function useLaunchRalphForTicket() {
         | "vscode"
         | "opencode"
         | "cursor"
+        | "cursor-agent"
         | "copilot-cli"
         | "codex";
     }) => launchRalphForTicket({ data }),
@@ -77,6 +78,7 @@ export function useLaunchRalphForEpic() {
         | "vscode"
         | "opencode"
         | "cursor"
+        | "cursor-agent"
         | "copilot-cli"
         | "codex";
       launchProfile?: RalphEpicLaunchProfile;

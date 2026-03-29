@@ -720,6 +720,7 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
         | "vscode"
         | "opencode"
         | "cursor"
+        | "cursor-agent"
         | "copilot-cli"
         | "codex";
     }) => {
