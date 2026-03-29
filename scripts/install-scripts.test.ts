@@ -185,6 +185,11 @@ describe("README.md environment table", () => {
   it("has Codex in the environment details section", () => {
     expect(readme).toContain("### Codex");
   });
+
+  it("has Cursor Editor and Cursor Agent CLI as separate sections", () => {
+    expect(readme).toContain("### Cursor Editor");
+    expect(readme).toContain("### Cursor Agent CLI");
+  });
 });
 
 describe("scripts/install.sh (universal auto-detect)", () => {
@@ -359,6 +364,66 @@ describe("post-refactor: only 3 global skills installed", () => {
     expect(script).toContain("STALE_SKILLS=");
     expect(script).toContain("tanstack-errors");
     expect(script).toContain("tanstack-forms");
+  });
+});
+
+describe("Cursor Agent CLI install/uninstall coverage", () => {
+  it("scripts/install.sh detects Cursor Agent CLI", () => {
+    const script = readScript("scripts/install.sh");
+    expect(script).toContain("CURSOR_AGENT_AVAILABLE");
+  });
+
+  it("scripts/install.sh distinguishes Cursor agent from other agent binaries", () => {
+    const script = readScript("scripts/install.sh");
+    expect(script).toContain('grep -qi "cursor"');
+  });
+
+  it("install.sh --cursor help text mentions Agent CLI", () => {
+    const script = readScript("install.sh");
+    expect(script).toContain("Agent CLI");
+  });
+
+  it("scripts/uninstall.sh removes Brain Dump permissions from cli-config.json", () => {
+    const script = readScript("scripts/uninstall.sh");
+    expect(script).toContain("cli-config.json");
+    expect(script).toContain("Shell(git)");
+  });
+
+  it("scripts/uninstall.sh removes enforce-state-before-write.sh hook", () => {
+    const script = readScript("scripts/uninstall.sh");
+    expect(script).toContain('rm "$HOOKS_DIR/enforce-state-before-write.sh"');
+  });
+
+  it("uninstall.sh removes cli-config.json permissions", () => {
+    const script = readScript("uninstall.sh");
+    expect(script).toContain("cli-config.json");
+    expect(script).toContain("Shell(git)");
+  });
+
+  it("uninstall.sh removes hooks.json entries", () => {
+    const script = readScript("uninstall.sh");
+    expect(script).toContain("enforce-state-before-write");
+    expect(script).toContain("hooks.json");
+  });
+
+  it("uninstall.sh does not remove agent binary", () => {
+    const script = readScript("uninstall.sh");
+    // Should not have rm commands targeting agent/cursor-agent binaries
+    expect(script).not.toMatch(/rm.*\/agent\b/);
+    expect(script).not.toMatch(/rm.*cursor-agent/);
+  });
+
+  it("setup-cursor.sh configures cli-config.json permissions", () => {
+    const script = readScript("scripts/setup-cursor.sh");
+    expect(script).toContain("cli-config.json");
+    expect(script).toContain("Shell(git)");
+    expect(script).toContain("Shell(pnpm)");
+  });
+
+  it("setup-cursor.sh creates enforce-state-before-write.sh hook", () => {
+    const script = readScript("scripts/setup-cursor.sh");
+    expect(script).toContain("enforce-state-before-write.sh");
+    expect(script).toContain("permissionDecision");
   });
 });
 
