@@ -19,6 +19,7 @@ type Environment =
   | "copilot-cli"
   | "codex"
   | "cursor"
+  | "cursor-agent"
   | "vscode"
   | "unknown";
 
@@ -45,6 +46,7 @@ const CLAUDE_CODE_ENV_PATTERNS = [
 const OPENCODE_FLAG = "OPENCODE";
 const COPILOT_CLI_FLAG = "COPILOT_CLI";
 const CURSOR_FLAG = "CURSOR";
+const CURSOR_AGENT_FLAG = "CURSOR_AGENT";
 const CODEX_FLAG = "CODEX";
 
 /**
@@ -123,7 +125,7 @@ function hasOpenCodeEnvironment(): boolean {
 /**
  * Check if any Cursor environment variables are present.
  * Cursor uses CURSOR_* prefixed environment variables.
- * Also checks for explicit CURSOR flag set via MCP config.
+ * Excludes CURSOR_AGENT flag to avoid false positives — cursor-agent is detected separately.
  */
 function hasCursorEnvironment(): boolean {
   // Check explicit flag (set via MCP config env section)
@@ -133,9 +135,9 @@ function hasCursorEnvironment(): boolean {
   for (const envVar of CURSOR_ENV_PATTERNS) {
     if (process.env[envVar]) return true;
   }
-  // Check for any CURSOR_* prefixed environment variable
+  // Check for any CURSOR_* prefixed environment variable (excluding CURSOR_AGENT)
   for (const key of Object.keys(process.env)) {
-    if (key.startsWith("CURSOR_")) return true;
+    if (key.startsWith("CURSOR_") && key !== CURSOR_AGENT_FLAG) return true;
   }
   return false;
 }
@@ -175,13 +177,13 @@ function hasCodexEnvironment(): boolean {
 }
 
 /**
- * Detect the current environment (claude-code, opencode, copilot-cli, codex, cursor, vscode, or unknown).
+ * Detect the current environment (claude-code, opencode, copilot-cli, codex, cursor, cursor-agent, vscode, or unknown).
  *
  * Detection priority:
- * 1. Claude Code runtime vars (CLAUDE_CODE, CLAUDE_CODE_ENTRYPOINT, CLAUDE_CODE_TERMINAL_ID)
- *    — set by Claude Code process, not inherited from user shell
- * 2. Explicit provider flags (OPENCODE, COPILOT_CLI, CODEX, CURSOR)
- *    — set intentionally via MCP config env section
+ * 1. Explicit provider flags (CURSOR_AGENT, OPENCODE, COPILOT_CLI, CODEX, CURSOR)
+ *    — set intentionally by Brain Dump launchers or MCP config and should override inherited shell state
+ * 2. Claude Code runtime vars (CLAUDE_CODE, CLAUDE_CODE_ENTRYPOINT, CLAUDE_CODE_TERMINAL_ID)
+ *    — reliable when no explicit provider flag was set
  * 3. Provider-specific env var patterns (OPENCODE_*, COPILOT_*, etc.)
  *    — heuristic detection from provider-specific env vars
  * 4. VS Code env vars (lowest priority since other tools may run inside VS Code terminals)
@@ -190,14 +192,15 @@ function hasCodexEnvironment(): boolean {
  * intentionally excluded from Claude Code detection as they may be present in any environment.
  */
 export function detectEnvironment(): Environment {
-  // Claude Code runtime vars — set by Claude Code process itself, very reliable
-  if (hasClaudeCodeEnvironment()) return "claude-code";
-
-  // Explicit provider flags — intentionally set via MCP config
+  // Explicit provider flags — intentionally set by Brain Dump launchers or MCP config
+  if (process.env[CURSOR_AGENT_FLAG]) return "cursor-agent";
   if (process.env[OPENCODE_FLAG]) return "opencode";
   if (process.env[COPILOT_CLI_FLAG]) return "copilot-cli";
   if (process.env[CODEX_FLAG]) return "codex";
   if (process.env[CURSOR_FLAG]) return "cursor";
+
+  // Claude Code runtime vars — set by Claude Code process itself, very reliable
+  if (hasClaudeCodeEnvironment()) return "claude-code";
 
   // Heuristic detection via provider-specific env var patterns
   if (hasOpenCodeEnvironment()) return "opencode";
@@ -242,6 +245,9 @@ export function detectAuthor(): string {
       break;
     case "cursor":
       baseTool = "cursor";
+      break;
+    case "cursor-agent":
+      baseTool = "cursor-agent";
       break;
     case "codex":
       baseTool = "codex";
@@ -301,11 +307,16 @@ export function getEnvironmentInfo(): EnvironmentInfo {
     if (process.env[envVar]) envVarsDetected.push(envVar);
   }
   for (const key of Object.keys(process.env)) {
-    if (key.startsWith("CURSOR_") && !CURSOR_ENV_PATTERNS.includes(key)) {
+    if (
+      key.startsWith("CURSOR_") &&
+      key !== CURSOR_AGENT_FLAG &&
+      !CURSOR_ENV_PATTERNS.includes(key)
+    ) {
       envVarsDetected.push(key);
     }
   }
   if (process.env[CURSOR_FLAG]) envVarsDetected.push(CURSOR_FLAG);
+  if (process.env[CURSOR_AGENT_FLAG]) envVarsDetected.push(CURSOR_AGENT_FLAG);
 
   // Collect Codex env vars
   for (const envVar of CODEX_ENV_PATTERNS) {

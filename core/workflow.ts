@@ -22,8 +22,14 @@ import type {
   CompleteWorkResult,
   StartEpicWorkResult,
 } from "./types.ts";
-import { TicketNotFoundError, EpicNotFoundError, GitError, InvalidStateError } from "./errors.ts";
-import { addComment } from "./comment.ts";
+import {
+  TicketNotFoundError,
+  EpicNotFoundError,
+  GitError,
+  InvalidStateError,
+  ValidationError,
+} from "./errors.ts";
+import { addComment, type CommentAuthor } from "./comment.ts";
 import { generateBranchName, generateEpicBranchName, findBaseBranch } from "./git-utils.ts";
 import type { DbEpicWorkflowStateRow } from "./db-rows.ts";
 
@@ -245,7 +251,8 @@ export function completeWork(
   db: Database.Database,
   ticketId: string,
   git: GitOperations,
-  summary?: string
+  summary?: string,
+  commentAuthor: CommentAuthor = "ralph"
 ): CompleteWorkResult {
   // 1. Fetch ticket
   const ticket = db
@@ -265,6 +272,21 @@ export function completeWork(
 
   if (ticket.status === "ai_review" || ticket.status === "human_review") {
     throw new InvalidStateError("ticket", ticket.status, "in_progress", "complete work");
+  }
+
+  const latestTestReport = db
+    .prepare(
+      `SELECT id FROM ticket_comments
+       WHERE ticket_id = ? AND type = 'test_report' AND created_at >= ?
+       ORDER BY created_at DESC
+       LIMIT 1`
+    )
+    .get(ticketId, ticket.updated_at) as { id: string } | undefined;
+
+  if (!latestTestReport) {
+    throw new ValidationError(
+      "Cannot complete work: add a test_report comment for this implementation pass summarizing `pnpm type-check`, `pnpm lint`, and `pnpm test`, then retry."
+    );
   }
 
   // 2. Gather git info
@@ -329,7 +351,7 @@ export function completeWork(
     addComment(db, {
       ticketId,
       content: workSummaryContent,
-      author: "ralph",
+      author: commentAuthor,
       type: "work_summary",
     });
   } catch (err) {

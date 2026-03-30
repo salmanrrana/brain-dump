@@ -27,6 +27,7 @@ const AUTHORS = [
   "vscode",
   "copilot",
   "codex",
+  "cursor-agent",
   "ai",
   "brain-dump",
 ] as const;

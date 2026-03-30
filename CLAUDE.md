@@ -145,13 +145,14 @@ backlog → ready → in_progress → ai_review → human_review → done
 
 ### Multi-Environment Support
 
-| Environment | AI Review | Hook Enforcement              | Telemetry             |
-| ----------- | --------- | ----------------------------- | --------------------- |
-| Claude Code | ✅ Full   | ✅ Hooks enforce state        | ✅ MCP self-telemetry |
-| Cursor      | ✅ Full   | ❌ None                       | ✅ MCP self-telemetry |
-| Copilot CLI | ✅ Full   | ✅ Global hooks enforce state | ✅ MCP self-telemetry |
-| OpenCode    | ✅ Full   | ❌ MCP enforces preconditions | ✅ MCP self-telemetry |
-| VS Code     | ✅ Full   | ❌ MCP enforces preconditions | ✅ MCP self-telemetry |
+| Environment      | AI Review | Hook Enforcement              | Telemetry             |
+| ---------------- | --------- | ----------------------------- | --------------------- |
+| Claude Code      | ✅ Full   | ✅ Hooks enforce state        | ✅ MCP self-telemetry |
+| Cursor Editor    | ✅ Full   | ❌ None                       | ✅ MCP self-telemetry |
+| Cursor Agent CLI | ✅ Full   | ✅ Optional (hooks.json)      | ✅ MCP self-telemetry |
+| Copilot CLI      | ✅ Full   | ✅ Global hooks enforce state | ✅ MCP self-telemetry |
+| OpenCode         | ✅ Full   | ❌ MCP enforces preconditions | ✅ MCP self-telemetry |
+| VS Code          | ✅ Full   | ❌ MCP enforces preconditions | ✅ MCP self-telemetry |
 
 ### Troubleshooting
 
@@ -224,13 +225,14 @@ When no `.claude/ralph-state.json` exists, hooks allow all operations. This ensu
 
 Brain Dump supports multiple development environments:
 
-| Environment   | State Tracking | Hook Enforcement | Notes                                               |
-| ------------- | -------------- | ---------------- | --------------------------------------------------- |
-| Claude Code   | ✅ Full        | ✅ Full          | Hooks guide behavior through feedback               |
-| Copilot CLI   | ✅ Full        | ✅ Global        | Global hooks in ~/.copilot/ enforce across projects |
-| OpenCode      | ✅ Full        | ❌ None          | State tracked via MCP, guidance via prompts         |
-| VS Code + MCP | ✅ Full        | ❌ None          | State tracked via MCP, guidance via prompts         |
-| Cursor        | ✅ Full        | ❌ None          | State tracked via MCP, guidance via prompts         |
+| Environment      | State Tracking | Hook Enforcement | Notes                                               |
+| ---------------- | -------------- | ---------------- | --------------------------------------------------- |
+| Claude Code      | ✅ Full        | ✅ Full          | Hooks guide behavior through feedback               |
+| Copilot CLI      | ✅ Full        | ✅ Global        | Global hooks in ~/.copilot/ enforce across projects |
+| Cursor Agent CLI | ✅ Full        | ✅ Optional      | hooks.json if configured via setup-cursor.sh        |
+| OpenCode         | ✅ Full        | ❌ None          | State tracked via MCP, guidance via prompts         |
+| VS Code + MCP    | ✅ Full        | ❌ None          | State tracked via MCP, guidance via prompts         |
+| Cursor Editor    | ✅ Full        | ❌ None          | State tracked via MCP, guidance via prompts         |
 
 **How it works:**
 

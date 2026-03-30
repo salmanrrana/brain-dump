@@ -240,15 +240,16 @@ Review agents (`code-reviewer`, `silent-failure-hunter`, `code-simplifier`) are 
 
 All environments get the same MCP tools, quality workflow, and 3 global skills (`brain-dump-workflow`, `review`, `review-aggregation`). Telemetry is handled by MCP self-instrumentation — no client-side telemetry plugins needed.
 
-| Environment     | Install                   | Best For                       |
-| --------------- | ------------------------- | ------------------------------ |
-| **Claude Code** | `./install.sh --claude`   | Terminal-native AI development |
-| **VS Code**     | `./install.sh --vscode`   | Copilot Chat + extensions      |
-| **OpenCode**    | `./install.sh --opencode` | Open-source AI coding          |
-| **Cursor**      | `./install.sh --cursor`   | Modern AI-first IDE experience |
-| **Copilot CLI** | `./install.sh --copilot`  | GitHub Copilot in the terminal |
-| **Codex**       | `./install.sh --codex`    | OpenAI Codex in terminal/app   |
-| **All**         | `./install.sh --all`      | Try everything                 |
+| Environment          | Install                   | Best For                       |
+| -------------------- | ------------------------- | ------------------------------ |
+| **Claude Code**      | `./install.sh --claude`   | Terminal-native AI development |
+| **VS Code**          | `./install.sh --vscode`   | Copilot Chat + extensions      |
+| **OpenCode**         | `./install.sh --opencode` | Open-source AI coding          |
+| **Cursor Editor**    | `./install.sh --cursor`   | Modern AI-first IDE experience |
+| **Cursor Agent CLI** | `./install.sh --cursor`   | Headless terminal multi-model  |
+| **Copilot CLI**      | `./install.sh --copilot`  | GitHub Copilot in the terminal |
+| **Codex**            | `./install.sh --codex`    | OpenAI Codex in terminal/app   |
+| **All**              | `./install.sh --all`      | Try everything                 |
 
 <details>
 <summary><strong>Environment-specific details</strong></summary>
@@ -275,12 +276,20 @@ All environments get the same MCP tools, quality workflow, and 3 global skills (
 - Uses `~/.config/opencode/opencode.json` for MCP config
 - [Full setup guide →](docs/opencode-setup.md)
 
-### Cursor
+### Cursor Editor
 
 - Subagents available in Agent chat: `@ralph`, `@ticket-worker`, `@planner`
 - Installs: MCP server, 3 agents, 3 global skills, 9 commands, 1 rule
 - Review agents invoked on-demand via commands
 - [Full setup guide →](docs/cursor-setup.md)
+
+### Cursor Agent CLI
+
+- Headless terminal mode: `agent --force --approve-mcps --trust -p "prompt"`
+- Ralph uses `cursor-agent` backend for autonomous headless loops
+- Installs: `cli-config.json` permissions, optional `hooks.json` state enforcement
+- Binary: `agent` (or `cursor-agent`) — install via `curl https://cursor.com/install -fsS | bash`
+- Shares MCP config with Cursor Editor (`~/.cursor/mcp.json`)
 
 ### Copilot CLI
 

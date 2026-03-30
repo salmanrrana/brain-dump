@@ -36,6 +36,7 @@ import {
   launchCodexInTerminal,
   launchVSCodeInTerminal,
   launchCursorInTerminal,
+  launchCursorAgentInTerminal,
   launchCopilotInTerminal,
   launchOpenCodeInTerminal,
 } from "../api/terminal";
@@ -210,13 +211,14 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
       workingMethodOverride,
     }: {
       useSandbox: boolean;
-      aiBackend: "claude" | "opencode" | "codex";
+      aiBackend: "claude" | "opencode" | "codex" | "cursor-agent";
       workingMethodOverride?:
         | "auto"
         | "claude-code"
         | "vscode"
         | "opencode"
         | "cursor"
+        | "cursor-agent"
         | "copilot-cli"
         | "codex";
     }) => {
@@ -312,6 +314,7 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
         | "codex-app"
         | "vscode"
         | "cursor"
+        | "cursor-agent"
         | "copilot"
         | "opencode"
     ) => {
@@ -356,6 +359,8 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
               return launchVSCodeInTerminal({ data: payload });
             case "cursor":
               return launchCursorInTerminal({ data: payload });
+            case "cursor-agent":
+              return launchCursorAgentInTerminal({ data: payload });
             case "copilot":
               return launchCopilotInTerminal({ data: payload });
             case "opencode":
@@ -704,7 +709,14 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                         className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
                       >
                         <Monitor size={14} className="text-[var(--warning)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Cursor</span>
+                        <span className="text-sm text-[var(--text-primary)]">Cursor Editor</span>
+                      </button>
+                      <button
+                        onClick={() => void handleStartInteractive("cursor-agent")}
+                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
+                      >
+                        <Terminal size={14} className="text-[var(--warning)] flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">Cursor Agent</span>
                       </button>
                       <button
                         onClick={() => void handleStartInteractive("copilot")}
@@ -753,27 +765,13 @@ export default function EpicModal({ epic, projectId, onClose, onSave }: EpicModa
                         onClick={() =>
                           void handleStartRalph({
                             useSandbox: false,
-                            aiBackend: "claude",
-                            workingMethodOverride: "vscode",
+                            aiBackend: "cursor-agent",
                           })
                         }
                         className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
                       >
-                        <Code2 size={14} className="text-[var(--accent-primary)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">VS Code</span>
-                      </button>
-                      <button
-                        onClick={() =>
-                          void handleStartRalph({
-                            useSandbox: false,
-                            aiBackend: "claude",
-                            workingMethodOverride: "cursor",
-                          })
-                        }
-                        className="flex items-center gap-2 rounded-xl border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] hover:border-[var(--border-secondary)] transition-all"
-                      >
-                        <Monitor size={14} className="text-[var(--warning)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Cursor</span>
+                        <Terminal size={14} className="text-[var(--warning)] flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">Cursor Agent</span>
                       </button>
                       <button
                         onClick={() =>

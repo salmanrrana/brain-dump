@@ -69,6 +69,10 @@ export const CostExplorerTab: FC = () => {
     setSelectedNode(node);
   }, []);
 
+  const handleDrillDown = useCallback((node: CostExplorerNode) => {
+    setSelectedNode(node);
+  }, []);
+
   if (error) {
     return (
       <div style={sectionStyles}>
@@ -110,96 +114,110 @@ export const CostExplorerTab: FC = () => {
       {/* Summary cards */}
       {summary && <CostSummaryCards data={summary} />}
 
-      {/* Main chart section */}
-      <div style={sectionStyles}>
-        {/* Header with controls */}
-        <div style={headerStyles}>
-          <div style={headerLeftStyles}>
-            <TreesIcon size={18} aria-hidden="true" style={{ color: "var(--accent-primary)" }} />
-            <h2 style={sectionTitleStyles}>Cost Breakdown</h2>
-            {isPlaceholderData && (
-              <span style={loadingBadgeStyles}>
-                <div style={miniSpinnerStyles} />
-                Loading…
-              </span>
+      {/* Main explorer area — chart + detail panel side by side on wide screens */}
+      <div style={explorerLayoutStyles}>
+        {/* Chart section */}
+        <div
+          style={{
+            ...sectionStyles,
+            flex: selectedNode ? "1 1 60%" : "1 1 100%",
+            minWidth: 0,
+            transition: "flex 0.3s ease",
+          }}
+        >
+          {/* Header with controls */}
+          <div style={headerStyles}>
+            <div style={headerLeftStyles}>
+              <TreesIcon size={18} aria-hidden="true" style={{ color: "var(--accent-primary)" }} />
+              <h2 style={sectionTitleStyles}>Cost Breakdown</h2>
+              {isPlaceholderData && (
+                <span style={loadingBadgeStyles}>
+                  <div style={miniSpinnerStyles} />
+                  Loading…
+                </span>
+              )}
+            </div>
+            <div style={controlsStyles}>
+              {/* View mode toggle */}
+              <div style={toggleGroupStyles} role="radiogroup" aria-label="Chart view mode">
+                <button
+                  role="radio"
+                  aria-checked={viewMode === "treemap"}
+                  onClick={() => setViewMode("treemap")}
+                  style={viewMode === "treemap" ? activeToggleStyles : toggleStyles}
+                  title="Treemap view"
+                >
+                  <LayoutGrid size={14} aria-hidden="true" />
+                </button>
+                <button
+                  role="radio"
+                  aria-checked={viewMode === "sunburst"}
+                  onClick={() => setViewMode("sunburst")}
+                  style={viewMode === "sunburst" ? activeToggleStyles : toggleStyles}
+                  title="Sunburst view"
+                >
+                  <Sun size={14} aria-hidden="true" />
+                </button>
+              </div>
+
+              {/* Time range selector */}
+              <div style={timeRangeGroupStyles} role="radiogroup" aria-label="Time range">
+                {TIME_RANGES.map((range) => (
+                  <button
+                    key={range.value}
+                    role="radio"
+                    aria-checked={timeRange === range.value}
+                    onClick={() => {
+                      setTimeRange(range.value);
+                      setSelectedNode(null);
+                    }}
+                    style={timeRange === range.value ? activeTimeStyles : timeStyles}
+                  >
+                    {range.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Chart */}
+          <div style={{ ...sectionContentStyles, padding: hasData ? 0 : undefined }}>
+            {hasData ? (
+              <Suspense fallback={<ChartSkeleton />}>
+                <CostTreemapChart data={tree} viewMode={viewMode} onNodeSelect={handleNodeSelect} />
+              </Suspense>
+            ) : (
+              <div style={emptyStateStyles}>
+                <svg
+                  width="48"
+                  height="48"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1"
+                  opacity="0.3"
+                >
+                  <rect x="3" y="3" width="7" height="7" rx="1" />
+                  <rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" />
+                  <rect x="14" y="14" width="7" height="7" rx="1" />
+                </svg>
+                <p style={emptyTextStyles}>No cost data yet</p>
+                <p style={emptySubtextStyles}>
+                  Cost data is recorded when AI sessions complete work on tickets.
+                </p>
+              </div>
             )}
           </div>
-          <div style={controlsStyles}>
-            {/* View mode toggle */}
-            <div style={toggleGroupStyles} role="radiogroup" aria-label="Chart view mode">
-              <button
-                role="radio"
-                aria-checked={viewMode === "treemap"}
-                onClick={() => setViewMode("treemap")}
-                style={viewMode === "treemap" ? activeToggleStyles : toggleStyles}
-                title="Treemap view"
-              >
-                <LayoutGrid size={14} aria-hidden="true" />
-              </button>
-              <button
-                role="radio"
-                aria-checked={viewMode === "sunburst"}
-                onClick={() => setViewMode("sunburst")}
-                style={viewMode === "sunburst" ? activeToggleStyles : toggleStyles}
-                title="Sunburst view"
-              >
-                <Sun size={14} aria-hidden="true" />
-              </button>
-            </div>
+        </div>
 
-            {/* Time range selector */}
-            <div style={timeRangeGroupStyles} role="radiogroup" aria-label="Time range">
-              {TIME_RANGES.map((range) => (
-                <button
-                  key={range.value}
-                  role="radio"
-                  aria-checked={timeRange === range.value}
-                  onClick={() => {
-                    setTimeRange(range.value);
-                    setSelectedNode(null);
-                  }}
-                  style={timeRange === range.value ? activeTimeStyles : timeStyles}
-                >
-                  {range.label}
-                </button>
-              ))}
-            </div>
+        {/* Detail panel — slides in beside the chart */}
+        {selectedNode && (
+          <div style={detailPanelContainerStyles}>
+            <CostDetailPanel node={selectedNode} onDrillDown={handleDrillDown} />
           </div>
-        </div>
-
-        {/* Chart */}
-        <div style={{ ...sectionContentStyles, padding: hasData ? 0 : undefined }}>
-          {hasData ? (
-            <Suspense fallback={<ChartSkeleton />}>
-              <CostTreemapChart data={tree} viewMode={viewMode} onNodeSelect={handleNodeSelect} />
-            </Suspense>
-          ) : (
-            <div style={emptyStateStyles}>
-              <svg
-                width="48"
-                height="48"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1"
-                opacity="0.3"
-              >
-                <rect x="3" y="3" width="7" height="7" rx="1" />
-                <rect x="14" y="3" width="7" height="7" rx="1" />
-                <rect x="3" y="14" width="7" height="7" rx="1" />
-                <rect x="14" y="14" width="7" height="7" rx="1" />
-              </svg>
-              <p style={emptyTextStyles}>No cost data yet</p>
-              <p style={emptySubtextStyles}>
-                Cost data is recorded when AI sessions complete work on tickets.
-              </p>
-            </div>
-          )}
-        </div>
+        )}
       </div>
-
-      {/* Detail panel — shown when a node is selected */}
-      {selectedNode && <CostDetailPanel node={selectedNode} />}
     </div>
   );
 };
@@ -212,6 +230,20 @@ const containerStyles: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: "var(--spacing-4)",
+};
+
+const explorerLayoutStyles: React.CSSProperties = {
+  display: "flex",
+  gap: "var(--spacing-4)",
+  alignItems: "flex-start",
+};
+
+const detailPanelContainerStyles: React.CSSProperties = {
+  flex: "0 0 380px",
+  maxHeight: 700,
+  overflowY: "auto",
+  position: "sticky",
+  top: "var(--spacing-4)",
 };
 
 const headerStyles: React.CSSProperties = {

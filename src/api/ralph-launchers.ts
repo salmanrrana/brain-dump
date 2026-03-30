@@ -1,4 +1,5 @@
 import { execDockerCommand } from "./docker-utils";
+import { execFileNoThrow } from "../utils/execFileNoThrow";
 
 // ============================================================================
 // UTILITIES
@@ -11,6 +12,21 @@ export function escapeForBashDoubleQuote(str: string): string {
     .replace(/`/g, "\\`")
     .replace(/"/g, '\\"')
     .replace(/!/g, "\\!");
+}
+
+const CURSOR_AGENT_HELP_PATTERNS = [/Cursor Agent/i, /Start the Cursor Agent/i];
+
+export function isCursorAgentHelpOutput(output: string): boolean {
+  return CURSOR_AGENT_HELP_PATTERNS.some((pattern) => pattern.test(output));
+}
+
+async function isCursorAgentCommand(command: string): Promise<boolean> {
+  const helpResult = await execFileNoThrow(command, ["--help"]);
+  if (!helpResult.success) {
+    return false;
+  }
+
+  return isCursorAgentHelpOutput(helpResult.stdout + helpResult.stderr);
 }
 
 // ============================================================================
@@ -68,6 +84,32 @@ export async function findCursorCli(): Promise<string | null> {
     if (existsSync(cursorPath)) {
       return cursorPath;
     }
+  }
+
+  return null;
+}
+
+// Check if Cursor Agent CLI is available and get the path
+// The binary is called `agent` but that's generic — we verify it's Cursor's agent
+export async function findCursorAgentCli(): Promise<string | null> {
+  const { existsSync } = await import("fs");
+  const { join } = await import("path");
+  const { homedir } = await import("os");
+
+  // 1. Check `agent` in PATH — verify it is Cursor's generic agent binary
+  if (await isCursorAgentCommand("agent")) {
+    return "agent";
+  }
+
+  // 2. Fallback: check ~/.local/bin/agent directly
+  const localBinAgent = join(homedir(), ".local", "bin", "agent");
+  if (existsSync(localBinAgent) && (await isCursorAgentCommand(localBinAgent))) {
+    return localBinAgent;
+  }
+
+  // 3. Fallback: check `cursor-agent` in PATH
+  if (await isCursorAgentCommand("cursor-agent")) {
+    return "cursor-agent";
   }
 
   return null;

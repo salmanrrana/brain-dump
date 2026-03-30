@@ -57,6 +57,7 @@ const WORKING_METHODS = [
   "vscode",
   "opencode",
   "cursor",
+  "cursor-agent",
   "copilot-cli",
   "codex",
 ] as const;

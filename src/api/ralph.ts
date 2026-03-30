@@ -65,8 +65,16 @@ type RalphWorkingMethod =
   | "vscode"
   | "opencode"
   | "cursor"
+  | "cursor-agent"
   | "copilot-cli"
   | "codex";
+
+// Display labels for editor/CLI-based working methods
+const WORKING_METHOD_LABELS: Record<string, string> = {
+  vscode: "VS Code",
+  cursor: "Cursor",
+  "copilot-cli": "Copilot CLI",
+};
 
 export interface RalphImplementationLaunchProfile {
   type?: "implementation";
@@ -335,12 +343,7 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
       workingMethod === "cursor" ||
       workingMethod === "copilot-cli"
     ) {
-      const methodLabel =
-        workingMethod === "vscode"
-          ? "VS Code"
-          : workingMethod === "cursor"
-            ? "Cursor"
-            : "Copilot CLI";
+      const methodLabel = WORKING_METHOD_LABELS[workingMethod] ?? workingMethod;
       console.log(`[brain-dump] Using ${methodLabel} launch path for single ticket`);
 
       // Generate context file for editor/CLI-based Ralph launch modes.
@@ -355,12 +358,18 @@ export const launchRalphForTicket = createServerFn({ method: "POST" })
 
       console.log(`[brain-dump] Created Ralph context file: ${contextResult.path}`);
 
-      const launchResult =
-        workingMethod === "vscode"
-          ? await launchInVSCode(project.path, contextResult.path)
-          : workingMethod === "cursor"
-            ? await launchInCursor(project.path, contextResult.path)
-            : await launchInCopilotCli(project.path, contextResult.path, preferredTerminal);
+      let launchResult;
+      if (workingMethod === "vscode") {
+        launchResult = await launchInVSCode(project.path, contextResult.path);
+      } else if (workingMethod === "cursor") {
+        launchResult = await launchInCursor(project.path, contextResult.path);
+      } else {
+        launchResult = await launchInCopilotCli(
+          project.path,
+          contextResult.path,
+          preferredTerminal
+        );
+      }
 
       if (!launchResult.success) {
         // Rollback ticket status since launch failed
@@ -596,12 +605,18 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
             firstContextPath = contextResult.path;
           }
 
-          const launchResult =
-            workingMethod === "vscode"
-              ? await launchInVSCode(project.path, contextResult.path)
-              : workingMethod === "cursor"
-                ? await launchInCursor(project.path, contextResult.path)
-                : await launchInCopilotCli(project.path, contextResult.path, preferredTerminal);
+          let launchResult;
+          if (workingMethod === "vscode") {
+            launchResult = await launchInVSCode(project.path, contextResult.path);
+          } else if (workingMethod === "cursor") {
+            launchResult = await launchInCursor(project.path, contextResult.path);
+          } else {
+            launchResult = await launchInCopilotCli(
+              project.path,
+              contextResult.path,
+              preferredTerminal
+            );
+          }
 
           if (!launchResult.success) {
             failureMessages.push(`${reviewLaunch.ticket.title}: ${launchResult.message}`);
@@ -832,12 +847,7 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
       workingMethod === "cursor" ||
       workingMethod === "copilot-cli"
     ) {
-      const methodLabel =
-        workingMethod === "vscode"
-          ? "VS Code"
-          : workingMethod === "cursor"
-            ? "Cursor"
-            : "Copilot CLI";
+      const methodLabel = WORKING_METHOD_LABELS[workingMethod] ?? workingMethod;
       console.log(`[brain-dump] Using ${methodLabel} launch path`);
 
       // Generate context file for editor/CLI-based Ralph launch modes.
@@ -859,12 +869,18 @@ export const launchRalphForEpic = createServerFn({ method: "POST" })
 
       console.log(`[brain-dump] Created Ralph context file: ${contextResult.path}`);
 
-      const launchResult =
-        workingMethod === "vscode"
-          ? await launchInVSCode(project.path, contextResult.path)
-          : workingMethod === "cursor"
-            ? await launchInCursor(project.path, contextResult.path)
-            : await launchInCopilotCli(project.path, contextResult.path, preferredTerminal);
+      let launchResult;
+      if (workingMethod === "vscode") {
+        launchResult = await launchInVSCode(project.path, contextResult.path);
+      } else if (workingMethod === "cursor") {
+        launchResult = await launchInCursor(project.path, contextResult.path);
+      } else {
+        launchResult = await launchInCopilotCli(
+          project.path,
+          contextResult.path,
+          preferredTerminal
+        );
+      }
 
       if (!launchResult.success) {
         // Rollback implementation bootstrap only for the default implementation path.

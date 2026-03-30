@@ -4,7 +4,7 @@ import { getRalphPrompt, type RalphPromptProfile } from "./ralph-prompts";
 // TYPES
 // ============================================================================
 
-export type RalphAiBackend = "claude" | "opencode" | "codex";
+export type RalphAiBackend = "claude" | "opencode" | "codex" | "cursor-agent";
 
 // Resource limit configuration for Docker sandbox
 export interface DockerResourceLimits {
@@ -29,6 +29,76 @@ export const DEFAULT_RESOURCE_LIMITS: DockerResourceLimits = {
   memory: "2g",
   cpus: "1.5",
   pidsLimit: 256,
+};
+
+const RALPH_ENV_EXPORTS = `export RALPH_SESSION=1`;
+
+// Configuration for each AI backend's CLI integration.
+// Add new backends here instead of extending ternary chains throughout the file.
+interface AiBackendConfig {
+  displayName: string;
+  preflightCheck: string;
+  invocation: string;
+}
+
+const AI_BACKEND_CONFIGS: Record<RalphAiBackend, AiBackendConfig> = {
+  claude: {
+    displayName: "Claude",
+    preflightCheck: `
+if ! command -v claude >/dev/null 2>&1; then
+  echo -e "\\033[0;31m❌ Claude CLI not found in PATH\\033[0m"
+  exit 1
+fi
+`,
+    invocation: `  # Run Claude in print mode (-p) so it exits after completion
+  # This allows the bash loop to continue to the next iteration
+  claude --dangerously-skip-permissions --output-format text -p "$(cat "$PROMPT_FILE")"`,
+  },
+  opencode: {
+    displayName: "OpenCode",
+    preflightCheck: `
+if ! command -v opencode >/dev/null 2>&1; then
+  echo -e "\\033[0;31m❌ OpenCode CLI not found in PATH\\033[0m"
+  echo "Install OpenCode: https://opencode.ai"
+  exit 1
+fi
+`,
+    invocation: `  # Run OpenCode directly with prompt
+  opencode "$PROJECT_PATH" --prompt "$(cat "$PROMPT_FILE")"`,
+  },
+  codex: {
+    displayName: "Codex",
+    preflightCheck: `
+if ! command -v codex >/dev/null 2>&1; then
+  echo -e "\\033[0;31m❌ Codex CLI not found in PATH\\033[0m"
+  exit 1
+fi
+`,
+    invocation: `  # Run Codex directly with prompt
+  codex "$(cat "$PROMPT_FILE")"`,
+  },
+  "cursor-agent": {
+    displayName: "Cursor Agent",
+    preflightCheck: `
+CURSOR_AGENT_BIN=""
+if command -v agent >/dev/null 2>&1 && agent --help 2>&1 | grep -qi "Cursor Agent"; then
+  CURSOR_AGENT_BIN="agent"
+elif [ -x "$HOME/.local/bin/agent" ] && "$HOME/.local/bin/agent" --help 2>&1 | grep -qi "Cursor Agent"; then
+  CURSOR_AGENT_BIN="$HOME/.local/bin/agent"
+elif command -v cursor-agent >/dev/null 2>&1 && cursor-agent --help 2>&1 | grep -qi "Cursor Agent"; then
+  CURSOR_AGENT_BIN="cursor-agent"
+fi
+
+if [ -z "$CURSOR_AGENT_BIN" ]; then
+  echo -e "\\033[0;31m❌ Cursor Agent CLI not found in PATH\\033[0m"
+  echo "Install: curl https://cursor.com/install -fsS | bash"
+  exit 1
+fi
+`,
+    invocation: `  export CURSOR_AGENT=1
+  # Run Cursor Agent in headless mode with prompt
+  "$CURSOR_AGENT_BIN" --force --approve-mcps --trust -p "$(cat "$PROMPT_FILE")"`,
+  },
 };
 
 // Default timeout for Ralph session (1 hour in seconds)
@@ -103,29 +173,7 @@ fi
   fi`;
 
   // Validate required local AI CLI is installed for native mode.
-  const aiPreflightCheck = useSandbox
-    ? ""
-    : aiBackend === "opencode"
-      ? `
-if ! command -v opencode >/dev/null 2>&1; then
-  echo -e "\\033[0;31m❌ OpenCode CLI not found in PATH\\033[0m"
-  echo "Install OpenCode: https://opencode.ai"
-  exit 1
-fi
-`
-      : aiBackend === "codex"
-        ? `
-if ! command -v codex >/dev/null 2>&1; then
-  echo -e "\\033[0;31m❌ Codex CLI not found in PATH\\033[0m"
-  exit 1
-fi
-`
-        : `
-if ! command -v claude >/dev/null 2>&1; then
-  echo -e "\\033[0;31m❌ Claude CLI not found in PATH\\033[0m"
-  exit 1
-fi
-`;
+  const aiPreflightCheck = useSandbox ? "" : AI_BACKEND_CONFIGS[aiBackend].preflightCheck;
 
   // SSH setup for Docker sandbox mode
   // This allows git push from inside container using host's SSH keys
@@ -241,9 +289,10 @@ fi
     : "";
 
   // AI backend display name
-  const aiName = aiBackend === "opencode" ? "OpenCode" : aiBackend === "codex" ? "Codex" : "Claude";
+  const aiName = AI_BACKEND_CONFIGS[aiBackend].displayName;
 
-  // Generate the AI invocation command based on backend choice
+  // Generate the AI invocation command based on backend choice.
+  // Sandbox mode always uses the Docker wrapper; native mode uses the backend config.
   const aiInvocation = useSandbox
     ? `  # Run ${aiName} in Docker container
   # Claude Code auth is passed via mounted config (platform-dependent location)
@@ -288,15 +337,7 @@ fi
     -w /workspace \\
     "${imageName}" \\
     claude --dangerously-skip-permissions /workspace/.ralph-prompt.md`
-    : aiBackend === "opencode"
-      ? `  # Run OpenCode directly with prompt
-  opencode "$PROJECT_PATH" --prompt "$(cat "$PROMPT_FILE")"`
-      : aiBackend === "codex"
-        ? `  # Run Codex directly with prompt
-  codex "$(cat "$PROMPT_FILE")"`
-        : `  # Run Claude in print mode (-p) so it exits after completion
-  # This allows the bash loop to continue to the next iteration
-  claude --dangerously-skip-permissions --output-format text -p "$(cat "$PROMPT_FILE")"`;
+    : AI_BACKEND_CONFIGS[aiBackend].invocation;
 
   const iterationLabel = useSandbox ? "(Docker)" : "";
   const endMessage = useSandbox ? "" : `echo "Run again with: $0 <max_iterations>"`;
@@ -408,6 +449,7 @@ NO_PROGRESS_COUNT=0
 MAX_NO_PROGRESS=3
 
 cd "$PROJECT_PATH"
+${RALPH_ENV_EXPORTS}
 ${dockerHostSetup}${dockerImageCheck}${sshAgentSetup}${aiPreflightCheck}
 # Ensure plans directory exists
 mkdir -p "$PROJECT_PATH/plans"
@@ -550,8 +592,8 @@ ${aiInvocation}
       echo ""
       echo -e "\\033[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
       echo -e "\\033[0;31m❌ $MAX_CONSECUTIVE_FAILURES consecutive failures. Ralph is stopping.\\033[0m"
-      echo -e "\\033[0;31m   This usually means Claude CLI cannot start properly.\\033[0m"
-      echo -e "\\033[0;31m   Check: API key, network, MCP server, or run 'claude --help'\\033[0m"
+      echo -e "\\033[0;31m   This usually means ${aiName} CLI cannot start properly.\\033[0m"
+      echo -e "\\033[0;31m   Check: API key, network, MCP server, or run the CLI with --help\\033[0m"
       echo -e "\\033[0;31m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
       echo "[$(date -Iseconds)] ABORTED: $CONSECUTIVE_FAILURES consecutive failures" >> "$PROGRESS_FILE"
       exit 1

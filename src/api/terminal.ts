@@ -22,6 +22,7 @@ async function formatCoreError(error: unknown): Promise<string> {
 interface InstallCheck {
   installed: boolean;
   mode?: "cli" | "app";
+  binaryPath?: string;
   error?: string;
 }
 
@@ -236,6 +237,21 @@ async function isCursorInstalled(): Promise<InstallCheck> {
       error: `Cursor check failed: ${err.message}`,
     };
   }
+}
+
+// Check if Cursor Agent CLI is installed
+export async function isCursorAgentInstalled(): Promise<InstallCheck> {
+  const { findCursorAgentCli } = await import("./ralph-launchers");
+
+  const agentPath = await findCursorAgentCli();
+  if (agentPath) {
+    return { installed: true, mode: "cli", binaryPath: agentPath };
+  }
+
+  return {
+    installed: false,
+    error: "Cursor Agent CLI not found. Install: curl https://cursor.com/install -fsS | bash",
+  };
 }
 
 // Check if VS Code is installed (CLI or app)
@@ -999,6 +1015,243 @@ exec bash
 
   return scriptPath;
 }
+
+async function createCursorAgentLaunchScript(
+  projectPath: string,
+  context: string,
+  agentPath: string
+): Promise<string> {
+  const { writeFileSync, mkdirSync } = await import("fs");
+  const { join } = await import("path");
+  const { homedir } = await import("os");
+  const { randomUUID } = await import("crypto");
+
+  validateProjectPath(projectPath);
+  await cleanupOldScripts();
+
+  const scriptDir = join(homedir(), ".brain-dump", "scripts");
+  mkdirSync(scriptDir, { recursive: true });
+
+  const scriptPath = join(scriptDir, `launch-cursor-agent-${randomUUID()}.sh`);
+  const titleMatch = context.match(/^# Task: (.+)$/m);
+  const ticketTitle = titleMatch?.[1] ?? "Unknown Task";
+
+  const safeProjectPath = escapeForBashDoubleQuote(projectPath);
+  const safeTicketTitle = escapeForBashDoubleQuote(ticketTitle);
+  const safeAgentPath = escapeForBashDoubleQuote(agentPath);
+
+  const script = `#!/bin/bash
+set -e  # Exit on error
+
+cd "${safeProjectPath}"
+
+CONTEXT_FILE="${safeProjectPath}/.brain-dump-context.md"
+cat > "$CONTEXT_FILE" << 'BRAIN_DUMP_CONTEXT_EOF_7f3a9b2c'
+${context}
+BRAIN_DUMP_CONTEXT_EOF_7f3a9b2c
+
+echo ""
+echo -e "\\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo -e "\\033[0;33m🤖 Brain Dump - Starting with Cursor Agent\\033[0m"
+echo -e "\\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo -e "\\033[1;33m📋 Task:\\033[0m ${safeTicketTitle}"
+echo -e "\\033[1;33m📁 Project:\\033[0m ${safeProjectPath}"
+echo -e "\\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
+echo ""
+
+export CURSOR_AGENT=1
+
+CURSOR_AGENT_BIN="${safeAgentPath}"
+if [[ "$CURSOR_AGENT_BIN" = /* ]]; then
+  if [ ! -x "$CURSOR_AGENT_BIN" ]; then
+    echo -e "\\033[0;31m✗ Cursor Agent CLI binary not found at $CURSOR_AGENT_BIN\\033[0m"
+    echo "Install: curl https://cursor.com/install -fsS | bash"
+    rm -f "$CONTEXT_FILE"
+    exec bash
+  fi
+elif ! command -v "$CURSOR_AGENT_BIN" >/dev/null 2>&1; then
+  echo -e "\\033[0;31m✗ Cursor Agent CLI binary not found in PATH\\033[0m"
+  echo "Install: curl https://cursor.com/install -fsS | bash"
+  rm -f "$CONTEXT_FILE"
+  exec bash
+fi
+
+AGENT_PROMPT="$(cat "$CONTEXT_FILE")"
+set +e
+"$CURSOR_AGENT_BIN" --force --approve-mcps --trust -p "$AGENT_PROMPT"
+AGENT_EXIT=$?
+set -e
+
+if [ $AGENT_EXIT -ne 0 ]; then
+  echo ""
+  echo -e "\\033[0;33m⚠ Cursor Agent exited with code $AGENT_EXIT\\033[0m"
+  echo "Common fixes:"
+  echo "  - Check agent is installed: agent --version"
+  echo "  - Reinstall: curl https://cursor.com/install -fsS | bash"
+  echo "  - Verify MCP setup: brain-dump doctor"
+fi
+
+rm -f "$CONTEXT_FILE"
+
+echo ""
+echo -e "\\033[0;33m✅ Cursor Agent session ended.\\033[0m"
+exec bash
+`;
+
+  writeFileSync(scriptPath, script, { mode: 0o700 });
+
+  return scriptPath;
+}
+
+// Launch Cursor Agent CLI in terminal with ticket context
+// Note: exec() is used intentionally here for fire-and-forget terminal launches.
+// The terminal command is built from validated internal paths via buildTerminalCommand().
+export const launchCursorAgentInTerminal = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: {
+      ticketId: string;
+      context: string;
+      projectPath: string;
+      preferredTerminal?: string | null;
+      projectName: string;
+      epicName: string | null;
+      ticketTitle: string;
+    }) => data
+  )
+  .handler(async ({ data }): Promise<LaunchResult> => {
+    const {
+      ticketId,
+      context,
+      projectPath,
+      preferredTerminal,
+      projectName,
+      epicName,
+      ticketTitle,
+    } = data;
+    const { exec } = await import("child_process");
+    const { existsSync } = await import("fs");
+
+    if (!existsSync(projectPath)) {
+      return {
+        success: false,
+        method: "clipboard",
+        message: `Project directory not found: ${projectPath}. Context copied to clipboard instead.`,
+      };
+    }
+
+    const agentCheck = await isCursorAgentInstalled();
+    if (!agentCheck.installed) {
+      return {
+        success: false,
+        method: "clipboard",
+        message:
+          agentCheck.error ||
+          "Cursor Agent CLI is not installed. Context copied to clipboard instead.",
+      };
+    }
+
+    let terminal: string | null = null;
+    const warnings: string[] = [];
+
+    if (preferredTerminal) {
+      const result = await isTerminalAvailable(preferredTerminal);
+      if (result.available) {
+        terminal = preferredTerminal;
+      } else {
+        const reason = result.error || "not installed";
+        warnings.push(
+          `Your preferred terminal "${preferredTerminal}" is not available (${reason}). Using auto-detected terminal instead.`
+        );
+      }
+    }
+
+    if (!terminal) {
+      terminal = await detectTerminal();
+    }
+
+    if (!terminal) {
+      return {
+        success: false,
+        method: "clipboard",
+        message: "No supported terminal emulator found. Context copied to clipboard instead.",
+        ...(warnings.length > 0 && { warnings }),
+      };
+    }
+
+    try {
+      const workflowResult = await startWorkflowForLaunch(ticketId);
+      warnings.push(...workflowResult.warnings);
+    } catch (err) {
+      warnings.push(await formatCoreError(err));
+    }
+
+    try {
+      const { writeFileSync, mkdirSync } = await import("fs");
+      const { join } = await import("path");
+      const { homedir } = await import("os");
+
+      const stateDir = join(homedir(), ".brain-dump");
+      mkdirSync(stateDir, { recursive: true });
+
+      const stateFile = join(stateDir, "current-ticket.json");
+      writeFileSync(
+        stateFile,
+        JSON.stringify({
+          ticketId,
+          projectPath,
+          startedAt: new Date().toISOString(),
+        })
+      );
+    } catch (error) {
+      console.error("Failed to save current ticket state:", error);
+      warnings.push(
+        "Could not save ticket state. The 'brain-dump' CLI commands may not work for this session."
+      );
+    }
+
+    let scriptPath: string;
+    try {
+      scriptPath = await createCursorAgentLaunchScript(
+        projectPath,
+        context,
+        agentCheck.binaryPath || "agent"
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      return {
+        success: false,
+        method: "clipboard",
+        message: `Failed to create launch script: ${message}. Check permissions on ~/.brain-dump/scripts/.`,
+        ...(warnings.length > 0 && { warnings }),
+      };
+    }
+
+    const windowTitle = buildWindowTitle(projectName, epicName, ticketTitle);
+    const terminalCommand = buildTerminalCommand(terminal, projectPath, scriptPath, windowTitle);
+
+    try {
+      exec(terminalCommand, (error) => {
+        if (error) {
+          console.error("Terminal launch error:", error);
+        }
+      });
+
+      return {
+        success: true,
+        method: "terminal",
+        message: `Opening Cursor Agent in ${terminal}... If no window appears, check that ${terminal} is running.`,
+        terminalUsed: terminal,
+        ...(warnings.length > 0 && { warnings }),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        method: "clipboard",
+        message: `Failed to launch terminal: ${error instanceof Error ? error.message : "Unknown error"}. Context copied to clipboard instead.`,
+        ...(warnings.length > 0 && { warnings }),
+      };
+    }
+  });
 
 // Launch Codex (CLI in terminal, or Codex App fallback on macOS)
 export const launchCodexInTerminal = createServerFn({ method: "POST" })

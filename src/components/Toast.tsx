@@ -1,4 +1,13 @@
-import { useEffect, useState, createContext, useContext, useCallback, ReactNode } from "react";
+import {
+  useEffect,
+  useState,
+  createContext,
+  useContext,
+  useCallback,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
 import { X, CheckCircle, AlertCircle, Info } from "lucide-react";
 
 type ToastType = "success" | "error" | "info";
@@ -44,16 +53,35 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 }
 
 function ToastContainer({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: string) => void }) {
-  return (
+  if (typeof document === "undefined" || !document.body) {
+    return null;
+  }
+
+  const containerStyles: CSSProperties = {
+    position: "fixed",
+    left: "max(1rem, env(safe-area-inset-left))",
+    right: "max(1rem, env(safe-area-inset-right))",
+    bottom: "max(1rem, env(safe-area-inset-bottom))",
+    zIndex: 50,
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+    alignItems: "flex-end",
+    pointerEvents: "none",
+  };
+
+  return createPortal(
     <div
-      className="fixed bottom-4 right-4 z-50 flex flex-col gap-2"
+      style={containerStyles}
       aria-live="polite"
       aria-label="Notifications"
+      data-testid="toast-container"
     >
       {toasts.map((toast) => (
         <ToastItem key={toast.id} toast={toast} onRemove={onRemove} />
       ))}
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -93,13 +121,16 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
     <div
       role={role}
       aria-live={toast.type === "error" ? "assertive" : "polite"}
-      className={`flex items-center gap-3 px-4 py-3 rounded-xl border backdrop-blur-md ${config.bgClass} shadow-xl animate-slide-in`}
+      className={`pointer-events-auto ml-auto flex max-w-[32rem] items-start gap-3 rounded-xl border px-4 py-3 shadow-xl backdrop-blur-md animate-slide-in ${config.bgClass}`}
+      style={{ width: "min(32rem, 100%)" }}
     >
-      <Icon size={18} className={config.iconClass} aria-hidden="true" />
-      <span className="text-sm text-[var(--text-primary)]">{toast.message}</span>
+      <Icon size={18} className={`mt-0.5 shrink-0 ${config.iconClass}`} aria-hidden="true" />
+      <span className="min-w-0 flex-1 break-words text-sm text-[var(--text-primary)]">
+        {toast.message}
+      </span>
       <button
         onClick={() => onRemove(toast.id)}
-        className="ml-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+        className="ml-2 shrink-0 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
         aria-label="Dismiss notification"
       >
         <X size={16} />

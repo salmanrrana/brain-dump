@@ -83,7 +83,7 @@ workflow "start-work"({ ticketId }) -> { branchName, ticketDetails }
 **Progress Updates:**
 
 ```
-comment "add"({ ticketId, text: "Starting implementation of login form", author: "claude", type: "comment" })
+comment "add"({ ticketId, text: "Starting implementation of login form", type: "comment" })
 ```
 
 **Completion:**
@@ -96,7 +96,7 @@ ticket "update-status"({ ticketId, status: "done" })
 **Work Summary:**
 
 ```
-comment "add"({ ticketId, text: "## Summary\n- Added LoginForm component\n- Integrated with auth API", author: "claude", type: "work_summary" })
+comment "add"({ ticketId, text: "## Summary\n- Added LoginForm component\n- Integrated with auth API", type: "work_summary" })
 ```
 
 #### Best Practices

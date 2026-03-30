@@ -591,6 +591,13 @@ describe("Copilot CLI Environment Detection (functional)", () => {
     expect(detectEnvironment()).toBe("copilot-cli");
   });
 
+  it("prioritizes explicit Cursor Agent flag over inherited Claude Code vars", () => {
+    process.env.CLAUDE_CODE = "true";
+    process.env.CURSOR_AGENT = "1";
+    expect(detectEnvironment()).toBe("cursor-agent");
+    expect(detectAuthor()).toBe("cursor-agent");
+  });
+
   it("returns 'copilot' as author when Copilot CLI detected (no Ralph session)", () => {
     process.env.COPILOT_CLI = "1";
     // detectAuthor may return "ralph:copilot" if .claude/ralph-state.json exists
@@ -598,10 +605,10 @@ describe("Copilot CLI Environment Detection (functional)", () => {
     expect(author === "copilot" || author === "ralph:copilot").toBe(true);
   });
 
-  it("prioritizes Claude Code over Copilot CLI", () => {
+  it("prioritizes explicit Copilot CLI flag over inherited Claude Code vars", () => {
     process.env.CLAUDE_CODE = "true";
     process.env.COPILOT_CLI = "1";
-    expect(detectEnvironment()).toBe("claude-code");
+    expect(detectEnvironment()).toBe("copilot-cli");
   });
 
   it("prioritizes OpenCode over Copilot CLI", () => {

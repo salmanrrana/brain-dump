@@ -23,6 +23,8 @@ Follow this 5-step workflow exactly:
   - pnpm type-check
   - pnpm lint
   - pnpm test
+- Post a comment.add with commentType: "test_report" summarizing the exact command results
+- Omit author when adding AI comments so Brain Dump auto-detects the active provider
 - Ensure acceptance criteria are met
 
 3. Complete implementation

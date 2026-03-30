@@ -59,6 +59,7 @@ export type WorkingMethod =
   | "vscode"
   | "opencode"
   | "cursor"
+  | "cursor-agent"
   | "copilot-cli"
   | "codex";
 
@@ -119,6 +120,7 @@ function resolveEffectiveEnvironment(workingMethod: string, detectedEnvironment:
     workingMethod === "vscode" ||
     workingMethod === "opencode" ||
     workingMethod === "cursor" ||
+    workingMethod === "cursor-agent" ||
     workingMethod === "copilot-cli" ||
     workingMethod === "codex"
   ) {

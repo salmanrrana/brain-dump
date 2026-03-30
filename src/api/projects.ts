@@ -23,6 +23,7 @@ export interface UpdateProjectInput {
     | "vscode"
     | "opencode"
     | "cursor"
+    | "cursor-agent"
     | "copilot-cli"
     | "codex";
 }

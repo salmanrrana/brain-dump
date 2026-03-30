@@ -340,12 +340,11 @@ describe("Environment Detection", () => {
       expect(detectEnvironment()).toBe("claude-code");
     });
 
-    it("should prioritize Claude Code over OpenCode when both are present", () => {
-      process.env.OPENCODE_EXPERIMENTAL = "true";
+    it("should prioritize explicit OpenCode detection over Claude Code when both are present", () => {
+      process.env.OPENCODE = "1";
       process.env.CLAUDE_CODE = "true";
 
-      // Claude Code should win
-      expect(detectEnvironment()).toBe("claude-code");
+      expect(detectEnvironment()).toBe("opencode");
     });
 
     it("should prioritize OpenCode over VS Code when both are present", () => {
@@ -380,13 +379,19 @@ describe("Environment Detection", () => {
       expect(detectEnvironment()).toBe("cursor");
     });
 
-    it("should prioritize Claude Code over both OpenCode and VS Code", () => {
+    it("should prioritize explicit provider detection over inherited Claude Code and VS Code env vars", () => {
       process.env.VSCODE_GIT_ASKPASS_NODE = "/path/to/node";
-      process.env.OPENCODE_EXPERIMENTAL = "true";
+      process.env.OPENCODE = "1";
       process.env.CLAUDE_CODE = "true";
 
-      // Claude Code should win
-      expect(detectEnvironment()).toBe("claude-code");
+      expect(detectEnvironment()).toBe("opencode");
+    });
+
+    it("should prioritize explicit Cursor Agent flag over inherited Claude Code env vars", () => {
+      process.env.CURSOR_AGENT = "1";
+      process.env.CLAUDE_CODE = "true";
+
+      expect(detectEnvironment()).toBe("cursor-agent");
     });
 
     it("should detect OpenCode when only OpenCode vars are present", () => {

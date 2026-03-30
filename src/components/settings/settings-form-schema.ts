@@ -6,6 +6,7 @@ export const workingMethodSchema = z.enum([
   "vscode",
   "opencode",
   "cursor",
+  "cursor-agent",
   "copilot-cli",
   "codex",
 ]);

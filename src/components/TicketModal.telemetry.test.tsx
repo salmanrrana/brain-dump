@@ -111,6 +111,7 @@ vi.mock("../api/terminal", async () => {
     launchCodexInTerminal: vi.fn(),
     launchVSCodeInTerminal: vi.fn(),
     launchCursorInTerminal: vi.fn(),
+    launchCursorAgentInTerminal: vi.fn(),
     launchCopilotInTerminal: vi.fn(),
     launchOpenCodeInTerminal: vi.fn(),
   };

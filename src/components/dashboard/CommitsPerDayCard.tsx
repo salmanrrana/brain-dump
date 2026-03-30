@@ -1,8 +1,8 @@
 import { type FC } from "react";
 import { GitCommit } from "lucide-react";
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   ResponsiveContainer,
@@ -22,18 +22,16 @@ export interface CommitsPerDayCardProps {
 }
 
 /**
- * CommitsPerDayCard - Shows commit activity trend over the last 30 days.
+ * CommitsPerDayCard - Commit activity trend with gradient area fill.
  */
 export const CommitsPerDayCard: FC<CommitsPerDayCardProps> = ({ analytics }) => {
   const { commitsPerDay } = analytics;
 
-  // Calculate stats
   const totalCommits = commitsPerDay.reduce((sum, day) => sum + day.count, 0);
   const avgPerDay =
     commitsPerDay.length > 0 ? (totalCommits / commitsPerDay.length).toFixed(1) : "0";
   const maxCommits = Math.max(...commitsPerDay.map((d) => d.count), 0);
 
-  // Format dates for display (show day of month)
   const formattedData = commitsPerDay.map((item) => ({
     ...item,
     displayDate: new Date(item.date).getDate().toString(),
@@ -42,27 +40,42 @@ export const CommitsPerDayCard: FC<CommitsPerDayCardProps> = ({ analytics }) => 
   return (
     <section style={sectionStyles}>
       <div style={sectionHeaderStyles}>
-        <GitCommit size={18} style={{ color: "var(--accent-primary)" }} aria-hidden="true" />
+        <GitCommit size={18} style={{ color: "#8b5cf6" }} aria-hidden="true" />
         <h3 style={sectionTitleStyles}>Commits per Day</h3>
         <span style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>
-          {totalCommits} total • {avgPerDay}/day avg
+          {totalCommits} total {"\u2022"} {avgPerDay}/day avg
         </span>
       </div>
       <div style={sectionContentStyles}>
         {commitsPerDay.length > 0 && maxCommits > 0 ? (
           <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={formattedData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-primary)" opacity={0.2} />
+            <AreaChart data={formattedData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+              <defs>
+                <linearGradient id="commitsGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid
+                strokeDasharray="none"
+                stroke="var(--border-primary)"
+                opacity={0.12}
+                vertical={false}
+              />
               <XAxis
                 dataKey="displayDate"
                 tick={{ fontSize: 10, fill: "var(--text-tertiary)" }}
                 stroke="var(--border-primary)"
                 interval="preserveStartEnd"
+                axisLine={false}
+                tickLine={false}
               />
               <YAxis
                 tick={{ fontSize: 10, fill: "var(--text-tertiary)" }}
                 stroke="var(--border-primary)"
                 width={30}
+                axisLine={false}
+                tickLine={false}
               />
               <Tooltip
                 cursor={{ fill: "transparent" }}
@@ -74,12 +87,8 @@ export const CommitsPerDayCard: FC<CommitsPerDayCardProps> = ({ analytics }) => 
                   padding: "var(--spacing-2)",
                   borderRadius: "var(--radius-md)",
                 }}
-                wrapperStyle={{
-                  outline: "none",
-                  border: "none",
-                }}
+                wrapperStyle={{ outline: "none", border: "none" }}
                 labelStyle={{ color: "var(--text-primary)" }}
-                itemStyle={{ color: "var(--text-secondary)" }}
                 formatter={(value: number) => [`${value} commits`, "Commits"]}
                 labelFormatter={(label) => {
                   const item = formattedData.find((d) => d.displayDate === label);
@@ -91,15 +100,21 @@ export const CommitsPerDayCard: FC<CommitsPerDayCardProps> = ({ analytics }) => 
                     : label;
                 }}
               />
-              <Line
+              <Area
                 type="monotone"
                 dataKey="count"
-                stroke="var(--accent-primary)"
-                strokeWidth={2}
-                dot={{ fill: "var(--accent-primary)", r: 3 }}
-                activeDot={{ r: 5, fill: "var(--accent-secondary)" }}
+                stroke="#8b5cf6"
+                strokeWidth={2.5}
+                fill="url(#commitsGradient)"
+                dot={false}
+                activeDot={{
+                  r: 5,
+                  strokeWidth: 2,
+                  stroke: "#8b5cf6",
+                  fill: "var(--bg-card)",
+                }}
               />
-            </LineChart>
+            </AreaChart>
           </ResponsiveContainer>
         ) : (
           <div

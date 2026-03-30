@@ -118,6 +118,7 @@ export function GeneralTab({
                           | "vscode"
                           | "opencode"
                           | "cursor"
+                          | "cursor-agent"
                           | "copilot-cli"
                           | "codex"
                       )
@@ -130,6 +131,7 @@ export function GeneralTab({
                     <option value="vscode">VS Code</option>
                     <option value="opencode">OpenCode</option>
                     <option value="cursor">Cursor</option>
+                    <option value="cursor-agent">Cursor Agent</option>
                     <option value="copilot-cli">Copilot CLI</option>
                     <option value="codex">Codex</option>
                   </select>

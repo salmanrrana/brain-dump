@@ -1,6 +1,6 @@
-import { type FC, useMemo, useState, useEffect } from "react";
+import { type FC, useMemo } from "react";
 import { Clock, Bot } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
 import {
   sectionStyles,
   sectionHeaderStyles,
@@ -13,8 +13,23 @@ export interface RalphMetricsProps {
   analytics: DashboardAnalytics;
 }
 
+/** State-specific colors matching the cost explorer stage palette. */
+const STATE_COLORS: Record<string, string> = {
+  committing: "#a855f7", // violet
+  implementing: "#f97316", // orange
+  testing: "#22c55e", // green
+  analyzing: "#3b82f6", // blue
+  reviewing: "#14b8a6", // teal
+  idle: "#71717a", // gray
+};
+
+function getStateColor(state: string): string {
+  const key = state.toLowerCase().replace(/\s+/g, "_");
+  return STATE_COLORS[key] ?? "#6366f1";
+}
+
 /**
- * RalphMetrics - Shows Ralph session success rate, average duration, and time by state.
+ * RalphMetrics - Shows Ralph session stats with state-colored bars.
  */
 export const RalphMetrics: FC<RalphMetricsProps> = ({ analytics }) => {
   const { ralphMetrics } = analytics;
@@ -28,37 +43,17 @@ export const RalphMetrics: FC<RalphMetricsProps> = ({ analytics }) => {
     return `${hours}h ${mins}m`;
   };
 
-  // Prepare data for horizontal bar chart (time by state)
   const stateData = useMemo(() => {
     const entries = Object.entries(ralphMetrics.avgTimeByState)
       .sort(([, a], [, b]) => b - a)
-      .slice(0, 5); // Top 5 states
+      .slice(0, 5);
 
     return entries.map(([state, minutes]) => ({
       name: state.charAt(0).toUpperCase() + state.slice(1).replace(/_/g, " "),
       value: minutes,
+      rawState: state,
     }));
   }, [ralphMetrics.avgTimeByState]);
-
-  // Get computed colors for gradient
-  const [colors, setColors] = useState({ start: "#14b8a6", end: "#f97316" });
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const updateColors = () => {
-      const root = document.documentElement;
-      const style = getComputedStyle(root);
-      const start = style.getPropertyValue("--accent-ai").trim() || "#14b8a6";
-      const end = style.getPropertyValue("--accent-primary").trim() || "#f97316";
-      setColors({ start, end });
-    };
-    updateColors();
-    const observer = new MutationObserver(updateColors);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
-    return () => observer.disconnect();
-  }, []);
 
   return (
     <section style={sectionStyles}>
@@ -97,7 +92,6 @@ export const RalphMetrics: FC<RalphMetricsProps> = ({ analytics }) => {
               style={{
                 fontSize: "var(--font-size-2xl)",
                 fontWeight: "var(--font-weight-bold)" as React.CSSProperties["fontWeight"],
-                color: "var(--accent-ai)",
                 background: "linear-gradient(135deg, var(--accent-ai), var(--accent-primary))",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
@@ -109,7 +103,7 @@ export const RalphMetrics: FC<RalphMetricsProps> = ({ analytics }) => {
           </div>
         </div>
 
-        {/* Time by State - Horizontal Bar Chart */}
+        {/* Time by State - Horizontal Bar Chart with state-specific colors */}
         {stateData.length > 0 ? (
           <div>
             <div
@@ -127,28 +121,36 @@ export const RalphMetrics: FC<RalphMetricsProps> = ({ analytics }) => {
               <BarChart
                 data={stateData}
                 layout="vertical"
-                margin={{ top: 5, right: 5, left: 60, bottom: 5 }}
+                margin={{ top: 5, right: 5, left: 70, bottom: 5 }}
               >
                 <defs>
-                  <linearGradient id="ralphGradient" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor={colors.start} />
-                    <stop offset="100%" stopColor={colors.end} />
-                  </linearGradient>
+                  {stateData.map((item, i) => {
+                    const color = getStateColor(item.rawState);
+                    return (
+                      <linearGradient key={i} id={`stateBar${i}`} x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor={color} stopOpacity={0.85} />
+                        <stop offset="100%" stopColor={color} stopOpacity={0.5} />
+                      </linearGradient>
+                    );
+                  })}
                 </defs>
                 <XAxis
                   type="number"
                   tick={{ fontSize: 9, fill: "var(--text-tertiary)" }}
                   stroke="var(--border-primary)"
+                  axisLine={false}
+                  tickLine={false}
                 />
                 <YAxis
                   type="category"
                   dataKey="name"
-                  tick={{ fontSize: 10, fill: "var(--text-secondary)" }}
-                  stroke="var(--border-primary)"
-                  width={55}
+                  tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
+                  stroke="transparent"
+                  width={65}
+                  tickLine={false}
                 />
                 <Tooltip
-                  cursor={{ fill: "transparent" }}
+                  cursor={{ fill: "var(--bg-hover)", radius: 4 }}
                   contentStyle={{
                     backgroundColor: "var(--bg-secondary)",
                     border: "none",
@@ -157,18 +159,14 @@ export const RalphMetrics: FC<RalphMetricsProps> = ({ analytics }) => {
                     padding: "var(--spacing-2)",
                     borderRadius: "var(--radius-md)",
                   }}
-                  wrapperStyle={{
-                    outline: "none",
-                    border: "none",
-                  }}
+                  wrapperStyle={{ outline: "none", border: "none" }}
                   formatter={(value: number) => formatDuration(value)}
                 />
-                <Bar
-                  dataKey="value"
-                  radius={[0, 4, 4, 0]}
-                  fill="url(#ralphGradient)"
-                  background={false}
-                />
+                <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={20}>
+                  {stateData.map((_entry, index) => (
+                    <Cell key={index} fill={`url(#stateBar${index})`} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>

@@ -19,6 +19,7 @@ export interface DbProject {
     | "vscode"
     | "opencode"
     | "cursor"
+    | "cursor-agent"
     | "copilot-cli"
     | "codex";
   createdAt: string;
@@ -319,6 +320,7 @@ export interface DbSettings {
     | "vscode"
     | "opencode"
     | "cursor"
+    | "cursor-agent"
     | "copilot-cli"
     | "codex";
   dockerRuntime?: DockerRuntime | null;

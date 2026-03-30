@@ -28,6 +28,7 @@ import {
   launchCodexInTerminal,
   launchVSCodeInTerminal,
   launchCursorInTerminal,
+  launchCursorAgentInTerminal,
   launchCopilotInTerminal,
   launchOpenCodeInTerminal,
 } from "../../api/terminal";
@@ -145,6 +146,7 @@ export function EpicDetailHeader({
         | "codex-app"
         | "vscode"
         | "cursor"
+        | "cursor-agent"
         | "copilot"
         | "opencode"
     ) => {
@@ -187,6 +189,8 @@ export function EpicDetailHeader({
               return launchVSCodeInTerminal({ data: payload });
             case "cursor":
               return launchCursorInTerminal({ data: payload });
+            case "cursor-agent":
+              return launchCursorAgentInTerminal({ data: payload });
             case "copilot":
               return launchCopilotInTerminal({ data: payload });
             case "opencode":
@@ -218,8 +222,8 @@ export function EpicDetailHeader({
 
   const handleLaunchFocusedReview = useCallback(
     async (provider: {
-      aiBackend: "claude" | "opencode" | "codex";
-      workingMethodOverride?: "vscode" | "cursor" | "copilot-cli";
+      aiBackend: "claude" | "opencode" | "codex" | "cursor-agent";
+      workingMethodOverride?: "copilot-cli";
       label: string;
     }): Promise<void> => {
       if (selectedReviewTicketIds.length === 0) {
@@ -497,7 +501,15 @@ export function EpicDetailHeader({
                           style={launchOptionButtonStyles}
                         >
                           <Monitor size={14} color="var(--warning)" />
-                          <span style={optionTextStyles}>Cursor</span>
+                          <span style={optionTextStyles}>Cursor Editor</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleLaunchInteractive("cursor-agent")}
+                          style={launchOptionButtonStyles}
+                        >
+                          <Terminal size={14} color="var(--warning)" />
+                          <span style={optionTextStyles}>Cursor Agent</span>
                         </button>
                         <button
                           type="button"
@@ -550,16 +562,8 @@ export function EpicDetailHeader({
                           onClick={() => showToast("info", "Ralph launch coming soon")}
                           style={launchOptionButtonStyles}
                         >
-                          <Code2 size={14} color="var(--accent-primary)" />
-                          <span style={optionTextStyles}>VS Code</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => showToast("info", "Ralph launch coming soon")}
-                          style={launchOptionButtonStyles}
-                        >
-                          <Monitor size={14} color="var(--warning)" />
-                          <span style={optionTextStyles}>Cursor</span>
+                          <Terminal size={14} color="var(--warning)" />
+                          <span style={optionTextStyles}>Cursor Agent</span>
                         </button>
                         <button
                           type="button"
@@ -809,18 +813,9 @@ export function EpicDetailHeader({
                       icon: <Terminal size={14} className="text-[var(--success)] flex-shrink-0" />,
                     },
                     {
-                      label: "VS Code",
-                      aiBackend: "claude" as const,
-                      workingMethodOverride: "vscode" as const,
-                      icon: (
-                        <Code2 size={14} className="text-[var(--accent-primary)] flex-shrink-0" />
-                      ),
-                    },
-                    {
-                      label: "Cursor",
-                      aiBackend: "claude" as const,
-                      workingMethodOverride: "cursor" as const,
-                      icon: <Monitor size={14} className="text-[var(--warning)] flex-shrink-0" />,
+                      label: "Cursor Agent",
+                      aiBackend: "cursor-agent" as const,
+                      icon: <Terminal size={14} className="text-[var(--warning)] flex-shrink-0" />,
                     },
                     {
                       label: "Copilot CLI",

@@ -53,6 +53,7 @@ import {
   launchCodexInTerminal,
   launchVSCodeInTerminal,
   launchCursorInTerminal,
+  launchCursorAgentInTerminal,
   launchCopilotInTerminal,
   launchOpenCodeInTerminal,
 } from "../api/terminal";
@@ -589,6 +590,49 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     }
   }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification, form]);
 
+  // Handle Start Cursor Agent - launch Cursor Agent CLI in terminal
+  const handleStartCursorAgent = useCallback(async () => {
+    setIsStartingWork(true);
+    setStartWorkNotification(null);
+    setShowStartWorkMenu(false);
+
+    try {
+      const contextResult = await getTicketContext({ data: ticket.id });
+
+      const launchResult = await launchCursorAgentInTerminal({
+        data: {
+          ticketId: ticket.id,
+          context: contextResult.context,
+          projectPath: contextResult.projectPath,
+          preferredTerminal: settings?.terminalEmulator ?? null,
+          projectName: contextResult.projectName,
+          epicName: contextResult.epicName,
+          ticketTitle: contextResult.ticketTitle,
+        },
+      });
+
+      if (launchResult.warnings) {
+        launchResult.warnings.forEach((warning) => showToast("info", warning));
+      }
+
+      if (launchResult.success) {
+        form.setFieldValue("status", "in_progress");
+        setStartWorkNotification({
+          type: "success",
+          message: launchResult.message,
+        });
+        setTimeout(() => onUpdate(), 500);
+      } else {
+        showToast("error", launchResult.message);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "An unexpected error occurred";
+      showToast("error", `Failed to launch Cursor Agent: ${message}`);
+    } finally {
+      setIsStartingWork(false);
+    }
+  }, [ticket.id, onUpdate, settings?.terminalEmulator, showToast, setStartWorkNotification, form]);
+
   // Handle Start Copilot CLI
   const handleStartCopilot = useCallback(async () => {
     setIsStartingWork(true);
@@ -669,13 +713,14 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
       workingMethodOverride,
     }: {
       useSandbox: boolean;
-      aiBackend: "claude" | "opencode" | "codex";
+      aiBackend: "claude" | "opencode" | "codex" | "cursor-agent";
       workingMethodOverride?:
         | "auto"
         | "claude-code"
         | "vscode"
         | "opencode"
         | "cursor"
+        | "cursor-agent"
         | "copilot-cli"
         | "codex";
     }) => {
@@ -1678,7 +1723,14 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                         className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
                       >
                         <Monitor size={14} className="text-[var(--warning)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Cursor</span>
+                        <span className="text-sm text-[var(--text-primary)]">Cursor Editor</span>
+                      </button>
+                      <button
+                        onClick={() => void handleStartCursorAgent()}
+                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
+                      >
+                        <Terminal size={14} className="text-[var(--warning)] flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">Cursor Agent</span>
                       </button>
                       <button
                         onClick={() => void handleStartCopilot()}
@@ -1727,27 +1779,13 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
                         onClick={() =>
                           void handleStartRalph({
                             useSandbox: false,
-                            aiBackend: "claude",
-                            workingMethodOverride: "vscode",
+                            aiBackend: "cursor-agent",
                           })
                         }
                         className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
                       >
-                        <Code2 size={14} className="text-[var(--accent-primary)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">VS Code</span>
-                      </button>
-                      <button
-                        onClick={() =>
-                          void handleStartRalph({
-                            useSandbox: false,
-                            aiBackend: "claude",
-                            workingMethodOverride: "cursor",
-                          })
-                        }
-                        className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] px-2.5 py-2 text-left hover:bg-[var(--bg-hover)] transition-colors"
-                      >
-                        <Monitor size={14} className="text-[var(--warning)] flex-shrink-0" />
-                        <span className="text-sm text-[var(--text-primary)]">Cursor</span>
+                        <Terminal size={14} className="text-[var(--warning)] flex-shrink-0" />
+                        <span className="text-sm text-[var(--text-primary)]">Cursor Agent</span>
                       </button>
                       <button
                         onClick={() =>

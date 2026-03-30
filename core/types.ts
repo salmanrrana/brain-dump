@@ -74,6 +74,7 @@ export interface Project {
     | "vscode"
     | "opencode"
     | "cursor"
+    | "cursor-agent"
     | "copilot-cli"
     | "codex"
     | null;
@@ -685,6 +686,7 @@ export interface EnvironmentInfo {
     | "vscode"
     | "opencode"
     | "cursor"
+    | "cursor-agent"
     | "copilot-cli"
     | "codex"
     | "unknown";
@@ -702,6 +704,7 @@ export interface ProjectSettings {
     | "vscode"
     | "opencode"
     | "cursor"
+    | "cursor-agent"
     | "copilot-cli"
     | "codex";
   effectiveEnvironment: string;

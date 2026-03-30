@@ -419,25 +419,29 @@ export const CostTreemapChart: FC<CostTreemapChartProps> = ({ data, viewMode, on
           nodeClick: "zoomToNode",
           breadcrumb: {
             show: true,
-            top: 6,
-            left: 8,
-            height: 22,
+            top: 8,
+            left: 10,
+            height: 28,
             itemStyle: {
-              color: "rgba(30, 41, 59, 0.9)",
-              borderColor: "rgba(255,255,255,0.08)",
+              color: "rgba(30, 41, 59, 0.92)",
+              borderColor: "rgba(255,255,255,0.12)",
               borderWidth: 1,
-              borderRadius: 6,
-              shadowBlur: 8,
-              shadowColor: "rgba(0,0,0,0.3)",
+              borderRadius: 8,
+              shadowBlur: 12,
+              shadowColor: "rgba(0,0,0,0.4)",
               textStyle: {
                 color: "#e2e8f0",
                 fontSize: 13,
+                fontWeight: "bold" as const,
               },
             },
             emphasis: {
               itemStyle: {
-                color: "rgba(51, 65, 85, 0.95)",
-                textStyle: { color: "#f1f5f9" },
+                color: "rgba(51, 65, 85, 0.98)",
+                borderColor: "rgba(16,185,129,0.4)",
+                shadowBlur: 16,
+                shadowColor: "rgba(16,185,129,0.15)",
+                textStyle: { color: "#f1f5f9", fontWeight: "bold" as const },
               },
             },
           },
@@ -537,32 +541,39 @@ export const CostTreemapChart: FC<CostTreemapChartProps> = ({ data, viewMode, on
             rich: {
               name: {
                 fontSize: 14,
-                color: "rgba(255,255,255,0.9)",
+                fontWeight: 500,
+                color: "#fff",
                 lineHeight: 20,
-                textShadowColor: "rgba(0,0,0,0.7)",
-                textShadowBlur: 4,
+                textShadowColor: "rgba(0,0,0,0.85)",
+                textShadowBlur: 6,
+                textShadowOffsetX: 1,
+                textShadowOffsetY: 1,
               },
               cost: {
                 fontSize: 16,
                 fontWeight: "bold" as const,
                 color: "#34d399",
                 lineHeight: 24,
-                textShadowColor: "rgba(0,0,0,0.7)",
-                textShadowBlur: 4,
+                textShadowColor: "rgba(0,0,0,0.85)",
+                textShadowBlur: 6,
+                textShadowOffsetX: 1,
+                textShadowOffsetY: 1,
               },
             },
           },
-          // Hover emphasis — glow effect (no focus/blur to avoid blocking drill-down)
+          // Hover emphasis — stronger glow with drill-in visual cue
           emphasis: {
             itemStyle: {
-              shadowBlur: 20,
-              shadowColor: "rgba(16,185,129,0.4)",
+              shadowBlur: 28,
+              shadowColor: "rgba(16,185,129,0.5)",
               shadowOffsetY: 4,
+              borderColor: "rgba(16,185,129,0.3)",
+              borderWidth: 2,
             },
             label: {
               rich: {
-                name: { color: "#fff", fontSize: 15 },
-                cost: { color: "#10b981", fontSize: 18 },
+                name: { color: "#fff", fontSize: 15, fontWeight: "bold" as const },
+                cost: { color: "#10b981", fontSize: 18, fontWeight: "bold" as const },
               },
             },
           },
@@ -594,7 +605,23 @@ export const CostTreemapChart: FC<CostTreemapChartProps> = ({ data, viewMode, on
       }
     };
 
-    return { click: handleClick };
+    // Cursor style on mouseover for drill-in affordance
+    const handleMouseOver = () => {
+      const instance = chartRef.current?.getEchartsInstance();
+      if (instance) {
+        const dom = instance.getDom();
+        dom.style.cursor = "pointer";
+      }
+    };
+    const handleMouseOut = () => {
+      const instance = chartRef.current?.getEchartsInstance();
+      if (instance) {
+        const dom = instance.getDom();
+        dom.style.cursor = "default";
+      }
+    };
+
+    return { click: handleClick, mouseover: handleMouseOver, mouseout: handleMouseOut };
   }, [onNodeSelect]);
 
   // Resize ECharts when the container is resized by the user — must be before early return
