@@ -13,50 +13,43 @@ export interface AIUsageChartProps {
   analytics: DashboardAnalytics;
 }
 
-// Get computed CSS variable values for recharts (which needs actual color strings)
+/** Richer, more distinctive palette for AI usage segments. */
+const SEGMENT_DEFAULTS = {
+  claude: "#f97316",
+  ralph: "#14b8a6",
+  opencode: "#6366f1",
+  user: "#94a3b8",
+} as const;
+
 function getComputedColors(): { claude: string; ralph: string; opencode: string; user: string } {
-  if (typeof window === "undefined") {
-    // SSR fallback
-    return {
-      claude: "#f97316", // Ember orange
-      ralph: "#14b8a6", // Teal
-      opencode: "#ea580c", // Ember secondary
-      user: "#71717a", // Gray
-    };
-  }
+  if (typeof window === "undefined") return { ...SEGMENT_DEFAULTS };
 
   const root = document.documentElement;
   const style = getComputedStyle(root);
 
   return {
-    claude: style.getPropertyValue("--accent-primary").trim() || "#f97316",
-    ralph: style.getPropertyValue("--accent-ai").trim() || "#14b8a6",
-    opencode: style.getPropertyValue("--accent-secondary").trim() || "#ea580c",
-    user: style.getPropertyValue("--text-tertiary").trim() || "#71717a",
+    claude: style.getPropertyValue("--accent-primary").trim() || SEGMENT_DEFAULTS.claude,
+    ralph: style.getPropertyValue("--accent-ai").trim() || SEGMENT_DEFAULTS.ralph,
+    opencode: "#6366f1",
+    user: style.getPropertyValue("--text-tertiary").trim() || SEGMENT_DEFAULTS.user,
   };
 }
 
 /**
- * AIUsageChart - Shows distribution of AI usage via donut chart.
+ * AIUsageChart - Donut chart with centered total statistic.
  */
 export const AIUsageChart: FC<AIUsageChartProps> = ({ analytics }) => {
   const { aiUsage } = analytics;
   const [colors, setColors] = useState(getComputedColors());
 
-  // Update colors when theme changes (listen for data-theme attribute changes)
   useEffect(() => {
     const updateColors = () => setColors(getComputedColors());
-
-    // Initial load
     updateColors();
-
-    // Watch for theme changes via MutationObserver
     const observer = new MutationObserver(updateColors);
     observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["data-theme"],
     });
-
     return () => observer.disconnect();
   }, []);
 
@@ -74,10 +67,16 @@ export const AIUsageChart: FC<AIUsageChartProps> = ({ analytics }) => {
 
   const total = aiUsage.claude + aiUsage.ralph + aiUsage.opencode + aiUsage.user;
 
+  // Find the dominant source
+  const dominant =
+    data.length > 0
+      ? data.reduce((max, item) => (item.value > max.value ? item : max), data[0]!)
+      : null;
+
   return (
     <section style={sectionStyles}>
       <div style={sectionHeaderStyles}>
-        <Brain size={18} style={{ color: "var(--accent-ai)" }} aria-hidden="true" />
+        <Brain size={18} style={{ color: colors.ralph }} aria-hidden="true" />
         <h3 style={sectionTitleStyles}>AI Usage</h3>
         <span style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>
           {total} comments
@@ -85,7 +84,7 @@ export const AIUsageChart: FC<AIUsageChartProps> = ({ analytics }) => {
       </div>
       <div style={sectionContentStyles}>
         {data.length > 0 ? (
-          <ResponsiveContainer width="100%" height={200}>
+          <ResponsiveContainer width="100%" height={220}>
             <PieChart>
               <Pie
                 data={data}
@@ -93,12 +92,12 @@ export const AIUsageChart: FC<AIUsageChartProps> = ({ analytics }) => {
                 cy="50%"
                 labelLine={false}
                 label={({ name, percentage }) => `${name}: ${percentage.toFixed(0)}%`}
-                outerRadius={75}
-                innerRadius={35}
-                fill="#8884d8"
+                outerRadius={80}
+                innerRadius={40}
                 dataKey="value"
-                stroke="var(--bg-secondary)"
-                strokeWidth={2}
+                stroke="var(--bg-card)"
+                strokeWidth={3}
+                paddingAngle={2}
               >
                 {data.map((entry, index) => {
                   const colorKey = entry.name.toLowerCase() as keyof typeof colors;
@@ -106,12 +105,40 @@ export const AIUsageChart: FC<AIUsageChartProps> = ({ analytics }) => {
                   return <Cell key={`cell-${index}`} fill={color} />;
                 })}
               </Pie>
+              {/* Centered total statistic */}
+              {dominant && (
+                <>
+                  <text
+                    x="50%"
+                    y="46%"
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    style={{ fontSize: 20, fontWeight: 700, fill: "var(--text-primary)" }}
+                  >
+                    {total}
+                  </text>
+                  <text
+                    x="50%"
+                    y="57%"
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    style={{
+                      fontSize: 9,
+                      fill: "var(--text-tertiary)",
+                      textTransform: "uppercase" as const,
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    total
+                  </text>
+                </>
+              )}
               <Tooltip
                 content={({ active, payload }) => {
                   if (!active || !payload || payload.length === 0) return null;
-                  const data = payload[0];
-                  if (!data) return null;
-                  const payloadData = data.payload as { percentage?: number } | undefined;
+                  const item = payload[0];
+                  if (!item) return null;
+                  const payloadData = item.payload as { percentage?: number } | undefined;
                   const percentage = payloadData?.percentage ?? 0;
                   return (
                     <div
@@ -126,9 +153,9 @@ export const AIUsageChart: FC<AIUsageChartProps> = ({ analytics }) => {
                         boxShadow: "var(--shadow-lg)",
                       }}
                     >
-                      <div style={{ fontWeight: "500" }}>{data.name}</div>
+                      <div style={{ fontWeight: "500" }}>{item.name}</div>
                       <div style={{ color: "var(--text-secondary)" }}>
-                        {data.value} comments ({percentage.toFixed(1)}%)
+                        {item.value} comments ({percentage.toFixed(1)}%)
                       </div>
                     </div>
                   );
@@ -142,7 +169,7 @@ export const AIUsageChart: FC<AIUsageChartProps> = ({ analytics }) => {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              height: 200,
+              height: 220,
               color: "var(--text-tertiary)",
               fontSize: "var(--font-size-sm)",
             }}

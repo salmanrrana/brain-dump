@@ -14,6 +14,21 @@ export function escapeForBashDoubleQuote(str: string): string {
     .replace(/!/g, "\\!");
 }
 
+const CURSOR_AGENT_HELP_PATTERNS = [/Cursor Agent/i, /Start the Cursor Agent/i];
+
+export function isCursorAgentHelpOutput(output: string): boolean {
+  return CURSOR_AGENT_HELP_PATTERNS.some((pattern) => pattern.test(output));
+}
+
+async function isCursorAgentCommand(command: string): Promise<boolean> {
+  const helpResult = await execFileNoThrow(command, ["--help"]);
+  if (!helpResult.success) {
+    return false;
+  }
+
+  return isCursorAgentHelpOutput(helpResult.stdout + helpResult.stderr);
+}
+
 // ============================================================================
 // CLI DISCOVERY
 // ============================================================================
@@ -81,24 +96,19 @@ export async function findCursorAgentCli(): Promise<string | null> {
   const { join } = await import("path");
   const { homedir } = await import("os");
 
-  // 1. Check `agent` in PATH — verify output contains "cursor"
-  const agentResult = await execFileNoThrow("agent", ["--version"]);
-  if (agentResult.success && /cursor/i.test(agentResult.stdout + agentResult.stderr)) {
+  // 1. Check `agent` in PATH — verify it is Cursor's generic agent binary
+  if (await isCursorAgentCommand("agent")) {
     return "agent";
   }
 
   // 2. Fallback: check ~/.local/bin/agent directly
   const localBinAgent = join(homedir(), ".local", "bin", "agent");
-  if (existsSync(localBinAgent)) {
-    const localResult = await execFileNoThrow(localBinAgent, ["--version"]);
-    if (localResult.success && /cursor/i.test(localResult.stdout + localResult.stderr)) {
-      return localBinAgent;
-    }
+  if (existsSync(localBinAgent) && (await isCursorAgentCommand(localBinAgent))) {
+    return localBinAgent;
   }
 
   // 3. Fallback: check `cursor-agent` in PATH
-  const cursorAgentResult = await execFileNoThrow("cursor-agent", ["--version"]);
-  if (cursorAgentResult.success) {
+  if (await isCursorAgentCommand("cursor-agent")) {
     return "cursor-agent";
   }
 

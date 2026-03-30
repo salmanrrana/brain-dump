@@ -31,6 +31,8 @@ export const DEFAULT_RESOURCE_LIMITS: DockerResourceLimits = {
   pidsLimit: 256,
 };
 
+const RALPH_ENV_EXPORTS = `export RALPH_SESSION=1`;
+
 // Configuration for each AI backend's CLI integration.
 // Add new backends here instead of extending ternary chains throughout the file.
 interface AiBackendConfig {
@@ -78,20 +80,24 @@ fi
   "cursor-agent": {
     displayName: "Cursor Agent",
     preflightCheck: `
-if ! command -v agent >/dev/null 2>&1; then
+CURSOR_AGENT_BIN=""
+if command -v agent >/dev/null 2>&1 && agent --help 2>&1 | grep -qi "Cursor Agent"; then
+  CURSOR_AGENT_BIN="agent"
+elif [ -x "$HOME/.local/bin/agent" ] && "$HOME/.local/bin/agent" --help 2>&1 | grep -qi "Cursor Agent"; then
+  CURSOR_AGENT_BIN="$HOME/.local/bin/agent"
+elif command -v cursor-agent >/dev/null 2>&1 && cursor-agent --help 2>&1 | grep -qi "Cursor Agent"; then
+  CURSOR_AGENT_BIN="cursor-agent"
+fi
+
+if [ -z "$CURSOR_AGENT_BIN" ]; then
   echo -e "\\033[0;31m❌ Cursor Agent CLI not found in PATH\\033[0m"
   echo "Install: curl https://cursor.com/install -fsS | bash"
   exit 1
 fi
-if ! agent --version 2>&1 | grep -qi cursor; then
-  echo -e "\\033[0;31m❌ Found 'agent' in PATH but it does not appear to be Cursor Agent\\033[0m"
-  echo "The 'agent' binary at $(which agent) is not the Cursor Agent CLI."
-  echo "Install Cursor Agent: curl https://cursor.com/install -fsS | bash"
-  exit 1
-fi
 `,
-    invocation: `  # Run Cursor Agent in headless mode with prompt
-  agent --force --approve-mcps --trust -p "$(cat "$PROMPT_FILE")"`,
+    invocation: `  export CURSOR_AGENT=1
+  # Run Cursor Agent in headless mode with prompt
+  "$CURSOR_AGENT_BIN" --force --approve-mcps --trust -p "$(cat "$PROMPT_FILE")"`,
   },
 };
 
@@ -443,6 +449,7 @@ NO_PROGRESS_COUNT=0
 MAX_NO_PROGRESS=3
 
 cd "$PROJECT_PATH"
+${RALPH_ENV_EXPORTS}
 ${dockerHostSetup}${dockerImageCheck}${sshAgentSetup}${aiPreflightCheck}
 # Ensure plans directory exists
 mkdir -p "$PROJECT_PATH/plans"

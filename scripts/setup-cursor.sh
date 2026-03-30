@@ -279,10 +279,11 @@ CURSOR_AGENT_STATUS="not found"
 
 # Strategy 1: Check 'agent' in PATH and verify it's Cursor's binary
 if command -v agent >/dev/null 2>&1; then
-    AGENT_VERSION=$(agent --version 2>&1 || true)
-    if echo "$AGENT_VERSION" | grep -qi "cursor"; then
+    AGENT_HELP=$(agent --help 2>&1 || true)
+    if echo "$AGENT_HELP" | grep -qi "Cursor Agent"; then
         CURSOR_AGENT_CLI=$(command -v agent)
         CURSOR_AGENT_STATUS="found ($CURSOR_AGENT_CLI)"
+        AGENT_VERSION=$(agent --version 2>&1 || true)
         echo -e "${GREEN}✓ Cursor Agent CLI detected: $CURSOR_AGENT_CLI${NC}"
         echo -e "  Version: $AGENT_VERSION"
     else
@@ -292,20 +293,23 @@ fi
 
 # Strategy 2: Fallback to ~/.local/bin/agent
 if [ -z "$CURSOR_AGENT_CLI" ] && [ -x "$HOME/.local/bin/agent" ]; then
-    AGENT_VERSION=$("$HOME/.local/bin/agent" --version 2>&1 || true)
-    if echo "$AGENT_VERSION" | grep -qi "cursor"; then
+    AGENT_HELP=$("$HOME/.local/bin/agent" --help 2>&1 || true)
+    if echo "$AGENT_HELP" | grep -qi "Cursor Agent"; then
         CURSOR_AGENT_CLI="$HOME/.local/bin/agent"
         CURSOR_AGENT_STATUS="found ($CURSOR_AGENT_CLI)"
+        AGENT_VERSION=$("$HOME/.local/bin/agent" --version 2>&1 || true)
         echo -e "${GREEN}✓ Cursor Agent CLI detected: $CURSOR_AGENT_CLI${NC}"
         echo -e "  Version: $AGENT_VERSION"
     fi
 fi
 
 # Strategy 3: Fallback to 'cursor-agent' in PATH
-if [ -z "$CURSOR_AGENT_CLI" ] && command -v cursor-agent >/dev/null 2>&1; then
+if [ -z "$CURSOR_AGENT_CLI" ] && command -v cursor-agent >/dev/null 2>&1 && cursor-agent --help 2>&1 | grep -qi "Cursor Agent"; then
     CURSOR_AGENT_CLI=$(command -v cursor-agent)
     CURSOR_AGENT_STATUS="found ($CURSOR_AGENT_CLI)"
+    AGENT_VERSION=$(cursor-agent --version 2>&1 || true)
     echo -e "${GREEN}✓ Cursor Agent CLI detected: $CURSOR_AGENT_CLI${NC}"
+    echo -e "  Version: $AGENT_VERSION"
 fi
 
 if [ -z "$CURSOR_AGENT_CLI" ]; then

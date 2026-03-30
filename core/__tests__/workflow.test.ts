@@ -2,7 +2,13 @@ import { describe, it, expect, beforeEach } from "vitest";
 import type Database from "better-sqlite3";
 import { createTestDatabase } from "../db.ts";
 import { startWork, completeWork, startEpicWork } from "../workflow.ts";
-import { TicketNotFoundError, EpicNotFoundError, GitError, InvalidStateError } from "../errors.ts";
+import {
+  TicketNotFoundError,
+  EpicNotFoundError,
+  GitError,
+  InvalidStateError,
+  ValidationError,
+} from "../errors.ts";
 import type { GitOperations, GitCommandResult } from "../types.ts";
 
 // ============================================
@@ -43,6 +49,20 @@ function seedEpic(id = "epic-1", projectId = "proj-1") {
     new Date().toISOString()
   );
   return id;
+}
+
+function seedTestReport(ticketId = "ticket-1", author = "ralph:claude") {
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO ticket_comments (id, ticket_id, content, author, type, created_at)
+     VALUES (?, ?, ?, ?, 'test_report', ?)`
+  ).run(
+    `comment-${ticketId}-${now}`,
+    ticketId,
+    "pnpm type-check: pass\npnpm lint: pass\npnpm test: pass",
+    author,
+    now
+  );
 }
 
 /**
@@ -240,6 +260,7 @@ describe("completeWork", () => {
   it("moves ticket to ai_review and returns work summary", () => {
     seedProject();
     seedTicket("ticket-1", "proj-1", { status: "in_progress" });
+    seedTestReport("ticket-1");
     const git = createMockGit();
 
     const result = completeWork(db, "ticket-1", git, "Implemented the feature");
@@ -258,6 +279,7 @@ describe("completeWork", () => {
   it("increments review_iteration on workflow state", () => {
     seedProject();
     seedTicket("ticket-1", "proj-1", { status: "in_progress" });
+    seedTestReport("ticket-1");
     const git = createMockGit();
 
     // Pre-create workflow state (as if startWork was called)
@@ -281,6 +303,7 @@ describe("completeWork", () => {
   it("posts a work summary comment", () => {
     seedProject();
     seedTicket("ticket-1", "proj-1", { status: "in_progress" });
+    seedTestReport("ticket-1");
     const git = createMockGit();
 
     completeWork(db, "ticket-1", git, "Did the work");
@@ -296,10 +319,30 @@ describe("completeWork", () => {
     expect(summaryComment!.content).toContain("Did the work");
   });
 
+  it("uses the provided work summary author", () => {
+    seedProject();
+    seedTicket("ticket-1", "proj-1", { status: "in_progress" });
+    seedTestReport("ticket-1", "ralph:cursor-agent");
+    const git = createMockGit();
+
+    completeWork(db, "ticket-1", git, "Did the work", "ralph:cursor-agent");
+
+    const comments = db
+      .prepare("SELECT author, type FROM ticket_comments WHERE ticket_id = ?")
+      .all("ticket-1") as {
+      author: string;
+      type: string;
+    }[];
+    const summaryComment = comments.find((c) => c.type === "work_summary");
+    expect(summaryComment).toBeDefined();
+    expect(summaryComment!.author).toBe("ralph:cursor-agent");
+  });
+
   it("suggests next ticket from same project", () => {
     seedProject();
     seedTicket("ticket-1", "proj-1", { status: "in_progress" });
     seedTicket("ticket-2", "proj-1", { status: "ready" });
+    seedTestReport("ticket-1");
     const git = createMockGit();
 
     const result = completeWork(db, "ticket-1", git);
@@ -310,6 +353,13 @@ describe("completeWork", () => {
 
   it("throws TicketNotFoundError for nonexistent ticket", () => {
     expect(() => completeWork(db, "nonexistent", createMockGit())).toThrow(TicketNotFoundError);
+  });
+
+  it("throws ValidationError when no fresh test report is recorded", () => {
+    seedProject();
+    seedTicket("ticket-1", "proj-1", { status: "in_progress" });
+
+    expect(() => completeWork(db, "ticket-1", createMockGit())).toThrow(ValidationError);
   });
 
   it("throws InvalidStateError when ticket is already done", () => {

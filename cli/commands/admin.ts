@@ -33,6 +33,10 @@ ensureDirectoriesSync();
 
 const ACTIONS = ["backup", "restore", "check", "doctor", "health"];
 
+function isCursorAgentHelpOutput(output: string): boolean {
+  return /Cursor Agent/i.test(output) || /Start the Cursor Agent/i.test(output);
+}
+
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -458,13 +462,16 @@ function handleDoctorAction(): void {
 
   // Strategy 1: Check 'agent' in PATH and verify it's Cursor's binary
   try {
-    const versionOutput = execFileSync("agent", ["--version"], {
+    const helpOutput = execFileSync("agent", ["--help"], {
       encoding: "utf-8",
       timeout: 5000,
     }).trim();
-    if (/cursor/i.test(versionOutput)) {
+    if (isCursorAgentHelpOutput(helpOutput)) {
       cursorAgentBinary = "agent";
-      cursorAgentVersion = versionOutput;
+      cursorAgentVersion = execFileSync("agent", ["--version"], {
+        encoding: "utf-8",
+        timeout: 5000,
+      }).trim();
     }
   } catch {
     // not found or not Cursor's agent
@@ -475,13 +482,16 @@ function handleDoctorAction(): void {
     const localBin = join(home, ".local", "bin", "agent");
     if (existsSync(localBin)) {
       try {
-        const versionOutput = execFileSync(localBin, ["--version"], {
+        const helpOutput = execFileSync(localBin, ["--help"], {
           encoding: "utf-8",
           timeout: 5000,
         }).trim();
-        if (/cursor/i.test(versionOutput)) {
+        if (isCursorAgentHelpOutput(helpOutput)) {
           cursorAgentBinary = localBin;
-          cursorAgentVersion = versionOutput;
+          cursorAgentVersion = execFileSync(localBin, ["--version"], {
+            encoding: "utf-8",
+            timeout: 5000,
+          }).trim();
         }
       } catch {
         // binary exists but failed to run
@@ -492,12 +502,17 @@ function handleDoctorAction(): void {
   // Strategy 3: Fallback to 'cursor-agent' in PATH
   if (!cursorAgentBinary) {
     try {
-      const versionOutput = execFileSync("cursor-agent", ["--version"], {
+      const helpOutput = execFileSync("cursor-agent", ["--help"], {
         encoding: "utf-8",
         timeout: 5000,
       }).trim();
-      cursorAgentBinary = "cursor-agent";
-      cursorAgentVersion = versionOutput;
+      if (isCursorAgentHelpOutput(helpOutput)) {
+        cursorAgentBinary = "cursor-agent";
+        cursorAgentVersion = execFileSync("cursor-agent", ["--version"], {
+          encoding: "utf-8",
+          timeout: 5000,
+        }).trim();
+      }
     } catch {
       // not found
     }

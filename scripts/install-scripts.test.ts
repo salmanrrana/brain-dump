@@ -375,7 +375,7 @@ describe("Cursor Agent CLI install/uninstall coverage", () => {
 
   it("scripts/install.sh distinguishes Cursor agent from other agent binaries", () => {
     const script = readScript("scripts/install.sh");
-    expect(script).toContain('grep -qi "cursor"');
+    expect(script).toContain('grep -qi "Cursor Agent"');
   });
 
   it("install.sh --cursor help text mentions Agent CLI", () => {

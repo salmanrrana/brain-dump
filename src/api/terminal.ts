@@ -22,6 +22,7 @@ async function formatCoreError(error: unknown): Promise<string> {
 interface InstallCheck {
   installed: boolean;
   mode?: "cli" | "app";
+  binaryPath?: string;
   error?: string;
 }
 
@@ -244,7 +245,7 @@ export async function isCursorAgentInstalled(): Promise<InstallCheck> {
 
   const agentPath = await findCursorAgentCli();
   if (agentPath) {
-    return { installed: true, mode: "cli" };
+    return { installed: true, mode: "cli", binaryPath: agentPath };
   }
 
   return {
@@ -1017,7 +1018,8 @@ exec bash
 
 async function createCursorAgentLaunchScript(
   projectPath: string,
-  context: string
+  context: string,
+  agentPath: string
 ): Promise<string> {
   const { writeFileSync, mkdirSync } = await import("fs");
   const { join } = await import("path");
@@ -1036,6 +1038,7 @@ async function createCursorAgentLaunchScript(
 
   const safeProjectPath = escapeForBashDoubleQuote(projectPath);
   const safeTicketTitle = escapeForBashDoubleQuote(ticketTitle);
+  const safeAgentPath = escapeForBashDoubleQuote(agentPath);
 
   const script = `#!/bin/bash
 set -e  # Exit on error
@@ -1056,7 +1059,17 @@ echo -e "\\033[1;33m📁 Project:\\033[0m ${safeProjectPath}"
 echo -e "\\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\033[0m"
 echo ""
 
-if ! command -v agent >/dev/null 2>&1; then
+export CURSOR_AGENT=1
+
+CURSOR_AGENT_BIN="${safeAgentPath}"
+if [[ "$CURSOR_AGENT_BIN" = /* ]]; then
+  if [ ! -x "$CURSOR_AGENT_BIN" ]; then
+    echo -e "\\033[0;31m✗ Cursor Agent CLI binary not found at $CURSOR_AGENT_BIN\\033[0m"
+    echo "Install: curl https://cursor.com/install -fsS | bash"
+    rm -f "$CONTEXT_FILE"
+    exec bash
+  fi
+elif ! command -v "$CURSOR_AGENT_BIN" >/dev/null 2>&1; then
   echo -e "\\033[0;31m✗ Cursor Agent CLI binary not found in PATH\\033[0m"
   echo "Install: curl https://cursor.com/install -fsS | bash"
   rm -f "$CONTEXT_FILE"
@@ -1065,7 +1078,7 @@ fi
 
 AGENT_PROMPT="$(cat "$CONTEXT_FILE")"
 set +e
-agent --force --approve-mcps --trust -p "$AGENT_PROMPT"
+"$CURSOR_AGENT_BIN" --force --approve-mcps --trust -p "$AGENT_PROMPT"
 AGENT_EXIT=$?
 set -e
 
@@ -1198,7 +1211,11 @@ export const launchCursorAgentInTerminal = createServerFn({ method: "POST" })
 
     let scriptPath: string;
     try {
-      scriptPath = await createCursorAgentLaunchScript(projectPath, context);
+      scriptPath = await createCursorAgentLaunchScript(
+        projectPath,
+        context,
+        agentCheck.binaryPath || "agent"
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       return {

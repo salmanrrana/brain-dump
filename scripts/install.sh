@@ -71,16 +71,16 @@ fi
 # Detect Cursor Agent CLI
 CURSOR_AGENT_AVAILABLE=0
 if command -v agent &>/dev/null; then
-  if agent --version 2>&1 | grep -qi "cursor"; then
+  if agent --help 2>&1 | grep -qi "Cursor Agent"; then
     CURSOR_AGENT_AVAILABLE=1
     echo -e "${GREEN}✓${NC} Cursor Agent CLI detected"
   else
     echo -e "${YELLOW}○${NC} 'agent' found but not Cursor Agent CLI"
   fi
-elif [ -x "$HOME/.local/bin/agent" ] && "$HOME/.local/bin/agent" --version 2>&1 | grep -qi "cursor"; then
+elif [ -x "$HOME/.local/bin/agent" ] && "$HOME/.local/bin/agent" --help 2>&1 | grep -qi "Cursor Agent"; then
   CURSOR_AGENT_AVAILABLE=1
   echo -e "${GREEN}✓${NC} Cursor Agent CLI detected"
-elif command -v cursor-agent &>/dev/null; then
+elif command -v cursor-agent &>/dev/null && cursor-agent --help 2>&1 | grep -qi "Cursor Agent"; then
   CURSOR_AGENT_AVAILABLE=1
   echo -e "${GREEN}✓${NC} Cursor Agent CLI detected"
 else

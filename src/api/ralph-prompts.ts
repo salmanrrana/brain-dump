@@ -65,6 +65,7 @@ If all tickets are in \`human_review\` or \`done\`, output: \`PRD_COMPLETE\`.
 const VERIFICATION_CHECKLIST = `
 ## Gates
 - Before complete-work: \`pnpm type-check && pnpm lint && pnpm test\` must pass, all criteria met
+- Before complete-work: add a \`comment({ action: "add", ticketId, content, commentType: "test_report" })\` entry summarizing the exact check commands and pass/fail results; omit \`author\` so Brain Dump auto-detects the active provider
 - Before demo: all critical/major findings fixed, check-complete returns canProceedToHumanReview: true
 - Before session complete: generate-demo called, ticket in human_review
 `;

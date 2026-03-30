@@ -19,6 +19,7 @@ import { CoreError } from "../../core/errors.ts";
 import { startWork, completeWork, startEpicWork } from "../../core/workflow.ts";
 import { linkCommit, linkPr, syncTicketLinks, checkUnlinkedItems } from "../../core/git.ts";
 import type { PrStatus } from "../../core/types.ts";
+import type { CommentAuthor } from "../../core/comment.ts";
 import { createRealGitOperations, shortId } from "../../core/git-utils.ts";
 import type { StartWorkResult, StartEpicWorkResult } from "../../core/types.ts";
 
@@ -27,6 +28,7 @@ import { loadTicketAttachments, buildAttachmentContextSection } from "../lib/att
 import { fetchTicketComments, buildCommentsSection } from "../lib/comment-utils.js";
 import { updatePrdForTicket } from "../lib/prd-utils.js";
 import { createConversationSession, endConversationSessions } from "../lib/conversation-session.js";
+import { detectAuthor } from "../lib/environment.js";
 import {
   buildTicketContextContent,
   buildWarningsSection,
@@ -364,8 +366,8 @@ function handleCompleteWork(
   params: { ticketId?: string | undefined; summary?: string | undefined }
 ) {
   const ticketId = requireParam(params.ticketId, "ticketId", "complete-work");
-
-  const result = completeWork(db, ticketId, git, params.summary);
+  const commentAuthor = detectAuthor() as CommentAuthor;
+  const result = completeWork(db, ticketId, git, params.summary, commentAuthor);
 
   // Get project path for PRD update
   const ticketRow = db
