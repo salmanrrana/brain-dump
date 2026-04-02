@@ -249,6 +249,61 @@ try {
     else
         print_info "brain-dump not in Claude config"
     fi
+
+    # Remove Claude Code skills installed by brain-dump
+    CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
+    local skills_removed=0
+    # Determine skill list: prefer submodule contents if available, else use known list
+    local bd_skills=()
+    VENDORED_SKILLS="$(pwd)/vendor/agent-skills/skills"
+    if [ -d "$VENDORED_SKILLS" ]; then
+        for skill_dir in "$VENDORED_SKILLS"/*/; do
+            if [ -d "$skill_dir" ] && [ -f "$skill_dir/SKILL.md" ]; then
+                bd_skills+=("$(basename "$skill_dir")")
+            fi
+        done
+    fi
+    # Always include known skills as fallback (in case submodule is not initialized)
+    for known in react-best-practices web-design-guidelines; do
+        local already=false
+        for s in "${bd_skills[@]:-}"; do [ "$s" = "$known" ] && already=true && break; done
+        [ "$already" = false ] && bd_skills+=("$known")
+    done
+    for skill in "${bd_skills[@]:-}"; do
+        if [ -d "$CLAUDE_SKILLS_DIR/$skill" ]; then
+            rm -rf "$CLAUDE_SKILLS_DIR/$skill"
+            skills_removed=$((skills_removed + 1))
+        fi
+    done
+    if [ $skills_removed -gt 0 ]; then
+        print_success "Removed $skills_removed Claude skill(s) from ~/.claude/skills/"
+        REMOVED+=("Claude Code skills ($skills_removed)")
+    else
+        print_info "No Claude Code skills to remove"
+    fi
+
+    # Uninstall Claude plugins installed by brain-dump
+    if command -v claude >/dev/null 2>&1; then
+        local plugins_removed=0
+        for plugin in pr-review-toolkit code-simplifier; do
+            if claude plugin list 2>/dev/null | grep -q "$plugin"; then
+                if claude plugin uninstall "$plugin" 2>/dev/null; then
+                    plugins_removed=$((plugins_removed + 1))
+                else
+                    print_warning "Could not uninstall Claude plugin: $plugin"
+                    SKIPPED+=("Claude plugin $plugin (manual removal needed)")
+                fi
+            fi
+        done
+        if [ $plugins_removed -gt 0 ]; then
+            print_success "Uninstalled $plugins_removed Claude plugin(s)"
+            REMOVED+=("Claude Code plugins ($plugins_removed)")
+        else
+            print_info "No Claude Code plugins to uninstall"
+        fi
+    else
+        print_info "Claude CLI not found — skipping plugin uninstall"
+    fi
 }
 
 # Remove Cursor integration
@@ -828,6 +883,28 @@ remove_data() {
         fi
     else
         print_info "No data directory found"
+    fi
+
+    # Remove legacy ~/.brain-dump/ directory (pre-XDG data location)
+    # The app auto-migrates data from here on first run, so it may still contain data.
+    LEGACY_DIR="$HOME/.brain-dump"
+    if [ -d "$LEGACY_DIR" ]; then
+        local legacy_contents
+        legacy_contents=$(ls -A "$LEGACY_DIR" 2>/dev/null)
+        if [ -n "$legacy_contents" ]; then
+            print_warning "Found legacy data directory: $LEGACY_DIR"
+            read -r -p "Remove legacy ~/.brain-dump directory? (y/N): " confirm_legacy
+            if [[ "$confirm_legacy" =~ ^[Yy]$ ]]; then
+                rm -rf "$LEGACY_DIR"
+                print_success "Removed legacy ~/.brain-dump directory"
+                REMOVED+=("Legacy ~/.brain-dump directory")
+            else
+                print_info "Keeping legacy ~/.brain-dump directory"
+                SKIPPED+=("Legacy ~/.brain-dump (user chose to keep)")
+            fi
+        else
+            rmdir "$LEGACY_DIR" 2>/dev/null || true
+        fi
     fi
 
     # Linux also has state directory

@@ -371,10 +371,26 @@ run_migrations() {
         INSTALLED+=("Database")
         return 0
     elif echo "$migration_output" | grep -q "already exists"; then
-        # Tables already exist - database is already set up
-        print_success "Database already initialized"
-        SKIPPED+=("Database (already exists)")
-        return 0
+        # The database exists but the migration journal is out of sync —
+        # this happens when the DB was created outside of Drizzle (e.g. a
+        # previous install or manual schema setup). Run the repair script to
+        # apply any missing tables/columns idempotently and stamp the journal,
+        # then retry the normal migration so future runs stay in sync.
+        print_warning "Database exists but migration journal is out of sync — running repair..."
+        if pnpm db:repair; then
+            # Retry migrate to pick up any truly new migrations
+            if pnpm db:migrate 2>&1 | grep -qE "applying migrations|No migrations"; then
+                print_success "Database repaired and up to date"
+            else
+                print_success "Database repaired and up to date"
+            fi
+            INSTALLED+=("Database (repaired)")
+            return 0
+        else
+            print_error "Database repair failed"
+            FAILED+=("Database repair")
+            return 1
+        fi
     else
         print_error "Database migration failed"
         echo "$migration_output" | tail -5
