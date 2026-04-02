@@ -76,6 +76,54 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Get data paths based on OS
+get_data_paths() {
+    case "$OS" in
+        macos)
+            DATA_DIR="$HOME/Library/Application Support/brain-dump"
+            ;;
+        linux)
+            DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/brain-dump"
+            ;;
+        windows)
+            DATA_DIR="${APPDATA:-$HOME/AppData/Roaming}/brain-dump"
+            ;;
+    esac
+}
+
+# Detect SQLite corruption / unreadable database errors
+is_corrupt_database_output() {
+    printf '%s' "$1" | grep -qiE "database disk image is malformed|file is not a database|not a database|SQLITE_CORRUPT|SQLITE_NOTADB"
+}
+
+# Move aside an unreadable database so install can recreate it cleanly
+quarantine_database_files() {
+    get_data_paths
+
+    local db_path="$DATA_DIR/brain-dump.db"
+    local quarantine_root="$DATA_DIR/corrupt-backups"
+    local quarantine_dir="$quarantine_root/$(date +%Y%m%d-%H%M%S)"
+    local moved_any=false
+
+    mkdir -p "$quarantine_dir"
+
+    for suffix in "" "-wal" "-shm" "-journal"; do
+        local file_path="${db_path}${suffix}"
+        if [ -e "$file_path" ]; then
+            mv "$file_path" "$quarantine_dir/$(basename "$file_path")"
+            moved_any=true
+        fi
+    done
+
+    if [ "$moved_any" = true ]; then
+        print_warning "Moved existing database files to $quarantine_dir"
+        return 0
+    fi
+
+    rmdir "$quarantine_dir" 2>/dev/null || true
+    return 0
+}
+
 # Initialize git submodules (for vendored third-party skills)
 init_submodules() {
     print_step "Initializing git submodules"
@@ -361,8 +409,14 @@ run_migrations() {
 
     print_info "Running database migrations..."
 
+    local repair_check_output=""
     local repair_check_status=0
-    pnpm db:repair:check >/dev/null 2>&1 || repair_check_status=$?
+    if repair_check_output=$(pnpm db:repair:check 2>&1); then
+        repair_check_status=0
+    else
+        repair_check_status=$?
+    fi
+
     if [ $repair_check_status -eq 10 ]; then
         print_warning "Detected database schema without a Drizzle journal — running repair first..."
         if ! pnpm db:repair; then
@@ -370,14 +424,25 @@ run_migrations() {
             FAILED+=("Database repair")
             return 1
         fi
+    elif [ $repair_check_status -eq 12 ] || is_corrupt_database_output "$repair_check_output"; then
+        print_warning "Detected corrupt or unreadable database files — moving them aside before migrating..."
+        if ! quarantine_database_files; then
+            print_error "Could not quarantine corrupt database files"
+            FAILED+=("Database migrations")
+            return 1
+        fi
     elif [ $repair_check_status -ne 0 ]; then
         print_warning "Could not inspect migration journal; continuing with normal migrate"
     fi
 
     # Capture migration output to check for "already exists" errors
-    local migration_output
-    migration_output=$(pnpm db:migrate 2>&1)
-    local migration_status=$?
+    local migration_output=""
+    local migration_status=0
+    if migration_output=$(pnpm db:migrate 2>&1); then
+        migration_status=0
+    else
+        migration_status=$?
+    fi
 
     if [ $migration_status -eq 0 ]; then
         print_success "Database migrations complete"
@@ -385,7 +450,33 @@ run_migrations() {
         return 0
     else
         repair_check_status=0
-        pnpm db:repair:check >/dev/null 2>&1 || repair_check_status=$?
+        repair_check_output=""
+        if repair_check_output=$(pnpm db:repair:check 2>&1); then
+            repair_check_status=0
+        else
+            repair_check_status=$?
+        fi
+    fi
+
+    if [ $repair_check_status -eq 12 ] || is_corrupt_database_output "$migration_output" || is_corrupt_database_output "$repair_check_output"; then
+        print_warning "Detected corrupt or partially removed database files — recreating database..."
+        if ! quarantine_database_files; then
+            print_error "Could not quarantine corrupt database files"
+            FAILED+=("Database migrations")
+            return 1
+        fi
+
+        if migration_output=$(pnpm db:migrate 2>&1); then
+            print_success "Database recreated and migrations complete"
+            INSTALLED+=("Database (recreated)")
+            return 0
+        fi
+
+        migration_status=$?
+        print_error "Database migration failed after recreating the database"
+        echo "$migration_output" | tail -5
+        FAILED+=("Database migrations")
+        return 1
     fi
 
     if echo "$migration_output" | grep -q "already exists" || [ $repair_check_status -eq 10 ]; then
@@ -396,11 +487,30 @@ run_migrations() {
         # then retry the normal migration so future runs stay in sync.
         print_warning "Database exists but migration journal is out of sync — running repair..."
         if pnpm db:repair; then
+            local verify_output=""
+            local verify_status=0
+            if verify_output=$(pnpm db:repair:check 2>&1); then
+                verify_status=0
+            else
+                verify_status=$?
+            fi
+
+            if [ $verify_status -ne 0 ]; then
+                print_error "Database repair did not leave the migration journal in a healthy state"
+                echo "$verify_output" | tail -5
+                FAILED+=("Database repair")
+                return 1
+            fi
+
             # Retry migrate to pick up any truly new migrations
-            if pnpm db:migrate 2>&1 | grep -qE "applying migrations|No migrations"; then
+            if migration_output=$(pnpm db:migrate 2>&1); then
                 print_success "Database repaired and up to date"
             else
-                print_success "Database repaired and up to date"
+                migration_status=$?
+                print_error "Database migration failed after repair"
+                echo "$migration_output" | tail -5
+                FAILED+=("Database migrations")
+                return 1
             fi
             INSTALLED+=("Database (repaired)")
             return 0

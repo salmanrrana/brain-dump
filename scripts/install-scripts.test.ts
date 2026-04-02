@@ -69,6 +69,11 @@ describe("install.sh (root)", () => {
   it("includes copilot in the IDE count for summary", () => {
     expect(script).toContain('SETUP_COPILOT" = true ] && ide_count');
   });
+
+  it("quarantines corrupt database files before recreating the database", () => {
+    expect(script).toContain("corrupt-backups");
+    expect(script).toContain("Detected corrupt or partially removed database files");
+  });
 });
 
 describe("uninstall.sh (root)", () => {
@@ -106,6 +111,12 @@ describe("uninstall.sh (root)", () => {
       script.indexOf(";;", script.indexOf("--all)"))
     );
     expect(allSection).toContain("REMOVE_COPILOT=true");
+  });
+
+  it("removes SQLite sidecar files explicitly during data cleanup", () => {
+    expect(script).toContain("brain-dump.db-wal");
+    expect(script).toContain("brain-dump.db-shm");
+    expect(script).toContain("brain-dump.db-journal");
   });
 });
 

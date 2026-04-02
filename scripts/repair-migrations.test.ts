@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { execFileSync, spawnSync } from "child_process";
 import Database from "better-sqlite3";
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from "fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import { tmpdir } from "os";
 
@@ -101,5 +101,23 @@ describe("repair-migrations script", () => {
     db.close();
 
     expect(stampedCount.count).toBeGreaterThan(0);
+  });
+
+  it("reports corrupt when the database file is unreadable", () => {
+    const homeDir = mkdtempSync(join(tmpdir(), "brain-dump-repair-corrupt-"));
+    tempDirs.push(homeDir);
+    const dbPath = getDbPath(homeDir);
+
+    mkdirSync(dirname(dbPath), { recursive: true });
+    writeFileSync(dbPath, "not a sqlite database");
+
+    const result = spawnSync("node", ["scripts/repair-migrations.mjs", "--check"], {
+      cwd: process.cwd(),
+      env: { ...process.env, HOME: homeDir },
+      encoding: "utf8",
+    });
+
+    expect(result.status).toBe(12);
+    expect(result.stdout).toContain("corrupt:");
   });
 });

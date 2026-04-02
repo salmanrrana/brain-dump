@@ -102,6 +102,20 @@ get_data_paths() {
     esac
 }
 
+# Remove database files explicitly. This is defensive against partial removals
+# or stale SQLite sidecar files left behind by interrupted uninstall runs.
+remove_database_files_in_dir() {
+    local target_dir="$1"
+
+    [ -n "$target_dir" ] || return 0
+
+    rm -f \
+        "$target_dir/brain-dump.db" \
+        "$target_dir/brain-dump.db-wal" \
+        "$target_dir/brain-dump.db-shm" \
+        "$target_dir/brain-dump.db-journal" 2>/dev/null || true
+}
+
 # Remove VS Code integration
 remove_vscode() {
     print_step "Removing VS Code integration"
@@ -866,13 +880,16 @@ remove_data() {
                 local tmp_backup
                 tmp_backup="$(mktemp -d)"
                 cp -a "$backup_dir" "$tmp_backup/backups"
+                remove_database_files_in_dir "$DATA_DIR"
                 rm -rf "$DATA_DIR"
                 mkdir -p "$DATA_DIR"
                 mv "$tmp_backup/backups" "$backup_dir"
+                remove_database_files_in_dir "$DATA_DIR"
                 rmdir "$tmp_backup"
                 print_success "Removed data directory (backups preserved)"
                 PRESERVED_BACKUP_DIR="$backup_dir"
             else
+                remove_database_files_in_dir "$DATA_DIR"
                 rm -rf "$DATA_DIR"
                 print_success "Removed data directory"
             fi

@@ -65,6 +65,23 @@ function getDbPath() {
   return path.join(dataHome, "brain-dump", "brain-dump.db");
 }
 
+function isCorruptDatabaseError(error) {
+  if (!error) {
+    return false;
+  }
+
+  const message = String(error.message || "");
+  const code = String(error.code || "");
+
+  return (
+    code === "SQLITE_CORRUPT" ||
+    code === "SQLITE_NOTADB" ||
+    message.includes("database disk image is malformed") ||
+    message.includes("file is not a database") ||
+    message.includes("not a database")
+  );
+}
+
 function getMigrationState(db) {
   const tableRows = db
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
@@ -139,8 +156,28 @@ function main() {
     process.exit(0);
   }
 
-  const db = new Database(dbPath);
-  const state = getMigrationState(db);
+  let db;
+  let state;
+
+  try {
+    db = new Database(dbPath);
+    state = getMigrationState(db);
+  } catch (error) {
+    db?.close();
+
+    if (isCorruptDatabaseError(error)) {
+      const summary = `db=${dbPath} message=${String(error.message || error)}`;
+      if (process.argv.includes("--check")) {
+        console.log(`corrupt: ${summary}`);
+        process.exit(12);
+      }
+
+      console.error(`Unreadable database detected: ${summary}`);
+      process.exit(12);
+    }
+
+    throw error;
+  }
 
   if (process.argv.includes("--check")) {
     const summary = `db=${dbPath} schema=${state.hasAppSchema} journal=${state.journalCount}`;
