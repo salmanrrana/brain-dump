@@ -475,6 +475,75 @@ function ensureBaseSchema(db: DbHandle, logger: Logger): void {
   `);
 }
 
+function ensureTelemetrySchema(db: DbHandle, logger: Logger): void {
+  if (!tableExists(db, "telemetry_sessions")) {
+    db.exec(`
+      CREATE TABLE telemetry_sessions (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT REFERENCES tickets(id) ON DELETE CASCADE,
+        project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+        environment TEXT NOT NULL DEFAULT 'unknown',
+        branch_name TEXT,
+        claude_session_id TEXT,
+        started_at TEXT NOT NULL DEFAULT (datetime('now')),
+        ended_at TEXT,
+        total_prompts INTEGER DEFAULT 0,
+        total_tool_calls INTEGER DEFAULT 0,
+        total_duration_ms INTEGER,
+        total_tokens INTEGER,
+        outcome TEXT
+      )
+    `);
+    logger.info("Created telemetry_sessions table");
+  }
+
+  if (!tableExists(db, "telemetry_events")) {
+    db.exec(`
+      CREATE TABLE telemetry_events (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES telemetry_sessions(id) ON DELETE CASCADE,
+        ticket_id TEXT REFERENCES tickets(id) ON DELETE CASCADE,
+        event_type TEXT NOT NULL,
+        tool_name TEXT,
+        event_data TEXT,
+        duration_ms INTEGER,
+        token_count INTEGER,
+        is_error INTEGER DEFAULT 0,
+        correlation_id TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+    logger.info("Created telemetry_events table");
+  }
+
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_telemetry_sessions_ticket ON telemetry_sessions(ticket_id)"
+  ).run();
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_telemetry_sessions_project ON telemetry_sessions(project_id)"
+  ).run();
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_telemetry_sessions_started ON telemetry_sessions(started_at)"
+  ).run();
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_telemetry_events_session ON telemetry_events(session_id)"
+  ).run();
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_telemetry_events_ticket ON telemetry_events(ticket_id)"
+  ).run();
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_telemetry_events_type ON telemetry_events(event_type)"
+  ).run();
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_telemetry_events_created ON telemetry_events(created_at)"
+  ).run();
+  db.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_telemetry_events_correlation ON telemetry_events(correlation_id)"
+  ).run();
+
+  addColumnIfMissing(db, "telemetry_sessions", "claude_session_id", "TEXT", logger);
+}
+
 function initFts5(db: DbHandle, logger: Logger): void {
   if (tableExists(db, "tickets_fts")) return;
   if (!tableExists(db, "tickets")) return;
@@ -831,6 +900,10 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
     ).run();
     logger.info("Created token_usage table");
   }
+
+  // Telemetry tables predate the current Drizzle journal in some installs.
+  // Ensure they exist before applying follow-up column migrations.
+  ensureTelemetrySchema(db, logger);
 
   // Telemetry sessions aggregate columns for cost tracking
   addColumnIfMissing(db, "telemetry_sessions", "total_input_tokens", "INTEGER", logger);

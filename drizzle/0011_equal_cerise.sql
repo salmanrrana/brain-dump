@@ -68,5 +68,7 @@ CREATE INDEX IF NOT EXISTS `idx_token_usage_session` ON `token_usage` (`telemetr
 CREATE INDEX IF NOT EXISTS `idx_token_usage_ticket` ON `token_usage` (`ticket_id`);--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS `idx_token_usage_recorded` ON `token_usage` (`recorded_at`);--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS `idx_token_usage_ticket_recorded` ON `token_usage` (`ticket_id`,`recorded_at`);--> statement-breakpoint
+ALTER TABLE `demo_scripts` ADD `epic_review_run_id` text REFERENCES `epic_review_runs`(`id`) ON DELETE set null;--> statement-breakpoint
+ALTER TABLE `review_findings` ADD `epic_review_run_id` text REFERENCES `epic_review_runs`(`id`) ON DELETE set null;--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS `idx_demo_scripts_run` ON `demo_scripts` (`epic_review_run_id`);--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS `idx_review_findings_run` ON `review_findings` (`epic_review_run_id`);

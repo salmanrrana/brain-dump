@@ -42,6 +42,32 @@ const migrationsFolder = path.join(projectRoot, "drizzle");
 const journalPath = path.join(migrationsFolder, "meta", "_journal.json");
 const REQUIRED_APP_TABLES = ["projects", "epics", "tickets"];
 
+function getMigrationFiles(journal) {
+  const sqlFiles = fs
+    .readdirSync(migrationsFolder)
+    .filter((name) => name.endsWith(".sql"))
+    .sort((a, b) => a.localeCompare(b));
+
+  const journalEntries = new Map(journal.entries.map((entry) => [entry.tag, entry]));
+
+  return sqlFiles.map((fileName) => {
+    const tag = fileName.replace(/\.sql$/, "");
+    const fullPath = path.join(migrationsFolder, fileName);
+    const rawSql = fs.readFileSync(fullPath, "utf8");
+    const hash = crypto.createHash("sha256").update(rawSql).digest("hex");
+    const journalEntry = journalEntries.get(tag);
+
+    return {
+      fileName,
+      fullPath,
+      rawSql,
+      hash,
+      when: journalEntry?.when ?? 0,
+      inJournal: journalEntries.has(tag),
+    };
+  });
+}
+
 function getDbPath() {
   const platform = process.platform;
   if (platform === "darwin") {
@@ -82,7 +108,7 @@ function isCorruptDatabaseError(error) {
   );
 }
 
-function getMigrationState(db) {
+function getMigrationState(db, migrationFiles) {
   const tableRows = db
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
     .all()
@@ -92,15 +118,22 @@ function getMigrationState(db) {
   const hasJournalTable = tables.has("__drizzle_migrations");
 
   let journalCount = 0;
+  let stampedHashes = new Set();
   if (hasJournalTable) {
     journalCount = db.prepare("SELECT COUNT(*) AS count FROM __drizzle_migrations").get().count;
+    stampedHashes = new Set(
+      db.prepare("SELECT hash FROM __drizzle_migrations").all().map((row) => row.hash)
+    );
   }
+
+  const unstampedMigrationCount = migrationFiles.filter((file) => !stampedHashes.has(file.hash)).length;
 
   return {
     hasAppSchema,
     hasJournalTable,
     journalCount,
-    needsRepair: hasAppSchema && journalCount === 0,
+    unstampedMigrationCount,
+    needsRepair: hasAppSchema && (journalCount === 0 || unstampedMigrationCount > 0),
   };
 }
 
@@ -145,6 +178,7 @@ function main() {
   }
 
   const journal = JSON.parse(fs.readFileSync(journalPath, "utf8"));
+  const migrationFiles = getMigrationFiles(journal);
   const dbPath = getDbPath();
 
   if (!fs.existsSync(dbPath)) {
@@ -161,7 +195,7 @@ function main() {
 
   try {
     db = new Database(dbPath);
-    state = getMigrationState(db);
+    state = getMigrationState(db, migrationFiles);
   } catch (error) {
     db?.close();
 
@@ -180,7 +214,9 @@ function main() {
   }
 
   if (process.argv.includes("--check")) {
-    const summary = `db=${dbPath} schema=${state.hasAppSchema} journal=${state.journalCount}`;
+    const summary =
+      `db=${dbPath} schema=${state.hasAppSchema} journal=${state.journalCount} ` +
+      `unstamped=${state.unstampedMigrationCount}`;
     db.close();
     if (state.needsRepair) {
       console.log(`repair-needed: ${summary}`);
@@ -211,24 +247,17 @@ function main() {
   let applied = 0;
   let skipped = 0;
 
-  for (const entry of journal.entries) {
-    const sqlPath = path.join(migrationsFolder, `${entry.tag}.sql`);
-    if (!fs.existsSync(sqlPath)) {
-      console.warn(`  ⚠  Missing file: ${sqlPath} — skipping`);
-      continue;
-    }
-
-    const rawSql = fs.readFileSync(sqlPath, "utf8");
-    const hash = crypto.createHash("sha256").update(rawSql).digest("hex");
-
-    if (stamped.has(hash)) {
+  for (const migration of migrationFiles) {
+    if (stamped.has(migration.hash)) {
       skipped++;
       continue;
     }
 
-    console.log(`  → Applying ${entry.tag}`);
+    console.log(
+      `  → Applying ${migration.fileName.replace(/\.sql$/, "")}${migration.inJournal ? "" : " (orphaned migration file)"}`
+    );
 
-    for (const stmt of patchStatements(rawSql)) {
+    for (const stmt of patchStatements(migration.rawSql)) {
       if (!stmt) continue;
       try {
         db.exec(stmt);
@@ -240,15 +269,17 @@ function main() {
         ) {
           // Object already exists — safe to skip
         } else {
-          console.error(`  ✗  Failed on statement in ${entry.tag}:\n${stmt}\n${err.message}`);
+          console.error(
+            `  ✗  Failed on statement in ${migration.fileName.replace(/\.sql$/, "")}:\n${stmt}\n${err.message}`
+          );
           db.close();
           process.exit(1);
         }
       }
     }
 
-    insertMigration.run(hash, entry.when);
-    stamped.add(hash);
+    insertMigration.run(migration.hash, migration.when);
+    stamped.add(migration.hash);
     applied++;
   }
 
