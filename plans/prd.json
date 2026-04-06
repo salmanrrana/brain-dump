@@ -9,291 +9,63 @@
   ],
   "userStories": [
     {
-      "id": "4432b8b3-077b-4f3d-89d6-7b835d03e726",
-      "title": "Launch script + server function: launchCursorAgentInTerminal",
-      "passes": false,
-      "overview": "**Branch**: All work for this epic is on one feature branch: `feat/cursor-agent-integration`. Do not create a separate branch for this ticket.\n**Full plan**: Refer to the epic description for the complete plan, file manifest, technical reference, and context. Regenerate this ticket from the epic if requirements are unclear.\n**Depends on**: CLI discovery ticket (findCursorAgentCli + isCursorAgentInstalled must exist)",
+      "id": "fe7969b9-9e75-4c39-86f2-c613c36b3a22",
+      "title": "Epic detail page: replace placeholder Ralph launches with real actions",
+      "passes": true,
+      "overview": "`src/components/epics/EpicDetailHeader.tsx` renders a Ralph section in its launch menu, but every Ralph button currently only shows `Ralph launch coming soon` instead of performing a launch.\nThis is the most obvious user-facing bug because the epic description page appears to support the same Ralph options as the Edit Epic modal, but it does not actually execute them.",
       "types": [],
       "designDecisions": [],
       "implementationGuide": [],
       "acceptanceCriteria": [
-        "`createCursorAgentLaunchScript()` generates valid bash with proper escaping",
-        "`launchCursorAgentInTerminal` is exported as a `createServerFn`",
-        "Server function starts ticket workflow before launching",
-        "Server function saves ticket state for CLI tool",
-        "Graceful handling when Cursor Agent CLI not installed",
-        "Graceful handling when no terminal emulator found",
-        "`pnpm type-check` passes",
-        "`pnpm lint` passes"
+        "Clicking Ralph launch options from the epic detail page performs a real launch.",
+        "The epic detail header supports the same Ralph options as the Edit Epic modal.",
+        "Launches honor project `workingMethod` unless the selected option intentionally overrides it.",
+        "Success and failure toasts are user-meaningful and consistent with the modal path.",
+        "Add regression coverage for the epic detail Ralph launch actions."
       ],
       "references": [
-        "src/api/terminal.ts"
-      ],
-      "description": "## Context\n\n**Branch**: All work for this epic is on one feature branch: `feat/cursor-agent-integration`. Do not create a separate branch for this ticket.\n**Full plan**: Refer to the epic description for the complete plan, file manifest, technical reference, and context. Regenerate this ticket from the epic if requirements are unclear.\n**Depends on**: CLI discovery ticket (findCursorAgentCli + isCursorAgentInstalled must exist)\n\n## What\n\nCreate the launch script generator and TanStack server function for launching Cursor Agent CLI in a terminal.\n\n## Files to modify\n\n- `src/api/terminal.ts` — add `createCursorAgentLaunchScript()` and `launchCursorAgentInTerminal`\n\n## Details\n\n### `createCursorAgentLaunchScript(projectPath, context)`\n\nFollow `createCopilotLaunchScript()` / `createOpenCodeLaunchScript()` pattern. Creates a bash script that:\n\n1. `cd` to project path\n2. Saves context to `.brain-dump-context.md` via heredoc (same unique delimiter pattern as other scripts)\n3. Shows Brain Dump branding banner — amber color (`\\033[0;33m`) matching existing Cursor branding\n4. Verifies `agent` binary is available (or resolved path from `findCursorAgentCli`)\n5. Launches: `agent --force --approve-mcps --trust -p \"$(cat \"$CONTEXT_FILE\")\"`\n6. Handles non-zero exit codes with troubleshooting guidance\n7. Cleans up context file\n8. `exec bash` to keep terminal open\n\n### `launchCursorAgentInTerminal` server function\n\n`createServerFn({ method: \"POST\" })` — follow `launchCopilotInTerminal` pattern exactly:\n\n1. Input: `{ ticketId, context, projectPath, preferredTerminal?, projectName, epicName, ticketTitle }`\n2. Validate project path exists\n3. Check `isCursorAgentInstalled()`\n4. Detect/validate terminal emulator\n5. Start ticket workflow (`startWorkflowForLaunch`)\n6. Save current ticket state to `~/.brain-dump/current-ticket.json`\n7. Create launch script via `createCursorAgentLaunchScript()`\n8. Build terminal command with window title\n9. Fire-and-forget launch via `exec()`\n\nReturns `LaunchResult` with success/failure, method, message, terminal used, warnings.\n\n## Acceptance criteria\n\n- [ ] `createCursorAgentLaunchScript()` generates valid bash with proper escaping\n- [ ] `launchCursorAgentInTerminal` is exported as a `createServerFn`\n- [ ] Server function starts ticket workflow before launching\n- [ ] Server function saves ticket state for CLI tool\n- [ ] Graceful handling when Cursor Agent CLI not installed\n- [ ] Graceful handling when no terminal emulator found\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm lint` passes",
-      "priority": "high",
-      "tags": [
-        "backend",
-        "cursor-agent",
-        "launch"
-      ]
-    },
-    {
-      "id": "9b11b4ea-9388-4d2c-92de-a2a7b92b0498",
-      "title": "Ralph backend: add cursor-agent to RalphAiBackend + routing",
-      "passes": false,
-      "overview": "**Branch**: All work for this epic is on one feature branch: `feat/cursor-agent-integration`. Do not create a separate branch for this ticket.\n**Full plan**: Refer to the epic description for the complete plan, file manifest, technical reference, and context. Regenerate this ticket from the epic if requirements are unclear.\n**Depends on**: CLI discovery ticket + launch script ticket",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`RalphAiBackend` type includes `\"cursor-agent\"`",
-        "Ralph script preflight checks for Cursor Agent CLI binary",
-        "Ralph loop uses `agent --force --approve-mcps --trust -p` for headless execution",
-        "Banner displays \"Cursor Agent\" as the AI backend name",
-        "All 3 routing chains in `ralph.ts` handle `\"cursor-agent\"` working method",
-        "`pnpm type-check` passes",
-        "`pnpm lint` passes"
-      ],
-      "references": [
-        "src/api/ralph-script.ts",
-        "src/api/ralph.ts"
-      ],
-      "description": "## Context\n\n**Branch**: All work for this epic is on one feature branch: `feat/cursor-agent-integration`. Do not create a separate branch for this ticket.\n**Full plan**: Refer to the epic description for the complete plan, file manifest, technical reference, and context. Regenerate this ticket from the epic if requirements are unclear.\n**Depends on**: CLI discovery ticket + launch script ticket\n\n## What\n\nMake Cursor Agent a real Ralph AI backend so Ralph loops can run with Cursor Agent in headless mode.\n\n## Files to modify\n\n- `src/api/ralph-script.ts` — update `RalphAiBackend` type, add preflight check + AI invocation\n- `src/api/ralph.ts` — update 3 ternary routing chains for `workingMethod === \"cursor-agent\"`\n\n## Details\n\n### ralph-script.ts\n\n1. **Type**: Add `\"cursor-agent\"` to `RalphAiBackend` union: `\"claude\" | \"opencode\" | \"codex\" | \"cursor-agent\"`\n\n2. **Preflight check** (in `generateRalphScript`): Verify CLI binary exists before entering loop:\n   ```bash\n   if ! command -v agent >/dev/null 2>&1; then\n     echo \"Cursor Agent CLI not found in PATH\"\n     echo \"Install: curl https://cursor.com/install -fsS | bash\"\n     exit 1\n   fi\n   ```\n\n3. **AI invocation**: The headless Ralph loop command:\n   ```bash\n   agent --force --approve-mcps --trust -p \"$(cat \"$PROMPT_FILE\")\"\n   ```\n   This mirrors Claude's `claude --dangerously-skip-permissions --output-format text -p \"$(cat \"$PROMPT_FILE\")\"`\n\n4. **Display name**: `\"Cursor Agent\"` in the banner and log output (update `aiName` variable)\n\n### ralph.ts\n\nThere are 3 ternary conditional chains that route by `workingMethod`. Each currently handles `\"vscode\"`, `\"cursor\"` (editor), and `\"copilot-cli\"`. Add `\"cursor-agent\"` case to each chain, routing to the new terminal launch function (not the editor launcher).\n\n## Acceptance criteria\n\n- [ ] `RalphAiBackend` type includes `\"cursor-agent\"`\n- [ ] Ralph script preflight checks for Cursor Agent CLI binary\n- [ ] Ralph loop uses `agent --force --approve-mcps --trust -p` for headless execution\n- [ ] Banner displays \"Cursor Agent\" as the AI backend name\n- [ ] All 3 routing chains in `ralph.ts` handle `\"cursor-agent\"` working method\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm lint` passes",
-      "priority": "high",
-      "tags": [
-        "backend",
-        "cursor-agent",
-        "ralph"
-      ]
-    },
-    {
-      "id": "e58433e1-e4d3-43da-bc67-4d222d3123ba",
-      "title": "UI: Rename Cursor labels + add Cursor Agent launch types",
-      "passes": false,
-      "overview": "**Branch**: All work for this epic is on one feature branch: `feat/cursor-agent-integration`. Do not create a separate branch for this ticket.\n**Full plan**: Refer to the epic description for the complete plan, file manifest, technical reference, and context. Regenerate this ticket from the epic if requirements are unclear.\n**Depends on**: Launch script + server function ticket (launchCursorAgentInTerminal must exist)",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "\"Cursor\" label reads \"Cursor Editor\" in launch options",
-        "\"Ralph (Cursor)\" label reads \"Ralph (Cursor Editor)\"",
-        "\"Cursor Agent\" and \"Ralph (Cursor Agent)\" appear as new launch options",
-        "Cursor Agent uses `Terminal` icon (not `Monitor`)",
-        "All 5 handler files route `\"cursor-agent\"` to `launchCursorAgentInTerminal`",
-        "All 5 handler files route `\"ralph-cursor-agent\"` to Ralph with cursor-agent backend",
-        "EpicDetailHeader review provider options include cursor-agent",
-        "Existing Cursor Editor launch behavior is unchanged",
-        "`pnpm type-check` passes",
-        "`pnpm lint` passes"
-      ],
-      "references": [
-        "src/components/tickets/LaunchActions.tsx",
-        "src/components/tickets/EditTicketModal.tsx",
-        "src/components/TicketModal.tsx",
-        "src/components/EpicModal.tsx",
         "src/components/epics/EpicDetailHeader.tsx",
+        "src/components/EpicModal.tsx",
+        "src/routes/-epic.$id.test.tsx"
+      ],
+      "description": "Fix the broken Ralph launch actions on the epic detail page.\n\n## Problem\n`src/components/epics/EpicDetailHeader.tsx` renders a Ralph section in its launch menu, but every Ralph button currently only shows `Ralph launch coming soon` instead of performing a launch.\n\nThis is the most obvious user-facing bug because the epic description page appears to support the same Ralph options as the Edit Epic modal, but it does not actually execute them.\n\n## Scope\n- Replace the placeholder Ralph buttons in `src/components/epics/EpicDetailHeader.tsx` with real launch handlers.\n- Match the supported Ralph options already available in `src/components/EpicModal.tsx`.\n- Preserve the existing focused-review flow in the epic detail header.\n\n## Acceptance Criteria\n- Clicking Ralph launch options from the epic detail page performs a real launch.\n- The epic detail header supports the same Ralph options as the Edit Epic modal.\n- Launches honor project `workingMethod` unless the selected option intentionally overrides it.\n- Success and failure toasts are user-meaningful and consistent with the modal path.\n- Add regression coverage for the epic detail Ralph launch actions.\n\n## Likely Files\n- `src/components/epics/EpicDetailHeader.tsx`\n- `src/components/EpicModal.tsx`\n- `src/routes/-epic.$id.test.tsx`",
+      "priority": "high",
+      "tags": [
+        "ui",
+        "launch",
+        "ralph",
+        "epic-detail"
+      ]
+    },
+    {
+      "id": "b2847de7-3ffa-4f36-bdc7-c6e678f9aba8",
+      "title": "Ticket detail + Edit Ticket modal: align launch behavior with supported UI paths",
+      "passes": true,
+      "overview": "The ticket detail page (`src/routes/ticket.$id.tsx`) and edit-ticket modal (`src/components/tickets/EditTicketModal.tsx`) both expose launch actions, but they maintain their own long handler chains and can drift from the launch behavior users expect elsewhere.\nThis ticket keeps scope intentionally small:\n- no broad launcher redesign\n- no large launch-system rewrite\n- focus on the ticket surfaces the user called out",
+      "types": [],
+      "designDecisions": [],
+      "implementationGuide": [],
+      "acceptanceCriteria": [
+        "Launch actions from the ticket detail page perform the supported launches reliably.",
+        "Launch actions from the edit-ticket modal perform the supported launches reliably.",
+        "The ticket detail page and edit-ticket modal support the same intended option set.",
+        "Ralph launches from these ticket surfaces continue to honor project `workingMethod` unless intentionally overridden.",
+        "Add regression coverage for ticket-detail and edit-ticket launch wiring."
+      ],
+      "references": [
         "src/routes/ticket.$id.tsx",
-        "src/api/dev-tools.ts"
-      ],
-      "description": "## Context\n\n**Branch**: All work for this epic is on one feature branch: `feat/cursor-agent-integration`. Do not create a separate branch for this ticket.\n**Full plan**: Refer to the epic description for the complete plan, file manifest, technical reference, and context. Regenerate this ticket from the epic if requirements are unclear.\n**Depends on**: Launch script + server function ticket (launchCursorAgentInTerminal must exist)\n\n## What\n\nRename existing ambiguous Cursor labels for clarity, add new Cursor Agent launch types, and wire handler cases into all launch surfaces.\n\n## Files to modify\n\n### LaunchActions.tsx — type definitions + options\n- `src/components/tickets/LaunchActions.tsx`\n  - Rename: `\"cursor\"` name from `\"Cursor\"` to `\"Cursor Editor\"`\n  - Rename: `\"ralph-cursor\"` name from `\"Ralph (Cursor)\"` to `\"Ralph (Cursor Editor)\"`\n  - Add to `LaunchType` union: `\"cursor-agent\"` | `\"ralph-cursor-agent\"`\n  - Add to `LAUNCH_OPTIONS`:\n    - `\"cursor-agent\"`: name \"Cursor Agent\", description \"Terminal AI with multi-model\", icon `Terminal`, amber `#f59e0b`\n    - `\"ralph-cursor-agent\"`: name \"Ralph (Cursor Agent)\", description \"Autonomous multi-model agent\", icon `Bot`, amber `#f59e0b`\n\n### Handler cases — all launch surfaces\nEach file needs `\"cursor-agent\"` and `\"ralph-cursor-agent\"` cases + `launchCursorAgentInTerminal` import:\n\n| File | Pattern to follow |\n|------|-------------------|\n| `src/components/tickets/EditTicketModal.tsx` | Existing `cursor` / `ralph-cursor` if/else cases |\n| `src/components/TicketModal.tsx` | Existing `cursor` if/else case |\n| `src/components/EpicModal.tsx` | Existing `cursor` switch case |\n| `src/components/epics/EpicDetailHeader.tsx` | Existing `cursor` switch case + review provider options (add `workingMethodOverride: \"cursor-agent\"`) |\n| `src/routes/ticket.$id.tsx` | Existing `cursor` if/else case |\n\n### NOT modified\n- `src/api/dev-tools.ts` — Cursor Agent is NOT an editor, do not add it to `EditorInfo.name` or \"Open in Editor\" surfaces\n\n## Acceptance criteria\n\n- [ ] \"Cursor\" label reads \"Cursor Editor\" in launch options\n- [ ] \"Ralph (Cursor)\" label reads \"Ralph (Cursor Editor)\"\n- [ ] \"Cursor Agent\" and \"Ralph (Cursor Agent)\" appear as new launch options\n- [ ] Cursor Agent uses `Terminal` icon (not `Monitor`)\n- [ ] All 5 handler files route `\"cursor-agent\"` to `launchCursorAgentInTerminal`\n- [ ] All 5 handler files route `\"ralph-cursor-agent\"` to Ralph with cursor-agent backend\n- [ ] EpicDetailHeader review provider options include cursor-agent\n- [ ] Existing Cursor Editor launch behavior is unchanged\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm lint` passes",
-      "priority": "high",
-      "tags": [
-        "frontend",
-        "cursor-agent",
-        "ui"
-      ]
-    },
-    {
-      "id": "ae383bbc-34e3-46ba-9fa9-a5dca4c4436a",
-      "title": "Working method schemas: add cursor-agent to all type/enum surfaces",
-      "passes": false,
-      "overview": "**Branch**: All work for this epic is on one feature branch: `feat/cursor-agent-integration`. Do not create a separate branch for this ticket.\n**Full plan**: Refer to the epic description for the complete plan, file manifest, technical reference, and context. Regenerate this ticket from the epic if requirements are unclear.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`\"cursor-agent\"` is a valid working method in all 5 files",
-        "WorkingMethodSelect dropdown shows \"Cursor Agent\" as a selectable option",
-        "Settings form accepts \"cursor-agent\" as a valid default working method",
-        "MCP admin tool accepts \"cursor-agent\" in working method parameters",
-        "No DB migration required",
-        "`pnpm type-check` passes",
-        "`pnpm lint` passes"
-      ],
-      "references": [
-        "src/components/projects/WorkingMethodSelect.tsx",
-        "src/components/settings/settings-form-schema.ts",
-        "mcp-server/types.ts",
-        "mcp-server/tools/admin.ts",
-        "src/lib/schema.ts"
-      ],
-      "description": "## Context\n\n**Branch**: All work for this epic is on one feature branch: `feat/cursor-agent-integration`. Do not create a separate branch for this ticket.\n**Full plan**: Refer to the epic description for the complete plan, file manifest, technical reference, and context. Regenerate this ticket from the epic if requirements are unclear.\n\n## What\n\nAdd `\"cursor-agent\"` to every file that enumerates working methods so it appears in settings, project config, and MCP tool validation.\n\n## Files to modify\n\n| File | What to update |\n|------|----------------|\n| `src/components/projects/WorkingMethodSelect.tsx` | `WorkingMethod` type union + `WORKING_METHOD_OPTIONS` array (add entry with Terminal icon, \"Cursor Agent\" label, amber color, description) |\n| `src/components/settings/settings-form-schema.ts` | `workingMethodSchema` Zod enum — add `\"cursor-agent\"` |\n| `mcp-server/types.ts` | `DbProject.workingMethod` union type + `DbSettings.defaultWorkingMethod` union type |\n| `mcp-server/tools/admin.ts` | `WORKING_METHODS` array/Zod enum constant |\n| `src/lib/schema.ts` | Working method type definition if present |\n\n## Details\n\nNo DB migration needed — `defaultWorkingMethod` is stored as text. Adding a new string value is backward-compatible.\n\nThe `WorkingMethodSelect.tsx` entry should have:\n- Icon matching existing Cursor entry style but distinguishable (Terminal vs Monitor)\n- Label: \"Cursor Agent\"\n- Description: \"Terminal AI with multi-model access\"\n- Amber color to match Cursor branding\n\n## Acceptance criteria\n\n- [ ] `\"cursor-agent\"` is a valid working method in all 5 files\n- [ ] WorkingMethodSelect dropdown shows \"Cursor Agent\" as a selectable option\n- [ ] Settings form accepts \"cursor-agent\" as a valid default working method\n- [ ] MCP admin tool accepts \"cursor-agent\" in working method parameters\n- [ ] No DB migration required\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm lint` passes",
-      "priority": "medium",
-      "tags": [
-        "backend",
-        "frontend",
-        "cursor-agent",
-        "schema"
-      ]
-    },
-    {
-      "id": "ae25c609-c021-4a1e-86ed-8650c51f1b6e",
-      "title": "Comment authors + environment detection for cursor-agent",
-      "passes": false,
-      "overview": "**Branch**: All work for this epic is on one feature branch: `feat/cursor-agent-integration`. Do not create a separate branch for this ticket.\n**Full plan**: Refer to the epic description for the complete plan, file manifest, technical reference, and context. Regenerate this ticket from the epic if requirements are unclear.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Comment authors include \"cursor-agent\" with amber styling and \"Cursor Agent\" label",
-        "`isCursorAgent()` returns true when `CURSOR_AGENT=1` env var is set",
-        "`isCursor()` still works for editor detection (not broken)",
-        "Both environment.ts files (src/lib and mcp-server/lib) updated",
-        "`pnpm type-check` passes",
-        "`pnpm lint` passes"
-      ],
-      "references": [
-        "src/lib/comment-authors.ts",
-        "src/lib/environment.ts",
-        "mcp-server/lib/environment.ts"
-      ],
-      "description": "## Context\n\n**Branch**: All work for this epic is on one feature branch: `feat/cursor-agent-integration`. Do not create a separate branch for this ticket.\n**Full plan**: Refer to the epic description for the complete plan, file manifest, technical reference, and context. Regenerate this ticket from the epic if requirements are unclear.\n\n## What\n\nEnsure Cursor Agent work is attributed correctly in activity logs and the environment can be detected distinctly from Cursor Editor.\n\n## Files to modify\n\n### Comment authors — `src/lib/comment-authors.ts`\n\nAdd `\"cursor-agent\"` to:\n- `BASE_COMMENT_AUTHORS` array\n- `COMMENT_AUTHOR_STYLES` record — amber color (`#f59e0b`) to match branding\n- `COMMENT_AUTHOR_LABELS` record — label: `\"Cursor Agent\"`\n\nThis ensures ticket comments created during Cursor Agent sessions show the correct author attribution, not generic \"user\" or \"cursor\" (editor).\n\n### Environment detection — `src/lib/environment.ts` + `mcp-server/lib/environment.ts`\n\nBoth files already detect Cursor Editor via the `CURSOR` env flag. Add Cursor Agent detection:\n\n- Add `CURSOR_AGENT` flag constant (the setup script sets `CURSOR_AGENT: \"1\"` in MCP env config)\n- Add `CURSOR_AGENT_ENV_PATTERNS` if needed\n- Add `hasCursorAgentEnvironment()` / `isCursorAgent()` detection function\n- Keep existing `isCursor()` for editor detection — do not break it\n\nBoth `src/lib/environment.ts` and `mcp-server/lib/environment.ts` need parallel updates (they have similar but separate implementations).\n\n## Acceptance criteria\n\n- [ ] Comment authors include \"cursor-agent\" with amber styling and \"Cursor Agent\" label\n- [ ] `isCursorAgent()` returns true when `CURSOR_AGENT=1` env var is set\n- [ ] `isCursor()` still works for editor detection (not broken)\n- [ ] Both environment.ts files (src/lib and mcp-server/lib) updated\n- [ ] `pnpm type-check` passes\n- [ ] `pnpm lint` passes",
-      "priority": "medium",
-      "tags": [
-        "backend",
-        "cursor-agent",
-        "analytics"
-      ]
-    },
-    {
-      "id": "b90c352d-d5d2-4ef7-8242-1330b637f4e3",
-      "title": "Extend setup-cursor.sh: CLI detection, cli-config.json, optional hook",
-      "passes": false,
-      "overview": "**Branch**: All work for this epic is on one feature branch: `feat/cursor-agent-integration`. Do not create a separate branch for this ticket.\n**Full plan**: Refer to the epic description for the complete plan, file manifest, technical reference, and context. Regenerate this ticket from the epic if requirements are unclear.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Script detects Cursor Agent CLI binary (best-effort, no failure on missing)",
-        "`~/.cursor/cli-config.json` created/merged with Brain Dump permission entries",
-        "Existing user permissions in cli-config.json preserved during merge",
-        "Script is idempotent (safe to run multiple times)",
-        "Summary output mentions Cursor Agent CLI status",
-        "Existing Cursor editor setup (MCP, agents, skills, commands) is unchanged",
-        "Script passes shellcheck or similar linting"
-      ],
-      "references": [],
-      "description": "## Context\n\n**Branch**: All work for this epic is on one feature branch: `feat/cursor-agent-integration`. Do not create a separate branch for this ticket.\n**Full plan**: Refer to the epic description for the complete plan, file manifest, technical reference, and context. Regenerate this ticket from the epic if requirements are unclear.\n\n## What\n\nExtend the existing `scripts/setup-cursor.sh` to also configure Cursor Agent CLI. One owner script for all `~/.cursor/` config.\n\n## File to modify\n\n- `scripts/setup-cursor.sh`\n\n## Details\n\nAdd a new section after the existing MCP/agents/skills/commands steps:\n\n### Step: Detect Cursor Agent CLI\n\nBest-effort check for the binary:\n1. Check `agent` in PATH, verify version output contains \"cursor\"\n2. Fallback: check `~/.local/bin/agent`\n3. Fallback: check `cursor-agent` in PATH\n4. If not found: print install guidance (`curl https://cursor.com/install -fsS | bash`) but do NOT fail the script — editor setup must still succeed\n\n### Step: Configure `~/.cursor/cli-config.json`\n\nBrain Dump-managed permissions for approval-free Ralph. Cursor uses exact string matching:\n\n```json\n{\n  \"permissions\": {\n    \"allow\": [\n      \"Shell(git)\", \"Shell(node)\", \"Shell(pnpm)\", \"Shell(npm)\",\n      \"Shell(bash)\", \"Shell(sh)\", \"Shell(rg)\", \"Shell(find)\",\n      \"Shell(ls)\", \"Shell(cat)\", \"Shell(sed)\", \"Shell(grep)\",\n      \"Shell(mkdir)\", \"Shell(cp)\", \"Shell(mv)\", \"Shell(echo)\",\n      \"Shell(test)\", \"Shell(which)\"\n    ],\n    \"deny\": [\n      \"Shell(rm -rf /)\", \"Shell(sudo)\", \"Shell(shutdown)\", \"Shell(reboot)\"\n    ]\n  }\n}\n```\n\n**Merge strategy**: If `cli-config.json` already exists, read it, merge Brain Dump permission entries (preserving user entries), write back. Use the `node -e` JSON merge pattern already established for `mcp.json` in this same script.\n\n### Step (optional): State enforcement hook\n\nIf Cursor hook behavior is confirmed, add `enforce-state-before-write.sh` to `~/.cursor/hooks/` with matching `hooks.json` config. Same logic as `setup-copilot-cli.sh` hook. Cursor hooks support `matcher` patterns (`\"Write|Edit|Create\"`).\n\nIf adding hooks, merge with existing `hooks.json` (don't overwrite).\n\n### Step: Update summary output\n\nAdd Cursor Agent CLI status to the setup summary banner.\n\n## Acceptance criteria\n\n- [ ] Script detects Cursor Agent CLI binary (best-effort, no failure on missing)\n- [ ] `~/.cursor/cli-config.json` created/merged with Brain Dump permission entries\n- [ ] Existing user permissions in cli-config.json preserved during merge\n- [ ] Script is idempotent (safe to run multiple times)\n- [ ] Summary output mentions Cursor Agent CLI status\n- [ ] Existing Cursor editor setup (MCP, agents, skills, commands) is unchanged\n- [ ] Script passes shellcheck or similar linting",
-      "priority": "high",
-      "tags": [
-        "scripts",
-        "cursor-agent",
-        "setup"
-      ]
-    },
-    {
-      "id": "fb04e786-0daf-4951-be2c-b7d1be9cb017",
-      "title": "Update install.sh + uninstall.sh for Cursor Agent CLI",
-      "passes": false,
-      "overview": "**Branch**: All work for this epic is on one feature branch: `feat/cursor-agent-integration`. Do not create a separate branch for this ticket.\n**Full plan**: Refer to the epic description for the complete plan, file manifest, technical reference, and context. Regenerate this ticket from the epic if requirements are unclear.\n**Depends on**: setup-cursor.sh extension ticket",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`--cursor` installs both editor and CLI config",
-        "`--all` includes Cursor Agent",
-        "Detection distinguishes Cursor's `agent` from other binaries",
-        "Uninstall removes only Brain Dump-managed Cursor Agent config",
-        "Uninstall preserves MCP/agents/skills/commands (shared with editor)",
-        "Uninstall does not remove `agent` binary",
-        "Scripts are idempotent"
-      ],
-      "references": [],
-      "description": "## Context\n\n**Branch**: All work for this epic is on one feature branch: `feat/cursor-agent-integration`. Do not create a separate branch for this ticket.\n**Full plan**: Refer to the epic description for the complete plan, file manifest, technical reference, and context. Regenerate this ticket from the epic if requirements are unclear.\n**Depends on**: setup-cursor.sh extension ticket\n\n## What\n\nUpdate all install/uninstall entrypoints so Cursor Agent is covered everywhere Cursor is covered today.\n\n## Files to modify\n\n- `scripts/install.sh` — add Cursor Agent CLI detection\n- `install.sh` (root) — add Cursor Agent CLI detection (if it delegates to scripts/install.sh, may only need the one)\n- `scripts/uninstall.sh` — add Cursor Agent cleanup\n- `uninstall.sh` (root) — add Cursor Agent cleanup\n\n## Details\n\n### Install\n\nAdd Cursor Agent CLI detection alongside existing Cursor editor detection:\n\n```bash\n# Detect Cursor Agent CLI\nif command -v agent &>/dev/null; then\n  if agent --version 2>&1 | grep -qi \"cursor\"; then\n    CURSOR_AGENT_AVAILABLE=1\n    echo -e \"${GREEN}✓${NC} Cursor Agent CLI detected\"\n  else\n    echo -e \"${YELLOW}○${NC} 'agent' found but not Cursor Agent CLI\"\n  fi\nelse\n  echo -e \"${YELLOW}○${NC} Cursor Agent CLI not found\"\nfi\n```\n\nThe `--cursor` flag and `--all` both trigger the extended `setup-cursor.sh` which now handles both editor and CLI. No new flag needed.\n\n### Uninstall\n\nCursor Agent cleanup removes only Brain Dump-managed config:\n- Remove Brain Dump permission entries from `~/.cursor/cli-config.json` (merge-remove, not delete)\n- Remove hooks if installed (`~/.cursor/hooks/enforce-state-before-write.sh`, clean hooks.json)\n- Do NOT remove MCP, agents, skills, commands (shared with editor, handled by existing Cursor uninstall path)\n- Do NOT remove the `agent` binary or Cursor app\n\n## Acceptance criteria\n\n- [ ] `--cursor` installs both editor and CLI config\n- [ ] `--all` includes Cursor Agent\n- [ ] Detection distinguishes Cursor's `agent` from other binaries\n- [ ] Uninstall removes only Brain Dump-managed Cursor Agent config\n- [ ] Uninstall preserves MCP/agents/skills/commands (shared with editor)\n- [ ] Uninstall does not remove `agent` binary\n- [ ] Scripts are idempotent",
-      "priority": "medium",
-      "tags": [
-        "scripts",
-        "cursor-agent",
-        "install"
-      ]
-    },
-    {
-      "id": "42248b9d-3ca6-4706-8cbc-fec068da5b3e",
-      "title": "Doctor output + verification for Cursor Agent CLI",
-      "passes": false,
-      "overview": "**Branch**: All work for this epic is on one feature branch: `feat/cursor-agent-integration`. Do not create a separate branch for this ticket.\n**Full plan**: Refer to the epic description for the complete plan, file manifest, technical reference, and context. Regenerate this ticket from the epic if requirements are unclear.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "`brain-dump doctor` reports Cursor Agent CLI binary status",
-        "Reports version when found",
-        "Reports MCP configuration status",
-        "Reports cli-config.json permissions status",
-        "Existing doctor output for other environments unchanged",
-        "Graceful handling when Cursor Agent not installed (informational, not error)"
-      ],
-      "references": [],
-      "description": "## Context\n\n**Branch**: All work for this epic is on one feature branch: `feat/cursor-agent-integration`. Do not create a separate branch for this ticket.\n**Full plan**: Refer to the epic description for the complete plan, file manifest, technical reference, and context. Regenerate this ticket from the epic if requirements are unclear.\n\n## What\n\nAdd Cursor Agent CLI status to `brain-dump doctor` output so users can verify their installation.\n\n## Files to modify\n\n- `cli/commands/admin.ts` (or wherever `brain-dump doctor` / `brain-dump admin check` is implemented)\n\n## Details\n\nAdd a new section to doctor output reporting:\n\n1. **Binary found / not found** — and which name was found (`agent` vs `cursor-agent`)\n2. **Version** — output of `agent --version`\n3. **MCP server configured** — check `~/.cursor/mcp.json` contains `\"brain-dump\"` entry\n4. **cli-config.json permissions** — check `~/.cursor/cli-config.json` exists and contains Brain Dump permission entries\n5. **Hook installed** (optional) — check if `~/.cursor/hooks/enforce-state-before-write.sh` exists\n\nFollow the pattern of existing doctor checks for other environments (Claude Code, Codex, etc.).\n\n## Acceptance criteria\n\n- [ ] `brain-dump doctor` reports Cursor Agent CLI binary status\n- [ ] Reports version when found\n- [ ] Reports MCP configuration status\n- [ ] Reports cli-config.json permissions status\n- [ ] Existing doctor output for other environments unchanged\n- [ ] Graceful handling when Cursor Agent not installed (informational, not error)",
-      "priority": "medium",
-      "tags": [
-        "cli",
-        "cursor-agent",
-        "doctor"
-      ]
-    },
-    {
-      "id": "d7990ad1-552d-4f21-9d1c-3bb5d8b8b7a5",
-      "title": "Documentation: Cursor Editor vs Cursor Agent CLI separation",
-      "passes": false,
-      "overview": "**Branch**: All work for this epic is on one feature branch: `feat/cursor-agent-integration`. Do not create a separate branch for this ticket.\n**Full plan**: Refer to the epic description for the complete plan, file manifest, technical reference, and context. Regenerate this ticket from the epic if requirements are unclear.\n**Depends on**: All implementation tickets should be complete before docs are finalized.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "Cursor Editor and Cursor Agent CLI are clearly distinguished in all docs",
-        "README environment matrix includes Cursor Agent row",
-        "CLAUDE.md environment table includes Cursor Agent",
-        "Setup docs explain what `--cursor` installs",
-        "Troubleshooting section covers CLI detection and permissions",
-        "No broken links or stale references"
-      ],
-      "references": [],
-      "description": "## Context\n\n**Branch**: All work for this epic is on one feature branch: `feat/cursor-agent-integration`. Do not create a separate branch for this ticket.\n**Full plan**: Refer to the epic description for the complete plan, file manifest, technical reference, and context. Regenerate this ticket from the epic if requirements are unclear.\n**Depends on**: All implementation tickets should be complete before docs are finalized.\n\n## What\n\nUpdate documentation to clearly separate Cursor Editor and Cursor Agent CLI integrations.\n\n## Areas to update\n\n### 1. Cursor setup docs\n\nClearly separate:\n- Cursor Editor integration (opens GUI, context file, `cursor` CLI or `open -a Cursor`)\n- Cursor Agent CLI integration (terminal, headless, Ralph via `agent` binary)\n- What `--cursor` now installs (both editor and CLI config)\n- How Ralph behaves in each mode (editor = opens Cursor with context file; agent = headless terminal loop)\n\n### 2. README environment matrix\n\nAdd Cursor Agent as a distinct row alongside Cursor Editor in the environment support table. The table currently has columns for AI Review, Hook Enforcement, Telemetry. Cursor Agent should show:\n- AI Review: Full\n- Hook Enforcement: Optional (hooks.json if configured)\n- Telemetry: MCP self-instrumentation\n\n### 3. CLAUDE.md environment table\n\nUpdate the Multi-Environment Support table to include Cursor Agent as a separate entry from Cursor.\n\n### 4. Troubleshooting notes\n\nAdd troubleshooting guidance for:\n- CLI install and detection (`agent` vs `cursor-agent` binary name ambiguity)\n- MCP visibility (`agent mcp list` should show brain-dump)\n- Permission config (`~/.cursor/cli-config.json` format, exact `\"Shell()\"` string matching)\n- Hook enforcement if enabled (state file location, valid states)\n\n## Acceptance criteria\n\n- [ ] Cursor Editor and Cursor Agent CLI are clearly distinguished in all docs\n- [ ] README environment matrix includes Cursor Agent row\n- [ ] CLAUDE.md environment table includes Cursor Agent\n- [ ] Setup docs explain what `--cursor` installs\n- [ ] Troubleshooting section covers CLI detection and permissions\n- [ ] No broken links or stale references",
-      "priority": "medium",
-      "tags": [
-        "docs",
-        "cursor-agent"
-      ]
-    },
-    {
-      "id": "aa252dbc-63a7-47b7-97b9-56f1c25c4e82",
-      "title": "Tests: mocks, backend unit tests, script test coverage",
-      "passes": false,
-      "overview": "**Branch**: All work for this epic is on one feature branch: `feat/cursor-agent-integration`. Do not create a separate branch for this ticket.\n**Full plan**: Refer to the epic description for the complete plan, file manifest, technical reference, and context. Regenerate this ticket from the epic if requirements are unclear.\n**Depends on**: All implementation tickets should be complete before test coverage is finalized.",
-      "types": [],
-      "designDecisions": [],
-      "implementationGuide": [],
-      "acceptanceCriteria": [
-        "All 6 test files have `launchCursorAgentInTerminal` mock",
-        "`pnpm test` passes with all new mocks",
-        "Backend discovery/launch functions have test coverage",
-        "Script install/uninstall tests cover Cursor Agent config",
-        "No tests for implementation details (only inputs/outputs)"
-      ],
-      "references": [
-        "src/routes/-ticket.$id.telemetry.test.tsx",
-        "src/routes/-epic.$id.test.tsx",
+        "src/components/tickets/EditTicketModal.tsx",
+        "src/components/tickets/LaunchActions.tsx",
         "src/routes/-ticket.$id.test.tsx",
-        "src/components/TicketModal.test.tsx",
-        "src/components/TicketModal.telemetry.test.tsx",
         "src/components/tickets/EditTicketModal.launch.test.tsx"
       ],
-      "description": "## Context\n\n**Branch**: All work for this epic is on one feature branch: `feat/cursor-agent-integration`. Do not create a separate branch for this ticket.\n**Full plan**: Refer to the epic description for the complete plan, file manifest, technical reference, and context. Regenerate this ticket from the epic if requirements are unclear.\n**Depends on**: All implementation tickets should be complete before test coverage is finalized.\n\n## What\n\nAdd test mocks for the new server function, backend unit tests for discovery/launch/Ralph generation, and script test coverage.\n\n## Test areas\n\n### 1. UI test mocks\n\nEvery test file that mocks `launchCursorInTerminal` also needs `launchCursorAgentInTerminal: vi.fn()`:\n\n- `src/routes/-ticket.$id.telemetry.test.tsx`\n- `src/routes/-epic.$id.test.tsx`\n- `src/routes/-ticket.$id.test.tsx`\n- `src/components/TicketModal.test.tsx`\n- `src/components/TicketModal.telemetry.test.tsx`\n- `src/components/tickets/EditTicketModal.launch.test.tsx`\n\n### 2. Backend unit tests\n\nTests for the new functions (follow existing test patterns in the codebase):\n\n- `findCursorAgentCli()` — returns path when installed, null when not, distinguishes from non-Cursor `agent` binaries\n- `isCursorAgentInstalled()` — returns structured InstallCheck\n- `createCursorAgentLaunchScript()` — generates valid bash script with proper escaping\n- Ralph script generation with `\"cursor-agent\"` backend — correct preflight check, correct invocation command\n- Working method validation — `\"cursor-agent\"` accepted\n\n### 3. Script test coverage\n\n**File**: `scripts/install-scripts.test.ts`\n\n- `--cursor` and `--all` install parity (both trigger Cursor Agent setup)\n- Uninstall parity (removes Brain Dump config only)\n- `mcp.json` merge/remove behavior\n- `cli-config.json` merge/remove behavior (new)\n\n### Testing philosophy reminder\n\nPer CLAUDE.md: test user-facing behavior, not implementation details. For backend functions, the \"user\" is the calling code — test inputs and outputs, not internal mechanics.\n\n## Acceptance criteria\n\n- [ ] All 6 test files have `launchCursorAgentInTerminal` mock\n- [ ] `pnpm test` passes with all new mocks\n- [ ] Backend discovery/launch functions have test coverage\n- [ ] Script install/uninstall tests cover Cursor Agent config\n- [ ] No tests for implementation details (only inputs/outputs)",
-      "priority": "medium",
+      "description": "Tighten the ticket-detail launch paths so the ticket description page and edit-ticket modal behave consistently with the supported launch experience in the app.\n\n## Context\nThe ticket detail page (`src/routes/ticket.$id.tsx`) and edit-ticket modal (`src/components/tickets/EditTicketModal.tsx`) both expose launch actions, but they maintain their own long handler chains and can drift from the launch behavior users expect elsewhere.\n\nThis ticket keeps scope intentionally small:\n- no broad launcher redesign\n- no large launch-system rewrite\n- focus on the ticket surfaces the user called out\n\n## Scope\n- Compare the ticket detail page and edit-ticket modal launch behavior against the intended supported options.\n- Fix any launch wiring gaps that prevent these ticket surfaces from behaving reliably.\n- Reduce obvious duplication only if needed to keep the two ticket surfaces aligned.\n- Add regression tests for the ticket route and edit-ticket modal launch actions.\n\n## Acceptance Criteria\n- Launch actions from the ticket detail page perform the supported launches reliably.\n- Launch actions from the edit-ticket modal perform the supported launches reliably.\n- The ticket detail page and edit-ticket modal support the same intended option set.\n- Ralph launches from these ticket surfaces continue to honor project `workingMethod` unless intentionally overridden.\n- Add regression coverage for ticket-detail and edit-ticket launch wiring.\n\n## Likely Files\n- `src/routes/ticket.$id.tsx`\n- `src/components/tickets/EditTicketModal.tsx`\n- `src/components/tickets/LaunchActions.tsx`\n- `src/routes/-ticket.$id.test.tsx`\n- `src/components/tickets/EditTicketModal.launch.test.tsx`",
+      "priority": "high",
       "tags": [
-        "tests",
-        "cursor-agent"
+        "ui",
+        "launch",
+        "ralph",
+        "ticket-detail"
       ]
     }
   ],
@@ -440,7 +212,7 @@
       "Committed with proper message format: `feat(<ticket-id>): <description>`"
     ]
   },
-  "generatedAt": "2026-03-29T22:55:36.506Z",
-  "epicTitle": "Add Cursor Agent CLI as a First-Class Brain Dump Environment",
-  "epicDescription": "# Add Cursor Agent CLI as a First-Class Brain Dump Environment\n\n## Summary\n\n- Extend Brain Dump's existing Cursor integration so `--cursor` installs and manages both:\n  - **Cursor Editor** for GUI/editor launches\n  - **Cursor Agent** for terminal/CLI launches\n- Introduce `cursor-agent` as a distinct Brain Dump provider/working method instead of overloading the current cursor editor path.\n- Support both:\n  - Interactive terminal launches with Cursor Agent\n  - Approval-free Ralph automation with Cursor Agent headless mode\n- Keep v1 focused on native Brain Dump integration, not Cursor plugin packaging.\n\n---\n\n## Context\n\nBrain Dump supports 6 AI coding environments today. The existing \"Cursor\" integration opens the Cursor editor (GUI) with a context file. Cursor also ships a standalone terminal CLI that supports headless mode, auto-approve, multi-model access (GPT-5.x, Gemini 3.x, Claude, etc.), full MCP integration, and hooks. Adding this CLI as a distinct \"Cursor Agent\" environment gives Brain Dump a multi-model Ralph backend without requiring the Cursor editor.\n\n**Key distinction**: `cursor` = open Cursor editor GUI. `cursor-agent` = run the Cursor CLI in a terminal. These are different execution models and remain separate launch targets.\n\n**Binary name**: The official Cursor CLI docs (cursor.com/docs/cli/installation, cursor.com/docs/cli/reference/parameters) use `agent` as the binary name, installed to `~/.local/bin/agent`. Discovery should check for `agent` first, with a fallback check for `cursor-agent` if version detection fails. Verify via version output that it's Cursor's binary.\n\n---\n\n## 1. Setup and Installation\n\n### 1.1 Extend `scripts/setup-cursor.sh`\n\nSingle owner script for all `~/.cursor/` config. Add a new section after existing MCP/agents/skills/commands setup:\n\n**Cursor Agent CLI detection**: Best-effort check for the binary. If not found, print install guidance (`curl https://cursor.com/install -fsS | bash`). Do not fail the script -- editor setup should still succeed.\n\n**`~/.cursor/cli-config.json`**: Brain Dump-managed permissions for approval-free Ralph. Cursor uses exact string matching for permissions:\n```json\n{\n  \"permissions\": {\n    \"allow\": [\n      \"Shell(git)\", \"Shell(node)\", \"Shell(pnpm)\", \"Shell(npm)\",\n      \"Shell(bash)\", \"Shell(sh)\", \"Shell(rg)\", \"Shell(find)\",\n      \"Shell(ls)\", \"Shell(cat)\", \"Shell(sed)\", \"Shell(grep)\",\n      \"Shell(mkdir)\", \"Shell(cp)\", \"Shell(mv)\", \"Shell(echo)\",\n      \"Shell(test)\", \"Shell(which)\"\n    ],\n    \"deny\": [\n      \"Shell(rm -rf /)\", \"Shell(sudo)\", \"Shell(shutdown)\", \"Shell(reboot)\"\n    ]\n  }\n}\n```\nMerge strategy: read existing config, add Brain Dump entries, preserve user entries. Use the `node -e` JSON merge pattern already established for `mcp.json` in the same script.\n\n**Optional hook** (hardening, not foundation): If Cursor hook behavior is confirmed in practice, add `enforce-state-before-write.sh` to `~/.cursor/hooks/` with `hooks.json` config. Blocks Write/Edit/Create unless Ralph state is implementing/testing/committing. Cursor hooks support `matcher` patterns (`\"Write|Edit|Create\"`) for tool filtering. Same logic as the Copilot CLI hook already in `setup-copilot-cli.sh`.\n\n### 1.2 Update install entrypoints\n\n**Files**: `scripts/install.sh`, `install.sh` (root)\n\nAdd Cursor Agent CLI detection alongside existing Cursor editor detection. The `--cursor` flag and `--all` both trigger the extended `setup-cursor.sh` which now handles both editor and CLI.\n\nDetection must distinguish `agent` binary as Cursor's (generic name problem):\n```bash\nif command -v agent &>/dev/null; then\n  if agent --version 2>&1 | grep -qi \"cursor\"; then\n    CURSOR_AGENT_AVAILABLE=1\n  fi\nfi\n```\n\n### 1.3 Update uninstall entrypoints\n\n**Files**: `scripts/uninstall.sh`, `uninstall.sh` (root)\n\nCursor Agent cleanup removes only Brain Dump-managed config:\n- Remove Brain Dump permission entries from `~/.cursor/cli-config.json`\n- Remove hooks if installed (`~/.cursor/hooks/enforce-state-before-write.sh`, update `hooks.json`)\n- Do NOT remove MCP, agents, skills, commands (shared with editor)\n- Do NOT remove the `agent` binary or Cursor app\n\n### 1.4 Update `scripts/install-scripts.test.ts`\n\nAdd test coverage for `--cursor` installing both editor and CLI config, `cli-config.json` merge/remove, and uninstall parity.\n\n---\n\n## 2. Backend: CLI Discovery, Launch, Ralph Backend\n\n### 2.1 CLI discovery\n\n**File**: `src/api/ralph-launchers.ts`\n\nAdd `findCursorAgentCli(): Promise<string | null>`. Pattern: follow `findCursorCli()`. Check `agent` in PATH and verify via version output, fallback to `~/.local/bin/agent`, fallback to `cursor-agent`. Use `execFileNoThrow` from `src/utils/execFileNoThrow.ts` per project security rules.\n\n### 2.2 Install check\n\n**File**: `src/api/terminal.ts`\n\nAdd `isCursorAgentInstalled(): Promise<InstallCheck>`. Pattern: follow `isCopilotInstalled()`. Calls `findCursorAgentCli()` and returns structured result with install guidance on failure.\n\n### 2.3 Launch script\n\n**File**: `src/api/terminal.ts`\n\nAdd `createCursorAgentLaunchScript(projectPath, context): Promise<string>`. Pattern: follow `createCopilotLaunchScript()` / `createOpenCodeLaunchScript()`.\n\nCreates a bash script that:\n- `cd` to project, save context to `.brain-dump-context.md`\n- Banner with amber branding (matching existing Cursor color)\n- Verify CLI binary available\n- Launch: `agent --force --approve-mcps --trust -p \"$(cat \"$CONTEXT_FILE\")\"`\n- Handle exit codes with guidance\n- Cleanup context file, `exec bash`\n\n### 2.4 Server function\n\n**File**: `src/api/terminal.ts`\n\nAdd `launchCursorAgentInTerminal` as a `createServerFn({ method: \"POST\" })`. Pattern: follow `launchCopilotInTerminal` exactly (validate path, check install, detect terminal, start workflow, save state, create script, build terminal command, fire-and-forget launch).\n\n### 2.5 Ralph AI backend\n\n**File**: `src/api/ralph-script.ts`\n\n- Update type: add `\"cursor-agent\"` to `RalphAiBackend` union\n- Add preflight check: verify CLI binary exists\n- Add AI invocation for Ralph loop: `agent --force --approve-mcps --trust -p \"$(cat \"$PROMPT_FILE\")\"`\n- Add display name: `\"Cursor Agent\"`\n\n### 2.6 Ralph routing\n\n**File**: `src/api/ralph.ts`\n\nThere are 3 ternary conditional chains that route by `workingMethod`. Each currently handles `\"vscode\"`, `\"cursor\"`, and `\"copilot-cli\"`. Add `\"cursor-agent\"` case to each chain, routing to the new terminal launch function.\n\n---\n\n## 3. UI: Launch Options and Handlers\n\n### 3.1 Rename existing labels\n\n**File**: `src/components/tickets/LaunchActions.tsx`\n\n- `\"cursor\"` entry: name `\"Cursor\"` -> `\"Cursor Editor\"`\n- `\"ralph-cursor\"` entry: name `\"Ralph (Cursor)\"` -> `\"Ralph (Cursor Editor)\"`\n\n### 3.2 Add new launch types\n\n**File**: `src/components/tickets/LaunchActions.tsx`\n\nAdd to `LaunchType` union: `\"cursor-agent\"` | `\"ralph-cursor-agent\"`\n\nAdd to `LAUNCH_OPTIONS` array:\n- `\"cursor-agent\"`: name \"Cursor Agent\", description \"Terminal AI with multi-model\", icon `Terminal` (not `Monitor` -- this is CLI, not GUI), amber color\n- `\"ralph-cursor-agent\"`: name \"Ralph (Cursor Agent)\", description \"Autonomous multi-model agent\", icon `Bot`, amber color\n\n### 3.3 Add handler cases to all launch surfaces\n\nEvery component that handles launch types needs `\"cursor-agent\"` and `\"ralph-cursor-agent\"` cases calling `launchCursorAgentInTerminal`. Files and their patterns:\n\n| File | Pattern | What exists to follow |\n|------|---------|----------------------|\n| `src/components/tickets/EditTicketModal.tsx` | If/else chain | `cursor` / `ralph-cursor` cases |\n| `src/components/TicketModal.tsx` | If/else chain | `cursor` case |\n| `src/components/EpicModal.tsx` | Switch + launch menu | `cursor` case |\n| `src/components/epics/EpicDetailHeader.tsx` | Switch + UI arrays + review provider options | `cursor` case + `workingMethodOverride: \"cursor\"` |\n| `src/routes/ticket.$id.tsx` | If/else chain | `cursor` case |\n\nEach file also needs `launchCursorAgentInTerminal` added to imports from `src/api/terminal.ts`.\n\n### 3.4 Do NOT add to editor-only surfaces\n\n`src/api/dev-tools.ts` has an `EditorInfo.name` type (`\"vscode\" | \"cursor\" | \"vim\" | \"neovim\"`) and \"Open in Editor\" functionality. Cursor Agent is NOT an editor -- do not add it here.\n\n---\n\n## 4. Working Method, Schema, Provider Bookkeeping\n\n### 4.1 Type/schema updates\n\nEvery file that enumerates working methods needs `\"cursor-agent\"` added:\n\n| File | What to update |\n|------|----------------|\n| `src/components/projects/WorkingMethodSelect.tsx` | `WorkingMethod` type union + `WORKING_METHOD_OPTIONS` array (add entry with icon, label, description) |\n| `src/components/settings/settings-form-schema.ts` | `workingMethodSchema` Zod enum |\n| `mcp-server/types.ts` | `DbProject.workingMethod` union + `DbSettings.defaultWorkingMethod` union |\n| `mcp-server/tools/admin.ts` | `WORKING_METHODS` array/Zod enum constant |\n| `src/lib/schema.ts` | Working method field type if defined here |\n\nNo DB migration needed -- `defaultWorkingMethod` is stored as text.\n\n### 4.2 Comment authors / analytics\n\n**File**: `src/lib/comment-authors.ts`\n\nAdd `\"cursor-agent\"` to:\n- `BASE_COMMENT_AUTHORS` array\n- `COMMENT_AUTHOR_STYLES` record (amber color to match branding)\n- `COMMENT_AUTHOR_LABELS` record (label: \"Cursor Agent\")\n\nThis ensures Cursor Agent work is attributed correctly in ticket activity logs, not bucketed as generic user activity.\n\n### 4.3 Environment detection\n\n**Files**: `src/lib/environment.ts`, `mcp-server/lib/environment.ts`\n\nThese already detect the Cursor editor environment via `CURSOR` env flag. Add detection for Cursor Agent CLI environment. The setup script sets `CURSOR_AGENT: \"1\"` env var in MCP config -- add a corresponding detection function (`hasCursorAgentEnvironment()` / `isCursorAgent()`).\n\nKeep existing `isCursor()` for editor detection.\n\n### 4.4 Doctor / verification\n\n**File**: `cli/commands/admin.ts` (or wherever `brain-dump doctor` is implemented)\n\nAdd Cursor Agent CLI status to doctor output:\n- Binary found / not found (and which name)\n- Version\n- MCP server configured in `~/.cursor/mcp.json`\n- `cli-config.json` permissions configured\n- Optional: hook installed\n\n---\n\n## 5. Documentation\n\n### 5.1 Update Cursor setup docs\n\nClearly separate:\n- Cursor Editor integration (opens GUI, context file)\n- Cursor Agent CLI integration (terminal, headless, Ralph)\n- What `--cursor` installs now (both)\n- How Ralph behaves in each mode\n\n### 5.2 Update README environment matrix\n\nAdd Cursor Agent as a distinct row alongside Cursor Editor in the environment support table.\n\n### 5.3 Troubleshooting notes\n\n- CLI install and detection (`agent` vs `cursor-agent` ambiguity)\n- MCP visibility (`agent mcp list` should show brain-dump)\n- Permission config (`cli-config.json` format)\n- Hook enforcement if enabled\n\n---\n\n## 6. Tests\n\n### 6.1 Script tests\n\n**File**: `scripts/install-scripts.test.ts`\n\n- `--cursor` and `--all` install parity\n- Uninstall parity\n- `mcp.json` merge/remove\n- `cli-config.json` merge/remove\n\n### 6.2 Backend unit tests\n\n- `findCursorAgentCli()` discovery logic\n- `isCursorAgentInstalled()` check\n- `createCursorAgentLaunchScript()` output\n- Ralph script generation with `\"cursor-agent\"` backend\n- Working method validation\n\n### 6.3 UI test mocks\n\nEvery test file that mocks `launchCursorInTerminal` also needs `launchCursorAgentInTerminal`:\n\n- `src/routes/-ticket.$id.telemetry.test.tsx`\n- `src/routes/-epic.$id.test.tsx`\n- `src/routes/-ticket.$id.test.tsx`\n- `src/components/TicketModal.test.tsx`\n- `src/components/TicketModal.telemetry.test.tsx`\n- `src/components/tickets/EditTicketModal.launch.test.tsx`\n\n### 6.4 Manual verification\n\n1. Run Cursor setup -- verify both editor and CLI config installed\n2. Verify CLI binary detected\n3. Verify MCP visible from CLI\n4. Open Brain Dump UI -- \"Cursor Editor\" and \"Cursor Agent\" both appear\n5. Interactive Cursor Agent launch from ticket -- terminal opens with context\n6. Ralph (Cursor Agent) launch for ticket and epic -- headless loop runs\n7. Verify no approval prompts during Ralph\n8. Verify doctor output shows Cursor Agent status\n9. Uninstall -- only Brain Dump config removed\n\n---\n\n## Follow-Up Debt (Not V1)\n\n- **Provider registry consolidation**: Duplicated launch branching across 6+ components should become a shared registry. Deferred unless duplication becomes a blocker during implementation.\n- **Cursor plugin/marketplace packaging**: V1 is native Brain Dump integration only.\n- **Cursor cloud agents**: V1 uses local CLI only.\n- **Analytics audit for all newer providers**: Cursor Agent should be included in any future analytics cleanup.\n\n---\n\n## Assumptions\n\n- V1 is native Brain Dump integration only; no Cursor marketplace/plugin packaging.\n- `agent` is the primary CLI command unless local verification proves a supported alias should also be handled.\n- Cursor Agent CLI will reuse Cursor's MCP and rules configuration; skills/subagents are not required for the Ralph loop in v1.\n- Provider-registry refactoring is useful but deferred unless implementation duplication becomes a blocker.\n- No DB migration required for working method values because the field is stored as text.\n\n---\n\n## Complete File Manifest\n\n| File | Change |\n|------|--------|\n| `scripts/setup-cursor.sh` | Extend: CLI detection, cli-config.json, optional hook |\n| `scripts/install.sh` | Add Cursor Agent detection |\n| `install.sh` (root) | Add Cursor Agent detection |\n| `scripts/uninstall.sh` | Add Cursor Agent cleanup |\n| `uninstall.sh` (root) | Add Cursor Agent cleanup |\n| `scripts/install-scripts.test.ts` | Add test coverage |\n| `src/api/ralph-launchers.ts` | Add `findCursorAgentCli()` |\n| `src/api/terminal.ts` | Add `isCursorAgentInstalled()`, `createCursorAgentLaunchScript()`, `launchCursorAgentInTerminal` |\n| `src/api/ralph-script.ts` | Add `\"cursor-agent\"` to `RalphAiBackend`, preflight, invocation |\n| `src/api/ralph.ts` | Update 3 ternary routing chains |\n| `src/components/tickets/LaunchActions.tsx` | Rename labels, add types + options |\n| `src/components/tickets/EditTicketModal.tsx` | Add handler cases + import |\n| `src/components/TicketModal.tsx` | Add handler cases + import |\n| `src/components/EpicModal.tsx` | Add handler cases + import |\n| `src/components/epics/EpicDetailHeader.tsx` | Add handler cases + review provider + import |\n| `src/routes/ticket.$id.tsx` | Add handler cases + import |\n| `src/components/projects/WorkingMethodSelect.tsx` | Add to type + options array |\n| `src/components/settings/settings-form-schema.ts` | Update Zod enum |\n| `mcp-server/types.ts` | Update 2 union types |\n| `mcp-server/tools/admin.ts` | Update WORKING_METHODS enum |\n| `src/lib/schema.ts` | Update working method type |\n| `src/lib/comment-authors.ts` | Add to 3 structures |\n| `src/lib/environment.ts` | Add Cursor Agent detection |\n| `mcp-server/lib/environment.ts` | Add Cursor Agent detection |\n| `cli/commands/admin.ts` | Update doctor output |\n| 6 test files | Add `launchCursorAgentInTerminal` mock |\n\n---\n\n## Cursor Agent CLI -- Technical Reference\n\n| Property | Value |\n|----------|-------|\n| Binary name | `agent` (verify via `agent --version` contains \"cursor\") |\n| Install | `curl https://cursor.com/install -fsS \\| bash` |\n| Default location | `~/.local/bin/agent` |\n| Headless flag | `-p` or `--print` |\n| Auto-approve files+shell | `--force` or `--yolo` |\n| Auto-approve MCP | `--approve-mcps` |\n| Skip trust prompt | `--trust` |\n| Model selection | `--model <name>` (e.g., `gpt-5.2`, `claude-opus-4-6`) |\n| Output formats | `text` (default), `json`, `stream-json` |\n| Global config | `~/.cursor/cli-config.json` |\n| Project config | `<project>/.cursor/cli.json` (permissions only) |\n| MCP config | `~/.cursor/mcp.json` (shared with editor) |\n| Hooks config | `~/.cursor/hooks.json` (shared with editor) |\n| Rules | `.cursor/rules/`, `AGENTS.md`, `CLAUDE.md` |\n| Skills | `.cursor/skills/`, `~/.cursor/skills/` |\n| Subagents | `.cursor/agents/`, `~/.cursor/agents/` |\n| Auth | `CURSOR_API_KEY` env var or `agent login` |\n| Permissions format | `\"Shell(command)\"` exact string matching |\n\n### Ralph Loop Command\n\n```bash\nagent --force --approve-mcps --trust -p \"$(cat \"$PROMPT_FILE\")\"\n```"
+  "generatedAt": "2026-04-05T23:40:19.291Z",
+  "epicTitle": "LLM Launch Parity for Epic and Ticket Detail Surfaces",
+  "epicDescription": "Bring the epic detail page, ticket detail page, and edit-ticket modal into parity with the known-good launch experience from the Edit Epic modal.\n\n## Problem\nThe app currently has multiple independent UI paths for starting interactive AI sessions and Ralph runs:\n- `src/components/EpicModal.tsx` is the most complete and reliable implementation.\n- `src/components/epics/EpicDetailHeader.tsx` renders a similar menu, but its Ralph buttons are placeholders that only show \"Ralph launch coming soon\".\n- `src/routes/ticket.$id.tsx` and `src/components/tickets/EditTicketModal.tsx` each implement their own ticket launch handlers separately from the epic modal path.\n- `src/components/tickets/LaunchActions.tsx` defines the ticket launch matrix, but the surrounding route/modal logic is duplicated enough that launch behavior and affordances can drift.\n\n## Investigation Summary\nObserved code paths:\n- Working epic modal launch surface: `src/components/EpicModal.tsx`\n- Epic description page launch surface: `src/components/epics/EpicDetailHeader.tsx` via `src/routes/epic.$id.tsx`\n- Ticket description page launch surface: `src/routes/ticket.$id.tsx` via `src/components/tickets/TicketDetailHeader.tsx`\n- Edit ticket modal launch surface: `src/components/tickets/EditTicketModal.tsx`\n- Workflow bootstrap helpers: `src/api/workflow-server-fns.ts`\n- Ralph working-method resolution: `src/api/ralph.ts`\n\nConcrete gaps found:\n1. Epic detail header duplicates the edit-epic launch menu but does not implement Ralph launch actions.\n2. Ticket detail and edit-ticket modal maintain separate launch logic from the known-good epic modal path.\n3. Launch semantics are spread across multiple surfaces instead of a shared abstraction, which makes parity and regression prevention difficult.\n\n## Goal\nA user should get the same launch choices, same working-method-aware Ralph behavior, and equivalent success/error handling whether they launch from:\n- Edit Epic modal\n- Epic detail page\n- Ticket detail page\n- Edit Ticket modal\n\n## Success Criteria\n- Epic detail page exposes the same real launch options as the Edit Epic modal, including Ralph actions.\n- Ticket detail page and Edit Ticket modal expose a launch matrix that matches the intended parity target, not a drifted local variant.\n- Ralph launch behavior consistently honors project `workingMethod` unless an explicit override is selected.\n- Workflow bootstrap behavior is consistent across these launch entry points.\n- Regression coverage exists for the affected detail/header/modal launch surfaces."
 }

@@ -5,6 +5,7 @@ import { ArrowLeft, AlertCircle } from "lucide-react";
 import { getTicket } from "../api/tickets";
 import { getTicketContext } from "../api/context";
 import { pushBranchServerFn } from "../api/ship-server-fns";
+import { startTicketWorkflowFn } from "../api/workflow-server-fns";
 import { useToast } from "../components/Toast";
 import {
   launchClaudeInTerminal,
@@ -628,7 +629,20 @@ function TicketDetailPage() {
             showToast("error", launchResult.message);
           }
         } else if (type === "ralph-native") {
-          // Launch Ralph in native mode
+          // Initialize workflow first (git branch, status, audit comment)
+          const workflowResult = await startTicketWorkflowFn({
+            data: { ticketId: ticket.id, projectPath: contextResult.projectPath },
+          });
+          if (!workflowResult.success) {
+            showToast(
+              "info",
+              `Branch setup skipped: ${workflowResult.error || "Unknown error"}. Launching on the current branch.`
+            );
+          } else if (workflowResult.warnings?.length) {
+            workflowResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          // Launch Ralph with Claude backend
           const result = await launchRalphMutation.mutateAsync({
             ticketId: ticket.id,
             preferredTerminal: settings?.terminalEmulator ?? null,
@@ -648,6 +662,20 @@ function TicketDetailPage() {
             showToast("error", result.message);
           }
         } else if (type === "ralph-opencode") {
+          // Initialize workflow first (git branch, status, audit comment)
+          const workflowResult = await startTicketWorkflowFn({
+            data: { ticketId: ticket.id, projectPath: contextResult.projectPath },
+          });
+          if (!workflowResult.success) {
+            showToast(
+              "info",
+              `Branch setup skipped: ${workflowResult.error || "Unknown error"}. Launching on the current branch.`
+            );
+          } else if (workflowResult.warnings?.length) {
+            workflowResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          // Launch Ralph with OpenCode backend
           const result = await launchRalphMutation.mutateAsync({
             ticketId: ticket.id,
             preferredTerminal: settings?.terminalEmulator ?? null,
@@ -666,6 +694,20 @@ function TicketDetailPage() {
             showToast("error", result.message);
           }
         } else if (type === "ralph-codex") {
+          // Initialize workflow first (git branch, status, audit comment)
+          const workflowResult = await startTicketWorkflowFn({
+            data: { ticketId: ticket.id, projectPath: contextResult.projectPath },
+          });
+          if (!workflowResult.success) {
+            showToast(
+              "info",
+              `Branch setup skipped: ${workflowResult.error || "Unknown error"}. Launching on the current branch.`
+            );
+          } else if (workflowResult.warnings?.length) {
+            workflowResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          // Launch Ralph with Codex backend
           const result = await launchRalphMutation.mutateAsync({
             ticketId: ticket.id,
             preferredTerminal: settings?.terminalEmulator ?? null,
@@ -684,6 +726,20 @@ function TicketDetailPage() {
             showToast("error", result.message);
           }
         } else if (type === "ralph-cursor-agent") {
+          // Initialize workflow first (git branch, status, audit comment)
+          const workflowResult = await startTicketWorkflowFn({
+            data: { ticketId: ticket.id, projectPath: contextResult.projectPath },
+          });
+          if (!workflowResult.success) {
+            showToast(
+              "info",
+              `Branch setup skipped: ${workflowResult.error || "Unknown error"}. Launching on the current branch.`
+            );
+          } else if (workflowResult.warnings?.length) {
+            workflowResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          // Launch Ralph with Cursor Agent backend
           const result = await launchRalphMutation.mutateAsync({
             ticketId: ticket.id,
             preferredTerminal: settings?.terminalEmulator ?? null,
@@ -702,6 +758,20 @@ function TicketDetailPage() {
             showToast("error", result.message);
           }
         } else if (type === "ralph-copilot") {
+          // Initialize workflow first (git branch, status, audit comment)
+          const workflowResult = await startTicketWorkflowFn({
+            data: { ticketId: ticket.id, projectPath: contextResult.projectPath },
+          });
+          if (!workflowResult.success) {
+            showToast(
+              "info",
+              `Branch setup skipped: ${workflowResult.error || "Unknown error"}. Launching on the current branch.`
+            );
+          } else if (workflowResult.warnings?.length) {
+            workflowResult.warnings.forEach((warning) => showToast("info", warning));
+          }
+
+          // Launch Ralph with Copilot CLI backend
           const result = await launchRalphMutation.mutateAsync({
             ticketId: ticket.id,
             preferredTerminal: settings?.terminalEmulator ?? null,

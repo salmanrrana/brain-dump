@@ -220,6 +220,52 @@ export function EpicDetailHeader({
     setReviewLaunchError(null);
   }, []);
 
+  const handleLaunchRalph = useCallback(
+    async (provider: {
+      aiBackend: "claude" | "opencode" | "codex" | "cursor-agent";
+      workingMethodOverride?: "copilot-cli";
+      label: string;
+    }): Promise<void> => {
+      setShowLaunchMenu(false);
+
+      if (tickets.every((t) => t.status === "done")) {
+        showToast("error", "No launchable tickets in this epic (all tickets are done).");
+        return;
+      }
+
+      try {
+        const result = await launchRalphMutation.mutateAsync({
+          epicId: epic.id,
+          preferredTerminal: settings?.settings?.terminalEmulator ?? null,
+          useSandbox: false,
+          aiBackend: provider.aiBackend,
+          ...(provider.workingMethodOverride !== undefined
+            ? { workingMethodOverride: provider.workingMethodOverride }
+            : {}),
+        });
+
+        if ("warnings" in result && result.warnings) {
+          (result.warnings as string[]).forEach((warning) => showToast("info", warning));
+        }
+
+        if (result.success) {
+          showToast("success", result.message);
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: queryKeys.epicDetail(epic.id) }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.allTickets }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.projectsWithEpics }),
+          ]);
+        } else {
+          showToast("error", result.message);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to launch Ralph";
+        showToast("error", message);
+      }
+    },
+    [epic.id, launchRalphMutation, queryClient, settings, showToast, tickets]
+  );
+
   const handleLaunchFocusedReview = useCallback(
     async (provider: {
       aiBackend: "claude" | "opencode" | "codex" | "cursor-agent";
@@ -543,7 +589,12 @@ export function EpicDetailHeader({
                       <div style={buttonGridStyles}>
                         <button
                           type="button"
-                          onClick={() => showToast("info", "Ralph launch coming soon")}
+                          onClick={() =>
+                            void handleLaunchRalph({
+                              aiBackend: "claude",
+                              label: "Claude",
+                            })
+                          }
                           style={launchOptionButtonStyles}
                         >
                           <Bot size={14} color="var(--accent-ai)" />
@@ -551,7 +602,12 @@ export function EpicDetailHeader({
                         </button>
                         <button
                           type="button"
-                          onClick={() => showToast("info", "Ralph launch coming soon")}
+                          onClick={() =>
+                            void handleLaunchRalph({
+                              aiBackend: "codex",
+                              label: "Codex",
+                            })
+                          }
                           style={launchOptionButtonStyles}
                         >
                           <Terminal size={14} color="var(--success)" />
@@ -559,7 +615,12 @@ export function EpicDetailHeader({
                         </button>
                         <button
                           type="button"
-                          onClick={() => showToast("info", "Ralph launch coming soon")}
+                          onClick={() =>
+                            void handleLaunchRalph({
+                              aiBackend: "cursor-agent",
+                              label: "Cursor Agent",
+                            })
+                          }
                           style={launchOptionButtonStyles}
                         >
                           <Terminal size={14} color="var(--warning)" />
@@ -567,7 +628,13 @@ export function EpicDetailHeader({
                         </button>
                         <button
                           type="button"
-                          onClick={() => showToast("info", "Ralph launch coming soon")}
+                          onClick={() =>
+                            void handleLaunchRalph({
+                              aiBackend: "claude",
+                              workingMethodOverride: "copilot-cli",
+                              label: "Copilot CLI",
+                            })
+                          }
                           style={launchOptionButtonStyles}
                         >
                           <Github size={14} color="var(--text-secondary)" />
@@ -575,7 +642,12 @@ export function EpicDetailHeader({
                         </button>
                         <button
                           type="button"
-                          onClick={() => showToast("info", "Ralph launch coming soon")}
+                          onClick={() =>
+                            void handleLaunchRalph({
+                              aiBackend: "opencode",
+                              label: "OpenCode",
+                            })
+                          }
                           style={launchOptionButtonStyles}
                         >
                           <Code2 size={14} color="var(--accent-ai)" />
