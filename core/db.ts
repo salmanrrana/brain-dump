@@ -12,7 +12,7 @@ import { existsSync, copyFileSync, mkdirSync, readdirSync, writeFileSync, statSy
 import { join } from "path";
 import { homedir } from "os";
 import type { DbHandle, InitDatabaseResult } from "./types.ts";
-import { seedCostModels } from "./cost.ts";
+import { seedCostModels, syncDefaultCostModels } from "./cost.ts";
 
 // ============================================
 // XDG Path Utilities (copied from mcp-server/lib/xdg.ts)
@@ -914,6 +914,14 @@ export function runMigrations(db: DbHandle, logger: Logger = silentLogger): void
   try {
     const seeded = seedCostModels(db);
     if (seeded > 0) logger.info(`Seeded ${seeded} cost models`);
+
+    const synced = syncDefaultCostModels(db);
+    const syncedChanges = synced.inserted + synced.updated + synced.removed;
+    if (syncedChanges > 0) {
+      logger.info(
+        `Synced cost models (inserted: ${synced.inserted}, updated: ${synced.updated}, removed: ${synced.removed})`
+      );
+    }
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
     logger.warn("Failed to seed cost models. Pricing can be configured manually.", error);

@@ -5,8 +5,11 @@ import {
   computeStageCosts,
   getCostExplorerData,
   getTicketCostDetail,
+  listCostModels,
   seedCostModels,
   recordUsage,
+  syncDefaultCostModels,
+  upsertCostModel,
 } from "../cost.ts";
 import type { StateHistoryEntry } from "../types.ts";
 
@@ -64,6 +67,135 @@ beforeEach(() => {
   db = result.db;
   seedProject();
   seedCostModels(db);
+});
+
+describe("cost model defaults", () => {
+  it("seeds the current OpenAI pricing catalog", () => {
+    const openaiModels = listCostModels(db)
+      .filter((model) => model.provider === "openai")
+      .map((model) => model.modelName);
+
+    expect(openaiModels).toEqual([
+      "gpt-5.3-codex",
+      "gpt-5.4",
+      "gpt-5.4-mini",
+      "gpt-5.4-nano",
+      "gpt-5.4-pro",
+    ]);
+
+    const codex = listCostModels(db).find((model) => model.modelName === "gpt-5.3-codex");
+    expect(codex).toMatchObject({
+      inputCostPerMtok: 1.75,
+      outputCostPerMtok: 14,
+      cacheReadCostPerMtok: 0.18,
+    });
+  });
+
+  it("seeds the current open source pricing catalog", () => {
+    const openSourceModels = listCostModels(db)
+      .filter((model) => model.provider === "opensource")
+      .map((model) => model.modelName);
+
+    expect(openSourceModels).toEqual([
+      "Big Pickle",
+      "GLM 5",
+      "GLM 5.1",
+      "Kimi K2.5",
+      "MiniMax M2.5",
+      "MiniMax M2.5 Free",
+      "Nemotron 3 Super Free",
+      "Qwen3 Coder 480B",
+      "Qwen3.6 Plus Free",
+    ]);
+
+    const minimax = listCostModels(db).find((model) => model.modelName === "MiniMax M2.5");
+    expect(minimax).toMatchObject({
+      provider: "opensource",
+      inputCostPerMtok: 0.3,
+      outputCostPerMtok: 1.2,
+      cacheReadCostPerMtok: 0.06,
+      cacheCreateCostPerMtok: 0.375,
+    });
+  });
+
+  it("seeds the current cursor pricing catalog", () => {
+    const cursorModels = listCostModels(db)
+      .filter((model) => model.provider === "cursor")
+      .map((model) => model.modelName);
+
+    expect(cursorModels).toEqual(["Composer 2", "Composer 2 (Fast)"]);
+
+    const composer = listCostModels(db).find((model) => model.modelName === "Composer 2");
+    expect(composer).toMatchObject({
+      provider: "cursor",
+      inputCostPerMtok: 0.5,
+      outputCostPerMtok: 2.5,
+      cacheReadCostPerMtok: 0.2,
+    });
+  });
+
+  it("reconciles legacy OpenAI defaults into the current catalog", () => {
+    db.prepare("DELETE FROM cost_models WHERE provider = 'openai'").run();
+
+    upsertCostModel(db, {
+      provider: "openai",
+      modelName: "gpt-4o",
+      inputCostPerMtok: 2.5,
+      outputCostPerMtok: 10,
+    });
+    upsertCostModel(db, {
+      provider: "openai",
+      modelName: "o3",
+      inputCostPerMtok: 10,
+      outputCostPerMtok: 40,
+    });
+    upsertCostModel(db, {
+      provider: "openai",
+      modelName: "gpt-5.4",
+      inputCostPerMtok: 2.5,
+      outputCostPerMtok: 15,
+      cacheReadCostPerMtok: 0.25,
+    });
+    upsertCostModel(db, {
+      provider: "openai",
+      modelName: "gpt-5.4-pro",
+      inputCostPerMtok: 30,
+      outputCostPerMtok: 180,
+    });
+
+    const result = syncDefaultCostModels(db);
+
+    expect(result).toEqual({ inserted: 3, updated: 0, removed: 2 });
+    expect(
+      listCostModels(db)
+        .filter((model) => model.provider === "openai")
+        .map((model) => model.modelName)
+    ).toEqual(["gpt-5.3-codex", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.4-pro"]);
+  });
+
+  it("keeps custom OpenAI rows that do not match the legacy defaults", () => {
+    db.prepare("DELETE FROM cost_models WHERE provider = 'openai'").run();
+
+    upsertCostModel(db, {
+      provider: "openai",
+      modelName: "gpt-4o",
+      inputCostPerMtok: 3,
+      outputCostPerMtok: 11,
+    });
+
+    const result = syncDefaultCostModels(db);
+
+    expect(result).toEqual({ inserted: 5, updated: 0, removed: 0 });
+    expect(
+      listCostModels(db).some(
+        (model) =>
+          model.provider === "openai" &&
+          model.modelName === "gpt-4o" &&
+          model.inputCostPerMtok === 3 &&
+          model.outputCostPerMtok === 11
+      )
+    ).toBe(true);
+  });
 });
 
 // ============================================

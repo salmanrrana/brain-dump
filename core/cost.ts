@@ -64,6 +64,15 @@ export interface CostTrendParams {
   granularity?: "daily" | "weekly";
 }
 
+interface DefaultCostModelDefinition extends Omit<UpsertCostModelParams, "id"> {
+  legacyRowsToReplace?: Array<{
+    inputCostPerMtok: number;
+    outputCostPerMtok: number;
+    cacheReadCostPerMtok?: number;
+    cacheCreateCostPerMtok?: number;
+  }>;
+}
+
 // ============================================
 // Internal Helpers
 // ============================================
@@ -106,6 +115,227 @@ function parseTokenUsageRow(row: DbTokenUsageRow): TokenUsageRecord {
  */
 function normalizeModelName(model: string): string {
   return model.toLowerCase().replace(/-\d{8}$/, "");
+}
+
+const DEFAULT_COST_MODELS: DefaultCostModelDefinition[] = [
+  // Anthropic
+  {
+    provider: "anthropic",
+    modelName: "claude-opus-4-6",
+    inputCostPerMtok: 5,
+    outputCostPerMtok: 25,
+    cacheReadCostPerMtok: 0.5,
+    cacheCreateCostPerMtok: 6.25,
+    isDefault: true,
+  },
+  {
+    provider: "anthropic",
+    modelName: "claude-sonnet-4-6",
+    inputCostPerMtok: 3,
+    outputCostPerMtok: 15,
+    cacheReadCostPerMtok: 0.3,
+    cacheCreateCostPerMtok: 3.75,
+    isDefault: true,
+  },
+  {
+    provider: "anthropic",
+    modelName: "claude-haiku-4-5",
+    inputCostPerMtok: 1,
+    outputCostPerMtok: 5,
+    cacheReadCostPerMtok: 0.1,
+    cacheCreateCostPerMtok: 1.25,
+    isDefault: true,
+  },
+  // OpenAI
+  {
+    provider: "openai",
+    modelName: "gpt-5.3-codex",
+    inputCostPerMtok: 1.75,
+    outputCostPerMtok: 14,
+    cacheReadCostPerMtok: 0.18,
+    isDefault: true,
+  },
+  {
+    provider: "openai",
+    modelName: "gpt-5.4",
+    inputCostPerMtok: 2.5,
+    outputCostPerMtok: 15,
+    cacheReadCostPerMtok: 0.25,
+    isDefault: true,
+  },
+  {
+    provider: "openai",
+    modelName: "gpt-5.4-mini",
+    inputCostPerMtok: 0.75,
+    outputCostPerMtok: 4.5,
+    cacheReadCostPerMtok: 0.08,
+    isDefault: true,
+  },
+  {
+    provider: "openai",
+    modelName: "gpt-5.4-nano",
+    inputCostPerMtok: 0.2,
+    outputCostPerMtok: 1.25,
+    cacheReadCostPerMtok: 0.02,
+    isDefault: true,
+  },
+  {
+    provider: "openai",
+    modelName: "gpt-5.4-pro",
+    inputCostPerMtok: 30,
+    outputCostPerMtok: 180,
+    isDefault: true,
+  },
+  // Google
+  {
+    provider: "google",
+    modelName: "gemini-2.5-pro",
+    inputCostPerMtok: 1.25,
+    outputCostPerMtok: 10,
+    isDefault: true,
+  },
+  // Open Source
+  {
+    provider: "opensource",
+    modelName: "Big Pickle",
+    inputCostPerMtok: 0,
+    outputCostPerMtok: 0,
+    cacheReadCostPerMtok: 0,
+    isDefault: true,
+  },
+  {
+    provider: "opensource",
+    modelName: "Qwen3.6 Plus Free",
+    inputCostPerMtok: 0,
+    outputCostPerMtok: 0,
+    cacheReadCostPerMtok: 0,
+    isDefault: true,
+  },
+  {
+    provider: "opensource",
+    modelName: "Nemotron 3 Super Free",
+    inputCostPerMtok: 0,
+    outputCostPerMtok: 0,
+    cacheReadCostPerMtok: 0,
+    isDefault: true,
+  },
+  {
+    provider: "opensource",
+    modelName: "MiniMax M2.5 Free",
+    inputCostPerMtok: 0,
+    outputCostPerMtok: 0,
+    cacheReadCostPerMtok: 0,
+    isDefault: true,
+  },
+  {
+    provider: "opensource",
+    modelName: "MiniMax M2.5",
+    inputCostPerMtok: 0.3,
+    outputCostPerMtok: 1.2,
+    cacheReadCostPerMtok: 0.06,
+    cacheCreateCostPerMtok: 0.375,
+    isDefault: true,
+  },
+  {
+    provider: "opensource",
+    modelName: "GLM 5.1",
+    inputCostPerMtok: 1.4,
+    outputCostPerMtok: 4.4,
+    cacheReadCostPerMtok: 0.26,
+    isDefault: true,
+  },
+  {
+    provider: "opensource",
+    modelName: "GLM 5",
+    inputCostPerMtok: 1,
+    outputCostPerMtok: 3.2,
+    cacheReadCostPerMtok: 0.2,
+    isDefault: true,
+  },
+  {
+    provider: "opensource",
+    modelName: "Kimi K2.5",
+    inputCostPerMtok: 0.6,
+    outputCostPerMtok: 3,
+    cacheReadCostPerMtok: 0.1,
+    isDefault: true,
+  },
+  {
+    provider: "opensource",
+    modelName: "Qwen3 Coder 480B",
+    inputCostPerMtok: 0.45,
+    outputCostPerMtok: 1.5,
+    isDefault: true,
+  },
+  // Cursor
+  {
+    provider: "cursor",
+    modelName: "Composer 2",
+    inputCostPerMtok: 0.5,
+    outputCostPerMtok: 2.5,
+    cacheReadCostPerMtok: 0.2,
+    isDefault: true,
+  },
+  {
+    provider: "cursor",
+    modelName: "Composer 2 (Fast)",
+    inputCostPerMtok: 1.5,
+    outputCostPerMtok: 7.5,
+    cacheReadCostPerMtok: 0.35,
+    isDefault: true,
+  },
+];
+
+const LEGACY_OPENAI_MODELS_TO_REMOVE: DefaultCostModelDefinition[] = [
+  {
+    provider: "openai",
+    modelName: "gpt-4o",
+    inputCostPerMtok: 2.5,
+    outputCostPerMtok: 10,
+    isDefault: true,
+  },
+  {
+    provider: "openai",
+    modelName: "o3",
+    inputCostPerMtok: 10,
+    outputCostPerMtok: 40,
+    isDefault: true,
+  },
+];
+
+function costFieldsMatch(
+  row: Pick<
+    DbCostModelRow,
+    | "input_cost_per_mtok"
+    | "output_cost_per_mtok"
+    | "cache_read_cost_per_mtok"
+    | "cache_create_cost_per_mtok"
+  >,
+  model: Pick<
+    UpsertCostModelParams,
+    "inputCostPerMtok" | "outputCostPerMtok" | "cacheReadCostPerMtok" | "cacheCreateCostPerMtok"
+  >
+): boolean {
+  return (
+    row.input_cost_per_mtok === model.inputCostPerMtok &&
+    row.output_cost_per_mtok === model.outputCostPerMtok &&
+    (row.cache_read_cost_per_mtok ?? null) === (model.cacheReadCostPerMtok ?? null) &&
+    (row.cache_create_cost_per_mtok ?? null) === (model.cacheCreateCostPerMtok ?? null)
+  );
+}
+
+function findCostModelRow(
+  db: DbHandle,
+  provider: string,
+  modelName: string
+): DbCostModelRow | undefined {
+  return db
+    .prepare(
+      `SELECT * FROM cost_models
+       WHERE LOWER(provider) = LOWER(?) AND LOWER(model_name) = LOWER(?)
+       LIMIT 1`
+    )
+    .get(provider, modelName) as DbCostModelRow | undefined;
 }
 
 // ============================================
@@ -1134,73 +1364,74 @@ export function seedCostModels(db: DbHandle): number {
   };
   if (existing.count > 0) return 0;
 
-  const models: Array<Omit<UpsertCostModelParams, "id">> = [
-    // Anthropic
-    {
-      provider: "anthropic",
-      modelName: "claude-opus-4-6",
-      inputCostPerMtok: 5,
-      outputCostPerMtok: 25,
-      cacheReadCostPerMtok: 0.5,
-      cacheCreateCostPerMtok: 6.25,
-    },
-    {
-      provider: "anthropic",
-      modelName: "claude-sonnet-4-6",
-      inputCostPerMtok: 3,
-      outputCostPerMtok: 15,
-      cacheReadCostPerMtok: 0.3,
-      cacheCreateCostPerMtok: 3.75,
-    },
-    {
-      provider: "anthropic",
-      modelName: "claude-haiku-4-5",
-      inputCostPerMtok: 1,
-      outputCostPerMtok: 5,
-      cacheReadCostPerMtok: 0.1,
-      cacheCreateCostPerMtok: 1.25,
-    },
-    // OpenAI
-    {
-      provider: "openai",
-      modelName: "gpt-4o",
-      inputCostPerMtok: 2.5,
-      outputCostPerMtok: 10,
-    },
-    {
-      provider: "openai",
-      modelName: "o3",
-      inputCostPerMtok: 10,
-      outputCostPerMtok: 40,
-    },
-    {
-      provider: "openai",
-      modelName: "gpt-5.4",
-      inputCostPerMtok: 2.5,
-      outputCostPerMtok: 15,
-      cacheReadCostPerMtok: 0.25,
-    },
-    {
-      provider: "openai",
-      modelName: "gpt-5.4-pro",
-      inputCostPerMtok: 30,
-      outputCostPerMtok: 180,
-    },
-    // Google
-    {
-      provider: "google",
-      modelName: "gemini-2.5-pro",
-      inputCostPerMtok: 1.25,
-      outputCostPerMtok: 10,
-    },
-  ];
-
   const insertAll = db.transaction(() => {
-    for (const model of models) {
+    for (const model of DEFAULT_COST_MODELS) {
       upsertCostModel(db, model);
     }
   });
 
   insertAll();
-  return models.length;
+  return DEFAULT_COST_MODELS.length;
+}
+
+/**
+ * Update built-in pricing rows in existing databases without clobbering
+ * arbitrary custom models. This only replaces known legacy defaults,
+ * refreshes rows already marked as defaults, and inserts missing defaults.
+ */
+export function syncDefaultCostModels(db: DbHandle): {
+  inserted: number;
+  updated: number;
+  removed: number;
+} {
+  let inserted = 0;
+  let updated = 0;
+  let removed = 0;
+
+  const sync = db.transaction(() => {
+    for (const legacyModel of LEGACY_OPENAI_MODELS_TO_REMOVE) {
+      const existing = findCostModelRow(db, legacyModel.provider, legacyModel.modelName);
+      if (existing && costFieldsMatch(existing, legacyModel)) {
+        db.prepare("DELETE FROM cost_models WHERE id = ?").run(existing.id);
+        removed += 1;
+      }
+    }
+
+    for (const model of DEFAULT_COST_MODELS) {
+      const existing = findCostModelRow(db, model.provider, model.modelName);
+      if (!existing) {
+        upsertCostModel(db, model);
+        inserted += 1;
+        continue;
+      }
+
+      const matchesLegacyRow =
+        model.legacyRowsToReplace?.some((legacyRow) => costFieldsMatch(existing, legacyRow)) ??
+        false;
+      const shouldUpdate =
+        (existing.is_default === 1 && !costFieldsMatch(existing, model)) || matchesLegacyRow;
+      if (!shouldUpdate) continue;
+
+      const updateParams: UpsertCostModelParams = {
+        id: existing.id,
+        provider: model.provider,
+        modelName: model.modelName,
+        inputCostPerMtok: model.inputCostPerMtok,
+        outputCostPerMtok: model.outputCostPerMtok,
+        isDefault: true,
+      };
+      if (model.cacheReadCostPerMtok != null) {
+        updateParams.cacheReadCostPerMtok = model.cacheReadCostPerMtok;
+      }
+      if (model.cacheCreateCostPerMtok != null) {
+        updateParams.cacheCreateCostPerMtok = model.cacheCreateCostPerMtok;
+      }
+
+      upsertCostModel(db, updateParams);
+      updated += 1;
+    }
+  });
+
+  sync();
+  return { inserted, updated, removed };
 }

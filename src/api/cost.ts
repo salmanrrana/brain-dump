@@ -10,6 +10,7 @@ import {
   recalculateCosts as coreRecalculateCosts,
   getCostExplorerData as coreGetCostExplorerData,
   getTicketCostDetail as coreGetTicketCostDetail,
+  syncDefaultCostModels as coreSyncDefaultCostModels,
 } from "../../core/cost.ts";
 import type { CostModel, CostExplorerParams, CostExplorerNode } from "../../core/types.ts";
 import type { RecalculateResult } from "../../core/cost.ts";
@@ -208,6 +209,7 @@ export interface UpdateCostModelInput {
 export const getCostModels = createServerFn({ method: "GET" }).handler(
   async (): Promise<CostModel[]> => {
     try {
+      coreSyncDefaultCostModels(sqlite);
       return coreListCostModels(sqlite);
     } catch (error) {
       if (isMissingCostSchemaError(error)) {

@@ -978,7 +978,19 @@ echo ""
 COPILOT_PROMPT="$(cat "$CONTEXT_FILE")"
 COPILOT_HELP="$(copilot --help 2>/dev/null || true)"
 set +e
-if echo "$COPILOT_HELP" | grep -q -- "--allow-tool"; then
+if echo "$COPILOT_HELP" | grep -q -- "--yolo"; then
+  if echo "$COPILOT_HELP" | grep -qE -- "(^|[[:space:]])-p,|--prompt"; then
+    copilot --yolo -p "$COPILOT_PROMPT"
+  else
+    copilot --yolo "$COPILOT_PROMPT"
+  fi
+elif echo "$COPILOT_HELP" | grep -q -- "--allow-all-tools"; then
+  if echo "$COPILOT_HELP" | grep -qE -- "(^|[[:space:]])-p,|--prompt"; then
+    copilot --allow-all-tools -p "$COPILOT_PROMPT"
+  else
+    copilot --allow-all-tools "$COPILOT_PROMPT"
+  fi
+elif echo "$COPILOT_HELP" | grep -q -- "--allow-tool"; then
   if echo "$COPILOT_HELP" | grep -qE -- "(^|[[:space:]])-p,|--prompt"; then
     copilot --allow-tool 'brain-dump' -p "$COPILOT_PROMPT"
   else
@@ -999,7 +1011,7 @@ if [ $COPILOT_EXIT -ne 0 ]; then
   echo -e "\\033[0;33m⚠ Copilot CLI exited with code $COPILOT_EXIT\\033[0m"
   echo "Common fixes:"
   echo "  - Run: copilot auth login"
-  echo "  - Run: copilot --allow-tool 'brain-dump'"
+  echo "  - Run: copilot --yolo"
   echo "  - Verify MCP setup: brain-dump doctor"
 fi
 

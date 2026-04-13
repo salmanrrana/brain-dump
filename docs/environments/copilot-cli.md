@@ -67,7 +67,13 @@ ls ~/.copilot/hooks/               # Hook scripts
    @ralph    # Autonomous ticket work
    ```
 
-5. **Auto-approve Brain Dump tools** to avoid repeated prompts:
+5. **For Ralph/autonomous sessions, enable full permissions** so Copilot can write files without approval prompts:
+
+   ```bash
+   copilot --yolo
+   ```
+
+6. **Or approve Brain Dump tools only** if you want a more restrictive interactive session:
 
    ```bash
    copilot --allow-tool 'brain-dump'
@@ -313,25 +319,28 @@ This approves all Brain Dump MCP tool invocations while still prompting for othe
 
 ### Approve All Tools
 
-```bash
-copilot --allow-all-tools
-```
-
-Or the shorthand:
+For Ralph/autonomous runs launched from Brain Dump, this is the recommended mode because programmatic Copilot sessions cannot surface interactive write-approval prompts.
 
 ```bash
 copilot --yolo
+```
+
+Equivalent long form:
+
+```bash
+copilot --allow-all-tools
 ```
 
 This approves everything — use with caution, especially for destructive operations.
 
 ### Per-Session vs Persistent
 
-These flags apply to the current session only. To make them persistent, add them to your shell alias:
+These flags apply to the current session only. If you want separate entry points, use explicit aliases instead of changing your default `copilot` command globally:
 
 ```bash
 # In ~/.bashrc or ~/.zshrc
 alias copilot-bd='copilot --allow-tool "brain-dump"'
+alias copilot-ralph='copilot --yolo'
 ```
 
 ## 7. Troubleshooting
