@@ -61,4 +61,22 @@ describe("CopyableTag", () => {
     expect(await screen.findByText("Copied!")).toBeInTheDocument();
     expect(onCopy).toHaveBeenCalledWith("api");
   });
+
+  it("skips copy when onKeyDown calls preventDefault", () => {
+    renderTag(
+      <CopyableTag
+        tag="blocked"
+        onKeyDown={(e) => {
+          e.preventDefault();
+        }}
+      />
+    );
+
+    const pill = screen.getByRole("button", { name: /copy tag blocked/i });
+    pill.focus();
+    fireEvent.keyDown(pill, { key: "Enter", code: "Enter" });
+
+    expect(screen.queryByText("Copied!")).not.toBeInTheDocument();
+    expect(writeTextSpy).not.toHaveBeenCalled();
+  });
 });

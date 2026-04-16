@@ -1,6 +1,5 @@
 import { memo } from "react";
-import type { FC } from "react"; // Used by TagPill
-import { getTagColor } from "../../lib/tag-colors";
+import { CopyableTag } from "./CopyableTag";
 
 export interface TicketTagsProps {
   /** Array of tag strings */
@@ -27,7 +26,17 @@ export const TicketTags = memo(function TicketTags({ tags, maxVisible = 3 }: Tic
   return (
     <div style={containerStyles}>
       {visibleTags.map((tag) => (
-        <TagPill key={tag} tag={tag} />
+        <CopyableTag
+          key={tag}
+          tag={tag}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.stopPropagation();
+            }
+          }}
+        />
       ))}
 
       {hasOverflow && (
@@ -43,45 +52,11 @@ export const TicketTags = memo(function TicketTags({ tags, maxVisible = 3 }: Tic
   );
 });
 
-/**
- * TagPill - Individual tag badge with color.
- */
-interface TagPillProps {
-  tag: string;
-}
-
-const TagPill: FC<TagPillProps> = ({ tag }) => {
-  const color = getTagColor(tag);
-
-  return (
-    <span
-      style={{
-        ...tagPillStyles,
-        backgroundColor: color.bg,
-        color: color.text,
-      }}
-    >
-      {tag}
-    </span>
-  );
-};
-
 const containerStyles: React.CSSProperties = {
   display: "flex",
   flexWrap: "wrap",
   gap: "var(--spacing-1, 4px)",
   alignItems: "center",
-};
-
-const tagPillStyles: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  borderRadius: "9999px", // fully rounded (pill shape)
-  padding: "2px 8px",
-  fontSize: "10px",
-  fontWeight: 500,
-  lineHeight: 1.2,
-  whiteSpace: "nowrap",
 };
 
 const overflowIndicatorStyles: React.CSSProperties = {

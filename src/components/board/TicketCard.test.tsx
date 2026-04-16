@@ -1,7 +1,13 @@
+import type { ReactElement } from "react";
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { ToastProvider } from "../Toast";
 import { TicketCard } from "./TicketCard";
 import type { Ticket } from "../../lib/schema";
+
+function renderCard(ui: ReactElement) {
+  return render(<ToastProvider>{ui}</ToastProvider>);
+}
 
 // Helper to create a minimal ticket with required fields
 function createTicket(overrides: Partial<Ticket> = {}): Ticket {
@@ -34,20 +40,20 @@ function createTicket(overrides: Partial<Ticket> = {}): Ticket {
 describe("TicketCard", () => {
   it("renders ticket title", () => {
     const ticket = createTicket({ title: "Test Ticket Title" });
-    render(<TicketCard ticket={ticket} />);
+    renderCard(<TicketCard ticket={ticket} />);
     expect(screen.getByText("Test Ticket Title")).toBeInTheDocument();
   });
 
   it("renders priority indicator correctly", () => {
     const ticket = createTicket({ priority: "high" });
-    const { container } = render(<TicketCard ticket={ticket} />);
+    const { container } = renderCard(<TicketCard ticket={ticket} />);
     // High priority should have danger accent border (uses CSS variable)
     expect(container.firstChild).toHaveClass("border-l-[var(--accent-danger)]");
   });
 
   it("renders tags correctly", () => {
     const ticket = createTicket({ tags: JSON.stringify(["tag1", "tag2"]) });
-    render(<TicketCard ticket={ticket} />);
+    renderCard(<TicketCard ticket={ticket} />);
     expect(screen.getByText("tag1")).toBeInTheDocument();
     expect(screen.getByText("tag2")).toBeInTheDocument();
   });
@@ -56,7 +62,7 @@ describe("TicketCard", () => {
     const ticket = createTicket({
       tags: JSON.stringify(["tag1", "tag2", "tag3", "tag4", "tag5"]),
     });
-    render(<TicketCard ticket={ticket} />);
+    renderCard(<TicketCard ticket={ticket} />);
     expect(screen.getByText("+2")).toBeInTheDocument();
   });
 
@@ -65,7 +71,7 @@ describe("TicketCard", () => {
       branchName: "feature/test-branch",
       prNumber: 123,
     });
-    render(<TicketCard ticket={ticket} />);
+    renderCard(<TicketCard ticket={ticket} />);
     expect(screen.getByText("test-branch")).toBeInTheDocument();
     expect(screen.getByText("#123")).toBeInTheDocument();
   });

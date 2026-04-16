@@ -6,6 +6,7 @@ import {
   useState,
   type CSSProperties,
   type KeyboardEvent,
+  type KeyboardEventHandler,
   type MouseEvent,
   type MouseEventHandler,
   type PointerEvent,
@@ -59,6 +60,8 @@ export interface CopyableTagProps {
   /** Runs before copy logic (e.g. `stopPropagation` on nested controls) */
   onClick?: MouseEventHandler<HTMLSpanElement>;
   onPointerDown?: PointerEventHandler<HTMLSpanElement>;
+  /** Runs before activate-key copy logic (e.g. `stopPropagation` inside list rows) */
+  onKeyDown?: KeyboardEventHandler<HTMLSpanElement>;
 }
 
 /**
@@ -70,6 +73,7 @@ export const CopyableTag = memo(function CopyableTag({
   className,
   onClick: onClickProp,
   onPointerDown: onPointerDownProp,
+  onKeyDown: onKeyDownProp,
 }: CopyableTagProps) {
   const { showToast } = useToast();
   const [copied, setCopied] = useState(false);
@@ -125,13 +129,17 @@ export const CopyableTag = memo(function CopyableTag({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLSpanElement>) => {
+      onKeyDownProp?.(e);
+      if (e.defaultPrevented) {
+        return;
+      }
       if (e.key !== "Enter" && e.key !== " ") {
         return;
       }
       e.preventDefault();
       void copyTag();
     },
-    [copyTag]
+    [copyTag, onKeyDownProp]
   );
 
   const color = getTagColor(tag);
