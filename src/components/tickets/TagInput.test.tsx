@@ -1,7 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
+import type { ReactElement } from "react";
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TagInput } from "./TagInput";
+import { ToastProvider } from "../Toast";
+
+function renderWithToast(ui: ReactElement) {
+  return render(ui, { wrapper: ({ children }) => <ToastProvider>{children}</ToastProvider> });
+}
 
 /**
  * TagInput Component Tests
@@ -23,7 +29,9 @@ describe("TagInput", () => {
       const user = userEvent.setup();
       const onChange = vi.fn();
 
-      render(<TagInput value={[]} onChange={onChange} availableTags={["api", "backend"]} />);
+      renderWithToast(
+        <TagInput value={[]} onChange={onChange} availableTags={["api", "backend"]} />
+      );
 
       const input = screen.getByRole("textbox", { name: /add tag/i });
       await user.type(input, "frontend{Enter}");
@@ -35,7 +43,7 @@ describe("TagInput", () => {
       const user = userEvent.setup();
       const onChange = vi.fn();
 
-      render(<TagInput value={[]} onChange={onChange} />);
+      renderWithToast(<TagInput value={[]} onChange={onChange} />);
 
       const input = screen.getByRole("textbox", { name: /add tag/i });
       await user.type(input, "api,backend,");
@@ -50,7 +58,7 @@ describe("TagInput", () => {
       const user = userEvent.setup();
       const onChange = vi.fn();
 
-      render(<TagInput value={[]} onChange={onChange} />);
+      renderWithToast(<TagInput value={[]} onChange={onChange} />);
 
       const input = screen.getByRole("textbox", { name: /add tag/i });
       await user.type(input, "  spaced  {Enter}");
@@ -62,7 +70,7 @@ describe("TagInput", () => {
       const user = userEvent.setup();
       const onChange = vi.fn();
 
-      render(<TagInput value={[]} onChange={onChange} />);
+      renderWithToast(<TagInput value={[]} onChange={onChange} />);
 
       const input = screen.getByRole("textbox", { name: /add tag/i });
       await user.type(input, "   {Enter}");
@@ -81,7 +89,7 @@ describe("TagInput", () => {
       const user = userEvent.setup();
       const onChange = vi.fn();
 
-      render(<TagInput value={["API"]} onChange={onChange} />);
+      renderWithToast(<TagInput value={["API"]} onChange={onChange} />);
 
       const input = screen.getByRole("textbox", { name: /add tag/i });
       await user.type(input, "api{Enter}");
@@ -93,7 +101,7 @@ describe("TagInput", () => {
       const user = userEvent.setup();
       const onChange = vi.fn();
 
-      render(<TagInput value={["backend"]} onChange={onChange} />);
+      renderWithToast(<TagInput value={["backend"]} onChange={onChange} />);
 
       const input = screen.getByRole("textbox", { name: /add tag/i });
       await user.type(input, "backend{Enter}");
@@ -112,7 +120,7 @@ describe("TagInput", () => {
       const user = userEvent.setup();
       const onChange = vi.fn();
 
-      render(<TagInput value={["api", "backend", "frontend"]} onChange={onChange} />);
+      renderWithToast(<TagInput value={["api", "backend", "frontend"]} onChange={onChange} />);
 
       // Find and click the remove button for "backend"
       const removeButton = screen.getByRole("button", { name: /remove tag backend/i });
@@ -125,13 +133,64 @@ describe("TagInput", () => {
       const user = userEvent.setup();
       const onChange = vi.fn();
 
-      render(<TagInput value={["api", "backend"]} onChange={onChange} />);
+      renderWithToast(<TagInput value={["api", "backend"]} onChange={onChange} />);
 
       const input = screen.getByRole("textbox", { name: /add tag/i });
       await user.click(input);
       await user.keyboard("{Backspace}");
 
       expect(onChange).toHaveBeenCalledWith(["api"]);
+    });
+  });
+
+  // =========================================================================
+  // COPY TAG LABEL
+  // User behavior: Click tag text to copy; X still removes
+  // =========================================================================
+
+  describe("copying tag label", () => {
+    let writeTextSpy: MockInstance<(text: string) => Promise<void>>;
+
+    beforeEach(() => {
+      if (!navigator.clipboard) {
+        Object.defineProperty(navigator, "clipboard", {
+          configurable: true,
+          writable: true,
+          value: { writeText: vi.fn() },
+        });
+      }
+      writeTextSpy = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+    });
+
+    afterEach(() => {
+      writeTextSpy.mockRestore();
+    });
+
+    it("copies the tag when user clicks the tag label", async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+
+      renderWithToast(<TagInput value={["ship-it"]} onChange={onChange} />);
+
+      await user.click(screen.getByRole("button", { name: /copy tag ship-it/i }));
+
+      expect(writeTextSpy).toHaveBeenCalledWith("ship-it");
+      expect(await screen.findByText("Copied!")).toBeInTheDocument();
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it("copies the tag when user presses Enter on the focused tag label", async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+
+      renderWithToast(<TagInput value={["alpha"]} onChange={onChange} />);
+
+      screen.getByRole("button", { name: /copy tag alpha/i }).focus();
+      await user.keyboard("{Enter}");
+
+      expect(writeTextSpy).toHaveBeenCalledWith("alpha");
+      expect(await screen.findByText("Copied!")).toBeInTheDocument();
+      expect(onChange).not.toHaveBeenCalled();
     });
   });
 
@@ -144,7 +203,7 @@ describe("TagInput", () => {
     it("shows matching suggestions when user types", async () => {
       const user = userEvent.setup();
 
-      render(
+      renderWithToast(
         <TagInput
           value={[]}
           onChange={vi.fn()}
@@ -168,7 +227,7 @@ describe("TagInput", () => {
     it("filters out already selected tags from suggestions", async () => {
       const user = userEvent.setup();
 
-      render(
+      renderWithToast(
         <TagInput
           value={["api"]}
           onChange={vi.fn()}
@@ -189,7 +248,9 @@ describe("TagInput", () => {
       const user = userEvent.setup();
       const onChange = vi.fn();
 
-      render(<TagInput value={[]} onChange={onChange} availableTags={["api", "backend"]} />);
+      renderWithToast(
+        <TagInput value={[]} onChange={onChange} availableTags={["api", "backend"]} />
+      );
 
       const input = screen.getByRole("textbox", { name: /add tag/i });
       await user.type(input, "ba");
@@ -204,7 +265,9 @@ describe("TagInput", () => {
       const user = userEvent.setup();
       const onChange = vi.fn();
 
-      render(<TagInput value={[]} onChange={onChange} availableTags={["api", "api-gateway"]} />);
+      renderWithToast(
+        <TagInput value={[]} onChange={onChange} availableTags={["api", "api-gateway"]} />
+      );
 
       const input = screen.getByRole("textbox", { name: /add tag/i });
       await user.type(input, "api");
@@ -225,7 +288,9 @@ describe("TagInput", () => {
     it("closes dropdown when user presses Escape", async () => {
       const user = userEvent.setup();
 
-      render(<TagInput value={[]} onChange={vi.fn()} availableTags={["api", "backend"]} />);
+      renderWithToast(
+        <TagInput value={[]} onChange={vi.fn()} availableTags={["api", "backend"]} />
+      );
 
       const input = screen.getByRole("textbox", { name: /add tag/i });
       await user.type(input, "api");
@@ -248,7 +313,7 @@ describe("TagInput", () => {
 
   describe("display", () => {
     it("displays existing tags as pills", () => {
-      render(<TagInput value={["api", "backend", "frontend"]} onChange={vi.fn()} />);
+      renderWithToast(<TagInput value={["api", "backend", "frontend"]} onChange={vi.fn()} />);
 
       // Tags should be visible as text
       expect(screen.getByText("api")).toBeInTheDocument();
@@ -262,14 +327,14 @@ describe("TagInput", () => {
     });
 
     it("shows placeholder when no tags are selected", () => {
-      render(<TagInput value={[]} onChange={vi.fn()} placeholder="Add tags..." />);
+      renderWithToast(<TagInput value={[]} onChange={vi.fn()} placeholder="Add tags..." />);
 
       const input = screen.getByRole("textbox", { name: /add tag/i });
       expect(input).toHaveAttribute("placeholder", "Add tags...");
     });
 
     it("hides placeholder when tags exist", () => {
-      render(<TagInput value={["api"]} onChange={vi.fn()} placeholder="Add tags..." />);
+      renderWithToast(<TagInput value={["api"]} onChange={vi.fn()} placeholder="Add tags..." />);
 
       const input = screen.getByRole("textbox", { name: /add tag/i });
       expect(input).toHaveAttribute("placeholder", "");
@@ -283,14 +348,14 @@ describe("TagInput", () => {
 
   describe("disabled state", () => {
     it("prevents adding tags when disabled", () => {
-      render(<TagInput value={[]} onChange={vi.fn()} disabled />);
+      renderWithToast(<TagInput value={[]} onChange={vi.fn()} disabled />);
 
       const input = screen.getByRole("textbox", { name: /add tag/i });
       expect(input).toBeDisabled();
     });
 
     it("prevents removing tags when disabled", () => {
-      render(<TagInput value={["api"]} onChange={vi.fn()} disabled />);
+      renderWithToast(<TagInput value={["api"]} onChange={vi.fn()} disabled />);
 
       const removeButton = screen.getByRole("button", { name: /remove tag api/i });
       expect(removeButton).toBeDisabled();
@@ -304,13 +369,13 @@ describe("TagInput", () => {
 
   describe("max tags limit", () => {
     it("hides input when max tags reached", () => {
-      render(<TagInput value={["api", "backend"]} onChange={vi.fn()} maxTags={2} />);
+      renderWithToast(<TagInput value={["api", "backend"]} onChange={vi.fn()} maxTags={2} />);
 
       expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     });
 
     it("shows input when below max tags", () => {
-      render(<TagInput value={["api"]} onChange={vi.fn()} maxTags={2} />);
+      renderWithToast(<TagInput value={["api"]} onChange={vi.fn()} maxTags={2} />);
 
       expect(screen.getByRole("textbox", { name: /add tag/i })).toBeInTheDocument();
     });
@@ -320,7 +385,9 @@ describe("TagInput", () => {
       const onChange = vi.fn();
 
       // Start with 1 tag, max 2
-      const { rerender } = render(<TagInput value={["api"]} onChange={onChange} maxTags={2} />);
+      const { rerender } = renderWithToast(
+        <TagInput value={["api"]} onChange={onChange} maxTags={2} />
+      );
 
       const input = screen.getByRole("textbox", { name: /add tag/i });
       await user.type(input, "backend{Enter}");

@@ -1,4 +1,5 @@
 import {
+  type CSSProperties,
   type FC,
   useState,
   useRef,
@@ -6,10 +7,18 @@ import {
   useEffect,
   useMemo,
   type KeyboardEvent,
+  type MouseEvent,
 } from "react";
 import { X } from "lucide-react";
 import { useClickOutside } from "../../lib/hooks";
 import { getTagColor } from "../../lib/tag-colors";
+import { createBrowserLogger } from "../../lib/browser-logger";
+import { useToast } from "../Toast";
+
+const tagInputLogger = createBrowserLogger("tickets:TagInput");
+
+/** How long the "Copied!" affordance stays visible on the tag label */
+const COPY_FEEDBACK_MS = 1500;
 
 // =============================================================================
 // Component Types
@@ -33,17 +42,96 @@ export interface TagInputProps {
 }
 
 // =============================================================================
-// TagPill Sub-component
+// RemovableCopyableTagPill — tag label copies; X removes (edit modals + TagInput)
 // =============================================================================
 
-interface TagPillProps {
+export interface RemovableCopyableTagPillProps {
   tag: string;
   onRemove: () => void;
   disabled?: boolean;
 }
 
-const TagPill: FC<TagPillProps> = ({ tag, onRemove, disabled }) => {
+const tagPillCopiedTooltipStyles: CSSProperties = {
+  position: "absolute",
+  bottom: "100%",
+  left: "50%",
+  transform: "translateX(-50%) translateY(-4px)",
+  padding: "2px 6px",
+  borderRadius: "4px",
+  fontSize: "9px",
+  fontWeight: 600,
+  lineHeight: 1.2,
+  whiteSpace: "nowrap",
+  pointerEvents: "none",
+  backgroundColor: "var(--bg-elevated, rgba(30, 30, 30, 0.95))",
+  color: "var(--text-primary, #f9fafb)",
+  boxShadow: "var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.2))",
+};
+
+export const RemovableCopyableTagPill: FC<RemovableCopyableTagPillProps> = ({
+  tag,
+  onRemove,
+  disabled,
+}) => {
   const color = getTagColor(tag);
+  const { showToast } = useToast();
+  const [copied, setCopied] = useState(false);
+  const clearCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (clearCopiedTimerRef.current) {
+        clearTimeout(clearCopiedTimerRef.current);
+      }
+    };
+  }, []);
+
+  const scheduleClearCopied = useCallback(() => {
+    if (clearCopiedTimerRef.current) {
+      clearTimeout(clearCopiedTimerRef.current);
+    }
+    clearCopiedTimerRef.current = setTimeout(() => {
+      setCopied(false);
+      clearCopiedTimerRef.current = null;
+    }, COPY_FEEDBACK_MS);
+  }, []);
+
+  const copyTag = useCallback(async () => {
+    if (disabled) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(tag);
+      setCopied(true);
+      scheduleClearCopied();
+    } catch (err) {
+      tagInputLogger.error(
+        "Failed to copy tag to clipboard",
+        err instanceof Error ? err : undefined
+      );
+      showToast("error", "Could not copy tag. Check clipboard permissions.");
+    }
+  }, [disabled, tag, scheduleClearCopied, showToast]);
+
+  const handleCopyClick = useCallback(
+    async (e: MouseEvent<HTMLSpanElement>) => {
+      e.stopPropagation();
+      await copyTag();
+    },
+    [copyTag]
+  );
+
+  const handleCopyKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLSpanElement>) => {
+      e.stopPropagation();
+      if (e.key !== "Enter" && e.key !== " ") {
+        return;
+      }
+      e.preventDefault();
+      void copyTag();
+    },
+    [copyTag]
+  );
 
   return (
     <span
@@ -52,11 +140,36 @@ const TagPill: FC<TagPillProps> = ({ tag, onRemove, disabled }) => {
         backgroundColor: color.bg,
         color: color.text,
       }}
+      onPointerDown={(e) => e.stopPropagation()}
     >
-      <span style={{ marginRight: "4px" }}>{tag}</span>
+      <span
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+        style={{
+          marginRight: "4px",
+          position: "relative",
+          cursor: disabled ? "default" : "pointer",
+          borderRadius: "4px",
+          outline: "none",
+        }}
+        onClick={(e) => void handleCopyClick(e)}
+        onKeyDown={handleCopyKeyDown}
+        aria-label={`Copy tag ${tag}`}
+        title={disabled ? undefined : "Click to copy tag"}
+      >
+        {tag}
+        {copied ? (
+          <span style={tagPillCopiedTooltipStyles} aria-live="polite">
+            Copied!
+          </span>
+        ) : null}
+      </span>
       <button
         type="button"
-        onClick={onRemove}
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove();
+        }}
         disabled={disabled}
         style={{
           ...removeButtonStyles,
@@ -65,6 +178,7 @@ const TagPill: FC<TagPillProps> = ({ tag, onRemove, disabled }) => {
           opacity: disabled ? 0.5 : 1,
         }}
         aria-label={`Remove tag ${tag}`}
+        title="Remove tag"
       >
         <X size={12} aria-hidden="true" />
       </button>
@@ -277,7 +391,7 @@ export const TagInput: FC<TagInputProps> = ({
       >
         {/* Existing tag pills */}
         {value.map((tag, index) => (
-          <TagPill
+          <RemovableCopyableTagPill
             key={`${tag}-${index}`}
             tag={tag}
             onRemove={() => removeTag(index)}
@@ -351,12 +465,12 @@ export const TagInput: FC<TagInputProps> = ({
 // Styles
 // =============================================================================
 
-const containerStyles: React.CSSProperties = {
+const containerStyles: CSSProperties = {
   position: "relative",
   width: "100%",
 };
 
-const inputContainerStyles: React.CSSProperties = {
+const inputContainerStyles: CSSProperties = {
   display: "flex",
   flexWrap: "wrap",
   alignItems: "center",
@@ -370,7 +484,7 @@ const inputContainerStyles: React.CSSProperties = {
   transition: "border-color var(--transition-fast)",
 };
 
-const tagPillStyles: React.CSSProperties = {
+const tagPillStyles: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   borderRadius: "9999px", // fully rounded (pill shape)
@@ -381,7 +495,7 @@ const tagPillStyles: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const removeButtonStyles: React.CSSProperties = {
+const removeButtonStyles: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -392,7 +506,7 @@ const removeButtonStyles: React.CSSProperties = {
   transition: "opacity var(--transition-fast)",
 };
 
-const textInputStyles: React.CSSProperties = {
+const textInputStyles: CSSProperties = {
   flex: 1,
   minWidth: "60px",
   padding: "2px 4px",
@@ -403,7 +517,7 @@ const textInputStyles: React.CSSProperties = {
   fontSize: "var(--font-size-sm)",
 };
 
-const dropdownStyles: React.CSSProperties = {
+const dropdownStyles: CSSProperties = {
   position: "absolute",
   top: "100%",
   left: 0,
@@ -418,7 +532,7 @@ const dropdownStyles: React.CSSProperties = {
   zIndex: 100,
 };
 
-const suggestionItemStyles: React.CSSProperties = {
+const suggestionItemStyles: CSSProperties = {
   display: "flex",
   alignItems: "center",
   padding: "8px 12px",

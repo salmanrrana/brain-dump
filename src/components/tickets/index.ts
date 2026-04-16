@@ -1,6 +1,11 @@
 export { CreateTicketModal, type CreateTicketModalProps } from "./CreateTicketModal";
 export { EditTicketModal, type EditTicketModalProps } from "./EditTicketModal";
-export { TagInput, type TagInputProps } from "./TagInput";
+export {
+  TagInput,
+  RemovableCopyableTagPill,
+  type TagInputProps,
+  type RemovableCopyableTagPillProps,
+} from "./TagInput";
 export { EpicSelect, type EpicSelectProps } from "./EpicSelect";
 export { SubtaskList, type SubtaskListProps, type Subtask } from "./SubtaskList";
 export {
