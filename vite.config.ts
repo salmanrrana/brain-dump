@@ -10,7 +10,15 @@ import { devtools } from "@tanstack/devtools-vite";
 // This separation is required for React 19 compatibility with TanStack Start
 const config = defineConfig({
   plugins: [
-    devtools(),
+    devtools(
+      process.env.PLAYWRIGHT_E2E === "1"
+        ? {
+            // Playwright starts its own Vite dev server; the devtools event bus
+            // binds a fixed port that conflicts with another local `vite dev`.
+            eventBusConfig: { enabled: false },
+          }
+        : {}
+    ),
     nitro({
       // Externalize native modules - they can't be bundled
       rollupConfig: {

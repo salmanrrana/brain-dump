@@ -36,6 +36,7 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
     env: {
+      PLAYWRIGHT_E2E: "1",
       XDG_DATA_HOME: path.join(playwrightXdgRoot, "data"),
       XDG_STATE_HOME: path.join(playwrightXdgRoot, "state"),
     },
