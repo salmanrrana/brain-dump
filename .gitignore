@@ -60,6 +60,7 @@ coverage/
 .nyc_output/
 playwright-report/
 test-results/
+.playwright-xdg/
 
 Thumbs.db
 ehthumbs.db

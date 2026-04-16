@@ -895,9 +895,8 @@ export default function TicketModal({ ticket, epics, onClose, onUpdate }: Ticket
     if (values.priority) {
       updates.priority = values.priority;
     }
-    if (values.tags.length > 0) {
-      updates.tags = values.tags;
-    }
+    // Always send tags (including []) so clearing the last tag persists.
+    updates.tags = values.tags;
     if (values.acceptanceCriteria.length > 0) {
       updates.acceptanceCriteria = values.acceptanceCriteria;
     }
