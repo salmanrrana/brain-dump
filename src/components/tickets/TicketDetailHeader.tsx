@@ -21,6 +21,7 @@ import {
   getPrStatusBadgeStyle,
 } from "../../lib/constants";
 import { LaunchActions, type LaunchType } from "./LaunchActions";
+import { CopyableTag } from "../board/CopyableTag";
 import type { TicketStatus } from "../../api/tickets";
 
 // =============================================================================
@@ -291,9 +292,7 @@ export const TicketDetailHeader: FC<TicketDetailHeaderProps> = ({
 
         {/* Tags */}
         {tags.map((tag) => (
-          <span key={tag} style={tagBadgeStyles}>
-            {tag}
-          </span>
+          <CopyableTag key={tag} tag={tag} />
         ))}
       </div>
 
@@ -486,18 +485,6 @@ const epicBadgeButtonStyles: React.CSSProperties = {
   borderStyle: "solid",
   cursor: "pointer",
   transition: "all var(--transition-fast)",
-};
-
-const tagBadgeStyles: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  padding: "3px var(--spacing-2)",
-  borderRadius: "var(--radius-lg)",
-  border: "1px solid var(--border-primary)",
-  fontSize: "var(--font-size-xs)",
-  fontFamily: "var(--font-mono)",
-  background: "var(--bg-card)",
-  color: "var(--text-secondary)",
 };
 
 const gitRowStyles: React.CSSProperties = {
